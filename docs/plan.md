@@ -102,18 +102,21 @@ the order they are built; the report's sections change as each build starts.
   literal reads in 38 ns against 9; a bare launch takes 3.3 ms, 2.1 of it the library's
   initializers, not the 7.25 ms before them that the launch's item below rests on; and each run
   names the rows that moved by more than a fifth since the last, the library's table aside.
-- **The bookkeeping built on the rule**, §8.6 first. The look reads each waiting process's stack
-  and takes a frame of a module that is no unit's, `ern@` and `ern$`, and none of the runtime's
-  own, `ern_`, or of a runtime function its module lists as waiting, as foreign code in progress;
-  verified before the build by a scratch program on three facts, that an Ernest receive, a
-  foreign block and a callback's receive read apart, that the host's stack depth reaches the
-  foreign frame under a callback or is raised without lengthening a fault's trace, and that no
-  runtime function blocks in a host receive unlisted. The timed receive marks the process's
-  dictionary in and out, and a call marks its callee there for the look's request in flight. With
-  that the row's two count columns, `in_foreign`, the emitter's fun around a foreign call and its
-  decision by the waiting lists, the error handler's count of a code load, and the calls table go.
-  Fallback where a fact fails: the foreign call marks the dictionary as the timed receive does, 24
-  ns, one mechanism for both. About two days with the tests.
+- **The bookkeeping built on the rule**, §8.6 first, its shape decided with the user on
+  2026-10-22 after the verification (the log's *The Sitting on §8.6's Bookkeeping*, its
+  *Verified* paragraph): the stack read as the sitting argued it failed, a callback called in tail
+  position leaving no foreign frame and a library shim's callback showing the host's frames, so
+  the look reads one `process_info` of each waiting process, its top frame and three marks in its
+  dictionary. A host module on top, one that is neither a unit the code table holds nor a module
+  of the runtime application's own, is a host receive inside foreign code; the callback mark,
+  which the boundary's wrapper of a function given to foreign code puts while the callback runs,
+  is a callback inside foreign code; the timed mark and the call's mark are the timed receive and
+  the request in flight; anything else is Ernest's wait. The foreign call writes nothing. The
+  runtime's lists of waiting functions go, and each slow wait of the runtime's own, a peer's find,
+  a compute, a restart's fresh run, the code table's making, marks itself with the callback's key.
+  With that the row's two count columns, `in_foreign`, the emitter's fun around a foreign call and
+  its decision by the lists, the error handler's count of a code load, and the calls table go.
+  About two days with the tests.
 - **The restart's callees row**, decided on the bench's numbers of 2026-10-22 (the log's *`make
   bench` Read Against the Cost Rules*): a call writes it so that a restart of the callee ends the
   call (§6.9), the one shared write a call keeps once the caller's row and the count are marks.
