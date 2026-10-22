@@ -119,13 +119,23 @@ items becomes a milestone of its own, since the tour and 0.5.0 wait behind this 
   since two processes suspending each other hang; a kill of a process of another node is §8.7's
   fifteenth frame, read against §8.7 whole and found to keep it; and the callee's row took the
   host's write concurrency. `Address.call` went from 2,332 to 2,258 ns against the host's 1,503
-  and 1,540, and eight pairs from 2,201 to 1,676 against 866 and 871. It closes on two decisions
-  for the user: a kill costs its killer 0.7 to 1.0 µs against the host's `exit/2` at 0.25, a
-  multiple §10's fraction does not allow, for which a sentence in §10 stating a kill's cost as a
-  spawn's is stated is recommended; and the single pair's 718 ns, 0.47 of the host's call and not
-  the third the sitting expected, the callee's row its larger part, which is recommended not to
-  reopen the §6.9 question. The eight pairs' callee's row, about 600 ns over all under eight
-  writers, is a measurement of its own, planned with the decision it would change.
+  and 1,540, and eight pairs from 2,201 to 1,676 against 866 and 871. Two decisions closed it,
+  2026-10-22: a kill costs its killer 0.7 to 1.0 µs against the host's `exit/2` at 0.25, since a
+  process of the runtime's own carries it out, the killer suspending the victim itself having hung
+  one pair in two thousand that suspended each other; §10 states the cost as it states a spawn's
+  (the log's *Built* paragraphs). And the single pair's 718 ns, 0.47 of the host's call and not
+  the third the sitting expected, is a fraction by the plan's gate, so the §6.9 question stays
+  closed; the callee's row is the larger part, and its table's kind is the item below.
+- **The callee's table under eight writers** (found 2026-10-22 building the item above): with the
+  host's write concurrency the callee's row adds about 600 ns a call over all under eight pairs,
+  1.9 times the host's call where one pair is 1.5, and 395 ns to a single call where the plain
+  table cost 245. A measurement of its own, planned with the decision it would change, the
+  table's kind: an ordered set, which the restart's prefix read needs; a bag keyed by the callee,
+  which a restart reads by one lookup and a call's end leaves by `delete_object`, whose cost grows
+  with the callee's own pending callers; a plain set, which scales (204 ns against 845 under
+  eight, measured) and which the restart could read only by a scan over every call, refused by
+  the rule against a scan that grows with other processes' work. Measured in `call.txt` with one
+  pair and eight for each kind that the rule allows; about half a day.
 - **The comparison's two references, by ratio** (found 2026-10-22 building the comparison, and
   decided with the user the same day): a comparison with the last run alone catches a step and
   not a drift, ten moves of a tenth each over a year, none named. The comparison takes a second
