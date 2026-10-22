@@ -9,8 +9,9 @@
 -module(ern_namespace).
 
 -export([is_component/1, segment/1, component/1, namespace/1, module_path/1, path/1,
-         erlang_module/1, erlang_module_text/1, host_name_limit/0, host_name_text/2, text/1,
-         segment_text/1, site_text/2, text_segments/1, text_segment/1]).
+         erlang_module/1, erlang_module_text/1, host_name_limit/0, host_name_text/2,
+         host_function_text/3, text/1, segment_text/1, site_text/2, text_segments/1,
+         text_segment/1]).
 
 %% Whether a path component has the shape §11.1 asks of a module's file.
 -spec is_component(string()) -> boolean().
@@ -112,6 +113,13 @@ host_name_limit() -> 255.
 host_name_text(What, Name) ->
     lists:flatten(io_lib:format("~s is ~B characters long, and the host's names are at most ~B",
                                 [What, length(Name), host_name_limit()])).
+
+%% Report §4.7, §7.4: a function of the host's as a foreign declaration's
+%% implementation writes it, `erlang:abs/1`, by which a cause of §7.4 names
+%% a foreign function, a declared one or a function value foreign code gave.
+-spec host_function_text(atom(), atom(), arity()) -> string().
+host_function_text(Module, Function, Arity) ->
+    lists:flatten(io_lib:format("~ts:~ts/~B", [Module, Function, Arity])).
 
 component_or_lowered(Segment) ->
     case component(Segment) of

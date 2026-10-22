@@ -168,7 +168,8 @@ tried(N) ->
 checked(N) ->
     case tried(N) of
         Checked when is_integer(Checked) -> Checked;
-        _ -> ern_rt:fault(<<"foreign return does not match Int">>)
+        _ -> ern_rt:fault(<<"the return of foreign function ern_foreign_costs:word/1 does not"
+                            " match Int">>)
     end.
 
 %%

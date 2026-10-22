@@ -7,7 +7,7 @@
 
 -export([describe/3, describe/4, cause/3]).
 
--export_type([descriptor/0]).
+-export_type([descriptor/0, named_cause/0]).
 
 -include_lib("checker/include/ern_types.hrl").
 
@@ -26,10 +26,15 @@
                     | {tuple, [descriptor()]} | {list, descriptor()} | {set, descriptor()}
                     | {map, descriptor(), descriptor()}
                     | {address, descriptor(), binary()} | {reply, descriptor(), binary()}
-                    | {function, non_neg_integer(), descriptor(), binary(), [descriptor()],
-                       [binary()]}
+                    | {function, non_neg_integer(), descriptor(), named_cause(), [descriptor()],
+                       [named_cause()]}
                     | {con, [{atom(), [descriptor()]} | {atom(), [descriptor()], [atom()]}]}
                     | {mu, pos_integer(), descriptor()} | {abstract, descriptor()}.
+
+%% Report §7.4, §8.4: the cause a function value's check faults with, the
+%% text before the function's name and the text after it, which the
+%% boundary writes the name between.
+-type named_cause() :: {binary(), binary()}.
 
 %% The type's names, the module it is seen from, and the type variables
 %% whose descriptors a requirement passes in, each a hole.
@@ -69,10 +74,13 @@ descriptor({tfn, Params, _, Result}, Seen, Scope) ->
     %% report §7.4: a function value from foreign code has its result
     %% checked at each call, against the result's descriptor; report §8.4:
     %% one that crosses into foreign code has each argument checked, against
-    %% its parameter's
+    %% its parameter's; each cause names the function, as the emitter's
+    %% describer has it
     {function, length(Params), descriptor(Result, Seen, Scope),
-     text_binary("foreign return does not match ", Result, Scope), descriptors(Params, Seen, Scope),
-     [text_binary("foreign argument does not match ", Param, Scope) || Param <- Params]};
+     {<<"the return of foreign function ">>, text_binary(" does not match ", Result, Scope)},
+     descriptors(Params, Seen, Scope),
+     [{<<"an argument of ">>, text_binary(" from foreign code does not match ", Param, Scope)}
+      || Param <- Params]};
 descriptor({tcon, ['Int'], []}, _, _) -> int;
 descriptor({tcon, ['Float'], []}, _, _) -> float;
 descriptor({tcon, ['Bool'], []}, _, _) -> bool;

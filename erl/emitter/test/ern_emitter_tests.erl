@@ -83,6 +83,14 @@ outcome(Text) ->
     {Result, _} = run(Text),
     Result.
 
+%% The cause of a run that faulted.
+cause_of({fault, Cause, _}) -> Cause.
+
+%% Report §7.4: the cause of a return of the foreign function Named that
+%% does not match Type.
+return_cause(Named, Type) ->
+    iolist_to_binary(["the return of foreign function ", Named, " does not match ", Type]).
+
 collect(Acc) ->
     receive
         {out, Text} -> collect([Text | Acc])
@@ -534,11 +542,13 @@ raise_has_line_test() ->
              "    let _ = wrong(1);\n"
              "    Io.println(\"after\")\n"
              "}\n",
-    {{fault, <<"foreign return does not match Unit">>, UnitTrace}, _} =
+    {{fault, UnitCause, UnitTrace}, _} =
         run(['Units'], "foreign fn wrong(key : Int) : Unit = \"erlang:get/1\"\n" ++ Called, #{}),
+    ?assertEqual(return_cause("erlang:get/1", "Unit"), UnitCause),
     ?assertEqual([<<"Units.wrong:1">>, <<"Units.main:3">>], Frames(UnitTrace)),
-    {{fault, <<"foreign return does not match Int">>, WordTrace}, _} =
+    {{fault, WordCause, WordTrace}, _} =
         run(['Words'], "foreign fn wrong(key : Int) : Int = \"erlang:get/1\"\n" ++ Called, #{}),
+    ?assertEqual(return_cause("erlang:get/1", "Int"), WordCause),
     ?assertEqual([<<"Words.wrong:1">>, <<"Words.main:3">>], Frames(WordTrace)).
 
 %% report §11.1, §8.7, §11.5: the `.erc` records beside each definition's
@@ -1793,14 +1803,14 @@ foreign_faults_test() ->
     Main = "export fn main() : Unit = ",
     {Result1, _} = run("foreign fn bad() : Int = \"erlang:node/0\"\n"
                        ++ Main ++ "Io.println(Int.toString(bad()))\n"),
-    ?assertMatch({fault, <<"foreign return does not match Int">>, _}, Result1),
+    ?assertEqual(return_cause("erlang:node/0", "Int"), cause_of(Result1)),
     {Result2, _} = run("foreign fn pair() : #(Int, String) = \"ern_emitter_tests:pair/0\"\n"
                        ++ Main ++ "{ let #(_, s) = pair(); Io.println(s) }\n"),
-    ?assertMatch({fault, <<"foreign return does not match #(Int, String)">>, _}, Result2),
+    ?assertEqual(return_cause("ern_emitter_tests:pair/0", "#(Int, String)"), cause_of(Result2)),
     {Result3, _} = run("foreign fn opt(k : Int) : Optional(Int) = \"ern_emitter_tests:opt/1\"\n"
                        ++ Main ++ "match opt(1) { Some(n) -> Io.println(Int.toString(n))"
                        " | None -> Io.println(\"none\") }\n"),
-    ?assertMatch({fault, <<"foreign return does not match Optional(Int)">>, _}, Result3),
+    ?assertEqual(return_cause("ern_emitter_tests:opt/1", "Optional(Int)"), cause_of(Result3)),
     {ok, Output} = run("foreign fn opt(k : Int) : Optional(Int) = \"ern_emitter_tests:opt/1\"\n"
                        ++ Main ++ "match opt(0) { Some(n) -> Io.println(Int.toString(n))"
                        " | None -> Io.println(\"none\") }\n"),
@@ -1926,10 +1936,10 @@ foreign_improper_list_test() ->
     {Result1, _} = run("foreign fn improper(x : Int) : List(Int) ="
                        " \"ern_emitter_tests:improper/1\"\n"
                        ++ Main ++ "Io.println(Int.toString(List.size(improper(1))))\n"),
-    ?assertMatch({fault, <<"foreign return does not match List(Int)">>, _}, Result1),
+    ?assertEqual(return_cause("ern_emitter_tests:improper/1", "List(Int)"), cause_of(Result1)),
     {Result2, _} = run("foreign fn improper(x : a) : List(a) = \"ern_emitter_tests:improper/1\"\n"
                        ++ Main ++ "Io.println(Int.toString(List.size(improper(1))))\n"),
-    ?assertMatch({fault, <<"foreign return does not match List(a)">>, _}, Result2).
+    ?assertEqual(return_cause("ern_emitter_tests:improper/1", "List(a)"), cause_of(Result2)).
 
 %% report §7.4: a function value foreign code returns is checked when it is
 %% called, its result against its declared result type, in the caller, and
@@ -1944,7 +1954,13 @@ foreign_function_value_test() ->
              "    }\n"
              "  | _ -> Unit\n"
              "}\n",
-    ?assertMatch({{fault, <<"foreign return does not match Int">>, _}, <<"2\n">>}, run(Source)).
+    {{fault, Cause, _}, Output} = run(Source),
+    ?assertEqual(<<"2\n">>, Output),
+    %% the bad function is a fun of funs/0, which the host names by its
+    %% compiler's count of the module's funs
+    ?assertMatch({match, _}, re:run(Cause, "^the return of foreign function"
+                                           " ern_emitter_tests:-funs/0-fun-[0-9]+-/1"
+                                           " does not match Int$")).
 
 %% report §7.4, §8.4: a foreign function's return declared `Unit` that is
 %% the host's `ok`, as `lists:foreach/2` answers, is `Unit`, the type's one
@@ -1989,16 +2005,16 @@ foreign_ok_elsewhere_faults_test() ->
     Main = "export fn main() : Unit = ",
     {Result1, _} = run("foreign fn collect() : Unit = \"erlang:garbage_collect/0\"\n"
                        ++ Main ++ "collect()\n"),
-    ?assertMatch({fault, <<"foreign return does not match Unit">>, _}, Result1),
+    ?assertEqual(return_cause("erlang:garbage_collect/0", "Unit"), cause_of(Result1)),
     {Result2, _} = run("foreign fn copies(count : Int, word : Foreign.Term) : List(Unit) ="
                        " \"lists:duplicate/2\"\n"
                        ++ Main ++ "Io.println(Io.show(copies(1, Foreign.atom(\"ok\"))))\n"),
-    ?assertMatch({fault, <<"foreign return does not match List(Unit)">>, _}, Result2),
+    ?assertEqual(return_cause("lists:duplicate/2", "List(Unit)"), cause_of(Result2)),
     {Result3, _} = run("foreign fn tuple(parts : List(Foreign.Term)) : #(Unit, Int) ="
                        " \"erlang:list_to_tuple/1\"\n"
                        ++ Main ++ "Io.println(Io.show(tuple([Foreign.atom(\"ok\"),"
                        " Foreign.term(1)])))\n"),
-    ?assertMatch({fault, <<"foreign return does not match #(Unit, Int)">>, _}, Result3),
+    ?assertEqual(return_cause("erlang:list_to_tuple/1", "#(Unit, Int)"), cause_of(Result3)),
     {Result4, _} =
         run("foreign fn made(module : Foreign.Term, function : Foreign.Term, arity : Int)\n"
             "    : (Int, Foreign.Term) -> List(Unit) = \"erlang:make_fun/3\"\n"
@@ -2006,17 +2022,17 @@ foreign_ok_elsewhere_faults_test() ->
             "    let copies = made(Foreign.atom(\"lists\"), Foreign.atom(\"duplicate\"), 2);\n"
             "    Io.println(Io.show(copies(1, Foreign.atom(\"ok\"))))\n"
             "}\n"),
-    ?assertMatch({fault, <<"foreign return does not match List(Unit)">>, _}, Result4),
+    ?assertEqual(return_cause("lists:duplicate/2", "List(Unit)"), cause_of(Result4)),
     Own = "type Unit = Unit\n"
           "foreign fn pause(ms : Int) : Unit = \"timer:sleep/1\"\n"
           "foreign fn made(module : Foreign.Term, function : Foreign.Term, arity : Int)\n"
           "    : (Int) -> Unit = \"erlang:make_fun/3\"\n"
           "export fn main() : Prelude.Unit = ",
     {Result5, _} = run(Own ++ "Io.println(Io.show(pause(0)))\n"),
-    ?assertMatch({fault, <<"foreign return does not match M.Unit">>, _}, Result5),
+    ?assertEqual(return_cause("timer:sleep/1", "M.Unit"), cause_of(Result5)),
     {Result6, _} = run(Own ++ "Io.println(Io.show(made(Foreign.atom(\"timer\"),"
                        " Foreign.atom(\"sleep\"), 1)(0)))\n"),
-    ?assertMatch({fault, <<"foreign return does not match M.Unit">>, _}, Result6).
+    ?assertEqual(return_cause("timer:sleep/1", "M.Unit"), cause_of(Result6)).
 
 %% report §8.4: the proxy in front of an exposed address is one per address
 %% and mailbox type, so exposing the same address twice gives the same one
@@ -2135,7 +2151,7 @@ nested_function_checked_test() ->
                  "export fn main() : Unit =\n"
                  "    Io.println(Int.toString(call(#(4, fn(n) = n * 2))))\n"
              end,
-    ?assertMatch({fault, <<"foreign argument does not match Int">>, _},
+    ?assertMatch({fault, <<"an argument of M.main from foreign code does not match Int">>, _},
                  outcome(Source("call_nested_bad"))),
     ?assertEqual({ok, <<"8\n">>}, run(Source("call_nested_good"))).
 
@@ -2227,7 +2243,7 @@ standard_library_unchecked_test() ->
            "    Io.println(\"unchecked\")\n"
            "}\n",
     ?assertEqual({ok, <<"unchecked\n">>}, run(['M'], Text, #{standard => true})),
-    ?assertMatch({fault, <<"foreign return does not match Int">>, _}, outcome(Text)).
+    ?assertEqual(return_cause("erlang:node/0", "Int"), cause_of(outcome(Text))).
 
 %% report §6.6, §6.5: a request that makes a call of its own, as printing
 %% does, and an adapted address's function that prints, each applied in
@@ -3014,16 +3030,68 @@ foreign_casts_and_callbacks_test() ->
                                      "    let _ = " ++ Body ++ ";\n    Unit\n}\n"),
                    Result
                end,
-    ?assertMatch({fault, <<"foreign return does not match a">>, _},
-                 ResultOf("foreign fn cast(n : Int) : a =\n    \"erlang:abs/1\"\n", "cast(1) + 1")),
+    ?assertEqual(return_cause("erlang:abs/1", "a"),
+                 cause_of(ResultOf("foreign fn cast(n : Int) : a =\n    \"erlang:abs/1\"\n",
+                                   "cast(1) + 1"))),
     ?assertEqual(ok, ResultOf("foreign fn none(xs : List(Int)) : List(a) =\n    \"erlang:tl/1\"\n",
                               "List.size(none([1]))")),
     ?assertEqual(ok, ResultOf("foreign type Handle(a)\n"
                               "foreign fn handle() : Handle(a) =\n    \"erlang:make_ref/0\"\n",
                               "handle()")),
-    ?assertMatch({fault, <<"foreign argument does not match Int">>, _},
+    ?assertMatch({fault, <<"an argument of M.main from foreign code does not match Int">>, _},
                  ResultOf("foreign fn each(f : (Int) -> Int, xs : List(String)) : List(Int) =\n"
                           "    \"lists:map/2\"\n", "each(fn(n) = n + 1, [\"x\"])")).
+
+%% report §7.4, §8.4: a cause names the function. An argument foreign code
+%% calls a function of the program's with that does not match names the
+%% function as a caller writes it, `Main.handler`, another module's,
+%% `Int.toString`, and a top-level `let` bound to a lambda, `Main.bound`;
+%% a lambda or a local fn by the top-level declaration it is written in,
+%% `Main.main`, as a trace names its frame (Appendix E.21). A function value
+%% foreign code gave names itself as the host does, its return that does
+%% not match and an exception it raises alike, as a foreign function's.
+%% A regression test, written after the code; it does not cover a lambda
+%% inside a top-level binding's value, a tuple's or a list's, which keeps
+%% the host's name for the fun '$init'/0 made, since no line tells the
+%% binding, nor a function foreign code gave and was given back, which is
+%% named by the wrapper the boundary made
+function_named_in_cause_test() ->
+    Each = "foreign fn each(f : (Int) -> Int, xs : List(String)) : List(Int) = \"lists:map/2\"\n"
+           "foreign fn strings(f : (Int) -> String, xs : List(String)) : List(String) =\n"
+           "    \"lists:map/2\"\n"
+           "fn handler(n : Int) : Int = n + 1\n"
+           "let bound = fn(n : Int) = n + 2\n",
+    Cause = fun(Body) ->
+                {{fault, Faulted, _}, _} =
+                    run(['Main'], Each ++ "export fn main() : Unit = {\n" ++ Body
+                                  ++ "    Unit\n}\n", #{}),
+                Faulted
+            end,
+    Argument = fun(Name) ->
+                   iolist_to_binary(["an argument of ", Name,
+                                     " from foreign code does not match Int"])
+               end,
+    ?assertEqual(Argument("Main.handler"), Cause("    let _ = each(handler, [\"x\"]);\n")),
+    ?assertEqual(Argument("Int.toString"), Cause("    let _ = strings(Int.toString, [\"x\"]);\n")),
+    ?assertEqual(Argument("Main.bound"), Cause("    let _ = each(bound, [\"x\"]);\n")),
+    ?assertEqual(Argument("Main.main"), Cause("    let _ = each(fn(n) = n * 2, [\"x\"]);\n")),
+    ?assertEqual(Argument("Main.main"), Cause("    fn local(n : Int) : Int = n * 3;\n"
+                                              "    let _ = each(local, [\"x\"]);\n")),
+    Made = fun(Type, Function, Call) ->
+               {{fault, Faulted, _}, _} =
+                   run(['Main'], "foreign fn made(module : Foreign.Term, function : Foreign.Term,"
+                                 " arity : Int)\n"
+                                 "    : " ++ Type ++ " = \"erlang:make_fun/3\"\n"
+                                 "export fn main() : Unit = {\n"
+                                 "    let f = made(Foreign.atom(\"erlang\"), Foreign.atom(\""
+                                 ++ Function ++ "\"), 1);\n"
+                                 "    Io.println(Io.show(" ++ Call ++ "))\n"
+                                 "}\n", #{}),
+               Faulted
+           end,
+    ?assertEqual(return_cause("erlang:abs/1", "String"), Made("(Int) -> String", "abs", "f(-3)")),
+    ?assertEqual(<<"foreign function erlang:binary_to_integer/1 raised error:badarg">>,
+                 Made("(String) -> Int", "binary_to_integer", "f(\"x\")")).
 
 %% report §8.4: a type variable a parameter's type names matches any value at
 %% the boundary, in a foreign function's result and in an argument foreign
@@ -3099,12 +3167,13 @@ never_given_address_test() ->
                   "    send(" ++ Forged ++ ", \"x\")\n"
                   "}\n"
               end,
-    Refused = fun(Call) ->
-                  ?assertMatch({{fault, <<"foreign return does not match Address(String)">>, _},
-                                <<"5\n">>}, run(Program(Call)))
+    Refused = fun(Call, Named) ->
+                  {Result, Output} = run(Program(Call)),
+                  ?assertEqual(<<"5\n">>, Output),
+                  ?assertEqual(return_cause(Named, "Address(String)"), cause_of(Result))
               end,
-    Refused("me()"),
-    Refused("retyped([Process.fromAddress(self())])"),
+    Refused("me()", "erlang:self/0"),
+    Refused("retyped([Process.fromAddress(self())])", "erlang:hd/1"),
     ?assertEqual({ok, <<"true\n">>},
                  run("foreign fn handle() : Address(Never) =\n"
                      "    \"erlang:self/0\"\n"
@@ -3181,7 +3250,7 @@ foreign_from_crosses_as_an_argument_test() ->
                  Fault(Program(Typed, "rawSend(self(), \"x\")"))),
     ?assertEqual(<<"message does not match Int">>,
                  Fault(Program(Untyped, "rawSend(Foreign.term(self()), \"x\")"))),
-    ?assertEqual(<<"foreign argument does not match Int">>,
+    ?assertEqual(<<"an argument of M.main from foreign code does not match Int">>,
                  Fault(Program(Applied, "applied(Foreign.term(fn(n : Int) = n + 1), [\"x\"])"))),
     ?assertEqual({ok, <<"Some(42)\n">>},
                  run("export fn main() : Unit =\n"

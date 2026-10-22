@@ -555,9 +555,10 @@ foreign_body(Source, {HostModule, HostFunction}, {ParamTypes, ResultType}, Args,
     {Exposed, Context1} = lists:mapfoldl(fun exposed/2, Context, lists:zip(ParamTypes, Args)),
     Call = erl_syntax:application(erl_syntax:atom(HostModule), erl_syntax:atom(HostFunction),
                                   Exposed ++ Members),
-    {Try, Context2} = foreign_call(Source, Call, HostModule, HostFunction,
-                                   length(Exposed ++ Members), Context1),
-    foreign_return(Source, Try, ParamTypes, ResultType, Context2).
+    Arity = length(Exposed ++ Members),
+    {Try, Context2} = foreign_call(Source, Call, HostModule, HostFunction, Arity, Context1),
+    Named = ern_namespace:host_function_text(HostModule, HostFunction, Arity),
+    foreign_return(Source, Try, ParamTypes, ResultType, Named, Context2).
 
 %% Report §4.7, §7.4: the foreign call, an exception it raises turned into
 %% a fault. Report §8.6: the call writes nothing for the deadlock look,
@@ -576,20 +577,20 @@ foreign_call(Source, Call, HostModule, HostFunction, Arity, Context) ->
                                 none, [Raised]),
     {erl_syntax:try_expr([at(Source, Call)], [Handler]), Context1}.
 
-%% Report §8.4: the foreign call's return checked. The standard library's
-%% is the runtime's own, and not checked; a type variable of the result
-%% that no parameter names stands for no value the function could have
-%% been given, so it matches none, and the return faults where it holds
-%% one.
-foreign_return(_, Try, _ParamTypes, _ResultType,
+%% Report §8.4: the foreign call's return checked, its cause naming the
+%% host's function as Named writes it (§7.4). The standard library's is the
+%% runtime's own, and not checked; a type variable of the result that no
+%% parameter names stands for no value the function could have been given,
+%% so it matches none, and the return faults where it holds one.
+foreign_return(_, Try, _ParamTypes, _ResultType, _Named,
                #emit_context{unit = #unit{standard = true}} = Context) ->
     {Try, Context};
-foreign_return(Source, Try, ParamTypes, ResultType, Context) ->
+foreign_return(Source, Try, ParamTypes, ResultType, Named, Context) ->
     ParamVariables = type_variables(ParamTypes),
     Unnamed = [Variable || Variable <- lists:usort(type_variables(ResultType)),
                            not lists:member(Variable, ParamVariables)],
-    check_form(Source, as_never(Unnamed, ResultType), ResultType, Try,
-               "foreign return does not match ", Context).
+    check_form(Source, as_never(Unnamed, ResultType), Try,
+               named_cause(return_cause(ResultType, Context), Named), Context).
 
 %% A binding's key, under which its value is kept (report §8.5).
 key(#emit_context{erlang_module = ErlangModule}, Name) ->
@@ -1957,16 +1958,16 @@ printed(Type, #emit_context{printing = Printing, restrictions = Restrictions} = 
 %% ern_boundary interprets
 %%
 
-%% Form's value, a foreign function's return, checked against Type and the
-%% fault's text naming Shown (report §7.4, §8.4). A word's check is
+%% Form's value, a foreign function's return, checked against Type, a
+%% mismatch faulting with Cause (report §7.4, §8.4). A word's check is
 %% written in place, its fault raised at Source (§7.3, Appendix E.21), and
 %% the prelude's Unit's takes the host's `ok`, which the host's functions
 %% answer for nothing, at the return's top alone; a value that holds no
 %% function, address or Reply to arm and no float to make the language's,
 %% a String's among them, is checked alone (ern_boundary:check/3); a type
 %% variable a parameter names matches any value, and is not checked.
-check_form(Source, Type, Shown, Form, Prefix, Context) ->
-    Text = check_text(Prefix, Shown, Context),
+check_form(Source, Type, Form, Cause, Context) ->
+    Text = string_binary(Cause),
     case descriptor(Type, Context) of
         Unchecked when Unchecked =:= any; Unchecked =:= foreign ->
             {Form, Context};
@@ -2056,34 +2057,38 @@ descriptor_form(Descriptor, Context) ->
     end.
 
 %% A descriptor as the form that builds it. A function's descriptor also
-%% carries the maker of its checked wrapper, a fun of its arity that checks
-%% each result as a foreign function's return is checked (report §7.4),
-%% which only generated code can spell for every arity; ern_boundary
-%% applies it to a function value foreign code gives, and to the result's
-%% descriptor closed over the recursive types around it.
-built_descriptor({function, Arity, ResultDescriptor, Text, ParamDescriptors, ParamTexts}) ->
-    Function = erl_syntax:variable('Function'),
-    Result = erl_syntax:variable('Result'),
-    Bound = erl_syntax:variable('Bound'),
+%% carries the maker of its checked wrapper, a fun of its arity that calls
+%% the function as a foreign function is called, an exception it raises a
+%% fault that names it, and checks each result as a foreign function's
+%% return is checked (report §7.4), which only generated code can spell for
+%% every arity; ern_boundary applies it to a function value foreign code
+%% gives, and to the result's descriptor closed over the recursive types
+%% around it. Each cause names the function, which the boundary writes in.
+built_descriptor({function, Arity, ResultDescriptor, Cause, ParamDescriptors, ParamCauses}) ->
+    [Function, Result, Bound, Class, Error, Trace] =
+        [erl_syntax:variable(Name)
+         || Name <- ['Function', 'Result', 'Bound', 'Class', 'Error', 'Trace']],
     Args = [erl_syntax:variable(list_to_atom("Argument" ++ integer_to_list(Index)))
             || Index <- lists:seq(1, Arity)],
-    Check = call_remote(ern_boundary, result,
-                        [Result, erl_syntax:application(Function, Args),
-                         erl_syntax:abstract(Text)]),
+    Raised = call_remote(ern_boundary, raised, [Function, Class, Error, Trace]),
+    Handler = erl_syntax:clause([erl_syntax:class_qualifier(Class, Error, Trace)], none, [Raised]),
+    Call = erl_syntax:try_expr([erl_syntax:application(Function, Args)], [Handler]),
+    Check = call_remote(ern_boundary, result, [Result, Call, Function, erl_syntax:abstract(Cause)]),
     Wrapper = erl_syntax:fun_expr([erl_syntax:clause(Args, none, [Check])]),
     Maker = erl_syntax:fun_expr([erl_syntax:clause([Function, Result], none, [Wrapper])]),
     %% report §8.4: the same function crossing into foreign code, wherever
     %% it stands in what crosses, each argument checked against its
     %% parameter's type, the recursive types around it in Bound
-    Checked = [call_remote(ern_boundary, argument, [built_descriptor(Descriptor), Argument,
-                                                    erl_syntax:abstract(ParamText), Bound])
-               || {Descriptor, Argument, ParamText}
-                      <- lists:zip3(ParamDescriptors, Args, ParamTexts)],
+    Checked = [call_remote(ern_boundary, argument,
+                           [built_descriptor(Descriptor), Argument, Function,
+                            erl_syntax:abstract(ParamCause), Bound])
+               || {Descriptor, Argument, ParamCause}
+                      <- lists:zip3(ParamDescriptors, Args, ParamCauses)],
     Exposed = erl_syntax:fun_expr([erl_syntax:clause(Args, none, called(Function, Checked))]),
     Exposer = erl_syntax:fun_expr([erl_syntax:clause([Function, Bound], none, [Exposed])]),
     erl_syntax:tuple([erl_syntax:atom('fun'), erl_syntax:integer(Arity),
                       built_descriptor(ResultDescriptor),
-                      erl_syntax:abstract(Text), Maker, Exposer]);
+                      erl_syntax:abstract(Cause), Maker, Exposer]);
 built_descriptor(Tuple) when is_tuple(Tuple) ->
     erl_syntax:tuple([built_descriptor(Element) || Element <- tuple_to_list(Tuple)]);
 built_descriptor(Elements) when is_list(Elements) ->
@@ -2112,6 +2117,23 @@ check_text(Prefix, Type, Context) ->
 %% prints it, which the boundary faults with.
 cause(Prefix, Type, Context) ->
     unicode:characters_to_binary(Prefix ++ printed(Type, Context)).
+
+%% Report §7.4: the cause of a foreign function's return that does not
+%% match Type, the function's name to be written between its two parts:
+%% the emitter writes a foreign fn's in (named_cause/2), and the boundary a
+%% function value's that foreign code gave.
+return_cause(Type, Context) ->
+    {<<"the return of foreign function ">>, cause(" does not match ", Type, Context)}.
+
+%% Report §8.4: the cause of an argument foreign code calls a function of
+%% the program's with that does not match Type, the function's name to be
+%% written between its two parts by the boundary, which has the function.
+argument_cause(Type, Context) ->
+    {<<"an argument of ">>, cause(" from foreign code does not match ", Type, Context)}.
+
+%% A cause with the function's name, Named, written in.
+named_cause({Before, After}, Named) ->
+    unicode:characters_to_binary([Before, Named, After]).
 
 %% Whether a descriptor holds what crossing into foreign code changes: an
 %% address, a Reply, or a function.
@@ -2152,11 +2174,12 @@ described({arrow, Params, _, Result}, Seen, Scope, Context) ->
     %% report §7.4: a function value from foreign code has its result
     %% checked at each call, against the result's descriptor; report §8.4:
     %% one that crosses into foreign code has each argument checked, against
-    %% its parameter's
+    %% its parameter's; each cause names the function, which the boundary
+    %% writes in
     {function, length(Params), described(Result, Seen, Scope, Context),
-     cause("foreign return does not match ", Result, Context),
+     return_cause(Result, Context),
      all_described(Params, Seen, Scope, Context),
-     [cause("foreign argument does not match ", Param, Context) || Param <- Params]};
+     [argument_cause(Param, Context) || Param <- Params]};
 described({applied, {named, ['Int']}, []}, _, _, _) -> int;
 described({applied, {named, ['Float']}, []}, _, _, _) -> float;
 described({applied, {named, ['Bool']}, []}, _, _, _) -> bool;

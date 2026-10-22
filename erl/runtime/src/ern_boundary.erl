@@ -20,10 +20,14 @@
 %% recursive types around it, so that each call's result is checked against
 %% R, faulting with Cause (report §7.4), and Exposer wrapping one that
 %% crosses into foreign code, wherever it stands in what crosses, so that
-%% each argument it is called with is checked (§8.4).
+%% each argument it is called with is checked (§8.4). A cause of either
+%% names the function, which is known only here: the two parts of Cause and
+%% of each argument's, ern_descriptor's named_cause(), are the text before
+%% the function's name and the text after it.
 -module(ern_boundary).
 
--export([raised/6, called_raised/3, expose/2, check/3, value/3, result/3, argument/4, expose/3]).
+-export([raised/6, raised/4, called_raised/3, expose/2, check/3, value/3, result/4, argument/5,
+         expose/3]).
 
 -export_type([descriptor/0]).
 
@@ -36,7 +40,8 @@
                     | {tuple, [descriptor()]} | {list, descriptor()} | {set, descriptor()}
                     | {map, descriptor(), descriptor()}
                     | {address, descriptor(), binary()} | {reply, descriptor(), binary()}
-                    | {'fun', non_neg_integer(), descriptor(), binary(), fun(), fun()}
+                    | {'fun', non_neg_integer(), descriptor(), ern_descriptor:named_cause(), fun(),
+                       fun()}
                     | {con, [{atom(), [descriptor()]} | {atom(), [descriptor()], [atom()]}]}
                     | {mu, pos_integer(), descriptor()} | {abstract, descriptor()}.
 
@@ -54,9 +59,19 @@ raised(_, _, _, throw, '$ern_restart', _) ->
     throw('$ern_restart');
 raised(HostModule, HostFunction, Arity, Class, Error, Stack) ->
     ern_rt:fault(unicode:characters_to_binary(
-                   io_lib:format("foreign function ~s:~s/~B raised ~p:~p",
-                                 [HostModule, HostFunction, Arity, Class, Error])),
+                   io_lib:format("foreign function ~ts raised ~p:~p",
+                                 [ern_namespace:host_function_text(HostModule, HostFunction,
+                                                                   Arity),
+                                  Class, Error])),
                  ern_rt:trace(Stack)).
+
+%% Report §7.4: an exception a function value foreign code gave raised
+%% where the program called it, as a foreign function's (raised/6), named
+%% as the host names the function.
+-spec raised(fun(), error | exit | throw, term(), list()) -> no_return().
+raised(Function, Class, Error, Stack) ->
+    {Module, Name, Arity} = named_by_host(Function),
+    raised(Module, Name, Arity, Class, Error, Stack).
 
 %% Report §7.4: an exception a function of the program's raised where
 %% foreign code called it is the fault it would be anywhere, raised again
@@ -93,24 +108,59 @@ value(Descriptor, Value, Cause) ->
         error -> ern_rt:fault(Cause)
     end.
 
-%% Report §7.4, §8.4: a function value's result as the program holds it,
-%% or the fault Cause: a result declared the prelude's Unit that is the
-%% host's `ok` is `Unit`, at its top alone, as a foreign function's return
-%% is.
--spec result(descriptor(), term(), binary()) -> term().
-result(unit, ok, _) -> 'Unit';
-result(Descriptor, Value, Cause) -> value(Descriptor, Value, Cause).
+%% Report §7.4, §8.4: the result of Function, a function value foreign
+%% code gave, as the program holds it, or the fault Cause, which names the
+%% function as the host does: a result declared the prelude's Unit that is
+%% the host's `ok` is `Unit`, at its top alone, as a foreign function's
+%% return is.
+-spec result(descriptor(), term(), fun(), ern_descriptor:named_cause()) -> term().
+result(unit, ok, _, _) ->
+    'Unit';
+result(Descriptor, Value, Function, Cause) ->
+    case conformed(Descriptor, Value, #{}) of
+        {ok, Checked} -> Checked;
+        error -> ern_rt:fault(named(Cause, host_name(Function)))
+    end.
 
-%% Report §8.4: an argument foreign code calls a function of the program's
-%% with, where the function stood inside what crossed, the recursive types
-%% around it in Bound: the value as the program holds it, or the fault
-%% Cause.
--spec argument(descriptor(), term(), binary(), map()) -> term().
-argument(Descriptor, Value, Cause, Bound) ->
+%% Report §8.4: an argument foreign code calls Function, a function of the
+%% program's, with, where the function stood inside what crossed, the
+%% recursive types around it in Bound: the value as the program holds it,
+%% or the fault Cause, which names the function as the program does.
+-spec argument(descriptor(), term(), fun(), ern_descriptor:named_cause(), map()) -> term().
+argument(Descriptor, Value, Function, Cause, Bound) ->
     case conformed(Descriptor, Value, Bound) of
         {ok, Checked} -> Checked;
-        error -> ern_rt:fault(Cause)
+        error -> ern_rt:fault(named(Cause, program_name(Function)))
     end.
+
+%% A cause with the function's name written in.
+named({Before, After}, Name) ->
+    unicode:characters_to_binary([Before, Name, After]).
+
+%% Report §7.4: a function value as the host names it, `lists:duplicate/2`,
+%% as a foreign function's cause names it.
+host_name(Function) ->
+    {Module, Name, Arity} = named_by_host(Function),
+    ern_namespace:host_function_text(Module, Name, Arity).
+
+%% Report §8.4, Appendix E.21: a function of the program's by the name a
+%% caller writes, `Main.handler`, or a lambda's or a local fn's the
+%% top-level declaration's it is written in, `Main.main`, as a spawn in it
+%% counts as written there (§6.9) and a trace names its frame
+%% (ern_code:value_text/1); one no name is known for, as the host names it.
+program_name(Function) ->
+    case ern_code:value_text(Function) of
+        none -> host_name(Function);
+        Text -> Text
+    end.
+
+%% The module, the name and the arity the host gives a function value; a
+%% fun's name is the one the host's compiler made for it, `'-main/0-fun-0-'`,
+%% or `[]` where the host holds no code for it, which a cause leaves out.
+named_by_host(Function) ->
+    [{module, Module}, {name, Name}, {arity, Arity}] =
+        [erlang:fun_info(Function, Item) || Item <- [module, name, arity]],
+    {Module, Name, Arity}.
 
 %% Report §3.1, §7.4, §8.4: Value as the program holds it, armed, where it is
 %% one Descriptor describes inside the mu bindings Bound. A float matches

@@ -2467,12 +2467,12 @@ exchange(Base) ->
              " error:badarg, spawned by the peer sender",
              "\n    Lacked.raises:19\n",
              "Lacked.spawner:22 faulted: the child",
-             "Sender.received:29 faulted: foreign return does not match Unit, spawned by the peer"
-             " sender",
+             "Sender.received:29 faulted: the return of foreign function erlang:yield/0 does not"
+             " match Unit, spawned by the peer sender",
              "the peer sender's spawn at Sender.received:33 was not loaded: the module"
              " ern_sender_host, which Lacked.only calls, is not here",
-             "Sender.received:35 faulted: foreign return does not match Count, spawned by the peer"
-             " sender",
+             "Sender.received:35 faulted: the return of foreign function erlang:yield/0 does not"
+             " match Count, spawned by the peer sender",
              "the peer sender's spawn at Sender.received:36 was not loaded: the module lists,"
              " which Lacked.absent calls, has no function ern_absent_function/0 here"],
     [says(Receiver, Line) || Line <- Lines],
@@ -3419,8 +3419,8 @@ shell_compute(Base) ->
     %% the shell writes a fault's line as it next writes its screen
     true = port_command(InputWorker, "Io.println(\"last\")\n"),
     prints(Worker, "last"),
-    prints(Worker, "input 9:1 faulted: foreign return does not match Count, spawned by the peer"
-                   " desk"),
+    prints(Worker, "input 9:1 faulted: the return of foreign function erlang:yield/0 does not"
+                   " match Count, spawned by the peer desk"),
     true = port_command(InputDesk, ":quit\n"),
     ?assertEqual(0, WaitDesk()),
     true = port_command(InputWorker, ":quit\n"),

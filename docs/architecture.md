@@ -116,7 +116,7 @@ All three compile through `ern_compile:compiled/2`.
 
 A unit's functions are named by position (§11.1), as `ern_emitter`'s header comment gives them: `'$N'` (`function_name/1`), `'$N.P'` for a lifted local fn, `'$N.P.entry'` for an entry, `'$type_K'` for a descriptor, and `'$lacked_K'` for a lacked function. The functions the runtime calls keep their names: `'$init'/0`, `'$deps'/0`, `'$tests'/0`, `'$spawned'/2` and `'$code'/0`. The interface's `positions` say where a dependent calls each.
 
-A caller from Erlang finds a function by its qualified name through `ern_code:function/2`: `ern_cli` for the entry point and the shell's program, `ern_shell` for an input's entry, `ern_page`, and the tests through `ern_named`. A fault's trace (`ern_rt:trace/1`) names each frame of a unit's code as a spawn site is named through `ern_code:function_text/3`, which reads the unit's `'$code'/0`, the namespace its sites name its declarations under and each binding's first line among it, and the name the recorded forms give an input's expression; a frame of `'$init'/0` is named by the binding whose source holds its line, and the frames beneath the program's outermost are left out (E.21).
+A caller from Erlang finds a function by its qualified name through `ern_code:function/2`: `ern_cli` for the entry point and the shell's program, `ern_shell` for an input's entry, `ern_page`, and the tests through `ern_named`. A fault's trace (`ern_rt:trace/1`) names each frame of a unit's code as a spawn site is named through `ern_code:function_text/3`, which reads the unit's `'$code'/0`, the namespace its sites name its declarations under and each binding's first line among it, and the name the recorded forms give an input's expression; a frame of `'$init'/0` is named by the binding whose source holds its line, and the frames beneath the program's outermost are left out (E.21). A function value has no line, and `ern_code:value_text/1` names it so without one, a fun of `'$init'/0` by the binding whose value it is, for the cause of an argument foreign code gives it (§8.4).
 
 ### What the emitter writes
 
@@ -262,7 +262,7 @@ The code table (§8.7) is `ern_code`'s bag of that name, made at its first use b
 
 Its keys are `{hash, Hash}` for a function or a type, `{lambda, Hash, Position}`, `{unit, Unit}`, `{binding, QualifiedName, Hash}`, `{term, QualifiedName, Hash}` for a ground binding's value, `{foreign, QualifiedName}`, `{declared, QualifiedName}`, and `{forms, Unit}` for what a unit's compiled form records. The module's header comment gives each row.
 
-- Its lookups are `function/2`, `function_text/3`, `spawnable/1`, `holders/1`, `linkable/1`, `valued/1`, `ground/1`, `forms/1`, `called/1`, `absent_binding/1,2`, `foreign/2`, `declared/1,2` and `present/1`. Where several units hold an identity, `answering/1` picks one (§8.7, §11.2).
+- Its lookups are `function/2`, `function_text/3`, `value_text/1`, `spawnable/1`, `holders/1`, `linkable/1`, `valued/1`, `ground/1`, `forms/1`, `called/1`, `absent_binding/1,2`, `foreign/2`, `declared/1,2` and `present/1`. Where several units hold an identity, `answering/1` picks one (§8.7, §11.2).
 - `running/1` is `Code.running`, and `hashes/1` is `Code.hashes` (E.28).
 - `is_free/1`, `is_held/2`, `fresh_unit/1`, `unit_beside/2` and `placement/4` name and place a unit for the shell's load and `Code.load`. `binding_keys/1` gives the values a refused load erases.
 - The host's limits (§11.2) are `counts/0`, the sums `ern_code_sums` keeps (`summed/1`), and `nearing/0`. `ern_cli:say_limits/0` says the lines at a run's start, at each arrival and `Code.load`, and at each load of the shell's.
@@ -287,7 +287,7 @@ Appendix E is one Erlang module per namespace, `ern@list` and so on, compiled by
 - `ern_char` reads E.6's predicates from the host's `unicode_util` tables. A `Set` is `{set, S}`, `S` a version 2 `sets:set`.
 - `ern_io:show/2` and `ern_io:debug/2` write through `ern_show`, which reads a value by its type's descriptor (`ern_descriptor`, E.1); the shell prints through `ern_show` with a depth and a length.
 - `ern_bits` makes the checks of §5.11 and §7.4 that the host's bit syntax does not.
-- The foreign boundary is `ern_boundary` (§8.4): `expose/2,3`, `raised/6`, `check/3` and `value/3`, with `conformed/3` beneath them (§3.1).
+- The foreign boundary is `ern_boundary` (§8.4): `expose/2,3`, `raised/6`, `check/3` and `value/3`, with `conformed/3` beneath them (§3.1). A function value's wrappers call `result/4`, `argument/5` and `raised/4`, whose causes name the function, which the descriptor leaves for them to write in (§7.4).
 
 The tests that hold the library to its names: `erl/runtime/test/ern_stdlib_tests.erl` calls each module by the ABI, each function found through `ern_named`. `primitives_test`, in `erl/checker/test/ern_prelude_tests.erl`, holds each module's `foreign fn`s equal to its section's primitives. `prelude_targets_test`, in `erl/emitter/test/ern_emitter_tests.erl`, and `stdlib_targets_test`, in `erl/runtime/test/ern_doc_tests.erl`, hold each name at the position its interface gives it.
 

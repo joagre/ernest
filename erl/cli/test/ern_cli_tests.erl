@@ -3296,6 +3296,25 @@ fault_stack_test() ->
                  First),
     ?assertEqual(<<"    erlang:element/2">>, Second).
 
+%% report §7.4, §11.2, Appendix E.21: a foreign function's return that does
+%% not match its declared type faults with a cause that names the host's
+%% function as a raise's cause does, and the trace is as for any fault the
+%% runtime raises: the function has returned when its return is checked,
+%% so no frame of it is in the trace, and the trace ends with main's frame.
+%% A regression test, written after the code; it does not cover a return
+%% checked in place, a word's, whose trace raise_has_line_test reads
+foreign_return_cause_test() ->
+    Dir = tmp(),
+    File = write(Dir, "abs.ern",
+                 "foreign fn abs(n : Int) : String = \"erlang:abs/1\"\n"
+                 "export fn main() : Unit = Io.println(abs(-3))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
+    ?assertEqual(1, ern_err(["run", filename:join(Dir, "abs.erc")])),
+    ?assertMatch([<<"Abs.main faulted: the return of foreign function erlang:abs/1 does not match"
+                    " String">>,
+                  <<"    ern_rt:fault/1:", _/binary>>, <<"    Abs.main:2">>],
+                 binary:split(iolist_to_binary(?capturedOutput), <<"\n">>, [global, trim])).
+
 %% report §11.4, §11.5: every exported and every documented declaration,
 %% with its type and its doc comment, as Markdown
 doc_test() ->

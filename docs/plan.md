@@ -169,11 +169,15 @@ items becomes a milestone of its own, since the tour and 0.5.0 wait behind this 
   `'$init'/0` still writes the value, first, for the runtime's readers. A function reading a
   literal `let` went from 37.9 to 7.1 ns against the host's 8.5, and one reading a computed `let`
   stayed at 39.2 against 8.4.
-- **The cause of a foreign return that fails its check names the function**, §7.4 first: `the
-  return of foreign function m:f/n does not match Int`, and an argument foreign code gives an
-  Ernest function `an argument of f from foreign code does not match Int`; the reply's cause
-  stays, since no function gave it. The trace is unchanged: the function has returned when the
-  check runs, and a frame written in would lie. About an hour with the tests.
+- **The cause of a foreign return that fails its check names the function**, built 2026-10-22
+  (the log's *The Sitting on §8.6's Bookkeeping*, its *Built* paragraphs on the foreign cause):
+  `the return of foreign function erlang:abs/1 does not match String`, and an argument foreign
+  code gives an Ernest function `an argument of Main.handler from foreign code does not match
+  Int`, a lambda or a local fn named by the top-level declaration it is written in. A function
+  value foreign code gave is named as the host names it, and its raise is now a foreign
+  function's. The reply's cause and every trace stay. A lambda inside a top-level binding's value
+  keeps the host's name: compiling each initializer to a function of its own would name it, a
+  change to §11.1's names of a unit's functions that is the user's to decide.
 - **One checker of the library's examples** (principle 2): `ern_doc_tests` runs every library
   example in a launch of its own, about a minute of `make test-full`, and `ern test build/stdlib
   build/libs` now runs the same examples the same way in about 10 s. The Makefile runs `ern test`

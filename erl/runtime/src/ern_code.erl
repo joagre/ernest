@@ -46,7 +46,8 @@
 -export([ensure_loaded/1, own_file/1, load/3, loaded/2, loaded/3, unloaded/1, spawnable/1,
          holders/1, linkable/1, valued/1, ground/1, forms/1, called/1, absent_binding/1,
          absent_binding/2,
-         foreign/2, declared/1, declared/2, present/1, function/2, function_text/3, is_free/1,
+         foreign/2, declared/1, declared/2, present/1, function/2, function_text/3,
+         value_text/1, is_free/1,
          is_held/2, fresh_unit/1, unit_beside/2, placement/4, running/1, hashes/1,
          binding_keys/1, nearing/0, nearing/1, nearing/2, line/3, counts/0]).
 
@@ -592,6 +593,43 @@ function_text(Unit, Function, Line) ->
     case erlang:module_loaded(Unit) andalso erlang:function_exported(Unit, '$code', 0) of
         true -> named_function(atom_to_list(Function), Line, Unit, Unit:'$code'());
         false -> none
+    end.
+
+%% Report §8.4, Appendix E.21: a function value of a loaded unit as a trace
+%% names a frame of it, without a line, since a value carries none: a
+%% definition's function by its name, `Geo.area`, a lambda's or a local
+%% function's by the top-level declaration it is written in. A fun
+%% '$init'/0 made, where every initializer is evaluated and which a trace
+%% names by its line's binding, is named by the binding whose value it is,
+%% `Geo.scale` of `let scale = fn(x : Float) = x * 2.0`. None for any other,
+%% which keeps the host's name, a fun inside a binding's value among them.
+-spec value_text(fun()) -> string() | none.
+value_text(Function) ->
+    case [erlang:fun_info(Function, Item) || Item <- [module, name]] of
+        %% a fun's name is [] where the host holds no code for it
+        [{module, Unit}, {name, Name}] when is_atom(Name) ->
+            case function_text(Unit, Name, none) of
+                none -> bound_name(Unit, Function);
+                Text -> Text
+            end;
+        _ ->
+            none
+    end.
+
+%% The binding of Unit whose value is Function, by the name its sites
+%% write it by, or none.
+bound_name(Unit, Function) ->
+    case erlang:module_loaded(Unit) andalso erlang:function_exported(Unit, '$code', 0) of
+        true ->
+            Code = Unit:'$code'(),
+            case [site_name(QualifiedName, Held, Unit, Code)
+                  || {QualifiedName, {binding, _, Key} = Held} <- Code,
+                     persistent_term:get(Key, none) =:= Function] of
+                [Name | _] -> Name;
+                [] -> none
+            end;
+        false ->
+            none
     end.
 
 named_function("-" ++ Fun, Line, Unit, Code) ->
