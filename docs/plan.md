@@ -155,14 +155,19 @@ items becomes a milestone of its own, since the tour and 0.5.0 wait behind this 
   and its ratios named 9 of its 40 rows between two idle runs where its times named 6; the
   release's reference is where a drift is caught, and *The language against the host* below
   measures its pairs together, which removes the noise at its cause.
-- **Three polls in the integration tests** (found 2026-10-22 fixing the three sleeps; CLAUDE.md's
-  *No fixed sleep*): `run_for/4` looks at a file every 0.1 s up to 300 times for a program's
-  line, the standard input's test every 0.05 s up to 400 for a line written, and `job_signal_end`
-  every 0.01 s in Python for a build's first module. Each becomes a wait on the event, the line
-  read as it is written, as the FIFO handshakes of the three sleeps do; and
-  `stream_lost_at_end`'s `timeout -s KILL 20`, a bound on a hung program, is derived from what it
-  waits for, the harness's wait as `ern_nodes_tests:wait_ms/0` derives one, with the reason beside
-  it. About an hour.
+- **Three polls in the integration tests**, built 2026-10-22 (the log's *The Sitting on §8.6's
+  Bookkeeping*, its *Built* paragraphs on the three polls): the standard input's test reads its
+  program's line from the FIFO its output goes to, and `job_signal_end` the build's `--verbose`
+  line from a pipe, each as it is written. `run_for/4` asks its condition again at each change of
+  the files under its program's directory, which `test/ern_changes.py` says through Linux's
+  inotify, since `file_sync` stores files without a word; the condition is the checks' own now, a
+  stored file with its time. Each wait, a hung program's run and a signaled program's end is
+  bounded by one step of the harness's, `ern_nodes_tests:wait_ms/0`, and each test's limit is its
+  steps: `stream_lost_at_end`'s `timeout -s KILL 20` is 30 s, and its limit 360 s against 120.
+  The six tests' times did not move, each poll having found its condition at its first or second
+  look. Found beside it: the file's other bounds are chosen numbers, every other test's limit
+  among them; whether they are derived the same way, as an item of its own, is the user's
+  decision.
 - **Every slow wait of the runtime's own is marked, held by a test**, built 2026-10-22 (the log's
   *The Sitting on §8.6's Bookkeeping*, its *Built* paragraphs on every slow wait):
   `receives_test/0` in `test/ern_style_tests.erl`, which `make test` runs, reads every `receive`

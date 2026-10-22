@@ -182,8 +182,9 @@ repl() ->
 %% stops it, and reads the directories back. One file on each side crosses,
 %% and the pair that differs leaves a conflict beside the newer copy.
 %% report §8.2 (Fs's reference), §6.6 (Address.call), Appendix E.17 (Fs.list)
+%% Its steps: the build, its own tests' run, run_for/4's wait and the end.
 file_sync_test_() ->
-    {timeout, 60, fun file_sync/0}.
+    {timeout, waits(4), fun file_sync/0}.
 
 file_sync() ->
     0 = build(?BUILD ++ "../examples/file_sync.ern"),
@@ -199,11 +200,24 @@ file_sync() ->
     ok = file:write_file(Dir ++ "/a/notes.txt", <<"old note\n">>),
     ok = file:write_file(Dir ++ "/b/notes.txt", <<"new note\n">>),
     ok = make_older(Dir ++ "/a/notes.txt"),
+    Mtime = fun(Relative) ->
+                {ok, #file_info{mtime = Seconds}} = file:read_file_info(Dir ++ Relative,
+                                                                        [{time, posix}]),
+                Seconds
+            end,
     %% stopped once both directories are as the checks below read them,
-    %% since how long a pass takes is the host's
-    Synced = "grep -q \"conflict: notes.txt\" run.out && [ -f b/greeting.txt ]"
-             " && [ -f a/other.txt ] && [ -f b/notes.txt.conflict ]"
-             " && grep -q \"new note\" a/notes.txt",
+    %% since how long a pass takes is the host's: a file stored is asked
+    %% for with its time, since the end stops a writer that has not yet
+    %% set it
+    Synced = fun() ->
+                 has_printed(Dir, <<"conflict: notes.txt">>)
+                     andalso file:read_file(Dir ++ "/b/greeting.txt") =:= {ok, <<"hello from a\n">>}
+                     andalso file:read_file(Dir ++ "/a/other.txt") =:= {ok, <<"only in b\n">>}
+                     andalso file:read_file(Dir ++ "/a/notes.txt") =:= {ok, <<"new note\n">>}
+                     andalso filelib:is_regular(Dir ++ "/b/notes.txt.conflict")
+                     andalso Mtime("/a/greeting.txt") =:= Mtime("/b/greeting.txt")
+                     andalso Mtime("/b/other.txt") =:= Mtime("/a/other.txt")
+             end,
     {Status, Output} = run_for(Dir, "../../../bin/ern run ../../build/file_sync.erc", Synced,
                                "TERM"),
     %% report §8.6, §11.2: the signal ends the program as returning from main
@@ -222,11 +236,6 @@ file_sync() ->
     %% a file stored takes its source's time, so that the next pass finds it
     %% as it was recorded and does not send it back; a regression test, the
     %% two sides rewrote each other every pass
-    Mtime = fun(Relative) ->
-                {ok, #file_info{mtime = Seconds}} = file:read_file_info(Dir ++ Relative,
-                                                                        [{time, posix}]),
-                Seconds
-            end,
     ?assertEqual(Mtime("/a/greeting.txt"), Mtime("/b/greeting.txt")),
     ?assertEqual(Mtime("/b/other.txt"), Mtime("/a/other.txt")).
 
@@ -235,9 +244,10 @@ file_sync() ->
 %% test, written after the fix (plan, MVP 2.99b's item 1): b's listing,
 %% slowed by fifty files more, came after a's older notes.txt, which then
 %% replaced b's newer copy with no conflict. It does not reach a file
-%% changed here between two listings, which the same reading covers.
+%% changed here between two listings, which the same reading covers. Its
+%% steps: the build, run_for/4's wait and the end.
 file_sync_first_listing_test_() ->
-    {timeout, 60, fun file_sync_first_listing/0}.
+    {timeout, waits(3), fun file_sync_first_listing/0}.
 
 file_sync_first_listing() ->
     %% a build root of its own, since file_sync_test_ builds beside it
@@ -249,8 +259,12 @@ file_sync_first_listing() ->
     [ok = file:write_file(Dir ++ "/b/" ++ integer_to_list(Number) ++ ".txt", <<"x\n">>)
      || Number <- lists:seq(1, 50)],
     ok = make_older(Dir ++ "/a/notes.txt"),
-    Synced = "grep -q \"conflict: notes.txt\" run.out && [ -f b/notes.txt.conflict ]"
-             " && grep -q \"new note\" a/notes.txt",
+    Synced = fun() ->
+                 has_printed(Dir, <<"conflict: notes.txt">>)
+                     andalso file:read_file(Dir ++ "/b/notes.txt.conflict")
+                             =:= {ok, <<"old note\n">>}
+                     andalso file:read_file(Dir ++ "/a/notes.txt") =:= {ok, <<"new note\n">>}
+             end,
     {Status, Output} = run_for(Dir, "../../../bin/ern run ../first/file_sync.erc", Synced, "TERM"),
     ?assertEqual(143, Status),
     ?assert(lists:member(<<"conflict: notes.txt">>, Output)),
@@ -306,29 +320,88 @@ del_read_only_test() ->
     ok = del(Dir),
     ?assertNot(filelib:is_dir(Dir)).
 
-%% A program that runs until it is stopped: started in Dir, and stopped with
-%% the signal named once the shell condition Until holds, or after thirty
-%% seconds. Its status and its output are returned, standard error with
-%% standard output, and not the shell's own report of a job a signal ended.
+%% A program that runs until it is stopped: started in Dir, its standard
+%% output and standard error written to run.out there, and stopped with the
+%% signal named once Until() holds. Until is asked again at each change of
+%% the files under Dir, a line the program writes among them, so that a
+%% test can wait for a file the program writes without a word. Where it
+%% does not hold within one step of the harness's
+%% (ern_nodes_tests:wait_ms/0), the signal is sent then, and the test's
+%% checks say what did not come. Its status and its output are returned.
 run_for(Dir, Command, Until, Signal) ->
-    %% sh -c, since open_port runs the command with exec and `cd` is a builtin
-    %% an earlier run's output goes first, since the command empties the
-    %% file only once it has started, and Until may read it before then
-    {_, Printed} = sh("sh -c 'cd " ++ Dir ++ " && { rm -f run.out; " ++ Command
-                     ++ " > run.out 2>&1 & p=$!; "
-                     "i=0; until " ++ Until ++ " || [ $i -ge 300 ]; do sleep 0.1; i=$((i + 1)); "
-                     "done; kill -" ++ Signal
-                     ++ " $p 2>/dev/null; wait $p; echo status $?; }' 2>/dev/null"),
-    <<"status ", Digits/binary>> = string:trim(Printed),
-    {ok, Output} = file:read_file(filename:join(Dir, "run.out")),
-    {binary_to_integer(Digits), lines(Output)}.
+    Out = filename:join(Dir, "run.out"),
+    %% an earlier run's output goes first, since Until may read it before
+    %% the program has written anything
+    _ = file:delete(Out),
+    Changes = changes(Dir),
+    Program = open_port({spawn, Command ++ " > run.out 2>&1"}, [exit_status, {cd, Dir}]),
+    Deadline = erlang:monotonic_time(millisecond) + ern_nodes_tests:wait_ms(),
+    Waited = waited(Changes, Program, Until, Deadline),
+    port_close(Changes),
+    Status = case Waited of
+                 {ended, Ended} ->
+                     Ended;
+                 due ->
+                     {os_pid, ProcessNumber} = erlang:port_info(Program, os_pid),
+                     _ = sh("kill -" ++ Signal ++ " " ++ integer_to_list(ProcessNumber)),
+                     ended(Program, ProcessNumber)
+             end,
+    {ok, Output} = file:read_file(Out),
+    {Status, lines(Output)}.
+
+%% The status of the program the port Program runs, once it has ended
+%% after its signal, or once it is killed one step of the harness's later,
+%% 137, so that a program that does not end at its signal fails the test
+%% and is not left running.
+ended(Program, ProcessNumber) ->
+    receive
+        {Program, {exit_status, Status}} -> Status
+    after ern_nodes_tests:wait_ms() ->
+        _ = sh("kill -KILL " ++ integer_to_list(ProcessNumber)),
+        receive {Program, {exit_status, Status}} -> Status end
+    end.
+
+%% The signal due once Until() holds, asked again at each change the port
+%% Changes says, or once the deadline has come; ended where the program the
+%% port Program runs has ended first.
+waited(Changes, Program, Until, Deadline) ->
+    case Until() of
+        true ->
+            due;
+        false ->
+            receive
+                {Changes, {data, {eol, <<"changed">>}}} ->
+                    waited(Changes, Program, Until, Deadline);
+                {Program, {exit_status, Status}} ->
+                    {ended, Status}
+            after max(0, Deadline - erlang:monotonic_time(millisecond)) ->
+                due
+            end
+    end.
+
+%% A port that says `changed` at each change of the files under Dir, once
+%% it watches them (ern_changes.py).
+changes(Dir) ->
+    Changes = open_port({spawn, "./ern_changes.py " ++ Dir}, [{line, 16}, binary, exit_status]),
+    receive
+        {Changes, {data, {eol, <<"ready">>}}} -> Changes;
+        {Changes, {exit_status, Status}} -> erlang:error({not_watched, Dir, Status})
+    end.
+
+%% Whether the program run_for/4 runs in Dir has printed Line whole.
+has_printed(Dir, Line) ->
+    case file:read_file(filename:join(Dir, "run.out")) of
+        {ok, Output} -> lists:member(Line, lines(Output));
+        {error, enoent} -> false
+    end.
 
 %% report §8.6, §11.2: the host's hangup ends a program as its termination
 %% does, printing nothing, with status 128 plus the signal's number. A
 %% regression test: the hangup was ignored, and the program ran on. The
 %% hangup is sent once the program has said it runs, as signal_end's are.
+%% Its steps: the build, run_for/4's wait and the end.
 hangup_test_() ->
-    {timeout, 60, fun hangup/0}.
+    {timeout, waits(3), fun hangup/0}.
 
 hangup() ->
     Dir = "build/hangup",
@@ -340,8 +413,8 @@ hangup() ->
                          "}\n"),
     0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/waits.ern"),
     ?assertEqual({129, [<<"running">>]},
-                 run_for(Dir, "../../../bin/ern run waits.erc", "grep -q running run.out",
-                         "HUP")).
+                 run_for(Dir, "../../../bin/ern run waits.erc",
+                         fun() -> has_printed(Dir, <<"running">>) end, "HUP")).
 
 %% report §10, §11.8: a program that exhausts the host's memory ends at
 %% once, the process that monitored the one that grew never told, with
@@ -586,9 +659,10 @@ ets() ->
 %% report §8.2, §7.4, Appendix E.1: standard input is UTF-8 whatever the
 %% host's locale, a line without its line feed or the carriage return
 %% before it, a last line without a line feed; a line that is not UTF-8
-%% faults; lines and bytes are one stream, and bytes go out as they are
+%% faults; lines and bytes are one stream, and bytes go out as they are.
+%% Its steps: three builds and four runs.
 stdin_test_() ->
-    {timeout, 60, fun stdin/0}.
+    {timeout, waits(7), fun stdin/0}.
 
 stdin() ->
     [0 = build("--source-root fixtures/stdin --build-root build/stdin fixtures/stdin/"
@@ -611,18 +685,20 @@ stdin() ->
     ?assertEqual({0, <<"head\n", 255, 16#e9/utf8, "tail\nbytes 8\n">>},
                  Launch("head\\n\\377\\303\\251tail\\n", "stream")),
     %% a read does not wait for more than has arrived: the second byte is
-    %% written once the program has said it read the first, so that how long
-    %% the host takes to start, about as long as the one second the writer
-    %% had paused, plays no part (it had failed when the start took longer);
-    %% the wait reads the output quietly, since the program's shell may not
-    %% yet have made the file, and grep's complaint was taken for its output
+    %% written once the program's line that it read the first is read from
+    %% the FIFO its output goes to, so that how long the host takes to
+    %% start, about as long as the one second the writer had paused, plays
+    %% no part (it had failed when the start took longer); the status is the
+    %% program's. Its run is one step of the harness's (wait_seconds/0), so
+    %% that a read that waits for more, which never says its line, is
+    %% killed and fails the test, and is not left running
+    {In, Out} = {fifo("build/stdin/in"), fifo("build/stdin/out")},
     ?assertEqual({0, <<"1\n1\nend\n">>},
-                 sh("sh -c 'rm -f build/stdin/in build/stdin/out; mkfifo build/stdin/in; "
-                    "../bin/ern run build/stdin/chunks.erc < build/stdin/in > build/stdin/out & "
-                    "exec 3> build/stdin/in; printf a >&3; n=0; "
-                    "until grep -qs 1 build/stdin/out || [ $n -ge 400 ]; "
-                    "do sleep 0.05; n=$((n + 1)); done; "
-                    "printf b >&3; exec 3>&-; wait; cat build/stdin/out'")).
+                 sh("sh -c 'timeout -s KILL " ++ integer_to_list(wait_seconds())
+                    ++ " ../bin/ern run build/stdin/chunks.erc < " ++ In ++ " > " ++ Out
+                    ++ " & p=$!; exec 3> " ++ In ++ " 4< " ++ Out ++ "; printf a >&3; "
+                    "read first <&4; printf b >&3; exec 3>&-; echo \"$first\"; cat <&4; "
+                    "wait $p'")).
 
 %% report §11.2, Appendix E.23, E.17: as the host gives them, under a UTF-8
 %% locale and under C, whose names the host takes as bytes: `ern run`
@@ -856,11 +932,14 @@ stream_gone() ->
 %% regression test, written after the code: of twenty-four such runs eleven
 %% ended with status 0, ten with 141, and three did not end. The reader
 %% closes its end of the pipe and then says so through a FIFO, which the
-%% program's side waits on before the program starts. It does not cover a
-%% device that fails, which only some hosts have one of, nor a reader that
-%% goes while the program writes, which drained_output_test_ holds.
+%% program's side waits on before the program starts. Each run is one step
+%% of the harness's (wait_seconds/0), after which a program that has not
+%% ended is killed, its status 137 then among the others'. Its steps:
+%% three builds and nine runs. It does not cover a device that fails,
+%% which only some hosts have one of, nor a reader that goes while the
+%% program writes, which drained_output_test_ holds.
 stream_lost_at_end_test_() ->
-    {timeout, 120, fun stream_lost_at_end/0}.
+    {timeout, waits(12), fun stream_lost_at_end/0}.
 
 stream_lost_at_end() ->
     Dir = "build/lost",
@@ -877,8 +956,9 @@ stream_lost_at_end() ->
     %% one read end, then writes to the FIFO the program's side reads first
     Gone = fifo(Dir ++ "/gone"),
     Statuses = [begin
-                    {0, <<>>} = sh("sh -c '{ read gone < " ++ Gone ++ "; timeout -s KILL 20 "
-                                   "../bin/ern run " ++ Dir ++ "/" ++ Name ++ ".erc " ++ Redirect
+                    {0, <<>>} = sh("sh -c '{ read gone < " ++ Gone ++ "; timeout -s KILL "
+                                   ++ integer_to_list(wait_seconds()) ++ " ../bin/ern run "
+                                   ++ Dir ++ "/" ++ Name ++ ".erc " ++ Redirect
                                    ++ "; echo $? > " ++ Dir ++ "/status; } | { exec <&-; echo > "
                                    ++ Gone ++ "; }'"),
                     {ok, Status} = file:read_file(Dir ++ "/status"),
@@ -1523,10 +1603,16 @@ limits_line() ->
 %% regression test: a build given it stopped where it was, printed the
 %% host's report, and ended with status 0 as if it had built everything.
 %% The tree is large enough that the signal comes while it builds, once
-%% its first module is written. It does not cover a signal that comes as
-%% the host itself starts, which the host drops (docs/otp_bugs.md, report 2)
+%% its first module is written, which the build's --verbose line says
+%% (report §11.1), read as it is written; standard error holds no line
+%% but the build's own. The build's end after the signal is one step of
+%% the harness's (wait_seconds/0), after which it is killed, so that one
+%% that does not end fails the test and is not left running. It does not
+%% cover a signal that comes as the host itself starts, which the host
+%% drops (docs/otp_bugs.md, report 2). Its steps: the build to its first
+%% module and its end.
 job_signal_end_test_() ->
-    {timeout, 60, fun job_signal_end/0}.
+    {timeout, waits(2), fun job_signal_end/0}.
 
 job_signal_end() ->
     Dir = "build/job_signal_end",
@@ -1535,16 +1621,26 @@ job_signal_end() ->
     [ok = file:write_file(Dir ++ "/tree/m" ++ integer_to_list(Number) ++ ".ern",
                           "export fn f(n : Int) : Int = n + " ++ integer_to_list(Number) ++ "\n")
      || Number <- lists:seq(1, 100)],
-    Python = "import subprocess, signal, os, time\n"
-             "out = '" ++ Dir ++ "/out'\n"
-             "p = subprocess.Popen(['../bin/ern', 'build', '--build-root', out,"
-             " '" ++ Dir ++ "/tree'], stderr=subprocess.PIPE)\n"
-             "while not (os.path.isdir(out) and any(f.endswith('.erc')"
-             " for f in os.listdir(out))):\n"
-             "    time.sleep(0.01)\n"
+    %% unbuffered, so that a line is read as it comes and none after it is
+    %% read ahead of the signal
+    Python = "import subprocess, signal\n"
+             "p = subprocess.Popen(['../bin/ern', 'build', '--verbose', '--build-root', '"
+             ++ Dir ++ "/out', '" ++ Dir ++ "/tree'], stderr=subprocess.PIPE, bufsize=0)\n"
+             "said = []\n"
+             "for line in p.stderr:\n"
+             "    said.append(line)\n"
+             "    if line.startswith(b'compiled '):\n"
+             "        break\n"
              "p.send_signal(signal.SIGTERM)\n"
-             "_, err = p.communicate(timeout=30)\n"
-             "print(p.returncode, err.decode())\n",
+             "try:\n"
+             "    said += p.communicate(timeout=" ++ integer_to_list(wait_seconds()) ++ ")[1]"
+             ".splitlines(True)\n"
+             "except subprocess.TimeoutExpired:\n"
+             "    p.kill()\n"
+             "    said += p.communicate()[1].splitlines(True)\n"
+             "own = (b'source root ', b'build root ', b'compiled ', b'read ', b'removed ')\n"
+             "print(p.returncode, b''.join(line for line in said"
+             " if not line.startswith(own)).decode())\n",
     ok = file:write_file(Dir ++ "/job.py", Python),
     ?assertEqual({0, <<"-15 \n">>}, sh("python3 " ++ Dir ++ "/job.py")).
 
@@ -1739,6 +1835,19 @@ sh(Command) ->
 sh(Command, Options) ->
     Shell = open_port({spawn, Command}, [exit_status, stderr_to_stdout, binary | Options]),
     collect(Shell, []).
+
+%% The harness's time for one wait in seconds, as `timeout` and python3
+%% take it: ern_nodes_tests:wait_ms/0, which bounds one step of a test's
+%% here as in the nodes tests, a wait for a line or for a program's end.
+wait_seconds() ->
+    ern_nodes_tests:wait_ms() div 1000.
+
+%% A test's limit in seconds: its Count steps, a build, a run or a wait,
+%% each given the harness's time for one wait, as a nodes test's are
+%% counted (ern_nodes_tests:nodes_test/2), so that a step that hangs is
+%% told by its own bound before the test's limit runs out.
+waits(Count) ->
+    Count * wait_seconds().
 
 %% A FIFO at Path, made anew: two sides of a test's command line meet at
 %% it, the one that reads it waiting until the other has written its line.
