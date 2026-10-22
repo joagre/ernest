@@ -15,7 +15,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-10-22.** [`make bench` Read Against the Cost Rules](#make-bench-read-against-the-cost-rules-2026-10-22). [The Sitting on §8.6's Bookkeeping](#the-sitting-on-86s-bookkeeping-2026-10-22).
+**2026-10-22.** [The Language Against the Host](#the-language-against-the-host-2026-10-22). [`make bench` Read Against the Cost Rules](#make-bench-read-against-the-cost-rules-2026-10-22). [The Sitting on §8.6's Bookkeeping](#the-sitting-on-86s-bookkeeping-2026-10-22).
 
 **2026-10-21.** [A Make With Nothing to Do](#a-make-with-nothing-to-do-2026-10-21). [The Annotation Out of the Hash](#the-annotation-out-of-the-hash-2026-10-21). [The Nodes Tests' Bounds](#the-nodes-tests-bounds-2026-10-21). [The Later List Sorted](#the-later-list-sorted-2026-10-21). [The Window's Three Asks](#the-windows-three-asks-2026-10-21). [The Foreign Call Measured](#the-foreign-call-measured-2026-10-21).
 
@@ -9013,6 +9013,93 @@ A row is matched by its table's title, its own words with their numbers masked, 
 **Two runs in a row.** With nothing changed, the fourth run named nine rows against the third: a fault by a raise at depth 64 beneath forty frames, up a quarter; the gateway's step between two nodes, itself the difference of two rows; five of the code part's steps of tens to hundreds of microseconds; and a persistent term put again with its value, 0.3 µs against 0.2. The third run named sixteen against the second, eight of them the eight pairs changing mode.
 
 The library's table is left out of the comparison. Its numbers are each the fastest of three timings of a millisecond, not medians of interleaved runs, and the second run moved about two hundred of its 1,100 by more than a fifth, whole modules together, `Set` up by a third and `List` down by a quarter. Its own line, three times the host's, stays its check, and its numbers made medians of interleaved runs would be an item of its own.
+
+## The Language Against the Host, 2026-10-22
+
+MVP 3.29's last measurement, built 2026-10-22 on the laptop, which nothing else used. `make bench` ran twice whole, the load average 0.96 and 0.31 before each. The tables below are the second run's.
+
+**What it gains.** `test/ern_language_costs.erl` writes `language.txt`: a row for each construct the compiler writes code for, a loop of it in `test/fixtures/bench/language.ern` beside the same loop in `ern_language_twin.erl`, the plain Erlang a programmer writes for it. `test/ern_program_costs.erl` writes `programs.txt`: three programs written twice, each Ernest module under `test/fixtures/bench/` beside its Erlang twin there. Both parts run after the rules' part.
+
+**How a pair is measured.** The Ernest side is compiled from its fixture's source as `ern build` compiles it, through `ern_foreign_costs:compiled/2`, as the other parts compile theirs. The twins are compiled by erlc into `test/build/bench/twins/`. The host's compiler optimizes both alike, given `debug_info` alone by the emitter and `+debug_info` by erlc. `measured` builds the fixtures and the twins, so that `make test-full` sees one that breaks.
+
+Each loop of `language.txt` runs in a launch of its own, so that both sides run in a fresh entry process over operands made there. A run measures every row in turn, the twin's loop and then Ernest's. A row is the median of seven runs, in nanoseconds an iteration with the loop's own cost, and its ratio is Ernest's over the twin's, printed to a hundredth.
+
+A program runs three times the same way. The twin runs in a process of the bench's host outside any launch, since the runtime counts no host process among its sources. The Ernest program runs in a launch's entry process, after its module's initializers. Each is timed from its entry function's call to its answer, so that neither host's start is in it, and the two answer the same or the part fails.
+
+**The loop.** A loop that passed its count on as the accumulator cost 6.4 ns on both sides, and one that passes an operand on 1.7, the host's JIT placing the two differently. The loop alone is the second, the shape the rows share. It is named and not subtracted: each row's ratio holds its loop.
+
+**`language.txt`**, in nanoseconds an iteration:
+
+| | Erlang | Ernest | × |
+|---|---:|---:|---:|
+| the loop alone | 1.6 | 1.9 | 1.22 |
+| a `match` over three constructors, a `case` | 9.4 | 9.9 | 1.05 |
+| a `match` whose guards call functions, nested `case`s | 14.7 | 17.2 | 1.17 |
+| a record updated, one field of four | 5.7 | 8.5 | 1.50 |
+| a `Float` addition, `+` | 17.4 | 18.1 | 1.04 |
+| a `Float` multiplication, `*` | 17.7 | 22.6 | 1.27 |
+| a `Float` expression of five operations, a dot product | 19.3 | 31.8 | 1.65 |
+| an `Int` addition, `+` | 2.6 | 3.0 | 1.17 |
+| a derived `compare` of two fields, one by hand | 10.0 | 14.6 | 1.45 |
+| a requirement's `compare` at `Int`, a direct call | 10.3 | 8.6 | 0.83 |
+| `Int.compare` called, with no requirement | 10.2 | 10.2 | 1.01 |
+| a `String` concatenation, a binary built | 171.3 | 178.3 | 1.04 |
+| `String.slice`, `string:slice/3` | 233.6 | 267.9 | 1.15 |
+| `String.slice`, `binary:part/3`, a slice of bytes | 36.4 | 293.1 | 8.06 |
+| `Map.get`, `maps:get/3` with a default | 8.4 | 17.2 | 2.04 |
+| `Map.put`, `maps:put/3` | 39.5 | 46.6 | 1.18 |
+| `List.map` over 100, `lists:map/2` | 788.9 | 1,240.3 | 1.57 |
+| a send to itself and a receive by a pattern | 133.6 | 150.3 | 1.12 |
+| `Io.show` of a record of two `Int`s, `io_lib:format` `~p` | 1,226.7 | 503.2 | 0.41 |
+| a function value called, a fun | 8.8 | 8.9 | 1.01 |
+| a lambda made, a fun of two captures | 6.6 | 6.2 | 0.95 |
+
+**`programs.txt`**, in milliseconds a run:
+
+| | Erlang | Ernest | × |
+|---|---:|---:|---:|
+| the ray tracer, 400 by 300 pixels, two rays a pixel | 121.8 | 237.3 | 1.95 |
+| the parser, 1,000 lines of expressions read 40 times | 64.1 | 81.8 | 1.28 |
+| the counter, 8 callers of 10,000 calls each | 142.0 | 185.9 | 1.31 |
+
+**Two runs in a row.** The dot product's row came between the two runs, once the ray tracer had pointed at it. Of the twenty ratios both runs measured, three moved by more than a fifth: the loop alone, the `Int` addition and the requirement's `compare`, loops of 2 to 10 ns where a nanosecond is a fifth. The programs moved less, 1.93 to 1.95, 1.40 to 1.28 and 1.23 to 1.31. Each pair measured together removes the drift between two harnesses that `bench.txt`'s columns carry. `bench.txt` keeps its two harnesses, compared by its ratios as decided: most of its rows are the runtime's operations, which have no twin here. At a few nanoseconds the laptop's clock, which its governor moves between 0.4 and 2.9 GHz, still moves a ratio.
+
+**What decided nothing.** A `match` over constructors is the host's `case`. A `match` whose guards call functions makes a fun of the clauses after each guard, at 1.17, the funs cheap. An `Int` addition is the host's `+`, a function value's call the host's fun call, and a lambda the host's fun. A requirement's member is a fun the caller passes, `fun ern@int:'$9'/2`, at 0.83 to 1.31 of a direct call, within the noise. A send and a receive go through `ern_rt:send/2` and a receive with a restart's clause and a fault's, at 1.12. A concatenation is the host's binary built. `Io.show` costs 0.41 of the host's `~p`.
+
+The rows between 1.15 and 1.6 are read from the emitted Erlang. A record update matches the record and builds it again, where the host's update copies it with the field set: 1.50, and 1.1 to 1.6 for the update alone, beside the same loop without it. A derived `compare` calls `Int.compare` in `ern@int` for each field, where the hand-written one compares in place, 1.45. One `Float` operation is a try, and a product adds 0.0; where the host boxes the result too, the try costs 1.04 and the product 1.27. `Map.put` is two functions of the library and a try around `maps:put/3`. `String.slice` is 1.15 of `string:slice/3`: its own checks, a foreign fn's try and the adapter's `unicode:characters_to_binary/1`.
+
+`List.map` is `lists:map/2` written in Ernest, 1.57, within E.0 rule 1's three times. A copy of it in a scratch module with the list first, as E.0 shape rule 1 has `List.map` take it, costs what `List.map` costs. With the fun first, as the host's takes it, the copy comes within a tenth of `lists:map/2`, so the order of the arguments is most of it.
+
+`String.slice` against `binary:part/3`, 8.06, is not the same operation. The one slices graphemes and the other bytes (Appendix E.5), so it decides nothing.
+
+**The `Float` expression, a multiple.** The dot product of two records of floats, five operations, costs 1.65 times the twin's with its loop and records. Beside the same loop answering a field, the five operations take 30.5 ns against the host's 13.2, 2.3 times. The emitted Erlang shows why. Each operation is a try of its own (`float_operation/4`). The host's compiler knows the fields are floats and computes each operation in its float registers, but boxes each result on the heap at its try's end, and enters a try for each. The twin's compiler does the five in its registers and boxes the last. A product adds 0.0 besides.
+
+**`Map.get`, a multiple.** A read with a default, `match Map.get(map, key) { Some(value) -> value | None -> 0 }`, costs 2.04 times `maps:get/3` with a default. Beside the same loop alone, the read takes 13.2 ns against 5.1, 2.6 times. The library's foreign fn, its unit's function and try, is 1.1 ns of it. The rest is the adapter `ern_map:get/2`, which matches the map and builds the `Optional` the program then takes apart. The host's own read that answers as `Map.get` does, `maps:find/2` and a `case`, takes 15.6 ns, 1.2 times `Map.get`. So the multiple is the `Optional` that E.3's `get` answers, against the host's read with a default.
+
+**The ray tracer, 1.95.** A scratch program took the emitted ray tracer apart: a variant compiled at a time from its `--emit-erl` forms, each with one thing more taken out, in launches, the medians of seven interleaved runs, in milliseconds:
+
+| | ms |
+|---|---:|
+| the twin | 252 |
+| the emitted unit | 432 |
+| its `Float` operations' tries taken out | 345 |
+| and a product's 0.0 | 340 |
+| and the five computed top-level lets read as literals | 310 |
+| and `Int.toFloat`, `Float.min`, `max`, `floor` and `atan2` as the host's functions | 297 |
+
+Of the 180 ms Ernest adds, the tries are 88, half. A product's 0.0 is 5. The reads of `ahead`, `upward`, `spacing`, `ballWhite` and `floorGray` through `ern_rt:binding/1` are 30, the computed `let` that `rules.txt` puts at 5.8 times the host's function answering its value. The library's float shims, each a foreign fn's try, are 13. The rest, 45, is the library's `Optional` answers, `Float.sqrt`'s and `nearest`'s, `Float.round` and `Float.pow` written in Ernest, and `List.map` over `List.range` where the twin's comprehension walks `lists:seq/2`. The twin holds its constants as macros the host folds, and computes `ahead` and `upward` once in `render/0` and passes them to each pixel's ray, as Erlang holds a value computed at the start.
+
+**The parser, 1.28 to 1.40.** Timed a phase at a time in a scratch program, the lexer is 1.39 times the twin's and the parser alone the twin's own. The lexer's excess is where it calls the library and the twin the host. `Char.isAlpha` and `String.toList` are foreign fns, where the twin tests ASCII in a guard and calls `unicode:characters_to_list/1`. `String.toInt` is Ernest's, where the twin calls `list_to_integer/1`, and `List.reverse` a fold, where the twin calls `lists:reverse/1`. The lexer's `match` makes its continuation funs, since its guards call functions and its patterns can fail.
+
+**The counter, 1.23 to 1.31.** Eight callers of one counter, each call an `Address.call`, which `call.txt` takes apart: eight callers of one callee cost 1.30 times the host's call there.
+
+**Found.** The two multiples are beyond the milestone's items, and by its head each becomes a milestone of its own; the plan names them for the user to place. The `Float` expression: each operation's check is a try of its own, so that every result of a chain is boxed on the heap where the host keeps the chain in its float registers, which a check made once for an expression's chain would not. `Map.get` read with a default: the library answers an `Optional` that the program takes apart, where the host's read with a default answers the value.
+
+**Left.** The release's run in `test/build/bench/release/` holds neither new table, so the two are compared with the last run alone until `make bench-release` keeps a run at the review before 0.5.0.
+
+**The time.** The two runs took 667.7 and 701.3 s, where `make bench` took 10.2 to 10.6 minutes: the language's part 61 to 69 s and the programs' 4, each in its loops and its programs.
+
+**The tests.** No test: the two parts measure and assert nothing but that the programs answer alike. `make test-full` builds their fixtures and compiles their twins and harnesses through `measured`.
 
 ## The Foreign Call Measured, 2026-10-21
 

@@ -1,0 +1,199 @@
+//
+// The ray tracer of ernest-epx's examples/raytracer.ern, its pure half, for
+// `make bench` (test/ern_program_costs.erl): the Boing ball above a mirror
+// floor, each row of the picture traced a pixel at a time into its bytes,
+// as the example traces it before it writes the row into its pixmap.
+// Nothing here opens a window or writes a pixmap, so that the bench needs
+// no library outside this repository. test/fixtures/bench/
+// ern_raytracer_twin.erl is the same program as Erlang writes it.
+//
+
+type Vector = Vector(x : Float, y : Float, z : Float)
+
+fn Vector.+(left : Vector, right : Vector) : Vector =
+    Vector(x = left.x + right.x, y = left.y + right.y, z = left.z + right.z)
+
+fn Vector.-(left : Vector, right : Vector) : Vector =
+    Vector(x = left.x - right.x, y = left.y - right.y, z = left.z - right.z)
+
+fn scaled(vector : Vector, factor : Float) : Vector =
+    Vector(x = vector.x * factor, y = vector.y * factor, z = vector.z * factor)
+
+fn dot(left : Vector, right : Vector) : Float =
+    left.x * right.x + left.y * right.y + left.z * right.z
+
+fn length(vector : Vector) : Float =
+    match Float.sqrt(dot(vector, vector)) {
+        Some(root) -> root
+      | None -> fault("a sum of squares is below zero")
+    }
+
+fn normalized(vector : Vector) : Vector =
+    scaled(vector, 1.0 / length(vector))
+
+fn reflected(direction : Vector, normal : Vector) : Vector =
+    direction - scaled(normal, 2.0 * dot(direction, normal))
+
+type Ray = Ray(origin : Vector, direction : Vector)
+
+fn along(ray : Ray, distance : Float) : Vector =
+    ray.origin + scaled(ray.direction, distance)
+
+type Color = Color(red : Float, green : Float, blue : Float)
+
+fn Color.+(left : Color, right : Color) : Color =
+    Color(red = left.red + right.red,
+          green = left.green + right.green,
+          blue = left.blue + right.blue)
+
+fn Color.*(left : Color, right : Color) : Color =
+    Color(red = left.red * right.red,
+          green = left.green * right.green,
+          blue = left.blue * right.blue)
+
+fn gray(level : Float) : Color =
+    Color(red = level, green = level, blue = level)
+
+type Hit = Ball(distance : Float) | Floor(distance : Float)
+
+let width : Int = 400
+
+let height : Int = 300
+
+let rays : Int = 2
+
+let center : Vector = Vector(x = 0.0, y = 1.2, z = 0.0)
+
+let radius : Float = 1.0
+
+let eye : Vector = Vector(x = 0.0, y = 1.5, z = -5.0)
+
+let ahead : Vector = normalized(Vector(x = 0.0, y = 0.7, z = 0.0) - eye)
+
+let upward : Vector = Vector(x = 0.0, y = ahead.z, z = -ahead.y)
+
+let rightward : Vector = Vector(x = 1.0, y = 0.0, z = 0.0)
+
+let spacing : Float = 0.85 / Int.toFloat(height)
+
+let light : Vector = Vector(x = -5.0, y = 7.0, z = -2.0)
+
+let ambient : Float = 0.2
+
+let diffuse : Float = 0.8
+
+let highlight : Float = 0.6
+
+let shininess : Float = 40.0
+
+let sky : Color = Color(red = 0.55, green = 0.65, blue = 0.85)
+
+let ballRed : Color = Color(red = 0.85, green = 0.05, blue = 0.05)
+
+let ballWhite : Color = gray(0.95)
+
+let floorGray : Color = gray(0.25)
+
+let mirror : Float = 0.5
+
+let latitudeBands : Int = 8
+
+let longitudeBands : Int = 16
+
+// The picture, a row of bytes for each row of pixels, top to bottom.
+export fn render() : List(Bytes) =
+    List.map(List.range(0, height - 1), renderRow)
+
+fn renderRow(y : Int) : Bytes = {
+    let pixels = List.map(List.range(0, width - 1), fn(x) = pixel(trace(pixelRay(x, y), rays)));
+    Bytes.join(pixels, <<>>)
+}
+
+fn pixel(color : Color) : Bytes =
+    <<channel(color.red), channel(color.green), channel(color.blue)>>
+
+fn channel(level : Float) : Int =
+    Float.round(Float.min(level, 1.0) * 255.0)
+
+fn pixelRay(x : Int, y : Int) : Ray = {
+    let across = (Int.toFloat(x) + 0.5 - Int.toFloat(width) / 2.0) * spacing;
+    let up = (Int.toFloat(height) / 2.0 - Int.toFloat(y) - 0.5) * spacing;
+    Ray(origin = eye,
+        direction = normalized(ahead + scaled(rightward, across) + scaled(upward, up)))
+}
+
+fn trace(ray : Ray, depth : Int) : Color =
+    match nearest(ray) {
+        Some(Ball(distance = distance)) -> {
+            let point = along(ray, distance);
+            let normal = scaled(point - center, 1.0 / radius);
+            shade(point, normal, ray.direction, check(normal))
+        }
+      | Some(Floor(distance = distance)) -> {
+            let point = along(ray, distance);
+            let normal = Vector(x = 0.0, y = 1.0, z = 0.0);
+            let own = shade(point, normal, ray.direction, floorGray);
+            if depth > 1 then {
+                let mirrored = Ray(origin = point, direction = reflected(ray.direction, normal));
+                own * gray(1.0 - mirror) + trace(mirrored, depth - 1) * gray(mirror)
+            } else
+                own
+        }
+      | None ->
+            sky
+    }
+
+fn nearest(ray : Ray) : Optional(Hit) =
+    match #(hitSphere(ray), hitFloor(ray)) {
+        #(Some(toBall), Some(toFloor)) when toFloor < toBall -> Some(Floor(distance = toFloor))
+      | #(Some(toBall), _) -> Some(Ball(distance = toBall))
+      | #(None, Some(toFloor)) -> Some(Floor(distance = toFloor))
+      | #(None, None) -> None
+    }
+
+fn hitSphere(ray : Ray) : Optional(Float) = {
+    let offset = ray.origin - center;
+    let half = dot(offset, ray.direction);
+    match Float.sqrt(half * half - dot(offset, offset) + radius * radius) {
+        Some(root) when root < -half -> Some(-half - root)
+      | _ -> None
+    }
+}
+
+fn hitFloor(ray : Ray) : Optional(Float) =
+    if ray.direction.y < 0.0 then Some(-ray.origin.y / ray.direction.y) else None
+
+fn shade(point : Vector, normal : Vector, direction : Vector, surface : Color) : Color =
+    if reached(point, normal) then {
+        let toLight = normalized(light - point);
+        let shine = Float.max(0.0, dot(reflected(direction, normal), toLight));
+        surface * gray(ambient + diffuse * dot(normal, toLight)) + gray(glint(shine))
+    } else
+        surface * gray(ambient)
+
+fn reached(point : Vector, normal : Vector) : Bool = {
+    let toLight = light - point;
+    dot(normal, toLight) > 0.0
+        && match hitSphere(Ray(origin = point, direction = normalized(toLight))) {
+            Some(distance) -> distance > length(toLight)
+          | None -> true
+        }
+}
+
+fn glint(shine : Float) : Float =
+    match Float.pow(shine, shininess) {
+        Some(level) -> highlight * level
+      | None -> fault("a base below zero to a fractional power")
+    }
+
+fn check(normal : Vector) : Color = {
+    let latitude = Float.atan2(length(Vector(x = normal.x, y = 0.0, z = normal.z)), normal.y);
+    let longitude = Float.atan2(normal.z, normal.x);
+    let bands =
+        band(latitude, Float.pi, latitudeBands)
+            + band(longitude + Float.pi, 2.0 * Float.pi, longitudeBands);
+    if bands % 2 == 0 then ballRed else ballWhite
+}
+
+fn band(angle : Float, span : Float, count : Int) : Int =
+    Float.floor(angle / span * Int.toFloat(count))

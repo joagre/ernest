@@ -1,0 +1,49 @@
+//
+// The counter of the guide's chapters 4 and 6, for `make bench`
+// (test/ern_program_costs.erl): a counter process, callers that each make
+// their calls of it with `Address.call`, the counter answering each with
+// its total, and the total it came to once every caller has ended.
+// test/fixtures/bench/ern_counter_twin.erl is the same program as Erlang
+// writes it.
+//
+
+export type CounterMsg = Add(amount : Int, reply : Reply(Int))
+
+export type RunMsg = Ended(Down)
+
+fn count(total : Int) : Unit receiving CounterMsg =
+    receive {
+        Add(amount = amount, reply = reply) -> {
+            answer(reply, total + amount);
+            count(total + amount)
+        }
+    }
+
+// `callers` processes, each making `calls` calls of one counter, and the
+// total the counter came to.
+export fn run(callers : Int, calls : Int) : Int receiving RunMsg = {
+    let counter = spawn(fn() = count(0));
+    List.forEach(List.range(1, callers), fn(_) = {
+        let _ = spawnMonitored(fn() = call(counter, calls), Ended);
+        Unit
+    });
+    awaitCallers(callers);
+    let total = Address.callForever(counter, fn(reply) = Add(amount = 0, reply = reply));
+    kill(counter);
+    total
+}
+
+fn call(counter : Address(CounterMsg), calls : Int) : Unit =
+    if calls == 0 then
+        Unit
+    else {
+        let _ = Address.call(counter, fn(reply) = Add(amount = 1, reply = reply), 1000);
+        call(counter, calls - 1)
+    }
+
+fn awaitCallers(count : Int) : Unit receiving RunMsg =
+    if count == 0 then
+        Unit
+    else receive {
+        Ended(_) -> awaitCallers(count - 1)
+    }

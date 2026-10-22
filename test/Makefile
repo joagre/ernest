@@ -105,16 +105,19 @@ install: $(BEAMS) prepare
 # The load programs, the benchmark and the service checks' program, which
 # `load`, `bench` and `service` run and no test does, are built with the
 # programs, and their harnesses compiled, the probe the code costs' nodes
-# load among them, so that a change that breaks one is seen by `make
+# load among them and the Erlang twins of the language's part and the
+# programs' part, so that a change that breaks one is seen by `make
 # test-full`.
 measured: prepare $(EBIN)/ern_load.beam $(EBIN)/ern_bench.beam $(EBIN)/ern_service_tests.beam \
 	  $(EBIN)/ern_spawn_costs.beam $(EBIN)/ern_restarting_costs.beam $(EBIN)/ern_burst_costs.beam \
 	  $(EBIN)/ern_foreign_costs.beam $(EBIN)/ern_call_costs.beam $(EBIN)/ern_rule_costs.beam \
+	  $(EBIN)/ern_language_costs.beam $(EBIN)/ern_program_costs.beam \
 	  $(EBIN)/ern_last_run.beam $(EBIN)/ern_node_costs.beam $(EBIN)/ern_code_costs.beam \
 	  $(EBIN)/ern_pick_costs.beam machines
-	@mkdir -p build/load build/bench/probe build/service
+	@mkdir -p build/load build/bench/probe build/bench/twins build/service
 	@erlc $(ERLC_FLAGS) -o build/bench/probe fixtures/bench/ern_code_probe.erl \
 	  fixtures/bench/ern_pick_probe.erl
+	@erlc $(ERLC_FLAGS) -o build/bench/twins fixtures/bench/ern_*_twin.erl
 	@for p in $(LOADS); do \
 	  ../bin/ern build --verbose --source-root fixtures/load --build-root build/load \
 	    fixtures/load/$$p.ern || exit 1; done
@@ -208,10 +211,15 @@ service: measured
 # pieces of a foreign call, and the call and its count with eight processes
 # at once, ern_foreign_costs, in build/bench/foreign.txt; the pieces of a
 # call with one caller, eight pairs and eight callers of one callee,
-# ern_call_costs, in build/bench/call.txt; and the rows the cost rules ask
+# ern_call_costs, in build/bench/call.txt; the rows the cost rules ask
 # for that no other part has, a top-level let's read, a timed receive, a
 # message to a system process and a bare launch, ern_rule_costs, in
-# build/bench/rules.txt (plan, MVP 3.29). The run before is kept in
+# build/bench/rules.txt; each construct the compiler writes code for
+# beside the plain Erlang for the same thing, ern_language_costs, in
+# build/bench/language.txt; and three programs written twice, in Ernest
+# and in Erlang by hand, ern_program_costs, in build/bench/programs.txt,
+# the Erlang twins of the two under fixtures/bench/ and compiled into
+# build/bench/twins/ (plan, MVP 3.29). The run before is kept in
 # build/bench/last/ as a run begins, where it wrote every table, and at the
 # end every row that moved by more than a fifth against it, and against
 # the release's run that bench-release keeps in build/bench/release/, is
@@ -223,7 +231,7 @@ service: measured
 # Cost Rules*, *The Sitting on §8.6's Bookkeeping*).
 # Not part of `make test-full`, since it measures and asserts nothing.
 BENCH_TABLES = bench.txt nodes.txt code.txt spawn.txt spawn_monitored.txt monitor.txt \
-	  restarting.txt burst.txt foreign.txt call.txt rules.txt
+	  restarting.txt burst.txt foreign.txt call.txt rules.txt language.txt programs.txt
 BENCH_RUN = erl -noinput -pa ../erl/*/ebin -pa $(EBIN) -eval
 # The memory of the runs, ern_last_run's step $(1), keep, release or compare.
 LAST_RUN = $(BENCH_RUN) 'ern_last_run:main(["$(1)", "build/bench"$(BENCH_LIST)])'
@@ -235,6 +243,7 @@ bench: $(EBIN)/ern_bench.beam $(EBIN)/ern_measure.beam $(EBIN)/ern_node_costs.be
 	  $(EBIN)/ern_code_costs.beam $(EBIN)/ern_spawn_costs.beam \
 	  $(EBIN)/ern_restarting_costs.beam $(EBIN)/ern_burst_costs.beam \
 	  $(EBIN)/ern_foreign_costs.beam $(EBIN)/ern_call_costs.beam $(EBIN)/ern_rule_costs.beam \
+	  $(EBIN)/ern_language_costs.beam $(EBIN)/ern_program_costs.beam \
 	  $(EBIN)/ern_last_run.beam measured named
 	@$(call LAST_RUN,keep)
 	@../bin/ern run --verbose build/bench/bench.erc > build/bench/ernest.txt \
@@ -249,6 +258,8 @@ bench: $(EBIN)/ern_bench.beam $(EBIN)/ern_measure.beam $(EBIN)/ern_node_costs.be
 	@$(BENCH_RUN) 'ern_foreign_costs:main(["build/bench"])'
 	@$(BENCH_RUN) 'ern_call_costs:main(["build/bench"])'
 	@$(BENCH_RUN) 'ern_rule_costs:main(["build/bench"])'
+	@$(BENCH_RUN) 'ern_language_costs:main(["build/bench"])'
+	@$(BENCH_RUN) 'ern_program_costs:main(["build/bench"])'
 	@$(call LAST_RUN,compare)
 
 # The last run's tables kept in build/bench/release/ as the release's run,

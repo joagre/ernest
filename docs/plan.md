@@ -244,21 +244,31 @@ items becomes a milestone of its own, since the tour and 0.5.0 wait behind this 
   program's output, and to the job's own error device before the first launch, between two and
   after the last. `ern test`'s line that an example's directory cannot be removed, said once the
   example's launch has ended, goes to the job's error device.
-- **The language against the host, the last measurement** (decided with the user 2026-10-22):
-  the bench measures the runtime around a program and not the code the emitter writes for it. Two
-  kinds of rows, after the builds above, since they change the numbers: one row per construct the
-  emitter adds code to, each against the plain Erlang a programmer writes, a `match` over
-  constructors, a record update, a float operation with its finiteness check against the bare
-  operator, a derived `compare` and a requirement's member reached through what the checker
-  supplies, string concatenation and a slice over the binary, a `Map` read and write, a send and a
-  receive with a pattern, `Io.show`; and three programs written twice, the same algorithm in Ernest
-  and in Erlang by hand, the ray tracer for floats and records, a parser for strings and matching,
-  the counter server for processes and calls, each a ratio a reader can take in, the construct rows
-  saying where a ratio comes from. Against the host's own Erlang alone, not another language on
-  the host, since that would measure their compilers. A construct that shows a multiple is a
-  finding for an item of its own, never this one's tail. Both are parts of `make bench`,
-  `language.txt` and `programs.txt`, the Erlang twins fixtures under the test tree, so that the
-  comparison watches them; about two days, and the entry the claim below cites.
+- **The language against the host, the last measurement**, built 2026-10-22 (the log's *The
+  Language Against the Host*): `make bench` gains `language.txt`, each construct the emitter
+  writes code for beside the plain Erlang a programmer writes for it, and `programs.txt`, three
+  programs written twice, each pair measured together and the twins under `test/fixtures/bench/`.
+  The ray tracer runs at 1.95 times its Erlang twin, the parser at 1.28 and the counter at 1.31.
+  Of the twenty rows beside the loop, two constructs show a multiple, the two items below;
+  `String.slice` at 8.06 times `binary:part/3` slices graphemes and not bytes, `List.map` at 1.57
+  is the host's `lists:map/2` written in Ernest, within E.0 rule 1, and every other row is a
+  fraction. The release's run holds neither new table until the review before 0.5.0 keeps one.
+  Its log entry is the one the claim below cites.
+- **A `Float` expression's checks** (found 2026-10-22 measuring the language against the host;
+  beyond this milestone's items, so a milestone of its own by its head, placed by the user): a
+  dot product's five operations take 30.5 ns against the host's 13.2, 2.3 times, and the tries
+  are half of what the ray tracer adds to its twin, 88 of 180 ms in a scratch program that took
+  it apart. Each operation is a try of its
+  own, so each result of a chain is boxed on the heap where the host keeps the chain in its
+  float registers and boxes the last; its shape is a check made once for an expression's chain
+  (the log's *The Language Against the Host*).
+- **`Map.get` read with a default** (found 2026-10-22 measuring the language against the host;
+  beyond this milestone's items, so a milestone of its own by its head, placed by the user): the
+  read takes 13.2 ns against `maps:get/3`'s 5.1, 2.6 times, and its row 2.04. Its shape is the
+  `Optional` that E.3's `get` answers, built by the adapter `ern_map:get/2` behind a foreign fn
+  and taken apart by the program, where the host's read with a default answers the value; the
+  host's `maps:find/2` and a `case`, which answer as `Map.get` does, cost 1.2 times it (the log's
+  *The Language Against the Host*).
 - **The runtime's design note**, under `docs/design/` as the shell's is (decided with the user
   2026-10-22):
   the runtime's implementation choices had three homes and no page stating them as they stand,

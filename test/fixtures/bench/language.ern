@@ -1,0 +1,163 @@
+//
+// The language against the host, construct by construct, for `make bench`
+// (test/ern_language_costs.erl): each function a loop of `count`
+// iterations around one construct the compiler writes code for, its
+// operands given by the bench, so that nothing is folded into a literal.
+// test/fixtures/bench/ern_language_twin.erl writes each loop as Erlang
+// writes it, and the bench runs the two together.
+//
+
+export type Shape = Square(side : Int) | Rectangle(width : Int, height : Int) | Dot
+
+export type Account = Account(id : Int, name : String, balance : Int, open : Bool)
+
+export type Pair = Pair(first : Int, second : Int) derives compare
+
+export type Point = Point(x : Int, y : Int)
+
+type Vector = Vector(x : Float, y : Float, z : Float)
+
+export type PingMsg = Ping(Int)
+
+// The loop alone, which every loop below runs around its construct: the
+// count down, an operand passed on.
+export fn loopAlone(count : Int, operand : Int, acc : Int) : Int =
+    if count == 0 then acc else loopAlone(count - 1, operand, operand)
+
+// Report §5.9: a `match` over a type of three constructors.
+export fn matched(count : Int, shape : Shape, acc : Int) : Int =
+    if count == 0 then acc else matched(count - 1, shape, area(shape))
+
+fn area(shape : Shape) : Int =
+    match shape {
+        Square(side = side) -> side * side
+      | Rectangle(width = width, height = height) -> width * height
+      | Dot -> 0
+    }
+
+// Report §5.9: a `match` whose guards call functions, which are no guards
+// of the host's.
+export fn guarded(count : Int, char : Char, acc : Int) : Int =
+    if count == 0 then acc else guarded(count - 1, char, classified(char))
+
+fn classified(char : Char) : Int =
+    match char {
+        ' ' -> 0
+      | _ when isDigit(char) -> 1
+      | _ when isLetter(char) -> 2
+      | _ -> 3
+    }
+
+fn isDigit(char : Char) : Bool =
+    char >= '0' && char <= '9'
+
+fn isLetter(char : Char) : Bool =
+    char >= 'a' && char <= 'z'
+
+// Report §5.6: a record update of one field of four.
+export fn updated(count : Int, account : Account) : Account =
+    if count == 0 then account else updated(count - 1, Account(..account, balance = count))
+
+// Report §3.1: a Float addition and a multiplication, each held to the
+// finite range.
+export fn floatAdded(count : Int, left : Float, right : Float, acc : Float) : Float =
+    if count == 0 then acc else floatAdded(count - 1, left, right, left + right)
+
+export fn floatMultiplied(count : Int, left : Float, right : Float, acc : Float) : Float =
+    if count == 0 then acc else floatMultiplied(count - 1, left, right, left * right)
+
+// Report §3.1: a Float expression of five operations, the dot product of
+// two records made here, so that the host knows their fields are floats,
+// as it knows a program's; the one's fields the last product, so that the
+// host computes nothing ahead, and the other's weights that keep it.
+export fn dotted(count : Int, acc : Float) : Float =
+    if count == 0 then
+        acc
+    else
+        dotted(count - 1,
+               dot(Vector(x = acc, y = acc, z = acc), Vector(x = 0.5, y = 0.25, z = 0.25)))
+
+fn dot(left : Vector, right : Vector) : Float =
+    left.x * right.x + left.y * right.y + left.z * right.z
+
+// Report §3.1: an Int addition.
+export fn intAdded(count : Int, left : Int, right : Int, acc : Int) : Int =
+    if count == 0 then acc else intAdded(count - 1, left, right, left + right)
+
+// Report §3.5: a derived `compare` of a record of two fields.
+export fn pairCompared(count : Int, left : Pair, right : Pair, acc : Ordering) : Ordering =
+    if count == 0 then acc else pairCompared(count - 1, left, right, Pair.compare(left, right))
+
+// Report §4.9: a requirement's member, supplied at `Int` by the compiler.
+export fn required(count : Int, left : Int, right : Int, acc : Int) : Int =
+    if count == 0 then acc else required(count - 1, left, right, larger(left, right))
+
+fn larger(left : a, right : a) : a needs a.compare =
+    match a.compare(left, right) {
+        Less -> right
+      | _ -> left
+    }
+
+// The same comparison at `Int` with no requirement, `Int.compare` called.
+export fn direct(count : Int, left : Int, right : Int, acc : Int) : Int =
+    if count == 0 then acc else direct(count - 1, left, right, largerInt(left, right))
+
+fn largerInt(left : Int, right : Int) : Int =
+    match Int.compare(left, right) {
+        Less -> right
+      | _ -> left
+    }
+
+// Report §2.6, Appendix E.5: a string concatenation and a slice.
+export fn appended(count : Int, left : String, right : String, acc : String) : String =
+    if count == 0 then acc else appended(count - 1, left, right, left <> right)
+
+export fn sliced(count : Int, text : String, acc : String) : String =
+    if count == 0 then acc else sliced(count - 1, text, String.slice(text, 2, 7))
+
+// Appendix E.3: a read of a map, half its keys absent, and a write.
+export fn mapRead(count : Int, map : Map(Int, Int), acc : Int) : Int =
+    if count == 0 then
+        acc
+    else mapRead(count - 1, map, match Map.get(map, count % 8) {
+        Some(value) -> value
+      | None -> 0
+    })
+
+export fn mapWritten(count : Int, map : Map(Int, Int), acc : Map(Int, Int)) : Map(Int, Int) =
+    if count == 0 then acc else mapWritten(count - 1, map, Map.put(map, count % 8, count))
+
+// Appendix E.2: `List.map` over the list, a lambda that adds the count.
+export fn listMapped(count : Int, list : List(Int), acc : List(Int)) : List(Int) =
+    if count == 0 then
+        acc
+    else
+        listMapped(count - 1, list, List.map(list, fn(element) = element + count))
+
+// Report §6.2, §6.3: a send to the process itself and a receive of the
+// message by its pattern.
+export fn messaged(count : Int, acc : Int) : Int receiving PingMsg =
+    if count == 0 then
+        acc
+    else {
+        send(self(), Ping(count));
+        let value = receive {
+            Ping(value) -> value
+        };
+        messaged(count - 1, value)
+    }
+
+// Appendix E.1: a record shown.
+export fn shown(count : Int, point : Point, acc : String) : String =
+    if count == 0 then acc else shown(count - 1, point, Io.show(point))
+
+// Report §5.2: a function value called.
+export fn applied(count : Int, f : (Int) -> Int, acc : Int) : Int =
+    if count == 0 then acc else applied(count - 1, f, f(count))
+
+export fn successor() : (Int) -> Int =
+    fn(n) = n + 1
+
+// Report §5.3: a lambda made, which captures two values.
+export fn made(count : Int, addend : Int, acc : (Int) -> Int) : (Int) -> Int =
+    if count == 0 then acc else made(count - 1, addend, fn(k) = k + addend + count)

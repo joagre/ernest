@@ -1,0 +1,265 @@
+//
+// The lexer, the parser and the evaluator of examples/repl.ern, for `make
+// bench` (test/ern_program_costs.erl): each line of the input read as the
+// REPL reads it, its value added to a sum, an error counted, and a `let`
+// binding its name for the lines after it. The REPL evaluates each line in
+// a process of its own; here the evaluator is called directly, which is
+// the work. test/fixtures/bench/ern_parser_twin.erl is the same program as
+// Erlang writes it.
+//
+
+type Token =
+    Number(Int)
+  | Name(String)
+  | Operator(Char)
+  | OpenParen
+  | CloseParen
+  | LetKeyword
+  | FunKeyword
+  | Equals
+  | Arrow
+
+type LexError = BadChar(char : Char, index : Int)
+
+type Expression =
+    Literal(Int)
+  | Variable(String)
+  | Binary(operator : Char, left : Expression, right : Expression)
+  | Let(name : String, value : Expression)
+  | Function(parameter : String, body : Expression)
+  | Apply(callee : Expression, argument : Expression)
+
+type ParseError = Unexpected(Token) | EndOfInput
+
+type Value = Integer(Int) | Closure(parameter : String, body : Expression, env : Map(String, Value))
+
+type EvalError = Unbound(String) | DivisionByZero | NotAFunction | NotANumber
+
+// The lines read in order: the sum of the integers they came to, and the
+// count of the lines that were wrong.
+export fn run(lines : List(String)) : #(Int, Int) = {
+    let #(_, sum, errors) =
+        List.foldLeft(lines, #(Map.empty, 0, 0), fn(acc, text) = evaluateLine(acc, text));
+    #(sum, errors)
+}
+
+fn evaluateLine(acc : #(Map(String, Value), Int, Int),
+                text : String) : #(Map(String, Value), Int, Int) = {
+    let #(env, sum, errors) = acc;
+    match tokenize(text) {
+        Left(_) ->
+            #(env, sum, errors + 1)
+      | Right([]) ->
+            acc
+      | Right(tokens) ->
+            match parse(tokens) {
+                Left(_) ->
+                    #(env, sum, errors + 1)
+              | Right(expression) ->
+                    match #(expression, eval(env, expression)) {
+                        #(_, Left(_)) ->
+                            #(env, sum, errors + 1)
+                      | #(Let(name = name), Right(value)) ->
+                            #(Map.put(env, name, value), sum + valueOf(value), errors)
+                      | #(_, Right(value)) ->
+                            #(env, sum + valueOf(value), errors)
+                    }
+            }
+    }
+}
+
+fn valueOf(value : Value) : Int =
+    match value {
+        Integer(number) -> number
+      | Closure() -> 0
+    }
+
+//
+// The lexer
+//
+
+fn tokenize(text : String) : Either(LexError, List(Token)) =
+    lex(String.toList(text), 0, [])
+
+fn lex(chars : List(Char), index : Int, acc : List(Token)) : Either(LexError, List(Token)) =
+    match chars {
+        [] ->
+            Right(List.reverse(acc))
+      | ' ' :: rest ->
+            lex(rest, index + 1, acc)
+      | '(' :: rest ->
+            lex(rest, index + 1, OpenParen :: acc)
+      | ')' :: rest ->
+            lex(rest, index + 1, CloseParen :: acc)
+      | '=' :: rest ->
+            lex(rest, index + 1, Equals :: acc)
+      | '-' :: '>' :: rest ->
+            lex(rest, index + 2, Arrow :: acc)
+      | char :: _ when Char.isAsciiDigit(char) -> {
+            let #(digits, rest) = List.span(chars, Char.isAsciiDigit);
+            let value = Optional.withDefault(String.toInt(String.fromList(digits)), 0);
+            lex(rest, index + List.size(digits), Number(value) :: acc)
+        }
+      | char :: _ when Char.isAlpha(char) -> {
+            let #(word, rest) = List.span(chars, Char.isAlpha);
+            let token = match String.fromList(word) {
+                "let" -> LetKeyword
+              | "fun" -> FunKeyword
+              | other -> Name(other)
+            };
+            lex(rest, index + List.size(word), token :: acc)
+        }
+      | char :: rest when List.contains(['+', '-', '*', '/'], char) ->
+            lex(rest, index + 1, Operator(char) :: acc)
+      | char :: _ ->
+            Left(BadChar(char = char, index = index))
+    }
+
+//
+// The parser
+//
+
+fn parse(tokens : List(Token)) : Either(ParseError, Expression) = {
+    let #(expression, rest) <- match tokens {
+        LetKeyword :: Name(name) :: Equals :: more -> {
+            let #(value, remaining) <- parseExpression(more);
+            Right(#(Let(name = name, value = value), remaining))
+        }
+      | _ ->
+            parseExpression(tokens)
+    };
+    match rest {
+        [] -> Right(expression)
+      | token :: _ -> Left(Unexpected(token))
+    }
+}
+
+fn parseExpression(tokens : List(Token)) : Either(ParseError, #(Expression, List(Token))) =
+    match tokens {
+        FunKeyword :: Name(parameter) :: Arrow :: rest -> {
+            let #(body, remaining) <- parseExpression(rest);
+            Right(#(Function(parameter = parameter, body = body), remaining))
+        }
+      | _ ->
+            parseSum(tokens)
+    }
+
+fn parseSum(tokens : List(Token)) : Either(ParseError, #(Expression, List(Token))) = {
+    let #(left, rest) <- parseProduct(tokens);
+    sumRest(left, rest)
+}
+
+fn sumRest(left : Expression,
+           tokens : List(Token)) : Either(ParseError, #(Expression, List(Token))) =
+    match tokens {
+        Operator(operator) :: rest when operator == '+' || operator == '-' -> {
+            let #(right, remaining) <- parseProduct(rest);
+            sumRest(Binary(operator = operator, left = left, right = right), remaining)
+        }
+      | _ ->
+            Right(#(left, tokens))
+    }
+
+fn parseProduct(tokens : List(Token)) : Either(ParseError, #(Expression, List(Token))) = {
+    let #(left, rest) <- parseApplication(tokens);
+    productRest(left, rest)
+}
+
+fn productRest(left : Expression,
+               tokens : List(Token)) : Either(ParseError, #(Expression, List(Token))) =
+    match tokens {
+        Operator(operator) :: rest when operator == '*' || operator == '/' -> {
+            let #(right, remaining) <- parseApplication(rest);
+            productRest(Binary(operator = operator, left = left, right = right), remaining)
+        }
+      | _ ->
+            Right(#(left, tokens))
+    }
+
+fn parseApplication(tokens : List(Token)) : Either(ParseError, #(Expression, List(Token))) = {
+    let #(callee, rest) <- parseAtom(tokens);
+    applicationRest(callee, rest)
+}
+
+fn applicationRest(callee : Expression,
+                   tokens : List(Token)) : Either(ParseError, #(Expression, List(Token))) =
+    match parseAtom(tokens) {
+        Left(_) ->
+            Right(#(callee, tokens))
+      | Right(#(argument, rest)) ->
+            applicationRest(Apply(callee = callee, argument = argument), rest)
+    }
+
+fn parseAtom(tokens : List(Token)) : Either(ParseError, #(Expression, List(Token))) =
+    match tokens {
+        Number(value) :: rest ->
+            Right(#(Literal(value), rest))
+      | Name(name) :: rest ->
+            Right(#(Variable(name), rest))
+      | OpenParen :: rest -> {
+            let #(inner, remaining) <- parseExpression(rest);
+            match remaining {
+                CloseParen :: beyond -> Right(#(inner, beyond))
+              | token :: _ -> Left(Unexpected(token))
+              | [] -> Left(EndOfInput)
+            }
+        }
+      | token :: _ ->
+            Left(Unexpected(token))
+      | [] ->
+            Left(EndOfInput)
+    }
+
+//
+// The evaluator
+//
+
+fn eval(env : Map(String, Value), expression : Expression) : Either(EvalError, Value) =
+    match expression {
+        Literal(value) ->
+            Right(Integer(value))
+      | Variable(name) ->
+            match Map.get(env, name) {
+                Some(value) -> Right(value)
+              | None -> Left(Unbound(name))
+            }
+      | Function(parameter = parameter, body = body) ->
+            Right(Closure(parameter = parameter, body = body, env = env))
+      | Let(value = value) ->
+            eval(env, value)
+      | Binary(operator = operator, left = left, right = right) -> {
+            let leftValue <- eval(env, left);
+            let rightValue <- eval(env, right);
+            arithmetic(operator, leftValue, rightValue)
+        }
+      | Apply(callee = callee, argument = argument) -> {
+            let closure <- eval(env, callee);
+            let value <- eval(env, argument);
+            match closure {
+                Closure(parameter = parameter, body = body, env = captured) ->
+                    eval(Map.put(captured, parameter, value), body)
+              | Integer(_) ->
+                    Left(NotAFunction)
+            }
+        }
+    }
+
+fn arithmetic(operator : Char, left : Value, right : Value) : Either(EvalError, Value) =
+    match #(left, right) {
+        #(Integer(first), Integer(second)) ->
+            match operator {
+                '+' ->
+                    Right(Integer(first + second))
+              | '-' ->
+                    Right(Integer(first - second))
+              | '*' ->
+                    Right(Integer(first * second))
+              | _ ->
+                    match Int.div(first, second) {
+                        Some(quotient) -> Right(Integer(quotient))
+                      | None -> Left(DivisionByZero)
+                    }
+            }
+      | _ ->
+            Left(NotANumber)
+    }

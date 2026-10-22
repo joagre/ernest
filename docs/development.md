@@ -175,12 +175,23 @@ make bench        what each of a few operations costs in Ernest beside the same
                   and eight callers of one callee, and each of the call's writes alone by
                   one process and by eight, in call.txt; then a top-level let's read, a
                   receive with an after, a message to a system process and a bare launch
-                  with its pieces, each beside the host's, in rules.txt; and last, every
+                  with its pieces, each beside the host's, in rules.txt; then each
+                  construct the compiler writes code for, a match and one whose guards
+                  call functions, a record update, a Float operation and an expression of
+                  five, an Int operation, a derived compare, a requirement's member, a
+                  string's concatenation and slice, a map's read and write, List.map, a
+                  send and a receive, Io.show, a function value's call and a lambda made,
+                  each beside the plain Erlang a programmer writes, the two measured
+                  together, in language.txt; then three programs written twice, the ray
+                  tracer's pure half, examples/repl.ern's lexer, parser and evaluator
+                  over a fixed input, and the guide's counter with its callers, each
+                  Ernest program's time over its Erlang twin's, the twins under
+                  test/fixtures/bench/, in programs.txt; and last, every
                   row that moved by more than a fifth against the last run, whose tables
                   test/build/bench/last/ keeps, and against the release's, whose tables
                   test/build/bench/release/ keeps, each under its reference, printed
                   and written to moved.txt, a table with a ratio by its ratios and any
-                  other by its numbers, the library's table left out; about eleven
+                  other by its numbers, the library's table left out; about twelve
                   minutes; not part of make test-full. A row is for a number a later
                   change could move, a promise of CLAUDE.md's cost rules or a construct
                   the emitter writes code for; a number measured once to settle a design
