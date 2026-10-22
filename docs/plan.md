@@ -102,25 +102,13 @@ the order they are built; the report's sections change as each build starts.
   literal reads in 38 ns against 9; a bare launch takes 3.3 ms, 2.1 of it the library's
   initializers, not the 7.25 ms before them that the launch's item below rests on; and each run
   names the rows that moved by more than a fifth since the last, the library's table aside.
-- **The bookkeeping built on the rule**, §8.6 first, its shape decided with the user on
-  2026-10-22 after the verification (the log's *The Sitting on §8.6's Bookkeeping*, its
-  *Verified* paragraph): the stack read as the sitting argued it failed, a callback called in tail
-  position leaving no foreign frame and a library shim's callback showing the host's frames, so
-  the look reads one `process_info` of each waiting process, its top frame and three marks in its
-  dictionary. A host module on top, one that is neither a unit the code table holds nor a module
-  of the runtime application's own, is a host receive inside foreign code; the callback mark,
-  which the boundary's wrapper of a function given to foreign code puts while the callback runs,
-  is a callback inside foreign code; the timed mark and the call's mark are the timed receive and
-  the request in flight; anything else is Ernest's wait. The foreign call writes nothing. The
-  runtime's lists of waiting functions go, and each slow wait of the runtime's own, a peer's find,
-  a compute, a restart's fresh run, the code table's making, marks itself with the callback's key.
-  With that the row's two count columns, `in_foreign`, the emitter's fun around a foreign call and
-  its decision by the lists, and the error handler's count of a code load go. The calls table
-  does not: the build found it is also the reaper's index from a killed caller to its callee, by
-  which the callee's row and a peer's note are dropped when a caller dies mid-call, and a killed
-  process runs no `after` and keeps no dictionary, so a mark in the caller's state cannot serve
-  that reader; the call's records are decided together in the next item. About two days with the
-  tests.
+- **The bookkeeping built on the rule**, built 2026-10-22 (the log's *The Sitting on §8.6's
+  Bookkeeping*, its *Verified* and *Built* paragraphs): the look reads each waiting process's top
+  frame and two keys in its dictionary, a module being Ernest's where it is a unit or the
+  toolchain's own Erlang that is no test's, and the foreign call writes nothing, so that a foreign
+  fn costs 26.1 ns against the host's 13.4 where it cost 158.6, eight at once 12.7 a call where
+  they cost 2,428, and a receive with an `after` 242 where it cost 339. The calls table stays, the
+  reaper's index from a killed caller to its callee, for the next item.
 - **The call's records, designed together** (the bench's numbers of 2026-10-22, the log's *`make
   bench` Read Against the Cost Rules*, and what the bookkeeping build found): a call writes two
   rows, the callee's, by which a restart of the callee ends the call (§6.9), and the caller's, by
