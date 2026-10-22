@@ -119,11 +119,16 @@ the order they are built; the report's sections change as each build starts.
   user before anything is built: what record a call keeps and where, so that a restart finds the
   calls it must end, a kill drops the dead caller's record without a scan that grows with other
   processes' calls (CLAUDE.md's *Design*, *Defects and gaps*: no leak, no scan), and the look sees
-  the request in flight; the look's part may be a mark, as the timed receive's is, where the
-  kill's part is served otherwise. The plain fallback for the lock alone is the host's write
-  concurrency on the callees table, which the trial on the processes table had cost one process
-  about 120 ns more and eight a twentieth; measured in `call.txt` before and after whatever is
-  built.
+  the request in flight. Decided with the user on 2026-10-22 (the log's *The Sitting on §8.6's
+  Bookkeeping*, its paragraph on the call's records): the caller's row goes, the caller marking
+  its callee in its own dictionary, which the look, `Process.status` and the caller's own
+  cleanup read, and which the runtime's `kill`, through which every kill of a program's process
+  goes, a peer's included, reads before it kills, the victim suspended, to drop the callee's row
+  and a peer's note; the callee's row stays as the restart's record, its table made with the
+  host's write concurrency, measured in `call.txt` before and after. Two shapes refused in the
+  log: a restart that ends no call, and a callee keeping its own taken replies. The report is
+  unchanged, since §6.6, §6.9 and §8.6 state the promises and not the rows. About a day with the
+  tests.
 - **The comparison's two references, by ratio** (found 2026-10-22 building the comparison, and
   decided with the user the same day): a comparison with the last run alone catches a step and
   not a drift, ten moves of a tenth each over a year, none named. The comparison takes a second
