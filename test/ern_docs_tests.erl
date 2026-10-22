@@ -4,7 +4,8 @@
 %% guide's own bare `§x.y` a heading of the guide, docs/log.md
 %% being history and not checked; the contents lists, the paths the
 %% documents name, the release's pages, the third parties' licenses, the
-%% glossary, the fault causes and the log's index are each current.
+%% glossary, the fault causes, the log's index, and the runtime's tables and
+%% frames as its design note and §8.7 name them are each current.
 -module(ern_docs_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -21,6 +22,23 @@
 -define(CONTENTS, ?REPORT ++ ["guide/language.md"]).
 -define(BEGIN, <<"<!-- contents -->">>).
 -define(END, <<"<!-- /contents -->">>).
+
+%% Each frame of the runtime's own (report §8.7) by its body's tag, with the
+%% words the runtime's design note and §8.7's *What passes* name it by, a
+%% `kill`'s backticks aside.
+-define(FRAMES, [{adapted, "a message to an adapted address"}, {spawn, "a spawn"},
+                 {answer, "its answer"}, {compute, "a compute"}, {find, "a find"},
+                 {utilization, "a utilization"}, {telling, "a node's telling"},
+                 {call_waits, "that a call waits"}, {call_over, "that it is over"},
+                 {kill, "a kill of a process"}, {node_ends, "that a node ends"},
+                 {reach_request, "the request for a reach"}, {reach, "the reach"},
+                 {lacks, "the lacks"}, {code_frame, "a code frame"}]).
+
+%% The code that reads a peer's frames: the gateway, which reads some
+%% itself and hands the rest on, the worker for the peer, whose reader is
+%% ern_peer:frame/2, and the exchange.
+-define(FRAME_READERS, ["erl/cli/src/ern_gateway.erl", "erl/runtime/src/ern_peer.erl",
+                        "erl/cli/src/ern_exchange.erl"]).
 
 %% report §11, docs/development.md "Building": `make xref`
 %% A regression test for the possessive, `the guide's §x.y`, read as a
@@ -323,6 +341,76 @@ template(Cause) ->
                                  [global, {return, binary}])
              end || Word <- binary:split(Cause, <<" ">>, [global])],
     iolist_to_binary(["^", lists:join(" ", Words), "$"]).
+
+%% docs/design/runtime.md, report §8.6, §6.9, §8.7: the note's list of the
+%% shared rows names each table the runtime makes for a launch,
+%% `ern_rt:tables/0`, by its Erlang name beside what it holds, each row of
+%% the list naming one at least, and no table the runtime does not make. A
+%% regression test, written after the note; it does not read what a row
+%% says its table holds, nor a table of the gateway's or the code's.
+runtime_tables_test() ->
+    Note = ern_repository:read("docs/design/runtime.md"),
+    [_, Section] = binary:split(Note, <<"\n## What the runtime keeps, and where\n">>),
+    [_, Shared] = binary:split(Section, <<"(`ern_rt:tables/0`):\n\n">>),
+    [List | _] = binary:split(Shared, <<"\n\n">>),
+    Rows = binary:split(List, <<"\n- ">>, [global]),
+    Named = [[list_to_atom(Name) || [Name] <- matches(Row, "`(ern_[a-z_]+)`")] || Row <- Rows],
+    ?assertEqual([], [Row || {Row, []} <- lists:zip(Rows, Named)]),
+    ?assertEqual(lists:sort(ern_rt:tables()), lists:sort(lists:append(Named))).
+
+%% docs/design/runtime.md, report §8.7: the frames the runtime's code reads
+%% of a peer are fifteen, and the note's list and §8.7's *What passes*, each
+%% of which says so, name every one in the words ?FRAMES gives it. A
+%% regression test, written after the note; a frame a list adds in words of
+%% its own is found only by the count the list states.
+runtime_frames_test() ->
+    Read = lists:usort([Tag || File <- ?FRAME_READERS, Tag <- frames_read(File)]),
+    ?assertEqual(lists:sort([Tag || {Tag, _} <- ?FRAMES]), Read),
+    ?assertEqual(15, length(Read)),
+    ?assertEqual([], [{File, Tag} || File <- ["docs/design/runtime.md", "report/language.md"],
+                                     Sentence <- [frames_sentence(File)],
+                                     {Tag, Words} <- ?FRAMES,
+                                     binary:match(Sentence, list_to_binary(Words)) =:= nomatch]).
+
+%% The tag of each frame a file's code reads: of a receive's pattern that
+%% names it, `{ern_frame, From, {call_waits, Callee, Reply}}`, and of a
+%% `frame` function's clause, its second argument.
+frames_read(File) ->
+    {ok, Forms} = epp_dodger:quick_parse_file(filename:join(?ROOT, File)),
+    received_frames(Forms)
+        ++ [Tag || {function, _, frame, _, Clauses} <- Forms,
+                   {clause, _, [_, Body | _], _, _} <- Clauses, Tag <- body_tag(Body)].
+
+%% Each receive's frames in a module's forms, nested receives among them.
+received_frames({'receive', _, Clauses}) ->
+    pattern_tags(Clauses) ++ received_frames(Clauses);
+received_frames({'receive', _, Clauses, Timeout, After}) ->
+    pattern_tags(Clauses) ++ received_frames([Clauses, Timeout, After]);
+received_frames(Form) when is_tuple(Form) ->
+    received_frames(tuple_to_list(Form));
+received_frames(Forms) when is_list(Forms) ->
+    lists:append([received_frames(Form) || Form <- Forms]);
+received_frames(_) ->
+    [].
+
+pattern_tags(Clauses) ->
+    [Tag || {clause, _, [Pattern], _, _} <- Clauses, Tag <- frame_tag(Pattern)].
+
+%% A frame's tag where a pattern names it, `{ern_frame, From, Body} = Frame`
+%% among them.
+frame_tag({match, _, Left, Right}) -> frame_tag(Left) ++ frame_tag(Right);
+frame_tag({tuple, _, [{atom, _, ern_frame}, _, Body]}) -> body_tag(Body);
+frame_tag(_) -> [].
+
+body_tag({atom, _, Tag}) -> [Tag];
+body_tag({tuple, _, [{atom, _, Tag} | _]}) -> [Tag];
+body_tag(_) -> [].
+
+%% The sentence of a document that lists the frames, its backticks dropped.
+frames_sentence(File) ->
+    [_, Rest] = binary:split(ern_repository:read(File), <<"Fifteen frames are the runtime's own">>),
+    [Sentence | _] = binary:split(Rest, <<". ">>),
+    binary:replace(Sentence, <<"`">>, <<>>, [global]).
 
 %% docs/log.md: its index names every section by its title, the
 %% standing ones and the dated entries. A regression test, written after the

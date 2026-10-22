@@ -258,8 +258,8 @@ items becomes a milestone of its own, since the tour and 0.5.0 wait behind this 
   fraction. The release's run holds neither new table until the review before 0.5.0 keeps one.
   Its log entry is the one the claim below cites.
 - **The runtime's design note**, `docs/design/runtime.md`, written 2026-10-22 (decided with the
-  user the same day; its two tests are the item's last piece, held against `tables/0` and the
-  gateway's reader):
+  user the same day; its two tests written the same day, the log's *The Sitting on §8.6's
+  Bookkeeping*, its *Built* paragraph on the note's tests):
   the runtime's implementation choices had three homes and no page stating them as they stand,
   the code's comments citing the report, the log arguing each by its date, and the glossary
   naming them. The note is the component's design note, as the shell's and the installation's
@@ -274,8 +274,8 @@ items becomes a milestone of its own, since the tour and 0.5.0 wait behind this 
   what a reader must know to change the runtime without breaking a promise, the kind of fact that
   lives where and the rule a mechanism rests on, never what one function does, which is the
   code's, so that the note changes when the design does and not with a line of code. `architecture.md` keeps the module map and
-  points at it; two tests hold the table list against `tables/0` and the frame list against the
-  gateway's reader; `docs/README.md` lists it. Written as this milestone's closing documents
+  points at it; two tests hold the table list against `tables/0` and the frame list, with
+  §8.7's, against the code that reads the frames; `docs/README.md` lists it. Written as this milestone's closing documents
   commit, after the last build, so that it states the runtime that ships; about a day.
 - **Deadlock detection among *Why Ernest*'s claims**, written 2026-10-22, the sixth claim in
   `guide/why.md`, *A deadlock is found*, with no program, and its line in the README's list; the

@@ -21,14 +21,14 @@ A process's own, in its dictionary, dying with it, read by the process and by th
 
 Shared rows, in the runtime's tables, each with the reader outside its owner that needs it (`ern_rt:tables/0`):
 
-- a process's row: its spawn site, order, root and the peer whose spawn started it, read by a fault's report, the program's end and `Process.current` (§6.9, §8.6);
-- the callees' rows, one for each pending call, keyed by the callee, read by the callee's restart to end every call waiting on it, and dropped by the caller's end or its kill (§6.6, §6.9); the one shared write a call makes, on a table with the host's write concurrency, an ordered set since the restart reads its own rows by prefix (the log's *Measured 2026-10-22, the callee's table under eight writers*);
-- the sources and the opened resources, few rows, read first by the look (§8.6);
-- the deliveries and the restarts' aliases, read by a recipient's restart (§6.9);
-- the fault and termination subscriptions, read by a fault and by the end (E.21, E.23);
-- the checkers in front of exposed addresses (§8.4);
-- the launch's one row, the runner, the tag, the reaper, the reporter, the arguments and how the run ends, gone with its table at the end, read by every process of the launch (§8.6, §11.2);
-- a node's offers, each process's own offers, the initialized modules, and the notes of calls from other nodes, keyed by the caller's node so that a loss drops a peer's together (§8.7).
+- a process's row (`ern_processes`): its spawn site, order, root and the peer whose spawn started it, read by a fault's report, the program's end and `Process.current` (§6.9, §8.6);
+- the callees' rows (`ern_callees`), one for each pending call, keyed by the callee, read by the callee's restart to end every call waiting on it, and dropped by the caller's end or its kill (§6.6, §6.9); the one shared write a call makes, on a table with the host's write concurrency, an ordered set since the restart reads its own rows by prefix (the log's *Measured 2026-10-22, the callee's table under eight writers*);
+- the sources and the opened resources (`ern_held`), few rows, read first by the look (§8.6);
+- the deliveries (`ern_deliveries`) and the restarts' aliases (`ern_restarts`), read by a recipient's restart (§6.9);
+- the fault subscriptions (`ern_faults`) and the termination subscriptions (`ern_terminating`), read by a fault and by the end (E.21, E.23);
+- the checkers (`ern_checkers`) in front of exposed addresses (§8.4);
+- the launch's row (`ern_launch`), the runner, the tag, the reaper, the reporter, the arguments and how the run ends, read by every process of the launch, and beside it a row for each of a few facts of the run, its entry process, how the terminal is read, the process a deadlock faults, the end's wait for its subscribers and the utilization the program set, all gone with the table at the end (§8.6, §8.7, §11.2);
+- a node's offers (`ern_offers`), each process's own offers (`ern_offered`), the initialized modules (`ern_initialized`), and the notes of calls from other nodes (`ern_notes`), keyed by the caller's node so that a loss drops a peer's together (§8.7).
 
 The host's persistent terms, one word each and replaced rarely, since replacing or erasing a larger term makes every process scan its heap: the system processes' pids, the holder of a source, and the toolchain's own modules; a top-level binding's value, which a ground binding needs no read of (§8.5, §11.1).
 
@@ -46,7 +46,7 @@ What crosses between foreign code and the program is checked where it enters the
 
 ## Nodes
 
-Two nodes are two files and one TLS connection, the host's distribution as the carrier runs it (§8.3, §8.7). Fifteen frames are the runtime's own, which the gateway takes from each peer and hands to that peer's worker: a message to an adapted address, a spawn and its answer, a compute, a find, a utilization and a node's telling, that a call waits and that it is over, a kill of a process of this node, that a node ends, and the exchange's four, the request for a reach, the reach, the lacks and a code frame; a test holds this list to the gateway's reader. The exchange carries to a peer the definitions its spawn's reach names and the peer lacks, verified by hash and loaded whole before the process starts; its record is the proposal under `docs/proposals/nodes_and_code/`. A node detects no deadlock, since a peer can reach it.
+Two nodes are two files and one TLS connection, the host's distribution as the carrier runs it (§8.3, §8.7). Fifteen frames are the runtime's own, which the gateway takes from each peer, reading some itself and handing the exchange's four to the exchange and the rest to that peer's worker: a message to an adapted address, a spawn and its answer, a compute, a find, a utilization and a node's telling, that a call waits and that it is over, a kill of a process of this node, that a node ends, and the exchange's four, the request for a reach, the reach, the lacks and a code frame; a test holds this list, and §8.7's, to the code that reads them. The exchange carries to a peer the definitions its spawn's reach names and the peer lacks, verified by hash and loaded whole before the process starts; its record is the proposal under `docs/proposals/nodes_and_code/`. A node detects no deadlock, since a peer can reach it.
 
 ## What the runtime does not do
 
