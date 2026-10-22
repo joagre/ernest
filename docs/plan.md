@@ -133,6 +133,11 @@ items becomes a milestone of its own, since the tour and 0.5.0 wait behind this 
   host's call and a thousand 54 times, where the ordered set holds at 1.1 and 1.0. The ordered set
   with the host's write concurrency stays, the runtime unchanged but its comment, and its eight
   pairs at 2.0 times the host's against the refused plain set's 1.6 decide nothing more.
+- **Three fixed sleeps in the integration tests** (found 2026-10-22 fixing the runtime's fixed
+  waits; CLAUDE.md's *No fixed sleep*, in a test as in the code): `test/ern_integration_tests.erl`
+  waits by the shell's `sleep` in `stream_lost_at_end`, `paced_output` and `closed_pipe`. A defect
+  each, fixed where found: each wait becomes a wait on what the test means, a line read, a pipe's
+  reader gone, a process's end; about an hour.
 - **The comparison's two references, by ratio** (found 2026-10-22 building the comparison, and
   decided with the user the same day): a comparison with the last run alone catches a step and
   not a drift, ten moves of a tenth each over a year, none named. The comparison takes a second
