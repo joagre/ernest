@@ -86,8 +86,8 @@
 -receives({answered_at_once, [spawn_with_monitors/4, end_with_program/0, monitor/2, spawned/7,
                               kill_all/1, rooted/2, opened/3, asked_of_run/1]}).
 -receives({own_process, [kept_loop/2, reaper_loop/2, wait_for_end/1, ended_program/0,
-                         counted_link/2, abandoned/1, write_loop/1, stream_loop/2, drained/1,
-                         dropping/0, stdin_loop/2, read_input/1, clock_loop/1, waited/5, told_how/3,
+                         counted_link/2, abandoned/1, write_loop/1, stream_loop/2, dropping/0,
+                         stdin_loop/2, read_input/1, clock_loop/1, waited/5, told_how/3,
                          entry_end/2, end_program/3, sink_flushed/1, stop/1]}).
 
 -define(UNIT, 'Unit').
@@ -2245,10 +2245,14 @@ system_process(Name) ->
 %% program's write, Io.OutMsg's Write(bytes, reply), is answered once the
 %% bytes are taken, the port holding this process while it is busy, so that
 %% the writer waits while the stream is behind; the runtime's own lines, a
-%% fault's report and a test's, are bytes alone.
+%% fault's report and a test's, are bytes alone. The port is busy while it
+%% holds a byte it has not written, its limits one byte, and the host holds
+%% a writer to a busy port until it is not, so that a write waits until
+%% the stream has taken everything before it, and a write of nothing
+%% returns once the port has written all it was given (drained/1).
 stream({fd, Fd}, Name) ->
     process_flag(trap_exit, true),
-    stream_loop(erlang:open_port({fd, 0, Fd}, [out, binary]), Name);
+    stream_loop(erlang:open_port({fd, 0, Fd}, [out, binary, {busy_limits_port, {1, 1}}]), Name);
 stream(Write, _Name) ->
     write_loop(Write).
 
@@ -2300,13 +2304,11 @@ written(Stream, Bytes) ->
         error:badarg -> gone
     end.
 
-%% What the port was given is written, or the stream has gone.
+%% What the port was given is written, or the stream has gone: a write of
+%% nothing returns once the port is not busy, which it is while it holds
+%% anything (stream/2), and fails where the port has ended.
 drained(Stream) ->
-    case erlang:port_info(Stream, queue_size) of
-        {queue_size, 0} -> ok;
-        {queue_size, _} -> receive {'EXIT', Stream, _} -> gone after 1 -> drained(Stream) end;
-        undefined -> gone
-    end.
+    written(Stream, <<>>).
 
 gone(Name) ->
     {Runner, Launch} = launch_runner(),

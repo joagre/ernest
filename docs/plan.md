@@ -151,13 +151,14 @@ items becomes a milestone of its own, since the tour and 0.5.0 wait behind this 
   93 that can wait, 12 are foreign waits, 10 Ernest's, 11 answered at once and 60 in a process of
   the runtime's own. Its reading found a third wait unmarked, a peer's monitored spawn waiting for
   its spawner's word (`ern_peer:held/4`), harmless on a node and marked now.
-- **Three fixed waits in the runtime's own processes** (found 2026-10-22 building the test of the
-  runtime's waits; CLAUDE.md's *No fixed sleep*): `ern_rt:drained/1` and the output sink's drain
-  poll a port's queue every millisecond until it is empty, and `ern_tty`'s two `stty` waits are
-  bounded at 2,000 ms, none with its reason written beside it. A defect each, fixed where found:
-  a port's queue is waited on by what empties it, the port's own signal where the host gives one,
-  else the wait derived from the queue's size and the port's rate and said so; and `stty`'s bound
-  derived from what it waits for, a child process's end, and said so. About half a day.
+- **Three fixed waits in the runtime's own processes**, built 2026-10-22 (the log's *The Sitting
+  on §8.6's Bookkeeping*, its *Built* paragraphs on the three waits): the ports of a program's
+  streams and of a job's are busy while they hold a byte not yet written, so the end's drain is a
+  write of nothing, which the host holds until all is written or the port has ended; no poll is
+  left. A program that writes many lines pays for it, at the host's own `io:put_chars`: a million
+  `Io.println` through a pipe take 11.6 µs a line against 6.8 before and the host's 12.6, and to
+  `/dev/null` 8.7 against 6.3 and 9.7. `stty` is waited for to its end, as the runtime's helper
+  is, with no bound.
 - **A top-level `let` that is a ground term**, built 2026-10-22 (the log's *The Sitting on §8.6's
   Bookkeeping*, its *Built* paragraphs on the ground `let`): a binding whose initializer is a
   ground term (§11.1), a literal, a negated number literal, or a constructor, tuple or list of

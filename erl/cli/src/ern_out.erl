@@ -12,7 +12,7 @@
 -export([take/0, finish/1]).
 
 %% Report §8.6: each receive that can wait, by its kind (docs/style.md).
--receives({own_process, [finish/1, loop/2, drain/1]}).
+-receives({own_process, [finish/1, loop/2]}).
 
 %% Standard output becomes the calling process's group leader, which the
 %% processes it starts inherit; the answer is standard error's device.
@@ -37,11 +37,15 @@ finish(_) ->
     ok.
 
 %% A device writes text as UTF-8, and bytes as they are once the runtime
-%% has set its encoding to latin1 (ern_rt's bytes_out/0).
+%% has set its encoding to latin1 (ern_rt's bytes_out/0). Its port is busy
+%% while it holds a byte it has not written, its limits one byte, and the
+%% host holds a writer to a busy port until it is not, as the runtime's
+%% stream's port (ern_rt:stream/2).
 device(Fd) ->
     spawn(fun() ->
               process_flag(trap_exit, true),
-              loop(erlang:open_port({fd, 0, Fd}, [out, binary]), unicode)
+              loop(erlang:open_port({fd, 0, Fd}, [out, binary, {busy_limits_port, {1, 1}}]),
+                   unicode)
           end).
 
 loop(Port, Encoding) ->
@@ -60,13 +64,11 @@ loop(Port, Encoding) ->
             end_job()
     end.
 
-%% Waits until what the port was given is written, or the reader has gone.
+%% Waits until what the port was given is written, or the reader has gone:
+%% a write of nothing returns once the port is not busy, which it is while
+%% it holds anything (device/1), and ends the job where the port has ended.
 drain(Port) ->
-    case erlang:port_info(Port, queue_size) of
-        {queue_size, 0} -> ok;
-        {queue_size, _} -> receive {'EXIT', Port, _} -> end_job() after 1 -> drain(Port) end;
-        undefined -> end_job()
-    end.
+    write(Port, <<>>).
 
 %% The requests io:format and io:put_chars make; nothing reads from here.
 request(Port, Encoding, {put_chars, Given, Chars}) ->

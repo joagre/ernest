@@ -8846,6 +8846,25 @@ A field read from the row costs 37 to 42 ns in a launch, against 32 to 56 for th
 
 **Read back.** One thing surprised. Under `ern test`, stdout's update at a launch's start costs 94 to 376 µs where the other system processes' cost 6 to 18, since the stream's process opens its port as the runner updates. Left: the system processes in the row would remove it, which waits on the lines above.
 
+**Built 2026-10-22, the three fixed waits.** `ern_rt:drained/1` and `ern_out`'s drain looked at their port's queue every millisecond until it was empty, and `ern_tty` gave `stty` 2,000 ms. Read in the host's source, an open port says nothing when its queue empties. Closed, it sends its owner `'EXIT'` before it has written what it holds, and `{Port, closed}` after, but `{Port, closed}` comes too where the write failed, so a reader gone while the end waited would have ended the program with its own status in place of 141 (§8.6).
+
+**Decided: the busy port.** The one signal is the busy state: the host holds a writer to a busy port until it is not, and `{busy_limits_port, {1, 1}}` makes a port busy while it holds a byte not yet written. Both drains are a write of nothing, which returns once the port has written all it was given and fails where the port has ended, and no poll is left. It has a cost. The host writes to a pipe, a file or `/dev/null` through its one async thread, a terminal alone directly, so each write now waits until the one before it is written. The host's own port write went from 0.5 µs a line to 7.5 to 9.8. Keeping the host's high limit of 8,192 bytes and moving only the low one cost nothing, 0.44 to 0.60, but the end could not have waited on a queue below 8,192 bytes, which is what a program's last lines leave, and a poll would have stayed for it.
+
+**What it costs a program.** A million `Io.println` lines take, in µs a line, before, after, and the host's own `io:put_chars` beside them:
+
+| | before | after | the host's `io:put_chars` |
+|---|---:|---:|---:|
+| through a pipe to `cat` | 6.8 | 11.6 | 12.6 |
+| to `/dev/null` | 6.3 | 8.7 | 9.7 |
+
+Ernest's line now costs a little less than the host's own, where it cost a half to two thirds of it, which the cost rule allows (CLAUDE.md's *Design*). One large write is not slower: `ern format -` of a module of 277 KB through a pipe took 0.85 s against 0.88. The tools did not move: the light run took 44.3 s against 45.6, and `ern test build/stdlib` 6.5 s against 6.6. The bench measures `Io.print` through a function and not a port, so no row of it moves.
+
+**`stty`.** Both waits are for the program's end, the port's `exit_status`, with no bound, as `ern_os` waits for its helper. `stty` waits on the terminal alone: it sets a mode once what was written to it has gone out, and a terminal whose output is stopped holds every writer the same. The bound was worse than none: a wait cut short closed the port and left `stty` running, to set raw mode after the end had given the terminal back.
+
+**Found beside it: one async thread.** The host has one async thread (`thread_pool_size` 1), and every port on a descriptor that is not a terminal writes through it. So a standard output whose reader has stopped holds standard error's writes behind it, a fault's line among them (§11.2). It was so before this build, which does not touch it.
+
+**The tests.** Regression tests, written after the code. `drained_output_test_` has a program write 200,000 bytes to a reader that takes a byte at a time: read whole with status 0, and status 141 where the reader goes once it has read more than the pipe holds, on standard output and on standard error. `job_output_drained_test_` holds `ern format -` the same. Each failed with a drain that did not wait, status 0 for 141. `settings_kept_test_` and `terminal_restored_test_` hold `stty`'s two waits through a terminal that answers. Not covered: a device that fails, and a terminal whose output is stopped.
+
 **Set aside: priority messages.** OTP 28's priority messages let a process take a message ahead of its queue through an alias made for it. The look's problem is the other direction, knowing something of a process that is not receiving at all, so they do not touch the bookkeeping. Where they apply is the call's wait reading the caller's whole mailbox so that a restart is taken during the call, whose cost grows with the messages waiting (*Nothing Waits for a Program*); that touches §6.9's ordering promises and would need its own reading of the report, and the user set it aside, unplanned.
 
 **What it does to the code.** Gone: the row's two count columns and the select over them, `in_foreign` and the fun the emitter allocates for it, the emitter's decision of which calls to wrap by the waiting lists, the error handler's count of a code load, the calls table, and the doc test's example runner once `ern test` is the one checker. Come: one classifier at the look over a waiting process's stack, and one read of its dictionary. Three mechanisms become one in one function, which is the simplification that matters more than the count; the ground `let` is the one special case kept on a number.

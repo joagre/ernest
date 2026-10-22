@@ -881,6 +881,69 @@ stream_lost_at_end() ->
                 end || {Name, _, Redirect} <- Programs, _ <- [1, 2, 3]],
     ?assertEqual([{Name, <<"141\n">>} || {Name, _, _} <- Programs, _ <- [1, 2, 3]], Statuses).
 
+%% report §8.2, §8.6, §11.8: the end of a program waits until its stream's
+%% port has written what the program wrote, its reader taking a byte at a
+%% time, slower than the program writes, so that the port still holds most
+%% of it as the program returns: all of it is read and the run's status is
+%% 0; and where the reader goes while the end waits, the stream that could
+%% not be written ends the program with status 141, on standard output and
+%% on standard error. A regression test, written after the code: the end
+%% polled the port's queue every millisecond (the log's *The Sitting on
+%% §8.6's Bookkeeping*); an end that did not wait gave status 0, since the
+%% host's halt writes what a port holds. It does not cover a device that
+%% fails, which only some hosts have one of.
+drained_output_test_() ->
+    {timeout, 60, fun drained_output/0}.
+
+drained_output() ->
+    Dir = "build/drained",
+    ok = del(Dir),
+    ok = filelib:ensure_path(Dir),
+    Count = 200000,
+    Programs = [{"out", "Io.println", ""}, {"err", "Io.printlnError", "2>&1 >/dev/null "}],
+    [begin
+         ok = file:write_file(Dir ++ "/" ++ Name ++ ".ern",
+                              ["export fn main() : Unit = ", Print, "(String.repeat(\"a\", ",
+                               integer_to_list(Count), "))\n"]),
+         0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/" ++ Name ++ ".ern"),
+         Run = "{ ../bin/ern run " ++ Dir ++ "/" ++ Name ++ ".erc " ++ Redirect ++ "; echo $? > "
+               ++ Dir ++ "/status; } | dd bs=1 ",
+         ?assertEqual({0, iolist_to_binary([binary:copy(<<"a">>, Count), "\n"])},
+                      sh("sh -c '" ++ Run ++ "status=none'")),
+         ?assertEqual({Name, {ok, <<"0\n">>}}, {Name, file:read_file(Dir ++ "/status")}),
+         %% the reader goes after 70,000 bytes, leaving more than the pipe
+         %% holds unwritten
+         {0, <<>>} = sh("sh -c '" ++ Run ++ "count=70000 of=/dev/null status=none'"),
+         ?assertEqual({Name, {ok, <<"141\n">>}}, {Name, file:read_file(Dir ++ "/status")})
+     end || {Name, Print, Redirect} <- Programs].
+
+%% report §11, §11.8: a job ends once what it wrote is written, its reader
+%% taking a byte at a time: `ern format -` writes a module of more than a
+%% pipe holds, read whole with status 0, and where the reader goes while
+%% the job's end waits, the job ends with status 141. A regression test,
+%% written after the code: the job's end polled its port's queue every
+%% millisecond (the log's *The Sitting on §8.6's Bookkeeping*); an end that
+%% did not wait gave status 0.
+job_output_drained_test_() ->
+    {timeout, 60, fun job_output_drained/0}.
+
+job_output_drained() ->
+    Dir = "build/job_drained",
+    ok = del(Dir),
+    ok = filelib:ensure_path(Dir),
+    Source = [["fn f", integer_to_list(N), "(x : Int) : Int = x + ", integer_to_list(N), "\n\n"]
+              || N <- lists:seq(1, 7000)],
+    ok = file:write_file(Dir ++ "/many.ern", Source),
+    Run = "{ ../bin/ern format - < " ++ Dir ++ "/many.ern; echo $? > " ++ Dir
+          ++ "/status; } | dd bs=1 ",
+    {0, Formatted} = sh("sh -c '" ++ Run ++ "status=none'"),
+    ?assertEqual({ok, <<"0\n">>}, file:read_file(Dir ++ "/status")),
+    ?assert(byte_size(Formatted) > 70000 + 65536),
+    %% the reader goes after 70,000 bytes, leaving more than the pipe holds
+    %% unwritten
+    {0, <<>>} = sh("sh -c '" ++ Run ++ "count=70000 of=/dev/null status=none'"),
+    ?assertEqual({ok, <<"141\n">>}, file:read_file(Dir ++ "/status")).
+
 %% report §8.2: a program writing faster than its reader reads is held to
 %% the reader's pace, so what it has written and the reader has not taken
 %% is not held in the node. A regression test, written after the code: two

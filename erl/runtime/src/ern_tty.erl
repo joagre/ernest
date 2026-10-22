@@ -341,10 +341,14 @@ system_stty() ->
 %% inherits the runtime's, which is the terminal. Nothing is done when the
 %% input is not one: keys read from a pipe need no mode, and a mode set
 %% there would be set on whatever terminal the runtime was started from.
-%% An stty that does not finish in time is closed, and what its port sent
-%% is not left in the mailbox, where report §8.6 would read it as a message
-%% still to be handled. It is the system's own stty, not the first that
-%% PATH names, which could be any program in any directory the PATH lists.
+%% It is the system's own stty, not the first that PATH names, which could
+%% be any program in any directory the PATH lists. Its end is waited for
+%% with no time of the runtime's own, as the runtime waits for its helper
+%% (ern_os): stty waits on the terminal alone, which takes a mode once what
+%% was written to it has gone out, and a terminal whose output is stopped
+%% holds every writer so. A wait cut short would leave stty running, to set
+%% its mode after the runtime had gone on, even after the end gave the
+%% terminal back (restore/0).
 stty(Args) ->
     case terminal() andalso system_stty() of
         false ->
@@ -352,20 +356,15 @@ stty(Args) ->
         SttyPath ->
             Stty = open_port({spawn_executable, SttyPath},
                              [{args, Args}, nouse_stdio, exit_status]),
-            receive
-                {Stty, {exit_status, _}} -> ok
-            after 2000 ->
-                %% the port may have closed since, which is the same
-                try port_close(Stty) catch error:badarg -> true end,
-                flush_port(Stty)
-            end
+            receive {Stty, {exit_status, _}} -> ok end
     end.
 
 %% The terminal's settings as `stty -g` writes them, one word that stty
 %% takes back, or none. stty reads the terminal on the standard input its
 %% shell inherits, and writes to the port's descriptor 4, which a port
 %% opened with nouse_stdio reads. The shell is /bin/sh by its path and the
-%% stty the system's, as stty/1 runs it, never one that PATH names.
+%% stty the system's, as stty/1 runs it, never one that PATH names, and its
+%% end is waited for as stty/1 waits, the port's last message.
 settings() ->
     case terminal() andalso system_stty() of
         false ->
@@ -388,17 +387,6 @@ settings(Stty, Acc) ->
             end;
         {Stty, {exit_status, _}} ->
             none
-    after 2000 ->
-        try port_close(Stty) catch error:badarg -> true end,
-        flush_port(Stty),
-        none
-    end.
-
-flush_port(Stty) ->
-    receive
-        {Stty, _} -> flush_port(Stty)
-    after 0 ->
-        ok
     end.
 
 terminal() ->
