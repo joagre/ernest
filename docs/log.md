@@ -8785,6 +8785,67 @@ The restart's read of eight callers is the bag's lookup at 455 ns against the or
 
 **What it leaves.** Under eight pairs the ordered set's call stays at 2.0 times the host's against the floor's 1.6, about 350 ns a call over all, which of the three kinds only the one whose restart reads every row reaches. The number decides nothing more, and the item closes (CLAUDE.md's measurement rule).
 
+**Measured 2026-10-22, the launch's start.** The plan's item rested on 7.25 ms before an example's initializers under `ern test`, against the bench's 0.85. A scratch probe timed the same pieces in both hosts with the host's trace, its patterns set once before the launches: `ern_rt:run_main/3`'s call and return, the first `run_inits/1`'s, the example's `run_test/2`, `end_program/3`, and the example's directory made and removed. The hosts were `ern test build/stdlib`, its 335 examples and the 27 launches of its modules' tests, and a host started as the bench starts its own, running 60 bare launches back to back, three times. In microseconds, medians:
+
+| | an example under `ern test` | a module's tests under `ern test` | a bare launch, back to back | the bench's row |
+|---|---:|---:|---:|---:|
+| the whole launch | 8,996 | 5,022 | 5,868 to 6,221 | 3,361 |
+| the start, to the library's initializers | 4,696 | 825 | 3,451 to 3,719 | 820 |
+| the library's initializers | 2,583 | 2,708 | 1,994 to 2,068 | 2,083 |
+| the example's own modules' initializers | 20 | | | |
+| the example | 146 | | | |
+| the end | 1,166 | 1,305 | 245 to 292 | 437 |
+| between two examples, the directory made and removed among it | 660 | | | |
+
+**What a persistent term's update costs.** The host's documentation says that a `put` copies the table of keys, so that it costs with the terms held, and that replacing or erasing a term of more than a word starts a global collection, every process made to scan its heap for the old term. The source says more: the updating process is suspended until every scheduler has passed a point between two processes, the host's thread progress, and only then is the new table in place. In microseconds, medians:
+
+| An update of a changed value | µs |
+|---|---:|
+| where nothing of more than a word was replaced or erased in the last few milliseconds | 3 to 20 |
+| the six after one term of a reference was replaced, in turn | 56, 151, 402, 346, 334, 64 |
+| two hundred in a row, each of a new reference | 319 to 351 |
+| the same, the host run on one scheduler, `+S 1` | 6 |
+| the twelve of an example's start under `ern test`, traced | 280 to 450 each |
+| the same twelve at a module's tests' start, traced | 5 to 16 each, stdout's 136 |
+
+**Why the two hosts differ.** Not the processes nor the terms: both held 44 to 46 processes and 66 to 70 persistent terms as a launch began. The cause is what ran just before. For about a millisecond after a term of more than a word is replaced or erased, every update waits about 0.3 ms on this laptop, and none does with the host on one scheduler, so the wait is the schedulers' as they wake for the collection. A launch erased three such terms at its end: the runner, the reference that tags the launch, and the reporter. An example's launch begins about 0.7 ms after the one before ends. So the twelve updates of its start, those three, the reaper and the eight system processes, all fell inside that collection: traced, 4.3 ms of the start's 5.1. A module's tests begin 150 ms after the last launch, once the module is compiled, and their start took 0.83 ms.
+
+The bench set a trace pattern before each launch, which waits for every scheduler too, and so waited the collection out. The same bare launch took 3.1 ms after a trace pattern or after 2 ms idle, and 5.8 ms run back to back. The bench's 20 µs update was the quiet host's, and its launch row hid what `ern test` pays.
+
+**Decided: the launch in its table.** Fewer terms would not do it. One term for the launch, put at its start and erased at its end, was built first and measured: an example's launch took 5.5 ms, since that one erase still starts a collection the next launch's updates wait for. The plain form is a launch that replaces or erases no term of more than a word. Its runner, its tag, its reaper and what its options give are a row of its own table, `#launch{}` in `ern_launch`, which the runner writes as it begins and which goes with the table at its end. The system processes stay persistent terms of their own, a word each, whose update starts no collection. The host's documentation names the table for state that changes and the persistent term for state read often and changed seldom, and under `ern test` a launch begins every few milliseconds. Principle 5.
+
+**Built 2026-10-22, the launch in its table.** `launched/1` writes the row, and the runner writes the reaper into it once it is started. Every reader of the runner, the tag, the reaper, the reporter, the arguments, `exit` and `node` reads its field with `ets:lookup_element/3`, its default where no launch is in progress and the table is gone. Nothing is erased at the end. `launch_reaper/0` is exported for the tests and the bench, which read the reaper as the runtime does. The persistent terms a launch updates are the eight system processes at its start and the library's eight bindings of their addresses, each a word: 6 to 35 µs each, and stdout's 94 to 376 beside its port's opening on descriptor 1. In microseconds, medians:
+
+| | before | after |
+|---|---:|---:|
+| an example's launch under `ern test` | 8,996 | 4,208 |
+| its start | 4,696 | 940 |
+| its library's initializers | 2,583 | 2,405 |
+| its end | 1,166 | 195 |
+| a bare launch back to back, the probe's | 5,821 to 6,143 | 2,231 to 2,277 |
+| a bare launch 2 ms after the one before | 2,987 | 2,337 |
+| a bare launch, the bench's row | 3,361 | 2,404 |
+| its start, the bench's | 820 | 552 |
+| its library's initializers, the bench's | 2,083 | 1,704 |
+| its end, the bench's | 437 | 129 |
+| a persistent term put under a new key and erased, the bench's | 43.4 | 5.7 |
+
+`ern test build/stdlib` takes 6.6 s against 8.4, and 18.6 s of the host's time against 23.1. `build/libs` takes 1.55 s against 1.78. The light run took 45.6 s against 47.3, and `make test-full` 579.4 s against 593.4, one run each.
+
+A field read from the row costs 37 to 42 ns in a launch, against 32 to 56 for the persistent term, and 163 ns outside a launch, where the absent table raises. Read in a launch by the bench, the reaper found at a spawn costs 46.8 ns against 33.5. An adapted address made costs 76 ns against 41, and a message sent through one 231 against 199, beside the host's send and receive at 139, since its tag is copied out of the row. The whole spawn and monitor rows stayed within their noise: 8.3 µs against 8.5, and 13.3 against 14.3.
+
+**The bench.** `ern_rule_costs` runs its launches back to back, the trace set once for them all, as `ern test` runs a module's examples. `ern_spawn_costs` runs the reaper's and the delivery's operations each in a launch, since they read the reaper and the tag from its row; outside one they measured the raise caught, 128 and 150 ns. `make bench` took 9.8 minutes, twice. The first began at a load average of 8.4, the tail of `make test-full`; the tables above are the second's, begun at 0.5. The rows the second named as moved against the first, but those above, are of code not changed between the two runs, and moved by up to half either way.
+
+**Not taken: the system processes in the row too.** Measured, an example's launch took 4.0 ms against 4.2. `system_process/1` would then have nothing to answer outside a launch, where two of the toolchain's lines are sent today (*Found beside it*). The library's bindings of the system processes' addresses are not written once for the host either: their values are the launch's processes, which its end stops.
+
+**What remains.** Of an example's 4.2 ms, the library's initializers are 2.4. `Os`'s are 1.4 of them, the helper program run at each launch to read the host's user, its mask and its environment, and `Terminal`'s width table 0.1. The start's 0.9 holds the library's directory listed at each launch, `stdlib_modules/0`, 0.25 to 0.5 ms, beside the spawns and the system processes' updates. Between two examples, 0.47 ms, the directory is made in 0.09 and removed in 0.2. No part of the launch now costs a multiple of its work, and the number decides nothing more here.
+
+**Found beside it.** A line said on standard error while no launch is in progress goes to the ended launch's process, and is lost. Two of the toolchain's lines can be: the gateway's, between two launches of `ern test --config-dir` over a directory, and `ern test`'s that an example's directory cannot be removed, said after the example's launch has ended. §8.7 and §11.2 say both are said. A defect, which this build leaves as it found it, and which the plan holds.
+
+**The tests.** No test was written: a launch does what it did, which the suites hold, and the cost is the bench's. The tests that read the reaper's persistent term read `launch_reaper/0`.
+
+**Read back.** One thing surprised. Under `ern test`, stdout's update at a launch's start costs 94 to 376 µs where the other system processes' cost 6 to 18, since the stream's process opens its port as the runner updates. Left: the system processes in the row would remove it, which waits on the lines above.
+
 **Set aside: priority messages.** OTP 28's priority messages let a process take a message ahead of its queue through an alias made for it. The look's problem is the other direction, knowing something of a process that is not receiving at all, so they do not touch the bookkeeping. Where they apply is the call's wait reading the caller's whole mailbox so that a restart is taken during the call, whose cost grows with the messages waiting (*Nothing Waits for a Program*); that touches §6.9's ordering promises and would need its own reading of the report, and the user set it aside, unplanned.
 
 **What it does to the code.** Gone: the row's two count columns and the select over them, `in_foreign` and the fun the emitter allocates for it, the emitter's decision of which calls to wrap by the waiting lists, the error handler's count of a code load, the calls table, and the doc test's example runner once `ern test` is the one checker. Come: one classifier at the look over a waiting process's stack, and one read of its dictionary. Three mechanisms become one in one function, which is the simplification that matters more than the count; the ground `let` is the one special case kept on a number.

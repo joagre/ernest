@@ -684,20 +684,20 @@ held_ended(Model, _, _) ->
 
 %% Each operation of the spawner's and the reaper's on their tables at a
 %% spawn and at an end, alone in a loop, on tables made for its run, of the
-%% process that runs it: at a spawn, the root read from the process
-%% dictionary, the reaper found, the root read from the spawner's row, the
-%% spawn's order and the row written; at an end, the offers taken, the
-%% notes read, the row written and taken again, the call taken, the
-%% reason, the three subscriptions deleted and the deliveries read; and
-%% the loop alone.
+%% process that runs it, in a launch, whose row the reaper is read from: at
+%% a spawn, the root read from the process dictionary, the reaper found,
+%% the root read from the spawner's row, the spawn's order and the row
+%% written; at an end, the offers taken, the notes read, the row written
+%% and taken again, the call taken, the reason, the three subscriptions
+%% deleted and the deliveries read; and the loop alone.
 operations() ->
-    [{Name, fun(Count) -> operated(Operation, Count) end}
+    [{Name, launched(fun(Count) -> operated(Operation, Count) end)}
      || {Name, Operation} <-
             [{"the loop alone", fun(_, _) -> ok end},
              {"at a spawn, the root read from the process dictionary",
               fun(_, _) -> parent() end},
              {"  the reaper found",
-              fun(_, _) -> persistent_term:get({ern_rt, reaper}, none) end},
+              fun(_, _) -> ern_rt:launch_reaper() end},
              {"  the root read from the spawner's row",
               fun(#{processes := Processes}, Pid) -> root(Processes, Pid, Pid) end},
              {"  the spawn's order",
@@ -730,7 +730,8 @@ row(Pid) ->
 
 %% Each operation of the caller's, the reaper's and the delivery's at a
 %% monitor of a process that has ended, alone in a loop, on tables made
-%% for its run, of the process that runs it, where the spawn's table has
+%% for its run, of the process that runs it, in a launch, whose row an
+%% adapted address takes the launch's tag from, where the spawn's table has
 %% none of its own: at the caller, the reference made and the checker
 %% read; at the monitor, the row looked for, the source counted and let go
 %% again, and the monitors kept and forgotten; at the 'DOWN', the reason;
@@ -742,7 +743,7 @@ row(Pid) ->
 %% deliveries to it read, its call taken, its monitors canceled.
 monitor_operations() ->
     Wrap = fun(_) -> {'Ping', 0} end,
-    [{Name, fun(Count) -> operated(Operation, Count) end}
+    [{Name, launched(fun(Count) -> operated(Operation, Count) end)}
      || {Name, Operation} <-
             [{"the loop alone", fun(_, _) -> ok end},
              {"at the caller, a reference made", fun(_, _) -> make_ref() end},

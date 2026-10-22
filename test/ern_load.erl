@@ -95,7 +95,7 @@ mark(Round) ->
          MonitorRef = erlang:monitor(process, Pid),
          receive {'DOWN', MonitorRef, process, Pid, _} -> ok end
      end || Pid <- Ending],
-    Reaper = persistent_term:get({ern_rt, reaper}),
+    Reaper = ern_rt:launch_reaper(),
     ok = ern_waits:until(Reaper, fun() ->
                                      erlang:process_info(Reaper, [status, message_queue_len])
                                          =:= [{status, waiting}, {message_queue_len, 0}]
@@ -173,7 +173,7 @@ unused_bytes(Info) ->
 %% read until two readings in a row agree: the looks are a tenth of a
 %% second apart, and no two of them disturb two readings alike.
 reaper_memory() ->
-    case persistent_term:get({ern_rt, reaper}, none) of
+    case ern_rt:launch_reaper() of
         none -> 0;
         Pid -> settled(Pid, collected(Pid), 8)
     end.

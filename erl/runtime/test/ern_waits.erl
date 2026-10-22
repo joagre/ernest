@@ -113,7 +113,7 @@ returned(Pid, {Module, Function, Arguments}, Action) ->
 %% it never seems deadlocked.
 -spec looked(pos_integer()) -> ok.
 looked(Count) ->
-    called(persistent_term:get({ern_rt, reaper}), {ern_rt, look, 0}, Count).
+    called(ern_rt:launch_reaper(), {ern_rt, look, 0}, Count).
 
 %% Report §6.9: until every delivery the runtime started to Recipient, of a
 %% monitor's Down, an alarm or a fault report, has ended. A delivery sends

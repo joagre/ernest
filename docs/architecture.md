@@ -231,7 +231,7 @@ The runner's `init` is `ern_rt:init_modules/1` over the modules it loaded, order
 
 At the end the runner tells the subscribers of `Os.termination` (`told/3`, §8.6), ends every process with `ProgramEnd`, and flushes `stdout` and `stderr` (`sink_flushed/1`). `ern_cli:report_outcome/2` makes the outcome §11.8's status.
 
-A reference tags each launch, under `persistent_term`'s `{ern_rt, launch}` (`launch/0`). Each adapted address its processes make holds it (§8.7, §11.2).
+A reference tags each launch, held with its runner, its reaper and what its options give in the launch's row of `ern_launch`, `#launch{}`, which goes with the table at the end (`launch/0`). Each adapted address its processes make holds it (§8.7, §11.2).
 
 ### The system processes
 

@@ -189,15 +189,29 @@ items becomes a milestone of its own, since the tour and 0.5.0 wait behind this 
   target's load slows, and `make test-full` from 587.7 s to 599.1. Decided with the user the
   same day and done: the CLI's tests run in three hosts, as the emitter's and the runtime's do,
   and the light run takes 47.3 s and `make test-full` 593.4.
-- **The launch's start** (found 2026-10-21 building the doc examples' launch; CLAUDE.md's *The
-  tools are fast*): inside `ern test`'s host a launch took about 7.25 ms before its initializers
-  ran, read as some 23 `persistent_term` updates at about 0.25 ms each; the bench's row of a bare
-  launch, measured 2026-10-22 in a host of its own, has the whole launch at 3.3 ms, 0.85 before
-  the library's initializers, 2.1 the initializers and 0.4 the end, and an update at about 20 µs,
-  so the premise does not hold there and the two hosts differ. First: the launch measured inside
-  `ern test`'s host as the bench measures it, and the difference explained; then the shape,
-  fewer terms and the bindings that hold addresses written once for the host, if the number still
-  asks for it; about a day.
+- **The launch's start**, built 2026-10-22 (the log's *The Sitting on §8.6's Bookkeeping*, its
+  *Measured* and *Built* paragraphs on the launch's start): measured in `ern test`'s host as the
+  bench measures it, an example's launch took 9.0 ms, 4.7 of it before the library's
+  initializers. Each of the twelve persistent-term updates of its start waited about 0.3 ms on
+  the host's collection of the three terms the launch before had erased at its end. The bench's
+  trace pattern, set before each launch, waited that collection out, so its row said 3.3 ms. One
+  term for the launch would still have left 5.5 ms, its erase starting the same collection. The
+  launch is now a row of its own table, `#launch{}`, its runner, its tag, its reaper and its
+  options, gone with the table at its end, so that no launch replaces or erases a term of more
+  than a word. An example's launch takes 4.2 ms, its start 0.94; `ern test build/stdlib` takes
+  6.6 s against 8.4, and the bench's bare launch 2.4 ms. The system processes stay persistent
+  terms of a word each, and the library's bindings of their addresses stay, their values the
+  launch's and not the host's. The bench runs its launches back to back, and the reaper's
+  operations in a launch. What remains of an example's 4.2 ms is mostly the library's
+  initializers, 2.4, of which `Os`'s helper program, run at each launch to read the host's user,
+  mask and environment, is 1.4.
+- **A line said outside a launch** (found 2026-10-22 building the launch's start; the log's *The
+  Sitting on §8.6's Bookkeeping*, its paragraph *Found beside it*): a line on standard error said
+  while no launch is in progress goes to the ended launch's process and is lost, the gateway's
+  between two launches of `ern test --config-dir` over a directory and `ern test`'s that an
+  example's directory cannot be removed, against §8.7 and §11.2. A defect, fixed with the three
+  fixed waits: where no launch is in progress the line goes to the job's own standard error;
+  about two hours.
 - **The language against the host, the last measurement** (decided with the user 2026-10-22):
   the bench measures the runtime around a program and not the code the emitter writes for it. Two
   kinds of rows, after the builds above, since they change the numbers: one row per construct the

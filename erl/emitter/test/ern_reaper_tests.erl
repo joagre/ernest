@@ -152,7 +152,7 @@ reaper_words() ->
          MonitorRef = erlang:monitor(process, Delivery),
          receive {'DOWN', MonitorRef, process, Delivery, _} -> ok end
      end || {{_, _, Delivery}} <- ets:tab2list(ern_deliveries)],
-    Reaper = persistent_term:get({ern_rt, reaper}),
+    Reaper = ern_rt:launch_reaper(),
     ok = ern_waits:until(Reaper, fun() ->
                                      erlang:process_info(Reaper, message_queue_len)
                                          =:= {message_queue_len, 0}

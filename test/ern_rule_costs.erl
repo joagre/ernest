@@ -24,8 +24,9 @@
 %% for an echo's answer, where the host sets its timer and cancels it, the
 %% same four; `Io.print` of an empty string beside the host's bare send to
 %% a process and its call of a process that takes the bytes and answers;
-%% and a bare launch, nothing in main, beside the host's start of a
-%% program and its spawn of a function that returns, with the launch's
+%% and a bare launch, nothing in main, one after another as `ern test`
+%% runs them, beside the host's start of a program and its spawn of a
+%% function that returns, with the launch's
 %% pieces, from timestamps taken where its initializers begin and end,
 %% traced, and where main begins and returns, and a persistent term's
 %% update alone. A program's rows run its code compiled from source, as
@@ -409,7 +410,7 @@ launch_tables() ->
 run_launch() ->
     Starts = [started() || _ <- lists:seq(1, ?STARTS)],
     Spawns = micros_each(?COUNT div 100, fun spawned/0),
-    Launches = [launch() || _ <- lists:seq(1, ?LAUNCHES)],
+    Launches = launches(?LAUNCHES),
     Updates = micros_each(?UPDATES, fun updated/0),
     Again = micros_each(?UPDATES, fun put_again/0),
     Mean = fun(Values) -> lists:sum(Values) / length(Values) end,
@@ -437,14 +438,26 @@ updated() ->
 put_again() ->
     persistent_term:put({?MODULE, limit}, 1024).
 
+%% Count launches run back to back, as `ern test` runs a module's examples,
+%% their pieces traced. The trace is set once for them all, since setting
+%% one waits for every scheduler of the host, and a launch begun after that
+%% wait is not one begun at the end of the one before (the log's *The
+%% Sitting on §8.6's Bookkeeping*, its *Measured* paragraphs on the
+%% launch's start).
+launches(Count) ->
+    1 = erlang:trace_pattern({ern_rt, run_inits, 1}, [{'_', [], [{return_trace}]}], [local]),
+    _ = erlang:trace(new_processes, true, [call, monotonic_timestamp, {tracer, self()}]),
+    Launches = [launch() || _ <- lists:seq(1, Count)],
+    _ = erlang:trace(new_processes, false, [call]),
+    1 = erlang:trace_pattern({ern_rt, run_inits, 1}, false, [local]),
+    Launches.
+
 %% A launch with nothing in main, its stdout dropped, and its pieces, in
 %% microseconds: the whole; from its start to its library's initializers,
 %% which run_inits/1 runs in the entry process, traced as it begins and
 %% returns; those; from them to main's return; and the end.
 launch() ->
     Self = self(),
-    1 = erlang:trace_pattern({ern_rt, run_inits, 1}, [{'_', [], [{return_trace}]}], [local]),
-    _ = erlang:trace(new_processes, true, [call, monotonic_timestamp, {tracer, Self}]),
     Main = fun() ->
                Self ! {returned, erlang:monotonic_time()},
                'Unit'
@@ -452,8 +465,6 @@ launch() ->
     Started = erlang:monotonic_time(),
     ok = ern_rt:run_main(Main, <<"Rule.main">>, #{stdout => fun(_) -> ok end}),
     Ended = erlang:monotonic_time(),
-    _ = erlang:trace(new_processes, false, [call]),
-    1 = erlang:trace_pattern({ern_rt, run_inits, 1}, false, [local]),
     Initializing = receive {trace_ts, _, call, {ern_rt, run_inits, _}, Begun} -> Begun end,
     Initialized = receive {trace_ts, _, return_from, {ern_rt, run_inits, _}, _, Done} -> Done end,
     Returned = receive {returned, At} -> At end,

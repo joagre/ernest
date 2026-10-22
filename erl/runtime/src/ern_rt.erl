@@ -46,18 +46,19 @@
 %% `ern_held` the sources and the processes the system modules opened,
 %% `ern_deliveries` the deliveries in flight, `ern_restarts` the restarts a
 %% process may be asked, `ern_checkers` the checkers of §8.4, and
-%% `ern_launch` the way the terminal is read, the process a deadlock faults
-%% and whether the end waits for its subscribers, and the utilization the
-%% program set (§8.7). A node's (§8.7):
+%% `ern_launch` the launch itself, its runner, its reaper and what its
+%% options give it (#launch{}), the way the terminal is read, the process a
+%% deadlock faults and whether the end waits for its subscribers, and the
+%% utilization the program set (§8.7). A node's (§8.7):
 %% `ern_offers` and `ern_offered` hold the offers, `ern_initialized` the
 %% modules whose initializers have run, whose bindings a peer's spawn asks
 %% for, and `ern_notes` the notes of calls from other nodes, a compute's
 %% among them.
 -module(ern_rt).
 
--export([send/2, kept/1, acting_for/1, process_of/1, held/3, is_never_given/1, is_address/1,
-         spawn/2, spawn_monitored/3, spawn_root/3, self/0, current/0, adapted/2, call/3,
-         call/4, call_forever/2, call_forever/3, compute/3, answer/2, refuse/2,
+-export([send/2, kept/1, acting_for/1, launch_reaper/0, process_of/1, held/3, is_never_given/1,
+         is_address/1, spawn/2, spawn_monitored/3, spawn_root/3, self/0, current/0, adapted/2,
+         call/3, call/4, call_forever/2, call_forever/3, compute/3, answer/2, refuse/2,
          monitor/2, kill/1, killed/2, reason/1, started_by/1, kill_started/1, kill_all/1,
          rooting/0, rooted/2, processes/0, status/1, faults/1,
          termination/1, checker_for/3, checker_forget/2, source_begin/0, source_begin/1,
@@ -137,12 +138,13 @@
 %% report §8.4: each checker, {{checker, Key}, Checker}, and what it
 %% stands in front of, {{behind, Checker}, Pid, Address, Key}
 -define(CHECKERS, ern_checkers).
-%% report §8.2, §8.6: the way the terminal is read, {reading, Kind}, the
-%% entry process, {entry_process, Pid}, the process a deadlock faults,
-%% {deadlock_victim, Pid}, while the end looks for its subscribers and
-%% waits for them, the runner that tells them, {ending, Runner, Launch},
-%% once the wait is over, {wait_over}, and the utilization the program set
-%% with `Peer.setUtilization`, {utilization, Utilization} (§8.7)
+%% report §8.2, §8.6: the launch, #launch{}, the way the terminal is read,
+%% {reading, Kind}, the entry process, {entry_process, Pid}, the process a
+%% deadlock faults, {deadlock_victim, Pid}, while the end looks for its
+%% subscribers and waits for them, the runner that tells them, {ending,
+%% Runner, Launch}, once the wait is over, {wait_over}, and the utilization
+%% the program set with `Peer.setUtilization`, {utilization, Utilization}
+%% (§8.7)
 -define(LAUNCH, ern_launch).
 %% Report §8.7: the offers of the node, {{Name, Hash}, Address, Process} by
 %% the service's name and its type's hash, ordered so that one name's are
@@ -225,6 +227,18 @@
 %% or a call's note (report §8.7), watched once until it ends, so that
 %% they end with it.
 -record(reaper, {monitors = #{}, monitoring = #{}, monitor_refs = #{}, watched = #{}}).
+
+%% Report §8.5, §8.6, §11.2: the launch in progress, a row of its own
+%% table, made as it begins and gone with the table at its end
+%% (launched/1, end_program/3): its runner; the reference that tags it,
+%% which the runner's messages carry; its reaper, none until it is started;
+%% and what the options give the run. A row and not a persistent term,
+%% since each update of one waits for every scheduler of the host, and the
+%% end's erase of one of more than a word sets every process scanning its
+%% heap, which the next launch's updates wait for (the log's *The Sitting
+%% on §8.6's Bookkeeping*, its *Measured* paragraphs on the launch's start).
+-record(launch, {runner, tag, reaper = none, reporter = none, arguments = [], exit = program,
+                 node = false}).
 
 %% A subscriber the end has told and waits for (report §8.6): its spawn
 %% order and its spawn site, which the end's lines name it by (§11.2), its
@@ -328,7 +342,7 @@ sent({Pid, Message}) ->
 -spec kept(address()) -> pid() | none.
 kept({adapted, _, _, _, Launch} = Address) ->
     Worker = erlang:self(),
-    Reaper = persistent_term:get({?MODULE, reaper}, none),
+    Reaper = launch_reaper(),
     case is_pid(Reaper) andalso erlang:is_process_alive(Reaper)
          andalso is_of_this_launch(Launch) of
         false ->
@@ -388,7 +402,26 @@ acting_for(_Recipient) ->
 %% addresses its processes make, or none between two launches, while
 %% none runs (launched/1).
 launch() ->
-    persistent_term:get({?MODULE, launch}, none).
+    launch_field(#launch.tag, none).
+
+%% A field of the launch in progress (#launch{}), or Default between two
+%% launches and before the first.
+launch_field(Position, Default) ->
+    try ets:lookup_element(?LAUNCH, launch, Position)
+    catch error:badarg -> Default
+    end.
+
+%% The launch's runner and the reference that tags it, which the runner's
+%% messages carry.
+launch_runner() ->
+    [#launch{runner = Runner, tag = Launch}] = ets:lookup(?LAUNCH, launch),
+    {Runner, Launch}.
+
+%% The launch's reaper, or none before it is started and between two
+%% launches.
+-spec launch_reaper() -> pid() | none.
+launch_reaper() ->
+    launch_field(#launch.reaper, none).
 
 %% Report §8.7, §11.2: whether an adapted address's launch is the one in
 %% progress, asked of an address a frame names as it arrives (kept/1) and
@@ -483,8 +516,7 @@ spawn_with_monitors(Function, Site, Monitors, chained) ->
     spawn_with_monitors(Function, Site, Monitors, {chained, parent()});
 spawn_with_monitors(Function, Site, Monitors, Chain) ->
     Ref = make_ref(),
-    persistent_term:get({?MODULE, reaper})
-        ! {spawn, erlang:self(), Ref, Function, Site, Monitors, Chain},
+    launch_reaper() ! {spawn, erlang:self(), Ref, Function, Site, Monitors, Chain},
     receive
         {Ref, Pid} -> Pid
     end.
@@ -870,7 +902,7 @@ refuse(Reply, Cause) ->
 -spec monitor(pid(), fun((term()) -> term())) -> 'Unit'.
 monitor(Process, Wrap) ->
     Ref = make_ref(),
-    Reaper = persistent_term:get({?MODULE, reaper}),
+    Reaper = launch_reaper(),
     %% a Process foreign code gave back may be the checker before the process
     Reaper ! {monitor, process_of(Process), erlang:self(), Wrap, Ref},
     receive {Ref, monitored} -> ?UNIT end.
@@ -1263,7 +1295,7 @@ deadlock() ->
         [{_, Victim}] ->
             found_fault(Victim, <<"deadlock">>);
         [] ->
-            {Runner, Launch} = persistent_term:get({?MODULE, runner}),
+            {Runner, Launch} = launch_runner(),
             Runner ! {deadlock, Launch}
     end.
 
@@ -1579,7 +1611,7 @@ rooted(Mark, Root) ->
             _ = erlang:put(?ACTING, Acting#acting{marks = Marks})
     end,
     Ref = make_ref(),
-    persistent_term:get({?MODULE, reaper}) ! {rooted, erlang:self(), Ref, Mark, Root},
+    launch_reaper() ! {rooted, erlang:self(), Ref, Mark, Root},
     receive
         {Ref, rooted} -> ok
     end.
@@ -1664,8 +1696,8 @@ report(Pid, Site, Peer, Fault, Restarted) ->
                          _ -> {'Fault', Described} = reason(Fault), {Described, <<>>}
                      end,
     Report = {'FaultReport', Pid, Site, Cause, Restarted, Trace, ern_peer:name(Peer)},
-    case persistent_term:get({?MODULE, reporter}, undefined) of
-        undefined -> ok;
+    case launch_field(#launch.reporter, none) of
+        none -> ok;
         Reporter -> Reporter(Report, Peer)
     end,
     Subscribers = [Address || {_, Address} <- matching_rows(?FAULTS, '_')],
@@ -1788,7 +1820,7 @@ peer(Pid) ->
 %% is not waiting, or none is left; `deadlock`, where nothing can and every
 %% process waits as Ernest waits.
 look() ->
-    case terminal_holder() =:= undefined andalso not persistent_term:get({?MODULE, node}, false)
+    case terminal_holder() =:= undefined andalso not launch_field(#launch.node, false)
          andalso nothing_delivers() of
         false ->
             delivering;
@@ -1991,7 +2023,7 @@ sources() ->
 -spec opened(pid(), binary(), pid()) -> ok.
 opened(Pid, Site, Owner) ->
     try ets:insert(?HELD, {{opened, Pid}}) catch _:_ -> true end,
-    case persistent_term:get({?MODULE, reaper}, none) of
+    case launch_reaper() of
         none ->
             ok;
         Reaper ->
@@ -2277,7 +2309,7 @@ drained(Stream) ->
     end.
 
 gone(Name) ->
-    {Runner, Launch} = persistent_term:get({?MODULE, runner}),
+    {Runner, Launch} = launch_runner(),
     Runner ! {gone, Launch, Name},
     dropping().
 
@@ -2348,7 +2380,7 @@ own_terminal(Kind) ->
 %% Report §7.3, §8.2: a system process ends the program with a fault of
 %% the entry process, the runner's to report.
 end_with_fault(Cause) ->
-    {Runner, Launch} = persistent_term:get({?MODULE, runner}),
+    {Runner, Launch} = launch_runner(),
     Runner ! {fault, Launch, Cause},
     ok.
 
@@ -2731,11 +2763,9 @@ run_main(EntryPoint, Site, Options) ->
     %% saves that many, a fraction of its cost, and a fault's trace shows
     %% the innermost twelve (trace/1)
     _ = erlang:system_flag(backtrace_depth, 64),
-    %% report §8.6: a node can be reached from outside, and detects no deadlock
-    persistent_term:put({?MODULE, node}, is_map_key(node, Options)),
     Launch = launched(Options),
     Reaper = erlang:spawn(fun reaper/0),
-    persistent_term:put({?MODULE, reaper}, Reaper),
+    true = ets:update_element(?LAUNCH, launch, {#launch.reaper, Reaper}),
     Encodings = bytes_out(),
     System = started_system(Options),
     Ended = try
@@ -2752,7 +2782,6 @@ run_main(EntryPoint, Site, Options) ->
     try end_program(Launch, Reaper, System) of
         Gone -> outcome_flushed(Ended, Gone)
     after
-        persistent_term:erase({?MODULE, reporter}),
         restore_encodings(Encodings)
     end.
 
@@ -2875,7 +2904,7 @@ untold(Subscriptions, Waiting) ->
 %% so that a teller that ends before its word holds up no end (waited/5).
 tell_all(Launch, Untold, Waiting) ->
     Runner = erlang:self(),
-    Reaper = persistent_term:get({?MODULE, reaper}),
+    Reaper = launch_reaper(),
     lists:foldl(fun({Order, Subscriber, Address, Site}, Acc) ->
                     _ = ets:update_element(?TERMINATING, Subscriber, {3, true}),
                     Teller = reaper_held(Reaper, fun() ->
@@ -3017,20 +3046,18 @@ table_options(_) -> [set].
 
 %% The reference that tags this launch, under which the runner is known,
 %% and which tags the adapted addresses the launch's processes make
-%% (launch/0), and what the options give the run. Report §11.2: `ern run`
-%% reports every fault, the runtime's own subscriber, given here as a
-%% function.
+%% (launch/0), written with the runner and what the options give the run
+%% in the launch's row (#launch{}). Report §11.2: `ern run` reports every
+%% fault, the runtime's own subscriber, given here as a function. Report
+%% §8.6: a node can be reached from outside, and detects no deadlock.
 launched(Options) ->
     persistent_term:erase({?MODULE, holder}),
-    case Options of
-        #{faults := Reporter} -> persistent_term:put({?MODULE, reporter}, Reporter);
-        _ -> persistent_term:erase({?MODULE, reporter})
-    end,
     Launch = make_ref(),
-    persistent_term:put({?MODULE, runner}, {erlang:self(), Launch}),
-    persistent_term:put({?MODULE, launch}, Launch),
-    persistent_term:put({?MODULE, arguments}, maps:get(arguments, Options, [])),
-    persistent_term:put({?MODULE, exit}, maps:get(exit, Options, program)),
+    true = ets:insert(?LAUNCH, #launch{runner = erlang:self(), tag = Launch,
+                                       reporter = maps:get(faults, Options, none),
+                                       arguments = maps:get(arguments, Options, []),
+                                       exit = maps:get(exit, Options, program),
+                                       node = is_map_key(node, Options)}),
     Launch.
 
 %% Report §8.2: the system processes, each bound under its name. Keys come
@@ -3121,7 +3148,7 @@ entry_end(EntryProcess, Launch) ->
 %% test` (§11.2).
 -spec arguments() -> [binary()].
 arguments() ->
-    persistent_term:get({?MODULE, arguments}, []).
+    launch_field(#launch.arguments, []).
 
 %% Report §8.6, Appendix E.23: Os.exit ends the program with its status,
 %% the runner ending every process as it does at the entry process's end;
@@ -3134,11 +3161,11 @@ exit_program(Status) ->
         true -> ok;
         false -> fault(<<"an exit status is from 0 to 255">>)
     end,
-    case persistent_term:get({?MODULE, exit}, program) of
+    case launch_field(#launch.exit, program) of
         fault ->
             fault(format("exited with status ~B", [Status]));
         program ->
-            {Runner, Launch} = persistent_term:get({?MODULE, runner}),
+            {Runner, Launch} = launch_runner(),
             Runner ! {exit, Launch, Status},
             entered_foreign(),
             receive after infinity -> ok end
@@ -3198,13 +3225,13 @@ entry_process() ->
 %% as the end of its entry process does; none when no run is in progress.
 -spec signal(sigterm | sighup) -> ok | none.
 signal(Signal) ->
-    case persistent_term:get({?MODULE, runner}, none) of
-        {Runner, Launch} ->
+    case ets_lookup(?LAUNCH, launch) of
+        [#launch{runner = Runner, tag = Launch}] ->
             case erlang:is_process_alive(Runner) of
                 true -> Runner ! {signal, Launch, Signal}, ok;
                 false -> none
             end;
-        none ->
+        [] ->
             none
     end.
 
@@ -3397,7 +3424,7 @@ restarts(F, Allowed, Times, Level) ->
                 {true, Recent} ->
                     %% report §11.2: a fault after which the process
                     %% restarts is reported as one
-                    persistent_term:get({?MODULE, reaper}) ! {report, erlang:self(), site(), Fault},
+                    launch_reaper() ! {report, erlang:self(), site(), Fault},
                     fresh_run(),
                     restarted(fault_cause(Fault)),
                     Level =:= outer andalso put('$ern_start', 'AfterFault'),
@@ -3427,8 +3454,8 @@ fresh_run() ->
                  MonitorRef = erlang:monitor(process, Pid),
                  Pid ! {new_run, Self, MonitorRef},
                  MonitorRef
-             end || Pid <- [persistent_term:get({?MODULE, reaper}), system_process(clock),
-                            system_process(terminal)] ++ gateway()],
+             end || Pid <- [launch_reaper(), system_process(clock), system_process(terminal)]
+                            ++ gateway()],
     %% report §8.6: an answer on its way from a system process is no
     %% message the look sees in flight
     entered_foreign(),
@@ -3514,11 +3541,10 @@ end_program(Launch, Reaper, System) ->
         [{reading, keys}] -> ern_tty:restore();
         _ -> ok
     end,
+    %% the launch's row goes with its table, so that a signal after the run
+    %% has nothing to end (signal/1), and an adapted address the run made
+    %% is dead (adapted_way/2)
     lists:foreach(fun ets:delete/1, tables()),
-    %% a signal after the run has nothing to end (signal/1), and an adapted
-    %% address the run made is dead (adapted_way/2)
-    persistent_term:erase({?MODULE, runner}),
-    persistent_term:erase({?MODULE, launch}),
     flush_launch(Launch),
     Gone.
 
@@ -3651,7 +3677,7 @@ held_while_alive(Service, Process) ->
 %% asked to watch any other that holds an offer or a call's note, so that
 %% they end with it.
 watch(Pid) ->
-    case {ets:member(?PROCESSES, Pid), persistent_term:get({?MODULE, reaper}, none)} of
+    case {ets:member(?PROCESSES, Pid), launch_reaper()} of
         {false, Reaper} when is_pid(Reaper) -> Reaper ! {watch, Pid};
         _ -> ok
     end.
@@ -3712,7 +3738,7 @@ program_utilization() ->
                       node(), pid(), reference()}) ->
           {answered, term()} | none.
 asked_of_run(Question) ->
-    case persistent_term:get({?MODULE, reaper}, none) of
+    case launch_reaper() of
         none ->
             none;
         Reaper ->
@@ -3793,7 +3819,7 @@ computed(Alias, Error) ->
 %% a directory, in one host, none is.
 -spec is_launched() -> boolean().
 is_launched() ->
-    case persistent_term:get({?MODULE, reaper}, none) of
+    case launch_reaper() of
         none -> false;
         Reaper -> erlang:is_process_alive(Reaper)
     end.

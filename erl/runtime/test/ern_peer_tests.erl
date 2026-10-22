@@ -528,7 +528,7 @@ computed_here_test() ->
                {ok, Late} = Compute(waits, Plain),
                LatePid = Running(Late),
                MonitorRef = erlang:monitor(process, LatePid),
-               Reaper = persistent_term:get({ern_rt, reaper}),
+               Reaper = ern_rt:launch_reaper(),
                ok = ern_waits:returned(Reaper, {ern_rt, drop_callee_notes, [LatePid, '_']},
                                        fun() -> ern_rt:drop_note(Late) end),
                LateEnd = receive {'DOWN', MonitorRef, process, LatePid, Why} -> Why end,
@@ -875,7 +875,7 @@ foreign_offer_test() ->
                ern_peer:offer({'Service', <<"foreign">>, <<0:256>>}, Foreign),
                Self ! {offered, ern_rt:offered(<<"foreign">>, <<0:256>>)},
                %% the reaper takes the offer away as it learns of the end
-               Reaper = persistent_term:get({ern_rt, reaper}),
+               Reaper = ern_rt:launch_reaper(),
                ok = ern_waits:returned(Reaper, {ern_rt, unoffered, [Foreign]},
                                        fun() -> Foreign ! stop end),
                Self ! {ended, ern_rt:offered(<<"foreign">>, <<0:256>>)}
@@ -927,7 +927,7 @@ foreign_callee_test() ->
                Reply = make_ref(),
                ok = ern_rt:note_call(Foreign, Caller, Reply),
                Self ! {noted, ets:tab2list(ern_notes), ets:tab2list(ern_callees)},
-               Reaper = persistent_term:get({ern_rt, reaper}),
+               Reaper = ern_rt:launch_reaper(),
                ok = ern_waits:returned(Reaper, {ern_rt, drop_callee_notes, [Foreign, '_']},
                                        fun() -> Foreign ! stop end),
                Self ! {ended, ets:tab2list(ern_notes), ets:tab2list(ern_callees)}
