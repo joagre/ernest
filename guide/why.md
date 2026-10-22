@@ -57,6 +57,8 @@ count is 8
 
 A fault, a division by zero or a `fault` call, ends the process, and nothing catches it. Whoever monitors the process hears of its end as a message of their own type. A process started under `restarting` runs its function again in place after a fault, keeping its address, so the name `counter` stays good; the guide's §6.5 shows a restart.
 
+Where foreign code meets the program the type is checked, not trusted. A `foreign fn` declares the Ernest type of what the host answers, and the runtime checks the answer against it as it arrives, as it checks a reply foreign code gives, a message foreign code sends to an address exposed to it, and each argument foreign code calls an Ernest function with; what does not match faults the calling process, naming the function and the type (report §8.4). So a mailbox type holds for messages from the host too, and a wrong value from a library is a fault at the crossing with a trace, not a crash later in code that trusted it. The standard library is the runtime's own and pays no check.
+
 ### Code known by its hash
 
 The hash is never written in a program. It is what tells two versions of a definition apart, and what a peer asks for. The counter replaces its own code while it runs. A message of its type carries the new loop, and the process switches to it with a tail call, keeping its address and its state; the old loop keeps running wherever a process still runs it. `countTwice` is a loop of the same type, sent as a value:
@@ -140,7 +142,7 @@ A node is Ernest started from a configuration directory, with a program or with 
 }
 ```
 
-`ern config` makes the directory, the node's private key and its certificate, and prints the public key, which is what another node lists. `services`, empty here, names for each service a program looks up by name the peers that may offer it.
+`ern config` makes the directory, the node's private key and its certificate, and prints the public key, which is what another node lists. `services`, empty here, names for each service a program looks up by name the peers that may offer it. A service a node offers under a name is found from a peer by that name and the hash of its message type, so two programs built apart agree on what passes between them, or the find answers `OtherType`.
 
 A listed peer is trusted whole. One that may spawn on a node may run anything on it, so the list of peers is the whole of the trust.
 
