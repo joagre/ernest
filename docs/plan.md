@@ -21,7 +21,7 @@ release. MVP 3.26, two subtractions from the type system, is done (2026-10-16), 
 tools' five speed changes and the programs tests' defects.
 MVP 3.27, the measurements across machines, is done (2026-10-21), and so are MVP 3.28, what stood
 before the tour, and MVP 3.29, the bookkeeping behind §8.6 and the foreign call (2026-10-22). The
-road to 0.5.0 is MVP 3.295, what the language measurement found and the new machine, MVP 3.3 the
+road to 0.5.0 is MVP 3.295, what the language measurement found, MVP 3.3 the
 tour and MVP 3.9 the review; the attached shell, ehttpd,
 the website, the shell's second round and the back end follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A
 finished milestone is a row of the table below, its reasons in the log entries the row names.
@@ -65,7 +65,7 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 3.27 | measured across machines: the exchange's numbers of 2026-10-13 again between three machines on one LAN, the push against the pull across them, the spawn's end at the reaper and the bench's three other rows that grew measured piece by piece, every fault with a trace, the programs tests' limits derived, and the annotation out of the hash | 2026-10-21 | | [`push.md`](proposals/placement/push.md); *The Machines*, *The Numbers Across Machines*, *The Rows That Grew*, *Every Fault Carries a Trace*, *The Nodes Tests' Bounds*, *The Later List Sorted*, *The Annotation Out of the Hash* |
 | MVP 3.28 | what stands before the tour: a clause's body all or none, which §11.6 states and `ern format` writes; `--libs-dir dir`; `--verbose`; and seven items the feedback left: four messages that name the form, the rules of an Ernest program installed, the libraries on the default load path, `ok` as `Unit`, `Test.faults`, the foreign call measured, and doc examples run by `ern test`; with what the builds found: a type and the module of its name share a namespace, a module under a taken namespace refused, `List.mapFold`, a mailbox type ending in `Msg`, the prelude's `Unit` as a descriptor word, a `make` with nothing to do measured, and each doc example a program of its own in a directory of its own | 2026-10-22 | | *The Later List Sorted*; *Clause Bodies All or None*; *A Libs Flag Instead of the Environment*; *A Build Says What It Decided*; *A Make With Nothing to Do*; *What the Feedback Left*; *The Window's Three Asks*; *Nothing Waits for a Program*; *The Foreign Call Measured* |
 | MVP 3.29 | the bookkeeping behind §8.6 on one rule, the look reads what a process marks and no operation writes a shared row: the foreign call's count gone for a read of the waiting process, the timed receive's and the call's marks in the process's own dictionary, every slow wait of the runtime's own marked and held by a test, the callees' row kept on a write-concurrent table and measured against two other kinds, a kill one function and a frame from another node; a ground `let` compiled to its term; the foreign cause naming the function; one checker of the library's examples; a launch a row of its own table, halved; the runtime's fixed waits and the tests' sleeps, polls and limits gone for waits on what each means; `make bench` with a memory of its last run and of the release's, by ratio; the language measured against the host's own Erlang, construct by construct and in three programs written twice; the runtime's design note; and a deadlock found among *Why Ernest*'s claims | 2026-10-22 | | *The Sitting on §8.6's Bookkeeping*; *`make bench` Read Against the Cost Rules*; *The Language Against the Host*; *The Foreign Call Measured*; *Deadlock Is Quiescence* |
-| MVP 3.295 | what the language measurement found, a `Float` chain's checks and the first day of the new machine | made 2026-10-22 from MVP 3.29's last measurement | | below |
+| MVP 3.295 | what the language measurement found, a `Float` chain's checks, and the bench's parts as targets | made 2026-10-22 from MVP 3.29's last measurement | | below |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program, the counter, grown from a process with a typed mailbox, through the same counter on a peer that holds none of its code, to its move to new code there, where the deployment guide takes over | outline to be written with the user | | below |
 | MVP 3.9 | the review, and Ernest 0.5.0: the full review, the numbering decided once, a release with no promise of stability | the end of the planned road, 2026-10-13; the split of `make test` done 2026-10-13, taken early | | below |
 | MVP 4.0 | a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches | made 2026-10-13 from MVP 4.3's item 4; the first milestone after 0.5.0 | | below |
@@ -76,25 +76,21 @@ finished milestone is a row of the table below, its reasons in the log entries t
 
 ---
 
-## MVP 3.295 (what the language measurement found, and the new machine)
+## MVP 3.295 (what the language measurement found)
 
 Made 2026-10-22 from what MVP 3.29's last measurement turned up beyond its items, at which that
-milestone closed, and from what the user's new machine asks for on its first day.
+milestone closed.
 
-- **A `Float` expression's checks** (found 2026-10-22 measuring the language against the host,
-  the log's *The Language Against the Host*), decided with the user 2026-10-22 (the log's *The
-  Sitting on §8.6's Bookkeeping*, its paragraph *The Float chain*): a dot product's five operations
-  took 30.5 ns against the host's 13.2, the emitter writing each in a `try` of its own so that each
-  result of a chain is boxed where the host keeps the chain in its registers. The host refuses
-  every non-finite result itself, so the `try` only told a float's `badarith` from an integer
-  division's and carried the operation's source. Decided: no `try`; the emitter writes the chain
-  as the host's own, the `+ 0.0` of a product or a quotient kept for §3.1's zero, and the runtime,
-  where it already turns an uncaught `badarith` into a fault, reads the raising frame's operands,
-  floats for `float arithmetic error` and integers for `division by zero`, the line the host's from
-  the same stack; every site that turns a host error into a fault goes through that one reading.
-  Verified before the build: the host's frame carries the operands and the operation's line in
-  compiled code. The report is unchanged, §3.1 and §7.3 holding as they stand. Measured in
-  `language.txt`'s dot row and `programs.txt`'s ray tracer before and after; about half a day.
+- **A `Float` expression's checks**, built 2026-10-22 (the log's *The Sitting on §8.6's
+  Bookkeeping*, its paragraph *The Float chain* and the *Built* paragraphs after it): no `try`;
+  the emitter writes a chain as the host's own, a product's and a quotient's `+ 0.0` kept for
+  §3.1's zero. The runtime reads a `badarith` from the host's stack in `fault_exit_reason/3`,
+  which every place a host error becomes a fault goes through: a frame of `div` or `rem` over
+  integers is `division by zero`, and one over floats, or the program's own frame where the host
+  raised from its float registers with no frame of its own, is `float arithmetic error`. The
+  host's frame carries the operands only where its compiler did not know they were floats, which
+  the build found. The dot product's row went from 1.65 to 1.23 times the host's, and the ray
+  tracer from 1.95 to 1.70. The report is unchanged.
 - **`Map.get` read with a default**, closed 2026-10-22: the read takes 13.2 ns against
   `maps:get/3`'s 5.1, 2.6 times, and the cost is the `Optional` E.3's `get` answers, built by the
   adapter and taken apart by the program; the host's own `maps:find/2` and a `case`, which answer
@@ -107,14 +103,6 @@ milestone closed, and from what the user's new machine asks for on its first day
   so that a partial run updates and compares what it wrote; `make bench` whole stays the closing
   run before a commit that closes an item, as `make test-full` stands to an area's own target, and
   no second umbrella is added. About an hour, with docs/development.md's line.
-- **The first day of the new machine** (a 12-core AMD with 64 GB, expected about 2026-11-12):
-  its line in `test/machines/machines.txt` beside bee and xena; one `make bench` before any code
-  changes, kept as the release's reference with `make bench-release`, since every number in the
-  log is the old laptop's and the first run there is a reference and not a move; and the bench's
-  rows of eight processes at once gain a row at the host's scheduler count, so that scaling shows
-  as a line and not a point, which `test/ern_foreign_costs.erl` and `test/ern_call_costs.erl` take
-  from `erlang:system_info(schedulers)`.
-
 ## MVP 3.3 (the tour)
 
 A third way into Ernest beside the report and the guide, `tour/`, for the reader who wants the
@@ -217,6 +205,15 @@ language, the standard library or the libraries is driven by a need met in use, 
 another's, and recorded as `docs/language_feedback.md` records one, and 1.0 is the release that
 follows enough use to know what holds still. What the review needs was argued in MVP 2.99c and the
 log's *The First Release Is for Others*:
+
+- **The first day of the new machine** (a 12-core AMD with 64 GB, expected about 2026-11-12; moved
+  here from MVP 3.295 on 2026-10-22, since the machine comes after that milestone's close):
+  its line in `test/machines/machines.txt` beside bee and xena; one `make bench` before any code
+  changes, kept as the release's reference with `make bench-release`, since every number in the
+  log is the old laptop's and the first run there is a reference and not a move; and the bench's
+  rows of eight processes at once gain a row at the host's scheduler count, so that scaling shows
+  as a line and not a point, which `test/ern_foreign_costs.erl` and `test/ern_call_costs.erl` take
+  from `erlang:system_info(schedulers)`.
 
 - **The nodes' design note.** The proposals under `docs/proposals/nodes_and_code/`, the carrier, the
   gateway, the exchange, the code table and the processes kept for addresses as built, rewritten as
