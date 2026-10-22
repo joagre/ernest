@@ -83,7 +83,9 @@ every source of a message, which is what lets Ernest decide what no other langua
 can; and what the look needs of a process, the process marks in its own state and the look reads
 when the program seems idle, so that no operation writes a shared row for it and a hot path pays
 nothing. Against a call that answers at once there is no fraction but nothing. The items follow in
-the order they are built; the report's sections change as each build starts.
+the order they are built; the report's sections change as each build starts. The milestone closes
+at the measurement of the language against the host: what that or any build turns up beyond its
+items becomes a milestone of its own, since the tour and 0.5.0 wait behind this one.
 
 - **The sitting**, held 2026-10-22, six questions each with its verdict in the log entry: the
   foreign call's count becomes a read of the waiting process's stack at the look; the timed
@@ -132,7 +134,11 @@ the order they are built; the report's sections change as each build starts.
   note, "its caller ended", would go unsent; so a `kill` of a process of another node is a frame
   of the runtime's own, the fifteenth, which the victim's node carries out as its own `kill`
   (§8.7's *What passes*), §6.9 unchanged. §6.6, §6.9 and §8.6 state the promises and not the
-  rows. About a day with the tests.
+  rows. The item closes only after a reading of the built frame against §8.7 whole, its *Calls*,
+  *A compute* and *What passes* paragraphs and the order it promises, since the frame was
+  decided on a reading of minutes; and only on `call.txt`'s number for the single pair, a
+  constant that is no fraction of the host's call reopening the §6.9 question. About a day with
+  the tests.
 - **The comparison's two references, by ratio** (found 2026-10-22 building the comparison, and
   decided with the user the same day): a comparison with the last run alone catches a step and
   not a drift, ten moves of a tenth each over a year, none named. The comparison takes a second
@@ -143,6 +149,15 @@ the order they are built; the report's sections change as each build starts.
   has them and by its times where it does not; that brings the library's table in too, which
   stood outside since its fastest-of-three measure moved a fifth of its 1,100 numbers between two
   runs with nothing changed, whole modules together. About half a day.
+- **Every slow wait of the runtime's own is marked, held by a test** (decided with the user
+  2026-10-22; CLAUDE.md's *Tests*): the look depends on each wait of the runtime's own that a
+  program process can be inside marking itself, and the lists it replaced failed by an entry
+  missing, which the bookkeeping build found twice by reading every `receive` by hand. A test
+  walks every `receive` in the runtime's and the command line's modules and demands that each
+  stands in a function that marks itself, is a system process's or a delivery's own loop, or is an
+  Ernest wait the look knows, named as such by a tag beside it; a `receive` that is none fails the
+  test by its module and line, so that a wait added later without its mark is found before it is a
+  false deadlock. About half a day.
 - **A top-level `let` that is a ground term**, §11.1 first: a binding whose initializer is a
   literal, or a constructor, tuple or list of literals, is compiled to the term at each read,
   which the host keeps in its literal area, 2 ns against the persistent term's 36 by a tuple key;
