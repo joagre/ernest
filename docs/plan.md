@@ -139,10 +139,8 @@ items becomes a milestone of its own, since the tour and 0.5.0 wait behind this 
   in place of sleeps of a second and of 0.3 s; `paced_output`'s reader takes a twentieth of the
   program's lines a byte at a time and says so, the node's memory read at its word and the
   program's end held to status 141, in place of sleeps of three seconds and four. The three took
-  14.8 s against 21.1. A decision for the user, in this milestone: three more waits in the file
-  look at a file at a fixed pause up to a chosen count, `run_for/4`'s for a program's line, the
-  standard input's test's for a line written and `job_signal_end`'s for a build's first module;
-  whether each becomes a wait on an event, as an item of its own.
+  14.8 s against 21.1. Decided with the user 2026-10-22: the three more waits in the file that
+  look at a file at a fixed pause up to a chosen count are the item below.
 - **The comparison's two references, by ratio**, built 2026-10-22 (the log's *The Sitting on
   §8.6's Bookkeeping*, its *Built* paragraphs on the two references): each run of `make bench`
   names the rows that moved by more than a fifth against the last run and against the release's,
@@ -152,10 +150,19 @@ items becomes a milestone of its own, since the tour and 0.5.0 wait behind this 
   now, and any other by its numbers. The library's table stays out: in two pairs of runs on the
   idle machine its ratios to the host's moved by more than a fifth in half its functions, 79 and
   78 of 156. The release's run is the run of 2026-10-22 until the review before 0.5.0 replaces it.
-  A decision for the user, in this milestone: `bench.txt`'s Ernest and Erlang columns are
-  measured minutes apart by two harnesses, so its ratios carry both draws and named 9 of its 40
-  rows between two idle runs where its times named 6; whether it is compared by its times until
-  *The language against the host* below measures its pairs together.
+  Decided with the user 2026-10-22: `bench.txt` stays compared by its ratios, one rule and no
+  special case, though its Ernest and Erlang columns are measured minutes apart by two harnesses
+  and its ratios named 9 of its 40 rows between two idle runs where its times named 6; the
+  release's reference is where a drift is caught, and *The language against the host* below
+  measures its pairs together, which removes the noise at its cause.
+- **Three polls in the integration tests** (found 2026-10-22 fixing the three sleeps; CLAUDE.md's
+  *No fixed sleep*): `run_for/4` looks at a file every 0.1 s up to 300 times for a program's
+  line, the standard input's test every 0.05 s up to 400 for a line written, and `job_signal_end`
+  every 0.01 s in Python for a build's first module. Each becomes a wait on the event, the line
+  read as it is written, as the FIFO handshakes of the three sleeps do; and
+  `stream_lost_at_end`'s `timeout -s KILL 20`, a bound on a hung program, is derived from what it
+  waits for, the harness's wait as `ern_nodes_tests:wait_ms/0` derives one, with the reason beside
+  it. About an hour.
 - **Every slow wait of the runtime's own is marked, held by a test**, built 2026-10-22 (the log's
   *The Sitting on §8.6's Bookkeeping*, its *Built* paragraphs on every slow wait):
   `receives_test/0` in `test/ern_style_tests.erl`, which `make test` runs, reads every `receive`
