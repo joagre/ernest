@@ -186,9 +186,9 @@ items becomes a milestone of its own, since the tour and 0.5.0 wait behind this 
   documents, and `show` written plain inside `Io`, where `ern test` wrote `Io.show`, which §4.2
   refuses there, fixed. `ern_doc_tests` took 11.2 s and not a minute, so nothing went faster: the
   light run went from 48.9 s to 54.0, its last job the CLI's tests in one host, which the
-  target's load slows, and `make test-full` from 587.7 s to 599.1. A decision for the user in
-  this milestone: the CLI's tests in three hosts, as the emitter's and the runtime's are, which
-  took the light run to 48.4 s.
+  target's load slows, and `make test-full` from 587.7 s to 599.1. Decided with the user the
+  same day and done: the CLI's tests run in three hosts, as the emitter's and the runtime's do,
+  and the light run takes 47.3 s and `make test-full` 593.4.
 - **The launch's start** (found 2026-10-21 building the doc examples' launch; CLAUDE.md's *The
   tools are fast*): inside `ern test`'s host a launch took about 7.25 ms before its initializers
   ran, read as some 23 `persistent_term` updates at about 0.25 ms each; the bench's row of a bare

@@ -261,9 +261,10 @@ endif
 $(APP_TESTS): test-app-%:
 	@$(MAKE) -s -C erl/$*/src test
 
-# The emitter's and the runtime's tests run programs and wait on them, so
-# make test runs each in three hosts at once, every third test in each.
-SPLIT_APPS = emitter runtime
+# The emitter's, the runtime's and the command line's tests run programs and
+# wait on them, so make test runs each in three hosts at once, every third
+# test in each.
+SPLIT_APPS = emitter runtime cli
 APP_PARTS = $(foreach a,$(SPLIT_APPS),$(addprefix test-app-$(a)-,0 1 2))
 APP_JOBS = $(APP_PARTS) $(filter-out $(SPLIT_APPS:%=test-app-%),$(APP_TESTS))
 
