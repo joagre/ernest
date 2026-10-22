@@ -920,7 +920,8 @@ build(#build_module{namespace = Namespace, file = File, relative = Relative,
                                    emitted(Emit, Module, {Typed, Interface, Env1}, Build,
                                            OutputBase, Say)
                                end,
-                    Written = ern_interface:written(ern_canonical:interface(Interface, Canonical)),
+                    Written = ern_interface:written(ern_compile:interface(Namespace, Interface,
+                                                                          Canonical, Env, Build)),
                     {Interfaces#{Namespace => Written}, {Namespace, Referenced, Emitting}};
                 {error, Diagnostics} ->
                     throw({errors, File, Diagnostics})

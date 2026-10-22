@@ -8,7 +8,9 @@
 %% function a spawn on a peer starts by its identity, with its entry's
 %% function and arity and its reach, each type by its hash, each top-level
 %% binding by its identity, its qualified name with its hash, with the key
-%% its value is kept under (§8.5), each foreign declaration's
+%% its value is kept under (§8.5), and, whose initializer is a ground term,
+%% with its value under `{term, QualifiedName, Hash}` (§11.1), each foreign
+%% declaration's
 %% implementation and function by its qualified name as text, as a spawn
 %% frame names it, and, in the unit's own row, the units its code calls. A
 %% unit loaded again with other code replaces its rows, and one unloaded
@@ -42,7 +44,8 @@
 -module(ern_code).
 
 -export([ensure_loaded/1, own_file/1, load/3, loaded/2, loaded/3, unloaded/1, spawnable/1,
-         holders/1, linkable/1, valued/1, forms/1, called/1, absent_binding/1, absent_binding/2,
+         holders/1, linkable/1, valued/1, ground/1, forms/1, called/1, absent_binding/1,
+         absent_binding/2,
          foreign/2, declared/1, declared/2, present/1, function/2, function_text/3, is_free/1,
          is_held/2, fresh_unit/1, unit_beside/2, placement/4, running/1, hashes/1,
          binding_keys/1, nearing/0, nearing/1, nearing/2, line/3, counts/0]).
@@ -221,8 +224,9 @@ declared_rows(Unit, #recorded{foreign = Foreign}) ->
      || {QualifiedName, _, _, _, _} = Declaration <- Foreign].
 
 %% A unit's rows for one of its declarations: a definition by its identity,
-%% a lambda or a local function a spawn on a peer starts by its identity,
-%% and a foreign declaration, which has no identity, by its qualified name
+%% a ground binding's value by the binding's identity (§11.1), a lambda or
+%% a local function a spawn on a peer starts by its identity, and a
+%% foreign declaration, which has no identity, by its qualified name
 %% (Appendix H) as text, as a peer's frame and an exchange's unit name it,
 %% whatever atoms the node has (§8.7).
 rows(Unit, _, {function, Hash, Function, Arity, Reach}) ->
@@ -231,6 +235,8 @@ rows(Unit, _, {lambda, Hash, Position, Function, Arity, Reach}) ->
     [{{lambda, Hash, Position}, Unit, {function, Function, Arity, Reach}}];
 rows(Unit, QualifiedName, {binding, Hash, Key}) ->
     [{{binding, QualifiedName, Hash}, Unit, {binding, Key}}];
+rows(Unit, QualifiedName, {term, Hash, Term}) ->
+    [{{term, QualifiedName, Hash}, Unit, Term}];
 rows(Unit, _, {type, Hash}) ->
     [{{hash, Hash}, Unit, type}];
 rows(Unit, QualifiedName, {foreign, HostModule, HostFunction, Function, Arity}) ->
@@ -329,6 +335,18 @@ valued(Key) ->
                             ern_rt:binding_value(Unit, Kept) =/= absent] of
         [] -> none;
         Valued -> lists:last(Valued)
+    end.
+
+%% Report §11.1, §8.7: the value of a top-level binding whose initializer is
+%% a ground term, by its identity, as a unit that holds it lists it, which
+%% a unit an exchange makes holds where its code reads the binding; none
+%% for any other binding. One identity is one form, so every unit that
+%% holds it lists one value.
+-spec ground({binding, [atom()], binary()}) -> {term, term()} | none.
+ground({binding, QualifiedName, Hash}) ->
+    case lookup({term, QualifiedName, Hash}) of
+        [{_, _, Term} | _] -> {term, Term};
+        [] -> none
     end.
 
 %% Report §11.2, §8.7: what the unit Unit's compiled form records of its

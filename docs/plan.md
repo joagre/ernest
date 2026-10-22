@@ -161,11 +161,14 @@ items becomes a milestone of its own, since the tour and 0.5.0 wait behind this 
   a port's queue is waited on by what empties it, the port's own signal where the host gives one,
   else the wait derived from the queue's size and the port's rate and said so; and `stty`'s bound
   derived from what it waits for, a child process's end, and said so. About half a day.
-- **A top-level `let` that is a ground term**, §11.1 first: a binding whose initializer is a
-  literal, or a constructor, tuple or list of literals, is compiled to the term at each read,
-  which the host keeps in its literal area, 2 ns against the persistent term's 36 by a tuple key;
-  any other binding is read as today. A second path kept on a number, said so in the log; the
-  bench's row of a ground read and a computed read before and after. About half a day.
+- **A top-level `let` that is a ground term**, built 2026-10-22 (the log's *The Sitting on §8.6's
+  Bookkeeping*, its *Built* paragraphs on the ground `let`): a binding whose initializer is a
+  ground term (§11.1), a literal, a negated number literal, or a constructor, tuple or list of
+  them, is read as its value, in its own module, in a dependent through the interface's `terms`,
+  and in a definition that arrives through the code table's; any other is read as before.
+  `'$init'/0` still writes the value, first, for the runtime's readers. A function reading a
+  literal `let` went from 37.9 to 7.1 ns against the host's 8.5, and one reading a computed `let`
+  stayed at 39.2 against 8.4.
 - **The cause of a foreign return that fails its check names the function**, §7.4 first: `the
   return of foreign function m:f/n does not match Int`, and an argument foreign code gives an
   Ernest function `an argument of f from foreign code does not match Int`; the reply's cause

@@ -6,8 +6,9 @@
 %% unit is linked through the code table (ern_code): a definition of
 %% another unit by its hash, to a unit that exports its function (§11.1),
 %% a type to the forms the unit that holds it keeps; a binding by its
-%% identity, to
-%% a unit that holds it with its value, through its getter; and what the
+%% identity, to a unit that holds it with its value, through its getter,
+%% or, whose initializer is a ground term, to the value that unit lists,
+%% which its read is compiled to (§11.1); and what the
 %% standard library and the prelude declare by its name, as the build
 %% links it, from the prelude's environment, which holds the library's
 %% interfaces (ern_compile:named/2). A foreign declaration of the reach is
@@ -336,8 +337,10 @@ external({binding, QualifiedName, Hash} = Reference, {Functions, Others, Types, 
     Absent = ["the binding ", ern_namespace:text(QualifiedName), " has no value here"],
     case {ern_code:valued(Reference), lists:keymember(Hash, 2, Bindings)} of
         {{Unit, Getter}, _} ->
+            %% report §11.1: a ground binding's read is its value
             {Functions#{Reference => #linked{unit = Unit, function = Getter, arity = 0,
-                                             kind = value, identity = Hash}},
+                                             kind = value, identity = Hash,
+                                             term = ern_code:ground(Reference)}},
              Others, Types, Lacking};
         {none, false} ->
             {Functions, Others, Types, [{Reference, 0, value, Hash, Absent} | Lacking]};

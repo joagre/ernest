@@ -2525,7 +2525,13 @@ bare_build(Base) ->
              "    \"hello\"\n"
              "}\n"
              "\n"
-             "export fn greet() : Unit = Io.println(greeting)\n",
+             "export fn greet() : Unit = Io.println(greeting)\n"
+             "\n"
+             "// Report §11.1: a binding compiled to its value, which a bare node that\n"
+             "// holds its module does not evaluate either.\n"
+             "let farewell : String = \"bye\"\n"
+             "\n"
+             "export fn bid() : Unit = Io.println(farewell)\n",
     Source = "// Report §8.7: work placed on a bare node, which holds no definition of\n"
              "// this program's until a spawn or a compute brings it there.\n"
              "\n"
@@ -2578,6 +2584,7 @@ bare_build(Base) ->
              "    heard(bare, interval);\n"
              "    Io.println(\"picked: \" <> Io.show(Peer.compute(answer, waitMs())));\n"
              "    Io.println(\"binding: \" <> outcome(Peer.spawn(bare, Shared.greet, waitMs())));\n"
+             "    Io.println(\"ground: \" <> outcome(Peer.spawn(bare, Shared.bid, waitMs())));\n"
              "    Io.println(\"divides: \" <> outcome(Peer.spawn(bare, divides, waitMs())));\n"
              "    Io.println(\"raises: \" <> outcome(Peer.spawn(bare, raises, waitMs())));\n"
              "    Io.println(\"raises again: \" <> outcome(Peer.spawn(bare, raises, waitMs())))\n"
@@ -2669,7 +2676,9 @@ line_of(Text, Part) ->
 %% utilization answers, and it tells it as any node does, so that a
 %% compute that names no peer runs there once it has; a library on its
 %% load path is loaded and its binding not evaluated, so a spawn whose reach
-%% names the binding is NotLoaded, the node saying so; a fault in received
+%% names the binding is NotLoaded, the node saying so, one compiled to its
+%% value (§11.1) as much as one computed, the first a regression test
+%% written after the code; a fault in received
 %% code is reported there at the spawn's site, the sender's, with the peer
 %% that spawned it; a function that crossed with the first lambda's
 %% enclosing definition is spawned twice and faults twice, the traces of
@@ -2684,7 +2693,7 @@ line_of(Text, Part) ->
 %% them, a function that calls a foreign function among them. Written after
 %% the code
 bare_node_test_() ->
-    nodes_test({waits, 19}, fun bare_node/1).
+    nodes_test({waits, 20}, fun bare_node/1).
 
 bare_node(Base) ->
     {SharedDir, Program, Source} = bare_build(Base),
@@ -2707,6 +2716,8 @@ bare_node(Base) ->
     [says(B, Line)
      || Line <- ["the peer a's spawn at " ++ Site("Shared.greet") ++ " was not loaded: the"
                  " binding Shared.greeting has no value here",
+                 "the peer a's spawn at " ++ Site("Shared.bid") ++ " was not loaded: the"
+                 " binding Shared.farewell has no value here",
                  Site("\"divides: \"") ++ " faulted: division by zero, spawned by the peer a\n",
                  Site("\"raises: \"") ++ Raised, Site("\"raises again: \"") ++ Raised]],
     [prints(B, Line) || Line <- ["counted 1", "counted 7"]],
@@ -2717,7 +2728,8 @@ bare_node(Base) ->
     [has(Out, Line)
      || Line <- ["spawn: Right", "compute: Right(42)", "entry shown: Right(true)",
                  "offering: Right", "found: Right", "utilization: Right",
-                 "picked: Right(42)", "binding: NotLoaded", "divides: Right",
+                 "picked: Right(42)", "binding: NotLoaded", "ground: NotLoaded",
+                 "divides: Right",
                  "raises: Right", "raises again: Right", "Shared.greeting evaluated"]],
     ?assertEqual(nomatch, string:find(OutB, "Shared.greeting evaluated")),
     Raises = "\n    Bare.raises:" ++ integer_to_list(line_of(Source, "fn raises()")) ++ "\n",

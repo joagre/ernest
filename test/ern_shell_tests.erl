@@ -3690,11 +3690,50 @@ reload_keeps_unchanged_values() ->
     ?assertMatch({_, _}, binary:match(Output, <<"Counter, compiled again\nUser, compiled again\n"
                                                 "Counter$2.base:3 faulted: division by zero; it and"
                                                 " the bindings after it whose hash changed, or"
-                                                " which are new, are without a value, and the rest"
-                                                " keep the values of the previous version\n">>)),
+                                                " which are new, are without a value, but one"
+                                                " compiled to its value has it, and the rest keep"
+                                                " the values of the previous version\n">>)),
     NoValue = <<"fault: the binding has no value, since one before it faulted">>,
     ?assertMatch({_, _}, binary:match(Output, <<"> ", NoValue/binary,
                                                 "\n> 20 : Int\n> 6 : Int\n">>)).
+
+%% report §11.2, §11.1: a `:load`ed module whose binding's initializer is a
+%% ground term reads its value; a reload whose binding faults leaves such a
+%% binding after the fault its value, one whose hash the reload changed and
+%% one the previous version did not have, as the reload's line says, the
+%% new version's function reading the new value, while a computed binding
+%% after the fault is without one. Written after the code, so a regression
+%% test
+reload_keeps_ground_values_test_() ->
+    {timeout, 60, fun reload_keeps_ground_values/0}.
+
+reload_keeps_ground_values() ->
+    Dir = scratch("ern_reload_ground_"),
+    Counter = fun(Base, Limit, Fresh) ->
+                  ["export let base : Int = ", Base, "\n\n",
+                   "export let limit = ", Limit, "\n\n", Fresh,
+                   "export let later : Int = base + ", Limit, "\n\n",
+                   "export fn twice() : Int = limit + limit\n"]
+              end,
+    ok = file:write_file(filename:join(Dir, "counter.ern"), Counter("10", "5", "")),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile,
+                         [":load Counter\nCounter.limit\nCounter.twice()\n",
+                          write_source(Dir, "counter.ern",
+                                       Counter("10 / List.size([])", "6",
+                                               "export let fresh = \"new\"\n\n")),
+                          ":reload\nCounter.limit\nCounter.fresh\nCounter.twice()\n"
+                          "Counter.later\n"]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"> 5 : Int\n> 10 : Int\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"Counter$2.base:1 faulted: division by zero; it"
+                                                " and the bindings after it whose hash changed,"
+                                                " or which are new, are without a value, but one"
+                                                " compiled to its value has it, and the rest keep"
+                                                " the values of the previous version\n">>)),
+    NoValue = <<"fault: the binding has no value, since one before it faulted">>,
+    ?assertMatch({_, _}, binary:match(Output, <<"> 6 : Int\n> \"new\" : String\n> 12 : Int\n> ",
+                                                NoValue/binary>>)).
 
 %% report §11.2, §6.9: a `:load` whose binding's process is killed loads
 %% nothing, and says the binding was killed, by its site, a kill being no

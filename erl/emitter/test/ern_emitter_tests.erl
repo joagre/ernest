@@ -724,9 +724,65 @@ docs_chunk_keys_and_types_test() ->
     ?assertEqual([<<"type Holder = Holder(make : (Int) -> ((Int) -> Int) receiving Msg)">>],
                  Signature).
 
+%% report §11.1, §8.5, §3.1: the bindings whose initializers are ground
+%% terms, whose values the interface holds for a dependent: a literal of
+%% each kind, a negated number literal, -0.0 as 0.0, a constructor of no
+%% fields, a constructor applied to ground terms, its named fields in any
+%% order, and a tuple or a list of them, nested; and not an operator, a
+%% name or a negated one, a lambda, a call, a constructor of a field
+%% written without it, which is a function, an update, a bitstring, whose
+%% segment may overflow, nor `::`, an operator. The unit reads each as its
+%% value and gives every one its value first in '$init'/0, with no site,
+%% since none can fault. Written after the code, so a regression test
+ground_terms_test() ->
+    Text = "export type Point = Point(x : Int, y : Int)\n"
+           "export type Color = Red | Wrapped(Int)\n"
+           "export let anInt = 16777216\n"
+           "export let aFloat = 1.5\n"
+           "export let aString = \"> \"\n"
+           "export let aChar = 'c'\n"
+           "export let aBool = true\n"
+           "export let aUnit = Unit\n"
+           "export let negated = -1\n"
+           "export let zero = -0.0\n"
+           "export let red = Red\n"
+           "export let wrapped = Wrapped(3)\n"
+           "export let point = Point(y = 2, x = 1)\n"
+           "export let nested = [#(1, \"a\"), #(2, \"b\")]\n"
+           "export let none : Optional(Int) = None\n"
+           "export let empty : List(Int) = []\n"
+           "export let product = 1024 * 1024\n"
+           "export let named = anInt\n"
+           "export let negatedName = -anInt\n"
+           "export let lambda = fn(x) = x\n"
+           "export let called = Int.toString(1)\n"
+           "export let wrap = Wrapped\n"
+           "export let moved = Point(..point, x = 3)\n"
+           "export let bits = <<1, 2>>\n"
+           "export let consed = 1 :: []\n"
+           "export fn summed() : Int = anInt + negated\n",
+    {ok, Typed, Interface, Env} = ern_typecheck:check_string(['Ground'], Text),
+    Canonical = ern_canonical:module(['Ground'], Typed, Env, false),
+    #interface{terms = Terms} = ern_compile:interface(['Ground'], Interface, Canonical, Env, #{}),
+    ?assertEqual(#{anInt => 16777216, aFloat => 1.5, aString => <<"> ">>, aChar => $c,
+                   aBool => true, aUnit => 'Unit', negated => -1, zero => 0.0, red => 'Red',
+                   wrapped => {'Wrapped', 3}, point => {'Point', 1, 2},
+                   nested => [{1, <<"a">>}, {2, <<"b">>}], none => 'None', empty => []},
+                 #{Name => Term || ['Ground', Name] := Term <- Terms}),
+    ?assertNotEqual(-0.0, maps:get(['Ground', zero], Terms)),
+    Source = iolist_to_binary(ern_compile:erl_source(['Ground'], Typed, Env)),
+    ?assertMatch({_, _}, binary:match(Source, <<"-> 16777216 + -1.">>)),
+    %% empty, the last ground binding, is '$16', and product, the first
+    %% computed, '$17'
+    {Given, _} = binary:match(Source, <<"persistent_term:put({ern@ground, '$16'}">>),
+    {Sited, _} = binary:match(Source, <<"ern_rt:initializing(<<\"Ground.product:17\">>)">>),
+    ?assert(Given < Sited),
+    ?assertEqual(nomatch, binary:match(Source, <<"Ground.anInt:">>)).
+
 %% report §11.1: the interface travels in the BEAM chunk ErnI
 %% with the source hash and the dependencies' interface hashes, and its
-%% hash does not depend on the numbering of type variables
+%% hash does not depend on the numbering of type variables; it holds the
+%% value of an exported binding whose initializer is a ground term
 interface_chunk_test() ->
     {Namespace, Source} = example("stack"),
     {ok, Typed, Interface, Env} = ern_typecheck:check_string(Namespace, Source),
@@ -737,9 +793,12 @@ interface_chunk_test() ->
     ?assertEqual(['Stack'], Read#interface.namespace),
     ?assert(is_map_key(['Stack', push], Read#interface.values)),
     %% the checker's interface, with the numbers the compiler gives the
-    %% unit's functions (report §11.1)
-    ?assertEqual(ern_interface:hash(Interface#interface{positions = Read#interface.positions}),
+    %% unit's functions and the values of its ground bindings (report §11.1)
+    ?assertEqual(#{['Stack', empty] => {'Stack', []}}, Read#interface.terms),
+    ?assertEqual(ern_interface:hash(Interface#interface{positions = Read#interface.positions,
+                                                        terms = Read#interface.terms}),
                  ern_interface:hash(Read)),
+    ?assertNotEqual(ern_interface:hash(Read#interface{terms = #{}}), ern_interface:hash(Read)),
     {ok, _, Interface2, _} = ern_typecheck:check_string(Namespace,
                                                         <<"fn f(x) = x\n", Source/binary>>),
     ?assertEqual(ern_interface:hash(Interface), ern_interface:hash(Interface2)),
@@ -2359,10 +2418,11 @@ bitstring_size_reads_a_top_level_let_test() ->
 %% report §5.1, §5.11: a match evaluates its scrutinee before it reads a
 %% top-level `let` a pattern's size names. The module runs without its
 %% initializers, so the read faults, and what the scrutinee printed shows
-%% that it came first. A regression test: the read came before the
+%% that it came first; the binding is computed, since a ground term's is
+%% no read (§11.1). A regression test: the read came before the
 %% scrutinee, against §5.1's left to right
 size_read_after_scrutinee_test() ->
-    Text = "let width = 1\n"
+    Text = "let width = 1 + 0\n"
            "fn first(b : Bytes) : Bytes = match Io.debug(b) {\n"
            "    <<h:size(width)-bytes, _:bytes>> -> h\n"
            "  | _ -> b\n"

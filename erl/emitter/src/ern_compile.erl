@@ -14,8 +14,8 @@
 %% host's compile of any unit (compiled/2).
 -module(ern_compile).
 
--export([compile/4, compile/5, from_compiled/5, compiled/2, forms/3, forms/4, erl_source/3,
-         erl_source/4, unit/5, link/5, references/1, named/2]).
+-export([compile/4, compile/5, interface/5, from_compiled/5, compiled/2, forms/3, forms/4,
+         erl_source/3, erl_source/4, unit/5, link/5, references/1, named/2]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("checker/include/ern_types.hrl").
@@ -73,7 +73,7 @@ compile(Namespace, Declarations, Interface, Env, Build) ->
     Facts = (maps:without([source, session_offset, form_namespace, standard, units,
                            site_namespace, code, canonical, input_name], Build))
         #{references => References, builds_functions => BuildsFunctions},
-    Chunk = ern_interface:encode(Facts, ern_canonical:interface(Interface, Canonical)),
+    Chunk = ern_interface:encode(Facts, interface(Namespace, Interface, Canonical, Env, Build)),
     Docs = term_to_binary(ern_docs:build(Namespace, Declarations, Env,
                                          maps:get(source, Build, <<>>))),
     Chunks = [{ern_interface:chunk_name(), Chunk}, {ern_docs:chunk_name(), Docs},
@@ -82,6 +82,30 @@ compile(Namespace, Declarations, Interface, Env, Build) ->
         {ok, ErlangModule, Beam} -> {ok, ErlangModule, Beam};
         {error, Errors} -> erlang:error({emitted_erlang_does_not_compile, Errors})
     end.
+
+%% Report §11.1: the checker's interface of the module as its `.erc` holds
+%% it and a dependent is compiled against it: with the hash of each
+%% definition, each function's reach and each function's position, and the
+%% value of each exported binding whose initializer is a ground term
+%% (ern_emitter:ground_terms/2), the link made of the types those bindings
+%% and the module's types name alone.
+-spec interface([atom()], #interface{}, ern_canonical:canonical(), ern_typecheck:env(), map()) ->
+          #interface{}.
+interface(_, #interface{lets = []} = Interface, Canonical, _, _) ->
+    ern_canonical:interface(Interface, Canonical);
+interface(Namespace, #interface{lets = Lets} = Interface,
+          #{definitions := Definitions} = Canonical, Env, Build) ->
+    Named = [Definition || #definition{kind = Kind, qualified_name = QualifiedName} = Definition
+                               <- Definitions,
+                           Kind =:= type orelse lists:member(QualifiedName, Lets)],
+    FormNamespace = maps:get(form_namespace, Build, Namespace),
+    Linked = Canonical#{definitions := Named, foreign_schemes := #{}},
+    Unit = #unit{namespace = Namespace, name = ern_namespace:erlang_module(Namespace),
+                 definitions = Definitions, form_namespace = FormNamespace,
+                 standard = maps:get(standard, Build, false),
+                 link = link(Namespace, FormNamespace, Linked, Env, maps:get(units, Build, #{}))},
+    (ern_canonical:interface(Interface, Canonical))#interface{
+      terms = ern_emitter:ground_terms(Unit, Lets)}.
 
 %% Report §11.2, §11.1: a compiled module made a unit of the name Unit from
 %% what its compiled form records, by the back end as an exchange's unit is
@@ -508,7 +532,8 @@ linked(Reference, Named, {_, _, Env, Units}) ->
                        false -> function
                    end,
             [#linked{unit = Unit, function = Function, arity = scheme_arity(Scheme, Kind),
-                     kind = Kind, identity = identity(Reference, QualifiedName, Env)}]
+                     kind = Kind, identity = identity(Reference, QualifiedName, Env),
+                     term = ern_typecheck:ground_term(QualifiedName, Env)}]
     end.
 
 %% The arity of a declaration's function: a function's parameters and its

@@ -242,7 +242,10 @@ received_whole_test() ->
 %% report §8.7, §11.1, §8.4: the unit a reach makes links what its forms
 %% reference outside it through the code table: a function of a unit the
 %% node holds, by its hash, to that unit's function; a binding, by its
-%% identity, to the unit that holds it with its value, through its getter;
+%% identity, to the unit that holds it with its value, and whose
+%% initializer is a ground term, as here, to the value that unit lists,
+%% so that the code still answers once the node's value is gone (the
+%% check of the ground term a regression test, written after the code);
 %% and a foreign declaration of the reach to a function of the unit's own,
 %% which calls the host's function the sender's declaration names through
 %% the check at its declared type. A compute of the function the reach
@@ -286,18 +289,22 @@ received_linked_test() ->
                    Lacks = receive {ern_frame, _, {lacks, Ref, L}} -> L end,
                    Exchange ! {ern_frame, self(), code_frame(Ref, [Linked], Foreign)},
                    Computed = receive {Alias, computed, Value} -> Value end,
-                   {Unit, _, 0, Reach} = ern_code:spawnable({hash, Linked#definition.hash}),
+                   {Unit, Function, 0, Reach} =
+                       ern_code:spawnable({hash, Linked#definition.hash}),
+                   true = persistent_term:erase({BoundUnit, '$1'}),
+                   Ground = Unit:'$spawned'(Function, []),
                    Asked = make_ref(),
                    Exchange ! {ern_frame, self(), {reach_request, Asked, Work}},
                    Onward = receive {ern_frame, _, {reach, Asked, _, _, _} = Got} -> Got end,
-                   Self ! {received, Lacks, HeldHash, Computed, Unit, Reach, Onward}
+                   Self ! {received, Lacks, HeldHash, Computed, Ground, Unit, Reach, Onward}
            end,
     try
         ?assertEqual(ok, run(Main, quiet())),
-        {received, Lacks, HeldHash, Computed, Unit, Reach, Onward} =
-            receive {received, _, _, _, _, _, _} = Received -> Received end,
+        {received, Lacks, HeldHash, Computed, Ground, Unit, Reach, Onward} =
+            receive {received, _, _, _, _, _, _, _} = Received -> Received end,
         ?assertEqual([Linked#definition.hash], Lacks),
         ?assertEqual(82, Computed),
+        ?assertEqual(82, Ground),
         ?assertEqual({[{['Exbound', base], bound_hash(BoundBeam)}], [['Exlinked', now]]}, Reach),
         ?assertMatch({reach, _, _, [{[<<"Exbound">>, <<"base">>], _}],
                       [{[<<"Exlinked">>, <<"now">>], <<"erlang">>, <<"monotonic_time">>, Scheme,

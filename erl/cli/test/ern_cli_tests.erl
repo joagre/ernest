@@ -2998,6 +2998,64 @@ emit_erl_test() ->
     ?assertNot(filelib:is_regular(Dir ++ "/build/net/http.erc")),
     ?assertEqual(1, ern_cli:ern(["build", "--emit", "asm", Dir ++ "/src"])).
 
+%% report §11.1, §8.5: a top-level binding whose initializer is a ground
+%% term, a literal, a negated number literal, a constructor applied to
+%% ground terms or a list of tuples of them, is compiled to its value where
+%% it is read, in its own module and in a dependent, through the interface;
+%% one computed, `1024 * 1024`, and one that holds a lambda are read
+%% through their getters, which every binding keeps; the program runs as it
+%% did; and a dependent is compiled again where such a value has changed.
+%% Written after the code, so a regression test; what the host keeps in
+%% its literal area is the bench's to measure, not this test's
+ground_binding_test() ->
+    Dir = tmp(),
+    Consts = fun(Limit) ->
+                     ["export type Point = Point(x : Int, y : Int)\n\n"
+                      "export let limit = ", Limit, "\n\n"
+                      "export let prompt = \"> \"\n\n"
+                      "export let origin = Point(x = 0, y = 0)\n\n"
+                      "export let pairs = [#(1, \"a\")]\n\n"
+                      "export let below = -0.0\n\n"
+                      "export let size = 1024 * 1024\n\n"
+                      "export let same = fn(x) = x\n\n"
+                      "export fn doubled() : Int = limit + size\n"]
+             end,
+    write(Dir, "src/consts.ern", Consts("16777216")),
+    write(Dir, "src/main.ern",
+          "export fn main() : Unit = {\n"
+          "    Io.println(Io.show(Consts.limit));\n"
+          "    Io.println(Consts.prompt);\n"
+          "    Io.println(Io.show(Consts.origin));\n"
+          "    Io.println(Io.show(Consts.pairs));\n"
+          "    Io.println(Io.show(Consts.below));\n"
+          "    Io.println(Io.show(Consts.size));\n"
+          "    Io.println(Io.show(Consts.same(7)));\n"
+          "    Io.println(Io.show(Consts.doubled()))\n"
+          "}\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--emit-erl", "--build-root", Dir ++ "/erl",
+                                 Dir ++ "/src"])),
+    {ok, Emitted} = file:read_file(Dir ++ "/erl/consts.erl"),
+    {ok, Main} = file:read_file(Dir ++ "/erl/main.erl"),
+    %% limit is '$2', size '$7' and same '$8', by their positions (§11.1)
+    ?assertMatch({_, _}, binary:match(Emitted, <<"'$9'() -> 16777216 + '$7'().">>)),
+    ?assertMatch({_, _}, binary:match(Emitted,
+                                      <<"'$2'() -> ern_rt:binding({ern@consts, '$2'}).">>)),
+    [?assertMatch({_, _}, binary:match(Main, Read))
+     || Read <- [<<"ern_io:show(16777216, int)">>, <<"(<<\"> \">>)">>, <<"{'Point', 0, 0}">>,
+                 <<"[{1, <<\"a\">>}]">>, <<"ern_io:show(0.0, float)">>, <<"ern@consts:'$7'()">>,
+                 <<"ern@consts:'$8'()">>]],
+    [?assertEqual(nomatch, binary:match(Main, <<"ern@consts:'$", Getter, "'()">>))
+     || Getter <- "23456"],
+    Build = ["build", "--build-root", Dir ++ "/build", Dir ++ "/src"],
+    ?assertEqual(0, ern_cli:ern(Build)),
+    ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
+    write(Dir, "src/consts.ern", Consts("5")),
+    ?assertEqual(0, ern_cli:ern(Build)),
+    ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
+    Rest = <<"> \nPoint(x = 0, y = 0)\n[#(1, \"a\")]\n0.0\n1048576\n7\n">>,
+    ?assertEqual(<<"16777216\n", Rest/binary, "17825792\n5\n", Rest/binary, "1048581\n">>,
+                 iolist_to_binary(?capturedOutput)).
+
 %% report §11.1: --emit-erl writes a module whose strings hold characters
 %% beyond Latin-1, as Erlang's source is, in UTF-8. A regression test: the
 %% source was written as a list of characters, which fails beyond 255.

@@ -1,9 +1,10 @@
 %% `make bench`'s part for the cost rules (docs/development.md; plan, MVP
 %% 3.29; CLAUDE.md's *Design*): a row for each promise the rules make that
 %% no other part measures, each against the host's own operation. A
-%% top-level `let` is read through ern_rt:binding/1, a persistent term by a
-%% tuple key, whether its initializer is a literal or computed (report
-%% §8.5, §11.1). A receive with an `after` takes its time as a deadline,
+%% top-level `let` whose initializer is a ground term is read as its value,
+%% which the host keeps in its literal area, and one computed through
+%% ern_rt:binding/1, a persistent term by a tuple key (report §8.5,
+%% §11.1). A receive with an `after` takes its time as a deadline,
 %% waits in slices of the host's longest wait in a fun entered again, and
 %% marks the process as in a timed receive while it waits, a key in its
 %% dictionary, so that the look finds no deadlock (§6.3, §8.6;

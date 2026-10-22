@@ -2607,11 +2607,12 @@ loaded_line(Session, #compiled{namespace = Namespace, erc = Erc}) ->
 
 %% Report §11.2: a reloaded module's binding that faulted, after which the
 %% bindings the reload left as they were keep what the previous version
-%% gave them, and the rest have no value (kept_values/2).
+%% gave them, one compiled to its value has it (§11.1), and the rest have
+%% no value (kept_values/2).
 kept_values_line(Site, How) ->
     <<(binding_end(Site, How))/binary, "; it and the bindings after it whose hash changed, or"
-      " which are new, are without a value, and the rest keep the values of the previous"
-      " version">>.
+      " which are new, are without a value, but one compiled to its value has it, and the rest"
+      " keep the values of the previous version">>.
 
 %% Report §11.2, §8.5: each binding of a new version the reload's fault left
 %% without a value takes the value the previous version gave it, where the

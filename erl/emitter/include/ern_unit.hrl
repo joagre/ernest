@@ -72,7 +72,7 @@
 %% printing: the type state a type prints under from the module (§11.5,
 %% ern_types:printing/1).
 
--record(linked, {unit, function, arity, kind = function, identity}).
+-record(linked, {unit, function, arity, kind = function, identity, term = none}).
 %% A function, a binding or a foreign function of another unit: its unit
 %% and its function there, named by its position (§11.1), a binding's its
 %% getter, both undefined for a primitive of the prelude, which has none;
@@ -80,6 +80,8 @@
 %% a requirement's members among them (§4.9); kind, function or value, a
 %% binding read through its getter (§4.6); identity, its hash, `foreign`
 %% for a foreign function, or undefined, by which a spawn on a peer names
-%% it (§8.7).
+%% it (§8.7); term, for a binding whose initializer is a ground term,
+%% {term, Value}, the value its read is compiled to (§11.1), and else
+%% none.
 
 -endif.

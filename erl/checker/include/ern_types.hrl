@@ -89,7 +89,7 @@
 %% §11.1). Produced by the checker, consumed by the checker of a dependent
 %% module and by the compiler.
 -record(interface, {namespace, types = #{}, values = #{}, lets = [], private_types = #{},
-                    identities = #{}, reaches = #{}, positions = #{}}).
+                    identities = #{}, reaches = #{}, positions = #{}, terms = #{}}).
 %% private_types: the module's private types an exported declaration names,
 %% a mailbox type an exported function receives wherever an arrow's effect
 %% names it, or a type an exported abstract type's fields name, and those
@@ -112,5 +112,8 @@
 %% function of the module's unit, a definition's or a foreign function's,
 %% by which its unit names it, '$3' (report §11.1), and a dependent calls
 %% it; the compiler fills it in too
+%% terms: #{qualified_name() => term()}, the value of each of `lets` whose
+%% initializer is a ground term, which a dependent's code holds where it
+%% reads the binding (report §11.1); the compiler fills it in too
 
 -endif.

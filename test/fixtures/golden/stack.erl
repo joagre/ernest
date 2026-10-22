@@ -11,7 +11,7 @@
 
 %% Stack.main
 '$2'() ->
-    Stack_1 = '$4'('$4'('$3'(), 1), 2),
+    Stack_1 = '$4'('$4'({'Stack', []}, 1), 2),
     case '$5'(Stack_1) of
         {'Some', {Top_2, _}} ->
             ern@io:'$8'(<<"top is ",
@@ -35,7 +35,6 @@
     end.
 
 '$init'() ->
-    ern_rt:initializing(<<"Stack.empty:23">>),
     persistent_term:put({ern@stack, '$3'}, {'Stack', []}),
     ok.
 

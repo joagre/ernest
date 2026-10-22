@@ -329,6 +329,39 @@ beside_test() ->
     ?assert(erlang:module_loaded('ern@plug@word$2')),
     ?assertNot(erlang:module_loaded('ern@plug@word$3')).
 
+%% Appendix E.28, report §11.1, §11.2: a module whose binding's initializer
+%% is a ground term, loaded beside another of its name as a unit made from
+%% its forms, reads its binding's value, and so does a module of the load
+%% that uses it, made from its forms too and linked through the interface
+%% of the first, which holds the value; the program's own module of the
+%% name reads its own. Written after the code, so a regression test; it
+%% does not tell a read compiled to the value from one through the getter,
+%% which ern_cli_tests' ground_binding_test and ern_exchange_tests do
+load_ground_test() ->
+    Dir = tmp(),
+    Lib = filename:join(Dir, "lib"),
+    Word = fun(Limit, Said) ->
+                   ["export let limit = ", Limit, "\n\n"
+                    "let said : Unit = Io.println(\"", Said, " \" <> Int.toString(limit))\n\n"
+                    "export fn word() : String = \"", Said, "\"\n"]
+           end,
+    write(Dir, "plug/word.ern", Word("3", "first")),
+    write(Lib, "plug/word.ern", Word("7", "second")),
+    write(Lib, "plug/user.ern",
+          "let told : Unit = Io.println(\"user \" <> Int.toString(Plug.Word.limit * 2))\n"),
+    built(Lib, "plug/word.ern"),
+    built(Lib, "plug/user.ern"),
+    Main = write(Dir, "main.ern",
+                 "export fn main() : Unit = {\n"
+                 "    Io.println(Io.show(Code.load(Path(\"" ++ Lib ++ "/plug/user.erc\"))));\n"
+                 "    Io.println(Plug.Word.word())\n"
+                 "}\n"),
+    built(Dir, "plug/word.ern"),
+    built(Dir, "main.ern"),
+    ?assertEqual([<<"first 3">>, <<"second 7">>, <<"user 14">>, <<"Right(Unit)">>, <<"first">>],
+                 ran(filename:rootname(Main) ++ ".erc")),
+    ?assert(erlang:module_loaded('ern@plug@word$2')).
+
 %%
 %% Code.hashes, Appendix E.28
 %%

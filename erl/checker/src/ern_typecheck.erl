@@ -22,7 +22,8 @@
 -export([check/3, check/4, check_string/2, type_state/1, scope_state/2, set_type_state/2,
          prelude_names/1, prelude_values/1, prelude_constructor/2, prelude_constructors/1,
          prelude_env/0, with_interfaces/2, lookup_type/2, identity/2,
-         position/2, reach/2, global_scheme/2, is_provided/2, described_type/2, let_order/1,
+         position/2, reach/2, ground_term/2, global_scheme/2, is_provided/2, described_type/2,
+         let_order/1,
          foreign_implementation/1, fields/2, declared_scheme/3, is_top_let/2, is_foreign/2,
          declaration_scheme/2, declared_fields/3, session_member/3, lookup_constructor/4,
          constructor_info/2, is_value/2, resolve_type/2, node_type/1]).
@@ -73,7 +74,7 @@
               groups = #{}, typed = [], diagnostics = [], let_order = [],
               generalizing = false, provided = [], inferring = [], requirement = [],
               signature = [], definition, private_types = #{}, identities = #{},
-              reaches = #{}, positions = #{}, foreign = #{}, declaring = #{}}).
+              reaches = #{}, positions = #{}, terms = #{}, foreign = #{}, declaring = #{}}).
 %% declaring: the namespace of the module that declares each value of the
 %% modules given, by qualified name, which their interfaces hold, so that
 %% `M.T.f` is told M's member of its type T from the module M.T's f
@@ -96,6 +97,10 @@
 %% given, by qualified name, with the namespace of the module that declares
 %% it, which their interfaces hold and a dependent's code calls it by
 %% (position/2, report §11.1); the checker reads none
+%% terms: the value of each binding of the modules given whose initializer
+%% is a ground term, by qualified name, which their interfaces hold and a
+%% dependent's code holds where it reads it (ground_term/2, report §11.1);
+%% the checker reads none
 -opaque env() :: #env{}.
 
 %% What fixes the mailbox where an expression stands, which an effect error
@@ -566,7 +571,7 @@ with_interfaces(Interfaces, Env) ->
 
 add_interface(#interface{namespace = Namespace, values = Values, lets = Lets,
                          identities = Identities, reaches = Reaches,
-                         positions = Positions} = Interface,
+                         positions = Positions, terms = Terms} = Interface,
               #env{declaring = Declaring} = Env) ->
     %% report §4.2: `M.T.f` is the member of M's type T where T has one, so
     %% a value of the module M.T of a member's name, which the build refuses
@@ -580,12 +585,13 @@ add_interface(#interface{namespace = Namespace, values = Values, lets = Lets,
                                         lets = Lets -- Shadowed,
                                         identities = maps:without(Shadowed, Identities),
                                         reaches = maps:without(Shadowed, Reaches),
-                                        positions = maps:without(Shadowed, Positions)},
+                                        positions = maps:without(Shadowed, Positions),
+                                        terms = maps:without(Shadowed, Terms)},
                     Env).
 
 added_interface(#interface{namespace = Namespace, types = InterfaceTypes, values = Values,
                            lets = Lets, private_types = PrivateTypes, identities = Identities,
-                           reaches = Reaches, positions = Positions},
+                           reaches = Reaches, positions = Positions, terms = Terms},
                 #env{types = Types, globals = Globals} = Env) ->
     Constructors = maps:fold(fun(_, #type_info{constructors = TypeConstructors}, Acc) ->
                                  add_constructors(TypeConstructors, Acc)
@@ -599,6 +605,9 @@ added_interface(#interface{namespace = Namespace, types = InterfaceTypes, values
                                    maps:map(fun(_, Number) -> {Namespace, Number} end, Positions)),
             lets = maps:merge(maps:without(maps:keys(Values), Env#env.lets),
                               maps:from_list([{QualifiedName, true} || QualifiedName <- Lets])),
+            %% a value of the module given that is no ground term now, a
+            %% reload's version among them, holds none it held before
+            terms = maps:merge(maps:without(maps:keys(Values), Env#env.terms), Terms),
             declaring = maps:merge(Env#env.declaring,
                                    maps:from_keys(maps:keys(Values), Namespace))}.
 
@@ -772,6 +781,15 @@ position(QualifiedName, #env{positions = Positions}) ->
 -spec reach([atom()], env()) -> ern_canonical:reach().
 reach(QualifiedName, #env{reaches = Reaches}) ->
     maps:get(QualifiedName, Reaches, {[], []}).
+
+%% Report §11.1: the value of another module's binding whose initializer is
+%% a ground term, which its interface holds, or none.
+-spec ground_term([atom()], env()) -> {term, term()} | none.
+ground_term(QualifiedName, #env{terms = Terms}) ->
+    case Terms of
+        #{QualifiedName := Term} -> {term, Term};
+        _ -> none
+    end.
 
 %% A value's scheme by its qualified name, of a module given or the
 %% prelude, or undefined.
