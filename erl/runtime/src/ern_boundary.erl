@@ -27,6 +27,9 @@
 
 -export_type([descriptor/0]).
 
+%% Report §8.6: each receive that can wait, by its kind (docs/style.md).
+-receives({own_process, [checker_loop/6]}).
+
 -type descriptor() :: any | int | float | bool | char | string | bytes | process | never
                     | unit | foreign
                     | {ref, pos_integer()}

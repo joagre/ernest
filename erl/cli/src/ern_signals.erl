@@ -10,6 +10,9 @@
 -export([install/0, status/1, ended/0, ended/1, die/2, init/1, handle_event/2, handle_call/2,
          handle_info/2]).
 
+%% Report §8.6: each receive that can wait, by its kind (docs/style.md).
+-receives({own_process, [die/2]}).
+
 %% Handle the two signals here from now on (report §11). The launcher has
 %% the host run this first, before the entry's module is loaded, and the
 %% entry installs it before its work, since the host's own handler would

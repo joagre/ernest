@@ -79,6 +79,16 @@
 
 -compile({no_auto_import, [spawn/2, self/0, monitor/2]}).
 
+%% Report §8.6: each receive that can wait, by its kind (docs/style.md).
+-receives({foreign_wait, [computed_answer/3, exit_program/1, fresh_run/0]}).
+-receives({ernest_wait, [waited_answer/3, call_forever/3]}).
+-receives({answered_at_once, [spawn_with_monitors/4, end_with_program/0, monitor/2, spawned/7,
+                              kill_all/1, rooted/2, opened/3, asked_of_run/1]}).
+-receives({own_process, [kept_loop/2, reaper_loop/2, wait_for_end/1, ended_program/0,
+                         counted_link/2, abandoned/1, write_loop/1, stream_loop/2, drained/1,
+                         dropping/0, stdin_loop/2, read_input/1, clock_loop/1, waited/5, told_how/3,
+                         entry_end/2, end_program/3, sink_flushed/1, stop/1]}).
+
 -define(UNIT, 'Unit').
 %% Report §8.6: the look's keys, which a process keeps in its own
 %% dictionary for the deadlock look, so that no operation writes a shared

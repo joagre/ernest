@@ -20,6 +20,11 @@
 %% runs as is read from a port too, on a node only, which looks for no
 %% deadlock (user/0).
 
+%% Report §8.6: each receive that can wait, by its kind (docs/style.md).
+-receives({foreign_wait, [host_read/1, variables/2]}).
+-receives({own_process, [serve/1, signal/2, locked/2, node_signaled/3, ended/1, starting/2,
+                         running/4, exited/2, over/2, user/0]}).
+
 %% Report §8.6: every program's process is linked to this one, which the
 %% runtime kills when the program ends, so that none outlives it; this
 %% process traps the exits and forgets what the runtime recorded of a

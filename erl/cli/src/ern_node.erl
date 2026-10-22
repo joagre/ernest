@@ -15,6 +15,9 @@
 -include_lib("kernel/include/file.hrl").
 -include("ern_node.hrl").
 
+%% Report §8.6: each receive that can wait, by its kind (docs/style.md).
+-receives({own_process, [measures_stopped/0]}).
+
 -define(CONF, "ernest.conf").
 -define(KEY, "private-key.pem").
 -define(CERTIFICATE, "certificate.pem").

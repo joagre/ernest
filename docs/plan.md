@@ -146,15 +146,14 @@ items becomes a milestone of its own, since the tour and 0.5.0 wait behind this 
   has them and by its times where it does not; that brings the library's table in too, which
   stood outside since its fastest-of-three measure moved a fifth of its 1,100 numbers between two
   runs with nothing changed, whole modules together. About half a day.
-- **Every slow wait of the runtime's own is marked, held by a test** (decided with the user
-  2026-10-22; CLAUDE.md's *Tests*): the look depends on each wait of the runtime's own that a
-  program process can be inside marking itself, and the lists it replaced failed by an entry
-  missing, which the bookkeeping build found twice by reading every `receive` by hand. A test
-  walks every `receive` in the runtime's and the command line's modules and demands that each
-  stands in a function that marks itself, is a system process's or a delivery's own loop, or is an
-  Ernest wait the look knows, named as such by a tag beside it; a `receive` that is none fails the
-  test by its module and line, so that a wait added later without its mark is found before it is a
-  false deadlock. About half a day.
+- **Every slow wait of the runtime's own is marked, held by a test**, built 2026-10-22 (the log's
+  *The Sitting on §8.6's Bookkeeping*, its *Built* paragraphs on every slow wait):
+  `receives_test/0` in `test/ern_style_tests.erl`, which `make test` runs, reads every `receive`
+  of the toolchain's own Erlang and fails one its module's `-receives` attributes name under no
+  kind, or a foreign wait or a deadline whose key its forms do not show (`docs/style.md`). Of the
+  93 that can wait, 12 are foreign waits, 10 Ernest's, 11 answered at once and 60 in a process of
+  the runtime's own. Its reading found a third wait unmarked, a peer's monitored spawn waiting for
+  its spawner's word (`ern_peer:held/4`), harmless on a node and marked now.
 - **A top-level `let` that is a ground term**, §11.1 first: a binding whose initializer is a
   literal, or a constructor, tuple or list of literals, is compiled to the term at each read,
   which the host keeps in its literal area, 2 ns against the persistent term's 36 by a tuple key;

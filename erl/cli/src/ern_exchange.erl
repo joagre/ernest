@@ -90,6 +90,10 @@
 
 -include_lib("checker/include/ern_canonical.hrl").
 
+%% Report §8.6: each receive that can wait, by its kind (docs/style.md).
+-receives({answered_at_once, [start/0]}).
+-receives({own_process, [loop/1]}).
+
 -define(NAME, ern_exchange).
 
 %% Report §8.7: what a spawn fails with when the spawner's node no longer

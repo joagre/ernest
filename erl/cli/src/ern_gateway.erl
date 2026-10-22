@@ -49,6 +49,10 @@
 
 -include("ern_node.hrl").
 
+%% Report §8.6: each receive that can wait, by its kind (docs/style.md).
+-receives({answered_at_once, [start/0, asked/1]}).
+-receives({own_process, [gateway/4, work/1]}).
+
 -define(NAME, ern_gateway).
 
 %% Report §6.5, §8.7: the process the worker for a peer keeps for an

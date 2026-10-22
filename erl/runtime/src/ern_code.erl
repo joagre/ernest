@@ -57,6 +57,10 @@
 %% host's work, so it needs no key of the look's; Code.running reads the
 %% host's stacks and waits on no process.
 
+%% Report §8.6: each receive that can wait, by its kind (docs/style.md).
+-receives({foreign_wait, [made/0]}).
+-receives({own_process, [hold/1]}).
+
 -define(TABLE, ern_code).
 %% Report §11.2: the sums of the host's counts, one row a count.
 -define(SUMS, ern_code_sums).

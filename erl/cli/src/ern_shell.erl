@@ -22,6 +22,9 @@
 -include_lib("cli/include/ern_build.hrl").
 -include_lib("kernel/include/file.hrl").
 
+%% Report §8.6: each receive that can wait, by its kind (docs/style.md).
+-receives({ernest_wait, [withdraw/2, evaluate/3, session_ended/1]}).
+
 -define(UNIT, {tcon, ['Unit'], []}).
 
 %% The function an expression input is wrapped in. No Ernest identifier is

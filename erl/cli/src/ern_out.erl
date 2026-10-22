@@ -11,6 +11,9 @@
 
 -export([take/0, finish/1]).
 
+%% Report §8.6: each receive that can wait, by its kind (docs/style.md).
+-receives({own_process, [finish/1, loop/2, drain/1]}).
+
 %% Standard output becomes the calling process's group leader, which the
 %% processes it starts inherit; the answer is standard error's device.
 -spec take() -> pid().

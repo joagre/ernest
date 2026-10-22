@@ -34,6 +34,9 @@
 %% the host's io functions, which the look reads on top of the process's
 %% stack as the host's work, so it needs no key of the look's.
 
+%% Report §8.6: each receive that can wait, by its kind (docs/style.md).
+-receives({own_process, [refusing/0, loop/4, courier/1, unsubscribe/3, stty/1, settings/2]}).
+
 %% What waits for more to arrive: the characters of an escape that may
 %% still grow into a sequence, or a paste under way, its text so far
 %% reversed and a tail that may still grow into its end.

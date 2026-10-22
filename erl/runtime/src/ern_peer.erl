@@ -32,8 +32,13 @@
 %% Report §8.6: the shims that wait on a peer's answer, a find's, a
 %% spawn's, a compute's and a utilization's, are inside foreign code for
 %% the look while they wait, since a peer's answer is none it sees coming
-%% (ern_rt:entered_foreign/0); the others, a table or a persistent term
-%% read or a table written, wait on no process.
+%% (ern_rt:entered_foreign/0), and so is a process a peer's monitored spawn
+%% started here while it waits for the spawner's word (held/4); the
+%% others, a table or a persistent term read or a table written, wait on no
+%% process.
+
+%% Report §8.6: each receive that can wait, by its kind (docs/style.md).
+-receives({foreign_wait, [gateway_answered/3, spawn_answer/3, given_up/2, spawner_word/2]}).
 
 %% A spawn waiting for its answer, {{Node, Ref}, Waiting, Order}, by the
 %% peer's node and the spawn's reference: the waiting process, and the
@@ -841,16 +846,27 @@ ended({failed, _}) -> ok.
 
 %% The function a spawned process runs: a monitored spawn's waits until the
 %% spawner has made its monitor, and ends where the spawner ends first.
+%% Report §8.6: the spawner's word comes from a peer, which the look does
+%% not see coming, so the wait is inside foreign code for it.
 held(Function, _Ref, _Spawner, false) ->
     Function;
 held(Function, Ref, Spawner, true) ->
     fun() ->
         MonitorRef = erlang:monitor(process, Spawner),
-        receive
-            {ern_go, Ref} ->
-                erlang:demonitor(MonitorRef, [flush]),
-                Function();
-            {'DOWN', MonitorRef, process, _, _} ->
-                ok
+        ern_rt:entered_foreign(),
+        Word = try spawner_word(Ref, MonitorRef) after ern_rt:left_foreign() end,
+        case Word of
+            go -> Function();
+            ended -> ok
         end
+    end.
+
+%% The spawner's word that its monitor is made, or its end.
+spawner_word(Ref, MonitorRef) ->
+    receive
+        {ern_go, Ref} ->
+            erlang:demonitor(MonitorRef, [flush]),
+            go;
+        {'DOWN', MonitorRef, process, _, _} ->
+            ended
     end.

@@ -183,6 +183,143 @@ export_faults(File) ->
         ++ [{no_spec, FunctionArity} || FunctionArity <- Exports,
                                         not lists:member(FunctionArity, Specs)].
 
+%% report §8.6, docs/style.md: the look reads a process that waits in a
+%% module of the toolchain's own Erlang as one that waits as Ernest waits
+%% (ern_rt:is_ernest/1), so every `receive` there that can wait, all but
+%% one with `after 0`, is named by its function under its kind in its
+%% module's `-receives` attributes, and the forms are held to the kind where
+%% they can show it. A `foreign_wait` waits on what the look cannot see
+%% deliver, under the FOREIGN key (ern_rt:entered_foreign/0), which the
+%% function, or every function of its module that calls it, puts and takes
+%% away; a receive only a signal ends needs no taking away. An
+%% `ernest_wait` waits on what the look reads, one with a deadline under
+%% the TIMED key so (ern_rt:timed/0). An `own_process` waits in a process
+%% that is no program's, which the look does not read. An
+%% `answered_at_once` waits on an answer that comes before the look can
+%% find it waiting.
+%%
+%% A receive of no kind, a key its forms do not show, a kind of another
+%% name, and a function named twice or with no receive that can wait fail
+%% the test, each by its file, line and function. A regression test,
+%% written after the code it reads: the reading of every receive by hand
+%% that it stands for found two waits unmarked, and its own reading a
+%% third. It holds a tag to the forms, and not the kinds the forms cannot
+%% show, `own_process`, `answered_at_once` and an `ernest_wait` with no
+%% deadline, which are the writer's word; it reads no receive a macro
+%% writes, and fails a wait whose key a caller in another module puts.
+receives_test() ->
+    Files = ern_repository:files(["erl/*/src/*.erl"]),
+    ?assert(length(Files) > 20),
+    ?assertEqual([], [Fault || File <- Files, Fault <- receive_faults(File)]).
+
+receive_faults(File) ->
+    {ok, Forms} = epp_dodger:quick_parse_file(filename:join(?ROOT, File)),
+    ErlangModule = list_to_atom(filename:basename(File, ".erl")),
+    Tags = [{Line, Value} || {attribute, Line, receives, Value} <- Forms],
+    Kinds = [{FunctionArity, Kind} || {_, {Kind, Functions}} <- Tags, is_list(Functions),
+                                      FunctionArity <- Functions],
+    Waits = [{{Name, Arity}, Wait} || {function, _, Name, Arity, Clauses} <- Forms,
+                                      Wait <- waits(Clauses)],
+    Calls = #{{Name, Arity} => called(ErlangModule, Clauses)
+              || {function, _, Name, Arity, Clauses} <- Forms},
+    Exports = lists:append([Exported || {attribute, _, export, Exported} <- Forms]),
+    [fault_line(File, Line, FunctionArity, Fault)
+     || {FunctionArity, {Line, _, _} = Wait} <- Waits,
+        Fault <- wait_faults(proplists:get_all_values(FunctionArity, Kinds), FunctionArity, Wait,
+                             Calls, Exports)]
+        ++ [fault_line(File, Line, Named, Fault)
+            || {Line, Value} <- Tags, {Named, Fault} <- tag_faults(Value, Kinds, Waits)].
+
+%% A fault as its line, `file:line: function/arity: what`, which the
+%% test's failure prints whole.
+fault_line(File, Line, {Name, Arity}, Fault) when is_atom(Name), is_integer(Arity) ->
+    lists:flatten(io_lib:format("~s:~B: ~s/~B: ~s", [File, Line, Name, Arity, Fault]));
+fault_line(File, Line, Named, Fault) ->
+    lists:flatten(io_lib:format("~s:~B: ~0p: ~s", [File, Line, Named, Fault])).
+
+%% What a wait lacks: a kind, or the key its kind's forms show. A kind of
+%% another name, and a function named twice, are its tag's faults.
+wait_faults([], _, _, _, _) ->
+    ["a receive that can wait, of no kind"];
+wait_faults([foreign_wait], FunctionArity, {_, _, Endless}, Calls, Exports) ->
+    ["a foreign wait not under the FOREIGN key"
+     || not keyed(FunctionArity, {entered_foreign, left_foreign}, Endless, Calls, Exports)];
+wait_faults([ernest_wait], FunctionArity, {_, Deadline, _}, Calls, Exports) ->
+    ["a deadline not under the TIMED key"
+     || Deadline, not keyed(FunctionArity, {timed, untimed}, false, Calls, Exports)];
+wait_faults(_, _, _, _, _) ->
+    [].
+
+tag_faults({Kind, Functions}, Kinds, Waits) when is_list(Functions) ->
+    [{Kind, "no kind of receive"}
+     || not lists:member(Kind, [foreign_wait, ernest_wait, own_process, answered_at_once])]
+        ++ [{FunctionArity, "named, with no receive that can wait"}
+            || FunctionArity <- Functions, not lists:keymember(FunctionArity, 1, Waits)]
+        ++ [{FunctionArity, "named under two kinds"}
+            || FunctionArity <- Functions,
+               length(proplists:get_all_values(FunctionArity, Kinds)) > 1];
+tag_faults(Value, _, _) ->
+    [{Value, "not {Kind, [Function/Arity]}"}].
+
+%% Each receive in a function's forms that can wait, nested ones among
+%% them: its line, whether it has a deadline, and whether only a signal
+%% ends it, `receive after infinity -> ok end`.
+waits({'receive', Line, Clauses}) ->
+    [{Line, false, false} | waits(Clauses)];
+waits({'receive', _, Clauses, {integer, _, 0}, After}) ->
+    waits([Clauses, After]);
+waits({'receive', Line, Clauses, Timeout, After}) ->
+    Untimed = case Timeout of
+                  {atom, _, infinity} -> true;
+                  _ -> false
+              end,
+    [{Line, not Untimed, Untimed andalso Clauses =:= []} | waits([Clauses, Timeout, After])];
+waits(Form) when is_tuple(Form) ->
+    waits(tuple_to_list(Form));
+waits(Forms) when is_list(Forms) ->
+    lists:append([waits(Form) || Form <- Forms]);
+waits(_) ->
+    [].
+
+%% The functions of its module a function's forms call or name, `fun f/1`
+%% among them, and the look's marks they call, which ern_rt calls
+%% locally: `{ern_rt, entered_foreign}`.
+called(ErlangModule, {call, _, {atom, _, Name}, Arguments}) ->
+    [{Name, length(Arguments)}]
+        ++ [{ern_rt, Name} || ErlangModule =:= ern_rt, Arguments =:= []]
+        ++ called(ErlangModule, Arguments);
+called(ErlangModule, {call, _, {remote, _, {atom, _, ern_rt}, {atom, _, Name}}, Arguments}) ->
+    [{ern_rt, Name} || Arguments =:= []] ++ called(ErlangModule, Arguments);
+called(_, {'fun', _, {function, Name, Arity}}) when is_atom(Name) ->
+    [{Name, Arity}];
+called(ErlangModule, Form) when is_tuple(Form) ->
+    called(ErlangModule, tuple_to_list(Form));
+called(ErlangModule, Forms) when is_list(Forms) ->
+    lists:append([called(ErlangModule, Form) || Form <- Forms]);
+called(_, _) ->
+    [].
+
+%% Whether a function's waits are under the look's key that Put puts and
+%% Take takes away: the function calls both, or Put alone where only a
+%% signal ends the wait, or it is called only by functions of its module
+%% that are so, never from outside, which an export allows and the forms
+%% cannot show. A caller already asked of is the question's own.
+keyed(FunctionArity, Keys, Endless, Calls, Exports) ->
+    keyed(FunctionArity, Keys, Endless, Calls, Exports, []).
+
+keyed(FunctionArity, {Put, Take} = Keys, Endless, Calls, Exports, Asked) ->
+    #{FunctionArity := Called} = Calls,
+    Puts = lists:member({ern_rt, Put}, Called)
+        andalso (Endless orelse lists:member({ern_rt, Take}, Called)),
+    Callers = [Caller || Caller := CallerCalled <- Calls, Caller =/= FunctionArity,
+                         lists:member(FunctionArity, CallerCalled)],
+    Puts orelse (not lists:member(FunctionArity, Exports) andalso Callers =/= []
+                 andalso lists:all(fun(Caller) ->
+                                       lists:member(Caller, Asked)
+                                           orelse keyed(Caller, Keys, Endless, Calls, Exports,
+                                                        [FunctionArity | Asked])
+                                   end, Callers)).
+
 %% guide/style.md: a block holds more than one statement, in every module,
 %% every example in a module's doc blocks, and every Ernest block of the
 %% guide and the report. A brace after an expression or after `receive`

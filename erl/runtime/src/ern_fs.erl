@@ -11,6 +11,9 @@
 
 -include_lib("kernel/include/file.hrl").
 
+%% Report §8.6: each receive that can wait, by its kind (docs/style.md).
+-receives({own_process, [loop/0]}).
+
 -spec loop() -> no_return().
 loop() ->
     receive
