@@ -126,9 +126,13 @@ the order they are built; the report's sections change as each build starts.
   goes, a peer's included, reads before it kills, the victim suspended, to drop the callee's row
   and a peer's note; the callee's row stays as the restart's record, its table made with the
   host's write concurrency, measured in `call.txt` before and after. Two shapes refused in the
-  log: a restart that ends no call, and a callee keeping its own taken replies. The report is
-  unchanged, since §6.6, §6.9 and §8.6 state the promises and not the rows. About a day with the
-  tests.
+  log: a restart that ends no call, and a callee keeping its own taken replies. Found before the
+  build, 2026-10-22: a kill from another node was the host's `exit/2` over the carrier, which no
+  runtime function on the victim's node sees, so the mark could not be read and §8.7's second
+  note, "its caller ended", would go unsent; so a `kill` of a process of another node is a frame
+  of the runtime's own, the fifteenth, which the victim's node carries out as its own `kill`
+  (§8.7's *What passes*), §6.9 unchanged. §6.6, §6.9 and §8.6 state the promises and not the
+  rows. About a day with the tests.
 - **The comparison's two references, by ratio** (found 2026-10-22 building the comparison, and
   decided with the user the same day): a comparison with the last run alone catches a step and
   not a drift, ten moves of a tenth each over a year, none named. The comparison takes a second
