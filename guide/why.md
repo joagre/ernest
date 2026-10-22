@@ -1,6 +1,6 @@
 # Why Ernest
 
-The argument for the design, in six claims, and a program for each but the last two. [*Programming in Ernest*](language.md), the guide, teaches the language; this document says why it is as it is.
+The argument for the design, in six claims, four with a program. [*Programming in Ernest*](language.md), the guide, teaches the language; this document says why it is as it is.
 
 Ernest is a small functional language for concurrent programs, on the Erlang runtime. A program is functions, whose types the compiler infers, and processes that talk through typed mailboxes.
 
@@ -9,11 +9,11 @@ Its parts come from elsewhere: Erlang's processes, the types of ML, which Gleam 
 What Ernest adds is where the parts meet:
 
 - **The mailbox in the function's type.** Every process receives messages of one type, which a function that receives names in its own type and a process's address carries. So the compiler checks every message sent against the mailbox it will reach and every receive against the mailbox it reads, and a program can never send a server a message it does not take.
+- **A deadlock is found.** A program in which every process waits for a message none can send ends with a fault and a trace, where the host would wait forever. The runtime owns every source of a message, a typed mailbox, a process it spawned, a system process that counts what it holds, so it can decide that nothing can deliver, and a program at work pays nothing for the question.
 - **Code known by its hash.** A function or a type is known by a hash of its definition, not by the name of the module it stands in. So a module reloaded is a new version beside its earlier ones, a running process moves to the new version of its function when a message tells it to, and a process started on another node brings its code along: any node can run anything, a computation that names no node goes to one with room, and no program is deployed first.
 - **A distribution built for a WAN.** A node lists its peers in a file, each by name, public key and address, accepts a connection only from a key it lists, and opens one TLS connection to a peer when it first needs it. There is no cluster to join and no shared secret: a laptop and a server, or two data centers, are two nodes with one file each naming the other.
 - **Abstract types and requirements.** A type declared abstract keeps its constructor to its own module, so the representation can change and no caller knows. A generic function names the one operation it needs of its type, and the compiler supplies that type's own at each call. Nothing is declared an instance of anything, and there is no type class, interface or trait.
 - **Little else.** Functions and processes are the whole language, with one way to do each thing. A report of three files defines all of it. Five principles decide what goes in, and the first is that nothing surprises a reader who knows the rest.
-- **A deadlock is found.** A program in which every process waits for a message none can send ends with a fault and a trace, where the host would wait forever. The runtime owns every source of a message, a typed mailbox, a process it spawned, a system process that counts what it holds, so it can decide that nothing can deliver, and a program at work pays nothing for the question.
 
 Ernest is for programs written in it from the start. An Ernest program is not an OTP application and is not mixed with Elixir or Gleam code; What ships with Erlang/OTP is reached through declarations that give it Ernest types, which a program may write for itself, and anything else is written in Ernest.
 
@@ -56,6 +56,14 @@ count is 8
 `main` receives nothing, so its type names no mailbox. The counter is spawned on this node as the program starts, before `main` runs. `Address.call` gives `Get` a `Reply(Int)` of its own, which the counter answers with `answer`, and waits for the answer at most 1000 milliseconds: `None` is an answer that did not come.
 
 A fault, a division by zero or a `fault` call, ends the process, and nothing catches it. Whoever monitors the process hears of its end as a message of their own type. A process started under `restarting` runs its function again in place after a fault, keeping its address, so the name `counter` stays good; the guide's §6.5 shows a restart.
+
+### A deadlock is found
+
+No program shows this claim, and it follows from the first; its evidence is a line of the report and a page of the design. A program in which every process waits for a message none can send ends with `Fault("deadlock")` and a trace, under `ern run`, under `ern test`, where it is the test's fault and the run goes on, and in the shell (report §8.6, §11.2). On Erlang that program waits forever, and a programmer learns of it from a timeout, a dashboard or a user, which is why every call there carries a default of five seconds.
+
+Ernest can decide it because the runtime owns every source of a message. A mailbox is typed and reached through an address the program holds; a process is spawned by the runtime, which monitors it; a timer, a socket, a file and a running program are system processes that count what they hold; foreign code is entered through a declaration, and a process inside it is read as able to be delivered to. So "nothing can deliver and everyone waits" is a question with an answer, and the runtime asks it when a program has been quiet for a while, never on a node, which a peer can always reach. A deadlock is quiescence, not a cycle, and the look may be late but is never wrong.
+
+What it costs a program is what the design note of the runtime states ([`docs/design/runtime.md`](../docs/design/runtime.md)): a mark a process leaves in its own state as it enters foreign code through a callback, a timed receive or a call, which costs it nanoseconds and no other process anything; and one reading of every process when the program seems idle, which a program at work never pays. A foreign call that answers at once costs what the host's call costs and a `try`. The log's *The Sitting on §8.6's Bookkeeping* measured each piece.
 
 ### Code known by its hash
 
@@ -222,14 +230,6 @@ $ ern run unique.erc
 ### Little else
 
 No program shows this claim. Its evidence is the report under `report/`: the language, the toolchain and the library, a file each, which state everything the programs above rely on.
-
-### A deadlock is found
-
-No program shows this claim; its evidence is a line of the report and a page of the design. A program in which every process waits for a message none can send ends with `Fault("deadlock")` and a trace, under `ern run`, under `ern test`, where it is the test's fault and the run goes on, and in the shell (report §8.6, §11.2). On Erlang that program waits forever, and a programmer learns of it from a timeout, a dashboard or a user, which is why every call there carries a default of five seconds.
-
-Ernest can decide it because the runtime owns every source of a message. A mailbox is typed and reached through an address the program holds; a process is spawned by the runtime, which monitors it; a timer, a socket, a file and a running program are system processes that count what they hold; foreign code is entered through a declaration, and a process inside it is read as able to be delivered to. So "nothing can deliver and everyone waits" is a question with an answer, and the runtime asks it when a program has been quiet for a while, never on a node, which a peer can always reach. A deadlock is quiescence, not a cycle, and the look may be late but is never wrong.
-
-What it costs a program is what the design note of the runtime states ([`docs/design/runtime.md`](../docs/design/runtime.md)): a mark a process leaves in its own state as it enters foreign code through a callback, a timed receive or a call, which costs it nanoseconds and no other process anything; and one reading of every process when the program seems idle, which a program at work never pays. A foreign call that answers at once costs what the host's call costs and a `try`. The log's *The Sitting on §8.6's Bookkeeping* measured each piece.
 
 ## Reading on
 

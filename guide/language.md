@@ -31,7 +31,7 @@ Each complete program in the guide compiles as shown and prints what is shown af
 - [14. Reading further](#14-reading-further)
 <!-- /contents -->
 
-Beside the guide: [Why Ernest](why.md), the argument for the design, in six claims with a program for each but the last two, and [Frequently asked questions](faq.md).
+Beside the guide: [Why Ernest](why.md), the argument for the design, in six claims, four with a program, and [Frequently asked questions](faq.md).
 
 ## 0. What the compiler refuses
 
@@ -89,7 +89,7 @@ notes.ern:2:5: this statement's value is discarded: expected Unit, found Either(
   | = help: `let _ = ...` discards it on purpose
 ```
 
-These rules come from one design. What Ernest adds to the parts it takes from Erlang, ML and Unison, six claims with a program for each but the last two, is [Why Ernest](why.md), beside this guide; the first refusal above is its first claim at work, and the second is the third of the five principles the guide ends with (§11).
+These rules come from one design. What Ernest adds to the parts it takes from Erlang, ML and Unison, six claims, four with a program, is [Why Ernest](why.md), beside this guide; the first refusal above is its first claim at work, and the second is the third of the five principles the guide ends with (§11).
 
 Sections 1 to 8 are eight stages: run a program, compute with values, pass behavior, run a protocol, manage process lifetime, handle failure, organize code, and cross boundaries. Each builds on the ones before it and ends with an exercise, whose answer is in §13. A complete program is shown whole; a fragment is part of the program around it. After the stages come the tools (§9), a word for the Erlang programmer (§10), the design behind the rules (§11), and questions a reader asks (§12).
 
