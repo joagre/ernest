@@ -9,7 +9,7 @@ What a release runs to be ready, and nothing else. Between releases a change run
    - `make load`, the loads of [`memory.md`](memory.md);
    - `make service`, a program started, stopped and started again by the host's service manager, whose launchd checks, written for macOS in MVP 2.99b's item 10, run on the first Mac at hand and until then the release's notes say they have not;
    - `make sections`, which names a section of the report no test cites, and names only a section of a milestone not yet built, which that milestone's item names;
-   - and `make bench`, three runs with the machine idle, the median of each row's ratio to Erlang's no worse than the rows the log last recorded, which the log's entry for this review then holds.
+   - and `make bench`, three runs with the machine idle, the median of each row's ratio to Erlang's no worse than the rows the log last recorded, which the log's entry for this review then holds; then `make bench-release`, which keeps the last of the three as the release's run, the second reference every later run is compared with.
 3. **The readers** of [`full_review.md`](full_review.md), run as it runs them, with its briefs:
    - **The report:** K and P, the cold reader and the principles, as one reader.
    - **A newcomer:** N, with a program no earlier newcomer wrote.

@@ -1,43 +1,66 @@
-%% `make bench`'s memory of its last run (docs/development.md; plan, MVP
-%% 3.29): at a run's start, the tables of the run before are kept in
-%% `last/` beside the new ones, where that run wrote them all; at its end,
-%% every row of every table that moved by more than the noise against the
-%% last run's is named with both numbers, printed and written to
-%% moved.txt. Where a run failed before its end, the tables of the run
-%% before it stay the last run's.
+%% `make bench`'s memory of its runs (docs/development.md; plan, MVP
+%% 3.29): a run is compared with two references, the last run's tables in
+%% `last/` and the release's in `release/`. At a run's start the tables of
+%% the run before are kept in `last/`, where that run wrote them all; the
+%% release review keeps a run's in `release/` (`make bench-release`), and so
+%% does a user whose first run on a new machine is a new reference. At a
+%% run's end every row that moved by more than the noise against either
+%% reference is named with both numbers, under the reference, printed and
+%% written to moved.txt. Where a run failed before its end, the tables of
+%% the run before it stay the last run's.
 %%
-%% A table is the text a part of the bench writes: blocks of lines, a blank
-%% line between two, the first line of each its title, the others its
-%% rows. A row is matched with the last run's by its block's title and its
-%% own words, each number in them read as a number, and by its place among
-%% the rows of its block that read alike. Its numbers are compared but for
-%% three kinds, which follow from the others: a range's two ends, `low to
-%% high`; a ratio, `5.4x`; and a difference, `+131.6`. A number before a
-%% unit of time or of bytes is compared in the unit's base, so that `990
-%% ns` and `1.2 us` are compared as the two times they are. A number that
-%% names a row, `1000 processes`, is the same in both runs, and a label,
-%% `10:`, is a word. A line that gives the load average is no row: the
-%% machine's load is not the bench's measure.
+%% A file is the text a part of the bench writes: tables, a blank line
+%% between two, the first line of each its title, the others its rows. A
+%% line that gives the load average is neither: the machine's load is not
+%% the bench's measure. A row is matched with the reference's by its
+%% table's title and its own words, each number in them read as a number,
+%% and by its place among the rows of its table that read alike.
+%%
+%% A table some of whose rows carry a ratio, `5.41x`, a time over another
+%% measured beside it, the host's or a smaller burst's, is compared by its
+%% ratios alone, since the machine's state moves both times and not their
+%% ratio; a row of it with no ratio is not compared. A table with none is
+%% compared by its numbers but for two kinds, which follow from the
+%% others: a range's two ends, `low to high`, and a difference, `+131.6`. A
+%% number before a unit of time or of bytes is compared in the unit's base,
+%% so that `990 ns` and `1.2 us` are compared as the two times they are. A
+%% number that names a row, `1000 processes`, is the same in both runs, and
+%% a label, `10:`, is a word.
 -module(ern_last_run).
 
--export([main/1, kept/2, compared/2, moved/2, rows/1]).
+-export([main/1, kept/2, released/2, compared/2, moved/2, rows/1]).
 
 %% How far a number moves between two runs of one part on this machine
 %% with nothing changed, a fifth (the log's *The Rows That Grew*).
 -define(NOISE, 0.2).
-%% The directory under the bench's output that holds the last run's tables.
+%% The directories under the bench's output that hold the two references'
+%% tables.
 -define(LAST, "last").
+-define(RELEASE, "release").
 %% The file the comparison is written to, beside the tables.
 -define(MOVED, "moved.txt").
 
 %% `keep`, at a run's start: where every table of the list is in
-%% Directory, they move to its `last/`, in place of what was there. Then
-%% `compare`, at its end: each table in `last/` beside the same table in
+%% Directory, they move to its `last/`, in place of what was there.
+%% `release`, by hand: where every table of the list is in Directory, they
+%% are copied to its `release/`, in place of what was there. `compare`, at
+%% a run's end: each table of both references beside the same table in
 %% Directory, the rows that moved printed and written to moved.txt.
 -spec main([string()]) -> no_return().
 main(["keep", Directory | Tables]) ->
     kept(Directory, Tables),
     halt(0);
+main(["release", Directory | Tables]) ->
+    case released(Directory, Tables) of
+        ok ->
+            io:format("The last run's tables are the release's run now, in ~s.~n",
+                      [filename:join(Directory, ?RELEASE)]),
+            halt(0);
+        {missing, Missing} ->
+            io:format(standard_error, "No table kept: the last run did not write ~ts in ~s; "
+                      "run make bench whole first.~n", [lists:join(", ", Missing), Directory]),
+            halt(1)
+    end;
 main(["compare", Directory | Tables]) ->
     Text = unicode:characters_to_binary(compared(Directory, Tables)),
     io:format("~ts", [Text]),
@@ -48,44 +71,71 @@ main(["compare", Directory | Tables]) ->
 %% them are there.
 -spec kept(string(), [string()]) -> ok.
 kept(Directory, Tables) ->
-    Paths = [filename:join(Directory, Table) || Table <- Tables],
-    case lists:all(fun filelib:is_regular/1, Paths) of
-        true ->
-            Last = filename:join(Directory, ?LAST),
-            case file:del_dir_r(Last) of
-                ok -> ok;
-                {error, enoent} -> ok
-            end,
-            ok = file:make_dir(Last),
-            lists:foreach(fun(Path) ->
-                              ok = file:rename(Path, filename:join(Last, filename:basename(Path)))
-                          end, Paths);
-        false ->
+    case missing(Directory, Tables) of
+        [] ->
+            Last = emptied(filename:join(Directory, ?LAST)),
+            lists:foreach(fun(Table) ->
+                              ok = file:rename(filename:join(Directory, Table),
+                                               filename:join(Last, Table))
+                          end, Tables);
+        _ ->
             ok
     end.
 
-%% The comparison's text: the rows that moved, under their table's file
-%% and title; that none did; or that no last run is there.
+%% Every table of the list in Directory copied to its `release/`, where all
+%% of them are there; otherwise those that are not.
+-spec released(string(), [string()]) -> ok | {missing, [string()]}.
+released(Directory, Tables) ->
+    case missing(Directory, Tables) of
+        [] ->
+            Release = emptied(filename:join(Directory, ?RELEASE)),
+            lists:foreach(fun(Table) ->
+                              {ok, _} = file:copy(filename:join(Directory, Table),
+                                                  filename:join(Release, Table))
+                          end, Tables);
+        Missing ->
+            {missing, Missing}
+    end.
+
+missing(Directory, Tables) ->
+    [Table || Table <- Tables, not filelib:is_regular(filename:join(Directory, Table))].
+
+%% The directory made anew and empty.
+emptied(Directory) ->
+    case file:del_dir_r(Directory) of
+        ok -> ok;
+        {error, enoent} -> ok
+    end,
+    ok = file:make_dir(Directory),
+    Directory.
+
+%% The comparison's text against each reference: the rows that moved,
+%% under their file and table's title; that none did; or that the
+%% reference is not there.
 -spec compared(string(), [string()]) -> iolist().
 compared(Directory, Tables) ->
-    Last = filename:join(Directory, ?LAST),
-    Pairs = [{Table, filename:join(Last, Table), filename:join(Directory, Table)}
+    [against("the last run", filename:join(Directory, ?LAST), Directory, Tables,
+             "No last run in ~s; the next run is compared with this one.~n"),
+     against("the release's run", filename:join(Directory, ?RELEASE), Directory, Tables,
+             "No release's run in ~s; make bench-release keeps this run as it.~n")].
+
+against(Reference, Kept, Directory, Tables, None) ->
+    Pairs = [{Table, filename:join(Kept, Table), filename:join(Directory, Table)}
              || Table <- Tables],
     case [Pair || {_, Before, Now} = Pair <- Pairs,
                   filelib:is_regular(Before), filelib:is_regular(Now)] of
         [] ->
-            io_lib:format("No last run in ~s; the next run is compared with this one.~n",
-                          [Last]);
+            io_lib:format(None, [Kept]);
         Compared ->
             Moved = [{Table, Blocks} || {Table, Before, Now} <- Compared,
                                         Blocks <- [moved(read(Before), read(Now))], Blocks =/= []],
             case Moved of
                 [] ->
-                    io_lib:format("No row moved by more than a fifth since the last run, in ~s.~n",
-                                  [Last]);
+                    io_lib:format("No row moved by more than a fifth since ~s, in ~s.~n",
+                                  [Reference, Kept]);
                 _ ->
-                    [io_lib:format("Moved by more than a fifth since the last run, in ~s:~n",
-                                   [Last]),
+                    [io_lib:format("Moved by more than a fifth since ~s, in ~s:~n",
+                                   [Reference, Kept]),
                      [moved_text(Table, Blocks) || {Table, Blocks} <- Moved]]
             end
     end.
@@ -104,108 +154,180 @@ change(Old, _) when Old == 0 -> "from none";
 change(Old, New) -> io_lib:format("~s~B%", [[$+ || New >= Old], round((New - Old) * 100 / Old)]).
 
 %% The rows of the text Now whose numbers moved by more than ?NOISE against
-%% the same rows of the text Before, under their block's title: each moved
-%% number named by the row's words before it, with its value and its text
-%% in both.
+%% the same rows of the text Before, under their table's title: each moved
+%% number by its name, with its value and its text in both.
 -spec moved(string(), string()) ->
           [{string(), [{string(), {number(), string()}, {number(), string()}}]}].
 moved(Before, Now) ->
-    Last = maps:from_list([{Key, Values} || {Key, _, _, Values} <- rows(Before)]),
+    Last = maps:from_list([{Key, Values} || {Key, _, Values} <- rows(Before)]),
     joined([{Title, Moved}
-            || {Key, Title, Words, Values} <- rows(Now),
+            || {Key, Title, Values} <- rows(Now),
                {ok, LastValues} <- [maps:find(Key, Last)],
-               Moved <- [moved_values(Words, LastValues, Values)], Moved =/= []]).
+               Moved <- [moved_values(LastValues, Values)], Moved =/= []]).
 
-moved_values(Words, LastValues, Values) ->
-    [{string:join(lists:sublist(Words, Position - 1), " "), {Old, Before}, {New, Now}}
-     || {{Old, Before, _}, {New, Now, Position}} <- lists:zip(LastValues, Values),
+moved_values(LastValues, Values) ->
+    [{Name, {Old, Before}, {New, Now}}
+     || {{Old, Before, _}, {New, Now, Name}} <- lists:zip(LastValues, Values),
         is_moved(Old, New)].
 
 is_moved(Old, New) when Old == 0 -> New /= 0;
 is_moved(Old, New) -> abs(New - Old) > ?NOISE * abs(Old).
 
-%% The moved rows of one block under its title once.
+%% The moved rows of one table under its title once.
 joined([{Title, Moved}, {Title, More} | Rest]) -> joined([{Title, Moved ++ More} | Rest]);
 joined([Block | Rest]) -> [Block | joined(Rest)];
 joined([]) -> [].
 
-%% Each row of the text: its key, its block's title and its own shape with
-%% its place among the rows of that shape in the block; the title as it
-%% reads; the row's words; and its numbers compared, each with its text and
-%% its place among the words.
--spec rows(string()) -> [{{string(), string(), pos_integer()}, string(), [string()],
-                          [{number(), string(), pos_integer()}]}].
+%% Each row of the text: its key, its table's title and shape, its own
+%% shape with its place among the rows of that shape in the table, and
+%% whether the table is compared by its ratios; the title as it reads; and
+%% its numbers compared, each in its unit's base, as it reads, and named.
+-spec rows(string()) -> [{{string(), string(), pos_integer(), ratios | numbers}, string(),
+                          [{number(), string(), string()}]}].
 rows(Text) ->
-    lists:append([block_rows(Block) || Block <- blocks(string:split(Text, "\n", all), [], [])]).
+    lists:append([table_rows(Block) || Block <- blocks(string:split(Text, "\n", all), [], [])]).
 
+%% The text's tables, each its lines' words, a row's with whether the line
+%% is indented.
 blocks([], Block, Blocks) ->
     lists:reverse([lists:reverse(Block) || Block =/= []] ++ Blocks);
 blocks([Line | Lines], Block, Blocks) ->
-    case {words(Line), Block} of
+    Words = words(Line),
+    case {Words, Block} of
         {[], []} -> blocks(Lines, [], Blocks);
         {[], _} -> blocks(Lines, [], [lists:reverse(Block) | Blocks]);
-        {Words, _} -> blocks(Lines, [Words | Block], Blocks)
+        _ ->
+            case is_load(Words) of
+                true -> blocks(Lines, Block, Blocks);
+                false -> blocks(Lines, [{is_indented(Line), Words} | Block], Blocks)
+            end
     end.
 
-block_rows([Title | Rows]) ->
-    {TitleShape, _} = read_words(Title),
-    {Read, _} = lists:mapfoldl(fun(Words, Seen) ->
-                                   {Shape, Values} = read_words(Words),
-                                   Place = maps:get(Shape, Seen, 0) + 1,
-                                   {{{TitleShape, Shape, Place}, string:join(Title, " "), Words,
-                                     Values},
-                                    Seen#{Shape => Place}}
-                               end, #{}, [Words || Words <- Rows, not is_load(Words)]),
+table_rows([{_, Title} | Rows]) ->
+    TitleShape = shape(items(Title)),
+    Items = [{Indented, items(Words)} || {Indented, Words} <- Rows],
+    Compared = case lists:any(fun({_, Row}) -> lists:keymember(ratio, 1, Row) end, Items) of
+                   true -> ratios;
+                   false -> numbers
+               end,
+    {Read, _} = lists:mapfoldl(
+                  fun({Indented, Row}, {Seen, Above}) ->
+                          Shape = shape(Row),
+                          Place = maps:get(Shape, Seen, 0) + 1,
+                          Parent = case Indented of
+                                       true -> Above;
+                                       false -> []
+                                   end,
+                          Next = case Indented of
+                                     true -> Above;
+                                     false -> [Name || Name <- [name(Row, length(Row) + 1)],
+                                                       Name =/= ""]
+                                 end,
+                          {{{TitleShape, Shape, Place, Compared}, string:join(Title, " "),
+                            compared_numbers(Compared, Parent, Row)},
+                           {Seen#{Shape => Place}, Next}}
+                  end, {#{}, []}, Items),
     Read.
 
 words(Line) ->
     string:lexemes(Line, " \t\r").
 
+is_indented(Line) ->
+    lists:member(hd(Line), " \t").
+
 is_load(Words) ->
     string:find(string:lowercase(string:join(Words, " ")), "load average") =/= nomatch.
 
-%% A row's words read: its shape, each number compared a `#` in it, and its
-%% numbers compared.
-read_words(Words) ->
-    read_words(Words, 1, [], []).
+%%
+%% A row's items
+%%
 
-read_words([], _, Shape, Values) ->
-    {string:join(lists:reverse(Shape), " "), lists:reverse(Values)};
-read_words([Word | Rest], Position, Shape, Values) ->
+%% A row's words read as items, each its kind, its text as a value shows
+%% it, its value, and its words as the row has them: a `word`, a label
+%% such as `10:` among them, a `number`, one before a unit in the unit's
+%% base, a `range` of two, a `ratio` and a `difference`.
+items([]) ->
+    [];
+items([Word | Rest]) ->
     case {number(Word), Rest} of
         {{plain, _}, ["to", End | After]} ->
             case number(End) of
-                {plain, _} -> read_words(After, Position + 3, ["# to #" | Shape], Values);
-                _ -> plain(Word, Rest, Position, Shape, Values)
+                {plain, _} -> [{range, Word ++ " to " ++ shown(End), none,
+                                Word ++ " to " ++ End} | items(After)];
+                _ -> plain(Word, Rest)
             end;
-        {{plain, _}, _} ->
-            plain(Word, Rest, Position, Shape, Values);
-        {{derived, Kind}, _} ->
-            read_words(Rest, Position + 1, [Kind | Shape], Values);
-        {word, _} ->
-            read_words(Rest, Position + 1, [Word | Shape], Values)
+        {{plain, _}, _} -> plain(Word, Rest);
+        {{ratio, Value}, _} -> [{ratio, shown(Word), Value, Word} | items(Rest)];
+        {difference, _} -> [{difference, Word, none, Word} | items(Rest)];
+        {word, _} -> [{word, Word, none, Word} | items(Rest)]
     end.
 
 %% A plain number, and its unit where one follows.
-plain(Word, Rest, Position, Shape, Values) ->
+plain(Word, Rest) ->
     {plain, Value} = number(Word),
     case unit(Rest) of
         {Kind, Factor, Unit, After} ->
-            Shown = shown(Word) ++ " " ++ shown(Unit),
-            read_words(After, Position + 2, ["#" ++ Kind | Shape],
-                       [{Value * Factor, Shown, Position} | Values]);
+            [{{number, Kind}, shown(Word) ++ " " ++ shown(Unit), Value * Factor,
+              Word ++ " " ++ Unit} | items(After)];
         none ->
-            read_words(Rest, Position + 1, ["#" | Shape],
-                       [{Value, shown(Word), Position} | Values])
+            [{{number, plain}, shown(Word), Value, Word} | items(Rest)]
     end.
+
+%% A row's shape: its words, each number a `#`, followed by its unit's
+%% kind where it has one.
+shape(Items) ->
+    string:join([case Kind of
+                      {number, plain} -> "#";
+                      {number, Unit} -> "#" ++ Unit;
+                      range -> "# to #";
+                      ratio -> "#x";
+                      difference -> "+#";
+                      _ -> Text
+                  end || {Kind, Text, _, _} <- Items], " ").
+
+%% The numbers a row's table compares it by, each with its value, its text
+%% and its name: the name of the row's part it is, an indented row being a
+%% part of the row above it that is not, and then its words before the
+%% number.
+compared_numbers(Compared, Parent, Row) ->
+    Kind = case Compared of
+               ratios -> ratio;
+               numbers -> number
+           end,
+    [{Value, Text, lists:flatten(lists:join(", ", Parent ++ [name(Row, Index)]))}
+     || {Index, {Of, Text, Value, _}} <- lists:enumerate(Row), kind(Of) =:= Kind].
+
+kind({number, _}) -> number;
+kind(Kind) -> Kind.
+
+%% A number's name: its row's words before it, but for the measures just
+%% before it, a ratio, a difference, a number with a fraction or a unit, a
+%% range and the median before it, so that a ratio is named by its row's
+%% words and not by the times it is the ratio of, `Address.call` for
+%% `Address.call 2000.0 1900.0 to 2100.0 2.00x`. A whole number that names
+%% the row stays, `depth 8 111626.7`.
+name(Row, Index) ->
+    Before = lists:reverse(lists:sublist(Row, Index - 1)),
+    string:join([Words || {_, _, _, Words} <- lists:reverse(unmeasured(Before))], " ").
+
+unmeasured([{range, _, _, _}, {{number, plain}, _, Value, _} | Rest]) when is_integer(Value) ->
+    unmeasured(Rest);
+unmeasured([{Kind, _, Value, _} | Rest] = Items) ->
+    case Kind of
+        word -> Items;
+        {number, plain} when is_integer(Value) -> Items;
+        _ -> unmeasured(Rest)
+    end;
+unmeasured([]) ->
+    [].
 
 %% A number or a unit as the row shows it, without the punctuation after it.
 shown(Word) ->
     string:trim(Word, trailing, ",;)").
 
-%% A word read as a number: a plain one, compared; a ratio or a
-%% difference, which follow from the plain ones; or a word, a label such as
-%% `10:` among them.
+%% A word read as a number: a plain one; a ratio, `5.41x`; a difference,
+%% which follows from the plain ones; or a word, a label such as `10:`
+%% among them.
 number(Word) ->
     Opened = string:trim(Word, leading, "("),
     Core = string:trim(Opened, trailing, ",;)"),
@@ -216,8 +338,8 @@ number(Word) ->
             case re:run(Core, "^([+-]?)([0-9]+(\\.[0-9]+)?)(x?)$",
                         [{capture, [1, 2, 4], list}]) of
                 {match, [[], Number, []]} -> {plain, value(Number)};
-                {match, [[], _, "x"]} -> {derived, "#x"};
-                {match, [_, _, _]} -> {derived, "+#"};
+                {match, [[], Number, "x"]} -> {ratio, value(Number)};
+                {match, [_, _, _]} -> difference;
                 nomatch -> word
             end
     end.

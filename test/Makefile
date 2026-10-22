@@ -2,8 +2,8 @@
 # parts (the example programs, the signals and the streams,
 # ern_integration_tests, with the measuring machine's reach over every
 # function, ern_measure_tests, and the bench's comparison of a run with
-# the last, ern_last_run_tests; nodes on one machine, ern_nodes_tests and
-# ern_machine_tests; the deployment guide run on them,
+# the last and the release's, ern_last_run_tests; nodes on one machine,
+# ern_nodes_tests and ern_machine_tests; the deployment guide run on them,
 # ern_deployment_tests; the manual pages,
 # ern_manual_tests; and the installation and the release,
 # ern_install_tests), the documents and the style, the guide's examples,
@@ -24,7 +24,8 @@ ERLC_FLAGS = +debug_info -Werror
 INTEGRATION = ern_integration_tests
 # a launch of its own, which shares no host with the programs' runs
 MEASURE = ern_measure_tests
-# the bench's comparison of a run with the last, which starts nothing
+# the bench's comparison of a run with the last and the release's, which
+# starts nothing
 LAST_RUN_TESTS = ern_last_run_tests
 NODES = ern_nodes_tests ern_machine_tests
 DEPLOYMENT = ern_deployment_tests
@@ -78,7 +79,7 @@ NODES_RUN = dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_$(1)_XXXXXX") && \
 # The programs' five parts (plan, MVP 3.9). The example programs and the
 # test programs, the signals and the streams, with the programs `measured`
 # builds, the measuring machine's reach over every function, and the
-# bench's comparison of a run with the last.
+# bench's comparison of a run with the last and the release's.
 integration: $(BEAMS) prepare measured named
 	@$(call NODES_RUN,integration,$(INTEGRATION))
 	$(call EUNIT,$(MEASURE) $(LAST_RUN_TESTS))
@@ -212,17 +213,19 @@ service: measured
 # message to a system process and a bare launch, ern_rule_costs, in
 # build/bench/rules.txt (plan, MVP 3.29). The run before is kept in
 # build/bench/last/ as a run begins, where it wrote every table, and at the
-# end every row that moved by more than a fifth against it is named,
-# ern_last_run, in build/bench/moved.txt: every table's but the library's,
-# whose numbers are each the fastest of three timings of a millisecond and
-# not medians of interleaved runs, and move by more than a fifth from run
+# end every row that moved by more than a fifth against it, and against
+# the release's run that bench-release keeps in build/bench/release/, is
+# named, ern_last_run, in build/bench/moved.txt: a table with a ratio by its
+# ratios, any other by its numbers. Every file but the library's, whose
+# numbers are each the fastest of three timings of a millisecond, its
+# ratios to the host's among them, and move by more than a fifth from run
 # to run with nothing changed (the log's *`make bench` Read Against the
-# Cost Rules*).
+# Cost Rules*, *The Sitting on §8.6's Bookkeeping*).
 # Not part of `make test-full`, since it measures and asserts nothing.
 BENCH_TABLES = bench.txt nodes.txt code.txt spawn.txt spawn_monitored.txt monitor.txt \
 	  restarting.txt burst.txt foreign.txt call.txt rules.txt
 BENCH_RUN = erl -noinput -pa ../erl/*/ebin -pa $(EBIN) -eval
-# The memory of the last run, ern_last_run's step $(1), keep or compare.
+# The memory of the runs, ern_last_run's step $(1), keep, release or compare.
 LAST_RUN = $(BENCH_RUN) 'ern_last_run:main(["$(1)", "build/bench"$(BENCH_LIST)])'
 BENCH_LIST = $(foreach Table,$(BENCH_TABLES),$(comma) "$(Table)")
 # A part that prints its table, which goes to build/bench/$(2) and is
@@ -247,6 +250,12 @@ bench: $(EBIN)/ern_bench.beam $(EBIN)/ern_measure.beam $(EBIN)/ern_node_costs.be
 	@$(BENCH_RUN) 'ern_call_costs:main(["build/bench"])'
 	@$(BENCH_RUN) 'ern_rule_costs:main(["build/bench"])'
 	@$(call LAST_RUN,compare)
+
+# The last run's tables kept in build/bench/release/ as the release's run,
+# which every later run is compared with too (docs/release_review.md), where
+# that run wrote every one.
+bench-release: $(EBIN)/ern_last_run.beam
+	@$(call LAST_RUN,release)
 
 # The bench's two node parts across the machines of machines/machines.txt
 # (the log's *The Machines*): ern_node_costs's store on the first machine
@@ -310,4 +319,4 @@ $(EBIN):
 	mkdir -p $(EBIN)
 
 .PHONY: integration nodes deployment manual install docs guide grammar typed shell prepare \
-	named measured xref load service bench bench-machines bench-pick machines clean
+	named measured xref load service bench bench-release bench-machines bench-pick machines clean

@@ -138,16 +138,19 @@ items becomes a milestone of its own, since the tour and 0.5.0 wait behind this 
   waits by the shell's `sleep` in `stream_lost_at_end`, `paced_output` and `closed_pipe`. A defect
   each, fixed where found: each wait becomes a wait on what the test means, a line read, a pipe's
   reader gone, a process's end; about an hour.
-- **The comparison's two references, by ratio** (found 2026-10-22 building the comparison, and
-  decided with the user the same day): a comparison with the last run alone catches a step and
-  not a drift, ten moves of a tenth each over a year, none named. The comparison takes a second
-  reference, the last release's run, which the release review keeps as `test/build/bench/release/`
-  when it runs the bench (`docs/release_review.md` gains the step), and names every row that moved
-  by more than the bound against either. A ratio column, Ernest's time over the host's measured
-  together, cancels the machine's state, so the comparison takes a table by its ratios where it
-  has them and by its times where it does not; that brings the library's table in too, which
-  stood outside since its fastest-of-three measure moved a fifth of its 1,100 numbers between two
-  runs with nothing changed, whole modules together. About half a day.
+- **The comparison's two references, by ratio**, built 2026-10-22 (the log's *The Sitting on
+  §8.6's Bookkeeping*, its *Built* paragraphs on the two references): each run of `make bench`
+  names the rows that moved by more than a fifth against the last run and against the release's,
+  each under its reference. `make bench-release` keeps the last run as the release's in
+  `test/build/bench/release/`, a step of `docs/release_review.md`, and a first run on a new
+  machine is kept so too. A table with a ratio is compared by its ratios, printed to a hundredth
+  now, and any other by its numbers. The library's table stays out: in two pairs of runs on the
+  idle machine its ratios to the host's moved by more than a fifth in half its functions, 79 and
+  78 of 156. The release's run is the run of 2026-10-22 until the review before 0.5.0 replaces it.
+  A decision for the user, in this milestone: `bench.txt`'s Ernest and Erlang columns are
+  measured minutes apart by two harnesses, so its ratios carry both draws and named 9 of its 40
+  rows between two idle runs where its times named 6; whether it is compared by its times until
+  *The language against the host* below measures its pairs together.
 - **Every slow wait of the runtime's own is marked, held by a test**, built 2026-10-22 (the log's
   *The Sitting on §8.6's Bookkeeping*, its *Built* paragraphs on every slow wait):
   `receives_test/0` in `test/ern_style_tests.erl`, which `make test` runs, reads every `receive`

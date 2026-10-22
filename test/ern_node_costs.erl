@@ -108,7 +108,7 @@ table(Heading, Costs, Tcp) ->
             {"  beside the host's ping", maps:get("utilization", Costs) / Ping, ratio}],
     io:format("~-48ts ~12s~n", [Heading, "µs or ratio"]),
     lists:foreach(fun({Name, Value, none}) -> io:format("~-48ts ~12.1f~n", [Name, Value]);
-                     ({Name, Value, ratio}) -> io:format("~-48ts ~11.1fx~n", [Name, Value])
+                     ({Name, Value, ratio}) -> io:format("~-48ts ~11.2fx~n", [Name, Value])
                   end, Rows).
 
 %% The libraries on the load path, each from the machine's tree.

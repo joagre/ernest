@@ -115,7 +115,7 @@ make test-programs  the five parts below, one after another
 make test-integration  the programs compiled and run as a user runs them, the
                   signals, the streams, Os and the libraries' tests, that the
                   measuring machine reaches every function of the library, and the
-                  bench's comparison of a run with the last
+                  bench's comparison of a run with the last and the release's
 make test-nodes   nodes on one machine
 make test-deployment  the deployment guide's commands and its deployment end to end
                   run on nodes, and the lines it quotes held to a node's
@@ -176,12 +176,20 @@ make bench        what each of a few operations costs in Ernest beside the same
                   one process and by eight, in call.txt; then a top-level let's read, a
                   receive with an after, a message to a system process and a bare launch
                   with its pieces, each beside the host's, in rules.txt; and last, every
-                  row of every table but the library's that moved by more than a fifth
-                  against the last run, whose tables test/build/bench/last/ keeps,
-                  printed and written to moved.txt; about eleven minutes; not part of
-                  make test-full. A row is for a number a later change could move, a
-                  promise of CLAUDE.md's cost rules or a construct the emitter writes
-                  code for; a number measured once to settle a design is the log's
+                  row that moved by more than a fifth against the last run, whose tables
+                  test/build/bench/last/ keeps, and against the release's, whose tables
+                  test/build/bench/release/ keeps, each under its reference, printed
+                  and written to moved.txt, a table with a ratio by its ratios and any
+                  other by its numbers, the library's table left out; about eleven
+                  minutes; not part of make test-full. A row is for a number a later
+                  change could move, a promise of CLAUDE.md's cost rules or a construct
+                  the emitter writes code for; a number measured once to settle a design
+                  is the log's
+make bench-release  keep the last run of make bench, where it wrote every table, in
+                  test/build/bench/release/ as the release's run, which every later
+                  run is compared with too; the release review runs it, and so does
+                  the first run on a new machine, which is a new reference and not a
+                  move; make clean removes it with the rest of test/build/
 make bench-machines  make bench's two node parts across the machines of
                   test/machines/machines.txt, each checked against this checkout
                   first: the store on the first machine after this one and the desk

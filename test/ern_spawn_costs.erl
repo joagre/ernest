@@ -823,7 +823,7 @@ table(Title, [{_, First} | _] = Rows, Beside) ->
                    fun({Name, Values}, {Before, Acc}) ->
                        {Median, Low, High} = median_range(Values),
                        Column = case Beside of
-                                    ratio -> io_lib:format(" ~6.1fx", [Median / Base]);
+                                    ratio -> io_lib:format(" ~6.2fx", [Median / Base]);
                                     added when Before =:= none -> "";
                                     added -> io_lib:format(" ~s~.1f", [[$+ || Median >= Before],
                                                                        Median - Before]);

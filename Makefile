@@ -342,6 +342,12 @@ service: all
 bench: all
 	@$(MAKE) -C test bench
 
+# The last run of the benchmark kept as the release's, which every later run
+# is compared with too; the release review runs it (docs/release_review.md),
+# and so does a first run on a new machine.
+bench-release:
+	@$(MAKE) -C test bench-release
+
 # The bench's two node parts across the machines of
 # test/machines/machines.txt (the log's *The Machines*), each machine checked
 # against this checkout first; run by hand, on the user's machines.
@@ -495,7 +501,7 @@ EMACS_CORPUS = $(ERNEST_SOURCES:%=../../%)
         test test-full test-erl \
         test-programs $(PROGRAM_PARTS) test-library test-docs test-guide test-grammar \
         test-typed test-shell \
-        load service bench bench-machines bench-pick \
+        load service bench bench-release bench-machines bench-pick \
         test-emacs $(APP_TESTS) $(APP_PARTS) $(EMACS_ALL) \
         clean clean-emacs \
         sections coverage golden xref contents format doc install uninstall release unicode \
