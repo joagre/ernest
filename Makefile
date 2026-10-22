@@ -336,15 +336,25 @@ load: all
 service: all
 	@$(MAKE) -C test service
 
-# The benchmark: what an Ernest operation costs beside the same operation in
-# Erlang (test/ern_bench.erl), and every function of the library beside the
-# host's (test/ern_measure.erl).
+# The benchmark, every part in order: what an Ernest operation costs beside
+# the same operation in Erlang (test/ern_bench.erl), every function of the
+# library beside the host's (test/ern_measure.erl), and the parts after them
+# that test/Makefile names, each table compared with its last run and the
+# release's.
 bench: all
 	@$(MAKE) -C test bench
 
-# The last run of the benchmark kept as the release's, which every later run
-# is compared with too; the release review runs it (docs/release_review.md),
-# and so does a first run on a new machine.
+# Each part of the benchmark alone, its tables alone compared (plan, MVP
+# 3.295): bench-core, bench-library and the rest, as test/Makefile names
+# them; make bench whole is the closing run before a commit that closes a
+# plan item.
+BENCH_PARTS = core library nodes code spawn restarting burst foreign call rules language programs
+$(addprefix bench-,$(BENCH_PARTS)): all
+	@$(MAKE) -C test $@
+
+# The last runs' tables kept as the release's, a table at a time, which every
+# later run is compared with too; the release review runs it
+# (docs/release_review.md), and so does a first run on a new machine.
 bench-release:
 	@$(MAKE) -C test bench-release
 
@@ -501,7 +511,8 @@ EMACS_CORPUS = $(ERNEST_SOURCES:%=../../%)
         test test-full test-erl \
         test-programs $(PROGRAM_PARTS) test-library test-docs test-guide test-grammar \
         test-typed test-shell \
-        load service bench bench-release bench-machines bench-pick \
+        load service bench $(addprefix bench-,$(BENCH_PARTS)) bench-release bench-machines \
+        bench-pick \
         test-emacs $(APP_TESTS) $(APP_PARTS) $(EMACS_ALL) \
         clean clean-emacs \
         sections coverage golden xref contents format doc install uninstall release unicode \

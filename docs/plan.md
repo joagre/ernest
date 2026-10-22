@@ -96,13 +96,17 @@ milestone closed.
   adapter and taken apart by the program; the host's own `maps:find/2` and a `case`, which answer
   as `Map.get` does, cost 1.2 times it. The number confirms the plain form, the type being the
   operation's, and is written once.
-- **The bench's parts as targets** (decided with the user 2026-10-22; CLAUDE.md's *The tools are
-  fast*): `make bench` whole takes twelve minutes, and an item touches one or two of its parts.
-  Each part gets a target, `make bench-call`, `bench-foreign`, `bench-language` and the rest, which
-  runs it and compares its tables alone, the comparison's memory kept per table and not per run,
-  so that a partial run updates and compares what it wrote; `make bench` whole stays the closing
-  run before a commit that closes an item, as `make test-full` stands to an area's own target, and
-  no second umbrella is added. About an hour, with docs/development.md's line.
+- **The bench's parts as targets**, built 2026-10-22 (the log's *The Sitting on §8.6's
+  Bookkeeping*, its *Built* paragraphs on the bench's parts; CLAUDE.md's *The tools are fast*):
+  `make bench-core`, `bench-library`, `bench-nodes`, `bench-code`, `bench-spawn`,
+  `bench-restarting`, `bench-burst`, `bench-foreign`, `bench-call`, `bench-rules`,
+  `bench-language` and `bench-programs` each run one part and compare its tables alone,
+  `bench-library` none, since the library's table is left out of the comparison. The
+  comparison's memory is kept a table at a time, so a part's run keeps and compares what it wrote,
+  and `moved.txt` names the tables its run compared. `make bench` whole runs every part and
+  compares every table, the closing run before a commit that closes an item, as `make test-full`
+  stands to an area's own target. `make bench-release` keeps the tables there are, a table at a
+  time, and names them.
 ## MVP 3.3 (the tour)
 
 A third way into Ernest beside the report and the guide, `tour/`, for the reader who wants the

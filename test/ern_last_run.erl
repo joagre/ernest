@@ -1,13 +1,18 @@
 %% `make bench`'s memory of its runs (docs/development.md; plan, MVP
-%% 3.29): a run is compared with two references, the last run's tables in
-%% `last/` and the release's in `release/`. At a run's start the tables of
-%% the run before are kept in `last/`, where that run wrote them all; the
-%% release review keeps a run's in `release/` (`make bench-release`), and so
-%% does a user whose first run on a new machine is a new reference. At a
-%% run's end every row that moved by more than the noise against either
-%% reference is named with both numbers, under the reference, printed and
-%% written to moved.txt. Where a run failed before its end, the tables of
-%% the run before it stay the last run's.
+%% 3.29, MVP 3.295): a run is compared with two references, the last run's
+%% tables in `last/` and the release's in `release/`, and the memory is
+%% kept a table at a time, so that a run of one part of the bench keeps and
+%% compares that part's tables alone, and a run of the whole every table.
+%% At a run's start each of its tables that the run before wrote is kept in
+%% `last/`, in place of the one there, and the rest of `last/` stays; the
+%% release review keeps the tables in `release/` the same way (`make
+%% bench-release`), and so does a user whose first run on a new machine is
+%% a new reference. At a run's end every row of its tables that moved by
+%% more than the noise against either reference is named with both
+%% numbers, under the reference, printed and written to moved.txt, which
+%% names the run's tables first, since a part's run writes it as the
+%% whole's does. A part that failed leaves no table, so the next run is
+%% compared with the one before it.
 %%
 %% A file is the text a part of the bench writes: tables, a blank line
 %% between two, the first line of each its title, the others its rows. A
@@ -40,26 +45,31 @@
 %% The file the comparison is written to, beside the tables.
 -define(MOVED, "moved.txt").
 
-%% `keep`, at a run's start: where every table of the list is in
-%% Directory, they move to its `last/`, in place of what was there.
-%% `release`, by hand: where every table of the list is in Directory, they
-%% are copied to its `release/`, in place of what was there. `compare`, at
-%% a run's end: each table of both references beside the same table in
-%% Directory, the rows that moved printed and written to moved.txt.
+%% `keep`, at a run's start: each table of the list that is in Directory
+%% moves to its `last/`, in place of the one there. `release`, by hand:
+%% each table of the list that is in Directory is copied to its `release/`,
+%% in place of the one there, and those kept are named. `compare`, at a
+%% run's end: each table of the list in Directory beside the same table of
+%% both references, the rows that moved printed and written to moved.txt.
 -spec main([string()]) -> no_return().
 main(["keep", Directory | Tables]) ->
     kept(Directory, Tables),
     halt(0);
 main(["release", Directory | Tables]) ->
     case released(Directory, Tables) of
-        ok ->
-            io:format("The last run's tables are the release's run now, in ~s.~n",
-                      [filename:join(Directory, ?RELEASE)]),
-            halt(0);
-        {missing, Missing} ->
-            io:format(standard_error, "No table kept: the last run did not write ~ts in ~s; "
-                      "run make bench whole first.~n", [lists:join(", ", Missing), Directory]),
-            halt(1)
+        {[], _} ->
+            io:format(standard_error, "No table kept: no run wrote ~ts in ~s; run make bench "
+                      "first.~n", [lists:join(", ", Tables), Directory]),
+            halt(1);
+        {Kept, Unwritten} ->
+            io:format("Kept as the release's run, in ~s: ~ts.~n",
+                      [filename:join(Directory, ?RELEASE), lists:join(", ", Kept)]),
+            case Unwritten of
+                [] -> ok;
+                _ -> io:format("Not kept, since no run wrote them in ~s: ~ts.~n",
+                               [Directory, lists:join(", ", Unwritten)])
+            end,
+            halt(0)
     end;
 main(["compare", Directory | Tables]) ->
     Text = unicode:characters_to_binary(compared(Directory, Tables)),
@@ -67,77 +77,78 @@ main(["compare", Directory | Tables]) ->
     ok = file:write_file(filename:join(Directory, ?MOVED), Text),
     halt(0).
 
-%% Every table of the list in Directory moved to its `last/`, where all of
-%% them are there.
+%% Each table of the list that is in Directory moved to its `last/`, in
+%% place of the one there; a table the run before did not write leaves the
+%% one in `last/`.
 -spec kept(string(), [string()]) -> ok.
 kept(Directory, Tables) ->
-    case missing(Directory, Tables) of
-        [] ->
-            Last = emptied(filename:join(Directory, ?LAST)),
-            lists:foreach(fun(Table) ->
-                              ok = file:rename(filename:join(Directory, Table),
-                                               filename:join(Last, Table))
-                          end, Tables);
-        _ ->
-            ok
-    end.
+    Last = made(filename:join(Directory, ?LAST)),
+    lists:foreach(fun(Table) ->
+                      ok = file:rename(filename:join(Directory, Table),
+                                       filename:join(Last, Table))
+                  end, written(Directory, Tables)).
 
-%% Every table of the list in Directory copied to its `release/`, where all
-%% of them are there; otherwise those that are not.
--spec released(string(), [string()]) -> ok | {missing, [string()]}.
+%% Each table of the list that is in Directory copied to its `release/`, in
+%% place of the one there: the tables kept, and those no run wrote, whose
+%% own in `release/` stay.
+-spec released(string(), [string()]) -> {[string()], [string()]}.
 released(Directory, Tables) ->
-    case missing(Directory, Tables) of
+    case written(Directory, Tables) of
         [] ->
-            Release = emptied(filename:join(Directory, ?RELEASE)),
+            {[], Tables};
+        Written ->
+            Release = made(filename:join(Directory, ?RELEASE)),
             lists:foreach(fun(Table) ->
                               {ok, _} = file:copy(filename:join(Directory, Table),
                                                   filename:join(Release, Table))
-                          end, Tables);
-        Missing ->
-            {missing, Missing}
+                          end, Written),
+            {Written, Tables -- Written}
     end.
 
-missing(Directory, Tables) ->
-    [Table || Table <- Tables, not filelib:is_regular(filename:join(Directory, Table))].
+%% The tables of the list that are in Directory.
+written(Directory, Tables) ->
+    [Table || Table <- Tables, filelib:is_regular(filename:join(Directory, Table))].
 
-%% The directory made anew and empty.
-emptied(Directory) ->
-    case file:del_dir_r(Directory) of
-        ok -> ok;
-        {error, enoent} -> ok
-    end,
-    ok = file:make_dir(Directory),
+%% The directory, made where it is not there.
+made(Directory) ->
+    ok = filelib:ensure_path(Directory),
     Directory.
 
-%% The comparison's text against each reference: the rows that moved,
-%% under their file and table's title; that none did; or that the
-%% reference is not there.
+%% The comparison's text: the run's tables, those of the list that are in
+%% Directory; and against each reference the rows of those it holds that
+%% moved, under their file and table's title, or that none did, and the
+%% tables it does not hold.
 -spec compared(string(), [string()]) -> iolist().
 compared(Directory, Tables) ->
-    [against("the last run", filename:join(Directory, ?LAST), Directory, Tables,
-             "No last run in ~s; the next run is compared with this one.~n"),
-     against("the release's run", filename:join(Directory, ?RELEASE), Directory, Tables,
-             "No release's run in ~s; make bench-release keeps this run as it.~n")].
+    Written = written(Directory, Tables),
+    [io_lib:format("The tables of this run: ~ts.~n", [lists:join(", ", Written)]),
+     against("the last run", filename:join(Directory, ?LAST), Directory, Written,
+             "No last run of ~ts in ~s; the next run is compared with this one.~n"),
+     against("the release's run", filename:join(Directory, ?RELEASE), Directory, Written,
+             "No release's run of ~ts in ~s; make bench-release keeps this run's tables "
+             "as the release's.~n")].
 
-against(Reference, Kept, Directory, Tables, None) ->
-    Pairs = [{Table, filename:join(Kept, Table), filename:join(Directory, Table)}
-             || Table <- Tables],
-    case [Pair || {_, Before, Now} = Pair <- Pairs,
-                  filelib:is_regular(Before), filelib:is_regular(Now)] of
+against(Reference, Kept, Directory, Written, None) ->
+    {Held, Unheld} = lists:partition(
+                       fun(Table) -> filelib:is_regular(filename:join(Kept, Table)) end, Written),
+    [compared_with(Reference, Kept, Directory, Held),
+     [io_lib:format(None, [lists:join(", ", Unheld), Kept]) || Unheld =/= []]].
+
+compared_with(_, _, _, []) ->
+    [];
+compared_with(Reference, Kept, Directory, Held) ->
+    Moved = [{Table, Blocks}
+             || Table <- Held,
+                Blocks <- [moved(read(filename:join(Kept, Table)),
+                                 read(filename:join(Directory, Table)))],
+                Blocks =/= []],
+    case Moved of
         [] ->
-            io_lib:format(None, [Kept]);
-        Compared ->
-            Moved = [{Table, Blocks} || {Table, Before, Now} <- Compared,
-                                        Blocks <- [moved(read(Before), read(Now))], Blocks =/= []],
-            case Moved of
-                [] ->
-                    io_lib:format("No row moved by more than a fifth since ~s, in ~s.~n",
-                                  [Reference, Kept]);
-                _ ->
-                    [io_lib:format("Moved by more than a fifth since ~s, in ~s:~n",
-                                   [Reference, Kept]),
-                     [moved_text(Table, Blocks) || {Table, Blocks} <- Moved]]
-            end
+            io_lib:format("No row moved by more than a fifth since ~s, in ~s.~n",
+                          [Reference, Kept]);
+        _ ->
+            [io_lib:format("Moved by more than a fifth since ~s, in ~s:~n", [Reference, Kept]),
+             [moved_text(Table, Blocks) || {Table, Blocks} <- Moved]]
     end.
 
 read(Path) ->

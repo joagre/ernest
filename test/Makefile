@@ -102,28 +102,43 @@ manual: $(BEAMS) prepare
 install: $(BEAMS) prepare
 	$(call EUNIT,$(INSTALL))
 
+# The bench's harnesses, one for each part and the memory of its runs.
+BENCH_BEAMS = $(EBIN)/ern_bench.beam $(EBIN)/ern_measure.beam $(EBIN)/ern_last_run.beam \
+	  $(patsubst %,$(EBIN)/ern_%_costs.beam, \
+	    node code spawn restarting burst foreign call rule language program)
+
 # The load programs, the benchmark and the service checks' program, which
 # `load`, `bench` and `service` run and no test does, are built with the
-# programs, and their harnesses compiled, the probe the code costs' nodes
-# load among them and the Erlang twins of the language's part and the
-# programs' part, so that a change that breaks one is seen by `make
-# test-full`.
-measured: prepare $(EBIN)/ern_load.beam $(EBIN)/ern_bench.beam $(EBIN)/ern_service_tests.beam \
-	  $(EBIN)/ern_spawn_costs.beam $(EBIN)/ern_restarting_costs.beam $(EBIN)/ern_burst_costs.beam \
-	  $(EBIN)/ern_foreign_costs.beam $(EBIN)/ern_call_costs.beam $(EBIN)/ern_rule_costs.beam \
-	  $(EBIN)/ern_language_costs.beam $(EBIN)/ern_program_costs.beam \
-	  $(EBIN)/ern_last_run.beam $(EBIN)/ern_node_costs.beam $(EBIN)/ern_code_costs.beam \
-	  $(EBIN)/ern_pick_costs.beam machines
-	@mkdir -p build/load build/bench/probe build/bench/twins build/service
-	@erlc $(ERLC_FLAGS) -o build/bench/probe fixtures/bench/ern_code_probe.erl \
-	  fixtures/bench/ern_pick_probe.erl
-	@erlc $(ERLC_FLAGS) -o build/bench/twins fixtures/bench/ern_*_twin.erl
+# programs, and their harnesses compiled, so that a change that breaks one
+# is seen by `make test-full`.
+measured: prepare $(EBIN)/ern_load.beam $(BENCH_BEAMS) $(EBIN)/ern_service_tests.beam \
+	  $(EBIN)/ern_pick_costs.beam benched
+	@mkdir -p build/load build/service
 	@for p in $(LOADS); do \
 	  ../bin/ern build --verbose --source-root fixtures/load --build-root build/load \
 	    fixtures/load/$$p.ern || exit 1; done
-	@../bin/ern build --verbose --build-root build/bench fixtures/bench
 	@../bin/ern build --verbose --source-root fixtures/service --build-root build/service \
 	  fixtures/service/service.ern
+
+# What the bench's parts run beside their harnesses: the programs under
+# fixtures/bench/, built; the probes the nodes of the code part and of
+# bench-pick load and the Erlang twins of the language's part and the
+# programs' part, each compiled where its source is newer; and the
+# machines' tools the node parts call.
+BENCH_PROBES = $(patsubst fixtures/bench/%.erl,build/bench/probe/%.beam, \
+	  $(wildcard fixtures/bench/ern_*_probe.erl))
+BENCH_TWINS = $(patsubst fixtures/bench/%.erl,build/bench/twins/%.beam, \
+	  $(wildcard fixtures/bench/ern_*_twin.erl))
+benched: prepare $(BENCH_PROBES) $(BENCH_TWINS) machines
+	@../bin/ern build --verbose --build-root build/bench fixtures/bench
+
+build/bench/probe/%.beam: fixtures/bench/%.erl
+	@mkdir -p $(@D)
+	@erlc $(ERLC_FLAGS) -o $(@D) $<
+
+build/bench/twins/%.beam: fixtures/bench/%.erl
+	@mkdir -p $(@D)
+	@erlc $(ERLC_FLAGS) -o $(@D) $<
 
 docs: $(BEAMS)
 	$(call EUNIT,$(DOCS))
@@ -194,79 +209,130 @@ load: $(EBIN)/ern_load.beam measured
 service: measured
 	$(call EUNIT,ern_service_tests)
 
-# The benchmark: fixtures/bench/bench.ern built and run as a user runs a
-# program, and its times printed beside the same operations in Erlang by
-# ern_bench, in build/bench/bench.txt, the modules it read and the faults
-# its raises measure reported into build/bench/faults.txt;
-# then every function of the library measured against the host's by
+# The benchmark, in parts (plan, MVP 3.295), each run alone by a target
+# of its own, bench-<part>, in this order by `bench`.
+# core: fixtures/bench/bench.ern built and run as a user runs a program,
+# and its times printed beside the same operations in Erlang by ern_bench,
+# in build/bench/bench.txt, the modules it read and the faults its raises
+# measure reported into build/bench/faults.txt.
+# library: every function of the library measured against the host's by
 # ern_measure (plan MVP 2.99d item 1), its whole table in
-# build/bench/library.txt; then the costs between two nodes, ern_node_costs,
-# and MVP 3.2's of code that crosses, ern_code_costs, on nodes it starts,
-# in build/bench/nodes.txt and code.txt;
-# then the pieces of a spawn, a spawnMonitored and a monitor,
-# ern_spawn_costs, their tables in build/bench/spawn.txt,
-# spawn_monitored.txt and monitor.txt, and of entering restarting,
-# ern_restarting_costs, in build/bench/restarting.txt; four bursts
-# against their size, ern_burst_costs, in build/bench/burst.txt; the
-# pieces of a foreign call, and the call and its count with eight processes
-# at once, ern_foreign_costs, in build/bench/foreign.txt; the pieces of a
-# call with one caller, eight pairs and eight callers of one callee,
-# ern_call_costs, in build/bench/call.txt; the rows the cost rules ask
-# for that no other part has, a top-level let's read, a timed receive, a
-# message to a system process and a bare launch, ern_rule_costs, in
-# build/bench/rules.txt; each construct the compiler writes code for
-# beside the plain Erlang for the same thing, ern_language_costs, in
-# build/bench/language.txt; and three programs written twice, in Ernest
-# and in Erlang by hand, ern_program_costs, in build/bench/programs.txt,
-# the Erlang twins of the two under fixtures/bench/ and compiled into
-# build/bench/twins/ (plan, MVP 3.29). The run before is kept in
-# build/bench/last/ as a run begins, where it wrote every table, and at the
-# end every row that moved by more than a fifth against it, and against
-# the release's run that bench-release keeps in build/bench/release/, is
-# named, ern_last_run, in build/bench/moved.txt: a table with a ratio by its
-# ratios, any other by its numbers. Every file but the library's, whose
-# numbers are each the fastest of three timings of a millisecond, its
-# ratios to the host's among them, and move by more than a fifth from run
-# to run with nothing changed (the log's *`make bench` Read Against the
-# Cost Rules*, *The Sitting on §8.6's Bookkeeping*).
+# build/bench/library.txt.
+# nodes and code: the costs between two nodes, ern_node_costs, and MVP
+# 3.2's of code that crosses, ern_code_costs, on nodes it starts, in
+# build/bench/nodes.txt and code.txt.
+# spawn: the pieces of a spawn, a spawnMonitored and a monitor,
+# ern_spawn_costs, in build/bench/spawn.txt, spawn_monitored.txt and
+# monitor.txt.
+# restarting: the pieces of entering restarting, ern_restarting_costs, in
+# build/bench/restarting.txt.
+# burst: four bursts against their size, ern_burst_costs, in
+# build/bench/burst.txt.
+# foreign: the pieces of a foreign call, and the call and its count with
+# eight processes at once, ern_foreign_costs, in build/bench/foreign.txt.
+# call: the pieces of a call with one caller, eight pairs and eight callers
+# of one callee, ern_call_costs, in build/bench/call.txt.
+# rules: the rows the cost rules ask for that no other part has, a
+# top-level let's read, a timed receive, a message to a system process and
+# a bare launch, ern_rule_costs, in build/bench/rules.txt.
+# language: each construct the compiler writes code for beside the plain
+# Erlang for the same thing, ern_language_costs, in
+# build/bench/language.txt.
+# programs: three programs written twice, in Ernest and in Erlang by hand,
+# ern_program_costs, in build/bench/programs.txt, the Erlang twins of the
+# two under fixtures/bench/ and compiled into build/bench/twins/ (plan,
+# MVP 3.29).
+# The memory is kept a table at a time, ern_last_run. As a run begins,
+# each of its tables the run before wrote moves to build/bench/last/, in
+# place of the one there, and the rest of last/ stays; at its end every
+# row of its tables that moved by more than a fifth against last/, and
+# against the release's run that bench-release keeps in
+# build/bench/release/, is named in build/bench/moved.txt, the last run's
+# comparison, the whole's or a part's: a table with a ratio by its ratios,
+# any other by its numbers. A part that failed leaves no table, so the
+# next run is compared with the one before it. Every table is compared but
+# the library's, whose numbers are each the fastest of three timings of a
+# millisecond, its ratios to the host's among them, and move by more than
+# a fifth from run to run with nothing changed (the log's *`make bench`
+# Read Against the Cost Rules*, *The Sitting on §8.6's Bookkeeping*), so
+# bench-library keeps and compares nothing. `bench` runs every part and
+# compares every table, the closing run before a commit that closes a plan
+# item, as test-full stands to an area's own target.
 # Not part of `make test-full`, since it measures and asserts nothing.
-BENCH_TABLES = bench.txt nodes.txt code.txt spawn.txt spawn_monitored.txt monitor.txt \
-	  restarting.txt burst.txt foreign.txt call.txt rules.txt language.txt programs.txt
+BENCH_PARTS = core library nodes code spawn restarting burst foreign call rules language programs
+COMPARED_PARTS = $(filter-out library,$(BENCH_PARTS))
+BENCH_TABLES = $(foreach Part,$(COMPARED_PARTS),$(TABLES_$(Part)))
 BENCH_RUN = erl -noinput -pa ../erl/*/ebin -pa $(EBIN) -eval
-# The memory of the runs, ern_last_run's step $(1), keep, release or compare.
-LAST_RUN = $(BENCH_RUN) 'ern_last_run:main(["$(1)", "build/bench"$(BENCH_LIST)])'
-BENCH_LIST = $(foreach Table,$(BENCH_TABLES),$(comma) "$(Table)")
+# The memory of the runs, ern_last_run's step $(1), keep, release or
+# compare, over the tables $(2).
+LAST_RUN = $(BENCH_RUN) \
+	  'ern_last_run:main(["$(1)", "build/bench"$(foreach Table,$(2),$(comma) "$(Table)")])'
 # A part that prints its table, which goes to build/bench/$(2) and is
-# printed, whatever the part's outcome.
-PRINTED = $(BENCH_RUN) '$(1)' > build/bench/$(2); status=$$?; cat build/bench/$(2); exit $$status
-bench: $(EBIN)/ern_bench.beam $(EBIN)/ern_measure.beam $(EBIN)/ern_node_costs.beam \
-	  $(EBIN)/ern_code_costs.beam $(EBIN)/ern_spawn_costs.beam \
-	  $(EBIN)/ern_restarting_costs.beam $(EBIN)/ern_burst_costs.beam \
-	  $(EBIN)/ern_foreign_costs.beam $(EBIN)/ern_call_costs.beam $(EBIN)/ern_rule_costs.beam \
-	  $(EBIN)/ern_language_costs.beam $(EBIN)/ern_program_costs.beam \
-	  $(EBIN)/ern_last_run.beam measured named
-	@$(call LAST_RUN,keep)
-	@../bin/ern run --verbose build/bench/bench.erc > build/bench/ernest.txt \
-	  2> build/bench/faults.txt || { tail -20 build/bench/faults.txt >&2; exit 1; }
-	@$(call PRINTED,ern_bench:main(["build/bench/ernest.txt"]),bench.txt)
-	@$(BENCH_RUN) 'ern_measure:main(["build/bench/library.txt"])'
-	@$(call PRINTED,ern_node_costs:main(["build/bench/nodes"]),nodes.txt)
-	@$(call PRINTED,ern_code_costs:main(["build/bench/code"]),code.txt)
-	@$(BENCH_RUN) 'ern_spawn_costs:main(["build/bench"])'
-	@$(BENCH_RUN) 'ern_restarting_costs:main(["build/bench"])'
-	@$(BENCH_RUN) 'ern_burst_costs:main(["build/bench"])'
-	@$(BENCH_RUN) 'ern_foreign_costs:main(["build/bench"])'
-	@$(BENCH_RUN) 'ern_call_costs:main(["build/bench"])'
-	@$(BENCH_RUN) 'ern_rule_costs:main(["build/bench"])'
-	@$(BENCH_RUN) 'ern_language_costs:main(["build/bench"])'
-	@$(BENCH_RUN) 'ern_program_costs:main(["build/bench"])'
-	@$(call LAST_RUN,compare)
+# printed, whatever the part's outcome, and is removed where the part
+# failed, a table it did not finish.
+PRINTED = $(BENCH_RUN) '$(1)' > build/bench/$(2); status=$$?; cat build/bench/$(2); \
+	  [ $$status = 0 ] || rm build/bench/$(2); exit $$status
+# A part, ern_$(1)_costs, that writes its tables in build/bench/.
+COSTS = @$(BENCH_RUN) 'ern_$(1)_costs:main(["build/bench"])'
 
-# The last run's tables kept in build/bench/release/ as the release's run,
-# which every later run is compared with too (docs/release_review.md), where
-# that run wrote every one.
+# Each part's tables, those the comparison reads, and its run.
+TABLES_core = bench.txt
+define RUN_core
+@../bin/ern run --verbose build/bench/bench.erc > build/bench/ernest.txt \
+  2> build/bench/faults.txt || { tail -20 build/bench/faults.txt >&2; exit 1; }
+@$(call PRINTED,ern_bench:main(["build/bench/ernest.txt"]),bench.txt)
+endef
+RUN_library = @$(BENCH_RUN) 'ern_measure:main(["build/bench/library.txt"])'
+TABLES_nodes = nodes.txt
+RUN_nodes = @$(call PRINTED,ern_node_costs:main(["build/bench/nodes"]),nodes.txt)
+TABLES_code = code.txt
+RUN_code = @$(call PRINTED,ern_code_costs:main(["build/bench/code"]),code.txt)
+TABLES_spawn = spawn.txt spawn_monitored.txt monitor.txt
+RUN_spawn = $(call COSTS,spawn)
+TABLES_restarting = restarting.txt
+RUN_restarting = $(call COSTS,restarting)
+TABLES_burst = burst.txt
+RUN_burst = $(call COSTS,burst)
+TABLES_foreign = foreign.txt
+RUN_foreign = $(call COSTS,foreign)
+TABLES_call = call.txt
+RUN_call = $(call COSTS,call)
+TABLES_rules = rules.txt
+RUN_rules = $(call COSTS,rule)
+TABLES_language = language.txt
+RUN_language = $(call COSTS,language)
+TABLES_programs = programs.txt
+RUN_programs = $(call COSTS,program)
+
+bench: $(BENCH_BEAMS) benched named
+	@$(call LAST_RUN,keep,$(BENCH_TABLES))
+	$(RUN_core)
+	$(RUN_library)
+	$(RUN_nodes)
+	$(RUN_code)
+	$(RUN_spawn)
+	$(RUN_restarting)
+	$(RUN_burst)
+	$(RUN_foreign)
+	$(RUN_call)
+	$(RUN_rules)
+	$(RUN_language)
+	$(RUN_programs)
+	@$(call LAST_RUN,compare,$(BENCH_TABLES))
+
+$(addprefix bench-,$(COMPARED_PARTS)): bench-%: $(BENCH_BEAMS) benched named
+	@$(call LAST_RUN,keep,$(TABLES_$*))
+	$(RUN_$*)
+	@$(call LAST_RUN,compare,$(TABLES_$*))
+
+bench-library: $(BENCH_BEAMS) benched named
+	$(RUN_library)
+
+# The tables in build/bench/ kept in build/bench/release/ as the release's
+# run, which every later run is compared with too (docs/release_review.md),
+# a table at a time, each in place of the one there, and named.
 bench-release: $(EBIN)/ern_last_run.beam
-	@$(call LAST_RUN,release)
+	@$(call LAST_RUN,release,$(BENCH_TABLES))
 
 # The bench's two node parts across the machines of machines/machines.txt
 # (the log's *The Machines*): ern_node_costs's store on the first machine
@@ -330,4 +396,5 @@ $(EBIN):
 	mkdir -p $(EBIN)
 
 .PHONY: integration nodes deployment manual install docs guide grammar typed shell prepare \
-	named measured xref load service bench bench-release bench-machines bench-pick machines clean
+	named measured benched xref load service bench $(addprefix bench-,$(BENCH_PARTS)) \
+	bench-release bench-machines bench-pick machines clean

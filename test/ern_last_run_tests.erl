@@ -1,9 +1,11 @@
 %% `make bench`'s memory of its runs, test/ern_last_run.erl
-%% (docs/development.md): small tables of two runs, the first kept in
-%% `last/` as a run begins or in `release/` by hand, and the rows that moved
-%% named as a run ends, against each. Regression tests, written after the
-%% code. What they leave out runs only in `make bench`: the tables its parts
-%% write, read against their own last run and the release's.
+%% (docs/development.md): small tables of two runs, the first kept a table
+%% at a time in `last/` as a run begins or in `release/` by hand, and the
+%% rows that moved named as a run ends, against each, for the whole bench's
+%% tables or one part's. Regression tests, written after the code. What
+%% they leave out runs only in `make bench` and its parts' targets: the
+%% tables the parts write, read against their own last run and the
+%% release's.
 -module(ern_last_run_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -98,61 +100,113 @@ read_test() ->
     ?assertEqual(["+ the row as MVP", "+ the row as MVP 3.1 wrote it"],
                  [Name || {_, _, Read} <- ern_last_run:rows(Model), {_, _, Name} <- Read]).
 
-%% test/ern_last_run.erl: a run's tables are kept as the next begins only
-%% where it wrote them all; at its end the rows that moved are named, or
-%% that none did, or that no last run is there
+%% test/ern_last_run.erl: as a run begins each table the run before wrote
+%% is kept in `last/`, and one it did not write is not; at its end the
+%% run's tables are named, then the rows that moved, or that none did, and
+%% the tables no last run holds
 last_run_test() ->
     in_directory(
       fun(Directory) ->
               Tables = ["spawn.txt", "call.txt"],
               Last = filename:join(Directory, "last"),
-              NoRelease = no_release(Directory),
               write(Directory, "spawn.txt", ?BEFORE),
-              ok = ern_last_run:kept(Directory, Tables),
-              ?assertNot(filelib:is_dir(Last)),
-              ?assertEqual("No last run in " ++ Last
-                           ++ "; the next run is compared with this one.\n" ++ NoRelease,
+              ?assertEqual("The tables of this run: spawn.txt.\n"
+                           "No last run of spawn.txt in " ++ Last
+                           ++ "; the next run is compared with this one.\n"
+                           ++ no_release("spawn.txt", Directory),
                            text(ern_last_run:compared(Directory, Tables))),
-              write(Directory, "call.txt", ?BEFORE),
               ok = ern_last_run:kept(Directory, Tables),
-              ?assertEqual(["call.txt", "spawn.txt"], lists:sort(element(2, file:list_dir(Last)))),
+              ?assertEqual(["spawn.txt"], listed(Last)),
+              ?assertEqual(["last"], listed(Directory)),
               write(Directory, "spawn.txt", ?NOW),
               write(Directory, "call.txt", ?BEFORE),
-              ?assertEqual("Moved by more than a fifth since the last run, in " ++ Last ++ ":\n"
+              ?assertEqual("The tables of this run: spawn.txt, call.txt.\n"
+                           "Moved by more than a fifth since the last run, in " ++ Last ++ ":\n"
                            "spawn.txt: the spawn, ns an iteration median range\n"
                            "  Ernest's spawn: last 5000.0, now 6500.0, +30%\n"
-                           "  5000 processes: last 1500.0, now 900.0, -40%\n" ++ NoRelease,
+                           "  5000 processes: last 1500.0, now 900.0, -40%\n"
+                           "No last run of call.txt in " ++ Last
+                           ++ "; the next run is compared with this one.\n"
+                           ++ no_release("spawn.txt, call.txt", Directory),
                            text(ern_last_run:compared(Directory, Tables))),
-              write(Directory, "spawn.txt", ?BEFORE),
-              ?assertEqual("No row moved by more than a fifth since the last run, in " ++ Last
-                           ++ ".\n" ++ NoRelease,
+              ok = ern_last_run:kept(Directory, Tables),
+              ?assertEqual(["call.txt", "spawn.txt"], listed(Last)),
+              write(Directory, "spawn.txt", ?NOW),
+              write(Directory, "call.txt", ?BEFORE),
+              ?assertEqual("The tables of this run: spawn.txt, call.txt.\n"
+                           "No row moved by more than a fifth since the last run, in " ++ Last
+                           ++ ".\n" ++ no_release("spawn.txt, call.txt", Directory),
                            text(ern_last_run:compared(Directory, Tables)))
       end).
 
-%% test/ern_last_run.erl: the release's run is kept by hand, copied, only
-%% where the last run wrote every table; a run is then compared with it as
-%% with the last, each row that moved named under its reference
+%% test/ern_last_run.erl: a part's run keeps its own tables alone as it
+%% begins, two of three here, and the rest of `last/` and of the run's
+%% directory stay as they were
+partial_run_test() ->
+    in_directory(
+      fun(Directory) ->
+              All = ["spawn.txt", "monitor.txt", "call.txt"],
+              Last = filename:join(Directory, "last"),
+              [write(Directory, Table, ?BEFORE) || Table <- All],
+              ok = ern_last_run:kept(Directory, All),
+              [write(Directory, Table, ?NOW) || Table <- All],
+              ok = ern_last_run:kept(Directory, ["spawn.txt", "monitor.txt"]),
+              ?assertEqual(["call.txt", "monitor.txt", "spawn.txt"], listed(Last)),
+              ?assertEqual(?NOW, read(Last, "spawn.txt")),
+              ?assertEqual(?NOW, read(Last, "monitor.txt")),
+              ?assertEqual(?BEFORE, read(Last, "call.txt")),
+              ?assertEqual(["call.txt", "last"], listed(Directory)),
+              ?assertEqual(?NOW, read(Directory, "call.txt"))
+      end).
+
+%% test/ern_last_run.erl: a part's comparison reads its own tables alone,
+%% though another part's table beside them moved against its last run
+part_comparison_test() ->
+    in_directory(
+      fun(Directory) ->
+              Last = filename:join(Directory, "last"),
+              write(Directory, "spawn.txt", ?BEFORE),
+              write(Directory, "call.txt", ?RATIOS_BEFORE),
+              ok = ern_last_run:kept(Directory, ["spawn.txt", "call.txt"]),
+              write(Directory, "spawn.txt", ?NOW),
+              write(Directory, "call.txt", ?RATIOS_NOW),
+              ?assertEqual("The tables of this run: call.txt.\n"
+                           "Moved by more than a fifth since the last run, in " ++ Last ++ ":\n"
+                           "call.txt: the call, ns a call median range\n"
+                           "  Address.call, callForever: last 1.50x, now 1.90x, +27%\n"
+                           ++ no_release("call.txt", Directory),
+                           text(ern_last_run:compared(Directory, ["call.txt"])))
+      end).
+
+%% test/ern_last_run.erl: the release's run is kept by hand, copied a table
+%% at a time, each table a run wrote and only those, the rest of `release/`
+%% staying; a run is then compared with it as with the last, each row that
+%% moved named under its reference
 release_test() ->
     in_directory(
       fun(Directory) ->
               Tables = ["spawn.txt", "call.txt"],
               Last = filename:join(Directory, "last"),
               Release = filename:join(Directory, "release"),
-              write(Directory, "spawn.txt", ?BEFORE),
-              ?assertEqual({missing, ["call.txt"]}, ern_last_run:released(Directory, Tables)),
+              ?assertEqual({[], Tables}, ern_last_run:released(Directory, Tables)),
               ?assertNot(filelib:is_dir(Release)),
+              write(Directory, "spawn.txt", ?BEFORE),
+              ?assertEqual({["spawn.txt"], ["call.txt"]},
+                           ern_last_run:released(Directory, Tables)),
+              ?assertEqual(["spawn.txt"], listed(Release)),
+              write(Directory, "spawn.txt", ?NOW),
               write(Directory, "call.txt", ?RATIOS_BEFORE),
-              ok = ern_last_run:released(Directory, Tables),
-              ?assertEqual(["call.txt", "spawn.txt"],
-                           lists:sort(element(2, file:list_dir(Release)))),
-              ?assert(filelib:is_regular(filename:join(Directory, "spawn.txt"))),
-              ok = ern_last_run:kept(Directory, Tables),
+              ?assertEqual({["call.txt"], []}, ern_last_run:released(Directory, ["call.txt"])),
+              ?assertEqual(["call.txt", "spawn.txt"], listed(Release)),
+              ?assertEqual(?BEFORE, read(Release, "spawn.txt")),
+              ?assertEqual(["call.txt", "release", "spawn.txt"], listed(Directory)),
               write(Directory, "spawn.txt", ?BEFORE),
               write(Directory, "call.txt", ?RATIOS_NOW),
               ok = ern_last_run:kept(Directory, Tables),
               write(Directory, "spawn.txt", ?NOW),
               write(Directory, "call.txt", ?RATIOS_NOW),
-              ?assertEqual("Moved by more than a fifth since the last run, in " ++ Last ++ ":\n"
+              ?assertEqual("The tables of this run: spawn.txt, call.txt.\n"
+                           "Moved by more than a fifth since the last run, in " ++ Last ++ ":\n"
                            "spawn.txt: the spawn, ns an iteration median range\n"
                            "  Ernest's spawn: last 5000.0, now 6500.0, +30%\n"
                            "  5000 processes: last 1500.0, now 900.0, -40%\n"
@@ -166,9 +220,9 @@ release_test() ->
                            text(ern_last_run:compared(Directory, Tables)))
       end).
 
-no_release(Directory) ->
-    "No release's run in " ++ filename:join(Directory, "release")
-        ++ "; make bench-release keeps this run as it.\n".
+no_release(Tables, Directory) ->
+    "No release's run of " ++ Tables ++ " in " ++ filename:join(Directory, "release")
+        ++ "; make bench-release keeps this run's tables as the release's.\n".
 
 in_directory(Test) ->
     Directory = filename:join(os:getenv("TMPDIR", "/tmp"),
@@ -181,6 +235,14 @@ in_directory(Test) ->
 
 write(Directory, Table, Text) ->
     ok = file:write_file(filename:join(Directory, Table), Text).
+
+read(Directory, Table) ->
+    {ok, Text} = file:read_file(filename:join(Directory, Table)),
+    binary_to_list(Text).
+
+listed(Directory) ->
+    {ok, Names} = file:list_dir(Directory),
+    lists:sort(Names).
 
 text(IoList) ->
     unicode:characters_to_list(IoList).

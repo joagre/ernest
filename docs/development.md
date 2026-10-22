@@ -191,16 +191,25 @@ make bench        what each of a few operations costs in Ernest beside the same
                   test/build/bench/last/ keeps, and against the release's, whose tables
                   test/build/bench/release/ keeps, each under its reference, printed
                   and written to moved.txt, a table with a ratio by its ratios and any
-                  other by its numbers, the library's table left out; about twelve
-                  minutes; not part of make test-full. A row is for a number a later
+                  other by its numbers, the library's table left out; the memory is kept
+                  a table at a time, each table moved to last/ as a run that writes it
+                  begins, so that a part's run below keeps and compares its own; about
+                  twelve minutes; not part of make test-full. A row is for a number a later
                   change could move, a promise of CLAUDE.md's cost rules or a construct
                   the emitter writes code for; a number measured once to settle a design
                   is the log's
-make bench-release  keep the last run of make bench, where it wrote every table, in
-                  test/build/bench/release/ as the release's run, which every later
-                  run is compared with too; the release review runs it, and so does
-                  the first run on a new machine, which is a new reference and not a
-                  move; make clean removes it with the rest of test/build/
+make bench-<part>  one part of make bench alone, its tables alone kept and compared:
+                  bench-core, bench-library, bench-nodes, bench-code, bench-spawn,
+                  bench-restarting, bench-burst, bench-foreign, bench-call, bench-rules,
+                  bench-language and bench-programs, bench-library comparing nothing;
+                  make bench whole is the closing run before a commit that closes a
+                  plan item
+make bench-release  keep the tables the last runs of make bench and its parts wrote, a
+                  table at a time, in test/build/bench/release/ as the release's run,
+                  which every later run is compared with too, and name them; the release
+                  review runs it, and so does the first run on a new machine, which is a
+                  new reference and not a move; make clean removes it with the rest of
+                  test/build/
 make bench-machines  make bench's two node parts across the machines of
                   test/machines/machines.txt, each checked against this checkout
                   first: the store on the first machine after this one and the desk
