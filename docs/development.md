@@ -95,7 +95,7 @@ A module's path follows report §11.1. A file that is not a module is named with
 
 ## Building
 
-Beyond what the README's *Installing* needs, `make test-full` needs python3, which opens the terminal tests' pseudo-terminal and signals `ern` in the tests of how it ends, and `make sanitize` needs clang. Emacs, man, and groff or mandoc are optional: where one is missing, the tests that need it say so and are skipped.
+Beyond what the README's *Installing* needs, `make test-full` needs python3, which opens the terminal tests' pseudo-terminal, signals `ern` in the tests of how it ends, and watches, through Linux's inotify, the files a program writes in the tests that wait for them, which therefore need Linux, and `make sanitize` needs clang. Emacs, man, and groff or mandoc are optional: where one is missing, the tests that need it say so and are skipped.
 
 ```
 make              build the helper, compile every application into its ebin/, then

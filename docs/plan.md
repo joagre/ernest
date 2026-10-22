@@ -166,8 +166,15 @@ items becomes a milestone of its own, since the tour and 0.5.0 wait behind this 
   steps: `stream_lost_at_end`'s `timeout -s KILL 20` is 30 s, and its limit 360 s against 120.
   The six tests' times did not move, each poll having found its condition at its first or second
   look. Found beside it: the file's other bounds are chosen numbers, every other test's limit
-  among them; whether they are derived the same way, as an item of its own, is the user's
-  decision.
+  among them, the item below.
+- **The integration tests' limits counted in steps** (found 2026-10-22 fixing the three polls;
+  CLAUDE.md's *No fixed sleep*): forty-five tests of `test/ern_integration_tests.erl` keep a
+  limit of 60 s and one of 120, the two signal programs a `receive` of 60 s, the server tests and
+  three program ends waits of 30 s, and the TCP client 1 s to connect and 5 s for an answer, each
+  a chosen number. Each becomes the harness's wait counted in steps, `waits(Count)`, as the six
+  tests of the item above and the nodes tests count theirs, the count the test's own reading of
+  what it does; a program's `after` that keeps a wait from counting as a deadlock is given the
+  harness's wait as the peers' programs are given `Harness.waitMs()`. About two hours.
 - **Every slow wait of the runtime's own is marked, held by a test**, built 2026-10-22 (the log's
   *The Sitting on §8.6's Bookkeeping*, its *Built* paragraphs on every slow wait):
   `receives_test/0` in `test/ern_style_tests.erl`, which `make test` runs, reads every `receive`
