@@ -63,6 +63,8 @@ Meanwhile it does not change but in its form, a paragraph broken where it turns 
 
 **Where a sentence goes.** Decide the owner before you write. What will be built and when goes in the plan; why goes in the log; a paragraph that does both is split at that line. A decision the user must see goes in the plan, in one sentence, with the report section that states it and the log entry that argues it, since the user reads the plan and not the log. A finished milestone in the plan is a row of its table of milestones, naming the log entries that argue it.
 
+**A step forward sweeps what it leaves behind.** A sentence, a file or a directory that a step makes redundant, a done item's paragraph, a built proposal, a decided finding, a citation of what went, goes in the step's own commit, never left for a review to find.
+
 ## The repository
 
 - The implementation is Erlang, OTP 29. The toolchain is one command, `ern`, whose first word is its job: `ern build`, `ern run`. `make` builds; `make test` tests.

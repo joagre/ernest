@@ -1,6 +1,6 @@
 //
 // make bench-pick's measuring program (test/ern_pick_costs.erl): the push's
-// experiment of docs/proposals/placement/push.md's section 5, from a node
+// push's experiment (the log's *The Numbers Across Machines*), from a node
 // that lists the peers its arguments name. A compute's work is a loop of
 // arithmetic counted in steps, and it answers the node it ran on and the
 // microseconds the work took there. Each line printed is a measurement, a
@@ -142,7 +142,7 @@ fn turns(setup : Setup,
         run(setup, LeastBusy, index)
     })
 
-// push.md section 5: a burst of a hundred computes, each in a process of
+// The push's experiment: a burst of a hundred computes, each in a process of
 // its own, sent as fast as this node starts them, on tellings made since
 // the last burst's or stream's work ended.
 fn burst(setup : Setup, rule : Rule, run : Int) : Unit receiving Done = {
@@ -153,7 +153,7 @@ fn burst(setup : Setup, rule : Rule, run : Int) : Unit receiving Done = {
     reported(setup, ["burst", ruleName(rule), Int.toString(run)], started, taken(100, []))
 }
 
-// push.md section 5: a steady stream, one compute every fifty milliseconds
+// The push's experiment: a steady stream, one compute every fifty milliseconds
 // for a minute, each sent at its moment counted from the stream's start, so
 // that one sent late moves none after it, with the host's counts on every
 // node at the stream's start and once every answer has come.
@@ -259,7 +259,7 @@ fn settled(setup : Setup, since : Int) : Unit receiving Done = {
     }
 }
 
-// push.md section 5: the frames and the processors' time of the nodes at
+// The push's experiment: the frames and the processors' time of the nodes at
 // rest, over four of the tellings' intervals, a rate that nothing but the
 // time can show.
 fn idle(setup : Setup) : Unit receiving Done = {

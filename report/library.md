@@ -1,6 +1,6 @@
 # Ernest Report: The Standard Library
 
-Revision of 23 October 2026.
+Revision of 24 October 2026.
 
 This file holds the report's Appendices D, E and G. §0 to §10 and Appendices A, B and F are in [`language.md`](language.md), and §11 and Appendices C and H in [`toolchain.md`](toolchain.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
@@ -974,7 +974,7 @@ Ansi.clearScreen : String // erases the screen and puts the cursor at its top le
 
 ### Appendix G.4. `libs/utilization` (namespace `Utilization`)
 
-How busy this node is, by the host's measures, each a function of Ernest over the host's (§8.7). `runQueue` answers the processes ready to run and waiting for a scheduler, the running ones left out, which the node's own measure counts (§8.7), and `schedulers(window)` the fraction of the schedulers' time spent running processes over a window of the next `window` milliseconds, which it waits for, a window below 1 being 1 (§7.4); both read the runtime and answer in any program.
+How busy this node is, by the host's measures, each a function of Ernest over the host's (§8.7). `runQueue` answers the processes ready to run and waiting for a scheduler, the running ones left out, where the node's own measure counts the running ones too, the one measuring left out (§8.7), and `schedulers(window)` the fraction of the schedulers' time spent running processes over a window of the next `window` milliseconds, which it waits for, a window below 1 being 1 (§7.4); both read the runtime and answer in any program.
 
 `cpu`, `memory` and `disk` read the host's services `cpu_sup`, `memsup` and `disksup`, which a node starts where its `measures` name `cpu`, `memory` and `disk` (§8.7), and answer `None` where the service does not run, as in a program that is no node: `cpu` the fraction of the processor's time busy since the calling process's previous call, and at a process's first call, or its first since the service started again, a value the host does not promise, on most systems the fraction since the machine started; `memory` the fraction of the machine's memory not available, and `disk` the fraction used of the fullest of the machine's disks. Each fraction is from 0.0 to 1.0.
 

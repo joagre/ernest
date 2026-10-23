@@ -2409,7 +2409,7 @@ fn heavy(n : Int) : Int =
     n * n
 ```
 
-The node picks by what its peers tell it. A node that lists peers tells each one it is connected to how busy it is every `utilization-interval` milliseconds its `ernest.conf` names, 5000 where it names none, and holds the last utilization each peer told it with the moment it came (report §8.7, Appendix C). How busy is on one scale, 1.0 every scheduler, a thread of the host that runs processes, busy, below it room and above it work waiting, measured as the node's `"utilization"` entry says, by its run queue, the processes waiting to run, where it says nothing.
+The node picks by what its peers tell it. A node that lists peers tells each one it is connected to how busy it is every `utilization-interval` milliseconds its `ernest.conf` names, 5000 where it names none, and holds the last utilization each peer told it with the moment it came (report §8.7, Appendix C). How busy is on one scale, 1.0 every scheduler, a thread of the host that runs processes, busy, below it room and above it work waiting, measured as the node's `"utilization"` entry says, by its run queue, the processes running or ready to run with the one measuring left out, where it says nothing.
 
 `Peer.compute` draws two of the peers whose utilizations the node may use, at random, and takes the less busy, the first drawn where the two are equal; a utilization older than two intervals of the peer that told it, which each *telling*, the message that carries one, names, is not used, and a peer's loss drops its utilization.
 

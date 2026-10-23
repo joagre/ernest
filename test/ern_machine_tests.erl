@@ -79,7 +79,7 @@ configuration(Node) ->
     {ok, Text} = file:read_file(filename:join(ern_machine_node:config_dir(Node), "ernest.conf")),
     json:decode(Text).
 
-%% docs/proposals/placement/push.md section 5, report §8.7, Appendix E.27:
+%% the push's experiment (the log's *The Numbers Across Machines*), report §8.7, Appendix E.27:
 %% `make bench-pick`'s measuring program on a node here, two bare nodes
 %% beside it as its peers, telling every 200 ms: a burst under each rule,
 %% each compute answered by one of the two, a hundred under each, and the

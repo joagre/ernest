@@ -1,5 +1,5 @@
 %% `make bench-pick` (docs/development.md): the push's experiment of
-%% docs/proposals/placement/push.md's section 5 across the machines of
+%% the push's experiment (the log's *The Numbers Across Machines*) across the machines of
 %% test/machines/machines.txt (plan, MVP 3.27 item 2). From a measuring
 %% node, a burst of a hundred computes of a hundred milliseconds' work, sent
 %% as fast as the node can, then a steady stream, one every fifty
@@ -16,11 +16,12 @@
 %% work is the program's loop, its steps calibrated first, so that it
 %% takes a hundred milliseconds alone on the median peer machine. By
 %% default the measuring node runs here and the peers are bare nodes on
-%% the other machines, in two arrangements: (a) one on each, where the two
-%% rules coincide for two peers or three (push.md section 7.1), and (b) as
-%% many on each as it has processors, where they differ, the stream run
+%% the other machines, in two arrangements: (a) one on each, two or three peers,
+%% where a draw of two leaves the least busy of three out one time in three
+%% (the log's *The Placement Proposals Swept*), and (b) as
+%% many on each as it has processors, the stream run
 %% again in (b) at `utilization-interval` 1000 and 500, where its knee is
-%% (push.md section 7.3). Each run of each rule is a median over its runs
+%% (the log's *The Numbers Across Machines*). Each run of each rule is a median over its runs
 %% with their range: seven bursts and three streams by default.
 %%
 %% Each option is given as a word, an empty one taking the default: the
@@ -38,21 +39,21 @@
 
 -export([main/1]).
 
-%% push.md section 5: a compute's work, in microseconds.
+%% the push's experiment: a compute's work, in microseconds.
 -define(WORK, 100000).
 %% The calibration: the steps of a compute that times the loop, and its
 %% runs on each machine.
 -define(CALIBRATION_STEPS, 1000000).
 -define(CALIBRATION_RUNS, 5).
 %% Report §8.7, Appendix C: `utilization-interval`'s default, and the
-%% intervals of push.md section 7.3's knee.
+%% intervals of the knee the push's experiment looked for.
 -define(INTERVAL, 5000).
 -define(KNEE, [1000, 500]).
 %% Each rule's bursts and streams at an arrangement's first interval;
 %% a stream lasts a minute, and three are enough (plan, MVP 3.27 item 2).
 -define(BURSTS, 7).
 -define(STREAMS, 3).
-%% push.md section 5: a burst's computes.
+%% the push's experiment: a burst's computes.
 -define(BURST, 100).
 
 %% An arrangement of the peers over the machines: its label, the peers'
@@ -185,7 +186,7 @@ measured(Dir, {Measuring, [First | Rest]}, Runs, Utilization) ->
     Copied = [{Machine, #{program => ern_machine:copied(Machine, Root, Dir),
                           probe => ern_machine:copied(Machine, Probe, Dir)}}
               || Machine <- Involved],
-    io:format("the push's experiment, push.md section 5, measured from ~s~n",
+    io:format("the push's experiment, measured from ~s~n",
               [ern_machine:name(Measuring)]),
     io:format("each node's utilization: ~s~n",
               [case Utilization of

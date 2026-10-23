@@ -61,7 +61,7 @@ test/fixtures/     what the tests read: target/, the hand-written target modules
                    programs/, the programs the tests keep: the first test programs, a
                    two-module tree, the module of docs/module_doc_template.md and the
                    echo measurement; expected/ and golden/, what programs/, hello,
-                   services and the operations programs print, repl's session among
+                   services print, repl's session among
                    them, and the Erlang they compile to; and bench/, input/, layout/,
                    load/, peers/, service/, session/, stdin/ and terminal/, the
                    programs and inputs tests run
@@ -222,7 +222,7 @@ make bench-machines  make bench's two node parts across the machines of
                   measuring node here; each part's table in test/build/bench/, in
                   nodes-machines.txt and code-machines.txt; run by hand, on the user's
                   machines alone, and not part of make test-full
-make bench-pick   the push's experiment of docs/proposals/placement/push.md's section 5
+make bench-pick   the push's experiment, the log's *The Numbers Across Machines*
                   across the machines of test/machines/machines.txt: from a measuring
                   node, a burst of a hundred computes of a hundred milliseconds' work and
                   a stream of one every 50 ms for a minute, counted on each peer under
