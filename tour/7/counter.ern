@@ -1,0 +1,110 @@
+export type ClientMsg =
+    Inc(key : String, amount : Int)
+  | Get(key : String, reply : Reply(Int))
+  | Report(reply : Reply(List(#(String, Int))))
+
+type CounterMsg =
+    Client(ClientMsg)
+  | Upgrade(next : (Tally.Tally(String)) -> Unit receiving CounterMsg)
+
+type WatchMsg = Ended(Down)
+
+export fn start() : Address(ClientMsg) =
+    adapted(spawn(fn() = count(Tally.empty())), Client)
+
+export fn count(tally : Tally.Tally(String)) : Unit receiving CounterMsg =
+    receive {
+        Client(message) -> count(handle(tally, message))
+      | Upgrade(next = next) -> next(tally)
+    }
+
+fn handle(tally : Tally.Tally(String), message : ClientMsg) : Tally.Tally(String) =
+    match message {
+        Inc(key = key, amount = amount) -> {
+            if amount < 0 then fault("a negative amount") else Unit;
+            Tally.inc(tally, key, amount)
+        }
+      | Get(key = key, reply = reply) -> {
+            answer(reply, Tally.get(tally, key));
+            tally
+        }
+      | Report(reply = reply) -> {
+            answer(reply, Tally.report(tally));
+            tally
+        }
+    }
+
+export fn watch(counter : Address(ClientMsg)) : Unit receiving WatchMsg = {
+    monitor(Process.fromAddress(counter), Ended);
+    receive {
+        Ended(Down(reason = reason)) -> Io.println("the counter ended: " <> Io.show(reason))
+    }
+}
+
+export fn apply(counter : Address(ClientMsg), line : String) : String =
+    match String.words(line) {
+        ["inc", key, text] ->
+            match String.toInt(text) {
+                Some(amount) -> {
+                    send(counter, Inc(key = key, amount = amount));
+                    "ok"
+                }
+              | None ->
+                    "not a number: " <> text
+            }
+      | ["get", key] ->
+            match Address.call(counter, fn(reply) = Get(key = key, reply = reply), 1000) {
+                Some(total) -> Int.toString(total)
+              | None -> "no answer"
+            }
+      | ["report"] ->
+            match Address.call(counter, fn(reply) = Report(reply = reply), 1000) {
+                Some(entries) -> shown(entries)
+              | None -> "no answer"
+            }
+      | _ ->
+            "unknown: " <> line
+    }
+
+fn shown(entries : List(#(String, Int))) : String =
+    String.join(List.map(entries, fn(#(key, total)) = key <> ": " <> Int.toString(total)), ", ")
+
+export fn schedulers() : Int =
+    systemInfo(Foreign.atom("schedulers"))
+
+foreign fn systemInfo(item : Foreign.Term) : Int =
+    "erlang:system_info/1"
+
+export fn primes(below : Int) : Int = {
+    Io.println("counting the primes below " <> Int.toString(below));
+    let composites = sieved(2, below, Set.empty);
+    List.size(List.filter(List.range(2, below - 1), fn(n) = !Set.contains(composites, n)))
+}
+
+fn sieved(prime : Int, below : Int, composites : Set(Int)) : Set(Int) =
+    if prime * prime >= below then
+        composites
+    else if Set.contains(composites, prime) then
+        sieved(prime + 1, below, composites)
+    else
+        sieved(prime + 1, below, crossed(prime * prime, prime, below, composites))
+
+fn crossed(multiple : Int, prime : Int, below : Int, composites : Set(Int)) : Set(Int) =
+    if multiple >= below then
+        composites
+    else
+        crossed(multiple + prime, prime, below, Set.put(composites, multiple))
+
+let countsPerKey : Test.Case(m) = Test.Case(name = "counts per key", run = fn() = {
+    let counter = start();
+    let _ = apply(counter, "inc apples 2");
+    let _ = apply(counter, "inc apples 1");
+    Test.equal(apply(counter, "get apples"), "3")
+})
+
+let reports : Test.Case(m) = Test.Case(name = "reports", run = fn() = {
+    let counter = start();
+    let _ = apply(counter, "inc apples 2");
+    Test.equal(Address.call(counter, fn(reply) = Report(reply = reply), 1000),
+               Some([#("apples", 2)]))
+})

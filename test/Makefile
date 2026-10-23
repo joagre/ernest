@@ -1,11 +1,11 @@
-# The tests that span the applications, by area: the programs in five
+# The tests that span the applications, by area: the programs in six
 # parts (the example programs, the signals and the streams,
 # ern_integration_tests, with the measuring machine's reach over every
 # function, ern_measure_tests, and the bench's comparison of a run with
 # the last and the release's, ern_last_run_tests; nodes on one machine,
 # ern_nodes_tests and ern_machine_tests; the deployment guide run on them,
-# ern_deployment_tests; the manual pages,
-# ern_manual_tests; and the installation and the release,
+# ern_deployment_tests; the tour run on them, ern_tour_tests; the manual
+# pages, ern_manual_tests; and the installation and the release,
 # ern_install_tests), the documents and the style, the guide's examples,
 # the grammar with the programs generated from it, the well-typed programs
 # generated and run, and the shell and the terminal, driven through the
@@ -29,6 +29,7 @@ MEASURE = ern_measure_tests
 LAST_RUN_TESTS = ern_last_run_tests
 NODES = ern_nodes_tests ern_machine_tests
 DEPLOYMENT = ern_deployment_tests
+TOUR = ern_tour_tests
 MANUAL = ern_manual_tests
 INSTALL = ern_install_tests
 DOCS = ern_docs_tests ern_style_tests
@@ -37,7 +38,7 @@ GRAMMAR = ern_grammar_tests ern_grammar_programs_tests
 TYPED = ern_typed_programs_tests
 SHELL_TESTS = ern_terminal_tests ern_shell_tests
 BEAMS = $(patsubst %,$(EBIN)/%.beam,$(INTEGRATION) $(MEASURE) $(LAST_RUN_TESTS) $(NODES) \
-	  $(DEPLOYMENT) $(MANUAL) $(INSTALL) $(DOCS) $(GUIDE) $(GRAMMAR) ern_grammar $(TYPED) \
+	  $(DEPLOYMENT) $(TOUR) $(MANUAL) $(INSTALL) $(DOCS) $(GUIDE) $(GRAMMAR) ern_grammar $(TYPED) \
 	  $(SHELL_TESTS) ern_pty ern_repository ern_measure)
 
 # Run the EUnit modules $(1), with the toolchain on the code path.
@@ -76,7 +77,7 @@ NODES_RUN = dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_$(1)_XXXXXX") && \
 	    ../bin/ern stop --config-dir "$$(dirname "$$pid")" > /dev/null 2>&1; done; \
 	  rm -rf "$$dir"; exit $$status
 
-# The programs' five parts (plan, MVP 3.9). The example programs and the
+# The programs' six parts (plan, MVP 3.9). The example programs and the
 # test programs, the signals and the streams, with the programs `measured`
 # builds, the measuring machine's reach over every function, and the
 # bench's comparison of a run with the last and the release's.
@@ -91,6 +92,11 @@ nodes: $(BEAMS) prepare machines
 # The deployment guide run on nodes, through ern_nodes_tests' harness.
 deployment: $(BEAMS) prepare
 	@$(call NODES_RUN,deployment,$(DEPLOYMENT))
+
+# The tour's programs and sessions, tour/1/ to tour/8/, its shell a node
+# beside two bare nodes, through ern_nodes_tests' harness.
+tour: $(BEAMS) prepare
+	@$(call NODES_RUN,tour,$(TOUR))
 
 # The manual pages and the installation start no node. Both write the
 # manual pages under ../build/stdlib, `ern doc --man` there and make
@@ -395,6 +401,6 @@ $(EBIN)/%.beam: %.erl | $(EBIN)
 $(EBIN):
 	mkdir -p $(EBIN)
 
-.PHONY: integration nodes deployment manual install docs guide grammar typed shell prepare \
+.PHONY: integration nodes deployment tour manual install docs guide grammar typed shell prepare \
 	named measured benched xref load service bench $(addprefix bench-,$(BENCH_PARTS)) \
 	bench-release bench-machines bench-pick machines clean

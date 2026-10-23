@@ -287,18 +287,19 @@ test-library: all
 	  else cat "$$out"; status=1; fi; \
 	  rm -f "$$out"; exit $$status
 
-# The areas under test/: the programs in five parts, the documents and the
+# The areas under test/: the programs in six parts, the documents and the
 # style, the guide's examples, the grammar with the programs generated from
 # it, the well-typed programs generated and run, and the shell with the
 # terminal. The programs' parts are nodes on one machine, the manual pages,
 # the installation with the release archive, the deployment guide run on
-# nodes, and the example programs with the signals and the streams;
+# nodes, the tour's programs and sessions run on nodes, and the example
+# programs with the signals and the streams;
 # test-programs runs them one after another, as the full run does.
 # test-manual and test-install both write the manual pages under
 # build/stdlib, `ern doc --man` there and make install's `make manual`, so
 # test-install runs after test-manual, always: alone it pays the pages'
 # test, about 5 s, for a rule with no case.
-PROGRAM_PARTS = test-nodes test-manual test-install test-deployment test-integration
+PROGRAM_PARTS = test-nodes test-manual test-install test-deployment test-tour test-integration
 test-programs:
 	@$(MAKE) -s -j1 -k $(PROGRAM_PARTS)
 test-integration: all
@@ -307,6 +308,8 @@ test-nodes: all
 	@$(MAKE) -C test nodes
 test-deployment: all
 	@$(MAKE) -C test deployment
+test-tour: all
+	@$(MAKE) -C test tour
 test-manual: all
 	@$(MAKE) -C test manual
 test-install: all test-manual

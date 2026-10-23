@@ -111,7 +111,7 @@ make test-erl     the unit tests of every application under erl/, side by side;
 make test-library  the doc examples of the standard library and the libraries, with the
                   libraries' own tests, run by ern test over build/stdlib and build/libs,
                   each example a program of its own; one line where all pass
-make test-programs  the five parts below, one after another
+make test-programs  the six parts below, one after another
 make test-integration  the programs compiled and run as a user runs them, the
                   signals, the streams, Os and the libraries' tests, that the
                   measuring machine reaches every function of the library, and the
@@ -119,6 +119,7 @@ make test-integration  the programs compiled and run as a user runs them, the
 make test-nodes   nodes on one machine
 make test-deployment  the deployment guide's commands and its deployment end to end
                   run on nodes, and the lines it quotes held to a node's
+make test-tour    the tour's programs, tour/1/ to tour/8/, and its sessions run on nodes
 make test-manual  the manual pages against §11, each rendered
 make test-install  the installation and the release archive, installed and run
                   where they are put; after test-manual, which it runs first,

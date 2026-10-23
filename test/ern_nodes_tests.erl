@@ -19,7 +19,8 @@
 
 -export([nodes_test/2, free_port/0, made/3, edit/2, lists/2, name/1, program/1, client/0,
          client/8, key_files/1, start/3, bare_started/2, bound_port/1, launched/2, says/2,
-         says/3, prints/2, stop/2, written/2, said/1, wait_ms/0, detector_ms/0, has/2]).
+         says/3, prints/2, prints/4, stop/2, written/2, said/1, wait_ms/0, detector_ms/0,
+         has/2]).
 
 -define(ERN, filename:absname("../bin/ern")).
 %% The libraries `test/fixtures/peers/`'s programs use, on every node's load path.

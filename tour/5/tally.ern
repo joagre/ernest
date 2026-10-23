@@ -1,0 +1,13 @@
+export abstract type Tally(k) = Tally(Map(k, Int))
+
+export fn empty() : Tally(k) =
+    Tally(Map.empty)
+
+export fn inc(Tally(counts) : Tally(k), key : k, amount : Int) : Tally(k) =
+    Tally(Map.update(counts, key, fn(count) = Optional.withDefault(count, 0) + amount))
+
+export fn get(Tally(counts) : Tally(k), key : k) : Int =
+    Optional.withDefault(Map.get(counts, key), 0)
+
+export fn report(Tally(counts) : Tally(k)) : List(#(k, Int)) needs k.compare =
+    List.sort(Map.toList(counts), fn(#(a, _), #(b, _)) = k.compare(a, b))

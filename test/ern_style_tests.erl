@@ -48,7 +48,7 @@ line_length_test() ->
     Patterns = ["erl/*/src/*.erl", "erl/*/test/*.erl", "erl/*/c_src/*.c", "test/*.erl",
                 "src/stdlib/**/*.ern", "examples/**/*.ern", "src/shell/**/*.ern",
                 "test/**/*.ern", "test/*.py", "editors/emacs/*.el", "editors/emacs/test/*.el",
-                "src/libs/**/*.ern", "tools/*.ern",
+                "src/libs/**/*.ern", "tools/*.ern", "tour/*/*.ern",
                 "tools/*.sh", "tools/*.escript", "bin/ern", "erl/*/include/*.hrl", "Makefile",
                 "test/Makefile", "erl/*/src/Makefile", "erl/app.mk", "tools/release/Makefile"],
     Files = [File || File <- ern_repository:files(Patterns),
@@ -68,7 +68,7 @@ no_tab_test() ->
                 "src/stdlib/**/*.ern", "examples/**/*.ern", "src/shell/**/*.ern",
                 "test/**/*.ern", "test/*.py", "editors/emacs/*.el", "editors/emacs/test/*.el",
                 "editors/emacs/test/broken/*.ern", "src/libs/**/*.ern", "src/libs/*/*.md",
-                "tools/*.ern", "tools/*.sh", "bin/ern", "*.md", "docs/*.md"],
+                "tools/*.ern", "tour/*/*.ern", "tools/*.sh", "bin/ern", "*.md", "docs/*.md"],
     Files = [File || File <- ern_repository:files(Patterns),
                      filename:basename(File) =/= "getopt.erl",
                      not lists:prefix("test/build/", File)],
@@ -364,7 +364,7 @@ write_formatted() ->
 %% The modules the Ernest style guide governs.
 modules() ->
     Patterns = ["src/stdlib/**/*.ern", "examples/**/*.ern", "src/shell/**/*.ern",
-                "src/libs/**/*.ern", "tools/*.ern", "test/**/*.ern",
+                "src/libs/**/*.ern", "tools/*.ern", "tour/*/*.ern", "test/**/*.ern",
                 "docs/proposals/operations/programs/*.ern",
                 "docs/proposals/nodes_and_code/experiments/code_update/**/*.ern"],
     Modules = [File || File <- ern_repository:files(Patterns),

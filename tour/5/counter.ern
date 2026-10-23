@@ -1,0 +1,74 @@
+export type CounterMsg =
+    Inc(key : String, amount : Int)
+  | Get(key : String, reply : Reply(Int))
+  | Report(reply : Reply(List(#(String, Int))))
+
+type WatchMsg = Ended(Down)
+
+export fn count(tally : Tally.Tally(String)) : Unit receiving CounterMsg =
+    receive {
+        Inc(key = key, amount = amount) -> {
+            if amount < 0 then fault("a negative amount") else Unit;
+            count(Tally.inc(tally, key, amount))
+        }
+      | Get(key = key, reply = reply) -> {
+            answer(reply, Tally.get(tally, key));
+            count(tally)
+        }
+      | Report(reply = reply) -> {
+            answer(reply, Tally.report(tally));
+            count(tally)
+        }
+    }
+
+export fn watch(counter : Address(CounterMsg)) : Unit receiving WatchMsg = {
+    monitor(Process.fromAddress(counter), Ended);
+    receive {
+        Ended(Down(reason = reason)) -> Io.println("the counter ended: " <> Io.show(reason))
+    }
+}
+
+export fn apply(counter : Address(CounterMsg), line : String) : String =
+    match String.words(line) {
+        ["inc", key, text] ->
+            match String.toInt(text) {
+                Some(amount) -> {
+                    send(counter, Inc(key = key, amount = amount));
+                    "ok"
+                }
+              | None ->
+                    "not a number: " <> text
+            }
+      | ["get", key] ->
+            match Address.call(counter, fn(reply) = Get(key = key, reply = reply), 1000) {
+                Some(total) -> Int.toString(total)
+              | None -> "no answer"
+            }
+      | ["report"] ->
+            match Address.call(counter, fn(reply) = Report(reply = reply), 1000) {
+                Some(entries) -> shown(entries)
+              | None -> "no answer"
+            }
+      | _ ->
+            "unknown: " <> line
+    }
+
+fn shown(entries : List(#(String, Int))) : String =
+    String.join(List.map(entries, fn(#(key, total)) = key <> ": " <> Int.toString(total)), ", ")
+
+let countsPerKey : Test.Case(m) = Test.Case(name = "counts per key", run = fn() = {
+    let counter = spawn(fn() = count(Tally.empty()));
+    let _ = apply(counter, "inc apples 2");
+    let _ = apply(counter, "inc apples 1");
+    Test.equal(apply(counter, "get apples"), "3")
+})
+
+type TestMsg = Reported(List(#(String, Int)))
+
+let reports : Test.Case(TestMsg) = Test.Case(name = "reports", run = fn() = {
+    let counter = spawn(fn() = count(Tally.empty()));
+    let _ = apply(counter, "inc apples 2");
+    receive {
+        Reported(entries) -> Test.equal(entries, [#("apples", 2)])
+    }
+})

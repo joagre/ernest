@@ -1,0 +1,31 @@
+export type CounterMsg = Inc(Int) | Get(Reply(Int))
+
+export fn count(total : Int) : Unit receiving CounterMsg =
+    receive {
+        Inc(amount) ->
+            count(total + amount)
+      | Get(reply) -> {
+            answer(reply, total);
+            count(total)
+        }
+    }
+
+export fn apply(counter : Address(CounterMsg), line : String) : String =
+    match String.words(line) {
+        ["inc", text] ->
+            match String.toInt(text) {
+                Some(amount) -> {
+                    send(counter, Inc(amount));
+                    "ok"
+                }
+              | None ->
+                    "not a number: " <> text
+            }
+      | ["get"] ->
+            match Address.call(counter, Get, 1000) {
+                Some(total) -> Int.toString(total)
+              | None -> "no answer"
+            }
+      | _ ->
+            "unknown: " <> line
+    }

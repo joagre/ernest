@@ -1,0 +1,11 @@
+export type CounterMsg = Inc(Int) | Get(Reply(Int))
+
+export fn count(total : Int) : Unit receiving CounterMsg =
+    receive {
+        Inc(amount) ->
+            count(total + amount)
+      | Get(reply) -> {
+            answer(reply, total);
+            count(total)
+        }
+    }
