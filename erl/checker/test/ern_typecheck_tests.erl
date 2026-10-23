@@ -1112,6 +1112,38 @@ private_type_named_by_a_dependent_test() ->
                                       unknown_namespace = ['Plain']}]},
                  ern_typecheck:check(['M'], Absent, [Interface])).
 
+%% report §11.5, §4.2: a dependent that names a constructor of a type
+%% another module keeps private, which that module's interface carries, is
+%% refused as the private type's, in an expression and a pattern alike,
+%% with no namespace to load; a constructor nothing declares, and one of a
+%% private type the interface does not carry, stay unknown. A regression
+%% test, written after the code: the constructor was refused as unknown
+%% (the tour's spike, docs/findings.md's S2); it does not cover the
+%% prompt, which the shell's tests do
+private_constructor_named_by_a_dependent_test() ->
+    {ok, _, Interface, _} =
+        ern_typecheck:check_string(['Plain'],
+                                   "type Msg = Add(Int)\n"
+                                   "type Kept = Kept(Int)\n"
+                                   "export fn count(total : Int) : Unit receiving Msg =\n"
+                                   "    receive { Add(amount) -> count(total + amount) }\n"
+                                   "export fn kept() : Int = match Kept(1) { Kept(n) -> n }\n"),
+    Refused = fun(Text) ->
+                  {ok, Module} = ern_parser:parse_string(Text),
+                  ern_typecheck:check(['M'], Module, [Interface])
+              end,
+    Private = "Plain.Add is a constructor of Plain.Msg, a type Plain keeps private",
+    ?assertMatch({error, [#diagnostic{span = {1, 26, _}, message = Private,
+                                      unknown_namespace = undefined}]},
+                 Refused("fn f() : Int = { let _ = Plain.Add(1); 1 }\n")),
+    ?assertMatch({error, [#diagnostic{message = Private}]},
+                 Refused("fn f(x) : Int = match x { Plain.Add(n) -> n | _ -> 0 }\n")),
+    ?assertMatch({error, [#diagnostic{message = "unknown constructor Plain.Absent",
+                                      unknown_namespace = ['Plain']}]},
+                 Refused("fn f() : Int = { let _ = Plain.Absent; 1 }\n")),
+    ?assertMatch({error, [#diagnostic{message = "unknown constructor Plain.Kept"}]},
+                 Refused("fn f() : Int = { let _ = Plain.Kept(1); 1 }\n")).
+
 %% report §4.7, §3.10: a foreign function's type variable written `a=` in
 %% its parameters carries the equality constraint, as one a body compares
 %% does; it is written once, and nowhere but a foreign function's
@@ -3619,6 +3651,51 @@ show_named_in_body_test() ->
                   " Io.show (report §4.9)"},
                  refusal_and_help("fn describe(x : a) : String needs a.show = a.show(x)")),
     ?assertEqual(ok, ok("fn describe(x : a) : String needs a.show = Io.show(x)")).
+
+%% report §11.5, §4.9, §4.8: a field read on a value of a type variable of
+%% the signature names the variable, whose values have no field, and the
+%% declaration whose signature writes it; where the requirement names the
+%% member at the variable, the help writes the member on the variable, and
+%% where it names none of the field's name, or the field is `show`, which
+%% is no member, there is none. A regression test, written after the code:
+%% the read asked for an annotation, which does not help (the tour's spike,
+%% docs/findings.md's S1); it does not cover the prompt
+member_read_on_a_value_test() ->
+    Tally = "export abstract type Tally(k) = Tally(Map(k, Int))\n"
+            "export fn report(Tally(counts)) : List(#(k, Int)) needs k.compare =\n",
+    ?assertEqual({"a value of k, a type variable of report's signature, has no field compare",
+                  "under `needs k.compare`, write the member on the type variable,"
+                  " `k.compare(..., ...)`"},
+                 refusal_and_help(Tally ++ "    List.sort(Map.toList(counts),"
+                                           " fn(#(a, _), #(b, _)) = a.compare(b))\n")),
+    ?assertEqual(ok, ok(Tally ++ "    List.sort(Map.toList(counts),"
+                                 " fn(#(a, _), #(b, _)) = k.compare(a, b))\n")),
+    ?assertEqual({"a value of a, a type variable of f's signature, has no field negate",
+                  "under `needs a.negate`, write the member on the type variable, `a.negate(...)`"},
+                 refusal_and_help("fn f(x : a) : a needs a.negate = x.negate()")),
+    %% a local fn's own requirement, and the enclosing one's in force in it
+    ?assertEqual("under `needs b.compare`, write the member on the type variable,"
+                 " `b.compare(..., ...)`",
+                 element(2, refusal_and_help("fn f(list : List(a)) : Int = {\n"
+                                             "    fn g(x : b, y : b) : Ordering needs b.compare ="
+                                             " x.compare(y);\n"
+                                             "    0\n"
+                                             "}\n"))),
+    ?assertEqual({"a value of a, a type variable of f's signature, has no field compare",
+                  "under `needs a.compare`, write the member on the type variable,"
+                  " `a.compare(..., ...)`"},
+                 refusal_and_help("fn f(list : List(a)) : List(a) needs a.compare = {\n"
+                                  "    fn g(x : a, y : a) : Ordering = x.compare(y);\n"
+                                  "    List.sort(list, g)\n"
+                                  "}\n")),
+    ?assertEqual({"a value of a, a type variable of f's signature, has no field compare",
+                  undefined},
+                 refusal_and_help("fn f(x : a, y : a) : Ordering needs a.+ = x.compare(y)")),
+    ?assertEqual({"a value of a, a type variable of f's signature, has no field show",
+                  undefined},
+                 refusal_and_help("fn f(x : a) : String needs a.show = x.show()")),
+    ?assertEqual({"a value of a, a type variable of f's signature, has no field x", undefined},
+                 refusal_and_help("fn f(p : a) : Int = p.x")).
 
 %% report §4.9: a call writes nothing for a requirement: at a known type
 %% the compiler supplies the type's member, at a type variable the

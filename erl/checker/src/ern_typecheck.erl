@@ -2610,9 +2610,34 @@ unresolved(#deferred_operator{span = Span, operator = Operator, operand_type = O
 unresolved(#deferred_guard_order{span = Span, operator = Operator}, _Env) ->
     fail(Span, "the operand type of `" ++ atom_to_list(Operator)
                ++ "` is not determined; annotate it");
-unresolved(#deferred_selection{span = Span, field = Field}, _Env) ->
-    fail(Span, "the type whose field " ++ atom_to_list(Field)
-               ++ " is read is not determined; annotate it").
+unresolved(#deferred_selection{span = Span, field = Field, operand_type = OperandType}, Env) ->
+    %% report §11.5: a type variable of the signature is determined and has
+    %% no field; report §4.9: a member the requirement names on it is
+    %% written on the variable
+    case signature_variable(OperandType, Env) of
+        {Variable, Declaration} ->
+            fail(Span, "a value of " ++ Variable ++ ", a type variable of " ++ Declaration
+                       ++ "'s signature, has no field " ++ atom_to_list(Field), [],
+                 written_on_variable(Variable, Field, OperandType, Env));
+        none ->
+            fail(Span, "the type whose field " ++ atom_to_list(Field)
+                       ++ " is read is not determined; annotate it")
+    end.
+
+%% Report §11.5, §4.9: the help that writes a member the requirement names
+%% on the type variable, its values left to the writer; none where the
+%% requirement names no member of the field's name there, `show` being no
+%% member.
+written_on_variable(Variable, Field, OperandType, Env) ->
+    case Field =/= show andalso is_in_force(OperandType, Field, Env) of
+        true ->
+            Arguments = lists:append(lists:join(", ", lists:duplicate(member_arity(Field), "..."))),
+            "under `needs " ++ Variable ++ "." ++ atom_to_list(Field) ++ "`, write the member on"
+                " the type variable, `" ++ Variable ++ "." ++ atom_to_list(Field) ++ "("
+                ++ Arguments ++ ")`";
+        false ->
+            undefined
+    end.
 
 solve_one(#deferred_selection{span = Span, field = Field, operand_type = OperandType,
                               result = Result} = Deferred,
@@ -6036,7 +6061,7 @@ lookup_constructor(Span, ['Prelude' | _] = Namespace, Name, _Env) ->
     prelude_one(Span, Namespace, Name);
 lookup_constructor(Span, Namespace, Name,
                    #env{namespace = OwnNamespace, constructors = Constructors, types = Types,
-                        local_types = LocalTypes}) ->
+                        local_types = LocalTypes} = Env) ->
     Namespace =:= OwnNamespace andalso written_plain(Span, Namespace, [Name]),
     QualifiedName = Namespace ++ [Name],
     case Constructors of
@@ -6052,7 +6077,25 @@ lookup_constructor(Span, Namespace, Name,
                                " outside its module");
                 _ -> ConstructorInfo
             end;
-        _ -> unknown(Span, "constructor", QualifiedName)
+        _ -> unknown_constructor(Span, QualifiedName, Env)
+    end.
+
+%% Report §4.2, §11.5: a qualified constructor nothing declares is unknown,
+%% its namespace one the shell may offer to load; one of a type another
+%% module keeps private, which that module's interface carries (§11.1), is
+%% refused as the private type's, as the type itself is (unknown_type/3).
+-spec unknown_constructor(ern_diagnostic:span(), [atom()], env()) -> no_return().
+unknown_constructor(Span, QualifiedName, #env{private_types = PrivateTypes}) ->
+    case [TypeQualifiedName
+          || TypeQualifiedName := #type_info{constructors = Constructors} <- PrivateTypes,
+             lists:keymember(QualifiedName, #constructor_info.qualified_name, Constructors)] of
+        [TypeQualifiedName | _] ->
+            fail(Span, ern_namespace:text(QualifiedName) ++ " is a constructor of "
+                       ++ ern_namespace:text(TypeQualifiedName) ++ ", a type "
+                       ++ ern_namespace:text(lists:droplast(TypeQualifiedName))
+                       ++ " keeps private");
+        [] ->
+            unknown(Span, "constructor", QualifiedName)
     end.
 
 %% A constructor by its qualified name, one a checked pattern or a type's

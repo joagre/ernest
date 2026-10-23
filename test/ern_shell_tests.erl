@@ -1870,14 +1870,16 @@ load_failed_dependency() ->
 %% type its exported function receives, and a spawn of the function at the
 %% prompt binds an address of it, which prints with its type, the session
 %% going on; the type stays private to names, and an input that writes it
-%% is refused as private. A regression test: the binding faulted the
-%% shell, which ended with status 70, since the interface carried nothing
-%% of the type for its descriptor, and the next input faulted the checker
-%% on the type the session's scope named; and an input that wrote the type
-%% was refused as `unknown type Plain.Msg`, which the last assertion,
-%% written 2026-10-16 after the code, holds to §11.5's text. It does not
-%% cover a message checked at such an address, which the integration
-%% tests' exposed program does
+%% or its constructor is refused as private. A regression test: the
+%% binding faulted the shell, which ended with status 70, since the
+%% interface carried nothing of the type for its descriptor, and the next
+%% input faulted the checker on the type the session's scope named; and an
+%% input that wrote the type was refused as `unknown type Plain.Msg`,
+%% which the last assertion, written 2026-10-16 after the code, holds to
+%% §11.5's text, as the constructor's assertion, written 2026-10-23 after
+%% the code, holds `unknown constructor Plain.Add` (docs/findings.md's S2).
+%% It does not cover a message checked at such an address, which the
+%% integration tests' exposed program does
 private_mailbox_type_test_() ->
     {timeout, 60, fun private_mailbox_type/0}.
 
@@ -1895,7 +1897,8 @@ private_mailbox_type() ->
     ?assertMatch({_, _}, binary:match(Output, <<"> p : Address(Plain.Msg)\n">>)),
     ?assertMatch({match, _}, re:run(Output, "^> <address [0-9]+> : Address\\(Plain\\.Msg\\)$",
                                     [multiline])),
-    ?assertMatch({_, _}, binary:match(Output, <<"unknown constructor Plain.Add">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<":1:1: Plain.Add is a constructor of Plain.Msg,"
+                                                " a type Plain keeps private\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<":1:17: Plain.Msg is a type Plain keeps private\n"
                                                 "1 | let q : Address(Plain.Msg) = p\n"
                                                 "  |                 ^^^^^^^^^\n">>)).

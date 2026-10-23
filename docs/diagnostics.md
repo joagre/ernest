@@ -1584,6 +1584,23 @@ example.ern:2:13: unknown constructor Colors.Red
   |             ^^^^^^^^^^
 ```
 
+### A constructor of a type another module keeps private (§4.2, §11.5)
+
+```ernest-rejected
+fn f() : Int = {
+    let c = Supervisor.Release;
+    1
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:2:13: Supervisor.Release is a constructor of Supervisor.WatcherMsg, a type Supervisor keeps private
+1 | fn f() : Int = {
+2 |     let c = Supervisor.Release;
+  |             ^^^^^^^^^^^^^^^^^^
+```
+
 ### Another module's abstract constructor (§4.4)
 
 ```ernest-rejected
@@ -1778,6 +1795,22 @@ $ ern build example.ern
 example.ern:1:13: the type whose field x is read is not determined; annotate it
 1 | fn f(p) = p.x
   |             ^
+```
+
+### A field of a value of a type variable of the signature (§4.9, §11.5)
+
+```ernest-rejected
+fn smaller(x : a, y : a) : a needs a.compare =
+    if x.compare(y) == Less then x else y
+```
+
+```console
+$ ern build example.ern
+example.ern:2:10: a value of a, a type variable of smaller's signature, has no field compare
+1 | fn smaller(x : a, y : a) : a needs a.compare =
+2 |     if x.compare(y) == Less then x else y
+  |          ^^^^^^^
+  | = help: under `needs a.compare`, write the member on the type variable, `a.compare(..., ...)`
 ```
 
 ### A field read at another type than its own (§3.5)
