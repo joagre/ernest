@@ -1,8 +1,8 @@
 # The tour's outline
 
-MVP 3.3's first item, read against the report and against `why.md`. The plan's sketch of 2026-10-20 (the log's *The Tour, Shorter*) gives the tour's reader, its rules of form and seven chapters; this outline keeps the reader and the rules, works the chapters through against three rules of the report the sketch had not weighed, and adds the one chapter the reading against `why.md` found missing ([`coverage.md`](coverage.md)). Where it departs from the sketch it says so, section 7 lists what it still asks the user to decide, and section 8 records the skeptics' read of 2026-10-23 and the six changes it decided.
+MVP 3.3's first item, read against the report and against `why.md`. The plan's sketch of 2026-10-20 (the log's *The Tour, Shorter*) gives the tour's reader, its rules of form and seven chapters; this outline keeps the reader and the rules, works the chapters through against three rules of the report the sketch had not weighed, and adds the one chapter the reading against `why.md` found missing ([`coverage.md`](coverage.md)). Where it departs from the sketch it says so, section 7 records what was decided with the user, and section 8 the skeptics' read and the spike of 2026-10-23 and what each changed.
 
-The code in it is a sketch: the names, the exact messages and every line a tool prints are the build's to settle, and `make test` holds the tour to them. The guide's sections named are the ones each chapter points at.
+The code in it is a sketch, in a layout `ern format` lays out over more lines; the spike of 2026-10-23 ran every session against the toolchain (section 8), so the lines quoted are the toolchain's but for the few the build settles, and `make test` holds the tour to them. A node's line on its terminal or in the shell carries a timestamp, left out here. The guide's sections named are the ones each chapter points at.
 
 ## 1. Three rules that fix the last chapters
 
@@ -29,7 +29,7 @@ Eight chapters, each a screen of code and half a screen of prose.
 `counter.ern`, the module `Counter`: the message type and the loop of `why.md`'s first program, the loop alone.
 
 ```ernest-fragment
-type CounterMsg = Inc(Int) | Get(Reply(Int))
+export type CounterMsg = Inc(Int) | Get(Reply(Int))
 
 export fn count(total : Int) : Unit receiving CounterMsg =
     receive {
@@ -38,7 +38,7 @@ export fn count(total : Int) : Unit receiving CounterMsg =
     }
 ```
 
-The session: `ern shell`, `:load Counter`, `let counter = spawn(fn() = Counter.count(0))`, which prints `counter : Address(Counter.CounterMsg)`; `send(counter, Counter.Inc(5))`; `Address.call(counter, Counter.Get, 1000)`, which prints `Some(5) : Optional(Int)`; and `send(counter, "five")`, refused at the prompt, `the argument does not fit send: expected Counter.CounterMsg, found String`.
+The session: `ern shell`, `:load Counter`, `let counter = spawn(fn() = Counter.count(0))`, which prints `counter : Address(Counter.CounterMsg)`; `send(counter, Counter.Inc(5))`; `Address.call(counter, Counter.Get, 1000)`, which prints `Some(5) : Optional(Int)`; and `send(counter, "five")`, refused at the prompt, `the argument does not fit send: expected Counter.CounterMsg, found String`, with the input's line and the caret under `"five"`. The type is exported so that the prompt can name its constructors.
 
 What it shows: the mailbox in the function's type, claim 1. The tour's line at the refusal says what the program showed and no more: the mailbox type is in the function's type, so a wrong send is refused before the program runs, and the function runs only in a process of that type. The guide's §1.2 for the shell, §3.4 and §4.1 for the loop and §4.4 for the call; the FAQ has the comparison with a typed channel.
 
@@ -50,22 +50,23 @@ No change to the program. All of the operator's work is here, in a terminal of t
 $ ern config --config-dir a
 $ ern config --config-dir foo --listen 127.0.0.1:8655
 $ ern config --config-dir bar --listen 127.0.0.1:8656
-$ ern config --config-dir a --peer foo
-$ ern config --config-dir a --peer bar
-$ ern config --config-dir foo --peer a
-$ ern config --config-dir bar --peer a
+$ ern config --config-dir a --peer-dir foo
+$ ern config --config-dir a --peer-dir bar
+$ ern config --config-dir foo --peer-dir a
+$ ern config --config-dir bar --peer-dir a
 ```
 
-then `a/ernest.conf` shown once, and `ern run --config-dir foo` and `ern run --config-dir bar`, each in a terminal of its own. `--listen` and `--peer` are MVP 3.296's item 2, built before this chapter is written.
+then `a/ernest.conf` shown once, and `ern run --config-dir foo` and `ern run --config-dir bar`, each in a terminal of its own. `--listen` and `--peer-dir` are MVP 3.296's item 2, built before this chapter is written.
 
 The shell's terminal: `ern shell --config-dir a`, `:load Counter`, `let counter = spawn(fn() = Counter.count(0))` as in chapter 1, since chapter 1's counter ended with its shell, and
 
 ```
-> let far = match Peer.spawn("foo", fn() = Counter.count(0), 5000) { Right(a) -> a | Left(e) -> fault(Io.show(e)) }
+> let far = match Peer.spawn("foo", fn() = Counter.count(0), 5000) { Right(address) -> address | Left(error) -> fault(Io.show(error)) }
+the peer foo connected
 far : Address(Counter.CounterMsg)
 ```
 
-then `send(far, Counter.Inc(5))` and the call answering `Some(5)`. `foo`'s terminal says `the peer a connected`.
+then `send(far, Counter.Inc(5))` and the call answering `Some(5)`. `foo`'s terminal says `the peer a connected`, and nothing before it.
 
 What it shows: a process started on a node that holds none of its code, the tour's line at the spawn, claim 2. The tour's line at the files says, in `why.md`'s words, that two nodes are two files each naming the other by key, with no cluster to join and no shared secret, and that a listed peer is trusted whole, claim 3; the FAQ has the comparison with cookies, the mesh and the port mapper. The guide's §8.1 and the deployment guide's §2. The shell started again is said in one sentence: a node is a shell with a configuration directory (the guide's §9.2).
 
@@ -76,10 +77,10 @@ What it shows: a process started on a node that holds none of its code, the tour
 ```ernest-fragment
 export fn apply(counter : Address(CounterMsg), line : String) : String =
     match String.words(line) {
-        ["inc", amount] ->
-            match String.toInt(amount) {
-                Some(n) -> { send(counter, Inc(n)); "ok" }
-              | None -> "not a number: " <> amount
+        ["inc", text] ->
+            match String.toInt(text) {
+                Some(amount) -> { send(counter, Inc(amount)); "ok" }
+              | None -> "not a number: " <> text
             }
       | ["get"] ->
             match Address.call(counter, Get, 1000) {
@@ -118,7 +119,7 @@ export fn watch(counter : Address(CounterMsg)) : Unit receiving WatchMsg = {
 }
 ```
 
-The session: `:reload`; `kill(counter)` and `let counter = spawn(fn() = Counter.count(0))`, one sentence saying that a process keeps the loop it was started with (report §6.10), which chapter 8 returns to; `Counter.apply(counter, "inc -1")`, after which the shell prints the fault with its site, and `Counter.apply(counter, "get")` answers `"no answer"`, the process gone. Then `let counter = spawn(restarting(RestartLimit(restarts = 1, within = 5000), fn() = Counter.count(0)))`, `spawn(fn() = Counter.watch(counter))`, `inc 2`, `inc -1`, which the shell reports as `faulted, restarted`, `get` answering `"0"`, the count lost and the address kept, and `inc -1` again, past the limit, after which the watcher prints `the counter ended: Fault("a negative amount")`.
+The session: `:reload`; `kill(counter)` and `let counter = spawn(fn() = Counter.count(0))`, one sentence saying that a process keeps the loop it was started with (report §6.10), which chapter 8 returns to; `Counter.apply(counter, "inc -1")`, after which the shell prints `faulted: a negative amount` with the site, `Counter$3.count:8`, and then `"ok"`, since the send did not wait, one clause each: the `$3` is the version's number, which chapter 5 teaches, and the answer came before the fault. `Counter.apply(counter, "get")` answers `"no answer"`, the process gone. Then `let counter = spawn(restarting(RestartLimit(restarts = 1, within = 5000), fn() = Counter.count(0)))`, `let watcher = spawn(fn() = Counter.watch(counter))`, `inc 2`, `inc -1`, which the shell reports as `faulted, restarted: a negative amount`, `get` answering `"0"`, the count lost and the address kept, and `inc -1` again, past the limit, after which the watcher prints `the counter ended: Fault("a negative amount")`.
 
 What it shows: a fault ends the process and nothing catches it, a restart keeps the address and loses the state, and whoever monitors hears of an end as a message of their own type: `why.md`'s paragraph under claim 1. The tour's line on the service binding, the Erlang reader's `register`: a program binds the address at the top of a module and sends by name, and the restart is what keeps the binding good, the guide's §6.5. The outline's reason for telling and not showing, that a module's top-level binding is evaluated again at every `:reload`, so a counter bound so would be a new process at each chapter, stays out of the tour's text. The guide's §6.3, §6.4, §6.5 and §5.2. The peer's counter runs on, untouched.
 
@@ -134,19 +135,20 @@ export fn empty() : Tally(k) = Tally(Map.empty)
 export fn inc(Tally(counts), key, amount) = Tally(Map.update(counts, key, fn(count) = Optional.withDefault(count, 0) + amount))
 export fn get(Tally(counts), key) = Optional.withDefault(Map.get(counts, key), 0)
 export fn report(Tally(counts)) : List(#(k, Int)) needs k.compare =
-    List.sort(Map.toList(counts), fn(#(a, _), #(b, _)) = a.compare(b))
+    List.sort(Map.toList(counts), fn(#(a, _), #(b, _)) = k.compare(a, b))
 ```
 
 ```ernest-fragment
 // counter.ern
-type CounterMsg =
+export type CounterMsg =
     Inc(key : String, amount : Int)
   | Get(key : String, reply : Reply(Int))
   | Report(reply : Reply(List(#(String, Int))))
 
 export fn count(tally : Tally.Tally(String)) : Unit receiving CounterMsg = ...   // the three clauses, the precondition kept
 
-export fn apply(counter, line) = ...   // inc KEY N, get KEY, report; the report as "apples: 3, pears: 1"
+export fn apply(counter, line) = ...   // inc KEY N, get KEY, report; a request with named fields is made in a lambda,
+                                      // Address.call(counter, fn(reply) = Get(key = key, reply = reply), 1000); the report as "apples: 3, pears: 1"
 
 let countsPerKey : Test.Case(m) =
     Test.Case(name = "counts per key", run = fn() = {
@@ -168,9 +170,9 @@ let reports : Test.Case(TestMsg) =
     })
 ```
 
-The session, in the reader's own terminal first: `ern build counter.ern`, which compiles `Tally` with it, and `ern test counter.erc`, which prints the first test passed and `reports: faulted: deadlock`, the run going on. Then at the prompt `:reload`, which loads `Tally`, compiles `Counter` again and says `Counter.CounterMsg changed: the binding far is of its previous version, Counter$3.CounterMsg`, the number that of the last version that held the type (report §11.2); `Counter.apply(far, "inc apples 2")`, refused, `expected Counter.CounterMsg, found Counter$3.CounterMsg`, with the help that `Counter$3.CounterMsg` is of a previous version; `kill(far)`, with the forward line that chapter 6 gives the counter the door by which a loop changes without a kill. Then `let counter = spawn(fn() = Counter.count(Tally.empty()))`, three `inc`s and `Counter.apply(counter, "report")` answering `"apples: 3, pears: 1"`.
+The session, in the reader's own terminal first: `ern build .`, which compiles both modules, and `ern test counter.erc`, which prints `counts per key: passed` and `reports: faulted: deadlock` with the test's site, the run going on. Then at the prompt `:reload`, which says `Tally, from tally.erc`, `Counter, compiled again` and `Counter.CounterMsg changed: the bindings counter and far are of its previous version, Counter$3.CounterMsg`, the number that of the last version that held the type (report §11.2), and `counter` chapter 4's ended counter, still bound; `Counter.apply(far, "inc apples 2")`, refused, `expected Address(Counter.CounterMsg), found Address(Counter$3.CounterMsg)`, with the help that `Counter$3.CounterMsg` is of a previous version of `Counter`, which a reload replaced; `kill(far)`, with the forward line that chapter 6 gives the counter the door by which a loop changes without a kill. Then `let counter = spawn(fn() = Counter.count(Tally.empty()))`, three `inc`s and `Counter.apply(counter, "report")` answering `"apples: 3, pears: 1"`.
 
-What it shows: an abstract type and a requirement, the tour's line at `report`, claim 4, saying what the reader wrote at the call for the key's order, nothing, and pointing at the guide's §7.3, where the argument is; the second test waits for a message none can send, and the runtime ends it with a fault where the host would wait forever, in `why.md`'s words, the tour's line, claim 5, the tour's one planted mistake, its fix a `Report` call in place of the `receive`, said in a sentence and made in chapter 6's program; and `Test.Case(TestMsg)`, the test's type naming what its `run` receives, the mailbox in the type seen in code, one clause; and the compiler refusing the new protocol to a process on another node that has run since chapter 2, the tour's line there, claims 1 and 2 meeting. The guide's §7.1, §7.2, §7.3 and §9.3's versions.
+What it shows: an abstract type and a requirement, the tour's line at `report`, claim 4, saying what the reader wrote at the call for the key's order, nothing, and pointing at the guide's §7.3, where the argument is; the second test waits for a message none can send, and the runtime ends it with a fault where the host would wait forever, in `why.md`'s words, the tour's line, claim 5, the tour's one planted mistake, its fix a `Report` call in place of the `receive`, said in a sentence and made in chapter 6's program, whose two tests spawn with `start()`; and `Test.Case(TestMsg)`, the test's type naming what its `run` receives, the mailbox in the type seen in code, one clause; and the compiler refusing the new protocol to a process on another node that has run since chapter 2, the tour's line there, claims 1 and 2 meeting. The guide's §7.1, §7.2, §7.3 and §9.3's versions.
 
 `Tally.empty` is a function, said in one line pointing at the guide's §8.1: a binding is its node's own, and chapter 6 spawns the counter on a bare node, which evaluated none (report §8.7; decided 2026-10-23, the log's *What the Outline Asked*).
 
@@ -197,8 +199,8 @@ export fn count(tally : Tally.Tally(String)) : Unit receiving CounterMsg =
       | Upgrade(next = next) -> next(tally)
     }
 
-fn handle(tally : Tally.Tally(String), msg : ClientMsg) : Tally.Tally(String) =
-    match msg { ... }   // chapter 5's three clauses, the precondition kept
+fn handle(tally : Tally.Tally(String), message : ClientMsg) : Tally.Tally(String) =
+    match message { ... }   // chapter 5's three clauses, the precondition kept, each answering the tally
 
 export fn apply(counter : Address(ClientMsg), line : String) : String = ...   // unchanged but for the type
 ```
@@ -222,11 +224,11 @@ export fn schedulers() : Int =
 
 export fn primes(below : Int) : Int = {
     Io.println("counting the primes below " <> Int.toString(below));
-    ...   // a sieve, a few lines
+    ...   // a sieve over a Set, two helpers, about 0.1 s for 200000
 }
 ```
 
-The session: `Peer.computeAt("foo", fn() = Counter.schedulers(), 5000)` answering `Right(8)` on an eight-core machine, and the same of `bar`; `Peer.utilizations()`, both peers with their utilization and how old it is; `Peer.compute(fn() = Counter.primes(200000), 5000)` three times, answering `Right(17984)` each time, the two terminals sharing the lines.
+The session: `Peer.computeAt("foo", fn() = Counter.schedulers(), 5000)` answering `Right(8) : Either(Io.Error, Int)` on an eight-core machine, and the same of `bar`, which the shell first connects here, `the peer bar connected`; `Peer.utilizations()`, `[#("foo", 0.0, 720), #("bar", 0.25, 387)]`, each peer with its utilization and the age of the telling; `Peer.compute(fn() = Counter.primes(200000), 5000)` three times, answering `Right(17984)` each time, the two terminals sharing the lines. The wrong declaration, told, would fault with `the return of foreign function erlang:system_info/1 does not match String`.
 
 What it shows: foreign code checked, not trusted, the tour's line at `schedulers`: the host promised an `Int`, and the runtime checked it as the answer arrived; a declaration `: String` would have faulted the caller at the crossing with the function and the type named, told and not shown, claim 1's boundary; the guide's §8.3. And nothing was installed on `foo` or `bar`, and nothing named either, claim 2's last sentence: the tour states the rule, a computation that names no node goes to the less busy of two drawn, and shows the lines the terminals printed; the guide's §8.1, *Which peer*. Two facts bound it, which stay in the outline: a node has no name for itself, so the function prints and the terminals say where (decided 2026-10-20, the log's *What the Feedback Left*); and with two idle peers the three runs may all land on one, so the test holds the lines, not their distribution. `Peer.setUtilization` on `bar` would make the pick come out the same every time, and was not taken: a demo arranged to come out.
 
@@ -246,9 +248,9 @@ export fn move() : Unit =
     List.forEach(Code.running(count), fn(counter) = send(counter, Upgrade(next = count2)))
 ```
 
-The session: `:reload`, `Counter, compiled again`, no type changed; `Code.running(Counter.count)` listing one address, this node's, and `Code.running(Counter.count2)` none, the two versions side by side; `Counter.move()`; the two lists the other way round; `Counter.apply(counter, "inc apples -1")` answering `"ok"` and `report` the tally kept. Then `Peer.spawn("foo", fn() = Counter.move(), 5000)`, which carries `count2` and `move` to a node that never had them; `Counter.apply(far, "inc apples -1")`, `"ok"`; `Counter.apply(far, "report")`, the peer's tally kept.
+The session: `:reload`, `Counter, compiled again`, no type changed; `Code.running(Counter.count)` listing one address, this node's, and `Code.running(Counter.count2)` none, the two versions side by side; `Counter.move()`; the two lists the other way round; `Counter.apply(counter, "inc apples -1")` answering `"ok"` and `report` the tally kept. Then `Peer.spawn("foo", fn() = Counter.move(), 5000)`, answering `Right(<address 147>) : Either(Io.Error, Address(Never))`, which carries `count2` and `move` to a node that never had them; `Counter.apply(far, "inc apples -1")`, `"ok"`; `Counter.apply(far, "report")`, the peer's tally kept.
 
-Then, in the second terminal, `ern stop --config-dir foo`, and the shell says `the peer foo ended`; the tour's line says a process on it would have been a `Down` with `Unreachable` to whoever monitored it, that `far` now names a process that ended with its node, so a message to it is dropped and a peer started again is reached by a new spawn or compute, the deployment guide's §2.3, and that `ern stop --config-dir bar` ends the rest. One command, and the reader has seen a node's whole life.
+Then, in the second terminal, `ern stop --config-dir foo`, and the shell says `the peer foo ended`; the tour's line says a process on it would have been a `Down` with `Unreachable` to whoever monitored it, that `far` now names a process that ended with its node, so `inc` answers `"ok"` and `report` `"no answer"` at once, and a peer started again is reached by a new spawn or compute, the deployment guide's §2.3, and that `ern stop --config-dir bar` ends the rest. One command, and the reader has seen a node's whole life.
 
 What it shows: the same process, new code, its state kept, on this node and on one that lacked the code, the tour's last line, claim 2, the peak. `count` stays unchanged since it is how the counters are found, until `Code.running(count)` is empty on every node, when it may go, one sentence pointing at the guide's §8.9; nothing is purged, every version a node has loaded stays for the node's life, one line. The handover: the deployment guide's §8 runs the same move across three nodes with `examples/upgrade/`, and the guide's §9 names the tools.
 
@@ -268,9 +270,9 @@ The six entries this outline and its reading left in `docs/language_feedback.md`
 
 The two findings, `docs/findings.md`'s T1 and T2: `why.md`'s spawn fragment names the first claim's counter since 2026-10-23, and the plan's sketch is rewritten from this outline when it is decided.
 
-## 7. What it asks the user to decide
+## 7. What was decided
 
-The design question, argued in section 1: the peer's counter of chapter 2 is the one the compiler refuses and the reader kills, and the counter moved in chapter 8 is started on the peer in chapter 6. The sketch's "counting since chapter 2" cannot stand, since a process keeps its mailbox type for life. Recommended as above; the alternative, the type final from chapter 1, puts `Upgrade`, the keys and the split before any program needs them, against the sketch's own rule.
+Decided with the user on 2026-10-23, the design question and the eight below, each as recommended. The design question, argued in section 1: the peer's counter of chapter 2 is the one the compiler refuses and the reader kills, and the counter moved in chapter 8 is started on the peer in chapter 6. The sketch's "counting since chapter 2" cannot stand, since a process keeps its mailbox type for life. Recommended as above; the alternative, the type final from chapter 1, puts `Upgrade`, the keys and the split before any program needs them, against the sketch's own rule.
 
 The smaller decisions, each with its recommendation:
 
@@ -292,3 +294,5 @@ On 2026-10-23 a fresh reader read this outline three times, as the Erlang progra
 Its continuity findings were corrected at once: chapter 2's shell bound no `counter`; chapter 4 faulted a counter on the old loop; the build and the test ran in `foo`'s terminal; the previous version's number; chapter 6's bound refusal unreconciled with chapter 2's shipped function; `Code.running`'s node and when `count` may go; the spine said kept where it is lost; which directory holds the deadlocking test.
 
 Six decisions, each taken with the user the same day: chapter 6 lightened to the door, the service told and not shown; the lines name the claim and point, the comparisons with other languages' tools left to the FAQ and the writer's reasons to this outline; chapter 7's host question asked for the crossing alone and its sieve shown plain, `Peer.setUtilization` not taken; `Tally` kept, the turn to a vehicle said in chapter 5's first sentence; the README's door promising an hour to read and three to do; and the lost peer's address answered in the closing line.
+
+**The spike.** The same day an agent made the eight programs real and ran every session line against the toolchain, two bare nodes made by chapter 2's commands, the shell driven as the guide's tests drive it. Four places failed as written and are corrected above: the message type must be exported for the prompt to name its constructors; a requirement's member is read on the type variable, `k.compare(a, b)`, not on a value; `ern build counter.ern` does not compile `Tally` with it, and `ern build .` does; and the reload names two bindings, chapter 4's ended counter among them. Everything else behaved as claimed, and the printed lines above are the toolchain's. Noted for the prose: every node line carries a timestamp; the shell prints `the peer foo connected` before the spawn's binding; the fault's trace shows the version's number a chapter before versions are taught; `apply` answers `"ok"` after a fault, since a send does not wait; and a request with named fields is made in a lambda at `Address.call`. The whole tour runs in about eleven seconds of the toolchain's time, each `ern config` in about a third of a second, and `ern test` in half of one. What the spike's writer felt against a principle is `docs/language_feedback.md`'s entries 146 and 147, and the two messages it found wanting are `docs/findings.md`'s S1 and S2.
