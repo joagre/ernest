@@ -4535,17 +4535,17 @@ config_dir_is_its_owners_test() ->
     ?assertEqual({ok, []}, file:list_dir(Made)).
 
 %% report §11.3, Appendix C: two directories of one machine list each other
-%% by `--listen` and `--peer` alone, the four commands of the tour: each
+%% by `--listen` and `--peer-dir` alone, the four commands of the tour: each
 %% peer named by its directory, its key the one its certificate certifies,
 %% which its `ern config` printed, and its address its `listen`, the
-%% loopback address for every interface's; `--peer` prints nothing, writes
+%% loopback address for every interface's; `--peer-dir` prints nothing, writes
 %% the peer as Appendix C lays one out, and leaves a file a node reads
 config_peer_test() ->
     Dir = tmp(),
     [A, Foo] = [filename:join(Dir, Name) || Name <- ["a", "foo"]],
     [?assertEqual(0, ern_err(["config", "--config-dir" | Words]))
-     || Words <- [[A], [Foo, "--listen", "127.0.0.1:8655"], [A, "--peer", Foo],
-                  [Foo, "--peer", A]]],
+     || Words <- [[A], [Foo, "--listen", "127.0.0.1:8655"], [A, "--peer-dir", Foo],
+                  [Foo, "--peer-dir", A]]],
     #{<<"listen">> := <<"0.0.0.0:8654">>, <<"public-key">> := KeyA, <<"services">> := #{},
       <<"peers">> := [ListedFoo]} = conf_of(A),
     #{<<"listen">> := <<"127.0.0.1:8655">>, <<"public-key">> := KeyFoo, <<"services">> := #{},
@@ -4599,7 +4599,7 @@ config_peer_address_test() ->
     ?assertEqual(0, ern_err(["config", "--config-dir", Silent])),
     ok = file:write_file(filename:join(Silent, "ernest.conf"),
                          json:encode(maps:remove(<<"listen">>, conf_of(Silent)))),
-    [?assertEqual(0, ern_err(["config", "--config-dir", A, "--peer", Dir ++ "/" ++ Given]))
+    [?assertEqual(0, ern_err(["config", "--config-dir", A, "--peer-dir", Dir ++ "/" ++ Given]))
      || Given <- ["all/", "all/../one", "silent"]],
     #{<<"peers">> := Listed} = conf_of(A),
     ?assertEqual([{<<"all">>, <<"[::1]:8660">>}, {<<"one">>, <<"[fe80::1]:8661">>},
@@ -4609,7 +4609,7 @@ config_peer_address_test() ->
     ?assertMatch({configuration, _, _, _, [_, _, {peer, <<"silent">>, _, none}], _, _, _, _},
                  ern_node:read(A)).
 
-%% report §11.3: `--peer` writes `ernest.conf` again with every other field
+%% report §11.3: `--peer-dir` writes `ernest.conf` again with every other field
 %% as it was, in its order, the peers listed before it kept, and the peer
 %% listed last; a link to the file is followed, and stays a link
 config_peer_keeps_fields_test() ->
@@ -4629,7 +4629,7 @@ config_peer_keeps_fields_test() ->
     Conf = filename:join(A, "ernest.conf"),
     ok = file:delete(Conf),
     ok = file:make_symlink(Elsewhere, Conf),
-    ?assertEqual(0, ern_err(["config", "--config-dir", A, "--peer", C])),
+    ?assertEqual(0, ern_err(["config", "--config-dir", A, "--peer-dir", C])),
     ?assertMatch({ok, #file_info{type = symlink}}, file:read_link_info(Conf)),
     {ok, Text} = file:read_file(Elsewhere),
     InOrder = fun(Acc, Outer) -> {lists:reverse(Acc), Outer} end,
@@ -4643,7 +4643,7 @@ config_peer_keeps_fields_test() ->
                   {<<"services">>, [{<<"counter">>, [<<"b">>]}]}, _,
                   {<<"measures">>, [{<<"cpu">>, []}]}], Value).
 
-%% report §11.3: `--peer` is refused where `--listen` is given with it,
+%% report §11.3: `--peer-dir` is refused where `--listen` is given with it,
 %% where the peer's directory holds this node's own key, the directory
 %% itself among them, where a peer of its name is listed, where a listed
 %% peer has its key, where its `listen` names port 0, and where its entry
@@ -4655,22 +4655,23 @@ config_peer_refusals_test() ->
     [?assertEqual(0, ern_err(["config", "--config-dir", Made, "--listen", Listen]))
      || {Made, Listen} <- [{A, "0.0.0.0:8654"}, {Foo, "127.0.0.1:8655"},
                            {Zero, "127.0.0.1:0"}, {Six, "[::1]:8656"}]],
-    ?assertEqual(0, ern_err(["config", "--config-dir", A, "--peer", Foo])),
+    ?assertEqual(0, ern_err(["config", "--config-dir", A, "--peer-dir", Foo])),
     Copy = filename:join(Dir, "copy"),
     [] = os:cmd("cp -rp " ++ Foo ++ " " ++ Copy),
     {ok, Before} = file:read_file(filename:join(A, "ernest.conf")),
     {ok, BeforeSix} = file:read_file(filename:join(Six, "ernest.conf")),
     _ = ?capturedOutput,
     [?assertEqual(1, ern_err(["config", "--config-dir", Into | Words]))
-     || {Into, Words} <- [{A, ["--peer", Foo, "--listen", "127.0.0.1:8657"]}, {A, ["--peer", A]},
-                          {A, ["--peer", Foo]}, {A, ["--peer", Copy]}, {A, ["--peer", Zero]},
-                          {Six, ["--peer", Foo]}]],
+     || {Into, Words} <- [{A, ["--peer-dir", Foo, "--listen", "127.0.0.1:8657"]},
+                          {A, ["--peer-dir", A]}, {A, ["--peer-dir", Foo]},
+                          {A, ["--peer-dir", Copy]}, {A, ["--peer-dir", Zero]},
+                          {Six, ["--peer-dir", Foo]}]],
     ?assertEqual({ok, Before}, file:read_file(filename:join(A, "ernest.conf"))),
     ?assertEqual({ok, BeforeSix}, file:read_file(filename:join(Six, "ernest.conf"))),
     Said = unicode:characters_to_binary(?capturedOutput),
     Conf = fun(Made) -> ern_build:shown(filename:join(Made, "ernest.conf")) end,
     [?assertMatch({_, _}, binary:match(Said, list_to_binary("ern config: " ++ Line ++ "\n")))
-     || Line <- ["--listen and --peer are not given together: --peer creates no directory",
+     || Line <- ["--listen and --peer-dir are not given together: --peer-dir creates no directory",
                  ern_build:shown(A) ++ " has this node's own key, and a node is no peer of itself",
                  Conf(A) ++ ": a peer is named \"foo\" already",
                  Conf(A) ++ ": the peer \"foo\" has the key of " ++ ern_build:shown(Copy)
@@ -4681,8 +4682,8 @@ config_peer_refusals_test() ->
                  " this node runs over IPv6, its listener's family or IPv4 where it has none"]],
     ?assertMatch({_, _}, binary:match(Said, <<"Usage: ern config [--config-dir dir]">>)).
 
-%% report §11.7: given `--peer`, `ern config`'s `--config-dir` names a
-%% directory that is there, and `--peer` a configuration directory, which
+%% report §11.7: given `--peer-dir`, `ern config`'s `--config-dir` names a
+%% directory that is there, and `--peer-dir` a configuration directory, which
 %% holds `ernest.conf` and a certificate; one that names none is refused
 %% with the directory and the option, and nothing is made
 config_peer_directories_test() ->
@@ -4696,14 +4697,14 @@ config_peer_directories_test() ->
     Plain = filename:join(Dir, "plain"),
     ok = file:make_dir(Plain),
     _ = ?capturedOutput,
-    [?assertEqual(1, ern_err(["config", "--config-dir", Into, "--peer", Peer]))
+    [?assertEqual(1, ern_err(["config", "--config-dir", Into, "--peer-dir", Peer]))
      || {Into, Peer} <- [{Missing, Foo}, {A, Missing}, {A, Uncertified}, {A, Plain}]],
     ?assertNot(filelib:is_file(Missing)),
     ?assertMatch(#{<<"peers">> := []}, conf_of(A)),
     Said = unicode:characters_to_binary(?capturedOutput),
     [?assertMatch({_, _}, binary:match(Said, list_to_binary("ern config: " ++ Line ++ "\n")))
      || Line <- [Missing ++ ": no such directory, which --config-dir names"
-                 | [Peer ++ ": no configuration directory, which --peer names"
+                 | [Peer ++ ": no configuration directory, which --peer-dir names"
                     || Peer <- [Missing, Uncertified, Plain]]]].
 
 %% report §11.3, §8.7: the peer's directory, its `ernest.conf` and its
@@ -4721,7 +4722,7 @@ config_peer_read_as_a_node_test() ->
     ok = file:write_file(filename:join(Uncertified, "certificate.pem"), "none"),
     {ok, Before} = file:read_file(filename:join(A, "ernest.conf")),
     _ = ?capturedOutput,
-    [?assertEqual(1, ern_err(["config", "--config-dir", A, "--peer", Peer]))
+    [?assertEqual(1, ern_err(["config", "--config-dir", A, "--peer-dir", Peer]))
      || Peer <- [Open, Broken, Uncertified]],
     ?assertEqual({ok, Before}, file:read_file(filename:join(A, "ernest.conf"))),
     Said = unicode:characters_to_binary(?capturedOutput),
@@ -4732,7 +4733,7 @@ config_peer_read_as_a_node_test() ->
                  Shown(Broken, "ernest.conf") ++ ": is not JSON",
                  Shown(Uncertified, "certificate.pem") ++ ": is not one certificate in PEM"]].
 
-%% report §11.3: without --config-dir, `--peer` lists the peer in ./.ernest
+%% report §11.3: without --config-dir, `--peer-dir` lists the peer in ./.ernest
 config_peer_default_dir_test() ->
     Dir = tmp(),
     Foo = filename:join(Dir, "foo"),
@@ -4741,12 +4742,12 @@ config_peer_default_dir_test() ->
     %% directory, and a module the job loads after the move is not found
     Here = filename:join(Dir, "here"),
     ?assertEqual(0, ern_err(["config", "--config-dir", Here])),
-    ?assertEqual(0, ern_err(["config", "--config-dir", Here, "--peer", Foo])),
+    ?assertEqual(0, ern_err(["config", "--config-dir", Here, "--peer-dir", Foo])),
     {ok, Cwd} = file:get_cwd(),
     ok = file:set_cwd(Dir),
     try
         ?assertEqual(0, ern_cli:ern(["config"])),
-        ?assertEqual(0, ern_cli:ern(["config", "--peer", "foo"]))
+        ?assertEqual(0, ern_cli:ern(["config", "--peer-dir", "foo"]))
     after
         ok = file:set_cwd(Cwd)
     end,

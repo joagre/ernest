@@ -238,22 +238,22 @@ job(Job, Spec, Positional, Args, Work, ErrorDevice) ->
 
 %% Report §11.7: an option that names a directory to read names one that is
 %% there; `ern config`'s `--config-dir` names the one it creates, but with
-%% `--peer`, which writes into it; and `--peer` names a configuration
+%% `--peer-dir`, which writes into it; and `--peer-dir` names a configuration
 %% directory, which holds `ernest.conf` and a certificate.
 named_directories(Job, Options) ->
-    Creates = Job =:= "config" andalso not lists:keymember(peer, 1, Options),
+    Creates = Job =:= "config" andalso not lists:keymember(peer_dir, 1, Options),
     lists:foreach(fun({Key, Directory}) when Key =:= load_path; Key =:= libs_dir;
                                             Key =:= source_root;
                                             Key =:= config_dir andalso not Creates ->
                           filelib:is_dir(Directory)
                               orelse ern_build:fail(Directory ++ ": no such directory, which --"
                                                     ++ option_long(Key) ++ " names");
-                     ({peer, Directory}) ->
+                     ({peer_dir, Directory}) ->
                           lists:all(fun filelib:is_regular/1,
                                     [ern_node:file(Directory, conf),
                                      ern_node:file(Directory, certificate)])
                               orelse ern_build:fail(Directory ++ ": no configuration directory,"
-                                                    " which --peer names");
+                                                    " which --peer-dir names");
                      (_) ->
                           ok
                   end, Options).
@@ -378,7 +378,7 @@ metavariable(load_path) -> "dir";
 metavariable(libs_dir) -> "dir";
 metavariable(config_dir) -> "dir";
 metavariable(listen) -> "address:port";
-metavariable(peer) -> "dir";
+metavariable(peer_dir) -> "dir";
 metavariable(main) -> "Qualified.name".
 
 %% An option that may be given more than once, which §11 marks `...`.
@@ -891,11 +891,11 @@ required_by(_) -> [].
 
 %% Report §11.3: the directory made, its `listen`, or the peer listed in it.
 config_options() ->
-    [config_dir_option("the directory made, ./.ernest by default, or with --peer the one"
+    [config_dir_option("the directory made, ./.ernest by default, or with --peer-dir the one"
                        " written"),
      {listen, undefined, "listen", string,
       "the address and port the node listens on; default: 0.0.0.0:8654"},
-     {peer, undefined, "peer", string,
+     {peer_dir, undefined, "peer-dir", string,
       "list the node of this configuration directory, on this machine, as a peer"},
      help_option()].
 
@@ -1041,15 +1041,15 @@ node_dir(Options) ->
 
 %% Report §11.3: the configuration directory made, its `listen` the one
 %% --listen gives, and the node's public key printed, which another node's
-%% configuration lists; or, given --peer, the node of that directory listed
+%% configuration lists; or, given --peer-dir, the node of that directory listed
 %% among the directory's peers, and nothing printed.
 config(Options, [], _ErrorDevice) ->
     ConfigDir = proplists:get_value(config_dir, Options, ".ernest"),
-    case {proplists:get_value(listen, Options), proplists:get_value(peer, Options)} of
+    case {proplists:get_value(listen, Options), proplists:get_value(peer_dir, Options)} of
         {undefined, undefined} -> io:format("~ts", [ern_node:create(ConfigDir)]);
         {Listen, undefined} -> io:format("~ts", [ern_node:create(ConfigDir, Listen)]);
         {undefined, PeerDir} -> ern_node:add_peer(ConfigDir, PeerDir);
-        {_, _} -> usage_fail("--listen and --peer are not given together: --peer creates no"
+        {_, _} -> usage_fail("--listen and --peer-dir are not given together: --peer-dir creates no"
                              " directory")
     end,
     0;

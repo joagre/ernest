@@ -304,7 +304,7 @@ bin/ern build --emit-erl examples/hello.ern       # the Erlang source, for readi
 bin/ern doc src/stdlib/list.ern                   # the module's documentation as CommonMark
 bin/ern build --short-errors examples/hello.ern   # the first line of each error only
 bin/ern config                                    # ./.ernest with a key pair
-bin/ern config --config-dir a --peer b            # a's ernest.conf lists the node of b/
+bin/ern config --config-dir a --peer-dir b        # a's ernest.conf lists the node of b/
 bin/ern reload --config-dir node                  # the node running from node/ reads its ernest.conf again
 bin/ern stop --config-dir node                    # and ends, in order
 bin/ern shell                                     # a shell over the standard library

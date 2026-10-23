@@ -2285,7 +2285,7 @@ A program reaches outside its node's Ernest code in three ways: to peers over th
 
 A *node* is a program started with `--config-dir`, and its *peers* are the nodes its `ernest.conf` lists (report §8.3). `ern config` makes the directory once: `ernest.conf` with the node's `listen` address and its public key, no peer and no service yet, and the private key and a certificate beside it.
 
-A peer has a name, which the program uses, a public key and a network address. A peer on the same machine is added by `ern config --peer`, which reads all three from the peer's directory; one on another machine by editing the file, with the key `ern config` printed on the peer's machine (report §11.3). Under `services`, each service's name lists the peers that may offer it, in the order a *find*, the lookup of a service by its name (§8.2), asks them (report §8.7, Appendix C).
+A peer has a name, which the program uses, a public key and a network address. A peer on the same machine is added by `ern config --peer-dir`, which reads all three from the peer's directory; one on another machine by editing the file, with the key `ern config` printed on the peer's machine (report §11.3). Under `services`, each service's name lists the peers that may offer it, in the order a *find*, the lookup of a service by its name (§8.2), asks them (report §8.7, Appendix C).
 
 Two nodes connect when the first operation needs it, over TLS, each accepting the other by its listed key alone, and only where both stand on one *floor*, one minor release of `ern`, any patch, on one major release of OTP; their builds may differ (§8.2). What a node says on its standard error is report §8.7's, and `ern reload` and `ern stop` are §9.2's; this chapter teaches what a program writes.
 
@@ -2325,11 +2325,11 @@ $ ern config --config-dir foo --listen 127.0.0.1:8655
 -----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEAbcsDUdMBCWTaHU5iYs2EHT4fDQzaUBer/dL+n5DPJrk=
 -----END PUBLIC KEY-----
-$ ern config --config-dir a --peer foo
-$ ern config --config-dir foo --peer a
+$ ern config --config-dir a --peer-dir foo
+$ ern config --config-dir foo --peer-dir a
 ```
 
-`a` listens on `0.0.0.0:8654`, as made, and `foo` on a port of its own, since two nodes on one machine cannot share one. `--peer` reads the peer's directory: the peer's name is the directory's, its key is its certificate's, and its address is its `listen`, with `127.0.0.1` for `0.0.0.0`, since the peer is on this machine (report §11.3). `a/ernest.conf` then reads:
+`a` listens on `0.0.0.0:8654`, as made, and `foo` on a port of its own, since two nodes on one machine cannot share one. `--peer-dir` reads the peer's directory: the peer's name is the directory's, its key is its certificate's, and its address is its `listen`, with `127.0.0.1` for `0.0.0.0`, since the peer is on this machine (report §11.3). `a/ernest.conf` then reads:
 
 ```json
 {
@@ -2348,7 +2348,7 @@ $ ern config --config-dir foo --peer a
 
 `foo/ernest.conf` lists `a` the same way, at `127.0.0.1:8654`; the node whose operation first needs the other dials it, opens the connection to it, as the report's word is (Appendix F).
 
-What `--peer` does not write is written by hand: `services`, §8.2's, and a peer on another machine, its key the one `ern config` printed there, as one JSON string with its line breaks `\n` (the deployment guide's §2.1). One key listed under two names is refused, `two peers have one public-key, and two nodes with one key are one node`.
+What `--peer-dir` does not write is written by hand: `services`, §8.2's, and a peer on another machine, its key the one `ern config` printed there, as one JSON string with its line breaks `\n` (the deployment guide's §2.1). One key listed under two names is refused, `two peers have one public-key, and two nodes with one key are one node`.
 
 Start `foo` first and give it a moment to listen, about a second; a compute that reaches it before answers `Left(Unreachable)`. Each terminal shows its own node's lines: `foo`'s says `the peer a connected` as `a` dials it, and `the peer a ended` when `a`'s run ends. Then:
 
@@ -3017,7 +3017,7 @@ One command, `ern`, whose first word is its job, and a mode for Emacs. `ern --he
 - `--libs-dir dir` adds the Erlang applications under `dir`, each one's `ebin`, as the host's `ERL_LIBS` would: one flag where a program's foreign functions call several of them (report §11.2).
 - `ern test module.erc` runs the module's tests, and `ern test dir` those of every module compiled under the directory; it exits with status 1 unless all passed (§7.1).
 - `ern shell`, with or without a file, starts the shell (§1.2). A file's `main`, or the function `--main` names, runs beside it; a file without either is loaded with nothing running. `--source-root dir` names where `:load` finds a module's source, and `--config-dir dir` the configuration directory.
-- `ern config` makes the configuration a node with peers needs (§8), in `./.ernest` or the directory `--config-dir` names, listening where `--listen address:port` says; `ern config --config-dir dir --peer other` lists the node of `other`, a directory of this machine, in `dir`'s (§8.1, report §11.3). `ern run --config-dir dir` runs the program as that node, and `ern reload --config-dir dir` and `ern stop --config-dir dir` have the running node read its configuration again, or end, `ern stop` returning once it has (report §11.2).
+- `ern config` makes the configuration a node with peers needs (§8), in `./.ernest` or the directory `--config-dir` names, listening where `--listen address:port` says; `ern config --config-dir dir --peer-dir other` lists the node of `other`, a directory of this machine, in `dir`'s (§8.1, report §11.3). `ern run --config-dir dir` runs the program as that node, and `ern reload --config-dir dir` and `ern stop --config-dir dir` have the running node read its configuration again, or end, `ern stop` returning once it has (report §11.2).
 
 ### 9.3 The shell
 

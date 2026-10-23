@@ -29,7 +29,7 @@ MCowBQYDK2VwAyEA...
 -----END PUBLIC KEY-----
 ```
 
-`ern config` creates the directory, which only its owner can open, and in it three files (report §11.3): `private-key.pem`, the node's ed25519 key, readable only by its owner; `certificate.pem`, which the node signs itself and whose dates mean nothing to a node; and `ernest.conf`, which lists nothing yet; section 1.2 says what goes in it. It prints the public key, which is what another node's configuration will list. It fails where the directory exists, empty or not; only `--peer`, section 2.1, writes into one that exists.
+`ern config` creates the directory, which only its owner can open, and in it three files (report §11.3): `private-key.pem`, the node's ed25519 key, readable only by its owner; `certificate.pem`, which the node signs itself and whose dates mean nothing to a node; and `ernest.conf`, which lists nothing yet; section 1.2 says what goes in it. It prints the public key, which is what another node's configuration will list. It fails where the directory exists, empty or not; only `--peer-dir`, section 2.1, writes into one that exists.
 
 The directory is made for one machine and never copied: a copied key gives two nodes one identity, which a third node cannot tell apart. A node also refuses a configuration that lists its own key under `peers`, `a peer has this node's own key, and a node is no peer of itself`.
 
@@ -124,7 +124,7 @@ Each node is made on its own machine with `ern config`, and the two then list ea
 }
 ```
 
-Two nodes on one machine list each other without an edit. `ern config --config-dir b --listen 127.0.0.1:8655` makes `b` on a port of its own, since the two cannot share one, and `ern config --config-dir a --peer b` lists `b` in `a`'s file under the name `b`, with the key `b`'s certificate holds and `b`'s `listen` as its address, `127.0.0.1` for `0.0.0.0` (report §11.3); `--peer a` does the same the other way. `services` is written by hand, on one machine or two.
+Two nodes on one machine list each other without an edit. `ern config --config-dir b --listen 127.0.0.1:8655` makes `b` on a port of its own, since the two cannot share one, and `ern config --config-dir a --peer-dir b` lists `b` in `a`'s file under the name `b`, with the key `b`'s certificate holds and `b`'s `listen` as its address, `127.0.0.1` for `0.0.0.0` (report §11.3); `--peer-dir a` does the same the other way. `services` is written by hand, on one machine or two.
 
 ### 2.2 The connection
 

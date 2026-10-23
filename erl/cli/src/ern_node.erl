@@ -146,7 +146,7 @@ signed_certificate({'ECPrivateKey', _, Private, _, _, _} = Key) ->
     public_key:pkix_sign(Tbs, Key).
 
 %%
-%% ern config --peer
+%% ern config --peer-dir
 %%
 
 %% Report §11.3: the node whose configuration directory is PeerDir, of this

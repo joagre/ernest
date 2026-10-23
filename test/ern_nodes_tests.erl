@@ -2771,10 +2771,10 @@ bare_node_refused(Base) ->
     ?assertNot(filelib:is_file(filename:join(D, "ernest.pid"))).
 
 %% report §11.3, §8.7: two directories made and listed by `ern config`'s
-%% `--listen` and `--peer` alone, as the language guide's §8.1 makes them,
+%% `--listen` and `--peer-dir` alone, as the language guide's §8.1 makes them,
 %% one listening on every interface and one on the loopback, connect both
 %% ways: a bare node from either takes the other's spawn by the name
-%% `--peer` gave it, and its process sends back what it computed. Its
+%% `--peer-dir` gave it, and its process sends back what it computed. Its
 %% limit is the sum of its fifteen waits, each bounded by the harness's
 %% time for one wait: four jobs and a build, two ports that answer, two
 %% runs, what they printed and the line of the node each dialed, and two
@@ -2790,7 +2790,7 @@ peer_option(Base) ->
     [?assertMatch({0, _}, finished([?ERN, " config --config-dir ", Words]))
      || Words <- [[A, " --listen ", Listen(PortA, "0.0.0.0")],
                   [Foo, " --listen ", Listen(PortFoo, "127.0.0.1")],
-                  [A, " --peer ", Foo], [Foo, " --peer ", A]]],
+                  [A, " --peer-dir ", Foo], [Foo, " --peer-dir ", A]]],
     lists:foreach(fun({Node, Port, Dialer}) ->
                       Wait = bare_started(Node, []),
                       ern_deployment_tests:answering(Port),
