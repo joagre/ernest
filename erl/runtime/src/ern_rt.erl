@@ -2227,21 +2227,24 @@ found_fault(Pid, Cause) ->
 
 %% Appendix E.21: a fault's trace, the innermost twelve frames of the
 %% host's stack, the innermost first, a frame a line, ending with the
-%% outermost frame of the program's code: the frames beneath it, the
-%% runtime's, are left out, and a stack with no frame of the program's has
-%% an empty trace; a frame of the runtime's or the host's above the
-%% program's stays. A frame of Ernest code is written as a spawn site is
-%% (§6.9), by the name the unit's sites write its function by
-%% (ern_code:function_text/3) and its line, `Counter.worker:23`; a frame
-%% of the host's by the function as the host names it and its line,
-%% `lists:nth/2:213`; either without a line where the host gives none.
+%% outermost frame of the program's code: the frames beneath it are left
+%% out, and a stack with no frame of the program's has an empty trace. A
+%% frame of the toolchain's own Erlang, the runtime's, is left out wherever
+%% it stands, the twelve counted without it (own_modules/0), and a frame
+%% of the host's above the program's stays. A frame of Ernest code is
+%% written as a spawn site is (§6.9), by the name the unit's sites write
+%% its function by (ern_code:function_text/3) and its line,
+%% `Counter.worker:23`; a frame of the host's by the function as the host
+%% names it and its line, `lists:nth/2:213`; either without a line where
+%% the host gives none.
 %% Report §11.2: the printer indents it.
 -spec trace([tuple()]) -> binary().
 trace(Stack) ->
+    Own = own_modules(),
+    Shown = [Entry || {ErlangModule, _, _, _} = Entry <- Stack, not is_map_key(ErlangModule, Own)],
     Program = lists:reverse(lists:dropwhile(fun(Entry) -> not is_program_frame(Entry) end,
-                                            lists:reverse(Stack))),
-    unicode:characters_to_binary([[trace_line(Entry), $\n]
-                                  || {_, _, _, _} = Entry <- lists:sublist(Program, 12)]).
+                                            lists:reverse(Shown))),
+    unicode:characters_to_binary([[trace_line(Entry), $\n] || Entry <- lists:sublist(Program, 12)]).
 
 %% Whether a frame of the host's stack is of a unit of Ernest code.
 is_program_frame({ErlangModule, Function, _, Info}) ->

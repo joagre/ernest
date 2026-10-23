@@ -3387,9 +3387,11 @@ fault_stack_test() ->
 %% not match its declared type faults with a cause that names the host's
 %% function as a raise's cause does, and the trace is as for any fault the
 %% runtime raises: the function has returned when its return is checked,
-%% so no frame of it is in the trace, and the trace ends with main's frame.
-%% A regression test, written after the code; it does not cover a return
-%% checked in place, a word's, whose trace raise_has_line_test reads
+%% so no frame of it is in the trace, the runtime's frame that raises is
+%% left out, and the trace is main's frame. A regression test, written
+%% after the code, its runtime's frame taken out 2026-10-23 with the rule;
+%% it does not cover a return checked in place, a word's, whose trace
+%% raise_has_line_test reads
 foreign_return_cause_test() ->
     Dir = tmp(),
     File = write(Dir, "abs.ern",
@@ -3399,7 +3401,7 @@ foreign_return_cause_test() ->
     ?assertEqual(1, ern_err(["run", filename:join(Dir, "abs.erc")])),
     ?assertMatch([<<"Abs.main faulted: the return of foreign function erlang:abs/1 does not match"
                     " String">>,
-                  <<"    ern_rt:fault/1:", _/binary>>, <<"    Abs.main:2">>],
+                  <<"    Abs.main:2">>],
                  binary:split(iolist_to_binary(?capturedOutput), <<"\n">>, [global, trim])).
 
 %% report §11.4, §11.5: every exported and every documented declaration,

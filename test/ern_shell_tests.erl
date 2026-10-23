@@ -3525,7 +3525,9 @@ reload_new_dependency() ->
 %% which unloads nothing, stores its new version's values beside the
 %% previous version's, which that version's code may read for the session's
 %% life. Counted by the host's persistent terms, which hold the values, from
-%% the session's own inputs: each count holds the binding that takes it. A
+%% the session's own inputs: each count holds the binding that takes it,
+%% and a fault at the prompt first makes the one term a host's first trace
+%% or look makes, the runtime's own modules (ern_rt's own_modules/0). A
 %% regression test: a failed load's were kept for the life of the node
 stored_values_go_test_() ->
     {timeout, 60, fun stored_values_go/0}.
@@ -3542,6 +3544,7 @@ stored_values_go() ->
                           "foreign fn get(key : Foreign.Term, map : Foreign.Term) : Int ="
                           " \"maps:get/2\"\n",
                           "fn terms() : Int = get(Foreign.term(Foreign.atom(\"count\")), info())\n",
+                          "1 / List.size([])\n",
                           "let before = terms()\n:load Bad\nterms() - before\n",
                           ":load Demo\nlet loaded = terms()\n",
                           write_source(Dir, "demo.ern", "export let kept : Int = 1\n"),

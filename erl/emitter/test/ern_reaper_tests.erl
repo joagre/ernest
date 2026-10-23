@@ -103,10 +103,9 @@ call_forever_deadlock_test() ->
         "    let _ = Io.debug(Address.callForever(a, fn(r) = Get(reply = r)));\n"
         "    Unit\n"
         "}\n"),
-    %% Appendix E.21: the runtime's wait above the program's frame stays
-    ?assertMatch({fault, <<"deadlock">>, <<"ern_rt:call_forever/3:", _/binary>>}, Result),
-    {fault, _, Trace} = Result,
-    ?assertEqual(<<"M.main:5">>, lists:last(binary:split(Trace, <<"\n">>, [global, trim]))).
+    %% Appendix E.21: the runtime's wait above the program's frame is left
+    %% out (ern_emitter_tests' trace_leaves_the_runtime_out_test)
+    ?assertEqual({fault, <<"deadlock">>, <<"M.main:5\n">>}, Result).
 
 %% report §6.9: a wait on a process is kept while its waiter lives: a
 %% watcher that ends takes its waits with it, and a process that ends

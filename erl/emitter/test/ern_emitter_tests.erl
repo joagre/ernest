@@ -628,6 +628,30 @@ trace_twelve_frames_test() ->
     ?assertEqual([Again, Nested, Again, Nested, Again, Nested, Again, Nested, Again, Nested],
                  lists:nthtail(2, Frames)).
 
+%% Appendix E.21: a frame of the runtime's is left out of a trace wherever
+%% it stands, and the trace still ends with the program's outermost frame:
+%% a callForever found deadlocked, its process waiting in the runtime's
+%% receive, and one whose callee had ended, its fault raised in the
+%% runtime's code, each show the frame of `main` that called it alone. A
+%% regression test, written after the code: the runtime's frame,
+%% `ern_rt:call_forever/3:639`, stood above the program's (the skeptics'
+%% read of 2026-10-23, docs/findings.md's L21 and M13). The host's frame
+%% above the program's, which stays, is trace_twelve_frames_test's; a
+%% frame of the runtime's between two of the program's is not covered
+trace_leaves_the_runtime_out_test() ->
+    Types = "type Msg = Ask(reply : Reply(Int))\n"
+            "type MainMsg = Died(Down)\n"
+            "fn deaf() : Unit receiving Msg = receive { Ask(reply = _) -> deaf() }\n"
+            "export fn main() : Unit receiving MainMsg = {\n",
+    Called = "    Io.println(Int.toString(Address.callForever(s, fn(r) = Ask(reply = r))))\n"
+             "}\n",
+    ?assertMatch({{fault, <<"deadlock">>, <<"M.main:6\n">>}, _},
+                 run(Types ++ "    let s = spawn(deaf);\n" ++ Called)),
+    ?assertMatch({{fault, <<"callee had ended">>, <<"M.main:7\n">>}, _},
+                 run(Types ++ "    let s = spawnMonitored(fn() : Unit receiving Msg = Unit,"
+                              " Died);\n"
+                              "    receive { Died(_) -> Unit };\n" ++ Called)).
+
 %% report Appendix H, §6.9, §11.2: two definitions whose forms are one
 %% term are one definition: a reference to either within their module is
 %% to the first declared, so a call of the second runs the first's
