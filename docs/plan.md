@@ -21,7 +21,7 @@ release. MVP 3.26, two subtractions from the type system, is done (2026-10-16), 
 tools' five speed changes and the programs tests' defects.
 MVP 3.27, the measurements across machines, is done (2026-10-21), and so are MVP 3.28, what stood
 before the tour, and MVP 3.29, the bookkeeping behind §8.6 and the foreign call (2026-10-22). MVP 3.295,
-what the language measurement found, is done the same day. The road to 0.5.0 is MVP 3.3 the tour
+what the language measurement found, is done the same day. The road to 0.5.0 is MVP 3.296, what the tour's outline asked, MVP 3.3 the tour
 and MVP 3.9 the review; the attached shell, ehttpd,
 the website, the shell's second round and the back end follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A
 finished milestone is a row of the table below, its reasons in the log entries the row names.
@@ -66,6 +66,7 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 3.28 | what stands before the tour: a clause's body all or none, which §11.6 states and `ern format` writes; `--libs-dir dir`; `--verbose`; and seven items the feedback left: four messages that name the form, the rules of an Ernest program installed, the libraries on the default load path, `ok` as `Unit`, `Test.faults`, the foreign call measured, and doc examples run by `ern test`; with what the builds found: a type and the module of its name share a namespace, a module under a taken namespace refused, `List.mapFold`, a mailbox type ending in `Msg`, the prelude's `Unit` as a descriptor word, a `make` with nothing to do measured, and each doc example a program of its own in a directory of its own | 2026-10-22 | | *The Later List Sorted*; *Clause Bodies All or None*; *A Libs Flag Instead of the Environment*; *A Build Says What It Decided*; *A Make With Nothing to Do*; *What the Feedback Left*; *The Window's Three Asks*; *Nothing Waits for a Program*; *The Foreign Call Measured* |
 | MVP 3.29 | the bookkeeping behind §8.6 on one rule, the look reads what a process marks and no operation writes a shared row: the foreign call's count gone for a read of the waiting process, the timed receive's and the call's marks in the process's own dictionary, every slow wait of the runtime's own marked and held by a test, the callees' row kept on a write-concurrent table and measured against two other kinds, a kill one function and a frame from another node; a ground `let` compiled to its term; the foreign cause naming the function; one checker of the library's examples; a launch a row of its own table, halved; the runtime's fixed waits and the tests' sleeps, polls and limits gone for waits on what each means; `make bench` with a memory of its last run and of the release's, by ratio; the language measured against the host's own Erlang, construct by construct and in three programs written twice; the runtime's design note; and a deadlock found among *Why Ernest*'s claims | 2026-10-22 | | *The Sitting on §8.6's Bookkeeping*; *`make bench` Read Against the Cost Rules*; *The Language Against the Host*; *The Foreign Call Measured*; *Deadlock Is Quiescence* |
 | MVP 3.295 | what the language measurement found: a `Float` operation the host's own with no `try`, the runtime reading a `badarith`'s frame, a chain of five from 1.65 to 1.23 times the host's and the ray tracer from 1.95 to 1.70; `Map.get`'s number closed as the type's; and the bench's parts as targets, its memory kept a table at a time | 2026-10-22 | | *The Sitting on §8.6's Bookkeeping*, its paragraphs *The Float chain* and *Built*; *The Language Against the Host* |
+| MVP 3.296 | what the tour's outline asked: a restart runs the function it was given, stated in §6.9 and the deployment guide, with the guide's sentence that a binding is its node's own; and `ern config --listen` and `--peer dir`, two nodes on one machine without a key pasted by hand | | | below |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program, the counter, grown from a process with a typed mailbox, through the same counter on a peer that holds none of its code, to its move to new code there, where the deployment guide takes over | outline to be written with the user | | below |
 | MVP 3.9 | the review, and Ernest 0.5.0: the full review, the numbering decided once, a release with no promise of stability | the end of the planned road, 2026-10-13; the split of `make test` done 2026-10-13, taken early | | below |
 | MVP 4.0 | a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches | made 2026-10-13 from MVP 4.3's item 4; the first milestone after 0.5.0 | | below |
@@ -75,6 +76,36 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 4.4 | after 0.5.0: a back end to BEAM's own instructions, Ernest's types as the loader's typed registers | a proposal first | | below |
 
 ---
+
+## MVP 3.296 (what the tour's outline asked), two items of a day
+
+The tour's outline, under discussion in `docs/proposals/tour/`, left six entries in
+`docs/language_feedback.md`, 140 to 145, decided with the user on 2026-10-23 (the log's *What the
+Outline Asked*): four dropped there, and these two, built and closed before a chapter of the tour
+is written, so that the tour is written against what stands.
+
+1. **A restart runs the function it was given** (entries 143 and 140). §6.9 gains the sentence:
+   a restart runs `f` as it was given, so a process that moved itself to new code by its own send
+   (§6.10) runs the code it started with at its next fault. `guide/deployment.md`'s §5.3 gains the
+   line that a service under `restarting` takes new code by the reload of its binding, which
+   starts a service of the new version (§11.2).
+
+   The guide's §8.1 gains, after its `NotLoaded` sentence, that a value a spawned function needs from its spawner is a parameter or a captured
+   local, a binding being the node's own, so that an empty value a program spawns with on a bare
+   node is a function, `Tally.empty()`, where the standard library's `Map.empty` is a `let`,
+   since every node holds the library's values from its start. Prose alone.
+
+2. **Two nodes on one machine without a key pasted by hand** (entry 142). §11.3 first:
+   `ern config` takes `--listen host:port`, the new directory's `listen` in place of
+   `0.0.0.0:8654`, and `--peer dir`, which lists the node whose configuration directory is `dir`
+   in this directory's `ernest.conf`, its name the directory's last segment, its public key read
+   from the directory's certificate, and its `network-address` the peer's `listen`, with
+   `127.0.0.1` for a host of `0.0.0.0`, since a peer named by a directory is on this machine;
+   given `--peer`, `ern config` writes into a directory that exists, which it otherwise refuses
+   as today. §11.7's option list names both.
+
+   Then the toolchain and its tests, then the guide's §8.1 and the deployment guide's §2.1 shortened to the commands, their hand edits kept for a
+   peer on another machine alone. The `services` line stays a hand edit.
 
 ## MVP 3.3 (the tour)
 
