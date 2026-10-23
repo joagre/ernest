@@ -153,3 +153,67 @@ Counter, compiled again
 `apply` is the plain language by the way: a `match` over the list of words, with a pattern for each shape of line; `Optional`, `Some(amount)` or `None`, for a number that may not parse; strings joined with `<>` (the guide's §2.3, §2.5 and §2.6). It sends an `Inc` without waiting and answers `"ok"`, and asks for the total with the call of chapter 1.
 
 `:reload` compiles again every loaded module whose source changed, and says so and nothing more: no type changed, so every binding of the session stands as it was (the guide's §9.3). The counter `apply` is given is a value like any other, so the same function serves the counter here and the one on `foo`, which still holds its 5.
+
+## 4. A fault
+
+`count` refuses a negative amount, and `watch` hears a counter's end:
+
+```ernest
+type WatchMsg = Ended(Down)
+
+export fn count(total : Int) : Unit receiving CounterMsg =
+    receive {
+        Inc(amount) -> {
+            if amount < 0 then fault("a negative amount") else Unit;
+            count(total + amount)
+        }
+      | Get(reply) -> {
+            answer(reply, total);
+            count(total)
+        }
+    }
+
+export fn watch(counter : Address(CounterMsg)) : Unit receiving WatchMsg = {
+    monitor(Process.fromAddress(counter), Ended);
+    receive {
+        Ended(Down(reason = reason)) -> Io.println("the counter ended: " <> Io.show(reason))
+    }
+}
+```
+
+```console
+> :reload
+Counter, compiled again
+> kill(counter)
+> let counter = spawn(fn() = Counter.count(0))
+counter : Address(Counter.CounterMsg)
+> Counter.apply(counter, "inc -1")
+"ok" : String
+input 11:1 faulted: a negative amount
+    Counter$3.count:8
+> Counter.apply(counter, "get")
+"no answer" : String
+> let counter = spawn(restarting(RestartLimit(restarts = 1, within = 5000), fn() = Counter.count(0)))
+counter : Address(Counter.CounterMsg)
+> let watcher = spawn(fn() = Counter.watch(counter))
+watcher : Address(Counter.WatchMsg)
+> Counter.apply(counter, "inc 2")
+"ok" : String
+> Counter.apply(counter, "inc -1")
+"ok" : String
+input 14:1 faulted, restarted: a negative amount
+    Counter$3.count:8
+> Counter.apply(counter, "get")
+"0" : String
+> Counter.apply(counter, "inc -1")
+"ok" : String
+input 14:1 faulted: a negative amount
+    Counter$3.count:8
+the counter ended: Fault("a negative amount")
+```
+
+The precondition is written as the guide's §6.3 writes one: `fault` ends the process with its cause, and nothing catches it. The counter of chapter 3 keeps the loop it was started with, so it is killed and a new one spawned on the new loop (the guide's §4.6). The `inc -1` answers `"ok"`, since a send does not wait, and the fault is reported as the counter meets it, under the input that spawned the process and the place it faulted, `Counter$3.count:8`; the `$3` numbers the module's versions in this session, which chapter 5 comes to. The next `get` has no one to answer it.
+
+A process started under `restarting` runs its function again from the start after a fault, its mailbox emptied and its address kept, so `counter` is still good and the count is gone: `"0"` (§6.5). `RestartLimit(restarts = 1, within = 5000)` allows one restart in five seconds, and the second fault ends the process. `watch` monitors it, so the end arrives as a message of the watcher's own type, `Ended(Down(...))`, with the fault as its reason (§5.2, §6.4). The fault's report and the watcher's line are written as each happens, and in no fixed order.
+
+A program binds such an address at the top of a module and sends to it by name, and the restart is what keeps the binding good; that is Ernest's service, the guide's §6.5, which the tour's counters at the prompt do not need. The counter on `foo` has felt nothing of this.
