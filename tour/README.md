@@ -429,3 +429,67 @@ So the counter's messages are two types: `ClientMsg`, what a client sends, which
 The type changed again, so chapter 5's counter is killed and its tally lost, as a restart loses one; from here the counter's type does not change, and the tally is kept through everything that follows. `start` runs on `foo` by `Peer.computeAt`, which runs a function there and answers its value, the address: `Tally`, which `foo` never had, crossed with the compute, as `count` did with the spawn in chapter 2, the second claim once more. A program other than the one that started a service finds it by its name and the hash of its message type instead, which the deployment guide's §3.1 and the guide's §8.2 have.
 
 Both counters are spawned plain, with no `restarting` around them: a restart runs the function it was given, the old loop, which is what the next two chapters fix instead (report §6.9).
+
+## 7. Work anywhere
+
+This chapter leaves the counter for a page. `counter.ern` gains a question to the host and some invented work, the primes below a number:
+
+```ernest
+export fn schedulers() : Int =
+    systemInfo(Foreign.atom("schedulers"))
+
+foreign fn systemInfo(item : Foreign.Term) : Int =
+    "erlang:system_info/1"
+
+export fn primes(below : Int) : Int = {
+    Io.println("counting the primes below " <> Int.toString(below));
+    let composites = sieved(2, below, Set.empty);
+    List.size(List.filter(List.range(2, below - 1), fn(n) = !Set.contains(composites, n)))
+}
+
+fn sieved(prime : Int, below : Int, composites : Set(Int)) : Set(Int) =
+    if prime * prime >= below then
+        composites
+    else if Set.contains(composites, prime) then
+        sieved(prime + 1, below, composites)
+    else
+        sieved(prime + 1, below, crossed(prime * prime, prime, below, composites))
+
+fn crossed(multiple : Int, prime : Int, below : Int, composites : Set(Int)) : Set(Int) =
+    if multiple >= below then
+        composites
+    else
+```
+
+First the question, asked on each bare node:
+
+```console
+> :reload
+Counter, compiled again
+> Peer.computeAt("foo", fn() = Counter.schedulers(), 5000)
+Right(8) : Either(Io.Error, Int)
+> Peer.computeAt("bar", fn() = Counter.schedulers(), 5000)
+the peer bar connected
+Right(8) : Either(Io.Error, Int)
+```
+
+The host's own code, Erlang's libraries and whatever else runs on the runtime, is *foreign code* to a program, reached through a `foreign fn` that declares the Ernest type of a host function; `erlang:system_info/1` takes an atom, so the question is passed as one (the guide's §8.3). The host promised an `Int`, and the runtime checked the answer against the declaration as it arrived; declared `: String`, the same call would have faulted its caller at the crossing, `the return of foreign function erlang:system_info/1 does not match String`, naming the function and the type.
+
+That is the first claim of *Why Ernest* at its boundary: the type is checked, not trusted, and a wrong value from the host is a fault where it crosses, not a crash later in code that believed it. The shell connected to `bar` as the first compute on it needed to, and `bar`'s terminal says `the peer a connected`.
+
+Then the work, three times, naming no node:
+
+```console
+> Peer.utilizations()
+[#("foo", 0.0, 720), #("bar", 0.25, 387)] : List(#(String, Float, Int))
+> Peer.compute(fn() = Counter.primes(200000), 5000)
+Right(17984) : Either(Io.Error, Int)
+> Peer.compute(fn() = Counter.primes(200000), 5000)
+Right(17984) : Either(Io.Error, Int)
+> Peer.compute(fn() = Counter.primes(200000), 5000)
+Right(17984) : Either(Io.Error, Int)
+```
+
+`foo`'s terminal printed `counting the primes below 200000` twice and `bar`'s once, in this run. Each node tells its peers how busy it is, on a scale where 1.0 is every scheduler busy, and `Peer.utilizations()` is what the shell has heard: each peer, its utilization and how many milliseconds ago it said so.
+
+`Peer.compute` draws two of the peers and runs the function on the less busy, carrying its code there as the spawn did, and answers the value; which node ran it is the terminals' to show, since the program never names one (the guide's §8.1, *Which peer*). Nothing was installed on `foo` or `bar`, and nothing named either: that is the end of the second claim of *Why Ernest*, a computation that names no node goes to one with room, and no program is deployed first.
