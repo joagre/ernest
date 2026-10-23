@@ -109,7 +109,9 @@ Some(5) : Optional(Int)
 
 `foo`'s terminal says `the peer a connected`. A node's line, there and in the shell, begins with the time; the tour leaves it out.
 
-A node is a program, or a shell, started with a configuration directory, and `ern config` makes one: a key, a certificate, and `ernest.conf` with the port the node listens on. `--listen` gives `foo` and `bar` ports of their own, since three nodes on one machine cannot share one, and `--peer-dir` lists one node in another's file by the name of its directory, its key and its address, read from the directory. A node accepts a connection from a listed key alone, and nothing else is set up: two nodes are two files each naming the other, with no cluster to join and no shared secret, the third claim of *Why Ernest* (the deployment guide's §2). `foo` and `bar` are *bare nodes*, started with no program: they hold nothing of the counter's and wait for work.
+A node is a program, or a shell, started with a configuration directory, and `ern config` makes one: a key, a certificate, and `ernest.conf` with the port the node listens on. `--listen` gives `foo` and `bar` ports of their own, since three nodes on one machine cannot share one, and `--peer-dir` lists one node in another's file by the name of its directory, its key and its address, read from the directory.
+
+A node accepts a connection from a listed key alone, and nothing else is set up: two nodes are two files each naming the other, with no cluster to join and no shared secret, the third claim of *Why Ernest* (the deployment guide's §2). `foo` and `bar` are *bare nodes*, started with no program: they hold nothing of the counter's and wait for work.
 
 `Peer.spawn` starts `count` on `foo` and answers its address, or `Left` with the reason it could not; the `match` takes the address and faults on anything else, the shortest way to a `Right` at a prompt (the guide's §2.7). The shell connected to `foo` as the spawn needed it, and `count` crossed with the spawn, since `foo` had no code of it. The counter there is then the counter of chapter 1: the same `send`, the same call, the same answer. That is the second claim of *Why Ernest*: a process started on another node brings its code along, and nothing was installed first.
 
@@ -217,3 +219,113 @@ The precondition is written as the guide's §6.3 writes one: `fault` ends the pr
 A process started under `restarting` runs its function again from the start after a fault, its mailbox emptied and its address kept, so `counter` is still good and the count is gone: `"0"` (§6.5). `RestartLimit(restarts = 1, within = 5000)` allows one restart in five seconds, and the second fault ends the process. `watch` monitors it, so the end arrives as a message of the watcher's own type, `Ended(Down(...))`, with the fault as its reason (§5.2, §6.4). The fault's report and the watcher's line are written as each happens, and in no fixed order.
 
 A program binds such an address at the top of a module and sends to it by name, and the restart is what keeps the binding good; that is Ernest's service, the guide's §6.5, which the tour's counters at the prompt do not need. The counter on `foo` has felt nothing of this.
+
+## 5. Per key
+
+The counter now counts per key, which is why it gets a module, a build and a test. `tally.ern`, a second file beside `counter.ern`:
+
+```ernest
+export abstract type Tally(k) = Tally(Map(k, Int))
+
+export fn empty() : Tally(k) =
+    Tally(Map.empty)
+
+export fn inc(Tally(counts) : Tally(k), key : k, amount : Int) : Tally(k) =
+    Tally(Map.update(counts, key, fn(count) = Optional.withDefault(count, 0) + amount))
+
+export fn get(Tally(counts) : Tally(k), key : k) : Int =
+    Optional.withDefault(Map.get(counts, key), 0)
+
+export fn report(Tally(counts) : Tally(k)) : List(#(k, Int)) needs k.compare =
+    List.sort(Map.toList(counts), fn(#(a, _), #(b, _)) = k.compare(a, b))
+```
+
+`counter.ern`'s type, its loop and two tests; `apply` grows a key, `inc apples 2` and `get apples`, and a `report`, as `tour/5/` has it:
+
+```ernest
+export type CounterMsg =
+    Inc(key : String, amount : Int)
+  | Get(key : String, reply : Reply(Int))
+  | Report(reply : Reply(List(#(String, Int))))
+
+type TestMsg = Reported(List(#(String, Int)))
+
+export fn count(tally : Tally.Tally(String)) : Unit receiving CounterMsg =
+    receive {
+        Inc(key = key, amount = amount) -> {
+            if amount < 0 then fault("a negative amount") else Unit;
+            count(Tally.inc(tally, key, amount))
+        }
+      | Get(key = key, reply = reply) -> {
+            answer(reply, Tally.get(tally, key));
+            count(tally)
+        }
+      | Report(reply = reply) -> {
+            answer(reply, Tally.report(tally));
+            count(tally)
+        }
+    }
+
+let countsPerKey : Test.Case(m) = Test.Case(name = "counts per key", run = fn() = {
+    let counter = spawn(fn() = count(Tally.empty()));
+    let _ = apply(counter, "inc apples 2");
+    let _ = apply(counter, "inc apples 1");
+    Test.equal(apply(counter, "get apples"), "3")
+})
+
+let reports : Test.Case(TestMsg) = Test.Case(name = "reports", run = fn() = {
+    let counter = spawn(fn() = count(Tally.empty()));
+    let _ = apply(counter, "inc apples 2");
+    receive {
+        Reported(entries) -> Test.equal(entries, [#("apples", 2)])
+    }
+})
+```
+
+In your own terminal:
+
+```console
+$ ern build .
+$ ern test counter.erc
+counts per key: passed
+reports: faulted: deadlock
+    Counter.reports:70
+```
+
+At the shell:
+
+```console
+> :reload
+Tally, from tally.erc
+Counter, compiled again
+Counter.CounterMsg changed: the bindings counter and far are of its previous version, Counter$3.CounterMsg
+> Counter.apply(far, "inc apples 2")
+input 21:1:15: the argument does not fit Counter.apply: expected Address(Counter.CounterMsg), found Address(Counter$3.CounterMsg)
+1 | Counter.apply(far, "inc apples 2")
+  | ------------- Counter.apply : (Address(Counter.CounterMsg), String) -> String
+  |               ^^^
+  | = help: the types differ at Counter.CounterMsg and Counter$3.CounterMsg; Counter$3.CounterMsg is of a previous version of Counter, which a reload replaced
+> kill(far)
+> let counter = spawn(fn() = Counter.count(Tally.empty()))
+counter : Address(Counter.CounterMsg)
+> Counter.apply(counter, "inc apples 2")
+"ok" : String
+> Counter.apply(counter, "inc pears 1")
+"ok" : String
+> Counter.apply(counter, "inc apples 1")
+"ok" : String
+> Counter.apply(counter, "report")
+"apples: 3, pears: 1" : String
+```
+
+`Tally` is an *abstract type*: its constructor is its module's alone, so `counter.ern` holds a tally through `empty`, `inc`, `get` and `report` and never sees the map inside (the guide's §7.1, §7.2). `report` sorts by the key, and says what it needs of the key's type, `needs k.compare`; at the call in `count` you wrote nothing, and the compiler supplied `String`'s own `compare`. That is the fourth claim of *Why Ernest*. A generic function names the operations it needs of its type, and the compiler supplies that type's own at each call; the guide's §7.3 has the rules.
+
+`empty` is a function and not a value, since a module's values belong to the node that loaded it, and chapter 6 spawns this counter on a node that loaded nothing (the guide's §8.1).
+
+A module worth keeping gets a test: `ern build .` compiles both modules, and `ern test` runs every `Test.Case` the program declares (the guide's §6.6). The second test is the tour's one planted mistake. It waits for a `Reported` that no process sends, and the runtime ends it with a fault where your test framework would wait for its timeout: that is the fifth claim of *Why Ernest*, a program in which every process waits for a message none can send is a deadlock, found.
+
+The fix, a `Report` call in place of the `receive`, is chapter 6's. The test's type, `Test.Case(TestMsg)`, is the mailbox in the type once more: its `run` receives, so its type says what.
+
+`:reload` brings `Tally` in from the build and compiles `Counter` again, and this time a type changed. Each reload makes a *version* of the module, counted from the first load, `Counter$3` now the previous one; a process keeps its mailbox type for life, so the two counters spawned under the old type, chapter 4's ended one and the one on `foo`, are of `Counter$3.CounterMsg`, and the compiler refuses them the new protocol, with the reason (the guide's §9.3).
+
+The first claim and the second meet here: a process on another machine that has run since chapter 2 cannot be sent what it does not take, and nothing but a binding made before the reload reaches it. It is killed; chapter 6 gives the counter a door by which its code changes without a kill. The new counter counts per key, and its report is the tally sorted.
