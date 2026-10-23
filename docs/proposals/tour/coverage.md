@@ -1,6 +1,6 @@
 # What the tour must cover
 
-The outline read against `why.md`, item by item, and against what a skeptical Erlang or Gleam programmer brings, as `faq.md` and the guide's §10 record it. Section 1 says who the skeptic is, section 2 lists every item of `why.md` with where the outline meets it, section 3 works through the items it misses, section 4 is the chapter list that results, and section 5 what this adds to the feedback file before anything is written.
+The outline read against `why.md`, item by item, and against what a skeptical Erlang or Gleam programmer brings, as `faq.md` and the guide's §10 record it. Section 1 says who the skeptic is, section 2 lists every item of `why.md` with where the outline meets it, section 3 works through the items it misses, and sections 4 and 5 point at the outline and the log, where the chapters and the feedback went on 2026-10-23.
 
 ## 1. The two skeptics
 
@@ -133,25 +133,8 @@ let reports : Test.Case(TestMsg) =
 
 ## 4. The chapters that result
 
-Eight chapters, each a screen of code and half a screen of prose, the added one marked.
+Folded into [`outline.md`](outline.md) on 2026-10-23, whose section 3 holds the eight chapters, its section 4 how the claims are met and its section 7 the decisions this reading added: the two bare nodes in chapter 2, the deadlock shown by a test, and the chapter for a claim.
 
-1. **The counter.** As the outline; the line at the refusal says both ends are checked (3.1).
-2. **Two bare nodes.** `foo` and `bar` made and started, `a` listing both and the service `counter` on `foo`, all of the operator's work in one place pointing at the deployment guide's §2 and §3.1; the counter spawned on `foo`, the `String` refused; the line on key, mesh and port (3.5).
-3. **The client.** As the outline.
-4. **A fault.** As the outline; the line on the service binding (3.2).
-5. **Per key.** As the outline, with the second test that deadlocks (3.7).
-6. **The counter on foo, kept.** The door and the split as the outline; the counter offered as a service on `foo` and found by name and hash (3.5).
-7. **Work anywhere** *(added)*. `schedulers` asked of each peer through a `foreign fn` (3.3); `primes` placed by `Peer.compute` three times, the terminals showing where (3.4).
-8. **The fix.** As the outline's chapter 7; then `ern stop --config-dir foo`, the shell saying `the peer foo ended` (3.5), and the handover.
+## 5. What went to the feedback file
 
-The spine holds: the tally is kept from chapter 6 through 7, which does not touch the counters, and through 8's two moves. Chapter 7 is the one chapter for a claim and not for the program, and says so.
-
-## 5. What goes to the feedback file first
-
-The rule for this milestone: every line of `docs/language_feedback.md` and of `docs/findings.md` is addressed before the tour is written. The outline's section 6 has four, entries 140 to 143; this reading adds the three below, the first folded into entry 140 as its second instance and the other two entries 144 and 145, all written on 2026-10-23.
-
-- A `Peer.service(name)` cannot be a top-level `let` in a module a bare node runs, for the ground-term rule, so the tour writes `service()` as it writes `Tally.empty()`: the sharp edge of the outline's first feedback line met a second time in one program. Whether the exchange should evaluate a module's bindings on arrival, as `Code.load` does, is a design question beyond the tour.
-- A computed function cannot say where it ran, so the compute chapter shows the node by the line it prints in the peer's terminal; entry 117 decided it on 2026-10-20, and the tour is the first program to feel it.
-- `erlang:system_info/1` takes an atom, so one host question costs a `Foreign.atom` beside the declaration; the guide's §8.3 says so, and the tour meets it in its one foreign call.
-
-The finding on `why.md`'s spawn fragment is `docs/findings.md`'s T1, and the plan's sketch its T2.
+Entries 144 and 145 of `docs/language_feedback.md`, and the `Peer.service` line as entry 140's second instance, written on 2026-10-23 and decided the same day (the log's *What the Outline Asked*); the outline's section 6 says what each decision fixes in the tour.
