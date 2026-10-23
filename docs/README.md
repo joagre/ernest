@@ -1,6 +1,6 @@
 # The documents
 
-The project's own documents: what each file and directory here is, and the two READMEs that stand beside the code. What a user of Ernest reads is [`report/`](../report/) and [`guide/`](../guide/).
+The project's own documents: what each file and directory here is, and the two READMEs that stand beside the code. What a user of Ernest reads is [`report/`](../report/) and [`guide/`](../guide/), each with a README of its own, and the tour, [`tour/`](../tour/).
 
 - **[`development.md`](development.md)**: where things are, how to build and test them, and what the toolchain does not do yet.
 - **[`plan.md`](plan.md)**: where the project stands and what comes next.

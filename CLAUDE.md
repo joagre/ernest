@@ -24,6 +24,8 @@ Each fact has one owner. Every other document points at the owner and does not r
 | [`guide/style.md`](guide/style.md) | what a program written in Ernest looks like: what the tools decide, what the standard library does with names, and the names every program shares |
 | [`docs/style.md`](docs/style.md) | the repository's own code's form and naming, its Erlang's and its C's, and the toolchain's glossary |
 | [`README.md`](README.md) | what Ernest is and where to begin |
+| [`report/README.md`](report/README.md) | what the report's three files hold and how the report is read |
+| [`guide/README.md`](guide/README.md) | what each guide is, for whom, and how long |
 | [`ACKNOWLEDGMENTS.md`](ACKNOWLEDGMENTS.md) | the people Ernest stands on, by name alone |
 | [`docs/development.md`](docs/development.md) | the layout, the commands, and what the toolchain does not do yet |
 | [`docs/README.md`](docs/README.md) | what each document under `docs/` is |
