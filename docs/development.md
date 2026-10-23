@@ -273,7 +273,9 @@ make format       lay out every Ernest module, and the Ernest blocks of the repo
 make unicode UC_SPEC=dir
                   write Terminal.width's table from Unicode's data in dir, OTP's
                   lib/stdlib/uc_spec of the host's version
-make clean        remove build products
+make clean        remove every build product: build/, the applications' beams, the
+                  helper, every compiled module beside its source and every crash dump;
+                  a node's .ernest/ directory, which holds a key, is left
 make clean-emacs  remove Emacs backup, auto-save, and lock files
 ```
 

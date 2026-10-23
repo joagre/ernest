@@ -400,10 +400,11 @@ $(TYPING_PARTS): emacs-test-typing-%:
 clean:
 	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
 	@$(MAKE) -C test $@
-	@rm -rf build/stdlib build/shell build/libs build/tools build/man build/pages build/release \
-	  build/dialyzer build/dialyzer.plt build/sanitize $(EXEC)
-	@# sh reads `**` as `*`, so the programs' compiled modules are found
-	@find examples test/fixtures/programs -name '*.erc' -delete
+	@# every build product is under build/, which make writes again; a compiled
+	@# module beside its source, and a crash dump, are left wherever a run put them
+	@rm -rf build $(EXEC)
+	@find . -path ./build -prune -o \( -name '*.erc' -o -name 'erl_crash.dump' \) -type f -print0 \
+	  | xargs -0 rm -f
 
 # Rewrite test/fixtures/golden/*.erl, the Erlang source the compiler emits for
 # every program of test/fixtures/programs/ and services, after an intended change

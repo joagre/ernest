@@ -128,12 +128,32 @@ no release waits for hardware, and the design note is bounded by its altitude be
   the operations programs and the code-update experiments went with their tests, since the guide's
   blocks and `examples/upgrade/` show what they showed and six of the experiments no longer compiled.
 
-- **The process-only mark marks a wait alone**, a defect found by the sweep on 2026-10-24: §3.9
+- **The process-only mark marks a wait alone**, done 2026-10-24 (the log's *The Process-Only
+  Mark Marks a Wait*), a defect found by the sweep on 2026-10-24: §3.9
   names one process-only case, a `receive` that fixes no type, and the checker marks a second, a
   `self()` whose address the function's type never shows, `fn f() = kill(self())` printing
   `receiving e+` and E.22's `child` `receiving m+`. The checker is narrowed to the report's rule,
   E.22's listing follows, and the soundness argument's §6.3 stands; decided with the user
-  2026-10-24. A proposal's directory goes when the milestone built from it closes, after one pass
+  2026-10-24.
+
+- **`self` and `monitor` in a process that acts for another**, a defect the narrowing made
+  reachable on 2026-10-24: a wrap or an adapted address's function may now call a helper that
+  calls `self()` or `monitor` without showing the address, and in the runtime's delivery process
+  `self()` answers that process, so `kill(self())` in a wrap loses the `Down` silently and a
+  `monitor` in one registers the wrong process, against §6.9's rule that what a wrap asks of the
+  runtime is the recipient's. Two decisions stand here for the user: that `self()` and `monitor`
+  in a process acting for another answer and register for the recipient, the target where an
+  adapted address's function runs on the target's node, with a sentence each in §6.5 and §6.9
+  (recommended, principle 1); and that an annotation `: T` stands over a body whose effect
+  variable stays free, not process-only and in no value position of the signature, so that the
+  type the shell prints can be written (recommended, principle 1). Built before the review runs,
+  by 2026-10-26, so that the review reads a tree without a known defect.
+
+- **Two nodes tests race**, found 2026-10-24: `shell_peer_fault` and `shell_compute` each send an
+  input after a peer-spawned fault and wait for the fault's line, which the shell writes as it
+  next writes its screen, so under load the fault can arrive after that input, and the run fails
+  once in a few; the tests take the line with either input, as the tour's test does, by
+  2026-10-26. A proposal's directory goes when the milestone built from it closes, after one pass
   takes to the log what it still argues that the log lacks.
 
   The review runs that pass over every proposal built by 0.5.0, `nodes_and_code/`, `operations/`,

@@ -713,7 +713,7 @@ input 2:1:46: the argument does not fit one: expected List(Int), found List(Stri
 
 ### 3.4 Functions that receive
 
-A function whose type has `receiving M` receives from the mailbox of the process it runs in, whose type is `M`: it runs a `receive`, asks for its own address with `self`, asks for a message to be delivered into its mailbox, as `monitor` does, or calls a function that does one of these (report §6.1). A function whose type has no `receiving` receives nothing and runs in any process. Either may send, spawn, print, or call another process (§4).
+A function whose type has `receiving M` receives from the mailbox of the process it runs in, whose type is `M`: it runs a `receive`, gives out its address by `self`, asks for a message to be delivered into its mailbox, as `monitor` does, or calls a function that does one of these (report §6.1). A function whose type has no `receiving` receives nothing and runs in any process. Either may send, spawn, print, or call another process (§4).
 
 Either kind of function can fault or run for ever: `a / b` with `b = 0` faults although its type is `(Int, Int) -> Int`, and `fault("...")` has every type and faults when it is reached. `receiving` says only that a function receives, not whether it can fault (§6).
 
