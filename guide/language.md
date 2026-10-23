@@ -2366,6 +2366,8 @@ The compiler must see what the function captures, so the function a compute or a
 
 The function runs on the peer once the peer holds it and what it reaches, which cross where the peer lacks them, and only where every top-level binding the function reaches has its value on the peer and every module a foreign declaration it reaches calls is there; otherwise the compute answers `Left(NotLoaded)`, and the peer says on its standard error what it lacked. A binding the function does not reach keeps it from no peer, whatever its module holds (report §8.7).
 
+So a value a spawned function needs from where it was written is a parameter, or a local it captures, and not a binding of its module: a binding is the node's own. The standard library's bindings have their values on every node, since every node holds the library from its start, so `Map.empty` is a `let` where a program's own empty value, spawned with on a bare node, is a function, `empty()`.
+
 **Which peer.** A computation needs room more than a place, so `Peer.compute(f, ms)` names no peer: the node picks one, and runs `f` there as `Peer.computeAt` runs it on the peer named (report §8.7, Appendix E.27):
 
 ```ernest

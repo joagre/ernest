@@ -101,7 +101,7 @@ input 4:1:11: the argument does not fit send: expected Counter$1.Msg, found Coun
   = help: Counter$1.Msg is of a previous version of Counter, which a reload replaced
 ```
 
-The same counter runs on a peer that holds none of its code. A spawn names its function by hash, and a peer that lacks it is sent the definition with every definition it references, before the process starts. `foo` is a bare node, started from a configuration directory and no program. It holds no code of the counter's, and runs whichever version the spawn names:
+The first claim's counter, whose messages carry no function and so may cross to another node, runs on a peer that holds none of its code. A spawn names its function by hash, and a peer that lacks it is sent the definition with every definition it references, before the process starts. `foo` is a bare node, started from a configuration directory and no program. It holds no code of the counter's, and runs whichever version the spawn names:
 
 ```ernest-fragment
 match Peer.spawn("foo", fn() = count(0), 5000) {

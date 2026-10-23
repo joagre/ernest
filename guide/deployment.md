@@ -235,6 +235,8 @@ An operator with a one-line fix loads the fixed module with `:load` and spawns t
 
 A running service is moved to new code by the program's own message, never by the runtime: the service is written to take a message that hands it its new function, and a tool, a program of the author's own, lists the processes running the old function and sends each of them that message (report §6.10, Appendix E.28). How a service is written to take it is the language guide's §8.9; the operator runs the tool.
 
+A service under `restarting` is not moved so: a restart runs the function the service was started with, the old code, at its next fault (report §6.9). Such a service takes new code as a new service, started when the new build's binding is evaluated, by a `Code.load` of the build or a shell's `:reload`, and the old service runs on beside it (report §11.2, Appendix E.28).
+
 The example `examples/upgrade/` is one module, `Counter`, in two builds: the first, [`v1/counter.ern`](../examples/upgrade/v1/counter.ern), is the counter alone, which section 8 starts on the peers, and the second, [`v2/counter.ern`](../examples/upgrade/v2/counter.ern), the counter with a new loop and the tool. Run from `examples/`, with counters of the first build on the peers, the second runs on a node of its own and spawns on every peer a process that moves the peer's counters and says how many it moved.
 
 ```console
