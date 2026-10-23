@@ -6,7 +6,7 @@
 -export([run/1, run/2, run/3, run_at_terminal/1, scratch/0, write_golden/0, pair/0, funs/0, taken/0,
          opt/1, improper/1, remember/1, junk/1, good/1, tell/1, junk_server/0, hello_junk/0,
          hello_good/0, relay_junk/1, relay_good/1, same/1, call_nested_bad/1, call_nested_good/1,
-         ask_junk/1, ask_good/1, calls_held/0]).
+         ask_junk/1, ask_good/1, calls_held/0, stack_here/0]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("parser/include/ern_ast.hrl").
@@ -628,16 +628,18 @@ trace_twelve_frames_test() ->
     ?assertEqual([Again, Nested, Again, Nested, Again, Nested, Again, Nested, Again, Nested],
                  lists:nthtail(2, Frames)).
 
-%% Appendix E.21: a frame of the runtime's is left out of a trace wherever
-%% it stands, and the trace still ends with the program's outermost frame:
-%% a callForever found deadlocked, its process waiting in the runtime's
-%% receive, and one whose callee had ended, its fault raised in the
-%% runtime's code, each show the frame of `main` that called it alone. A
-%% regression test, written after the code: the runtime's frame,
-%% `ern_rt:call_forever/3:639`, stood above the program's (the skeptics'
-%% read of 2026-10-23, docs/findings.md's L21 and M13). The host's frame
-%% above the program's, which stays, is trace_twelve_frames_test's; a
-%% frame of the runtime's between two of the program's is not covered
+%% Appendix E.21: a frame of the runtime's is left out of the trace of a
+%% fault the runtime raises by design wherever it stands, and the trace
+%% still ends with the program's outermost frame: a callForever found
+%% deadlocked, its process waiting in the runtime's receive, and one whose
+%% callee had ended, its fault raised in the runtime's code, each show the
+%% frame of `main` that called it alone. A regression test, written after
+%% the code: the runtime's frame, `ern_rt:call_forever/3:639`, stood above
+%% the program's (the skeptics' read of 2026-10-23, docs/findings.md's L21
+%% and M13). The host's frame above the program's, which stays, is
+%% trace_twelve_frames_test's; a frame of the runtime's between two of the
+%% program's is not covered; a failure's trace, which keeps them, is
+%% trace_keeps_the_runtime_of_a_failure_test's
 trace_leaves_the_runtime_out_test() ->
     Types = "type Msg = Ask(reply : Reply(Int))\n"
             "type MainMsg = Died(Down)\n"
@@ -651,6 +653,49 @@ trace_leaves_the_runtime_out_test() ->
                  run(Types ++ "    let s = spawnMonitored(fn() : Unit receiving Msg = Unit,"
                               " Died);\n"
                               "    receive { Died(_) -> Unit };\n" ++ Called)).
+
+%% Appendix E.21, report §7.4: a fault whose cause names a host error
+%% keeps the runtime's frames above the program's outermost frame. A
+%% foreign function whose host code is the runtime's own, given what it
+%% cannot take, raises inside it, by the path every library function's
+%% foreign call takes, and the trace shows the host's frame and the
+%% runtime's where the raise was met. A failure in the runtime named by
+%% the host's class and reason, a spawn past the host's limit of
+%% processes, no program can meet at a cost a test can pay, so that fault
+%% is made from a unit's own stack with a frame of the runtime's laid above
+%% it, beside a fault the runtime raises by design over the same stack,
+%% which leaves that frame out. A regression test, written after the code
+%% (the decision of 2026-10-23 on the two kinds)
+trace_keeps_the_runtime_of_a_failure_test() ->
+    {{fault, Raised, Trace}, _} =
+        run("foreign fn systemProcess(name : Int) : Int = \"ern_rt:system_process/1\"\n"
+            "export fn main() : Unit = Io.println(Int.toString(systemProcess(3)))\n"),
+    ?assertEqual(<<"foreign function ern_rt:system_process/1 raised error:badarg">>, Raised),
+    ?assertMatch([<<"persistent_term:get/1">>, <<"ern_rt:system_process/1:", _/binary>>,
+                  <<"M.systemProcess:1">>, <<"M.main:2">>], lines(Trace)),
+    true = register(ern_stack_here, self()),
+    {ok, _} = run("foreign fn here() : Int = \"ern_emitter_tests:stack_here/0\"\n"
+                  "export fn main() : Unit = Io.println(Int.toString(here()))\n"),
+    true = unregister(ern_stack_here),
+    Here = receive {stack_here, Stack} -> Stack after 5000 -> error(no_stack) end,
+    Laid = [{erlang, spawn_opt, 4, []}, {ern_rt, spawn, 2, [{line, 1}]} | Here],
+    {ern, fault, <<"error:system_limit">>, Failure} =
+        ern_rt:fault_exit_reason(error, system_limit, Laid),
+    ?assertMatch([<<"erlang:spawn_opt/4">>, <<"ern_rt:spawn/2:1">>, <<"M.here:1">>,
+                  <<"M.main:2">>], lines(Failure)),
+    {ern, fault, <<"designed">>, Designed} =
+        ern_rt:fault_exit_reason(throw, {ern, fault, <<"designed">>}, Laid),
+    ?assertEqual(lines(Failure) -- [<<"ern_rt:spawn/2:1">>], lines(Designed)).
+
+lines(Trace) ->
+    binary:split(Trace, <<"\n">>, [global, trim]).
+
+%% A foreign function of trace_keeps_the_runtime_of_a_failure_test's, which
+%% hands the test its caller's stack, its own frame taken off.
+stack_here() ->
+    {current_stacktrace, [_ | Stack]} = erlang:process_info(self(), current_stacktrace),
+    ern_stack_here ! {stack_here, Stack},
+    0.
 
 %% report Appendix H, §6.9, §11.2: two definitions whose forms are one
 %% term are one definition: a reference to either within their module is

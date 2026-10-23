@@ -46,9 +46,11 @@
                     | {mu, pos_integer(), descriptor()} | {abstract, descriptor()}.
 
 %% Report §7.4: an exception foreign function HostModule:HostFunction/Arity
-%% raised, a fault of the calling process that names the implementation;
-%% an Ernest fault raised inside foreign code, by a function it was given,
-%% passes through as itself.
+%% raised, a fault of the calling process that names the implementation,
+%% its trace a failure's, which keeps the runtime's frames where the raise
+%% was met in the runtime's own code (Appendix E.21); an Ernest fault
+%% raised inside foreign code, by a function it was given, passes through
+%% as itself.
 -spec raised(module(), atom(), arity(), error | exit | throw, term(), list()) -> no_return().
 raised(_, _, _, throw, {ern, _, _} = Passing, _) ->
     throw(Passing);
@@ -63,7 +65,7 @@ raised(HostModule, HostFunction, Arity, Class, Error, Stack) ->
                                  [ern_namespace:host_function_text(HostModule, HostFunction,
                                                                    Arity),
                                   Class, Error])),
-                 ern_rt:trace(Stack)).
+                 ern_rt:failure_trace(Stack)).
 
 %% Report §7.4: an exception a function value foreign code gave raised
 %% where the program called it, as a foreign function's (raised/6), named

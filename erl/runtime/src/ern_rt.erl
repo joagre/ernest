@@ -66,6 +66,7 @@
          timed/0, untimed/0, deadline/1, remaining/1, now/0, monotonic/0, monotonic_micros/0,
          entered_foreign/0, left_foreign/0,
          undefined_function/3, undefined_lambda/3, fault_exit_reason/3, fault/1, fault/2, trace/1,
+         failure_trace/1,
          system_process/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
          input_not_utf8/0, by_input/1, read_input/1, run_main/3, say/2, tables/0, arguments/0,
          exit_program/1, deadlock_victim/1, entry_process/0, signal/1, initializing/1, site/0,
@@ -2167,14 +2168,21 @@ run(Function) ->
 %% (arithmetic_cause/1); one raised with its trace, a foreign function's
 %% raise and a fault met on a message's way (§6.5), keeps it, and one a
 %% compute carried keeps the peer's (§8.7). A failure of the runtime is the
-%% host's class and reason. Every place a host error becomes a fault reads
-%% it here.
+%% host's class and reason, its trace a failure's (failure_trace/1). Every
+%% place a host error becomes a fault reads it here.
 -spec fault_exit_reason(error | exit | throw, term(), list()) -> tuple().
-fault_exit_reason(error, badarith, Stack) -> {ern, fault, arithmetic_cause(Stack), trace(Stack)};
+fault_exit_reason(error, badarith, Stack) ->
+    case arithmetic_cause(Stack) of
+        failure -> failure_exit_reason(error, badarith, Stack);
+        Cause -> {ern, fault, Cause, trace(Stack)}
+    end;
 fault_exit_reason(throw, {ern, fault, Cause}, Stack) -> {ern, fault, Cause, trace(Stack)};
 fault_exit_reason(throw, {ern, fault, _, _} = Fault, _) -> Fault;
 fault_exit_reason(throw, {ern, carried, _, _} = Carried, _) -> Carried;
-fault_exit_reason(Class, Error, Stack) -> {ern, fault, host_cause(Class, Error), trace(Stack)}.
+fault_exit_reason(Class, Error, Stack) -> failure_exit_reason(Class, Error, Stack).
+
+failure_exit_reason(Class, Error, Stack) ->
+    {ern, fault, host_cause(Class, Error), failure_trace(Stack)}.
 
 %% Report §3.1, §7.4: the cause of the host's badarith, read from its stack
 %% where it was met. An Int `/` or `%` by zero is the host's `div` or `rem`,
@@ -2183,8 +2191,7 @@ fault_exit_reason(Class, Error, Stack) -> {ern, fault, host_cause(Class, Error),
 %% where the host's compiler did not know they were floats, and where it
 %% knew, the host computed in its float registers and raised in the
 %% program's own frame, with no frame of its own. Any other badarith is no
-%% operation of the program's, a failure of the runtime, the host's class
-%% and reason.
+%% operation of the program's, a failure of the runtime.
 arithmetic_cause([{erlang, Operator, [Left, Right], _} | _])
   when is_integer(Left), is_integer(Right), (Operator =:= 'div' orelse Operator =:= 'rem') ->
     <<"division by zero">>;
@@ -2195,10 +2202,10 @@ arithmetic_cause([{erlang, Operator, [Left, Right], _} | _])
 arithmetic_cause([Frame | _]) ->
     case is_program_frame(Frame) of
         true -> <<"float arithmetic error">>;
-        false -> host_cause(error, badarith)
+        false -> failure
     end;
 arithmetic_cause([]) ->
-    host_cause(error, badarith).
+    failure.
 
 %% A failure of the runtime's as a cause, the host's class and reason.
 host_cause(Class, Error) ->
@@ -2225,26 +2232,39 @@ fault(Cause, Trace) ->
 found_fault(Pid, Cause) ->
     killed(Pid, {found, Cause}).
 
-%% Appendix E.21: a fault's trace, the innermost twelve frames of the
-%% host's stack, the innermost first, a frame a line, ending with the
-%% outermost frame of the program's code: the frames beneath it are left
-%% out, and a stack with no frame of the program's has an empty trace. A
-%% frame of the toolchain's own Erlang, the runtime's, is left out wherever
-%% it stands, the twelve counted without it (own_modules/0), and a frame
-%% of the host's above the program's stays. A frame of Ernest code is
-%% written as a spawn site is (§6.9), by the name the unit's sites write
-%% its function by (ern_code:function_text/3) and its line,
-%% `Counter.worker:23`; a frame of the host's by the function as the host
-%% names it and its line, `lists:nth/2:213`; either without a line where
-%% the host gives none.
-%% Report §11.2: the printer indents it.
+%% Appendix E.21: the trace of a fault the runtime raises by design, a
+%% cause of §7.4's or a library function's, the deadlock and a failed
+%% check among them: a frame of the toolchain's own Erlang, the runtime's,
+%% is left out wherever it stands, the twelve counted without it
+%% (own_modules/0), and a frame of the host's above the program's stays.
 -spec trace([tuple()]) -> binary().
 trace(Stack) ->
     Own = own_modules(),
-    Shown = [Entry || {ErlangModule, _, _, _} = Entry <- Stack, not is_map_key(ErlangModule, Own)],
+    traced([Entry || {ErlangModule, _, _, _} = Entry <- Stack, not is_map_key(ErlangModule, Own)]).
+
+%% Appendix E.21, report §7.4: the trace of a fault whose cause names a
+%% host error, a failure in the runtime or a foreign function's raise,
+%% which keeps the runtime's frames above the program's outermost frame,
+%% where the host error was met in the runtime's own code.
+-spec failure_trace([tuple()]) -> binary().
+failure_trace(Stack) ->
+    traced(Stack).
+
+%% Appendix E.21: a trace, the innermost twelve frames of the stack given,
+%% the innermost first, a frame a line, ending with the outermost frame of
+%% the program's code: the frames beneath it are left out, and a stack with
+%% no frame of the program's has an empty trace. A frame of Ernest code is
+%% written as a spawn site is (§6.9), by the name the unit's sites write
+%% its function by (ern_code:function_text/3) and its line,
+%% `Counter.worker:23`; a frame of the host's or the runtime's by the
+%% function as the host names it and its line, `lists:nth/2:213`; either
+%% without a line where the host gives none. Report §11.2: the printer
+%% indents it.
+traced(Stack) ->
     Program = lists:reverse(lists:dropwhile(fun(Entry) -> not is_program_frame(Entry) end,
-                                            lists:reverse(Shown))),
-    unicode:characters_to_binary([[trace_line(Entry), $\n] || Entry <- lists:sublist(Program, 12)]).
+                                            lists:reverse(Stack))),
+    unicode:characters_to_binary([[trace_line(Entry), $\n]
+                                  || {_, _, _, _} = Entry <- lists:sublist(Program, 12)]).
 
 %% Whether a frame of the host's stack is of a unit of Ernest code.
 is_program_frame({ErlangModule, Function, _, Info}) ->
