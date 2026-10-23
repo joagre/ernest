@@ -96,13 +96,14 @@ outline's skeptics' read showed was missing (the log's *The Skeptics' Read*).
    node is a function, `Tally.empty()`, where the standard library's `Map.empty` is a `let`,
    since every node holds the library's values from its start. Prose alone.
 
-2. **Two nodes on one machine without a key pasted by hand** (entry 142). §11.3 first:
-   `ern config` takes `--listen host:port`, the new directory's `listen` in place of
-   `0.0.0.0:8654`, and `--peer dir`, which lists the node whose configuration directory is `dir`
+2. **Two nodes on one machine without a key pasted by hand** (entry 142), done 2026-10-23 (the
+   log's *Two Nodes on One Machine, Built*). §11.3 first:
+   `ern config` takes `--listen address:port`, the new directory's `listen` in place of
+   `0.0.0.0:8654`, and `--peer-dir dir`, which lists the node whose configuration directory is `dir`
    in this directory's `ernest.conf`, its name the directory's last segment, its public key read
    from the directory's certificate, and its `network-address` the peer's `listen`, with
    `127.0.0.1` for a host of `0.0.0.0`, since a peer named by a directory is on this machine;
-   given `--peer`, `ern config` writes into a directory that exists, which it otherwise refuses
+   given `--peer-dir`, `ern config` writes into a directory that exists, which it otherwise refuses
    as today. §11.7's option list names both.
 
    Then the toolchain and its tests, then the guide's §8.1 and the deployment guide's §2.1 shortened to the commands, their hand edits kept for a
