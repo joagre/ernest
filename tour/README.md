@@ -44,4 +44,112 @@ A counter is a process that holds a number, and `count` is its loop: it takes on
 
 The last input never runs: the address carries the mailbox's type, and a `String` is not a `CounterMsg`. That is the first claim of *Why Ernest*. The mailbox type is in the function's type, so a wrong send is refused before the program runs, and `count` runs only in a process of that type.
 
-`:load` compiles a module from the file of its name in the directory the shell was started in, `:quit` ends the shell, and the guide's §1.2 has the rest of it.
+`:load` puts a module in scope, compiling it from its source in the directory the shell was started in where nothing compiled is as new, and its line says which it did; `:quit` ends the shell. The guide's §1.2 has the rest of it.
+
+## 2. Two bare nodes
+
+The program does not change. In your own terminal, seven commands:
+
+```console
+$ ern config --config-dir a
+-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEA6UybIOO9Cx/+QIRHGqSce3mvI+1v/B3pmkxPHm+wLCk=
+-----END PUBLIC KEY-----
+$ ern config --config-dir foo --listen 127.0.0.1:8655
+-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEAt0us/x3+136OtVNkAwklPbf6lv1ZhqfVLwyncvrF3Qw=
+-----END PUBLIC KEY-----
+$ ern config --config-dir bar --listen 127.0.0.1:8656
+-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEANy/2jjlu+c2WNavTjSFQAoHBb9F3IXodXnpM//xyrdI=
+-----END PUBLIC KEY-----
+$ ern config --config-dir a --peer-dir foo
+$ ern config --config-dir a --peer-dir bar
+$ ern config --config-dir foo --peer-dir a
+$ ern config --config-dir bar --peer-dir a
+```
+
+`a/ernest.conf` now reads:
+
+```json
+{
+  "listen": "0.0.0.0:8654",
+  "public-key": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA6UybIOO9Cx/+QIRHGqSce3mvI+1v/B3pmkxPHm+wLCk=\n-----END PUBLIC KEY-----\n",
+  "peers": [
+    {
+      "name": "foo",
+      "network-address": "127.0.0.1:8655",
+      "public-key": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAt0us/x3+136OtVNkAwklPbf6lv1ZhqfVLwyncvrF3Qw=\n-----END PUBLIC KEY-----\n"
+    },
+    {
+      "name": "bar",
+      "network-address": "127.0.0.1:8656",
+      "public-key": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEANy/2jjlu+c2WNavTjSFQAoHBb9F3IXodXnpM//xyrdI=\n-----END PUBLIC KEY-----\n"
+    }
+  ],
+  "services": {}
+}
+```
+
+In a second terminal `ern run --config-dir foo`, in a third `ern run --config-dir bar`; each waits, saying nothing. Then the shell, started again in your directory as a node:
+
+```console
+$ ern shell --config-dir a
+> :load Counter
+Counter, compiled from counter.ern
+> let counter = spawn(fn() = Counter.count(0))
+counter : Address(Counter.CounterMsg)
+> let far = match Peer.spawn("foo", fn() = Counter.count(0), 5000) { Right(address) -> address | Left(error) -> fault(Io.show(error)) }
+the peer foo connected
+far : Address(Counter.CounterMsg)
+> send(far, Counter.Inc(5))
+> Address.call(far, Counter.Get, 1000)
+Some(5) : Optional(Int)
+```
+
+`foo`'s terminal says `the peer a connected`. A node's line, there and in the shell, begins with the time; the tour leaves it out.
+
+A node is a program, or a shell, started with a configuration directory, and `ern config` makes one: a key, a certificate, and `ernest.conf` with the port the node listens on. `--listen` gives `foo` and `bar` ports of their own, since three nodes on one machine cannot share one, and `--peer-dir` lists one node in another's file by the name of its directory, its key and its address, read from the directory. A node accepts a connection from a listed key alone, and nothing else is set up: two nodes are two files each naming the other, with no cluster to join and no shared secret, the third claim of *Why Ernest* (the deployment guide's §2). `foo` and `bar` are *bare nodes*, started with no program: they hold nothing of the counter's and wait for work.
+
+`Peer.spawn` starts `count` on `foo` and answers its address, or `Left` with the reason it could not; the `match` takes the address and faults on anything else, the shortest way to a `Right` at a prompt (the guide's §2.7). The shell connected to `foo` as the spawn needed it, and `count` crossed with the spawn, since `foo` had no code of it. The counter there is then the counter of chapter 1: the same `send`, the same call, the same answer. That is the second claim of *Why Ernest*: a process started on another node brings its code along, and nothing was installed first.
+
+Chapter 1's counter ended with its shell; this shell runs to the end of the tour. A shell started with `--config-dir` is a node like any other (the guide's §9.2 and §8.1).
+
+## 3. The client
+
+`counter.ern` gains a function that reads a line and does what it says, answering what to print:
+
+```ernest
+export fn apply(counter : Address(CounterMsg), line : String) : String =
+    match String.words(line) {
+        ["inc", text] ->
+            match String.toInt(text) {
+                Some(amount) -> {
+                    send(counter, Inc(amount));
+                    "ok"
+                }
+              | None ->
+                    "not a number: " <> text
+            }
+      | ["get"] ->
+            match Address.call(counter, Get, 1000) {
+                Some(total) -> Int.toString(total)
+              | None -> "no answer"
+            }
+      | _ ->
+            "unknown: " <> line
+    }
+```
+
+```console
+> :reload
+Counter, compiled again
+> Counter.apply(counter, "inc 3")
+"ok" : String
+> Counter.apply(far, "get")
+"5" : String
+```
+
+`apply` is the plain language by the way: a `match` over the list of words, with a pattern for each shape of line; `Optional`, `Some(amount)` or `None`, for a number that may not parse; strings joined with `<>` (the guide's §2.3, §2.5 and §2.6). It sends an `Inc` without waiting and answers `"ok"`, and asks for the total with the call of chapter 1.
+
+`:reload` compiles again every loaded module whose source changed, and says so and nothing more: no type changed, so every binding of the session stands as it was (the guide's §9.3). The counter `apply` is given is a value like any other, so the same function serves the counter here and the one on `foo`, which still holds its 5.

@@ -3022,7 +3022,7 @@ One command, `ern`, whose first word is its job, and a mode for Emacs. `ern --he
 
 ### 9.3 The shell
 
-§1.2 teaches inputs and the first commands. A command begins with `:`, and `:help` lists the commands, among them these: `:type` gives an expression's type and `:doc` a name's documentation, `:browse` lists a module's exports, `:load` and `:reload` compile a module from its source, `:bindings` and `:forget` manage what the session has declared, `:processes` and `:faults` show what runs and what has faulted, `:set` sets the depth and length values are printed to, the rows of the live region, and timing, and `:output` sends what programs write to a terminal or a file.
+§1.2 teaches inputs and the first commands. A command begins with `:`, and `:help` lists the commands, among them these: `:type` gives an expression's type and `:doc` a name's documentation, `:browse` lists a module's exports, `:load` puts a module in scope and `:reload` brings in what changed, `:bindings` and `:forget` manage what the session has declared, `:processes` and `:faults` show what runs and what has faulted, `:set` sets the depth and length values are printed to, the rows of the live region, and timing, and `:output` sends what programs write to a terminal or a file.
 
 A command may be shortened to a prefix of its name that begins no other, `:br` for `:browse`; `:b` begins `:bindings` too, and the shell says so.
 
@@ -3032,7 +3032,7 @@ A name completed alone is shown under the line with its type, and a second `Tab`
 
 `Shift-Tab` shows the declaration, the first sentence, and the version of the name at the cursor, `String.trim(text : String) : String` and what it does, and pressed again its documentation. Inside a call, on no documented name, it shows the callee's signature with the parameter at the cursor marked, and inside a constructor its fields.
 
-**Loading and reloading.** `:load Words` compiles the module `Words` from its source, `words.ern` under the source root, and puts it in scope. `:reload` compiles and loads again each loaded module whose source has changed, and with it each loaded module that uses one or whose code references a definition the change changes; where one of them does not compile, `:reload` loads none of them. A declaration of the session's that references what changed is compiled again too, and one that no longer compiles leaves scope while the reload goes on (report §11.2).
+**Loading and reloading.** `:load Words` puts the module `Words` in scope: it compiles `words.ern` under the source root, or takes a compiled form beside it or on the load path where one is as new as the source, and says which, `Words, compiled from words.ern` or `Words, from words.erc`. Nothing is loaded by being named, since a load evaluates the module's bindings, which may start processes; a name not in scope is answered with the `:load` that would put it there. `:reload` compiles and loads again each loaded module whose source has changed, and with it each loaded module that uses one or whose code references a definition the change changes; where one of them does not compile, `:reload` loads none of them. A declaration of the session's that references what changed is compiled again too, and one that no longer compiles leaves scope while the reload goes on (report §11.2).
 
 Both evaluate a module's top-level bindings, so a service it declares starts, and after a reload a service of the new version runs beside the old. One that offers a service, as §8.2's counter does, finds the service held by the old one, and waits on the old one's end to take it.
 
@@ -3061,6 +3061,7 @@ Ernest runs on the Erlang runtime, and a program in it is processes that send me
 - Messages from one sender arrive in the order they were sent.
 - `monitor` delivers a message when a process dies, whatever the reason. `kill` ends a process from outside.
 - `Address.call` is `gen_server:call` with a timeout, and `Address.callForever` is the call without one.
+- The shell's `:load` is `c()` and `l()` as needed, compiling where the source is newer and loading the compiled form where it is not; nothing loads by being named, since loading a module runs its top-level bindings, which Erlang's modules have none of.
 - Integers are exact and unbounded. On `Int`, `/` is Erlang's `div` and `%` is `rem`.
 - A `foreign fn` calls an Erlang function directly, `"ets:lookup/2"`, and the values cross as report §8.4 lists: a constructor is a tagged tuple or an atom, and a `String` is a UTF-8 binary.
 
