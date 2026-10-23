@@ -3124,6 +3124,41 @@ process_functions_test() ->
         "}\n"),
     ?assertEqual(<<"killed\ndivision by zero\ntick\n">>, Output).
 
+%% report §6.9, §6.5, §4.5: a wrap may call a function written `: T`
+%% that calls `self` or `monitor` without showing the address, and what it
+%% asks of the runtime is the process it delivers to: `kill(self())` kills
+%% that process, whose monitor sees Killed, and a monitor made there
+%% delivers to that process, whose wrap's fault is the process's own at its
+%% next wait, after the delivery that made the monitor has ended. A
+%% regression test, written after the code: the helpers' `: T` was
+%% refused, and in a wrap `self()` answered the delivery, so the kill ended
+%% the delivery and the Down vanished, and the monitor was the delivery's
+wrap_asks_for_its_recipient_test() ->
+    {ok, Output} = run(
+        "type Msg = Died(Down) | Ready\n"
+        "type Ward = Wrapped\n"
+        "fn stop() : Unit = kill(self())\n"
+        "fn watch(p : Process) : Unit = monitor(p, fn(d) = fault(\"seen\"))\n"
+        "fn idle() : Unit receiving Unit = receive { _ -> Unit }\n"
+        "fn short() : Process = Process.fromAddress(spawn(fn() = Unit))\n"
+        "export fn main() : Unit receiving Msg = {\n"
+        "    let _ = spawnMonitored(fn() : Unit receiving Ward = {\n"
+        "        monitor(short(), fn(d) = { stop(); Wrapped });\n"
+        "        receive { Wrapped -> Unit }\n"
+        "    }, Died);\n"
+        "    receive { Died(d) -> Io.println(Io.show(d.reason)) };\n"
+        "    let watched = spawn(fn() = idle());\n"
+        "    let me = self();\n"
+        "    let _ = spawnMonitored(fn() : Unit receiving Ward = {\n"
+        "        monitor(short(), fn(d) = { watch(Process.fromAddress(watched)); Wrapped });\n"
+        "        receive { Wrapped -> send(me, Ready) };\n"
+        "        receive { Wrapped -> Unit }\n"
+        "    }, Died);\n"
+        "    receive { Ready -> kill(watched) };\n"
+        "    receive { Died(d) -> Io.println(Io.show(d.reason)) }\n"
+        "}\n"),
+    ?assertEqual(<<"Killed\nFault(\"seen\")\n">>, Output).
+
 %% report §8.4, §7.4: a function value inside a recursive type that comes
 %% back from foreign code has its result checked against the type at each
 %% call, the recursive type's own among them. A regression test: the check

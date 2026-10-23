@@ -1663,6 +1663,163 @@ kept_acts_for_its_target_test() ->
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual({true, true}, wait(current)).
 
+%% report §6.9, §6.5: in a monitor's wrap, self() is the address of the
+%% process it delivers to, and what the wrap asks of the runtime through
+%% it is that process's: a monitor the wrap makes delivers to that process
+%% once the wrap's delivery has ended, and a kill of self() kills that
+%% process, whose own monitor sees Killed, and the wrap goes no further,
+%% as the process would not. A regression test, written after the code:
+%% self() answered the delivery, so the kill ended the delivery and its
+%% Down vanished, and the monitor was the delivery's, canceled as the
+%% delivery ended. That the wrap goes no further is read once the Down is
+%% here, which a wrap that went on would most likely have preceded, and
+%% no test can order
+wrap_self_is_its_recipient_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = erlang:self(),
+               ern_rt:timed(),
+               Watched = ern_rt:spawn(gated(fun() -> ok end), <<"M.watched:2">>),
+               Watching = fun() ->
+                              Wrap = fun(_Down) ->
+                                         ern_rt:monitor(Watched, fun(Down) -> {seen, Down} end),
+                                         {wrapped, ern_rt:self(), erlang:self()}
+                                     end,
+                              _ = ern_rt:spawn_monitored(fun() -> ok end, Wrap, <<"M.r:3">>),
+                              Delivery = receive
+                                             {wrapped, Address, D} -> Main ! {address, Address}, D
+                                         end,
+                              DeliveryRef = erlang:monitor(process, Delivery),
+                              receive {'DOWN', DeliveryRef, process, Delivery, _} -> ok end,
+                              Main ! delivered,
+                              receive {seen, Down} -> Main ! {seen, Down} end
+                          end,
+               Recipient = ern_rt:spawn(Watching, <<"M.main:5">>),
+               Address = receive {address, A} -> A end,
+               receive delivered -> ok end,
+               Watched ! go,
+               Seen = receive {seen, S} -> S end,
+               Killing = fun() ->
+                             Stop = fun(_Down) ->
+                                        ern_rt:kill(ern_rt:self()),
+                                        Main ! went_on,
+                                        stopped
+                                    end,
+                             _ = ern_rt:spawn_monitored(fun() -> ok end, Stop, <<"M.k:7">>),
+                             waiting()
+                         end,
+               _ = ern_rt:spawn_monitored(Killing, fun(Down) -> {killed, Down} end,
+                                          <<"M.main:8">>),
+               Killed = receive {killed, K} -> K end,
+               WentOn = receive went_on -> true after 0 -> false end,
+               ern_rt:untimed(),
+               Self ! {asked, {Address =:= Recipient, Seen, Killed, WentOn}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertMatch({true, {'Down', _, 'Returned', <<"M.watched:2">>},
+                  {'Down', _, 'Killed', <<"M.main:8">>}, false}, wait(asked)).
+
+%% report §6.9, §8.6: a monitor that a process of the runtime's own asks
+%% for the process it acts for is that process's: it stands, counted as a
+%% source while it watches a process the runtime did not start, until that
+%% process restarts or ends, which cancel it as they cancel its own; and
+%% one asked for a process that has ended stands for none. A process
+%% stands in for the runtime's own, acting as a delivery does. A regression
+%% test, written after the code: the monitor was the asking process's, and
+%% stood past the restart; an ask that comes after an end the reaper has
+%% already learned of, which no test can order, is reached only as an ask
+%% for a process ended before it
+monitor_for_a_recipient_ends_with_it_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = erlang:self(),
+               ern_rt:timed(),
+               Reaper = ern_rt:launch_reaper(),
+               Host = erlang:spawn(fun() -> receive stop -> ok end end),
+               Sources = fun() -> ets:lookup(ern_held, {source, Reaper}) end,
+               Ask = fun(Recipient) ->
+                         _ = erlang:spawn(fun() ->
+                                              ern_rt:acting_for(Recipient),
+                                              ern_rt:monitor(Host, fun(_) -> seen end),
+                                              Main ! asked
+                                          end),
+                         receive asked -> ok end
+                     end,
+               %% a spawn, which the reaper answers after what it was told before
+               Settled = fun() -> _ = ern_rt:spawn(fun() -> ok end, <<"M.settled:9">>), ok end,
+               Run = fun() ->
+                         Main ! run,
+                         receive
+                             restart -> erlang:throw({ern, fault, <<"again">>});
+                             stop -> ok
+                         end
+                     end,
+               Recipient = ern_rt:spawn(ern_rt:restarting('Unlimited', Run), <<"M.main:12">>),
+               receive run -> ok end,
+               Ask(Recipient),
+               Standing = Sources(),
+               Recipient ! restart,
+               receive run -> ok end,
+               Restarted = Sources(),
+               Ask(Recipient),
+               ern_rt:monitor(Recipient, fun(Down) -> {ended, Down} end),
+               Recipient ! stop,
+               receive {ended, _} -> ok end,
+               Settled(),
+               Ended = Sources(),
+               Ask(Recipient),
+               After = Sources(),
+               Host ! stop,
+               ern_rt:untimed(),
+               Self ! {sources, [Standing, Restarted, Ended, After]}
+           end, <<"main">>, #{stdout => fun(_) -> ok end, faults => fun(_, _) -> ok end}),
+    ?assertMatch([[{_, 1}], [], [], []], wait(sources)).
+
+%% report §6.5, §6.9: in the process kept for an adapted address whose
+%% target is on this node, self() in the function is the target's address,
+%% and a monitor the function makes is the target's, delivered to it after
+%% the kept process has ended; where a send applies the function, in the
+%% sender, self() is the sender's. The gateway's worker is stood in for, as
+%% kept_acts_for_its_target_test stands in for it. A regression test,
+%% written after the code: self() answered the kept process, and the
+%% monitor ended with it; a target on another node, where the kept process
+%% acts for none and is itself the owner, needs two nodes and is not
+%% covered
+kept_self_is_its_target_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = erlang:self(),
+               ern_rt:timed(),
+               Watched = ern_rt:spawn(gated(fun() -> ok end), <<"M.watched:2">>),
+               Function = fun(_) ->
+                              ern_rt:monitor(Watched, fun(Down) -> {seen, Down} end),
+                              {self, ern_rt:self()}
+                          end,
+               Kept = ern_rt:kept(ern_rt:adapted(Main, Function)),
+               KeptRef = erlang:monitor(process, Kept),
+               Kept ! {apply, 1},
+               receive {applied, Kept} -> ok end,
+               Applied = receive {self, A} -> A end,
+               Kept ! stop,
+               receive {'DOWN', KeptRef, process, Kept, _} -> ok end,
+               Watched ! go,
+               Seen = receive {seen, S} -> S end,
+               Sending = fun() ->
+                             Sender = erlang:self(),
+                             ern_rt:send(ern_rt:adapted(Main, fun(_) -> {sent, ern_rt:self()} end),
+                                         1),
+                             Main ! {sender, Sender}
+                         end,
+               _ = ern_rt:spawn(Sending, <<"M.main:9">>),
+               Sent = receive {sent, P} -> P end,
+               Sender = receive {sender, Q} -> Q end,
+               ern_rt:untimed(),
+               Self ! {kept, {Applied =:= Main, Seen, Sent =:= Sender}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertMatch({true, {'Down', _, 'Returned', <<"M.watched:2">>}, true}, wait(kept)).
+
 %% report §11.2, §8.7: two runs in one host, as `ern test` runs a
 %% directory's modules in one node: an adapted address the first run made
 %% is dead in the second wherever its function would be applied, so that a

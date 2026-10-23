@@ -1614,7 +1614,7 @@ tests_entry(ErlangModule, HasExamples, Caller, Running) ->
 %% process, after what the test wrote there, the trace of its fault beneath
 %% it, which the reporter kept in its row; whether it passed is returned.
 run_test({'Case', Name, Run}, Running) ->
-    Self = ern_rt:self(),
+    Self = erlang:self(),
     Ref = make_ref(),
     Pid = ern_rt:spawn_monitored(fun() -> receive {Ref, go} -> Self ! {Ref, Run()} end end,
                                  fun(Down) -> {Ref, down, Down} end, Name),

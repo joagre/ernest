@@ -136,17 +136,22 @@ effect_only_type_argument_test() ->
 
 %% report §3.9: a type argument whose parameter occurs in no field of its
 %% type is a value position, as `m` of `Peer.Service(m)`: a variable that
-%% stands there and after `receiving` ranges over types alone, so a
-%% function with it is no caller's that receives nothing, and it prints as
-%% a value variable. A
+%% stands there and after `receiving` ranges over types alone, so a call
+%% of a function with it is never at none, and it prints as a value
+%% variable. A caller written `: T` lets the variable stand where its
+%% body neither waits nor has the variable's type (report §4.5), as it
+%% lets `self`'s, and is refused where the callback it gives waits. A
 %% regression test of the principles review's K7 (2026-10-09): the report
 %% left such a parameter in no position, and the checker took it for an
-%% effect position, accepting usePlain and printing P(e)
+%% effect position, accepting usePlain and printing P(e); usePlain is
+%% accepted again since 2026-10-24, at a type and not at none
 phantom_type_argument_test() ->
     Source = "type P(e) = P(n : Int)\n"
              "fn run(p : P(e), f : (Int) -> Unit receiving e) : Unit receiving e = f(p.n)\n",
-    ?assertEqual("run needs a mailbox, and usePlain receives nothing",
-                 refusal(Source ++ "fn usePlain() : Unit = run(P(n = 1), fn(x) = Unit)\n")),
+    ?assertEqual(ok, ok(Source ++ "fn usePlain() : Unit = run(P(n = 1), fn(x) = Unit)\n")),
+    ?assertEqual("run needs a mailbox, and useWait receives nothing",
+                 refusal(Source ++ "fn useWait() : Unit ="
+                                   " run(P(n = 1), fn(x) = receive { n -> Unit })\n")),
     ?assertEqual(ok, ok(Source ++ "fn useBox(a : Address(Int)) : Unit receiving Int ="
                         " run(P(n = 1), fn(x) = send(a, x))\n")),
     ?assertEqual("the body does not have the declared result type: expected Int, found P(a)",
@@ -1513,15 +1518,14 @@ receive_fixing_no_type_test() ->
 %% not: where the function's type holds the address nowhere, its effect
 %% variable stands in no value position, which a call binds to none, so
 %% the type prints without it and a function that receives nothing calls
-%% it, a guard and `adapted`'s function among them. Within its own body the
-%% variable stands in a value position, so `: T` over that body is refused
-%% and `receiving m` is its annotation; a function whose type holds the
-%% address is no caller's that receives nothing; the two waits stay
+%% it, a guard and `adapted`'s function among them. `receiving m` over
+%% such a body names the variable and `: T` lets it stand (report §4.5,
+%% standing_over_a_body_that_calls_self_test); the two waits stay
 %% process-only, through a call too, one whose variable is a value's among
 %% them. A regression test of the sweep's finding (2026-10-24), written
 %% after the code: `self` and `monitor` made their function process-only,
-%% `fn f() = kill(self())` printing `receiving e+`; it does not cover such
-%% a function run in a wrap, or in an adapted address's function on
+%% `fn f() = kill(self())` printing `receiving e+`; the runtime's tests
+%% run such a function in a wrap and in an adapted address's function on
 %% arrival
 process_only_marks_a_wait_alone_test() ->
     Kill = "fn f() = kill(self())\n",
@@ -1532,11 +1536,7 @@ process_only_marks_a_wait_alone_test() ->
                         "fn h(n : Int) : Int = match n { k when f() == Unit -> k | _ -> 0 }\n"
                         "fn k() : Address(Int) receiving Int ="
                         " adapted(self(), fn(n : Int) = { f(); n })\n")),
-    ?assertEqual("self needs a mailbox, and k receives nothing",
-                 refusal("fn k() : Unit = kill(self())")),
     ?assertEqual("() -> Unit", type_of("export fn k() : Unit receiving m = kill(self())", k)),
-    ?assertEqual("me needs a mailbox, and k receives nothing",
-                 refusal("fn me() = self()\nfn k() : Unit = { let _ = me(); Unit }\n")),
     ?assertEqual("() -> Unit receiving e+",
                  type_of("export fn f() = { kill(self()); receive { after 1 -> Unit } }", f)),
     ?assertEqual("() -> Unit receiving e+",
@@ -1544,6 +1544,76 @@ process_only_marks_a_wait_alone_test() ->
     ?assertEqual("() -> Unit receiving e+",
                  type_of("fn w() = receive { x -> x }\n"
                          "export fn f() = { let _ = w(); Unit }\n", f)).
+
+%% report §4.5, §3.9, §11.5: `: T` stands over a body that calls `self` or
+%% `monitor`, or a function whose type holds their variable, where the
+%% body neither waits nor has the variable in a value position of the
+%% signature, so that the type the shell prints can be written. The
+%% variable is read as the definition ends, and is refused in the words
+%% and at the place a call that receives is refused at once: where a
+%% parameter holds it, through a tuple, a record's field or a callback;
+%% where the result does; where the body fixes it, through a block `let`,
+%% a returned lambda or a wrap's result; and where an enclosing
+%% definition holds it, a local fn's. A wait and a process-only callee are
+%% refused at once, as before, and a parameter the body calls still
+%% receives nothing. A regression test, written after the checker: it
+%% does not cover a recursive group whose other member fixes the
+%% variable, nor the shell's prompt, whose inputs are typed as a block's
+%% statements are
+standing_over_a_body_that_calls_self_test() ->
+    ?assertEqual("() -> Unit", type_of("export fn k() : Unit = kill(self())", k)),
+    ?assertEqual("() -> Unit",
+                 type_of("fn me() = self()\nexport fn k() : Unit = { let _ = me(); Unit }\n",
+                         k)),
+    ?assertEqual("(Process) -> Unit",
+                 type_of("export fn watch(p : Process) : Unit ="
+                         " monitor(p, fn(d) = fault(\"down\"))", watch)),
+    ?assertEqual("() -> Unit",
+                 type_of("export fn f() : Unit = { fn g() = self(); kill(g()) }", f)),
+    ?assertEqual("() -> Unit",
+                 type_of("export fn f() : Unit = (fn() = kill(self()))()", f)),
+    ?assertEqual("() -> () -> Unit",
+                 type_of("export fn f() : (() -> Unit) = { let a = self(); fn() = kill(a) }",
+                         f)),
+    %% a spawned function's mailbox type nothing fixed is Never after the
+    %% variable is read, as it is without the annotation
+    ?assertEqual("() -> Unit",
+                 type_of("export fn f() : Unit = {"
+                         " let p = spawn(fn() = Unit); kill(if true then p else self()) }", f)),
+    Refused = "self needs a mailbox, and f receives nothing",
+    ?assertEqual(Refused, refusal("fn f(x) : Unit = send(self(), x)")),
+    ?assertEqual(Refused, refusal("fn f(t) : Unit = match t { #(x, _) -> send(self(), x) }")),
+    ?assertEqual(Refused, refusal("type Box(a) = Box(a : a)\n"
+                                  "fn f(b) : Unit = match b { Box(a = x) -> send(self(), x) }")),
+    ?assertEqual(Refused, refusal("fn f(cb) : Unit = cb(self())")),
+    ?assertEqual(Refused, refusal("fn f() : Address(m) = self()")),
+    ?assertEqual(Refused, refusal("fn f() : Unit = send(self(), 5)")),
+    ?assertEqual(Refused, refusal("fn f() : Unit = { let a = self(); send(a, 5) }")),
+    ?assertEqual(Refused, refusal("fn f() : (() -> Address(Int)) = { let a = self(); fn() = a }")),
+    ?assertEqual(Refused, refusal("fn f() : Unit = {"
+                                  " let a = self(); fn g(x) : Unit = send(a, x); g(5) }")),
+    ?assertEqual("monitor needs a mailbox, and f receives nothing",
+                 refusal("fn f(p : Process) : Unit = monitor(p, fn(d) = 5)")),
+    ?assertEqual("self needs a mailbox, and inner receives nothing",
+                 refusal("fn outer(x) = { fn inner() : Unit = send(self(), x); inner() }")),
+    %% the refusal stands at the call, the annotation labeled
+    Late = diagnostic("fn f() : Unit = { let a = self(); send(a, 5) }\n"),
+    ?assertEqual({1, 27, {1, 33}}, Late#diagnostic.span),
+    ?assertEqual([{{1, 10, {1, 14}},
+                   "`: Unit` without `receiving` declares that f receives nothing"}],
+                 Late#diagnostic.labels),
+    ?assertEqual("give f its mailbox type with `receiving`", Late#diagnostic.help),
+    ?assertEqual("`receive` needs a mailbox, and f receives nothing",
+                 refusal("fn f() : Unit = { kill(self()); receive { after 1 -> Unit } }")),
+    ?assertEqual("w needs a mailbox, and f receives nothing",
+                 refusal("fn w() = receive { x -> x }\nfn f() : Unit = { let _ = w(); Unit }")),
+    ?assertEqual("((a) -> Int, a) -> Int", type_of("export fn apply(f, x) : Int = f(x)", apply)),
+    %% a lambda's `: T` and a guard are no `fn` declaration's
+    ?assertEqual("self needs a mailbox, and the lambda receives nothing",
+                 refusal("fn f() = (fn() : Unit = kill(self()))()")),
+    ?assertEqual("self needs a mailbox, and a guard receives nothing",
+                 refusal("fn f(n : Int) : Int receiving Int ="
+                         " match n { k when kill(self()) == Unit -> k | _ -> 0 }")).
 
 %% report §6.2, §4.6
 spawn_test() ->
@@ -2797,7 +2867,7 @@ prelude_values_test() ->
     %% that act on another process and the stdlib combinators do not
     ?assertEqual(ok, ok("fn f(a : Address(Int)) : Unit = send(a, 1)")),
     ?assertEqual("self needs a mailbox, and f receives nothing",
-                 refusal("fn f() : Unit = { let _ = self(); Unit }")),
+                 refusal("fn f() : Unit = { let a = self(); send(a, 1) }")),
     ?assertEqual("(List(Int)) -> List(Int)",
                  type_of("export fn f(xs) = List.map(xs, fn(x : Int) = x)", f)),
     %% report §9.7: the prelude binds no system reference
@@ -3254,7 +3324,7 @@ differing_part_test() ->
 %% the callee that receives, and the function or the guard whose type names
 %% no mailbox, labels the annotation that made it so, and says what to do
 effect_placement_test() ->
-    Self = diagnostic("fn main() : Unit = { let _ = self(); Unit }\n"),
+    Self = diagnostic("fn main() : Unit = { let a = self(); send(a, 1) }\n"),
     ?assertEqual("self needs a mailbox, and main receives nothing", Self#diagnostic.message),
     ?assertEqual({1, 30, {1, 36}}, Self#diagnostic.span),
     ?assertEqual([{{1, 13, {1, 17}},
@@ -3296,7 +3366,7 @@ effect_origin_is_restored_after_a_nested_definition_test() ->
                    "`: Unit` without `receiving` declares that f receives nothing"}],
                  AfterFn#diagnostic.labels),
     AfterLambda = diagnostic("fn f() : Unit ="
-                             " { let g = fn(x : Int) : Int = x; let _ = self(); Unit }\n"),
+                             " { let g = fn(x : Int) : Int = x; let a = self(); send(a, 1) }\n"),
     ?assertEqual("self needs a mailbox, and f receives nothing", AfterLambda#diagnostic.message),
     ?assertEqual("give f its mailbox type with `receiving`", AfterLambda#diagnostic.help).
 

@@ -10,10 +10,11 @@
 %%
 %% Per definition, after inference, as post_checks/3 runs them: what was
 %% deferred, operators, selections, `<-` and receive guards' orderings
-%% (report §4.8, §3.5, §5.5, §6.3); a spawned function's mailbox type that
-%% nothing fixed, which is Never (§6.2); what each requirement is supplied
-%% with (§4.9); rigidity of annotation variables (§3.9); the order of a
-%% block's local fns and lets (§5.4, ern_scope); match exhaustiveness
+%% (report §4.8, §3.5, §5.5, §6.3); a call of `self` or `monitor` whose
+%% variable a `fn`'s `: T` left free (§4.5); a spawned function's mailbox
+%% type that nothing fixed, which is Never (§6.2); what each requirement is
+%% supplied with (§4.9); rigidity of annotation variables (§3.9); the order
+%% of a block's local fns and lets (§5.4, ern_scope); match exhaustiveness
 %% (ern_exhaust); the restrictions instances carry (§3.9, §3.10); and a
 %% `receiving m` that names no mailbox type (§4.5). Errors are collected
 %% per definition; checking continues with the next.
@@ -46,6 +47,11 @@
 %% (report §6.2, §3.11), and one an enclosing definition holds left for
 %% that one's end (unfixed_mailboxes/2)
 %% effect_origin: undefined or the #effect_origin{} of the mailbox here
+%% standing: the calls in the body of a `fn` written `: T` whose effect
+%% variable stands in a value position of the callee's type, `self`'s and
+%% `monitor`'s, left free while the body is inferred, {Span, Name, Effect},
+%% the latest first, each read as the definition ends (report §4.5,
+%% standing_read/2)
 %% groups: qualified name => the dependency group not yet checked that
 %% declares it, checked on first demand (a reference, or an operator
 %% resolving to it); typed: the groups checked so far; diagnostics: their
@@ -69,7 +75,7 @@
 %% or {'let', Name}
 -record(env, {namespace = [], types = #{}, constructors = #{}, globals = #{}, lets = #{},
               local_types = #{}, local_constructors = #{}, local_values = #{}, session_scope = #{},
-              locals = #{}, effect = none, type_state, pending = [], deferred = [],
+              locals = #{}, effect = none, type_state, pending = [], deferred = [], standing = [],
               mailboxes = [], annotation_variables = #{}, rigid = [], effect_origin = undefined,
               groups = #{}, typed = [], diagnostics = [], let_order = [],
               generalizing = false, provided = [], inferring = [], requirement = [],
@@ -106,8 +112,11 @@
 %% What fixes the mailbox where an expression stands, which an effect error
 %% names (report §11.5): what receives nothing or has the mailbox, "f",
 %% "the lambda", "a guard", or top_let for a top-level `let`, whose mailbox
-%% is Never; the span that made it so, its label, and what to do.
--record(effect_origin, {what, span, label, help}).
+%% is Never; the span that made it so, its label, and what to do; and
+%% declared_none, whether it is a `fn` declaration's `: T`, over whose body
+%% a call of `self` or `monitor` leaves its variable free (report §4.5,
+%% use_effect/4).
+-record(effect_origin, {what, span, label, help, declared_none = false}).
 
 %% The equality constraint an instance carries, checked when its
 %% definition ends (report §3.9, §3.10): the type variable's id, where the
@@ -135,8 +144,8 @@
 %% own mailbox and adds its restrictions to the definition's (report §4.8,
 %% §3.4, §3.10), and a requirement is supplied from the members in force
 %% there (§4.9).
--record(post_check, {span, type, effect, effect_origin, rigid, pending, deferred, mailboxes,
-                     requirement, signature, definition}).
+-record(post_check, {span, type, effect, effect_origin, rigid, pending, deferred, standing,
+                     mailboxes, requirement, signature, definition}).
 
 %% A block's local fns as its statements are checked (report §5.4, §3.9):
 %% the placeholder type of each, the local fns each names, those checked,
@@ -1245,7 +1254,7 @@ demand(QualifiedName, #env{groups = UncheckedGroups} = Env) ->
     case UncheckedGroups of
         #{QualifiedName := Group} ->
             Clean = Env#env{locals = #{}, effect = none, pending = [], deferred = [],
-                            mailboxes = [], annotation_variables = #{}, rigid = [],
+                            standing = [], mailboxes = [], annotation_variables = #{}, rigid = [],
                             effect_origin = undefined, inferring = [], requirement = [],
                             signature = [], definition = undefined},
             restore_scope(run_group(Group, Clean), Env);
@@ -1257,7 +1266,8 @@ demand(QualifiedName, #env{groups = UncheckedGroups} = Env) ->
 %% with the scope of Env, the environment before it.
 restore_scope(Checked, Env) ->
     Checked#env{locals = Env#env.locals, effect = Env#env.effect, pending = Env#env.pending,
-                deferred = Env#env.deferred, mailboxes = Env#env.mailboxes,
+                deferred = Env#env.deferred, standing = Env#env.standing,
+                mailboxes = Env#env.mailboxes,
                 annotation_variables = Env#env.annotation_variables,
                 rigid = Env#env.rigid, effect_origin = Env#env.effect_origin,
                 inferring = Env#env.inferring,
@@ -2133,8 +2143,8 @@ check_value(#fn_declaration{span = Span, params = Params, result_type = ResultAn
     Env2 = unify_at(Span, Placeholder, FunctionType, Env1#env{type_state = TypeState},
                     "recursive use does not match the definition"),
     TypeState1 = Env2#env.type_state,
-    Origin = effect_origin(declaration_name(Declaration), ResultAnnotation, Effect, ResultType,
-                           EffectType, TypeState1),
+    Origin = declared_none(Effect, effect_origin(declaration_name(Declaration), ResultAnnotation,
+                                                 Effect, ResultType, EffectType, TypeState1)),
     %% report §4.9: the declaration's requirement is in force in its body,
     %% beside the enclosing declarations' for the variables it shares
     Name = declaration_name(Declaration),
@@ -2145,7 +2155,7 @@ check_value(#fn_declaration{span = Span, params = Params, result_type = ResultAn
                     not is_map_key(VariableName, Env#env.annotation_variables)],
     Env3 = Env2#env{type_state = ern_types:value_positions_marked(FunctionType, TypeState1),
                     effect = EffectType,
-                    pending = [], deferred = [], mailboxes = [],
+                    pending = [], deferred = [], standing = [], mailboxes = [],
                     annotation_variables = AnnotationVariables1,
                     rigid = maps:to_list(AnnotationVariables1), effect_origin = Origin,
                     requirement = [{Variable, Member} || #member{type = Variable, name = Member}
@@ -2167,8 +2177,8 @@ check_value(#let_declaration{span = Span, annotation = Annotation, body = Body} 
         end,
     %% report §4.6: a top-level initializer is a body of mailbox type Never,
     %% which may spawn, send, and call, and receives no message
-    Env1 = Env#env{type_state = TypeState, effect = ?NEVER, pending = [],
-                   deferred = [], mailboxes = [], annotation_variables = AnnotationVariables,
+    Env1 = Env#env{type_state = TypeState, effect = ?NEVER, pending = [], deferred = [],
+                   standing = [], mailboxes = [], annotation_variables = AnnotationVariables,
                    rigid = maps:to_list(AnnotationVariables),
                    definition = {'let', declaration_name(Declaration)},
                    %% report §3.9: a lambda that is the whole initializer is
@@ -2240,8 +2250,9 @@ post(Span, Type, Env) ->
     #post_check{span = Span, type = Type, effect = Env#env.effect,
                 effect_origin = Env#env.effect_origin, rigid = Env#env.rigid,
                 pending = Env#env.pending, deferred = Env#env.deferred,
-                mailboxes = Env#env.mailboxes, requirement = Env#env.requirement,
-                signature = Env#env.signature, definition = Env#env.definition}.
+                standing = Env#env.standing, mailboxes = Env#env.mailboxes,
+                requirement = Env#env.requirement, signature = Env#env.signature,
+                definition = Env#env.definition}.
 
 %% Report §3.9: a foreign fn's effect is its own, and so process-only,
 %% unless it is the effect of one of its parameters' function types, where
@@ -2369,6 +2380,12 @@ effect_origin(Name, _ResultAnnotation, Effect, _ResultType, EffectType, TypeStat
                    label = Name ++ " is declared `receiving "
                            ++ ern_types:format(EffectType, TypeState) ++ "` here"}.
 
+%% Report §4.5: a `fn` declaration's `: T` without `receiving`, over whose
+%% body a call of `self` or `monitor` leaves its variable free; a lambda's
+%% `: T` is no declaration's, and its origin is made apart.
+declared_none(undefined, #effect_origin{} = Origin) -> Origin#effect_origin{declared_none = true};
+declared_none(_Effect, Origin) -> Origin.
+
 declaration_name(Declaration) ->
     {MemberOf, Name} = declaration_key(Declaration),
     local_name(MemberOf, Name).
@@ -2387,13 +2404,16 @@ post_checks(Declaration, none, Env) ->
 post_checks(Declaration,
             #post_check{span = Span, type = Type, effect = Effect, effect_origin = Origin,
                         rigid = Rigid, pending = Pending, deferred = Deferred,
-                        mailboxes = Mailboxes, requirement = Requirement,
+                        standing = Standing, mailboxes = Mailboxes, requirement = Requirement,
                         signature = Signature, definition = Definition},
             Env) ->
     Solved = solve_deferred(Env#env{effect = Effect, effect_origin = Origin, pending = Pending,
-                                    deferred = Deferred, mailboxes = Mailboxes,
-                                    requirement = Requirement, signature = Signature,
-                                    definition = Definition}),
+                                    deferred = Deferred, standing = Standing,
+                                    mailboxes = Mailboxes, requirement = Requirement,
+                                    signature = Signature, definition = Definition}),
+    %% report §4.5: what a call left free is read as the body left it,
+    %% before §6.2 makes a mailbox type nothing fixed Never
+    standing_read(Type, Solved),
     %% report §6.2, §3.11: the definition's inference ends here, and a
     %% spawned function's mailbox type nothing fixed is Never before
     %% anything reads the definition's types
@@ -2411,6 +2431,7 @@ post_checks(Declaration,
     needless_effect(Declaration, Type, Env2),
     {Supplied, Env2#env{effect = Env#env.effect, effect_origin = Env#env.effect_origin,
                         pending = Env#env.pending, deferred = Env#env.deferred,
+                        standing = Env#env.standing,
                         mailboxes = Env2#env.mailboxes ++ Env#env.mailboxes,
                         requirement = Env#env.requirement, signature = Env#env.signature,
                         definition = Env#env.definition}}.
@@ -2484,9 +2505,10 @@ spawned_position(_) -> none.
 %% receives nothing, receives nothing, and is written so: the variable
 %% would be none at every call, and the printed type already leaves it out.
 %% A body that receives (§6.1) needs it: one that waits makes it
-%% process-only, and one that calls `self` or `monitor` without showing the
-%% address, whose printed type leaves it out too, has it stand in a value
-%% position there, so that `: T` would be refused.
+%% process-only. One that calls `self` or `monitor` without showing the
+%% address has it stand in a value position of their types, marked so,
+%% and may be written either way: `receiving m` names the variable, and
+%% `: T` lets it stand free (use_effect/4).
 needless_effect(#fn_declaration{member_of = MemberOf, name = Name,
                                 effect = #t_var{span = EffectSpan, name = Written}},
                 Type, #env{type_state = TypeState}) ->
@@ -4664,24 +4686,74 @@ argument_rule(Name, Callee, #env{inferring = Inferring} = Env) ->
     end.
 
 %% A callee's effect: one that receives nothing constrains nothing;
-%% anything else is the enclosing function's effect (report §6.1).
+%% anything else is the enclosing function's effect (report §6.1). Report
+%% §4.5, §3.9: in the body of a `fn` written `: T`, a callee's effect
+%% variable that stands in a value position of its type, `self`'s or
+%% `monitor`'s, and that no wait made process-only, stands free, since
+%% the function receives nothing where nothing in its body has the
+%% variable's type; the definition's end reads it (standing_read/2).
 use_effect(Span, Name, Effect,
-           #env{type_state = TypeState, effect = Have, effect_origin = Origin} = Env) ->
+           #env{type_state = TypeState, effect = Have, effect_origin = Origin,
+                standing = Standing} = Env) ->
     case ern_types:resolve(Effect, TypeState) of
-        none -> Env;
-        _ ->
-            case ern_types:unify(Have, Effect, TypeState) of
-                {ok, TypeState1} ->
-                    Env#env{type_state = TypeState1};
-                {error, {mismatch, _, _}} ->
-                    fail(Span, Name ++ " needs mailbox " ++ ern_types:format(Effect, TypeState)
-                               ++ ", and the mailbox here is " ++ ern_types:format(Have, TypeState),
-                         labels(Origin), undefined);
-                {error, _Reason} ->
-                    fail(Span, Name ++ " needs a mailbox, and " ++ what(Origin)
-                               ++ " receives nothing",
-                         labels(Origin), help(Origin))
+        none ->
+            Env;
+        Resolved ->
+            case is_standing(Resolved, Origin, TypeState) of
+                true ->
+                    Env#env{standing = [{Span, Name, Resolved} | Standing]};
+                false ->
+                    case ern_types:unify(Have, Effect, TypeState) of
+                        {ok, TypeState1} ->
+                            Env#env{type_state = TypeState1};
+                        {error, {mismatch, _, _}} ->
+                            fail(Span, Name ++ " needs mailbox "
+                                       ++ ern_types:format(Effect, TypeState)
+                                       ++ ", and the mailbox here is "
+                                       ++ ern_types:format(Have, TypeState),
+                                 labels(Origin), undefined);
+                        {error, _Reason} ->
+                            needs_mailbox(Span, Name, Origin)
+                    end
             end
+    end.
+
+is_standing({tvar, Id}, #effect_origin{declared_none = true}, TypeState) ->
+    Restrictions = ern_types:restrictions(Id, TypeState),
+    lists:member(value_position, Restrictions)
+        andalso not lists:member(process_only, Restrictions);
+is_standing(_Effect, _Origin, _TypeState) ->
+    false.
+
+-spec needs_mailbox(ern_diagnostic:span(), string(), term()) -> no_return().
+needs_mailbox(Span, Name, Origin) ->
+    fail(Span, Name ++ " needs a mailbox, and " ++ what(Origin) ++ " receives nothing",
+         labels(Origin), help(Origin)).
+
+%% Report §4.5, §3.9: as a `fn` written `: T` ends, each variable a call
+%% in its body left free (use_effect/4) is read. One that a wait made
+%% process-only, that something fixed, that an enclosing definition holds,
+%% or that stands in a value position of the signature, Type, a parameter
+%% or the result, is a mailbox the function needs, and the call is
+%% refused in the words and at the place use_effect/4 refuses one at once.
+standing_read(Type, #env{standing = Standing, type_state = TypeState,
+                         effect_origin = Origin}) ->
+    Values = ern_types:value_variables(ern_types:substitute(Type, TypeState), TypeState),
+    lists:foreach(fun({Span, Name, Effect}) ->
+                      is_free_standing(Effect, Values, TypeState)
+                          orelse needs_mailbox(Span, Name, Origin)
+                  end, lists:reverse(Standing)).
+
+%% Report §3.9, §6.2: whether the variable is still the definition's own,
+%% neither process-only nor among the signature's value positions, Values.
+is_free_standing(Effect, Values, TypeState) ->
+    case ern_types:resolve(Effect, TypeState) of
+        {tvar, Id} = Variable ->
+            ern_types:unfixed(Variable, TypeState) =:= own
+                andalso not lists:member(process_only, ern_types:restrictions(Id, TypeState))
+                andalso not lists:member(Id, Values);
+        _ ->
+            false
     end.
 
 %% Report §6.8, §4.6: a receive with a pattern clause where the mailbox is

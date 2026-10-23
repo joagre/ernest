@@ -188,7 +188,8 @@
 %% for an adapted address whose target is on this node, held in its
 %% dictionary under ?ACTING
 %% (acting_for/1): the process it acts for, its recipient, which
-%% Process.current answers and which owns what the function opens; the
+%% Process.current answers, whose address self answers, whose monitor a
+%% monitor there is, and which owns what the function opens; the
 %% marks the Code.loads called in it evaluate under, the innermost first,
 %% the first of which its spawns take for their root in place of the
 %% recipient's (rooting/0); and the site of the binding such a load
@@ -500,10 +501,11 @@ spawn(Function, Site) ->
     spawn_with_monitors(Function, Site, [], chained).
 
 %% Report §6.2, §6.9: a process monitored by the caller from its start, the
-%% wait made with the spawn, so that no end comes before it.
+%% wait made with the spawn, so that no end comes before it; the caller is
+%% the process a process of the runtime's own acts for (current/0).
 -spec spawn_monitored(fun(() -> term()), fun((term()) -> term()), binary()) -> pid().
 spawn_monitored(Function, Wrap, Site) ->
-    spawn_with_monitors(Function, Site, [{erlang:self(), Wrap}], chained).
+    spawn_with_monitors(Function, Site, [{current(), Wrap}], chained).
 
 %% Report §11.2: the same, the process the head of a spawn chain of its
 %% own, so that the processes it starts, directly or through one it
@@ -536,9 +538,13 @@ parent() ->
         #acting{marks = [Mark | _]} -> Mark
     end.
 
+%% Report §6.5, §6.9: the prelude's self, the address of the running
+%% process, or of the process a process of the runtime's own acts for, a
+%% delivery's recipient or an adapted address's target (acting_for/1), as
+%% Process.current reads it.
 -spec self() -> address().
 self() ->
-    erlang:self().
+    current().
 
 %% Appendix E.21, report §6.9: Process.current, the running process, or the
 %% process a delivery or a process kept for an adapted address acts for
@@ -902,27 +908,39 @@ refuse(Reply, Cause) ->
 %% start, a system process, a socket or a running program, is monitored from
 %% there too, so a monitor costs no process of its own (report §6.9). The
 %% monitor is made when the reaper says so, so that a process killed just
-%% after it is seen to die rather than found already ended.
+%% after it is seen to die rather than found already ended. Report §6.5,
+%% §6.9: the monitor is the caller's, or that of the process a process of
+%% the runtime's own acts for (current/0), which the wrap delivers to and
+%% whose restart and end cancel it; the calling process is told it is made.
 -spec monitor(pid(), fun((term()) -> term())) -> 'Unit'.
 monitor(Process, Wrap) ->
     Ref = make_ref(),
     Reaper = launch_reaper(),
     %% a Process foreign code gave back may be the checker before the process
-    Reaper ! {monitor, process_of(Process), erlang:self(), Wrap, Ref},
+    Reaper ! {monitor, process_of(Process), current(), erlang:self(), Wrap, Ref},
     receive {Ref, monitored} -> ?UNIT end.
 
 %% Report §6.9, §8.7: the prelude's kill, which a peer's frame asks of this
 %% node too (ern_peer:frame/2). A process of this node is ended by
 %% killed/2; one of another node by its own node, asked by a frame to that
 %% node's gateway, which is sent as a send is and vanishes where the node
-%% is out of reach.
+%% is out of reach. Report §6.9, §6.5: a process of the runtime's own that
+%% kills the process it acts for ends there, as that process would had it
+%% killed itself, so that nothing its function does after the kill is
+%% done, a delivery's message delivered among it; it ends as one that
+%% returned, so that what it is linked to goes on, and the recipient's end
+%% takes what it held (abandoned/1).
 -spec kill(address()) -> 'Unit'.
 kill(Address) ->
     %% report §8.2: no program can name a system process, whose reference is
     %% private to its module, so any address given here is a program's
     case process_of(Address) of
         Pid when node(Pid) =:= node() ->
-            killed(Pid, {ern, killed});
+            killed(Pid, {ern, killed}),
+            case erlang:get(?ACTING) of
+                #acting{recipient = Pid} -> exit(erlang:self(), normal);
+                _ -> ok
+            end;
         Pid ->
             erlang:send({ern_gateway, node(Pid)}, {ern_frame, erlang:self(), {kill, Pid}})
     end,
@@ -1070,8 +1088,8 @@ reaper_loop(Reaper, Wait) ->
                                      [{{'$1', '$2', '$3', {const, Root}, '$5'}}]}]),
             From ! {Ref, rooted},
             reaper_loop(Reaper);
-        {monitor, Pid, Caller, Wrap, Ref} ->
-            reaper_loop(monitored(Pid, Caller, Wrap, Ref, Reaper));
+        {monitor, Pid, Caller, From, Wrap, Ref} ->
+            reaper_loop(monitored(Pid, Caller, From, Wrap, Ref, Reaper));
         {report, Pid, Site, Fault} ->
             report(Pid, Site, peer(Pid), Fault, true),
             reaper_loop(Reaper);
@@ -1143,7 +1161,8 @@ spawned(From, Ref, Function, Site, SpawnMonitors, Chain, Reaper) ->
             exit(Pid, {ern, killed}),
             From ! {Ref, over}
     end,
-    monitors_kept(Pid, SpawnMonitors, Reaper).
+    monitors_kept(Pid, [Monitor || {Caller, _} = Monitor <- SpawnMonitors,
+                                   is_caller_live(Caller, From)], Reaper).
 
 %% Report Appendix E.18, E.23: a listener, a socket or a running program,
 %% which its system process starts, is a process of the program's as one
@@ -1166,12 +1185,21 @@ root(Parent, Pid) ->
         [] -> Pid
     end.
 
-%% A monitor of Pid that Caller made. A process the runtime did not start
-%% is monitored from here; report §8.6: its death would deliver a message,
-%% which is a source while a monitor of it stands.
-monitored(Pid, Caller, Wrap, Ref,
-          #reaper{monitors = Monitors, monitoring = Monitoring,
-                  monitor_refs = MonitorRefs} = Reaper) ->
+%% A monitor of Pid that Caller made, From the process told it is made, a
+%% process of the runtime's own where it acts for Caller (monitor/2). A
+%% process the runtime did not start is monitored from here; report §8.6:
+%% its death would deliver a message, which is a source while a monitor of
+%% it stands.
+monitored(Pid, Caller, From, Wrap, Ref, Reaper) ->
+    Reaper1 = case is_caller_live(Caller, From) of
+                  true -> monitor_made(Pid, Caller, Wrap, Reaper);
+                  false -> Reaper
+              end,
+    From ! {Ref, monitored},
+    Reaper1.
+
+monitor_made(Pid, Caller, Wrap, #reaper{monitors = Monitors, monitoring = Monitoring,
+                                        monitor_refs = MonitorRefs} = Reaper) ->
     MonitorRefs1 = case ets:lookup(?PROCESSES, Pid) of
                        [] when not is_map_key(Pid, MonitorRefs) ->
                            source_begin(),
@@ -1179,9 +1207,20 @@ monitored(Pid, Caller, Wrap, Ref,
                        _ ->
                            MonitorRefs
                    end,
-    Caller ! {Ref, monitored},
     Reaper#reaper{monitors = monitor_kept(Pid, Caller, Wrap, Monitors),
                   monitoring = added(Caller, Pid, Monitoring), monitor_refs = MonitorRefs1}.
+
+%% Report §6.9: whether a monitor From asked for Caller stands. A process
+%% asks for its own, and its end comes after its ask. A process of the
+%% runtime's own that acts for Caller asks for Caller's (current/0), and
+%% Caller's end or restart has no order with that ask: a delivery the
+%% restart or the end has ended (abandoned/1), or a Caller that has ended,
+%% asks for none; otherwise Caller's restart or end, which the reaper
+%% learns of after the ask, cancels the monitor as it cancels Caller's own.
+is_caller_live(Caller, Caller) ->
+    true;
+is_caller_live(Caller, From) ->
+    erlang:is_process_alive(From) andalso erlang:is_process_alive(Caller).
 
 %% Report §6.9: a restarted process's monitors and its subscriptions to
 %% faults and to the program's end are canceled, with what is on its way
@@ -1358,7 +1397,7 @@ forgotten(Key, Gone, Sets) ->
         #{} -> Sets
     end.
 
-%% The monitors made with a spawn of Pid kept, as monitored/5 keeps one.
+%% The monitors made with a spawn of Pid kept, as monitored/6 keeps one.
 monitors_kept(_Pid, [], Reaper) ->
     Reaper;
 monitors_kept(Pid, [{Caller, Wrap} | Rest],
