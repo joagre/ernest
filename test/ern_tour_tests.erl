@@ -11,9 +11,12 @@
 %% prints, and what it prints is held to the lines the outline quotes, each
 %% whole, a node's line without its time. A line nothing orders against
 %% the input's answer, a fault's report, a node's connection, a monitor's
-%% message, is held to come once, before or after the answer and its
-%% prompt, its own lines together. Regression tests, written after the
-%% programs and the toolchain; each says what it does not cover.
+%% message, is held to come once, its own lines together, before or after
+%% the answer, or among the next input's lines: in line mode the shell
+%% waits for the next line once it has prompted, and prints a fault
+%% reported meanwhile after it has read that line. Regression tests,
+%% written after the programs and the toolchain; each says what it does
+%% not cover.
 -module(ern_tour_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -28,9 +31,10 @@
 
 %% A shell the test types at, named by the directory its streams are
 %% written beside (ern_nodes_tests:launched/2): the port its inputs are
-%% written to, what waits for its end, and all it has printed that the
-%% test has read.
--record(shell, {dir, port, wait, read}).
+%% written to, what waits for its end, all it has printed that the test
+%% has read, and the parts the input before printed none of, which nothing
+%% ordered against its prompt, and which the next input's lines hold.
+-record(shell, {dir, port, wait, read, carried = []}).
 
 %% The tour's working directory, the reader's own, which holds the program
 %% and the three configuration directories; the bare nodes' directories
@@ -106,18 +110,14 @@ told_boundary(Base) ->
 %% --config-dir foo`. The inputs are the tour's, their deadlines among
 %% them. Two inputs follow chapter 8's stop of foo, which the outline's
 %% closing line tells and does not show: `far` answers "ok" to an inc and
-%% "no answer" to a report. It takes for granted, as the reader does, that
-%% a counter has taken the `Upgrade` a move sent it before the next input
-%% reaches it, which nothing in the session orders. It does not cover the
-%% four terminals as a reader sees them, a node's line's time, which bare
-%% node a compute that names none runs on, nor how long anything took.
-%% Its limit is the sum of its 86 waits, each bounded by the
-%% harness's time for one wait: eleven jobs, two ports that answer, the
-%% shell's start, 56 inputs and six lines nothing orders against them, two
-%% nodes' first lines, two lines of a node's end, three ends and what three
-%% said
+%% "no answer" to a report. It does not cover the four terminals as a
+%% reader sees them, a node's line's time, which bare node a compute that
+%% names none runs on, nor how long anything took. Its limit is the sum of
+%% its 81 waits, each bounded by the harness's time for one wait: eleven
+%% jobs, two ports that answer, the shell's start, 57 inputs, two nodes'
+%% first lines, two lines of a node's end, three ends and what three said
 tour_test_() ->
-    ern_nodes_tests:nodes_test({waits, 86}, fun tour/1).
+    ern_nodes_tests:nodes_test({waits, 81}, fun tour/1).
 
 tour(Base) ->
     [PortA, PortFoo, PortBar] = [ern_nodes_tests:free_port() || _ <- [a, foo, bar]],
@@ -345,10 +345,11 @@ fix(Tour) ->
     stopped(moved_there(moved_here(Tour))).
 
 %% The reload changes no type; `Code.running` lists the counter on the
-%% first loop and none on the second, `Counter.move()` moves it, and the
-%% lists are the other way round, the same address on each; a negative
-%% amount is passed over and the tally kept (report §6.10, §11.2, Appendix
-%% E.28).
+%% first loop and none on the second, and `Counter.move()` sends it its
+%% `Upgrade`. A report, which the counter answers after the `Upgrade` it
+%% took first, says the tally is kept, and the lists are then the other
+%% way round, the same address on each; a negative amount is passed over
+%% and the tally kept (report §6.4, §6.10, §11.2, Appendix E.28).
 moved_here(#tour{shell = Shell} = Tour) ->
     Running = "\\[<address [0-9]+>\\] : List\\(Address\\(Counter\\.CounterMsg\\)\\)",
     Empty = "[] : List(Address(Counter.CounterMsg))",
@@ -358,6 +359,7 @@ moved_here(#tour{shell = Shell} = Tour) ->
          {"Code.running(Counter.count)", [{re, Running}]},
          {"Code.running(Counter.count2)", [Empty]},
          {"Counter.move()", []},
+         {"Counter.apply(counter, \"report\")", ["\"apples: 2\" : String"]},
          {"Code.running(Counter.count)", [Empty]},
          {"Code.running(Counter.count2)", [{re, Running}]},
          {"Counter.apply(counter, \"inc apples -1\")", [?SENT]},
@@ -366,14 +368,15 @@ moved_here(#tour{shell = Shell} = Tour) ->
     ?assertEqual(First, Second),
     Tour#tour{shell = Moved}.
 
-%% A spawn on foo of `move`, which foo never had, answers its address, and
-%% the counter on foo passes a negative amount over and keeps its tally
-%% (report §8.7, Appendix E.27, E.28).
+%% A compute on foo of `move`, which foo never had, answers once `move` has
+%% sent foo's counter its `Upgrade`, which is then in the counter's mailbox
+%% before anything this node sends it; the counter passes a negative amount
+%% over and keeps its tally (report §6.4, §8.7, Appendix E.27, E.28).
 moved_there(#tour{shell = Shell} = Tour) ->
     Tour#tour{shell = session(
         Shell,
-        [{"Peer.spawn(\"foo\", fn() = Counter.move(), 5000)",
-          [{re, "Right\\(<address [0-9]+>\\) : Either\\(Io\\.Error, Address\\(Never\\)\\)"}]},
+        [{"Peer.computeAt(\"foo\", fn() = Counter.move(), 5000)",
+          ["Right(Unit) : Either(Io.Error, Unit)"]},
          {"Counter.apply(far, \"inc apples -1\")", [?SENT]},
          {"Counter.apply(far, \"report\")", ["\"apples: 3, pears: 1\" : String"]}])}.
 
@@ -427,43 +430,39 @@ session(Shell, Inputs) ->
     lists:foldl(fun typed/2, Shell, Inputs).
 
 %% Report §11.2: an input typed at the shell, in line mode, which echoes
-%% none, and what it printed held to Shown, the lines it prints before its
-%% prompt, in order, and to Unordered, each a line or lines that nothing
-%% orders against its answer and its prompt; once the stream holds each of
-%% Unordered's first lines, and the prompt after the input, counted beside
-%% the `> ` that the lines it prints hold, a function type's arrow among
-%% them. A line of Shown is a line, or {re, Pattern} for a line Pattern
-%% matches whole.
+%% none, once the prompt after it has come, counted beside the `> ` that
+%% the lines it prints before the prompt hold, a function type's arrow
+%% among them. What it printed is held to Shown, those lines in order, to
+%% the parts the input before it carried, and to Unordered, each a line or
+%% lines that nothing orders against its answer and its prompt, which hold
+%% no `> `; those of Unordered it has not printed it carries to the next.
+%% A line of Shown is a line, or {re, Pattern} for a line Pattern matches
+%% whole.
 typed({Input, Shown}, Shell) ->
     typed({Input, Shown, []}, Shell);
-typed({Input, Shown, Unordered}, #shell{dir = Dir, port = Port, read = Read} = Shell) ->
+typed({Input, Shown, Unordered},
+      #shell{dir = Dir, port = Port, read = Read, carried = Carried} = Shell) ->
+    ?assertEqual([], [Line || Line <- lists:append(Unordered), count(Line, "> ") > 0]),
     true = port_command(Port, [Input, "\n"]),
-    Firsts = [First || [First | _] <- Unordered],
-    [ern_nodes_tests:prints(Dir, First,
-                            count(Read, First) + length([Same || Same <- Firsts, Same =:= First]),
-                            ern_nodes_tests:wait_ms())
-     || First <- lists:usort(Firsts)],
     Prompts = count(Read, "> ") + 1
-        + lists:sum([count(Line, "> ") || Line <- lists:append([Shown | Unordered]),
-                                          not is_tuple(Line)]),
+        + lists:sum([count(Line, "> ") || Line <- Shown, not is_tuple(Line)]),
     ern_nodes_tests:prints(Dir, "> ", Prompts, ern_nodes_tests:wait_ms()),
     {Lines, Text} = since(Shell, 1),
-    held(Lines, [Shown | Unordered]),
-    Shell#shell{read = Text}.
+    Shell#shell{read = Text, carried = held(Lines, [Shown | Carried], Unordered)}.
 
 %% Lines the shell prints unasked after its prompt, a node's end, once its
 %% stream holds them.
-told(#shell{dir = Dir, read = Read} = Shell, Lines) ->
+told(#shell{dir = Dir, read = Read, carried = Carried} = Shell, Lines) ->
     [ern_nodes_tests:prints(Dir, Line, count(Read, Line) + 1, ern_nodes_tests:wait_ms())
      || Line <- Lines],
     {Written, Text} = since(Shell, 0),
-    held(Written, [Lines]),
-    Shell#shell{read = Text}.
+    Shell#shell{read = Text, carried = held(Written, [Lines | Carried], [])}.
 
 %% Report §11.2: `:quit` ends the session, which leaves the cursor on a
 %% line of its own and ends with status 0, having written nothing on
 %% standard error, since in line mode all it says goes to standard output.
-quit(#shell{dir = Dir, port = Port, wait = Wait, read = Read}) ->
+quit(#shell{dir = Dir, port = Port, wait = Wait, read = Read, carried = Carried}) ->
+    ?assertEqual([], Carried),
     true = port_command(Port, ":quit\n"),
     ?assertEqual(0, Wait()),
     {Out, Err} = ern_nodes_tests:said(Dir),
@@ -485,13 +484,23 @@ since(#shell{dir = Dir, read = Read}, Prompts) ->
 unprompted(<<"> ", Line/binary>>) -> Line;
 unprompted(Line) -> Line.
 
-%% Whether Lines are the Parts' lines, each part's together and in its
-%% order, the parts in some order; where they are not, the failure shows
-%% the parts in the order given.
-held(Lines, Parts) ->
-    Expected = [[expected(Line) || Line <- Part] || Part <- Parts],
-    lists:any(fun(Order) -> fits(lists:append(Order), Lines) end, orders(Expected))
-        orelse ?assertEqual(lists:append(Expected), Lines).
+%% Whether Lines are the lines of Parts and of some of Later, each part's
+%% together and in its order, the parts in some order; answers the parts of
+%% Later they do not hold. Where none fits, the failure shows the parts in
+%% the order given.
+held(Lines, Parts, Later) ->
+    Fitting = [Later -- Some || Some <- subsets(Later),
+                                lists:any(fun(Order) -> fits(lists:append(Order), Lines) end,
+                                          orders([[expected(Line) || Line <- Part]
+                                                  || Part <- Parts ++ Some]))],
+    case Fitting of
+        [Left | _] -> Left;
+        [] -> ?assertEqual([expected(Line) || Line <- lists:append(Parts ++ Later)], Lines)
+    end.
+
+%% Every subset of the parts, all of them first.
+subsets([]) -> [[]];
+subsets([Part | Rest]) -> [[Part | Some] || Some <- subsets(Rest)] ++ subsets(Rest).
 
 expected({re, Pattern}) -> {re, Pattern};
 expected(Line) -> unicode:characters_to_binary(Line).

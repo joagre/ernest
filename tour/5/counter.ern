@@ -5,6 +5,8 @@ export type CounterMsg =
 
 type WatchMsg = Ended(Down)
 
+type TestMsg = Reported(List(#(String, Int)))
+
 export fn count(tally : Tally.Tally(String)) : Unit receiving CounterMsg =
     receive {
         Inc(key = key, amount = amount) -> {
@@ -62,8 +64,6 @@ let countsPerKey : Test.Case(m) = Test.Case(name = "counts per key", run = fn() 
     let _ = apply(counter, "inc apples 1");
     Test.equal(apply(counter, "get apples"), "3")
 })
-
-type TestMsg = Reported(List(#(String, Int)))
 
 let reports : Test.Case(TestMsg) = Test.Case(name = "reports", run = fn() = {
     let counter = spawn(fn() = count(Tally.empty()));
