@@ -30,7 +30,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 | [`ACKNOWLEDGMENTS.md`](ACKNOWLEDGMENTS.md) | the people Ernest stands on, by name alone |
 | [`docs/development.md`](docs/development.md) | the layout, the commands, and what the toolchain does not do yet |
 | [`docs/README.md`](docs/README.md) | what each document under `docs/` is |
-| `docs/design/shell.md`, `docs/design/install.md`, [`docs/design/emacs_mode.md`](docs/design/emacs_mode.md), [`docs/design/runtime.md`](docs/design/runtime.md) | each its component's design; a design note changes when its component does. The runtime's states what the runtime keeps and where, the look, a launch, a call, a kill, the boundary and the frames, as they stand, citing the report and naming the log entry that argues each; it states no why |
+| `docs/design/shell.md`, `docs/design/install.md`, [`docs/design/emacs_mode.md`](docs/design/emacs_mode.md), [`docs/design/runtime.md`](docs/design/runtime.md), [`docs/design/nodes.md`](docs/design/nodes.md), [`docs/design/code.md`](docs/design/code.md) | each its component's design; a design note changes when its component does. The runtime's states what the runtime keeps and where, the look, a launch, a call, a kill, the boundary and the frames, as they stand, citing the report and naming the log entry that argues each; it states no why |
 | [`src/shell/README.md`](src/shell/README.md) | how the shell's code reads |
 | [`editors/emacs/README.md`](editors/emacs/README.md) | how to install the Emacs mode, and what it leaves to the reader's configuration |
 | [`docs/module_doc_template.md`](docs/module_doc_template.md) | the worked example of a documented module, held equal to `ern doc`'s output by a test |

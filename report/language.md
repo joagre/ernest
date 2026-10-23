@@ -1,6 +1,6 @@
 # Ernest Report: The Language
 
-Revision of 23 October 2026.
+Revision of 24 October 2026.
 
 *Dedicated to the memory of Joe Armstrong, 1950–2019.*
 
@@ -1025,7 +1025,7 @@ A definition's *reach* is the definition with everything it references, transiti
 
 **What passes.** A message is carried by the host as on one node, straight into the mailbox. Fifteen frames are the runtime's own: a message to an adapted address, which goes to the node that made it (§6.5); a spawn on a peer, and its answer; a compute on a peer; a find; a utilization, and a node's telling of its own (**A utilization**); that a call waits, and that it is over; a `kill` of a process of another node, which that node's runtime carries out as its own `kill` (§6.9); that a node ends; and the exchange's four, the request for a reach, the reach, the lacks and a code frame (**The exchange**). A monitor and its `Down`, the answer to a call, to a find, to a compute or to a utilization, a sign of life, and the proof that two nodes stand on one floor are the host's.
 
-A node has one *gateway*, a process that takes every frame from every peer and hands each to a worker for the sender's node, but for a call's two notes, which it records itself, in the order they came, a compute's frame, which it records so and hands on, a utilization, which it answers itself, a telling, which it holds, and a node's end, which it records against the loss to come; the exchange's four it hands to the exchange's process. A frame the gateway cannot read is faulty, and the node ends the connection; a message to the gateway that names no process of a peer names no connection, and is dropped, which the node says.
+A frame a node cannot read is faulty, and the node ends the connection; a message to a node's runtime that names no process of a peer names no connection, and is dropped, which the node says.
 
 A message between nodes costs what the host's send costs; one to an adapted address made on another node than the sender's takes §6.5's one step more, on the node that made it, in the process kept for the address and the sending node (§6.5).
 
@@ -1047,7 +1047,7 @@ A large value crosses in pieces, and other senders' messages pass between them. 
 
 **Calls.** A `Reply` crosses as the host's alias, which takes one answer and drops any other (§6.6). The caller monitors the callee while it waits, so the callee's end and a loss both end the call: `Address.call` answers `None`, which says that no answer came and nothing of whether the request was received or ran, and `Address.callForever` faults with `Fault("callee is unreachable")` (§7.4). The call's time bounds the wait for the answer and nothing before it (§6.6): where the host's buffer for the peer is full, the caller waits in the send first.
 
-A call to a process of another node sends that node a note that this caller waits, with its reply, and the node keeps the note until the call is over. An answer given on that node lets the note go. Where the callee restarts or ends first, the node tells the caller so by the note. A restart in place reads every note that came before it, and a note comes before its request, but for a request through an adapted address made on a third node, so a request that faults its callee ends its call (§6.9). A call that ends otherwise, its time run out, answered from another node, or its caller ended, sends the node a second note, by which the node lets the first go. A loss drops every note of that peer.
+Where the callee restarts or ends first, the caller is told so and the call ends. A restart in place ends every call whose request came before it, but for a request through an adapted address made on a third node, so a request that faults its callee ends its call (§6.9).
 
 **A spawn.** `Peer.spawn(name, f, ms)` sends the peer named `name` a frame with `f`'s identity, the values it captured (§3.11) in the order its body first names them, a reply among them crossing as it crosses in a message and answered by the spawned process as §6.6 says of `spawn`, the spawn's site (§6.9) and `ms`; for `restarting(limit, g)` the frame names `restarting`, `limit` and `g`'s identity and captures. The peer records the site for the process as it records a local spawn's, starts the process, runs `f()` in it, and answers its address.
 
@@ -1069,19 +1069,19 @@ A code frame carries beside its form the host's module and function of each fore
 
 A foreign function spawned or computed by its name (§3.11), which has no hash (Appendix H), crosses as its declaration where the peer lacks it, its name, its type and the host's module and function, in the reach and in no code frame; the peer calls the host's function through the check of §8.4, as the declaring module does. A received definition calls the host's function the sender's declaration names, and the module's code is the node's (**Connections**).
 
-The four frames, the request for a reach, the reach, the lacks and the code frame, pass as the runtime's own (**What passes**), through a process of the exchange's on each node. The peer verifies each form against its hash as it arrives and holds it apart until the reach is complete; then it compiles the reach, loads it whole and starts the process: nothing of the reach runs before all of it is loaded. A form whose hash is not the one named is a faulty frame, and the connection ends. A reach the peer cannot compile or load fails the spawn with `Other(text)`, `text` the peer's reason, and so does one the spawner's node no longer holds when the peer asks for it, `text` saying so.
+The peer verifies each form against its hash as it arrives and holds it apart until the reach is complete; then it compiles the reach, loads it whole and starts the process: nothing of the reach runs before all of it is loaded. A form whose hash is not the one named is a faulty frame, and the connection ends. A reach the peer cannot compile or load fails the spawn with `Other(text)`, `text` the peer's reason, and so does one the spawner's node no longer holds when the peer asks for it, `text` saying so.
 
 The exchange runs within the spawn's time, as the dial does, and two spawns that wait on one identity share one exchange; a frame of an exchange that has ended is dropped. A definition that arrived stays for the node's life (§11.2), and a spawn that names it ships nothing.
 
 A peer runs what it is sent as its own code, trusted as a peer is (**Connections**): a peer that may spawn on a node may run anything on it. Code crosses with a spawn and a compute and nowhere else: a find ships nothing, a message ships nothing, and the shell's load is the session's (§11.2).
 
-**A compute.** `Peer.computeAt(name, f, ms)` sends the peer named `name` a frame with `f`'s identity, the values it captured, the compute's site, the declaration and the line where the `Peer.computeAt` or `Peer.compute` is written (§6.9), and `ms`, as a spawn's frame has them; the frame is also the note that the caller waits (**Calls**). The peer starts a process as it starts a spawned one, records the site for it, runs `f()` in it, and answers `f`'s value to the caller through the host's alias, as a call is answered; the process ends as its function returns (§6.9).
+**A compute.** `Peer.computeAt(name, f, ms)` sends the peer named `name` a frame with `f`'s identity, the values it captured, the compute's site, the declaration and the line where the `Peer.computeAt` or `Peer.compute` is written (§6.9), and `ms`, as a spawn's frame has them. The peer starts a process as it starts a spawned one, records the site for it, runs `f()` in it, and answers `f`'s value to the caller through the host's alias, as a call is answered; the process ends as its function returns (§6.9).
 
 The caller waits as a spawner waits, at most `ms` milliseconds, and `compute` answers `Right(v)`, or an `Io.Error` where no connection can be opened, where the connection is lost, or where the time runs out (Appendix E.27). The peer runs `f` only where it would start it for a spawn, and otherwise answers `NotLoaded` and says what it lacked, as for a spawn.
 
 A fault in `f` is the caller's: the fault crosses to the caller whole, its cause and its trace (Appendix E.21), and the caller faults with that cause as if `f()` had faulted in it, which its node reports as it reports any fault of the caller (§11.2); the process dies of the fault as any process does (§6.9), and the peer writes nothing of it and tells no subscriber of `Process.faults`. The fault is reported once, on the caller's node. Where `f` is `restarting` over a function (§6.9), a restart does not end the compute: a fault it restarts is the process's own, reported on the peer, and the caller waits for the run that answers.
 
-A process that ends before it answers, killed or with the peer's program, answers the caller `Left(Other(text))`, `text` its `Reason` as `Io.show` writes it. Where the caller's time runs out, or the caller ends or restarts while it waits, its node sends the peer the call's second note, by which the peer kills the process where it still runs; where the connection was lost, it runs on, as a spawned process does. A fault in `f` once the note has gone, the call over or the connection lost, is the process's own, reported on the peer as any fault is (§7.3), since no caller waits for it.
+A process that ends before it answers, killed or with the peer's program, answers the caller `Left(Other(text))`, `text` its `Reason` as `Io.show` writes it. Where the caller's time runs out, or the caller ends or restarts while it waits, its node tells the peer, which kills the process where it still runs; where the connection was lost, it runs on, as a spawned process does. A fault in `f` once the call is over or the connection lost is the process's own, reported on the peer as any fault is (§7.3), since no caller waits for it.
 
 The value crosses back at the type the compiler checked at the compute, `f`'s result type where `f` is written, which the peer holds too, in `f`'s form (§3.11, Appendix H).
 
@@ -1456,7 +1456,6 @@ Every technical term this report introduces, with a gloss and the section that d
 - **foreign process** — a process whose implementation lies outside the language, the system processes among them; §8.4 says which of its messages are checked. §8.4.
 - **foreign type** — declared `foreign type T`; values are made and used only by foreign functions. §3.8, §4.7.
 - **frame** — a message of the runtime's own between nodes: a message to an adapted address, a spawn and its answer, a compute, a find, a utilization, a telling, a call's two notes, a node's end, and the exchange's four, the request for a reach, the reach, the lacks and a code frame. §8.7.
-- **gateway** — the one process of a node that takes the runtime's frames from its peers and hands each to a worker for the sender's node, but for a call's two notes, a utilization, a telling and a node's end, which it handles itself, a compute's frame, which it records and hands on, and the exchange's four, which it hands to the exchange. §8.7.
 - **generalization** — quantifying free type variables in a `fn` definition, a top-level `let`, or a block `let` that binds a lambda. §3.9, §4.6.
 - **grapheme** — an extended grapheme cluster, what a reader sees as one letter, which `String`'s sizes and indices count. Appendix E.5.
 - **ground term** — a literal, a negated number literal, a constructor of no fields, or a constructor applied to ground terms or a tuple or a list of them; a top-level binding whose initializer is one is compiled to its value. §11.1.
@@ -1488,7 +1487,6 @@ Every technical term this report introduces, with a gloss and the section that d
 - **namespace** — the dotted prefix of a name; equal to the module's path. §4.2.
 - **`Never`** — the type with no values; as a mailbox type, a process that cannot receive. §3.7, §6.8.
 - **node** — one running runtime, started with a configuration directory and identified by its key. §8.3, §8.7.
-- **note** — what a call to a process of another node, or a compute on it, sends that node: that the caller waits, with its reply, and later that the call is over. §8.7.
 - **offer** — a service made findable by `Peer.offer`, for as long as its process lives. §8.7.
 - **operations record** — a record a program declares of the operations it uses on a type, filled from each representation's namespace and passed to code written once over them. §4.9.
 - **operator resolution** — per-type dispatch of arithmetic and `<>` to `Type.<op>`. §4.8.

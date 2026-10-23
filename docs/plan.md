@@ -90,12 +90,16 @@ log's *The First Release Is for Others*. Two of its items were taken early and a
 into the light run and the full run, and the documents made lighter, both on 2026-10-13 (the log's *The
 Light Run and the Full Run*, *Lighter Documents*). Weighed again with the user on 2026-10-23 (the log's
 *MVP 3.9 Weighed*): the numbering is kept for good, the new machine's first day stands apart so that
-no release waits for hardware, and the design note is bounded before it is written.
+no release waits for hardware, and the design note is bounded by its altitude before it is written.
 
-- **The nodes' design note.** The proposals under `docs/proposals/nodes_and_code/`, the carrier, the
-  gateway, the exchange, the code table and the processes kept for addresses as built, rewritten as
-  one design note under `docs/` beside the shell's, the measurements across machines having settled
-  their figures (the log's *The Numbers Across Machines*); the proposals then stay as the record of how the design was weighed.
+- **The nodes' design note**, done 2026-10-24 as two notes, [`design/nodes.md`](design/nodes.md) and
+  [`design/code.md`](design/code.md), one component each (the log's *The Nodes' and the Code's
+  Notes*). The proposals under `docs/proposals/nodes_and_code/`, the carrier, the gateway, the
+  exchange, the code table and the processes kept for addresses as built, rewritten as design notes
+  under `docs/` beside the shell's, the measurements across machines having settled their figures
+  (the log's *The Numbers Across Machines*); the proposals stay as the record of how the design was
+  weighed until the sweep below. A note's bound is its altitude, what a reader must know to change
+  the component without breaking a promise, and no count of words.
 
   Its sources, in order: §8.7 and §11.2 and the code as built, with `architecture.md`'s map, for
   what the component is; `mvp3.0.md` to `mvp3.2.md` and the log's entries for why each part is
@@ -103,10 +107,11 @@ no release waits for hardware, and the design note is bounded before it is writt
   several of which the build changed; `set_aside/` for one line each on what went and why;
   `experiments/` for the numbers a cost section quotes; `other_systems.md` for the comparison.
 
-  The paragraphs of §8.7 that state the runtime's machinery a program never sees, its frames, the
-  gateway's workers and the notes' bookkeeping, move into the note then, with their Appendix F
-  entries, and §8.7 keeps what a program meets, as the release review before 0.4.0 found (the log's
-  *The Release Review Before 0.4.0*, KP26).
+  The paragraphs of §8.7 that stated the runtime's machinery a program never sees, the gateway's
+  workers and the notes' bookkeeping, moved into the notes with their Appendix F entries, and §8.7
+  keeps what a program meets, as the release review before 0.4.0 found (the log's *The Release
+  Review Before 0.4.0*, KP26); the frames list stays, since E.27's errors name what a frame can
+  fail at.
 
   A proposal that redesigned a rule of the language and built no component, kill darlings, the
   balancer's suggestion and the placement push, becomes no note, its outcome being the report's
