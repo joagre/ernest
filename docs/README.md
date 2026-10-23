@@ -18,6 +18,6 @@ The project's own documents: what each file and directory here is, and the two R
 - **[`diagnostics.md`](diagnostics.md)**: the catalog of the errors the lexer, the parser and the checker give, each with a program that gives it and what `ern build` prints for it, which `make diagnostics` writes and a test holds to the compiler.
 - **[`language_feedback.md`](language_feedback.md)**: what writing Ernest has felt against the principles, until the plan decides it.
 - **[`man/`](man/)**: the manual pages as CommonMark, which `make man` writes from `main` and a release commits: the prelude's and the standard library's, and each library's.
-- **[`proposals/`](proposals/)**: what is designed, a directory for each proposal. The peer protocol of MVP 3.0 is there, decided, and the report's §8.7 is rewritten from it; and operations records are there as the record of what was built, with three programs the tests run.
+- **[`proposals/`](proposals/)**: what is designed, a directory for each proposal, whose `README.md` says what its files are and which is current.
 - **[`src/shell/README.md`](../src/shell/README.md)**: a guide to the shell's code.
 - **[`editors/emacs/README.md`](../editors/emacs/README.md)**: how to install the Emacs mode, and what it leaves to the reader's configuration.

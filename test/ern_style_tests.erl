@@ -364,9 +364,7 @@ write_formatted() ->
 %% The modules the Ernest style guide governs.
 modules() ->
     Patterns = ["src/stdlib/**/*.ern", "examples/**/*.ern", "src/shell/**/*.ern",
-                "src/libs/**/*.ern", "tools/*.ern", "tour/*/*.ern", "test/**/*.ern",
-                "docs/proposals/operations/programs/*.ern",
-                "docs/proposals/nodes_and_code/experiments/code_update/**/*.ern"],
+                "src/libs/**/*.ern", "tools/*.ern", "tour/*/*.ern", "test/**/*.ern"],
     Modules = [File || File <- ern_repository:files(Patterns),
                        not lists:prefix("test/build/", File)],
     ?assert(length(Modules) > 20),

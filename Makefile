@@ -16,10 +16,7 @@ ERNEST_SOURCES = src/stdlib/*.ern src/shell/*.ern src/shell/shell/*.ern examples
 		examples/upgrade/*/*.ern \
 		test/fixtures/*/*.ern test/fixtures/programs/modules/*.ern \
 		test/fixtures/programs/modules/*/*.ern \
-		src/libs/*/*.ern tools/*.ern docs/proposals/operations/programs/*.ern \
-		docs/proposals/nodes_and_code/experiments/code_update/*/*.ern \
-		docs/proposals/nodes_and_code/experiments/code_update/*/*/*.ern \
-		docs/proposals/nodes_and_code/experiments/code_update/*/*/*/*.ern
+		src/libs/*/*.ern tools/*.ern
 
 # The Ernest trees, src/stdlib/, src/libs/, src/shell/ and tools/, are built by `ern build`
 # every time, and its own rule decides what in each to compile again, by the

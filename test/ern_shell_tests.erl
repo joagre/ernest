@@ -3920,10 +3920,10 @@ refused_load_kills_holder() ->
 %% report §11.2, §6.10: a function of a previous version that a process
 %% holds in its state, and not in its code, keeps running that version
 %% through further reloads, since a reload unloads nothing. A regression
-%% test of the experiment of 2026-10-07 (docs/proposals/nodes_and_code/
-%% experiments/code_update/), where the host's check of a process's code
-%% did not see such a function, and the reload that purged its version left
-%% it to fail at its next call
+%% test of the experiment of 2026-10-07 (the log's *The Nodes' Reasons,
+%% Kept*), where the host's check of a process's code did not see such a
+%% function, and the reload that purged its version left it to fail at its
+%% next call
 held_function_keeps_its_version_test_() ->
     {timeout, 60, fun held_function_keeps_its_version/0}.
 

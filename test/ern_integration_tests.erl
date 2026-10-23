@@ -1,11 +1,11 @@
 %% The toolchain as a user runs it, through bin/ern: the examples and the
 %% test programs built and run, their output compared as a multiset of lines with
 %% fixtures/expected/<name>.out, since prints from different processes interleave
-%% by scheduling; the launcher, the signals and the streams; `Os`; the
-%% libraries' tests; and docs/proposals/operations/programs/. Run from this
-%% directory by its Makefile. The helpers that run a command and build are
-%% exported for ern_manual_tests and ern_install_tests, the manual pages'
-%% tests and the installation's, which run as parts of their own.
+%% by scheduling; the launcher, the signals and the streams; `Os`; and the
+%% libraries' tests. Run from this directory by its Makefile. The helpers
+%% that run a command and build are exported for ern_manual_tests and
+%% ern_install_tests, the manual pages' tests and the installation's, which
+%% run as parts of their own.
 -module(ern_integration_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -1736,29 +1736,6 @@ private_mailbox_printed(Name) ->
     Build = "build/private_mailbox/" ++ Name,
     0 = build("--build-root " ++ Build ++ " fixtures/programs/private_mailbox"),
     sh("../bin/ern run " ++ Build ++ "/" ++ Name ++ ".erc").
-
-%% report §4.9, §3.5, §5.6, Appendix E.25, E.26, docs/proposals/operations/operations.md: the
-%% note's three programs, its directory built as a source root over the
-%% standard library's ordered set and map, each print what the note says, in
-%% order. Written after the code, which they were built against first. Its
-%% steps: the build and the three runs.
--define(OPERATIONS, ["usage", "numeric", "num"]).
-
-operations_test_() ->
-    {timeout, waits(4), fun operations/0}.
-
-operations() ->
-    {0, _} = sh("../bin/ern build --build-root build/operations"
-                " ../docs/proposals/operations/programs"),
-    lists:foreach(fun(Name) ->
-                      {0, Output} = sh("../bin/ern run build/operations/" ++ Name ++ ".erc"),
-                      {ok, Expected} = file:read_file("fixtures/expected/operations/" ++ Name
-                                                      ++ ".out"),
-                      ?assertEqual({Name, in_order(Expected)}, {Name, in_order(Output)})
-                  end, ?OPERATIONS).
-
-in_order(Bytes) ->
-    binary:split(Bytes, <<"\n">>, [global, trim]).
 
 %% report §11.6: `ern format -` lays out standard input onto standard
 %% output; with --check it names `-` if the module is not laid out; a
