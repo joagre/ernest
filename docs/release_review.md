@@ -13,6 +13,7 @@ What a release runs to be ready, and nothing else. Between releases a change run
 3. **The readers** of [`full_review.md`](full_review.md), run as it runs them, with its briefs:
    - **The report:** K and P, the cold reader and the principles, as one reader.
    - **A newcomer:** N, with a program no earlier newcomer wrote.
+   - **The skeptics:** L and M, the Erlang and the Gleam programmer, over `README.md`, `guide/why.md`, the tour and `guide/faq.md`, and the guide's chapters that changed since the last release.
    - **The code:** C, E and S as one reader, over what changed in `erl/`, `src/stdlib/`, `src/shell/` and `src/libs/` since the last release, or since the last full review where that is later.
    - **The guide:** U, when a rule of the report changed since the last release, over the sections of the guide that teach what changed.
    - **The argument:** the report's reader, when a rule [`soundness.md`](soundness.md) covers changed since the last release, over the argument's paragraphs for those rules beside the report's sections: every step that does not follow from the rule it cites.
@@ -33,4 +34,4 @@ What a release runs to be ready, and nothing else. Between releases a change run
    - what the review did not run;
    - and the newcomer's program.
 
-**The models.** Two models serve a review, the most advanced there is and the one below it, as [`full_review.md`](full_review.md)'s *The models* says. The machines need none. The report's reader runs on the most advanced, since it judges rules against §0, reads cold for what a builder would guess, and reads the argument for a step that does not follow; the newcomer, the code's reader and the guide's run on the one below. Of the findings, a design question or a sentence of the report takes the most advanced, and a named fix and the release itself the one below.
+**The models.** Two models serve a review, the most advanced there is and the one below it, as [`full_review.md`](full_review.md)'s *The models* says. The machines need none. The report's reader runs on the most advanced, since it judges rules against §0, reads cold for what a builder would guess, and reads the argument for a step that does not follow, and so do the skeptics, whose finding is whether a reader would be turned; the newcomer, the code's reader and the guide's run on the one below. Of the findings, a design question or a sentence of the report takes the most advanced, and a named fix and the release itself the one below.
