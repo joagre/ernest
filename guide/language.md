@@ -414,6 +414,11 @@ point : #(Int, Int)
 > let #(x, y) = point
 x : Int
 y : Int
+```
+
+A map and a set are built from the empty one, or from a list:
+
+```console
 > let m = Map.empty |> Map.put("a", 1) |> Map.put("b", 2)
 m : Map(String, Int)
 > Map.get(m, "a")

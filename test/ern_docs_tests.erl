@@ -2,10 +2,11 @@
 %% letter, and `E.n` written in a live document or in the code names a
 %% heading of the report, and `guide §x.y`, `the guide's §x.y` and the
 %% guide's own bare `§x.y` a heading of the guide, docs/log.md
-%% being history and not checked; the contents lists, the paths the
-%% documents name, the release's pages, the third parties' licenses, the
-%% glossary, the fault causes, the log's index, and the runtime's tables and
-%% frames as its design note and §8.7 name them are each current.
+%% being history and not checked; the contents lists, the tour's blocks,
+%% the paths the documents name, the release's pages, the third parties'
+%% licenses, the glossary, the fault causes, the log's index, and the
+%% runtime's tables and frames as its design note and §8.7 name them are
+%% each current.
 -module(ern_docs_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -106,6 +107,71 @@ parts(Lines) ->
             {Part, After} = lists:splitwith(fun(Line) -> Line =/= <<>> end, Rest),
             [Part | parts(After)]
     end.
+
+%% tour/README.md, plan MVP 3.3, report §11.6: each `ernest` block of the
+%% tour under a chapter's heading, `## 5. Per key`, is that chapter's
+%% program as tour/5/ holds it, so that the tour shows what its tests run.
+%% A block is one of the chapter's files, or the file with some of its
+%% paragraphs left out, a paragraph being a run of lines between blank
+%% ones: the block's paragraphs are the file's, each whole and byte for
+%% byte, in the file's order, one blank line between two. A blank line of
+%% the block so stands for the file's, or for the paragraphs left out
+%% there, and no block shows part of a paragraph. The files are `ern
+%% format`'s layout (report §11.6), which writes no two blank lines
+%% together. A block that is not so, or stands under no chapter's heading,
+%% is named by its chapter and its first line. A regression test, written
+%% after the tour's blocks; it does not cover the console blocks, which
+%% ern_tour_tests runs, nor which file the prose says a block shows.
+tour_blocks_shown_test() ->
+    Lines = binary:split(ern_repository:read("tour/README.md"), <<"\n">>, [global]),
+    Blocks = tour_blocks(Lines, none),
+    ?assertNotEqual([], Blocks),
+    ?assertEqual([], [{Chapter, unicode:characters_to_list(hd(binary:split(Text, <<"\n">>)))}
+                      || {Chapter, Text} <- Blocks, not shown(Chapter, Text)]).
+
+%% The tour's `ernest` blocks, each with the number of the chapter whose
+%% heading it stands under, or none, and its text.
+tour_blocks([], _) ->
+    [];
+tour_blocks([<<"## ", Heading/binary>> | Rest], _) ->
+    tour_blocks(Rest, chapter(Heading));
+tour_blocks([<<"```", Info/binary>> | Rest], Chapter) ->
+    {Code, [_ | After]} = lists:splitwith(fun(Line) -> not fence(Line) end, Rest),
+    Blocks = tour_blocks(After, Chapter),
+    case Info of
+        <<"ernest">> -> [{Chapter, iolist_to_binary(lists:join(<<"\n">>, Code))} | Blocks];
+        _ -> Blocks
+    end;
+tour_blocks([_ | Rest], Chapter) ->
+    tour_blocks(Rest, Chapter).
+
+fence(<<"```", _/binary>>) -> true;
+fence(_) -> false.
+
+%% "5" for `## 5. Per key`, and none for a heading that is no chapter's.
+chapter(Heading) ->
+    case re:run(Heading, "^([0-9]+)\\. ", [{capture, all_but_first, list}]) of
+        {match, [Number]} -> Number;
+        nomatch -> none
+    end.
+
+%% Whether Text is one of the chapter's files, or such a file with some of
+%% its paragraphs left out.
+shown(none, _) ->
+    false;
+shown(Chapter, Text) ->
+    lists:any(fun(File) ->
+                  among(paragraphs(Text), paragraphs(string:chomp(ern_repository:read(File))))
+              end, ern_repository:files(["tour/" ++ Chapter ++ "/*.ern"])).
+
+paragraphs(Text) ->
+    binary:split(Text, <<"\n\n">>, [global]).
+
+%% Whether Shown are among Paragraphs, in their order.
+among([], _) -> true;
+among(_, []) -> false;
+among([Paragraph | Shown], [Paragraph | Rest]) -> among(Shown, Rest);
+among(Shown, [_ | Rest]) -> among(Shown, Rest).
 
 %% report/, guide/language.md, docs/development.md "Building": a document's
 %% contents list is its top-level sections, its headings of level two, each

@@ -468,6 +468,7 @@ fn crossed(multiple : Int, prime : Int, below : Int, composites : Set(Int)) : Se
     if multiple >= below then
         composites
     else
+        crossed(multiple + prime, prime, below, Set.put(composites, multiple))
 ```
 
 First the question, asked on each bare node:

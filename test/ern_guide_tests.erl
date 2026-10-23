@@ -22,10 +22,14 @@
 %% `// rejected`, the error is on that line. A console whose command is
 %% `$ ern shell` is a session: its `> ` lines are the inputs, and the rest
 %% is what the shell prints; `$ ern shell words.erc` after a module is a
-%% session with that module loaded. A block marked `ernest-prelude` holds
-%% the prelude's own declarations, each one of `ern_prelude`'s as written.
-%% A block marked `ernest-fragment`, and any other, is a fragment, which
-%% nothing checks.
+%% session with that module loaded. A console whose first line is a `> `
+%% line continues the session of the nearest console before it under its
+%% heading, its inputs and what the shell prints added to that session's,
+%% so that a long session is shown in parts with prose between; one with
+%% no session before it under its heading is an error, named by its line.
+%% A block marked `ernest-prelude` holds the prelude's own declarations,
+%% each one of `ern_prelude`'s as written. A block marked
+%% `ernest-fragment`, and any other, is a fragment, which nothing checks.
 -module(ern_guide_tests).
 
 %% EUnit's captured output, asked of the test's group leader, which is
@@ -247,7 +251,11 @@ check({session, #{inputs := Inputs, shown := Expected}}) ->
     {0, Output} = sh("cd " ++ Dir ++ " && HOME=" ++ Dir ++ " " ++ filename:absname("../bin/ern")
                      ++ " shell < " ++ InputFile),
     ok = file:del_dir_r(Dir),
-    ?assertEqual(trim(Expected), session_end(Output)).
+    ?assertEqual(trim(Expected), session_end(Output));
+check({continuation, _}) ->
+    %% a console that begins with a `> ` line, with no session before it
+    %% under its heading to continue
+    error(no_session_to_continue).
 
 %% Report §11.8: the status a console's `ern run` exits with, 1 where a
 %% line shown is the entry process's fault, which begins with the entry
@@ -300,14 +308,16 @@ released(Output) ->
 
 %% The checked units of a document, in order: {modules, Unit} for one
 %% module or a heading's source tree, {rejected, Unit} for an example that
-%% must not compile, and {session, Unit} for a session at the shell.
+%% must not compile, {session, Unit} for a session at the shell, and
+%% {continuation, Unit} for a console that continues no session, which
+%% fails.
 units([First | _] = Documents) when is_list(First) ->
     lists:append([units(Document) || Document <- Documents]);
 units(Document) ->
     {ok, Text} = file:read_file(Document),
     Lines = binary:split(Text, <<"\n">>, [global]),
     Blocks = blocks(lists:zip(lists:seq(1, length(Lines)), Lines), none, []),
-    group(Blocks, #{}).
+    group(continued(Blocks, []), #{}).
 
 %% Every fenced block, a #block{}.
 blocks([], _, Acc) ->
@@ -324,6 +334,37 @@ blocks([_ | Rest], Heading, Acc) ->
 
 fence(<<"```", _/binary>>) -> true;
 fence(_) -> false.
+
+%% The blocks, each console whose first line is a `> ` line joined to the
+%% session it continues: its lines are added to that console's, which
+%% stays in its place. One that continues no session stays as it is.
+continued([], Acc) ->
+    lists:reverse(Acc);
+continued([#block{info = <<"console">>, code = [<<"> ", _/binary>> | _] = Code} = Block | Rest],
+          Acc) ->
+    {Between, Before} = lists:splitwith(fun(#block{info = Info}) -> Info =/= <<"console">> end,
+                                        Acc),
+    case continues(Block, Before) of
+        true ->
+            [#block{code = Session} = Console | Earlier] = Before,
+            continued(Rest, Between ++ [Console#block{code = Session ++ Code} | Earlier]);
+        false ->
+            continued(Rest, [Block | Acc])
+    end;
+continued([Block | Rest], Acc) ->
+    continued(Rest, [Block | Acc]).
+
+%% Whether a console continues a session: the nearest console before it,
+%% the first of Before, stands under its heading and holds a `$ ern shell`
+%% command.
+continues(#block{heading = Heading}, [#block{heading = Heading, code = Session} | _]) ->
+    lists:any(fun shell_command/1, Session);
+continues(_, _) ->
+    false.
+
+shell_command(<<"$ ern shell">>) -> true;
+shell_command(<<"$ ern shell ", _/binary>>) -> true;
+shell_command(_) -> false.
 
 %% `ernest` blocks that name a file join the other such blocks under their
 %% heading; a block that names none is a module of its own, in the file its
@@ -346,6 +387,10 @@ group([#block{line = Number, info = <<"console">>, code = [<<"$ ern shell">> | L
       Seen) ->
     [{session, #{line => Number, inputs => inputs(Lines), shown => session_shown(Lines)}}
      | group(Rest, Seen)];
+group([#block{line = Number, info = <<"console">>, code = [<<"> ", _/binary>> | _]} | Rest],
+      Seen) ->
+    %% continued/2 joined every console that continues a session to it
+    [{continuation, #{line => Number}} | group(Rest, Seen)];
 group([#block{line = Number, info = Info, heading = Heading, code = Code} = Block | Rest], Seen)
   when Info =:= <<"ernest">>; Info =:= <<"erlang">> ->
     case named(Code) of
