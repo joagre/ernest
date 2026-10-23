@@ -86,7 +86,14 @@ other.ern:6:37: the value does not have the declared type: expected Address(Othe
   | = help: the types differ at OtherMsg and CounterMsg
 ```
 
-Where foreign code meets the program the type is checked, not trusted. A `foreign fn` declares the Ernest type of what the host answers, and the runtime checks the answer against it as it arrives, as it checks a reply foreign code gives, a message foreign code sends to an address exposed to it, and each argument foreign code calls an Ernest function with; what does not match faults the calling process, naming the function and the type (report §8.4). So a mailbox type holds for messages from the host too, and a wrong value from a library is a fault at the crossing with a trace, not a crash later in code that trusted it. The standard library is the runtime's own and pays no check; a check walks the value it checks, and costs with its size.
+The host's own code, Erlang's libraries and whatever else runs on the runtime, is *foreign code* to a program, reached through a `foreign fn` that declares the Ernest type of a host function (the guide's §8.3):
+
+```ernest-fragment
+foreign fn systemTime() : Int =
+    "erlang:system_time/0"
+```
+
+Where foreign code meets the program the type is checked, not trusted. The runtime checks each answer against the declared type as it arrives, so `: String` in its place would fault the caller at the first call, `the return of foreign function erlang:system_time/0 does not match String`. It checks the same way a reply foreign code gives, a message foreign code sends to an address exposed to it, and each argument foreign code calls an Ernest function with; what does not match faults the calling process, naming the function and the type (report §8.4). So a mailbox type holds for messages from the host too, and a wrong value from a library is a fault at the crossing with a trace, not a crash later in code that trusted it. The standard library is the runtime's own and pays no check; a check walks the value it checks, and costs with its size.
 
 ### Code known by its hash
 
