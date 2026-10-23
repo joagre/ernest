@@ -21,8 +21,8 @@ release. MVP 3.26, two subtractions from the type system, is done (2026-10-16), 
 tools' five speed changes and the programs tests' defects.
 MVP 3.27, the measurements across machines, is done (2026-10-21), and so are MVP 3.28, what stood
 before the tour, and MVP 3.29, the bookkeeping behind §8.6 and the foreign call (2026-10-22). MVP 3.295,
-what the language measurement found, is done the same day. The road to 0.5.0 is MVP 3.296, what the tour's outline asked, MVP 3.3 the tour
-and MVP 3.9 the review; the attached shell, ehttpd,
+what the language measurement found, is done the same day. MVP 3.296, what the tour's outline asked, is done (2026-10-23), the outline decided and the
+plan's MVP 3.3 written from it. The road to 0.5.0 is MVP 3.3 the tour and MVP 3.9 the review; the attached shell, ehttpd,
 the website, the shell's second round and the back end follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A
 finished milestone is a row of the table below, its reasons in the log entries the row names.
 
@@ -66,7 +66,7 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 3.28 | what stands before the tour: a clause's body all or none, which §11.6 states and `ern format` writes; `--libs-dir dir`; `--verbose`; and seven items the feedback left: four messages that name the form, the rules of an Ernest program installed, the libraries on the default load path, `ok` as `Unit`, `Test.faults`, the foreign call measured, and doc examples run by `ern test`; with what the builds found: a type and the module of its name share a namespace, a module under a taken namespace refused, `List.mapFold`, a mailbox type ending in `Msg`, the prelude's `Unit` as a descriptor word, a `make` with nothing to do measured, and each doc example a program of its own in a directory of its own | 2026-10-22 | | *The Later List Sorted*; *Clause Bodies All or None*; *A Libs Flag Instead of the Environment*; *A Build Says What It Decided*; *A Make With Nothing to Do*; *What the Feedback Left*; *The Window's Three Asks*; *Nothing Waits for a Program*; *The Foreign Call Measured* |
 | MVP 3.29 | the bookkeeping behind §8.6 on one rule, the look reads what a process marks and no operation writes a shared row: the foreign call's count gone for a read of the waiting process, the timed receive's and the call's marks in the process's own dictionary, every slow wait of the runtime's own marked and held by a test, the callees' row kept on a write-concurrent table and measured against two other kinds, a kill one function and a frame from another node; a ground `let` compiled to its term; the foreign cause naming the function; one checker of the library's examples; a launch a row of its own table, halved; the runtime's fixed waits and the tests' sleeps, polls and limits gone for waits on what each means; `make bench` with a memory of its last run and of the release's, by ratio; the language measured against the host's own Erlang, construct by construct and in three programs written twice; the runtime's design note; and a deadlock found among *Why Ernest*'s claims | 2026-10-22 | | *The Sitting on §8.6's Bookkeeping*; *`make bench` Read Against the Cost Rules*; *The Language Against the Host*; *The Foreign Call Measured*; *Deadlock Is Quiescence* |
 | MVP 3.295 | what the language measurement found: a `Float` operation the host's own with no `try`, the runtime reading a `badarith`'s frame, a chain of five from 1.65 to 1.23 times the host's and the ray tracer from 1.95 to 1.70; `Map.get`'s number closed as the type's; and the bench's parts as targets, its memory kept a table at a time | 2026-10-22 | | *The Sitting on §8.6's Bookkeeping*, its paragraphs *The Float chain* and *Built*; *The Language Against the Host* |
-| MVP 3.296 | what the tour's outline asked: a restart runs the function it was given, stated in §6.9 and the deployment guide, with the guide's sentence that a binding is its node's own; `ern config --listen` and `--peer-dir dir`, two nodes on one machine without a key pasted by hand; the Erlang and the Gleam programmer reading `why.md` and `faq.md`; two messages the tour's spike found wanting; and the runtime's own frame out of a trace | | | below |
+| MVP 3.296 | what the tour's outline asked: a restart runs the function it was given, stated in §6.9 and the deployment guide, with the guide's sentence that a binding is its node's own; `ern config --listen` and `--peer-dir dir`; the Erlang and the Gleam programmer reading `why.md` and `faq.md`, and every guide read for a word used before it is said; two messages the tour's spike found wanting; and the runtime's own frames out of a designed fault's trace | 2026-10-23 | | *What the Outline Asked*, *Two Nodes on One Machine, Built*, *The Skeptics' Read*, *What the Skeptics Found*, *The Hash's Parents*, *Two Messages, and the Runtime's Frames Weighed Again*; `findings.md` as it stood at `fd5b361c` |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program, the counter, grown from a process with a typed mailbox, through the same counter on a peer that holds none of its code, to its move to new code there, where the deployment guide takes over | the outline decided 2026-10-23, [`outline.md`](proposals/tour/outline.md); the programs next | | below |
 | MVP 3.9 | the review, and Ernest 0.5.0: the full review, the numbering decided once, a release with no promise of stability | the end of the planned road, 2026-10-13; the split of `make test` done 2026-10-13, taken early | | below |
 | MVP 4.0 | a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches | made 2026-10-13 from MVP 4.3's item 4; the first milestone after 0.5.0 | | below |
@@ -76,61 +76,6 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 4.4 | after 0.5.0: a back end to BEAM's own instructions, Ernest's types as the loader's typed registers | a proposal first | | below |
 
 ---
-
-## MVP 3.296 (what the tour's outline asked), five items of a day
-
-The tour's outline, under discussion in `docs/proposals/tour/`, left six entries in
-`docs/language_feedback.md`, 140 to 145, decided with the user on 2026-10-23 (the log's *What the
-Outline Asked*): four dropped there, and the first two items, built and closed before a chapter of
-the tour is written, so that the tour is written against what stands. The third is the read the
-outline's skeptics' read showed was missing (the log's *The Skeptics' Read*).
-
-1. **A restart runs the function it was given** (entries 143 and 140), done 2026-10-23. §6.9 gains the sentence:
-   a restart runs `f` as it was given, so a process that moved itself to new code by its own send
-   (§6.10) runs the code it started with at its next fault. `guide/deployment.md`'s §5.3 gains the
-   line that a service under `restarting` takes new code by the reload of its binding, which
-   starts a service of the new version (§11.2).
-
-   The guide's §8.1 gains, after its `NotLoaded` sentence, that a value a spawned function needs from its spawner is a parameter or a captured
-   local, a binding being the node's own, so that an empty value a program spawns with on a bare
-   node is a function, `Tally.empty()`, where the standard library's `Map.empty` is a `let`,
-   since every node holds the library's values from its start. Prose alone.
-
-2. **Two nodes on one machine without a key pasted by hand** (entry 142), done 2026-10-23 (the
-   log's *Two Nodes on One Machine, Built*). §11.3 first:
-   `ern config` takes `--listen address:port`, the new directory's `listen` in place of
-   `0.0.0.0:8654`, and `--peer-dir dir`, which lists the node whose configuration directory is `dir`
-   in this directory's `ernest.conf`, its name the directory's last segment, its public key read
-   from the directory's certificate, and its `network-address` the peer's `listen`, with
-   `127.0.0.1` for a host of `0.0.0.0`, since a peer named by a directory is on this machine;
-   given `--peer-dir`, `ern config` writes into a directory that exists, which it otherwise refuses
-   as today. §11.7's option list names both.
-
-   Then the toolchain and its tests, then the guide's §8.1 and the deployment guide's §2.1 shortened to the commands, their hand edits kept for a
-   peer on another machine alone. The `services` line stays a hand edit.
-
-3. **The skeptics read `why.md` and `faq.md`**, decided with the user on 2026-10-23 (the log's *The
-   Skeptics' Read*), done the same day (the log's *What the Skeptics Found*): the full review's two new readers, L the Erlang programmer and M the Gleam
-   programmer, each on Fable 5.1 and given no conclusion of ours, read the two documents that
-   argue and do not change with the tour, before the tour quotes `why.md`'s words. Their findings
-   go to `docs/findings.md`, sorted as a review's, the `fix` lines made, the rest decided as one
-   list; nothing is hedged because a reader doubted it, and an objection the FAQ can answer goes
-   there. The whole path, `README.md` first, is read once the tour exists, MVP 3.3's last item.
-
-4. **Two messages the tour's spike found wanting** (`docs/findings.md`'s S1 and S2), decided with
-   the user on 2026-10-23: `a.compare(b)` on a value of a type variable under `needs k.compare`
-   is refused with a help that says to annotate, where the fix is `k.compare(a, b)` (§4.9), so
-   the help names that form where a requirement on the variable is in force; and a constructor
-   of a private type named at the prompt is refused as unknown, where the message says the type
-   is not exported (§4.2). §11.5 first where it states the help, then the checker and its tests,
-   then `make diagnostics`.
-
-5. **The runtime's own frame in a trace**, a defect found by the skeptics' read on 2026-10-23
-   (`docs/findings.md`'s L21 and M13; the log's *What the Skeptics Found*): a fault under
-   `Address.callForever` shows `ern_rt:call_forever/3:639` above the program's frame, where §7.3
-   and E.21 leave the runtime's frames out and keep the host's frames of foreign code the program
-   called. Fixed where the trace is written, `ern_rt:trace/1`, with a test of a fault under
-   `callForever`; no report change unless the read-back finds the sentence short.
 
 ## MVP 3.3 (the tour)
 
@@ -216,15 +161,19 @@ language's most important features is its hardest test, so what it finds is foun
 - **The work in its order, each piece on its model.** The programs and their tests first, by an
   Opus 5.5 xhigh agent from the outline, before any prose, since code first demands real output;
   with them `why.md`'s shell transcript run again with `CounterMsg`, and its two `Peer` fragments
-  given the line that points at chapter 2 (`docs/findings.md`'s M25 and M6). Then the prose,
+  given the line that points at chapter 2 (the skeptics' findings M25 and M6, `findings.md` as it
+  stood at `fd5b361c`). Then the prose,
   chapter by chapter on Fable 5.1, the user reading each. Then the reads below.
-- **A fresh reader reads it last**: an agent given the tour alone, reading as a programmer who
-  has used a functional language and never seen Ernest, reporting where it was lost or bored. Its
+- **A fresh reader reads it last**: an agent given `README.md` and then the tour, reading as a
+  programmer who has used a functional language and never seen Ernest, reporting where it was lost
+  or bored, and every word met before the document says what it is, the reading the five guides
+  had on 2026-10-23. Its
   findings are sorted as a review's (`docs/release_review.md`'s *The findings*). A read of this
   kind has found what no passing test did. Then the full review's two skeptics, L the Erlang
   programmer and M the Gleam programmer, walk the whole path, `README.md`, `why.md`, the tour, the
   FAQ and the guide's chapter 1, decided with the user on 2026-10-23 (the log's *The Skeptics'
-  Read*), since the README and the guide's first chapter change with the tour.
+  Read*), since the README and the guide's first chapter change with the tour; the language guide
+  and the deployment guide whole they read in MVP 3.9's full review, at their first run there.
 - **The README's door promises two numbers**, an hour to read and about three to do along on a
   machine with four terminals, which the build measures, decided with the user on 2026-10-23 (the
   outline's section 8).
