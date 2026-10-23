@@ -84,7 +84,7 @@ The tour's outline, under discussion in `docs/proposals/tour/`, left six entries
 Outline Asked*): four dropped there, and these two, built and closed before a chapter of the tour
 is written, so that the tour is written against what stands.
 
-1. **A restart runs the function it was given** (entries 143 and 140). §6.9 gains the sentence:
+1. **A restart runs the function it was given** (entries 143 and 140), done 2026-10-23. §6.9 gains the sentence:
    a restart runs `f` as it was given, so a process that moved itself to new code by its own send
    (§6.10) runs the code it started with at its next fault. `guide/deployment.md`'s §5.3 gains the
    line that a service under `restarting` takes new code by the reload of its binding, which
