@@ -493,3 +493,72 @@ Right(17984) : Either(Io.Error, Int)
 `foo`'s terminal printed `counting the primes below 200000` twice and `bar`'s once, in this run. Each node tells its peers how busy it is, on a scale where 1.0 is every scheduler busy, and `Peer.utilizations()` is what the shell has heard: each peer, its utilization and how many milliseconds ago it said so.
 
 `Peer.compute` draws two of the peers and runs the function on the less busy, carrying its code there as the spawn did, and answers the value; which node ran it is the terminals' to show, since the program never names one (the guide's §8.1, *Which peer*). Nothing was installed on `foo` or `bar`, and nothing named either: that is the end of the second claim of *Why Ernest*, a computation that names no node goes to one with room, and no program is deployed first.
+
+## 8. The fix
+
+A client's bad amount ends the counter and its tally, and a restart would start it from nothing. The new loop passes it over, beside the old loop, which stays as it is; `move` moves every counter of its node:
+
+```ernest
+export fn count2(tally : Tally.Tally(String)) : Unit receiving CounterMsg =
+    receive {
+        Client(Inc(amount = amount)) when amount < 0 -> count2(tally)
+      | Client(message) -> count2(handle(tally, message))
+      | Upgrade(next = next) -> next(tally)
+    }
+
+export fn move() : Unit =
+    List.forEach(Code.running(count), fn(counter) = send(counter, Upgrade(next = count2)))
+```
+
+First on this node:
+
+```console
+> :reload
+Counter, compiled again
+> Code.running(Counter.count)
+[<address 221>] : List(Address(Counter.CounterMsg))
+> Code.running(Counter.count2)
+[] : List(Address(Counter.CounterMsg))
+> Counter.move()
+> Counter.apply(counter, "report")
+"apples: 2" : String
+> Code.running(Counter.count)
+[] : List(Address(Counter.CounterMsg))
+> Code.running(Counter.count2)
+[<address 221>] : List(Address(Counter.CounterMsg))
+> Counter.apply(counter, "inc apples -1")
+"ok" : String
+> Counter.apply(counter, "report")
+"apples: 2" : String
+```
+
+`Code.running(f)` lists the processes on this node that are running `f`, by the hash of its definition, so the two lists are the two versions side by side (the guide's §8.9). `move` sends each counter on the old loop its `Upgrade`, and the counter switches to `count2` with its tally in hand; the `report` in between proves the move taken, since the `Upgrade` and the request went from the shell to the counter in that order, and the lists then read the other way round, the same address in each. A negative amount is now passed over, and the tally stands.
+
+That is the second claim of *Why Ernest* at its peak: the same process, new code, its state kept, told by a message of its own type. `count` stays in the source unchanged, since it is how the counters still on it are found, until `Code.running(count)` is empty on every node and it may go; nothing a node has loaded is unloaded while it runs, so a node reloaded without end grows with its versions (the guide's §8.9, the deployment guide's §4.2).
+
+Then on `foo`, which never had `count2` or `move`:
+
+```console
+> Peer.computeAt("foo", fn() = Counter.move(), 5000)
+Right(Unit) : Either(Io.Error, Unit)
+> Counter.apply(far, "inc apples -1")
+"ok" : String
+> Counter.apply(far, "report")
+"apples: 3, pears: 1" : String
+```
+
+The compute carried the new loop and `move` to `foo` and ran `move` there, where `Code.running` finds `foo`'s counter and sends it the door's message; it answered once `move` had sent, so the `Upgrade` was in the counter's mailbox before anything of ours reached it. The counter on the node that holds none of this program's code runs its new code, with the tally it has counted since chapter 6.
+
+In your own terminal, `ern stop --config-dir foo`, and the shell says:
+
+```console
+the peer foo ended
+> Counter.apply(far, "inc apples 1")
+"ok" : String
+> Counter.apply(far, "report")
+"no answer" : String
+```
+
+`ern stop` ends a node in order, and the shell is told. `far` now names a process that ended with its node: the send answers `"ok"` and is dropped, and the request has no one to answer it, at once; a process that monitored the counter would have heard a `Down` with the reason `Unreachable`, and a peer started again is reached by a new spawn or compute, since its processes are gone with it (the deployment guide's §2.3). `ern stop --config-dir bar` ends the rest, and the shell says `the peer bar ended`. One command, and you have seen a node's whole life.
+
+The tour ends here, where the operator's work begins. The deployment guide's §8 runs this move across three nodes with `examples/upgrade/`, and the deployment guide's §5.3 is the operator's side of it; the guide's §9 names the tools, and the guide's §8.9 the rule the move rests on.
