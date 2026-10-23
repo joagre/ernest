@@ -149,7 +149,7 @@ match Peer.spawn("foo", fn() = count(0), 5000) {
 }
 ```
 
-`Peer.spawn` waits at most 5000 milliseconds for the peer, and answers `Left` with the reason where it cannot reach it.
+`Peer.spawn` waits at most 5000 milliseconds for the peer, and answers `Left` with the reason where it cannot reach it. The tour's chapter 2 runs this spawn, on a bare node started for it, and shows what each terminal printed.
 
 A computation need not name a node at all. `Peer.compute(f, ms)` runs `f` on the less busy of two peers drawn at random from those the node knows, which spreads work with no central choice, carrying its code there as the spawn does, and answers the value, or `Left` with the reason where no peer can be reached within `ms`; a fault in `f` is the caller's, as if `f` had faulted in it:
 
@@ -160,7 +160,7 @@ match Peer.compute(fn() = render(scene, row), 5000) {
 }
 ```
 
-Nothing of the program was installed on the peer, and nothing names it: the node that ran `render` was whichever had room when the row was asked for, and `scene` and `row`, which the function captured, crossed with each call.
+Nothing of the program was installed on the peer, and nothing names it: the node that ran `render` was whichever had room when the row was asked for, and `scene` and `row`, which the function captured, crossed with each call. The tour's chapter 7 runs such a compute three times between two bare nodes.
 
 ### A distribution built for a WAN
 

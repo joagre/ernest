@@ -240,6 +240,24 @@ export fn main() : Unit =
 
 Which of these compile, and what type does each give `main`?
 
+### 1.5 A taste of the rest
+
+The counter of §0, run on a node that holds none of its code. `foo` is a node started with a configuration directory and no program, and the shell is a node too, started with its own; `Peer.spawn` starts `count` on `foo`, which is sent the code it lacks, and answers an address like any other:
+
+```console
+$ ern shell --config-dir a
+> :load Counter
+Counter, compiled from counter.ern
+> let far = match Peer.spawn("foo", fn() = Counter.count(0), 5000) { Right(address) -> address | Left(error) -> fault(Io.show(error)) }
+the peer foo connected
+far : Address(Counter.CounterMsg)
+> send(far, Counter.Inc(5))
+> Address.call(far, Counter.Get, 1000)
+Some(5) : Optional(Int)
+```
+
+How the nodes are made and listed is §8.1, and the whole picture in an evening is [the tour](../tour/README.md), whose chapter 2 these lines are.
+
 ## 2. Compute with immutable values
 
 Everything in Ernest is immutable. Bindings introduce names; there is no assignment.

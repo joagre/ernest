@@ -28,6 +28,9 @@ guide/             the guides: language.md, the language guide; deployment.md,
                    Running Ernest, the operator's; style.md, the rules a program
                    is written by; why.md, the argument for the design, its list
                    held equal to the README's; and faq.md
+tour/              the tour, README.md, one program grown through eight chapters, and
+                   1/ to 8/, the program as it stands at each chapter's end, which a
+                   test holds equal to the document's blocks
 assets/            the logos, which assets/README.md lists with where each is used
 docs/              every other document, which docs/README.md lists, this one and the
                    catalog of diagnostics among them
@@ -286,6 +289,7 @@ While a change is worked on, it runs the targets of its kind; which run a commit
 | the installation, the release, or the manual pages | `make test-install`, which runs `test-manual` first; the pages alone `make test-manual` |
 | the Emacs mode | `make test-emacs` |
 | the language guide, the report, the README, `docs/diagnostics.md` or `docs/module_doc_template.md` | `make test`, `make test-guide`; report Appendix A `make test-grammar` too, report §11 `make test-manual` and `make test-shell` |
+| the tour, its document or a chapter's program | `make test`, which holds its blocks to its files, and `make test-tour`, which runs its sessions |
 | a proposal, or any other document | `make test-docs` |
 
 Which programs the tests compile and run is [`architecture.md`](architecture.md)'s *Tests*.

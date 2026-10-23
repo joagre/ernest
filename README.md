@@ -23,6 +23,12 @@ What Ernest adds is where the parts meet, six claims that [Why Ernest](guide/why
 
 Ernest is for programs written in it from the start, not for an OTP application or a codebase of several languages; [Why Ernest](guide/why.md) says how it meets Erlang.
 
+Three ways in, each for a reader:
+
+- **[The tour](tour/README.md)**, for the programmer who wants the whole picture in an evening: one program, a counter, grown through eight chapters from a process with a typed mailbox to the same counter on a node that holds none of its code, moved to new code there. An hour to read, about three to do along.
+- **[The guide](guide/language.md)**, *Programming in Ernest*, for the programmer learning the language, who has used a functional language: every rule taught where a program first needs it, with the report's section named. An afternoon to read; [`guide/README.md`](guide/README.md) says what stands beside it, for whom and how long.
+- **[The report](report/README.md)**, for whoever builds or checks a toolchain or writes a library against the exact rules: the definition, three files, which everything else defers to.
+
 A counter is a process that holds a number. Its mailbox type, `CounterMsg`, is in the type of `count`, so a `send` of anything else to its address is refused before the program runs. `counter` is bound at the top of the module under `restarting`, which runs its function again after a fault in the same process, so any module sends to it by name and a fault keeps the address:
 
 ```ernest

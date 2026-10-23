@@ -4,6 +4,15 @@ Ernest in an evening: one program, a counter, grown through eight chapters from 
 
 An hour to read, and about three to do along, with `ern` installed as the [README](../README.md) says and four terminals: your own, the shell's, and from chapter 2 one for each of two nodes. Each chapter is a change to the program, then what was typed and what was printed, then a few sentences. The directories `tour/1/` to `tour/8/` hold the program as it stands at the end of each chapter, each a program of its own. Work in a directory of your own, copy a chapter's files into it as the chapter begins, and from chapter 2 on the shell you started runs to the end.
 
+- [1. The counter](#1-the-counter): a process with a typed mailbox, and a wrong message refused
+- [2. Two bare nodes](#2-two-bare-nodes): the same counter on a node that holds none of its code
+- [3. The client](#3-the-client): a function that reads a line, and a quiet reload
+- [4. A fault](#4-a-fault): a process ended, a restart that keeps the address, a watcher told
+- [5. Per key](#5-per-key): an abstract type with a requirement, a test, a deadlock found, and a protocol refused across versions
+- [6. The door](#6-the-door): the message by which new code will reach the counter
+- [7. Work anywhere](#7-work-anywhere): a host question checked at the crossing, and work placed on whichever node has room
+- [8. The fix](#8-the-fix): the counters moved to new code with their tallies kept, and a node's end
+
 ## 1. The counter
 
 `counter.ern`, the whole program:
