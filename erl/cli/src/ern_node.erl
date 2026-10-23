@@ -1,6 +1,7 @@
 %% Report §8.3, §8.7, §11.3, Appendix C: a node's configuration directory,
 %% the one owner of its shape. `ern config` makes it, a key, a certificate
-%% the node signs itself and `ernest.conf`; a node started with it checks
+%% the node signs itself and `ernest.conf`, and lists in it a peer of this
+%% machine read from the peer's own directory; a node started with it checks
 %% it, reads `ernest.conf` whole, writes its process number to `ernest.pid`,
 %% holds the file locked for its life and removes it at its end, and starts
 %% the host's measures the file names; `ern reload` and `ern stop` signal
@@ -8,8 +9,8 @@
 %% (ern_build:fail/1), naming the file.
 -module(ern_node).
 
--export([create/1, start/1, start/2, stop/1, file/2, read/1, measures_changed/3, signaled/2,
-         stopped/1, family/1]).
+-export([create/1, create/2, add_peer/2, start/1, start/2, stop/1, file/2, read/1,
+         measures_changed/3, signaled/2, stopped/1, family/1]).
 
 -include_lib("public_key/include/public_key.hrl").
 -include_lib("kernel/include/file.hrl").
@@ -22,6 +23,10 @@
 -define(KEY, "private-key.pem").
 -define(CERTIFICATE, "certificate.pem").
 -define(PID_FILE, "ernest.pid").
+
+%% Report §11.3: the `listen` of a directory `ern config` makes where
+%% `--listen` gives none.
+-define(LISTEN, "0.0.0.0:8654").
 
 %% The certificate's subject, the same for every node, since a peer is known
 %% by its key and the host its key gives (report §8.7).
@@ -47,6 +52,18 @@
 %% nothing then. A name ending in `/` names the directory before it.
 -spec create(file:filename()) -> binary().
 create(Given) ->
+    create(Given, ?LISTEN).
+
+%% The same, its `listen` the one `--listen` gives, refused before the
+%% directory is made where a node would refuse it (report §11.3).
+-spec create(file:filename(), string()) -> binary().
+create(Given, Listen) ->
+    Text = unicode:characters_to_binary(Listen),
+    case listener(Text) of
+        {ok, _} -> ok;
+        not_endpoint -> ern_build:fail("--listen is not address:port: " ++ Listen);
+        no_address -> ern_build:fail("--listen names no address: " ++ Listen)
+    end,
     ConfigDir = filename:join([Given]),
     ok = ern_build:make_dirs(ConfigDir),
     case file:make_dir(ConfigDir) of
@@ -65,19 +82,20 @@ create(Given) ->
     %% written by the host's JSON formatter, its fields in Appendix C's
     %% order, two spaces a level, and a line feed at its end; a PEM's line
     %% breaks are escapes, as in any JSON string
-    Fields = [{<<"listen">>, <<"0.0.0.0:8654">>}, {<<"public-key">>, Public}, {<<"peers">>, []},
+    Fields = [{<<"listen">>, Text}, {<<"public-key">>, Public}, {<<"peers">>, []},
               {<<"services">>, #{}}],
-    Json = json:format({ordered, Fields}, fun ordered/3, #{indent => 2}),
+    Json = json:format({object, Fields}, fun ordered/3, #{indent => 2}),
     ok = ern_build:write_output(filename:join(ConfigDir, ?CONF), Json),
     ok = ern_build:write_output(filename:join(ConfigDir, ?CERTIFICATE), Certificate),
     %% the key is its owner's alone before it is written
     ok = ern_build:write_output(filename:join(ConfigDir, ?KEY), Private, 8#600),
     Public.
 
-%% Report Appendix C: an object whose fields keep the order given, for the
-%% host's JSON formatter, which writes a map's fields in an order of its
-%% own; every other value as the formatter writes it.
-ordered({ordered, Fields}, Encode, State) ->
+%% Report Appendix C: an object whose fields keep the order given, as
+%% `ernest.conf` is decoded (decoded/1), for the host's JSON formatter,
+%% which writes a map's fields in the order of their names; every other
+%% value as the formatter writes it.
+ordered({object, Fields}, Encode, State) ->
     json:format_key_value_list_checked(Fields, Encode, State);
 ordered(Value, Encode, State) ->
     json:format_value(Value, Encode, State).
@@ -126,6 +144,79 @@ signed_certificate({'ECPrivateKey', _, Private, _, _, _} = Key) ->
              extensions = [#'Extension'{extnID = ?'id-ce-subjectAltName', critical = false,
                                         extnValue = [{dNSName, Host}]}]},
     public_key:pkix_sign(Tbs, Key).
+
+%%
+%% ern config --peer
+%%
+
+%% Report §11.3: the node whose configuration directory is PeerDir, of this
+%% machine, listed last among the peers of the directory ConfigDir: its
+%% name its directory's, its public key the one its certificate certifies,
+%% and its address its `listen`, the loopback address in place of one for
+%% every interface. Both directories are read as a node reads its own, the
+%% peer's private key excepted, which is not read, and the entry as a node
+%% reads a peer's; `ernest.conf` is written again with every other field as
+%% it was, its links followed (report §11), or not at all.
+-spec add_peer(file:filename(), file:filename()) -> ok.
+add_peer(ConfigDir, PeerDir) ->
+    #configuration{listen = Listen, public_key = Own, peers = Peers} = read(ConfigDir),
+    {Key, PeerListen} = peer_read(PeerDir),
+    Shown = ern_build:shown(PeerDir),
+    Name = unicode:characters_to_binary(filename:basename(ern_build:absolute(PeerDir))),
+    Key =/= Own
+        orelse ern_build:fail(Shown ++ " has this node's own key, and a node is no peer of itself"),
+    not lists:keymember(Name, #peer.name, Peers)
+        orelse fail(ConfigDir, ?CONF, "a peer is named " ++ json_quoted(Name) ++ " already"),
+    case lists:keyfind(Key, #peer.public_key, Peers) of
+        false -> ok;
+        #peer{name = Listed} ->
+            fail(ConfigDir, ?CONF, "the peer " ++ json_quoted(Listed) ++ " has the key of " ++ Shown
+                                   ++ " already")
+    end,
+    Entry = maps:merge(#{<<"name">> => Name,
+                         <<"public-key">> => pem([{'SubjectPublicKeyInfo', Key, not_encrypted}])},
+                       local_address(PeerDir, PeerListen)),
+    _ = peer(ConfigDir, {object, maps:to_list(Entry)}, family(Listen)),
+    {object, Fields} = decoded(ConfigDir),
+    Listing = case lists:keyfind(<<"peers">>, 1, Fields) of
+                  {_, Items} -> Items;
+                  false -> []
+              end,
+    %% each peer a map, which the formatter writes a field a line in the
+    %% order of the fields' names, Appendix C's
+    Written = [maps:from_list(Pairs) || {object, Pairs} <- Listing] ++ [Entry],
+    Json = json:format({object, lists:keystore(<<"peers">>, 1, Fields, {<<"peers">>, Written})},
+                       fun ordered/3, #{indent => 2}),
+    ern_build:write_whole(file(ConfigDir, conf), Json).
+
+%% Report §11.3, §8.7: the key a peer's certificate certifies, and its
+%% `listen`: its directory, `ernest.conf` and certificate read as a node
+%% reads its own, the certificate naming the host its key gives.
+peer_read(PeerDir) ->
+    all_owned(PeerDir, [?CONF, ?CERTIFICATE]),
+    #configuration{listen = Listen} = configuration(PeerDir),
+    Certificate = certificate(PeerDir),
+    ern_carrier:names_own_host(Certificate)
+        orelse fail(PeerDir, ?CERTIFICATE, "names another host than its key gives, and a peer"
+                                           " refuses it; ern config makes one that names it"),
+    {certified_key(Certificate), Listen}.
+
+%% Report §11.3: a peer's `network-address` on this machine, its `listen`
+%% with the loopback address for every interface's, or none where it has
+%% no `listen`; a port the host picks as the peer starts names no address.
+local_address(_PeerDir, none) ->
+    #{};
+local_address(PeerDir, {_, 0}) ->
+    fail(PeerDir, ?CONF, "listen names port 0, which the host picks as the node starts, so no"
+                         " network-address can name it");
+local_address(_PeerDir, {Address, Port}) ->
+    Host = case Address of
+               {0, 0, 0, 0} -> "127.0.0.1";
+               {0, 0, 0, 0, 0, 0, 0, 0} -> "[::1]";
+               {_, _, _, _} -> inet:ntoa(Address);
+               _ -> "[" ++ inet:ntoa(Address) ++ "]"
+           end,
+    #{<<"network-address">> => list_to_binary(Host ++ ":" ++ integer_to_list(Port))}.
 
 %%
 %% A node's start and end
@@ -180,10 +271,7 @@ file(ConfigDir, pid) -> filename:join(ConfigDir, ?PID_FILE).
 %% the host the key gives.
 -spec read(file:filename()) -> #configuration{}.
 read(ConfigDir) ->
-    User = ern_os:user(),
-    owned(ConfigDir, ConfigDir, directory, User),
-    lists:foreach(fun(File) -> owned(ConfigDir, filename:join(ConfigDir, File), regular, User) end,
-                  [?CONF, ?CERTIFICATE, ?KEY]),
+    all_owned(ConfigDir, [?CONF, ?CERTIFICATE, ?KEY]),
     Configuration = configuration(ConfigDir),
     Key = private_key(ConfigDir),
     Own = public_der(Key),
@@ -200,6 +288,13 @@ read(ConfigDir) ->
         andalso fail(ConfigDir, ?CONF, "a peer has this node's own key, and a node is no peer"
                                        " of itself"),
     Configuration.
+
+%% The directory and each of its Files as owned/4 has them.
+all_owned(ConfigDir, Files) ->
+    User = ern_os:user(),
+    owned(ConfigDir, ConfigDir, directory, User),
+    lists:foreach(fun(File) -> owned(ConfigDir, filename:join(ConfigDir, File), regular, User) end,
+                  Files).
 
 %% A file or the directory: there, of its kind, its user's own or the
 %% superuser's, and written by none beyond its owner and group; the key
@@ -398,20 +493,7 @@ measures_started(ConfigDir, Measures) ->
 %% every field is known, and none twice in one object, and each whole
 %% number one the host can hold.
 configuration(ConfigDir) ->
-    Text = ern_build:read(file(ConfigDir, conf)),
-    Decoders = #{object_start => fun(_) -> [] end,
-                 object_push => fun(Name, Item, Acc) -> [{Name, Item} | Acc] end,
-                 object_finish => fun(Acc, Outer) -> {{object, lists:reverse(Acc)}, Outer} end,
-                 integer => fun(Numeral) -> integer(ConfigDir, Numeral) end},
-    Value = try json:decode(Text, ok, Decoders) of
-                {Decoded, ok, Rest} ->
-                    string:trim(Rest) =:= <<>>
-                        orelse fail(ConfigDir, ?CONF, "holds more than one JSON value"),
-                    Decoded
-            catch
-                error:_ -> fail(ConfigDir, ?CONF, "is not JSON")
-            end,
-    Fields = object(ConfigDir, "the file", Value, ?FIELDS),
+    Fields = object(ConfigDir, "the file", decoded(ConfigDir), ?FIELDS),
     Listen = case Fields of
                  #{<<"listen">> := ListenText} -> listen(ConfigDir, ListenText);
                  _ -> none
@@ -432,6 +514,23 @@ configuration(ConfigDir) ->
                    utilization_interval =
                        utilization_interval(ConfigDir,
                                             maps:get(<<"utilization-interval">>, Fields, 5000))}.
+
+%% `ernest.conf` as one JSON value, each object in it `{object, Pairs}`,
+%% its fields in the file's order, twice where the file gives one twice.
+decoded(ConfigDir) ->
+    Text = ern_build:read(file(ConfigDir, conf)),
+    Decoders = #{object_start => fun(_) -> [] end,
+                 object_push => fun(Name, Item, Acc) -> [{Name, Item} | Acc] end,
+                 object_finish => fun(Acc, Outer) -> {{object, lists:reverse(Acc)}, Outer} end,
+                 integer => fun(Numeral) -> integer(ConfigDir, Numeral) end},
+    try json:decode(Text, ok, Decoders) of
+        {Decoded, ok, Rest} ->
+            string:trim(Rest) =:= <<>>
+                orelse fail(ConfigDir, ?CONF, "holds more than one JSON value"),
+            Decoded
+    catch
+        error:_ -> fail(ConfigDir, ?CONF, "is not JSON")
+    end.
 
 %% A whole number of the file, as the host reads its numeral; one too long
 %% for the host to hold, which the host would raise for, is refused with the
@@ -460,18 +559,25 @@ object(ConfigDir, What, _, _) ->
 %% Report §8.7: `listen`, an address of one interface, or `0.0.0.0` or `::`
 %% for all, and a port, 0 for one the host picks.
 listen(ConfigDir, Text) when is_binary(Text) ->
-    case endpoint(Text) of
-        {ok, Host, Port} ->
-            case inet:parse_strict_address(Host) of
-                {ok, Address} -> {Address, Port};
-                {error, _} ->
-                    fail(ConfigDir, ?CONF, "listen names no address: " ++ json_quoted(Text))
-            end;
-        error ->
-            fail(ConfigDir, ?CONF, "listen is not address:port: " ++ json_quoted(Text))
+    case listener(Text) of
+        {ok, Listen} -> Listen;
+        not_endpoint -> fail(ConfigDir, ?CONF, "listen is not address:port: " ++ json_quoted(Text));
+        no_address -> fail(ConfigDir, ?CONF, "listen names no address: " ++ json_quoted(Text))
     end;
 listen(ConfigDir, _) ->
     fail(ConfigDir, ?CONF, "listen is not a string").
+
+%% The interface and the port a `listen` names, or what it lacks.
+listener(Text) ->
+    case endpoint(Text) of
+        {ok, Host, Port} ->
+            case inet:parse_strict_address(Host) of
+                {ok, Address} -> {ok, {Address, Port}};
+                {error, _} -> no_address
+            end;
+        error ->
+            not_endpoint
+    end.
 
 %% Host and port of `host:port`, an IPv6 address in brackets, the port
 %% from 0 to 65535.

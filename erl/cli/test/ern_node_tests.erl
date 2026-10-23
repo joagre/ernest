@@ -276,6 +276,22 @@ certificate_refusals_test() ->
     ok = file:write_file(Certificate, Own),
     ?assertMatch({accepted, _}, refusal(fun() -> ern_node:read(Dir) end)).
 
+%% report §11.3, §8.7: `ern config --peer` reads the peer's certificate as
+%% a node reads its own, and one that names another host than its key
+%% gives is refused, naming the peer's certificate; nothing is written
+peer_certificate_test() ->
+    Dir = made(),
+    Peer = filename:join(tmp(), "peer"),
+    _ = ern_node:create(Peer),
+    Certificate = filename:join(Peer, "certificate.pem"),
+    ok = file:write_file(Certificate, named(Peer, "a.b")),
+    Conf = filename:join(Dir, "ernest.conf"),
+    {ok, Before} = file:read_file(Conf),
+    ?assertEqual(Certificate ++ ": names another host than its key gives, and a peer refuses it;"
+                 " ern config makes one that names it",
+                 refusal(fun() -> ern_node:add_peer(Dir, Peer) end)),
+    ?assertEqual({ok, Before}, file:read_file(Conf)).
+
 %% Another directory's certificate.
 other_certificate() ->
     {ok, Pem} = file:read_file(filename:join(made(), "certificate.pem")),

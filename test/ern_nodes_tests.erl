@@ -2770,6 +2770,67 @@ bare_node_refused(Base) ->
     has(Taken, "bare node faulted: the node's carrier did not start: "),
     ?assertNot(filelib:is_file(filename:join(D, "ernest.pid"))).
 
+%% report §11.3, §8.7: two directories made and listed by `ern config`'s
+%% `--listen` and `--peer` alone, as the language guide's §8.1 makes them,
+%% one listening on every interface and one on the loopback, connect both
+%% ways: a bare node from either takes the other's spawn by the name
+%% `--peer` gave it, and its process sends back what it computed. Its
+%% limit is the sum of its fifteen waits, each bounded by the harness's
+%% time for one wait: four jobs and a build, two ports that answer, two
+%% runs, what they printed and the line of the node each dialed, and two
+%% nodes' ends
+peer_option_test_() ->
+    nodes_test({waits, 15}, fun peer_option/1).
+
+peer_option(Base) ->
+    Program = spawner(filename:join(Base, "program")),
+    {PortA, PortFoo} = {free_port(), free_port()},
+    [A, Foo] = [filename:join(Base, Name) || Name <- ["a", "foo"]],
+    Listen = fun(Port, Host) -> Host ++ ":" ++ integer_to_list(Port) end,
+    [?assertMatch({0, _}, finished([?ERN, " config --config-dir ", Words]))
+     || Words <- [[A, " --listen ", Listen(PortA, "0.0.0.0")],
+                  [Foo, " --listen ", Listen(PortFoo, "127.0.0.1")],
+                  [A, " --peer ", Foo], [Foo, " --peer ", A]]],
+    lists:foreach(fun({Node, Port, Dialer}) ->
+                      Wait = bare_started(Node, []),
+                      ern_deployment_tests:answering(Port),
+                      Name = filename:basename(Node),
+                      {_, Ran} = launched(Dialer, [?ERN, " run --config-dir ", Dialer, " ",
+                                                   Program, " ", Name]),
+                      ?assertEqual(0, Ran()),
+                      {Out, _} = said(Dialer),
+                      has(Out, Name ++ " computed 42"),
+                      says(Node, "the peer " ++ filename:basename(Dialer) ++ " connected"),
+                      stop(Node, Wait)
+                  end, [{Foo, PortFoo, A}, {A, PortA, Foo}]).
+
+%% The program peer_option/1 runs, built in Root: a spawn on the peer its
+%% argument names, whose process sends back what it computed.
+spawner(Root) ->
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "spawner.ern"), [<<"
+type Msg = Computed(Int)
+
+export fn main() : Unit receiving Msg =
+    match Os.arguments {
+        [name] -> {
+            let me = self();
+            match Peer.spawn(name, fn() = send(me, Computed(6 * 7)), waitMs()) {
+                Right(_) ->
+                    receive {
+                        Computed(value) -> Io.println(name <> \" computed \" <> Int.toString(value))
+                    }
+              | Left(failure) ->
+                    Io.println(\"no \" <> name <> \": \" <> Io.show(failure))
+            }
+        }
+      | _ ->
+            Unit
+    }
+">>, wait_ms_declaration()]),
+    0 = ern_cli:ern(["build", Root], group_leader()),
+    filename:join(Root, "spawner.erc").
+
 %% report §11.2, §8.7: `ern run --verbose` of a node names each module the
 %% program reads, and then each other module of its load path, which a
 %% node's start reads, the toolchain's libraries last, on standard error,

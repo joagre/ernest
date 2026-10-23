@@ -15,7 +15,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("kernel/include/file.hrl").
 
--export([cataloged/4]).
+-export([cataloged/4, answering/1]).
 
 -define(ERN, filename:absname("../bin/ern")).
 -define(GUIDE, "../guide/deployment.md").

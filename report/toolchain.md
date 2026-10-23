@@ -1,6 +1,6 @@
 # Ernest Report: The Toolchain
 
-Revision of 22 October 2026.
+Revision of 23 October 2026.
 
 This file holds the report's §11 and Appendices C and H. §0 to §10 and Appendices A, B and F are in [`language.md`](language.md), and Appendices D, E and G in [`library.md`](library.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
@@ -15,7 +15,7 @@ This file holds the report's §11 and Appendices C and H. §0 to §10 and Append
 
 The toolchain is one command, `ern`, whose first word is its job: `ern build`, `ern doc`, `ern format`, `ern run`, `ern test`, `ern shell`, `ern config`, `ern reload`, and `ern stop`. `ern --help` and `ern --version` are options. Given with another word, each is refused, `--help stands alone: ern --help, or ern <job> --help`.
 
-Options are long: `--name`, or `--name value` for one that takes a value. An option that names a directory ends in `-root` where the directory's layout gives namespaces (§4.2), in `-dir` where it is a plain directory, and in `-path` where it is a root that may be given more than once. Only a `-path` option is given more than once. `--name=value` is refused with the spelling `--name value`, and so is an empty value. `--` ends a job's options: a word after it is an argument, whatever it looks like.
+Options are long: `--name`, or `--name value` for one that takes a value. An option that names a directory ends in `-root` where the directory's layout gives namespaces (§4.2), in `-dir` where it is a plain directory, and in `-path` where it is a root that may be given more than once; `--peer` names a peer by its configuration directory, and ends in none of them (§11.3). Only a `-path` option is given more than once. `--name=value` is refused with the spelling `--name value`, and so is an empty value. `--` ends a job's options: a word after it is an argument, whatever it looks like.
 
 A command line without a first word, or with an empty one, is refused, `a job is required`. A first word that is no job is refused, and the refusal names the jobs. A `.erc` given first is refused with the job that runs it, `the job comes first: ern run x.erc`. An option a job takes, given before the job, is refused with where it goes, `--load-path comes after the job: ern <job> --load-path`.
 
@@ -25,7 +25,7 @@ A command line without a first word, or with an empty one, is refused, `a job is
 
 A word of the command line that is not UTF-8 is refused before the job begins, `ern build: a word that is not UTF-8: n\xFFme.ern`, each byte past ASCII written `\xHH`; an argument of a program is refused as §11.2 says. A failure of `ern` itself is a defect of the toolchain, and it is reported on standard error with the host's stack. The host's termination or hangup ends a job at once, and a run once the runtime has stopped as §8.6 says (§11.8); for a node, hangup is a reload (§8.7). A `.erc` a job is given that is no compiled module is refused, `x.erc is not a compiled module`. A job whose standard output or standard error can no longer be written (§8.2), its reader gone or the stream closed as the job begins, ends at once and writes nothing more.
 
-A file a job writes is written whole or not at all: a job that ends as it writes leaves the file as it was. A link where `ern build` or `ern doc` writes a file is replaced by the file, and a link to the module `ern format` lays out is followed. Two jobs that write one file at once leave it as one of them wrote it. A file its owner may not write is not replaced: the job refuses it, `x.ern: permission denied`, and writes nothing beside it.
+A file a job writes is written whole or not at all: a job that ends as it writes leaves the file as it was. A link where `ern build` or `ern doc` writes a file is replaced by the file, and a link to the module `ern format` lays out, or to the `ernest.conf` that `ern config --peer` writes, is followed. Two jobs that write one file at once leave it as one of them wrote it. A file its owner may not write is not replaced: the job refuses it, `x.ern: permission denied`, and writes nothing beside it.
 
 The toolchain's manual page, `ern(1)`, is this section, rendered as §11.4 renders a manual page: each job's usage line as its SYNOPSIS, this section with §11.1 to §11.6 as its subsections as its DESCRIPTION, and §11.7 and §11.8 as its OPTIONS and EXIT STATUS.
 
@@ -219,7 +219,13 @@ A history file that cannot be read or written is reported once, and the session 
 
 ### 11.3 Configuration setup
 
-A node's configuration directory is the one `--config-dir` names (§8.3); a program started without `--config-dir` is no node. `ern config [--config-dir dir]` creates the directory, `./.ernest` where `--config-dir` is not given, which only its owner can open, with the node's ed25519 private key, `private-key.pem`, readable only by its owner, the certificate the node signs itself, `certificate.pem`, and `ernest.conf`, whose `listen` is `0.0.0.0:8654`, and prints the node's public key in PEM, which is what another node's configuration lists; it fails where the directory exists, empty or not.
+A node's configuration directory is the one `--config-dir` names (§8.3); a program started without `--config-dir` is no node. `ern config [--config-dir dir] [--listen address:port] [--peer dir]` creates the directory, `./.ernest` where `--config-dir` is not given, which only its owner can open, with the node's ed25519 private key, `private-key.pem`, readable only by its owner, the certificate the node signs itself, `certificate.pem`, and `ernest.conf`, whose `listen` is the one `--listen` gives, `0.0.0.0:8654` where it gives none, and prints the node's public key in PEM, which is what another node's configuration lists; it fails where the directory exists, empty or not. A `--listen` that is no `listen` of §8.7 is refused before the directory is made, as a node refuses it, `--listen names no address: localhost:8655`.
+
+Given `--peer dir`, `ern config` creates no directory and prints nothing: it lists the node whose configuration directory is `dir`, a directory of this machine, among the peers of the directory `--config-dir` names, which exists. The peer's name is its directory's, the last segment of the directory's absolute path. Its public key is the one its `certificate.pem` certifies. Its `network-address` is its `listen`, with `127.0.0.1` for a host of `0.0.0.0` and `::1` for one of `::`, since the peer is on this machine, and is left out where the peer has no `listen`.
+
+The peer's directory, its `ernest.conf` and its `certificate.pem` are read as a node reads its own (§8.7); its private key is not read. The directory `--config-dir` names is read whole as a node reads its own. The peer is listed last in `peers`, and `ernest.conf` is written again with every other field as it was, in the layout of a file `ern config` creates.
+
+`--listen` with `--peer` is refused, `--listen and --peer are not given together: --peer creates no directory`. `--peer` is refused where `dir` holds this node's own key, `a has this node's own key, and a node is no peer of itself`; where a peer of its name is listed, `a/ernest.conf: a peer is named "foo" already`; where a listed peer has its key, `a/ernest.conf: the peer "b" has the key of foo already`; where its `listen` names port 0, which the host picks as the peer starts; and where the peer's entry breaks a rule of **Its configuration** (§8.7), an address of the other family among them. A refusal writes nothing.
 
 `ernest.conf` holds the node's `listen`, its public key, its peers, each with a name, a public key and a network address, its `services`, its `measures`, its `utilization` and its `utilization-interval`, as §8.7 says and Appendix C shows; a freshly created file lists no peer and no service. The directory is made for one machine and never copied (§8.7). The node writes `ernest.pid` there at its start (§8.7), and the shell runs the inputs of its `startup` file (§11.2).
 
@@ -318,19 +324,21 @@ Each option, the jobs that take it, and the section that says what it does:
 
 - `--build-root build-root`, of `ern build` and `ern doc`: the root the compiled modules are written under (§11.1).
 - `--check`, of `ern format`: nothing written back, and each module not in the layout named (§11.6).
-- `--config-dir dir`, of `ern run`, `ern test` and `ern shell`, which it makes a node, of `ern config`, which creates it, and of `ern reload` and `ern stop`, which require it: the configuration directory (§8.3, §11.3).
+- `--config-dir dir`, of `ern run`, `ern test` and `ern shell`, which it makes a node, of `ern config`, which creates it, or with `--peer` lists a peer in it, and of `ern reload` and `ern stop`, which require it: the configuration directory (§8.3, §11.3).
 - `--emit-erl`, of `ern build`: the module's Erlang source written instead (§11.1).
 - `--help`, alone or after a job: the jobs, or the job's options, written to standard output.
 - `--libs-dir dir`, of `ern run`, `ern test` and `ern shell`: a directory of the host's applications, each one's `ebin` a directory of the load path (§11.2).
+- `--listen address:port`, of `ern config`: the `listen` of the directory it creates (§8.7, §11.3).
 - `--load-path dir`, of `ern build`, `ern doc`, `ern run`, `ern test` and `ern shell`, given more than once: a root under which modules are found (§11.1, §11.2).
 - `--main Qualified.name`, of `ern run` and `ern shell`: the function run as the entry point (§11.2).
 - `--man`, of `ern doc`: a manual page written instead (§11.4).
+- `--peer dir`, of `ern config`: a node of this machine, by its configuration directory, listed among the peers of the directory `--config-dir` names (§11.3).
 - `--short-errors`, of `ern build`, `ern doc` and `ern format`: each diagnostic's first line alone (§11.5).
 - `--source-root src-root`, of `ern build` and `ern doc`: the source root (§11.1); of `ern shell`, where the shell finds a module's source (§11.2).
 - `--verbose`, of `ern build`, `ern run` and `ern test`: what the job decided, a line each on standard error (§11.1, §11.2).
 - `--version`, alone: `ern` and the toolchain's version, `ern 0.4.0`, written to standard output.
 
-A `--load-path`, a `--libs-dir`, a `--source-root`, and a `--config-dir` of any job but `ern config` name a directory that is there; one that names none is refused with the directory and the option, `nonexist: no such directory, which --load-path names`.
+A `--load-path`, a `--libs-dir`, a `--source-root`, and a `--config-dir` of any job but `ern config`, or of `ern config` with `--peer`, name a directory that is there; one that names none is refused with the directory and the option, `nonexist: no such directory, which --load-path names`. A `--peer` names a configuration directory, one that holds an `ernest.conf` and a `certificate.pem`; one that names none is refused the same way, `nonexist: no configuration directory, which --peer names`.
 
 ### 11.8 Exit status
 
@@ -344,7 +352,7 @@ A failure of `ern` itself exits with status 70. A job whose standard output or s
 
 ## Appendix C. Configuration
 
-`ernest.conf`, as `ern config` creates it and then edited to name a peer and a service:
+`ernest.conf`, as `ern config` creates it and then given a peer, by an edit or by `ern config --peer` (§11.3), and a service, by an edit:
 
 ```json
 {
