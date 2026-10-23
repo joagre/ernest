@@ -1508,6 +1508,43 @@ receive_fixing_no_type_test() ->
                                   "fn g() : Unit receiving Int ="
                                   " receive { n when ready() -> Unit }")).
 
+%% report §3.9, §11.5: a wait alone makes a function process-only, a
+%% `receive` that fixes no type, and a call of `self` or `monitor` does
+%% not: where the function's type holds the address nowhere, its effect
+%% variable stands in no value position, which a call binds to none, so
+%% the type prints without it and a function that receives nothing calls
+%% it, a guard and `adapted`'s function among them. Within its own body the
+%% variable stands in a value position, so `: T` over that body is refused
+%% and `receiving m` is its annotation; a function whose type holds the
+%% address is no caller's that receives nothing; the two waits stay
+%% process-only, through a call too, one whose variable is a value's among
+%% them. A regression test of the sweep's finding (2026-10-24), written
+%% after the code: `self` and `monitor` made their function process-only,
+%% `fn f() = kill(self())` printing `receiving e+`; it does not cover such
+%% a function run in a wrap, or in an adapted address's function on
+%% arrival
+process_only_marks_a_wait_alone_test() ->
+    Kill = "fn f() = kill(self())\n",
+    ?assertEqual("() -> Unit", type_of("export " ++ Kill, f)),
+    ?assertEqual("(Process) -> Unit",
+                 type_of("export fn watch(p) = monitor(p, fn(d) = fault(\"down\"))", watch)),
+    ?assertEqual(ok, ok(Kill ++ "fn g() : Unit = f()\n"
+                        "fn h(n : Int) : Int = match n { k when f() == Unit -> k | _ -> 0 }\n"
+                        "fn k() : Address(Int) receiving Int ="
+                        " adapted(self(), fn(n : Int) = { f(); n })\n")),
+    ?assertEqual("self needs a mailbox, and k receives nothing",
+                 refusal("fn k() : Unit = kill(self())")),
+    ?assertEqual("() -> Unit", type_of("export fn k() : Unit receiving m = kill(self())", k)),
+    ?assertEqual("me needs a mailbox, and k receives nothing",
+                 refusal("fn me() = self()\nfn k() : Unit = { let _ = me(); Unit }\n")),
+    ?assertEqual("() -> Unit receiving e+",
+                 type_of("export fn f() = { kill(self()); receive { after 1 -> Unit } }", f)),
+    ?assertEqual("() -> Unit receiving e+",
+                 type_of("export fn f() = { kill(self()); receive { _ -> Unit } }", f)),
+    ?assertEqual("() -> Unit receiving e+",
+                 type_of("fn w() = receive { x -> x }\n"
+                         "export fn f() = { let _ = w(); Unit }\n", f)).
+
 %% report §6.2, §4.6
 spawn_test() ->
     ?assertEqual(ok, ok("fn work() : Unit = Unit\n"
@@ -1546,7 +1583,7 @@ effect_mismatch_direction_test() ->
     ?assertEqual("the argument does not fit h: a function that receives where one that"
                  " receives nothing is needed",
                  refusal("fn h(k : ((Int) -> Int receiving m) -> Int) : Int receiving m ="
-                         " { let _ = self(); k(fn(x) = x) }\n"
+                         " { receive { after 1 -> Unit }; k(fn(x) = x) }\n"
                          "fn g() : Int receiving n = h(fn(f : (Int) -> Int) : Int = f(1))")),
     ?assertEqual(ok, ok("fn apply(f, x) : Int = f(x)\nfn g() : Int = apply(fn(y) = y + 1, 1)")).
 
@@ -1720,7 +1757,8 @@ bind_arrow_test() ->
 %% label printed a fresh instance, `t` as `a` and `m` as `e`
 declared_names_in_labels_test() ->
     #diagnostic{labels = CallLabels} =
-        diagnostic("fn g(x : Int, y : t) : t receiving m = {\n    let _ = self();\n    y\n}\n"
+        diagnostic("fn g(x : Int, y : t) : t receiving m = {\n"
+                   "    receive { after 1 -> Unit };\n    y\n}\n"
                    "fn f() : Unit receiving Int = g(\"x\", Unit)\n"),
     ?assertMatch([{_, "g : (Int, t) -> t receiving m+"}], CallLabels),
     #diagnostic{labels = FillLabels} =

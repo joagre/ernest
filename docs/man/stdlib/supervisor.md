@@ -134,7 +134,7 @@ spawn(Supervisor.group(Supervisor.OneForAll, RestartLimit(restarts = 5, within =
 ## Supervisor.child
 
 ```ernest
-Supervisor.child(supervisor : Address(Msg), f : () -> Unit receiving m+) : () -> Unit receiving m+
+Supervisor.child(supervisor : Address(Msg), f : () -> Unit receiving m) : () -> Unit receiving m
 ```
 
 The function a child runs, for the caller to spawn:

@@ -17,9 +17,11 @@
 %% Every variable has an entry in the checker's variable table keyed by id().
 %% Its restrictions are the two inferred restrictions of report §3.9:
 %% `equality` (the variable was compared with ==) and `process_only` (it
-%% may not bind to none). A bound variable's binding lives in the
-%% substitution, not in the term, so a type is read through
-%% ern_types:resolve/2 before inspection.
+%% may not bind to none), beside the checker's own `value_position` (it
+%% stands in a value position, and may not bind to none while its
+%% definition is inferred), which no scheme holds. A bound variable's
+%% binding lives in the substitution, not in the term, so a type is read
+%% through ern_types:resolve/2 before inspection.
 %%
 %% A scheme quantifies variables together with their restrictions, which is
 %% what makes the restrictions travel with a function value (report §3.9).

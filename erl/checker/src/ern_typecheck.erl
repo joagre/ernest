@@ -623,23 +623,18 @@ add_constructors(ConstructorInfos, Known) ->
                 end, Known, ConstructorInfos).
 
 %% A signature from the prelude tables: every annotation variable is
-%% generalized; an effect variable that also occurs in a value position is
-%% process-only (report §3.9), as `self`'s is.
+%% generalized. An effect variable that also occurs in a value position, as
+%% `self`'s does, ranges over types alone (report §3.9), which each
+%% instance marks (ern_types:instance/2).
 signature_scheme(Syntax, Env) ->
     TypeState1 = ern_types:enter(Env#env.type_state),
     {Type, AnnotationVariables, TypeState2} =
         annotation_type(Syntax, #{}, Env#env{type_state = TypeState1}),
     Substituted = ern_types:substitute(Type, TypeState2),
-    Effects = ern_types:effect_variables(Substituted),
-    Values = ern_types:value_variables(Substituted, TypeState2),
-    ProcessOnlyIds = [Id || Id <- Effects, lists:member(Id, Values)],
-    TypeState3 = lists:foldl(fun(Id, Acc) ->
-                                 ern_types:add_restriction({tvar, Id}, process_only, Acc)
-                             end, TypeState2, ProcessOnlyIds),
-    TypeState4 = ern_types:leave(TypeState3),
+    TypeState3 = ern_types:leave(TypeState2),
     Kept = [Id || {tvar, Id} <- maps:values(AnnotationVariables)],
-    {Scheme, TypeState5} = ern_types:generalize(Substituted, Kept, TypeState4),
-    {Scheme, Env#env{type_state = TypeState5}}.
+    {Scheme, TypeState4} = ern_types:generalize(Substituted, Kept, TypeState3),
+    {Scheme, Env#env{type_state = TypeState4}}.
 
 %%
 %% Annotations: syntactic types to semantic types. AnnotationVariables maps
@@ -1948,7 +1943,8 @@ signature_shape(#fn_declaration{params = Params, result_type = ResultAnnotation,
     Requirement = requirement_variables(Declaration, AnnotationVariables1, FunctionType,
                                         TypeState2),
     Env1 = bound(Placeholder, FunctionType,
-                 Env#env{type_state = mark_process_only(FunctionType, TypeState2)}),
+                 Env#env{type_state = ern_types:value_positions_marked(FunctionType,
+                                                                       TypeState2)}),
     placeholder_requirement(Declaration, Placeholder,
                             [{Id, Member} || {{tvar, Id}, Member} <- Requirement], Env1);
 signature_shape(#let_declaration{annotation = Annotation}, Placeholder, Env)
@@ -2147,7 +2143,8 @@ check_value(#fn_declaration{span = Span, params = Params, result_type = ResultAn
     Signature = [{Variable, VariableName, Name}
                  || VariableName := Variable <- AnnotationVariables1,
                     not is_map_key(VariableName, Env#env.annotation_variables)],
-    Env3 = Env2#env{type_state = mark_process_only(FunctionType, TypeState1), effect = EffectType,
+    Env3 = Env2#env{type_state = ern_types:value_positions_marked(FunctionType, TypeState1),
+                    effect = EffectType,
                     pending = [], deferred = [], mailboxes = [],
                     annotation_variables = AnnotationVariables1,
                     rigid = maps:to_list(AnnotationVariables1), effect_origin = Origin,
@@ -2328,16 +2325,6 @@ result_types(ResultAnnotation, Effect, AnnotationVariables, Env) ->
         annotation_type(Effect, AnnotationVariables1, Env#env{type_state = TypeState1}),
     {ResultType, EffectType, AnnotationVariables2, TypeState2}.
 
-%% An effect variable that also occurs in a value position of the same
-%% signature is process-only (report §3.9).
-mark_process_only(FunctionType, TypeState) ->
-    Substituted = ern_types:substitute(FunctionType, TypeState),
-    Values = ern_types:value_variables(Substituted, TypeState),
-    Both = [Id || Id <- ern_types:effect_variables(Substituted), lists:member(Id, Values)],
-    lists:foldl(fun(Id, Acc) ->
-                    ern_types:add_restriction({tvar, Id}, process_only, Acc)
-                end, TypeState, Both).
-
 %% Report §11.5: the labels an error carries. A result annotation is the
 %% origin of the body's expected type; a `receiving`, or a result type
 %% without one, is the origin of the function's effect.
@@ -2496,6 +2483,10 @@ spawned_position(_) -> none.
 %% variable that names no parameter's mailbox type, and whose body
 %% receives nothing, receives nothing, and is written so: the variable
 %% would be none at every call, and the printed type already leaves it out.
+%% A body that receives (§6.1) needs it: one that waits makes it
+%% process-only, and one that calls `self` or `monitor` without showing the
+%% address, whose printed type leaves it out too, has it stand in a value
+%% position there, so that `: T` would be refused.
 needless_effect(#fn_declaration{member_of = MemberOf, name = Name,
                                 effect = #t_var{span = EffectSpan, name = Written}},
                 Type, #env{type_state = TypeState}) ->
@@ -2503,8 +2494,10 @@ needless_effect(#fn_declaration{member_of = MemberOf, name = Name,
         {tfn, Params, {tvar, Id}, Result} ->
             Elsewhere = lists:member(Id, ern_types:free_variables({ttuple, Params ++ [Result]},
                                                                   TypeState)),
-            ProcessOnly = lists:member(process_only, ern_types:restrictions(Id, TypeState)),
-            case Elsewhere orelse ProcessOnly of
+            Restrictions = ern_types:restrictions(Id, TypeState),
+            Receives = lists:member(process_only, Restrictions)
+                orelse lists:member(value_position, Restrictions),
+            case Elsewhere orelse Receives of
                 true ->
                     ok;
                 false ->
@@ -4280,7 +4273,8 @@ infer(#e_lambda{span = LambdaSpan, params = Params, result_type = ResultAnnotati
         _ ->
             ok
     end,
-    Env2 = Env1#env{type_state = mark_process_only(Type, TypeState), effect = EffectType,
+    Env2 = Env1#env{type_state = ern_types:value_positions_marked(Type, TypeState),
+                    effect = EffectType,
                     annotation_variables = AnnotationVariables1,
                     generalizing = false, rigid = New ++ Env1#env.rigid,
                     %% report §11.5: the label names the annotation that fixed the

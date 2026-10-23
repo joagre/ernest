@@ -424,7 +424,7 @@ External callers see `Stack.Stack`, `Stack.empty`, `Stack.push`, `Stack.pop`, an
 
 `fn` declares a function of fixed arity. Annotations may be omitted where they can be inferred. The result annotation is omitted, or is `: T` for a function that receives nothing, or `: T receiving M` for one that receives, as a parameter's annotation is `: T`.
 
-An annotation without `receiving` on a function that receives is a type error. Such an annotation makes every parameter the body calls one that receives nothing: `fn apply(f, x) : Int = f(x)` has type `((a) -> Int, a) -> Int`. `receiving M` where `M` is a type variable that names no parameter's mailbox type is written only where the body receives, making `M` process-only (§3.9); over a body that does not, it is an error, since the function receives nothing and `: T` is its one annotation: `fn k() : Int receiving m = 5` is refused.
+An annotation without `receiving` on a function that receives is a type error. Such an annotation makes every parameter the body calls one that receives nothing: `fn apply(f, x) : Int = f(x)` has type `((a) -> Int, a) -> Int`. `receiving M` where `M` is a type variable that names no parameter's mailbox type is written only where the body receives (§6.1); over a body that does not, it is an error, since the function receives nothing and `: T` is its one annotation: `fn k() : Int receiving m = 5` is refused.
 
 A function has one clause. Patterns in parameters are irrefutable, §5.10: `fn seenCount(Snapshot(seen = entries) : Snapshot) : Int = Map.size(entries)`.
 

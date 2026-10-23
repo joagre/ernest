@@ -87,6 +87,8 @@ monitor      : ∀m. (Process, (Down) -> m) -> Unit receiving m
 
 No primitive has an effect of its own. `self` and `monitor` have the mailbox type of the process that calls them, in a value position, the address answered or the wrap's result, so it is never none. A `receive` with an `after` clause alone has its process's mailbox type `m` and binds nothing of it, so `m` stands in no value position; it is process-only, never none (§3.9), since the wait is on the mailbox.
 
+A function that calls `self` or `monitor`, and whose own type holds their variable in no value position, `fn f() = kill(self())`, may still be instantiated with none (§3.9). Its body is typed at every instance of the variable, and nothing in it has the variable's type: no value position of the function's type names the variable, and a `receive` in it would fix the variable or make the function process-only. So nothing is sent through the address `self` answers in it, and the wrap it gives `monitor` answers no value, since it faults or runs for ever: whichever process runs the body, it reads no mailbox and puts no value in one. In a process of the program's of mailbox type `M`, the call at none runs as the instance at `M` does, so I2 holds of that address.
+
 **Steps.** Within a process an expression steps as in any strict language, left to right (§5.1): a call of a closure puts the arguments for its parameters, a `match` takes the first clause whose pattern matches and whose guard holds, a block evaluates its statements in order. The steps that reach outside the expression are these.
 
 ```

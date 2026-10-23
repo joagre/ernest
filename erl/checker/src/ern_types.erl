@@ -7,7 +7,7 @@
          add_restriction/3, unfixed/2, enter/1, leave/1,
          resolve/2, substitute/2, unify/3, free_variables/2,
          monomorphic/1, generalize/2, generalize/3, elided/2, instantiate/2, instance/2,
-         replace_variables/2,
+         value_positions_marked/2, replace_variables/2,
          mismatch_pair/3, format/2, format_pair/3, value_variables/2, value_args/3,
          args_in_value/3, effect_variables/1, set_scope/5, printing/1, printed_scope/1,
          set_effect_params/2,
@@ -19,7 +19,12 @@
 
 -type id() :: pos_integer().
 -type qualified_name() :: [atom()].
--type restriction() :: equality | process_only.
+%% value_position is the checker's own mark, beside report §3.9's two
+%% restrictions, on an effect variable that stands in a value position of a
+%% type the definition under inference holds, which ranges over types alone
+%% (§3.9); generalization drops it, and an instance marks it again from its
+%% type (value_positions_marked/2), so that no scheme holds it.
+-type restriction() :: equality | process_only | value_position.
 -type restrictions() :: [restriction()].
 -type effect() :: none | type().
 -type type() :: {tvar, id()} | {tcon, qualified_name(), [type()]} | {ttuple, [type()]}
@@ -197,11 +202,13 @@ unify_list([Expected | ExpectedRest], [Actual | ActualRest], TypeState) ->
     unify_list(ExpectedRest, ActualRest, TypeState1).
 
 %% Binding a variable: the occurs check, the restrictions' rules, level
-%% adjustment. None against a process-only variable fails with Reason,
-%% which says on which side of the unification, the expected or the actual,
-%% none stood.
+%% adjustment. None against a process-only variable, or one that stands in
+%% a value position (report §3.9), fails with Reason, which says on which
+%% side of the unification, the expected or the actual, none stood.
 bind_variable(Id, _Variable, none, Reason, TypeState) ->
-    case lists:member(process_only, restrictions(Id, TypeState)) of
+    Restrictions = restrictions(Id, TypeState),
+    case lists:member(process_only, Restrictions)
+         orelse lists:member(value_position, Restrictions) of
         true -> throw({unify_error, Reason});
         false -> bind(Id, none, TypeState)
     end;
@@ -299,7 +306,11 @@ monomorphic(Type) -> #scheme{quantified = [], type = Type}.
 %% Quantify the variables of Type created at a deeper level than the
 %% current one, carrying their restrictions, every effect variable among
 %% them (report §3.9), but for a function's own effect that occurs nowhere
-%% else, outside a parameter, which is none (elided_own_effect/3).
+%% else, outside a parameter, which is none (elided_own_effect/3). The mark
+%% of a value position is the body's and not the scheme's: a variable that
+%% stands in one of the scheme's type is marked again at each instance,
+%% and one that stands in none, whose body called `self` or `monitor`
+%% without showing the address, may be none at a call (§3.9).
 -spec generalize(type(), type_state()) -> {#scheme{}, type_state()}.
 generalize(Type, TypeState) -> generalize(Type, [], TypeState).
 
@@ -312,7 +323,9 @@ generalize(Type, Keep, #type_state{level = Level, variables = Variables} = TypeS
     Names = maps:from_list([{Id, Name} || Id <- Ids,
                                           Name <- [(maps:get(Id, Variables))#type_variable.name],
                                           Name =/= undefined]),
-    Quantified = [{Id, (maps:get(Id, Variables))#type_variable.restrictions} || Id <- Ids],
+    Quantified = [{Id, lists:delete(value_position,
+                                    (maps:get(Id, Variables))#type_variable.restrictions)}
+                  || Id <- Ids],
     {#scheme{quantified = Quantified, type = Elided, names = Names}, TypeState}.
 
 %% Report §3.9: a type with the substitution applied, each function type's
@@ -376,7 +389,8 @@ instantiate(Scheme, TypeState) ->
 %% Report §4.9: an instance of a declaration's scheme, and its requirement
 %% at that instance, each member with the type its variable stands for
 %% there. A monomorphic scheme's variables are its own, so its requirement
-%% names them as they are.
+%% names them as they are. Report §3.9: an effect variable of the instance
+%% that stands in a value position too, `m` of `self`'s, is marked so.
 -spec instance(#scheme{}, type_state()) -> {type(), [{type(), atom()}], type_state()}.
 instance(#scheme{quantified = Quantified, type = Type, requirement = Requirement}, TypeState) ->
     Fresh = fun({Id, Restrictions}, {Replacements, Acc}) ->
@@ -384,9 +398,25 @@ instance(#scheme{quantified = Quantified, type = Type, requirement = Requirement
                 {Replacements#{Id => Variable}, Acc1}
             end,
     {Replacements, TypeState1} = lists:foldl(Fresh, {#{}, TypeState}, Quantified),
-    {replace_variables(Type, Replacements),
+    Instance = replace_variables(Type, Replacements),
+    {Instance,
      [{maps:get(Id, Replacements, {tvar, Id}), Member} || {Id, Member} <- Requirement],
-     TypeState1}.
+     value_positions_marked(Instance, TypeState1)}.
+
+%% Report §3.9: each effect variable of Type that also stands in a value
+%% position, in a signature or an instance, ranges over types alone, and is
+%% marked so that none does not bind it while its definition is inferred.
+-spec value_positions_marked(type(), type_state()) -> type_state().
+value_positions_marked(Type, TypeState) ->
+    Substituted = substitute(Type, TypeState),
+    case effect_variables(Substituted) of
+        [] ->
+            TypeState;
+        Effects ->
+            Values = value_variables(Substituted, TypeState),
+            lists:foldl(fun(Id, Acc) -> add_restriction({tvar, Id}, value_position, Acc) end,
+                        TypeState, [Id || Id <- Effects, lists:member(Id, Values)])
+    end.
 
 %% The type with each variable Replacements names replaced by its type.
 -spec replace_variables(type() | none, #{id() => type()}) -> type() | none.

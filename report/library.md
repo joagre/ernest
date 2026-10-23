@@ -708,7 +708,7 @@ When the children's faults pass `limit`, counted as `restarting` counts them, th
 type Strategy = OneForOne | OneForAll | RestForOne
 abstract type Msg // what a supervisor takes
 Supervisor.group : (Strategy, RestartLimit) -> () -> Unit receiving Msg
-Supervisor.child : (Address(Msg), () -> Unit receiving m+) -> () -> Unit receiving m+
+Supervisor.child : (Address(Msg), () -> Unit receiving m) -> () -> Unit receiving m
 ```
 
 ### Appendix E.23. `os.ern` (namespace `Os`)
