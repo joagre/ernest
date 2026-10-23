@@ -159,7 +159,8 @@ language's most important features is its hardest test, so what it finds is foun
   nodes started by the nodes' harness, and chapter 5's `ern test` expected to report the deadlock.
   The whole tour runs in about eleven seconds of the toolchain's time.
 - **The work in its order, each piece on its model.** The programs and their tests first, by an
-  Opus 5.5 xhigh agent from the outline, before any prose, since code first demands real output;
+  Opus 5.5 xhigh agent from the outline, before any prose, since code first demands real output,
+  done 2026-10-23 (the log's *The Tour's Programs, Built*);
   with them `why.md`'s shell transcript run again with `CounterMsg`, and its two `Peer` fragments
   given the line that points at chapter 2 (the skeptics' findings M25 and M6, `findings.md` as it
   stood at `fd5b361c`). Then the prose,

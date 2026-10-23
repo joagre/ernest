@@ -122,19 +122,22 @@ send(counter, Upgrade(next = countTwice))
 
 `next` is of the counter's own type, so such a message changes the loop and not the messages. A process keeps its mailbox type for life, so a change of the messages is a new process, started beside the old or in its place; a new message type is a new version of the module, which the shell shows.
 
-In the shell the versions are visible. `:reload` compiles again every module edited since it was loaded; a module so compiled is a new version beside the old, and a binding made under the old keeps it. Nothing is purged: every version a node has loaded stays for the node's life, so a node reloaded without end grows with its versions, and the deployment guide's §4.2 says when a node is restarted. Here the counter is a module `Counter` whose message type is `Msg`; `Msg` gained a `Reset` between the two spawns, both processes run, and a message of the new type to the old process is refused by the compiler, with the reason. `Counter.Inc(1)` is refused the same way, every constructor being the new type's: new code reaches a process of the old version through a binding made before the reload alone.
+In the shell the versions are visible. `:reload` compiles again every module edited since it was loaded; a module so compiled is a new version beside the old, and a binding made under the old keeps it. Nothing is purged: every version a node has loaded stays for the node's life, so a node reloaded without end grows with its versions, and the deployment guide's §4.2 says when a node is restarted. Here the counter is the module `Counter`, and `CounterMsg` gained a `Reset` between the two spawns, both processes run, and a message of the new type to the old process is refused by the compiler, with the reason. `Counter.Inc(1)` is refused the same way, every constructor being the new type's: new code reaches a process of the old version through a binding made before the reload alone.
 
 ```
 > let old = spawn(fn() = Counter.count(0))
-old : Address(Counter.Msg)
+old : Address(Counter.CounterMsg)
 > :reload
 Counter, compiled again
-Counter.Msg changed: the binding old is of its previous version, Counter$1.Msg
+Counter.CounterMsg changed: the binding old is of its previous version, Counter$1.CounterMsg
 > let new = spawn(fn() = Counter.count(0))
-new : Address(Counter.Msg)
+new : Address(Counter.CounterMsg)
 > send(old, Counter.Reset)
-input 4:1:11: the argument does not fit send: expected Counter$1.Msg, found Counter.Msg
-  = help: Counter$1.Msg is of a previous version of Counter, which a reload replaced
+input 4:1:11: the argument does not fit send: expected Counter$1.CounterMsg, found Counter.CounterMsg
+1 | send(old, Counter.Reset)
+  | ---- send : (Address(a), a) -> Unit
+  |           ^^^^^^^^^^^^^
+  | = help: Counter$1.CounterMsg is of a previous version of Counter, which a reload replaced
 ```
 
 The first claim's counter, whose messages carry no function and so may cross to another node, runs on a peer that holds none of its code: a spawned function crosses as code, by its hash, where a function in a message would have to cross as a value, which none does (the guide's §8.4). A spawn names its function by hash, and a peer that lacks it is sent the definition with every definition it references, before the process starts. `foo` is a bare node, started from a configuration directory and no program. It holds the same `ern` on the same OTP, the standard library and the host's modules the program's foreign declarations name, and of the program nothing, and runs whichever version the spawn names:
