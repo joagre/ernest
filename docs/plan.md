@@ -182,9 +182,12 @@ language's most important features is its hardest test, so what it finds is foun
   the reader who wants the picture first is sent to the tour by the README's doors.
 - **What writing it finds goes to `language_feedback.md`** before any code goes around it, since
   one program grown across the claims is the language's hardest test before 0.5.0. The outline
-  left six entries, decided as MVP 3.296, and the spike two more, 146 and 147, which stand. Among
-  what the build decides is a call to many processes at once, feedback 5, which the log's *Kill
-  Darlings* left to the program the idiom cannot write well.
+  left six entries, decided as MVP 3.296, and the spike two more, 146 and 147, dropped the same
+  day (the log's *Two Messages, and the Runtime's Frames Weighed Again*). A call to
+  many processes at once, feedback 5, which the log's *Kill Darlings* left to the program the idiom
+  cannot write well, is dropped on 2026-10-23: the outline's program makes no such call, and the
+  idiom, a monitored helper per piece gathered in a `receive`, is the guide's §4.4 (the log's *Two
+  Messages, and the Runtime's Frames Weighed Again*).
 
 ## MVP 3.9 (the review, and Ernest 0.5.0)
 
