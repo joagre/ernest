@@ -1,6 +1,6 @@
 # Ernest Report: The Standard Library
 
-Revision of 21 October 2026.
+Revision of 23 October 2026.
 
 This file holds the report's Appendices D, E and G. §0 to §10 and Appendices A, B and F are in [`language.md`](language.md), and §11 and Appendices C and H in [`toolchain.md`](toolchain.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
@@ -677,7 +677,7 @@ A `Process` is the identity of a process. It has equality and no ordering, exact
 
 In a `FaultReport`, `restarted` is `true` where the process restarts after the fault (§6.9), `spawnedBy` names the peer whose spawn started the process (§8.7), by its name as the configuration lists it or, where it is listed no more, by its node as §8.7's lines name one, and is `None` where no peer did.
 
-`trace` is the innermost twelve frames of the host's stack where the fault was met, at the moment it was (§7.3), the innermost first, a frame a line, ending with the outermost frame of the program's code; the runtime's frames beneath it are left out. A frame of Ernest code is written as a spawn site is (§6.9), the name of the top-level declaration the code is written in and the frame's line, `Counter.worker:23`, for a lambda or a local function as for the declaration's own body; a frame of the host's is the function as the host names it, then its line, `lists:nth/2:213`, without a line where the host has none.
+`trace` is the innermost twelve frames of the host's stack where the fault was met, at the moment it was (§7.3), the innermost first, a frame a line, ending with the outermost frame of the program's code; the runtime's frames beneath it are left out. A frame of a process that waits in a `receive` names the line of the last call before the wait, as the host records a waiting process's stack. A frame of Ernest code is written as a spawn site is (§6.9), the name of the top-level declaration the code is written in and the frame's line, `Counter.worker:23`, for a lambda or a local function as for the declaration's own body; a frame of the host's is the function as the host names it, then its line, `lists:nth/2:213`, without a line where the host has none.
 
 ```
 type Status = Status(site : String, queued : Int, activity : Activity)
