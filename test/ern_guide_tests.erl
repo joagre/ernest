@@ -11,7 +11,10 @@
 %% program its `$ ern` line names is run, with the options the line gives,
 %% and its output compared with the console's lines that are not commands;
 %% `$ printf 'a\nb\n' | ern run x.erc` gives the program those lines on
-%% standard input. A block marked `ernest-rejected` fails to compile, and
+%% standard input. The run exits with status 0, or with report §11.8's status
+%% for a fault of the entry process where a line shown is that fault's: the
+%% entry point's name before `faulted:`, `X.main` for x.erc or the name that
+%% `--main` gives. A block marked `ernest-rejected` fails to compile, and
 %% for a reason of its own: not a parse error and not an unknown name; one
 %% after a source tree under its heading is built beside the tree's files.
 %% When a console follows it, its `$ ern build` line names the file and the
@@ -190,7 +193,7 @@ check({modules, #{files := Files, launch := Launch}}) ->
             Args = string:lexemes(Invocation, " ") ++ [filename:join(Build, CompiledFile) | Words],
             ErrorFile = filename:join(Dir, "stderr"),
             {ok, ErrorDevice} = file:open(ErrorFile, [write]),
-            ?assertEqual(0, ern_cli:ern(Args, ErrorDevice)),
+            ?assertEqual(exit_status(Launch), ern_cli:ern(Args, ErrorDevice)),
             ok = file:close(ErrorDevice),
             {ok, Stderr} = file:read_file(ErrorFile),
             same_streams(Expected, iolist_to_binary(?capturedOutput), Stderr);
@@ -199,12 +202,13 @@ check({modules, #{files := Files, launch := Launch}}) ->
             InputFile = filename:join(Dir, "inputs"),
             ok = write(InputFile, [[Input, <<"\n">>] || Input <- Inputs]),
             ErrorFile = filename:join(Dir, "stderr"),
-            {0, Printed} = sh("cd " ++ Dir ++ " && HOME=" ++ Dir ++ " "
-                              ++ filename:absname("../bin/ern") ++ " " ++ Invocation
-                              ++ filename:join(Build, CompiledFile)
-                              ++ [[" ", Word] || Word <- Words]
-                              ++ " < " ++ InputFile
-                              ++ " 2> " ++ ErrorFile),
+            {Status, Printed} = sh("cd " ++ Dir ++ " && HOME=" ++ Dir ++ " "
+                                   ++ filename:absname("../bin/ern") ++ " " ++ Invocation
+                                   ++ filename:join(Build, CompiledFile)
+                                   ++ [[" ", Word] || Word <- Words]
+                                   ++ " < " ++ InputFile
+                                   ++ " 2> " ++ ErrorFile),
+            ?assertEqual(exit_status(Launch), Status),
             {ok, Stderr} = file:read_file(ErrorFile),
             same_streams(Expected, session_end(Printed), Stderr)
     end,
@@ -244,6 +248,26 @@ check({session, #{inputs := Inputs, shown := Expected}}) ->
                      ++ " shell < " ++ InputFile),
     ok = file:del_dir_r(Dir),
     ?assertEqual(trim(Expected), session_end(Output)).
+
+%% Report §11.8: the status a console's `ern run` exits with, 1 where a
+%% line shown is the entry process's fault, which begins with the entry
+%% point's name, its site (§6.9, §11.2), and 0 where the entry point
+%% returns. Another job is held to 0.
+exit_status(#launch{invocation = "run " ++ Flags, compiled_file = CompiledFile, shown = Shown}) ->
+    EntryPoint = case re:run(Flags, "--main (\\S+)", [{capture, all_but_first, list}]) of
+                     {match, [Given]} ->
+                         Given;
+                     nomatch ->
+                         {ok, Segment} = ern_namespace:segment(filename:rootname(CompiledFile)),
+                         Segment ++ ".main"
+                 end,
+    Faulted = list_to_binary(EntryPoint ++ " faulted: "),
+    case [Line || Line <- lines(trim(Shown)), string:prefix(Line, Faulted) =/= nomatch] of
+        [] -> 0;
+        [_ | _] -> 1
+    end;
+exit_status(#launch{}) ->
+    0.
 
 %% Report §11.2: a console shows standard output and standard error as a
 %% terminal does, but two processes write them and nothing orders one
