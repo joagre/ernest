@@ -1,5 +1,3 @@
 # Language feedback
 
 What writing Ernest has felt against the principles, and what a reader found that questions a rule of the language rather than showing a defect (CLAUDE.md, *Defects and gaps*). An entry stays until a plan item decides it: a report change, an item of a milestone, or a line in the log saying it was dropped and why. An entry keeps its number, which the plan, the log and the code cite; the next is 149.
-
-148. **The shell shows an effect before its cause** (2026-10-23, the tour's build, chapter 4). A fault's report, a monitor's line printed by another process, a peer's connection line and an input's answer reach the terminal in the order the writes happen, which nothing orders: `the counter ended: Fault("a negative amount")` came before the fault's own report in one run and after it in another, and `the peer foo connected` before the spawn's binding. A transcript may show the watcher's line above the fault it watches for. The tour's prose says "and" and never "then" between such lines, and its test takes either order. Evidence on §11.2's "in the order written", where two writers have no order. Principle 1.

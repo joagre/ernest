@@ -9240,6 +9240,8 @@ MVP 3.3's first piece, built the day the outline was decided: `tour/1/` to `tour
 
 **What writing it felt** is feedback 148, the shell showing an effect before its cause, where a fault's report, a monitor's line and an input's answer have no order between them; the prose says "and" and never "then" there. `why.md`'s shell transcript was run again with `CounterMsg`, finding M25 of the skeptics' read, and its refusal now stands whole, the input echoed with its caret and label as the shell prints it.
 
+**Entry 148 dropped**, decided with the user the same day. A fault's report is the runtime's, a monitor's line the watching process's, a connection's line the node's and an input's answer the shell's, each written as it happens, and §11.2's order is a writer's own; holding a monitor's line until the fault it follows is reported would mean the runtime knowing which line follows which, and would delay a line true the moment it is written. The order is the writes' real order, a transcript may show a watcher's line above the fault it watched for, and prose that quotes one says "and" between such lines. Principles 3 and 5.
+
 ## The Foreign Call Measured, 2026-10-21
 
 MVP 3.28's item from feedback 125, measured 2026-10-21 on the laptop, which another session shared. `make bench`'s sixth part, `test/ern_foreign_costs.erl`, compiles a program's foreign fns in memory as a build does, calls them in a launch, and writes `foreign.txt`: seven runs of a million calls each, medians in nanoseconds a call, the loop's own 7 ns included.
