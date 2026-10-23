@@ -148,10 +148,10 @@ The spine holds: the tally is kept from chapter 6 through 7, which does not touc
 
 ## 5. What goes to the feedback file first
 
-The user's rule for this milestone: every line of `docs/language_feedback.md` and of `findings.md` is addressed before the tour is written. The outline's section 6 has four; this reading adds three.
+The rule for this milestone: every line of `docs/language_feedback.md` and of `docs/findings.md` is addressed before the tour is written. The outline's section 6 has four, entries 140 to 143; this reading adds the three below, the first folded into entry 140 as its second instance and the other two entries 144 and 145, all written on 2026-10-23.
 
 - A `Peer.service(name)` cannot be a top-level `let` in a module a bare node runs, for the ground-term rule, so the tour writes `service()` as it writes `Tally.empty()`: the sharp edge of the outline's first feedback line met a second time in one program. Whether the exchange should evaluate a module's bindings on arrival, as `Code.load` does, is a design question beyond the tour.
 - A computed function cannot say where it ran, so the compute chapter shows the node by the line it prints in the peer's terminal; entry 117 decided it on 2026-10-20, and the tour is the first program to feel it.
 - `erlang:system_info/1` takes an atom, so one host question costs a `Foreign.atom` beside the declaration; the guide's §8.3 says so, and the tour meets it in its one foreign call.
 
-The finding on `why.md`'s spawn fragment stands as the outline has it.
+The finding on `why.md`'s spawn fragment is `docs/findings.md`'s T1, and the plan's sketch its T2.

@@ -214,7 +214,7 @@ The README's three doors, CLAUDE.md's row for `tour/`, and the guide's chapter 1
 
 ## 6. What the writing has felt against the principles
 
-Each goes to `docs/language_feedback.md` when the outline is decided, since each is felt by a program the build has not yet run.
+Each is an entry of `docs/language_feedback.md` since 2026-10-23, entries 140 to 143 in this order, decided before the tour is written; the two findings below are `docs/findings.md`'s T1 and T2.
 
 - A top-level `let` that is no ground term, `let empty = Tally(Map.empty)`, has no value on a bare node, so a spawn whose reach names it fails with `NotLoaded` (report §8.7, §11.1); the tour's `Tally.empty` is a function for it, where E.0 would have a value. A module written for one node is not spawnable on a bare node until its bindings are ground, and nothing tells the writer before the spawn fails.
 - Taking the `Right` of an `Either` at the prompt is a `match` with a `fault` clause, a line of ninety columns at chapter 2's spawn; the guide's `<-` works in a block alone.
