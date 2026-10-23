@@ -72,17 +72,24 @@ ERL_CRASH_DUMP_SECONDS=0
 export ERL_CRASH_DUMP_SECONDS
 
 # Report §8.7: a node's host takes its carrier only as it boots, so where
-# the arguments hold --config-dir the host runs once first, parsing the
-# command line as its job does and writing the flags a node's host boots
-# with after a marker, which the second start takes. It writes none where
-# the command starts no node or is refused, and the second start then says
-# what was refused; what it writes without the marker is taken for nothing.
+# the arguments of a job that makes a node, run, test or shell, hold
+# --config-dir the host runs once first, parsing the command line as its
+# job does and writing the flags a node's host boots with after a marker,
+# which the second start takes. It writes none where the command starts no
+# node or is refused, and the second start then says what was refused;
+# what it writes without the marker is taken for nothing. Another job,
+# `ern config`, `ern reload` or `ern stop`, makes no node, and the host
+# starts once.
 node=
-for word do
-    if [ "$word" = --config-dir ]; then
-        node=1
-    fi
-done
+case ${1-} in
+    run | test | shell)
+        for word do
+            if [ "$word" = --config-dir ]; then
+                node=1
+            fi
+        done
+        ;;
+esac
 flags=
 if [ -n "$node" ]; then
     flags=$(erl +B -boot no_dot_erlang -noshell -noinput \
