@@ -1,6 +1,6 @@
 # Why Ernest
 
-The argument for the design, in six claims, the first five with a program. [*Programming in Ernest*](language.md), the guide, teaches the language; this document says why it is as it is.
+The argument for the design, in six claims, four of them with a program and one with its file. [*Programming in Ernest*](language.md), the guide, teaches the language; this document says why it is as it is.
 
 Ernest is a small functional language for concurrent programs, on the Erlang runtime. A program is functions, whose types the compiler infers, and processes that talk through typed mailboxes. `ern` is its one command, which builds, runs and tests a program and opens its shell.
 
@@ -11,7 +11,7 @@ What Ernest adds is where the parts meet:
 - **The mailbox in the function's type.** Every process receives messages of one type, which a function that receives names in its own type and a process's address carries. So the compiler checks every message sent against the mailbox it will reach and every receive against the mailbox it reads, and a program can never send a server a message it does not take. A function that receives runs only in a process of its mailbox's type.
 - **Code known by its hash.** A function or a type is known by a hash of its definition, not by the name of the module it stands in. So a module reloaded is a new version beside its earlier ones, a running process moves to the new version of its function when a message tells it to, and a process started on another node brings its code along: any node can run anything, a computation that names no node goes to one with room, and no program is deployed first.
 - **A distribution built for a WAN.** A node lists its peers in a file, each by name, public key and address, accepts a connection only from a key it lists, and opens one TLS connection to a peer when it first needs it. There is no cluster to join and no shared secret: a laptop and a server, or two data centers, are two nodes with one file each naming the other.
-- **Abstract types and requirements.** A type declared abstract keeps its constructor to its own module, so the representation can change and no caller knows. A generic function names the operations it needs of its type, and the compiler supplies that type's own at each call. Nothing is declared an instance of anything: a type's members are declared in its own module, a requirement is written and never inferred, and there is no hierarchy and no dispatch as the program runs.
+- **Abstract types and requirements.** A type declared abstract keeps its constructor to its own module, so the representation can change and no caller knows. A generic function names the operations it needs of its type, and the compiler supplies that type's own at each call. Nothing is declared an instance of anything: a type's members are declared in its own module, a requirement is written and never inferred, and there is no hierarchy and no lookup as the program runs, since the caller passes the member as an argument the program never writes.
 - **A deadlock is found.** A program in which every process waits for a message none can send ends with a fault and a trace, where the host would wait forever. The runtime owns every source of a message, a typed mailbox, a process it spawned, a timer or a socket, which it counts, so it can decide that nothing can deliver, under `ern run`, `ern test` and the shell; a node is left to its peers, which can reach it. A program at work pays nanoseconds for the question, and the reading of every process only when it is idle.
 - **Little else.** Functions and processes are the whole language, with one way to do each thing. A report of three files defines all of it. Five principles decide what goes in, and the first is that nothing surprises a reader who knows the rest.
 
@@ -58,7 +58,7 @@ count is 8
 
 A fault, a division by zero or a `fault` call, ends the process, and nothing catches it. Whoever monitors the process hears of its end as a `Down` with the reason, wrapped as a message of their own type. A process started under `restarting` runs its function again from its start after a fault, its mailbox emptied and its address kept, so the name `counter` stays good and a request that waited in the mailbox is lost; the guide's §6.5 shows a restart.
 
-A function that receives runs only in a process of its mailbox's type, which `spawn` takes from the function: `spawn(fn() = count(0))` is an `Address(CounterMsg)` and nothing else. Spawned for an address of another type, it is refused:
+A function that receives runs only in a process of its mailbox's type, which `spawn` takes from the function: `spawn(fn() = count(0))` is an `Address(CounterMsg)` and nothing else, no channel is made inside the process and handed out, and no process reads another's mailbox, since `receive` reads the mailbox of the process it runs in, the one the function's type names. Spawned for an address of another type, it is refused:
 
 ```ernest-rejected
 type CounterMsg = Inc(Int)
@@ -93,7 +93,9 @@ foreign fn systemTime() : Int =
     "erlang:system_time/0"
 ```
 
-Where foreign code meets the program the type is checked, not trusted. The runtime checks each answer against the declared type as it arrives, so `: String` in its place would fault the caller at the first call, `the return of foreign function erlang:system_time/0 does not match String`. It checks the same way a reply foreign code gives, a message foreign code sends to an address exposed to it, and each argument foreign code calls an Ernest function with; what does not match faults the calling process, naming the function and the type (report §8.4). So a mailbox type holds for messages from the host too, and a wrong value from a library is a fault at the crossing with a trace, not a crash later in code that trusted it. The standard library is the runtime's own and pays no check; a check walks the value it checks, and costs with its size.
+Where foreign code meets the program the type is checked, not trusted. The runtime checks each answer against the declared type as it arrives, so `: String` in its place would fault the caller at the first call, `the return of foreign function erlang:system_time/0 does not match String`. It checks the same way a reply foreign code gives, a message foreign code sends to an address exposed to it, and each argument foreign code calls an Ernest function with; what does not match is a fault at the crossing, naming the function and the type (report §8.4).
+
+So a mailbox type holds for messages from the host too, and a wrong value from a library is a fault at the crossing with a trace, not a crash later in code that trusted it. The standard library is the runtime's own and pays no check; a check walks the value it checks, and costs with its size.
 
 ### Code known by its hash
 
@@ -120,9 +122,11 @@ fn count(total : Int) : Unit receiving CounterMsg =
 send(counter, Upgrade(next = countTwice))
 ```
 
-`next` is of the counter's own type, so such a message changes the loop and not the messages. A process keeps its mailbox type for life, so a change of the messages is a new process, started beside the old or in its place; a new message type is a new version of the module, which the shell shows.
+`next` is of the counter's own type, `receiving CounterMsg`, so the type says that the loop a message may install reads this mailbox and no other, and such a message changes the loop and not the messages. A process keeps its mailbox type for life, so a change of the messages is a new process, started beside the old or in its place; a new message type is a new version of the module, which the shell shows.
 
-In the shell the versions are visible. `:reload` compiles again every module edited since it was loaded; a module so compiled is a new version beside the old, and a binding made under the old keeps it. Nothing is purged: every version a node has loaded stays for the node's life, so a node reloaded without end grows with its versions, and the deployment guide's §4.2 says when a node is restarted. Here the counter is the module `Counter`, and `CounterMsg` gained a `Reset` between the two spawns, both processes run, and a message of the new type to the old process is refused by the compiler, with the reason. `Counter.Inc(1)` is refused the same way, every constructor being the new type's: new code reaches a process of the old version through a binding made before the reload alone.
+In the shell the versions are visible. `:reload` compiles again every module edited since it was loaded; a module so compiled is a new version beside the old, and a binding made under the old keeps it. Nothing is purged: every version a node has loaded stays for the node's life, so a node reloaded without end grows with its versions, and the deployment guide's §4.2 says when a node is restarted.
+
+Here the counter is the module `Counter`, and `CounterMsg` gained a `Reset` between the two spawns, both processes run, and a message of the new type to the old process is refused by the compiler, with the reason. `Counter.Inc(1)` is refused the same way, every constructor being the new type's: new code reaches a process of the old version through a binding made before the reload alone.
 
 ```
 > let old = spawn(fn() = Counter.count(0))
@@ -185,7 +189,7 @@ A node is Ernest started from a configuration directory, with a program or with 
 
 A listed peer is trusted whole. One that may spawn on a node may run anything on it, so the list of peers is the whole of the trust.
 
-The connection is one, opened at the first operation towards the peer and kept. A peer that closes is found lost at once, and one that falls silent after 45 to 75 seconds; the next operation towards it dials again. A node that only dials, a laptop behind a router, lists no `listen` (report §8.7, Appendix C).
+The connection is one, opened at the first operation towards the peer and kept. A peer that closes is found lost at once, and one that falls silent after 45 to 75 seconds, as the host's distribution finds a silence; the next operation towards it dials again. A node that only dials, a laptop behind a router, lists no `listen` (report §8.7, Appendix C).
 
 A peer that goes out of reach is the monitor's `Down` with the reason `Unreachable` to whoever monitors a process on it, which says nothing of whether the process lives. A program is written for that case as for any other end.
 
@@ -243,7 +247,7 @@ $ ern run sorted.erc
 ["a", "b"]
 ```
 
-One `sorted` sorts integers and strings. Nothing declared `Int` or `String` sortable: each has its own `compare`, and the compiler supplies it. A type of the program's own gets one by `derives compare`, or by declaring the function under its name in its own module; one that has none is refused at the call:
+One `sorted` sorts integers and strings. Nothing declared `Int` or `String` sortable: each has its own `compare`, and the compiler supplies it. A type of the program's own gets one by `derives compare`, or by declaring the function under its name in its own module; one that has none is refused at the call, and a program that needs an order of its own passes a function, `List.sort(list, byLength)`:
 
 ```ernest-rejected
 type Color = Red | Green
@@ -322,7 +326,9 @@ Dead.main faulted: deadlock
 
 On Erlang a bare `receive` waits forever, and a `gen_server:call` gives up after five seconds with an exit that names the timeout and not the cause; a programmer learns of the deadlock from that, a dashboard or a user.
 
-Ernest can decide it because the runtime owns every source of a message. A mailbox is typed and reached through an address the program holds; a process is spawned by the runtime, which monitors it; a timer, a socket, a file and a running program are system processes that count what they hold; foreign code is entered through a declaration, and a process inside it is read as able to be delivered to. So "nothing can deliver and everyone waits" is a question with an answer, and the runtime asks it when a program has been quiet for a while, never on a node, which a peer can always reach. A deadlock is quiescence, not a cycle, and the look may be late but is never wrong: a process it cannot see into, in foreign code or on a socket, is read as able to deliver, so it reports no deadlock that is not one.
+Ernest can decide it because the runtime owns every source of a message. A mailbox is typed and reached through an address the program holds; a process is spawned by the runtime, which monitors it; a timer, a socket, a file and a running program are system processes that count what they hold; foreign code is entered through a declaration, and a process inside it is read as able to be delivered to. So "nothing can deliver and everyone waits" is a question with an answer, and the runtime asks it when a program has been quiet for a while, never on a node, which a peer can always reach.
+
+A deadlock is quiescence, not a cycle, and the look may be late but is never wrong: a process it cannot see into, in foreign code or on a socket, is read as able to deliver, so it reports no deadlock that is not one.
 
 What it costs a program is what the design note of the runtime states ([`docs/design/runtime.md`](../docs/design/runtime.md)): a mark a process leaves in its own state as it enters foreign code through a callback, a timed receive or a call, which costs it nanoseconds and no other process anything; and one reading of every process when the program seems idle, which a program at work never pays. A foreign call that answers at once costs what the host's call costs and a `try`. The log's *The Sitting on §8.6's Bookkeeping* measured each piece.
 

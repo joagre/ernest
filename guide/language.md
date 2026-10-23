@@ -157,7 +157,7 @@ A fault, an error, and a refused command are shown in red and a result's type di
 
 ### 1.3 Reading input
 
-A program's first input is its command line. `main`, the *entry point*, the function the program starts with, takes no arguments: the words after the module on `ern run`'s line are `Os.arguments`, a list of strings. The shell's command line is its own, and in the shell `Os.arguments` is the empty list.
+A program's first input is its command line. `main`, the *entry point*, the function the program starts with, takes no arguments: the words after the `.erc` file on `ern run`'s line are `Os.arguments`, a list of strings. The shell's command line is its own, and in the shell `Os.arguments` is the empty list.
 
 ```ernest
 export fn main() : Unit =
@@ -181,7 +181,7 @@ hello, Grace
 
 `Os.exit(status)` ends the program with that exit status. A program whose `main` returns exits with 0, and one whose entry process faults exits with 1. A variable of the environment is asked for by its name: `Os.environment("HOME")` answers `Some(dir)` where the home directory is set, and `None` where it is not, the two values of `Optional` (§2.3). The directory the program was started in is `Os.workingDirectory`, and a relative path names a file under it.
 
-A program the host has, the operating system under the Erlang runtime Ernest runs on, is run with `Os.run`, which gives it its input and answers its exit status and what it wrote once it has ended, or an `Io.Error` where it could not start. Its name is found as the host finds a command, and each argument reaches it as it is, with no shell between:
+A program the host has, the Erlang runtime Ernest runs on and the operating system under it, is run with `Os.run`, which gives it its input and answers its exit status and what it wrote once it has ended, or an `Io.Error` where it could not start. Its name is found as the host finds a command, and each argument reaches it as it is, with no shell between:
 
 ```ernest
 export fn main() : Unit =

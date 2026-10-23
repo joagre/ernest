@@ -18,7 +18,7 @@ What Ernest adds is where the parts meet, six claims that [Why Ernest](guide/why
 - **[Code known by its hash](guide/why.md#code-known-by-its-hash).** A module's versions run side by side, a running process moves to a new one when told, and a process spawned on another node brings its code along.
 - **[A distribution built for a WAN](guide/why.md#a-distribution-built-for-a-wan).** Two nodes are two files, each naming the other by key and address, with one TLS connection between them and no cluster to join.
 - **[Abstract types and requirements](guide/why.md#abstract-types-and-requirements).** A type keeps its representation to its module, and a generic function names the operations it needs, which the compiler supplies at each call.
-- **[A deadlock is found](guide/why.md#a-deadlock-is-found).** A program in which every process waits for a message none can send ends with a fault and a trace, since the runtime owns every source of a message, for nanoseconds while a program is at work.
+- **[A deadlock is found](guide/why.md#a-deadlock-is-found).** A program in which every process waits for a message none can send ends with a fault and a trace, since the runtime owns every source of a message; a program at work pays nanoseconds for the question.
 - **[Little else](guide/why.md#little-else).** Functions and processes are the whole language, and a report of three files defines all of it.
 
 Ernest is for programs written in it from the start, not for an OTP application or a codebase of several languages; [Why Ernest](guide/why.md) says how it meets Erlang.
@@ -29,40 +29,7 @@ Three ways in, each for a reader:
 - **[The guide](guide/language.md)**, *Programming in Ernest*, for the programmer learning the language, who has used a functional language: every rule taught where a program first needs it, with the report's section named. An afternoon to read; [`guide/README.md`](guide/README.md) says what stands beside it, for whom and how long.
 - **[The report](report/README.md)**, for whoever builds or checks a toolchain or writes a library against the exact rules: the definition, three files, which everything else defers to.
 
-A counter is a process that holds a number. Its mailbox type, `CounterMsg`, is in the type of `count`, so a `send` of anything else to its address is refused before the program runs. `counter` is bound at the top of the module under `restarting`, which runs its function again after a fault in the same process, so any module sends to it by name and a fault keeps the address:
-
-```ernest
-export type CounterMsg = Inc(Int) | Get(Reply(Int))
-
-export let counter : Address(CounterMsg) =
-    spawn(restarting(RestartLimit(restarts = 3, within = 5000), fn() = count(0)))
-
-export fn main() : Unit = {
-    send(counter, Inc(5));
-    send(counter, Inc(3));
-    match Address.call(counter, Get, 1000) {
-        Some(total) -> Io.println("count is " <> Int.toString(total))
-      | None -> Io.println("counter did not answer")
-    }
-}
-
-fn count(total : Int) : Unit receiving CounterMsg =
-    receive {
-        Inc(amount) ->
-            count(total + amount)
-      | Get(reply) -> {
-            answer(reply, total);
-            count(total)
-        }
-    }
-```
-
-```console
-$ ern run counter.erc
-count is 8
-```
-
-`main` receives nothing, so its type names no mailbox. `Address.call` gives `Get` a `Reply(Int)` of its own, which the counter answers with `answer`, and waits at most 1000 milliseconds: `None` is an answer that did not come. The same counter on a node that holds none of its code, and the rest of the argument, is [Why Ernest](guide/why.md).
+The counter that shows the first claim, with its output, and the rest of the argument are [Why Ernest](guide/why.md).
 
 ## Where it stands
 
@@ -91,12 +58,11 @@ Two nodes on one machine take four more commands: `ern config` makes each node's
 
 ## Reading more
 
-- **[The guide](guide/language.md)**, *Programming in Ernest*, teaches the language to a programmer who knows another. Start here. Beside it, [Why Ernest](guide/why.md) is the argument for the design, and [the questions](guide/faq.md) answer what a reader of another BEAM language asks first; [`guide/README.md`](guide/README.md) says what each guide is, for whom and how long.
+- **[Why Ernest](guide/why.md)** is the argument for the design, and **[the questions](guide/faq.md)** answer what a reader of another BEAM language asks first.
 - **[Style](guide/style.md)** is the rules a program is written by: its layout, its names, and the names every program shares.
 - **[The deployment guide](guide/deployment.md)**, *Running Ernest*, is for whoever runs nodes: a node's directory and its service manager, its peers, and a running program given new code.
 - **[`examples/`](examples/)** holds complete programs, from `hello.ern` to a game at a terminal, [`snake.ern`](examples/snake.ern), and a small web server, [`web_server.ern`](examples/web_server.ern); [`examples/README.md`](examples/README.md) lists them by topic, with what each shows.
 - **[The manual pages](docs/man/)**, as Markdown: the prelude's, every standard library module's and every library's, which `man Ernest.List` shows where Ernest is installed.
-- **[The report](report/README.md)** is where the details are: the language's definition, which everything else defers to, in three files under `report/`, the language, the toolchain and the standard library, and its README says how it is read.
 - **[`ernest-template`](https://github.com/joagre/ernest-template)** is where an application written in Ernest begins: a repository copied with *Use this template*, with one Makefile, the documents and the working rules of this repository cut to an application's size, and `TEMPLATE.md` saying why.
 - **[Working on Ernest](docs/development.md)** is for those who work on the language and its toolchain, and says how the repository is laid out: `report/` and `guide/` are the language, `src/` holds the Ernest a release ships and `erl/` the Erlang, `editors/` holds the editor modes, and `docs/` every other document.
 
