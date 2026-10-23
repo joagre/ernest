@@ -183,6 +183,8 @@ export fn watch(counter : Address(CounterMsg)) : Unit receiving WatchMsg = {
 }
 ```
 
+The counter of chapter 3 keeps the loop it was started with, so it is killed and a new one spawned on the new loop (the guide's §4.6), and given a bad amount:
+
 ```console
 > :reload
 Counter, compiled again
@@ -195,6 +197,13 @@ input 11:1 faulted: a negative amount
     Counter$3.count:8
 > Counter.apply(counter, "get")
 "no answer" : String
+```
+
+The precondition is written as the guide's §6.3 writes one: `fault` ends the process with its cause, and nothing catches it. The `inc -1` answers `"ok"`, since a send does not wait, and the fault is reported as the counter meets it, under the input that spawned the process and the place it faulted, `Counter$3.count:8`; the `$3` numbers the module's versions in this session, which chapter 5 comes to. The next `get` has no one to answer it.
+
+A counter that must come back is started under `restarting`, and a watcher monitors it:
+
+```console
 > let counter = spawn(restarting(RestartLimit(restarts = 1, within = 5000), fn() = Counter.count(0)))
 counter : Address(Counter.CounterMsg)
 > let watcher = spawn(fn() = Counter.watch(counter))
@@ -207,6 +216,11 @@ input 14:1 faulted, restarted: a negative amount
     Counter$3.count:8
 > Counter.apply(counter, "get")
 "0" : String
+```
+
+A process started under `restarting` runs its function again from the start after a fault, its mailbox emptied and its address kept, so `counter` is still good and the count is gone: `"0"` (§6.5). The limit allows one restart in five seconds, so the next fault is the end:
+
+```console
 > Counter.apply(counter, "inc -1")
 "ok" : String
 input 14:1 faulted: a negative amount
@@ -214,9 +228,7 @@ input 14:1 faulted: a negative amount
 the counter ended: Fault("a negative amount")
 ```
 
-The precondition is written as the guide's §6.3 writes one: `fault` ends the process with its cause, and nothing catches it. The counter of chapter 3 keeps the loop it was started with, so it is killed and a new one spawned on the new loop (the guide's §4.6). The `inc -1` answers `"ok"`, since a send does not wait, and the fault is reported as the counter meets it, under the input that spawned the process and the place it faulted, `Counter$3.count:8`; the `$3` numbers the module's versions in this session, which chapter 5 comes to. The next `get` has no one to answer it.
-
-A process started under `restarting` runs its function again from the start after a fault, its mailbox emptied and its address kept, so `counter` is still good and the count is gone: `"0"` (§6.5). `RestartLimit(restarts = 1, within = 5000)` allows one restart in five seconds, and the second fault ends the process. `watch` monitors it, so the end arrives as a message of the watcher's own type, `Ended(Down(...))`, with the fault as its reason (§5.2, §6.4). The fault's report and the watcher's line are written as each happens, and in no fixed order.
+`watch` monitors the counter, so its end arrives as a message of the watcher's own type, `Ended(Down(...))`, with the fault as its reason (§5.2, §6.4). The fault's report and the watcher's line are written as each happens, and in no fixed order.
 
 A program binds such an address at the top of a module and sends to it by name, and the restart is what keeps the binding good; that is Ernest's service, the guide's §6.5, which the tour's counters at the prompt do not need. The counter on `foo` has felt nothing of this.
 
@@ -282,6 +294,10 @@ let reports : Test.Case(TestMsg) = Test.Case(name = "reports", run = fn() = {
 })
 ```
 
+`Tally` is an *abstract type*: its constructor is its module's alone, so `counter.ern` holds a tally through `empty`, `inc`, `get` and `report` and never sees the map inside (the guide's §7.1, §7.2). `report` sorts by the key, and says what it needs of the key's type, `needs k.compare`; at the call in `count` you wrote nothing, and the compiler supplied `String`'s own `compare`. That is the fourth claim of *Why Ernest*. A generic function names the operations it needs of its type, and the compiler supplies that type's own at each call; the guide's §7.3 has the rules.
+
+`empty` is a function and not a value, since a module's values belong to the node that loaded it, and chapter 6 spawns this counter on a node that loaded nothing (the guide's §8.1).
+
 In your own terminal:
 
 ```console
@@ -292,7 +308,11 @@ reports: faulted: deadlock
     Counter.reports:70
 ```
 
-At the shell:
+A module worth keeping gets a test: `ern build .` compiles both modules, and `ern test` runs every `Test.Case` the program declares (the guide's §6.6). The second test is the tour's one planted mistake. It waits for a `Reported` that no process sends, and the runtime ends it with a fault where your test framework would wait for its timeout: that is the fifth claim of *Why Ernest*, a program in which every process waits for a message none can send is a deadlock, found.
+
+The fix, a `Report` call in place of the `receive`, is chapter 6's. The test's type, `Test.Case(TestMsg)`, is the mailbox in the type once more: its `run` receives, so its type says what.
+
+At the shell, the reload brings the new type in, and the counter on `foo` is still of the old one:
 
 ```console
 > :reload
@@ -306,6 +326,13 @@ input 21:1:15: the argument does not fit Counter.apply: expected Address(Counter
   |               ^^^
   | = help: the types differ at Counter.CounterMsg and Counter$3.CounterMsg; Counter$3.CounterMsg is of a previous version of Counter, which a reload replaced
 > kill(far)
+```
+
+`:reload` brings `Tally` in from the build and compiles `Counter` again, and this time a type changed. Each reload makes a *version* of the module, counted from the first load, `Counter$3` now the previous one; a process keeps its mailbox type for life, so the two counters spawned under the old type, chapter 4's ended one and the one on `foo`, are of `Counter$3.CounterMsg`, and the compiler refuses them the new protocol, with the reason (the guide's §9.3).
+
+The first claim and the second meet here: a process on another machine that has run since chapter 2 cannot be sent what it does not take, and nothing but a binding made before the reload reaches it. It is killed; chapter 6 gives the counter a door by which its code changes without a kill. A new counter counts per key:
+
+```console
 > let counter = spawn(fn() = Counter.count(Tally.empty()))
 counter : Address(Counter.CounterMsg)
 > Counter.apply(counter, "inc apples 2")
@@ -318,14 +345,87 @@ counter : Address(Counter.CounterMsg)
 "apples: 3, pears: 1" : String
 ```
 
-`Tally` is an *abstract type*: its constructor is its module's alone, so `counter.ern` holds a tally through `empty`, `inc`, `get` and `report` and never sees the map inside (the guide's §7.1, §7.2). `report` sorts by the key, and says what it needs of the key's type, `needs k.compare`; at the call in `count` you wrote nothing, and the compiler supplied `String`'s own `compare`. That is the fourth claim of *Why Ernest*. A generic function names the operations it needs of its type, and the compiler supplies that type's own at each call; the guide's §7.3 has the rules.
+## 6. The door
 
-`empty` is a function and not a value, since a module's values belong to the node that loaded it, and chapter 6 spawns this counter on a node that loaded nothing (the guide's §8.1).
+The counter is given the door by which new code will reach it, and its protocol is split in two: what a client sends, and what the counter itself takes. `start` makes a counter where it is called and answers a client's address; `watch`, `apply` and `shown` take `Address(ClientMsg)` and change in nothing else:
 
-A module worth keeping gets a test: `ern build .` compiles both modules, and `ern test` runs every `Test.Case` the program declares (the guide's §6.6). The second test is the tour's one planted mistake. It waits for a `Reported` that no process sends, and the runtime ends it with a fault where your test framework would wait for its timeout: that is the fifth claim of *Why Ernest*, a program in which every process waits for a message none can send is a deadlock, found.
+```ernest
+export type ClientMsg =
+    Inc(key : String, amount : Int)
+  | Get(key : String, reply : Reply(Int))
+  | Report(reply : Reply(List(#(String, Int))))
 
-The fix, a `Report` call in place of the `receive`, is chapter 6's. The test's type, `Test.Case(TestMsg)`, is the mailbox in the type once more: its `run` receives, so its type says what.
+type CounterMsg =
+    Client(ClientMsg)
+  | Upgrade(next : (Tally.Tally(String)) -> Unit receiving CounterMsg)
 
-`:reload` brings `Tally` in from the build and compiles `Counter` again, and this time a type changed. Each reload makes a *version* of the module, counted from the first load, `Counter$3` now the previous one; a process keeps its mailbox type for life, so the two counters spawned under the old type, chapter 4's ended one and the one on `foo`, are of `Counter$3.CounterMsg`, and the compiler refuses them the new protocol, with the reason (the guide's §9.3).
+type WatchMsg = Ended(Down)
 
-The first claim and the second meet here: a process on another machine that has run since chapter 2 cannot be sent what it does not take, and nothing but a binding made before the reload reaches it. It is killed; chapter 6 gives the counter a door by which its code changes without a kill. The new counter counts per key, and its report is the tally sorted.
+export fn start() : Address(ClientMsg) =
+    adapted(spawn(fn() = count(Tally.empty())), Client)
+
+export fn count(tally : Tally.Tally(String)) : Unit receiving CounterMsg =
+    receive {
+        Client(message) -> count(handle(tally, message))
+      | Upgrade(next = next) -> next(tally)
+    }
+
+fn handle(tally : Tally.Tally(String), message : ClientMsg) : Tally.Tally(String) =
+    match message {
+        Inc(key = key, amount = amount) -> {
+            if amount < 0 then fault("a negative amount") else Unit;
+            Tally.inc(tally, key, amount)
+        }
+      | Get(key = key, reply = reply) -> {
+            answer(reply, Tally.get(tally, key));
+            tally
+        }
+      | Report(reply = reply) -> {
+            answer(reply, Tally.report(tally));
+            tally
+        }
+    }
+```
+
+The tests spawn with `start()`, and the second asks for its report instead of waiting for one:
+
+```ernest
+let reports : Test.Case(m) = Test.Case(name = "reports", run = fn() = {
+    let counter = start();
+    let _ = apply(counter, "inc apples 2");
+    Test.equal(Address.call(counter, fn(reply) = Report(reply = reply), 1000),
+               Some([#("apples", 2)]))
+})
+```
+
+```console
+> :reload
+Counter, compiled again
+Counter.CounterMsg changed: the binding counter is of its previous version, Counter$4.CounterMsg
+> Peer.spawn("foo", fn() = Counter.count(Tally.empty()), 5000)
+input 29:1:19: Peer.spawn starts a process whose mailbox type Counter.CounterMsg is bound to its node, since it holds a function
+1 | Peer.spawn("foo", fn() = Counter.count(Tally.empty()), 5000)
+  |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  | = help: the spawn answers an address that may cross to another node, so its messages are values that cross (report §3.11)
+> kill(counter)
+> let counter = Counter.start()
+counter : Address(Counter.ClientMsg)
+> let far = match Peer.computeAt("foo", fn() = Counter.start(), 5000) { Right(address) -> address | Left(error) -> fault(Io.show(error)) }
+far : Address(Counter.ClientMsg)
+> Counter.apply(counter, "inc apples 2")
+"ok" : String
+> Counter.apply(far, "inc apples 3")
+"ok" : String
+> Counter.apply(far, "inc pears 1")
+"ok" : String
+> Counter.apply(far, "report")
+"apples: 3, pears: 1" : String
+```
+
+`Upgrade` carries the loop the counter is to run next, a function of the counter's own type, and the loop switches to it with a tail call, keeping the tally (the guide's §4.6). A function cannot cross to another node as a value, so a type that carries one is *bound* to its node, and `Peer.spawn` refuses the loop that receives it (§8.4). The spawn of chapter 2 carried `count` as code, by its hash, and this spawn would have to carry a function as a message's value, which nothing does.
+
+So the counter's messages are two types: `ClientMsg`, what a client sends, which crosses, and `CounterMsg`, which wraps each client message in `Client` and adds the door. `start` spawns the loop and answers an *adapted address*, an `Address(ClientMsg)` whose messages reach the counter as `Client(...)` (§5.5), and the client, `apply`, knows nothing of the door.
+
+The type changed again, so chapter 5's counter is killed and its tally lost, as a restart loses one; from here the counter's type does not change, and the tally is kept through everything that follows. `start` runs on `foo` by `Peer.computeAt`, which runs a function there and answers its value, the address: `Tally`, which `foo` never had, crossed with the compute, as `count` did with the spawn in chapter 2, the second claim once more. A program other than the one that started a service finds it by its name and the hash of its message type instead, which the deployment guide's §3.1 and the guide's §8.2 have.
+
+Both counters are spawned plain, with no `restarting` around them: a restart runs the function it was given, the old loop, which is what the next two chapters fix instead (report §6.9).
