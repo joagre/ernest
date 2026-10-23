@@ -99,7 +99,7 @@ Spawn*).
 
 The tour is the guide turned inside out: the guide's axis is the rule, and a program illustrates
 it; the tour's axis is the program, and a rule appears where the program needs it next. `why.md`'s
-five claims are the test the outline passes, each met somewhere along the program's growth and
+five claims with a program are the test the outline passes, each met somewhere along the program's growth and
 nothing in the tour there for another reason; they are not its chapters. Decided with the user on
 2026-10-20 (the log's *The Tour, Shorter*), which took out the rolling upgrade across three nodes,
 `Standing` and the balancer, and with them the library `Mailbox`, dropped on 2026-10-21 (the
