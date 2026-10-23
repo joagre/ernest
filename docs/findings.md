@@ -7,7 +7,7 @@ Found on 2026-10-23 while writing MVP 3.3's outline, [`proposals/tour/outline.md
 **The documents**
 
 - T1 `fix`, done 2026-10-23: `why.md`'s fragment under *Code known by its hash*, `Peer.spawn("foo", fn() = count(0), 5000)`, stands after the message type that carries `Upgrade`, at which the spawn is refused as bound to its node (report §3.11); it is a fragment, which nothing checks. The fix, decided 2026-10-23: the sentence before the fragment names the first claim's counter, whose messages carry no function.
-- T2 `planned`: the plan's MVP 3.3 sketch, items 2 and 7, has the counter spawned on the peer in chapter 2 moved to new code in chapter 7, and the refusal across versions and the `Upgrade` in one chapter. A process keeps its mailbox type for life, a type that carries `Upgrade` is bound, and the refusal is a type change where the move is a loop change, so neither can be built (the outline's section 1). The plan's sketch is rewritten from the outline when the outline is decided.
+- T2 `planned`, done 2026-10-23: the plan's MVP 3.3 sketch, items 2 and 7, has the counter spawned on the peer in chapter 2 moved to new code in chapter 7, and the refusal across versions and the `Upgrade` in one chapter. A process keeps its mailbox type for life, a type that carries `Upgrade` is bound, and the refusal is a type change where the move is a loop change, so neither can be built (the outline's section 1). The plan's sketch was rewritten from the outline the day it was decided.
 
 **The toolchain's messages**
 
@@ -16,7 +16,7 @@ Found on 2026-10-23 while writing MVP 3.3's outline, [`proposals/tour/outline.md
 
 ## The skeptics' read of `why.md` and `faq.md`
 
-Found on 2026-10-23 by the full review's readers L, the Erlang programmer, and M, the Gleam programmer, MVP 3.296's item 3, over `guide/why.md` and `guide/faq.md` alone; each ran `bin/ern` on the programs and on probes of its own. A line's place is the document's line on that day. `fix` lines are prose made at once and shown to the user first; `decide` lines are the list decided with the user; `drop` lines stand with their reason.
+Found on 2026-10-23 by the full review's readers L, the Erlang programmer, and M, the Gleam programmer, MVP 3.296's item 3, over `guide/why.md` and `guide/faq.md` alone; each ran `bin/ern` on the programs and on probes of its own. A line's place is the document's line on that day. Every `fix` line was made the same day, shown to the user first, and every `decide` line decided with the user (the log's *What the Skeptics Found*); the verdict stands at each line's end. The section goes with the file when MVP 3.296 closes.
 
 **The documents**
 
@@ -47,17 +47,17 @@ Found on 2026-10-23 by the full review's readers L, the Erlang programmer, and M
 - M11 `fix`: why.md 14 and 187, "the one operation": a requirement names the members it needs, several with commas; a type's members are declared in its own module; a requirement is written and never inferred (report §4.5, §4.9). The sentences say so.
 - M16 `fix`: why.md 239, "never wrong" asserted: it reports no deadlock that is not one, since a process it cannot see is read as able to deliver. One clause.
 - M22, L28 `fix`: faq.md 41 to 43, the one-mailbox answer gives the adapted address, which the reader has as a wrapping function; the gain is that the type is in the function, which the answer says.
-- M25 `fix`: why.md 89 to 101, the counter's type is `CounterMsg` in every program and `Msg` in the transcript; the transcript is run again with `CounterMsg`, with the tour's build.
-- L19, M9 `decide`: why.md 14 and 233, faq.md 91, "there is no type class, interface or trait" and "No.": both readers read a member declared under the type's name, one per type, supplied at the call, as a one-method class with implicit coherent instances and no hierarchy, and believe neither sentence. A design question of wording.
-- M12 `decide`: why.md 237, "No program shows this claim", the one claim neither language has; M's ten-line program ended in 0.6 s with the fault. Whether the claim gets its program.
-- L7 `decide`: why.md 29, `restarting(Unlimited, ...)` on a program that never faults reads as a crash loop made harmless; whether the first program writes a `RestartLimit`.
-- M19, M20 `decide`: faq.md 7 to 11, the Gleam answer lists what Ernest has beyond Gleam and nothing Gleam has that Ernest lacks, nor what the process being the language buys over a library; whether it says both.
-- M23 `decide`: faq.md 25 to 35, the Unison answer is the longest and its last three paragraphs are history; whether they move to the log.
-- L32 `decide`: faq.md has no question on tables, tracing, `observer`, back pressure or releases; whether one is added, answered as things stand.
-- L21, M13 `decide`: a fault's trace shows the runtime's own frames, `ern_rt:call_forever/3:639`, above the program's; whether the runtime's own frames are cut from a program's trace, a toolchain change.
-- L15, L16 `decide`: why.md 13 and 128, faq.md 77, the WAN claim says nothing of the transport under loss, of a node that only dials, or of reconnection; whether a sentence of the report's facts goes in (report §8.7, Appendix C).
-- M4 `decide`: why.md 64, the hash section opens on an upgrade message the reader's language has; whether the section is reordered.
-- M6 `decide`: why.md 106 and 117, the two `Peer` fragments have no console block; whether they point at the tour's chapter 2 once it exists.
+- M25 `fix`: why.md 89 to 101, the counter's type is `CounterMsg` in every program and `Msg` in the transcript; the transcript is run again with `CounterMsg`, with the tour's build; open until then.
+- L19, M9 `decide`: why.md 14 and 233, faq.md 91, "there is no type class, interface or trait" and "No.": both readers read a member declared under the type's name, one per type, supplied at the call, as a one-method class with implicit coherent instances and no hierarchy, and believe neither sentence. A design question of wording. Decided: the denial dropped, the facts kept, in both documents.
+- M12 `decide`: why.md 237, "No program shows this claim", the one claim neither language has; M's ten-line program ended in 0.6 s with the fault. Decided: it does, two processes each waiting on the other.
+- L7 `decide`: why.md 29, `restarting(Unlimited, ...)` on a program that never faults reads as a crash loop made harmless; Decided: `RestartLimit(restarts = 3, within = 5000)`.
+- M19, M20 `decide`: faq.md 7 to 11, the Gleam answer lists what Ernest has beyond Gleam and nothing Gleam has that Ernest lacks, nor what the process being the language buys over a library; Decided: it says both, a sentence each.
+- M23 `decide`: faq.md 25 to 35, the Unison answer is the longest and its last three paragraphs are history; Decided: moved, the log's *The Hash's Parents*.
+- L32 `decide`: faq.md has no question on tables, tracing, `observer`, back pressure or releases; Decided: added, the two absences named.
+- L21, M13 `decide`: a fault's trace shows the runtime's own frames, `ern_rt:call_forever/3:639`, above the program's; Decided: a defect against §7.3, MVP 3.296's item 5.
+- L15, L16 `decide`: why.md 13 and 128, faq.md 77, the WAN claim says nothing of the transport under loss, of a node that only dials, or of reconnection; Decided: one sentence, in.
+- M4 `decide`: why.md 64, the hash section opens on an upgrade message the reader's language has; Decided: the order kept, with the sentence that a change of the messages is a new process.
+- M6 `decide`: why.md 106 and 117, the two `Peer` fragments have no console block; Decided: they will, with the tour.
 - M1 `drop`: why.md 11 names what a `Subject` gives; the sentence also says the receive is checked and the function's type names the mailbox, and M3's refusal beside it shows the difference.
 - M8, L18 `drop`: why.md 155, the abstract type is Gleam's opaque type and Dialyzer's `-opaque` with teeth; it is one of the three things the claim names and stays shown, in six lines.
 - M24 `drop`: faq.md 93, the lambda question is not a Gleam programmer's; the FAQ answers every reader's.

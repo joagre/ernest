@@ -66,8 +66,8 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 3.28 | what stands before the tour: a clause's body all or none, which §11.6 states and `ern format` writes; `--libs-dir dir`; `--verbose`; and seven items the feedback left: four messages that name the form, the rules of an Ernest program installed, the libraries on the default load path, `ok` as `Unit`, `Test.faults`, the foreign call measured, and doc examples run by `ern test`; with what the builds found: a type and the module of its name share a namespace, a module under a taken namespace refused, `List.mapFold`, a mailbox type ending in `Msg`, the prelude's `Unit` as a descriptor word, a `make` with nothing to do measured, and each doc example a program of its own in a directory of its own | 2026-10-22 | | *The Later List Sorted*; *Clause Bodies All or None*; *A Libs Flag Instead of the Environment*; *A Build Says What It Decided*; *A Make With Nothing to Do*; *What the Feedback Left*; *The Window's Three Asks*; *Nothing Waits for a Program*; *The Foreign Call Measured* |
 | MVP 3.29 | the bookkeeping behind §8.6 on one rule, the look reads what a process marks and no operation writes a shared row: the foreign call's count gone for a read of the waiting process, the timed receive's and the call's marks in the process's own dictionary, every slow wait of the runtime's own marked and held by a test, the callees' row kept on a write-concurrent table and measured against two other kinds, a kill one function and a frame from another node; a ground `let` compiled to its term; the foreign cause naming the function; one checker of the library's examples; a launch a row of its own table, halved; the runtime's fixed waits and the tests' sleeps, polls and limits gone for waits on what each means; `make bench` with a memory of its last run and of the release's, by ratio; the language measured against the host's own Erlang, construct by construct and in three programs written twice; the runtime's design note; and a deadlock found among *Why Ernest*'s claims | 2026-10-22 | | *The Sitting on §8.6's Bookkeeping*; *`make bench` Read Against the Cost Rules*; *The Language Against the Host*; *The Foreign Call Measured*; *Deadlock Is Quiescence* |
 | MVP 3.295 | what the language measurement found: a `Float` operation the host's own with no `try`, the runtime reading a `badarith`'s frame, a chain of five from 1.65 to 1.23 times the host's and the ray tracer from 1.95 to 1.70; `Map.get`'s number closed as the type's; and the bench's parts as targets, its memory kept a table at a time | 2026-10-22 | | *The Sitting on §8.6's Bookkeeping*, its paragraphs *The Float chain* and *Built*; *The Language Against the Host* |
-| MVP 3.296 | what the tour's outline asked: a restart runs the function it was given, stated in §6.9 and the deployment guide, with the guide's sentence that a binding is its node's own; `ern config --listen` and `--peer-dir dir`, two nodes on one machine without a key pasted by hand; and the Erlang and the Gleam programmer reading `why.md` and `faq.md` | | | below |
-| MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program, the counter, grown from a process with a typed mailbox, through the same counter on a peer that holds none of its code, to its move to new code there, where the deployment guide takes over | outline to be written with the user | | below |
+| MVP 3.296 | what the tour's outline asked: a restart runs the function it was given, stated in §6.9 and the deployment guide, with the guide's sentence that a binding is its node's own; `ern config --listen` and `--peer-dir dir`, two nodes on one machine without a key pasted by hand; the Erlang and the Gleam programmer reading `why.md` and `faq.md`; two messages the tour's spike found wanting; and the runtime's own frame out of a trace | | | below |
+| MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program, the counter, grown from a process with a typed mailbox, through the same counter on a peer that holds none of its code, to its move to new code there, where the deployment guide takes over | the outline decided 2026-10-23, [`outline.md`](proposals/tour/outline.md); the programs next | | below |
 | MVP 3.9 | the review, and Ernest 0.5.0: the full review, the numbering decided once, a release with no promise of stability | the end of the planned road, 2026-10-13; the split of `make test` done 2026-10-13, taken early | | below |
 | MVP 4.0 | a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches | made 2026-10-13 from MVP 4.3's item 4; the first milestone after 0.5.0 | | below |
 | MVP 4.1 | ehttpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | `libs/markdown` done 2026-09-25 | | below |
@@ -77,7 +77,7 @@ finished milestone is a row of the table below, its reasons in the log entries t
 
 ---
 
-## MVP 3.296 (what the tour's outline asked), three items of a day
+## MVP 3.296 (what the tour's outline asked), five items of a day
 
 The tour's outline, under discussion in `docs/proposals/tour/`, left six entries in
 `docs/language_feedback.md`, 140 to 145, decided with the user on 2026-10-23 (the log's *What the
@@ -110,12 +110,27 @@ outline's skeptics' read showed was missing (the log's *The Skeptics' Read*).
    peer on another machine alone. The `services` line stays a hand edit.
 
 3. **The skeptics read `why.md` and `faq.md`**, decided with the user on 2026-10-23 (the log's *The
-   Skeptics' Read*): the full review's two new readers, L the Erlang programmer and M the Gleam
+   Skeptics' Read*), done the same day (the log's *What the Skeptics Found*): the full review's two new readers, L the Erlang programmer and M the Gleam
    programmer, each on Fable 5.1 and given no conclusion of ours, read the two documents that
    argue and do not change with the tour, before the tour quotes `why.md`'s words. Their findings
    go to `docs/findings.md`, sorted as a review's, the `fix` lines made, the rest decided as one
    list; nothing is hedged because a reader doubted it, and an objection the FAQ can answer goes
    there. The whole path, `README.md` first, is read once the tour exists, MVP 3.3's last item.
+
+4. **Two messages the tour's spike found wanting** (`docs/findings.md`'s S1 and S2), decided with
+   the user on 2026-10-23: `a.compare(b)` on a value of a type variable under `needs k.compare`
+   is refused with a help that says to annotate, where the fix is `k.compare(a, b)` (§4.9), so
+   the help names that form where a requirement on the variable is in force; and a constructor
+   of a private type named at the prompt is refused as unknown, where the message says the type
+   is not exported (§4.2). §11.5 first where it states the help, then the checker and its tests,
+   then `make diagnostics`.
+
+5. **The runtime's own frame in a trace**, a defect found by the skeptics' read on 2026-10-23
+   (`docs/findings.md`'s L21 and M13; the log's *What the Skeptics Found*): a fault under
+   `Address.callForever` shows `ern_rt:call_forever/3:639` above the program's frame, where §7.3
+   and E.21 leave the runtime's frames out and keep the host's frames of foreign code the program
+   called. Fixed where the trace is written, `ern_rt:trace/1`, with a test of a fault under
+   `callForever`; no report change unless the read-back finds the sentence short.
 
 ## MVP 3.3 (the tour)
 
@@ -140,64 +155,69 @@ Spawn*).
 
 The tour is the guide turned inside out: the guide's axis is the rule, and a program illustrates
 it; the tour's axis is the program, and a rule appears where the program needs it next. `why.md`'s
-five claims with a program are the test the outline passes, each met somewhere along the program's growth and
-nothing in the tour there for another reason; they are not its chapters. Decided with the user on
-2026-10-20 (the log's *The Tour, Shorter*), which took out the rolling upgrade across three nodes,
-`Standing` and the balancer, and with them the library `Mailbox`, dropped on 2026-10-21 (the
-log's *The Later List Sorted*).
+claims are the test the outline passes, each met somewhere along the program's growth, and one
+chapter alone is in the tour for a claim and says so; they are not its chapters. Decided with the
+user on 2026-10-20 (the log's *The Tour, Shorter*), which took out the rolling upgrade across
+three nodes, `Standing` and the balancer, and with them the library `Mailbox`, dropped on
+2026-10-21 (the log's *The Later List Sorted*).
 
-It comes after MVP 3.2, whose code with a spawn, bare node and `Code.running` its last chapters
-need, and before MVP 3.9, whose newcomer reads it: one program across the language's most
-important features is its hardest test, so what it finds is found before 0.5.0 (the log's *The
-Road to 1.0, Ordered*).
+It comes after MVP 3.296, whose two options of `ern config` its chapter 2 types and whose
+sentences its chapters point at, and before MVP 3.9, whose readers read it: one program across the
+language's most important features is its hardest test, so what it finds is found before 0.5.0
+(the log's *The Road to 1.0, Ordered*).
 
-- **The outline first, written with the user**, as a design is: the chapters, the program's growth
-  from one to the next, and what each shows, explicitly or by the way; among its decisions the
-  bare node's name, which `why.md`, the tour and the deployment guide's §8 share.
+- **The outline, decided with the user on 2026-10-23**, is
+  [`proposals/tour/outline.md`](proposals/tour/outline.md), the design's record until the tour is
+  built: three rules of the report that fix what the last chapters can do, since a process keeps
+  its mailbox type for life, a type that carries `Upgrade` is bound to its node, and
+  `Code.running` lists the processes on a hash; eight chapters, each a screen of code and half a
+  screen of prose, with each one's change to the program, its session as the toolchain printed
+  it, and what it shows; and the decisions, each with its reason. The outline was read by a
+  skeptical Erlang programmer, a Gleam programmer and a reviewer, and every session line was run
+  against the toolchain before it was decided (its section 8).
 
-  The sketch to start from, read against the five claims on 2026-10-20 (the log's *The Tour,
-  Shorter*, its paragraphs *The outline, read against the claims* and *The peer in the second
-  chapter*): seven chapters of a screen of code and half a screen of prose each, a tenth of the
-  guide's length. Each chapter is the program's change, so a feature appears where the program
-  first needs it, and the first two claims come in `why.md`'s order:
-
-  1. The counter, spawned plain; a send, a call with a timeout, and a `String` sent and refused.
-  2. The same counter on a peer: a bare node started in a second terminal, the shell made a node,
-     `Peer.spawn` carrying the code to a node that holds none of it, a call answered, and the
-     `String` refused the same. This counter counts from here to the last chapter.
-  3. A client, a function that parses a line and sends: the one place the plain language appears,
-     by the way.
-  4. A fault, `restarting`, and a monitor's `Down`, on the shell's counter.
-  5. The counter as a module that counts per key: its tally an abstract type, its report sorted by
-     a requirement, and its one test, `ern test`, the one item outside the five claims, admitted
-     because a module worth keeping gets a test.
-  6. A fix in the shell, the tour's peak: two versions side by side, a message of the new type to
-     the old process refused by the compiler, then `Upgrade`, the tally kept.
-  7. The peer's counter, counting since chapter 2, moved to new code by the smallest tool, a spawn
-     on the peer that runs `Code.running` there, its tally kept; then the handover to
-     `guide/deployment.md`'s §8, which runs the same move across three nodes with
-     `examples/upgrade/`, the tour's counter staying its own.
-- **The tally is the spine.** Counting is dull, so what carries the reader is the count: from the
-  module's chapter on, each chapter ends with the tally still there, through the fix and through
-  the move, and the peer's counter has counted since chapter 2 when chapter 7 moves it.
+  The eight chapters: the counter, a process with a typed mailbox and a `String` refused; two
+  bare nodes, `foo` and `bar`, made by `ern config --peer-dir` and the counter spawned on `foo`;
+  the client, the plain language by the way and a quiet `:reload`; a fault, a restart that keeps
+  the address and loses the count, and a monitor's `Down`; per key, the tally an abstract type
+  with a requirement, two tests of which one deadlocks on purpose, and the compiler refusing the
+  new protocol to the peer's old counter; the door, the protocol split and `Upgrade` added, the
+  tally lost once more and the counter started on `foo` by a compute; work anywhere, a host
+  question through a `foreign fn` and `Peer.compute` placing invented work on whichever node has
+  room; and the fix, a second loop beside the first, every counter moved to it by `Code.running`
+  on this node and on `foo`, the tally kept, `foo` stopped, and the handover to the deployment
+  guide's §8.
+- **The tally is lost twice and kept once.** Counting is dull, so what carries the reader is the
+  count: lost at chapter 4's restart and chapter 6's type change, and kept across chapter 8's
+  move, which is the point the two losses set up.
 - **Code first.** No paragraph stands before the code it is about: a chapter is the program's
   change, what was run, what it printed, then the prose, a sentence for each line that needs one.
+  The blocks are `ern format`'s layout, and the message type is exported from chapter 1, so that
+  the prompt can name its constructors.
 - **It says do, and points for why**, teaching no rule a third time: what a rule is and why is the
   report's and the guides', and the tour names the section, `the guide's §4.4`. Where the program
   meets the operator's world, `ern config`, a peer's key, it names the deployment guide's section
-  and goes on.
+  and goes on. A planted mistake is used once, chapter 5's deadlocking test, and the tour says it
+  is one.
 - **It names a claim where the program meets one.** One line of the tour's own, where the program
-  has just done what the reader's language cannot, names `why.md`'s claim and states no rule, so
-  that the moment is marked and the tour is not a lab manual with cross-references.
-- **The shell is its medium throughout**, `:load` and inputs, so that the reload and
-  `Counter$1.Msg` land in the medium the reader has been in, and so that the website's shell (MVP
-  4.2) can run a page as it stands. A shell started with `--config-dir` is a node (§11.2), so the
-  one `ern run` the reader types starts the bare node in a second terminal.
-- **Every program in it runs in the tests**, nodes among them, as the guide's examples do.
-- **The work in its order, each piece on its model.** The outline with the user, on Fable 5.1.
-  Then the programs and their tests, by an Opus 5.5 xhigh agent from the outline, before any
-  prose, since code first demands real output. Then the prose, chapter by chapter on Fable 5.1,
-  the user reading each. Then the read below.
+  has just done what the reader's language cannot, names `why.md`'s claim and states no rule, and
+  names no other language's tools, so that the moment is marked and the tour is not a lab manual
+  with cross-references nor an argument; the FAQ argues.
+- **The shell is its medium throughout**, `:load`, `:reload` and inputs, so that the reload and
+  the previous version's type land in the medium the reader has been in, and so that the website's
+  shell (MVP 4.2) can run a page as it stands. A shell started with `--config-dir` is a node
+  (§11.2); the two bare nodes run in terminals of their own, and `ern build` and `ern test` in the
+  reader's, four in all.
+- **Every program in it runs in the tests**, nodes among them, as the guide's examples do:
+  `tour/1/` to `tour/8/` hold the program as it stands at each chapter's end, each block of the
+  document held equal to its chapter's file, the sessions run as the guide's are with the bare
+  nodes started by the nodes' harness, and chapter 5's `ern test` expected to report the deadlock.
+  The whole tour runs in about eleven seconds of the toolchain's time.
+- **The work in its order, each piece on its model.** The programs and their tests first, by an
+  Opus 5.5 xhigh agent from the outline, before any prose, since code first demands real output;
+  with them `why.md`'s shell transcript run again with `CounterMsg`, and its two `Peer` fragments
+  given the line that points at chapter 2 (`docs/findings.md`'s M25 and M6). Then the prose,
+  chapter by chapter on Fable 5.1, the user reading each. Then the reads below.
 - **A fresh reader reads it last**: an agent given the tour alone, reading as a programmer who
   has used a functional language and never seen Ernest, reporting where it was lost or bored. Its
   findings are sorted as a review's (`docs/release_review.md`'s *The findings*). A read of this
@@ -205,13 +225,17 @@ Road to 1.0, Ordered*).
   programmer and M the Gleam programmer, walk the whole path, `README.md`, `why.md`, the tour, the
   FAQ and the guide's chapter 1, decided with the user on 2026-10-23 (the log's *The Skeptics'
   Read*), since the README and the guide's first chapter change with the tour.
+- **The README's door promises two numbers**, an hour to read and about three to do along on a
+  machine with four terminals, which the build measures, decided with the user on 2026-10-23 (the
+  outline's section 8).
 - **The guide's chapter 1 ends with a taste**, once the tour's chapter 2 reads well: the same
   lines, the counter on a bare node, pointing at the guide's §8.1. The guide's order stays by rule;
   the reader who wants the picture first is sent to the tour by the README's doors.
 - **What writing it finds goes to `language_feedback.md`** before any code goes around it, since
-  one program grown across the five claims is the language's hardest test before 0.5.0. Among what
-  it decides is a call to many processes at once, feedback 5, which the log's *Kill Darlings* left
-  to the program the idiom cannot write well.
+  one program grown across the claims is the language's hardest test before 0.5.0. The outline
+  left six entries, decided as MVP 3.296, and the spike two more, 146 and 147, which stand. Among
+  what the build decides is a call to many processes at once, feedback 5, which the log's *Kill
+  Darlings* left to the program the idiom cannot write well.
 
 ## MVP 3.9 (the review, and Ernest 0.5.0)
 
