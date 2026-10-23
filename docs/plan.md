@@ -198,16 +198,11 @@ mind, so nothing is frozen and no promise of stability is made; from 0.5.0 on, a
 language, the standard library or the libraries is driven by a need met in use, the author's or
 another's, and recorded as `docs/language_feedback.md` records one, and 1.0 is the release that
 follows enough use to know what holds still. What the review needs was argued in MVP 2.99c and the
-log's *The First Release Is for Others*:
-
-- **The first day of the new machine** (a 12-core AMD with 64 GB, expected about 2026-11-12; moved
-  here from MVP 3.295 on 2026-10-22, since the machine comes after that milestone's close):
-  its line in `test/machines/machines.txt` beside bee and xena; one `make bench` before any code
-  changes, kept as the release's reference with `make bench-release`, since every number in the
-  log is the old laptop's and the first run there is a reference and not a move; and the bench's
-  rows of eight processes at once gain a row at the host's scheduler count, so that scaling shows
-  as a line and not a point, which `test/ern_foreign_costs.erl` and `test/ern_call_costs.erl` take
-  from `erlang:system_info(schedulers)`.
+log's *The First Release Is for Others*. Two of its items were taken early and are done: `make test` split
+into the light run and the full run, and the documents made lighter, both on 2026-10-13 (the log's *The
+Light Run and the Full Run*, *Lighter Documents*). Weighed again with the user on 2026-10-23 (the log's
+*MVP 3.9 Weighed*): the numbering is kept for good, the new machine's first day stands apart so that
+no release waits for hardware, and the design note is bounded before it is written.
 
 - **The nodes' design note.** The proposals under `docs/proposals/nodes_and_code/`, the carrier, the
   gateway, the exchange, the code table and the processes kept for addresses as built, rewritten as
@@ -228,27 +223,11 @@ log's *The First Release Is for Others*:
   A proposal that redesigned a rule of the language and built no component, kill darlings, the
   balancer's suggestion and the placement push, becomes no note, its outcome being the report's
   (decided with the user on 2026-10-17).
-- **`make test` split in two**, done 2026-10-13, taken early (the log's *The Light Run and the Full
-  Run*). `make test` is the light run, the applications' unit tests and the document and style
-  tests, 85 s, for every commit; `make test-full` is every area, about ten minutes, for the commit
-  that closes a plan item and for a release; a commit of documents alone runs `make test-docs`.
-
-  `test-programs` runs as five targets, `test-integration`, `test-nodes`, `test-deployment`,
-  `test-manual` and `test-install`, the last after `test-manual`, since both write the manual pages;
-  `docs/development.md`'s *Building* has the table of which targets a change runs.
-
-  No test went or was made shallower. CLAUDE.md's *Tests* states which run guards which commit.
-- **Lighter documents**, done 2026-10-13 (the log's *Lighter Documents*). The plan's finished
-  milestones are rows of its table of milestones, each with its date, its release and the log
-  entries that argue it, and the paragraphs went, a third of the plan; CLAUDE.md and
-  `docs/style.md` lost their history, no rule dropped.
 - **The full review**, when the user says so: every reader over the whole of its area
   ([`full_review.md`](full_review.md)), the principles reader among them, so that no principles
-  review runs beside it (decided 2026-10-13), and its findings worked.
-- **The numbering decided once.** Whether the report's section numbers have drifted enough since
-  0.1.0 to renumber, with the mapping table written first and one commit that rewrites every
-  citation, in the report, the guide, the log, the code, the tests and the diagnostics; or the
-  numbers kept for good (the log's *The Language Argued Before Peers*).
+  review runs beside it (decided 2026-10-13), and its findings worked as a row of their own in the
+  table of milestones, as 0.3.0's were, so that the review's run and the days of working its
+  findings are told apart.
 - **The proposals built by then go**, decided 2026-10-16 (the log's *The Design Notes Leave the
   Proposals*). A proposal's directory goes when the milestone built from it closes, after one pass
   takes to the log what it still argues that the log lacks.
@@ -270,6 +249,21 @@ log's *The First Release Is for Others*:
   a promise, since none is made.
 
 ---
+
+## The new machine's first day, when it arrives
+
+Moved out of MVP 3.9 on 2026-10-23 (the log's *MVP 3.9 Weighed*), so that no release waits for
+hardware: 0.5.0's bench runs on the machine the log's last rows came from, and the new machine's
+first run is a reference and not a comparison. Done when the machine is there, before or after 0.5.0.
+
+- **The first day of the new machine** (a 12-core AMD with 64 GB, expected in November 2026):
+  its line in `test/machines/machines.txt` beside bee and xena; one `make bench` before any code
+  changes, kept as the release's reference with `make bench-release`, since every number in the
+  log is the old laptop's and the first run there is a reference and not a move; and the bench's
+  rows of eight processes at once gain a row at the host's scheduler count, so that scaling shows
+  as a line and not a point, which `test/ern_foreign_costs.erl` and `test/ern_call_costs.erl` take
+  from `erlang:system_info(schedulers)`.
+
 
 ## MVP 4.0 (a shell attached to a running node), about a week
 
