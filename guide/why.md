@@ -2,7 +2,7 @@
 
 The argument for the design, in six claims, the first five with a program. [*Programming in Ernest*](language.md), the guide, teaches the language; this document says why it is as it is.
 
-Ernest is a small functional language for concurrent programs, on the Erlang runtime. A program is functions, whose types the compiler infers, and processes that talk through typed mailboxes.
+Ernest is a small functional language for concurrent programs, on the Erlang runtime. A program is functions, whose types the compiler infers, and processes that talk through typed mailboxes. `ern` is its one command, which builds, runs and tests a program and opens its shell.
 
 Its parts come from elsewhere: Erlang's processes, the types of ML, which Gleam made ordinary on that runtime, and Unison's small core and its code known by the hash of its definition.
 
@@ -12,7 +12,7 @@ What Ernest adds is where the parts meet:
 - **Code known by its hash.** A function or a type is known by a hash of its definition, not by the name of the module it stands in. So a module reloaded is a new version beside its earlier ones, a running process moves to the new version of its function when a message tells it to, and a process started on another node brings its code along: any node can run anything, a computation that names no node goes to one with room, and no program is deployed first.
 - **A distribution built for a WAN.** A node lists its peers in a file, each by name, public key and address, accepts a connection only from a key it lists, and opens one TLS connection to a peer when it first needs it. There is no cluster to join and no shared secret: a laptop and a server, or two data centers, are two nodes with one file each naming the other.
 - **Abstract types and requirements.** A type declared abstract keeps its constructor to its own module, so the representation can change and no caller knows. A generic function names the operations it needs of its type, and the compiler supplies that type's own at each call. Nothing is declared an instance of anything: a type's members are declared in its own module, a requirement is written and never inferred, and there is no hierarchy and no dispatch as the program runs.
-- **A deadlock is found.** A program in which every process waits for a message none can send ends with a fault and a trace, where the host would wait forever. The runtime owns every source of a message, a typed mailbox, a process it spawned, a system process that counts what it holds, so it can decide that nothing can deliver, under `ern run`, `ern test` and the shell; a node is left to its peers, which can reach it. A program at work pays nanoseconds for the question, and the look itself only when it is idle.
+- **A deadlock is found.** A program in which every process waits for a message none can send ends with a fault and a trace, where the host would wait forever. The runtime owns every source of a message, a typed mailbox, a process it spawned, a timer or a socket, which it counts, so it can decide that nothing can deliver, under `ern run`, `ern test` and the shell; a node is left to its peers, which can reach it. A program at work pays nanoseconds for the question, and the reading of every process only when it is idle.
 - **Little else.** Functions and processes are the whole language, with one way to do each thing. A report of three files defines all of it. Five principles decide what goes in, and the first is that nothing surprises a reader who knows the rest.
 
 Ernest is for programs written in it from the start. An Ernest program is not an OTP application, and its own code is Ernest: what ships with Erlang/OTP, and any library of the host's, a package from hex among them, is reached through declarations that give it Ernest types, which a program may write for itself. What an OTP programmer finds in place of each part, the supervisor, the release and `sys` among them, is the guide's §10 and [the questions](faq.md).
@@ -56,7 +56,7 @@ count is 8
 
 `main` receives nothing, so its type names no mailbox. The counter is spawned on this node as the program starts, before `main` runs, every top-level binding of every module evaluated in dependency order (report §8.5). `Address.call` gives `Get` a `Reply(Int)` of its own, which the counter answers with `answer`, and waits for the answer at most 1000 milliseconds: `None` is an answer that did not come.
 
-A fault, a division by zero or a `fault` call, ends the process, and nothing catches it. Whoever monitors the process hears of its end as a message of their own type. A process started under `restarting` runs its function again from its start after a fault, its mailbox emptied and its address kept, so the name `counter` stays good and a request that waited in the mailbox is lost; the guide's §6.5 shows a restart.
+A fault, a division by zero or a `fault` call, ends the process, and nothing catches it. Whoever monitors the process hears of its end as a `Down` with the reason, wrapped as a message of their own type. A process started under `restarting` runs its function again from its start after a fault, its mailbox emptied and its address kept, so the name `counter` stays good and a request that waited in the mailbox is lost; the guide's §6.5 shows a restart.
 
 A function that receives runs only in a process of its mailbox's type, which `spawn` takes from the function: `spawn(fn() = count(0))` is an `Address(CounterMsg)` and nothing else. Spawned for an address of another type, it is refused:
 
@@ -122,7 +122,7 @@ send(counter, Upgrade(next = countTwice))
 
 `next` is of the counter's own type, so such a message changes the loop and not the messages. A process keeps its mailbox type for life, so a change of the messages is a new process, started beside the old or in its place; a new message type is a new version of the module, which the shell shows.
 
-In the shell the versions are visible. A module compiled again after an edit is a new version beside the old, and a binding made under the old keeps it. Nothing is purged: every version a node has loaded stays for the node's life, so a node reloaded without end grows with its versions, and the deployment guide's §4.2 says when a node is restarted. Here the counter is a module `Counter` whose message type is `Msg`; `Msg` gained a `Reset` between the two spawns, both processes run, and a message of the new type to the old process is refused by the compiler, with the reason. `Counter.Inc(1)` is refused the same way, every constructor being the new type's: new code reaches a process of the old version through a binding made before the reload alone.
+In the shell the versions are visible. `:reload` compiles again every module edited since it was loaded; a module so compiled is a new version beside the old, and a binding made under the old keeps it. Nothing is purged: every version a node has loaded stays for the node's life, so a node reloaded without end grows with its versions, and the deployment guide's §4.2 says when a node is restarted. Here the counter is a module `Counter` whose message type is `Msg`; `Msg` gained a `Reset` between the two spawns, both processes run, and a message of the new type to the old process is refused by the compiler, with the reason. `Counter.Inc(1)` is refused the same way, every constructor being the new type's: new code reaches a process of the old version through a binding made before the reload alone.
 
 ```
 > let old = spawn(fn() = Counter.count(0))
@@ -178,13 +178,13 @@ A node is Ernest started from a configuration directory, with a program or with 
 }
 ```
 
-`ern config` makes the directory, the node's private key and its certificate, and prints the public key, which is what another node lists. `services`, empty here, names for each service a program looks up by name the peers that may offer it. A service a node offers under a name is found from a peer by that name and the hash of its message type, so two programs built apart agree on what passes between them, or the find answers `OtherType`.
+`ern config` makes the directory, the node's private key and its certificate, and prints the public key, which is what another node lists. A service is a process a node offers its peers under a name, whose address they find by that name. `services`, empty here, names for each service a program looks up the peers that may offer it. A service a node offers under a name is found from a peer by that name and the hash of its message type, so two programs built apart agree on what passes between them, or the find answers `OtherType`.
 
 A listed peer is trusted whole. One that may spawn on a node may run anything on it, so the list of peers is the whole of the trust.
 
 The connection is one, opened at the first operation towards the peer and kept. A peer that closes is found lost at once, and one that falls silent after 45 to 75 seconds; the next operation towards it dials again. A node that only dials, a laptop behind a router, lists no `listen` (report §8.7, Appendix C).
 
-A peer that goes out of reach is a `Down` with the reason `Unreachable` to whoever monitors a process on it, which says nothing of whether the process lives. A program is written for that case as for any other end.
+A peer that goes out of reach is the monitor's `Down` with the reason `Unreachable` to whoever monitors a process on it, which says nothing of whether the process lives. A program is written for that case as for any other end.
 
 ### Abstract types and requirements
 
@@ -260,7 +260,7 @@ color.ern:7:24: sorted needs Color.compare, and Color has no compare
   |                        ^^^^^^
 ```
 
-An *operations record* is a record of functions, filled from a module by naming it. `Operations(..Set)` takes `fromList` and `toList` from the module `Set`, and `Operations(..OrderedSet)` the same two from `OrderedSet`. `Set` is the prelude's type, in scope everywhere and with no order of its own; `OrderedSet` is a module of the standard library, so its type is written whole, `OrderedSet.Set`:
+An *operations record* is a record of functions, filled from a module by naming it. `Operations(..Set)` takes `fromList` and `toList` from the module `Set`, and `Operations(..OrderedSet)` the same two from `OrderedSet`. `Set` is the prelude's type, what every module sees without naming a module, and has no order of its own; `OrderedSet` is a module of the standard library, so its type is written whole, `OrderedSet.Set`:
 
 ```ernest
 type Operations(s, a) = Operations(fromList : (List(a)) -> s, toList : (s) -> List(a))
