@@ -450,9 +450,9 @@ fn alphabetical(names : List(Name)) : List(Name) =
               fn(left, right) =
                   // two names alike, a module and its directory, by the line shown
                   if left.text == right.text then
-                      String.compare(left.shown, right.shown)
+                      compare(left.shown, right.shown)
                   else
-                      String.compare(left.text, right.text))
+                      compare(left.text, right.text))
 
 // Report §11.2: a name is reached a segment at a time, so what is typed
 // reaches the names of as many segments as it has; a namespace's members

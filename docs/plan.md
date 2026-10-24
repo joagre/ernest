@@ -72,7 +72,7 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | The full review's findings before 0.5.0 | the 218 lines of the review run over `1329d1d2`: 159 `fix` made in ten batches by area and an integration pass, 52 `decide` taken one at a time, 9 dropped; the service monitor and `demonitor` added to the language, `Reply.process` and `compare` over tuples, lists, `Optional` and `Either` to the library, each with its page and its test | 2026-10-24 | | *The Review's Fixes, First Round*, *The Runtime's Note States No Why*, *The Review's Decisions*; `findings.md` as it stood at `08997105` |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program, the counter, grown through eight chapters from a process with a typed mailbox, through the same counter on a peer that holds none of its code, to its move to new code there, where the deployment guide takes over; with it a README for `report/` and for `guide/`, the README's three ways in, the guide's taste of the rest, and the path read by a fresh reader and the two skeptics | 2026-10-24 | | *The Tour*, *The Tour, Shorter*, *What the Outline Asked*, *The Skeptics' Read*, *What the Skeptics Found*, *The Tour's Programs, Built*, *The Tour Written*; the outline, `docs/proposals/tour/` as it stood at `688ffa03` |
 | MVP 3.9 | the review, and Ernest 0.5.0: the full review, the numbering decided once, a release with no promise of stability | | | below |
-| MVP 3.95 | what the review and 0.5.0 left: the release review read back, the service monitor across nodes decided, the report pared to the language, the harness counting a test's steps, the review round's method with an owner, the site proposal's sitting, and a release, 0.5.1 or 0.6.0 as the service monitor's decision leaves the protocol | made 2026-10-24; the first milestone after 0.5.0 | | below |
+| MVP 3.95 | what the review and 0.5.0 left: the release review read back, the service monitor across nodes decided, the report pared to the language, the harness counting a test's steps, the review round's method with an owner, the site proposal's sitting, the first fault's cost measured, and a release, 0.5.1 or 0.6.0 as the service monitor's decision leaves the protocol | made 2026-10-24; the first milestone after 0.5.0 | | below |
 | MVP 4.0 | a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches | made 2026-10-13 from MVP 4.3's item 4 | | below |
 | MVP 4.1 | ehttpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | | | below |
 | MVP 4.2 | the website, served by ehttpd: what Ernest is, its characteristics, the three doors, and a live shell in the browser | | | below |
@@ -272,7 +272,12 @@ in the order to do them, the word 0.5.0 ships decided before §8.7's text moves.
    "writes" the tour, a list of four claims, and a test that does not exist, change at a sitting
    with the user, to the tour written and the six claims `claims_test` holds, dated as its
    `decisions.md` dates a change (the full review's D23, decided 2026-10-24).
-7. **The release that closes the milestone**, so that MVP 4.0 starts from a tag: run as
+7. **The first fault's cost.** A session's first fault costs the host seven to nine milliseconds
+   of loading modules, thirty under load (the log's *The Shell's End Writes What It Was Told*),
+   which lost a shell test its line until the test waited for the fault. Measured against what a
+   fault's report does; the modules loaded at the launch where that costs less than the number says,
+   else the number recorded in the log and the item closed (CLAUDE.md, *The tools are fast*).
+8. **The release that closes the milestone**, so that MVP 4.0 starts from a tag: run as
    `release_review.md` says, whole, since the machines are what make a tag solid. 0.5.1 where item
    2 leaves §8.7's protocol as it stands, the first release whose nodes connect to the previous
    release's, two patch levels on one floor (report §8.7); 0.6.0 where it adds a frame, since the

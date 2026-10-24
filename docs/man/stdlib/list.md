@@ -40,7 +40,7 @@ List.foldLeft(List.filter(List.range(1, 10), fn(n) = n % 2 == 0), 0, Int.+)
 Words sorted by the order of `String`:
 
 ```ernest
-List.sort(["pear", "fig", "apple"], String.compare)
+List.sort(["pear", "fig", "apple"], compare)
 // => ["apple", "fig", "pear"]
 ```
 
@@ -496,7 +496,7 @@ List.sort(list : List(a), compare : (a, a) -> Ordering receiving e) : List(a) re
 ```
 
 The elements sorted by `compare`, smallest first. `compare` is an order
-(report §3.10), `Int.compare` or one of the program's.
+(report §3.10), the prelude's `compare` or one of the program's.
 
 The sort is stable: two elements `compare` calls `Equal` keep the order they
 had. So to sort by age, and by name among equal ages, sort by name first and
@@ -505,7 +505,7 @@ then by age.
 ### Examples
 
 ```ernest
-List.sort([3, 1, 2], Int.compare)
+List.sort([3, 1, 2], compare)
 // => [1, 2, 3]
 ```
 

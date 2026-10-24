@@ -264,10 +264,7 @@ let whole = Test.Case(name = "a whole name selects its command", run = fn() = ma
 
 let alphabetical = Test.Case(name = "the commands are in alphabetical order", run = fn() = {
     let names = List.map(commands, fn(command) = command.name);
-    if names == List.sort(names, String.compare) then
-        Test.Passed
-    else
-        Test.Failed(String.join(names, " "))
+    if names == List.sort(names, compare) then Test.Passed else Test.Failed(String.join(names, " "))
 })
 
 let lines =

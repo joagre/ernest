@@ -69,8 +69,8 @@
 //
 // The program's own tests fault a broker with a lease given back by a
 // client that does not hold it, lend a restarted client's lease to the
-// client that waits, and have a client drop the leases of a broker that
-// restarted (report Appendix E.24):
+// client that waits, and ask a restarted broker for its ledger at once,
+// which is empty, its client holding none (report Appendix E.24):
 //
 //     $ ern test lease_broker.erc
 //     a broker faults on a lease its caller does not hold: passed
@@ -78,9 +78,9 @@
 //         LeaseBroker.holding:311
 //     the broker took back 2 from bob: Restarted
 //     a restarted client's lease goes to the client that waits: passed
-//     LeaseBroker.brokerRestartVoids:480 faulted, restarted: lease 2 is not lent to the caller
+//     LeaseBroker.brokerRestartVoids:481 faulted, restarted: lease 2 is not lent to the caller
 //         LeaseBroker.lending:190
-//     a client drops its leases when the broker restarts: passed
+//     a restarted broker has every lease free, and its client none: passed
 //
 // As two nodes, make a and b with ern config, b listening on
 // 127.0.0.1:8655, list each other, and give a the service "leases" on b
@@ -472,16 +472,23 @@ let restartLends =
                    #(["ann holds 1", "bob holds 2", "cid holds 2"], [#("ann", 1), #("cid", 2)]))
     })
 
-// The broker's restart: a client that watches it drops what the old run
-// lent (report §6.9).
+// The broker's restart: a watcher told of it asks the new run for its
+// ledger at once and finds every lease free, and a client that watches it
+// drops what the old run lent (report §6.9).
 let brokerRestartVoids =
-    Test.Case(name = "a client drops its leases when the broker restarts", run = fn() = {
+    Test.Case(name = "a restarted broker has every lease free, and its client none", run = fn() = {
         let me = self();
         let broker = spawn(restarting(limit, fn() = lending(allFree(2))));
+        monitorService(Process.fromAddress(broker), Watched);
         let ann = started(broker, "ann", me);
         let took = tell(ann, Take);
         let _ = spawn(fn() = giveBackUnheld(broker, 2));
-        Test.equal([took, heard()], ["ann holds 1", "ann drops 1: the broker Restarted"])
+        let reason = receive {
+            Watched(Down(reason = reason)) -> reason
+        };
+        let lent = ledger(broker);
+        Test.equal(#(reason, lent, [took, heard()]),
+                   #(Restarted, [], ["ann holds 1", "ann drops 1: the broker Restarted"]))
     })
 
 // A lease given back by a process that holds none. The call waits for no

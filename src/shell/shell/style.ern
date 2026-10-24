@@ -34,7 +34,7 @@ export fn named(text : String, color : Markdown.Output) : String = {
         List.any(["type ", "abstract type ", "foreign type "],
                  fn(keyword) = String.startsWith(text, keyword));
     let marks = if declared then String.size(text) :: found else found;
-    match List.sort(marks, Int.compare) {
+    match List.sort(marks, compare) {
         [] ->
             text
       | end :: _ -> {

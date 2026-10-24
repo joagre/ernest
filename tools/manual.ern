@@ -137,7 +137,7 @@ fn seeAlso(files : List(String)) : List(Markdown.Block) = {
                        else
                            None);
     let #(prelude, modules) =
-        List.partition(List.sort(names, String.compare), fn(name) = name == "Ernest.Prelude");
+        List.partition(List.sort(names, compare), fn(name) = name == "Ernest.Prelude");
     let rest =
         [Markdown.Text("; every Ernest page installed, which "),
          Markdown.CodeSpan("apropos Ernest."),

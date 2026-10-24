@@ -134,7 +134,7 @@ Ernest 0.4.0. :help for the commands, :quit to leave.
 3 : Int
 > let xs = [3, 1, 2]
 xs : List(Int)
-> List.sort(xs, Int.compare)
+> List.sort(xs, compare)
 [1, 2, 3] : List(Int)
 > fn square(n : Int) : Int = n * n
 square : (Int) -> Int
@@ -1011,7 +1011,7 @@ fn gather(running : Int,
 // collect.ern
 export fn main() : Unit =
     Gather.gathered([3, 1, 2], fn(n) = n * n)
-        |> List.sort(fn(a, b) = Int.compare(a.n, b.n))
+        |> List.sort(fn(a, b) = compare(a.n, b.n))
         |> List.forEach(fn(piece) =
                             Io.println(Int.toString(piece.n) <> ": " <> Int.toString(piece.value)))
 ```
@@ -2574,7 +2574,7 @@ fn gather(running : Int, owed : Int, pieces : List(Piece)) : List(Piece) receivi
 
 export fn main() : Unit receiving GatherMsg =
     gathered([3, 1, 2])
-        |> List.sort(fn(a, b) = Int.compare(a.n, b.n))
+        |> List.sort(fn(a, b) = compare(a.n, b.n))
         |> List.forEach(fn(piece) =
                             Io.println(Int.toString(piece.n) <> ": " <> Io.show(piece.value)))
 ```

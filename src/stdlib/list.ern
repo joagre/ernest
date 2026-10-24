@@ -36,7 +36,7 @@
 /// Words sorted by the order of `String`:
 ///
 /// ```ernest
-/// List.sort(["pear", "fig", "apple"], String.compare)
+/// List.sort(["pear", "fig", "apple"], compare)
 /// // => ["apple", "fig", "pear"]
 /// ```
 ///
@@ -492,7 +492,7 @@ export fn reverse(list : List(a)) : List(a) =
     foldLeft(list, [], fn(acc, element) = element :: acc)
 
 /// The elements sorted by `compare`, smallest first. `compare` is an order
-/// (report §3.10), `Int.compare` or one of the program's.
+/// (report §3.10), the prelude's `compare` or one of the program's.
 ///
 /// The sort is stable: two elements `compare` calls `Equal` keep the order they
 /// had. So to sort by age, and by name among equal ages, sort by name first and
@@ -501,7 +501,7 @@ export fn reverse(list : List(a)) : List(a) =
 /// ### Examples
 ///
 /// ```ernest
-/// List.sort([3, 1, 2], Int.compare)
+/// List.sort([3, 1, 2], compare)
 /// // => [1, 2, 3]
 /// ```
 export fn sort(list : List(a), compare : (a, a) -> Ordering receiving e) : List(a) receiving e = {

@@ -204,8 +204,12 @@ kill_stops_in_reverse_order_test() ->
         "fn next() : String receiving Seen = receive { Died(n) -> n }\n"),
     ?assertEqual(<<"c b a\n">>, Output).
 
-%% Appendix E.22: a supervisor that is a child restarts in place past its
-%% limit, its children restarted with it, their addresses kept
+%% Appendix E.22, §6.9: a supervisor that is a child restarts in place past
+%% its limit, its children restarted with it, their addresses kept. Each
+%% child is peeked once a service monitor has told of its restart, which
+%% comes before anything its new run takes; peeked once the group's fault
+%% was reported, a child the group had yet to restart answered from its old
+%% run, one run in sixty beside other work
 nested_group_restarts_in_place_test() ->
     {ok, Output} = ern_emitter_tests:run(
         "type Msg = Ask(reply : Reply(Int)) | Peek(reply : Reply(Int)) | Boom\n"
@@ -221,21 +225,23 @@ nested_group_restarts_in_place_test() ->
         "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
         "}\n"
         "fn ask(c : Address(Msg)) : Int = Address.callForever(c, fn(r) = Ask(reply = r))\n"
-        "export fn main() : Unit receiving Process.FaultReport = {\n"
+        "export fn main() : Unit receiving Down = {\n"
         "    let _ = ask(a); let _ = ask(b);\n"
-        "    Process.faults(fn(f) = f);\n"
+        "    monitorService(Process.fromAddress(a), fn(d) = d);\n"
+        "    monitorService(Process.fromAddress(b), fn(d) = d);\n"
         "    send(a, Boom);\n"
-        "    // the child's fault, and the nested group's at its limit\n"
-        "    receive { _ -> Unit };\n"
-        "    receive { _ -> Unit };\n"
-        "    Io.println(Int.toString(peekUntil(a)) <> \" \" <> Int.toString(peekUntil(b)))\n"
+        "    // each child's restart, which the nested group asks at its own\n"
+        "    let restarts = [heard(), heard()];\n"
+        "    Io.println(Io.show(restarts) <> \" \" <> Int.toString(peekUntil(a)) <> \" \""
+        " <> Int.toString(peekUntil(b)))\n"
         "}\n"
+        "fn heard() : Reason receiving Down = receive { Down(reason = reason) -> reason }\n"
         "fn peekUntil(c : Address(Msg)) : Int =\n"
         "    match Address.call(c, fn(r) = Peek(reply = r), 1000) {\n"
         "        Some(n) -> n\n"
         "      | None -> peekUntil(c)\n"
         "    }\n"),
-    ?assertEqual(<<"0 0\n">>, Output).
+    ?assertEqual(<<"[Restarted, Restarted] 0 0\n">>, Output).
 
 %% Appendix E.22: a supervisor restarted in place counts its limit afresh,
 %% and a fault it counted before the restart does not expire from the new

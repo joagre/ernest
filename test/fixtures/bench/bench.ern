@@ -165,7 +165,7 @@ fn measureRuns(key : String,
                count : Int,
                operation : (Int) -> Int receiving m) : Unit receiving m = {
     let timings =
-        List.sort(List.map(List.range(1, 7), fn(_) = timedMicros(count, operation)), Int.compare);
+        List.sort(List.map(List.range(1, 7), fn(_) = timedMicros(count, operation)), compare);
     let at = fn(index) = Int.toString(Optional.withDefault(List.get(timings, index), 0));
     Io.println(String.join([key, Int.toString(count), at(3), at(0), at(6)], " "))
 }

@@ -58,7 +58,7 @@ The runner, `ern_cli`, loads the file and its dependencies and runs their initia
 
 Where standard output has no size, or standard input is not a terminal and the reader's subscription is refused (E.16), there is no reader. The session holds the terminal itself and reads lines with `Io.readLine`, taking further lines by the rule `Enter` follows at a terminal (§11.2 *Editing*). The screen writes what it is sent as it comes.
 
-The session blocks in `Io.readLine`, so a fault report waits in its mailbox. Every waiting one is said before the next prompt.
+The session blocks in `Io.readLine`, so a fault report waits in its mailbox. Every waiting one is said before the next prompt. The end of input and `:quit` come at a prompt whose line no input ended, and the session ends that line before it says the faults that waited, so that each stands on a line of its own.
 
 ## The front end
 

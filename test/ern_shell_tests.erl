@@ -774,7 +774,7 @@ fault_line_escaped() ->
 %% way or in the session's mailbox when the input ends and the end of input
 %% is read. Written with the rule; it does not show whether the line was
 %% written before the last prompt or by the end, which depends on when the
-%% report arrives
+%% report arrives, and end_fault_on_a_line_of_its_own holds the end's
 fault_before_the_end_written_test_() ->
     {timeout, waits(1), fun fault_before_the_end_written/0}.
 
@@ -788,6 +788,56 @@ fault_before_the_end_written() ->
                                     "}\n"),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"input 1:2 faulted: late">>)).
+
+%% report §11.2: in line mode a fault the shell writes as it ends, at the
+%% end of its input, begins a line of its own: the line of the prompt the
+%% end came at, which no input ended, is ended before the fault and not
+%% again after it. The input spawns a process that faults when the test
+%% sends it a byte and one that watches it, which tells the test once the
+%% Down has come, after the fault's report to the session is under way
+%% (delivered_down/3). The test sends the byte once the next prompt is
+%% written and ends the input once it is told, so the fault is one the end
+%% writes and none the prompt before it does. Written with the change, and
+%% red before it, the fault on the prompt's line and a blank line after
+%% it; it does not cover `:quit` in line mode, which ends the same way
+end_fault_on_a_line_of_its_own_test_() ->
+    {timeout, waits(3), fun end_fault_on_a_line_of_its_own/0}.
+
+end_fault_on_a_line_of_its_own() ->
+    Home = fresh_home(),
+    Dir = filename:join(Home, "shell"),
+    Listen = [binary, {active, false}, {ip, loopback}],
+    {ok, Faulting} = gen_tcp:listen(0, Listen),
+    {ok, Watching} = gen_tcp:listen(0, Listen),
+    {ok, FaultingPort} = inet:port(Faulting),
+    {ok, WatchingPort} = inet:port(Watching),
+    Ms = ern_nodes_tests:wait_ms_text(),
+    Input = ["{ let p : Address(Int) = spawn(fn() = match Tcp.connect(\"127.0.0.1\", ",
+             integer_to_list(FaultingPort), ", ", Ms, ") {",
+             " Right(socket) -> { let _ = Tcp.read(socket, ", Ms, "); fault(\"late\") }",
+             " | Left(error) -> fault(Io.show(error)) });",
+             " let _ = spawn(fn() = {",
+             " monitor(Process.fromAddress(p), fn(d : Down) = d);",
+             " match Tcp.connect(\"127.0.0.1\", ", integer_to_list(WatchingPort), ", ", Ms, ") {",
+             " Right(socket) -> { receive { _ -> Unit };",
+             " let _ = Tcp.write(socket, String.toUtf8(\"down\"), ", Ms, "); Unit }",
+             " | Left(error) -> fault(Io.show(error)) } });",
+             " Unit }\n"],
+    {Shell, _} = ern_nodes_tests:launched(Dir, ["HOME=", Home, " ",
+                                                filename:absname("../bin/ern"), " shell"]),
+    true = port_command(Shell, Input),
+    WaitMs = ern_nodes_tests:wait_ms(),
+    {ok, Fault} = gen_tcp:accept(Faulting, WaitMs),
+    {ok, Watch} = gen_tcp:accept(Watching, WaitMs),
+    %% the input has run, printing nothing, and the shell waits for a line
+    %% at its next prompt
+    ern_nodes_tests:prints(Dir, "> ", 2, WaitMs),
+    ok = gen_tcp:send(Fault, <<"go">>),
+    {ok, <<"down">>} = gen_tcp:recv(Watch, 4, WaitMs),
+    %% the end of the input
+    port_close(Shell),
+    {Out, _} = ern_nodes_tests:said(Dir),
+    ?assert(lists:suffix("> > \ninput 1:1 faulted: late\n    input 1:1\n", Out)).
 
 %% report §3.10, §9.6, §11.2: the prelude's `compare` prints with its
 %% requirement, and applies at the prompt as in a module. Written with the

@@ -36,7 +36,7 @@ What each process holds, and how the session orders and queues its work, is the 
 - Once the sinks are bound to the screen (`setScreen`), `main` says the greeting, which names the version, `:help` and `:quit`. It does so in either mode.
 - `prompt` writes every `> `, after draining the screen: at a terminal `main` calls it after the startup files, `taking` after each input and `keyLoop` after `C-c`; in line mode `lineLoop` calls it before each line, and `moreLines` writes `... ` itself.
 
-`finish` ends the session, in either mode.
+`leave` ends the session, in either mode: it writes the faults reported until then, and `finish` takes the region away. In line mode the end of input and `:quit` come at a prompt whose line no input ended, and `leaveLines` ends that line before it writes them.
 
 ## One input, end to end
 

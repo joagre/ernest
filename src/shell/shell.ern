@@ -936,7 +936,7 @@ fn screenWidth() : Int =
 // those its loads evaluated bindings in among them.
 fn sessionProcesses() : List(String) = {
     let sites = List.map(List.filterMap(Process.live(), Process.status), fn(status) = status.site);
-    List.sort(sites, String.compare)
+    List.sort(sites, compare)
 }
 
 // Report §11.2: the depth and the length a value is printed to, the rows
@@ -1512,17 +1512,28 @@ fn lineLoop(state : State, screen : Address(ScreenMsg)) : Unit receiving ShellMs
     let state1 = reportPending(state, screen, saidLine);
     prompt(screen);
     match Io.readLine() {
-        // the prompt's line is ended by `finish`, as a `:quit` ends it
         None ->
-            leave(state1, screen, "")
+            leaveLines(state1, screen)
       | Some(line) ->
             if String.isEmpty(String.trim(line)) then
                 lineLoop(state1, screen)
             else match submit(state1, screen, String.trim(moreLines(screen, line))) {
-                Leave -> leave(state1, screen, "")
+                Leave -> leaveLines(state1, screen)
               | Continue(state2) -> lineLoop(state2, screen)
             }
     }
+}
+
+// Report §11.2: the session ends in line mode as `leave` says, the end of
+// its input and `:quit` coming at a prompt whose line no input has ended.
+// That line is ended first, once, so that each fault said as the session
+// ends stands on a line of its own, as it stands above the region at a
+// terminal; with no region, nothing is left to take away.
+fn leaveLines(state : State, screen : Address(ScreenMsg)) : Unit receiving ShellMsg = {
+    send(screen, Said("\n"));
+    waitForDeliveries();
+    let _ = reportPending(state, screen, saidLine);
+    drain(screen)
 }
 
 // Report §11.2: what faulted while the session was reading, each report in
