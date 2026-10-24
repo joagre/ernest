@@ -26,8 +26,8 @@
          ground_term/2, global_scheme/2, is_provided/2, described_type/2, let_order/1,
          foreign_implementation/1, fields/2, declared_scheme/3, is_running_never/2,
          declaration_type/2, is_top_let/2, is_foreign/2, declaration_scheme/2,
-         declared_fields/3, is_member_name/3, session_member/3, lookup_constructor/4,
-         constructor_info/2, is_value/2, resolve_type/2, node_type/1]).
+         declared_fields/3, is_member_name/3, prelude_one_text/2, session_member/3,
+         lookup_constructor/4, constructor_info/2, is_value/2, resolve_type/2, node_type/1]).
 
 -export_type([env/0, session_scope/0]).
 
@@ -6611,10 +6611,17 @@ hidden(Span, QualifiedName, false) ->
 %% namespace, since a module's own type hides none; the help writes the
 %% name without it.
 -spec prelude_one(ern_diagnostic:span(), [atom()], atom()) -> no_return().
-prelude_one(Span, ['Prelude' | Namespace] = Written, Name) ->
-    fail(Span, ern_namespace:text(Written ++ [Name])
-               ++ ": Prelude takes one name the prelude declares, as `Prelude.Some`", [],
-         "nothing here hides it; write " ++ ern_namespace:text(Namespace ++ [Name])).
+prelude_one(Span, Namespace, Name) ->
+    {Message, Help} = prelude_one_text(Namespace, Name),
+    fail(Span, Message, [], Help).
+
+%% The refusal's message and help, which the shell's `:doc` writes too
+%% (report §11.2).
+-spec prelude_one_text([atom()], atom()) -> {string(), string()}.
+prelude_one_text(['Prelude' | Namespace] = Written, Name) ->
+    {ern_namespace:text(Written ++ [Name])
+     ++ ": Prelude takes one name the prelude declares, as `Prelude.Some`",
+     "nothing here hides it; write " ++ ern_namespace:text(Namespace ++ [Name])}.
 
 %% Report §4.4: an abstract type's constructor is its module's alone, and
 %% each input of a session is a module of its own (report §11.2).

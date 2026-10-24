@@ -1365,6 +1365,7 @@ not_module(Text) ->
 doc(Session, Text) ->
     case page(Session, Text) of
         {ok, Page, _} -> {'Right', unicode:characters_to_binary(Page)};
+        {refused, Refusal} -> {'Left', unicode:characters_to_binary(Refusal)};
         none ->
             {'Left', <<"no documentation for ", Text/binary, (load_suffix(Session, Text))/binary>>}
     end.
@@ -1429,14 +1430,15 @@ is_form_loadable(Session, Relative) ->
             false
     end.
 
-%% The documentation of a name as it is written, with its segments; none
-%% for text that is no name.
+%% The documentation of a name as it is written, with its segments; the
+%% refusal of a name the checker refuses as written; none for text that is
+%% no name.
 page(Session, Text) ->
     case segments(Session, Text) of
         {ok, Segments} ->
             case doc_of(Session, Segments) of
                 {ok, Page} -> {ok, Page, Segments};
-                none -> none
+                Other -> Other
             end;
         _ ->
             none
@@ -1452,7 +1454,7 @@ documentation(Text) ->
     case page(Session, Text) of
         {ok, Page, Segments} ->
             {'Some', {unicode:characters_to_binary(Page), appeared(Session, Segments)}};
-        none ->
+        _ ->
             'None'
     end.
 
@@ -1762,8 +1764,14 @@ session_beam(#session{scope = Scope, beams = Beams}, Namespace, Name) ->
 doc_of(_Session, ['Prelude']) ->
     %% report §11.2, §4.2: `Prelude` names the prelude, whose page it is
     {ok, ern_page:prelude_page()};
+doc_of(_Session, ['Prelude', _, _ | _] = Segments) ->
+    %% report §11.2, §4.2: `Prelude.` takes one prelude name and no
+    %% namespace, refused in the checker's words
+    {Message, Help} = ern_typecheck:prelude_one_text(lists:droplast(Segments),
+                                                     lists:last(Segments)),
+    {refused, Message ++ "; " ++ Help};
 doc_of(Session, ['Prelude' | Segments]) ->
-    %% the prelude's name, past one the session declares; a member of a
+    %% the prelude's name, past one the session declares; an operation of a
     %% built-in type is documented by its type's module (§9.6)
     first([fun() -> prelude_doc(Segments) end, fun() -> module_doc(Session, Segments) end]);
 doc_of(Session, Segments) ->

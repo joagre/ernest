@@ -422,8 +422,10 @@ relative_home() ->
 
 %% report §11.2, §4.2: `:browse Prelude` lists the prelude's types and
 %% values, `:doc Prelude` shows its page, and `:doc Prelude.name` the
-%% prelude's name, one its type's module documents among them. A
-%% regression test: no module Prelude was in scope
+%% prelude's one name; `Prelude.` takes no namespace, so `:doc
+%% Prelude.List.size` is refused in the checker's words. A regression
+%% test: no module Prelude was in scope, and the namespace's name was
+%% documented
 prelude_shown_test_() ->
     {timeout, 60, fun prelude_shown/0}.
 
@@ -433,10 +435,13 @@ prelude_shown() ->
     ok = file:write_file(InputFile, ":browse Prelude\n:doc Prelude\n:doc Prelude.spawn\n"
                                     ":doc Prelude.List.size\n"),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"> Prelude.List.size: Prelude takes one name the"
+                                                " prelude declares, as `Prelude.Some`; nothing"
+                                                " here hides it; write List.size\n">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"List.size(list : List(a)) : Int">>)),
     [?assertMatch({_, _}, binary:match(Output, Text))
      || Text <- [<<"type Reason\n">>, <<"spawn : (() -> Unit receiving n) -> Address(n)">>,
                  <<"Ernest prelude">>, <<"Starts a process that runs">>,
-                 <<"List.size(list : List(a)) : Int">>,
                  %% report §9.4, §9.6: every prelude function, `Io.show`,
                  %% `Io.debug` and `String.compare` among them; a regression
                  %% test, the listing left them out
