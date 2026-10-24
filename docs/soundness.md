@@ -201,7 +201,7 @@ The runtime promises one answer: the reply is the host's alias for the call, whi
 
 ### 6.6 An operator
 
-`a + b` is the call `T.+(a, b)` for the type `T` of its operands, chosen once the enclosing definition is inferred (§4.8). The member is a function, its type `(T, T) -> R` is checked at its declaration, and nothing is chosen while the program runs, so an operator adds no step to section 5. Where the operand's type is a type variable of the signature, the member is the requirement's (6.7), and on any other type variable the operator is refused. An operator carries nothing the program did not declare.
+`a + b` is the call `T.+(a, b)` for the type `T` of its operands, chosen once the enclosing definition is inferred (§4.8). The member is a function, its type `(T, T) -> R` is checked at its declaration, and nothing is chosen while the program runs, so an operator adds no step to section 5. Where the operand's type is a type variable of the signature, the member is the requirement's (6.7), and on any other type variable the operator is refused. An operator carries nothing the program did not declare. The prelude's `compare(a, b)` is the call `T.compare(a, b)` chosen the same way (§3.10), and this paragraph is its argument.
 
 ### 6.7 A requirement and what supplies it
 

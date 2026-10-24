@@ -8,8 +8,8 @@
 -module(ern_prelude).
 
 -export([equality_params/1, builtin_types/0, is_builtin/1, declared_types/0, values/0,
-         parameters/1, member_types/0, docs/0, stdlib_interfaces/0, stdlib_files/0,
-         stdlib_directory/0, set_stdlib_directory/1]).
+         signature/1, parameters/1, member_types/0, docs/0, stdlib_interfaces/0,
+         stdlib_files/0, stdlib_directory/0, set_stdlib_directory/1]).
 
 -include_lib("checker/include/ern_types.hrl").
 -include_lib("parser/include/ern_ast.hrl").
@@ -654,7 +654,40 @@ values() ->
       ```ernest
       fn(xs : List(Int)) : Int = match xs { x :: _ -> x | [] -> fault("never empty here") }
       ```
+      """/utf8>>},
+     {[compare], "(a, a) -> Ordering needs a.compare",
+      <<"""
+      Compares `left` with `right` by the order of their type: `Less`, `Equal`
+      or `Greater`. It is the type's own `compare`, `Int.compare` for two
+      `Int`s, chosen as `<` chooses it, and reaches every order `<` reaches, a
+      tuple's among them (report §3.10).
+
+      A type without an order has no `compare`: `compare(true, false)` is
+      refused, as `true < false` is.
+
+      ### Examples
+
+      ```ernest
+      List.sort([#("pear", 2), #("fig", 3), #("pear", 1)], compare)
+      // => [#("fig", 3), #("pear", 1), #("pear", 2)]
+      ```
+
+      since 0.5.0
       """/utf8>>}].
+
+%% Report §9.6, §4.9: a signature of the table apart: its type's text,
+%% which ern_parser:parse_type/1 reads, and its requirement, each member
+%% by its type variable's name, as `needs a.compare` writes it.
+-spec signature(string()) -> {string(), [{atom(), atom()}]}.
+signature(Text) ->
+    case string:split(Text, " needs ") of
+        [TypeText] ->
+            {TypeText, []};
+        [TypeText, Members] ->
+            {TypeText, [{list_to_atom(Variable), list_to_atom(Member)}
+                        || Written <- string:split(Members, ", ", all),
+                           [Variable, Member] <- [string:split(Written, ".")]]}
+    end.
 
 %% Report §9.4, §9.5, §11.4: the parameters of the prelude's functions, named
 %% for their roles as the report's §6 names them, which their pages and
@@ -676,6 +709,7 @@ parameters([monitorService]) -> [process, wrap];
 parameters([demonitor]) -> [process];
 parameters([kill]) -> [address];
 parameters([fault]) -> [cause];
+parameters([compare]) -> [left, right];
 parameters(_) -> none.
 
 %% Report §4.2, §9.5, §9.6: the prelude's types that have members, each a
@@ -747,7 +781,8 @@ group_texts([_ | Lines], Acc) ->
 dotted(QualifiedName) -> list_to_atom(ern_namespace:text(QualifiedName)).
 
 arity(Text) ->
-    case ern_parser:parse_type(Text) of
+    {TypeText, _} = signature(Text),
+    case ern_parser:parse_type(TypeText) of
         {ok, #t_fn{params = Params}} -> length(Params);
         _ -> 0
     end.
@@ -761,7 +796,8 @@ prelude_doc() ->
     `Optional`, `Either` and the rest; the types the language's own rules
     name, `Down`, `Reason` and `RestartLimit`; the functions that start
     processes and talk to them, `spawn`, `send`, `Address.call` and the rest;
-    and `fault` (report §9).
+    `fault`; and `compare`, which compares two values of any type with an
+    order (report §9).
 
     An operation in a type's namespace, `Int.compare` or `String.<>`, belongs to
     that type's module, and is documented on its page.

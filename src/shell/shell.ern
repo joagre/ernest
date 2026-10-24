@@ -197,13 +197,13 @@ export fn main() : Unit receiving ShellMsg = {
                     keyLoop(state1, screen)
                 }
               | Leave ->
-                    finish(screen, "")
+                    leave(state, screen, "")
             }
         }
       | None ->
             match fromFiles(state, screen, startupInputs) {
                 Continue(state1) -> lineLoop(state1, screen)
-              | Leave -> finish(screen, "")
+              | Leave -> leave(state, screen, "")
             }
     }
 }
@@ -600,7 +600,7 @@ fn keyLoop(state : State, screen : Address(ScreenMsg)) : Unit receiving ShellMsg
             taking(state, screen, line)
         }
       | InputEnded ->
-            finish(screen, "\n")
+            leave(state, screen, "\n")
       | Interrupted -> {
             prompt(screen);
             keyLoop(state, screen)
@@ -610,7 +610,7 @@ fn keyLoop(state : State, screen : Address(ScreenMsg)) : Unit receiving ShellMsg
       | Reported(report) ->
             keyLoop(reported(state, screen, report, Noted), screen)
       | ReaderDied(down) ->
-            finish(screen, readerEnd(state.color, down))
+            leave(state, screen, readerEnd(state.color, down))
       | ScreenDied(down) ->
             screenDied(down)
       // the end of a run that `Interrupted` killed, which `await` no longer
@@ -630,7 +630,7 @@ fn taking(state : State, screen : Address(ScreenMsg), line : String) : Unit rece
       | input ->
             match submit(state, screen, input) {
                 Leave ->
-                    finish(screen, "")
+                    leave(state, screen, "")
               | Continue(state1) -> {
                     prompt(screen);
                     keyLoop(state1, screen)
@@ -1121,6 +1121,17 @@ fn place(destination : Optional(Path), own : String) : String =
       | None -> own
     }
 
+// Report §11.2: the shell ends by `:quit`, by `C-d`, at the end of its
+// input, or where its reader stops, and before it ends it writes every
+// fault reported to it until then: it waits until each report on its way
+// to it has arrived, and says those its mailbox holds, a prompt pending. A
+// process that still runs ends with the program, which is no fault.
+fn leave(state : State, screen : Address(ScreenMsg), text : String) : Unit receiving ShellMsg = {
+    waitForDeliveries();
+    let _ = reportPending(state, screen, Noted);
+    finish(screen, text)
+}
+
 // Report §11.2: on quitting, the region goes and the cursor is left on a
 // fresh line, so the terminal is as the shell found it.
 fn finish(screen : Address(ScreenMsg), text : String) : Unit = {
@@ -1498,28 +1509,32 @@ fn isVersion(block : Markdown.Block) : Bool =
 //
 
 fn lineLoop(state : State, screen : Address(ScreenMsg)) : Unit receiving ShellMsg = {
-    let state1 = reportPending(state, screen);
+    let state1 = reportPending(state, screen, saidLine);
     prompt(screen);
     match Io.readLine() {
         // the prompt's line is ended by `finish`, as a `:quit` ends it
         None ->
-            finish(screen, "")
+            leave(state1, screen, "")
       | Some(line) ->
             if String.isEmpty(String.trim(line)) then
                 lineLoop(state1, screen)
             else match submit(state1, screen, String.trim(moreLines(screen, line))) {
-                Leave -> finish(screen, "")
+                Leave -> leave(state1, screen, "")
               | Continue(state2) -> lineLoop(state2, screen)
             }
     }
 }
 
-// Report §11.2: what faulted while the session was reading. In line mode
-// the session blocks in `Io.readLine`, so a fault is reported before the
-// next prompt instead; §6.4 leaves every other message in the mailbox.
-fn reportPending(state : State, screen : Address(ScreenMsg)) : State receiving ShellMsg =
+// Report §11.2: what faulted while the session was reading, each report in
+// the mailbox said wrapped as `reported` says. In line mode the session
+// blocks in `Io.readLine`, so a fault is reported before the next prompt
+// instead, and as the session ends (`leave`); §6.4 leaves every other
+// message in the mailbox.
+fn reportPending(state : State,
+                 screen : Address(ScreenMsg),
+                 wrap : (String) -> ScreenMsg) : State receiving ShellMsg =
     receive {
-        Reported(report) -> reportPending(reported(state, screen, report, saidLine), screen)
+        Reported(report) -> reportPending(reported(state, screen, report, wrap), screen, wrap)
       | ScreenDied(down) -> screenDied(down)
       | after 0 -> state
     }
@@ -1656,3 +1671,9 @@ foreign fn setScreen(screen : Address(String)) : Unit =
 
 foreign fn holdTerminal(holder : Address(a)) : Unit =
     "ern_rt:hold_terminal/1"
+
+// Report §11.2: waits until each delivery of the runtime's own on its way
+// to the session, a fault's report among them, has arrived, which the
+// runtime alone sees.
+foreign fn waitForDeliveries() : Unit =
+    "ern_rt:wait_for_deliveries/0"

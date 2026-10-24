@@ -432,7 +432,7 @@ Set.fromList([1, 2, 3]) : Set(Int)
 
 Map keys and set elements need equality. `==` is defined on every type except one that contains a function, an address or a reply, the `Reply` an answer goes back on (§4.2), and on a value of a foreign type, `Foreign.Term` (§8.3) among them, it is the runtime's exact equality (report §3.10), so a map keyed by addresses is a type error at its first operation; key it by the process behind each address instead (§5.5). The compiler infers which type variables need equality, and a printed type marks them (§2.9).
 
-Ordering is separate: `a < b` asks the type's `compare`, which answers an `Ordering`: `Less`, `Equal`, or `Greater`. `Int`, `Float`, `String`, and `Char` have one, and a type of your own gets one by declaring it in its module. A function named `Money.compare` is a member of the type `Money` (§7.2):
+Ordering is separate: `a < b` asks the type's `compare`, which answers an `Ordering`: `Less`, `Equal`, or `Greater`. `Int`, `Float`, `String`, and `Char` have one, and a type of your own gets one by declaring it in its module. `compare(a, b)` is the function form of `<`, which answers the `Ordering` itself. A function named `Money.compare` is a member of the type `Money` (§7.2):
 
 ```ernest
 type Money = Money(Int)
@@ -760,15 +760,10 @@ export fn top(counts : Map(String, Int), limit : Int) : List(#(String, Int)) =
 
 fn byCount(#(leftWord, leftCount) : #(String, Int),
            #(rightWord, rightCount) : #(String, Int)) : Ordering =
-    if #(rightCount, leftWord) < #(leftCount, rightWord) then
-        Less
-    else if #(rightCount, leftWord) > #(leftCount, rightWord) then
-        Greater
-    else
-        Equal
+    compare(#(rightCount, leftWord), #(leftCount, rightWord))
 ```
 
-`words` lowers the text and splits it at its whitespace (report Appendix E.5). `count` folds the words into a map with `add`. `top` sorts the pairs by count, most first and by word where counts are equal, and keeps `limit` of them. `byCount` is not exported, and its parameters are patterns that take the pairs apart. It compares two tuples, each the count of one pair beside the word of the other, so that the larger count comes first: a tuple is ordered component by component from the left, as a list is, where each component's type is ordered (report §3.10). `ern shell words.erc` loads the module and runs nothing, since it has no `main`:
+`words` lowers the text and splits it at its whitespace (report Appendix E.5). `count` folds the words into a map with `add`. `top` sorts the pairs by count, most first and by word where counts are equal, and keeps `limit` of them. `byCount` is not exported, and its parameters are patterns that take the pairs apart. It compares two tuples, each the count of one pair beside the word of the other, so that the larger count comes first: a tuple is ordered component by component from the left, as a list is, where each component's type is ordered, and `compare` reaches a tuple's order as `<` does (report §3.10). `ern shell words.erc` loads the module and runs nothing, since it has no `main`:
 
 ```console
 $ ern build words.ern

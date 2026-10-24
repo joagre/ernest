@@ -2529,6 +2529,20 @@ example.ern:2:8: `<` needs a.compare, which smaller does not declare
   | = help: add `needs a.compare` to smaller's signature
 ```
 
+### An operator on a type no operand fixes (§3.10, §4.9)
+
+```ernest-rejected
+fn later() : Bool = Right(2) < Right(1)
+```
+
+```console
+$ ern build example.ern
+example.ern:1:21: `<` needs a.compare, at a type variable no requirement can name
+1 | fn later() : Bool = Right(2) < Right(1)
+  |                     ^^^^^^^^^^^^^^^^^^^
+  | = help: annotate the value where it is bound, `let value : Either(..., Int) = ...`
+```
+
 ### A member written without its requirement (§4.9)
 
 ```ernest-rejected

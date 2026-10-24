@@ -71,6 +71,7 @@ Two models serve a review: the most advanced there is, and the one below it, whi
   Every other line is `decide`: a rule, a sentence of §0 or E.0, what an error text means, a fix that could go two ways, a departure from a proposal. Each is discussed with the user one at a time, the argument before the verdict, with a recommendation that weighs the candidate rule against §0's five principles and names the one that decided (CLAUDE.md, *Authority*).
 
   A milestone's read (the log's *MVP 3.0 Read Without a Release*) sorts its lines the same way.
+- A decision that adds a word to the language, a primitive, a member or a reason, is built in the review's round, and ships in the next release only with a program under `examples/` or in the tour that needs it; without one it waits a release.
 - The plan gives the list a milestone.
 - The document goes when every line is done or dropped, or stands in the plan as an item of its own.
 - The log gains an entry for the review: its date and commit, the principles reader's counts, the newcomer's program, and how many findings took each decision.

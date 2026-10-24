@@ -88,7 +88,10 @@
               generalizing = false, provided = [], inferring = [], requirement = [], failed = [],
               signature = [], definition, private_types = #{}, identities = #{},
               reaches = #{}, positions = #{}, terms = #{}, foreign = #{}, declaring = #{},
-              uses = #{}, binder = none}).
+              uses = #{}, binder = none, definition_type}).
+%% definition_type: the type of the definition whose uses post_checks/3
+%% supplies, once it is inferred, whose variables are those a signature
+%% could name, which a requirement's error reads (open_help/3)
 %% binder: the local or the top-level `let` an initializer is checked for,
 %% with the initializer's span, or none: a fill that is the whole
 %% initializer asks for that name's annotation (filled/7, report §5.6)
@@ -550,8 +553,7 @@ prelude_env() ->
     {Env3, []} = declare_types(Declarations, Env2),
     Env4 = Env3#env{type_state = effect_param_state(Env3)},
     Env5 = lists:foldl(fun({QualifiedName, Text, _Doc}, Acc) ->
-                           {ok, Syntax} = ern_parser:parse_type(Text),
-                           {Scheme, Acc1} = signature_scheme(Syntax, Acc),
+                           {Scheme, Acc1} = prelude_scheme(Text, Acc),
                            Acc1#env{globals = maps:put(QualifiedName, Scheme, Acc1#env.globals)}
                        end,
                        Env4#env{namespace = [], local_types = #{}, local_constructors = #{},
@@ -562,6 +564,17 @@ prelude_env() ->
     Provided = lists:usort(ern_prelude:member_types()
                            ++ [hd(Interface#interface.namespace) || Interface <- Stdlib]),
     lists:foldl(fun add_interface/2, Env5#env{provided = Provided}, Stdlib).
+
+%% Report §9.6, §4.9: a prelude value's scheme from its signature in the
+%% table, with its requirement over the scheme's variables, as a `fn`
+%% declaration's is: `compare`'s `needs a.compare`.
+prelude_scheme(Text, Env) ->
+    {TypeText, Members} = ern_prelude:signature(Text),
+    {ok, Syntax} = ern_parser:parse_type(TypeText),
+    {#scheme{names = Names} = Scheme, Env1} = signature_scheme(Syntax, Env),
+    Requirement = [{Id, Member} || {Variable, Member} <- Members,
+                                   Id := Name <- Names, Name =:= Variable],
+    {Scheme#scheme{requirement = Requirement}, Env1}.
 
 %% Report §11.1: every type the interfaces given name, in a value's scheme
 %% or a constructor's, has a declaration among them or the prelude's, or is
@@ -2596,7 +2609,7 @@ post_checks(Declaration,
     Env1 = unfixed_mailboxes(Type, Solved),
     %% report §4.9: what each use of a requirement is supplied with, read
     %% now that the definition's types are known
-    {Supplied, Env2} = supplied(Declaration, Env1),
+    {Supplied, Env2} = supplied(Declaration, Env1#env{definition_type = Type}),
     TypedBody = body(Supplied),
     rigid_annotation_variables(Span, Rigid, Env2),
     ern_scope:order(TypedBody),
@@ -2610,7 +2623,8 @@ post_checks(Declaration,
                         standing = Env#env.standing,
                         mailboxes = Env2#env.mailboxes ++ Env#env.mailboxes,
                         requirement = Env#env.requirement, signature = Env#env.signature,
-                        definition = Env#env.definition}}.
+                        definition = Env#env.definition,
+                        definition_type = Env#env.definition_type}}.
 
 %% Report §6.2, §3.11: as a definition of type Type ends, each mailbox type
 %% its spawns' and computes' functions were given that is still a variable
@@ -3775,7 +3789,8 @@ supplied(Leaf, Env) ->
 %% known whole its descriptor; an operator on a prelude type the runtime's
 %% own operation; and a known type its member, with that member's own
 %% requirement supplied at its type, members supplying members. Outer is the
-%% member first needed, where this one supplies another's requirement.
+%% member first needed, {Type, Member}, where this one supplies another's
+%% requirement.
 supply(Span, Type, service, _Need, _Outer, #env{type_state = TypeState} = Env) ->
     %% report §3.11, §8.7: a service's message type is known whole where the
     %% service is made, and crosses
@@ -3809,7 +3824,7 @@ supply(Span, Type, Member, Need, Outer, #env{type_state = TypeState} = Env) ->
         {tvar, _} = Variable ->
             case is_in_force(Variable, Member, Env) of
                 true -> {#required_member{variable = Variable, member = Member}, Env};
-                false -> not_in_force(Span, Variable, Member, Need, Env)
+                false -> not_in_force(Span, Variable, Member, Need, Outer, Env)
             end;
         Resolved when Member =:= show ->
             %% report §9.4, Appendix E.1: a type known whole is written by
@@ -3825,7 +3840,7 @@ supply(Span, Type, Member, Need, Outer, #env{type_state = TypeState} = Env) ->
                 [Id | _] ->
                     case signature_variable({tvar, Id}, Env) of
                         none -> not_shown(Span, Substituted, Need, Env);
-                        _ -> not_in_force(Span, {tvar, Id}, show, Need, Env)
+                        _ -> not_in_force(Span, {tvar, Id}, show, Need, Outer, Env)
                     end
             end;
         {tcon, [Name], _}
@@ -3844,7 +3859,7 @@ supply(Span, Type, Member, Need, Outer, #env{type_state = TypeState} = Env) ->
             %% report §3.10: a tuple's compare is the language's, its
             %% components' compares in order, each supplied at its type
             Outer1 = case Outer of
-                         undefined -> member_text(Resolved, compare, TypeState);
+                         undefined -> {Resolved, compare};
                          _ -> Outer
                      end,
             Supplying = case Need of
@@ -3872,7 +3887,7 @@ known_member(Span, QualifiedName, Type, Member, Need, Outer, Env) ->
             {Requirement, TypeState} = member_at(Span, Scheme, Type, Member, Need,
                                                  Env1#env.type_state),
             Outer1 = case Outer of
-                         undefined -> member_text(Type, Member, TypeState);
+                         undefined -> {Type, Member};
                          _ -> Outer
                      end,
             Supplying = case Need of
@@ -3938,7 +3953,7 @@ no_member(Span, Type, Member, Need, Outer, #env{type_state = TypeState,
                                                  namespace = Namespace}) ->
     Wanted = case Outer of
                  undefined -> member_text(Type, Member, TypeState);
-                 _ -> Outer
+                 {OuterType, OuterMember} -> member_text(OuterType, OuterMember, TypeState)
              end,
     Text = ern_types:format(Type, TypeState),
     MemberText = atom_to_list(Member),
@@ -3965,8 +3980,9 @@ no_member(Span, Type, Member, Need, Outer, #env{type_state = TypeState,
     fail(Span, needer_text(Need) ++ " needs " ++ Wanted ++ ", and " ++ Text ++ " has no "
                ++ atom_to_list(Member), [], Help).
 
--spec not_in_force(ern_diagnostic:span(), term(), atom(), term(), env()) -> no_return().
-not_in_force(Span, Variable, Member, {fill, _, Binder} = Need, #env{type_state = TypeState}) ->
+-spec not_in_force(ern_diagnostic:span(), term(), atom(), term(), term(), env()) -> no_return().
+not_in_force(Span, Variable, Member, {fill, _, Binder} = Need, _Outer,
+             #env{type_state = TypeState}) ->
     Name = variable_text(Variable, TypeState),
     %% report §5.6: the local that holds the record is what an annotation
     %% fixes, `annotate ops`
@@ -3977,7 +3993,7 @@ not_in_force(Span, Variable, Member, {fill, _, Binder} = Need, #env{type_state =
     fail(Span, needer_text(Need) ++ " needs " ++ Name ++ "." ++ atom_to_list(Member)
                ++ ", and the record's type leaves the variable " ++ Name
                ++ " undetermined; annotate " ++ Annotated);
-not_in_force(Span, Variable, Member, Need, Env) ->
+not_in_force(Span, Variable, Member, Need, Outer, Env) ->
     case signature_variable(Variable, Env) of
         none when element(1, Need) =:= shown ->
             not_shown(Span, ern_types:substitute(Variable, Env#env.type_state), Need, Env);
@@ -4001,9 +4017,29 @@ not_in_force(Span, Variable, Member, Need, Env) ->
                 _ ->
                     fail(Span, needer_text(Need) ++ " needs " ++ Wanted
                                ++ ", at a type variable no requirement can name", [],
-                         "annotate it with a type variable of " ++ declaration_text(Env)
-                         ++ "'s signature, and add the requirement there")
+                         open_help(Variable, Outer, Env))
             end
+    end.
+
+%% Report §11.5, §4.9: the help for a type variable no requirement names,
+%% by whether the definition's type holds it: a type variable a signature
+%% could name, which takes the requirement there; or a type nothing fixes,
+%% which an annotation where the value is bound fixes, the open parts of
+%% the type that needs the member written `...`.
+open_help(Variable, Outer, #env{definition_type = DefinitionType,
+                                type_state = TypeState} = Env) ->
+    {tvar, Id} = ern_types:resolve(Variable, TypeState),
+    Held = DefinitionType =/= undefined
+        andalso lists:member(Id, ern_types:free_variables(DefinitionType, TypeState)),
+    case {Held, Outer} of
+        {true, _} ->
+            "annotate it with a type variable of " ++ declaration_text(Env)
+                ++ "'s signature, and add the requirement there";
+        {false, undefined} ->
+            "annotate the value where it is bound";
+        {false, {OuterType, _}} ->
+            "annotate the value where it is bound, `let value : "
+                ++ ern_types:format_annotation(OuterType, TypeState) ++ " = ...`"
     end.
 
 %% Report §11.5: the help line that adds a requirement, written as code.

@@ -1592,6 +1592,28 @@ structural_compare_test() ->
                    "[#(1, \"b\"), #(1, \"z\"), #(2, \"a\")]\nSome(#(1, [3]))\nLess\ntrue\n"
                    "[[1], [1, 5], [2]]\n">>, Output).
 
+%% report §3.10, §9.6, §4.9: the prelude's `compare(a, b)` runs the
+%% operand type's compare, as `<` does: an Int's, a String's, a tuple's, a
+%% list's, a derived one, the requirement's member in a generic function,
+%% and as a value, a sort of pairs and a piped call among them. Written
+%% with the rule (feedback 159)
+prelude_compare_test() ->
+    {ok, Output} = run(
+        "type Day = Mon | Tue | Wed derives compare\n"
+        "fn ordered(x : a, y : a) : Ordering needs a.compare = compare(x, y)\n"
+        "export fn main() : Unit = {\n"
+        "    Io.println(Io.show(#(compare(1, 2), compare(\"b\", \"a\"), compare(2.5, 2.5))));\n"
+        "    Io.println(Io.show(#(compare(#(1, \"a\"), #(1, \"b\")), compare([1, 2], [1]))));\n"
+        "    Io.println(Io.show(#(compare(Tue, Mon), ordered(#(Wed, [1]), #(Wed, [2])))));\n"
+        "    let pairs = [#(\"pear\", 2), #(\"fig\", 3), #(\"pear\", 1)];\n"
+        "    Io.println(Io.show(List.sort(pairs, compare)));\n"
+        "    let order = compare;\n"
+        "    Io.println(Io.show(#(order('b', 'a'), 5 |> compare(5))))\n"
+        "}\n"),
+    ?assertEqual(<<"#(Less, Greater, Equal)\n#(Less, Greater)\n#(Greater, Less)\n"
+                   "[#(\"fig\", 3), #(\"pear\", 1), #(\"pear\", 2)]\n#(Greater, Equal)\n">>,
+                 Output).
+
 %% report §6.6, §9.5: `Reply.process(r)` is the caller's `Process`, which
 %% the callee compares and monitors: the caller is told it is itself, and
 %% the callee, keeping a second caller's reply, is told of that caller's
@@ -3223,12 +3245,13 @@ prelude_targets_test() ->
     ?assertEqual([], Missing).
 
 %% The emission of a prelude name, as ern_emitter makes it: Int's
-%% arithmetic and negate, and the `<>` of String and Bytes, are inline and
-%% have no target; Float's operators, and the `<>` of List and Path, are
+%% arithmetic and negate, the `<>` of String and Bytes, and `compare`, are
+%% inline and have no target; Float's operators, and the `<>` of List and Path, are
 %% their modules' functions (report §4.8), each the function its unit names
 %% it by (report §11.1, ern_code:function/2).
 prelude_target(QualifiedName, Text) ->
-    {ok, Syntax} = ern_parser:parse_type(Text),
+    {TypeText, _} = ern_prelude:signature(Text),
+    {ok, Syntax} = ern_parser:parse_type(TypeText),
     Arity = case Syntax of
                 #t_fn{params = Params} -> length(Params);
                 _ -> 0
@@ -3254,6 +3277,9 @@ prelude_target(QualifiedName, Text) ->
                Operator =:= '%'; Operator =:= negate ->
             {erlang, is_atom, 1};
         [TypeName, '<>'] when TypeName =:= 'String'; TypeName =:= 'Bytes' ->
+            {erlang, is_atom, 1};
+        %% report §3.10, §9.6: the operand type's compare, its supply
+        [compare] ->
             {erlang, is_atom, 1};
         [Namespace, _] ->
             Unit = ern_namespace:erlang_module([Namespace]),

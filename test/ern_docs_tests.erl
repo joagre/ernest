@@ -53,9 +53,9 @@ citations_resolve_test() ->
     Guide = ern_repository:read("guide/language.md"),
     ReportSections = section_numbers(Report),
     GuideSections = section_numbers(Guide),
-    %% docs/findings.md's lines cite each document as their readers did, the
-    %% guide's sections bare beside the report's, and the list goes when its
-    %% plan item is done
+    %% a review's findings, `findings.md` beside the plan while they are
+    %% open, cite each document as their readers did, the guide's sections
+    %% bare beside the report's, and the list goes when its plan item is done
     Live = (documents() -- ["docs/findings.md"])
         ++ examples() ++ stdlib() ++ shell() ++ tools() ++ toolchain(),
     Dangling =

@@ -1205,6 +1205,11 @@ name_form(_, {named, ['Peer', service]}, [ServiceType], _, Context) ->
     {lambda([Name], call_remote(ern_peer, service, [erl_syntax:variable(Name),
                                                     service_hash(ServiceType)])),
      Context1};
+%% Report §3.10, §9.6: the prelude's compare as a value, the operand
+%% type's compare its one supply names, as a member is (§4.9)
+name_form(_, {named, [compare]}, [Supply], _, Context) ->
+    {Form, Context1} = supply_form(Supply, Context),
+    {Form, function_value(Form, Context1)};
 name_form(Source, {named, QualifiedName} = Reference, [], Extra, Context) ->
     case is_own(Reference, Context) orelse not is_primitive(QualifiedName) of
         true -> {declared_value(Reference, Context), Context};
@@ -1446,6 +1451,11 @@ callee(Source, {var, {named, QualifiedName} = Reference, []} = Node, _, Args, Co
 callee(Source, {var, {named, ['Address', _] = QualifiedName}, [], _} = Node, _, Args, Context) ->
     {ArgForms, Context1} = exprs(Args, Context),
     prelude_call(Source, QualifiedName, Args, ArgForms, Node, Context1);
+%% Report §3.10, §9.6: the prelude's compare called, the operand type's
+%% compare its one supply names applied to the operands, as `<` applies it
+callee(_, {var, {named, [compare]}, [Supply]}, _, Args, Context) ->
+    {ArgForms, Context1} = exprs(Args, Context),
+    member_applied(Supply, ArgForms, Context1);
 %% report §4.9: a member called directly, `a.compare(x, y)` or a derived
 %% compare's field
 callee(_, {member, {known, Reference, Supplies}}, _, Args, Context) ->

@@ -747,19 +747,61 @@ startup_of_the_working_directory() ->
 %% control character as its escape, a spawned process's and an input's own
 %% alike. A regression test: the cause reached the terminal as it was, an
 %% escape and a line feed among it, and an input's own did until the
-%% release review
+%% release review. The first input waits for its process's Down, which
+%% comes after the fault's report to the session is under way, so that the
+%% fault is one reported before the shell ends (report §11.2); a spawned
+%% process that had not yet met its fault at the end ended with the
+%% program, and the line was missing in some runs under load
 fault_line_escaped_test_() ->
     {timeout, 60, fun fault_line_escaped/0}.
 
 fault_line_escaped() ->
     Dir = fresh_home(),
     InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, "spawn(fn() = fault(\"a\\u{1b}b\\nforged\"))\n:faults\n"
+    ok = file:write_file(InputFile, "{ let p : Address(Int) = spawn(fn() = fault(\"a\\u{1b}b"
+                                    "\\nforged\")); monitor(Process.fromAddress(p),"
+                                    " fn(d : Down) = d); receive { _ -> Unit } }\n:faults\n"
                                     "fault(\"c\\u{1b}d\")\n"),
     {0, Output} = ern_pty:sh("HOME=" ++ Dir ++ " ../bin/ern shell < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"input 1:1 faulted: a\\u{1B}b\\nforged">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"fault: c\\u{1B}d">>)),
     ?assertEqual(nomatch, binary:match(Output, <<27>>)).
+
+%% report §11.2: before the shell ends it writes every fault reported to it
+%% until then. The last input spawns a process that faults and waits for
+%% its Down, which the reaper delivers after it has started the fault's
+%% report to the session (delivered_down/3), so that the report is on its
+%% way or in the session's mailbox when the input ends and the end of input
+%% is read. Written with the rule; it does not show whether the line was
+%% written before the last prompt or by the end, which depends on when the
+%% report arrives
+fault_before_the_end_written_test_() ->
+    {timeout, waits(1), fun fault_before_the_end_written/0}.
+
+fault_before_the_end_written() ->
+    Dir = fresh_home(),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, "{\n"
+                                    "    let p : Address(Int) = spawn(fn() = fault(\"late\"));\n"
+                                    "    monitor(Process.fromAddress(p), fn(d : Down) = d);\n"
+                                    "    receive { _ -> Unit }\n"
+                                    "}\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"input 1:2 faulted: late">>)).
+
+%% report §3.10, §9.6, §11.2: the prelude's `compare` prints with its
+%% requirement, and applies at the prompt as in a module. Written with the
+%% rule (feedback 159)
+compare_at_the_prompt_test_() ->
+    {timeout, waits(1), fun compare_at_the_prompt/0}.
+
+compare_at_the_prompt() ->
+    Dir = fresh_home(),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, ":type compare\ncompare(#(1, \"b\"), #(1, \"a\"))\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"> compare : (a, a) -> Ordering needs a.compare\n"
+                                                "> Greater : Ordering\n">>)).
 
 %% report §11.2, Appendix E.21: `Process.live()` at the prompt lists what
 %% `:processes` lists, the processes the session's inputs started, and
@@ -4234,7 +4276,9 @@ compiled_beside_another() ->
                                                 (shown(Dir, "one/greet.erc"))/binary, "\n"
                                                 "> \"two\" : String">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"Greet.crash:4 faulted: crashed">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"> true : Bool">>)),
+    %% the crash's line may come after the next prompt, written as it
+    %% arrives while the next input runs (report §11.2)
+    ?assertMatch({_, _}, binary:match(Output, <<"true : Bool\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"Other, from ",
                                                 (shown(Dir, "one/other.erc"))/binary,
                                                 "\n> 1 : Int\n">>)).

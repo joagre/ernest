@@ -162,6 +162,45 @@ service_monitor_told_before_the_new_run_test() ->
         "}\n"),
     ?assertEqual(<<"0 out of order\n">>, Output).
 
+%% report §6.9: a watcher told Restarted that sends the restarted process a
+%% request at once reaches the new run: the restarting process empties its
+%% mailbox and ends the calls waiting on it before its service monitors'
+%% wraps place their Restarted, and runs its function again after, so the
+%% watcher's call, made on each Restarted, is answered by the new run, each
+%% run counting from one, fifty restarts in a row. A regression test,
+%% written after the code: the Restarted was placed before the emptying, and
+%% a request sent on it could be emptied with the old run's mailbox or its
+%% call ended with the old run's (feedback 163). It does not cover a
+%% service monitor of another node's process, which no restart reaches
+%% (§8.7)
+restarted_watcher_reaches_the_new_run_test() ->
+    {ok, Output} = ern_emitter_tests:run(
+        "type HolderMsg = Crash | Count(Reply(Int))\n"
+        "type WatcherMsg = Told(Down)\n"
+        "fn holder(count : Int) : Unit receiving HolderMsg =\n"
+        "    receive {\n"
+        "        Crash -> fault(\"crash\")\n"
+        "      | Count(r) -> { answer(r, count); holder(count + 1) }\n"
+        "    }\n"
+        "fn crashes(h : Address(HolderMsg), left : Int, wrong : Int) : Int receiving WatcherMsg =\n"
+        "    if left == 0 then\n"
+        "        wrong\n"
+        "    else {\n"
+        "        send(h, Crash);\n"
+        "        let counted = receive {\n"
+        "            Told(Down(reason = Restarted)) -> Address.callForever(h, Count)\n"
+        "          | Told(_) -> 0\n"
+        "        };\n"
+        "        crashes(h, left - 1, if counted == 1 then wrong else wrong + 1)\n"
+        "    }\n"
+        "export fn main() : Unit receiving WatcherMsg = {\n"
+        "    let h = spawn(restarting(Unlimited, fn() = holder(1)));\n"
+        "    monitorService(Process.fromAddress(h), Told);\n"
+        "    Io.println(Int.toString(crashes(h, 50, 0)) <> \" not answered by the new run\");\n"
+        "    kill(h)\n"
+        "}\n"),
+    ?assertEqual(<<"0 not answered by the new run\n">>, Output).
+
 %% report §6.9: `Unlimited` runs the function again after every fault, and a
 %% time of 0 is a window of one millisecond, which a loop that faults at
 %% once passes. A regression test: a time of 0 set no limit, and the loop

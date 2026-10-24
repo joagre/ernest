@@ -8,7 +8,8 @@ The prelude holds the types every program meets, `Int`, `String`, `List`,
 `Optional`, `Either` and the rest; the types the language's own rules
 name, `Down`, `Reason` and `RestartLimit`; the functions that start
 processes and talk to them, `spawn`, `send`, `Address.call` and the rest;
-and `fault` (report §9).
+`fault`; and `compare`, which compares two values of any type with an
+order (report §9).
 
 An operation in a type's namespace, `Int.compare` or `String.<>`, belongs to
 that type's module, and is documented on its page.
@@ -773,6 +774,29 @@ Always faults, with `cause` as the cause.
 
 ```ernest
 fn(xs : List(Int)) : Int = match xs { x :: _ -> x | [] -> fault("never empty here") }
+```
+
+## compare
+
+```ernest
+compare(left : a, right : a) : Ordering needs a.compare
+```
+
+*Since 0.5.0.*
+
+Compares `left` with `right` by the order of their type: `Less`, `Equal`
+or `Greater`. It is the type's own `compare`, `Int.compare` for two
+`Int`s, chosen as `<` chooses it, and reaches every order `<` reaches, a
+tuple's among them (report §3.10).
+
+A type without an order has no `compare`: `compare(true, false)` is
+refused, as `true < false` is.
+
+### Examples
+
+```ernest
+List.sort([#("pear", 2), #("fig", 3), #("pear", 1)], compare)
+// => [#("fig", 3), #("pear", 1), #("pear", 2)]
 ```
 
 ---

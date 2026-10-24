@@ -2936,13 +2936,17 @@ exhaustiveness_test() ->
 
 %% report §4.2: a type's member is written `T.name`, within the type's own
 %% members too; no lookup step finds it unqualified. A regression test,
-%% written when the report dropped the step the compiler never had
+%% written when the report dropped the step the compiler never had; report
+%% §3.10, §9.6: `compare` unqualified is the prelude's, which reaches the
+%% member by the operand type, as `<` does
 member_written_qualified_test() ->
-    Box = "type Box = Box(Int)\nfn Box.compare(a : Box, b : Box) : Ordering = Equal\n",
-    ?assertEqual("unknown name compare",
-                 refusal(Box ++ "fn Box.negate(b : Box) : Box = match compare(b, b) { _ -> b }")),
-    ?assertEqual(ok, ok(Box ++ "fn Box.negate(b : Box) : Box ="
-                        " match Box.compare(b, b) { _ -> b }")).
+    Box = "type Box = Box(Int)\nfn Box.compare(a : Box, b : Box) : Ordering = Equal\n"
+          "fn Box.negate(b : Box) : Box = b\n",
+    ?assertEqual("unknown name negate",
+                 refusal(Box ++ "fn Box.+(a : Box, b : Box) : Box = negate(a)")),
+    ?assertEqual(ok, ok(Box ++ "fn Box.+(a : Box, b : Box) : Box = Box.negate(a)")),
+    ?assertEqual(ok, ok(Box ++ "fn Box.+(a : Box, b : Box) : Box ="
+                        " match compare(a, b) { _ -> a }")).
 
 %% report §4.2: a dotted name's first segment is the module's own type
 %% where that type has a member of the name, and otherwise the namespace
@@ -3122,11 +3126,22 @@ prelude_types_test() ->
 %% signature parses, and every name resolves to a value
 prelude_values_test() ->
     lists:foreach(fun({QualifiedName, Text, _}) ->
-                      ?assertMatch({ok, _}, ern_parser:parse_type(Text)),
+                      {TypeText, Requirement} = ern_prelude:signature(Text),
+                      ?assertMatch({ok, _}, ern_parser:parse_type(TypeText)),
                       Name = lists:flatten(lists:join(".",
                                                       [atom_to_list(Part)
                                                        || Part <- QualifiedName])),
-                      ?assertEqual(ok, ok("export let v = " ++ Name))
+                      %% report §4.9: a name with a requirement resolves, and
+                      %% a top-level let cannot declare what it needs
+                      case Requirement of
+                          [] ->
+                              ?assertEqual(ok, ok("export let v = " ++ Name));
+                          [{Variable, Member} | _] ->
+                              ?assertEqual(Name ++ " needs " ++ atom_to_list(Variable) ++ "."
+                                           ++ atom_to_list(Member)
+                                           ++ ", which a top-level let cannot declare",
+                                           refusal("export let v = " ++ Name))
+                      end
                   end, ern_prelude:values()),
     %% the process primitives that receive name the caller's mailbox, those
     %% that act on another process and the stdlib combinators do not
@@ -4222,9 +4237,11 @@ requirement_reach_test() ->
                         "    fn sorted(xs : List(b)) : List(b) needs b.compare =\n"
                         "        OrderedSet.toList(OrderedSet.fromList(xs));\n"
                         "    sorted(list)\n}")),
+    %% report §11.5: the variable is build's own, which f's type does not
+    %% hold, so that an annotation fixes it and no requirement of f's can
+    %% name it (feedback 160)
     ?assertEqual({"fromList needs a.compare, at a type variable no requirement can name",
-                  "annotate it with a type variable of f's signature, and add the requirement"
-                  " there"},
+                  "annotate the value where it is bound"},
                  refusal_and_help("fn f(list : List(Int)) : Int = {\n"
                                   "    let build = fn(xs) = OrderedSet.fromList(xs);\n"
                                   "    OrderedSet.size(build(list))\n}")).
@@ -4299,6 +4316,64 @@ structural_compare_test() ->
                   "add `needs a.compare` to f's signature"},
                  refusal_and_help("fn f(x : Optional(a)) : Int =\n"
                                   "    OrderedSet.size(OrderedSet.fromList([x]))")).
+
+%% report §3.10, §9.6, §4.9: the prelude's `compare(a, b)` is the operand
+%% type's compare, resolved as `<` is: a known type's member, a tuple's
+%% order, a list's and a derived one, the requirement's member at a type
+%% variable of the signature, and as a value; and refused where `<` is, on
+%% a type without an order, on an open type and on a type variable no
+%% requirement names. Written with the rule (feedback 159)
+prelude_compare_test() ->
+    ?assertEqual(ok, ok("type Day = Mon | Tue derives compare\n"
+                        "fn a() : Ordering = compare(1, 2)\n"
+                        "fn b() : Ordering = compare(\"b\", \"a\")\n"
+                        "fn c() : Ordering = compare(#(1, \"a\"), #(1, \"b\"))\n"
+                        "fn d() : Ordering = compare([Tue], [Mon, Tue])\n"
+                        "fn e(pairs : List(#(String, Int))) : List(#(String, Int)) =\n"
+                        "    List.sort(pairs, compare)\n")),
+    ?assertEqual("(a, a) -> Ordering needs a.compare",
+                 type_of("export fn f(x : a, y : a) : Ordering needs a.compare = compare(x, y)",
+                         f)),
+    ?assertEqual({"compare needs Bool.compare, and Bool has no compare",
+                  "Bool has no ordering; hold it in a type of your own that declares `compare`"},
+                 refusal_and_help("fn f() : Ordering = compare(true, false)")),
+    ?assertEqual("`<` is not defined on Bool", refusal("fn f() : Bool = true < false")),
+    ?assertEqual("compare needs a.compare, at a type variable no requirement can name",
+                 refusal("fn f() : Ordering = compare(Right(2), Right(1))")),
+    ?assertEqual("`<` needs a.compare, at a type variable no requirement can name",
+                 refusal("fn f() : Bool = Right(2) < Right(1)")),
+    ?assertEqual({"compare needs a.compare, which f does not declare",
+                  "add `needs a.compare` to f's signature"},
+                 refusal_and_help("fn f(x : a, y : a) : Ordering = compare(x, y)")).
+
+%% report §11.5, §4.9: the help of a comparison or a call at a type
+%% variable no requirement names fits where the variable stands: one a
+%% signature writes takes the requirement there; one the definition's type
+%% holds, written by none, is annotated with a variable of the signature;
+%% and one nothing fixes, a type argument no operand determines, is fixed
+%% by an annotation where the value is bound, the type written with `...`
+%% for the open part. Written with the rule (feedback 160)
+open_comparison_help_test() ->
+    ?assertEqual({"`<` needs a.compare, which f does not declare",
+                  "add `needs a.compare` to f's signature"},
+                 refusal_and_help("fn f(x : List(a)) : Bool = x < x")),
+    ?assertEqual({"compare needs a.compare, at a type variable no requirement can name",
+                  "annotate it with a type variable of f's signature, and add the requirement"
+                  " there"},
+                 refusal_and_help("fn f(x, y) = compare(x, y)")),
+    ?assertEqual({"`<` needs a.compare, at a type variable no requirement can name",
+                  "annotate the value where it is bound, `let value : Either(..., Int) = ...`"},
+                 refusal_and_help("fn f() : Bool = Right(2) < Right(1)")),
+    ?assertEqual({"`<` needs a.compare, at a type variable no requirement can name",
+                  "annotate the value where it is bound, `let value : List(...) = ...`"},
+                 refusal_and_help("fn f() : Bool = [] < []")),
+    ?assertEqual({"compare needs a.compare, at a type variable no requirement can name",
+                  "annotate the value where it is bound, `let value : #(Optional(...), Int) ="
+                  " ...`"},
+                 refusal_and_help("fn f() : Ordering = compare(#(None, 1), #(None, 2))")),
+    ?assertEqual(ok, ok("fn f() : Bool = {\n"
+                        "    let e : Either(String, Int) = Right(2);\n"
+                        "    e < Right(1)\n}")).
 
 %% report §3.5: a field whose type has no compare is an error at the
 %% declaration, and a type derives no compare it declares; written after the
