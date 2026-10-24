@@ -1,8 +1,8 @@
 /// A proxy for a service a peer offers: one address for the service across
 /// its end and its return.
 ///
-/// A program puts the library on its load path when it is compiled and
-/// when it is run; report Appendix G says where an installation keeps it.
+/// The library stands on every job's load path, so a program names it with
+/// no option (report Appendix G).
 ///
 /// **What it does.** `start` spawns the proxy's process, which finds the
 /// service and forwards to it each message it is sent, and answers the

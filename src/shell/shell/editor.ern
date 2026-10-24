@@ -4,8 +4,9 @@
 /// `Escape` and the key after it are `Meta` and that key (§8.2).
 ///
 /// Pure, and tested on its own: the tests at the foot of this file are
-/// what `ern test` runs (Appendix E.24, §11.2). The reader holds a `Editing` and reads it
-/// through the functions here, since its constructor is this module's.
+/// what `ern test` runs (Appendix E.24, §11.2). The reader holds an `Editing`
+/// and reads it through the functions here, since its constructor is this
+/// module's.
 
 /// What is being edited: the line and the cursor, what was last killed,
 /// what the keys before this one have begun, the inputs before this one

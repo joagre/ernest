@@ -6,8 +6,8 @@
 /// state that one process holds, a `Map` in that process is the usual
 /// choice, and the simpler one.
 ///
-/// A program puts the library on its load path when it is compiled and
-/// when it is run; report Appendix G says where an installation keeps it.
+/// The library stands on every job's load path, so a program names it with
+/// no option (report Appendix G).
 ///
 /// **A table's life.** A table belongs to the process that made it. It ends
 /// when that process ends, or when any process that holds it calls

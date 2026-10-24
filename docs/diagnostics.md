@@ -1675,7 +1675,7 @@ export fn compare(left : Int, right : Int) : Ordering = Int.compare(left, right)
 
 ```console
 $ ern build main/stack.ern
-main/stack.ern:2:8: Main.Stack.compare is a member of the type Stack in main.ern
+main/stack.ern:2:8: Main.Stack.compare is a member of the type Stack in the module Main
 1 | // main/stack.ern
 2 | export fn compare(left : Int, right : Int) : Ordering = Int.compare(left, right)
   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -3961,7 +3961,7 @@ example.ern:3:16: a `receive` guard combines `true`, `false`, Bool variables, an
 2 |     receive {
 3 |         b when Bool.not(b) -> 1
   |                ^^^^^^^^^^^
-  | = help: bind what the guard needs with a `let` before the `receive` and compare that; or receive the message and `match` it, which takes it out of the mailbox
+  | = help: bind what the guard needs that does not come from the message with a `let` before the `receive` and compare that; or receive the message and `match` it, which takes it out of the mailbox
 ```
 
 ### A `receive` guard that compares a computed value (§6.3)
@@ -4409,20 +4409,20 @@ example.ern:7:28: Code.running lists the processes that run total, whose result 
 ### `Code.running` of a function whose mailbox type holds a type variable (§3.11)
 
 ```ernest-rejected
-fn say() : Unit receiving m =
+fn hold(value : a) : Unit receiving List(a) =
     receive {
-        after 1 -> Unit
+        _ -> Unit
     }
 
 fn listed() : Int =
-    List.size(Code.running(say))
+    List.size(Code.running(hold))
 ```
 
 ```console
 $ ern build example.ern
-example.ern:7:28: Code.running lists the processes that run say, whose mailbox type m holds a type variable
+example.ern:7:28: Code.running lists the processes that run hold, whose mailbox type List(a) holds a type variable
 6 | fn listed() : Int =
-7 |     List.size(Code.running(say))
-  |                            ^^^
-  | = help: give say its mailbox type, `fn say(...) : Unit receiving Msg = ...`: every process listed has it (report §3.11)
+7 |     List.size(Code.running(hold))
+  |                            ^^^^
+  | = help: give hold its mailbox type, `fn hold(...) : Unit receiving Msg = ...`: every process listed has it (report §3.11)
 ```

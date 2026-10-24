@@ -33,7 +33,7 @@ export abstract type Region =
            outputRows : Int,
            size : Terminal.Size)
 
-/// Report §11.2: the tail's rows to begin with, which `:set output n`
+/// Report §11.2: the tail's rows to begin with, which `:set rows n`
 /// changes and `0` takes away.
 export let tailRows = 5
 
@@ -127,7 +127,7 @@ export fn taken(region : Region) : #(Region, String) =
 export fn resized(region : Region, size : Terminal.Size) : #(Region, String) =
     aged(Region(..region, size = size), [])
 
-/// Report §11.2: `:set output n` gives the tail n rows, and 0 takes the
+/// Report §11.2: `:set rows n` gives the tail n rows, and 0 takes the
 /// tail away, which interleaves what programs write with the transcript.
 export fn outputSized(region : Region, rows : Int) : #(Region, String) =
     aged(Region(..region, outputRows = Int.max(0, rows)), [])
@@ -340,7 +340,7 @@ fn picture(char : Char) : String = {
         "\u{FFFD}"
 }
 
-// The tail's height: what `:set output` asks for, and never more than
+// The tail's height: what `:set rows` asks for, and never more than
 // the screen has room for, the input having the last word.
 fn height(region : Region) : Int =
     Int.min(region.outputRows, Int.max(0, region.size.rows / 2 - 1))

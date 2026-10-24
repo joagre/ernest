@@ -54,12 +54,14 @@ export type Activity = Running | Receiving | Calling
 /// A fault of a process the runtime started: the process, where it was spawned,
 /// the cause, whether it restarts after the fault, its trace, and the name of
 /// the peer whose spawn started the process, as the configuration lists it
-/// (report §8.7), or `None`. The trace is the innermost twelve frames of the
-/// host's stack where the fault was met, the innermost first, a frame a line,
-/// ending with the outermost frame of the program's code; a frame of Ernest
-/// code is written as a spawn site is, the top-level declaration the code is
-/// written in and the frame's line, `Main.worker:3` (report §7.3, Appendix
-/// E.21).
+/// (report §8.7), or `None` where no peer's spawn started it or the
+/// configuration no longer lists that peer. The trace is the innermost twelve
+/// frames of the host's stack where the fault was met, the innermost first, a
+/// frame a line, ending with the outermost frame of the program's code; a
+/// frame of Ernest code is written as a spawn site is, the top-level
+/// declaration the code is written in and the frame's line, `Main.worker:3`
+/// (report §7.3, Appendix E.21). The trace is empty for a process the host
+/// ended, which met no fault of its own (report §6.9).
 ///
 /// ### Examples
 ///
@@ -68,7 +70,7 @@ export type Activity = Running | Receiving | Calling
 ///                     site = "Main.worker:3",
 ///                     cause = "division by zero",
 ///                     restarted = false,
-///                     trace = "",
+///                     trace = "Main.worker:3",
 ///                     spawnedBy = None).cause
 /// // => "division by zero"
 /// ```

@@ -6,8 +6,8 @@
 /// `Io.print` (report Appendix G.3). Reading keys and the terminal's size is
 /// `Terminal`'s work.
 ///
-/// A program puts the library on its load path when it is compiled and
-/// when it is run; report Appendix G says where an installation keeps it.
+/// The library stands on every job's load path, so a program names it with
+/// no option (report Appendix G).
 ///
 /// **Only for a terminal.** The sequences mean something to a terminal alone;
 /// written to a file or a pipe they are kept as bytes. `Terminal.size` answers

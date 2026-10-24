@@ -16,11 +16,11 @@ foreign type Checked
 foreign type Value
 
 // What running an input came to: the session after it and its value, or
-// the cause of the fault that ended it, each with the input's serial
-// (report §11.2, §6.9).
+// the cause of the fault that ended it and its trace, each with the input's
+// serial (report §11.2, §6.9, §7.3).
 type Outcome =
     Ok(session : Session, serial : Int, value : Value)
-  | Faulted(cause : String, serial : Int)
+  | Faulted(cause : String, trace : String, serial : Int)
 
 // What the session is told. The reader sends `Subscribed` once it holds
 // the keyboard, or `SubscriptionRefused` where the terminal refuses its
@@ -65,21 +65,22 @@ type State =
 // word where it is a command's argument (report §11.2).
 type Origin = Prompt(Int) | Startup(file : String, line : Int, column : Int)
 
-type Settings = Settings(depth : Int, length : Int, timing : Bool, output : Int)
+type Settings = Settings(depth : Int, length : Int, timing : Bool, rows : Int)
 
 type Next = Continue(State) | Leave
 
 // Report §11.2: the messages the screen takes. The shell's own text is
-// `Said`, from the session alone, and `Noted` while an input is typed,
-// from the reader; a running program's is `Wrote`. `ShowInput` shows the
+// `Said`, from the session alone, and `Noted`, from the reader while an
+// input is typed and from the session for a fault said while a prompt is
+// pending; a running program's is `Wrote`. `ShowInput` shows the
 // line being typed with the rows under it, from the reader, and from the
 // session as it ends; the reader's `Entered` finishes the line, and the
 // session's `Taken` says it has taken an input, which may have been typed
 // ahead. The reader sends `Resized` and `Clear`, `C-l`'s clean screen; the
-// session sends `SetHeight`, `:set output n` and `0` at the end, `Redirect`,
-// where `:output` sends what programs write, `None` the live region,
-// `Locate`, answered with where it goes, and `Flush`, answered once
-// everything sent before it is written.
+// session sends `SetHeight`, `:set rows n` and `0` at the end, `Redirect`,
+// where `:output` sends what programs write, `None` the screen's own place
+// for it, `Locate`, answered with where it goes as `:output` says it, and
+// `Flush`, answered once everything sent before it is written.
 type ScreenMsg =
     Said(String)
   | Noted(String)
@@ -91,7 +92,7 @@ type ScreenMsg =
   | Clear
   | SetHeight(Int)
   | Redirect(Optional(Path))
-  | Locate(reply : Reply(Optional(Path)))
+  | Locate(reply : Reply(String))
   | Flush(reply : Reply(Unit))
 
 // What the reader is told: a key, which the terminal sends it once it has
@@ -128,7 +129,7 @@ type Keys = Keys(reader : Address(ReaderMsg), size : Terminal.Size)
 // Report §11.2: a value is printed to a depth and a length, and 0 is
 // neither. The defaults print what a prompt is used for whole and stop a
 // value that would scroll the session away.
-let defaults = Settings(depth = 10, length = 100, timing = false, output = Shell.Region.tailRows)
+let defaults = Settings(depth = 10, length = 100, timing = false, rows = Shell.Region.tailRows)
 
 /// The shell: a session at a terminal, or one that reads lines where
 /// standard input is not a terminal or standard output has no size (report
@@ -391,18 +392,15 @@ fn trouble(error : Io.Error) : String =
 
 // Report §11.2: where a program's output goes. A path is a terminal or a
 // file, which an append of nothing tries, creating a file that is not
-// there; `-` is the live region again, and nothing says where it goes now,
-// which the screen holds.
+// there; `-` is the screen's own place for it again, the live region or, in
+// line mode, standard output, and nothing says where it goes now, which the
+// screen holds.
 fn output(screen : Address(ScreenMsg), argument : String) : Either(String, String) =
     if String.isEmpty(argument) then
-        match Address.call(screen, fn(reply) = Locate(reply = reply), screenMs) {
-            Some(Some(path)) -> Right("output goes to " <> Path.toString(path))
-          | Some(None) -> Right("output goes to the live region")
-          | None -> Left("the screen did not say where output goes")
-        }
+        located(screen)
     else if argument == "-" then {
         send(screen, Redirect(None));
-        Right("output goes to the live region")
+        located(screen)
     } else {
         let path = Path(argument);
         match Fs.append(path, <<>>, fileMs) {
@@ -413,6 +411,13 @@ fn output(screen : Address(ScreenMsg), argument : String) : Either(String, Strin
                 Right("output goes to " <> argument)
             }
         }
+    }
+
+// Where the screen says what programs write goes.
+fn located(screen : Address(ScreenMsg)) : Either(String, String) =
+    match Address.call(screen, fn(reply) = Locate(reply = reply), screenMs) {
+        Some(place) -> Right("output goes to " <> place)
+      | None -> Left("the screen did not say where output goes")
     }
 
 // Report §11.2: a path that names no terminal, other device or file, a
@@ -504,8 +509,8 @@ fn await(state : State,
             // session's process, once the input has answered
             Continue(State(..state, session = collect(session)))
         }
-      | Done(Faulted(cause = cause, serial = serial)) when serial == current -> {
-            say(screen, Shell.Style.fault(placed(state, "fault: " <> escaped(cause)), state.color));
+      | Done(Faulted(cause = cause, trace = trace, serial = serial)) when serial == current -> {
+            sayFault(state, screen, cause, trace);
             if printing then sayTime(screen, state.settings, started) else Unit;
             Continue(state)
         }
@@ -530,9 +535,7 @@ fn await(state : State,
       // brought, after which no `Done` comes
       | Reported(report) ->
             if report.process == Process.fromAddress(inputProcess) then {
-                say(screen,
-                    Shell.Style.fault(placed(state, "fault: " <> escaped(report.cause)),
-                                      state.color));
+                sayFault(state, screen, report.cause, report.trace);
                 if printing then sayTime(screen, state.settings, started) else Unit;
                 Continue(state)
             } else
@@ -542,10 +545,19 @@ fn await(state : State,
                       inputProcess,
                       started,
                       printing)
-        // an input typed meanwhile, and the end of input, are left in the
-        // mailbox: they wait for this one, and run after it (report §11.2)
+        // an input typed meanwhile is left in the mailbox: it waits for
+        // this one, and runs after it; `C-d` on an empty line ends the
+        // reader, whose end above kills this input and ends the shell, as
+        // `:quit` ends it (report §11.2)
     }
 }
+
+// Report §11.2: an input's own fault is its answer, `fault:` and its cause,
+// and beneath them its trace, as `ern run` prints a fault's (§7.3).
+fn sayFault(state : State, screen : Address(ScreenMsg), cause : String, trace : String) : Unit =
+    say(screen,
+        Shell.Style.fault(placed(state, "fault: " <> escaped(cause)) <> indentedTrace(trace),
+                          state.color))
 
 // Report §11.2: what an input declared, a line each in the order it was
 // written, or else its value with its type. A value of type `Unit` prints
@@ -659,25 +671,26 @@ fn screenDied(down : Down) : a =
     fault("the shell's screen ended: " <> faultLine(down))
 
 // Report §11.2: a process that faults is reported with its spawn site and
-// cause, as `ern run` reports it, and kept for `:faults`, unless it is one
-// of the shell's own or one `Test.faults` started. The line goes to the
-// screen wrapped as the caller says: `Said` where the session says it,
-// `Noted` where a prompt is pending.
+// cause, and its trace beneath them, as `ern run` reports it, and kept for
+// `:faults`, unless it is one of the shell's own or one `Test.faults`
+// started. The report goes to the screen wrapped as the caller says: `Said`
+// where the session says it, `Noted` where a prompt is pending.
 fn reported(state : State,
             screen : Address(ScreenMsg),
             report : Process.FaultReport,
             wrap : (String) -> ScreenMsg) : State =
-    if Set.contains(state.own, report.process) || isExpected(report) then
+    if Set.contains(state.own, report.process) || startedByTestFaults(report) then
         state
     else {
-        send(screen, wrap(Shell.Style.fault(reportLine(report), state.color)));
+        let text = faultedLine(report) <> indentedTrace(report.trace);
+        send(screen, wrap(Shell.Style.fault(text, state.color)));
         State(..state, faults = List.take(report :: state.faults, keptFaults))
     }
 
 // Report Appendix E.24: whether a fault is of a process `Test.faults`
 // started, whose site is that function's (§6.9), which no job reports,
 // since the call's answer carries it.
-fn isExpected(report : Process.FaultReport) : Bool =
+fn startedByTestFaults(report : Process.FaultReport) : Bool =
     String.startsWith(report.site, "Test.faults:")
 
 // A line the session says, ended.
@@ -687,19 +700,23 @@ fn saidLine(line : String) : ScreenMsg =
 // Report §11.2: `:faults` lists the last hundred.
 let keptFaults = 100
 
-// The spawn site and the cause, as `ern run` writes them, after the cause
-// the peer whose spawn started the process (report §11.2, §8.7), and
-// beneath the line the fault's trace, a frame a line, each indented by
-// four spaces (§7.3, Appendix E.21).
-fn reportLine(report : Process.FaultReport) : String = {
+// A fault's line: the spawn site and the cause, as `ern run` writes them,
+// each written through `escaped`, a peer's site among them, and after the
+// cause the peer whose spawn started the process, which a peer the
+// configuration no longer lists leaves out (report §11.2, §8.7).
+fn faultedLine(report : Process.FaultReport) : String = {
     let phrase = if report.restarted then " faulted, restarted: " else " faulted: ";
     let spawner = match report.spawnedBy {
         Some(name) -> ", spawned by the peer " <> name
       | None -> ""
     };
-    let frames = List.map(String.lines(report.trace), fn(frame) = "\n    " <> escaped(frame));
-    report.site <> phrase <> escaped(report.cause) <> spawner <> String.join(frames, "")
+    escaped(report.site) <> phrase <> escaped(report.cause) <> spawner
 }
+
+// Report §7.3, Appendix E.21: a fault's trace as it stands beneath the
+// fault's line, a frame a line, each indented by four spaces.
+fn indentedTrace(trace : String) : String =
+    String.join(List.map(String.lines(trace), fn(frame) = "\n    " <> escaped(frame)), "")
 
 fn faultLine(down : Down) : String =
     match down {
@@ -708,8 +725,9 @@ fn faultLine(down : Down) : String =
     }
 
 // Report §11.2: a cause as `ern run` writes it, each control character as
-// the escape a literal writes for it, so that a fault is one line and none
-// of a program's reaches the terminal as itself.
+// the escape a literal writes for it, so that a fault's line, and each frame
+// of its trace, is one line, and none of a program's reaches the terminal
+// as itself.
 fn escaped(text : String) : String =
     String.join(List.map(String.toList(text), escapedChar), "")
 
@@ -835,6 +853,7 @@ fn obey(state : State,
                 [] -> answered(state, screen, ["no process of the session's is running"])
               | sites -> answered(state, screen, sites)
             }
+      // report §11.2: `:faults` lists each fault's line, without its trace
       | Shell.Command.Faults ->
             match List.reverse(state.faults) {
                 [] ->
@@ -843,7 +862,7 @@ fn obey(state : State,
                     answered(state,
                              screen,
                              List.map(reports,
-                                      fn(report) = Shell.Style.fault(reportLine(report), color)))
+                                      fn(report) = Shell.Style.fault(faultedLine(report), color)))
             }
       | Shell.Command.Load ->
             match load(session, argument) {
@@ -935,9 +954,9 @@ fn set(state : State, screen : Address(ScreenMsg), argument : String) : Settings
             Settings(..settings, depth = depth)
       | Right(Shell.Command.Length(length)) ->
             Settings(..settings, length = length)
-      | Right(Shell.Command.OutputRows(rows)) -> {
+      | Right(Shell.Command.Rows(rows)) -> {
             send(screen, SetHeight(rows));
-            Settings(..settings, output = rows)
+            Settings(..settings, rows = rows)
         }
       | Right(Shell.Command.Timing(timing)) ->
             Settings(..settings, timing = timing)
@@ -947,7 +966,7 @@ fn set(state : State, screen : Address(ScreenMsg), argument : String) : Settings
 fn settingLines(settings : Settings) : List(String) =
     ["depth " <> Int.toString(settings.depth),
      "length " <> Int.toString(settings.length),
-     "output " <> Int.toString(settings.output),
+     "rows " <> Int.toString(settings.rows),
      "timing " <> (if settings.timing then "on" else "off")]
 
 //
@@ -982,7 +1001,7 @@ fn screenLoop(region : Shell.Region.Region,
                 None ->
                     painted(Shell.Region.wrote(region, text), None)
               | Some(path) ->
-                    match appended(path, text) {
+                    match appended(path, text, "the live region") {
                         Right(_) ->
                             screenLoop(region, destination)
                       | Left(why) -> {
@@ -1010,7 +1029,7 @@ fn screenLoop(region : Shell.Region.Region,
       | Redirect(destination1) ->
             screenLoop(region, destination1)
       | Locate(reply = reply) -> {
-            answer(reply, destination);
+            answer(reply, place(destination, "the live region"));
             screenLoop(region, destination)
         }
       | Flush(reply = reply) -> {
@@ -1043,7 +1062,7 @@ fn plainLoop(destination : Optional(Path)) : Unit receiving ScreenMsg = {
                     None
                 }
               | Some(path) ->
-                    match appended(path, text) {
+                    match appended(path, text, "standard output") {
                         Right(_) ->
                             destination
                       | Left(why) -> {
@@ -1059,7 +1078,7 @@ fn plainLoop(destination : Optional(Path)) : Unit receiving ScreenMsg = {
       | Redirect(path) ->
             path
       | Locate(reply = reply) -> {
-            answer(reply, destination);
+            answer(reply, place(destination, "standard output"));
             destination
         }
       | Flush(reply = reply) -> {
@@ -1083,11 +1102,21 @@ fn plainLoop(destination : Optional(Path)) : Unit receiving ScreenMsg = {
 }
 
 // Report §11.2: what a program wrote, appended where `:output` sent it;
-// where that fails, why, and what programs write goes back to the screen.
-fn appended(path : Path, text : String) : Either(String, Unit) =
+// where that fails, why, and what programs write goes back to the screen's
+// own place for it, `own`.
+fn appended(path : Path, text : String, own : String) : Either(String, Unit) =
     match Fs.append(path, String.toUtf8(text), fileMs) {
         Right(_) -> Right(Unit)
-      | Left(error) -> Left(cannotWrite(path, error) <> ", and output goes to the live region\n")
+      | Left(error) -> Left(cannotWrite(path, error) <> ", and output goes to " <> own <> "\n")
+    }
+
+// Report §11.2: where what programs write goes, as `:output` says it: the
+// path `:output` named, or the screen's own place for it, `own`, the live
+// region at a terminal and standard output in line mode.
+fn place(destination : Optional(Path), own : String) : String =
+    match destination {
+        Some(path) -> Path.toString(path)
+      | None -> own
     }
 
 // Report §11.2: on quitting, the region goes and the cursor is left on a

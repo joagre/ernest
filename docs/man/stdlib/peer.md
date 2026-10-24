@@ -27,14 +27,17 @@ told it: `compute` draws two of them and takes the less busy, and
 its own. A program that knows how busy it is better than its node's
 measure says so with `setUtilization` (report §8.7).
 
-A find, a spawn, a compute and a utilization wait at most the milliseconds
-they are given, and answer what they found or an `Io.Error`, which the
-program matches on; none faults for what the network or a peer does, and a
-compute faults only for a fault in the function it runs. A program that is
-no node has no peers, so they answer `NotListed`; a node dials only once
-its bindings have their values, so in an initializer they answer
-`Unreachable`, and a node holds no utilization until a peer has told it
-one.
+A find, a spawn, a compute and a utilization wait for the peer at most the
+milliseconds they are given, the opening of a connection among them, and
+answer what they found or an `Io.Error`, which the program matches on. The
+runtime's own first steps of a dial come beside that time, so an answer may
+come later than it by them (report §8.7).
+
+None faults for what the network or a peer does, and a compute faults only
+for a fault in the function it runs. A program that is no node has no peers,
+so they answer `NotListed`; a node dials only once its bindings have their
+values, so in an initializer they answer `Unreachable`, and a node holds no
+utilization until a peer has told it one.
 
 ## Examples
 
@@ -190,17 +193,16 @@ Peer.spawn(name : String, f : () -> Unit receiving m, ms : Int) : Either(Io.Erro
 ```
 
 A process started on the peer of that name, running `f`, its address
-answered within `ms` milliseconds and the step of the attempt, the opening
-of a connection among them (report §8.7). `f` is a declaration's name, a
-lambda or a `fn` written in the same definition, or `restarting` over one of
-these, as report §3.11 says, and what it captured crosses to the peer; the
-peer's own top-level bindings and system processes are those `f` reaches
-there. A peer that lacks `f`, or a definition `f` reaches, is sent it before
-the process starts, a function a shell typed among them. `f` runs only where
-every top-level binding it reaches has its value on the peer and every
-module a foreign declaration it reaches calls is there; otherwise the spawn
-answers `NotLoaded`, and the peer says on its standard error what it lacked.
-A binding `f` does not reach keeps it from no peer. A process whose answer
+answered within `ms` milliseconds. `f` is a declaration's name, a lambda or
+a `fn` written in the same definition, or `restarting` over one of these, as
+report §3.11 says, and what it captured crosses to the peer; the peer's own
+top-level bindings and system processes are those `f` reaches there. A peer
+that lacks `f`, or a definition `f` reaches, is sent it before the process
+starts, a function a shell typed among them. `f` runs only where every
+top-level binding it reaches has its value on the peer and every module a
+foreign declaration it reaches calls is there; otherwise the spawn answers
+`NotLoaded`, and the peer says on its standard error what it lacked. A
+binding `f` does not reach keeps it from no peer. A process whose answer
 came too late is killed as it comes, and where the connection was lost
 meanwhile it runs on. A spawn meets `NotListed`, `Unreachable`, `Timeout`,
 `NotLoaded` and `Other`, the last where the peer cannot take the code it was
@@ -262,26 +264,25 @@ Peer.computeAt(name : String, f : () -> a receiving m, ms : Int) : Either(Io.Err
 ```
 
 The value of `f()`, run in a process started on the peer of that name as
-`spawn` starts one, answered within `ms` milliseconds and the step of the
-attempt, the opening of a connection among them (report §8.7). `f` is what a
-spawn's may be, as report §3.11 says, and its result type is known whole
-where `computeAt` is written and is not bound to its node, since the value
-crosses back. The peer runs `f` only where it would start it for a spawn;
-otherwise the compute answers `NotLoaded`, and the peer says on its standard
-error what it lacked. Where the process ends before it answers, killed or
-with the peer's program, the compute answers `Left(Other(text))`, `text` its
-`Reason` as `Io.show` writes it, `"Killed"` or `"ProgramEnd"`. Where the
-time runs out, or the caller ends while it waits, the process is killed
-where it still runs; where the connection was lost, it runs on. A compute
-meets `NotListed`, `Unreachable`, `Timeout`, `NotLoaded` and `Other`.
-`computeAt` is called where it is named, and is no value; work on the
-running node is `f()`.
+`spawn` starts one, answered within `ms` milliseconds. `f` is what a spawn's
+may be, as report §3.11 says, and its result type is known whole where
+`computeAt` is written and is not bound to its node, since the value crosses
+back. The peer runs `f` only where it would start it for a spawn; otherwise
+the compute answers `NotLoaded`, and the peer says on its standard error
+what it lacked. Where the process ends before it answers, killed or with the
+peer's program, the compute answers `Left(Other(text))`, `text` its `Reason`
+as `Io.show` writes it, `"Killed"` or `"ProgramEnd"`. Where the time runs
+out, or the caller ends while it waits, the process is killed where it still
+runs; where the connection was lost, it runs on. A compute meets
+`NotListed`, `Unreachable`, `Timeout`, `NotLoaded` and `Other`. `computeAt`
+is called where it is named, and is no value; work on the running node is
+`f()`.
 
 ### Errors
 
 A fault in `f` faults the caller with its cause, as if `f()` had faulted
-in it. The caller's node reports it once, with the host's stack that
-crossed with it, and the peer reports nothing of it.
+in it. The caller's node reports it once, with the trace that crossed with
+it, and the peer reports nothing of it.
 
 ### Examples
 
@@ -387,4 +388,4 @@ Peer.setUtilization(0.25)
 
 ---
 
-Generated by ern 0.4.0 from peer.ern.
+Generated by ern 0.4.0-dev from src/stdlib/peer.ern.

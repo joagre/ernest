@@ -7,10 +7,13 @@
 ///
 /// **What it prints.** `ern test` prints a line for each test as the test ends:
 /// `adds: passed`, `divides: failed: expected 4, got 3`, or `crashes: faulted:
-/// division by zero`. After the tests it runs the module's doc examples, a line
-/// each named by the declaration the example documents: `Math.add example 1:
-/// passed`, or `Math.add example 2: failed: expected 4, got 3`. It exits with
-/// status 1 unless every test passed.
+/// division by zero`, the fault's trace beneath it, a frame a line, each
+/// indented by four spaces. After the tests it runs the module's doc examples,
+/// a line each named by the declaration the example documents and the
+/// example's number among that declaration's: `Math.add example 1: passed`, or
+/// `Math.add example 2: failed: expected 4, got 3`; the module's own examples
+/// are `Math example 1` and on. It exits with status 1 unless every test and
+/// every example passed.
 ///
 /// **One test at a time.** The tests run in the order the module declares them,
 /// each in a process of its own, so a test may spawn, send and receive. A test
@@ -59,9 +62,10 @@ export type Case(m) = Case(name : String, run : () -> Result receiving m)
 export type Result = Passed | Failed(String)
 
 // What the process that judges a call of `faults` takes: the request for its
-// verdict, and the end of the process the call ran in. The judge is a process
-// of its own, since `faults` receives nothing in its caller's process.
-type JudgeMsg = Judge(Reply(Result)) | Ended(Down)
+// verdict, the end of the process the call ran in, and the end of the caller.
+// The judge is a process of its own, since `faults` receives nothing in its
+// caller's process.
+type JudgeMsg = Judge(Reply(Result)) | Ended(Down) | CallerEnded(Down)
 
 /// `Passed` where `actual` equals `expected`, and otherwise `Failed` naming
 /// both as `Io.show` writes them, the expected first: `expected 3, got 2`. It
@@ -82,14 +86,16 @@ export fn equal(actual : a, expected : a) : Result needs a.show =
     else
         Failed("expected " <> Io.show(expected) <> ", got " <> Io.show(actual))
 
-/// `Passed` where `run` faults with `cause`, and otherwise `Failed` naming the
-/// cause expected and what came instead: another cause, a return, or the
-/// reason the process ended with as `Io.show` writes it, `expected the fault
-/// division by zero, got Killed`.
+/// `Passed` where the call `run`, the subject, faults with `cause`, and
+/// otherwise `Failed` naming the cause expected and what came instead: another
+/// cause, a return, or the reason the process ended with as `Io.show` writes
+/// it, `expected the fault division by zero, got Killed`.
 ///
 /// `run` runs in a process of its own, monitored, whose end gives the answer
-/// (report §6.9); a process it spawns lives on after it. No job reports a fault
-/// of a process `faults` started, since the test's answer carries it (report
+/// (report §6.9). `faults` waits for that end however long it takes, as a
+/// direct call of `run` would. Where the caller ends first, the process is
+/// killed; a process `run` spawns lives on after it. No job reports a fault of
+/// a process `faults` started, since the test's answer carries it (report
 /// §11.2).
 ///
 /// ### Examples
@@ -110,21 +116,32 @@ export fn equal(actual : a, expected : a) : Result needs a.show =
 /// ```
 ///
 /// since 0.5.0
-export fn faults(run : () -> a receiving n, cause : String) : Result = {
+export fn faults(run : () -> a receiving m, cause : String) : Result = {
     let call = fn() = {
         let _ = run();
         Unit
     };
-    let judge = spawn(fn() = receive {
-        Judge(reply) -> {
-            let _ = spawnMonitored(call, Ended);
-            receive {
-                Ended(down) -> answer(reply, verdict(down.reason, cause))
-            }
+    let caller = Process.current();
+    // report §11.2: the spawns stand in `faults` itself, whose site marks
+    // the processes whose faults no job reports
+    let judge = spawn(fn() = {
+        monitor(caller, CallerEnded);
+        receive {
+            Judge(reply) -> judged(reply, spawnMonitored(call, Ended), cause)
+          | CallerEnded(_) -> Unit
         }
     });
     Address.callForever(judge, Judge)
 }
+
+// The judge's wait on the process `running`, which runs the call: the
+// verdict on its end, or its kill where the caller ends first, whose call
+// no one answers then (report §6.9).
+fn judged(reply : Reply(Result), running : Address(m), cause : String) : Unit receiving JudgeMsg =
+    receive {
+        Ended(down) -> answer(reply, verdict(down.reason, cause))
+      | CallerEnded(_) -> kill(running)
+    }
 
 // The verdict on a process that was to fault with `cause` and ended with
 // `reason`.

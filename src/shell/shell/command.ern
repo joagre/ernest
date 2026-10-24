@@ -45,7 +45,7 @@ export type Command =
 type Selection = Picked(Command) | Unknown | Ambiguous(List(String))
 
 /// What one `:set` sets.
-export type Setting = Depth(Int) | Length(Int) | OutputRows(Int) | Timing(Bool)
+export type Setting = Depth(Int) | Length(Int) | Rows(Int) | Timing(Bool)
 
 /// Report §11.2: the commands, in the alphabetical order the help lists them.
 export let commands =
@@ -217,8 +217,7 @@ let column = 16
 //
 
 /// Report §11.2: what `:set` sets, each with the word its value is.
-export let settings =
-    [#("depth", "n"), #("length", "n"), #("output", "n"), #("timing", "on or off")]
+export let settings = [#("depth", "n"), #("length", "n"), #("rows", "n"), #("timing", "on or off")]
 
 let settingsAbout =
     String.join(List.map(settings, fn(#(setting, value)) = setting <> " " <> value), ", ")
@@ -230,7 +229,7 @@ export fn setting(argument : String) : Either(String, Setting) =
     match split(argument) {
         #("depth", rest) -> counted("depth", rest, Depth)
       | #("length", rest) -> counted("length", rest, Length)
-      | #("output", rest) -> counted("output", rest, OutputRows)
+      | #("rows", rest) -> counted("rows", rest, Rows)
       | #("timing", "on") -> Right(Timing(true))
       | #("timing", "off") -> Right(Timing(false))
       | #("timing", _) -> Left(":set timing takes on or off")
@@ -334,7 +333,7 @@ let settingsRead =
                           setting("width 2")) {
                       #(Right(Depth(3)), Right(Timing(true)), Left(negative), Left(unknown)) ->
                           if negative == ":set depth takes 0 or more"
-                              && unknown == ":set takes depth, length, output or timing" then
+                              && unknown == ":set takes depth, length, rows or timing" then
                               Test.Passed
                           else
                               Test.Failed(negative <> " | " <> unknown)

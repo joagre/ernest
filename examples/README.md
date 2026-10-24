@@ -4,22 +4,24 @@ Complete Ernest programs, each larger than a section of the guide can hold. They
 
 The commands assume `ern` on your `PATH`, the repository's `bin/` or an installation's, and are run from this directory. The tests of the repository build every program here, run each that ends of itself and compare what it prints, and connect to each server and read its answer.
 
+An installation holds this directory as `share/doc/ernest/examples/` under its prefix. `ern build` writes the compiled module beside its source, so copy the directory to one of your own first.
+
 ## Run one
 
-Two commands run any program here: `ern build` compiles it to a file beside it, and `ern run` runs that file, with the program's arguments after it.
+Two commands run most programs here: `ern build` compiles a program to a file beside it, and `ern run` runs that file, with the program's arguments after it.
 
 ```console
 $ ern build hello.ern
 $ ern run hello.erc
 hello, world
 $ ern build tally.ern
-$ ern run tally.erc hello.ern tally.ern
-14 50 279 hello.ern
-95 495 3375 tally.ern
-109 545 3654 total
+$ printf 'one two\nthree\n' > words.txt
+$ ern run tally.erc words.txt
+2 3 14 words.txt
+2 3 14 total
 ```
 
-`ern run snake.erc` plays the snake game at your terminal, `ern run shout.erc` serves until you stop it, and `ern test file_sync.erc` runs a program's own tests. Each program's first comment says how it is run and what to look at in it.
+`ern run snake.erc` plays the snake game at your terminal, `ern run shout.erc` serves until you stop it, and `ern test file_sync.erc` runs a program's own tests. `typed_channels_nodes.ern` and `upgrade/` run as nodes, with the configuration directories their first comments make. Each program's first comment says how it is run and what to look at in it.
 
 ## The programs
 
@@ -38,5 +40,3 @@ $ ern run tally.erc hello.ern tally.ern
 | [`snake.ern`](snake.ern) | a snake game at a terminal | a world that is one value, ticks kept to a deadline, keys as messages, randomness passed as a seed | chapters 2, 4 and 5 |
 
 `snake.ern` draws with the library `libs/ansi`, which is on the load path already, as every library of the toolchain's is; the others need the standard library alone. `upgrade/` is one module, `Counter`, in two directories, and each is built as a directory, `ern build upgrade/v1`, as its first comment shows.
-
-An installation holds this directory as `share/doc/ernest/examples/` under its prefix. `ern build` writes the compiled module beside its source, so copy the directory to one of your own first.

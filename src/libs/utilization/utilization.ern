@@ -6,8 +6,8 @@
 /// with `Peer.utilization`, which each node answers as its own `ernest.conf`
 /// measures it (report §8.7, Appendix E.27).
 ///
-/// A program puts the library on its load path when it is compiled and
-/// when it is run; report Appendix G says where an installation keeps it.
+/// The library stands on every job's load path, so a program names it with
+/// no option (report Appendix G).
 ///
 /// **The host's services.** `cpu`, `memory` and `disk` read the host's
 /// services `cpu_sup`, `memsup` and `disksup`, which a node starts where its
@@ -35,7 +35,10 @@
 /// since 0.4.0
 
 /// The processes ready to run and waiting for a scheduler, over all of the
-/// node's schedulers, as the host counts them at the call.
+/// node's schedulers, as the host counts them at the call. The running ones
+/// are left out, where the node's own `"run-queue"` measure, which
+/// `Peer.utilization` answers by default, counts them too and leaves out the
+/// one measuring (report §8.7).
 ///
 /// ### Examples
 ///

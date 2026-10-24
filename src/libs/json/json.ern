@@ -1,8 +1,8 @@
 /// JSON text, read into a value and written from one, as RFC 8259 defines
 /// it, by the host's `json` module.
 ///
-/// A program puts the library on its load path when it is compiled and
-/// when it is run; report Appendix G says where an installation keeps it.
+/// The library stands on every job's load path, so a program names it with
+/// no option (report Appendix G).
 ///
 /// **Numbers.** A number written with neither a fraction nor an exponent is
 /// an `Integer`, of any size the host can hold, and one written with either

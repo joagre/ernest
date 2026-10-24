@@ -8,10 +8,8 @@
 /// The shell's `:doc` shows documentation with `render`, and `ern doc` writes
 /// manual pages with `roff`.
 ///
-/// A program puts the library on its load path when it is compiled and
-/// when it is run; report Appendix G says where an installation keeps it.
-/// It styles text with `libs/ansi`, which a run needs on the load path
-/// beside it (report Appendix G.2).
+/// The library stands on every job's load path, so a program names it with
+/// no option (report Appendix G).
 ///
 /// **What it reads.** `parse` reads headings, paragraphs, code blocks, block
 /// quotes, lists, thematic breaks and tables, and inside them code spans,
