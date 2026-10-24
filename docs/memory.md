@@ -93,7 +93,7 @@ Something may be kept as long as a program holds what it stands for: a socket un
 - No time of its own bounds an exchange. A peer that stopped answering without its connection ending would hold it until the loss, which a peer's exchange, answering every frame, gives no cause for.
 - As the spawner's node, `ern_exchange` keeps nothing between a peer's frames.
 - `ern_exchange` keeps the prelude's environment, built at its first arrival, and its pool's count for the node's life, since neither the prelude nor the standard library changes while it runs.
-- An arrival's unit and its row of forms are held for the node's life, as every unit is (report §11.2; the log's *The Report for Code with a Spawn*, and *A let-go of a node's units* under its *Later*).
+- An arrival's unit and its row of forms are held for the node's life, as every unit is (report §11.2; the log's *The Report for Code with a Spawn*).
 - A node sent code without end holds each definition once, in the unit of the exchange that brought it, so it grows with the exchanges that bring it distinct definitions and the definitions they bring, not with its spawns or its time.
 - An arrival adds one module name and an atom, an export entry for each function it holds and four more, and a function entry for each lambda (measured 2026-10-12 by `make bench`).
 

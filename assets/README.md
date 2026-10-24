@@ -4,11 +4,11 @@ This directory holds Ernest's logos, and this file says where each is used.
 
 | File | What it is | Where it is used |
 |---|---|---|
-| `ernest-mark.svg` | the stoat alone | a document's navigation, and the site's header beside the word "Ernest" |
-| `ernest-combined-light.svg` | the full logo, for a light background | the README, the release's README, the guides and the site's homepage |
+| `ernest-mark.svg` | the stoat alone | none yet; planned for the site's header beside the word "Ernest" (the plan's MVP 4.2) |
+| `ernest-combined-light.svg` | the full logo, for a light background | the README, the release's README, `guide/language.md` and `guide/deployment.md`; planned for the site's homepage |
 | `ernest-combined-dark.svg` | the full logo, for a dark background | the same places, in dark mode |
 | `ernest-avatar-512.png` | the stoat, square, 512 × 512 | GitHub's organization avatar |
-| `ernest-avatar-64.png` | the stoat, square, 64 × 64 | the site's favicon |
+| `ernest-avatar-64.png` | the stoat, square, 64 × 64 | none yet; planned for the site's favicon |
 | `ernest-social-light.png` | the full logo on a light background, 1280 × 640 | GitHub's social preview |
 
 A Markdown page shows the full logo with this block, and the browser picks the file for its mode:

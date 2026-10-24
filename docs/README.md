@@ -1,6 +1,6 @@
 # The documents
 
-The project's own documents: what each file and directory here is, and the two READMEs that stand beside the code. What a user of Ernest reads is [`report/`](../report/) and [`guide/`](../guide/), each with a README of its own, and the tour, [`tour/`](../tour/).
+The project's own documents: what each file and directory here is, and the READMEs that stand beside the code. What a user of Ernest reads is [`report/`](../report/) and [`guide/`](../guide/), each with a README of its own, and the tour, [`tour/`](../tour/).
 
 - **[`development.md`](development.md)**: where things are, how to build and test them, and what the toolchain does not do yet.
 - **[`plan.md`](plan.md)**: where the project stands and what comes next.
@@ -15,9 +15,12 @@ The project's own documents: what each file and directory here is, and the two R
 - **[`principles_review.md`](principles_review.md)**: the report and the guide read against §0, and §0 against what it decided.
 - **[`style.md`](style.md)**: the repository's own style for its Erlang and its C, and the toolchain's glossary; an Ernest program's rules are [`guide/style.md`](../guide/style.md)'s.
 - **[`module_doc_template.md`](module_doc_template.md)**: a documented module, as `ern doc` renders it.
-- **[`diagnostics.md`](diagnostics.md)**: the catalog of the errors the lexer, the parser and the checker give, each with a program that gives it and what `ern build` prints for it, which `make diagnostics` writes and a test holds to the compiler.
+- **[`diagnostics.md`](diagnostics.md)**: the catalog of the errors the lexer, the parser, the checker and the build give, each with a program that gives it and what `ern build` prints for it, which `make diagnostics` writes and a test holds to the compiler.
 - **[`language_feedback.md`](language_feedback.md)**: what writing Ernest has felt against the principles, until the plan decides it.
 - **[`man/`](man/)**: the manual pages as CommonMark, which `make man` writes from `main` and a release commits: the prelude's and the standard library's, and each library's.
 - **[`proposals/`](proposals/)**: what is designed, a directory for each proposal, whose `README.md` says what its files are and which is current.
 - **[`src/shell/README.md`](../src/shell/README.md)**: a guide to the shell's code.
 - **[`editors/emacs/README.md`](../editors/emacs/README.md)**: how to install the Emacs mode, and what it leaves to the reader's configuration.
+- **[`examples/README.md`](../examples/README.md)**: the example programs by topic, with what each shows and how to run it.
+- **[`tools/release/README.md`](../tools/release/README.md)**: what a reader of the release archive, or of an installation, needs first.
+- **[`assets/README.md`](../assets/README.md)**: the logos, and where each is used.

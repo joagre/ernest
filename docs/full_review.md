@@ -1,6 +1,6 @@
 # The full review
 
-Twelve readers, each over the whole of its area. Between them they read the report, the guide, every other document, and all the code: the Erlang and the Ernest, the helper in C, the Emacs mode, the Makefiles and the launcher. It is expensive and runs seldom. What every release runs is [`release_review.md`](release_review.md)'s. The first, on 2026-09-28, read the code only where it had changed since the review before, and MVP 2.98 worked through its findings.
+Fifteen readers, each over the whole of its area. Between them they read the report, the guide, every other document, and all the code: the Erlang and the Ernest, the helper in C, the Emacs mode, the Makefiles and the launcher. It is expensive and runs seldom. What every release runs is [`release_review.md`](release_review.md)'s.
 
 ## When it runs
 
@@ -14,9 +14,10 @@ It does not run while the findings of the last one are open.
 - A reader edits nothing in the repository. It tries a program in a scratch directory of its own, with `bin/ern`.
 - The readers read one commit, which the findings name, and run side by side.
 - An area too large for one reader is read in parts, each by a reader of its own with the same brief.
-- An area a release review's reader read whole since the last full review is read again only where it changed since, as the first review read the code: the release review's findings name the commit it read, and `git diff` from it says what changed.
+- An area a release review's reader read whole since the last full review is read again only where it changed since: the release review's findings name the commit it read, and `git diff` from it says what changed.
 - Every reader names, in its area, each thing that exists for a reason an earlier milestone had and a later rule removed: a copy, a helper, a table, a check or a rule kept because nothing broke. The pattern is a decision made when the toolchain was small and followed by every later rule in the same shape; the log says what each was for, and the reader asks whether anything still needs it.
 - Each reader hands in a numbered list, most serious first. A finding gives its place, a file and line or a section; a short quote; what is wrong; a program or a command that shows it, where there is one; and a one-line fix. Defects stand apart from matters of clarity. Where a reader writes Ernest, the places the language made the work harder stand apart from both.
+- A reader hands its list back as text, which the review's own session saves, since the harness refuses a report file written by a subagent.
 
 ## The readers
 
@@ -43,7 +44,7 @@ A reader's letter names its findings: C12 is the code reader's twelfth. The list
 - **M, the Gleam programmer.** Reads what L reads, in L's order, and uses `bin/ern`.
 
   "You write Gleam: typed processes through `Subject`, no type classes, no distribution and no reload, and you chose that. Read each document as that person. Report, chapter by chapter, what it shows you that Gleam lacks and where it only asserts it; whether the mailbox in the function's type buys anything over a `Subject` that you can see on the page; whether a requirement is convincing as not a type class; where it is too long for what it shows; and, in the guide, every sentence you tripped on or did not believe. End with what convinced you, if anything, and whether you would try Ernest." The same two closing rules as L's.
-- **D, the documents.** Reads every tracked Markdown file but the report, the guide, the log and `docs/man/`'s generated pages: `README.md`, `CLAUDE.md`, `src/shell/README.md`, `editors/emacs/README.md`, `tools/release/README.md`, `docs/man/README.md`, `assets/README.md` and `docs/`. "Read each document against the report and the code it describes. Report every statement that is false or stale, and every fact restated outside its owner or owned by no document (CLAUDE.md's *Who owns each fact*). List every list that lives in two places, with the test that holds it equal, or none."
+- **D, the documents.** Reads every tracked Markdown file but the report's three files, the guide, the log and `docs/man/`'s generated pages: `README.md`, `CLAUDE.md`, `ACKNOWLEDGMENTS.md`, `report/README.md`, `tour/README.md`, `examples/README.md`, `src/shell/README.md`, `editors/emacs/README.md`, `tools/release/README.md`, `docs/man/README.md`, `assets/README.md` and `docs/`. "Read each document against the report and the code it describes. Report every statement that is false or stale, and every fact restated outside its owner or owned by no document (CLAUDE.md's *Who owns each fact*). List every list that lives in two places, with the test that holds it equal, or none."
 - **C, the toolchain's code.** Reads `erl/`, the Erlang and the scripts of `test/`, `test/ern_pty.py` among them, the scripts under `tools/`, the Makefiles, `bin/ern` and `editors/emacs/`, in six parts of about the same size: the front end (the lexer, the parser, the formatter and the utilities) with the Emacs mode, whose indentation follows the formatter's; the checker; the emitter; the runtime with its helper in C; the shell's Erlang, `ern_shell` with its tests and the terminal's; and the rest of the command line with `test/`, the Makefiles and `bin/ern`.
 
   "Read the part whole, the sources and their tests, against `docs/style.md` and the report sections its comments cite. Report defects, missing specs, comments that no longer hold, code that could be shorter and clearer, and every name that does not say what its value or its work is, or that names one thing two ways."
@@ -63,11 +64,11 @@ Two models serve a review: the most advanced there is, and the one below it, whi
 ## The findings
 
 - The lists become one document, `findings.md` beside this one: a line per finding, by area, each naming its reader's letter and number.
-- A line carries its decision: `cheap`, fixed in the milestone that works through the list, a batch a document; a milestone's number, planned there; `done`; or `dropped`, with the reason.
+- A line carries its decision: `fix`, `decide`, a milestone's number, planned there, or `dropped`, with the reason; and `done`, with the date, once made.
 - Each reader's whole list is kept below the lines, since a line is too short to fix from.
 - The lines are sorted before anything is built, and the sorting is read first. A line nobody would argue about once the finding is read is `fix`, made at once, the line saying what was done: a sentence, a soundness paragraph or prose in the review's own session, on the most advanced model; code or a test as one batch on the one below it, built from a brief that names each line and the shape of its fix (*The models*).
 
-  Every other line is a decision: a rule, a sentence of §0 or E.0, what an error text means, a fix that could go two ways, a departure from a proposal. Each is discussed with the user one at a time, the argument before the verdict, with a recommendation that weighs the candidate rule against §0's five principles and names the one that decided (CLAUDE.md, *Authority*).
+  Every other line is `decide`: a rule, a sentence of §0 or E.0, what an error text means, a fix that could go two ways, a departure from a proposal. Each is discussed with the user one at a time, the argument before the verdict, with a recommendation that weighs the candidate rule against §0's five principles and names the one that decided (CLAUDE.md, *Authority*).
 
   A milestone's read (the log's *MVP 3.0 Read Without a Release*) sorts its lines the same way.
 - The plan gives the list a milestone.
@@ -76,4 +77,4 @@ Two models serve a review: the most advanced there is, and the one below it, whi
 
 ## Its cost
 
-Nineteen readers, counting the code's parts, for most of a day; then the milestone the plan gives the findings.
+Twenty-two sessions, counting the parts of C and E, for most of a day; then the milestone the plan gives the findings.

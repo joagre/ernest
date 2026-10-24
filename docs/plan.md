@@ -39,7 +39,7 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 2.9 | an Emacs major mode | 2026-09-23, out of order | | [`emacs_mode.md`](design/emacs_mode.md) |
 | The report read as a Wirth report | the report read against Wirth's register and §0, about thirty issues decided one at a time | 2026-09-23 and 2026-09-24 | | the log's entries of those two days, one an issue |
 | MVP 2.61 | the guide as the user's document | 2026-09-24, out of order | | the log's entries of 2026-09-24 |
-| MVP 2.6 | the shell | 2026-09-25 | | [`shell_design.md`](design/shell.md); the log's entries from 2026-09-20 to 2026-09-25 |
+| MVP 2.6 | the shell | 2026-09-25 | | [`design/shell.md`](design/shell.md); the log's entries from 2026-09-20 to 2026-09-25 |
 | `libs/markdown` | a CommonMark renderer, now under MVP 4.1 | 2026-09-25 | | Appendix G.2 |
 | The code read back after the shell | every line of Ernest and Erlang read for the principles, clumsiness and defects | 2026-09-25 | | *The Code Read Back* |
 | MVP 2.65 | the language and the toolchain read back | 2026-09-26 | | *The Report Read Cold, Its Plain Half* to *The Closing of Step 10*; the log's entries of 2026-09-25 and 2026-09-26 |
@@ -69,9 +69,9 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 3.295 | what the language measurement found: a `Float` operation the host's own with no `try`, the runtime reading a `badarith`'s frame, a chain of five from 1.65 to 1.23 times the host's and the ray tracer from 1.95 to 1.70; `Map.get`'s number closed as the type's; and the bench's parts as targets, its memory kept a table at a time | 2026-10-22 | | *The Sitting on §8.6's Bookkeeping*, its paragraphs *The Float chain* and *Built*; *The Language Against the Host* |
 | MVP 3.296 | what the tour's outline asked: a restart runs the function it was given, stated in §6.9 and the deployment guide, with the guide's sentence that a binding is its node's own; `ern config --listen` and `--peer-dir dir`; the Erlang and the Gleam programmer reading `why.md` and `faq.md`, and every guide read for a word used before it is said; two messages the tour's spike found wanting; and the runtime's own frames out of a designed fault's trace | 2026-10-23 | | *What the Outline Asked*, *Two Nodes on One Machine, Built*, *The Skeptics' Read*, *What the Skeptics Found*, *The Hash's Parents*, *Two Messages, and the Runtime's Frames Weighed Again*; `findings.md` as it stood at `fd5b361c` |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program, the counter, grown through eight chapters from a process with a typed mailbox, through the same counter on a peer that holds none of its code, to its move to new code there, where the deployment guide takes over; with it a README for `report/` and for `guide/`, the README's three ways in, the guide's taste of the rest, and the path read by a fresh reader and the two skeptics | 2026-10-24 | | *The Tour*, *The Tour, Shorter*, *What the Outline Asked*, *The Skeptics' Read*, *What the Skeptics Found*, *The Tour's Programs, Built*, *The Tour Written*; the outline, `docs/proposals/tour/` as it stood at `688ffa03` |
-| MVP 3.9 | the review, and Ernest 0.5.0: the full review, the numbering decided once, a release with no promise of stability | the end of the planned road, 2026-10-13; the split of `make test` done 2026-10-13, taken early | | below |
+| MVP 3.9 | the review, and Ernest 0.5.0: the full review, the numbering decided once, a release with no promise of stability | | | below |
 | MVP 4.0 | a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches | made 2026-10-13 from MVP 4.3's item 4; the first milestone after 0.5.0 | | below |
-| MVP 4.1 | ehttpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | `libs/markdown` done 2026-09-25 | | below |
+| MVP 4.1 | ehttpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | | | below |
 | MVP 4.2 | the website, served by ehttpd: what Ernest is, its characteristics, the three doors, and a live shell in the browser | | | below |
 | MVP 4.3 | the shell's second round | | | below |
 | MVP 4.4 | after 0.5.0: a back end to BEAM's own instructions, Ernest's types as the loader's typed registers | a proposal first | | below |
@@ -97,15 +97,8 @@ no release waits for hardware, and the design note is bounded by its altitude be
   Notes*). The proposals under `docs/proposals/nodes_and_code/`, the carrier, the gateway, the
   exchange, the code table and the processes kept for addresses as built, rewritten as design notes
   under `docs/` beside the shell's, the measurements across machines having settled their figures
-  (the log's *The Numbers Across Machines*); the proposals stay as the record of how the design was
-  weighed until the sweep below. A note's bound is its altitude, what a reader must know to change
-  the component without breaking a promise, and no count of words.
-
-  Its sources, in order: §8.7 and §11.2 and the code as built, with `architecture.md`'s map, for
-  what the component is; `mvp3.0.md` to `mvp3.2.md` and the log's entries for why each part is
-  shaped so; `nodes.md` and `code.md` for the intent and the alternatives weighed at the start,
-  several of which the build changed; `set_aside/` for one line each on what went and why;
-  `experiments/` for the numbers a cost section quotes; `other_systems.md` for the comparison.
+  (the log's *The Numbers Across Machines*). A note's bound is its altitude, what a reader must
+  know to change the component without breaking a promise, and no count of words.
 
   The paragraphs of §8.7 that stated the runtime's machinery a program never sees, the gateway's
   workers and the notes' bookkeeping, moved into the notes with their Appendix F entries, and §8.7
@@ -136,8 +129,8 @@ no release waits for hardware, and the design note is bounded by its altitude be
   the operations programs and the code-update experiments went with their tests, since the guide's
   blocks and `examples/upgrade/` show what they showed and six of the experiments no longer compiled.
 
-  The attached shell's, the site's and `ernest_host/` stay for the milestones after 0.5.0, each
-  going as its milestone closes; the last to go takes `docs/README.md`'s line,
+  The attached shell's, the site's and `ernest_host/` stay after 0.5.0, the first two going as
+  their milestones close and `ernest_host/` when the user ends it; the last to go takes `docs/README.md`'s line,
   `docs/development.md`'s layout and CLAUDE.md's *Proposals* and *Handouts and scratch* paragraphs
   with it.
 
@@ -168,6 +161,12 @@ no release waits for hardware, and the design note is bounded by its altitude be
   prompt (§11.2), so under load the fault reached the shell after that input, and the run failed
   in most runs of `make test-nodes` beside other work; the tests now type an input that prints
   nothing and wait for its prompt until the line is there, within one wait.
+- **A monitor asked by an old run's delivery after the restart's `new_run`**, a gap the review's
+  fixes left on 2026-10-24 (the full review's C4-C5b): a clock delivery that asks for a monitor
+  after the reaper has taken the restart and returns before the clock takes it leaves that monitor
+  standing into the new run, against §6.9; `fresh_run/0`'s comment names the race. Closing it means
+  asking the clock and the terminal before the reaper, and a teller's late delivery would remain;
+  decided and built with the review's remaining decisions, by 2026-10-31.
 - **The release, Ernest 0.5.0**, as `release_review.md` says, its notes saying what changed since
   0.4.0 and that a release may still refuse a program the previous release accepted, as every
   release before 1.0 may (the log's *A Release Carries No History*); no section of the report states
@@ -201,7 +200,7 @@ the wrapping; its `:processes` lists the node's processes, and its `:load` and `
 reload code on the node, as `erl -remsh` attaches to an Erlang node. Whether the shell's design, `docs/design/shell.md`, assumes it runs
 on the node whose code it evaluates is the proposal's first question, read against the note before
 anything is built. Nothing of
-it goes into 0.4.0, whose notes say what the shell does not yet do and that this milestone brings
+it goes into 0.5.0, whose notes say what the shell does not yet do and that this milestone brings
 it.
 
 1. **The design**, discussed with the user first in `docs/proposals/shell/attached.md` (begun
@@ -243,8 +242,8 @@ Ernest written here, and is discussed before any code goes around it (decided wi
 
 A library not yet written waits, and is written when our work needs it, MVP 3.0 and 3.1 among
 that work, when someone asks for it, or when we want it, decided 2026-09-25 (the log's
-*Libraries As They Are Wanted*). Each is an Ernest source root under `src/libs/<name>/` that a
-program adds with `--load-path`, with `src/stdlib/`'s test discipline, documented in one pass to
+*Libraries As They Are Wanted*). Each is an Ernest source root under `src/libs/<name>/` whose build
+ends every job's load path, so that a program names none (§11.2), with `src/stdlib/`'s test discipline, documented in one pass to
 [`module_doc_template.md`](module_doc_template.md) with its executed examples as its first
 user, and a section in the appendix of libraries. Own repositories come later, when there is a
 package story. Written: `libs/ets`, `libs/markdown`, `libs/ansi`, `libs/utilization`,
@@ -325,28 +324,30 @@ log's *The Shell's Second Round*), in this order. The first three need nothing o
 3. **Completion by type**, about one to two weeks: a `match`'s clauses, a mailbox's
    constructors, the functions after `|>`, and an argument's bindings. It needs the checker to
    check an unfinished input, designed first.
-4. **A shell attached to a running node**: MVP 4.0's since 2026-10-13, the first milestone
-   after 0.5.0.
+4. **A shell attached to a running node**: MVP 4.0's since 2026-10-13.
 5. **Whether the session owns what its inputs open**, a decision with the user: a socket and a
    running program an input opens end with the input's process, their owner (§11.2), and the session
    could own them instead, so that they live until it ends, by a way the shell names an owner for
-   its inputs (`findings.md`'s C1-2, placed here 2026-09-30).
+   its inputs (`findings.md`'s C1-2 as it stood on 2026-09-30, placed here that day).
 
    Half decided 2026-10-10 by feedback entry 91: what a `:load`'s binding opens is the evaluation
    process's, which lives while the session runs (§11.2), so the decision left is the input's own
    process alone, which MVP 3.1's read kept ending with the input (its W10).
 6. **A previous version at the prompt**, a decision with the user: whether a previous version's
    constructors may be written at the prompt, `Counter$1.Inc`, and whether `:processes` names
-   the version a process runs (`language_feedback.md`'s entries 97 and 98, placed here
-   2026-10-10 by MVP 3.1's item 5).
+   the version a process runs (`language_feedback.md`'s entries 97 and 98 as they stood on 2026-10-10,
+   placed here that day by MVP 3.1's item 5).
 7. **The `live_region` test's one miss**, 2026-10-05 in a full `make test` under load (MVP
    2.99d's item 11), passed again alone and under `make test-shell`, and not failed since: when
    it fails again its step file in the run's directory says which expectation went unmet, and
    the fix follows from it; diagnosed here where it recurs, and nowhere before.
+8. **`:processes` shows what each process waits on**, its activity beside its site, so that a hung
+   process is found without `List.map(Process.live(), Process.status)` (the full review's B-H3,
+   placed here 2026-10-24).
 
 ## MVP 4.4 (a back end to BEAM's own instructions)
 
-The first milestone after Ernest 0.5.0, decided with the user on 2026-10-10 (the log's *The Road
+The last milestone, after Ernest 0.5.0, decided with the user on 2026-10-10 (the log's *The Road
 to 1.0, Ordered*): a second back end beside the emitter's Erlang abstract format, writing the
 BEAM's own instructions, its generic opcodes (`genop.tab`, format 0, additions only, OTP 29's
 record instructions among them), with Ernest's proven types written as the loader's typed
@@ -354,7 +355,7 @@ registers, so that the JIT emits code without the run-time type tests the Erlang
 keep. It changes no rule of the language, and it makes the soundness argument load-bearing for
 the VM's memory safety: a value from outside, a peer's message, foreign code's return, is fully
 checked before its register is typed, which §8.4's checks and the argument's section 7 must
-then be read as carrying. Conditions before it is built: the language promised (MVP 3.9), OTP
+then be read as carrying. Conditions before it is built: the language held still, as 1.0 will say, OTP
 pinned for the long term, and `make bench`'s numbers for what the type tests cost today, which
 decide whether it is worth its cost. A first, safe step to measure against: a type guard at each
 function's entry, from which the Erlang compiler's own inference types the body. Its design is a

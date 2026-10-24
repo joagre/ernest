@@ -129,7 +129,7 @@ Each construct's function says how it is written:
 - a top-level `let`, a getter over `persistent_term` that `'$init'/0` fills (§8.5, §11.1); one whose initializer is a ground term, `ground/2`, is read as its value, `term_form/1`, in its module and, through the interface's `terms` and a `#linked{}`'s `term`, in a dependent, and `'$init'/0` gives it its value before any initializer runs (§11.1);
 - a spawn on a peer, `spawned/2`, its captures, `captures/1`, and a service's hash, `service_hash/1` (§8.7);
 - a spawn's site, `site_name/2`, written by `ern_namespace:site_text/2` as a frame of a trace is (§6.9, E.21);
-- a fault the code meets, `raised/1`, the host's throw where it is met, so that the trace holds the function that met it (§7.3);
+- a fault the code meets, `thrown_fault/1`, the host's throw where it is met, so that the trace holds the function that met it (§7.3);
 - a requirement's members, `supply_form/2` and `enclosing_members/3` (§4.9);
 - a `Float` operation, `float_operation/4`, the host's own operation with no `try`, whose fault the runtime reads, and a float segment's variable, `variable_form/1` (§3.1, §7.4);
 - a type's descriptor, `describe/4`, a function type's maker, `built_descriptor/1`, and the printing of a check's cause, `printed/2` and `printing/2` (§8.4, §11.5);
@@ -163,9 +163,8 @@ Each chunk is read through `ern_chunk`. A name a shell session declares is writt
 | `ern_terminating` | `ern_rt` | `{Subscriber, Address, Told}` | the subscriptions to the program's end (E.23) |
 | `ern_held` | `ern_rt` | `{{source, Holder}, Count}` and `{{opened, Pid}}` | the sources, and the processes a system module opened (§8.6) |
 | `ern_deliveries` | `ern_rt` | `{{Recipient, Starter, Pid}}`, ordered | the deliveries in flight (§6.9) |
-| `ern_restarts` | `ern_rt` | `{Pid, Alias}` | the restarts a process may be asked (§6.9) |
 | `ern_checkers` | `ern_rt` | `{{checker, Key}, Checker}` and `{{behind, Checker}, Pid, Address, Key}` | the checkers (§8.4) |
-| `ern_launch` | `ern_rt` | `{reading, Kind}`, `{entry_process, Pid}`, `{deadlock_victim, Pid}`, `{ending, Runner, Launch}`, `{wait_over}`, `{utilization, Utilization}` | the launch's state (§8.2, §8.6, §8.7) |
+| `ern_launch` | `ern_rt` | `#launch{}`, keyed `launch`; `{reading, Kind}`, `{entry_process, Pid}`, `{deadlock_victim, Pid}`, `{ending, Runner, Launch}`, `{wait_over}`, `{utilization, Utilization}` | the launch in progress, and a row for each of a few facts of its run (§8.2, §8.6, §8.7) |
 | `ern_offers` | `ern_rt` | `{{Name, Hash}, Address, Process}`, ordered | the node's offers (§8.7) |
 | `ern_offered` | `ern_rt` | `{Process, Service}`, a bag | each process's own services (§8.7) |
 | `ern_initialized` | `ern_rt` | `{ErlangModule}` | the modules whose initializers have run (§8.7) |
@@ -176,7 +175,7 @@ Each chunk is read through `ern_chunk`. A name a shell session declares is writt
 | `ern_code_sums` | `ern_code`, beside it | a row for each count | the sums of the host's counts (§11.2) |
 | `ern_shell` | `ern_shell`, held by the runner | `{Key, Value}` | the session as it stands, and what its inputs and loads leave (§11.2) |
 
-`run_main` makes `ern_rt`'s thirteen (`tables/0`), each described where `ern_rt` defines it; `make load` counts their rows ([`memory.md`](memory.md)). `ern test`'s `run_tests/5` keeps the running test in a table of its own.
+`run_main` makes `ern_rt`'s twelve (`tables/0`), each described where `ern_rt` defines it; `make load` counts their rows ([`memory.md`](memory.md)). `ern test`'s `run_tests/6` keeps the running test in a table of its own.
 
 ### The processes
 
@@ -231,7 +230,7 @@ The runner's `init` is `ern_rt:init_modules/1` over the modules it loaded, order
 
 At the end the runner tells the subscribers of `Os.termination` (`told/3`, §8.6), ends every process with `ProgramEnd`, and flushes `stdout` and `stderr` (`sink_flushed/1`). `ern_cli:report_outcome/2` makes the outcome §11.8's status.
 
-A reference tags each launch, held with its runner, its reaper and what its options give in the launch's row of `ern_launch`, `#launch{}`, which goes with the table at the end (`launch/0`). Each adapted address its processes make holds it (§8.7, §11.2).
+A reference tags each launch, held with its runner, its reaper, its standard error process and what its options give in the launch's row of `ern_launch`, `#launch{}`, which goes with the table at the end (`launch/0`). Each adapted address its processes make holds it (§8.7, §11.2).
 
 ### The system processes
 
@@ -305,7 +304,7 @@ A library under `src/libs/` stands on the host as the standard library does. The
 
 `ern run`, `ern test` and `ern shell` also install `ern_signals`, for a test that calls the job, and lower the host's logger to warnings.
 
-- **`ern build`** (§11.1): `modules_of/3` finds the modules, and `compile_order/3` orders them over a `digraph` that holds the build root's and the load path's modules too (`recorded_uses/3`), each after those it uses and otherwise in the order of their paths (`ordered/2`); `module_cycle/1` refuses a cycle. A checked module is written once every module its forms name is checked (`built/3`).
+- **`ern build`** (§11.1): `modules_of/3` finds the modules, and `compile_order/3` orders them over a `digraph` that holds the build root's and the load path's modules too (`recorded_uses/4`), each after those it uses and otherwise in the order of their paths (`ordered/2`); `module_cycle/1` refuses a cycle. A checked module is written once every module its forms name is checked (`built/4`).
 - **`ern run`** (§11.2): `program/2` loads the `.erc` and its dependencies (`loaded_unit/3`, `no_cycle/2`) and calls `run_main`. `reporting_options/2` gives the run `report_fault/3` as its `faults`.
 - With `--config-dir` and no `.erc`, `ern run` starts a bare node (`as_node/4`, `run_bare/2`, §8.7).
 - **`ern shell`** loads a file and names its entry point (`shell_entry/2`); `ern_cli:shell/3` starts the shell (*The shell*).
@@ -330,15 +329,15 @@ The shell is an Ernest program over `Terminal`: `src/shell/shell.ern` and its mo
 
 ## Tests
 
-`make test-full` runs every kind below; the targets, the light `make test` among them, are [`development.md`](development.md)'s.
+`make test-full` runs every kind below but the last subsection's; the targets, the light `make test` among them, are [`development.md`](development.md)'s.
 
 ### The code and the programs
 
 - **Unit tests**: EUnit under `erl/*/test`, one function per behavior, each citing what it tests; `make sections` lists the report sections none cites.
 - The emitter's tests run a program as the runner does with `ern_emitter_tests:run/3`, which `ern_supervisor_tests`, `ern_restart_tests`, `ern_reaper_tests`, `ern_system_module_tests` and `ern_terminating_tests` share.
-- **Golden files**: `test/fixtures/golden` holds the Erlang emitted for `hello` and `services` of `test/fixtures/programs` (`golden_names/0`), compared as text. `test/fixtures/target` holds the two expectations the emitter did not write, for `hello` and `counter`. Both name a call into the standard library by its position there.
+- **Golden files**: `test/fixtures/golden` holds the Erlang emitted for each program `golden_names/0` lists, from `test/fixtures/programs` and the examples `hello` and `services`, compared as text. `test/fixtures/target` holds the two expectations the emitter did not write, for `hello` and `counter`. Both name a call into the standard library by its position there.
 - **Programs**: `test/ern_integration_tests.erl` builds and runs the programs of `test/fixtures/programs`, and the examples `hello` and `typed_channels_nodes`, comparing their output with `test/fixtures/expected` as a multiset of lines. Programs that need input, a file or a client run under tests of their own in the same file.
-- The same file tests the signals, the streams, `Os` and each library's `Test` values (`libs_test_`). Its helpers serve `test/ern_manual_tests.erl`, which holds the manual pages to §11, and `test/ern_install_tests.erl`, which installs into a scratch prefix and from the release archive.
+- The same file tests the signals, the streams, `Os`, and that every library's build has its source (`library_builds_test`). Its helpers serve `test/ern_manual_tests.erl`, which holds the manual pages to §11, and `test/ern_install_tests.erl`, which installs into a scratch prefix and from the release archive.
 - `test/ern_measure_tests.erl` holds that `make bench`'s measuring machine reaches every function of the library.
 - **The corpus**: `ast_coverage_test` holds that the examples, the programs, the standard library and the libraries use every AST record, and the checker's tests type-check every example and program.
 - **Generated programs**: `test/ern_grammar_programs_tests.erl` derives programs from Appendix A, read by `test/ern_grammar.erl`. `test/ern_typed_programs_tests.erl` generates well-typed programs and runs each against an interpreter. `erl/runtime/test/ern_laws_tests.erl` holds the standard library to its laws on drawn cases ([`soundness.md`](soundness.md)).
@@ -348,7 +347,7 @@ The shell is an Ernest program over `Terminal`: `src/shell/shell.ern` and its mo
 - **Documentation**: the CLI's tests hold `docs/module_doc_template.md` equal to `ern doc`'s page for `test/fixtures/programs/template.ern`. `erl/runtime/test/ern_doc_tests.erl` checks the documentation of the template, `src/stdlib/` and `src/libs/`.
 - **The examples**: `ern test` is their one checker. `make test-library` runs it over `build/stdlib` and `build/libs`, and `ern_doc_tests` over a build of the template and over the prelude's page, whose examples it writes into a module's doc block, since no `.erc` holds them.
 - **Style**: `test/ern_style_tests.erl` checks `docs/style.md`'s tested rules, `ern format`'s layout over every module and every Ernest block of the report and the guide, and the Emacs mode's word lists against the lexer and the parser.
-- **Citations**: `test/ern_docs_tests.erl` (`make xref`) resolves every section citation, holds the contents lists equal to the headings, and checks the backticked paths of the documents that say where things are. It and the style tests read the repository through `test/ern_repository.erl`.
+- **Citations**: `test/ern_docs_tests.erl` (`make xref`) resolves every section citation, holds the contents lists equal to the headings and a list that lives in two places to its other place, where that is cheap ([`development.md`](development.md)'s *Lists in two places*), and checks the backticked paths of the documents that say where things are and the paths the toolchain's comments name. It and the style tests read the repository through `test/ern_repository.erl`.
 - **The guide and the report**: `test/ern_guide_tests.erl` compiles every `ernest` block, runs every program a console shows, checks every `ernest-rejected` block's error, and replays every shell session, in the guide, the report and the README. It checks `docs/diagnostics.md` the same way.
 
 ### Nodes, the shell and waits
@@ -364,5 +363,5 @@ The shell is an Ernest program over `Terminal`: `src/shell/shell.ern` and its mo
 
 - `make load` runs [`memory.md`](memory.md)'s loads: `test/ern_load.erl` runs each program under `test/fixtures/load/`, and the shell under a session it writes.
 - `make bench` is the measuring machine. `test/ern_bench.erl` sets `test/fixtures/bench/bench.ern`'s operations beside Erlang's, and `test/ern_measure.erl` every function of the library beside the host's.
-- `test/ern_node_costs.erl` measures the costs between two nodes of `test/fixtures/peers/`, and `test/ern_code_costs.erl` the costs of code that crosses, through `test/fixtures/bench/ern_code_probe.erl`.
+- `test/ern_nodes_costs.erl` measures the costs between two nodes of `test/fixtures/peers/`, and `test/ern_code_costs.erl` the costs of code that crosses, through `test/fixtures/bench/ern_code_probe.erl`.
 - `make service` runs `test/ern_service_tests.erl`, a program under the host's service manager.

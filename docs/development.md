@@ -6,7 +6,7 @@ The report, in three files under [`report/`](../report/), is the one normative d
 
 ## The documents
 
-What each document is, those under `docs/` and the two READMEs beside the code, is listed in [`README.md`](README.md), the index of this directory.
+What each document is, those under `docs/` and the READMEs that stand beside the code, is listed in [`README.md`](README.md), the index of this directory.
 
 The prelude is the report's §9 and the standard library its Appendix E, which admits a module or a function by Appendix E.0's rules. The libraries under `src/libs/` are Appendix G's; each one's build ends every job's load path, so a program uses one without naming it (report §11.1, §11.2), and which are first-party is the plan's MVP 4.1.
 
@@ -43,20 +43,24 @@ docs/man/          the pages as CommonMark, which make man writes from main and 
                    them, each its directory's README.md
 examples/          Ernest programs written for a reader of the language, which
                    examples/README.md lists by topic
-erl/               the toolchain, as Erlang applications: shared, the three modules
+erl/               the toolchain, as Erlang applications: shared, the four modules
                    beneath every stage; lexer, parser, formatter, checker, runtime and
                    emitter; cli, which holds the vendored getopt; and json, the
                    primitives of src/libs/json. Each has src/ and ebin/, all but json
                    include/ and test/ too, and the runtime also c_src/, the helper
                    ern_exec's C source, and priv/, where make builds it
 test/              what spans applications: the integration, nodes, deployment guide,
-                   document, style, guide, grammar, generated-program, shell and
-                   terminal tests, the harnesses of the loads, the benchmark, the
-                   service manager's checks and the pseudo-terminal, ern_grammar.erl,
-                   which reads Appendix A, ern_repository.erl, which the document
-                   and style tests read the repository through, and ern_machine,
-                   ern_machine_node and ern_machines, which run nodes on the machines
-                   of test/machines/
+                   tour, installation, manual pages', document, style, guide, grammar,
+                   generated-program, shell and terminal tests; the harnesses of the
+                   loads and of the benchmark, with the benchmark's memory of its runs,
+                   ern_last_run, and the tests of the measuring machine and of that
+                   memory, ern_measure_tests and ern_last_run_tests; the service
+                   manager's checks; the pseudo-terminal, ern_pty, and the watcher of a
+                   directory's changes, ern_changes.py; ern_grammar.erl, which reads
+                   Appendix A; ern_repository.erl, which the document and style tests
+                   read the repository through; and ern_machine, ern_machine_node and
+                   ern_machines, which run nodes on the machines of test/machines/,
+                   with their tests, ern_machine_tests
 test/fixtures/     what the tests read: target/, the hand-written target modules;
                    programs/, the programs the tests keep: the first test programs, a
                    two-module tree, the module of docs/module_doc_template.md and the
@@ -85,8 +89,9 @@ editors/emacs/     ernest-mode.el, the Emacs major mode, and its tests under tes
 tools/             the programs of the build: manual.ern writes ern(1) from the
                    report's §11, for make; unicode_width.escript writes Terminal.width's
                    table, for make unicode; install.sh, with strip.escript, stages,
-                   installs and archives, for make install, uninstall and release; and
-                   release/ holds the archive's own Makefile and README.md
+                   installs and archives, for make install, uninstall and release;
+                   paragraphs.sh lists the long paragraphs, for make paragraphs and make
+                   test-docs; and release/ holds the archive's own Makefile and README.md
 build/             build products, not in git: stdlib/, libs/, shell/, tools/ and man/
                    from make, with the manual pages; the standard library's pages
                    in stdlib/ from make doc, and each library's in libs/ too from
@@ -94,7 +99,24 @@ build/             build products, not in git: stdlib/, libs/, shell/, tools/ an
                    dialyzer.plt from make dialyzer; sanitize/ from make sanitize
 ```
 
-A module's path follows report §11.1. A file that is not a module is named with underscores, but for the Emacs mode's, which follow Emacs's convention.
+A module's path follows report §11.1. A file that is not a module is named with underscores, but for the Emacs mode's, which follow Emacs's convention, and the logos', which `assets/README.md` lists.
+
+## Lists in two places
+
+A list that lives in two places is held equal by a test where one is cheap, whose comment names both places. These are kept equal by hand, and a change to one place changes the other in its commit:
+
+- the logo's `<picture>` block, in `assets/README.md`, the README, the release's README and the two guides that show the logo;
+- the Emacs mode's tests, in `docs/design/emacs_mode.md`'s table, `editors/emacs/test/` and the Makefile's `EMACS_TESTS`;
+- the stages' modules, the runtime's shims, the processes and the code table's keys in `docs/architecture.md`, against the code;
+- the rows of the runtime's tables in `docs/architecture.md` and `docs/design/runtime.md`, but the names of `ern_rt`'s tables and the map's row of `ern_launch`, which a test holds;
+- the frames' count in `docs/design/nodes.md`, and the frames the glossary of `docs/style.md` names;
+- the shell's foreign functions, in `docs/design/shell.md`'s *The foreign interface* and the shell's `foreign fn`s;
+- the memory's regression tests, in `docs/memory.md`;
+- the first-party libraries, in this document's layout, the plan's MVP 4.1, Appendix G and the libraries' directory;
+- the documents, in `docs/README.md`, this document's layout and CLAUDE.md's owner table;
+- this document's layout of `test/` and of `tools/`, against their files;
+- the launcher's flags, in `docs/design/install.md` and `bin/ern`;
+- the release review's machines, in `docs/release_review.md` and the Makefile's targets.
 
 ## Building
 
@@ -107,8 +129,11 @@ make              build the helper, compile every application into its ebin/, th
 make test         build, then the unit tests of every application, the library's doc
                   examples, and the document and style tests, side by side: the light
                   run, about a minute
-make test-full    build, then the unit tests, then every area below, one after another, each
-                  running its own tests as many at once as the host has schedulers: the whole suite
+make test-full    build, then two phases: first the guide's tests, the Emacs mode's, the unit
+                  tests, the library's, the documents', the grammar's and the typed programs',
+                  side by side; then the shell's and the six program parts, one after another,
+                  each running its own tests as many at once as the host has schedulers: the
+                  whole suite
 make test-erl     the unit tests of every application under erl/, side by side;
                   APP=checker for one
 make test-library  the doc examples of the standard library and the libraries, with the
@@ -116,7 +141,7 @@ make test-library  the doc examples of the standard library and the libraries, w
                   each example a program of its own; one line where all pass
 make test-programs  the six parts below, one after another
 make test-integration  the programs compiled and run as a user runs them, the
-                  signals, the streams, Os and the libraries' tests, that the
+                  signals, the streams, Os and the libraries' builds, that the
                   measuring machine reaches every function of the library, and the
                   bench's comparison of a run with the last and the release's
 make test-nodes   nodes on one machine
@@ -146,68 +171,63 @@ make load         the loads of docs/memory.md; not part of make test-full, whose
 make service      a program run by the host's service manager, a user's systemd or
                   launchd: started, stopped, started again after Os.exit(1); not
                   part of make test-full
-make bench        what each of a few operations costs in Ernest beside the same
-                  operation in Erlang, in nanoseconds, a raise at each backtrace depth
-                  among them, in test/build/bench/bench.txt; then every function of the
-                  library beside the host's, at 10, 100 and 10,000, its time and what it
-                  allocates, with what costs more than three times the host's and whether
-                  the machine was idle, the whole table in library.txt; then, between two
-                  nodes on this machine, the host's ping over TLS and over TCP, a call to
-                  the other node's process, and a round trip to it straight and through an
-                  adapted address made there, in nodes.txt; then, on nodes it starts, what
-                  a spawn and a compute cost whose code crosses, each step of the
-                  exchange, a fix's callers, what an arrival, a Code.load and a day's
-                  spawns add to the host's counts, a utilization, a compute on a peer
-                  picked and on one named, the pick alone, what connected nodes exchange
-                  idle with their tellings, and the sizes of an .erc and a code frame, in
-                  code.txt; then what each piece of Ernest's spawn, spawnMonitored and
-                  monitor adds to the host's, on every scheduler and on one, the spawn
-                  alone with no end between, a model of the reaper a piece at a time, and
-                  each table operation of the reaper's and of a Down's delivery alone, in
-                  spawn.txt, spawn_monitored.txt and monitor.txt; then what each piece of
-                  entering restarting adds to the host's try, with a hundred messages
-                  waiting too, in restarting.txt; then four bursts at 1,000, 5,000 and
-                  25,000, a process's monitors of processes that end, callers of one
-                  process that end, deliveries in flight to one process, started and
-                  delivered, and a process's alarms firing at once, each element's time
-                  beside the smallest burst's, in burst.txt; then what each piece of a
-                  foreign call adds to the host's call, by the type of its result, a
-                  model of a foreign fn a piece at a time, each operation alone, and the
-                  call and its count by eight processes at once beside one, in
-                  foreign.txt; then what each piece of Address.call adds to the host's
-                  call of the same shape, with one caller and one callee, eight pairs,
-                  and eight callers of one callee, and each of the call's writes alone by
-                  one process and by eight, in call.txt; then a top-level let's read, a
-                  receive with an after, a message to a system process and a bare launch
-                  with its pieces, each beside the host's, in rules.txt; then each
-                  construct the compiler writes code for, a match and one whose guards
-                  call functions, a record update, a Float operation and an expression of
-                  five, an Int operation, a derived compare, a requirement's member, a
-                  string's concatenation and slice, a map's read and write, List.map, a
-                  send and a receive, Io.show, a function value's call and a lambda made,
-                  each beside the plain Erlang a programmer writes, the two measured
-                  together, in language.txt; then three programs written twice, the ray
-                  tracer's pure half, examples/repl.ern's lexer, parser and evaluator
-                  over a fixed input, and the guide's counter with its callers, each
-                  Ernest program's time over its Erlang twin's, the twins under
-                  test/fixtures/bench/, in programs.txt; and last, every
-                  row that moved by more than a fifth against the last run, whose tables
+make bench        what each of a few operations costs in Ernest beside the same operation
+                  in Erlang, in nanoseconds, a raise at each backtrace depth among them, in
+                  test/build/bench/bench.txt; then every function of the library beside the
+                  host's, at 10, 100 and 10,000, its time and what it allocates, with what
+                  costs more than three times the host's and whether the machine was idle,
+                  the whole table in library.txt; then, between two nodes on this machine,
+                  the host's ping over TLS and over TCP, a call to the other node's
+                  process, and a round trip to it straight and through an adapted address
+                  made there, in nodes.txt; then, on nodes it starts, what a spawn and a
+                  compute cost whose code crosses, each step of the exchange, a fix's
+                  callers, what an arrival, a Code.load and a day's spawns add to the
+                  host's counts, a utilization, a compute on a peer picked and on one
+                  named, the pick alone, what connected nodes exchange idle with their
+                  tellings, and the sizes of an .erc and a code frame, in code.txt; then
+                  Ernest's spawn, spawnMonitored and monitor beside the host's, on every
+                  scheduler and on one, and the spawn alone with no end between, in
+                  spawn.txt, spawn_monitored.txt and monitor.txt; then entering restarting
+                  beside the host's try, with a hundred messages waiting too, in
+                  restarting.txt; then four bursts at 1,000, 5,000 and 25,000, a process's
+                  monitors of processes that end, callers of one process that end,
+                  deliveries in flight to one process, started and delivered, and a
+                  process's alarms firing at once, each element's time beside the smallest
+                  burst's, in burst.txt; then what each piece of a foreign call adds to the
+                  host's call, by the type of its result, a model of a foreign fn a piece
+                  at a time, each operation alone, and the host's call, the foreign fn and
+                  the look's key by eight processes at once beside one, in foreign.txt;
+                  then what each piece of Address.call adds to the host's call of the same
+                  shape, with one caller and one callee, eight pairs, and eight callers of
+                  one callee, and each of the call's writes alone by one process and by
+                  eight, in call.txt; then a top-level let's read, a receive with an after,
+                  a message to a system process and a bare launch with its pieces, each
+                  beside the host's, in rules.txt; then each construct the compiler writes
+                  code for, a match and one whose guards call functions, a record update, a
+                  Float operation and an expression of five, an Int operation, a derived
+                  compare, a requirement's member, a string's concatenation and slice, a
+                  map's read and write, List.map, a send and a receive, Io.show, a function
+                  value's call and a lambda made, each beside the plain Erlang a programmer
+                  writes, the two measured together, in language.txt; then three programs
+                  written twice, the ray tracer's pure half, examples/repl.ern's lexer,
+                  parser and evaluator over a fixed input, and the guide's counter with its
+                  callers, each Ernest program's time over its Erlang twin's, the twins
+                  under test/fixtures/bench/, in programs.txt; and last, every row that
+                  moved by more than a fifth against the last run, whose tables
                   test/build/bench/last/ keeps, and against the release's, whose tables
-                  test/build/bench/release/ keeps, each under its reference, printed
-                  and written to moved.txt, a table with a ratio by its ratios and any
-                  other by its numbers, the library's table left out; the memory is kept
-                  a table at a time, each table moved to last/ as a run that writes it
-                  begins, so that a part's run below keeps and compares its own; about
-                  twelve minutes; not part of make test-full. A row is for a number a later
-                  change could move, a promise of CLAUDE.md's cost rules or a construct
-                  the emitter writes code for; a number measured once to settle a design
-                  is the log's
+                  test/build/bench/release/ keeps, each under its reference, printed and
+                  written to moved.txt with the rows on either side that match none of the
+                  other's, a table with a ratio by its ratios and any other by its numbers,
+                  the library's table left out; the memory is kept a table at a time, each
+                  table moved to last/ as a run that writes it begins, so that a part's run
+                  below keeps and compares its own; about twelve minutes; not part of make
+                  test-full. A row is for a number a later change could move, a promise of
+                  CLAUDE.md's cost rules or a construct the emitter writes code for; a
+                  number measured once to settle a design is the log's
 make bench-<part>  one part of make bench alone, its tables alone kept and compared:
                   bench-core, bench-library, bench-nodes, bench-code, bench-spawn,
                   bench-restarting, bench-burst, bench-foreign, bench-call, bench-rules,
-                  bench-language and bench-programs, bench-library comparing nothing;
-                  make bench whole is the closing run before a commit that closes a
-                  plan item
+                  bench-language and bench-programs, bench-library comparing nothing
 make bench-release  keep the tables the last runs of make bench and its parts wrote, a
                   table at a time, in test/build/bench/release/ as the release's run,
                   which every later run is compared with too, and name them; the release
@@ -265,8 +285,8 @@ make coverage     every section with how many tests cite it and its length, thin
 make golden       rewrite test/fixtures/golden/, the Erlang the compiler emits for each
                   program `golden_names/0` lists: test/fixtures/programs/, hello and
                   services
-make diagnostics  rewrite the outputs of docs/diagnostics.md, the front end's errors,
-                  from what ern build prints
+make diagnostics  rewrite the outputs of docs/diagnostics.md, the errors the lexer, the
+                  parser, the checker and the build give, from what ern build prints
 make contents     rewrite the contents lists of the report and the guide from their headings
 make format       lay out every Ernest module, and the Ernest blocks of the report and the
                   guide, as ern format does (report §11.6)
@@ -293,6 +313,7 @@ While a change is worked on, it runs the targets of its kind; which run a commit
 | the language guide, the report, the README, `docs/diagnostics.md` or `docs/module_doc_template.md` | `make test`, `make test-guide`; report Appendix A `make test-grammar` too, report §11 `make test-manual` and `make test-shell` |
 | the tour, its document or a chapter's program | `make test`, which holds its blocks to its files, and `make test-tour`, which runs its sessions |
 | a proposal, or any other document | `make test-docs` |
+| a path `make bench` measures | the part of `make bench` that measures it, `make bench-<part>`, beside the targets of its kind |
 
 Which programs the tests compile and run is [`architecture.md`](architecture.md)'s *Tests*.
 
@@ -310,7 +331,7 @@ bin/ern run build/modules/main.erc                # loads net/http.erc by namesp
 bin/ern build --emit-erl examples/hello.ern       # the Erlang source, for reading
 bin/ern doc src/stdlib/list.ern                   # the module's documentation as CommonMark
 bin/ern build --short-errors examples/hello.ern   # the first line of each error only
-bin/ern config                                    # ./.ernest with a key pair
+bin/ern config --config-dir a                     # a/ with a key pair, its public key printed
 bin/ern config --config-dir a --peer-dir b        # a's ernest.conf lists the node of b/
 bin/ern reload --config-dir node                  # the node running from node/ reads its ernest.conf again
 bin/ern stop --config-dir node                    # and ends, in order

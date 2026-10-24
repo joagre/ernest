@@ -27,6 +27,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 | [`report/README.md`](report/README.md) | what the report's three files hold and how the report is read |
 | [`guide/README.md`](guide/README.md) | what each guide is, for whom, and how long |
 | [`tour/README.md`](tour/README.md) | the tour: one program grown through eight chapters, each chapter's program under `tour/1/` to `tour/8/`, which a test holds equal to the document's blocks |
+| [`examples/README.md`](examples/README.md) | the example programs, by topic, with what each shows |
 | [`ACKNOWLEDGMENTS.md`](ACKNOWLEDGMENTS.md) | the people Ernest stands on, by name alone |
 | [`docs/development.md`](docs/development.md) | the layout, the commands, and what the toolchain does not do yet |
 | [`docs/README.md`](docs/README.md) | what each document under `docs/` is |

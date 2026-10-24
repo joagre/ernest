@@ -15,7 +15,7 @@ As the full review's readers run ([`full_review.md`](full_review.md), *How it ru
 
 Four readers in five sessions.
 
-- **P, the principles**, with the full review's brief, in two parts: §0 to §11 with Appendices A to D, and Appendix E with F and G. Beside the report it reads what the plan proposes to add, told that it is proposed and not decided, so that the addition is judged with what is there. It reads peers too, built in MVP 3.0 (the log's *MVP 3.0 Read Without a Release*).
+- **P, the principles**, with the full review's brief, in two parts: §0 to §11 with Appendices A to D, and Appendix E with F and G. Beside the report it reads what the plan proposes to add, told that it is proposed and not decided, so that the addition is judged with what is there.
 
   For each rule it also says whether the principles as written would admit the opposite rule as well; where they would, the principles do not decide it, and the reader proposes the sentence for §0 or E.0 that would.
 - **K, the cold reader**, with the full review's brief, over the whole report: what "consistent" means, a rule another rule contradicts or makes unreachable, and a builder made to guess. In Appendix E it also reads every function against E.0's rules and every rule against its functions, and reports every list of exceptions inside a rule, which is a rule stated at the wrong level, with the rule restated so that the list falls out and only the exception the report must keep remains.
@@ -33,7 +33,7 @@ Every reader runs on the most advanced model there is, of the two [`full_review.
 ## The findings
 
 - They go to `findings.md` under a heading of their own, by family, each line naming its reader's letter and number, the readers' lists below, as the full review's.
-- A line's decision: `sentence`, a rule added to §0 or E.0; `report`, a rule changed or removed; `kept`, with the principle that keeps it; `guide`, the guide changed where its rule stays; `fix`, a defect or a disagreement between two sections the readers met on the way, fixed in the milestone's edits; `log`, an entry of the log marked superseded or its reason restated; `later`, to the log's *Later* with what would change it.
+- A line's decision: `sentence`, a rule added to §0 or E.0; `report`, a rule changed or removed; `kept`, with the principle that keeps it; `guide`, the guide changed where its rule stays; `fix`, a defect or a disagreement between two sections the readers met on the way, fixed in the milestone's edits; `log`, an entry of the log marked superseded or its reason restated; a milestone's number, an item planned there; or `dropped`, with the reason.
 - The decisions are taken with the user one at a time, in prose, in two rounds. First the sentences, since they are the measure: P's and L's proposals are compared, one both make being the strongest, and each is accepted into §0 or E.0 or refused. Then each family, under the principles as they then read. A rule goes only where the smallest program that shows it reads better without it, never for being a rule (principle 1), and never where a program under `examples/` or one a newcomer wrote gets harder.
 - A family decided is closed: the log records the principle that decided it, and it is not reopened before 1.0 but by a program that shows a case the decision did not.
 

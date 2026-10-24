@@ -36,7 +36,7 @@ The session drains the screen with `Flush` before each prompt and before it ends
 
 While an input runs, the session waits in `await`, which takes only the input's outcome, the interrupt, fault reports, and the reader's and the screen's ends. An input typed meanwhile, and the end of input, wait in the mailbox and are taken after the run. The queue holds text, so a queued input is checked when it runs, after the input before it has bound what it may use.
 
-Each outcome carries its input's serial, so an outcome that still arrives from a killed input is dropped. Every outcome comes to one address, `via(self(), Done)`, with the serial passed to `spawnInput` beside it. An address given to a foreign function is exposed through a checker, one for each distinct address (§8.4), so one address keeps the inputs to one checker.
+Each outcome carries its input's serial, so an outcome that still arrives from a killed input is dropped. Every outcome comes to one address, `adapted(self(), Done)`, with the serial passed to `spawnInput` beside it. An address given to a foreign function is exposed through a checker, one for each distinct address (§8.4), so one address keeps the inputs to one checker.
 
 ### Start and end
 
@@ -76,7 +76,7 @@ The front end's values reach the shell as handles of three foreign types, `Sessi
 
 `check` is told where the input came from: the count of what was entered at the prompt, or a startup file's line and the column the input begins in.
 
-`spawnInput` takes an address, `via(self(), Done)`, and not the wrap E.0 shape rule 8 gives a function that delivers later. Foreign code may pass a function value back but not call it (§8.4), so the shell wraps at its end and the front end only sends (the log's *Checkpoint 0, in Line Mode*).
+`spawnInput` takes an address, `adapted(self(), Done)`, and not the wrap E.0 shape rule 8 gives a function that delivers later. Foreign code may pass a function value back but not call it (§8.4), so the shell wraps at its end and the front end only sends (the log's *Checkpoint 0, in Line Mode*).
 
 What any program reads, the shell reads as one: `NO_COLOR`, and `HOME` for the history, with `Os.environment`, and what runs and what faulted through `Process` (E.21).
 
@@ -84,7 +84,7 @@ What any program reads, the shell reads as one: `NO_COLOR`, and `HOME` for the h
 
 The front end keeps the latest `Session` of its own, beside the one the session holds. The reader completes and documents while an input runs, when the session waits in `await` and answers nothing, so the reader's questions cannot be messages to the session. The copy is set when an input is checked, and again when it has run, since what an input declares joins the session when it has run.
 
-The copy is a row of a table the runner owns, and so is everything else that changes as inputs run: the input numbers free to give again, the inputs not yet purged, what each session module needs, and each input's name. A persistent term replaced has the host scan every process, so only what is set once is one: what the runner loaded, and the screen. What a binding's holder keeps is one too, so that a read does not copy it, the scan paid once as the holder goes (the log's *The Hardening Built*).
+The copy is a row of a table the runner owns, and so is everything else that changes as inputs run: the input numbers free to give again, the inputs not yet purged, what each session module needs, each input's name, and the modules whose last `:load` was refused, with the refusal. A persistent term replaced has the host scan every process, so only what is set once is one: what the runner loaded, and the screen. What a binding's holder keeps is one too, so that a read does not copy it, the scan paid once as the holder goes (the log's *The Hardening Built*).
 
 ### An input as a module
 
@@ -163,7 +163,7 @@ Only `C-l` clears the screen, and paints the region at the top.
 
 ### Rows
 
-The tail takes at most the rows `:set output` gives it, and at most half the screen less a row, so that the input has room. A line takes the rows it fills at the screen's width, each a line of the tail. A line not yet ended keeps its last row back, so the region holds one row of it at most, and the scrollback holds the rest as the rows the terminal would have wrapped it into (the log's *An Unfinished Line Leaves the Region a Row at a Time*).
+The tail takes at most the rows `:set rows` gives it, and at most half the screen less a row, so that the input has room. A line takes the rows it fills at the screen's width, each a line of the tail. A line not yet ended keeps its last row back, so the region holds one row of it at most, and the scrollback holds the rest as the rows the terminal would have wrapped it into (the log's *An Unfinished Line Leaves the Region a Row at a Time*).
 
 Each of the input's lines is its prompt and its text, wrapped at the screen's width. A line whose width is a multiple of the screen's takes an empty row after it, where the cursor goes on. The rows under the input take the rows left, and the last counts the lines that did not fit (§11.2).
 
