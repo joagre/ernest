@@ -166,12 +166,11 @@ fn restarted(counter : Address(Counter.Msg)) : Unit receiving Msg = {
     ended("killed");
     Io.println("now silence the store's port");
     let _ = Io.readLine();
-    // Report §8.7: the milliseconds after which the host gives up a dial that
-    // nothing answers, which a send that waited behind the dial would wait
-    let dialGivenUp = 7000;
+    // Report §8.7: a send that waited behind the dial would wait until the
+    // host gives the dial up
     let sent = Clock.monotonic();
     send(counter, Counter.Add(1));
-    Io.println("send at once: " <> Io.show(Clock.monotonic() - sent < dialGivenUp));
+    Io.println("send at once: " <> Io.show(Clock.monotonic() - sent < Harness.dialMs()));
     watched("out of reach", Process.fromAddress(counter));
     Io.println("now restart the store");
     let _ = Io.readLine();
@@ -437,7 +436,7 @@ fn silenced() : Unit receiving Msg = {
     // traffic; the sleeper's sleep and its callers' time outlast that and
     // the test's two steps around it, the desk's word to stop the store and
     // its word after the loss, so that only the loss ends the calls
-    let outlasting = 75000 + 2 * Harness.waitMs();
+    let outlasting = Harness.detectorMs() + 2 * Harness.waitMs();
     List.forEach(List.range(1, 10000), fn(_) = send(counter, Counter.Add(1)));
     Io.println("counted: "
                    <> Io.show(Address.call(counter,
@@ -511,12 +510,11 @@ fn counted(total : Int) : Unit receiving Counter.Msg =
 // is given up by the host after 7 seconds, and the find answers Unreachable
 // and not Timeout.
 fn dialed() : Unit = {
-    // Report §8.7: the milliseconds after which the host gives up a dial
-    // that nothing answers; the find's time is longer by the test's time
-    // for one step, so that the dial is given up before the time runs out
-    let dialGivenUp = 7000;
+    // Report §8.7: the find's time is longer than the host's dial by the
+    // test's time for one step, so that the dial is given up before the
+    // time runs out
     let started = Clock.monotonic();
-    let found = Peer.find(Counter.service, dialGivenUp + Harness.waitMs());
+    let found = Peer.find(Counter.service, Harness.dialMs() + Harness.waitMs());
     Io.println("dialed: "
                    <> Io.show(found)
                    <> " after "

@@ -49,9 +49,9 @@ traced() ->
     [erlang:trace_pattern(Step, true, [local]) || Step <- ?STEPS],
     %% the frame's kind, and a code frame's members and bytes
     erlang:trace_pattern({ern_exchange, frame, 3},
-                         [{['_', {code_frame, '_', '$1', '$2', '$3', '$4'}, '_'], [],
+                         [{['_', {code_frame, '_', '$1', '$2', '$3'}, '_'], [],
                            [{message, {{code_frame, {length, '$1'}, {byte_size, '$2'},
-                                        {length, '$3'}, {byte_size, '$4'}}}}]},
+                                        {byte_size, '$3'}}}}]},
                           {['_', '$1', '_'], [], [{message, {element, 1, '$1'}}]}],
                          [local]),
     %% the definitions an arrival holds
@@ -109,8 +109,8 @@ line({Time, Kind, {Module, Function, Arity}, Extra}) ->
                                     Module, Function, Arity, extra(Extra)])).
 
 extra(none) -> "";
-extra({code_frame, Members, Bytes, References, Sources}) ->
-    io_lib:format(" code_frame ~B ~B ~B ~B", [Members, Bytes, References, Sources]);
+extra({code_frame, Members, Bytes, Sources}) ->
+    io_lib:format(" code_frame ~B ~B ~B", [Members, Bytes, Sources]);
 extra(Kind) when is_atom(Kind) -> [" ", atom_to_list(Kind)];
 extra(Count) when is_integer(Count) -> [" ", integer_to_list(Count)].
 

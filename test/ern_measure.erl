@@ -1,4 +1,4 @@
-%% `make bench`'s second half (docs/development.md), MVP 2.99d's item 1:
+%% `make bench`'s part `library` (docs/development.md), MVP 2.99d's item 1:
 %% every exported function of the standard library and the libraries
 %% measured beside the host's, so that what Ernest adds to the host's work
 %% shows (Appendix E.0 rule 1, CLAUDE.md's cost rule). A function
@@ -142,12 +142,8 @@ measured(Sizes, Mode) ->
 
 rows(Entries, Sizes, Mode, Dir) ->
     ern_rt:init_modules([Module || Module <- library_modules()]),
-    %% report §8.6: the machine's own reading of the interfaces and writing
-    %% of the scenarios' files goes through the host's file server, a wait
-    %% the deadlock detector reads as the host's by the function on top of
-    %% the process's stack; under the suite's load one it did not read so
-    %% outlasted the detector's look, and the run was a deadlock
-    {Types, Scenarios} = {types(), scenarios(Dir)},
+    Types = types(),
+    Scenarios = scenarios(Dir),
     {Counter, Stop} = counter(),
     try [row(Entry, Sizes, Mode, Types, Scenarios, Counter) || Entry <- Entries]
     after Stop()
@@ -233,8 +229,8 @@ run(Call, Count, Start) ->
     end.
 
 %% What the host's side of a scenario gives, measured, where it has one.
-foreign(none, _) -> none;
-foreign(Host, Measure) -> Measure(Host).
+host_side(none, _) -> none;
+host_side(Host, Measure) -> Measure(Host).
 
 %% The bytes a call allocates, counted in the process that makes it, since
 %% a port's or a socket's answers come to the process that opened it. The
@@ -309,7 +305,7 @@ scenario({not_measured, Reason}, _, _) ->
     {not_measured, Reason};
 scenario({Ernest, Host}, Mode, Counter) ->
     try
-        {system, time(Ernest, Mode), foreign(Host, fun(Call) -> time(Call, Mode) end),
+        {system, time(Ernest, Mode), host_side(Host, fun(Call) -> time(Call, Mode) end),
          allocated(Ernest, Counter), allocated(Host, Counter)}
     catch
         Class:Reason ->

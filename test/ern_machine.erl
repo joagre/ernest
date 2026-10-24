@@ -10,8 +10,8 @@
 -module(ern_machine).
 
 -export([local/0, machine/4, name/1, host/1, interface/1, is_local/1, clone/1, ern/1,
-         directory/1, directory/2, open/2, opened/1, closed/1, run/2, ran/2, load/1, copied/3,
-         launched/2, seen/2, ended/1, quoted/1, fail/1]).
+         directory/1, directory/2, open/2, opened/1, closed/1, run/2, ran/2, load_average/1,
+         copied/3, launched/2, seen/2, ended/1, answering/4, quoted/1, fail/1]).
 
 %% A machine: its name, the host ssh and scp take and its peers dial, the
 %% clone of the repository there, `local` for this machine's checkout, the
@@ -157,8 +157,8 @@ ran(Machine, Command) ->
 
 %% The machine's load average of the last minute, as ern_measure reads it,
 %% Linux's or the BSDs' and macOS's, and its processors.
--spec load(machine()) -> {string(), string()}.
-load(Machine) ->
+-spec load_average(machine()) -> {string(), string()}.
+load_average(Machine) ->
     Said = ran(Machine, "{ cat /proc/loadavg 2> /dev/null || sysctl -n vm.loadavg; }"
                         " && getconf _NPROCESSORS_ONLN"),
     [Average, Processors] = string:lexemes(Said, "\n"),
@@ -275,6 +275,48 @@ seen(Reader, Pattern) ->
 ended(Reader) ->
     Reader ! {ended, self()},
     receive {Reader, ended, Status, Said, _} -> {Status, Said} end.
+
+%% Report §8.7: once the port Port of Host answers, asked from here: a node
+%% listens only once its initializers have their values, and where `listen`
+%% names a port says nothing of it, so what shows that it listens is that
+%% the port answers. A refusal comes at once, so the next ask waits as long
+%% as the node has been waited for so far, and at least the one millisecond
+%% of the host's timer, within which the first refusal comes: however long
+%% the node takes to listen, it is seen within that time again, and the
+%% asks grow with the logarithm of that time, not with the time, as asks
+%% without a pause would, which keep a core busy while the node starts. At
+%% each refusal Refused is called, which fails where the node has ended; Ms
+%% bounds the whole, or nothing does where it is `infinity`.
+-spec answering(string(), inet:port_number(), timeout(), fun(() -> ok)) -> ok.
+answering(Host, Port, Ms, Refused) ->
+    Asked = erlang:monotonic_time(millisecond),
+    Deadline = case Ms of
+                   infinity -> infinity;
+                   _ -> Asked + Ms
+               end,
+    answering(Host, Port, Refused, Asked, Deadline).
+
+answering(Host, Port, Refused, Asked, Deadline) ->
+    Now = erlang:monotonic_time(millisecond),
+    Left = case Deadline of
+               infinity -> infinity;
+               _ -> max(Deadline - Now, 0)
+           end,
+    Unanswered = io_lib:format("~s:~B has not answered", [Host, Port]),
+    Left =/= 0 orelse fail(Unanswered),
+    case gen_tcp:connect(Host, Port, [], Left) of
+        {ok, Socket} ->
+            gen_tcp:close(Socket);
+        {error, econnrefused} ->
+            ok = Refused(),
+            receive after min(max(Now - Asked, 1), Left) -> ok end,
+            answering(Host, Port, Refused, Asked, Deadline);
+        {error, timeout} ->
+            fail(Unanswered);
+        {error, Error} ->
+            fail(io_lib:format("~s:~B cannot be reached from here: ~s",
+                               [Host, Port, inet:format_error(Error)]))
+    end.
 
 %% A word the shell reads as the text itself.
 -spec quoted(string()) -> string().

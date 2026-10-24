@@ -1,19 +1,18 @@
-%% `make bench`'s part for the cost rules (docs/development.md; plan, MVP
-%% 3.29; CLAUDE.md's *Design*): a row for each promise the rules make that
-%% no other part measures, each against the host's own operation. A
+%% `make bench`'s part `rules`, the cost rules (docs/development.md; plan,
+%% MVP 3.29; CLAUDE.md's *Design*): a row for each promise the rules make
+%% that no other part measures, each against the host's own operation. A
 %% top-level `let` whose initializer is a ground term is read as its value,
 %% which the host keeps in its literal area, and one computed through
-%% ern_rt:binding/1, a persistent term by a tuple key (report §8.5,
-%% §11.1). A receive with an `after` takes its time as a deadline,
-%% waits in slices of the host's longest wait in a fun entered again, and
-%% marks the process as in a timed receive while it waits, a key in its
-%% dictionary, so that the look finds no deadlock (§6.3, §8.6;
-%% ern_emitter's waiting/4). A message
-%% to a system process, `Io.print`, is a call the process answers once the
-%% stream has taken the bytes (§8.2). A launch, ern_rt:run_main/3, makes
-%% the run's tables, its terms, the reaper and the system processes, runs
-%% the library's initializers and then main in the entry process, and at
-%% the end stops them all (§8.5, §8.6, §11.2).
+%% ern_rt:binding/1, a persistent term by a tuple key (report §8.5, §11.1).
+%% A receive with an `after` takes its time as a deadline, waits in slices
+%% of the host's longest wait in a fun entered again, and marks the process
+%% as in a timed receive while it waits, a key in its dictionary, so that
+%% the look finds no deadlock (§6.3, §8.6; ern_emitter's waiting/4). A
+%% message to a system process, `Io.print`, is a call the process answers
+%% once the stream has taken the bytes (§8.2). A launch, ern_rt:run_main/3,
+%% makes the run's tables, its terms, the reaper and the system processes,
+%% runs the library's initializers and then main in the entry process, and
+%% at the end stops them all (§8.5, §8.6, §11.2).
 %%
 %% Measured, in rules.txt: a top-level `let` of a literal read, and one
 %% computed, a list of a hundred, each beside the host's function that
@@ -33,9 +32,9 @@
 %% `ern build` compiles it, in a launch; the host's run outside one. Each
 %% row is the median of seven runs, in nanoseconds an iteration, the
 %% loop's own cost included, or in microseconds a launch, with their range,
-%% as ern_spawn_costs measures them. It measures and asserts nothing, so
+%% as ern_costs measures them. It measures and asserts nothing, so
 %% it is not part of `make test-full`.
--module(ern_rule_costs).
+-module(ern_rules_costs).
 
 -export([main/1, literal/1, numbers/0]).
 
@@ -54,61 +53,64 @@
 %% The module the program's code is compiled into.
 -define(NAMESPACE, ['RuleCosts']).
 
--define(SOURCE,
-        <<"export type PingMsg = Ping(Int)\n"
-          "export type EchoMsg = Echo(to : Address(PingMsg), n : Int)\n"
-          "let limit : Int = 1024\n"
-          "let numbers : List(Int) = List.range(1, 100)\n"
-          "export fn limitRead(n : Int) : Int = limit\n"
-          "export fn numbersRead(n : Int) : List(Int) = numbers\n"
-          "export fn waiting(n : Int) : Int receiving PingMsg = {\n"
-          "    send(self(), Ping(n));\n"
-          "    receive {\n"
-          "        Ping(value) -> value\n"
-          "      | after 1000 -> 0\n"
-          "    }\n"
-          "}\n"
-          "export fn waitingForever(n : Int) : Int receiving PingMsg = {\n"
-          "    send(self(), Ping(n));\n"
-          "    receive {\n"
-          "        Ping(value) -> value\n"
-          "    }\n"
-          "}\n"
-          "export fn echoing() : Unit receiving EchoMsg =\n"
-          "    receive {\n"
-          "        Echo(to = to, n = n) -> {\n"
-          "            send(to, Ping(n));\n"
-          "            echoing()\n"
-          "        }\n"
-          "    }\n"
-          "export fn echoed(echo : Address(EchoMsg), n : Int) : Int receiving PingMsg = {\n"
-          "    send(echo, Echo(to = self(), n = n));\n"
-          "    receive {\n"
-          "        Ping(value) -> value\n"
-          "      | after 1000 -> 0\n"
-          "    }\n"
-          "}\n"
-          "export fn echoedForever(echo : Address(EchoMsg), n : Int) : Int receiving PingMsg = {\n"
-          "    send(echo, Echo(to = self(), n = n));\n"
-          "    receive {\n"
-          "        Ping(value) -> value\n"
-          "    }\n"
-          "}\n"
-          "export fn printed(n : Int) : Int = {\n"
-          "    Io.print(\"\");\n"
-          "    n\n"
-          "}\n">>).
-
 %% Prints the tables, writes them to rules.txt in Directory, and halts.
 -spec main([string()]) -> no_return().
 main([Directory]) ->
-    Unit = ern_foreign_costs:compiled(?NAMESPACE, ?SOURCE),
+    Unit = ern_costs:compiled(?NAMESPACE, source()),
     Text = unicode:characters_to_binary(
              [binding_tables(Unit), receive_tables(Unit), system_table(Unit),
               launch_tables()]),
     io:format("~ts", [Text]),
     ok = file:write_file(filename:join(Directory, "rules.txt"), Text),
     halt(0).
+
+%% The program, its receives with an `after` given ?MS.
+source() ->
+    Ms = integer_to_list(?MS),
+    iolist_to_binary(
+      ["export type PingMsg = Ping(Int)\n"
+       "export type EchoMsg = Echo(to : Address(PingMsg), n : Int)\n"
+       "let limit : Int = 1024\n"
+       "let numbers : List(Int) = List.range(1, 100)\n"
+       "export fn limitRead(n : Int) : Int = limit\n"
+       "export fn numbersRead(n : Int) : List(Int) = numbers\n"
+       "export fn waiting(n : Int) : Int receiving PingMsg = {\n"
+       "    send(self(), Ping(n));\n"
+       "    receive {\n"
+       "        Ping(value) -> value\n"
+       "      | after ", Ms, " -> 0\n"
+       "    }\n"
+       "}\n"
+       "export fn waitingForever(n : Int) : Int receiving PingMsg = {\n"
+       "    send(self(), Ping(n));\n"
+       "    receive {\n"
+       "        Ping(value) -> value\n"
+       "    }\n"
+       "}\n"
+       "export fn echoing() : Unit receiving EchoMsg =\n"
+       "    receive {\n"
+       "        Echo(to = to, n = n) -> {\n"
+       "            send(to, Ping(n));\n"
+       "            echoing()\n"
+       "        }\n"
+       "    }\n"
+       "export fn echoed(echo : Address(EchoMsg), n : Int) : Int receiving PingMsg = {\n"
+       "    send(echo, Echo(to = self(), n = n));\n"
+       "    receive {\n"
+       "        Ping(value) -> value\n"
+       "      | after ", Ms, " -> 0\n"
+       "    }\n"
+       "}\n"
+       "export fn echoedForever(echo : Address(EchoMsg), n : Int) : Int receiving PingMsg = {\n"
+       "    send(echo, Echo(to = self(), n = n));\n"
+       "    receive {\n"
+       "        Ping(value) -> value\n"
+       "    }\n"
+       "}\n"
+       "export fn printed(n : Int) : Int = {\n"
+       "    Io.print(\"\");\n"
+       "    n\n"
+       "}\n"]).
 
 %% A program's function of Unit by its name, called with the loop's count
 %% after what Given gives in the launch, in a loop of Count iterations, in a
@@ -117,24 +119,19 @@ main([Directory]) ->
 ernest(Unit, Name, Given) ->
     {Function, Arity} = ern_code:function(Unit, ?NAMESPACE ++ [Name]),
     Called = erlang:make_fun(Unit, Function, Arity),
-    ern_spawn_costs:launched(
+    ern_costs:launched(
       fun(Count) ->
           ok = Unit:'$init'(),
           Operation = case Given of
                           none -> Called;
                           _ -> Argument = Given(), fun(N) -> Called(Argument, N) end
                       end,
-          ern_spawn_costs:timed(Count, looped(Operation))
+          ern_costs:timed(Count, ern_costs:looped(Operation))
       end).
 
 %% The host's loop of Operation, outside a launch.
 host(Operation) ->
-    fun(Count) -> ern_spawn_costs:timed(Count, looped(Operation)) end.
-
-looped(Operation) ->
-    fun Loop(0) -> ok;
-        Loop(Left) -> _ = Operation(Left), Loop(Left - 1)
-    end.
+    fun(Count) -> ern_costs:timed(Count, ern_costs:looped(Operation)) end.
 
 %%
 %% A top-level let's read
@@ -152,32 +149,32 @@ binding_tables(Unit) ->
                 {"a function reading a let computed, List.range(1, 100)",
                  ernest(Unit, numbersRead, none)}],
     persistent_term:put({?MODULE, limit}, 1024),
-    persistent_term:put(ern_rule_costs_limit, 1024),
+    persistent_term:put(ern_rules_costs_limit, 1024),
     Operations = [{"the loop alone", host(fun(_) -> ok end)},
                   {"a literal, from a function of its own", host(fun ?MODULE:literal/1)},
                   {"a persistent term by a tuple key", host(fun(_) -> term_by_tuple() end)},
                   {"  by an atom key", host(fun(_) -> term_by_atom() end)},
                   {"ern_rt:binding/1, by a tuple key", host(fun(_) -> bound() end)}],
-    [ern_spawn_costs:table("a top-level let of a literal read, ns an iteration",
-                           ern_spawn_costs:measured(Literal, ?COUNT), ratio),
-     ern_spawn_costs:table("a top-level let computed read, ns an iteration",
-                           ern_spawn_costs:measured(Computed, ?COUNT), ratio),
-     ern_spawn_costs:table("a read's operations, each alone, ns an operation",
-                           ern_spawn_costs:measured(Operations, ?COUNT), none)].
+    [ern_costs:table("a top-level let of a literal read, ns an iteration",
+                     ern_costs:measured(Literal, ?COUNT), ratio),
+     ern_costs:table("a top-level let computed read, ns an iteration",
+                     ern_costs:measured(Computed, ?COUNT), ratio),
+     ern_costs:table("a read's operations, each alone, ns an operation",
+                     ern_costs:measured(Operations, ?COUNT), none)].
 
 -spec literal(integer()) -> integer().
 literal(_) -> 1024.
 
 term_by_tuple() -> persistent_term:get({?MODULE, limit}).
 
-term_by_atom() -> persistent_term:get(ern_rule_costs_limit).
+term_by_atom() -> persistent_term:get(ern_rules_costs_limit).
 
 bound() -> ern_rt:binding({?MODULE, limit}).
 
 %% A module whose function answers the list of a hundred as a literal, as a
 %% value computed when it was compiled.
 held() ->
-    Forms = [{attribute, 1, module, ern_rule_costs_held},
+    Forms = [{attribute, 1, module, ern_rules_costs_held},
              {attribute, 1, export, [{numbers, 1}]},
              {function, 1, numbers, 1,
               [{clause, 1, [{var, 1, '_'}], [], [erl_parse:abstract(numbers())]}]}],
@@ -216,12 +213,12 @@ receive_tables(Unit) ->
               {"  with one, its timer set and canceled", echoes(fun host_echoed/2)},
               {"Ernest's without an after", ernest(Unit, echoedForever, Echo)},
               {"Ernest's with one", ernest(Unit, echoed, Echo)}],
-    [ern_spawn_costs:table("a receive that finds its message waiting, ns an iteration",
-                           ern_spawn_costs:measured(Waiting, ?MESSAGES), ratio),
-     ern_spawn_costs:table("a model of a receive with an after, a piece added on each row",
-                           ern_spawn_costs:measured(Model, ?MESSAGES), added),
-     ern_spawn_costs:table("a receive that waits for an echo's answer, ns an iteration",
-                           ern_spawn_costs:measured(Echoed, ?MESSAGES), ratio)].
+    [ern_costs:table("a receive that finds its message waiting, ns an iteration",
+                     ern_costs:measured(Waiting, ?MESSAGES), ratio),
+     ern_costs:table("a model of a receive with an after, a piece added on each row",
+                     ern_costs:measured(Model, ?MESSAGES), added),
+     ern_costs:table("a receive that waits for an echo's answer, ns an iteration",
+                     ern_costs:measured(Echoed, ?MESSAGES), ratio)].
 
 host_waiting(N) ->
     self() ! {'Ping', N},
@@ -290,13 +287,13 @@ marked(N) ->
 %% A loop of Operation in a launch's entry process, which has its row, as
 %% the program's rows run.
 launched(Operation) ->
-    ern_spawn_costs:launched(fun(Count) -> ern_spawn_costs:timed(Count, looped(Operation)) end).
+    ern_costs:launched(fun(Count) -> ern_costs:timed(Count, ern_costs:looped(Operation)) end).
 
 %% The host's echo, outside a launch, and the host's receive of its answer.
 echoes(Echoed) ->
     fun(Count) ->
         Echo = spawn(fun host_echo/0),
-        Measured = ern_spawn_costs:timed(Count, looped(fun(N) -> Echoed(Echo, N) end)),
+        Measured = ern_costs:timed(Count, ern_costs:looped(fun(N) -> Echoed(Echo, N) end)),
         exit(Echo, kill),
         Measured
     end.
@@ -333,15 +330,15 @@ system_table(Unit) ->
     Rows = [{"the host's send to a process", sends()},
             {"the host's call of a process that takes the bytes and answers", writes()},
             {"Io.print of an empty string", ernest(Unit, printed, none)}],
-    ern_spawn_costs:table("a message to a system process, ns an iteration",
-                          ern_spawn_costs:measured(Rows, ?MESSAGES), ratio).
+    ern_costs:table("a message to a system process, ns an iteration",
+                    ern_costs:measured(Rows, ?MESSAGES), ratio).
 
 %% The sends alone, the sink's taking them after; it has taken them all
 %% before the next run.
 sends() ->
     fun(Count) ->
         Sink = spawn(fun sink/0),
-        Measured = ern_spawn_costs:timed(Count, looped(fun(_) -> Sink ! <<>> end)),
+        Measured = ern_costs:timed(Count, ern_costs:looped(fun(_) -> Sink ! <<>> end)),
         Sink ! {taken, self()},
         receive taken -> ok end,
         Measured
@@ -356,7 +353,7 @@ sink() ->
 writes() ->
     fun(Count) ->
         Stream = spawn(fun stream/0),
-        Measured = ern_spawn_costs:timed(Count, looped(fun(_) -> written(Stream) end)),
+        Measured = ern_costs:timed(Count, ern_costs:looped(fun(_) -> written(Stream) end)),
         exit(Stream, kill),
         Measured
     end.
@@ -389,22 +386,22 @@ written(Stream) ->
 launch_tables() ->
     Runs = [run_launch() || _ <- lists:seq(1, ?RUNS)],
     Column = fun(Index) -> [element(Index, Run) || Run <- Runs] end,
-    [ern_spawn_costs:table("a bare launch, us a launch",
-                           [{"the host's start of a program, erl run by a shell", Column(1)},
-                            {"the host's spawn of a function that returns, its 'DOWN' taken",
-                             Column(2)},
-                            {"a launch, ern_rt:run_main/3, nothing in main", Column(3)}],
-                           none),
-     ern_spawn_costs:table("the launch's pieces, us a launch",
-                           [{"the start, to the library's initializers", Column(4)},
-                            {"the library's initializers", Column(5)},
-                            {"from them to main's return", Column(6)},
-                            {"the end, from main's return", Column(7)}],
-                           none),
-     ern_spawn_costs:table("a persistent term's update alone, us an operation",
-                           [{"a persistent term put under a new key and erased", Column(8)},
-                            {"  put again with the value it holds", Column(9)}],
-                           none)].
+    [ern_costs:table("a bare launch, us a launch",
+                     [{"the host's start of a program, erl run by a shell", Column(1)},
+                      {"the host's spawn of a function that returns, its 'DOWN' taken",
+                       Column(2)},
+                      {"a launch, ern_rt:run_main/3, nothing in main", Column(3)}],
+                     none),
+     ern_costs:table("the launch's pieces, us a launch",
+                     [{"the start, to the library's initializers", Column(4)},
+                      {"the library's initializers", Column(5)},
+                      {"from them to main's return", Column(6)},
+                      {"the end, from main's return", Column(7)}],
+                     none),
+     ern_costs:table("a persistent term's update alone, us an operation",
+                     [{"a persistent term put under a new key and erased", Column(8)},
+                      {"  put again with the value it holds", Column(9)}],
+                     none)].
 
 %% One run of each row, the rows taking turns, in microseconds each.
 run_launch() ->
@@ -428,7 +425,7 @@ spawned() ->
     receive {'DOWN', MonitorRef, _, _, _} -> ok end.
 
 micros_each(Count, Operation) ->
-    {Nanoseconds, Count} = ern_spawn_costs:timed(Count, looped(fun(_) -> Operation() end)),
+    {Nanoseconds, Count} = ern_costs:timed(Count, ern_costs:looped(fun(_) -> Operation() end)),
     Nanoseconds / Count / 1000.
 
 updated() ->

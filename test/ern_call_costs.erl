@@ -1,4 +1,4 @@
-%% `make bench`'s part for the call (docs/development.md; plan, MVP 3.29):
+%% `make bench`'s part `call` (docs/development.md; plan, MVP 3.29):
 %% what each piece of `Address.call` adds to the host's call of the same
 %% shape (report §6.6, §6.9, §8.6), with one caller and one callee, with
 %% eight callers over eight callees at once, and with eight callers over
@@ -13,11 +13,11 @@
 %% (§6.9), and drops them as the call ends (pending/2, uncalled/0), each a
 %% piece of its own; marks the caller as in a timed receive while it waits,
 %% a key in its dictionary (timed/0, untimed/0, §8.6); takes the answer
-%% among the forms a wait
-%% takes, a restart and a fault's among them, the answer of foreign code
-%% checked (waited_answer/3, §8.4), where an Ernest callee's answer is not;
-%% and waits against a deadline in slices of the host's longest wait, in a
-%% try that takes the mark away and one that settles (?SLICE, remaining/1).
+%% among the forms a wait takes, a restart and a fault's among them, the
+%% answer of foreign code checked (waited_answer/3, §8.4), where an Ernest
+%% callee's answer is not; and waits against a deadline in slices of the
+%% host's longest wait, in a try that takes the mark away and one that
+%% settles (?SLICE, remaining/1).
 %%
 %% Measured, in call.txt: for each of the three, the host's call, the
 %% model of `Address.call` a piece added on each row until it is call/4's
@@ -25,14 +25,14 @@
 %% counter, the code the compiler writes, its callee too; first the three
 %% beside the host's call, then each model; and each of the call's writes
 %% alone, the callee's row on the runtime's table and the two keys in the
-%% process's dictionary, by one process and by eight at once. Every row runs in a launch of
-%% its own, its callers and callees processes the runtime spawns, each with
-%% its row as a program's has, started at once and timed until every
-%% caller has made its calls (ern_spawn_costs:at_once/2), in nanoseconds a
-%% call over all callers, the loop's own cost included. Each row is the
-%% median of seven runs, with their range, as ern_spawn_costs measures
-%% them. It measures and asserts nothing, so it is not part of `make
-%% test-full`.
+%% process's dictionary, by one process and by eight at once. Every row
+%% runs in a launch of its own, its callers and callees processes the
+%% runtime spawns, each with its row as a program's has, started at once
+%% and timed until every caller has made its calls (ern_costs:at_once/2),
+%% in nanoseconds a call over all callers, the loop's own cost included.
+%% Each row is the median of seven runs, with their range, as ern_costs
+%% measures them. It measures and asserts nothing, so it is not part of
+%% `make test-full`.
 -module(ern_call_costs).
 
 -export([main/1]).
@@ -53,21 +53,6 @@
 %% The module the counter is compiled into.
 -define(NAMESPACE, ['CallCosts']).
 
-%% The counter and its callers, as a program writes them.
--define(SOURCE,
-        <<"export type CounterMsg = Get(Reply(Int))\n"
-          "export fn count(total : Int) : Unit receiving CounterMsg =\n"
-          "    receive {\n"
-          "        Get(reply) -> {\n"
-          "            answer(reply, total);\n"
-          "            count(total + 1)\n"
-          "        }\n"
-          "    }\n"
-          "export fn get(counter : Address(CounterMsg)) : Int =\n"
-          "    Optional.withDefault(Address.call(counter, Get, 10000), 0)\n"
-          "export fn getForever(counter : Address(CounterMsg)) : Int =\n"
-          "    Address.callForever(counter, Get)\n">>).
-
 %% The callers over the callees, and how each table names them.
 -define(SHAPES, [{1, 1, "one caller and one callee"},
                  {8, 8, "eight callers over eight callees, eight pairs"},
@@ -76,23 +61,40 @@
 %% Prints the tables, writes them to call.txt in Directory, and halts.
 -spec main([string()]) -> no_return().
 main([Directory]) ->
-    Unit = ern_foreign_costs:compiled(?NAMESPACE, ?SOURCE),
-    Measured = [{Name, ern_spawn_costs:measured(rows(Unit, Callers, Callees), ?COUNT)}
+    Unit = ern_costs:compiled(?NAMESPACE, source()),
+    Measured = [{Name, ern_costs:measured(rows(Unit, Callers, Callees), ?COUNT)}
                 || {Callers, Callees, Name} <- ?SHAPES],
     Text = unicode:characters_to_binary(
-             [[ern_spawn_costs:table(["the call, ", Name, ", ns a call over all callers"],
-                                     [hd(Rows) | lists:nthtail(length(Rows) - 2, Rows)], ratio)
+             [[ern_costs:table(["the call, ", Name, ", ns a call over all callers"],
+                               [hd(Rows) | lists:nthtail(length(Rows) - 2, Rows)], ratio)
                || {Name, Rows} <- Measured],
-              [ern_spawn_costs:table(["a model of Address.call, ", Name,
-                                      ", a piece added on each row"],
-                                     lists:sublist(Rows, length(Rows) - 1), added)
+              [ern_costs:table(["a model of Address.call, ", Name,
+                                ", a piece added on each row"],
+                               lists:sublist(Rows, length(Rows) - 1), added)
                || {Name, Rows} <- Measured],
-              ern_spawn_costs:table("the call's writes, each alone, one process against eight "
-                                    "at once, ns an operation over all processes",
-                                    ern_spawn_costs:measured(operations(), ?OPERATIONS), none)]),
+              ern_costs:table("the call's writes, each alone, one process against eight "
+                              "at once, ns an operation over all processes",
+                              ern_costs:measured(operations(), ?OPERATIONS), none)]),
     io:format("~ts", [Text]),
     ok = file:write_file(filename:join(Directory, "call.txt"), Text),
     halt(0).
+
+%% The counter and its callers, as a program writes them, its call's time
+%% ?MS.
+source() ->
+    iolist_to_binary(
+      ["export type CounterMsg = Get(Reply(Int))\n"
+       "export fn count(total : Int) : Unit receiving CounterMsg =\n"
+       "    receive {\n"
+       "        Get(reply) -> {\n"
+       "            answer(reply, total);\n"
+       "            count(total + 1)\n"
+       "        }\n"
+       "    }\n"
+       "export fn get(counter : Address(CounterMsg)) : Int =\n"
+       "    Optional.withDefault(Address.call(counter, Get, ", integer_to_list(?MS), "), 0)\n"
+       "export fn getForever(counter : Address(CounterMsg)) : Int =\n"
+       "    Address.callForever(counter, Get)\n"]).
 
 %% Each row's calls, Callers callers over Callees callees: the host's
 %% call, the model a piece at a time, and the program's calls.
@@ -101,7 +103,7 @@ rows(Unit, Callers, Callees) ->
     Host = fun() -> host_serve(0) end,
     Ernest = fun() -> ernest_serve(0) end,
     Counter = fun() -> Count(0) end,
-    [{Name, ern_spawn_costs:launched(
+    [{Name, ern_costs:launched(
               fun(Calls) -> calls(Callers, Callees, Serve, Call, Calls) end)}
      || {Name, Serve, Call} <-
             [{"the host's call", Host, fun host_call/2},
@@ -129,10 +131,10 @@ function(Unit, Name) ->
 calls(Callers, Callees, Serve, Call, Calls) ->
     Served = list_to_tuple([ern_rt:spawn(Serve, ?SITE) || _ <- lists:seq(1, Callees)]),
     Request = fun(Reply) -> {'Get', Reply} end,
-    ern_spawn_costs:at_once(Calls, [fun(Left) ->
-                                        called(Call, Request,
-                                               element((Index - 1) rem Callees + 1, Served), Left)
-                                    end || Index <- lists:seq(1, Callers)]).
+    ern_costs:at_once(Calls, [fun(Left) ->
+                                  called(Call, Request,
+                                         element((Index - 1) rem Callees + 1, Served), Left)
+                              end || Index <- lists:seq(1, Callers)]).
 
 called(_, _, _, 0) ->
     ok;
@@ -148,29 +150,24 @@ called(Call, Request, Callee, Left) ->
 operations() ->
     Callee = self(),
     [{Name ++ Processes,
-      ern_spawn_costs:launched(
+      ern_costs:launched(
         fun(Count) ->
-            ern_spawn_costs:at_once(Count, lists:duplicate(Many, looped(Operation)))
+            ern_costs:at_once(Count, lists:duplicate(Many, ern_costs:looped(Operation)))
         end)}
      || {Name, Operation} <-
             [{"the callee's row written and deleted",
-              fun() ->
+              fun(_) ->
                   ets:insert(?CALLEES, {{Callee, self()}, Callee}),
                   ets:delete(?CALLEES, {Callee, self()})
               end},
              {"the call's key put and erased",
-              fun() ->
+              fun(_) ->
                   _ = put(?CALL, {Callee, Callee}),
                   erase(?CALL)
               end},
              {"the timed key put and taken, timed/0 and untimed/0",
-              fun() -> ern_rt:timed(), ern_rt:untimed() end}],
+              fun(_) -> ern_rt:timed(), ern_rt:untimed() end}],
         {Many, Processes} <- [{1, ", one process"}, {?AT_ONCE, ", eight at once"}]].
-
-looped(Operation) ->
-    fun Loop(0) -> ok;
-        Loop(Left) -> _ = Operation(), Loop(Left - 1)
-    end.
 
 %%
 %% The callees

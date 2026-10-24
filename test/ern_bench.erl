@@ -1,10 +1,11 @@
-%% `make bench` (docs/development.md): the operations of fixtures/bench/bench.ern,
-%% each written as Erlang writes it, run as the Ernest program runs them,
-%% the fastest of three runs of a loop, and printed beside what the Ernest
-%% program took, in nanoseconds an iteration, the loop's own cost included
-%% on both sides; a raise at each backtrace depth (Appendix E.21, report
-%% §10), the median of seven runs, with their range. It measures and
-%% asserts nothing, so it is not part of `make test-full`.
+%% `make bench`'s part `core` (docs/development.md): the operations of
+%% fixtures/bench/bench.ern, each written as Erlang writes it, run as the
+%% Ernest program runs them, the fastest of three runs of a loop, and
+%% printed beside what the Ernest program took, in nanoseconds an iteration,
+%% the loop's own cost included on both sides; a raise at each backtrace
+%% depth (Appendix E.21, report §10), the median of seven runs, with their
+%% range. It measures and asserts nothing, so it is not part of `make
+%% test-full`.
 -module(ern_bench).
 
 -export([main/1]).
@@ -38,14 +39,14 @@ main([File]) ->
 raised(Key, Count, [Median, Low, High]) ->
     {Name, Depth, Beneath, Operation} = raise(Key),
     Previous = erlang:system_flag(backtrace_depth, Depth),
-    Erlang = lists:sort([deepened(Beneath, fun() -> duration(Count, Operation) end) / Count
-                         || _ <- lists:seq(1, 7)]),
+    {Erlang, ErlangLow, ErlangHigh} =
+        ern_costs:median_range([deepened(Beneath, fun() -> duration(Count, Operation) end) / Count
+                                || _ <- lists:seq(1, 7)]),
     erlang:system_flag(backtrace_depth, Previous),
     PerIteration = fun(Micros) -> Micros * 1000 / Count end,
     io:format("~-40s ~9.1f ~9.1f ~6.2fx  ~.1f to ~.1f, ~.1f to ~.1f~n",
-              [Name, PerIteration(Median), lists:nth(4, Erlang),
-               PerIteration(Median) / lists:nth(4, Erlang), PerIteration(Low),
-               PerIteration(High), hd(Erlang), lists:last(Erlang)]).
+              [Name, PerIteration(Median), Erlang, PerIteration(Median) / Erlang,
+               PerIteration(Low), PerIteration(High), ErlangLow, ErlangHigh]).
 
 %% A raise's key, `raise_` or `fault_`, then `deep_` where it is made
 %% beneath forty frames, then the depth: its row's name, the depth, the

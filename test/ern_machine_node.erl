@@ -21,14 +21,16 @@
 -export_type([machine_node/0]).
 
 %% Report §11.3: the node Name's directory made with `ern config` in Dir on
-%% the machine, its `listen` the machine's interface at Port, or none where
-%% it only dials, and its key read from its `ernest.conf`.
+%% the machine, Dir made first where it is not there, since `ern config`
+%% makes no missing parent; its `listen` the machine's interface at Port,
+%% or none where it only dials, and its key read from its `ernest.conf`.
 -spec configured(ern_machine:machine(), string(), string(), none | non_neg_integer()) ->
           machine_node().
 configured(Machine, Dir, Name, Listen) ->
     ConfigDir = filename:join(Dir, Name),
     Conf = filename:join(ConfigDir, "ernest.conf"),
-    Text = ern_machine:ran(Machine, lists:flatten([ern_machine:quoted(ern_machine:ern(Machine)),
+    Text = ern_machine:ran(Machine, lists:flatten(["mkdir -p ", ern_machine:quoted(Dir), " && ",
+                                                   ern_machine:quoted(ern_machine:ern(Machine)),
                                                    " config --config-dir ",
                                                    ern_machine:quoted(ConfigDir), " > /dev/null",
                                                    " && cat ", ern_machine:quoted(Conf)])),

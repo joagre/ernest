@@ -124,7 +124,7 @@ brief_module_version() ->
     Bytes = pty(alone("../bin/ern shell --source-root " ++ Dir),
                 [{expect, "> "},
                  {send, hex(":load Shape\r")},
-                 {expect, "compiled from shape.ern"},
+                 {expect, "compiled from"},
                  {send, hex("Shape.Point.compare") ++ ShiftTab},
                  {expect, "Orders points"},
                  {send, "03"},
@@ -202,8 +202,8 @@ member_declaration_error() ->
 program_test_() ->
     {timeout, 60, fun program/0}.
 
-%% The session waits on the events it asserts, not on the clock (plan, MVP
-%% 2.6 checkpoint 4, step 5): the program's own fault is awaited on the
+%% The session waits on the events it asserts, not on the clock (the log's
+%% *A Test Waits for the Screen*): the program's own fault is awaited on the
 %% screen before the first input, since nothing at the prompt holds the
 %% entry point's address to monitor it, and each input waits for its
 %% answer. It ran on two waits of 400 ms before, and once failed under load.
@@ -356,7 +356,8 @@ host_flags_cleared() ->
 %% run: one that anyone may write, and one in a directory that anyone may
 %% write; the person's directory is its owner's alone after the session,
 %% in line mode too. A regression test: each was run,
-%% and in line mode the directory kept its mode (S3); a file of another
+%% and in line mode the directory kept its mode (the log's *The Full
+%% Review's Questions, One by One*); a file of another
 %% user's is not covered, since a test cannot make one. Written after the
 %% code
 startup_of_anothers_test_() ->
@@ -451,7 +452,7 @@ prelude_shown() ->
 %% review before 0.4.0 found `:browse Address` answering that no module
 %% Address is in scope, where `:doc Address` answered)
 browse_address_test_() ->
-    {timeout, 60, fun browse_address/0}.
+    {timeout, waits(1), fun browse_address/0}.
 
 browse_address() ->
     Dir = fresh_home(),
@@ -494,7 +495,7 @@ faulting_binding_named() ->
 %% anywhere. A regression test, written after the code (the log's *The
 %% Float chain*)
 float_fault_at_prompt_test_() ->
-    {timeout, 60, fun float_fault_at_prompt/0}.
+    {timeout, waits(3), fun float_fault_at_prompt/0}.
 
 float_fault_at_prompt() ->
     Dir = fresh_home(),
@@ -516,9 +517,12 @@ float_fault_at_prompt() ->
 %% each loaded module that `ern build` would compile again for it, one that
 %% uses it where its interface changed, and a type error there reloads
 %% nothing, or one whose forms reference a definition whose hash it
-%% changed, so that `Main` calls the new `area`. A regression test:
-%% `:load Main` sought `geo/shape.erc`, and a reload left `Main` running
-%% against the previous interface, to fault
+%% changed, so that `Main` calls the new `area`; and report §11.5: each
+%% source is named from the working directory, as a diagnostic names it. A
+%% regression test: `:load Main` sought `geo/shape.erc`, and a reload left
+%% `Main` running against the previous interface, to fault; and, written
+%% after the code, each source was named from the source root,
+%% `geo/shape.ern`, which names nothing from the working directory
 load_and_reload_dependents_test_() ->
     {timeout, 60, fun load_and_reload_dependents/0}.
 
@@ -543,8 +547,8 @@ load_and_reload_dependents() ->
     Ern = filename:absname("../bin/ern"),
     {0, Output} = ern_pty:sh(
         "cd " ++ Dir ++ " && " ++ Ern ++ " shell --source-root src < " ++ InputFile),
-    ?assertMatch({_, _}, binary:match(Output, <<"Geo.Shape, compiled from geo/shape.ern\n"
-                                                "Main, compiled from main.ern\n> 9\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"Geo.Shape, compiled from src/geo/shape.ern\n"
+                                                "Main, compiled from src/main.ern\n> 9\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"the argument does not fit Int.toString">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"nothing was reloaded">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"Geo.Shape, compiled again\n"
@@ -557,7 +561,7 @@ load_and_reload_dependents() ->
 %% `Main.Stack.` lists both. A regression test, written after the code: the
 %% checker took every such name for a member
 shared_namespace_test_() ->
-    {timeout, 90, fun shared_namespace/0}.
+    {timeout, waits(2), fun shared_namespace/0}.
 
 shared_namespace() ->
     SourceRoot = scratch("ern_root_"),
@@ -595,7 +599,7 @@ shared_namespace() ->
                  {expect, "Main.Stack.push :"},
                  {send, "03"},
                  {send, "04"}],
-                30, " --size 30x100"),
+                wait_seconds(), " --size 30x100"),
     ?assertMatch({_, _}, binary:match(Bytes, <<"Main.Stack.compare : (Main.Stack, Main.Stack)">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"Main.Stack.push : (Main.Stack, Int)">>)).
 
@@ -761,7 +765,7 @@ fault_line_escaped() ->
 %% input shows its result. A regression test, written after the code: the
 %% shell wrote the fault's line, its site `Test.faults`, before the result
 expected_fault_not_reported_test_() ->
-    {timeout, 60, fun expected_fault_not_reported/0}.
+    {timeout, waits(1), fun expected_fault_not_reported/0}.
 
 expected_fault_not_reported() ->
     Dir = fresh_home(),
@@ -906,10 +910,10 @@ fault_while_typing() ->
 %% spawned after a fixed 300 ms, which waited for nothing the input does
 %% not already show, and the 300 ms went; and each session's bound on a
 %% failure was 10 seconds, which a shell started under load outlasted
-%% before its first prompt, and is the 30 seconds the other sessions here
-%% are given (MVP 3.2's item 3)
+%% before its first prompt, and is one wait (wait_seconds/0), both written
+%% 2026-10-11
 reader_and_screen_ends_test_() ->
-    {timeout, 90, fun reader_and_screen_ends/0}.
+    {timeout, waits(2), fun reader_and_screen_ends/0}.
 
 reader_and_screen_ends() ->
     Stop = "foreign fn stop(process : Process, reason : Foreign.Term) : Bool ="
@@ -927,7 +931,7 @@ reader_and_screen_ends() ->
                                     {expect, "stop : "},
                                     {send, hex(Ending("Shell.readKeys"))},
                                     {expect, "stopped reading the keyboard"}],
-                                   30, " --size 30x120"),
+                                   wait_seconds(), " --size 30x120"),
     ?assertMatch({_, _}, binary:match(ReaderEnded, <<"Shell.readKeys">>)),
     {70, ScreenEnded} = ern_pty:run(alone("../bin/ern shell"),
                                     [{expect, "> "},
@@ -935,7 +939,7 @@ reader_and_screen_ends() ->
                                      {expect, "stop : "},
                                      {send, hex(Ending("Shell.main:"))},
                                      {expect, "screen ended"}],
-                                    30, " --size 30x120"),
+                                    wait_seconds(), " --size 30x120"),
     ?assertMatch({_, _}, binary:match(ScreenEnded, <<"fault: the shell's screen ended">>)).
 
 %% report §11.2, §9.3: the pure parts of the shell test themselves, the
@@ -1468,8 +1472,8 @@ load_completion_of_two_words() ->
 %% line with the prompt, which the screen paints only with the listing
 %% under it, and not for the listing alone, which an earlier paint without
 %% the prompt holds. A regression test for a run under load, where the
-%% prompt came after the keys of the next line and its listing (MVP 3.2's
-%% item 3)
+%% prompt came after the keys of the next line and its listing, written
+%% 2026-10-11
 command_argument_test_() ->
     {timeout, 60, fun command_argument/0}.
 
@@ -1876,8 +1880,10 @@ load_failed_dependency() ->
 %% input faulted the checker on the type the session's scope named; and an
 %% input that wrote the type was refused as `unknown type Plain.Msg`,
 %% which the last assertion, written 2026-10-16 after the code, holds to
-%% §11.5's text, as the constructor's assertion, written 2026-10-23 after
-%% the code, holds `unknown constructor Plain.Add` (docs/findings.md's S2).
+%% §11.5's text; and its constructor was refused as unknown, which the
+%% assertion before it, written 2026-10-23 after the code, holds to
+%% §11.5's text for a constructor of a type a module keeps private (the
+%% log's *What the Skeptics Found*).
 %% It does not cover a message checked at such an address, which the
 %% integration tests' exposed program does
 private_mailbox_type_test_() ->
@@ -1974,7 +1980,7 @@ input_numbers_reused() ->
 %% report §11.2: an input that builds a function value keeps its code while
 %% the session runs, the function may be held anywhere: here a lambda sent
 %% to a server, which calls it after many inputs more. A regression test,
-%% written after the fix (finding W1): the input's module was let go once
+%% written after the fix (the log's *MVP 3.1 Read*): the input's module was let go once
 %% its answer was in, the value it answered holding no function of it, and
 %% the server's call faulted with the host's `undef`
 lambda_sent_kept_test_() ->
@@ -2002,7 +2008,7 @@ lambda_sent_kept() ->
 %% session runs, though a later declaration shadows what it declared and
 %% nothing names it: a process holding the shadowed function runs it, and
 %% the new declaration answers at the prompt. A regression test, written
-%% after the fix (finding W1): the shadowed inputs were let go once nothing
+%% after the fix (the log's *MVP 3.1 Read*): the shadowed inputs were let go once nothing
 %% named them, the host's check of running code missing the function the
 %% process held, and its call faulted with `undef`
 redeclared_function_kept_test_() ->
@@ -2072,7 +2078,7 @@ abstract_at_the_prompt() ->
 %% input's module, so each count made a version of its own, and the host's
 %% entry for its lambda, which `make load` found. The spawn starts a
 %% declared function, since an input that builds a function value, a
-%% lambda among them, keeps its code (finding W1). The first three hundred
+%% lambda among them, keeps its code (the log's *MVP 3.1 Read*). The first three hundred
 %% are the warm-up, in which the reading of the memory, typed again, takes
 %% a version for each number it lands on
 expressions_again_leave_no_code_test_() ->
@@ -2095,8 +2101,8 @@ expressions_again_leave_no_code() ->
 %% session runs: a function declared after it still calls it, a binding
 %% holding its function or a value of its type works, and a process
 %% running its code runs on. Written with the code that let it go once
-%% nothing reached it, which an input that declares no longer is (finding
-%% W1).
+%% nothing reached it, which an input that declares no longer is (the
+%% log's *MVP 3.1 Read*).
 declarations_kept_while_reached_test_() ->
     {timeout, 120, fun declarations_kept_while_reached/0}.
 
@@ -2605,7 +2611,7 @@ holders_freed() ->
 %% three versions' processes apart, a site of a reload's version carrying
 %% its number. A regression test: until MVP 3.1 the second reload ended
 %% the first version's process with `its code was unloaded`; and the sites,
-%% written after the fix (finding W17): the three shared one site
+%% written after the fix (the log's *MVP 3.1 Read*): the three shared one site
 reload_keeps_previous_versions_test_() ->
     {timeout, 60, fun reload_keeps_previous_versions/0}.
 
@@ -2642,7 +2648,7 @@ reload_keeps_previous_versions() ->
 %% spawned with; a shadowed declaration is not compiled again; one the new
 %% version breaks is reported with its diagnostic, which names its input,
 %% and goes from scope, and the reload goes on. A regression test, written
-%% after the fix (finding V8): the session's declarations kept calling the
+%% after the fix (the log's *MVP 3.1 Read*): the session's declarations kept calling the
 %% previous version, and the reload said nothing of them
 reload_reaches_session_declarations_test_() ->
     {timeout, 60, fun reload_reaches_session_declarations/0}.
@@ -2690,8 +2696,8 @@ reload_reaches_session_declarations() ->
 %% report §11.2, §6.9, §8.6: a spawn site of a reload's version carries the
 %% version's number, as its unit is named, so that `:processes` and the
 %% end's lines tell two versions' processes apart; the first version's
-%% site is the module's. A regression test, written after the fix (finding
-%% W17): the two shared one site
+%% site is the module's. A regression test, written after the fix (the
+%% log's *MVP 3.1 Read*): the two shared one site
 reload_version_sites_test_() ->
     {timeout, 60, fun reload_version_sites/0}.
 
@@ -2732,7 +2738,7 @@ reload_version_sites() ->
 %% the reload forgot every such binding, and before that `send(c,
 %% Counter.Reset)` to an address of the previous version was accepted, and
 %% `Reset` sat in the old process's mailbox unmatched; the session type's
-%% new version written after the fix (finding V8), where it stayed over the
+%% new version written after the fix (the log's *MVP 3.1 Read*), where it stayed over the
 %% previous version and refused the new version's address
 reload_keeps_the_type_checked_under_test_() ->
     {timeout, 60, fun reload_keeps_the_type_checked_under/0}.
@@ -2851,8 +2857,8 @@ previous_type_went() ->
 %% message is taken by the first version's process, which reads it as its
 %% own, and nothing names `Counter$1` or says a reload replaced it; a
 %% binding made under the second is now of the second version's type,
-%% `Counter$2.Msg`. A regression test, written after the fix (findings S3,
-%% V2): the binding kept `Counter$1.Msg`, and the send was refused with a
+%% `Counter$2.Msg`. A regression test, written after the fix (the log's
+%% *MVP 3.1 Read*): the binding kept `Counter$1.Msg`, and the send was refused with a
 %% help that had become false
 reload_brings_a_type_back_test_() ->
     {timeout, 60, fun reload_brings_a_type_back/0}.
@@ -2905,7 +2911,7 @@ reload_brings_a_type_back() ->
 %% one type, by its name; a declaration that changes the type shadows, and
 %% the binding is refused the new type's constructor, its type printed as
 %% the input that declared it. A regression test, written after the fix
-%% (finding V11): each input's type was another, by its input's namespace
+%% (the log's *MVP 3.1 Read*): each input's type was another, by its input's namespace
 type_declared_again_test_() ->
     {timeout, 60, fun type_declared_again/0}.
 
@@ -3006,7 +3012,7 @@ load_path_cycle() ->
 %% finds its module there; a shell with no file, whose load path the
 %% options alone give, as a file's is given by ern_cli_tests' libs_dir
 libs_dir_in_the_shell_test_() ->
-    {timeout, 60, fun libs_dir_in_the_shell/0}.
+    {timeout, waits(2), fun libs_dir_in_the_shell/0}.
 
 libs_dir_in_the_shell() ->
     Dir = scratch("ern_libs_dir_"),
@@ -3028,7 +3034,7 @@ libs_dir_in_the_shell() ->
 %% the shell itself does not use, loads it with no `--load-path`. Written
 %% after the code, so a regression test
 libraries_in_the_shell_test_() ->
-    {timeout, 60, fun libraries_in_the_shell/0}.
+    {timeout, waits(1), fun libraries_in_the_shell/0}.
 
 libraries_in_the_shell() ->
     Dir = scratch("ern_libraries_"),
@@ -3086,12 +3092,164 @@ fault_subscriber() ->
                                      ":faults\n",
                                      ":load Bad\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
-    ?assertMatch({_, _}, binary:match(Output, <<"> fault: division by zero\n> 2 : Int">>)),
-    %% the process is spawned by the fourth input
-    ?assertEqual(2, ern_pty:count(Output, <<"input 4:1 faulted, restarted: division by zero">>)),
-    ?assertEqual(2, ern_pty:count(Output, <<"input 4:1 faulted: division by zero">>)),
+    %% the input's fault, its trace beneath it, a frame a line
+    ?assertMatch({match, _}, re:run(Output, "> fault: division by zero\n(    [^\n]*\n)*> 2 : Int")),
+    %% the process is spawned by the fourth input; each fault is reported
+    %% with its trace beneath it and listed by `:faults` without it
+    [?assertEqual({2, 1}, {ern_pty:count(Output, <<Line/binary, "\n">>),
+                           ern_pty:count(Output, <<Line/binary, "\n    ">>)})
+     || Line <- [<<"input 4:1 faulted, restarted: division by zero">>,
+                 <<"input 4:1 faulted: division by zero">>]],
     ?assertMatch({_, _}, binary:match(Output, <<"Bad.boom:2 faulted">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"Shell.load">>)).
+
+%% report §11.2, §7.3, Appendix E.21: an input that faults answers with
+%% `fault:` and its cause, and beneath them its trace, a frame a line
+%% indented by four spaces, as `ern run` prints a fault's: the host's
+%% frame, the function the session declares, by its name and line, and the
+%% input's own expression, by its count. A regression test, written after
+%% the code: the input's fault came with its cause alone. It does not cover
+%% a binding a `:load` evaluates, whose refusal names its cause alone
+input_fault_trace_test_() ->
+    {timeout, waits(1), fun input_fault_trace/0}.
+
+input_fault_trace() ->
+    InputFile = scratch_file("ern_input_fault_trace_"),
+    ok = file:write_file(InputFile, "fn f(n : Int) : Int = 1 + 10 / n\nf(0) + 1\n1 + 1\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
+    ?assertMatch({match, _}, re:run(Output, "^> fault: division by zero\n    [^\n]*div[^\n]*\n"
+                                            "    f:1\n    input 2:1\n> 2 : Int$", [multiline])).
+
+%% report §11.2, §7.3: a fault's line writes its spawn site as its cause is
+%% written, each control character as the escape a literal writes for it,
+%% so that a site a peer's spawn frame carries cannot forge a line; the
+%% site here is given through the runtime's own spawn, which a peer's spawn
+%% reaches. A regression test, written after the code: a peer's site went
+%% into the line as it came. It does not cover the line a node writes of
+%% such a fault, which is the runtime's
+site_escaped_test_() ->
+    {timeout, waits(1), fun site_escaped/0}.
+
+site_escaped() ->
+    InputFile = scratch_file("ern_site_escaped_"),
+    ok = file:write_file(InputFile,
+                         ["foreign fn spawnAt(f : () -> Unit, site : String) : Address(Never) =",
+                          " \"ern_rt:spawn/2\"\n",
+                          "{ let forged = spawnAt(fn() = fault(\"boom\"), \"a\\nb\");",
+                          " monitor(Process.fromAddress(forged), fn(down) = down);",
+                          " receive { down -> down.site } }\n",
+                          "1 + 1\n"]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"a\\nb faulted: boom">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"a\nb faulted">>)).
+
+%% report §11.2: `:set rows n` gives the live region n rows, which `:set`
+%% shows among the settings, and `output` names no setting, `:output`
+%% being where programs write. A regression test, written after the code:
+%% the setting was `:set output n`. It covers line mode, where the rows
+%% are shown and not used; the region's rows at a terminal are
+%% `Shell.Region`'s tests'
+set_rows_test_() ->
+    {timeout, waits(1), fun set_rows/0}.
+
+set_rows() ->
+    InputFile = scratch_file("ern_set_rows_"),
+    ok = file:write_file(InputFile, ":set rows 3\n:set\n:set output 3\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"length 100\nrows 3\ntiming off\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<":set takes depth, length, rows or timing">>)).
+
+%% report §11.2: `:load` refuses a compiled form on the load path that
+%% holds another module than its path names as `ern run` refuses it,
+%% naming the file from the working directory and the module it holds, and
+%% loads nothing. A regression test, written after the fix (the integration
+%% of the full review's fixes found the shell's refusal in words of its
+%% own); it does not cover such a file beside a module's source, which is
+%% passed over for the source.
+held_another_test_() ->
+    {timeout, waits(2), fun held_another/0}.
+
+held_another() ->
+    Dir = scratch("ern_held_another_"),
+    ok = filelib:ensure_path(filename:join([Dir, "src", "extra"])),
+    ok = file:write_file(filename:join([Dir, "src", "extra", "thing.ern"]),
+                         "export fn double(n : Int) : Int = n * 2\n"),
+    {0, _} = ern_pty:sh("../bin/ern build --source-root " ++ Dir ++ "/src --build-root "
+                        ++ Dir ++ "/build " ++ Dir ++ "/src"),
+    Misplaced = filename:join([Dir, "lp", "geo", "shape.erc"]),
+    ok = filelib:ensure_dir(Misplaced),
+    {ok, _} = file:copy(filename:join([Dir, "build", "extra", "thing.erc"]), Misplaced),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, ":load Geo.Shape\n:browse Geo.Shape\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --load-path " ++ Dir ++ "/lp") ++ " < "
+                             ++ InputFile),
+    Refusal = list_to_binary(ern_build:shown(Misplaced) ++ " holds Extra.Thing, not Geo.Shape;"
+                             " remove it, and build Geo.Shape from its source root\n"),
+    ?assertMatch({_, _}, binary:match(Output, <<"> ", Refusal/binary>>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"double">>)).
+
+%% report §11.2, §11.4, §4.5: `:doc` of a member of a module's type shows
+%% its declaration as the module's page shows it, its parameters named, as
+%% it shows a module's function. A regression test, written after the
+%% code: the member's parameters were sought in the compiled module of
+%% `Shape.Point`, which is none, and its declaration was shown by its type
+%% alone. It does not cover `Shift-Tab`, which reads the same parameters
+member_doc_test_() ->
+    {timeout, waits(1), fun member_doc/0}.
+
+member_doc() ->
+    Dir = scratch("ern_member_doc_"),
+    ok = file:write_file(filename:join(Dir, "shape.ern"),
+                         ["export type Point = Point(x : Int, y : Int)\n\n",
+                          "/// Orders two points by x.\n",
+                          "export fn Point.compare(left : Point, right : Point) : Ordering =\n",
+                          "    Int.compare(left.x, right.x)\n"]),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, ":load Shape\n:doc Shape.Point.compare\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"    Shape.Point.compare(left : Shape.Point,"
+                                                " right : Shape.Point) : Ordering\n\n"
+                                                "Orders two points by x.">>)).
+
+%% report §11.2: what a `let` at the prompt binds is documented by its name
+%% and its type, a function value having no parameters a declaration
+%% names, though it shadows a prelude function. A regression test, written
+%% after the code: it took the prelude function's parameter names,
+%% `kill(address : Int) : Int`. It does not cover `Shift-Tab`, which reads
+%% the same names
+shadowing_let_documented_test_() ->
+    {timeout, waits(1), fun shadowing_let_documented/0}.
+
+shadowing_let_documented() ->
+    InputFile = scratch_file("ern_shadowing_let_"),
+    ok = file:write_file(InputFile, "let kill = fn(x : Int) = x + 1\n:doc kill\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"> kill\n\n    kill : (Int) -> Int\n">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"address">>)).
+
+%% report §11.2: a name of a module whose `:load` was refused is answered
+%% with the refusal's first line, and not with the `:load` just refused,
+%% until a `:load` of it is not refused. A regression test, written after
+%% the code: the help proposed `:load Settings puts it in scope`, the
+%% command that had just failed
+refused_load_help_test_() ->
+    {timeout, waits(1), fun refused_load_help/0}.
+
+refused_load_help() ->
+    Dir = scratch("ern_refused_load_help_"),
+    ok = file:write_file(filename:join(Dir, "settings.ern"),
+                         "export let limit : Int = 1 / List.size([])\n"),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, [":load Settings\nSettings.limit\n",
+                                     write_source(Dir, "settings.ern",
+                                                  "export let limit : Int = 3\n"),
+                                     ":load Settings\nSettings.limit\n"]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"help: :load Settings was refused:"
+                                                " Settings.limit:1 faulted: division by zero;"
+                                                " nothing was loaded\n">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"puts it in scope">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> 3 : Int\n">>)).
 
 %% report §11.2, §8.2: the shell shows each byte a program writes that is
 %% not UTF-8 as U+FFFD, a character cut across two writes whole, and text
@@ -3339,7 +3497,8 @@ node_shell() ->
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --config-dir " ++ filename:join(Dir, ".ernest")
                                    ++ " --source-root " ++ Dir) ++ " < " ++ InputFile),
     [?assertMatch({_, _}, binary:match(Output, Part))
-     || Part <- [<<"Greet, compiled from greet.ern\n> \"hi\" : String\n">>,
+     || Part <- [<<"Greet, compiled from ", (shown(Dir, "greet.ern"))/binary,
+                   "\n> \"hi\" : String\n">>,
                  <<"Greet, compiled again\n> \"hello\" : String\n">>,
                  <<"help: :load Other puts it in scope">>,
                  <<"[] : List(String)">>,
@@ -3353,8 +3512,10 @@ node_shell() ->
 %% `:output` names, appended as the live region would show it, and not to
 %% the session; `:output` alone says where it goes, and where a write there
 %% fails, here since its directory was removed, the session says why and
-%% what programs write comes back to the live region. A regression test of
-%% `:output` written in Ernest over `Fs.append`; it covers no terminal,
+%% what programs write comes back to the screen's own place for it, in line
+%% mode standard output. A regression test of `:output` written in Ernest
+%% over `Fs.append`, and, written after the code, of line mode's answers,
+%% which named the live region, a terminal's alone; it covers no terminal,
 %% since a test has none
 output_to_a_file_test_() ->
     {timeout, 60, fun output_to_a_file/0}.
@@ -3380,9 +3541,10 @@ output_to_a_file() ->
     ?assertEqual(nomatch, binary:match(Output, <<"zqx two">>)),
     ?assertMatch({_, _}, binary:match(Output, iolist_to_binary(
                                                 ["cannot write to ", Log, ": its directory is not",
-                                                 " there, and output goes to the live region"]))),
+                                                 " there, and output goes to standard output"]))),
     ?assertMatch({_, _}, binary:match(Output, <<"zqx three">>)),
-    ?assertMatch({_, _}, binary:match(Output, Goes("the live region"))),
+    ?assertMatch({_, _}, binary:match(Output, Goes("standard output"))),
+    ?assertEqual(nomatch, binary:match(Output, <<"live region">>)),
     ?assertEqual({error, enoent}, file:read_file(Log)),
     file:del_dir_r(Home).
 
@@ -3489,7 +3651,8 @@ reload() ->
     {0, Output} = ern_pty:sh(
         "../bin/ern shell --source-root " ++ Dir ++ " --load-path " ++ Dir
         ++ " < " ++ InputFile),
-    ?assertMatch({_, _}, binary:match(Output, <<"Demo, compiled from demo.ern">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"Demo, compiled from ",
+                                                (shown(Dir, "demo.ern"))/binary>>)),
     ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>)),
     %% a binding holding a function of the module keeps the version it was
     %% taken from: the new answer, then the old one, after each reload
@@ -3517,7 +3680,8 @@ reload_new_dependency() ->
                                      ":reload\n",
                                      "A.y\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
-    ?assertMatch({_, _}, binary:match(Output, <<"Helper, compiled from helper.ern\n"
+    ?assertMatch({_, _}, binary:match(Output, <<"Helper, compiled from ",
+                                                (shown(Dir, "helper.ern"))/binary, "\n"
                                                 "A, compiled again\n> 42 : Int">>)).
 
 %% report §11.2, §8.5: the values a module's bindings stored go with it
@@ -3526,9 +3690,10 @@ reload_new_dependency() ->
 %% previous version's, which that version's code may read for the session's
 %% life. Counted by the host's persistent terms, which hold the values, from
 %% the session's own inputs: each count holds the binding that takes it,
-%% and a fault at the prompt first makes the one term a host's first trace
-%% or look makes, the runtime's own modules (ern_rt's own_modules/0). A
-%% regression test: a failed load's were kept for the life of the node
+%% and the input `1 / List.size([])` faults first, so that the persistent
+%% term the runtime makes at its first trace or look, its own modules
+%% (ern_rt:own_modules/0), exists before the counting begins. A regression
+%% test: a failed load's were kept for the life of the node
 stored_values_go_test_() ->
     {timeout, 60, fun stored_values_go/0}.
 
@@ -3649,7 +3814,9 @@ refused_load_links_a_replaced_library() ->
                                    ++ LoadPath) ++ " < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"> App.checked:1 faulted: division by zero;"
                                                 " nothing was loaded\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"> App, compiled from app.ern\n> 5 : Int\n">>)).
+    ?assertMatch({_, _}, binary:match(Output, <<"> App, compiled from ",
+                                                (shown(Source, "app.ern"))/binary,
+                                                "\n> 5 : Int\n">>)).
 
 %% report §11.2, §6.10: a binding runs the version it was taken from, and
 %% so does one that captures it or calls it, through every later reload,
@@ -3690,12 +3857,13 @@ reload_bindings() ->
 %% module's dependent is compiled again where its forms reference a
 %% definition whose hash the reload changed, as `ern build` would compile
 %% it: the reload changes the body of the function the dependent calls and
-%% keeps the module's interface. Written after the code (MVP 3.1's item 5);
+%% keeps the module's interface. Written after the code (the log's *The
+%% Shell's Reload by Hash, Built*);
 %% the line and the change kept to a body a regression test, written after
 %% the fix: the line said every binding after the fault kept its value, and
 %% the change added an export, which compiled the dependent by the rule of
 %% interfaces. The binding is named by its site in the new version, which
-%% carries the version's number (finding W17)
+%% carries the version's number (the log's *MVP 3.1 Read*)
 reload_keeps_unchanged_values_test_() ->
     {timeout, 60, fun reload_keeps_unchanged_values/0}.
 
@@ -3721,9 +3889,10 @@ reload_keeps_unchanged_values() ->
                                                 " which are new, are without a value, but one"
                                                 " compiled to its value has it, and the rest keep"
                                                 " the values of the previous version\n">>)),
+    %% the input's fault, its trace beneath it, a frame a line
     NoValue = <<"fault: the binding has no value, since one before it faulted">>,
-    ?assertMatch({_, _}, binary:match(Output, <<"> ", NoValue/binary,
-                                                "\n> 20 : Int\n> 6 : Int\n">>)).
+    ?assertMatch({match, _}, re:run(Output, ["> ", NoValue,
+                                             "\n(    [^\n]*\n)*> 20 : Int\n> 6 : Int\n"])).
 
 %% report §11.2, §11.1: a `:load`ed module whose binding's initializer is a
 %% ground term reads its value; a reload whose binding faults leaves such a
@@ -3733,7 +3902,7 @@ reload_keeps_unchanged_values() ->
 %% after the fault is without one. Written after the code, so a regression
 %% test
 reload_keeps_ground_values_test_() ->
-    {timeout, 60, fun reload_keeps_ground_values/0}.
+    {timeout, waits(1), fun reload_keeps_ground_values/0}.
 
 reload_keeps_ground_values() ->
     Dir = scratch("ern_reload_ground_"),
@@ -3835,7 +4004,8 @@ load_keeps_what_bindings_open() ->
 %% report §11.2, §6.9: a `:load` whose binding faults loads nothing: the
 %% process a binding before it started is killed, the refusal names it by
 %% its spawn site, and the module loads once its source is mended. Written
-%% after the code (MVP 3.1's item 5), where the process ended with
+%% after the code (the log's *The Shell's Reload by Hash, Built*), where the
+%% process ended with
 %% `its code was unloaded`, a fault the report no longer has
 refused_load_kills_test_() ->
     {timeout, 60, fun refused_load_kills/0}.
@@ -3858,7 +4028,9 @@ refused_load_kills() ->
                                                 " was loaded, and the process spawned at"
                                                 " Server.worker:2 was killed\n"
                                                 "> no process of the session's is running\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"Server, compiled from server.ern\n> 2 : Int\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"Server, compiled from ",
+                                                (shown(Dir, "server.ern"))/binary,
+                                                "\n> 2 : Int\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"no process has faulted">>)).
 
 %% report §11.2, §6.9: a refused `:load` kills every process its evaluation
@@ -3868,7 +4040,7 @@ refused_load_kills() ->
 %% it by its spawn site; `:processes` lists the process the earlier load
 %% started alone, which runs on; and a message that would have the killed
 %% process call the function reaches nothing. A regression test, written
-%% after the fix (findings V4, V1): the host's check of a process's code,
+%% after the fix (the log's *MVP 3.1 Read*): the host's check of a process's code,
 %% which sees the code a process runs and not the functions it holds, did
 %% not find it, so it ran on unnamed after its function's module was
 %% purged, and faulted with the host's `badfun` once it called it
@@ -3960,7 +4132,7 @@ held_function_keeps_its_version() ->
 %% report §11.2: a module a reload loads for the first time is loaded as
 %% `:load` loads it, and where its binding faults nothing is reloaded: the
 %% module that came to use it keeps its previous version. Written after
-%% the code (MVP 3.1's item 5)
+%% the code (the log's *The Shell's Reload by Hash, Built*)
 reload_refused_by_a_new_module_test_() ->
     {timeout, 60, fun reload_refused_by_a_new_module/0}.
 
@@ -3984,8 +4156,8 @@ reload_refused_by_a_new_module() ->
 %% from its compiled form's forms, `ern@greet$2`, and runs the code it
 %% compiled to, the lines of its source the compiled form records giving a
 %% process it spawns its site, the module's own; one that holds the same
-%% code is the node's own unit. Written after the code (MVP 3.2's item 4),
-%% which lifted the refusal MVP 3.1's item 5 made of the first
+%% code is the node's own unit. Written after the code, 2026-10-12, which
+%% lifted the refusal the shell's reload by hash had made of the first
 compiled_beside_another_test_() ->
     {timeout, 60, fun compiled_beside_another/0}.
 
@@ -4021,16 +4193,19 @@ compiled_beside_another() ->
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --config-dir " ++ filename:join(Dir, ".ernest")
                                    ++ " --source-root " ++ Dir ++ " --load-path "
                                    ++ filename:join(Dir, "one")) ++ " < " ++ InputFile),
-    ?assertMatch({_, _}, binary:match(Output, <<"Greet, from one/greet.erc\n"
+    ?assertMatch({_, _}, binary:match(Output, <<"Greet, from ",
+                                                (shown(Dir, "one/greet.erc"))/binary, "\n"
                                                 "> \"two\" : String">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"Greet.crash:4 faulted: crashed">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> true : Bool">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"Other, from one/other.erc\n> 1 : Int\n">>)).
+    ?assertMatch({_, _}, binary:match(Output, <<"Other, from ",
+                                                (shown(Dir, "one/other.erc"))/binary,
+                                                "\n> 1 : Int\n">>)).
 
 %% report §11.2: in a shell that is no node, a module loaded from its
 %% compiled form whose unit the session holds with other code, a module of
 %% the shell's own, is made a unit of its own from its forms, as on a node.
-%% Written after the code (MVP 3.2's item 4), which lifted the refusal
+%% Written after the code, 2026-10-12, which lifted the refusal
 compiled_beside_the_shells_own_test_() ->
     {timeout, 60, fun compiled_beside_the_shells_own/0}.
 
@@ -4046,7 +4221,8 @@ compiled_beside_the_shells_own() ->
     ok = file:write_file(InputFile, ":doc List.map\n:load Markdown\nMarkdown.hello()\n"),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir ++ " --load-path "
                                    ++ Library) ++ " < " ++ InputFile),
-    ?assertMatch({_, _}, binary:match(Output, <<"Markdown, from lib/markdown.erc\n"
+    ?assertMatch({_, _}, binary:match(Output, <<"Markdown, from ",
+                                                (shown(Library, "markdown.erc"))/binary, "\n"
                                                 "> \"hello\" : String">>)).
 
 %% report §11.2, §8.7: on a node, `:load` of a module whose source compiles
@@ -4054,8 +4230,8 @@ compiled_beside_the_shells_own() ->
 %% is, and makes no second one; and so does `:load` of a module whose
 %% current compiled form it takes, which compiles nothing. Hello's source
 %% is given a time after its build's, so that it is compiled. Written after
-%% the code (MVP 3.1's item 5); the taken form's half on 2026-10-16, after
-%% the code, a regression test
+%% the code (the log's *The Shell's Reload by Hash, Built*); the taken
+%% form's half on 2026-10-16, after the code, a regression test
 node_takes_its_build_unit_test_() ->
     {timeout, 60, fun node_takes_its_build_unit/0}.
 
@@ -4082,9 +4258,11 @@ node_takes_its_build_unit() ->
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --config-dir " ++ filename:join(Dir, ".ernest")
                                    ++ " --source-root " ++ Build ++ " --load-path " ++ Build)
                              ++ " < " ++ InputFile),
-    ?assertMatch({_, _}, binary:match(Output, <<"Greet, from greet.erc\n"
+    ?assertMatch({_, _}, binary:match(Output, <<"Greet, from ",
+                                                (shown(Build, "greet.erc"))/binary, "\n"
                                                 "> \"hi\" : String\n> false : Bool\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"Hello, compiled from hello.ern\n"
+    ?assertMatch({_, _}, binary:match(Output, <<"Hello, compiled from ",
+                                                (shown(Build, "hello.ern"))/binary, "\n"
                                                 "> \"hello\" : String\n> false : Bool\n">>)).
 
 %% report §11.2: `:load` takes no compiled form compiled from another
@@ -4118,10 +4296,11 @@ load_takes_no_form_of_another_source() ->
     ok = file:write_file(InputFile, [":load Greet\nGreet.greeting\n:load Other\nOther.other\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Source
                                    ++ " --load-path " ++ Build) ++ " < " ++ InputFile),
-    ?assertMatch({_, _}, binary:match(Output, <<"Greet, compiled from greet.ern\n"
+    ?assertMatch({_, _}, binary:match(Output, <<"Greet, compiled from ",
+                                                (shown(Source, "greet.ern"))/binary, "\n"
                                                 "> \"the fix\" : String\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"Other, from ">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"/build/other.erc\n"
+    ?assertMatch({_, _}, binary:match(Output, <<"Other, from ",
+                                                (shown(Build, "other.erc"))/binary, "\n"
                                                 "> \"built from the source root\" : String\n">>)).
 
 %% report §11.2: `:load` takes no compiled form that calls a module the
@@ -4151,9 +4330,11 @@ load_takes_no_form_calling_a_reloaded_module() ->
                                      "M.stamp() == D.stamp\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < "
                              ++ InputFile),
-    ?assertMatch({_, _}, binary:match(Output, <<"D, from d.erc\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"D, from ", (shown(Dir, "d.erc"))/binary,
+                                                "\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"D, compiled again\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"M, compiled from m.ern\n> true : Bool\n">>)).
+    ?assertMatch({_, _}, binary:match(Output, <<"M, compiled from ", (shown(Dir, "m.ern"))/binary,
+                                                "\n> true : Bool\n">>)).
 
 %% report §11.2: `:load` takes no compiled form another build of `ern`
 %% wrote: greet.erc, beside its source, as new as it and compiled from it,
@@ -4189,14 +4370,17 @@ load_takes_no_form_of_another_build() ->
     InputFile = filename:join(Dir, "session.in"),
     ok = file:write_file(InputFile, ":load Greet\nGreet.greeting\n:load Other\nOther.other\n"),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
-    ?assertMatch({_, _}, binary:match(Output, <<"Greet, compiled from greet.ern\n"
+    ?assertMatch({_, _}, binary:match(Output, <<"Greet, compiled from ",
+                                                (shown(Dir, "greet.ern"))/binary, "\n"
                                                 "> \"hi\" : String\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"Other, from other.erc\n> 1 : Int\n">>)).
+    ?assertMatch({_, _}, binary:match(Output, <<"Other, from ", (shown(Dir, "other.erc"))/binary,
+                                                "\n> 1 : Int\n">>)).
 
 %% report §8.6, §11.2, Appendix E.23: in the shell a program is told of its
 %% end as one `ern run` runs is: a subscriber an input spawned is told when
 %% the session ends, and what it prints and the end's lines are shown
-%% before `ern` ends. Written after the code (MVP 3.1's item 6)
+%% before `ern` ends. Written after the code (the log's *Termination Told,
+%% Built*)
 shell_told_of_the_end_test_() ->
     {timeout, 60, fun shell_told_of_the_end/0}.
 
@@ -4321,7 +4505,8 @@ load_evaluates_bindings() ->
     ?assertMatch({_, _}, binary:match(Output, <<"unknown name Bad.zero">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> 20 : Int\n> 2 : Int">>)),
     %% the bindings before the one that faults take the new version's values;
-    %% the binding is named by its site in the third version (finding W17)
+    %% the binding is named by its site in the third version (the log's *MVP
+    %% 3.1 Read*)
     ?assertMatch({match, _}, re:run(Output, "Counter\\$3\\.late:[0-9]+ faulted: division by zero;"
                                             " it and"
                                             " the bindings after it whose hash changed, or which"
@@ -4356,6 +4541,12 @@ scratch_file(Prefix) ->
 scratch_name(Prefix) ->
     filename:join(ern_pty:run_dir(), Prefix ++ os:getpid() ++ "_"
                                      ++ integer_to_list(erlang:unique_integer([positive]))).
+
+%% Report §11.2, §11.5: a file under Dir as the shell names it, from the
+%% working directory, which a session started here shares with the test,
+%% or by its absolute path where it lies outside it (ern_build:shown/1).
+shown(Dir, File) ->
+    unicode:characters_to_binary(ern_build:shown(filename:join(Dir, File))).
 
 %% report §11.2: `:load` of a module the session has loaded is refused and
 %% names `:reload`, which is what compiles a loaded module again; a process
@@ -4428,7 +4619,8 @@ load_compiled() ->
         ++ " < " ++ InputFile),
     ok = file:change_mode(filename:join(Build, "n.erc"), 8#600),
     ?assertMatch({_, _}, binary:match(Output, unicode:characters_to_binary(
-                                                ["> M, from ", Build, "/m.erc\n> 1 : Int"]))),
+                                                ["> M, from ", shown(Build, "m.erc"),
+                                                 "\n> 1 : Int"]))),
     ?assertMatch({_, _}, binary:match(Output, <<"/n.erc: permission denied\n> 2 : Int">>)).
 
 %% report §11.2: a `:load` whose binding faults leaves nothing of the
@@ -4497,7 +4689,8 @@ load_path_dependency() ->
         alone("../bin/ern shell --source-root " ++ SourceRoot
               ++ " --load-path " ++ First ++ " --load-path " ++ Second)
         ++ " < " ++ InputFile),
-    ?assertMatch({_, _}, binary:match(Output, <<"User, compiled from user.ern">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"User, compiled from ",
+                                                (shown(SourceRoot, "user.ern"))/binary>>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> 10 : Int">>)).
 
 %% report §11.2: `:load` refuses a compiled module as `ern run` does, one
@@ -4706,6 +4899,20 @@ no_home() ->
     ?assertMatch({_, _}, binary:match(Relative, <<"the history is not kept, since HOME is no"
                                                   " absolute path">>)).
 
+%% A test's limit in seconds: its Count steps, a run of `ern`, a terminal
+%% session or a build, each given the harness's time for one wait, as the
+%% integration tests count theirs (ern_integration_tests:waits/1), so that
+%% a terminal session, bounded by one wait of its own (wait_seconds/0), is
+%% told by that bound where the steps before it have not used theirs.
+waits(Count) ->
+    Count * wait_seconds().
+
+%% The harness's time for one wait in seconds, ern_nodes_tests:wait_ms/0,
+%% which bounds a terminal session here as it bounds a step of the nodes
+%% tests.
+wait_seconds() ->
+    ern_nodes_tests:wait_ms() div 1000.
+
 %% A terminal session with a home of its own, so that a test neither
 %% reads nor writes the person's startup files or history (report §11.2).
 alone(Command) ->
@@ -4748,7 +4955,7 @@ raw(Command, Steps, Seconds, Extra) ->
 %% shell that is a node; it does not listen, so that the shells the tests
 %% start side by side take no port each other wants.
 node_dir(Dir) ->
-    _ = ern_node:create(Dir),
+    _ = ern_node:create(Dir, ern_node:default_listen()),
     File = filename:join(Dir, "ernest.conf"),
     {ok, Text} = file:read_file(File),
     ok = file:write_file(File, json:encode(maps:remove(<<"listen">>, json:decode(Text)))).

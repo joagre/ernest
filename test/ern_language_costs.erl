@@ -1,21 +1,21 @@
-%% `make bench`'s part for the language against the host
-%% (docs/development.md; plan, MVP 3.29): each construct the compiler
-%% writes code for, in the code it writes, beside the plain Erlang a
-%% programmer writes for the same thing. test/fixtures/bench/language.ern
-%% holds a loop of each construct, compiled from source as `ern build`
-%% compiles it, and test/fixtures/bench/ern_language_twin.erl the same
-%% loops as Erlang writes them, which `make bench` compiles with erlc into
-%% the bench's twins/ directory. A `match` is a case on tagged tuples, and
-%% one whose guards call functions falls through each by a fun of the
-%% clauses after it (report §5.9); a record update rebuilds the tuple; each
-%% Float operation runs in a try of its own that makes a result that is not
-%% finite a fault, and a product adds 0.0, so that no negative zero is made
-%% (§3.1); a derived `compare` calls each field's (§3.5); a requirement's
-%% member is a fun the caller passes (§4.9); a slice, a map read and a map
-%% write are library functions, each around a foreign call (Appendix E.3,
-%% E.5); a send and a receive go through the runtime, the receive with a
-%% restart's clause and a fault's (§6.2, §6.3); and `Io.show` writes a
-%% value by its type's descriptor (Appendix E.1).
+%% `make bench`'s part `language`, the language against the host
+%% (docs/development.md; plan, MVP 3.29): each construct the compiler writes
+%% code for, in the code it writes, beside the plain Erlang a programmer
+%% writes for the same thing. test/fixtures/bench/language.ern holds a loop
+%% of each construct, compiled from source as `ern build` compiles it, and
+%% test/fixtures/bench/ern_language_twin.erl the same loops as Erlang writes
+%% them, which `make bench` compiles with erlc into the bench's twins/
+%% directory. A `match` is a case on tagged tuples, and one whose guards
+%% call functions falls through each by a fun of the clauses after it
+%% (report §5.9); a record update rebuilds the tuple; each Float operation
+%% runs in a try of its own that makes a result that is not finite a fault,
+%% and a product adds 0.0, so that no negative zero is made (§3.1); a
+%% derived `compare` calls each field's (§3.5); a requirement's member is a
+%% fun the caller passes (§4.9); a slice, a map read and a map write are
+%% library functions, each around a foreign call (Appendix E.3, E.5); a send
+%% and a receive go through the runtime, the receive with a restart's clause
+%% and a fault's (§6.2, §6.3); and `Io.show` writes a value by its type's
+%% descriptor (Appendix E.1).
 %%
 %% Measured, in language.txt: a row for each construct, the twin's loop and
 %% Ernest's of the same count over the same operands, made in the process
@@ -43,12 +43,13 @@
 main([Directory]) ->
     true = code:add_patha(filename:join(Directory, "twins")),
     {ok, Source} = file:read_file(?SOURCE),
-    Unit = ern_foreign_costs:compiled(?NAMESPACE, Source),
+    Unit = ern_costs:compiled(?NAMESPACE, Source),
     Rows = rows(Unit),
     Runs = [[run(Row) || Row <- Rows] || _ <- lists:seq(1, ?RUNS)],
     Measured = [{Name, [lists:nth(Index, Run) || Run <- Runs]}
                 || {Index, {Name, _, _, _}} <- lists:enumerate(Rows)],
-    Text = unicode:characters_to_binary(table(Measured)),
+    Text = unicode:characters_to_binary(
+             ern_costs:twin_table("the language against the host, ns an iteration", Measured)),
     io:format("~ts", [Text]),
     ok = file:write_file(filename:join(Directory, "language.txt"), Text),
     halt(0).
@@ -132,27 +133,4 @@ looped({Function, Operands}, Count) ->
                   _ = apply(Function, [Iterations | Given]),
                   (erlang:monotonic_time(nanosecond) - Started) / Iterations
               end,
-    (ern_spawn_costs:launched(Measure))(Count).
-
-%%
-%% The table
-%%
-
-%% The table: each row's two medians, their ratio, and their ranges.
-table(Measured) ->
-    Title = "the language against the host, ns an iteration",
-    Width = lists:max([string:length(Title) | [string:length(Name) || {Name, _} <- Measured]]),
-    Lines = [begin
-                 {Twin, TwinLow, TwinHigh} = median_range([T || {T, _} <- Runs]),
-                 {Ernest, ErnestLow, ErnestHigh} = median_range([E || {_, E} <- Runs]),
-                 io_lib:format("~ts ~8.1f ~8.1f ~6.2fx   ~.1f to ~.1f, ~.1f to ~.1f~n",
-                               [string:pad(Name, Width), Twin, Ernest, Ernest / Twin,
-                                TwinLow, TwinHigh, ErnestLow, ErnestHigh])
-             end || {Name, Runs} <- Measured],
-    [io_lib:format("~ts ~8s ~8s ~7s   ~s~n",
-                   [string:pad(Title, Width), "Erlang", "Ernest", "ratio", "ranges"]),
-     Lines, "\n"].
-
-median_range(Values) ->
-    Sorted = lists:sort(Values),
-    {lists:nth(length(Sorted) div 2 + 1, Sorted), hd(Sorted), lists:last(Sorted)}.
+    (ern_costs:launched(Measure))(Count).

@@ -1,11 +1,11 @@
-%% `make bench-pick` (docs/development.md): the push's experiment of
-%% the push's experiment (the log's *The Numbers Across Machines*) across the machines of
+%% `make bench-pick` (docs/development.md): the push's experiment (the
+%% log's *The Numbers Across Machines*) across the machines of
 %% test/machines/machines.txt (plan, MVP 3.27 item 2). From a measuring
 %% node, a burst of a hundred computes of a hundred milliseconds' work, sent
 %% as fast as the node can, then a steady stream, one every fifty
-%% milliseconds for a minute; how they fall over the peers under the push's
-%% pick, two drawn at random and the less busy taken (`Peer.compute`,
-%% report §8.7), and under the least busy of them all, a rule of the
+%% milliseconds for a minute; how they fall over the peers under
+%% `Peer.compute`'s pick, two drawn at random and the less busy taken
+%% (report §8.7), and under the least busy of them all, a rule of the
 %% program's own over `Peer.utilizations()` (the guide's §8.1); and beside
 %% them, the packets each of the measuring node's connections carried a
 %% second, the time each node's schedulers were busy, and the time each
@@ -16,13 +16,13 @@
 %% work is the program's loop, its steps calibrated first, so that it
 %% takes a hundred milliseconds alone on the median peer machine. By
 %% default the measuring node runs here and the peers are bare nodes on
-%% the other machines, in two arrangements: (a) one on each, two or three peers,
-%% where a draw of two leaves the least busy of three out one time in three
-%% (the log's *The Placement Proposals Swept*), and (b) as
-%% many on each as it has processors, the stream run
-%% again in (b) at `utilization-interval` 1000 and 500, where its knee is
-%% (the log's *The Numbers Across Machines*). Each run of each rule is a median over its runs
-%% with their range: seven bursts and three streams by default.
+%% the other machines, in two arrangements: (a) one on each, two or three
+%% peers, where a draw of two leaves the least busy of three out one time in
+%% three (the log's *The Placement Proposals Swept*), and (b) as many on
+%% each as it has processors, the stream run again in (b) at
+%% `utilization-interval` 1000 and 500, where its knee is (the log's *The
+%% Numbers Across Machines*). Each run of each rule is a median over its
+%% runs with their range: seven bursts and three streams by default.
 %%
 %% Each option is given as a word, an empty one taking the default: the
 %% machine the measuring node runs on, by its name; the peers, as
@@ -39,21 +39,21 @@
 
 -export([main/1]).
 
-%% the push's experiment: a compute's work, in microseconds.
+%% A compute's work, in microseconds.
 -define(WORK, 100000).
 %% The calibration: the steps of a compute that times the loop, and its
 %% runs on each machine.
 -define(CALIBRATION_STEPS, 1000000).
 -define(CALIBRATION_RUNS, 5).
 %% Report §8.7, Appendix C: `utilization-interval`'s default, and the
-%% intervals of the knee the push's experiment looked for.
+%% intervals of the knee the experiment looked for.
 -define(INTERVAL, 5000).
 -define(KNEE, [1000, 500]).
 %% Each rule's bursts and streams at an arrangement's first interval;
 %% a stream lasts a minute, and three are enough (plan, MVP 3.27 item 2).
 -define(BURSTS, 7).
 -define(STREAMS, 3).
-%% the push's experiment: a burst's computes.
+%% A burst's computes.
 -define(BURST, 100).
 
 %% An arrangement of the peers over the machines: its label, the peers'
@@ -150,7 +150,7 @@ number(Text, What) ->
     end.
 
 processors(Machine) ->
-    {_, Processors} = ern_machine:load(Machine),
+    {_, Processors} = ern_machine:load_average(Machine),
     list_to_integer(Processors).
 
 %% Report §8.7, Appendix C: the `utilization` written in every node's
@@ -232,11 +232,11 @@ calibrated(Raw, Copied, {A, Made}, #arrangement{peers = Peers}) ->
                  integer_to_list(?CALIBRATION_RUNS) | [Name || {Name, _} <- Firsts]]),
     kept(Raw, "calibration", Lines),
     Medians = [{ern_machine:name(Machine),
-                element(1, median_range([list_to_integer(Micros)
-                                         || ["calibration", Named, Micros] <- Lines,
-                                            Named =:= Name]))}
+                element(1, ern_costs:median_range([list_to_integer(Micros)
+                                                   || ["calibration", Named, Micros] <- Lines,
+                                                      Named =:= Name]))}
                || {Name, Machine} <- Firsts],
-    {Middle, _, _} = median_range([Micros || {_, Micros} <- Medians]),
+    {Middle, _, _} = ern_costs:median_range([Micros || {_, Micros} <- Medians]),
     Steps = round(?CALIBRATION_STEPS * ?WORK / Middle),
     io:format("the work: ~B steps of the loop, ~B ms alone on the median peer machine, as ~B"
               " steps took on each, the median of ~B runs alone on an idle node: ~s~n",
@@ -263,10 +263,12 @@ arranged(Raw, Copied, Steps, {Bursts, Streams}, {A, _} = Nodes,
                                 described(Peers)]),
     io:format("the load averages before: ~s~n",
               [lists:join(", ", [io_lib:format("~s ~s on ~s processors",
-                                               [ern_machine:name(Machine), Load, Processors])
+                                               [ern_machine:name(Machine), LoadAverage,
+                                                Processors])
                                  || Machine <- lists:uniq([Measuring | [Machine || {_, Machine}
                                                                                 <- Peers]]),
-                                    {Load, Processors} <- [ern_machine:load(Machine)]])]),
+                                    {LoadAverage, Processors}
+                                        <- [ern_machine:load_average(Machine)]])]),
     lists:foreach(
       fun(Interval) ->
           Counts = case Interval of
@@ -311,8 +313,8 @@ kept(Raw, Name, Lines) ->
 %% measuring node listing each at its port, the measuring program run on
 %% it with Words, and the peers stopped after: the program's lines.
 ran({A, Made}, Copied, Interval, Words) ->
-    Interval1 = fun(Configuration) -> Configuration#{<<"utilization-interval">> => Interval} end,
-    [ern_machine_node:edited(Node, Interval1) || Node <- [A | [Node || {_, Node} <- Made]]],
+    Change = fun(Configuration) -> Configuration#{<<"utilization-interval">> => Interval} end,
+    [ern_machine_node:edited(Node, Change) || Node <- [A | [Node || {_, Node} <- Made]]],
     Running = [{Node, ern_machine_node:started(Node, ["--load-path", where(Node, Copied, probe)])}
                || {_, Node} <- Made],
     Ported = [{Node, ern_machine_node:port_bound(Reader), Reader} || {Node, Reader} <- Running],
@@ -490,7 +492,7 @@ padded(Text) ->
 cell([]) ->
     io_lib:format("~-24s", ["none"]);
 cell(Values) ->
-    {Median, Low, High} = median_range(Values),
+    {Median, Low, High} = ern_costs:median_range(Values),
     io_lib:format("~-24s", [lists:flatten(io_lib:format("~s  (~s to ~s)",
                                                         [shown(Median), shown(Low),
                                                          shown(High)]))]).
@@ -498,16 +500,6 @@ cell(Values) ->
 shown(Value) when is_integer(Value) -> integer_to_list(Value);
 shown(Value) when abs(Value) >= 100 -> integer_to_list(round(Value));
 shown(Value) -> float_to_list(Value, [{decimals, 1}]).
-
-%% The median of Values, the lowest and the highest.
-median_range(Values) ->
-    Sorted = lists:sort(Values),
-    Count = length(Sorted),
-    Median = case Count rem 2 of
-                 1 -> lists:nth(Count div 2 + 1, Sorted);
-                 0 -> (lists:nth(Count div 2, Sorted) + lists:nth(Count div 2 + 1, Sorted)) / 2
-             end,
-    {Median, hd(Sorted), lists:last(Sorted)}.
 
 %% Where the slowest tenth of Values begins.
 tenth(Values) ->

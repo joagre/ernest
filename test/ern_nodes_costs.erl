@@ -1,35 +1,35 @@
-%% `make bench`'s third part (docs/development.md), the costs the peer
-%% proposal's section 9 left to measure, between two nodes: the desk of
-%% test/fixtures/peers/ times, against the store, the host's own round
-%% trip, its ping, over TLS; a call to a process there, five of the host's
-%% signals, beside a call to one here; and a round trip to the store's
-%% echo, the message sent straight and through the adapted address made on
-%% the store, whose difference is the gateway's step; a find of the store's
-%% counter; a spawn on the store of a process that ends at once; a compute
-%% there of a function that answers at once, which §10 costs at a spawn's
-%% and a call's answer; and a utilization of the store, its frame and its
-%% answer. Two plain nodes of the host's, on the same two machines, time
-%% its ping over TCP, which TLS is set beside. `make bench` starts both
-%% nodes on this machine; `make bench-machines` the store on the first
-%% machine after this one of test/machines/machines.txt and the desk here
-%% (plan, MVP 3.27 item 1). It measures and asserts nothing, so it is not
-%% part of `make test`.
--module(ern_node_costs).
+%% `make bench`'s part `nodes` (docs/development.md), the costs between two
+%% nodes (report §8.7, §10): the desk of test/fixtures/peers/ times, against
+%% the store, the host's own round trip, its ping, over TLS; a call to a
+%% process there, five of the host's signals, beside a call to one here; and
+%% a round trip to the store's echo, the message sent straight and through
+%% the adapted address made on the store, whose difference is the gateway's
+%% step; a find of the store's counter; a spawn on the store of a process
+%% that ends at once; a compute there of a function that answers at once,
+%% which §10 costs at a spawn's and a call's answer; and a utilization of
+%% the store, its frame and its answer. Two plain nodes of the host's, on
+%% the same two machines, time its ping over TCP, which TLS is set beside.
+%% `make bench` starts both nodes on this machine; `make bench-machines` the
+%% store on the first machine after this one of test/machines/machines.txt
+%% and the desk here (plan, MVP 3.27 item 1). It measures and asserts
+%% nothing, so it is not part of `make test-full`.
+-module(ern_nodes_costs).
 
 -export([main/1]).
 
-%% The libraries `test/fixtures/peers/`'s programs use, on each node's load
-%% path, from the tree of its machine.
--define(LIBRARIES, ["json", "proxy", "utilization"]).
 -define(SERVICES, [<<"counter">>, <<"brittle">>, <<"echo">>, <<"echo-adapted">>]).
 
-%% Prints the table, the nodes' directories under Dir, and halts: both
+%% Prints the table and halts, the nodes' directories under Dir: both
 %% nodes on this machine, or, given the machines' file, the store on the
-%% first machine after this one, whose directory goes at the end.
+%% first machine after this one. The store's directory goes at the end,
+%% however the run ended, the node that still runs from it stopped first,
+%% and on this machine the desk's with it.
 -spec main([string()]) -> no_return().
 main([Dir]) ->
     Local = ern_machine:local(),
-    measured(Dir, Local, Local, "between two nodes on this machine"),
+    try measured(Dir, Local, Local, "between two nodes on this machine")
+    after ern_machine_node:cleared(Local, ern_machine:directory(Local, Dir))
+    end,
     halt(0);
 main([Dir, File]) ->
     ern_machines:reported(
@@ -56,11 +56,7 @@ measured(Dir, StoreMachine, DeskMachine, Heading) ->
      || Machine <- lists:uniq([StoreMachine, DeskMachine])],
     ok = filelib:ensure_path(Dir),
     Root = filename:absname(filename:join(Dir, "build")),
-    Libraries = [filename:join([ern_tree:tree(), "build/libs", Library])
-                 || Library <- ?LIBRARIES],
-    0 = ern_cli:ern(["build", "--build-root", Root]
-                    ++ lists:append([["--load-path", Library] || Library <- Libraries])
-                    ++ ["fixtures/peers"], group_leader()),
+    0 = ern_cli:ern(["build", "--build-root", Root, "fixtures/peers"], group_leader()),
     {ok, _} = compile:file("fixtures/peers/ern_peers_host.erl", [{outdir, Root}]),
     StoreRoot = ern_machine:copied(StoreMachine, Root, Dir),
     Store = ern_machine_node:configured(StoreMachine, ern_machine:directory(StoreMachine, Dir),
@@ -68,8 +64,7 @@ measured(Dir, StoreMachine, DeskMachine, Heading) ->
     Desk = ern_machine_node:configured(DeskMachine, ern_machine:directory(DeskMachine, Dir),
                                        "desk", none),
     ern_machine_node:listed(Store, [{Desk, none}]),
-    Reader = ern_machine_node:started(Store, load_path(StoreMachine)
-                                         ++ [filename:join(StoreRoot, "store.erc")]),
+    Reader = ern_machine_node:started(Store, [filename:join(StoreRoot, "store.erc")]),
     Port = ern_machine_node:port_bound(Reader),
     %% the store says on its standard output that it has made its offers
     _ = ern_machine:seen(Reader, "offered"),
@@ -111,12 +106,6 @@ table(Heading, Costs, Tcp) ->
                      ({Name, Value, ratio}) -> io:format("~-48ts ~11.2fx~n", [Name, Value])
                   end, Rows).
 
-%% The libraries on the load path, each from the machine's tree.
-load_path(Machine) ->
-    lists:append([["--load-path", filename:join([ern_machine:clone(Machine), "build/libs",
-                                                  Library])]
-                  || Library <- ?LIBRARIES]).
-
 %% The desk's lines, `key microseconds`, as a map; its standard error,
 %% where it fails, beside them.
 desk_costs(Desk, Program) ->
@@ -124,7 +113,6 @@ desk_costs(Desk, Program) ->
     Errors = ern_machine_node:config_dir(Desk) ++ ".err",
     Command = lists:flatten([ern_machine:quoted(ern_machine:ern(Machine)), " run --config-dir ",
                              ern_machine:quoted(ern_machine_node:config_dir(Desk)),
-                             [[" ", ern_machine:quoted(Word)] || Word <- load_path(Machine)],
                              " ", ern_machine:quoted(Program), " costs 2> ",
                              ern_machine:quoted(Errors)]),
     case ern_machine:run(Machine, Command) of
@@ -144,7 +132,7 @@ desk_costs(Desk, Program) ->
 %% Second's machine, listening on a port it picks and says, the first on
 %% First's, which only dials it at that port, times the ping and ends it.
 tcp_ping(Second, First) ->
-    Cookie = "ern_node_costs",
+    Cookie = "ern_nodes_costs",
     Listening = "{ok, Socket} = gen_tcp:listen(0, []), {ok, Port} = inet:port(Socket),"
                 " ok = gen_tcp:close(Socket),"
                 " ok = application:set_env(kernel, erl_epmd_node_listen_port, Port),"

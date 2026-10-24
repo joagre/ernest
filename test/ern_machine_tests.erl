@@ -35,9 +35,9 @@ failed_test() ->
 %% docs/development.md "make bench-pick": the machine's load average of
 %% the last minute and its processors, which an arrangement of peers counts
 %% by
-load_test() ->
-    {Load, Processors} = ern_machine:load(ern_machine:local()),
-    ?assert(is_float(list_to_float(Load))),
+load_average_test() ->
+    {LoadAverage, Processors} = ern_machine:load_average(ern_machine:local()),
+    ?assert(is_float(list_to_float(LoadAverage))),
     ?assert(list_to_integer(Processors) > 0).
 
 %% report §11.3, §8.7, §11.2, Appendix C: two nodes' directories made with
@@ -76,14 +76,13 @@ two_nodes(Base) ->
     ?assertNot(filelib:is_dir(Base)).
 
 configuration(Node) ->
-    {ok, Text} = file:read_file(filename:join(ern_machine_node:config_dir(Node), "ernest.conf")),
-    json:decode(Text).
+    ern_nodes_tests:configuration(ern_machine_node:config_dir(Node)).
 
-%% the push's experiment (the log's *The Numbers Across Machines*), report §8.7, Appendix E.27:
-%% `make bench-pick`'s measuring program on a node here, two bare nodes
-%% beside it as its peers, telling every 200 ms: a burst under each rule,
-%% each compute answered by one of the two, a hundred under each, and the
-%% host's counts sampled on every node at rest
+%% report §8.7, Appendix E.27, the push's experiment (the log's *The Numbers
+%% Across Machines*): `make bench-pick`'s measuring program on a node here,
+%% two bare nodes beside it as its peers, telling every 200 ms: a burst
+%% under each rule, each compute answered by one of the two, a hundred under
+%% each, and the host's counts sampled on every node at rest
 pick_test_() ->
     ern_nodes_tests:nodes_test({waits, 6}, fun picked/1).
 

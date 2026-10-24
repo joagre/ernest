@@ -43,14 +43,16 @@
 %% Erlang, its C, its Makefiles and its scripts, and in Ernest alike; the
 %% vendored getopt keeps its upstream form, and test/build holds a build's
 %% copies, which a stale one failed. A regression test for the Makefiles,
-%% scripts and headers it once left unread
+%% scripts and headers, the fixtures' Erlang and the machines' script it
+%% once left unread
 line_length_test() ->
     Patterns = ["erl/*/src/*.erl", "erl/*/test/*.erl", "erl/*/c_src/*.c", "test/*.erl",
-                "src/stdlib/**/*.ern", "examples/**/*.ern", "src/shell/**/*.ern",
-                "test/**/*.ern", "test/*.py", "editors/emacs/*.el", "editors/emacs/test/*.el",
-                "src/libs/**/*.ern", "tools/*.ern", "tour/*/*.ern",
-                "tools/*.sh", "tools/*.escript", "bin/ern", "erl/*/include/*.hrl", "Makefile",
-                "test/Makefile", "erl/*/src/Makefile", "erl/app.mk", "tools/release/Makefile"],
+                "test/fixtures/**/*.erl", "src/stdlib/**/*.ern", "examples/**/*.ern",
+                "src/shell/**/*.ern", "test/**/*.ern", "test/*.py", "editors/emacs/*.el",
+                "editors/emacs/test/*.el", "src/libs/**/*.ern", "tools/*.ern", "tour/*/*.ern",
+                "tools/*.sh", "test/machines/*.sh", "tools/*.escript", "bin/ern",
+                "erl/*/include/*.hrl", "Makefile", "test/Makefile", "erl/*/src/Makefile",
+                "erl/app.mk", "tools/release/Makefile"],
     Files = [File || File <- ern_repository:files(Patterns),
                      filename:basename(File) =/= "getopt.erl",
                      not lists:prefix("test/build/", File)],
@@ -60,15 +62,40 @@ line_length_test() ->
                               string:length(Line) > 100],
     ?assertEqual([], Long).
 
-%% docs/style.md: no file holds a tab but a Makefile; the vendored getopt keeps its
-%% upstream form
+%% docs/development.md, `make bench`: the programs part's parser,
+%% test/fixtures/bench/parser.ern, is examples/repl.ern's lexer, parser and
+%% evaluator, from `fn tokenize` on, its comments aside, so that the bench
+%% measures the example. A regression test, written after the copy, which
+%% nothing held to the example
+parser_fixture_test() ->
+    ?assertEqual(code_from("examples/repl.ern"), code_from("test/fixtures/bench/parser.ern")).
+
+%% An Ernest module's lines from `fn tokenize` on, each without its comment
+%% and the blanks before it, a line that holds nothing else left out.
+code_from(Path) ->
+    Lines = string:split(binary_to_list(ern_repository:read(Path)), "\n", all),
+    [Code || Line <- lists:dropwhile(fun(Line) -> not lists:prefix("fn tokenize", Line) end,
+                                     Lines),
+             Code <- [string:trim(uncommented(Line, false), trailing)], Code =/= ""].
+
+%% A line cut at a comment's `//`, one outside a string literal.
+uncommented("//" ++ _, false) -> [];
+uncommented([$\\, Char | Rest], true) -> [$\\, Char | uncommented(Rest, true)];
+uncommented([$" | Rest], InString) -> [$" | uncommented(Rest, not InString)];
+uncommented([Char | Rest], InString) -> [Char | uncommented(Rest, InString)];
+uncommented([], _) -> [].
+
+%% docs/style.md: no file holds a tab but a Makefile; the vendored getopt
+%% keeps its upstream form. A regression test for the fixtures' Erlang and
+%% the machines' script, which it once left unread
 no_tab_test() ->
     Patterns = ["erl/*/src/*.erl", "erl/*/test/*.erl", "erl/*/include/*.hrl", "erl/*/c_src/*.c",
-                "test/*.erl",
-                "src/stdlib/**/*.ern", "examples/**/*.ern", "src/shell/**/*.ern",
-                "test/**/*.ern", "test/*.py", "editors/emacs/*.el", "editors/emacs/test/*.el",
+                "test/*.erl", "test/fixtures/**/*.erl", "src/stdlib/**/*.ern",
+                "examples/**/*.ern", "src/shell/**/*.ern", "test/**/*.ern", "test/*.py",
+                "editors/emacs/*.el", "editors/emacs/test/*.el",
                 "editors/emacs/test/broken/*.ern", "src/libs/**/*.ern", "src/libs/*/*.md",
-                "tools/*.ern", "tour/*/*.ern", "tools/*.sh", "bin/ern", "*.md", "docs/*.md"],
+                "tools/*.ern", "tour/*/*.ern", "tools/*.sh", "test/machines/*.sh", "bin/ern",
+                "*.md", "docs/*.md"],
     Files = [File || File <- ern_repository:files(Patterns),
                      filename:basename(File) =/= "getopt.erl",
                      not lists:prefix("test/build/", File)],
@@ -158,11 +185,13 @@ words(Line, HostNames, Word) ->
     end.
 
 %% docs/style.md: one `-export` list, in the order the functions appear,
-%% and a `-spec` on every exported function, in the toolchain's modules;
-%% the vendored getopt keeps its upstream form. Written after the rule,
-%% when six modules had fallen out of order and one had lost its specs
+%% and a `-spec` on every exported function, in the toolchain's modules and
+%% in the tests' and their harnesses'; the vendored getopt keeps its
+%% upstream form. Written after the rule, when six modules had fallen out
+%% of order and one had lost its specs; the tests' modules were read from
+%% 2026-10-24, when the nodes harness's exports had none
 exports_test() ->
-    Files = [File || File <- ern_repository:files(["erl/*/src/*.erl"]),
+    Files = [File || File <- ern_repository:files(["erl/*/src/*.erl", "test/*.erl"]),
                      filename:basename(File) =/= "getopt.erl"],
     ?assert(length(Files) > 20),
     ?assertEqual([],
@@ -185,18 +214,18 @@ export_faults(File) ->
 
 %% report §8.6, docs/style.md: the look reads a process that waits in a
 %% module of the toolchain's own Erlang as one that waits as Ernest waits
-%% (ern_rt:is_ernest/1), so every `receive` there that can wait, all but
-%% one with `after 0`, is named by its function under its kind in its
-%% module's `-receives` attributes, and the forms are held to the kind where
-%% they can show it. A `foreign_wait` waits on what the look cannot see
-%% deliver, under the FOREIGN key (ern_rt:entered_foreign/0), which the
-%% function, or every function of its module that calls it, puts and takes
-%% away; a receive only a signal ends needs no taking away. An
-%% `ernest_wait` waits on what the look reads, one with a deadline under
-%% the TIMED key so (ern_rt:timed/0). An `own_process` waits in a process
-%% that is no program's, which the look does not read. An
-%% `answered_at_once` waits on an answer that comes before the look can
-%% find it waiting.
+%% (ern_rt:is_ernest/1), so every `receive` there that can wait, which is
+%% every one but a `receive` with `after 0`, is named by its function under
+%% its kind in its module's `-receives` attributes, and the forms are held
+%% to the kind where they can show it. A `foreign_wait` waits on what the
+%% look cannot see deliver, under the FOREIGN key
+%% (ern_rt:entered_foreign/0), which the function, or every function of its
+%% module that calls it, puts and takes away; a receive only a signal ends
+%% needs no taking away. An `ernest_wait` waits on what the look reads, one
+%% with a deadline under the TIMED key so (ern_rt:timed/0). An `own_process`
+%% waits in a process that is no program's, which the look does not read. An
+%% `answered_at_once` waits on an answer that comes before the look can find
+%% it waiting.
 %%
 %% A receive of no kind, a key its forms do not show, a kind of another
 %% name, and a function named twice or with no receive that can wait fail
@@ -351,6 +380,7 @@ document_formatted(File) ->
     ern_format:markdown(Bytes) =:= Bytes.
 
 %% The Ernest blocks of the documents laid out, for `make format`.
+-spec write_formatted() -> ok.
 write_formatted() ->
     lists:foreach(fun(Document) ->
                       Path = filename:join(?ROOT, Document),

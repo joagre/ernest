@@ -1,6 +1,6 @@
 //
 // The counter of the guide's chapters 4 and 6, for `make bench`
-// (test/ern_program_costs.erl): a counter process, callers that each make
+// (test/ern_programs_costs.erl): a counter process, callers that each make
 // their calls of it with `Address.call`, the counter answering each with
 // its total, and the total it came to once every caller has ended.
 // test/fixtures/bench/ern_counter_twin.erl is the same program as Erlang
@@ -11,18 +11,18 @@ export type CounterMsg = Add(amount : Int, reply : Reply(Int))
 
 export type RunMsg = Ended(Down)
 
-fn count(total : Int) : Unit receiving CounterMsg =
+fn serve(total : Int) : Unit receiving CounterMsg =
     receive {
         Add(amount = amount, reply = reply) -> {
             answer(reply, total + amount);
-            count(total + amount)
+            serve(total + amount)
         }
     }
 
 // `callers` processes, each making `calls` calls of one counter, and the
 // total the counter came to.
 export fn run(callers : Int, calls : Int) : Int receiving RunMsg = {
-    let counter = spawn(fn() = count(0));
+    let counter = spawn(fn() = serve(0));
     List.forEach(List.range(1, callers), fn(_) = {
         let _ = spawnMonitored(fn() = call(counter, calls), Ended);
         Unit

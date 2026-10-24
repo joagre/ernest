@@ -1,5 +1,5 @@
-%% The tour, tour/1/ to tour/8/, run as its reader runs it (plan, MVP 3.3;
-%% docs/proposals/tour/outline.md, sections 3 and 5): chapter 1's shell
+%% The tour, tour/README.md with its programs tour/1/ to tour/8/, run as its
+%% reader runs it (plan, MVP 3.3): chapter 1's shell
 %% over the first chapter's program; and one shell that is the node `a`,
 %% in a working directory into which each later chapter's files are
 %% copied in turn, `:load Counter` once and `:reload` at each chapter,
@@ -8,7 +8,7 @@
 %% build and test run in that directory and chapter 8's stops.
 %%
 %% An input is typed once the shell has printed all that the one before it
-%% prints, and what it prints is held to the lines the outline quotes, each
+%% prints, and what it prints is held to the lines tour/README.md shows, each
 %% whole, a node's line without its time. A line nothing orders against
 %% the input's answer, a fault's report, a node's connection, a monitor's
 %% message, is held to come once, its own lines together, before or after
@@ -45,7 +45,7 @@
 %% Chapter 1, a shell that is no node
 %%
 
-%% tour/1/, the outline's chapter 1; report §6.1, §6.2, §6.6, §11.2,
+%% tour/1/, tour/README.md's chapter 1; report §6.1, §6.2, §6.6, §11.2,
 %% §11.5: the counter loaded at a shell that is no node, a process spawned
 %% on its loop, a send, a call that answers 5, and a send of a String
 %% refused at the prompt with the input's line and a caret under the
@@ -72,43 +72,45 @@ chapter_1(Base) ->
                     "  | ---- send : (Address(a), a) -> Unit",
                     "  |               ^^^^^^"]}])).
 
-%% The outline's chapter 7, the line it tells and does not show; report
+%% tour/README.md's chapter 7, the line it tells and does not show; report
 %% §4.7, §7.4, §8.4: `erlang:system_info/1` declared to answer a String,
 %% which it does not, faults its caller as the answer arrives, the cause
 %% naming the function and the type. The declaration is typed at a shell
 %% that is no node and the call made there, where the tour's would be
 %% made on a peer by a compute. It does not cover the compute, whose fault
-%% the caller's node reports beneath the trace that crossed with it. Its
-%% limit is the sum of its five waits: the start, two inputs, the end and
-%% what the shell said
+%% the caller's node reports beneath the trace that crossed with it, nor
+%% the input's own trace beneath its fault's line (report §11.2), whose
+%% frames it takes as frames and does not read. Its limit is the sum of its
+%% five waits: the start, two inputs, the end and what the shell said
 told_boundary_test_() ->
     ern_nodes_tests:nodes_test({waits, 5}, fun told_boundary/1).
 
 told_boundary(Base) ->
     Shell = started(Base, filename:join(Base, "shell"), ""),
-    quit(session(Shell,
-                 [{"foreign fn systemInfo(item : Foreign.Term) : String = \"erlang:system_info/1\"",
-                   ["systemInfo : (Foreign.Term) -> String"]},
-                  {"systemInfo(Foreign.atom(\"schedulers\"))",
-                   ["fault: the return of foreign function erlang:system_info/1 does not match"
-                    " String"]}])).
+    Declared = session(Shell,
+                       [{"foreign fn systemInfo(item : Foreign.Term) : String ="
+                         " \"erlang:system_info/1\"",
+                         ["systemInfo : (Foreign.Term) -> String"]}]),
+    quit(faulted(Declared, "systemInfo(Foreign.atom(\"schedulers\"))",
+                 "fault: the return of foreign function erlang:system_info/1 does not match"
+                 " String")).
 
 %%
 %% Chapters 2 to 8, one session on three nodes
 %%
 
-%% tour/2/ to tour/8/, the outline's chapters 2 to 8, one session; report
+%% tour/2/ to tour/8/, tour/README.md's chapters 2 to 8, one session; report
 %% §3.6, §3.11, §4.4, §4.7, §4.9, §6.5, §6.9, §6.10, §7.3, §8.4, §8.6,
 %% §8.7, §11.1, §11.2, §11.3, Appendix E.24, E.27, E.28: chapter 2's seven
 %% commands, the bare nodes started and the shell as `a`, then each
 %% chapter's files copied and its inputs typed, as each chapter's function
 %% says, and at the end what each bare node wrote. A bare node's port is
-%% one the harness found free, in place of the outline's 8655 and 8656, and
+%% one the harness found free, in place of the tour's 8655 and 8656, and
 %% so is `a`'s listen, which `ern config` sets to 0.0.0.0:8654, since one
 %% machine's nodes cannot share a port; the harness starts the bare nodes
 %% from their absolute directories, where the reader types `ern run
 %% --config-dir foo`. The inputs are the tour's, their deadlines among
-%% them. Two inputs follow chapter 8's stop of foo, which the outline's
+%% them. Two inputs follow chapter 8's stop of foo, which the tour's
 %% closing line tells and does not show: `far` answers "ok" to an inc and
 %% "no answer" to a report. It does not cover the four terminals as a
 %% reader sees them, a node's line's time, which bare node a compute that
@@ -145,7 +147,7 @@ tour(Base) ->
                  untimed_lines(FooOut) ++ untimed_lines(BarOut)).
 
 %% Chapter 2's seven commands, run from the reader's directory as the
-%% outline writes them, each `--listen`'s port one the harness found free:
+%% tour writes them, each `--listen`'s port one the harness found free:
 %% the three that make a directory print its key, and the four that list a
 %% peer print nothing. `a`'s listen is set to a free port before it is
 %% listed. a/ernest.conf, which the tour shows, then lists foo and bar at
@@ -153,17 +155,21 @@ tour(Base) ->
 %% lists `a` at its port (report §8.7, §11.3).
 configured(Base, PortA, PortFoo, PortBar) ->
     [A, Foo, Bar] = [filename:join(Base, Name) || Name <- ["a", "foo", "bar"]],
+    [AddressA, AddressFoo, AddressBar] = [ern_nodes_tests:address(Port)
+                                          || Port <- [PortA, PortFoo, PortBar]],
     created(Base, "config --config-dir a"),
-    ern_nodes_tests:edit(A, fun(Conf) -> Conf#{<<"listen">> => address(PortA)} end),
-    created(Base, "config --config-dir foo --listen " ++ binary_to_list(address(PortFoo))),
-    created(Base, "config --config-dir bar --listen " ++ binary_to_list(address(PortBar))),
+    ern_nodes_tests:edit(A, fun(Conf) -> Conf#{<<"listen">> => AddressA} end),
+    created(Base, "config --config-dir foo --listen " ++ binary_to_list(AddressFoo)),
+    created(Base, "config --config-dir bar --listen " ++ binary_to_list(AddressBar)),
     [?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "config --config-dir " ++ Words))
      || Words <- ["a --peer-dir foo", "a --peer-dir bar", "foo --peer-dir a", "bar --peer-dir a"]],
-    ?assertEqual(#{<<"listen">> => address(PortA), <<"public-key">> => key(A),
-                   <<"peers">> => [peer("foo", Foo, PortFoo), peer("bar", Bar, PortBar)],
+    ?assertEqual(#{<<"listen">> => AddressA, <<"public-key">> => key(A),
+                   <<"peers">> => [ern_nodes_tests:peer("foo", Foo, PortFoo),
+                                   ern_nodes_tests:peer("bar", Bar, PortBar)],
                    <<"services">> => #{}},
-                 configuration(A)),
-    [?assertEqual([peer("a", A, PortA)], maps:get(<<"peers">>, configuration(Dir)))
+                 ern_nodes_tests:configuration(A)),
+    [?assertEqual([ern_nodes_tests:peer("a", A, PortA)],
+                  maps:get(<<"peers">>, ern_nodes_tests:configuration(Dir)))
      || Dir <- [Foo, Bar]].
 
 created(Base, Words) ->
@@ -171,19 +177,8 @@ created(Base, Words) ->
     ?assertEqual({0, ""}, {Status, Err}),
     ern_deployment_tests:keyed(Out).
 
-peer(Name, Dir, Port) ->
-    #{<<"name">> => list_to_binary(Name), <<"network-address">> => address(Port),
-      <<"public-key">> => key(Dir)}.
-
 key(Dir) ->
-    maps:get(<<"public-key">>, configuration(Dir)).
-
-configuration(Dir) ->
-    {ok, Text} = file:read_file(filename:join(Dir, "ernest.conf")),
-    json:decode(Text).
-
-address(Port) ->
-    list_to_binary("127.0.0.1:" ++ integer_to_list(Port)).
+    maps:get(<<"public-key">>, ern_nodes_tests:configuration(Dir)).
 
 %% Chapter 2: the counter loaded at the shell that is `a`, one spawned
 %% here as in chapter 1, and one on foo, a bare node that holds none of
@@ -217,8 +212,8 @@ client(#tour{shell = Shell} = Tour) ->
 %% Chapter 4: the counter of the old loop killed and one of the new
 %% started, which a negative amount faults, reported with its site and its
 %% trace, the version's number in it, while the send answers "ok"; a call
-%% to it then answers "no answer". A counter under `restarting`, limit one,
-%% watched by a monitor: faulted and restarted, its count lost and its
+%% to it then answers "no answer". A counter under `restarting`, limit one
+%% restart in a minute, watched by a monitor: faulted and restarted, its count lost and its
 %% address kept, then faulted past the limit, which the watcher hears as
 %% the fault's `Down` (report §6.9, §6.10, §7.3, §11.2, Appendix E.21).
 fault(#tour{shell = Shell} = Tour) ->
@@ -232,7 +227,7 @@ fault(#tour{shell = Shell} = Tour) ->
          {"Counter.apply(counter, \"inc -1\")", [?SENT],
           [["input 11:1 faulted: a negative amount", Trace]]},
          {"Counter.apply(counter, \"get\")", ["\"no answer\" : String"]},
-         {"let counter = spawn(restarting(RestartLimit(restarts = 1, within = 5000),"
+         {"let counter = spawn(restarting(RestartLimit(restarts = 1, within = 60000),"
           " fn() = Counter.count(0)))",
           ["counter : Address(Counter.CounterMsg)"]},
          {"let watcher = spawn(fn() = Counter.watch(counter))",
@@ -388,12 +383,12 @@ moved_there(#tour{shell = Shell} = Tour) ->
 stopped(#tour{base = Base, wait_foo = WaitFoo, wait_bar = WaitBar, shell = Shell} = Tour) ->
     ?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "stop --config-dir foo")),
     ?assertEqual(143, WaitFoo()),
-    Lost = session(told(Shell, ["the peer foo ended"]),
+    Lost = session(unasked(Shell, ["the peer foo ended"]),
                    [{"Counter.apply(far, \"inc apples 1\")", [?SENT]},
                     {"Counter.apply(far, \"report\")", ["\"no answer\" : String"]}]),
     ?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "stop --config-dir bar")),
     ?assertEqual(143, WaitBar()),
-    Tour#tour{shell = told(Lost, ["the peer bar ended"])}.
+    Tour#tour{shell = unasked(Lost, ["the peer bar ended"])}.
 
 %%
 %% The reader's directory and the shell
@@ -450,9 +445,21 @@ typed({Input, Shown, Unordered},
     {Lines, Text} = since(Shell, 1),
     Shell#shell{read = Text, carried = held(Lines, [Shown | Carried], Unordered)}.
 
+%% Report §11.2: an input that faults, typed once the input before it has
+%% printed all it prints, and held, once the prompt after it has come, to
+%% its fault's line, Line, and beneath it frames of its trace, each a line
+%% indented by four spaces, which this does not read.
+faulted(#shell{dir = Dir, port = Port, read = Read, carried = []} = Shell, Input, Line) ->
+    true = port_command(Port, [Input, "\n"]),
+    ern_nodes_tests:prints(Dir, "> ", count(Read, "> ") + 1, ern_nodes_tests:wait_ms()),
+    {[Fault | Frames], Text} = since(Shell, 1),
+    ?assertEqual(unicode:characters_to_binary(Line), Fault),
+    ?assertEqual([], [Frame || Frame <- Frames, string:prefix(Frame, "    ") =:= nomatch]),
+    Shell#shell{read = Text}.
+
 %% Lines the shell prints unasked after its prompt, a node's end, once its
 %% stream holds them.
-told(#shell{dir = Dir, read = Read, carried = Carried} = Shell, Lines) ->
+unasked(#shell{dir = Dir, read = Read, carried = Carried} = Shell, Lines) ->
     [ern_nodes_tests:prints(Dir, Line, count(Read, Line) + 1, ern_nodes_tests:wait_ms())
      || Line <- Lines],
     {Written, Text} = since(Shell, 0),

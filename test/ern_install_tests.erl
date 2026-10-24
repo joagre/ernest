@@ -124,8 +124,7 @@ install() ->
     ok = file:rename(Base ++ "/a", Base ++ "/b"),
     Ern = Base ++ "/b/bin/ern",
     Examples = Base ++ "/b/share/doc/ernest/examples",
-    _ = ern_integration_tests:succeed(Ern ++ " build --build-root " ++ Base ++ "/work/examples"
-                                      " --load-path " ++ Base ++ "/b/lib/ernest/build/libs/ansi .",
+    _ = ern_integration_tests:succeed(Ern ++ " build --build-root " ++ Base ++ "/work/examples .",
                                       [{cd, Examples}]),
     ?assertEqual(compiled(Examples), installed(Base ++ "/work/examples")),
     %% report §8.7: an installation of the repository's build is no release,

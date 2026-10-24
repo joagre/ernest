@@ -2,7 +2,7 @@
 %% test programs built and run, their output compared as a multiset of lines with
 %% fixtures/expected/<name>.out, since prints from different processes interleave
 %% by scheduling; the launcher, the signals and the streams; `Os`; and the
-%% libraries' tests. Run from this directory by its Makefile. The helpers
+%% libraries' builds. Run from this directory by its Makefile. The helpers
 %% that run a command and build are exported for ern_manual_tests and
 %% ern_install_tests, the manual pages' tests and the installation's, which
 %% run as parts of their own.
@@ -13,9 +13,10 @@
 
 -export([del/1, build/1, sh/1, sh/2, succeed/1, succeed/2]).
 
-%% Report §11.1: an example compiled into test/build.
-%% libs/ansi, which snake writes with (report Appendix G.3)
--define(BUILD, "--source-root ../examples --load-path ../build/libs/ansi --build-root build ").
+%% Report §11.1: an example compiled into test/build, the libraries' builds
+%% on its load path as on every job's (Appendix G), libs/ansi among them,
+%% which snake writes with (Appendix G.3).
+-define(BUILD, "--source-root ../examples --build-root build ").
 
 %% A program kept for the tests, compiled into test/build.
 -define(BUILD_PROGRAM, "--source-root fixtures/programs --build-root build ").
@@ -35,9 +36,10 @@
 %% parallel (plan, MVP 2.6).
 programs_test_() ->
     {inparallel,
-     [{Name, {timeout, waits(2), fun() -> program(?BUILD ++ "../examples/", Name) end}}
+     [{Name, {timeout, ern_nodes_tests:waits(2),
+              fun() -> program(?BUILD ++ "../examples/", Name) end}}
       || Name <- ?EXAMPLES]
-     ++ [{Name, {timeout, waits(2),
+     ++ [{Name, {timeout, ern_nodes_tests:waits(2),
                  fun() -> program(?BUILD_PROGRAM ++ "fixtures/programs/", Name) end}}
          || Name <- ?PROGRAMS]}.
 
@@ -54,9 +56,10 @@ program(Build, Name) ->
 
 compiles_test_() ->
     {inparallel,
-     [{Name, {timeout, waits(1), fun() -> compiles(?BUILD ++ "../examples/", Name) end}}
+     [{Name, {timeout, ern_nodes_tests:waits(1),
+              fun() -> compiles(?BUILD ++ "../examples/", Name) end}}
       || Name <- ?COMPILES]
-     ++ [{"echo", {timeout, waits(1),
+     ++ [{"echo", {timeout, ern_nodes_tests:waits(1),
                    fun() -> compiles(?BUILD_PROGRAM ++ "fixtures/programs/", "echo") end}}]}.
 
 compiles(Build, Name) ->
@@ -68,7 +71,7 @@ compiles(Build, Name) ->
 %% standard error and the status is 1; with no file it says how it is
 %% called and the status is 2. A regression test, written with the example
 tally_test_() ->
-    {timeout, waits(4), fun tally/0}.
+    {timeout, ern_nodes_tests:waits(4), fun tally/0}.
 
 tally() ->
     0 = build(?BUILD ++ "../examples/tally.ern"),
@@ -84,24 +87,22 @@ tally() ->
 %% and ends with status 1 before it draws. A regression test: it drew a
 %% frame and ended with status 0
 snake_without_terminal_test_() ->
-    {timeout, waits(2),
+    {timeout, ern_nodes_tests:waits(2),
      fun() ->
          0 = build(?BUILD ++ "../examples/snake.ern"),
          ?assertEqual({1, <<"snake needs a terminal, since its keys are the game's input\n">>},
-                      sh("../bin/ern run --load-path ../build/libs/ansi build/snake.erc"
-                         " < /dev/null"))
+                      sh("../bin/ern run build/snake.erc < /dev/null"))
      end}.
 
 %% snake's own tests: two turns within a tick do not reverse the last move,
 %% and an apple goes on a free cell. Regression tests: two quick keys made
 %% a U-turn that killed the snake, and an apple could land on the snake
 snake_own_tests_test_() ->
-    {timeout, waits(2),
+    {timeout, ern_nodes_tests:waits(2),
      fun() ->
-         0 = build("--source-root ../examples --load-path ../build/libs/ansi"
-                   " --build-root build/snake_own ../examples/snake.ern"),
-         {0, Output} = sh("../bin/ern test --load-path ../build/libs/ansi"
-                          " build/snake_own/snake.erc"),
+         0 = build("--source-root ../examples --build-root build/snake_own"
+                   " ../examples/snake.ern"),
+         {0, Output} = sh("../bin/ern test build/snake_own/snake.erc"),
          Lines = [Line || Line <- binary:split(Output, <<"\n">>, [global]), Line =/= <<>>],
          ?assertEqual(2, length([Line || Line <- Lines,
                                          binary:match(Line, <<": passed">>) =/= nomatch]))
@@ -118,7 +119,7 @@ snake_own_tests_test_() ->
 %% answers once its group has restarted whole (Appendix E.22); a command
 %% that asks the audit before the restart is done is not covered
 services_test_() ->
-    {timeout, waits(2), fun services/0}.
+    {timeout, ern_nodes_tests:waits(2), fun services/0}.
 
 services() ->
     0 = build(?BUILD ++ "../examples/services.ern"),
@@ -132,7 +133,7 @@ services() ->
 %% how it is called, status 2, and a file it cannot read is named on
 %% standard error, status 1. A regression test, written with the example
 word_count_test_() ->
-    {timeout, waits(4), fun word_count/0}.
+    {timeout, ern_nodes_tests:waits(4), fun word_count/0}.
 
 word_count() ->
     0 = build(?BUILD ++ "../examples/word_count.ern"),
@@ -154,7 +155,7 @@ word_count() ->
 %% ern_deployment_tests runs beside the second's tool. A regression test,
 %% written with the example. Its steps: the two builds and the run.
 upgrade_example_test_() ->
-    {timeout, waits(3), fun upgrade_example/0}.
+    {timeout, ern_nodes_tests:waits(3), fun upgrade_example/0}.
 
 upgrade_example() ->
     [0 = build("--build-root build/upgrade/" ++ Build ++ " ../examples/upgrade/" ++ Build)
@@ -170,7 +171,7 @@ upgrade_example() ->
 %% after two seconds, and the next expression still works.
 %% report §6.9 (monitor), §8.2 (Io's stdin), Appendix E.1 (Io.readLine)
 repl_test_() ->
-    {timeout, waits(2), fun repl/0}.
+    {timeout, ern_nodes_tests:waits(2), fun repl/0}.
 
 repl() ->
     0 = build(?BUILD ++ "../examples/repl.ern"),
@@ -184,7 +185,7 @@ repl() ->
 %% report §8.2 (Fs's reference), §6.6 (Address.call), Appendix E.17 (Fs.list)
 %% Its steps: the build, its own tests' run, run_for/4's wait and the end.
 file_sync_test_() ->
-    {timeout, waits(4), fun file_sync/0}.
+    {timeout, ern_nodes_tests:waits(4), fun file_sync/0}.
 
 file_sync() ->
     0 = build(?BUILD ++ "../examples/file_sync.ern"),
@@ -247,7 +248,7 @@ file_sync() ->
 %% changed here between two listings, which the same reading covers. Its
 %% steps: the build, run_for/4's wait and the end.
 file_sync_first_listing_test_() ->
-    {timeout, waits(3), fun file_sync_first_listing/0}.
+    {timeout, ern_nodes_tests:waits(3), fun file_sync_first_listing/0}.
 
 file_sync_first_listing() ->
     %% a build root of its own, since file_sync_test_ builds beside it
@@ -288,6 +289,7 @@ make_older(File) ->
 %% since a test that ended early, its time run out, may leave one
 %% read-only, and nothing in one can be removed: the install test's
 %% `closed`, so left, stopped the next run's cleanup with `eexist`.
+-spec del(file:filename()) -> ok.
 del(Dir) ->
     opened(Dir),
     case file:del_dir_r(Dir) of
@@ -401,7 +403,7 @@ has_printed(Dir, Line) ->
 %% hangup is sent once the program has said it runs, as signal_end's are.
 %% Its steps: the build, run_for/4's wait and the end.
 hangup_test_() ->
-    {timeout, waits(3), fun hangup/0}.
+    {timeout, ern_nodes_tests:waits(3), fun hangup/0}.
 
 hangup() ->
     Dir = "build/hangup",
@@ -413,7 +415,8 @@ hangup() ->
     ok = file:write_file(Dir ++ "/waits.ern",
                          ["export fn main() : Unit receiving Never = {\n"
                           "    Io.println(\"running\");\n"
-                          "    receive { after ", wait_ms_text(), " -> Io.println(\"late\") }\n"
+                          "    receive { after ", ern_nodes_tests:wait_ms_text(),
+                          " -> Io.println(\"late\") }\n"
                           "}\n"]),
     0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/waits.ern"),
     ?assertEqual({129, [<<"running">>]},
@@ -432,7 +435,7 @@ hangup() ->
 %% runs where the helper is the plain build, in `make test-full`
 out_of_memory_test_() ->
     case os:getenv("ASAN_OPTIONS") of
-        false -> {timeout, waits(2), fun out_of_memory/0};
+        false -> {timeout, ern_nodes_tests:waits(2), fun out_of_memory/0};
         _ -> []
     end.
 
@@ -467,7 +470,7 @@ out_of_memory() ->
 %% the sentence of §11.2 that states the status. Its steps: the build, the
 %% wait for the program's line and its end.
 interrupt_test_() ->
-    {timeout, waits(3), fun interrupt/0}.
+    {timeout, ern_nodes_tests:waits(3), fun interrupt/0}.
 
 interrupt() ->
     Dir = "build/interrupt",
@@ -495,7 +498,7 @@ interrupt() ->
 %% Its steps: the build, the wait for the server's line, and each request's
 %% connection and answer.
 web_server_test_() ->
-    {timeout, waits(6), fun web_server/0}.
+    {timeout, ern_nodes_tests:waits(6), fun web_server/0}.
 
 web_server() ->
     0 = build(?BUILD ++ "../examples/web_server.ern"),
@@ -525,7 +528,7 @@ web_server() ->
 %% connection silent past the server's minute. Its steps: the build, the
 %% wait for the server's line, the connection and the two answers.
 shout_test_() ->
-    {timeout, waits(5), fun shout/0}.
+    {timeout, ern_nodes_tests:waits(5), fun shout/0}.
 
 shout() ->
     0 = build(?BUILD ++ "../examples/shout.ern"),
@@ -597,33 +600,21 @@ cookie_of(Answer) ->
     [SessionId | _] = binary:split(After, <<";">>),
     SessionId.
 
-%% report §9.3, §11.2, Appendix G.2, G.4, G.6, G.7, Appendix G.5, plan MVP
-%% 3.2: every library's own tests, run by `ern test` over the directory
-%% their compiled modules are under, as the shell's are: the Markdown
-%% library's read and lay out what G.2 says, the Utilization library's
-%% measure as G.4 says, the JSON library's read and write what G.6 says,
-%% and the proxy's wait for its service as G.7 says, and no module of the
-%% placement library, which G.5 says is removed; every library's doc
-%% examples after its tests (report §11.2, Appendix E.0 shape rule 6); no
-%% test's process faults. A
-%% regression test too: the modules were run by one command joined with
-%% `&&`, which the host runs by `exec`, so only the first module's tests
-%% ran, and it has none
-libs_test_() ->
-    {timeout, waits(1), fun libs/0}.
+%% report Appendix G, G.5: a library's build is on every job's load path,
+%% and `make` removes the build of a library whose directory is gone, the
+%% placement library's among them (Appendix G.5), so that build/libs holds
+%% a build for each library under src/libs and for no other. The libraries'
+%% own tests and doc examples are `make test-library`'s, which runs them
+%% once and fails where a case's process faulted; which modules `ern test`
+%% names over a directory is ern_cli_tests'. A regression test, written
+%% after the Makefile's `libs`, which removes a gone library's build, had
+%% gone unrun since nothing depended on it
+library_builds_test() ->
+    ?assertEqual(directories("../src/libs"), directories("../build/libs")).
 
-libs() ->
-    {Status, Output} = sh("../bin/ern test --load-path ../build/libs/ansi ../build/libs"),
-    Lines = [Line || Line <- binary:split(Output, <<"\n">>, [global]), Line =/= <<>>],
-    Passed = [Line || Line <- Lines, binary:match(Line, <<": passed">>) =/= nomatch],
-    ?assertEqual([], [Line || Line <- Lines, binary:match(Line, <<" faulted: ">>) =/= nomatch]),
-    %% a module with tests or examples is named before them, and one with
-    %% neither is passed over (report §11.2)
-    ?assertEqual([<<"Ansi">>, <<"Ets">>, <<"Json">>, <<"Markdown">>, <<"Proxy">>,
-                  <<"Utilization">>],
-                 Lines -- Passed),
-    ?assert(length(Passed) >= 40),
-    ?assertEqual(0, Status).
+directories(Path) ->
+    {ok, Names} = file:list_dir(Path),
+    lists:sort([Name || Name <- Names, filelib:is_dir(filename:join(Path, Name))]).
 
 %% report Appendix G.1, §7.4: a table replaces a key's entry, a removal of
 %% a key that is not there does nothing, `clear` leaves the table, and an
@@ -633,7 +624,7 @@ libs() ->
 %% sections; and `size` of an ended table faulted with "foreign return
 %% does not match Int"
 ets_test_() ->
-    {timeout, waits(4), fun ets/0}.
+    {timeout, ern_nodes_tests:waits(4), fun ets/0}.
 
 ets() ->
     Dir = "build/ets",
@@ -651,9 +642,8 @@ ets() ->
                          "    Ets.close(t);\n"
                          "    Ets.put(t, \"a\", 3)\n"
                          "}\n"),
-    0 = build("--source-root " ++ Dir ++ " --load-path ../build/libs/ets --build-root "
-              ++ Dir ++ " " ++ Dir ++ "/tables.ern"),
-    {1, Output} = sh("../bin/ern run --load-path ../build/libs/ets " ++ Dir ++ "/tables.erc"),
+    0 = build("--source-root " ++ Dir ++ " --build-root " ++ Dir ++ " " ++ Dir ++ "/tables.ern"),
+    {1, Output} = sh("../bin/ern run " ++ Dir ++ "/tables.erc"),
     %% what the program prints and the fault's line come on two streams
     Lines = unstamped(binary:split(Output, <<"\n">>, [global, trim])),
     ?assert(lists:member(<<"#(Some(2), 1, false)">>, Lines)),
@@ -666,9 +656,8 @@ ets() ->
                          "    Ets.close(t);\n"
                          "    Io.println(Int.toString(Ets.size(t)))\n"
                          "}\n"),
-    0 = build("--source-root " ++ Dir ++ " --load-path ../build/libs/ets --build-root "
-              ++ Dir ++ " " ++ Dir ++ "/sized.ern"),
-    {1, Sized} = sh("../bin/ern run --load-path ../build/libs/ets " ++ Dir ++ "/sized.erc"),
+    0 = build("--source-root " ++ Dir ++ " --build-root " ++ Dir ++ " " ++ Dir ++ "/sized.ern"),
+    {1, Sized} = sh("../bin/ern run " ++ Dir ++ "/sized.erc"),
     ?assert(lists:member(<<"Sized.main faulted: the table has ended">>,
                          unstamped(binary:split(Sized, <<"\n">>, [global, trim])))).
 
@@ -678,7 +667,7 @@ ets() ->
 %% faults; lines and bytes are one stream, and bytes go out as they are.
 %% Its steps: three builds and four runs.
 stdin_test_() ->
-    {timeout, waits(7), fun stdin/0}.
+    {timeout, ern_nodes_tests:waits(7), fun stdin/0}.
 
 stdin() ->
     [0 = build("--source-root fixtures/stdin --build-root build/stdin fixtures/stdin/"
@@ -705,12 +694,13 @@ stdin() ->
     %% the FIFO its output goes to, so that how long the host takes to
     %% start, about as long as the one second the writer had paused, plays
     %% no part (it had failed when the start took longer); the status is the
-    %% program's. Its run is one step of the harness's (wait_seconds/0), so
-    %% that a read that waits for more, which never says its line, is
-    %% killed and fails the test, and is not left running
+    %% program's. Its run is one step of the harness's
+    %% (ern_nodes_tests:waits/1), so that a read that waits for more, which
+    %% never says its line, is killed and fails the test, and is not left
+    %% running
     {In, Out} = {fifo("build/stdin/in"), fifo("build/stdin/out")},
     ?assertEqual({0, <<"1\n1\nend\n">>},
-                 sh("sh -c 'timeout -s KILL " ++ integer_to_list(wait_seconds())
+                 sh("sh -c 'timeout -s KILL " ++ integer_to_list(ern_nodes_tests:waits(1))
                     ++ " ../bin/ern run build/stdin/chunks.erc < " ++ In ++ " > " ++ Out
                     ++ " & p=$!; exec 3> " ++ In ++ " 4< " ++ Out ++ "; printf a >&3; "
                     "read first <&4; printf b >&3; exec 3>&-; echo \"$first\"; cat <&4; "
@@ -728,7 +718,7 @@ stdin() ->
 %% gives twice is not covered, since a shell cannot give one. Its steps:
 %% the build and four runs in each of the two locales.
 os_test_() ->
-    {timeout, waits(9), fun os/0}.
+    {timeout, ern_nodes_tests:waits(9), fun os/0}.
 
 os() ->
     SourceRoot = "build/os/src",
@@ -773,7 +763,7 @@ os() ->
 %% variable, which the launcher sets for the host alone (report §10), joined
 %% it with the full review's U1
 given_environment_test_() ->
-    {timeout, waits(2), fun given_environment/0}.
+    {timeout, ern_nodes_tests:waits(2), fun given_environment/0}.
 
 given_environment() ->
     SourceRoot = "build/given/src",
@@ -791,7 +781,7 @@ given_environment() ->
             " trap 'echo caught' FPE; kill -FPE $$; echo survived\";\n"
             "    let command = Os.Command(program = \"sh\", arguments = [\"-c\", script],"
             " input = <<>>);\n"
-            "    match Os.run(command, ", wait_ms_text(), ") {\n"
+            "    match Os.run(command, ", ern_nodes_tests:wait_ms_text(), ") {\n"
             "        Right(finished) ->\n"
             "            Io.print(Optional.withDefault(String.fromUtf8(finished.stdout), \"\"))\n"
             "      | Left(_) -> Io.println(\"not run\")\n"
@@ -811,7 +801,7 @@ given_environment() ->
 %% unset, or naming another. Written after the code, which the shell
 %% decides: the launcher cannot see what the shell replaced
 pwd_is_the_shells_test_() ->
-    {timeout, waits(4), fun pwd_is_the_shells/0}.
+    {timeout, ern_nodes_tests:waits(4), fun pwd_is_the_shells/0}.
 
 pwd_is_the_shells() ->
     Dir = "build/pwd",
@@ -841,7 +831,7 @@ pwd_is_the_shells() ->
 %% directory of the load path held. Its steps: the stub's compile, the
 %% build and the run.
 host_takes_nothing_from_where_it_runs_test_() ->
-    {timeout, waits(3), fun host_takes_nothing_from_where_it_runs/0}.
+    {timeout, ern_nodes_tests:waits(3), fun host_takes_nothing_from_where_it_runs/0}.
 
 host_takes_nothing_from_where_it_runs() ->
     Dir = "build/hostcwd",
@@ -870,7 +860,7 @@ host_takes_nothing_from_where_it_runs() ->
 %% Written with the code; a directory removed as the program starts is not
 %% covered. Its steps: the build and two runs in each of the two locales.
 working_directory_test_() ->
-    {timeout, waits(5), fun working_directory/0}.
+    {timeout, ern_nodes_tests:waits(5), fun working_directory/0}.
 
 working_directory() ->
     Dir = "build/cwd",
@@ -879,7 +869,8 @@ working_directory() ->
     ok = file:write_file(Dir ++ "/src/here.ern",
                          ["export fn main() : Unit = {\n"
                           "    Io.println(Path.toString(Os.workingDirectory));\n"
-                          "    match Fs.read(Path(\"notes.txt\"), ", wait_ms_text(), ") {\n"
+                          "    match Fs.read(Path(\"notes.txt\"), ",
+                          ern_nodes_tests:wait_ms_text(), ") {\n"
                           "        Right(bytes) -> Io.println(Io.show(String.fromUtf8(bytes)))\n"
                           "      | Left(_) -> Io.println(\"no notes\")\n"
                           "    }\n"
@@ -901,6 +892,35 @@ working_directory() ->
      || Locale <- ["C.UTF-8", "C"]],
     %% the name other tests' wildcards cannot read, which the host warns of
     ok = file:del_dir(<<"build/cwd/bad", 16#e9>>).
+
+%% report §11: `ern --version` and `ern --help` read nothing of the working
+%% directory, and answer in one whose name is not UTF-8, where every job is
+%% refused before the host starts. A regression test (T34), written after
+%% the code: both were refused there; it does not cover a job's `--help`,
+%% which the launcher refuses as it refuses the job. Its steps: the four
+%% commands.
+launcher_options_test_() ->
+    {timeout, ern_nodes_tests:waits(4), fun launcher_options/0}.
+
+launcher_options() ->
+    Bad = <<"build/cwd_options/bad", 16#e9>>,
+    ok = filelib:ensure_path("build/cwd_options"),
+    ok = make_dir(Bad),
+    Ern = fun(Words) ->
+              sh("sh -c 'cd build/cwd_options/bad* && " ++ filename:absname("../bin/ern") ++ " "
+                 ++ Words ++ "'")
+          end,
+    try
+        ?assertEqual({0, iolist_to_binary(["ern ", ern_release:version_text(), "\n"])},
+                     Ern("--version")),
+        {0, Usage} = Ern("--help"),
+        ?assertMatch(<<"Usage: ern <job> [options] ...\n", _/binary>>, Usage),
+        [?assertEqual({1, <<"ern: the working directory's name is not UTF-8\n">>}, Ern(Words))
+         || Words <- ["build x", "--version --help"]]
+    after
+        %% the name other tests' wildcards cannot read, which the host warns of
+        ok = file:del_dir(Bad)
+    end.
 
 make_dir(Dir) ->
     case file:make_dir(Dir) of
@@ -928,7 +948,7 @@ launcher_names_a_missing_iconv_test() ->
 %% the code: the run went on to its end and then hung, and the host printed
 %% its report of the failed write among the program's output.
 stream_gone_test_() ->
-    {timeout, waits(2), fun stream_gone/0}.
+    {timeout, ern_nodes_tests:waits(2), fun stream_gone/0}.
 
 stream_gone() ->
     Dir = "build/gone",
@@ -953,13 +973,13 @@ stream_gone() ->
 %% ended with status 0, ten with 141, and three did not end. The reader
 %% closes its end of the pipe and then says so through a FIFO, which the
 %% program's side waits on before the program starts. Each run is one step
-%% of the harness's (wait_seconds/0), after which a program that has not
-%% ended is killed, its status 137 then among the others'. Its steps:
-%% three builds and nine runs. It does not cover a device that fails,
+%% of the harness's (ern_nodes_tests:waits/1), after which a program that
+%% has not ended is killed, its status 137 then among the others'. Its
+%% steps: three builds and nine runs. It does not cover a device that fails,
 %% which only some hosts have one of, nor a reader that goes while the
 %% program writes, which drained_output_test_ holds.
 stream_lost_at_end_test_() ->
-    {timeout, waits(12), fun stream_lost_at_end/0}.
+    {timeout, ern_nodes_tests:waits(12), fun stream_lost_at_end/0}.
 
 stream_lost_at_end() ->
     Dir = "build/lost",
@@ -977,10 +997,10 @@ stream_lost_at_end() ->
     Gone = fifo(Dir ++ "/gone"),
     Statuses = [begin
                     {0, <<>>} = sh("sh -c '{ read gone < " ++ Gone ++ "; timeout -s KILL "
-                                   ++ integer_to_list(wait_seconds()) ++ " ../bin/ern run "
-                                   ++ Dir ++ "/" ++ Name ++ ".erc " ++ Redirect
-                                   ++ "; echo $? > " ++ Dir ++ "/status; } | { exec <&-; echo > "
-                                   ++ Gone ++ "; }'"),
+                                   ++ integer_to_list(ern_nodes_tests:waits(1))
+                                   ++ " ../bin/ern run " ++ Dir ++ "/" ++ Name ++ ".erc "
+                                   ++ Redirect ++ "; echo $? > " ++ Dir
+                                   ++ "/status; } | { exec <&-; echo > " ++ Gone ++ "; }'"),
                     {ok, Status} = file:read_file(Dir ++ "/status"),
                     ok = file:delete(Dir ++ "/status"),
                     {Name, Status}
@@ -1000,7 +1020,7 @@ stream_lost_at_end() ->
 %% fails, which only some hosts have one of. Its steps: each program's
 %% build and two runs.
 drained_output_test_() ->
-    {timeout, waits(6), fun drained_output/0}.
+    {timeout, ern_nodes_tests:waits(6), fun drained_output/0}.
 
 drained_output() ->
     Dir = "build/drained",
@@ -1032,7 +1052,7 @@ drained_output() ->
 %% millisecond (the log's *The Sitting on §8.6's Bookkeeping*); an end that
 %% did not wait gave status 0.
 job_output_drained_test_() ->
-    {timeout, waits(2), fun job_output_drained/0}.
+    {timeout, ern_nodes_tests:waits(2), fun job_output_drained/0}.
 
 job_output_drained() ->
     Dir = "build/job_drained",
@@ -1066,7 +1086,7 @@ job_output_drained() ->
 %% nor standard error. Its steps: the build, the run to the reader's word,
 %% and the program's end.
 paced_output_test_() ->
-    {timeout, waits(3), fun paced_output/0}.
+    {timeout, ern_nodes_tests:waits(3), fun paced_output/0}.
 
 paced_output() ->
     Dir = "build/paced",
@@ -1099,7 +1119,7 @@ paced_output() ->
 %% cover `ern test` and `ern shell`, which set the path the same way. Its
 %% steps: the two probes' compiles, the build and the run.
 foreign_module_test_() ->
-    {timeout, waits(4), fun foreign_module/0}.
+    {timeout, ern_nodes_tests:waits(4), fun foreign_module/0}.
 
 foreign_module() ->
     Dir = filename:absname("build/foreign"),
@@ -1131,7 +1151,7 @@ foreign_module() ->
 %% stream gone and the other read. Its steps: the seven jobs and the
 %% shell's.
 closed_pipe_test_() ->
-    {timeout, waits(8), fun closed_pipe/0}.
+    {timeout, ern_nodes_tests:waits(8), fun closed_pipe/0}.
 
 closed_pipe() ->
     Dir = filename:absname("build/closed_pipe"),
@@ -1160,7 +1180,7 @@ closed_pipe() ->
 %% regression test: the host opened /dev/null in the stream's place, and
 %% the job wrote there and ended with status 0
 closed_stream_test_() ->
-    {timeout, waits(3), fun closed_stream/0}.
+    {timeout, ern_nodes_tests:waits(3), fun closed_stream/0}.
 
 closed_stream() ->
     Ern = filename:absname("../bin/ern"),
@@ -1173,7 +1193,7 @@ closed_stream() ->
 %% regression test: a cause's line feed wrote a second line, which forged
 %% another fault, and its escape reached the terminal as itself
 fault_line_escaped_test_() ->
-    {timeout, waits(2), fun fault_line_escaped/0}.
+    {timeout, ern_nodes_tests:waits(2), fun fault_line_escaped/0}.
 
 fault_line_escaped() ->
     Dir = "build/escaped",
@@ -1197,7 +1217,7 @@ fault_line_escaped() ->
 %% not stamped, a regression test written after the code, where a cause of
 %% §7.4 had none
 stamped_test_() ->
-    {timeout, waits(3), fun stamped/0}.
+    {timeout, ern_nodes_tests:waits(3), fun stamped/0}.
 
 stamped() ->
     Dir = "build/stamped",
@@ -1234,7 +1254,7 @@ stamped() ->
 %% steps: the build, and for each signal the wait for the program's line
 %% and its end.
 signal_end_test_() ->
-    {timeout, waits(5), fun signal_end/0}.
+    {timeout, ern_nodes_tests:waits(5), fun signal_end/0}.
 
 signal_end() ->
     Dir = "build/signal_end",
@@ -1245,7 +1265,8 @@ signal_end() ->
     ok = file:write_file(Dir ++ "/waits.ern",
                          ["export fn main() : Unit receiving Never = {\n"
                           "    Io.println(\"running\");\n"
-                          "    receive { after ", wait_ms_text(), " -> Io.println(\"late\") }\n"
+                          "    receive { after ", ern_nodes_tests:wait_ms_text(),
+                          " -> Io.println(\"late\") }\n"
                           "}\n"]),
     0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/waits.ern"),
     Python = "import subprocess, signal\n"
@@ -1254,7 +1275,7 @@ signal_end() ->
              "                         stdout=subprocess.PIPE)\n"
              "    p.stdout.readline()\n"
              "    p.send_signal(s)\n"
-             "    print(p.wait(timeout=" ++ integer_to_list(wait_seconds()) ++ "))\n",
+             "    print(p.wait(timeout=" ++ integer_to_list(ern_nodes_tests:waits(1)) ++ "))\n",
     ok = file:write_file(Dir ++ "/signals.py", Python),
     ?assertEqual({0, <<"-15\n-1\n">>}, sh("python3 " ++ Dir ++ "/signals.py")).
 
@@ -1275,7 +1296,7 @@ signal_end() ->
 %% Its steps: the build, and for each of the five runs the wait for its
 %% line and its end.
 end_status_test_() ->
-    {timeout, waits(11), fun end_status/0}.
+    {timeout, ern_nodes_tests:waits(11), fun end_status/0}.
 
 end_status() ->
     Dir = "build/end_status",
@@ -1344,7 +1365,7 @@ end_status() ->
              "        p.stdout.close()\n"
              "    for s in signals:\n"
              "        p.send_signal(s)\n"
-             "    status = p.wait(timeout=" ++ integer_to_list(wait_seconds()) ++ ")\n"
+             "    status = p.wait(timeout=" ++ integer_to_list(ern_nodes_tests:waits(1)) ++ ")\n"
              "    cut = [re.sub(rb'^\\S+Z ', b'', line).decode()\n"
              "           for line in p.stderr.read().splitlines() if b'cut short' in line]\n"
              "    print(name, status, *cut)\n"
@@ -1372,7 +1393,7 @@ end_status() ->
 %% subscription is made before the end looks for it. Its steps: the build
 %% and the five runs.
 fault_before_its_end_test_() ->
-    {timeout, waits(6), fun fault_before_its_end/0}.
+    {timeout, ern_nodes_tests:waits(6), fun fault_before_its_end/0}.
 
 fault_before_its_end() ->
     Dir = "build/fault_before_its_end",
@@ -1416,7 +1437,7 @@ fault_before_its_end() ->
 %% restarted run's subscription was never told, and the end went on
 %% without it.
 restarted_subscriber_test_() ->
-    {timeout, waits(2), fun restarted_subscriber/0}.
+    {timeout, ern_nodes_tests:waits(2), fun restarted_subscriber/0}.
 
 restarted_subscriber() ->
     Dir = "build/restarted_subscriber",
@@ -1483,7 +1504,7 @@ restarted_subscriber() ->
 %% the worker's Down said so, and no line was written. Its steps:
 %% waiting_program/1's build and the run.
 fault_while_the_end_waits_test_() ->
-    {timeout, waits(2), fun fault_while_the_end_waits/0}.
+    {timeout, ern_nodes_tests:waits(2), fun fault_while_the_end_waits/0}.
 
 fault_while_the_end_waits() ->
     Dir = "build/fault_while_the_end_waits",
@@ -1509,7 +1530,7 @@ fault_while_the_end_waits() ->
 %% steps: waiting_program/1's build, the wait for main's line and the
 %% program's end.
 fault_while_a_termination_waits_test_() ->
-    {timeout, waits(3), fun fault_while_a_termination_waits/0}.
+    {timeout, ern_nodes_tests:waits(3), fun fault_while_a_termination_waits/0}.
 
 fault_while_a_termination_waits() ->
     Dir = "build/fault_while_a_termination_waits",
@@ -1523,7 +1544,7 @@ fault_while_a_termination_waits() ->
              "    p.send_signal(signal.SIGTERM)\n"
              "    rest = p.stdout.read()\n"
              "    sys.stdout.buffer.write(running + rest + b'%d\\n'"
-             " % p.wait(timeout=" ++ integer_to_list(wait_seconds()) ++ "))\n",
+             " % p.wait(timeout=" ++ integer_to_list(ern_nodes_tests:waits(1)) ++ "))\n",
     ok = file:write_file(Dir ++ "/terminated.py", Python),
     ?assertEqual({0, <<"running\nFault(\"division by zero\")\n-15\n">>},
                  sh("python3 " ++ Dir ++ "/terminated.py")),
@@ -1607,7 +1628,7 @@ unstamped_lines(Text) ->
 %% program's binding makes the atoms that bring the host there, as many as
 %% the host's own counts say. A regression test, written after the code.
 limits_line_test_() ->
-    {timeout, waits(2), fun limits_line/0}.
+    {timeout, ern_nodes_tests:waits(2), fun limits_line/0}.
 
 limits_line() ->
     Dir = "build/limits_line",
@@ -1635,20 +1656,20 @@ limits_line() ->
                               " its [0-9]+ atoms, which it never gives back\n$")).
 
 %% report §11: the host's termination ends a job that runs no program at
-%% once, by the signal, and the host prints nothing of its own. A
-%% regression test: a build given it stopped where it was, printed the
-%% host's report, and ended with status 0 as if it had built everything.
-%% The tree is large enough that the signal comes while it builds, once
-%% its first module is written, which the build's --verbose line says
-%% (report §11.1), read as it is written; standard error holds no line
-%% but the build's own. The build's end after the signal is one step of
-%% the harness's (wait_seconds/0), after which it is killed, so that one
-%% that does not end fails the test and is not left running. It does not
-%% cover a signal that comes as the host itself starts, which the host
-%% drops (docs/otp_bugs.md, report 2). Its steps: the build to its first
-%% module and its end.
+%% once, by the signal, and the host prints nothing of its own. A regression
+%% test: a build given it stopped where it was, printed the host's report,
+%% and ended with status 0 as if it had built everything. The tree is large
+%% enough that the signal comes while it builds, once its first module is
+%% written, which the build's --verbose line says (report §11.1), read as it
+%% is written; standard error holds no line but the build's own. The build's
+%% end after the signal is one step of the harness's
+%% (ern_nodes_tests:waits/1), after which it is killed, so that one that
+%% does not end fails the test and is not left running. It does not cover a
+%% signal that comes as the host itself starts, which the host drops
+%% (docs/otp_bugs.md, report 2). Its steps: the build to its first module
+%% and its end.
 job_signal_end_test_() ->
-    {timeout, waits(2), fun job_signal_end/0}.
+    {timeout, ern_nodes_tests:waits(2), fun job_signal_end/0}.
 
 job_signal_end() ->
     Dir = "build/job_signal_end",
@@ -1669,8 +1690,8 @@ job_signal_end() ->
              "        break\n"
              "p.send_signal(signal.SIGTERM)\n"
              "try:\n"
-             "    said += p.communicate(timeout=" ++ integer_to_list(wait_seconds()) ++ ")[1]"
-             ".splitlines(True)\n"
+             "    said += p.communicate(timeout="
+             ++ integer_to_list(ern_nodes_tests:waits(1)) ++ ")[1].splitlines(True)\n"
              "except subprocess.TimeoutExpired:\n"
              "    p.kill()\n"
              "    said += p.communicate()[1].splitlines(True)\n"
@@ -1682,7 +1703,7 @@ job_signal_end() ->
 
 %% report §4.2, §11.1: the two-module pair in directory mode
 modules_test_() ->
-    {timeout, waits(2), fun modules/0}.
+    {timeout, ern_nodes_tests:waits(2), fun modules/0}.
 
 modules() ->
     {0, _} = sh("../bin/ern build --build-root build/modules fixtures/programs/modules"),
@@ -1694,7 +1715,7 @@ modules() ->
 %% from the interface that carries the type. A regression test: the build
 %% ended with an internal error, its link holding no such type
 private_mailbox_shown_test_() ->
-    {timeout, waits(2), fun private_mailbox_shown/0}.
+    {timeout, ern_nodes_tests:waits(2), fun private_mailbox_shown/0}.
 
 private_mailbox_shown() ->
     {0, Output} = private_mailbox_printed("shown"),
@@ -1707,7 +1728,7 @@ private_mailbox_shown() ->
 %% regression test: the build ended with an internal error, as the shown
 %% program's did
 private_mailbox_exposed_test_() ->
-    {timeout, waits(2), fun private_mailbox_exposed/0}.
+    {timeout, ern_nodes_tests:waits(2), fun private_mailbox_exposed/0}.
 
 private_mailbox_exposed() ->
     {0, Output} = private_mailbox_printed("exposed"),
@@ -1723,7 +1744,7 @@ private_mailbox_exposed() ->
 %% does not cover a spawn that reaches a peer, which was run by hand on a
 %% bare node and has no test
 private_mailbox_spawned_test_() ->
-    {timeout, waits(2), fun private_mailbox_spawned/0}.
+    {timeout, ern_nodes_tests:waits(2), fun private_mailbox_spawned/0}.
 
 private_mailbox_spawned() ->
     ?assertEqual({0, <<"NotListed\n">>}, private_mailbox_printed("spawned")).
@@ -1745,7 +1766,7 @@ private_mailbox_printed(Name) ->
 %% the module that did not parse, which wrote nothing to standard output,
 %% and of `- x.ern`, which was refused as a missing file `-`.
 format_input_test_() ->
-    {timeout, waits(5), fun format_input/0}.
+    {timeout, ern_nodes_tests:waits(5), fun format_input/0}.
 
 format_input() ->
     Loose = "sh -c 'printf \"fn f(x) = x+1\\n\" | ../bin/ern format ",
@@ -1763,7 +1784,7 @@ format_input() ->
 %% and a diagnostic's source line came out as Latin-1 and escapes
 %%; the ports of MVP 2.95 had fixed it unseen
 locale_test_() ->
-    {timeout, waits(2), fun locale/0}.
+    {timeout, ern_nodes_tests:waits(2), fun locale/0}.
 
 locale() ->
     Source = <<"let s = \"caf", 16#C3, 16#A9, " ", 16#E2, 16#80, 16#A2, "\"\n">>,
@@ -1784,7 +1805,7 @@ locale() ->
 %% its encoding, to the catalog. A regression test, written after the code;
 %% it holds one example, and the catalog's others stay its own test's
 diagnostic_as_cataloged_test_() ->
-    {timeout, waits(1), fun diagnostic_as_cataloged/0}.
+    {timeout, ern_nodes_tests:waits(1), fun diagnostic_as_cataloged/0}.
 
 diagnostic_as_cataloged() ->
     {Code, Console} = catalog_example(<<"### A character outside the language (">>),
@@ -1841,35 +1862,21 @@ unstamped(Lines) ->
 %% the start of a host, which the builds here, which only ready what a test
 %% runs through the launcher, need not pay. The launcher's own build is
 %% tested where it is the point, a word it refuses and a directory's build.
+-spec build(string()) -> integer().
 build(Args) ->
     ern_cli:ern(["build" | string:lexemes(Args, " ")], group_leader()).
 
+%% A command run by the host's shell to its end: its status, and what it
+%% wrote, its standard error beside its standard output, Options given to
+%% its port beside.
+-spec sh(string()) -> {integer(), binary()}.
 sh(Command) ->
     sh(Command, []).
 
+-spec sh(string(), [term()]) -> {integer(), binary()}.
 sh(Command, Options) ->
     Shell = open_port({spawn, Command}, [exit_status, stderr_to_stdout, binary | Options]),
     collect(Shell, []).
-
-%% The harness's time for one wait in seconds, as `timeout` and python3
-%% take it: ern_nodes_tests:wait_ms/0, which bounds one step of a test's
-%% here as in the nodes tests, a wait for a line or for a program's end.
-wait_seconds() ->
-    ern_nodes_tests:wait_ms() div 1000.
-
-%% A test's limit in seconds: its Count steps, a build, a run or a wait on
-%% a program, each given the harness's time for one wait, as a nodes
-%% test's are counted (ern_nodes_tests:nodes_test/2), so that a step with
-%% a bound of its own that hangs is told by that bound before the test's
-%% limit runs out. A program the test writes gives a wait of its own the
-%% same time, wait_ms_text/0, which counts in the step of its run.
-waits(Count) ->
-    Count * wait_seconds().
-
-%% The harness's time for one wait in milliseconds, as a program the test
-%% writes gives it to a wait of its own.
-wait_ms_text() ->
-    integer_to_list(ern_nodes_tests:wait_ms()).
 
 %% A FIFO at Path, made anew: two sides of a test's command line meet at
 %% it, the one that reads it waiting until the other has written its line.
@@ -1882,9 +1889,11 @@ fifo(Path) ->
 %% output is printed before the test fails, since EUnit shows a value that
 %% does not match cut short, and a failure that comes under load alone may
 %% not come again.
+-spec succeed(string()) -> binary().
 succeed(Command) ->
     succeed(Command, []).
 
+-spec succeed(string(), [term()]) -> binary().
 succeed(Command, Options) ->
     case sh(Command, Options) of
         {0, Output} ->

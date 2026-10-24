@@ -6,7 +6,7 @@
 %% each machine listening on 8654, every node listing every other and a
 %% shell's directory on this machine that lists them all; `stop`; and
 %% `status`. `make bench-machines` reads the machines here too
-%% (ern_node_costs, ern_code_costs). Each step says what failed, naming the
+%% (ern_nodes_costs, ern_code_costs). Each step says what failed, naming the
 %% machine, and ends with status 1.
 -module(ern_machines).
 
@@ -212,13 +212,13 @@ side_by_side(Fun, Items) ->
                || Item <- Items],
     Answers = [receive
                    {Pid, Answer} -> erlang:demonitor(MonitorRef, [flush]), Answer;
-                   {'DOWN', MonitorRef, process, Pid, Reason} -> {crashed, Reason}
+                   {'DOWN', MonitorRef, process, Pid, ExitReason} -> {crashed, ExitReason}
                end || {Pid, MonitorRef} <- Workers],
     case [Text || {failed, Text} <- Answers] of
         [Text | _] -> ern_machine:fail(Text);
         [] -> [case Answer of
                    {ok, Value} -> Value;
-                   {crashed, Reason} -> erlang:error(Reason)
+                   {crashed, ExitReason} -> erlang:error(ExitReason)
                end || Answer <- Answers]
     end.
 
@@ -293,43 +293,25 @@ detached(Node) ->
                                                         ConfigDir, " >> ", Log,
                                                         " 2>&1 < /dev/null & echo $!"]))).
 
-%% Report §8.7: a node listens only once its initializers have their
-%% values, and where `listen` names a port says nothing of it, so what shows
-%% that it listens is that its port answers, asked from here until it does.
-%% A refusal comes at once, and the next ask waits as long as the node has
-%% been waited for so far, at least the host timer's millisecond, as the
-%% deployment tests' does (ern_deployment_tests:answering/1); at each
-%% refusal the node's process is asked after on its machine, and a node
-%% that has ended fails the start with what it wrote.
+%% Report §8.7: once the node's port answers (ern_machine:answering/4),
+%% the node's process asked after on its machine at each refusal, so that
+%% a node that has ended fails the start with what it wrote.
 answering(Node, Process) ->
-    Asked = erlang:monotonic_time(millisecond),
-    answering(Node, Process, Asked).
-
-answering(Node, Process, Asked) ->
     Machine = ern_machine_node:machine(Node),
-    case gen_tcp:connect(ern_machine:host(Machine), ?PORT, [], infinity) of
-        {ok, Socket} ->
-            gen_tcp:close(Socket);
-        {error, econnrefused} ->
-            case ern_machine:run(Machine, "kill -0 " ++ Process) of
-                {0, _} ->
-                    Now = erlang:monotonic_time(millisecond),
-                    receive after max(Now - Asked, 1) -> ok end,
-                    answering(Node, Process, Asked);
-                _ ->
-                    Log = ern_machine_node:config_dir(Node) ++ ".log",
-                    ern_machine:fail(io_lib:format(
-                                       "the node on ~s ended before it listened, saying: ~ts",
-                                       [ern_machine:name(Machine),
-                                        ern_machine:ran(Machine,
-                                                        "cat " ++ ern_machine:quoted(Log))]))
-            end;
-        {error, Error} ->
-            ern_machine:fail(io_lib:format("~s:~B, the node on ~s, cannot be reached from here:"
-                                           " ~s", [ern_machine:host(Machine), ?PORT,
-                                                   ern_machine:name(Machine),
-                                                   inet:format_error(Error)]))
-    end.
+    Refused = fun() ->
+                  case ern_machine:run(Machine, "kill -0 " ++ Process) of
+                      {0, _} ->
+                          ok;
+                      _ ->
+                          Log = ern_machine_node:config_dir(Node) ++ ".log",
+                          ern_machine:fail(
+                            io_lib:format("the node on ~s ended before it listened, saying: ~ts",
+                                          [ern_machine:name(Machine),
+                                           ern_machine:ran(Machine,
+                                                           "cat " ++ ern_machine:quoted(Log))]))
+                  end
+              end,
+    ern_machine:answering(ern_machine:host(Machine), ?PORT, infinity, Refused).
 
 %% Each machine's nodes stopped, and its directory of them removed, the
 %% files of their two streams among it.

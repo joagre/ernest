@@ -3,13 +3,12 @@
 // node `a`, in the directory the harness made: `a` and `b`, each made by
 // `ern config`, `a` listing `b` under the service `pair`; the build, and a
 // second build of this module whose `Msg` has another constructor; and
-// `pair.json`, which names the port `b` listens on, the load path `a` was
-// started with and each build's file. Each test writes `b`'s
-// `ernest.conf`, listing `a`, starts `b` with `Os`, on the same build or on
-// the second, waits for it to offer its service, finds it through
-// `Peer.find`, or through a proxy, and calls it where the find
-// answers it, and ends it with `ern stop`. Each wait is given the test's
-// time for one step (Harness.waitMs).
+// `pair.json`, which names the port `b` listens on and each build's file.
+// Each test writes `b`'s `ernest.conf`, listing `a`, starts `b` with `Os`,
+// on the same build or on the second, waits for it to offer its service,
+// finds it through `Peer.find`, or through a proxy, and calls it where the
+// find answers it, and ends it with `ern stop`. Each wait is given the
+// test's time for one step (Harness.waitMs).
 
 export type Msg = Double(n : Int, reply : Reply(Int))
 
@@ -101,7 +100,6 @@ fn proxyAgainst(build : String) : Either(String, #(String, String, String, Int))
 fn started(build : String) : Either(String, Address(Os.ProgramMsg)) = {
     let settings <- readJson(["pair.json"]);
     let port <- Either.andThen(member(settings, "port"), integer);
-    let loadPath <- Either.andThen(member(settings, "load-path"), texts);
     let file <- Either.andThen(member(settings, build), text);
     let first <- readJson(["a", "ernest.conf"]);
     let firstKey <- member(first, "public-key");
@@ -117,10 +115,9 @@ fn started(build : String) : Either(String, Address(Os.ProgramMsg)) = {
                                   #("public-key", secondKey),
                                   #("peers", Json.Array([peer]))]));
     let _ <- written(["b", "ernest.conf"], Json.format(conf));
-    let arguments = List.flatMap(loadPath, fn(directory) = ["--load-path", directory]);
     let program <-
         shown(Os.start(Os.Command(program = "ern",
-                                  arguments = ["run", "--config-dir", "b"] <> arguments <> [file],
+                                  arguments = ["run", "--config-dir", "b", file],
                                   input = <<>>)));
     let _ <- said(program, String.toUtf8("offered"), <<>>);
     Right(program)
@@ -161,17 +158,6 @@ fn text(value : Json.Value) : Either(String, String) =
     match value {
         Json.Text(found) -> Right(found)
       | other -> Left("not a string: " <> Io.show(other))
-    }
-
-fn texts(value : Json.Value) : Either(String, List(String)) =
-    match value {
-        Json.Array(values) ->
-            List.tryMap(values, fn(element) = match element {
-                Json.Text(text) -> Right(text)
-              | other -> Left("not a string: " <> Io.show(other))
-            })
-      | other ->
-            Left("not an array: " <> Io.show(other))
     }
 
 fn shown(either : Either(e, a)) : Either(String, a) needs e.show =

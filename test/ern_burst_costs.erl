@@ -1,11 +1,11 @@
-%% `make bench`'s fifth part (docs/development.md), beside
+%% `make bench`'s part `burst` (docs/development.md), beside
 %% ern_spawn_costs and ern_restarting_costs: what each element of a burst
 %% costs against the burst's size (report §6.9, §10, Appendix E.15; plan,
 %% MVP 3.27 item 3). What the runtime adds to an operation grows with
 %% nothing but the operation's own input (§10), so an element of a burst
 %% costs what it costs alone, however many stand beside it: an end reads
 %% the monitors of the process that ended, and a caller's end its own,
-%% each by its key (ern_rt's monitored/5, down/3); a delivery is noted by
+%% each by its key (ern_rt's monitored/6, down/3); a delivery is noted by
 %% its recipient (counted_link/2); and the clock forgets an alarm that
 %% fired by its timer alone (fired/2). The reaper's and the clock's
 %% bookkeeping grew with the burst until MVP 3.27 item 3 (the log's *The
@@ -23,7 +23,7 @@
 %% fire as the clock is set to it, until every alarm has fired. Each row
 %% is the median of seven runs, with their range, each run measuring every
 %% burst at every size once, in turn, so that what drifts over the runs
-%% falls on all, as ern_spawn_costs measures its rows. It measures and
+%% falls on all, as ern_costs measures a table's rows. It measures and
 %% asserts nothing, so it is not part of `make test-full`.
 -module(ern_burst_costs).
 
@@ -45,11 +45,11 @@ main([Directory]) ->
     Bursts = bursts(),
     Runs = [run(Bursts) || _ <- lists:seq(1, ?RUNS)],
     Text = unicode:characters_to_binary(
-             [ern_spawn_costs:table(Title,
-                                    [{row(Count, Elements),
-                                      [maps:get({Title, Count}, Run) || Run <- Runs]}
-                                     || Count <- ?COUNTS],
-                                    ratio)
+             [ern_costs:table(Title,
+                              [{row(Count, Elements),
+                                [maps:get({Title, Count}, Run) || Run <- Runs]}
+                               || Count <- ?COUNTS],
+                              ratio)
               || {Titles, Elements, _} <- Bursts, Title <- Titles]),
     io:format("~ts", [Text]),
     ok = file:write_file(filename:join(Directory, "burst.txt"), Text),
@@ -59,12 +59,12 @@ main([Directory]) ->
 %% measure in a launch, which gives each time and the count it is of.
 bursts() ->
     [{["one process monitoring processes that end, ns a process"],
-      "processes", ern_spawn_costs:launched(fun monitored_ends/1)},
+      "processes", ern_costs:launched(fun monitored_ends/1)},
      {["callers of one process that end, ns a caller"],
-      "callers", ern_spawn_costs:launched(fun callers_ending/1)},
+      "callers", ern_costs:launched(fun callers_ending/1)},
      {["deliveries in flight to one process, started, ns a delivery",
        "deliveries in flight to one process, delivered, ns a delivery"],
-      "deliveries", ern_spawn_costs:launched(fun deliveries/1)},
+      "deliveries", ern_costs:launched(fun deliveries/1)},
      {["one process's alarms firing at once, ns an alarm"],
       "alarms", fun alarms/1}].
 
@@ -93,10 +93,10 @@ monitored_ends(Count) ->
     ern_rt:timed(),
     Pids = returning(Count),
     [ern_rt:monitor(Pid, fun(_) -> ended end) || Pid <- Pids],
-    Measured = ern_spawn_costs:timed(Count, fun(_) ->
-                                                [Pid ! return || Pid <- Pids],
-                                                received(ended, Count)
-                                            end),
+    Measured = ern_costs:timed(Count, fun(_) ->
+                                          [Pid ! return || Pid <- Pids],
+                                          received(ended, Count)
+                                      end),
     ern_rt:untimed(),
     [Measured].
 
@@ -117,12 +117,12 @@ callers_ending(Count) ->
                || _ <- lists:seq(1, Count)],
     received(monitoring, Count),
     [erlang:monitor(process, Caller) || Caller <- Callers],
-    Measured = ern_spawn_costs:timed(Count, fun(_) ->
-                                                [Caller ! return || Caller <- Callers],
-                                                ends(Count),
-                                                _ = ern_rt:spawn(fun() -> 'Unit' end, ?SITE),
-                                                ok
-                                            end),
+    Measured = ern_costs:timed(Count, fun(_) ->
+                                          [Caller ! return || Caller <- Callers],
+                                          ern_costs:downs(Count),
+                                          _ = ern_rt:spawn(fun() -> 'Unit' end, ?SITE),
+                                          ok
+                                      end),
     Monitored ! return,
     ern_rt:untimed(),
     [Measured].
@@ -162,8 +162,8 @@ deliveries(Count) ->
 %% the alarms' time fires them all at once, with nothing chosen.
 alarms(Count) ->
     Time = atomics:new(1, []),
-    Measure = ern_spawn_costs:launched(fun(_) -> alarms_firing(Time, Count) end,
-                                       #{time => fun() -> atomics:get(Time, 1) end}),
+    Measure = ern_costs:launched(fun(_) -> alarms_firing(Time, Count) end,
+                                 #{time => fun() -> atomics:get(Time, 1) end}),
     Measure(Count).
 
 alarms_firing(Time, Count) ->
@@ -176,11 +176,11 @@ alarms_firing(Time, Count) ->
                                 end)
      || _ <- lists:seq(1, Count)],
     atomics:put(Time, 1, ?FARTHEST),
-    Measured = ern_spawn_costs:timed(Count, fun(_) ->
-                                                Clock ! {'CHANGE', make_ref(), time_offset,
-                                                         clock_service, 0},
-                                                received(fired, Count)
-                                            end),
+    Measured = ern_costs:timed(Count, fun(_) ->
+                                          Clock ! {'CHANGE', make_ref(), time_offset,
+                                                   clock_service, 0},
+                                          received(fired, Count)
+                                      end),
     ern_rt:untimed(),
     [Measured].
 
@@ -194,9 +194,3 @@ received(_, 0) ->
     ok;
 received(Message, Left) ->
     receive Message -> received(Message, Left - 1) end.
-
-%% Count of the host's 'DOWN' received.
-ends(0) ->
-    ok;
-ends(Left) ->
-    receive {'DOWN', _, process, _, _} -> ends(Left - 1) end.

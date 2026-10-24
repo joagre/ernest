@@ -11,8 +11,12 @@
 %% more than the noise against either reference is named with both
 %% numbers, under the reference, printed and written to moved.txt, which
 %% names the run's tables first, since a part's run writes it as the
-%% whole's does. A part that failed leaves no table, so the next run is
-%% compared with the one before it.
+%% whole's does. Beside them are named the rows that match none of the
+%% reference's, on either side, a table at once where none of its rows
+%% does, since a row whose words changed is compared with nothing, and
+%% the comparison says that no row moved only where every row matched. A
+%% part that failed leaves no table, so the next run is compared with the
+%% one before it.
 %%
 %% A file is the text a part of the bench writes: tables, a blank line
 %% between two, the first line of each its title, the others its rows. A
@@ -33,7 +37,7 @@
 %% a label, `10:`, is a word.
 -module(ern_last_run).
 
--export([main/1, kept/2, released/2, compared/2, moved/2, rows/1]).
+-export([main/1, kept/2, released/2, compared/2, moved/2, unmatched/2, rows/1]).
 
 %% How far a number moves between two runs of one part on this machine
 %% with nothing changed, a fifth (the log's *The Rows That Grew*).
@@ -116,50 +120,74 @@ made(Directory) ->
 
 %% The comparison's text: the run's tables, those of the list that are in
 %% Directory; and against each reference the rows of those it holds that
-%% moved, under their file and table's title, or that none did, and the
-%% tables it does not hold.
+%% moved, under their file and table's title, or that none did, the rows
+%% on either side that match none of the other's, and the tables it does
+%% not hold. A moved number is shown beside the reference's, named by its
+%% directory, `last` or `release`.
 -spec compared(string(), [string()]) -> iolist().
 compared(Directory, Tables) ->
     Written = written(Directory, Tables),
     [io_lib:format("The tables of this run: ~ts.~n", [lists:join(", ", Written)]),
-     against("the last run", filename:join(Directory, ?LAST), Directory, Written,
+     against({"the last run", ?LAST}, Directory, Written,
              "No last run of ~ts in ~s; the next run is compared with this one.~n"),
-     against("the release's run", filename:join(Directory, ?RELEASE), Directory, Written,
+     against({"the release's run", ?RELEASE}, Directory, Written,
              "No release's run of ~ts in ~s; make bench-release keeps this run's tables "
              "as the release's.~n")].
 
-against(Reference, Kept, Directory, Written, None) ->
+against({_, Name} = Reference, Directory, Written, UnheldFormat) ->
+    Kept = filename:join(Directory, Name),
     {Held, Unheld} = lists:partition(
                        fun(Table) -> filelib:is_regular(filename:join(Kept, Table)) end, Written),
     [compared_with(Reference, Kept, Directory, Held),
-     [io_lib:format(None, [lists:join(", ", Unheld), Kept]) || Unheld =/= []]].
+     [io_lib:format(UnheldFormat, [lists:join(", ", Unheld), Kept]) || Unheld =/= []]].
 
 compared_with(_, _, _, []) ->
     [];
-compared_with(Reference, Kept, Directory, Held) ->
-    Moved = [{Table, Blocks}
-             || Table <- Held,
-                Blocks <- [moved(read(filename:join(Kept, Table)),
-                                 read(filename:join(Directory, Table)))],
-                Blocks =/= []],
-    case Moved of
-        [] ->
-            io_lib:format("No row moved by more than a fifth since ~s, in ~s.~n",
-                          [Reference, Kept]);
-        _ ->
-            [io_lib:format("Moved by more than a fifth since ~s, in ~s:~n", [Reference, Kept]),
-             [moved_text(Table, Blocks) || {Table, Blocks} <- Moved]]
-    end.
+compared_with({Reference, Name}, Kept, Directory, Held) ->
+    Read = [{Table, read(filename:join(Kept, Table)), read(filename:join(Directory, Table))}
+            || Table <- Held],
+    Moved = [{Table, Blocks} || {Table, Before, Now} <- Read,
+                                Blocks <- [moved(Before, Now)], Blocks =/= []],
+    Unmatched = [{Table, unmatched(Before, Now)} || {Table, Before, Now} <- Read],
+    NowRows = [{Table, Rows} || {Table, {Rows, _}} <- Unmatched, Rows =/= []],
+    KeptRows = [{Table, Rows} || {Table, {_, Rows}} <- Unmatched, Rows =/= []],
+    [case {Moved, NowRows ++ KeptRows} of
+         {[], []} ->
+             io_lib:format("No row moved by more than a fifth since ~s, in ~s.~n",
+                           [Reference, Kept]);
+         {[], _} ->
+             io_lib:format("No matched row moved by more than a fifth since ~s, in ~s.~n",
+                           [Reference, Kept]);
+         _ ->
+             [io_lib:format("Moved by more than a fifth since ~s, in ~s:~n", [Reference, Kept]),
+              [moved_text(Name, Table, Blocks) || {Table, Blocks} <- Moved]]
+     end,
+     unmatched_text(io_lib:format("This run's rows that match no row of ~s, in ~s:~n",
+                                  [Reference, Kept]), NowRows),
+     unmatched_text(io_lib:format("The rows of ~s that match no row of this run, in ~s:~n",
+                                  [Reference, Kept]), KeptRows)].
 
 read(Path) ->
     {ok, Text} = file:read_file(Path),
     unicode:characters_to_list(Text).
 
-moved_text(Table, Blocks) ->
+moved_text(Name, Table, Blocks) ->
     [[io_lib:format("~ts: ~ts~n", [Table, Title]),
-      [io_lib:format("  ~ts: last ~ts, now ~ts, ~ts~n", [Name, Before, Now, change(Old, New)])
-       || {Name, {Old, Before}, {New, Now}} <- Moved]]
+      [io_lib:format("  ~ts: ~s ~ts, now ~ts, ~ts~n",
+                     [Number, Name, Before, Now, change(Old, New)])
+       || {Number, {Old, Before}, {New, Now}} <- Moved]]
      || {Title, Moved} <- Blocks].
+
+unmatched_text(_, []) ->
+    [];
+unmatched_text(Heading, Unmatched) ->
+    [Heading,
+     [[io_lib:format("~ts: ~ts~n", [Table, Title]),
+       case Rows of
+           every -> "  every row\n";
+           _ -> [io_lib:format("  ~ts~n", [Row]) || Row <- Rows]
+       end]
+      || {Table, Tables} <- Unmatched, {Title, Rows} <- Tables]].
 
 change(Old, _) when Old == 0 -> "from none";
 change(Old, New) -> io_lib:format("~s~B%", [[$+ || New >= Old], round((New - Old) * 100 / Old)]).
@@ -170,9 +198,9 @@ change(Old, New) -> io_lib:format("~s~B%", [[$+ || New >= Old], round((New - Old
 -spec moved(string(), string()) ->
           [{string(), [{string(), {number(), string()}, {number(), string()}}]}].
 moved(Before, Now) ->
-    Last = maps:from_list([{Key, Values} || {Key, _, Values} <- rows(Before)]),
+    Last = maps:from_list([{Key, Values} || {Key, _, Values, _} <- rows(Before)]),
     joined([{Title, Moved}
-            || {Key, Title, Values} <- rows(Now),
+            || {Key, Title, Values, _} <- rows(Now),
                {ok, LastValues} <- [maps:find(Key, Last)],
                Moved <- [moved_values(LastValues, Values)], Moved =/= []]).
 
@@ -189,12 +217,45 @@ joined([{Title, Moved}, {Title, More} | Rest]) -> joined([{Title, Moved ++ More}
 joined([Block | Rest]) -> [Block | joined(Rest)];
 joined([]) -> [].
 
+%% The rows of the text Now that match no row of the text Before, and the
+%% rows of Before that match none of Now, each side's under their table's
+%% title, as the row reads, or `every` where no row of the table matches;
+%% a row that compares no number, which nothing would compare, is left
+%% out.
+-spec unmatched(string(), string()) ->
+          {[{string(), every | [string()]}], [{string(), every | [string()]}]}.
+unmatched(Before, Now) ->
+    BeforeRows = compared_rows(Before),
+    NowRows = compared_rows(Now),
+    {unmatched_rows(NowRows, BeforeRows), unmatched_rows(BeforeRows, NowRows)}.
+
+compared_rows(Text) ->
+    [Row || {_, _, Values, _} = Row <- rows(Text), Values =/= []].
+
+unmatched_rows(Rows, Others) ->
+    Keys = maps:from_list([{Key, true} || {Key, _, _, _} <- Others]),
+    [{Title, case length(Unmatched) =:= length(Table) of
+                 true -> every;
+                 false -> Unmatched
+             end}
+     || {Title, Table} <- tables(Rows),
+        Unmatched <- [[Text || {Key, _, _, Text} <- Table, not maps:is_key(Key, Keys)]],
+        Unmatched =/= []].
+
+%% The rows by their table's title, each table once, in the text's order.
+tables([{_, Title, _, _} | _] = Rows) ->
+    {Table, Rest} = lists:splitwith(fun({_, Other, _, _}) -> Other =:= Title end, Rows),
+    [{Title, Table} | tables(Rest)];
+tables([]) ->
+    [].
+
 %% Each row of the text: its key, its table's title and shape, its own
 %% shape with its place among the rows of that shape in the table, and
-%% whether the table is compared by its ratios; the title as it reads; and
-%% its numbers compared, each in its unit's base, as it reads, and named.
+%% whether the table is compared by its ratios; the title as it reads; its
+%% numbers compared, each in its unit's base, as it reads, and named; and
+%% the row as it reads, after the row above it where it is indented.
 -spec rows(string()) -> [{{string(), string(), pos_integer(), ratios | numbers}, string(),
-                          [{number(), string(), string()}]}].
+                          [{number(), string(), string()}], string()}].
 rows(Text) ->
     lists:append([table_rows(Block) || Block <- blocks(string:split(Text, "\n", all), [], [])]).
 
@@ -216,13 +277,13 @@ blocks([Line | Lines], Block, Blocks) ->
 
 table_rows([{_, Title} | Rows]) ->
     TitleShape = shape(items(Title)),
-    Items = [{Indented, items(Words)} || {Indented, Words} <- Rows],
-    Compared = case lists:any(fun({_, Row}) -> lists:keymember(ratio, 1, Row) end, Items) of
+    Items = [{Indented, items(Words), Words} || {Indented, Words} <- Rows],
+    Compared = case lists:any(fun({_, Row, _}) -> lists:keymember(ratio, 1, Row) end, Items) of
                    true -> ratios;
                    false -> numbers
                end,
     {Read, _} = lists:mapfoldl(
-                  fun({Indented, Row}, {Seen, Above}) ->
+                  fun({Indented, Row, Words}, {Seen, Above}) ->
                           Shape = shape(Row),
                           Place = maps:get(Shape, Seen, 0) + 1,
                           Parent = case Indented of
@@ -235,7 +296,8 @@ table_rows([{_, Title} | Rows]) ->
                                                        Name =/= ""]
                                  end,
                           {{{TitleShape, Shape, Place, Compared}, string:join(Title, " "),
-                            compared_numbers(Compared, Parent, Row)},
+                            compared_numbers(Compared, Parent, Row),
+                            lists:flatten(lists:join(", ", Parent ++ [string:join(Words, " ")]))},
                            {Seen#{Shape => Place}, Next}}
                   end, {#{}, []}, Items),
     Read.

@@ -28,11 +28,8 @@ manual_pages() ->
              ++ ".3ern" || Module <- Modules]
         ++ ["../build/stdlib/Ernest.Prelude.3ern"],
     ?assertEqual([], [Page || Page <- Pages, not filelib:is_regular(Page)]),
-    0 = ern_integration_tests:build("--load-path ../build/libs/markdown "
-                                    "--load-path ../build/libs/ansi "
-                                    "--build-root build/tools ../tools"),
-    Output = ern_integration_tests:succeed("../bin/ern run --load-path ../build/libs/markdown"
-                                           " --load-path ../build/libs/ansi build/tools/manual.erc "
+    0 = ern_integration_tests:build("--build-root build/tools ../tools"),
+    Output = ern_integration_tests:succeed("../bin/ern run build/tools/manual.erc "
                                            "../report/toolchain.md 9.9.9 ../build/stdlib"),
     ok = file:write_file("build/ern.1", Output),
     Lines = binary:split(Output, <<"\n">>, [global, trim]),
@@ -47,10 +44,11 @@ manual_pages() ->
                   <<"SEE ALSO">>],
                  [Section || {<<".SH">>, Section} <- Pairs]),
     [_, Synopsis | _] = binary:split(Output, [<<"SYNOPSIS">>, <<"DESCRIPTION">>], [global]),
-    %% each job's usage once: a regression test, `ern build` stood twice
+    %% each job's usage once, `ern config`'s beginning with the
+    %% `--config-dir` it requires: a regression test, `ern build` stood twice
     ?assertEqual([], [Job || Job <- ["build", "run", "test", "shell", "config", "doc", "format"],
                              length(binary:matches(Synopsis,
-                                                   iolist_to_binary(["\\fBern ", Job, " ["])))
+                                                   iolist_to_binary(["\\fBern ", Job, " "])))
                                  =/= 1]),
     ?assertMatch({_, _}, binary:match(Output, <<".SH\nDESCRIPTION\n.PP\n"
                                                 "The toolchain is one command, \\fBern\\fR, ">>)),

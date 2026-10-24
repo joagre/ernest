@@ -1,5 +1,5 @@
 %% The counter of test/fixtures/bench/counter.ern as Erlang writes it, for
-%% `make bench` (test/ern_program_costs.erl): a counter process with a
+%% `make bench` (test/ern_programs_costs.erl): a counter process with a
 %% receive loop, callers that each make their calls of it as gen:do_call/4
 %% makes one, a monitor that is the reply's alias and a receive with an
 %% `after`, and the total it came to once every caller has ended.
@@ -11,18 +11,18 @@
 %% the counter came to.
 -spec run(pos_integer(), non_neg_integer()) -> integer().
 run(Callers, Calls) ->
-    Counter = spawn(fun() -> count(0) end),
+    Counter = spawn(fun() -> serve(0) end),
     [spawn_monitor(fun() -> call(Counter, Calls) end) || _ <- lists:seq(1, Callers)],
     await_callers(Callers),
     Total = added(Counter, 0, infinity),
     exit(Counter, kill),
     Total.
 
-count(Total) ->
+serve(Total) ->
     receive
         {add, Amount, Reply} ->
             Reply ! {Reply, Total + Amount},
-            count(Total + Amount)
+            serve(Total + Amount)
     end.
 
 call(_, 0) ->

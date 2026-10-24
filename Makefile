@@ -62,8 +62,11 @@ stdlib:
 # others, but libs/markdown, which writes its styles with libs/ansi (report
 # Appendix G.3) and is compiled after it, against it. A job waits on no
 # build it does not read, so that a make with nothing to do is as deep as
-# the builds' uses and no deeper (the log's *A Make With Nothing to Do*). A
-# library whose directory is gone has its build removed with it.
+# the builds' uses and no deeper (the log's *A Make With Nothing to Do*).
+# `libs` builds every library and then removes the build of one whose
+# directory is gone; `make` runs it among the jobs of `manual`, in the
+# make that builds the libraries the pages need, so that none is built
+# twice.
 LIBS = $(sort $(notdir $(patsubst %/,%,$(wildcard src/libs/*/))))
 LIB_BUILDS = $(LIBS:%=lib-%)
 libs: $(LIB_BUILDS)
@@ -107,16 +110,17 @@ $(LIBS:%=pages-%): pages-%:
 # pages in its SEE ALSO. make writes them, so that make install, which a
 # user may run as another, only copies. What they are made from is built
 # first: the trees, and libs/markdown, which lays a page out, and which
-# `ern doc --man` loads from build/libs/markdown. The shell is built
-# beside the pages, and every job runs side by side with those it does not
-# need. `ern doc` writes a page only where none is there or the one there
-# is older than what it is made from (report §11.4), and make writes ern(1)
-# likewise by its prerequisites, so that a make with nothing to do writes
-# none. ern(1) is made by a make of its own, which reads build/stdlib after
-# `ern doc` has written there. A page is written whole or not at all.
+# `ern doc --man` loads from build/libs/markdown. The shell and every
+# library are built beside the pages, and every job runs side by side with
+# those it does not need. `ern doc` writes a page only where none is there
+# or the one there is older than what it is made from (report §11.4), and
+# make writes ern(1) likewise by its prerequisites, so that a make with
+# nothing to do writes none. ern(1) is made by a make of its own, which
+# reads build/stdlib after `ern doc` has written there. A page is written
+# whole or not at all.
 MANUALS = manual-stdlib $(LIBS:%=manual-%)
 manual:
-	@$(MAKE) -s $(SIDE_BY_SIDE) -O shell tools $(MANUALS)
+	@$(MAKE) -s $(SIDE_BY_SIDE) -O libs shell tools $(MANUALS)
 	@$(MAKE) -s build/man/ern.1
 
 manual-stdlib: stdlib lib-markdown
@@ -220,16 +224,16 @@ unicode:
 # run first, with the jobs that start no host: EUnit gives a test with no
 # time of its own five seconds, which the load of the areas that start
 # hosts would take from them. Make starts those jobs in the order given, so
-# the longest come first. The
-# areas that start hosts then run one after another, each whatever the one
-# before it ended with: each runs its own tests side by side, as many at
-# once as the host has schedulers (test/Makefile), which is what the host
-# carries, and the six side by side ran six times as many, at a load of
-# about 117 on eight cores on 2026-10-13, where tests ran past their
-# limits. The tests of the applications run in parts, and in the full run
-# the modules under test/, are compiled first, once, so that no two parts
-# compile one module at once. A change runs its own area's target as it is
-# worked on (docs/development.md, *Building*).
+# the longest come first. The areas that start hosts then run one after
+# another, each whatever the one before it ended with: each runs its own
+# tests side by side, as many at once as the host has schedulers
+# (test/Makefile), which is what the host carries, and the areas run side
+# by side, six of them on 2026-10-13, ran six times as many, at a load of
+# about 117 on eight cores, where tests ran past their limits. The tests
+# of the applications run in parts, and in the full run the modules under
+# test/, are compiled first, once, so that no two parts compile one module
+# at once. A change runs its own area's target as it is worked on
+# (docs/development.md, *Building*).
 test: all
 	@for a in $(SPLIT_APPS); do $(MAKE) -s -C erl/$$a/src beams || exit 1; done
 	@$(MAKE) -s -j$(JOBS) -O -o all $(APP_JOBS) test-library test-docs
@@ -272,13 +276,13 @@ $(APP_PARTS): test-app-%:
 # The library's doc examples, the standard library's and the libraries',
 # with the libraries' own tests, each a case `ern test` runs over the
 # library's build, an example a program of its own (report §11.2, Appendix
-# E.0 shape rule 6): one line where every case passed, and all `ern test`
-# wrote where one did not.
+# E.0 shape rule 6): one line where every case passed and no case's
+# process faulted, and all `ern test` wrote where one did not.
 test-library: all
 	@out=$$(mktemp "$${TMPDIR:-/tmp}/ern_library_XXXXXX") || exit 1; \
 	  bin/ern test build/stdlib > "$$out" 2>&1; stdlib=$$?; \
 	  bin/ern test build/libs >> "$$out" 2>&1; libs=$$?; \
-	  if [ $$stdlib -eq 0 ] && [ $$libs -eq 0 ]; then \
+	  if [ $$stdlib -eq 0 ] && [ $$libs -eq 0 ] && ! grep -q ' faulted: ' "$$out"; then \
 	    echo "  All $$(grep -c ': passed$$' "$$out") cases of build/stdlib and build/libs passed."; \
 	    status=0; \
 	  else cat "$$out"; status=1; fi; \
@@ -345,11 +349,14 @@ bench: all
 	@$(MAKE) -C test bench
 
 # Each part of the benchmark alone, its tables alone compared (plan, MVP
-# 3.295): bench-core, bench-library and the rest, as test/Makefile names
-# them; make bench whole is the closing run before a commit that closes a
-# plan item.
-BENCH_PARTS = core library nodes code spawn restarting burst foreign call rules language programs
-$(addprefix bench-,$(BENCH_PARTS)): all
+# 3.295): bench-core, bench-library and the rest, as test/Makefile's
+# BENCH_PARTS names them. bench-machines runs the bench's two node parts
+# across the machines of test/machines/machines.txt (the log's *The
+# Machines*), and bench-pick the push's experiment across them (the log's
+# *The Numbers Across Machines*), with MEASURING, PEERS, INTERVALS, RUNS
+# and UTILIZATION as test/Makefile says, each machine checked against this
+# checkout first; both are run by hand, on the user's machines.
+bench-%: all
 	@$(MAKE) -C test $@
 
 # The last runs' tables kept as the release's, a table at a time, which every
@@ -357,19 +364,6 @@ $(addprefix bench-,$(BENCH_PARTS)): all
 # (docs/release_review.md), and so does a first run on a new machine.
 bench-release:
 	@$(MAKE) -C test bench-release
-
-# The bench's two node parts across the machines of
-# test/machines/machines.txt (the log's *The Machines*), each machine checked
-# against this checkout first; run by hand, on the user's machines.
-bench-machines: all
-	@$(MAKE) -C test bench-machines
-
-# The push's experiment across the machines of test/machines/machines.txt
-# (the log's *The Numbers Across Machines*), each machine checked against this checkout
-# first; run by hand, on the user's machines, with MEASURING, PEERS,
-# INTERVALS, RUNS and UTILIZATION as test/Makefile says.
-bench-pick: all
-	@$(MAKE) -C test bench-pick
 
 # The Emacs mode's tests (docs/design/emacs_mode.md). It is an editor and not
 # part of the toolchain, so a machine without Emacs skips them; they are
@@ -400,8 +394,9 @@ $(TYPING_PARTS): emacs-test-typing-%:
 clean:
 	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
 	@$(MAKE) -C test $@
-	@# every build product is under build/, which make writes again; a compiled
-	@# module beside its source, and a crash dump, are left wherever a run put them
+	@# every build product is under build/, which make writes again, but a
+	@# compiled module beside its source and a crash dump, which a run writes
+	@# where it runs, and which the find removes wherever they are
 	@rm -rf build $(EXEC)
 	@find . -path ./build -prune -o \( -name '*.erc' -o -name 'erl_crash.dump' \) -type f -print0 \
 	  | xargs -0 rm -f
@@ -512,8 +507,7 @@ EMACS_CORPUS = $(ERNEST_SOURCES:%=../../%)
         test test-full test-erl \
         test-programs $(PROGRAM_PARTS) test-library test-docs test-guide test-grammar \
         test-typed test-shell \
-        load service bench $(addprefix bench-,$(BENCH_PARTS)) bench-release bench-machines \
-        bench-pick \
+        load service bench bench-release \
         test-emacs $(APP_TESTS) $(APP_PARTS) $(EMACS_ALL) \
         clean clean-emacs \
         sections coverage golden xref contents format doc install uninstall release unicode \

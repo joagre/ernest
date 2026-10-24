@@ -1,5 +1,5 @@
 %% The ray tracer of test/fixtures/bench/raytracer.ern as Erlang writes it,
-%% for `make bench` (test/ern_program_costs.erl): the same scene, the same
+%% for `make bench` (test/ern_programs_costs.erl): the same scene, the same
 %% functions and the same order of operations, over records. A constant is
 %% a macro, which the host's compiler folds to a literal; the two
 %% directions of the picture that are computed, ahead and upward, are

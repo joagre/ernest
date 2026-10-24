@@ -2,7 +2,7 @@
 %% `ern_pty.py`: keys as they are pressed, nothing echoed, `Escape`
 %% delivered once no sequence can follow it, and line mode with echo
 %% restored when the program ends. Erlang cannot open a pseudo-terminal, so
-%% these tests drive one from outside. Plan, MVP 2.6.
+%% these tests drive one from outside.
 -module(ern_terminal_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -162,9 +162,9 @@ settings_kept() ->
     ?assertMatch({match, _}, re:run(Screen, "(^|[ \t])tostop([ \t;\r\n]|$)")),
     ?assertEqual(nomatch, re:run(Screen, "-tostop", [{capture, none}])).
 
-%% report §8.2, Appendix E.16, and MVP 2.5's manual check: the game is
-%% played by the arrows, `Escape` leaves, and the board's rows each start at
-%% the left, which full raw mode would have broken
+%% report §8.2, Appendix E.16: the game is played by the arrows, `Escape`
+%% leaves, and the board's rows each start at the left, which full raw mode
+%% would have broken
 snake_test_() ->
     {timeout, 60, fun snake/0}.
 

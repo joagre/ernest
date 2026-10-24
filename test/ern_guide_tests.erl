@@ -41,7 +41,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
--export([units/1, write_diagnostics/0]).
+-export([write_diagnostics/0]).
 
 -define(GUIDE, "../guide/language.md").
 -define(DIAGNOSTICS, "../docs/diagnostics.md").
@@ -133,7 +133,8 @@ guide_examples_test_() ->
 report_examples_test_() ->
     examples(?REPORT, "report").
 
-%% README.md: the front page's example compiles, as the guide's do
+%% README.md: the front page's counter prints what its console shows, and
+%% its refused program is refused as its console shows, as the guide's are
 readme_examples_test_() ->
     examples(?README, "readme").
 

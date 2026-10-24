@@ -1,4 +1,4 @@
-%% `make bench`'s fourth part (docs/development.md), MVP 3.2's costs on
+%% `make bench`'s part `code` (docs/development.md), MVP 3.2's costs on
 %% nodes of this machine (plan MVP 3.2 item 7): what a spawn and a compute
 %% cost whose code crosses to a peer that lacks it, a bare node's first
 %% among them, with what that first does in a fresh host, and the share of
@@ -79,7 +79,7 @@ main([Dir, File]) ->
 %% machines in turn.
 costs(Dir, Local, Placing) ->
     Machines = lists:uniq([Local | Placing]),
-    Loads = [{Machine, ern_machine:load(Machine)} || Machine <- Machines],
+    LoadAverages = [{Machine, ern_machine:load_average(Machine)} || Machine <- Machines],
     [ern_machine_node:cleared(Machine, ern_machine:directory(Machine, Dir))
      || Machine <- Machines],
     ok = filelib:ensure_path(Dir),
@@ -96,7 +96,7 @@ costs(Dir, Local, Placing) ->
     OnCarrier = maps:from_list([{"a", ern_machine_node:carrier_name(A)}
                                 | [{Name, ern_machine_node:carrier_name(Node)}
                                    || {Name, Node, _, _} <- Ported]]),
-    header(Local, Placing, Loads, Ported),
+    header(Local, Placing, LoadAverages, Ported),
     io:format("each a median of ~B runs, with their range~n", [?RUNS]),
     crossing_table(Lines),
     cold_table(hd(Placing)),
@@ -107,10 +107,10 @@ costs(Dir, Local, Placing) ->
     sizes_table(Lines, New).
 
 %% Where the nodes ran, and each machine's load average before the run.
-header(Local, [Local], [{_, {Load, Processors}}], _) ->
+header(Local, [Local], [{_, {LoadAverage, Processors}}], _) ->
     io:format("MVP 3.2's costs, on nodes of this machine, the load average before ~s on ~s"
-              " processors~n", [Load, Processors]);
-header(Local, Placing, Loads, Ported) ->
+              " processors~n", [LoadAverage, Processors]);
+header(Local, Placing, LoadAverages, Ported) ->
     io:format("MVP 3.2's costs, measured from ~s, on nodes of ~s:~n",
               [ern_machine:name(Local), lists:join(" and ", [ern_machine:name(Machine)
                                                             || Machine <- Placing])]),
@@ -121,8 +121,9 @@ header(Local, Placing, Loads, Ported) ->
      || Machine <- Placing],
     io:format("the load averages before: ~s~n",
               [lists:join(", ", [io_lib:format("~s ~s on ~s processors",
-                                               [ern_machine:name(Machine), Load, Processors])
-                                 || {Machine, {Load, Processors}} <- Loads])]).
+                                               [ern_machine:name(Machine), LoadAverage,
+                                                Processors])
+                                 || {Machine, {LoadAverage, Processors}} <- LoadAverages])]).
 
 %%
 %% The programs
@@ -819,7 +820,7 @@ shares(Scenario, Label, Lines) ->
       definitions => Received,
       frames => length(CodeFrames),
       bytes => lists:sum([list_to_integer(Bytes) + list_to_integer(Sources)
-                          || {_, ["code_frame", _, Bytes, _, Sources]} <- CodeFrames])}.
+                          || {_, ["code_frame", _, Bytes, Sources]} <- CodeFrames])}.
 
 step([Time, Kind, Function | Extra]) ->
     {list_to_integer(Time), list_to_atom(Kind), Function, Extra}.

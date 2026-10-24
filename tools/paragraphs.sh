@@ -4,8 +4,9 @@
 # hide (CLAUDE.md, *Writing*): path, line, words and the paragraph's first
 # words. A list, not a limit: a paragraph that holds one thing stays whole.
 # A list item is a paragraph of its own, which ends at the next item, at a
-# blank line or where its indentation ends. The log, the proposals and the
-# generated pages are left out.
+# blank line or where its indentation ends. A heading, a table row or an
+# HTML line is no prose, after an item as anywhere. The log, the proposals
+# and the generated pages are left out.
 cd "$(dirname "$0")/.." || exit 1
 git ls-files -- '*.md' ':!docs/log.md' ':!docs/proposals/' ':!docs/man/' |
 while read -r file; do
@@ -25,7 +26,8 @@ while read -r file; do
                 skip = ($0 ~ /^(#|\||<)/)
                 indent = match($0, /[^ \t]/) - 1
             } else if (item && match($0, /[^ \t]/) - 1 <= indent) {
-                flush(); item = 0; start = NR; first = $0; skip = 0
+                flush(); item = 0; start = NR; first = $0
+                skip = ($0 ~ /^(#|\||<)/)
             }
             words += NF
         }

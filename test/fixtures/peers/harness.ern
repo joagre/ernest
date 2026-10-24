@@ -1,8 +1,20 @@
+// The times these programs wait by, each the number
+// test/ern_nodes_tests.erl holds, which a test holds equal to it.
+
 // Report §8.7: the milliseconds each find, spawn, compute, call and
 // utilization of these programs waits, and each read and write of a file:
 // the time test/ern_nodes_tests.erl gives one step of a test's, its
 // wait_ms/0, which an answer later than it has failed, whichever says so
-// first, the answer's time or the test. A test holds the two equal.
-
+// first, the answer's time or the test.
 export fn waitMs() : Int =
     30000
+
+// Report §8.7: the milliseconds after which the host gives up a dial that
+// nothing answers.
+export fn dialMs() : Int =
+    7000
+
+// Report §8.7: the milliseconds after the last traffic within which the
+// detector finds a silent peer.
+export fn detectorMs() : Int =
+    75000

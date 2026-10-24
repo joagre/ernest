@@ -8,6 +8,8 @@ Ernest 0.4.0-dev. :help for the commands, :quit to leave.
   | - the left operand has type Int
   |     ^^^
 > fault: division by zero
+    erlang:'div'/2
+    input 6:1
 > side effect
 > x : Int
 > 42 : Int
@@ -63,7 +65,7 @@ zero : () -> Int
 > Io.show : (a) -> String needs a.show
 > depth 10
 length 100
-output 5
+rows 5
 timing off
 > > > [[..., ...], [...]] : List(List(List(Int)))
 > > > [1, 2, ...] : List(Int)
@@ -127,12 +129,12 @@ zero : () -> Int
   :processes      the live processes of the session, by spawn site
   :quit           the session ended, as C-d on an empty line ends it
   :reload         every loaded module whose source has changed
-  :set            depth n, length n, output n, timing on or off; :set alone shows them
+  :set            depth n, length n, rows n, timing on or off; :set alone shows them
   :type e         the type of e, which is not run
 The value of the last expression is `it`.
 > output goes to /tmp/ern-output-test.log
 > > output goes to /tmp/ern-output-test.log
-> output goes to the live region
+> output goes to standard output
 > to the tail
 > cannot write to nosuchdir/x.log: its directory is not there
 > 

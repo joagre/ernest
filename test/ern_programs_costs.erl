@@ -1,15 +1,15 @@
-%% `make bench`'s part for three programs written twice (docs/development.md;
-%% plan, MVP 3.29): the same algorithm in Ernest and in Erlang by hand, each
-%% a ratio of the Ernest program's time over the Erlang's. The programs are
-%% under test/fixtures/bench/, each Ernest module beside its twin: the ray
-%% tracer of ernest-epx's examples, its pure half, raytracer.ern and
-%% ern_raytracer_twin.erl, floats and records; the lexer, the parser and
-%% the evaluator of examples/repl.ern over a fixed input, parser.ern and
-%% ern_parser_twin.erl, strings and matching; and the guide's counter with
-%% its callers, counter.ern and ern_counter_twin.erl, processes and calls.
-%% An Ernest module is compiled from source as `ern build` compiles it; a
-%% twin by erlc, into the bench's twins/ directory, as `make bench` builds
-%% them.
+%% `make bench`'s part `programs`, three programs written twice
+%% (docs/development.md; plan, MVP 3.29): the same algorithm in Ernest and
+%% in Erlang by hand, each a ratio of the Ernest program's time over the
+%% Erlang's. The programs are under test/fixtures/bench/, each Ernest module
+%% beside its twin: the ray tracer of ernest-epx's examples, its pure half,
+%% raytracer.ern and ern_raytracer_twin.erl, floats and records; the lexer,
+%% the parser and the evaluator of examples/repl.ern over a fixed input,
+%% parser.ern and ern_parser_twin.erl, strings and matching; and the guide's
+%% counter with its callers, counter.ern and ern_counter_twin.erl, processes
+%% and calls. An Ernest module is compiled from source as `ern build`
+%% compiles it; a twin by erlc, into the bench's twins/ directory, as `make
+%% bench` builds them.
 %%
 %% Measured, in programs.txt: a row for each program, the twin's run and
 %% the Ernest program's, each timed in its own process from the call of the
@@ -22,7 +22,7 @@
 %% in turn, the twin first, and each row is the median of three runs, in
 %% milliseconds a run, with the ratio and the two ranges. It measures and
 %% asserts nothing but that, so it is not part of `make test-full`.
--module(ern_program_costs).
+-module(ern_programs_costs).
 
 -export([main/1]).
 
@@ -39,22 +39,21 @@
 main([Directory]) ->
     true = code:add_patha(filename:join(Directory, "twins")),
     Lines = lists:append(lists:duplicate(?COPIES, lines())),
-    Programs =
-        [{io_lib:format("the ray tracer, 400 by 300 pixels, two rays a pixel", []),
-          {ern_raytracer_twin, render, fun() -> [] end},
-          {'Raytracer', render, fun() -> [] end}},
+    Raytracer = compiled({'Raytracer', render, fun() -> [] end}),
+    Loaded =
+        [{pictured(Raytracer), {ern_raytracer_twin, render, fun() -> [] end}, Raytracer},
          {io_lib:format("the parser, ~B lines of expressions read ~B times",
                         [length(lines()), ?COPIES]),
           {ern_parser_twin, run, fun() -> [copied(Lines)] end},
-          {'Parser', run, fun() -> [copied(Lines)] end}},
+          compiled({'Parser', run, fun() -> [copied(Lines)] end})},
          {io_lib:format("the counter, ~B callers of ~B calls each", [?CALLERS, ?CALLS]),
           {ern_counter_twin, run, fun() -> [?CALLERS, ?CALLS] end},
-          {'Counter', run, fun() -> [?CALLERS, ?CALLS] end}}],
-    Loaded = [{lists:flatten(Name), Twin, compiled(Ernest)} || {Name, Twin, Ernest} <- Programs],
+          compiled({'Counter', run, fun() -> [?CALLERS, ?CALLS] end})}],
     Runs = [[run(Program) || Program <- Loaded] || _ <- lists:seq(1, ?RUNS)],
-    Measured = [{Name, [lists:nth(Index, Run) || Run <- Runs]}
+    Measured = [{lists:flatten(Name), [lists:nth(Index, Run) || Run <- Runs]}
                 || {Index, {Name, _, _}} <- lists:enumerate(Loaded)],
-    Text = unicode:characters_to_binary(table(Measured)),
+    Text = unicode:characters_to_binary(
+             ern_costs:twin_table("three programs written twice, ms a run", Measured)),
     io:format("~ts", [Text]),
     ok = file:write_file(filename:join(Directory, "programs.txt"), Text),
     halt(0).
@@ -64,9 +63,24 @@ main([Directory]) ->
 compiled({Name, Function, Arguments}) ->
     Source = filename:join("fixtures/bench", string:lowercase(atom_to_list(Name)) ++ ".ern"),
     {ok, Text} = file:read_file(Source),
-    Unit = ern_foreign_costs:compiled([Name], Text),
+    Unit = ern_costs:compiled([Name], Text),
     {UnitFunction, Arity} = ern_code:function(Unit, [Name, Function]),
     {Unit, erlang:make_fun(Unit, UnitFunction, Arity), Arguments}.
+
+%% The ray tracer's row as its module's lets give the picture, read in a
+%% launch once its initializers have run: its width and height in pixels,
+%% and its rays a pixel.
+pictured({Unit, _, _}) ->
+    Read = fun(Name) ->
+               {Function, 0} = ern_code:function(Unit, ['Raytracer', Name]),
+               Unit:Function()
+           end,
+    Measure = fun(_) ->
+                  ok = Unit:'$init'(),
+                  [Read(Name) || Name <- [width, height, rays]]
+              end,
+    io_lib:format("the ray tracer, ~B by ~B pixels, ~B rays a pixel",
+                  (ern_costs:launched(Measure))(1)).
 
 %% One run of a program: the twin's and then the Ernest program's, each in
 %% milliseconds, their answers the same.
@@ -98,7 +112,7 @@ ernest_run({Unit, Called, Arguments}) ->
                   _ = erlang:function_exported(Unit, '$init', 0) andalso Unit:'$init'(),
                   timed(Called, Arguments())
               end,
-    (ern_spawn_costs:launched(Measure))(1).
+    (ern_costs:launched(Measure))(1).
 
 timed(Called, Arguments) ->
     Started = erlang:monotonic_time(nanosecond),
@@ -132,26 +146,3 @@ named_lines(Index) ->
                  "100 / (" ++ Name ++ " - " ++ Name ++ ")",
                  "unknown" ++ Name ++ " + 1",
                  Wrong]].
-
-%%
-%% The table
-%%
-
-%% The table: each program's two medians, their ratio, and their ranges.
-table(Measured) ->
-    Title = "three programs written twice, ms a run",
-    Width = lists:max([string:length(Title) | [string:length(Name) || {Name, _} <- Measured]]),
-    Lines = [begin
-                 {Twin, TwinLow, TwinHigh} = median_range([T || {T, _} <- Runs]),
-                 {Ernest, ErnestLow, ErnestHigh} = median_range([E || {_, E} <- Runs]),
-                 io_lib:format("~ts ~8.1f ~8.1f ~6.2fx   ~.1f to ~.1f, ~.1f to ~.1f~n",
-                               [string:pad(Name, Width), Twin, Ernest, Ernest / Twin,
-                                TwinLow, TwinHigh, ErnestLow, ErnestHigh])
-             end || {Name, Runs} <- Measured],
-    [io_lib:format("~ts ~8s ~8s ~7s   ~s~n",
-                   [string:pad(Title, Width), "Erlang", "Ernest", "ratio", "ranges"]),
-     Lines, "\n"].
-
-median_range(Values) ->
-    Sorted = lists:sort(Values),
-    {lists:nth(length(Sorted) div 2 + 1, Sorted), hd(Sorted), lists:last(Sorted)}.

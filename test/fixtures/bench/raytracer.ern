@@ -1,6 +1,6 @@
 //
 // The ray tracer of ernest-epx's examples/raytracer.ern, its pure half, for
-// `make bench` (test/ern_program_costs.erl): the Boing ball above a mirror
+// `make bench` (test/ern_programs_costs.erl): the Boing ball above a mirror
 // floor, each row of the picture traced a pixel at a time into its bytes,
 // as the example traces it before it writes the row into its pixmap.
 // Nothing here opens a window or writes a pixmap, so that the bench needs

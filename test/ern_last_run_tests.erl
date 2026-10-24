@@ -58,6 +58,15 @@
         "  callForever                     3800.0  3600.0 to 4000.0    1.90x\n"
         "a note beside it                   300.0   270.0 to  330.0\n").
 
+%% A part's table whose ratio was printed with no `x`, `5.0`, and the run
+%% after, which prints it `9.00x`.
+-define(PLAIN_BEFORE,
+        "ns an iteration   Ernest   Erlang   ratio\n"
+        "a fault, depth 8  111.6    3.3    5.0\n").
+-define(PLAIN_NOW,
+        "ns an iteration   Ernest   Erlang   ratio\n"
+        "a fault, depth 8  111.6    3.3    9.00x\n").
+
 %% test/ern_last_run.erl: in a table with no ratio, a row whose number
 %% moved by more than a fifth is named with both numbers, under its table's
 %% title; a row named by a number is matched by its place among the rows
@@ -85,7 +94,7 @@ ratio_test() ->
 %% it, a fraction among the words kept, and an indented row after the row
 %% above it; a number among a row's words is compared too, and never moves
 read_test() ->
-    [_, _, _, _, _, {_, _, Values}] = ern_last_run:rows(?NOW),
+    [_, _, _, _, _, {_, _, Values, _}] = ern_last_run:rows(?NOW),
     ?assertEqual([{1100.0, "1.1 us", "+ the row"}], Values),
     ?assertEqual([], ern_last_run:rows("Load average 1.72 on 8 processors.\n"
                                        "Load average 0.10 on 8 processors.\n")),
@@ -94,11 +103,11 @@ read_test() ->
              "a fault, depth 8  111.6    3.3    34.13x\n"
              "  beneath 40      101.6    3.4    30.01x\n",
     ?assertEqual([{"a fault, depth 8", "34.13x"}, {"a fault, depth 8, beneath 40", "30.01x"}],
-                 [{Name, Text} || {_, _, Read} <- ern_last_run:rows(Ratios),
+                 [{Name, Text} || {_, _, Read, _} <- ern_last_run:rows(Ratios),
                                   {_, Text, Name} <- Read]),
     Model = "a model\n+ the row as MVP 3.1 wrote it  1500.0  1400.0 to 1600.0\n",
     ?assertEqual(["+ the row as MVP", "+ the row as MVP 3.1 wrote it"],
-                 [Name || {_, _, Read} <- ern_last_run:rows(Model), {_, _, Name} <- Read]).
+                 [Name || {_, _, Read, _} <- ern_last_run:rows(Model), {_, _, Name} <- Read]).
 
 %% test/ern_last_run.erl: as a run begins each table the run before wrote
 %% is kept in `last/`, and one it did not write is not; at its end the
@@ -181,7 +190,8 @@ part_comparison_test() ->
 %% test/ern_last_run.erl: the release's run is kept by hand, copied a table
 %% at a time, each table a run wrote and only those, the rest of `release/`
 %% staying; a run is then compared with it as with the last, each row that
-%% moved named under its reference
+%% moved named under its reference, its number beside the reference's
+%% named `last` or `release`
 release_test() ->
     in_directory(
       fun(Directory) ->
@@ -213,11 +223,55 @@ release_test() ->
                            "Moved by more than a fifth since the release's run, in " ++ Release
                            ++ ":\n"
                            "spawn.txt: the spawn, ns an iteration median range\n"
-                           "  Ernest's spawn: last 5000.0, now 6500.0, +30%\n"
-                           "  5000 processes: last 1500.0, now 900.0, -40%\n"
+                           "  Ernest's spawn: release 5000.0, now 6500.0, +30%\n"
+                           "  5000 processes: release 1500.0, now 900.0, -40%\n"
                            "call.txt: the call, ns a call median range\n"
-                           "  Address.call, callForever: last 1.50x, now 1.90x, +27%\n",
+                           "  Address.call, callForever: release 1.50x, now 1.90x, +27%\n",
                            text(ern_last_run:compared(Directory, Tables)))
+      end).
+
+%% test/ern_last_run.erl: a row whose words changed matches no row of the
+%% other run and is named on its side, as it reads, an indented row after
+%% the row above it, and a table none of whose rows match is named once,
+%% here a ratio printed `5.0` and then `9.00x`, which turns its table from
+%% its numbers to its ratios; a row that compares no number is not named.
+%% Written 2026-10-24 with the fix, after the comparison had said that no
+%% row moved where no row matched; the tables the parts write are not read
+unmatched_test() ->
+    Renamed = string:replace(?RATIOS_NOW, "  callForever", "  callForeverAgain"),
+    ?assertEqual({[{"the call, ns a call median range",
+                    ["Address.call, callForeverAgain 3800.0 3600.0 to 4000.0 1.90x"]}],
+                  [{"the call, ns a call median range",
+                    ["Address.call, callForever 1500.0 1400.0 to 1600.0 1.50x"]}]},
+                 ern_last_run:unmatched(?RATIOS_BEFORE, lists:flatten(Renamed))),
+    ?assertEqual({[{"ns an iteration Ernest Erlang ratio", every}],
+                  [{"ns an iteration Ernest Erlang ratio", every}]},
+                 ern_last_run:unmatched(?PLAIN_BEFORE, ?PLAIN_NOW)),
+    ?assertEqual({[], []}, ern_last_run:unmatched(?RATIOS_BEFORE, ?RATIOS_NOW)).
+
+%% test/ern_last_run.erl: the comparison says that no row moved only where
+%% every row matched, and names the rows on either side that match none
+%% of the other's under its reference. Written 2026-10-24 with the fix
+unmatched_comparison_test() ->
+    in_directory(
+      fun(Directory) ->
+              Last = filename:join(Directory, "last"),
+              write(Directory, "bench.txt", ?PLAIN_BEFORE),
+              ok = ern_last_run:kept(Directory, ["bench.txt"]),
+              write(Directory, "bench.txt", ?PLAIN_NOW),
+              ?assertEqual("The tables of this run: bench.txt.\n"
+                           "No matched row moved by more than a fifth since the last run, in "
+                           ++ Last ++ ".\n"
+                           "This run's rows that match no row of the last run, in " ++ Last
+                           ++ ":\n"
+                           "bench.txt: ns an iteration Ernest Erlang ratio\n"
+                           "  every row\n"
+                           "The rows of the last run that match no row of this run, in " ++ Last
+                           ++ ":\n"
+                           "bench.txt: ns an iteration Ernest Erlang ratio\n"
+                           "  every row\n"
+                           ++ no_release("bench.txt", Directory),
+                           text(ern_last_run:compared(Directory, ["bench.txt"])))
       end).
 
 no_release(Tables, Directory) ->

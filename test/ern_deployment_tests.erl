@@ -155,7 +155,7 @@ one_node(Base) ->
     ?assertEqual(8#600, mode(filename:join(Dir, "private-key.pem"))),
     ?assert(filelib:is_regular(filename:join(Dir, "certificate.pem"))),
     #{<<"listen">> := Listen, <<"peers">> := Peers, <<"services">> := Services} =
-        configuration(Dir),
+        ern_nodes_tests:configuration(Dir),
     ?assertEqual({<<"0.0.0.0:8654">>, [], #{}}, {Listen, Peers, Services}),
     Empty = filename:join(Base, "empty"),
     ok = file:make_dir(Empty),
@@ -166,7 +166,7 @@ one_node(Base) ->
     %% its own key as a peer's
     Port = ern_nodes_tests:free_port(),
     ern_nodes_tests:edit(Dir, fun(#{<<"public-key">> := Own} = Conf) ->
-                                  Conf#{<<"listen">> := address(Port),
+                                  Conf#{<<"listen">> := ern_nodes_tests:address(Port),
                                         <<"peers">> := [#{<<"name">> => <<"self">>,
                                                           <<"public-key">> => Own}]}
                               end),
@@ -357,7 +357,7 @@ refused_code(Base) ->
     Bytes = ern_canonical:bytes(ern_canonical:hashed([Form])),
     Frame = filename:join(Base, "frame"),
     ok = file:write_file(Frame, term_to_binary(
-                                  {crypto:hash(sha256, Bytes), Bytes, [<<77:256>>],
+                                  {crypto:hash(sha256, Bytes), Bytes,
                                    term_to_binary([{[<<"Crafted">>, <<"bad">>], Form, {[], []},
                                                     []}])})),
     Z = ern_nodes_tests:made(Base, "z", none),
@@ -395,7 +395,7 @@ taker() ->
 -export([main/0]).
 main() ->
     Node = list_to_atom(argument(ern_nodes_target)),
-    {Hash, Bytes, References, Sources} = binary_to_term(read(argument(ern_deployment_frame))),
+    {Hash, Bytes, Sources} = binary_to_term(read(argument(ern_deployment_frame))),
     true = register(ern_gateway, self()),
     true = net_kernel:connect_node(Node),
     Spawn = make_ref(),
@@ -404,7 +404,7 @@ main() ->
     Exchange = receive {ern_frame, _, {reach_request, Asked, _}} -> Asked end,
     sent(Node, {reach, Exchange, [Hash], [], []}),
     [Hash] = receive {ern_frame, _, {lacks, Exchange, Lacks}} -> Lacks end,
-    sent(Node, {code_frame, Exchange, [Hash], Bytes, References, Sources}),
+    sent(Node, {code_frame, Exchange, [Hash], Bytes, Sources}),
     receive {ern_frame, _, {answer, Spawn, Answer}} -> io:format(\"answer: ~0p~n\", [Answer]) end,
     halt().
 argument(Name) ->
@@ -626,6 +626,7 @@ node(Base, Words) ->
 %% A job run from Base by its words after `ern`, as a person runs it: its
 %% status, its standard output and its standard error. The harness's time
 %% for one wait bounds a failure, as it bounds a node's end.
+-spec job(file:filename(), string()) -> {integer(), string(), string()}.
 job(Base, Words) ->
     Err = filename:join(Base, "job.err"),
     Command = lists:flatten(["cd ", Base, " && ", ?ERN, " ", Words, " 2> ", Err]),
@@ -653,6 +654,7 @@ printed(Shown, Out) ->
      end || {Line, Written} <- lists:zip(Shown, Lines)].
 
 %% Report §11.3: `ern config` prints the node's public key in PEM.
+-spec keyed(string()) -> ok.
 keyed(Out) ->
     ?assertMatch({match, _}, re:run(Out, "\\A-----BEGIN PUBLIC KEY-----\n[A-Za-z0-9+/]+=*\n"
                                          "-----END PUBLIC KEY-----\n\\z")).
@@ -667,45 +669,20 @@ mapped(Words, Paths) ->
                                       string:replace(Acc, Guide, Harness, all)
                               end, Words, Paths)).
 
-%% Report §8.7: a node listens only once its initializers have their
-%% values, and where `listen` names a port says nothing of it, nor does
-%% the guide's counter print anything, and its `ernest.pid` is written
-%% before its initializers run; what shows that it listens is that the
-%% port answers, asked until it does, the harness's time for one wait
-%% bounding a failure.
+%% Report §8.7: once a node of this machine listens at Port, which shows
+%% in its port's answer alone: where `listen` names a port the node says
+%% nothing of it, nor does the guide's counter print anything, and its
+%% `ernest.pid` is written before its initializers run. The harness's time
+%% for one wait bounds a failure (ern_machine:answering/4).
+-spec answering(inet:port_number()) -> ok.
 answering(Port) ->
-    Asked = erlang:monotonic_time(millisecond),
-    answering(Port, Asked, Asked + ern_nodes_tests:wait_ms()).
-
-%% A refusal comes at once, so the next ask waits as long as the node has
-%% been waited for so far, and at least the one millisecond of the host's
-%% timer, within which the first refusal comes: however long the node
-%% takes to listen, it is seen within that time again, and the asks grow
-%% with the logarithm of that time, not with the time, as asks without a
-%% pause would, which keep a core busy while the node starts.
-answering(Port, Asked, Deadline) ->
-    Now = erlang:monotonic_time(millisecond),
-    Left = Deadline - Now,
-    Left > 0 orelse erlang:error({not_answering, Port}),
-    case gen_tcp:connect({127, 0, 0, 1}, Port, [], Left) of
-        {ok, Socket} ->
-            gen_tcp:close(Socket);
-        {error, econnrefused} ->
-            receive after min(max(Now - Asked, 1), Left) -> ok end,
-            answering(Port, Asked, Deadline);
-        {error, timeout} ->
-            erlang:error({not_answering, Port})
-    end.
+    ern_machine:answering(ern_machine:host(ern_machine:local()), Port, ern_nodes_tests:wait_ms(),
+                          fun() -> ok end).
 
 listening(Dir, Port) ->
-    ern_nodes_tests:edit(Dir, fun(Conf) -> Conf#{<<"listen">> => address(Port)} end).
-
-address(Port) ->
-    list_to_binary("127.0.0.1:" ++ integer_to_list(Port)).
-
-configuration(Dir) ->
-    {ok, Text} = file:read_file(filename:join(Dir, "ernest.conf")),
-    json:decode(Text).
+    ern_nodes_tests:edit(Dir, fun(Conf) ->
+                                  Conf#{<<"listen">> => ern_nodes_tests:address(Port)}
+                              end).
 
 mode(File) ->
     {ok, #file_info{mode = Mode}} = file:read_file_info(File),

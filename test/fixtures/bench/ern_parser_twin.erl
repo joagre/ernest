@@ -1,6 +1,6 @@
 %% The lexer, the parser and the evaluator of
 %% test/fixtures/bench/parser.ern as Erlang writes it, for `make bench`
-%% (test/ern_program_costs.erl): the same language, the same recursive
+%% (test/ern_programs_costs.erl): the same language, the same recursive
 %% descent and the same evaluation, over tagged tuples, an answer that may
 %% fail `{ok, Value}` or `{error, Error}`. A character's class is tested in
 %% the lexer's guards, a letter as ASCII's, since a guard calls no function

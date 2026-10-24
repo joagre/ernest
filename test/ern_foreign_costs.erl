@@ -1,4 +1,4 @@
-%% `make bench`'s sixth part (docs/development.md): what each piece of a
+%% `make bench`'s part `foreign` (docs/development.md): what each piece of a
 %% program's foreign call adds to the host's call (report §8.4, §8.6, §7.4;
 %% plan, MVP 3.28, 3.29). The emitter writes a `foreign fn` as a function of
 %% the unit that calls the implementation in a try whose handler makes a
@@ -6,7 +6,7 @@
 %% against the declared result type: a word's in place, the prelude's
 %% `Unit` taking the host's `ok`, any other through `ern_boundary` with its
 %% descriptor (§8.4; ern_emitter's foreign_body/6, foreign_call/6 and
-%% check_form/6). The call writes nothing for the deadlock look, which
+%% check_form/5). The call writes nothing for the deadlock look, which
 %% reads the process's top frame; a function given to foreign code keeps
 %% the look's key while foreign code calls it, in the wrapper that checks
 %% its arguments (ern_emitter's called/2, §8.6).
@@ -19,18 +19,17 @@
 %% row, so that its multiple of the host's call is accounted for piece by
 %% piece; a function called back by foreign code, the host's and a
 %% program's; each operation of the models' alone, in a loop of its own;
-%% and the host's call, the foreign fn and the key alone, by one process
-%% and by eight at once, each a process with its row, as the count, which
-%% wrote to one table every process shared, was measured before it went
-%% (plan, MVP 3.29). Every row runs in a launch of the runtime, as `ern run`
-%% starts one. Each row is the median of seven runs, in nanoseconds an
-%% iteration, the loop's own cost included, or a call over all processes,
-%% with their range, as ern_spawn_costs measures them. It measures and
-%% asserts nothing, so it is not part of `make test-full`.
+%% and the host's call, the foreign fn and the look's key alone, by one
+%% process and by eight at once, each a process with its row. Every row
+%% runs in a launch of the runtime, as `ern run` starts one. Each row is
+%% the median of seven runs, in nanoseconds an iteration, the loop's own
+%% cost included, or a call over all processes, with their range, as
+%% ern_costs measures them. It measures and asserts nothing, so it is not
+%% part of `make test-full`.
 -module(ern_foreign_costs).
 
--export([main/1, compiled/2, word/1, ordering/1, nothing/1, text/1, some/1, applied/2,
-         called/1, tried/1, checked/1]).
+-export([main/1, word/1, ordering/1, nothing/1, text/1, some/1, applied/2, called/1, tried/1,
+         checked/1]).
 
 %% Each loop's iterations, and each process's where several run at once,
 %% and how many do.
@@ -54,9 +53,9 @@
 %% Prints the tables, writes them to foreign.txt in Directory, and halts.
 -spec main([string()]) -> no_return().
 main([Directory]) ->
-    Unit = compiled(?NAMESPACE, ?SOURCE),
-    Host = fun(Implementation) -> ern_spawn_costs:launched(host_calls(Implementation)) end,
-    Ernest = fun(Name) -> ern_spawn_costs:launched(ernest_calls(Unit, Name)) end,
+    Unit = ern_costs:compiled(?NAMESPACE, ?SOURCE),
+    Host = fun(Implementation) -> ern_costs:launched(host_calls(Implementation)) end,
+    Ernest = fun(Name) -> ern_costs:launched(ernest_calls(Unit, Name)) end,
     Abs = [{"the host's call of erlang:abs/1", Host(fun erlang:abs/1)},
            {"a foreign fn of it, its result Int", Ernest(absolute)}],
     Kinds = [{"the host's call of a function that answers at once", Host(fun ?MODULE:word/1)},
@@ -73,36 +72,23 @@ main([Directory]) ->
              Host(fun(N) -> ?MODULE:applied(fun(K) -> K end, N) end)},
             {"a foreign fn of it, an Ernest function called back", Ernest(calledBack)}],
     Text = unicode:characters_to_binary(
-             [ern_spawn_costs:table("a foreign call of a host function, ns an iteration",
-                                    ern_spawn_costs:measured(Abs, ?COUNT), ratio),
-              ern_spawn_costs:table("a foreign call by the type of its result, ns an iteration",
-                                    ern_spawn_costs:measured(Kinds, ?COUNT), ratio),
-              ern_spawn_costs:table("a model of a foreign fn, a piece added on each row",
-                                    ern_spawn_costs:measured(Model, ?COUNT), added),
-              ern_spawn_costs:table("a function called back by foreign code, ns an iteration",
-                                    ern_spawn_costs:measured(Back, ?COUNT), ratio),
-              ern_spawn_costs:table("its operations, each alone, ns an operation",
-                                    ern_spawn_costs:measured(operations(), ?COUNT), none),
-              ern_spawn_costs:table("eight processes at once against one, "
-                                    "ns a call over all processes",
-                                    ern_spawn_costs:measured(contended(Unit), ?CONTENDED),
-                                    none)]),
+             [ern_costs:table("a foreign call of a host function, ns an iteration",
+                              ern_costs:measured(Abs, ?COUNT), ratio),
+              ern_costs:table("a foreign call by the type of its result, ns an iteration",
+                              ern_costs:measured(Kinds, ?COUNT), ratio),
+              ern_costs:table("a model of a foreign fn, a piece added on each row",
+                              ern_costs:measured(Model, ?COUNT), added),
+              ern_costs:table("a function called back by foreign code, ns an iteration",
+                              ern_costs:measured(Back, ?COUNT), ratio),
+              ern_costs:table("its operations, each alone, ns an operation",
+                              ern_costs:measured(operations(), ?COUNT), none),
+              ern_costs:table("eight processes at once against one, "
+                              "ns a call over all processes",
+                              ern_costs:measured(contended(Unit), ?CONTENDED),
+                              none)]),
     io:format("~ts", [Text]),
     ok = file:write_file(filename:join(Directory, "foreign.txt"), Text),
     halt(0).
-
-%% A program's module of Source compiled into Namespace and loaded, as
-%% `ern build` and `ern run` would make and load it (report §11.1, §11.2):
-%% its unit.
--spec compiled([atom()], binary()) -> module().
-compiled(Namespace, Source) ->
-    {ok, Declarations} = ern_parser:parse_string(Source),
-    {ok, Typed, Interface, Env} = ern_typecheck:check(Namespace, Declarations, []),
-    {ok, Unit, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env),
-    {module, Unit} = code:load_binary(Unit, "foreign costs", Beam),
-    {ok, Recorded} = ern_canonical:read(Beam),
-    ok = ern_code:loaded(Unit, Beam, Recorded),
-    Unit.
 
 %%
 %% The implementations the foreign fns call, each answering at once
@@ -132,20 +118,16 @@ applied(Function, N) -> Function(N) + 0.
 
 %% Count calls of Implementation, as the host makes them.
 host_calls(Implementation) ->
-    fun(Count) ->
-        ern_spawn_costs:timed(Count, fun Loop(0) -> ok;
-                                         Loop(Left) -> _ = Implementation(Left), Loop(Left - 1)
-                                     end)
-    end.
+    fun(Count) -> ern_costs:timed(Count, ern_costs:looped(Implementation)) end.
 
 %% Count calls of the program's foreign fn Name, as a dependent's code
 %% calls it, by its position in its unit (report §11.1).
 ernest_calls(Unit, Name) ->
     {Function, 1} = ern_code:function(Unit, ?NAMESPACE ++ [Name]),
     fun(Count) ->
-        ern_spawn_costs:timed(Count, fun Loop(0) -> ok;
-                                         Loop(Left) -> _ = Unit:Function(Left), Loop(Left - 1)
-                                     end)
+        ern_costs:timed(Count, fun Loop(0) -> ok;
+                                   Loop(Left) -> _ = Unit:Function(Left), Loop(Left - 1)
+                               end)
     end.
 
 %%
@@ -185,7 +167,7 @@ operations() ->
     %% the descriptors ern_descriptor gives the two types
     Ordering = {con, [{'Less', []}, {'Equal', []}, {'Greater', []}]},
     Some = {con, [{'None', []}, {'Some', [int]}]},
-    [{Name, ern_spawn_costs:launched(fun(Count) -> operated(Operation, Count) end)}
+    [{Name, ern_costs:launched(fun(Count) -> operated(Operation, Count) end)}
      || {Name, Operation} <-
             [{"the loop alone", fun(_) -> ok end},
              {"the host's call", fun(N) -> ?MODULE:word(N) end},
@@ -202,14 +184,16 @@ operations() ->
               fun(N) -> ern_boundary:check(Some, {'Some', N}, <<"no">>) end}]].
 
 %% The call and the key with one process and with ?AT_ONCE at once, each a
-%% process the runtime spawns, with its row (ern_spawn_costs:at_once/2):
+%% process the runtime spawns, with its row (ern_costs:at_once/2):
 %% the host's call of a function that answers at once, a foreign fn of it,
 %% and the look's key put and taken.
 contended(Unit) ->
     {Word, 1} = ern_code:function(Unit, ?NAMESPACE ++ [word]),
     [{Name ++ Processes,
-      ern_spawn_costs:launched(
-        fun(Count) -> ern_spawn_costs:at_once(Count, lists:duplicate(Many, looped(Operation))) end)}
+      ern_costs:launched(
+        fun(Count) ->
+            ern_costs:at_once(Count, lists:duplicate(Many, ern_costs:looped(Operation)))
+        end)}
      || {Name, Operation} <-
             [{"the host's call", fun(N) -> ?MODULE:word(N) end},
              {"a foreign fn of it, its result Int", fun(N) -> Unit:Word(N) end},
@@ -217,12 +201,6 @@ contended(Unit) ->
               fun(_) -> ern_rt:entered_foreign(), ern_rt:left_foreign() end}],
         {Many, Processes} <- [{1, ", one process"}, {?AT_ONCE, ", eight at once"}]].
 
-%% A loop of Operation.
-looped(Operation) ->
-    fun Loop(0) -> ok;
-        Loop(Left) -> _ = Operation(Left), Loop(Left - 1)
-    end.
-
 %% Count iterations of Operation.
 operated(Operation, Count) ->
-    ern_spawn_costs:timed(Count, looped(Operation)).
+    ern_costs:timed(Count, ern_costs:looped(Operation)).

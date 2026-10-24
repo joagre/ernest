@@ -3,10 +3,13 @@
 %% heading of the report, and `guide §x.y`, `the guide's §x.y` and the
 %% guide's own bare `§x.y` a heading of the guide, docs/log.md
 %% being history and not checked; the contents lists, the tour's blocks,
-%% the paths the documents name, the release's pages, the third parties'
-%% licenses, the glossary, the fault causes, the log's index, and the
-%% runtime's tables and frames as its design note and §8.7 name them are
-%% each current.
+%% the paths the documents and the toolchain's comments name, the release's
+%% pages, the third parties' licenses, the glossary, the fault causes, the
+%% log's index, the runtime's tables and frames as its design note, §8.7 and
+%% the map name them, why.md's claims and the README's, the reviews' counts
+%% of their readers, the shell's modules and the loads are each current; and
+%% the lists docs/development.md's *Lists in two places* names are kept by
+%% hand.
 -module(ern_docs_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -50,10 +53,10 @@ citations_resolve_test() ->
     Guide = ern_repository:read("guide/language.md"),
     ReportSections = section_numbers(Report),
     GuideSections = section_numbers(Guide),
-    %% docs/findings.md's lines and docs/guide_feedback.md's points cite each
-    %% document as their readers did, the guide's sections bare beside the
-    %% report's, and each list goes when its plan item is done
-    Live = (documents() -- ["docs/findings.md", "docs/guide_feedback.md"])
+    %% docs/findings.md's lines cite each document as their readers did, the
+    %% guide's sections bare beside the report's, and the list goes when its
+    %% plan item is done
+    Live = (documents() -- ["docs/findings.md"])
         ++ examples() ++ stdlib() ++ shell() ++ tools() ++ toolchain(),
     Dangling =
         [{File, Citation} || File <- Live, Citation <- cites(ern_repository:read(File)),
@@ -255,11 +258,195 @@ document_paths_test() ->
                                not exists(filename:join(filename:dirname(File), Path))],
     ?assertEqual([], Missing).
 
+%% docs/style.md "Every language", docs/development.md "The layout of the
+%% repository": a path under docs/ or test/ that a comment of the
+%% toolchain's code names, a whole line's comment of its Erlang, its C or
+%% its Makefiles, is there, but a build's product under test/build/, which a
+%% run writes, and a path with a wildcard or a metavariable. A regression
+%% test for the comments that cited documents a step had removed, a
+%% proposal's outline and a review's findings among them, which no test
+%% read (the full review of 2026-10-24); it does not read a comment that
+%% follows code on its line, nor a path written from another directory.
+comment_paths_test() ->
+    Missing = [{File, Path} || File <- toolchain(), Path <- comment_paths(File),
+                               not exists(Path)],
+    ?assertEqual([], Missing).
+
+%% The paths under docs/ and test/ that a file's whole-line comments name,
+%% each without the punctuation that ends its sentence or the slash that
+%% ends a directory.
+comment_paths(File) ->
+    Lines = binary:split(ern_repository:read(File), <<"\n">>, [global]),
+    [Path || Line <- Lines, re:run(Line, "^\\s*(%|#|//|/\\*|\\*)") =/= nomatch,
+             [Found] <- matches(Line, "(?:^|[\\s(`\"',])((?:docs|test)/[^\\s`\"'(),;:]*)"),
+             Path <- [string:trim(string:trim(Found, trailing, "."), trailing, "/")],
+             Path =/= "docs", Path =/= "test",
+             not lists:prefix("test/build/", Path ++ "/"),
+             string:find(Path, "*") =:= nomatch, string:find(Path, "<") =:= nomatch,
+             string:find(Path, "$") =:= nomatch].
+
+%% README.md, guide/why.md, docs/development.md "The layout of the
+%% repository": the claims the README lists are the ones why.md lists under
+%% its opening and argues each under a heading of its own in *The claims, in
+%% code*, in one order and one wording, each of the README's linked to its
+%% heading, and both documents count them in words. A regression test:
+%% docs/development.md said a test held the two lists equal, and none did;
+%% it does not read how many of the claims show a program.
+claims_test() ->
+    Readme = ern_repository:read("README.md"),
+    Why = ern_repository:read("guide/why.md"),
+    Lead = <<"What Ernest adds is where the parts meet">>,
+    Entry = "^- \\*\\*\\[(.+?)\\]\\(guide/why\\.md#([^)]+)\\)",
+    Linked = [{Title, Anchor}
+              || [Title, Anchor] <- line_matches(list_after(Readme, Lead), Entry)],
+    Listed = [Title || [Title] <- line_matches(list_after(Why, Lead), "^- \\*\\*(.+?)\\.\\*\\*")],
+    [_, AfterClaims] = binary:split(Why, <<"\n## The claims, in code\n">>),
+    [Claims | _] = binary:split(AfterClaims, <<"\n## ">>),
+    Argued = [binary_to_list(Text) || {3, Text} <- heads(Claims)],
+    Anchors = [{binary_to_list(Text), binary_to_list(Anchor)}
+               || {3, Text, Anchor} <- anchored(heads(Why))],
+    ?assert(length(Argued) > 3),
+    ?assertEqual(Argued, Listed),
+    ?assertEqual(Argued, [Title || {Title, _} <- Linked]),
+    ?assertEqual([], Linked -- Anchors),
+    Count = number_word(length(Argued)),
+    ?assertEqual([{"README.md", Count}, {"guide/why.md", Count}],
+                 [{File, string:lowercase(Word)}
+                  || {File, Text} <- [{"README.md", Readme}, {"guide/why.md", Why}],
+                     [[Word] | _] <- [matches(Text, "\\b([A-Za-z-]+) claims\\b")]]).
+
+%% The list that follows the line holding Lead, after the blank line under
+%% it, up to the blank line that ends it.
+list_after(Document, Lead) ->
+    [_, Rest] = binary:split(Document, Lead),
+    [_, List] = binary:split(Rest, <<"\n\n">>),
+    hd(binary:split(List, <<"\n\n">>)).
+
+%% Every match of a pattern at the start of a line of a text.
+line_matches(Text, Pattern) ->
+    lists:append([matches(Line, Pattern) || Line <- binary:split(Text, <<"\n">>, [global])]).
+
+%% docs/full_review.md, docs/principles_review.md, docs/release_review.md:
+%% each review counts its readers as its *The readers* lists them, a reader
+%% being an item named by its letter, and its sessions as their parts, a
+%% reader read in parts being a session each; and the readers the release
+%% review names are the full review's. A regression test: the full review
+%% counted twelve readers and nineteen sessions where it listed fifteen in
+%% twenty-two parts (the full review of 2026-10-24).
+readers_counted_test() ->
+    Reviews = [ern_repository:read(File)
+               || File <- ["docs/full_review.md", "docs/principles_review.md"]],
+    ?assertEqual([], [{Readers, Sessions}
+                      || Review <- Reviews, {Letters, Parts} <- [readers(Review)],
+                         Readers <- [number_word(length(Letters))],
+                         Sessions <- [number_word(lists:sum(Parts))],
+                         re:run(Review, ["\\b", Readers, " readers\\b"], [caseless]) =:= nomatch
+                             orelse re:run(Review, ["\\b", Sessions, " sessions\\b"], [caseless])
+                                    =:= nomatch]),
+    {Full, _} = readers(hd(Reviews)),
+    Release = ern_repository:read("docs/release_review.md"),
+    [_, Step] = binary:split(Release, <<"**The readers**">>),
+    [Named | _] = binary:split(Step, <<"**The findings:**">>),
+    ?assertEqual([], [Letter || [Letter] <- matches(Named, "(?<![\\w*])([A-Z])(?=, | and | as )"),
+                                not lists:member(Letter, Full)]).
+
+%% A review's readers, each by its letter, and the parts each is read in.
+readers(Review) ->
+    [_, Section] = binary:split(Review, <<"\n## The readers\n">>),
+    [Body | _] = binary:split(Section, <<"\n## ">>),
+    [_ | Items] = re:split(Body, "\n(?=- \\*\\*[A-Z], )", [{return, binary}]),
+    lists:unzip([{Letter, reader_parts(Item)}
+                 || Item <- Items, [[Letter] | _] <- [matches(Item, "^- \\*\\*([A-Z]), ")]]).
+
+%% The parts a reader's item says it is read in, one where it says none.
+reader_parts(Item) ->
+    case matches(Item, "\\bin ([a-z]+) parts\\b") of
+        [[Word] | _] -> length(lists:takewhile(fun(N) -> number_word(N) =/= Word end,
+                                               lists:seq(1, 29))) + 1;
+        [] -> 1
+    end.
+
+%% A count as the documents write it, "six", "twenty-two".
+number_word(Count) when Count =< 20 ->
+    lists:nth(Count, ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+                      "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen",
+                      "seventeen", "eighteen", "nineteen", "twenty"]);
+number_word(Count) when Count < 30 ->
+    "twenty-" ++ number_word(Count - 20).
+
+%% docs/architecture.md, report §8.6, §8.7: the map's table of the tables
+%% names each table `ern_rt:tables/0` makes, `ern_rt` its owner, and no
+%% other as `ern_rt`'s, with their count in words; and its row of
+%% `ern_launch` names every row the runtime writes there, `#launch{}` and
+%% each tuple by its key. A regression test, written after the map had left
+%% out the launch's own row; it does not read another table's rows.
+architecture_tables_test() ->
+    [_, Section] = binary:split(ern_repository:read("docs/architecture.md"),
+                                <<"\n### The tables\n">>),
+    [Body | _] = binary:split(Section, <<"\n### ">>),
+    Rows = [{list_to_atom(Table), Row}
+            || Row <- binary:split(Body, <<"\n">>, [global]),
+               [[Table, "ern_rt"]] <- [matches(Row, "^\\| `(ern_[a-z_]+)` \\| `([a-z_]+)`")]],
+    ?assertEqual(lists:sort(ern_rt:tables()), lists:sort([Table || {Table, _} <- Rows])),
+    ?assertNotEqual(nomatch, string:find(Body, ["`ern_rt`'s ", number_word(length(ern_rt:tables())),
+                                                " (`tables/0`)"])),
+    Source = ern_repository:read("erl/runtime/src/ern_rt.erl"),
+    ?assertNotEqual(nomatch, binary:match(Source, <<"ets:insert(?LAUNCH, #launch{">>)),
+    Written = "ets:insert(?:_new)?\\(\\?LAUNCH, \\{([a-z_]+)",
+    Keys = lists:usort([Key || [Key] <- matches(Source, Written)]),
+    ?assert(length(Keys) > 3),
+    Launch = proplists:get_value(ern_launch, Rows),
+    ?assertEqual([], [Shown || Shown <- ["`#launch{}`" | ["`{" ++ Key || Key <- Keys]],
+                               string:find(Launch, Shown) =:= nomatch]).
+
+%% src/shell/README.md, report §4.2, §11.1: the README's table of the
+%% shell's modules names each module of the shell, `shell.ern` and those
+%% under `shell/`, by the name its path gives it beside a link to its file,
+%% and the count of those under `shell/` in words. A regression test,
+%% written after the table; it does not read what a row says its module is.
+shell_modules_test() ->
+    Readme = ern_repository:read("src/shell/README.md"),
+    Named = "\\| `(Shell[A-Za-z.]*)` \\| \\[`([a-z_/]+\\.ern)`\\]\\(([a-z_/]+\\.ern)\\)",
+    Rows = matches(Readme, Named),
+    Files = ern_repository:files(["src/shell/*.ern", "src/shell/shell/*.ern"]),
+    ?assertEqual(lists:sort(Files), lists:sort(["src/shell/" ++ Link || [_, _, Link] <- Rows])),
+    ?assertEqual([], [Row || [Module, Shown, Link] = Row <- Rows,
+                             Shown =/= Link orelse Module =/= module_named(Link)]),
+    ?assertNotEqual(nomatch, string:find(Readme, [number_word(length(Files) - 1),
+                                                  " modules under"])).
+
+%% The module a path under a source root names (report §4.2):
+%% `shell/kv_parser.ern` is `Shell.KvParser`.
+module_named(Path) ->
+    Segments = [lists:append([string:titlecase(Word) || Word <- string:lexemes(Component, "_")])
+                || Component <- string:lexemes(filename:rootname(Path), "/")],
+    lists:flatten(lists:join(".", Segments)).
+
+%% docs/memory.md, test/Makefile: the loads the document's table lists are
+%% the programs under test/fixtures/load/, which `LOADS` runs, and the
+%% shell's, which the Makefile runs by name. A regression test, written
+%% after the table; it does not read what a row says its load does.
+loads_listed_test() ->
+    [_, Section] = binary:split(ern_repository:read("docs/memory.md"), <<"\n## The loads\n">>),
+    [Body | _] = binary:split(Section, <<"\n## ">>),
+    Listed = [Load || [Load] <- line_matches(Body, "^\\| `([a-z_]+)` \\|")],
+    Makefile = ern_repository:read("test/Makefile"),
+    {match, [Loads]} = re:run(Makefile, "^LOADS = (.*)$",
+                              [multiline, {capture, all_but_first, list}]),
+    Programs = [filename:basename(File, ".ern")
+                || File <- ern_repository:files(["test/fixtures/load/*.ern"])],
+    ?assert(length(Programs) > 3),
+    ?assertEqual(lists:sort(Programs), lists:sort(string:lexemes(Loads, " "))),
+    ?assertNotEqual(nomatch, binary:match(Makefile, <<"ern_load:main([\"shell\"])">>)),
+    ?assertEqual(lists:sort(["shell" | Programs]), lists:sort(Listed)).
+
 %% docs/release_review.md, step 5: docs/man/ holds the pages `make man`
 %% writes from main, so the release that changes VERSION writes them again;
-%% a page names the version of the ern that wrote it on its last line,
-%% docs/man/README.md the last release, and every page and index but
-%% docs/man/README.md is linked from one index, a directory's README.md
+%% a page names the version text of the ern that wrote it on its last line,
+%% the repository's build's, which marks it as no release (report §11.4,
+%% ern_release), docs/man/README.md the last release, and every page and
+%% index but docs/man/README.md is linked from one index, a directory's
+%% README.md
 pages_test() ->
     Version = string:trim(ern_repository:read("VERSION")),
     Files = ern_repository:files(["docs/man/**/*.md"]),
@@ -268,7 +455,7 @@ pages_test() ->
     ?assert(length(Pages) > 25),
     Release = <<"the last release then being Ernest ", Version/binary, ";">>,
     ?assertNotEqual(nomatch, binary:match(ern_repository:read("docs/man/README.md"), Release)),
-    Written = <<"Generated by ern ", Version/binary, " from ">>,
+    Written = iolist_to_binary(["Generated by ern ", ern_release:version_text(), " from "]),
     ?assertEqual([], [Page || Page <- Pages,
                               binary:match(ern_repository:read(Page), Written) =:= nomatch]),
     Linked = [filename:join(filename:dirname(Index), Link)
