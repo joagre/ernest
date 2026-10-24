@@ -40,6 +40,25 @@ Optional.withDefault(None, 0)
 
 `Either`, when the absence has a cause.
 
+## Optional.compare
+
+```ernest
+Optional.compare(left : Optional(a), right : Optional(a)) : Ordering needs a.compare
+```
+
+*Since 0.5.0.*
+
+The order of two optional values: `None` before any `Some`, and two
+`Some`s by their values' `compare` (report §3.10). `<` and the other
+comparisons of two optional values read it.
+
+### Examples
+
+```ernest
+#(Optional.compare(None, Some(1)), Some(2) < Some(1), Some("a") > None)
+// => #(Less, false, true)
+```
+
 ## Optional.isSome
 
 ```ernest

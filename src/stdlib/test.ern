@@ -117,22 +117,26 @@ export fn equal(actual : a, expected : a) : Result needs a.show =
 ///
 /// since 0.5.0
 export fn faults(run : () -> a receiving m, cause : String) : Result = {
-    let call = fn() = {
+    let call = expected(fn() = {
         let _ = run();
         Unit
-    };
+    });
     let caller = Process.current();
-    // report §11.2: the spawns stand in `faults` itself, whose site marks
-    // the processes whose faults no job reports
-    let judge = spawn(fn() = {
+    let judge = spawn(expected(fn() = {
         monitor(caller, CallerEnded);
         receive {
             Judge(reply) -> judged(reply, spawnMonitored(call, Ended), cause)
           | CallerEnded(_) -> Unit
         }
-    });
+    }));
     Address.callForever(judge, Judge)
 }
+
+// Report Appendix E.24, §11.2: the function a process `faults` starts
+// runs, its process marked in its row as it begins, so that its fault
+// reaches no job's report and no subscriber of `Process.faults`.
+foreign fn expected(f : () -> Unit receiving m) : () -> Unit receiving m =
+    "ern_rt:expected/1"
 
 // The judge's wait on the process `running`, which runs the call: the
 // verdict on its end, or its kill where the caller ends first, whose call

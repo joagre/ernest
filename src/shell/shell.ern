@@ -45,7 +45,8 @@ type ShellMsg =
 // What the session carries between inputs: the front end's session, the
 // settings `:set` changes, which are ordinary values, whether it colors
 // what it says, read once at the start, the shell's own processes, whose
-// faults are not news, the last hundred faults reported, newest first, the
+// faults are not news, the last hundred faults reported, newest first, each
+// with the time the session was told of it, the
 // file and line of the startup input that runs, which its refusal and its
 // fault name, how many things have been entered at the prompt, and the
 // serial of the last input run (report §11.2).
@@ -54,7 +55,7 @@ type State =
           settings : Settings,
           color : Markdown.Output,
           own : Set(Process),
-          faults : List(Process.FaultReport),
+          faults : List(#(Int, Process.FaultReport)),
           startupLine : Optional(#(String, Int)),
           entered : Int,
           serial : Int)
@@ -303,12 +304,12 @@ fn ownInputs(screen : Address(ScreenMsg), file : String) : List(#(String, Int, S
 
 // Report §11.2: a startup file, and the directory that holds it, are the
 // user's own or the superuser's, whose number is 0, and writable by no one
-// beyond its owner and group. One that is not there has nothing to run,
-// and one that cannot be read is said where it is read.
+// but its owner, its group as much as the world. One that is not there has
+// nothing to run, and one that cannot be read is said where it is read.
 fn isUsersOwn(path : Path) : Bool =
     match Fs.stat(path, fileMs) {
         Right(entry) ->
-            (entry.user == Os.user || entry.user == 0) && Int.bitAnd(entry.mode, 0o002) == 0
+            (entry.user == Os.user || entry.user == 0) && Int.bitAnd(entry.mode, 0o022) == 0
       | Left(_) ->
             true
     }
@@ -672,30 +673,32 @@ fn screenDied(down : Down) : a =
 
 // Report §11.2: a process that faults is reported with its spawn site and
 // cause, and its trace beneath them, as `ern run` reports it, and kept for
-// `:faults`, unless it is one of the shell's own or one `Test.faults`
-// started. The report goes to the screen wrapped as the caller says: `Said`
-// where the session says it, `Noted` where a prompt is pending.
+// `:faults`, unless it is one of the shell's own; one `Test.faults` started
+// is told of to no one (report Appendix E.24). The report goes to the
+// screen wrapped as the caller says: `Said` where the session says it,
+// `Noted` where a prompt is pending.
 fn reported(state : State,
             screen : Address(ScreenMsg),
             report : Process.FaultReport,
             wrap : (String) -> ScreenMsg) : State =
-    if Set.contains(state.own, report.process) || startedByTestFaults(report) then
+    if Set.contains(state.own, report.process) then
         state
     else {
         let text = faultedLine(report) <> indentedTrace(report.trace);
         send(screen, wrap(Shell.Style.fault(text, state.color)));
-        State(..state, faults = List.take(report :: state.faults, keptFaults))
+        State(..state, faults = List.take(#(Clock.now(), report) :: state.faults, keptFaults))
     }
-
-// Report Appendix E.24: whether a fault is of a process `Test.faults`
-// started, whose site is that function's (§6.9), which no job reports,
-// since the call's answer carries it.
-fn startedByTestFaults(report : Process.FaultReport) : Bool =
-    String.startsWith(report.site, "Test.faults:")
 
 // A line the session says, ended.
 fn saidLine(line : String) : ScreenMsg =
     Said(line <> "\n")
+
+// Report §11.2: a fault's line as `:faults` lists it, its time first, as
+// `ern run` stamps a line.
+fn stampedLine(entry : #(Int, Process.FaultReport), color : Markdown.Output) : String = {
+    let #(time, report) = entry;
+    Shell.Style.fault(Clock.toString(time) <> " " <> faultedLine(report), color)
+}
 
 // Report §11.2: `:faults` lists the last hundred.
 let keptFaults = 100
@@ -849,11 +852,12 @@ fn obey(state : State,
       | Shell.Command.Settings ->
             Continue(State(..state, settings = set(state, screen, argument)))
       | Shell.Command.Processes ->
-            match sessionProcesses(state.own) {
+            match sessionProcesses() {
                 [] -> answered(state, screen, ["no process of the session's is running"])
               | sites -> answered(state, screen, sites)
             }
-      // report §11.2: `:faults` lists each fault's line, without its trace
+      // report §11.2: `:faults` lists each fault's line, its time first as
+      // `ern run` stamps a line, without its trace
       | Shell.Command.Faults ->
             match List.reverse(state.faults) {
                 [] ->
@@ -861,8 +865,7 @@ fn obey(state : State,
               | reports ->
                     answered(state,
                              screen,
-                             List.map(reports,
-                                      fn(report) = Shell.Style.fault(faultedLine(report), color)))
+                             List.map(reports, fn(entry) = stampedLine(entry, color)))
             }
       | Shell.Command.Load ->
             match load(session, argument) {
@@ -928,12 +931,11 @@ fn screenWidth() : Int =
       | Left(_) -> 80
     }
 
-// Report §11.2: the session's live processes by spawn site, the shell's own
-// left out, those its loads evaluated bindings in among them.
-fn sessionProcesses(own : Set(Process)) : List(String) = {
-    let shells = Set.union(own, Set.fromList(evaluators()));
-    let others = List.filter(Process.live(), fn(process) = !Set.contains(shells, process));
-    let sites = List.map(List.filterMap(others, Process.status), fn(status) = status.site);
+// Report §11.2: the session's live processes by spawn site, what
+// `Process.live()` lists at the prompt, which leaves the shell's own out,
+// those its loads evaluated bindings in among them.
+fn sessionProcesses() : List(String) = {
+    let sites = List.map(List.filterMap(Process.live(), Process.status), fn(status) = status.site);
     List.sort(sites, String.compare)
 }
 
@@ -1550,11 +1552,6 @@ foreign fn load(session : Session, name : String) : Either(String, #(Session, St
 
 foreign fn reload(session : Session) : Either(String, #(Session, List(String))) =
     "ern_shell:reload/1"
-
-// Report §11.2: the processes of the shell's own that the loads and the
-// reloads evaluated bindings in, which live while the session runs.
-foreign fn evaluators() : List(Process) =
-    "ern_shell:evaluators/0"
 
 // Report §11.2: the parser cannot finish what is typed, so another line
 // may. The parser is the compiler's, and only it knows.

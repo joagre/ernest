@@ -43,6 +43,32 @@ Either.withDefault(Left("gone"), 0)
 
 `Optional`, when the absence needs no cause.
 
+## Either.compare
+
+```ernest
+Either.compare(left : Either(e, a), right : Either(e, a)) : Ordering needs e.compare, a.compare
+```
+
+*Since 0.5.0.*
+
+The order of two values of an `Either`: any `Left` before any `Right`,
+two `Left`s by their causes' `compare` and two `Right`s by their values'
+(report §3.10). `<` and the other comparisons read it.
+
+### Examples
+
+```ernest
+#(Either.compare(Left("x"), Right(1)), Left("b") < Right(1))
+// => #(Less, true)
+```
+
+Two `Left`s, and two `Right`s, are ordered by what they hold:
+
+```ernest
+List.sort([Right(2), Left("b"), Right(1), Left("a")], Either.compare)
+// => [Left("a"), Left("b"), Right(1), Right(2)]
+```
+
 ## Either.isLeft
 
 ```ernest

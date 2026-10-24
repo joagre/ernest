@@ -1091,7 +1091,7 @@ $ ern build example.ern
 example.ern:1:13: constructor String is named as the type String
 1 | type Word = String
   |             ^^^^^^
-  | = help: there are no type aliases (report §3.1)
+  | = help: there are no type aliases; a type that holds a String is written type Word = Word(String)
 ```
 
 ### A field named twice in a constructor (§3.5)
@@ -2098,7 +2098,7 @@ fn f() : Int = {
 
 ```console
 $ ern build example.ern
-example.ern:4:21: fromList needs a.compare, and the record's type leaves the variable a undetermined; annotate it
+example.ern:4:21: fromList needs a.compare, and the record's type leaves the variable a undetermined; annotate ops
 3 | fn f() : Int = {
 4 |     let ops = Ops(..OrderedSet);
   |                     ^^^^^^^^^^
@@ -2562,17 +2562,17 @@ example.ern:1:13: fromList needs a.compare, which a top-level let cannot declare
 ### A known type without the member (§4.9)
 
 ```ernest-rejected
-fn f() : Int =
-    OrderedSet.size(OrderedSet.fromList([[1], [2]]))
+fn f(counts : Map(Int, Int)) : Int =
+    OrderedSet.size(OrderedSet.fromList([counts]))
 ```
 
 ```console
 $ ern build example.ern
-example.ern:2:21: fromList needs List(Int).compare, and List(Int) has no compare
-1 | fn f() : Int =
-2 |     OrderedSet.size(OrderedSet.fromList([[1], [2]]))
+example.ern:2:21: fromList needs Map(Int, Int).compare, and Map(Int, Int) has no compare
+1 | fn f(counts : Map(Int, Int)) : Int =
+2 |     OrderedSet.size(OrderedSet.fromList([counts]))
   |                     ^^^^^^^^^^^^^^^^^^^
-  | = help: List(Int) has no ordering; hold it in a type of your own that declares `compare`
+  | = help: Map(Int, Int) has no ordering; hold it in a type of your own that declares `compare`
 ```
 
 ### A member of another result type (§4.9)
@@ -2772,14 +2772,14 @@ input 6:1:23: the value does not have the declared type: expected Counter.Msg, f
 ### A derived compare over a field without one (§3.5)
 
 ```ernest-rejected
-type Date = Date(year : Int, at : Optional(Int)) derives compare
+type Date = Date(year : Int, exact : Bool) derives compare
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:35: Date.compare cannot be derived: Optional(Int) has no compare
-1 | type Date = Date(year : Int, at : Optional(Int)) derives compare
-  |                                   ^^^^^^^^^^^^^
+example.ern:1:38: Date.compare cannot be derived: Bool has no compare
+1 | type Date = Date(year : Int, exact : Bool) derives compare
+  |                                      ^^^^
   | = help: declare `fn Date.compare` yourself, or hold a field whose type has a compare
 ```
 

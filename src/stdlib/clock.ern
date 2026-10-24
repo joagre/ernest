@@ -111,3 +111,30 @@ export fn alarmAt(time : Int, wrap : (Int) -> m) : Unit receiving m = {
     let request = fn(reply) = AlarmAt(time = time, address = address, reply = reply);
     Address.callForever(reference, request)
 }
+
+/// The time, in milliseconds since the epoch, as RFC 3339 writes it, in UTC to
+/// the millisecond: `2026-10-24T09:21:03.512Z`, as `ern run` writes a time on
+/// its lines (report §11.2). The host writes it: a time before the year 0
+/// has its year's sign, `-0001-12-31T23:59:59.999Z`, and one after the year
+/// 9999 faults, as the host refuses it (report §7.4).
+///
+/// ### Examples
+///
+/// ```ernest
+/// Clock.toString(0)
+/// // => "1970-01-01T00:00:00.000Z"
+/// ```
+///
+/// since 0.5.0
+export fn toString(time : Int) : String =
+    rfc3339(time, rfc3339Options)
+
+// The host's options: the time in milliseconds, UTC written `Z`, and the
+// text a binary, as a String is.
+let rfc3339Options : List(#(Foreign.Term, Foreign.Term)) =
+    [#(Foreign.atom("unit"), Foreign.atom("millisecond")),
+     #(Foreign.atom("offset"), Foreign.term(['Z'])),
+     #(Foreign.atom("return"), Foreign.atom("binary"))]
+
+foreign fn rfc3339(time : Int, options : List(#(Foreign.Term, Foreign.Term))) : String =
+    "calendar:system_time_to_rfc3339/2"

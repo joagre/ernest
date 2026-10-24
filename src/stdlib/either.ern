@@ -41,6 +41,33 @@
 ///
 /// since 0.1.0
 
+/// The order of two values of an `Either`: any `Left` before any `Right`,
+/// two `Left`s by their causes' `compare` and two `Right`s by their values'
+/// (report §3.10). `<` and the other comparisons read it.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Either.compare(Left("x"), Right(1)), Left("b") < Right(1))
+/// // => #(Less, true)
+/// ```
+///
+/// Two `Left`s, and two `Right`s, are ordered by what they hold:
+///
+/// ```ernest
+/// List.sort([Right(2), Left("b"), Right(1), Left("a")], Either.compare)
+/// // => [Left("a"), Left("b"), Right(1), Right(2)]
+/// ```
+///
+/// since 0.5.0
+export fn compare(left : Either(e, a), right : Either(e, a)) : Ordering needs e.compare, a.compare =
+    match #(left, right) {
+        #(Left(cause), Left(other)) -> e.compare(cause, other)
+      | #(Left(_), Right(_)) -> Less
+      | #(Right(_), Left(_)) -> Greater
+      | #(Right(value), Right(other)) -> a.compare(value, other)
+    }
+
 /// `true` for a `Left`.
 ///
 /// ### Examples

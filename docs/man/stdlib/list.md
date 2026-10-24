@@ -65,6 +65,25 @@ is copied, so the cost grows with its length, and not with the second's.
 // => [1, 2, 3]
 ```
 
+## List.compare
+
+```ernest
+List.compare(left : List(a), right : List(a)) : Ordering needs a.compare
+```
+
+*Since 0.5.0.*
+
+The order of two lists: element by element from the first, by the
+element type's `compare`, and a list before a longer one it begins
+(report §3.10). `<` and the other comparisons of two lists read it.
+
+### Examples
+
+```ernest
+#(List.compare([1, 2], [1, 3]), [1, 2] < [1, 2, 0], ["b"] > ["a", "z"])
+// => #(Less, true, true)
+```
+
 ## List.size
 
 ```ernest

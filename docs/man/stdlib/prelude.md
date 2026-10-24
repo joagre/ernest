@@ -322,9 +322,10 @@ Int.compare(2, 1)
 type Down = Down(process : Process, reason : Reason, site : String)
 ```
 
-What `monitor` delivers when a process ends: which process it was,
-how it ended, and where it was spawned, the top-level declaration and
-the line of the spawn, `Counter.main:19` (report §6.9).
+What `monitor` delivers when a process ends, and `monitorService` when
+it restarts too: which process it was, its reason, and where it was
+spawned, the top-level declaration and the line of the spawn,
+`Counter.main:19` (report §6.9).
 
 ### Examples
 
@@ -339,7 +340,7 @@ the line of the spawn, `Counter.main:19` (report §6.9).
 ## Reason
 
 ```ernest
-type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown | Unreachable
+type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown | Unreachable | Restarted
 ```
 
 How a process ended, as `Down` says it.
@@ -354,6 +355,8 @@ How a process ended, as `Down` says it.
   known.
 - `Unreachable`: its node went out of reach, and it may live on; a
   monitor on a process of another node alone gives it (report §8.7).
+- `Restarted`: it restarted in place, and lives on; a service monitor
+  alone gives it, at each restart (report §6.9).
 
 Only `Fault` counts as a fault: `ern run` reports it, and `restarting`
 restarts after it.
@@ -588,6 +591,31 @@ process that answers is not told (report §6.6).
 spawn(fn() = receive { #(n, r) -> answer(r, n * 2) })
 ```
 
+## Reply.process
+
+```ernest
+Reply.process(reply : Reply(a)) : Process
+```
+
+*Since 0.5.0.*
+
+The caller waiting on `reply`, as a `Process`: the callee may watch it
+with `monitor`, or compare it with another (report §6.6).
+
+It gives no address, so nothing is sent through it; the answer goes
+through the reply alone.
+
+### Examples
+
+```ernest
+{
+    let echo = spawn(fn() = receive {
+        r -> answer(r, Reply.process(r) == Process.current())
+    });
+    Address.callForever(echo, fn(r) = r)
+}
+```
+
 ## restarting
 
 ```ernest
@@ -603,8 +631,9 @@ waiting for the process's answer ends, and what the process asked the
 runtime for, its alarms, monitors and subscriptions, is canceled. What
 `f` held is gone (report §6.9).
 
-A restart is not a death: no `monitor` is told, and the process's `Down`
-comes only when it ends for good. `RestartLimit(restarts = n, within = t)`
+A restart is not a death: no `monitor` is told, and its `Down` comes only
+when the process ends for good; a service monitor, `monitorService`, is
+told of each restart too. `RestartLimit(restarts = n, within = t)`
 allows `n` restarts within `t` milliseconds, and `Unlimited` restarts
 after every fault.
 
@@ -640,7 +669,8 @@ A process that has already ended is reported at once, with the reason
 `Unknown`. Each call watches once and gives one message (report §6.9).
 `Process.fromAddress(a)` gives the process behind an address, and a
 process the caller starts itself is watched from its start with
-`spawnMonitored`.
+`spawnMonitored`. A restart in place is no end, and `monitor` is not told
+of it; `monitorService` is.
 
 ### Examples
 
@@ -648,6 +678,59 @@ process the caller starts itself is watched from its start with
 {
     let worker : Address(Int) = spawn(fn() = receive { _ -> Unit });
     monitor(Process.fromAddress(worker), fn(d : Down) = d)
+}
+```
+
+## monitorService
+
+```ernest
+monitorService(process : Process, wrap : (Down) -> m) : Unit receiving m
+```
+
+*Since 0.5.0.*
+
+Watches a process as `monitor` does, and is told of its restarts too:
+`wrap(d)` is put in the caller's mailbox at each restart of `process`,
+with the reason `Restarted`, and when it ends, the watch ending then.
+
+A restart keeps the process's address and drops what its run held, so a
+process that keeps something for it, a lock it was granted, lets that
+go at `Restarted`. A process that has already ended is reported at once, with
+the reason `Unknown`, and each restart gives one message (report §6.9).
+A service monitor of a process of another node is told of its end
+alone, not of its restarts (report §8.7).
+
+### Examples
+
+```ernest
+{
+    let holder : Address(Int) =
+        spawn(restarting(Unlimited, fn() = receive { _ -> Unit }));
+    monitorService(Process.fromAddress(holder), fn(d : Down) = d)
+}
+```
+
+## demonitor
+
+```ernest
+demonitor(process : Process) : Unit
+```
+
+*Since 0.5.0.*
+
+Ends every watch the caller holds on `process`, those `monitor`,
+`monitorService` and `spawnMonitored` made alike (report §6.9).
+
+A `Down` already in the caller's mailbox stays, and none comes after.
+On a process the caller does not watch it does nothing.
+
+### Examples
+
+```ernest
+{
+    let worker : Address(Int) = spawn(fn() = receive { _ -> Unit });
+    monitor(Process.fromAddress(worker), fn(d : Down) = d);
+    demonitor(Process.fromAddress(worker))
 }
 ```
 

@@ -38,6 +38,26 @@
 ///
 /// since 0.1.0
 
+/// The order of two optional values: `None` before any `Some`, and two
+/// `Some`s by their values' `compare` (report §3.10). `<` and the other
+/// comparisons of two optional values read it.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Optional.compare(None, Some(1)), Some(2) < Some(1), Some("a") > None)
+/// // => #(Less, false, true)
+/// ```
+///
+/// since 0.5.0
+export fn compare(left : Optional(a), right : Optional(a)) : Ordering needs a.compare =
+    match #(left, right) {
+        #(None, None) -> Equal
+      | #(None, Some(_)) -> Less
+      | #(Some(_), None) -> Greater
+      | #(Some(value), Some(other)) -> a.compare(value, other)
+    }
+
 /// `true` for a `Some`.
 ///
 /// ### Examples
