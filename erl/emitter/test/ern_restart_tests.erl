@@ -83,6 +83,85 @@ restart_limit_test() ->
     ?assertEqual({ok, <<"start\nended 1\n">>}, ern_emitter_tests:run(Program("0"))),
     ?assertEqual({ok, <<"start\nended 1\n">>}, ern_emitter_tests:run(Program("-2"))).
 
+%% report §6.9, §9.5: a service monitor, `monitorService` called and taken
+%% as a value, is told of a restart with the reason `Restarted` and the
+%% process's spawn site, and stands until the process ends, which it is
+%% told as a monitor is; a `monitor` beside it is told of the end alone,
+%% so the restart gives two messages and the kill three
+service_monitor_test() ->
+    {ok, Output} = ern_emitter_tests:run(
+        "type Msg = Crash\n"
+        "type MainMsg = Told(Down)\n"
+        "fn loop() : Unit receiving Msg =\n"
+        "    receive {\n"
+        "        Crash -> fault(\"crash\")\n"
+        "    }\n"
+        "fn told() : Unit receiving MainMsg =\n"
+        "    receive {\n"
+        "        Told(Down(reason = Restarted, site = site)) ->\n"
+        "            Io.println(\"restarted \" <> site)\n"
+        "      | Told(Down(reason = reason)) -> Io.println(Io.show(reason))\n"
+        "    }\n"
+        "export fn main() : Unit receiving MainMsg = {\n"
+        "    let s = spawn(restarting(Unlimited, loop));\n"
+        "    let watch = monitorService;\n"
+        "    watch(Process.fromAddress(s), Told);\n"
+        "    monitorService(Process.fromAddress(s), Told);\n"
+        "    monitor(Process.fromAddress(s), Told);\n"
+        "    send(s, Crash);\n"
+        "    told();\n"
+        "    told();\n"
+        "    kill(s);\n"
+        "    told();\n"
+        "    told();\n"
+        "    told()\n"
+        "}\n"),
+    ?assertEqual(<<"restarted M.main:14\nrestarted M.main:14\nKilled\nKilled\nKilled\n">>,
+                 Output).
+
+%% report §6.9: a service monitor's Restarted reaches its watcher before
+%% anything the new run sends, the restarting process waiting after its
+%% emptying until the wrap has placed it: a holder that takes a lock at the
+%% start of each run, restarted fifty times, is seen by its guard as
+%% Restarted then Take each time. Written with the ordering, after the
+%% service monitor's first build, whose Take overtook the Restarted
+service_monitor_told_before_the_new_run_test() ->
+    {ok, Output} = ern_emitter_tests:run(
+        "type HolderMsg = Crash\n"
+        "type GuardMsg = Take | Told(Down)\n"
+        "fn holder(guard : Address(GuardMsg)) : Unit receiving HolderMsg = {\n"
+        "    send(guard, Take);\n"
+        "    receive {\n"
+        "        Crash -> fault(\"crash\")\n"
+        "    }\n"
+        "}\n"
+        "fn next() : String receiving GuardMsg =\n"
+        "    receive {\n"
+        "        Take -> \"take\"\n"
+        "      | Told(Down(reason = reason)) -> Io.show(reason)\n"
+        "    }\n"
+        "fn crashes(h : Address(HolderMsg), count : Int, wrong : Int) : Int receiving GuardMsg =\n"
+        "    if count == 0 then\n"
+        "        wrong\n"
+        "    else {\n"
+        "        send(h, Crash);\n"
+        "        let first = next();\n"
+        "        let second = next();\n"
+        "        let right = first == \"Restarted\" && second == \"take\";\n"
+        "        crashes(h, count - 1, if right then wrong else wrong + 1)\n"
+        "    }\n"
+        "export fn main() : Unit receiving GuardMsg = {\n"
+        "    let me = self();\n"
+        "    let h = spawn(restarting(Unlimited, fn() = holder(me)));\n"
+        "    receive {\n"
+        "        Take -> Unit\n"
+        "    };\n"
+        "    monitorService(Process.fromAddress(h), Told);\n"
+        "    Io.println(Int.toString(crashes(h, 50, 0)) <> \" out of order\");\n"
+        "    kill(h)\n"
+        "}\n"),
+    ?assertEqual(<<"0 out of order\n">>, Output).
+
 %% report §6.9: `Unlimited` runs the function again after every fault, and a
 %% time of 0 is a window of one millisecond, which a loop that faults at
 %% once passes. A regression test: a time of 0 set no limit, and the loop

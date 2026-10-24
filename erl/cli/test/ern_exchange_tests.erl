@@ -18,13 +18,14 @@
 -define(REACHED,
         "export type Shape = Square(Int) | Circle(Int)\n"
         "let side : Int = 3\n"
+        "let corner : Int = List.size([side])\n"
         "fn area(shape : Shape) : Int =\n"
         "    match shape { Square(s) -> s * s | Circle(r) -> 3 * r * r }\n"
         "fn isEven(n : Int) : Bool = if n == 0 then true else isOdd(n - 1)\n"
         "fn isOdd(n : Int) : Bool = if n == 0 then false else isEven(n - 1)\n"
         "foreign fn now() : Int = \"erlang:monotonic_time/0\"\n"
         "export fn work() : Unit =\n"
-        "    { let _ = area(Square(side)); let _ = isEven(4); Unit }\n"
+        "    { let _ = area(Square(side + corner)); let _ = isEven(4); Unit }\n"
         "export fn timed() : Int = now()\n"
         "export fn later(n : Int) : Either(Io.Error, Address(Never)) =\n"
         "    Peer.spawn(\"p\", fn() = { let _ = isOdd(n); Unit }, 100)\n").
@@ -33,7 +34,9 @@
 %% function's reach, a function's and a lambda's, from the code table and
 %% the forms the unit's `.erc` holds: the hashes of the definitions it
 %% reaches from the definition it is or is in, code and types, a group's
-%% members among them, the bindings its reach names and its foreign
+%% members among them and the constants it reads, whose forms cross (report
+%% §4.6, the full review's K14), the bindings its reach names that are no
+%% constants and its foreign
 %% declarations with the host's module and function and the declared
 %% type and where it is written; a foreign function's by its name, its
 %% declaration alone; and the lacks with a code frame for each, a group in
@@ -74,18 +77,18 @@ reach_test() ->
     try
         ?assertEqual(ok, run(Main, quiet())),
         {asked, Reaches, Lacks} = receive {asked, _, _} = Got -> Got end,
-        Work = lists:usort([Hash(Name) || Name <- [work, area, isEven, isOdd, 'Shape']]),
+        Work = lists:usort([Hash(Name) || Name <- [work, area, isEven, isOdd, 'Shape', side]]),
         Later = lists:usort([Hash(Name) || Name <- [later, isEven, isOdd]]),
         Now = {[<<"Exreach">>, <<"now">>], <<"erlang">>, <<"monotonic_time">>,
                {scheme, [], {arrow, [], none, {applied, {named, ['Int']}, []}}, []},
-               {[<<"Exreach">>], []}, {7, 1, none}},
-        ?assertMatch([[{reach, _, Work, [{[<<"Exreach">>, <<"side">>], _}], []}],
+               {[<<"Exreach">>], []}, {8, 1, none}},
+        ?assertMatch([[{reach, _, Work, [{[<<"Exreach">>, <<"corner">>], _}], []}],
                       [{reach, _, [_], [], [Now]}],
                       [{reach, _, Later, [], []}],
                       [{reach, _, none}],
                       [{reach, _, [], [], [Now]}]], Reaches),
-        [[{reach, _, Work, [{_, SideHash}], []}], [{reach, _, [Timed], _, _}] | _] = Reaches,
-        ?assertEqual(Hash(side), SideHash),
+        [[{reach, _, Work, [{_, CornerHash}], []}], [{reach, _, [Timed], _, _}] | _] = Reaches,
+        ?assertEqual(Hash(corner), CornerHash),
         ?assertEqual(Hash(timed), Timed),
         [Frames, [Group], [None], [TimedFrame]] = Lacks,
         ?assertEqual({reach, none}, {element(1, None), element(3, None)}),
@@ -120,17 +123,17 @@ reach_test() ->
             [Frame || {code_frame, _, [Of], _, _} = Frame <- Frames, Of =:= Hash(work)],
         %% report §8.7: the definition's name as text and its source's lines
         [{WorkName, {'$at', {WorkLine, _, none}, _}, _, _}] = binary_to_term(WorkSources),
-        ?assertEqual({[<<"Exreach">>, <<"work">>], 8}, {WorkName, WorkLine}),
+        ?assertEqual({[<<"Exreach">>, <<"work">>], 9}, {WorkName, WorkLine}),
         [{'$at', {OddLine, _, none}, _}] =
             [Source || {[<<"Exreach">>, <<"isOdd">>], Source, _, _}
                            <- binary_to_term(element(5, Group))],
-        ?assertEqual(6, OddLine),
+        ?assertEqual(7, OddLine),
         %% report §8.7: a definition that calls a foreign function carries
         %% its declaration's host module and function beside its form, and
         %% where it is written
         ?assertMatch([{[<<"Exreach">>, <<"timed">>], _, {[<<"Exreach">>], []},
                        [{[<<"Exreach">>, <<"now">>], <<"erlang">>, <<"monotonic_time">>,
-                         {[<<"Exreach">>], []}, {7, 1, none}}]}],
+                         {[<<"Exreach">>], []}, {8, 1, none}}]}],
                      binary_to_term(element(5, TimedFrame)))
     after
         unloaded(Unit)
@@ -250,8 +253,9 @@ received_whole_test() ->
 %% the check at its declared type. A compute of the function the reach
 %% brought answers its value, and the code table holds it, the node's
 %% pool's unit, which the node ships onward as its own: asked for the reach
-%% of the function now, it answers it from that unit's forms, the foreign
-%% declaration with its type
+%% of the function now, it answers it from that unit's forms, the ground
+%% binding among the definitions, as its term crosses (§11.1), and the
+%% foreign declaration with its type
 received_linked_test() ->
     {HeldUnit, HeldBeam, _} = compiled(['Exheld'], ?HELD),
     loaded(HeldUnit, HeldBeam),
@@ -306,11 +310,11 @@ received_linked_test() ->
         ?assertEqual(82, Computed),
         ?assertEqual(82, Ground),
         ?assertEqual({[{['Exbound', base], bound_hash(BoundBeam)}], [['Exlinked', now]]}, Reach),
-        ?assertMatch({reach, _, _, [{[<<"Exbound">>, <<"base">>], _}],
+        ?assertMatch({reach, _, _, [],
                       [{[<<"Exlinked">>, <<"now">>], <<"erlang">>, <<"monotonic_time">>, Scheme,
                         {[<<"Exlinked">>], []}, {1, 1, none}}]},
                      Onward),
-        ?assertEqual(lists:sort([Linked#definition.hash, HeldHash]),
+        ?assertEqual(lists:sort([Linked#definition.hash, HeldHash, bound_hash(BoundBeam)]),
                      lists:sort(element(3, Onward))),
         unloaded(Unit)
     after

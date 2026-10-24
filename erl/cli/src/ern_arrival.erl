@@ -293,12 +293,38 @@ linked(Unit, Compiled, ForeignFunctions, Reach, Env) ->
         ++ [Scheme || #foreign_function{scheme = Scheme} <- ForeignFunctions],
     External = [Reference || Reference <- ern_compile:references(Forms),
                              not own(Reference, Hashes, Foreign)],
+    %% report §4.6, §8.7: a binding that arrived is read where the node
+    %% holds it, but a constant the node holds nowhere, whose value its form
+    %% gives here, read where its definition stands in the unit, which is
+    %% known once the types its form names are linked
+    Arrived = maps:from_list([{Hash, QualifiedName}
+                              || #definition{kind = binding, hash = Hash,
+                                             qualified_name = QualifiedName} <- Compiled]),
+    {Deferred, Linking} = lists:partition(fun({binding, _, Hash} = Reference) ->
+                                                  is_map_key(Hash, Arrived)
+                                                      andalso ern_code:valued(Reference) =:= none
+                                                      andalso ern_code:grounded(Reference)
+                                                              =:= none;
+                                             (_) ->
+                                                  false
+                                          end, External),
     try
-        {Functions, Others, TypeReferences, Lacking} =
-            lists:foldl(fun(Reference, Acc) -> external(Reference, Acc, Reach, Env) end,
-                        {#{}, #{}, [], []}, External),
+        Acc0 = lists:foldl(fun(Reference, Acc) -> external(Reference, Acc, Reach, Env) end,
+                           {#{}, #{}, [], []}, Linking),
+        Types = types(element(3, Acc0), #{}, {Hashes, #{}}, Env),
+        Constants = ern_emitter:ground_terms(
+                      #unit{namespace = [], name = Unit, definitions = Compiled,
+                            link = #link{functions = element(1, Acc0), types = Types},
+                            code = true, form_namespace = [], site_namespace = []},
+                      [maps:get(Hash, Arrived) || {binding, _, Hash} <- Deferred]),
+        {Functions, Others, _, Lacking} =
+            lists:foldl(fun({binding, _, Hash} = Reference, Acc) ->
+                            case is_map_key(maps:get(Hash, Arrived), Constants) of
+                                true -> Acc;
+                                false -> external(Reference, Acc, Reach, Env)
+                            end
+                        end, Acc0, Deferred),
         {Faulting, Lacked} = lacked(Unit, lists:reverse(Lacking)),
-        Types = types(TypeReferences, #{}, {Hashes, #{}}, Env),
         {ok, #link{functions = maps:merge(Functions, Faulting), types = Types,
                    printing = ern_types:printing(ern_typecheck:type_state(Env))},
          Others, Lacked}
@@ -340,12 +366,11 @@ external({hash, Hash} = Reference, {Functions, Others, Types, Lacking}, _Reach, 
 external({binding, QualifiedName, Hash} = Reference, {Functions, Others, Types, Lacking},
          {Bindings, _}, _Env) ->
     Absent = ["the binding ", ern_namespace:text(QualifiedName), " has no value here"],
-    case {ern_code:valued(Reference), lists:keymember(Hash, 2, Bindings)} of
-        {{Unit, Getter}, _} ->
+    case {valued(Reference), lists:keymember(Hash, 2, Bindings)} of
+        {{Unit, Getter, Term}, _} ->
             %% report §11.1: a ground binding's read is its value
             {Functions#{Reference => #linked{unit = Unit, function = Getter, arity = 0,
-                                             kind = value, identity = Hash,
-                                             term = ern_code:ground(Reference)}},
+                                             kind = value, identity = Hash, term = Term}},
              Others, Types, Lacking};
         {none, false} ->
             {Functions, Others, Types, [{Reference, 0, value, Hash, Absent} | Lacking]};
@@ -373,6 +398,20 @@ external({foreign, QualifiedName, Scheme} = Reference, {Functions, Others, Types
             throw({unlinked, ["it calls a foreign function its reach did not declare, ",
                               ern_namespace:text(QualifiedName)]})
     end.
+
+%% Report §8.7, §4.6, §11.1: where a binding is held with its value: a
+%% unit whose initializers gave it one, through its getter, and a unit that
+%% lists it as a constant, whose value is its read wherever its form is,
+%% evaluated nowhere; none where the node holds it with no value.
+valued(Reference) ->
+    case {ern_code:valued(Reference), ern_code:grounded(Reference)} of
+        {{Unit, Getter}, Ground} -> {Unit, Getter, ground(Ground)};
+        {none, {Unit, Getter, Term}} -> {Unit, Getter, {term, Term}};
+        {none, none} -> none
+    end.
+
+ground({_, _, Term}) -> {term, Term};
+ground(none) -> none.
 
 %% Report §8.4, §11.5: each type of References with its name and its
 %% constructors as its form writes them, a program's from the forms the

@@ -1502,10 +1502,12 @@ long_time_test() ->
 
 %% report §6.6, §7.4: a call ends at once when its callee faults, is
 %% killed, returns, or had ended, before it answers: Address.call answers
-%% None, and callForever faults the caller with the callee's cause or says
-%% how it ended; a restart ends the calls waiting on the process the same
-%% way. A regression test of the rule's first build: a callForever to a
-%% dead callee waited for a deadlock, and a call for its time
+%% None, and callForever faults the caller with the callee's cause and its
+%% site after it, or says how it ended; a restart ends the calls waiting on
+%% the process the same way. A regression test of the rule's first build: a
+%% callForever to a dead callee waited for a deadlock, and a call for its
+%% time; the site after the cause was written with the code that names it
+%% (the full review's B-C3)
 call_ends_with_callee_test_() ->
     {timeout, 30, fun call_ends_with_callee/0}.
 
@@ -1526,7 +1528,7 @@ call_ends_with_callee() ->
         "    Io.println(Int.toString(Address.callForever(s, " ++ Ask ++ ")))\n"
         "}\n"
     end,
-    ?assertMatch({{fault, <<"bad request">>, _}, _},
+    ?assertMatch({{fault, <<"bad request, the fault of the callee M.main:10">>, _}, _},
                  run(Forever("    let s = spawn(faulty);\n"))),
     ?assertMatch({{fault, <<"callee was killed">>, _}, _},
                  run(Forever("    let s = spawn(quiet);\n"
@@ -1540,7 +1542,7 @@ call_ends_with_callee() ->
                  run(Forever("    let s = spawnMonitored(fn() : Unit receiving Msg = Unit,\n"
                              "        Died);\n"
                              "    receive { Died(_) -> Unit };\n"))),
-    ?assertMatch({{fault, <<"bad request">>, _}, _},
+    ?assertMatch({{fault, <<"bad request, the fault of the callee M.main:11">>, _}, _},
                  run(Forever("    let limit = RestartLimit(restarts = 5, within = 60000);\n"
                              "    let s = spawn(restarting(limit, faulty));\n"))),
     {ok, Output} = run(Types ++ Faulty ++
@@ -1553,6 +1555,82 @@ call_ends_with_callee() ->
                        "    Unit\n"
                        "}\n"),
     ?assertEqual(<<"None\nNone\n">>, Output).
+
+%% report §3.10, §9.3, §9.6, §4.9, §3.5: a tuple and a list order
+%% component by component from the left, a list before a longer one it
+%% begins, Optional None before Some and Either Left before Right, then by
+%% the element: `<` on each, a sort by an order over tuples, a requirement
+%% reaching through a tuple and a list to the element, a derived compare
+%% over fields of the four, and an ordered set of lists. Written with the
+%% rule (the full review's N25)
+structural_compare_test() ->
+    {ok, Output} = run(
+        "type Date = Date(year : Int, at : Optional(Int), tags : List(String),"
+        " pair : #(Int, String)) derives compare\n"
+        "type Box(a) = Box(items : List(a), first : Optional(a)) derives compare\n"
+        "fn byFirst(left : #(Int, String), right : #(Int, String)) : Ordering =\n"
+        "    if left < right then Less else if left > right then Greater else Equal\n"
+        "fn largest(list : List(a)) : Optional(a) needs a.compare =\n"
+        "    List.foldLeft(list, None, fn(acc, x) = if Some(x) > acc then Some(x) else acc)\n"
+        "export fn main() : Unit = {\n"
+        "    Io.println(Io.show(#(#(1, \"b\") < #(1, \"c\"), #(2, 'a') <= #(1, 'z'))));\n"
+        "    Io.println(Io.show(#([1, 2] < [1, 2, 0], [] < [0], [3] >= [2, 9])));\n"
+        "    Io.println(Io.show(#(None < Some(0), Some(2) < Some(1))));\n"
+        "    let right : Either(Int, Int) = Right(1);\n"
+        "    Io.println(Io.show(#(Left(9) < Right(\"a\"), right < Right(2))));\n"
+        "    let pairs = [#(2, \"a\"), #(1, \"z\"), #(1, \"b\")];\n"
+        "    Io.println(Io.show(List.sort(pairs, byFirst)));\n"
+        "    Io.println(Io.show(largest([#(1, [2]), #(1, [3]), #(0, [9])])));\n"
+        "    let earlier = Date(year = 1, at = None, tags = [], pair = #(1, \"a\"));\n"
+        "    let later = Date(year = 1, at = Some(0), tags = [], pair = #(0, \"a\"));\n"
+        "    Io.println(Io.show(Date.compare(earlier, later)));\n"
+        "    let empty = Box(items = [1], first = None);\n"
+        "    Io.println(Io.show(empty < Box(items = [1], first = Some(0))));\n"
+        "    Io.println(Io.show(OrderedSet.toList(OrderedSet.fromList([[2], [1, 5], [1]]))))\n"
+        "}\n"),
+    ?assertEqual(<<"#(true, false)\n#(true, true, true)\n#(true, false)\n#(true, true)\n"
+                   "[#(1, \"b\"), #(1, \"z\"), #(2, \"a\")]\nSome(#(1, [3]))\nLess\ntrue\n"
+                   "[[1], [1, 5], [2]]\n">>, Output).
+
+%% report §6.6, §9.5: `Reply.process(r)` is the caller's `Process`, which
+%% the callee compares and monitors: the caller is told it is itself, and
+%% the callee, keeping a second caller's reply, is told of that caller's
+%% end by the monitor the reply gave it; taken as a value it is the same
+%% function
+reply_process_test() ->
+    {ok, Output} = run(
+        "type Msg = Ask(Reply(Process)) | Hold(Reply(Unit)) | Ended(Down)\n"
+        "type MainMsg = Holding | Told(Bool)\n"
+        "fn serve(main : Address(MainMsg), held : Optional(Process)) : Unit receiving Msg =\n"
+        "    receive {\n"
+        "        Ask(r) -> {\n"
+        "            let process = Reply.process;\n"
+        "            answer(r, process(r));\n"
+        "            serve(main, held)\n"
+        "        }\n"
+        "      | Hold(r) -> {\n"
+        "            monitor(Reply.process(r), Ended);\n"
+        "            send(main, Holding);\n"
+        "            serve(main, Some(Reply.process(r)))\n"
+        "        }\n"
+        "      | Ended(Down(process = p)) -> send(main, Told(Some(p) == held))\n"
+        "    }\n"
+        "export fn main() : Unit receiving MainMsg = {\n"
+        "    let me = self();\n"
+        "    let server = spawn(fn() = serve(me, None));\n"
+        "    let asker = Address.callForever(server, Ask);\n"
+        "    Io.println(\"itself: \" <> Io.show(asker == Process.current()));\n"
+        "    let caller = spawn(fn() = Address.callForever(server, Hold));\n"
+        "    receive {\n"
+        "        Holding -> kill(caller)\n"
+        "      | Told(_) -> Unit\n"
+        "    };\n"
+        "    receive {\n"
+        "        Told(same) -> Io.println(\"the caller ended: \" <> Io.show(same))\n"
+        "      | Holding -> Unit\n"
+        "    }\n"
+        "}\n"),
+    ?assertEqual(<<"itself: true\nthe caller ended: true\n">>, Output).
 
 %% report §4.6, §6.5, §8.5: a service is a top-level binding whose
 %% initializer spawns the process, before main, in the entry process;
@@ -2540,7 +2618,7 @@ junk(Pid) -> Pid ! {'Go', <<"x">>}, 'Unit'.
 good(Pid) -> Pid ! {'Go', 1}, 'Unit'.
 tell(Pids) -> [P ! {'Go', 2} || P <- Pids], 'Unit'.
 junk_server() ->
-    spawn(fun() -> receive {'Ask', Reply} -> Reply ! {Reply, <<"x">>} end end).
+    spawn(fun() -> receive {'Ask', {Alias, _}} -> Alias ! {Alias, <<"x">>} end end).
 %% report §8.4: a foreign process that answers a Hello with a message to the
 %% address it holds, of another type or of the declared one
 hello_junk() ->
@@ -2548,8 +2626,8 @@ hello_junk() ->
 hello_good() ->
     spawn(fun() -> receive {'Hello', Address} -> Address ! {'Go', 1} end end).
 %% report §8.4: foreign code given a Reply answers it as the ABI says
-relay_junk(Reply) -> Reply ! {Reply, <<"x">>}, 'Unit'.
-relay_good(Reply) -> Reply ! {Reply, 5}, 'Unit'.
+relay_junk({Alias, _}) -> Alias ! {Alias, <<"x">>}, 'Unit'.
+relay_good({Alias, _}) -> Alias ! {Alias, 5}, 'Unit'.
 %% report §8.4: a Reply handed back as it was given, its type declared anew
 same(Reply) -> Reply.
 %% report §8.4: foreign code that calls the function inside its argument
@@ -2557,14 +2635,14 @@ same(Reply) -> Reply.
 call_nested_bad({_, Function}) -> Function(<<"bad">>).
 call_nested_good({Number, Function}) -> Function(Number).
 %% report §8.4: foreign code that asks an Ernest server with a Reply of its
-%% own, and sends the address it is answered a message of another type or
-%% of the declared one
+%% own, its alias and its process, and sends the address it is answered a
+%% message of another type or of the declared one
 ask_junk(Server) -> ask(Server, <<"x">>).
 ask_good(Server) -> ask(Server, 1).
 ask(Server, Value) ->
     spawn(fun() ->
               Reply = erlang:alias(),
-              Server ! {'Ask', Reply},
+              Server ! {'Ask', {Reply, self()}},
               receive {Reply, Address} -> Address ! {'Go', Value} end
           end),
     'Unit'.
@@ -3163,11 +3241,14 @@ prelude_target(QualifiedName, Text) ->
         [adapted] -> {ern_rt, adapted, 2};
         [answer] -> {ern_rt, answer, 2};
         [monitor] -> {ern_rt, monitor, 2};
+        [monitorService] -> {ern_rt, monitor_service, 2};
+        [demonitor] -> {ern_rt, demonitor, 1};
         [kill] -> {ern_rt, kill, 1};
         [restarting] -> {ern_rt, restarting, 2};
         [fault] -> {ern_rt, fault, 1};
         ['Address', call] -> {ern_rt, call, 3};
         ['Address', callForever] -> {ern_rt, call_forever, 2};
+        ['Reply', process] -> {ern_rt, reply_process, 1};
         ['Int', Operator]
           when Operator =:= '+'; Operator =:= '-'; Operator =:= '*'; Operator =:= '/';
                Operator =:= '%'; Operator =:= negate ->

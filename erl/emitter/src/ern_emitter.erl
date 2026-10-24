@@ -717,8 +717,9 @@ foreign_arity(#foreign_function{scheme = {scheme, _, {arrow, ParamTypes, _, _}, 
 %% hash, from its canonical form, and the function that holds it, a
 %% function with its reach, or for a binding the key its value is kept
 %% under (§8.5); each binding whose initializer is a ground term with its
-%% value, by which a unit an exchange makes holds it where it reads it
-%% (§11.1, ern_arrival); each foreign declaration's implementation and its
+%% getter and its value, by which a unit an exchange makes holds it where
+%% it reads it, and a peer's spawn finds it valued (§4.6, §11.1,
+%% ern_arrival); each foreign declaration's implementation and its
 %% function, which the canonical forms name by its qualified name alone;
 %% each lambda and local fn a spawn on a peer starts, by its identity,
 %% with its entry and its reach; under the namespace the forms name what
@@ -738,7 +739,7 @@ code(Placed, ForeignPlaced, Entries,
                    own = #own{forms = Forms, grounds = Grounds}} = Context) ->
     [definition_code(Position, Definition, element(2, maps:get(Position, Forms)), Context)
      || {Position, Definition} <- Placed]
-        ++ [{form_name(QualifiedName, Unit), {term, Hash, Term}}
+        ++ [{form_name(QualifiedName, Unit), {term, Hash, function_name(Position), Term}}
             || {Position, #definition{qualified_name = QualifiedName, hash = Hash}} <- Placed,
                {ok, Term} <- [maps:find(Position, Grounds)]]
         ++ [{form_name(QualifiedName, Unit),
@@ -1308,8 +1309,15 @@ placed(Reference, #emit_context{own = #own{forms = Forms, foreign = Foreign}} = 
 %% reference names, or error for another unit's.
 own_position({hash, Hash}, #emit_context{own = #own{hashes = Hashes}}) ->
     maps:find(Hash, Hashes);
-own_position({binding, QualifiedName, _}, #emit_context{own = #own{names = Names}}) ->
-    maps:find(QualifiedName, Names);
+own_position({binding, QualifiedName, Hash},
+             #emit_context{own = #own{names = Names, hashes = Hashes, grounds = Grounds}}) ->
+    %% report §4.6, §8.7: a constant of an exchange's unit, which its form
+    %% values there, by its identity, its name being the frame's text
+    case {maps:find(QualifiedName, Names), maps:find(Hash, Hashes)} of
+        {{ok, Position}, _} -> {ok, Position};
+        {error, {ok, Position}} when is_map_key(Position, Grounds) -> {ok, Position};
+        {error, _} -> error
+    end;
 own_position({named, QualifiedName},
            #emit_context{own = #own{names = Names, foreign = Foreign}}) ->
     %% the standard library's own forms name its declarations by name
@@ -1355,9 +1363,10 @@ value_arity(Reference, Context) ->
 %% Report §11.2: whether a name is one of the prelude's primitives, which
 %% the runtime gives and no unit holds (§9).
 is_primitive([Name]) ->
-    lists:member(Name, [self, send, answer, adapted, monitor, kill, spawn, spawnMonitored,
-                        restarting, fault]);
+    lists:member(Name, [self, send, answer, adapted, monitor, monitorService, demonitor, kill,
+                        spawn, spawnMonitored, restarting, fault]);
 is_primitive(['Address', Name]) -> Name =:= call orelse Name =:= callForever;
+is_primitive(['Reply', Name]) -> Name =:= process;
 is_primitive(['Int', Name]) -> lists:member(Name, ['+', '-', '*', '/', '%', negate]);
 is_primitive([TypeName, '<>']) -> lists:member(TypeName, ['String', 'List', 'Bytes']);
 is_primitive(_) -> false.
@@ -1511,6 +1520,28 @@ supply_form({shown, Type, Abstract}, #emit_context{members = Members} = Context)
     end;
 supply_form({known, {named, [_, Member]} = Reference, []}, Context) ->
     member_value(Reference, Member, Context);
+%% report §3.10: a tuple's compare, the language's: its components compared
+%% in turn by their supplies, the first that is not Equal deciding
+supply_form({tuple, Supplies}, Context) ->
+    {SupplyForms, Context1} = supply_forms(Supplies, Context),
+    {[Left, Right, Order], Context2} = fresh_variables(3, "Operand", Context1),
+    Compared = fun(Index, Compare) ->
+                   Element = fun(Tuple) ->
+                                 call_remote(erlang, element, [erl_syntax:integer(Index),
+                                                               erl_syntax:variable(Tuple)])
+                             end,
+                   erl_syntax:application(Compare, [Element(Left), Element(Right)])
+               end,
+    Indexed = lists:enumerate(SupplyForms),
+    {LastIndex, Last} = lists:last(Indexed),
+    Body = lists:foldr(fun({Index, Compare}, Rest) ->
+                           erl_syntax:case_expr(
+                             Compared(Index, Compare),
+                             [erl_syntax:clause([erl_syntax:atom('Equal')], none, [Rest]),
+                              erl_syntax:clause([erl_syntax:variable(Order)], none,
+                                                [erl_syntax:variable(Order)])])
+                       end, Compared(LastIndex, Last), lists:droplast(Indexed)),
+    {lambda([Left, Right], Body), Context2};
 supply_form({known, Reference, Supplies}, Context) ->
     {SupplyForms, Context1} = supply_forms(Supplies, Context),
     Arity = value_arity(Reference, Context) - length(Supplies),
@@ -1596,6 +1627,12 @@ prelude_call(_, [adapted], _, ArgForms, _, Context) ->
     {call_remote(ern_rt, adapted, ArgForms), Context};
 prelude_call(_, [monitor], _, ArgForms, _, Context) ->
     {call_remote(ern_rt, monitor, ArgForms), Context};
+prelude_call(_, [monitorService], _, ArgForms, _, Context) ->
+    {call_remote(ern_rt, monitor_service, ArgForms), Context};
+prelude_call(_, [demonitor], _, ArgForms, _, Context) ->
+    {call_remote(ern_rt, demonitor, ArgForms), Context};
+prelude_call(_, ['Reply', process], _, ArgForms, _, Context) ->
+    {call_remote(ern_rt, reply_process, ArgForms), Context};
 prelude_call(_, [kill], _, ArgForms, _, Context) ->
     {call_remote(ern_rt, kill, ArgForms), Context};
 prelude_call(Source, [spawn], _, ArgForms, _, Context) ->
@@ -1661,6 +1698,10 @@ prelude_value(_, ['Address', Name] = QualifiedName, Answer, Context)
     ArgForms = [erl_syntax:variable(Variable) || Variable <- Variables],
     {Body, Context2} = reply_call(Function, ArgForms, Answer, Context1),
     {lambda(Variables, Body), Context2};
+prelude_value(_, [monitorService], _, Context) ->
+    {remote_fun(ern_rt, monitor_service, 2), Context};
+prelude_value(_, ['Reply', process], _, Context) ->
+    {remote_fun(ern_rt, reply_process, 1), Context};
 prelude_value(_, ['Int', Member], _, Context) ->
     member_value({named, ['Int', Member]}, Member, Context);
 prelude_value(_, [TypeName, '<>'], _, Context) ->
@@ -1839,7 +1880,10 @@ member_applied({required, {variable, Number}, Member}, Args, Context) ->
     {erl_syntax:application(Function, Args), Context};
 member_applied({known, Reference, Supplies}, Args, Context) ->
     {SupplyForms, Context1} = supply_forms(Supplies, Context),
-    {member_call(Reference, Args ++ SupplyForms, Context1), Context1}.
+    {member_call(Reference, Args ++ SupplyForms, Context1), Context1};
+member_applied({tuple, _} = Supply, Args, Context) ->
+    {Compare, Context1} = supply_form(Supply, Context),
+    {erl_syntax:application(Compare, Args), Context1}.
 
 %% Report §3.10: an ordering is its compare against Less or Greater; any
 %% other operator is the member's own result.

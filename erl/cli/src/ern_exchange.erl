@@ -524,7 +524,11 @@ foreign_reach(Unit, Foreigns) ->
     end.
 
 %% A request reads each unit's forms once, the reach's definitions and its
-%% foreign declarations from the same reading (recorded/2).
+%% foreign declarations from the same reading (recorded/2). Report §4.6,
+%% §8.7: a constant has its value wherever its form is, so one that a
+%% crossing definition references is an identity whose form crosses where
+%% the peer lacks it (reached_definitions/3), and no binding the peer is
+%% asked the value of.
 reach(Key, Hash) ->
     case ern_code:spawnable(Key) of
         none ->
@@ -536,9 +540,11 @@ reach(Key, Hash) ->
                         {{ok, Implemented}, _} ->
                             {lists:usort([Defined || #definition{hash = Defined, kind = Kind}
                                                          <- Definitions,
-                                                     Kind =/= binding orelse Defined =:= Hash]),
+                                                     Kind =/= binding orelse Defined =:= Hash
+                                                         orelse is_constant(Defined)]),
                              [{ern_namespace:text_segments(QualifiedName), BindingHash}
-                              || {QualifiedName, BindingHash} <- Bindings],
+                              || {QualifiedName, BindingHash} <- Bindings,
+                                 not is_constant(BindingHash)],
                              Implemented};
                         {none, _} ->
                             none
@@ -549,7 +555,8 @@ reach(Key, Hash) ->
     end.
 
 %% The definitions Hashes reach, transitively, through the functions and
-%% the types their forms reference by hash, each with its group, and Read,
+%% the types their forms reference by hash and the constants they read,
+%% each with its group, and Read,
 %% the forms of each unit read; none where this node holds one of them
 %% nowhere.
 reached_definitions([], Found, Read) ->
@@ -565,9 +572,19 @@ reached_definitions([Hash | Hashes], Found, Read) ->
                                                        || #definition{hash = Member} = Definition
                                                               <- Members])),
             Referenced = [Referenced
-                          || {hash, Referenced} <- ern_canonical:references(forms(Members))],
+                          || Reference <- ern_canonical:references(forms(Members)),
+                             Referenced <- [case Reference of
+                                                {hash, Referenced} -> Referenced;
+                                                {binding, _, Referenced} -> Referenced
+                                            end],
+                             element(1, Reference) =:= hash orelse is_constant(Referenced)],
             reached_definitions(Referenced ++ Hashes, Found1, Read1)
     end.
+
+%% Report §4.6: whether a binding's form is a constant, whose value this
+%% node's code table lists by its hash.
+is_constant(Hash) ->
+    ern_code:ground({binding, [], Hash}) =/= none.
 
 %% The foreign declarations of a function's reach, each with the module and
 %% the function of the host its declaration calls, as text, its declared
