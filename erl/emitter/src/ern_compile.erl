@@ -8,10 +8,12 @@
 %% the documentation as EEP 48's "Docs" (§11.4), which are the build's and
 %% no unit's and so are made from the typed tree and the environment; and
 %% what the unit records of its definitions as "ErnC", their forms with the
-%% lines of their source and their names, its foreign declarations and its
-%% bindings' order (§8.7, §11.1). It gives too the link of a unit made from
-%% forms alone, by name and through interfaces (link/5, named/2), and the
-%% host's compile of any unit (compiled/2).
+%% lines of their source and their names, its foreign declarations with
+%% theirs and its bindings' order (§8.7, §11.1). It gives too the interface
+%% with the ground terms that the build writes before it emits the module
+%% (interface/5), the link of a unit made from forms alone, by name and
+%% through interfaces (link/5, named/2), and the host's compile of any unit
+%% (compiled/2).
 -module(ern_compile).
 
 -export([compile/4, compile/5, interface/5, from_compiled/5, compiled/2, forms/3, forms/4,
@@ -31,27 +33,27 @@ compile(Namespace, Declarations, Interface, Env) ->
 %% (report §11.1); `source` goes to the documentation; `session_offset`
 %% marks an input of the shell, which is compiled and not written, and is
 %% not kept, with the lines before its first, after which its code, its
-%% spawn sites and its recorded forms count its lines (session_lined/2);
-%% `form_namespace`, which the shell gives an input, is the namespace its
-%% forms and its '$code'/0 name what the session declares under, the
-%% session's one (Appendix H, §11.2), and is not kept; `standard` marks a
-%% module of the standard library's own source root. `units` names the unit
-%% of each namespace whose unit is not its module's Erlang name, the
-%% module's own among them, as the shell gives them where a reload brought
-%% a version as a unit of its own (report §11.2), and is not kept;
-%% `site_namespace`, which the shell gives such a version, is the namespace
-%% its spawn sites name its declarations under, `Counter$2` (§11.2), and is
-%% not kept; `input_name`, which the shell gives an input, is the name its
-%% expression's sites write, `input 3`, which the forms' chunk records
-%% beside the expression's form (§8.7), and is not kept; `canonical`, the
-%% module's canonical forms where the build made them already (ern_build),
-%% is not kept either. The chunk records
-%% beside the build's facts whether the module
-%% builds a function value, `builds_functions`, by which the shell keeps an
-%% input's code (§11.2). The declarations are the checker's, so every rule
-%% a program can break has been checked: what the emitter cannot emit, or
-%% emits and the host does not compile, is a defect of the toolchain,
-%% raised as one, which `ern` reports as its own failure (report §11).
+%% spawn sites and its recorded forms count its lines, a foreign
+%% declaration's among them (session_lined/2); `form_namespace`, which the
+%% shell gives an input, is the namespace its forms and its '$code'/0 name
+%% what the session declares under, the session's one (Appendix H, §11.2),
+%% and is not kept; `standard` marks a module of the standard library's own
+%% source root. `units` names the unit of each namespace whose unit is not
+%% its module's Erlang name, the module's own among them, as the shell
+%% gives them where a reload brought a version as a unit of its own (report
+%% §11.2), and is not kept; `site_namespace`, which the shell gives such a
+%% version, is the namespace its spawn sites name its declarations under,
+%% `Counter$2` (§11.2), and is not kept; `input_name`, which the shell gives
+%% an input, is the name its expression's sites write, `input 3`, which the
+%% forms' chunk records beside the expression's form (§8.7), and is not
+%% kept; `canonical`, the module's canonical forms where the build made
+%% them already (ern_build), is not kept either. The chunk records beside
+%% the build's facts whether the module builds a function value,
+%% `builds_functions`, by which the shell keeps an input's code (§11.2).
+%% The declarations are the checker's, so every rule a program can break
+%% has been checked: what the emitter cannot emit, or emits and the host
+%% does not compile, is a defect of the toolchain, raised as one, which
+%% `ern` reports as its own failure (report §11).
 -spec compile([atom()], [tuple()], #interface{}, ern_typecheck:env(),
               #{source_hash := binary(), source_path => binary(),
                 deps := [{[atom()], binary()}], compiler => binary(),
@@ -73,7 +75,7 @@ compile(Namespace, Declarations, Interface, Env, Build) ->
     Facts = (maps:without([source, session_offset, form_namespace, standard, units,
                            site_namespace, code, canonical, input_name], Build))
         #{references => References, builds_functions => BuildsFunctions},
-    Chunk = ern_interface:encode(Facts, interface(Namespace, Interface, Canonical, Env, Build)),
+    Chunk = ern_interface:encode(Facts, with_terms(Interface, Canonical, Unit)),
     Docs = term_to_binary(ern_docs:build(Namespace, Declarations, Env,
                                          maps:get(source, Build, <<>>))),
     Chunks = [{ern_interface:chunk_name(), Chunk}, {ern_docs:chunk_name(), Docs},
@@ -84,41 +86,50 @@ compile(Namespace, Declarations, Interface, Env, Build) ->
     end.
 
 %% Report §11.1: the checker's interface of the module as its `.erc` holds
-%% it and a dependent is compiled against it: with the hash of each
-%% definition, each function's reach and each function's position, and the
-%% value of each exported binding whose initializer is a ground term
-%% (ern_emitter:ground_terms/2), the link made of the types those bindings
-%% and the module's types name alone.
+%% it and a dependent is compiled against it, which the build writes
+%% before it emits the module: with_terms/3's, of a unit whose link is made
+%% of the types the exported bindings and the module's types name alone, a
+%% module that exports no binding needing none.
 -spec interface([atom()], #interface{}, ern_canonical:canonical(), ern_typecheck:env(), map()) ->
           #interface{}.
 interface(_, #interface{lets = []} = Interface, Canonical, _, _) ->
-    ern_canonical:interface(Interface, Canonical);
+    with_terms(Interface, Canonical, none);
 interface(Namespace, #interface{lets = Lets} = Interface,
           #{definitions := Definitions} = Canonical, Env, Build) ->
-    Named = [Definition || #definition{kind = Kind, qualified_name = QualifiedName} = Definition
-                               <- Definitions,
-                           Kind =:= type orelse lists:member(QualifiedName, Lets)],
+    Linking = [Definition || #definition{kind = Kind, qualified_name = QualifiedName} = Definition
+                                 <- Definitions,
+                             Kind =:= type orelse lists:member(QualifiedName, Lets)],
     FormNamespace = maps:get(form_namespace, Build, Namespace),
-    Linked = Canonical#{definitions := Named, foreign_schemes := #{}},
     Unit = #unit{namespace = Namespace, name = ern_namespace:erlang_module(Namespace),
                  definitions = Definitions, form_namespace = FormNamespace,
                  standard = maps:get(standard, Build, false),
-                 link = link(Namespace, FormNamespace, Linked, Env, maps:get(units, Build, #{}))},
+                 link = link(Namespace, FormNamespace,
+                             Canonical#{definitions := Linking, foreign_schemes := #{}}, Env,
+                             maps:get(units, Build, #{}))},
+    with_terms(Interface, Canonical, Unit).
+
+%% Report §11.1: the interface with the hash of each definition, each
+%% function's reach and each function's position, and the value of each
+%% exported binding whose initializer is a ground term, as Unit's code
+%% holds it (ern_emitter:ground_terms/2).
+with_terms(#interface{lets = []} = Interface, Canonical, _) ->
+    ern_canonical:interface(Interface, Canonical);
+with_terms(#interface{lets = Lets} = Interface, Canonical, Unit) ->
     (ern_canonical:interface(Interface, Canonical))#interface{
       terms = ern_emitter:ground_terms(Unit, Lets)}.
 
 %% Report §11.2, §11.1: a compiled module made a unit of the name Unit from
 %% what its compiled form records, by the back end as an exchange's unit is
 %% made (§8.7): its definitions' forms with the lines of their source, its
-%% foreign declarations and its bindings' order, beside what its interface
-%% names, its exports and the modules it depends on; linked through the
-%% interfaces Interfaces, of the modules its code names, over the prelude's
-%% environment, each module's code calling the unit Units names for its
-%% namespace, as the session links a version; and compiled with the
-%% chunks of the compiled form, its interface, its documentation and its
-%% forms, so that it is that module whatever its unit's name. The shell
-%% loads so a compiled module beside another unit of its name, which no
-%% source makes again. What the forms reference outside the module is a
+%% foreign declarations with theirs and its bindings' order, beside what
+%% its interface names, its exports and the modules it depends on; linked
+%% through the interfaces Interfaces, of the modules its code names, over
+%% the prelude's environment, each module's code calling the unit Units
+%% names for its namespace, as the session links a version; and compiled
+%% with the chunks of the compiled form, its interface, its documentation
+%% and its forms, so that it is that module whatever its unit's name. The
+%% shell loads so a compiled module beside another unit of its name, which
+%% no source makes again. What the forms reference outside the module is a
 %% definition of a module whose interface the session holds, so a failure
 %% here is the toolchain's.
 -spec from_compiled(binary(), atom(), [#interface{}], ern_typecheck:env(),
@@ -130,15 +141,10 @@ from_compiled(Beam, Unit, Interfaces, Prelude, Units) ->
                    binding_order = BindingOrder}} = ern_canonical:read(Beam),
     Env = ern_typecheck:with_interfaces(Interfaces, Prelude),
     Scoped = ern_types:set_scope(Namespace, [], [], #{}, ern_typecheck:type_state(Env)),
-    ForeignFunctions = [#foreign_function{qualified_name = QualifiedName, scheme = Scheme,
-                                          host_module = HostModule,
-                                          host_function = HostFunction,
-                                          export = is_map_key(QualifiedName, Values),
-                                          printing = Printing}
-                        || {QualifiedName, Scheme, HostModule, HostFunction, Printing}
-                               <- Foreign],
+    ForeignFunctions = [recorded_foreign(Declaration, Values) || Declaration <- Foreign],
     ForeignSchemes = maps:from_list([{QualifiedName, Scheme}
-                                     || {QualifiedName, Scheme, _, _, _} <- Foreign]),
+                                     || #foreign_function{qualified_name = QualifiedName,
+                                                          scheme = Scheme} <- ForeignFunctions]),
     %% the qualified name of each definition of another module by its hash,
     %% which its forms name it by
     Named = #{Hash => QualifiedName || #interface{identities = Identities} <- Interfaces,
@@ -163,6 +169,14 @@ from_compiled(Beam, Unit, Interfaces, Prelude, Units) ->
         {ok, Unit, Compiled} -> {ok, Compiled};
         {error, Errors} -> erlang:error({emitted_erlang_does_not_compile, Errors})
     end.
+
+%% Report §8.4, §11.1: a foreign declaration as a compiled form records it
+%% (recorded/2), a foreign function of the unit, exported where the
+%% module's interface names it, at its source's line.
+recorded_foreign({QualifiedName, Scheme, HostModule, HostFunction, Printing, Source}, Values) ->
+    #foreign_function{qualified_name = QualifiedName, scheme = Scheme, host_module = HostModule,
+                      host_function = HostFunction, export = is_map_key(QualifiedName, Values),
+                      source = Source, printing = Printing}.
 
 %% Report §11.1: a unit's abstract forms compiled by the host, with its
 %% chunks, or the host's errors. A build's errors are a defect of the
@@ -246,7 +260,8 @@ canonical(Namespace, Declarations, Env, Build) ->
 %% functions, which have no form, what it exports, the order its bindings
 %% are initialized in (§8.5), the units of its dependencies, its reaches,
 %% and the link of what its forms reference outside it. An input of a
-%% shell's session has the lines of its source as the session counts them.
+%% shell's session has the lines of its source as the session counts them,
+%% its foreign declarations' among them.
 -spec unit([atom()], [tuple()], ern_typecheck:env(), ern_canonical:canonical(), map()) ->
           #unit{}.
 unit(Namespace, Declarations, Env, Canonical, Build) ->
@@ -255,9 +270,11 @@ unit(Namespace, Declarations, Env, Canonical, Build) ->
     SessionOffset = maps:get(session_offset, Build, false),
     #{definitions := Definitions, reaches := Reaches, functions := Functions,
       foreign_schemes := ForeignSchemes} = Canonical,
+    {Lined, ForeignLined} =
+        session_lined(Definitions, foreign_functions(Namespace, Declarations, ForeignSchemes),
+                      SessionOffset),
     #unit{namespace = Namespace, name = unit_of(Namespace, Units),
-          definitions = session_lined(Definitions, SessionOffset),
-          foreign_functions = foreign_functions(Namespace, Declarations, ForeignSchemes),
+          definitions = Lined, foreign_functions = ForeignLined,
           exported = [QualifiedName || Declaration <- Declarations, exported(Declaration),
                                        QualifiedName <- qualified(Namespace, Declaration)],
           binding_order = [Namespace ++ [Name]
@@ -272,18 +289,23 @@ unit(Namespace, Declarations, Env, Canonical, Build) ->
           standard = maps:get(standard, Build, false), code = maps:get(code, Build, false),
           form_namespace = FormNamespace,
           site_namespace = maps:get(site_namespace, Build, Namespace),
-          session_offset = SessionOffset}.
+          session_input = SessionOffset =/= false}.
 
-%% Report §11.2: an input's definitions with the lines of their source
-%% Offset after those the build counted, as its session counts them, so
-%% that its code's lines are those its spawn sites and a fault's trace name
-%% (Appendix E.21); a module's, which no session holds, as the build
-%% counted them.
-session_lined(Definitions, false) ->
-    Definitions;
-session_lined(Definitions, Offset) ->
-    [Definition#definition{sourced = ern_canonical:session_source(Sourced, Offset)}
-     || #definition{sourced = Sourced} = Definition <- Definitions].
+%% Report §11.2: an input's definitions and foreign functions with the
+%% lines of their source Offset after those the build counted, as its
+%% session counts them, so that its code's lines are those its spawn sites
+%% and a fault's trace name (Appendix E.21); a module's, which no session
+%% holds, as the build counted them.
+session_lined(Definitions, ForeignFunctions, false) ->
+    {Definitions, ForeignFunctions};
+session_lined(Definitions, ForeignFunctions, Offset) ->
+    {[Definition#definition{sourced = ern_canonical:session_source(Sourced, Offset)}
+      || #definition{sourced = Sourced} = Definition <- Definitions],
+     [ForeignFunction#foreign_function{source = session_line(Source, Offset)}
+      || #foreign_function{source = Source} = ForeignFunction <- ForeignFunctions]}.
+
+session_line({Line, Column, none}, Offset) ->
+    {Line + Offset, Column, none}.
 
 %% Report §11.1, §8.7: what the unit's `.erc` records beside its code, by
 %% which a definition is shipped onward and a compiled module loaded beside
@@ -295,7 +317,8 @@ session_lined(Definitions, Offset) ->
 %% declarations, each by its qualified name as the forms write it, an
 %% input's under the session's one namespace as its unit lists it
 %% (Appendix H, §11.2), with their schemes, what their implementations
-%% name and that too; and its bindings' order (§8.5).
+%% name, that too, and the line and column they are declared at, an
+%% input's as its session counts them; and its bindings' order (§8.5).
 recorded(#unit{namespace = Namespace, definitions = Definitions, foreign_functions = Foreign,
                binding_order = BindingOrder, form_namespace = FormNamespace} = Unit, Build) ->
     Printing = printing(Unit),
@@ -307,10 +330,11 @@ recorded(#unit{namespace = Namespace, definitions = Definitions, foreign_functio
                              || #definition{qualified_name = QualifiedName, sourced = Sourced}
                                     = Definition <- Definitions],
               foreign = [{FormNamespace ++ lists:nthtail(length(Namespace), QualifiedName),
-                          Scheme, HostModule, HostFunction, Printing}
+                          Scheme, HostModule, HostFunction, Printing, Source}
                          || #foreign_function{qualified_name = QualifiedName, scheme = Scheme,
                                               host_module = HostModule,
-                                              host_function = HostFunction} <- Foreign],
+                                              host_function = HostFunction,
+                                              source = Source} <- Foreign],
               binding_order = BindingOrder}.
 
 %% Report §11.5, §8.7: what prints a type of the unit's in a cause as its

@@ -27,16 +27,19 @@
 %% The unit is named from the node's pool (name/1), `ern$1`, `ern$2` and
 %% on, the first the host holds no unit of from the exchange's count, which
 %% grows with the units the node holds, for its life (§11.2), an arrival
-%% that fails taking no name; and it names each definition by the name
-%% its code frame gave it, as text, which makes no atom here, so that a
-%% fault's trace and a spawn site its body writes show the sender's names
-%% and lines, `Counter.worker:23`, and a check's cause prints a type as
-%% the definition's module writes it, by the module's namespace and
-%% shadows the frame gave (§11.5). A type keeps the qualified name its form
-%% holds. The unit exports every function it holds (§11.1), since a later
-%% exchange's definitions call into it by hash. A binding that crossed as
-%% a member of its group is no function of the unit: its value is the
-%% node's, read where the node holds it, and the group's other members
+%% that fails taking no name; and it names each definition by the name its
+%% code frame gave it, as text, which makes no atom here, so that a fault's
+%% trace and a spawn site its body writes show the sender's names and
+%% lines, `Counter.worker:23`, a foreign function's frame the line of its
+%% declaration, which its reach or its code frame carries, and a check's
+%% cause prints a type as the definition's module writes it, by the
+%% module's namespace and shadows the frame gave (§11.5). A type keeps the
+%% qualified name its form holds. The unit exports every function it holds
+%% (§11.1), since a later exchange's definitions call into it by hash. A
+%% binding that crosses, alone since a lambda written in it was spawned or
+%% as a member of its group, is the unit's for its lambdas' code, their
+%% entries, and its value is the node's, which nothing here evaluates
+%% (ern_emitter), read where the node holds it: the group's other members
 %% name it by its identity in place of its position. What the unit records
 %% of its definitions is kept in the code table beside its code, so that
 %% the node ships them onward as its own (§11.2): every foreign declaration
@@ -53,17 +56,18 @@
 
 %% Report §8.7: the definitions Arrived, each of one code frame, verified,
 %% dependencies first, with Declared, the foreign declarations their code
-%% frames say they call, each {Name, HostModule, HostFunction, Printing};
-%% and the spawned function's reach, the bindings it names, each {Name,
-%% Hash}, and its foreign declarations, each {Name, HostModule,
-%% HostFunction, Scheme, Printing} as the peer gave them, whose modules and
-%% functions the node has and whose bindings their values
+%% frames say they call, each {Name, HostModule, HostFunction, Printing,
+%% Source}; and the spawned function's reach, the bindings it names, each
+%% {Name, Hash}, and its foreign declarations, each {Name, HostModule,
+%% HostFunction, Scheme, Printing, Source} as the peer gave them, whose
+%% modules and functions the node has and whose bindings their values
 %% (ern_peer:reach_lacked/2): made the unit Unit, compiled, loaded and in
 %% the code table; or the reason this node could not, in a line, which the
 %% spawns that wait are answered with as `Other(text)`. Env is the
 %% prelude's environment.
--spec received(atom(), [#definition{}], [{[binary()], binary(), binary(), term()}],
-               {[{[binary()], binary()}], [{[binary()], binary(), binary(), term(), term()}]},
+-spec received(atom(), [#definition{}], [{[binary()], binary(), binary(), term(), term()}],
+               {[{[binary()], binary()}],
+                [{[binary()], binary(), binary(), term(), term(), term()}]},
                ern_typecheck:env()) -> ok | {error, binary()}.
 received(Unit, Arrived, Declared, Reach, Env) ->
     try
@@ -124,14 +128,12 @@ compiled(#unit{name = Unit} = Made, Recorded) ->
 %%
 
 made(Unit, Arrived, Declared, {Bindings, Foreigns}, Env) ->
-    {Grouped, Definitions} = lists:partition(fun(#definition{kind = Kind}) ->
-                                                 Kind =:= binding
-                                             end, Arrived),
-    case binding_references(Grouped) of
+    case binding_references([Definition || #definition{kind = binding, group = {_, _}} = Definition
+                                               <- Arrived]) of
         {error, _} = Error ->
             Error;
         {ok, ByPosition} ->
-            Compiled = [compiled_definition(Definition, ByPosition) || Definition <- Definitions],
+            Compiled = [compiled_definition(Definition, ByPosition) || Definition <- Arrived],
             {Called, Lacking, LackedDeclarations} =
                 called_foreign(Compiled, Declared, Foreigns),
             ForeignFunctions = [foreign_function(Foreign) || Foreign <- Foreigns] ++ Called,
@@ -148,12 +150,13 @@ made(Unit, Arrived, Declared, {Bindings, Foreigns}, Env) ->
                                site_namespace = [], lacked = Lacked},
                      #recorded{definitions = Arrived,
                                foreign = [{QualifiedName, Scheme, HostModule, HostFunction,
-                                           Printing}
+                                           Printing, Source}
                                           || #foreign_function{qualified_name = QualifiedName,
                                                                scheme = Scheme,
                                                                host_module = HostModule,
                                                                host_function = HostFunction,
-                                                               printing = Printing}
+                                                               printing = Printing,
+                                                               source = Source}
                                                  <- ForeignFunctions]
                                    ++ LackedDeclarations}};
                 {error, _} = Error ->
@@ -176,14 +179,14 @@ binding_references(Bindings) ->
         error:badarg -> reason(["it names a binding this node does not hold"])
     end.
 
-%% A definition as the back end compiles it: a function by the name its
-%% frame gave it, a type by its form's qualified name, and the members of
-%% its group that are bindings named by their identities.
+%% A definition as the back end compiles it: a function and a binding by
+%% the name its frame gave it, a type by its form's qualified name, and the
+%% members of its group that are bindings named by their identities.
 compiled_definition(#definition{kind = Kind, form = Form, sourced = Sourced,
                                 group = Group} = Definition, ByPosition) ->
     QualifiedName = case Kind of
                         type -> element(2, Form);
-                        function -> Definition#definition.qualified_name
+                        _ -> Definition#definition.qualified_name
                     end,
     Definition#definition{qualified_name = QualifiedName,
                           form = in_group(Form, Group, ByPosition),
@@ -214,27 +217,28 @@ in_group(Term, _, _) ->
 %% each an atom of the node's where one is, and text where none is, the
 %% node never making an atom of a peer's name.
 called_foreign(Compiled, Declared, Foreigns) ->
-    Reached = [Name || {Name, _, _, _, _} <- Foreigns],
+    Reached = [Name || {Name, _, _, _, _, _} <- Foreigns],
     Calls = lists:ukeysort(1, [{ern_namespace:text_segments(QualifiedName), Reference}
                                || {foreign, QualifiedName, _} = Reference
                                       <- ern_compile:references(definition_forms(Compiled))]),
     lists:foldr(fun({Name, {foreign, QualifiedName, Scheme} = Reference},
                     {Called, Lacking, Recorded}) ->
-                        {Name, HostModule, HostFunction, Printing} =
+                        {Name, HostModule, HostFunction, Printing, Source} =
                             lists:keyfind(Name, 1, Declared),
                         case ern_peer:foreign_lacked({Name, HostModule, HostFunction, Scheme,
-                                                      Printing}) of
+                                                      Printing, Source}) of
                             none ->
                                 {[#foreign_function{
                                      qualified_name = QualifiedName, scheme = Scheme,
                                      host_module = binary_to_existing_atom(HostModule),
                                      host_function = binary_to_existing_atom(HostFunction),
-                                     export = true, printing = Printing} | Called],
+                                     export = true, source = Source, printing = Printing}
+                                  | Called],
                                  Lacking, Recorded};
                             Lacked ->
                                 {Called, Lacking#{Reference => Lacked},
                                  [{QualifiedName, Scheme, held(HostModule), held(HostFunction),
-                                   Printing} | Recorded]}
+                                   Printing, Source} | Recorded]}
                         end
                 end, {[], #{}, []},
                 [Call || {Name, _} = Call <- Calls, not lists:member(Name, Reached)]).
@@ -253,16 +257,17 @@ definition_forms(Compiled) ->
 %% the unit's, by its qualified name as the forms that call it write it,
 %% where its atoms are here, and else as text, its scheme the declared
 %% type the check holds the host's return to, printed in its cause as its
-%% module writes it. Its module and function are the node's, whose atoms
-%% the reach's check made sure of, so the frame makes none.
-foreign_function({Name, HostModule, HostFunction, Scheme, Printing}) ->
+%% module writes it, at the line of its declaration (Appendix E.21). Its
+%% module and function are the node's, whose atoms the reach's check made
+%% sure of, so the frame makes none.
+foreign_function({Name, HostModule, HostFunction, Scheme, Printing, Source}) ->
     QualifiedName = try [binary_to_existing_atom(Segment) || Segment <- Name]
                     catch error:badarg -> Name
                     end,
     #foreign_function{qualified_name = QualifiedName, scheme = Scheme,
                       host_module = binary_to_existing_atom(HostModule),
                       host_function = binary_to_existing_atom(HostFunction), export = true,
-                      printing = Printing}.
+                      source = Source, printing = Printing}.
 
 %%
 %% The link, report §8.7 and §11.1

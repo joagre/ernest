@@ -46,16 +46,16 @@
 -define(LONG_LITERAL, 256).
 
 %% Emission context, threaded through everything. unit: the #unit{} being
-%% made; namespace: the module's; erlang_module: the unit's name; own: the
-%% unit's definitions and foreign functions (#own{}); definition: the
+%% made, its namespace the module's and its name the unit's (§11.1); own:
+%% the unit's definitions and foreign functions (#own{}); definition: the
 %% definition being compiled, {Position, Hash, QualifiedName}; declaration:
 %% its Ernest name, [Name] or [MemberOf, Name], which a spawn site names;
 %% printing: the type state a check's cause prints its types under, as
 %% the definition's module writes them (§11.5, printing/2); restrictions:
 %% each type variable of the definition its schemes quantify, by its
 %% number, with its restrictions, by which a check's cause prints it
-%% (§11.5); variables: a local's number => its Erlang
-%% variable; counter: the last number a made variable took; locals: a
+%% (§11.5); variables: a local's number => its Erlang variable; counter:
+%% the last number a made variable took; locals: a
 %% local fn's number => its #local_fn{} (see Blocks); lifted: module
 %% functions produced by lifting, reversed; descriptors: descriptor term =>
 %% the name of the module function returning it; pattern_guards: Erlang
@@ -72,10 +72,10 @@
 %% whether the unit builds a function value, a fun of its own code that may
 %% be held anywhere (function_value/2), which the shell reads to keep an
 %% input (§11.2).
--record(emit_context, {unit, namespace, erlang_module, own, definition, declaration,
-                       printing, restrictions = #{}, variables = #{}, counter = 0, locals = #{},
-                       lifted = [], descriptors = #{}, pattern_guards = [], members = #{},
-                       outer, let_lambdas = #{}, entries = #{}, builds_functions = false}).
+-record(emit_context, {unit, own, definition, declaration, printing, restrictions = #{},
+                       variables = #{}, counter = 0, locals = #{}, lifted = [],
+                       descriptors = #{}, pattern_guards = [], members = #{}, outer,
+                       let_lambdas = #{}, entries = #{}, builds_functions = false}).
 %% The unit's own (report §11.1, Appendix H): forms, each definition's
 %% position => {its #definition{}, its form prepared (prepared/2)}; hashes,
 %% each definition's hash => the position of the first with it, two
@@ -124,15 +124,16 @@ source(Unit) ->
 
 %% Report §11.1: the value of each binding of QualifiedNames whose
 %% initializer is a ground term, by its qualified name, which the interface
-%% holds for a dependent's code (ern_compile:interface/5). The unit's link
-%% need hold no more than the types those bindings name.
+%% holds for a dependent's code (ern_compile). The unit's link need hold no
+%% more than the types those bindings name.
 -spec ground_terms(#unit{}, [[atom()]]) -> #{[atom()] => term()}.
 ground_terms(Unit, QualifiedNames) ->
-    #emit_context{own = #own{forms = Forms, names = Names}} = Context = own_context(Unit),
+    {Placed, ForeignPlaced} = placed(Unit),
+    #emit_context{own = #own{names = Names}} = Context = own_context(Placed, ForeignPlaced, Unit),
+    Grounds = ground_values([maps:get(QualifiedName, Names) || QualifiedName <- QualifiedNames],
+                            Context),
     #{QualifiedName => Term || QualifiedName <- QualifiedNames,
-                               {_, Form} <- [maps:get(maps:get(QualifiedName, Names), Forms)],
-                               {_, {binding, _, Body}} <- [sourced(Form)],
-                               {term, Term} <- [ground(Body, Context)]}.
+                               {ok, Term} <- [maps:find(maps:get(QualifiedName, Names), Grounds)]}.
 
 %% Report §11.1: the Erlang name of the function at Position in its unit.
 -spec function_name(pos_integer()) -> atom().
@@ -150,15 +151,13 @@ entry_name(Definition, Position) ->
     list_to_atom([$$ | integer_to_list(Definition)] ++ [$. | integer_to_list(Position)]
                  ++ ".entry").
 
-syntax(#unit{namespace = Namespace, name = ErlangModule, definitions = Definitions,
-             foreign_functions = ForeignFunctions, standard = Standard, code = Code} = Unit) ->
-    Placed = lists:enumerate(Definitions),
-    ForeignPlaced = lists:enumerate(length(Definitions) + 1, ForeignFunctions),
-    Context = context(Unit),
+syntax(#unit{namespace = Namespace, name = ErlangModule, code = Code} = Unit) ->
+    {Placed, ForeignPlaced} = placed(Unit),
+    Context = context(Placed, ForeignPlaced, Unit),
     {DefinitionFunctions, Context1} = lists:mapfoldl(fun definition_functions/2, Context,
                                                      Placed),
     {ForeignForms, Context2} = lists:mapfoldl(fun foreign_function/2, Context1, ForeignPlaced),
-    {InitFunction, Context3} = init_function(Unit, Context2),
+    {InitFunction, Context3} = init_function(Unit, carried(Placed, Unit, Context2)),
     TestsFunction = tests_function(Placed, Context3),
     DependenciesFunction = dependencies_function(Unit),
     Entries = maps:values(Context3#emit_context.entries),
@@ -169,10 +168,10 @@ syntax(#unit{namespace = Namespace, name = ErlangModule, definitions = Definitio
         ++ SpawnedFunction ++ Lifted,
     CodeFunction = case Code of
                        true ->
-                           Calls = calls(Bodies, Unit, Standard),
+                           Calls = calls(Bodies, Unit),
                            code_function(code(Placed, ForeignPlaced, Entries, Context3)
                                          ++ [{Unit#unit.form_namespace,
-                                              {sites, site_name([], Unit)}},
+                                              {sites, site_namespace(Unit)}},
                                              {Unit#unit.form_namespace,
                                               {initializers, initializers(Placed, Context3)}},
                                              {Namespace, {calls, Calls}}]);
@@ -199,22 +198,31 @@ syntax(#unit{namespace = Namespace, name = ErlangModule, definitions = Definitio
         ++ DependenciesFunction ++ SpawnedFunction ++ CodeFunction ++ Lifted ++ LackedFunctions,
     {Attrs ++ Functions, Context3#emit_context.builds_functions}.
 
+%% Report §11.1: the unit's definitions by their positions, from 1 in the
+%% order of their forms, and its foreign functions by those after them.
+placed(#unit{definitions = Definitions, foreign_functions = ForeignFunctions}) ->
+    {lists:enumerate(Definitions), lists:enumerate(length(Definitions) + 1, ForeignFunctions)}.
+
 %% The context a unit is emitted in: its own definitions and foreign
 %% functions, the value of each of its bindings that is a ground term
 %% among them.
-context(Unit) ->
-    #emit_context{own = #own{forms = Forms} = Own} = Context = own_context(Unit),
-    Grounds = #{Position => Term || Position := {_, Form} <- Forms,
-                                    {_, {binding, _, Body}} <- [sourced(Form)],
-                                    {term, Term} <- [ground(Body, Context)]},
-    Context#emit_context{own = Own#own{grounds = Grounds}}.
+context(Placed, ForeignPlaced, Unit) ->
+    #emit_context{own = #own{forms = Forms} = Own} = Context =
+        own_context(Placed, ForeignPlaced, Unit),
+    Context#emit_context{own = Own#own{grounds = ground_values(maps:keys(Forms), Context)}}.
 
-own_context(#unit{namespace = Namespace, name = ErlangModule, definitions = Definitions,
-                  foreign_functions = ForeignFunctions} = Unit) ->
-    Placed = lists:enumerate(Definitions),
-    ForeignPlaced = lists:enumerate(length(Definitions) + 1, ForeignFunctions),
-    #emit_context{unit = Unit, namespace = Namespace, erlang_module = ErlangModule,
-                  own = own(Placed, ForeignPlaced, Unit), printing = printing(none, Unit)}.
+own_context(Placed, ForeignPlaced, Unit) ->
+    #emit_context{unit = Unit, own = own(Placed, ForeignPlaced, Unit),
+                  printing = printing(none, Unit)}.
+
+%% Report §11.1: the value of each binding of the unit's at Positions whose
+%% initializer is a ground term, by its position; what ground/2 reads of a
+%% type the unit does not declare is in the link.
+ground_values(Positions, #emit_context{own = #own{forms = Forms}} = Context) ->
+    #{Position => Term || Position <- Positions,
+                          {_, Form} <- [maps:get(Position, Forms)],
+                          {_, {binding, _, Body}} <- [sourced(Form)],
+                          {term, Term} <- [ground(Body, Context)]}.
 
 %% Report §8.7: the functions of an exchange's unit that a reference its
 %% forms make beyond the spawned function's reach is linked to, where this
@@ -226,7 +234,7 @@ lacked_functions(#unit{lacked = Lacked}) ->
     [erl_syntax:function(erl_syntax:atom(Function),
                          [erl_syntax:clause([erl_syntax:underscore() || _ <- lists:seq(1, Arity)],
                                             none,
-                                            [raised(erl_syntax:abstract(Text))])])
+                                            [thrown_fault(string_binary(Text))])])
      || {Function, Arity, Text} <- Lacked].
 
 %% The unit's own definitions and foreign functions, each definition's form
@@ -372,7 +380,7 @@ local_name(none) -> none.
 %% The definition being compiled set in Context.
 entering(Position, #definition{qualified_name = QualifiedName, hash = Hash,
                                 printing = Printing}, Form,
-         #emit_context{namespace = Namespace, unit = Unit} = Context) ->
+         #emit_context{unit = #unit{namespace = Namespace} = Unit} = Context) ->
     Context#emit_context{definition = {Position, Hash, QualifiedName},
                          declaration = lists:nthtail(length(Namespace), QualifiedName),
                          printing = printing(Printing, Unit),
@@ -434,8 +442,8 @@ definition_functions({Position, #definition{kind = binding} = Definition},
 %% fields from a value, so neither is one.
 ground(Form, Context) ->
     case sourced(Form) of
-        {_, {literal, Kind, Value}} ->
-            {term, literal_value(Kind, Value)};
+        {_, {literal, _, Value}} ->
+            {term, Value};
         {_, {negate, Literal, {runtime, _}}} ->
             case sourced(Literal) of
                 {_, {literal, int, Value}} -> {term, -Value};
@@ -483,12 +491,9 @@ grounds(Forms, Context) ->
         false -> {terms, [Term || {term, Term} <- Grounds]}
     end.
 
-%% A literal's value, as literal/2 writes it.
-literal_value(string, Value) -> unicode:characters_to_binary(Value);
-literal_value(_, Value) -> Value.
-
 %% Report §11.1: a ground term's value as the code that holds it, which the
-%% host keeps in its literal area; a string as literal/2 writes one.
+%% host keeps in its literal area, and so a descriptor's part and a cause;
+%% a string as literal/2 writes one, which `--emit-erl` shows as text.
 term_form(Term) when is_binary(Term) -> string_binary(Term);
 term_form(Term) when is_tuple(Term) -> erl_syntax:tuple([term_form(Element)
                                                          || Element <- tuple_to_list(Term)]);
@@ -532,7 +537,7 @@ foreign_function({Position, #foreign_function{qualified_name = QualifiedName,
                                             host_module = HostModule,
                                             host_function = HostFunction,
                                             source = Source, printing = Printing}},
-                 #emit_context{namespace = Namespace, unit = Unit} = Context) ->
+                 #emit_context{unit = #unit{namespace = Namespace} = Unit} = Context) ->
     Context1 = Context#emit_context{declaration = lists:nthtail(length(Namespace), QualifiedName),
                                     printing = printing(Printing, Unit),
                                     restrictions = maps:from_list(Quantified)},
@@ -557,8 +562,8 @@ foreign_body(Source, {HostModule, HostFunction}, {ParamTypes, ResultType}, Args,
                                   Exposed ++ Members),
     Arity = length(Exposed ++ Members),
     {Try, Context2} = foreign_call(Source, Call, HostModule, HostFunction, Arity, Context1),
-    Named = ern_namespace:host_function_text(HostModule, HostFunction, Arity),
-    foreign_return(Source, Try, ParamTypes, ResultType, Named, Context2).
+    HostText = ern_namespace:host_function_text(HostModule, HostFunction, Arity),
+    foreign_return(Source, Try, ParamTypes, ResultType, HostText, Context2).
 
 %% Report §4.7, §7.4: the foreign call, an exception it raises turned into
 %% a fault. Report §8.6: the call writes nothing for the deadlock look,
@@ -578,22 +583,22 @@ foreign_call(Source, Call, HostModule, HostFunction, Arity, Context) ->
     {erl_syntax:try_expr([at(Source, Call)], [Handler]), Context1}.
 
 %% Report §8.4: the foreign call's return checked, its cause naming the
-%% host's function as Named writes it (§7.4). The standard library's is the
+%% host's function as HostText writes it (§7.4). The standard library's is the
 %% runtime's own, and not checked; a type variable of the result that no
 %% parameter names stands for no value the function could have been given,
 %% so it matches none, and the return faults where it holds one.
-foreign_return(_, Try, _ParamTypes, _ResultType, _Named,
+foreign_return(_, Try, _ParamTypes, _ResultType, _HostText,
                #emit_context{unit = #unit{standard = true}} = Context) ->
     {Try, Context};
-foreign_return(Source, Try, ParamTypes, ResultType, Named, Context) ->
+foreign_return(Source, Try, ParamTypes, ResultType, HostText, Context) ->
     ParamVariables = type_variables(ParamTypes),
     Unnamed = [Variable || Variable <- lists:usort(type_variables(ResultType)),
                            not lists:member(Variable, ParamVariables)],
     check_form(Source, as_never(Unnamed, ResultType), Try,
-               named_cause(return_cause(ResultType, Context), Named), Context).
+               named_cause(return_cause(ResultType, Context), HostText), Context).
 
 %% A binding's key, under which its value is kept (report §8.5).
-key(#emit_context{erlang_module = ErlangModule}, Name) ->
+key(#emit_context{unit = #unit{name = ErlangModule}}, Name) ->
     erl_syntax:tuple([erl_syntax:atom(ErlangModule), erl_syntax:atom(Name)]).
 
 %% '$init'/0 evaluates the top-level lets once, in dependency order, each
@@ -606,7 +611,8 @@ key(#emit_context{erlang_module = ErlangModule}, Name) ->
 init_function(#unit{binding_order = []}, Context) ->
     {[], Context};
 init_function(#unit{binding_order = Order},
-              #emit_context{own = #own{names = Names, grounds = Grounds} = Own} = Context) ->
+              #emit_context{own = #own{names = Names, forms = Forms,
+                                       grounds = Grounds}} = Context) ->
     {Ground, Computed} = lists:partition(fun(QualifiedName) ->
                                              is_map_key(maps:get(QualifiedName, Names), Grounds)
                                          end, Order),
@@ -616,8 +622,8 @@ init_function(#unit{binding_order = Order},
              || QualifiedName <- Ground, Position <- [maps:get(QualifiedName, Names)]],
     {Stores, Context1} =
         lists:mapfoldl(fun(QualifiedName, Acc) ->
-                           Position = maps:get(QualifiedName, Own#own.names),
-                           {Definition, Form} = maps:get(Position, Own#own.forms),
+                           Position = maps:get(QualifiedName, Names),
+                           {Definition, Form} = maps:get(Position, Forms),
                            {Source, {binding, _, Body}} = sourced(Form),
                            Acc1 = entering(Position, Definition, Form, Acc),
                            Named = call_remote(ern_rt, initializing, [site(Source, Acc1)]),
@@ -628,6 +634,23 @@ init_function(#unit{binding_order = Order},
                        end, Context, Computed),
     Clause = erl_syntax:clause([], none, Given ++ lists:append(Stores) ++ [erl_syntax:atom(ok)]),
     {[erl_syntax:function(erl_syntax:atom('$init'), [Clause])], Context1}.
+
+%% Report §8.7, §11.1: the bindings the unit holds and does not evaluate,
+%% each a binding an exchange's unit holds for a lambda written in it that
+%% a spawn on a peer starts, whose value is its node's: each initializer
+%% compiled as '$init'/0 compiles one, for the entries of its lambdas and
+%% the functions they lift, and its own code left out, since nothing is
+%% evaluated because code arrived.
+carried(Placed, #unit{binding_order = Order}, #emit_context{own = #own{forms = Forms}} = Context) ->
+    lists:foldl(fun({Position, Definition}, Acc) ->
+                        {_, Form} = maps:get(Position, Forms),
+                        {_, {binding, _, Body}} = sourced(Form),
+                        {_, Acc1} = expr(Body, entering(Position, Definition, Form, Acc)),
+                        Acc1
+                end, Context,
+                [Carried || {_, #definition{kind = binding, qualified_name = QualifiedName}}
+                                = Carried <- Placed,
+                            not lists:member(QualifiedName, Order)]).
 
 %% Report Appendix E.24, §11.2: '$tests'/0 lists the module's tests, every
 %% top-level let of type Test.Case(m), exported or not, for `ern test`; the
@@ -700,16 +723,16 @@ foreign_arity(#foreign_function{scheme = {scheme, _, {arrow, ParamTypes, _, _}, 
 %% each lambda and local fn a spawn on a peer starts, by its identity,
 %% with its entry and its reach; under the namespace the forms name what
 %% it declares under, the namespace its spawn sites name its declarations
-%% under (site_name/2), by which a fault's trace names its functions
-%% (ern_code:function_text/3), none for an input of a shell's session,
-%% whose sites name them by their own names; under the same namespace each
-%% binding's first line (initializers/2); and, last, under the module's
-%% namespace, the units its code calls (calls/3). Each qualified name is
-%% the forms' (Appendix H): an input of a shell's session names what it
-%% declares under the session's one namespace, by which a reach finds it.
-%% The last three rows are the unit's, which unit/1 adds. A literal
-%% '$code'/0 answers, so that a load reads it without decoding the
-%% module's chunks, which costs more than the load.
+%% under (site_namespace/1), by which a fault's trace names its functions
+%% (ern_code:function_text/3), the empty namespace for an input of a
+%% shell's session, whose sites name them by their own names; under the
+%% same namespace each binding's first line (initializers/2); and, last,
+%% under the module's namespace, the units its code calls (calls/2). Each
+%% qualified name is the forms' (Appendix H): an input of a shell's
+%% session names what it declares under the session's one namespace, by
+%% which a reach finds it. The last three rows are the unit's, which
+%% syntax/1 adds. A literal '$code'/0 answers, so that a load reads it
+%% without decoding the module's chunks, which costs more than the load.
 code(Placed, ForeignPlaced, Entries,
      #emit_context{unit = #unit{reaches = Reaches} = Unit,
                    own = #own{forms = Forms, grounds = Grounds}} = Context) ->
@@ -749,7 +772,7 @@ definition_code(Position, #definition{kind = function, qualified_name = Qualifie
     {form_name(QualifiedName, Unit),
      {function, Hash, function_name(Position), arity(Form), maps:get(QualifiedName, Reaches)}};
 definition_code(Position, #definition{kind = binding, qualified_name = QualifiedName, hash = Hash},
-                _, #emit_context{erlang_module = ErlangModule, unit = Unit}) ->
+                _, #emit_context{unit = #unit{name = ErlangModule} = Unit}) ->
     {form_name(QualifiedName, Unit), {binding, Hash, {ErlangModule, function_name(Position)}}};
 definition_code(_, #definition{kind = type, qualified_name = QualifiedName, hash = Hash}, _,
                 #emit_context{unit = Unit}) ->
@@ -795,14 +818,14 @@ code_function(Code) ->
 %% (ern_arrival), and each unit whose binding's value it holds where the
 %% binding's initializer is a ground term (§11.1), as the link places it,
 %% which the code reads there as it would through the getter. A peer's
-%% spawn reads a reach's
-%% bindings and foreign declarations in the units the code of the unit
-%% that runs it calls, directly or through one it calls (ern_code). A
-%% module of the standard library lists none, since no reach names what it
-%% holds (Appendix H), so that a walk from a program's unit ends there.
-calls(_Bodies, _Unit, true) ->
+%% spawn reads a reach's bindings and foreign declarations in the units
+%% the code of the unit that runs it calls, directly or through one it
+%% calls (ern_code). A module of the standard library lists none, since no
+%% reach names what it holds (Appendix H), so that a walk from a program's
+%% unit ends there.
+calls(_Bodies, #unit{standard = true}) ->
     [];
-calls(Bodies, #unit{name = ErlangModule, link = #link{functions = Linked}}, false) ->
+calls(Bodies, #unit{name = ErlangModule, link = #link{functions = Linked}}) ->
     Held = [Unit || #linked{unit = Unit, term = {term, _}} <- maps:values(Linked)],
     lists:usort([Unit || Function <- Bodies,
                          Unit <- erl_syntax_lib:fold(fun called_unit/2, [], Function),
@@ -866,11 +889,13 @@ expr_form({tuple, Elements}, _, Context) ->
 expr_form({list, Elements}, _, Context) ->
     {Forms, Context1} = exprs(Elements, Context),
     {erl_syntax:list(Forms), Context1};
-expr_form({bitstring, Segments}, _, Context) ->
+expr_form({bitstring, Segments}, Source, Context) ->
     %% report §5.11, §7.4: the runtime's bit syntax, each segment's value
     %% checked for its width by ern_bits, a badarg the segment overflow
     %% fault, and the result checked for alignment when a dynamic size
-    %% leaves the bit count open
+    %% leaves the bit count open; report §7.3, Appendix E.21: each check
+    %% stands at the bitstring's Source, so that the frame that meets its
+    %% fault has the line
     {Compiled, {Context1, Open}} =
         lists:mapfoldl(fun(Segment, {Acc, OpenSoFar}) ->
                            {Spec, Value} = segment_spec(Segment),
@@ -879,15 +904,15 @@ expr_form({bitstring, Segments}, _, Context) ->
                            {{Spec, ValueForm, SizeForm}, {Acc2, OpenSoFar orelse is_open(Spec)}}
                        end, {Context, false}, Segments),
     {Bindings, Parts, Context2} = segments_bound(Compiled, Context1),
-    Fields = [erl_syntax:binary_field(segment_value(Spec, ValueForm, SizeForm), SizeForm,
+    Fields = [erl_syntax:binary_field(segment_value(Source, Spec, ValueForm, SizeForm), SizeForm,
                                       type_specs(Spec))
               || {Spec, ValueForm, SizeForm} <- Parts],
     Handler = erl_syntax:clause([erl_syntax:class_qualifier(erl_syntax:atom(error),
                                                             erl_syntax:atom(badarg))],
-                                none, [call_remote(ern_bits, overflow, [])]),
+                                none, [at(Source, call_remote(ern_bits, overflow, []))]),
     Built = erl_syntax:try_expr([erl_syntax:binary(Fields)], [], [Handler]),
     Checked = case Open of
-                  true -> call_remote(ern_bits, aligned, [Built]);
+                  true -> at(Source, call_remote(ern_bits, aligned, [Built]));
                   false -> Built
               end,
     {with_bindings(Bindings, Checked), Context2};
@@ -1028,11 +1053,11 @@ receive_clauses(Clauses, Context) ->
     {Bindings, ClauseForms, Context2}.
 
 %% A receive with an `after`: the bindings that enter it, and the call
-%% that waits. Report §8.6: a timed receive counts itself in before, and
-%% out first in every body, so the reaper knows it is not waiting. Report
-%% §6.3: a time below 0 is 0, and none is too long; the host waits at most
-%% 2^32 - 1 ms at once, so the receive is entered again until the deadline
-%% has passed (ern_rt:deadline/1).
+%% that waits. Report §8.6: a timed receive holds the look's TIMED key from
+%% before it waits until the first thing every body does, so the look knows
+%% it is not waiting for ever. Report §6.3: a time below 0 is 0, and none is
+%% too long; the host waits at most 2^32 - 1 ms at once, so the receive is
+%% entered again until the deadline has passed (ern_rt:deadline/1).
 timed_receive(ClauseForms, Timeout, AfterBody, Context) ->
     {TimeoutForm, Context1} = expr(Timeout, Context),
     {AfterForms, Context2} = body(AfterBody, Context1),
@@ -1553,7 +1578,7 @@ call_remote(HostModule, HostFunction, Args) ->
 %% met as ern_rt:fault/1 raises it, by the host's throw, so that the
 %% host's stack, the fault's trace (Appendix E.21), holds the function
 %% that meets it where the fault is the last thing the function does.
-raised(CauseForm) ->
+thrown_fault(CauseForm) ->
     call_remote(erlang, throw, [erl_syntax:tuple([erl_syntax:atom(ern), erl_syntax:atom(fault),
                                                   CauseForm])]).
 
@@ -1584,7 +1609,7 @@ prelude_call(_, ['Address', callForever], _, ArgForms, Callee, Context) ->
 prelude_call(_, [restarting], _, ArgForms, _, Context) ->
     {call_remote(ern_rt, restarting, ArgForms), Context};
 prelude_call(_, [fault], _, [CauseForm], _, Context) ->
-    {raised(CauseForm), Context};
+    {thrown_fault(CauseForm), Context};
 prelude_call(_, ['Int', Operator], _, [LeftForm, RightForm], _, Context)
   when Operator =:= '+'; Operator =:= '-'; Operator =:= '*'; Operator =:= '/';
        Operator =:= '%' ->
@@ -1675,9 +1700,9 @@ lambda(Variables, Body) ->
 %% lambda's fun, a function of the unit taken as a value, or one bound
 %% beside the values it closes over; a function of another unit's is that
 %% unit's code. A fun the emitter makes for its own use, a timed receive's
-%% loop, a guard's way to the clauses after it, the body alternatives share
-%% or a foreign call counted, is called where it is made and held by
-%% nothing, and is no function value: it is never what an expression emits.
+%% loop, a guard's way to the clauses after it or the body alternatives
+%% share, is called where it is made and held by nothing, and is no
+%% function value: it is never what an expression emits.
 function_value(Form, Context) ->
     case is_own_function(Form) of
         true -> Context#emit_context{builds_functions = true};
@@ -1712,8 +1737,9 @@ holds_function(_) -> false.
 %% alone. Report §8.7: a definition of an exchange's unit by the name the
 %% code frame gave it, its lines the sender's. A fault's trace writes a
 %% frame of the unit's code by the same name and line (ern_code:function_text/3).
-site(Source, #emit_context{unit = #unit{site_namespace = SiteNamespace} = Unit,
-                           erlang_module = ErlangModule, declaration = Declaration}) ->
+site(Source, #emit_context{unit = #unit{site_namespace = SiteNamespace,
+                                         name = ErlangModule} = Unit,
+                           declaration = Declaration}) ->
     case {site_name(Declaration, Unit), Source} of
         {_, none} ->
             string_binary(ern_namespace:site_text(SiteNamespace ++ Declaration, none));
@@ -1732,12 +1758,16 @@ site(Source, #emit_context{unit = #unit{site_namespace = SiteNamespace} = Unit,
 %% an input's expression, whose name the shell gives as the spawn runs,
 %% `input`.
 -spec site_name([atom() | binary()], #unit{}) -> [atom() | binary()] | input.
-site_name(Declaration, #unit{site_namespace = SiteNamespace, session_offset = false}) ->
-    SiteNamespace ++ Declaration;
-site_name(['$input'], #unit{}) ->
+site_name(['$input'], #unit{session_input = true}) ->
     input;
-site_name(Declaration, #unit{}) ->
-    Declaration.
+site_name(Declaration, Unit) ->
+    site_namespace(Unit) ++ Declaration.
+
+%% The namespace a unit's spawn sites name its declarations under: its
+%% site namespace, and the empty namespace for an input of a shell's
+%% session (§11.2).
+site_namespace(#unit{session_input = true}) -> [];
+site_namespace(#unit{site_namespace = SiteNamespace}) -> SiteNamespace.
 
 %% Report §8.7, Appendix H: a service's message type's hash, of its
 %% canonical form.
@@ -1962,10 +1992,11 @@ check_form(Source, Type, Form, Cause, Context) ->
         Unchecked when Unchecked =:= any; Unchecked =:= foreign ->
             {Form, Context};
         unit ->
-            Unit = erl_syntax:atom('Unit'),
-            Fault = at(Source, raised(Text)),
-            {erl_syntax:case_expr(Form, [erl_syntax:clause([Unit], none, [Unit]),
-                                         erl_syntax:clause([erl_syntax:atom(ok)], none, [Unit]),
+            UnitForm = erl_syntax:atom('Unit'),
+            Fault = at(Source, thrown_fault(Text)),
+            {erl_syntax:case_expr(Form, [erl_syntax:clause([UnitForm], none, [UnitForm]),
+                                         erl_syntax:clause([erl_syntax:atom(ok)], none,
+                                                           [UnitForm]),
                                          erl_syntax:clause([erl_syntax:underscore()], none,
                                                            [Fault])]), Context};
         Word when Word =:= int; Word =:= bool; Word =:= bytes; Word =:= float ->
@@ -1978,7 +2009,7 @@ check_form(Source, Type, Form, Cause, Context) ->
                                                        erl_syntax:float(0.0));
                         _ -> VariableForm
                     end,
-            Fault = at(Source, raised(Text)),
+            Fault = at(Source, thrown_fault(Text)),
             {erl_syntax:case_expr(Form, [erl_syntax:clause([VariableForm], Test, [Value]),
                                          erl_syntax:clause([erl_syntax:underscore()], none,
                                                            [Fault])]), Context1};
@@ -2063,7 +2094,7 @@ built_descriptor({function, Arity, ResultDescriptor, Cause, ParamDescriptors, Pa
     Raised = call_remote(ern_boundary, raised, [Function, Class, Error, Trace]),
     Handler = erl_syntax:clause([erl_syntax:class_qualifier(Class, Error, Trace)], none, [Raised]),
     Call = erl_syntax:try_expr([erl_syntax:application(Function, Args)], [Handler]),
-    Check = call_remote(ern_boundary, result, [Result, Call, Function, erl_syntax:abstract(Cause)]),
+    Check = call_remote(ern_boundary, result, [Result, Call, Function, term_form(Cause)]),
     Wrapper = erl_syntax:fun_expr([erl_syntax:clause(Args, none, [Check])]),
     Maker = erl_syntax:fun_expr([erl_syntax:clause([Function, Result], none, [Wrapper])]),
     %% report §8.4: the same function crossing into foreign code, wherever
@@ -2071,20 +2102,19 @@ built_descriptor({function, Arity, ResultDescriptor, Cause, ParamDescriptors, Pa
     %% parameter's type, the recursive types around it in Bound
     Checked = [call_remote(ern_boundary, argument,
                            [built_descriptor(Descriptor), Argument, Function,
-                            erl_syntax:abstract(ParamCause), Bound])
+                            term_form(ParamCause), Bound])
                || {Descriptor, Argument, ParamCause}
                       <- lists:zip3(ParamDescriptors, Args, ParamCauses)],
     Exposed = erl_syntax:fun_expr([erl_syntax:clause(Args, none, called(Function, Checked))]),
     Exposer = erl_syntax:fun_expr([erl_syntax:clause([Function, Bound], none, [Exposed])]),
     erl_syntax:tuple([erl_syntax:atom('fun'), erl_syntax:integer(Arity),
-                      built_descriptor(ResultDescriptor),
-                      erl_syntax:abstract(Cause), Maker, Exposer]);
+                      built_descriptor(ResultDescriptor), term_form(Cause), Maker, Exposer]);
 built_descriptor(Tuple) when is_tuple(Tuple) ->
     erl_syntax:tuple([built_descriptor(Element) || Element <- tuple_to_list(Tuple)]);
 built_descriptor(Elements) when is_list(Elements) ->
     erl_syntax:list([built_descriptor(Element) || Element <- Elements]);
 built_descriptor(Other) ->
-    erl_syntax:abstract(Other).
+    term_form(Other).
 
 %% Report §7.4: the program's Function where foreign code calls it, an
 %% exception it raises the fault it would be anywhere (called_raised/3).
@@ -3116,14 +3146,19 @@ bits_form(#{unit := 1}, SizeForm) -> SizeForm;
 bits_form(#{unit := Unit}, SizeForm) ->
     erl_syntax:infix_expr(SizeForm, erl_syntax:operator('*'), erl_syntax:integer(Unit)).
 
-segment_value(#{kind := int, sign := Sign} = Spec, ValueForm, SizeForm) ->
-    call_remote(ern_bits, int, [ValueForm, bits_form(Spec, SizeForm), erl_syntax:atom(Sign)]);
-segment_value(#{kind := float} = Spec, ValueForm, SizeForm) ->
-    call_remote(ern_bits, float, [ValueForm, bits_form(Spec, SizeForm)]);
-segment_value(#{kind := bytes, size := none}, ValueForm, _) -> ValueForm;
-segment_value(#{kind := bytes} = Spec, ValueForm, SizeForm) ->
-    call_remote(ern_bits, bytes, [ValueForm, bits_form(Spec, SizeForm)]);
-segment_value(_, ValueForm, _) -> ValueForm.
+%% A segment's value checked for its width, the check at the bitstring's
+%% Source (expr_form/3), or as it is where the bit syntax checks it.
+segment_value(Source, #{kind := int, sign := Sign} = Spec, ValueForm, SizeForm) ->
+    at(Source, call_remote(ern_bits, int, [ValueForm, bits_form(Spec, SizeForm),
+                                           erl_syntax:atom(Sign)]));
+segment_value(Source, #{kind := float} = Spec, ValueForm, SizeForm) ->
+    at(Source, call_remote(ern_bits, float, [ValueForm, bits_form(Spec, SizeForm)]));
+segment_value(_, #{kind := bytes, size := none}, ValueForm, _) ->
+    ValueForm;
+segment_value(Source, #{kind := bytes} = Spec, ValueForm, SizeForm) ->
+    at(Source, call_remote(ern_bits, bytes, [ValueForm, bits_form(Spec, SizeForm)]));
+segment_value(_, _, ValueForm, _) ->
+    ValueForm.
 
 %% Report §5.1: a long literal's elements, evaluated first to last, each
 %% put before the list so far, which alone stays live at the next, and the

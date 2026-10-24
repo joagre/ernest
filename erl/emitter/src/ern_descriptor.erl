@@ -1,17 +1,19 @@
-%% Report §8.4, Appendix E.1: the descriptor of a type, the runtime's
-%% reading of it: what the foreign boundary checks a value against, what a
-%% checker exposes an address with, and what `Io.show`, `Io.debug` and the
-%% shell print a value by, one printer (§11.2). A recursive type refers
-%% back to its mu.
+%% Report Appendix E.1, §11.2: the shell's describer, the descriptor of a
+%% type the checker gave an input's value, by which the shell prints it
+%% (ern_show). The emitter describes from forms the descriptors of a
+%% program's code, which the boundary checks a value against, a checker
+%% exposes an address with, and `Io.show` and `Io.debug` print by
+%% (ern_emitter, report §8.4); this module owns their type, which one
+%% printer reads. A recursive type refers back to its mu.
 -module(ern_descriptor).
 
--export([describe/3, describe/4, cause/3]).
+-export([describe/3]).
 
 -export_type([descriptor/0, named_cause/0]).
 
 -include_lib("checker/include/ern_types.hrl").
 
-%% A type as this module describes it, which `Io.show`, `Io.debug` and the
+%% A type as a descriptor holds it, which `Io.show`, `Io.debug` and the
 %% shell print a value by (ern_show) and the emitter builds the runtime's
 %% form of for the boundary (ern_boundary): a function's is tagged
 %% `function` here, and the built one `'fun'`, since the two carry other
@@ -19,15 +21,17 @@
 %% recursive type is described once; a hole stands for a descriptor a
 %% requirement passes in; an abstract type seen from outside its module is
 %% wrapped, and a named constructor carries its fields' names, both for
-%% printing.
+%% printing. A check's cause is none in a descriptor the shell prints by,
+%% which no check reads.
 -type descriptor() :: any | int | float | bool | char | string | bytes | process | never
                     | unit | foreign
                     | {hole, integer()} | {ref, pos_integer()}
                     | {tuple, [descriptor()]} | {list, descriptor()} | {set, descriptor()}
                     | {map, descriptor(), descriptor()}
-                    | {address, descriptor(), binary()} | {reply, descriptor(), binary()}
-                    | {function, non_neg_integer(), descriptor(), named_cause(), [descriptor()],
-                       [named_cause()]}
+                    | {address, descriptor(), binary() | none}
+                    | {reply, descriptor(), binary() | none}
+                    | {function, non_neg_integer(), descriptor(), named_cause() | none,
+                       [descriptor()], [named_cause()] | none}
                     | {con, [{atom(), [descriptor()]} | {atom(), [descriptor()], [atom()]}]}
                     | {mu, pos_integer(), descriptor()} | {abstract, descriptor()}.
 
@@ -36,25 +40,15 @@
 %% boundary writes the name between.
 -type named_cause() :: {binary(), binary()}.
 
-%% The type's names, the module it is seen from, and the type variables
-%% whose descriptors a requirement passes in, each a hole.
--record(scope, {env, namespace = [], holes = []}).
+%% The type's names and the module it is seen from.
+-record(scope, {env, namespace = []}).
 
 %% The descriptor of Type, whose names Env knows, seen from the module
 %% Namespace: from any other, an abstract type's representation is not
 %% the program's to print (report §4.4).
 -spec describe(ern_types:type(), ern_typecheck:env(), [atom()]) -> descriptor().
 describe(Type, Env, Namespace) ->
-    describe(Type, Env, Namespace, []).
-
-%% The descriptor of Type with `{hole, Id}` for each variable of Holes,
-%% whose descriptor the program passes in under a requirement that names
-%% `show` (report §4.9, Appendix E.1). A descriptor passed in is closed, a
-%% mu of its own binding each ref inside it, so it stands in a hole whatever
-%% the mus around it.
--spec describe(ern_types:type(), ern_typecheck:env(), [atom()], [integer()]) -> descriptor().
-describe(Type, Env, Namespace, Holes) ->
-    Scope = #scope{env = Env, namespace = Namespace, holes = Holes},
+    Scope = #scope{env = Env, namespace = Namespace},
     Substituted = ern_types:substitute(Type, ern_typecheck:type_state(Env)),
     descriptor(Substituted, #{}, Scope).
 
@@ -62,44 +56,26 @@ describe(Type, Env, Namespace, Holes) ->
 %% its mu binds, so a recursive type refers back instead of unfolding; it
 %% is passed down alone, and a sibling is described in full, since a ref
 %% reaches only an enclosing mu.
-descriptor({tvar, Id}, _Seen, #scope{holes = Holes}) ->
-    case lists:member(Id, Holes) of
-        true -> {hole, Id};
-        false -> any
-    end;
+descriptor({tvar, _}, _, _) -> any;
 descriptor(none, _, _) -> any;
 descriptor({ttuple, Elements}, Seen, Scope) ->
     {tuple, descriptors(Elements, Seen, Scope)};
 descriptor({tfn, Params, _, Result}, Seen, Scope) ->
-    %% report §7.4: a function value from foreign code has its result
-    %% checked at each call, against the result's descriptor; report §8.4:
-    %% one that crosses into foreign code has each argument checked, against
-    %% its parameter's; each cause names the function, as the emitter's
-    %% describer has it
-    {function, length(Params), descriptor(Result, Seen, Scope),
-     {<<"the return of foreign function ">>, text_binary(" does not match ", Result, Scope)},
-     descriptors(Params, Seen, Scope),
-     [{<<"an argument of ">>, text_binary(" from foreign code does not match ", Param, Scope)}
-      || Param <- Params]};
+    {function, length(Params), descriptor(Result, Seen, Scope), none,
+     descriptors(Params, Seen, Scope), none};
 descriptor({tcon, ['Int'], []}, _, _) -> int;
 descriptor({tcon, ['Float'], []}, _, _) -> float;
 descriptor({tcon, ['Bool'], []}, _, _) -> bool;
 descriptor({tcon, ['Char'], []}, _, _) -> char;
 descriptor({tcon, ['String'], []}, _, _) -> string;
 descriptor({tcon, ['Bytes'], []}, _, _) -> bytes;
-%% report §7.4, §8.4: the prelude's Unit, a word of its own, so that a
-%% function value's result declared it takes the host's `ok` at its top
-%% (ern_boundary), where a program's own type named Unit does not
+%% report §8.4, Appendix E.1: the prelude's Unit, a word of its own,
+%% where a program's own type named Unit is its constructors
 descriptor({tcon, ['Unit'], []}, _, _) -> unit;
 descriptor({tcon, ['Address'], [MessageType]}, Seen, Scope) ->
-    %% the address's messages, for the checker that exposes it (report §8.4)
-    {address, descriptor(MessageType, Seen, Scope),
-     text_binary("message does not match ", MessageType, Scope)};
+    {address, descriptor(MessageType, Seen, Scope), none};
 descriptor({tcon, ['Reply'], [AnswerType]}, Seen, Scope) ->
-    %% the answer's, which a reply that crosses into foreign code is
-    %% checked against (report §8.4)
-    {reply, descriptor(AnswerType, Seen, Scope),
-     text_binary("reply does not match ", AnswerType, Scope)};
+    {reply, descriptor(AnswerType, Seen, Scope), none};
 descriptor({tcon, ['Process'], []}, _, _) -> process;
 descriptor({tcon, ['Never'], []}, _, _) -> never;
 descriptor({tcon, ['List'], [ElementType]}, Seen, Scope) ->
@@ -165,11 +141,3 @@ field_types(#constructor_info{scheme = Scheme}, Args, #scope{env = Env}) ->
                                       end,
     Replacements = maps:from_list(lists:zip([Id || {tvar, Id} <- Params], Args)),
     [ern_types:replace_variables(FieldType, Replacements) || FieldType <- FieldTypes].
-
-%% Report §7.4, §8.4: a check's cause, its Prefix and the type as §11.5
-%% prints it, which the boundary faults with.
--spec cause(string(), ern_types:type(), ern_typecheck:env()) -> binary().
-cause(Prefix, Type, Env) ->
-    unicode:characters_to_binary(Prefix ++ ern_types:format(Type, ern_typecheck:type_state(Env))).
-
-text_binary(Prefix, Type, #scope{env = Env}) -> cause(Prefix, Type, Env).

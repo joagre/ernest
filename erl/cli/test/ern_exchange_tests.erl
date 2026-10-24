@@ -35,13 +35,13 @@
 %% reaches from the definition it is or is in, code and types, a group's
 %% members among them, the bindings its reach names and its foreign
 %% declarations with the host's module and function and the declared
-%% type; a foreign function's by its name, its declaration alone; and the
-%% lacks with a code frame for each, a group in one, dependencies first,
-%% each the bytes its hashes are taken of, with the hashes its forms
-%% reference and each member's name and form with the lines of its source,
-%% the locals' names left out, and the foreign declarations its form calls
-%% with the host's module and function. A function or a definition it
-%% holds nowhere is a reach of none
+%% type and where it is written; a foreign function's by its name, its
+%% declaration alone; and the lacks with a code frame for each, a group in
+%% one, dependencies first, each the bytes its hashes are taken of, with
+%% each member's name and form with the lines of its source, the locals'
+%% names left out, and the foreign declarations its form calls with the
+%% host's module and function and where each is written. A function or a
+%% definition it holds nowhere is a reach of none
 reach_test() ->
     {Unit, Beam, Defined} = compiled(['Exreach'], ?REACHED),
     File = filename:join(scratch_dir(), "exreach.erc"),
@@ -78,7 +78,7 @@ reach_test() ->
         Later = lists:usort([Hash(Name) || Name <- [later, isEven, isOdd]]),
         Now = {[<<"Exreach">>, <<"now">>], <<"erlang">>, <<"monotonic_time">>,
                {scheme, [], {arrow, [], none, {applied, {named, ['Int']}, []}}, []},
-               {[<<"Exreach">>], []}},
+               {[<<"Exreach">>], []}, {7, 1, none}},
         ?assertMatch([[{reach, _, Work, [{[<<"Exreach">>, <<"side">>], _}], []}],
                       [{reach, _, [_], [], [Now]}],
                       [{reach, _, Later, [], []}],
@@ -91,9 +91,9 @@ reach_test() ->
         ?assertEqual({reach, none}, {element(1, None), element(3, None)}),
         %% the group crosses whole, its members in source order, wherever it
         %% is lacked
-        ?assertMatch({code_frame, _, [_, _], _, _, _}, Group),
+        ?assertMatch({code_frame, _, [_, _], _, _}, Group),
         ?assertEqual([Hash(isEven), Hash(isOdd)], element(3, Group)),
-        Named = [Hashes || {code_frame, _, Hashes, _, _, _} <- Frames],
+        Named = [Hashes || {code_frame, _, Hashes, _, _} <- Frames],
         ?assertEqual(4, length(Named)),
         ?assertEqual(lists:sort([[Hash('Shape')], [Hash(area)], [Hash(isEven), Hash(isOdd)],
                                  [Hash(work)]]),
@@ -106,7 +106,6 @@ reach_test() ->
         ?assert(Place([Hash(isEven), Hash(isOdd)]) < Place([Hash(work)])),
         [begin
              {ok, Forms} = ern_canonical:verified(Hashes, Bytes),
-             ?assertEqual(referenced(Forms), References),
              Sourced = binary_to_term(Sources),
              ?assertEqual(Forms, [ern_canonical:stripped(Source)
                                   || {_, Source, _, _} <- Sourced]),
@@ -116,23 +115,23 @@ reach_test() ->
              ?assertEqual([{[<<"Exreach">>], []}], lists:usort([P || {_, _, P, _} <- Sourced])),
              %% report §8.7: none of them calls a foreign function
              ?assertEqual([[]], lists:usort([Calls || {_, _, _, Calls} <- Sourced]))
-         end || {code_frame, _, Hashes, Bytes, References, Sources} <- [Group | Frames]],
-        [{code_frame, _, _, _, WorkReferences, WorkSources}] =
-            [Frame || {code_frame, _, [Of], _, _, _} = Frame <- Frames, Of =:= Hash(work)],
-        ?assert(lists:member(Hash(side), WorkReferences)),
+         end || {code_frame, _, Hashes, Bytes, Sources} <- [Group | Frames]],
+        [{code_frame, _, _, _, WorkSources}] =
+            [Frame || {code_frame, _, [Of], _, _} = Frame <- Frames, Of =:= Hash(work)],
         %% report §8.7: the definition's name as text and its source's lines
         [{WorkName, {'$at', {WorkLine, _, none}, _}, _, _}] = binary_to_term(WorkSources),
         ?assertEqual({[<<"Exreach">>, <<"work">>], 8}, {WorkName, WorkLine}),
         [{'$at', {OddLine, _, none}, _}] =
             [Source || {[<<"Exreach">>, <<"isOdd">>], Source, _, _}
-                           <- binary_to_term(element(6, Group))],
+                           <- binary_to_term(element(5, Group))],
         ?assertEqual(6, OddLine),
         %% report §8.7: a definition that calls a foreign function carries
-        %% its declaration's host module and function beside its form
+        %% its declaration's host module and function beside its form, and
+        %% where it is written
         ?assertMatch([{[<<"Exreach">>, <<"timed">>], _, {[<<"Exreach">>], []},
                        [{[<<"Exreach">>, <<"now">>], <<"erlang">>, <<"monotonic_time">>,
-                         {[<<"Exreach">>], []}}]}],
-                     binary_to_term(element(6, TimedFrame)))
+                         {[<<"Exreach">>], []}, {7, 1, none}}]}],
+                     binary_to_term(element(5, TimedFrame)))
     after
         unloaded(Unit)
     end.
@@ -197,7 +196,7 @@ received_whole_test() ->
                {Early, [Last]} = lists:split(length(Frames) - 1, Frames),
                [Exchange ! {ern_frame, self(), Frame} || Frame <- Early],
                ok = catch_up(),
-               Apart = {waiting(), [Unit || {code_frame, _, Hashes, _, _, _} <- Early,
+               Apart = {waiting(), [Unit || {code_frame, _, Hashes, _, _} <- Early,
                                             Of <- Hashes, Unit <- ern_code:holders({hash, Of})]},
                Exchange ! {ern_frame, self(), Last},
                Answers = [receive {ern_frame, _, {answer, AnswerRef, Answer}} -> Answer end
@@ -264,7 +263,8 @@ received_linked_test() ->
     {ok, Typed, Interface, Env} = ern_typecheck:check(['Exlinked'], Parsed, Interfaces),
     {ok, _, LinkedBeam} = ern_compile:compile(['Exlinked'], Typed, Interface, Env,
                                               #{source_hash => <<>>, deps => []}),
-    {ok, #recorded{definitions = [Linked], foreign = [{_, Scheme, _, _, Printing}] = Foreign}} =
+    {ok, #recorded{definitions = [Linked],
+                   foreign = [{_, Scheme, _, _, Printing, Source}] = Foreign}} =
         ern_canonical:read(LinkedBeam),
     Work = {function, Linked#definition.hash},
     Self = self(),
@@ -285,7 +285,7 @@ received_linked_test() ->
                                {reach, Ref, Identities,
                                 [{[<<"Exbound">>, <<"base">>], bound_hash(BoundBeam)}],
                                 [{[<<"Exlinked">>, <<"now">>], <<"erlang">>,
-                                  <<"monotonic_time">>, Scheme, Printing}]}},
+                                  <<"monotonic_time">>, Scheme, Printing, Source}]}},
                    Lacks = receive {ern_frame, _, {lacks, Ref, L}} -> L end,
                    Exchange ! {ern_frame, self(), code_frame(Ref, [Linked], Foreign)},
                    Computed = receive {Alias, computed, Value} -> Value end,
@@ -308,7 +308,7 @@ received_linked_test() ->
         ?assertEqual({[{['Exbound', base], bound_hash(BoundBeam)}], [['Exlinked', now]]}, Reach),
         ?assertMatch({reach, _, _, [{[<<"Exbound">>, <<"base">>], _}],
                       [{[<<"Exlinked">>, <<"now">>], <<"erlang">>, <<"monotonic_time">>, Scheme,
-                        {[<<"Exlinked">>], []}}]},
+                        {[<<"Exlinked">>], []}, {1, 1, none}}]},
                      Onward),
         ?assertEqual(lists:sort([Linked#definition.hash, HeldHash]),
                      lists:sort(element(3, Onward))),
@@ -358,9 +358,9 @@ received_beyond_reach_test() ->
     Foreign = [case QualifiedName of
                    ['Exbeyond', absent] ->
                        {QualifiedName, Scheme, <<"ern_exchange_tests_elsewhere">>, <<"f">>,
-                        Printing};
+                        Printing, Source};
                    _ -> Declaration
-               end || {QualifiedName, Scheme, _, _, Printing} = Declaration <- Compiled],
+               end || {QualifiedName, Scheme, _, _, Printing, Source} = Declaration <- Compiled],
     #definition{hash = Outer} = Definition = maps:get(['Exbeyond', outer], Defined),
     Lambda = {lambda, Outer, 1},
     Self = self(),
@@ -386,7 +386,7 @@ received_beyond_reach_test() ->
                    {ok, #recorded{foreign = Recorded}} = ern_code:forms(Unit),
                    Onward = make_ref(),
                    Exchange ! {ern_frame, self(), {lacks, Onward, [Outer]}},
-                   [{code_frame, Onward, [Outer], _, _, Sources}] = frames(Onward),
+                   [{code_frame, Onward, [Outer], _, Sources}] = frames(Onward),
                    ByName = make_ref(),
                    Exchange ! {ern_frame, self(),
                                {reach_request, ByName, {foreign, [<<"Exbeyond">>, <<"absent">>]}}},
@@ -401,16 +401,18 @@ received_beyond_reach_test() ->
     try
         ?assertMatch({reach, _, [], [], [{[<<"Exbeyond">>, <<"absent">>],
                                           <<"ern_exchange_tests_elsewhere">>, <<"f">>,
-                                          {scheme, _, _, _}, {[<<"Exbeyond">>], []}}]},
+                                          {scheme, _, _, _}, {[<<"Exbeyond">>], []},
+                                          {1, 1, none}}]},
                      Reach),
         ?assertEqual(42, Computed),
-        ?assertMatch([{['Exbeyond', absent], _, <<"ern_exchange_tests_elsewhere">>, f, _},
-                      {['Exbeyond', now], _, erlang, monotonic_time, _}],
+        ?assertMatch([{['Exbeyond', absent], _, <<"ern_exchange_tests_elsewhere">>, f, _,
+                       {1, 1, none}},
+                      {['Exbeyond', now], _, erlang, monotonic_time, _, {2, 1, none}}],
                      lists:sort(Recorded)),
         ?assertMatch([{_, _, _, [{[<<"Exbeyond">>, <<"absent">>],
-                                  <<"ern_exchange_tests_elsewhere">>, <<"f">>, _},
+                                  <<"ern_exchange_tests_elsewhere">>, <<"f">>, _, {1, 1, none}},
                                  {[<<"Exbeyond">>, <<"now">>], <<"erlang">>,
-                                  <<"monotonic_time">>, _}]}],
+                                  <<"monotonic_time">>, _, {2, 1, none}}]}],
                      Sources),
         ?assertError(badarg, binary_to_existing_atom(<<"ern_exchange_tests_elsewhere">>)),
         ?assertEqual([{ern, fault, <<"the binding Exbeyond.note has no value here">>},
@@ -421,6 +423,91 @@ received_beyond_reach_test() ->
         ?assertEqual([], Said())
     after
         unloaded(Unit)
+    end.
+
+-define(IN_LET,
+        "fn heavy(n : Int) : Int = n * n\n"
+        "export let job = fn() = Peer.computeAt(\"p\", fn() = heavy(4), 100)\n").
+
+%% report §8.7, §11.1, Appendix H: a lambda written in a top-level binding,
+%% as every `Test.Case` is one, is spawned on a peer and computed there as
+%% one written in a function is: its identity is the binding's hash and
+%% its position, and the binding's form crosses for the lambda's code, its
+%% value still the node's. The spawner's node answers its reach with the
+%% binding and what the binding references, and its lacks with a code
+%% frame for each, the binding's after what it names; the node that lacks
+%% it makes the unit with the lambda's entry and evaluates nothing, the
+%% compute answers its value, and the node ships the binding onward from
+%% that unit. A regression test, written with the fix (the log's *The Full
+%% Review Before 0.5.0*: the spawner's node found no definition by the
+%% binding's hash and answered that it no longer held the reach); it does
+%% not cover a binding that crosses as a member of its group, which the
+%% unit compiles for its lambdas so too, nor real nodes,
+%% test/ern_nodes_tests.erl's
+in_let_test() ->
+    {Unit, Beam, Defined} = compiled(['Exinlet'], ?IN_LET),
+    #definition{hash = Job} = JobDefinition = maps:get(['Exinlet', job], Defined),
+    #definition{hash = Heavy} = HeavyDefinition = maps:get(['Exinlet', heavy], Defined),
+    %% the spawner's node, which holds the module
+    loaded(Unit, Beam),
+    [Position] = [At || {_, {lambda, Of, At, _, _, _}} <- Unit:'$code'(), Of =:= Job],
+    Lambda = {lambda, Job, Position},
+    Self = self(),
+    Spawner = fun() ->
+                      true = register(ern_gateway, self()),
+                      ok = ern_exchange:start(),
+                      Asked = make_ref(),
+                      ern_exchange ! {ern_frame, self(), {reach_request, Asked, Lambda}},
+                      Lacks = make_ref(),
+                      ern_exchange ! {ern_frame, self(), {lacks, Lacks, [Job, Heavy]}},
+                      Self ! {spawner, frames(Asked), frames(Lacks)}
+              end,
+    try
+        ?assertEqual(ok, run(Spawner, quiet())),
+        {spawner, Reach, Frames} = receive {spawner, _, _} = Answered -> Answered end,
+        ?assertMatch([{reach, _, _, [], []}], Reach),
+        [{reach, _, Identities, _, _}] = Reach,
+        ?assertEqual(lists:usort([Job, Heavy]), Identities),
+        ?assertMatch([{code_frame, _, [Heavy], _, _}, {code_frame, _, [Job], _, _}], Frames),
+        [_, {code_frame, _, _, _, JobSources}] = Frames,
+        ?assertMatch([{[<<"Exinlet">>, <<"job">>], {'$at', {2, _, none}, _}, _, []}],
+                     binary_to_term(JobSources))
+    after
+        unloaded(Unit)
+    end,
+    %% the node the compute was asked of, which lacks the module
+    Peer = fun() ->
+                   true = register(ern_gateway, self()),
+                   ok = ern_exchange:start(),
+                   Alias = erlang:alias([reply]),
+                   ok = ern_rt:note_compute(self(), Alias),
+                   ok = ern_exchange:lacking(self(), {compute, Alias, {lambda, Job, Position, []},
+                                                      <<"M.f:3">>, ?MS}, Lambda),
+                   {Exchange, Ref} = receive {ern_frame, From, {reach_request, R, Lambda}} ->
+                                             {From, R}
+                                     end,
+                   Exchange ! {ern_frame, self(), {reach, Ref, [Job, Heavy], [], []}},
+                   Lacked = receive {ern_frame, _, {lacks, Ref, L}} -> L end,
+                   [Exchange ! {ern_frame, self(), code_frame(Ref, [Member])}
+                    || Member <- [HeavyDefinition, JobDefinition]],
+                   Computed = receive {Alias, computed, Value} -> Value end,
+                   {Arrival, _, 0, _} = ern_code:spawnable(Lambda),
+                   Onward = make_ref(),
+                   Exchange ! {ern_frame, self(), {lacks, Onward, [Job]}},
+                   Self ! {peer, Lacked, Computed, Arrival, frames(Onward)}
+           end,
+    {Said, Options} = said(),
+    ?assertEqual(ok, run(Peer, Options)),
+    {peer, Lacked, Computed, Arrival, Onward} =
+        receive {peer, _, _, _, _} = Got -> Got end,
+    try
+        ?assertEqual(lists:sort([Job, Heavy]), lists:sort(Lacked)),
+        ?assertEqual(16, Computed),
+        ?assertMatch("ern$" ++ _, atom_to_list(Arrival)),
+        ?assertMatch([{code_frame, _, [Job], _, _}], Onward),
+        ?assertEqual([], Said())
+    after
+        unloaded(Arrival)
     end.
 
 held_identities(Beam) ->
@@ -454,8 +541,8 @@ unlinked_reach_test() ->
                    Exchange ! {ern_frame, self(),
                                {code_frame, Ref, [Hash], ern_canonical:bytes(
                                                            ern_canonical:hashed([Form])),
-                                [<<77:256>>], term_to_binary([{[<<"Crafted">>, <<"bad">>],
-                                                               Form, {[], []}, []}])}},
+                                term_to_binary([{[<<"Crafted">>, <<"bad">>], Form, {[], []},
+                                                 []}])}},
                    Answer = receive {ern_frame, _, {answer, SpawnRef, A}} -> A end,
                    %% the node says the line once it has answered
                    ok = catch_up(),
@@ -512,10 +599,10 @@ not_loaded_from_reach_test() ->
                                  <- [{[{[<<"Exabsent">>, <<"note">>], <<5:256>>}], []},
                                      {[], [{[<<"Exabsent">>, <<"only">>],
                                             <<"ern_exchange_tests_absent">>, <<"f">>,
-                                            Scheme, {[], []}}]},
+                                            Scheme, {[], []}, {1, 1, none}}]},
                                      {[], [{[<<"Exabsent">>, <<"sorted">>], <<"lists">>,
                                             <<"ern_exchange_tests_unsorted">>, Scheme,
-                                            {[], []}}]}]],
+                                            {[], []}, {1, 1, none}}]}]],
                Self ! {answered, Answers}
            end,
     {Said, Options} = said(),
@@ -536,15 +623,16 @@ not_loaded_from_reach_test() ->
 %% report §8.7: a frame the exchange cannot read is faulty, and the node
 %% ends the peer's connection and says so: a code frame whose bytes are not
 %% those the hash it names is taken of, one that names a hash that was not
-%% lacked, one whose references are not those its forms name, one whose
-%% form with its source's lines is not its form once they are taken out,
-%% one whose sources name an atom its form does not, one with a source too
-%% few, one that declares a foreign function its form does not call, one
-%% whose declaration's host module is not text, a reach of another shape,
-%% and a request for a reach of no identity. The exchange asked of the
-%% peer goes with its forms, a later frame of it passed over, and the spawn
-%% the peer asked for with it, none waiting on it now. The two cases of the
-%% declarations are regression tests, written with them (MVP 3.2's item 5)
+%% lacked, one whose form with its source's lines is not its form once
+%% they are taken out, one whose sources name an atom its form does not,
+%% one with a source too few, one that declares a foreign function its form
+%% does not call, one whose declaration's host module is not text, a reach
+%% of another shape, a reach whose foreign declaration's place is no line
+%% and column, and a request for a reach of no identity. The exchange asked of
+%% the peer goes with its forms, a later frame of it passed over, and the
+%% spawn the peer asked for with it, none waiting on it now. The cases of
+%% the declarations are regression tests, written with them (MVP 3.2's
+%% item 5, and the declaration's place with MVP 3.9's carrying of it)
 faulty_frame_test() ->
     {_, _, Defined} = compiled(['Exfaulty'], ?FAULTY),
     #definition{hash = Hash, form = Form} = maps:get(['Exfaulty', held], Defined),
@@ -566,49 +654,57 @@ faulty_frame_test() ->
                Bytes = ern_canonical:bytes(ern_canonical:hashed([Form])),
                Name = [<<"Exfaulty">>, <<"held">>],
                Sources = term_to_binary([{Name, Form, {[<<"Exfaulty">>], []}, []}]),
-               Declared = fun(HostModule) ->
+               Declared = fun(HostModule, Source) ->
                               term_to_binary([{Name, Form, {[<<"Exfaulty">>], []},
                                                [{[<<"Exfaulty">>, <<"now">>], HostModule,
-                                                 <<"monotonic_time">>, {[], []}}]}])
+                                                 <<"monotonic_time">>, {[], []}, Source}]}])
                           end,
                Other = setelement(2, Form, {scheme, [], {arrow, [], none, int}, []}),
                Faults = [fun(Ref) ->
-                                 {code_frame, Ref, [Hash], <<Bytes/binary, 0>>, [], Sources}
+                                 {code_frame, Ref, [Hash], <<Bytes/binary, 0>>, Sources}
                          end,
-                         fun(Ref) -> {code_frame, Ref, [<<6:256>>], Bytes, [], Sources} end,
-                         fun(Ref) -> {code_frame, Ref, [Hash], Bytes, [<<7:256>>], Sources} end,
+                         fun(Ref) -> {code_frame, Ref, [<<6:256>>], Bytes, Sources} end,
                          fun(Ref) ->
-                             {code_frame, Ref, [Hash], Bytes, [],
+                             {code_frame, Ref, [Hash], Bytes,
                               term_to_binary([{Name, {'$at', {1, 1, none}, Other}, {[], []},
                                                []}])}
                          end,
                          fun(Ref) ->
-                             {code_frame, Ref, [Hash], Bytes, [],
+                             {code_frame, Ref, [Hash], Bytes,
                               <<131, 108, 1:32, 104, 4, 108, 1:32, 109, 3:32, "abc", 106,
                                 119, 12, "ern_unknown1", 104, 2, 106, 106, 106, 106>>}
                          end,
-                         fun(Ref) -> {code_frame, Ref, [Hash], Bytes, [], term_to_binary([])} end,
+                         fun(Ref) -> {code_frame, Ref, [Hash], Bytes, term_to_binary([])} end,
                          fun(Ref) ->
-                             {code_frame, Ref, [Hash], Bytes, [], Declared(<<"erlang">>)}
+                             {code_frame, Ref, [Hash], Bytes,
+                              Declared(<<"erlang">>, {1, 1, none})}
                          end,
-                         fun(Ref) -> {code_frame, Ref, [Hash], Bytes, [], Declared(erlang)} end],
+                         fun(Ref) ->
+                             {code_frame, Ref, [Hash], Bytes, Declared(erlang, {1, 1, none})}
+                         end],
                Late = [begin
                            {Exchange, Ref} = Lacking(),
                            Exchange ! {ern_frame, self(), Fault(Ref)},
-                           Exchange ! {ern_frame, self(), {code_frame, Ref, [Hash], Bytes, [],
+                           Exchange ! {ern_frame, self(), {code_frame, Ref, [Hash], Bytes,
                                                            Sources}},
                            ok = catch_up(),
                            waiting()
                        end || Fault <- Faults],
                {Exchange, Ref} = Asking(),
                Exchange ! {ern_frame, self(), {reach, Ref, [short], [], []}},
+               {_, Placed} = Asking(),
+               Scheme = {scheme, [], {arrow, [], none, {applied, {named, ['Int']}, []}}, []},
+               Exchange ! {ern_frame, self(),
+                           {reach, Placed, [Hash], [],
+                            [{[<<"Exfaulty">>, <<"now">>], <<"erlang">>, <<"monotonic_time">>,
+                              Scheme, {[], []}, {1, 1, <<"now">>}}]}},
                Exchange ! {ern_frame, self(), {reach_request, make_ref(), {function, <<"s">>}}},
                ok = catch_up(),
                Self ! {faulty, Late, waiting()}
            end,
     {Said, Options} = said(),
     ?assertEqual(ok, run(Main, Options)),
-    ?assertEqual({faulty, [[], [], [], [], [], [], [], []], []},
+    ?assertEqual({faulty, [[], [], [], [], [], [], []], []},
                  receive {faulty, _, _} = Got -> Got end),
     ?assertEqual(lists:duplicate(10, <<"the node nohost sent a frame this node cannot read, and its"
                                       " connection was ended\n">>),
@@ -794,7 +890,7 @@ code_frame(Ref, Members) ->
 code_frame(Ref, Members, Foreign) ->
     Forms = [Form || #definition{form = Form} <- Members],
     {code_frame, Ref, [Hash || #definition{hash = Hash} <- Members],
-     ern_canonical:bytes(ern_canonical:hashed(Forms)), referenced(Forms),
+     ern_canonical:bytes(ern_canonical:hashed(Forms)),
      term_to_binary([{ern_namespace:text_segments(QualifiedName), Sourced, Printing,
                       calls(Form, Foreign)}
                      || #definition{qualified_name = QualifiedName, form = Form,
@@ -806,8 +902,8 @@ calls(Form, Foreign) ->
     Called = lists:usort([ern_namespace:text_segments(QualifiedName)
                           || {foreign, QualifiedName, _} <- ern_compile:references([Form])]),
     [{Name, ern_namespace:text_segment(HostModule), ern_namespace:text_segment(HostFunction),
-      Printing}
-     || Name <- Called, {QualifiedName, _, HostModule, HostFunction, Printing} <- Foreign,
+      Printing, Source}
+     || Name <- Called, {QualifiedName, _, HostModule, HostFunction, Printing, Source} <- Foreign,
         ern_namespace:text_segments(QualifiedName) =:= Name].
 
 %% The names of the locals a form with its source's lines holds.
@@ -819,12 +915,6 @@ local_names(Terms) when is_list(Terms) ->
     lists:append([local_names(Term) || Term <- Terms]);
 local_names(_) ->
     [].
-
-referenced(Forms) ->
-    lists:usort([case Reference of
-                     {hash, Hash} -> Hash;
-                     {binding, _, Hash} -> Hash
-                 end || Reference <- ern_canonical:references(Forms)]).
 
 %% The frames the exchange has sent the stand-in gateway for Ref, once it
 %% has read every frame sent it before.

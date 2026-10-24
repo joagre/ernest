@@ -5,24 +5,25 @@
 %% parts, for every peer.
 %%
 %% As the spawner's node it answers a peer's request for a function's reach
-%% from the code table and the forms kept beside the code (ern_code:forms/1,
-%% report §11.2): the identities the function's definition references,
-%% transitively, code and types, the bindings the function's reach names,
-%% and the foreign declarations it names, each with the module and the
-%% function of the host its declaration calls, its declared type and what
-%% prints a type in its check's cause as its module writes it, by which the
-%% peer finds what it lacks and calls the host's function; a foreign
-%% function spawned by its name, which has no hash, has its declaration
-%% alone in its reach. It answers the peer's lacks with a code frame for
-%% each definition it lacks, a group's members in one, since a member is
-%% hashed with its group, dependencies first, each with its name, the lines
-%% of its source, what prints a type in a cause as its module writes it
-%% (§11.5), and the foreign declarations its form calls, each with the
-%% host's module and function, so that the peer calls those beyond the
-%% spawned function's reach as it calls the reach's (§8.4). It keeps
-%% nothing of a peer's asking between two frames. Where
-%% it no longer holds a function it is asked the reach of, or a definition
-%% a peer lacks, the shell having let go of the input that held it once its
+%% from the code table and the forms kept beside the code
+%% (ern_code:forms/1, report §11.2): the identities the function's
+%% definition references, transitively, code and types, the bindings the
+%% function's reach names, and the foreign declarations it names, each with
+%% the module and the function of the host its declaration calls, its
+%% declared type, what prints a type in its check's cause as its module
+%% writes it and the line it is declared at, by which the peer finds what
+%% it lacks, calls the host's function and names the declaration's frame in
+%% a trace; a foreign function spawned by its name, which has no hash, has
+%% its declaration alone in its reach. It answers the peer's lacks with a
+%% code frame for each definition it lacks, a group's members in one, since
+%% a member is hashed with its group, dependencies first, each with its
+%% name, the lines of its source, what prints a type in a cause as its
+%% module writes it (§11.5), and the foreign declarations its form calls,
+%% each with the host's module and function and its line, so that the peer
+%% calls those beyond the spawned function's reach as it calls the reach's
+%% (§8.4). It keeps nothing of a peer's asking between two frames. Where it
+%% no longer holds a function it is asked the reach of, or a definition a
+%% peer lacks, the shell having let go of the input that held it once its
 %% spawn had given up, it answers a reach of none.
 %%
 %% As the node a spawn or a compute was asked of, it takes from the
@@ -35,23 +36,22 @@
 %% (ern_code:linkable/1); verifies each code frame against the hashes it
 %% names as it arrives, its forms with their source's lines against the
 %% forms, and its foreign declarations against those the forms call, and
-%% holds them apart until every lacked identity has arrived; and then
-%% makes the whole reach one unit, compiled and loaded
-%% (ern_arrival), which the node holds for its life (§11.2), and reads
-%% each spawn and compute that waits again as the gateway's worker reads
-%% it, which starts it, or answers it `Other` with the reason it could
-%% not. Two spawns that wait on
+%% holds them apart until every lacked identity has arrived; and then makes
+%% the whole reach one unit, compiled and loaded (ern_arrival), which the
+%% node holds for its life (§11.2), and reads each spawn and compute that
+%% waits again as the gateway's worker reads it, which starts it, or
+%% answers it `Other` with the reason it could not. Two spawns that wait on
 %% one identity share one exchange, and are answered together. An exchange
 %% runs within the time of the spawns that wait on it, the milliseconds
 %% their frames carry, and is dropped with its forms once the last of them
 %% has run out, each spawn said and left unanswered, its spawner having
-%% answered itself `Timeout`. A frame it
-%% cannot read, a form whose hash is not the one named among them, is
-%% faulty, and the node ends the peer's connection, as the gateway's worker
-%% does (ern_gateway's outcome/2). A loss drops the exchanges asked of the
-%% peer with the spawns that peer asked for, each spawn of another peer
-%% that waited on one asking its own peer anew; a spawn whose spawner no
-%% longer waits is answered all the same, its answer finding no one.
+%% answered itself `Timeout`. A frame it cannot read, a form whose hash is
+%% not the one named among them, is faulty, and the node ends the peer's
+%% connection, as the gateway's worker does (ern_gateway's outcome/2). A
+%% loss drops the exchanges asked of the peer with the spawns that peer
+%% asked for, each spawn of another peer that waited on one asking its own
+%% peer anew; a spawn whose spawner no longer waits is answered all the
+%% same, its answer finding no one.
 %%
 %% The node's pool of names for the units its exchanges make is the
 %% exchange's (ern_arrival:name/1), the only process that makes them; and
@@ -60,30 +60,29 @@
 %% and kept for the node's life, since neither changes while it runs.
 %%
 %% The frames, each {ern_frame, From, Body}, From this node's exchange or a
-%% peer's: {reach_request, Exchange, Identity}; {reach, Exchange, Identities,
-%% Bindings, Foreigns}, or {reach, Exchange, none}; {lacks, Exchange, Hashes};
-%% {code_frame, Exchange, Hashes, Bytes, References, Sources}. Exchange is the
-%% reference the asking node made for the exchange, an Identity is
-%% ern_peer:identity(), a hash the 32 bytes of a SHA-256, a name a list of its
-%% segments as text, which makes no atom where a peer sends it; Bindings are
-%% {QualifiedName, Hash}, Foreigns {QualifiedName, HostModule, HostFunction,
-%% Scheme, Printing}, the scheme as a form writes it (Appendix H), Hashes the
-%% definition alone or the group's members in order, Bytes what that
-%% definition or group is hashed as (Appendix H), References the hashes its
-%% forms name, a binding's among them, which §8.7 has the frame carry and the
-%% node it arrives at recomputes from the forms, a frame whose References
-%% differ from them being faulty, and uses no further, and Sources the bytes
-%% of the host's external term format of a list of {Name, Sourced, Printing,
-%% Calls}, one for each of Hashes in order: the definition's name, its form
-%% with the lines of its source, the locals' names left out (§11.1), which,
-%% stripped of its source, is the form the bytes hold, and holds no atom the
-%% form does not, so that it is read once the form is, making none; Printing
-%% is {Namespace, Shadows}, the namespace its module's forms write its types
-%% under and the prelude names its types shadow, as text, by which a type
-%% prints in a cause as the module writes it (§11.5); and Calls the foreign
-%% declarations its form calls, in the order of their names, each
-%% {QualifiedName, HostModule, HostFunction, Printing}, as text, the scheme
-%% being the one the form writes (§8.7).
+%% peer's: {reach_request, Exchange, Identity}; {reach, Exchange,
+%% Identities, Bindings, Foreigns}, or {reach, Exchange, none}; {lacks,
+%% Exchange, Hashes}; {code_frame, Exchange, Hashes, Bytes, Sources}.
+%% Exchange is the reference the asking node made for the exchange, an
+%% Identity is ern_peer:identity(), a hash the 32 bytes of a SHA-256, a
+%% name a list of its segments as text, which makes no atom where a peer
+%% sends it; Bindings are {QualifiedName, Hash}, Foreigns {QualifiedName,
+%% HostModule, HostFunction, Scheme, Printing, Source}, the scheme as a
+%% form writes it (Appendix H) and Source where the declaration is written,
+%% {Line, Column, none}; Hashes the definition alone or the group's members
+%% in order, Bytes what that definition or group is hashed as (Appendix H),
+%% and Sources the bytes of the host's external term format of a list of
+%% {Name, Sourced, Printing, Calls}, one for each of Hashes in order: the
+%% definition's name, its form with the lines of its source, the locals'
+%% names left out (§11.1), which, stripped of its source, is the form the
+%% bytes hold, and holds no atom the form does not, so that it is read once
+%% the form is, making none; Printing is {Namespace, Shadows}, the
+%% namespace its module's forms write its types under and the prelude names
+%% its types shadow, as text, by which a type prints in a cause as the
+%% module writes it (§11.5); and Calls the foreign declarations its form
+%% calls, in the order of their names, each {QualifiedName, HostModule,
+%% HostFunction, Printing, Source}, the names as text, the scheme being the
+%% one the form writes (§8.7).
 -module(ern_exchange).
 
 -export([start/0, handed/1, lacking/3, lost/1]).
@@ -260,9 +259,8 @@ frame(From, {lacks, Ref, Hashes}, State) when is_reference(Ref), node(Ref) =:= n
         none ->
             erlang:send(Gateway, {ern_frame, self(), {reach, Ref, none}});
         Frames ->
-            [erlang:send(Gateway, {ern_frame, self(), {code_frame, Ref, Named, Bytes, References,
-                                                       Sources}})
-             || {Named, Bytes, References, Sources} <- Frames]
+            [erlang:send(Gateway, {ern_frame, self(), {code_frame, Ref, Named, Bytes, Sources}})
+             || {Named, Bytes, Sources} <- Frames]
     end,
     State;
 frame(From, {reach, Ref, none}, State) when is_reference(Ref), node(Ref) =:= node() ->
@@ -274,20 +272,19 @@ frame(From, {reach, Ref, Identities, Bindings, Foreigns}, State)
   when is_reference(Ref), node(Ref) =:= node() ->
     true = lists:all(fun is_hash/1, Identities)
         andalso lists:all(fun({Name, Hash}) -> is_name(Name) andalso is_hash(Hash) end, Bindings)
-        andalso lists:all(fun({Name, HostModule, HostFunction, Scheme, Printing}) ->
+        andalso lists:all(fun({Name, HostModule, HostFunction, Scheme, Printing, Source}) ->
                               is_name(Name) andalso is_text(HostModule)
                                   andalso is_text(HostFunction) andalso is_scheme(Scheme)
-                                  andalso is_printing(Printing)
+                                  andalso is_printing(Printing) andalso is_source(Source)
                           end, Foreigns),
     case exchange(From, Ref, State) of
         late -> State;
         #exchange{reach = none} = Exchange ->
             reached(Ref, Exchange#exchange{reach = {Identities, Bindings, Foreigns}}, State)
     end;
-frame(From, {code_frame, Ref, Hashes, Bytes, References, Sources}, State)
+frame(From, {code_frame, Ref, Hashes, Bytes, Sources}, State)
   when is_reference(Ref), node(Ref) =:= node(), is_list(Hashes), Hashes =/= [],
-       is_binary(Bytes), is_list(References), is_binary(Sources) ->
-    true = lists:all(fun is_hash/1, References),
+       is_binary(Bytes), is_binary(Sources) ->
     case exchange(From, Ref, State) of
         late -> State;
         #exchange{lacked = Lacked} = Exchange when is_map(Lacked) ->
@@ -295,10 +292,6 @@ frame(From, {code_frame, Ref, Hashes, Bytes, References, Sources}, State)
             %% lacking, a binding of its, comes with those it did
             true = lists:any(fun(Hash) -> is_map_key(Hash, Lacked) end, Hashes),
             {ok, Forms} = ern_canonical:verified(Hashes, Bytes),
-            %% the hashes the frame says its forms name, a check on the
-            %% frame alone: the arrival reads its references from the
-            %% forms themselves (ern_arrival)
-            References = referenced(Forms),
             arrived(Ref, Exchange, framed(Hashes, Bytes, Forms, Sources), State)
     end.
 
@@ -316,7 +309,8 @@ exchange(From, Ref, #state{exchanges = Exchanges}) ->
 %% its source, which must be the form the bytes hold once its source is
 %% taken out, a group's by its hash and its member's position; and beside
 %% it the foreign declarations it calls, which must be those its form calls,
-%% by their names, each with the host's module and function as text.
+%% by their names, each with the host's module and function as text and
+%% where it is declared.
 framed(Hashes, Bytes, Forms, Sources) ->
     Group = case Hashes of
                 [_] -> fun(_) -> none end;
@@ -330,14 +324,14 @@ member(Hash, Form, {Name, Sourced, Printing, Calls}, Group) ->
     true = is_name(Name) andalso is_printing(Printing) andalso is_list(Calls)
         andalso lists:all(fun is_call/1, Calls),
     Form = ern_canonical:stripped(Sourced),
-    true = [Called || {Called, _, _, _} <- Calls] =:= called_names(Form),
+    true = [Called || {Called, _, _, _, _} <- Calls] =:= called_names(Form),
     {#definition{qualified_name = Name, kind = kind(Form), hash = Hash, form = Form,
                  group = Group, sourced = Sourced, printing = Printing},
      Calls}.
 
-is_call({Name, HostModule, HostFunction, Printing}) ->
+is_call({Name, HostModule, HostFunction, Printing, Source}) ->
     is_name(Name) andalso is_text(HostModule) andalso is_text(HostFunction)
-        andalso is_printing(Printing);
+        andalso is_printing(Printing) andalso is_source(Source);
 is_call(_) ->
     false.
 
@@ -492,7 +486,11 @@ ended(Ref, #state{exchanges = Exchanges, asked = Asked} = State) ->
 %% the definitions it reaches, from the definition it is or is in, code and
 %% types, the bindings its reach names, and its foreign declarations with
 %% their modules, functions and declared types; a foreign function's its
-%% declaration alone; or none where this node no longer holds it.
+%% declaration alone; or none where this node no longer holds it. A
+%% binding is no identity of a reach, its value being its node's, but the
+%% one a lambda is written in, whose form crosses for the lambda's code as
+%% a function a lambda is written in crosses (§8.7, §11.1), its value still
+%% the node's; a binding that is a member of a group crosses with it.
 reach_answer(Ref, Identity) ->
     case reach(Identity) of
         none ->
@@ -537,7 +535,8 @@ reach(Key, Hash) ->
                     case implementations(Unit, Foreigns, Read) of
                         {{ok, Implemented}, _} ->
                             {lists:usort([Defined || #definition{hash = Defined, kind = Kind}
-                                                         <- Definitions, Kind =/= binding]),
+                                                         <- Definitions,
+                                                     Kind =/= binding orelse Defined =:= Hash]),
                              [{ern_namespace:text_segments(QualifiedName), BindingHash}
                               || {QualifiedName, BindingHash} <- Bindings],
                              Implemented};
@@ -571,13 +570,14 @@ reached_definitions([Hash | Hashes], Found, Read) ->
     end.
 
 %% The foreign declarations of a function's reach, each with the module and
-%% the function of the host its declaration calls, as text, and its
-%% declared type, as the units the code of the unit that runs it calls
-%% hold it, the type from what the unit that holds it records; or, for one
-%% whose call a unit an exchange made linked to a fault, as that unit
-%% records it (ern_code:declared/2), so that the node ships it onward as
-%% its own; none where one of them is held nowhere. Read is the forms of
-%% the units the request has read, and grows by any read here.
+%% the function of the host its declaration calls, as text, its declared
+%% type, its printing and where it is declared, as the units the code of
+%% the unit that runs it calls hold it, the type, the printing and the
+%% place from what the unit that holds it records; or, for one whose call a
+%% unit an exchange made linked to a fault, as that unit records it
+%% (ern_code:declared/2), so that the node ships it onward as its own; none
+%% where one of them is held nowhere. Read is the forms of the units the
+%% request has read, and grows by any read here.
 implementations(Unit, Foreigns, Read) ->
     Called = ern_code:called(Unit),
     {Found, Read1} = lists:mapfoldl(fun(QualifiedName, Acc) ->
@@ -588,8 +588,8 @@ implementations(Unit, Foreigns, Read) ->
                                     end, Read, Foreigns),
     case lists:keymember(none, 2, Found) of
         false ->
-            {{ok, [{Name, HostModule, HostFunction, Scheme, Printing}
-                   || {Name, {HostModule, HostFunction, Scheme, Printing}} <- Found]},
+            {{ok, [{Name, HostModule, HostFunction, Scheme, Printing, Source}
+                   || {Name, {HostModule, HostFunction, Scheme, Printing, Source}} <- Found]},
              Read1};
         true ->
             {none, Read1}
@@ -599,29 +599,31 @@ implementation(Called, QualifiedName, Read) ->
     case ern_code:foreign(Called, QualifiedName) of
         [{Holder, HostModule, HostFunction} | _] ->
             case declared(Holder, ern_namespace:text_segments(QualifiedName), Read) of
-                {{Scheme, Printing}, Read1} ->
-                    {{atom_to_binary(HostModule), atom_to_binary(HostFunction), Scheme, Printing},
-                     Read1};
+                {{Scheme, Printing, Source}, Read1} ->
+                    {{atom_to_binary(HostModule), atom_to_binary(HostFunction), Scheme, Printing,
+                      Source}, Read1};
                 {none, Read1} ->
                     {none, Read1}
             end;
         [] ->
             case ern_code:declared(Called, QualifiedName) of
-                [{_, {_, Scheme, HostModule, HostFunction, Printing}} | _] ->
+                [{_, {_, Scheme, HostModule, HostFunction, Printing, Source}} | _] ->
                     {{ern_namespace:text_segment(HostModule),
-                      ern_namespace:text_segment(HostFunction), Scheme, Printing}, Read};
+                      ern_namespace:text_segment(HostFunction), Scheme, Printing, Source}, Read};
                 [] ->
                     {none, Read}
             end
     end.
 
-%% The scheme of the foreign declaration Name, and what prints a type in
-%% its check's cause, as the unit Holder records them, or none.
+%% The scheme of the foreign declaration Name, what prints a type in its
+%% check's cause and where it is declared, as the unit Holder records them,
+%% or none.
 declared(Holder, Name, Read) ->
     case recorded(Holder, Read) of
         {#recorded{foreign = Recorded}, Read1} ->
-            case [{Scheme, Printing} || {QualifiedName, Scheme, _, _, Printing} <- Recorded,
-                                        ern_namespace:text_segments(QualifiedName) =:= Name] of
+            case [{Scheme, Printing, Source}
+                  || {QualifiedName, Scheme, _, _, Printing, Source} <- Recorded,
+                     ern_namespace:text_segments(QualifiedName) =:= Name] of
                 [Declared | _] -> {Declared, Read1};
                 [] -> {none, Read1}
             end;
@@ -686,9 +688,9 @@ first_needed(Key, Groups, ByHash, {Order, Seen}) ->
 
 %% Report Appendix H, §8.7: a definition alone, or a group's members in
 %% order, as a code frame carries it: the hashes, the bytes they are taken
-%% of, the hashes its forms reference, and each member's name, its form
-%% with the lines of its source, what prints a type in a cause as its
-%% module writes it, and the foreign declarations it calls, as the node
+%% of, and each member's name, its form with the lines of its source, what
+%% prints a type in a cause as its module writes it, and the foreign
+%% declarations it calls, as the node
 %% holds them (§11.2), a form without its source where it holds none, and
 %% no module's printing where it holds none; none where a foreign
 %% declaration a member calls is held by no unit the code of Unit, which
@@ -720,14 +722,13 @@ code_frame(Members, Forms, Calls) ->
                                        sourced = Sourced, printing = Printing}, Called}
                               <- lists:zip(Members, Calls)],
             {[Hash || #definition{hash = Hash} <- Members],
-             ern_canonical:bytes(ern_canonical:hashed(Forms)), referenced(Forms),
-             term_to_binary(Sources)}
+             ern_canonical:bytes(ern_canonical:hashed(Forms)), term_to_binary(Sources)}
     end.
 
 %% Report §8.7: the foreign declarations a definition's form calls, in the
 %% order of their names, each {QualifiedName, HostModule, HostFunction,
-%% Printing} as a reach's are found (implementations/2); none where one of
-%% them is found nowhere.
+%% Printing, Source} as a reach's are found (implementations/3); none where
+%% one of them is found nowhere.
 calls(Unit, Form, Read) ->
     case called_names(Form) of
         [] ->
@@ -735,8 +736,8 @@ calls(Unit, Form, Read) ->
         Names ->
             case implementations(Unit, Names, Read) of
                 {{ok, Implemented}, Read1} ->
-                    {[{Name, HostModule, HostFunction, Printing}
-                      || {Name, HostModule, HostFunction, _, Printing} <- Implemented],
+                    {[{Name, HostModule, HostFunction, Printing, Source}
+                      || {Name, HostModule, HostFunction, _, Printing, Source} <- Implemented],
                      Read1};
                 {none, Read1} ->
                     {none, Read1}
@@ -798,14 +799,6 @@ called_names(Form) ->
     lists:usort([ern_namespace:text_segments(QualifiedName)
                  || {foreign, QualifiedName, _} <- ern_compile:references([Form])]).
 
-%% Report §8.7: the hashes forms reference, a binding's among them, as a
-%% code frame names them.
-referenced(Forms) ->
-    lists:usort([case Reference of
-                     {hash, Hash} -> Hash;
-                     {binding, _, Hash} -> Hash
-                 end || Reference <- ern_canonical:references(Forms)]).
-
 is_identity({function, Hash}) -> is_hash(Hash);
 is_identity({lambda, Hash, Position}) -> is_hash(Hash) andalso is_integer(Position)
                                              andalso Position > 0;
@@ -825,6 +818,10 @@ is_hash(Hash) ->
 
 is_name(Name) ->
     is_list(Name) andalso Name =/= [] andalso lists:all(fun is_text/1, Name).
+
+%% Where a foreign declaration is written, its line and its column.
+is_source({Line, Column, none}) -> is_integer(Line) andalso is_integer(Column);
+is_source(_) -> false.
 
 %% What prints a type in a cause as a module writes it: its namespace and
 %% the prelude names its types shadow, as text.

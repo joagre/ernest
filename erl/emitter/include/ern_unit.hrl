@@ -11,7 +11,7 @@
 
 -record(unit, {namespace, name, definitions = [], foreign_functions = [], exported = [],
                binding_order = [], dependencies = [], reaches = #{}, link, standard = false,
-               code = false, form_namespace, site_namespace, session_offset = false,
+               code = false, form_namespace, site_namespace, session_input = false,
                lacked = []}).
 %% namespace: the module's (report §4.2), [] for a unit of an exchange,
 %% whose definitions are of any module's; name: the unit's, its Erlang
@@ -41,9 +41,9 @@
 %% shell's session declares under (Appendix H, §11.2);
 %% site_namespace: the namespace its spawn sites name its declarations
 %% under, a reload's version's, `Counter$2` (§11.2);
-%% session_offset: false, or, for an input of the shell's, the lines before
-%% its first in its file, after which its definitions' lines are counted
-%% (ern_compile), its sites naming what it declares by its own name (§11.2);
+%% session_input: whether the unit is an input of a shell's session, whose
+%% sites name what it declares by its own name (§11.2), its definitions'
+%% lines counted as its session counts them (ern_compile);
 %% lacked: for a unit of an exchange, each function that faults naming
 %% what the node lacks, {Function, Arity, Text}, to which the link takes a
 %% reference beyond the spawned function's reach, a binding without its
@@ -76,12 +76,12 @@
 %% A function, a binding or a foreign function of another unit: its unit
 %% and its function there, named by its position (§11.1), a binding's its
 %% getter, both undefined for a primitive of the prelude, which has none;
-%% arity, how many arguments its function takes,
-%% a requirement's members among them (§4.9); kind, function or value, a
-%% binding read through its getter (§4.6); identity, its hash, `foreign`
+%% arity, how many arguments its function takes, a requirement's members
+%% among them (§4.9); kind, function or value, a binding, read through its
+%% getter (§4.6) but where it holds a term; identity, its hash, `foreign`
 %% for a foreign function, or undefined, by which a spawn on a peer names
 %% it (§8.7); term, for a binding whose initializer is a ground term,
-%% {term, Value}, the value its read is compiled to (§11.1), and else
-%% none.
+%% {term, Value}, the value its read is compiled to in place of a call of
+%% its getter (§11.1), and else none.
 
 -endif.

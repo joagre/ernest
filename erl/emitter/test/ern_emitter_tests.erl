@@ -39,6 +39,10 @@ run(Namespace, Text, Options) ->
     Build = #{source_hash => <<>>, deps => [], standard => maps:get(standard, Options, false)},
     {ok, ErlangModule, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
     {module, ErlangModule} = code:load_binary(ErlangModule, "test", Beam),
+    run_loaded(ErlangModule, Options).
+
+%% The same of a unit loaded already.
+run_loaded(ErlangModule, Options) ->
     Self = self(),
     %% standard error is read with standard output, where `Io.debug` writes
     %% (Appendix E.1), unless the test reads it apart
@@ -498,7 +502,7 @@ beam_functions(Beam) ->
 %% where it gives one; and the trace ends with the program's outermost
 %% frame, `main`'s, the runtime's beneath it left out. A regression test of
 %% the frame's shape, written after the code (the log's *Every Fault
-%% Carries a Trace*); a received definition's frame is test/ern_nodes_tests'
+%% Carries a Trace*); a received definition's frame is test/ern_nodes_tests.erl's
 trace_names_functions_test() ->
     Text = "foreign fn boom(x : Int) : Int = \"erlang:binary_to_integer/1\"\n"
            "type Vec = Vec(Int)\n"
@@ -516,7 +520,7 @@ trace_names_functions_test() ->
     ?assertMatch([<<"erlang:binary_to_integer/1">>, <<"Traced.boom:1">>, <<"Traced.Vec.+:4">>,
                   <<"Traced.Vec.+:5">>, <<"Traced.helper:8">>, <<"List.map:", _/binary>>,
                   <<"Traced.helper:8">>, <<"Traced.main:11">>],
-                 binary:split(Trace, <<"\n">>, [global, trim])).
+                 frames(Trace)).
 
 %% report §7.3, Appendix E.21: a fault met in place carries its line, so
 %% that the trace's first frame is the Ernest site with it: a Float
@@ -528,13 +532,12 @@ trace_names_functions_test() ->
 %% line, and the lambda's was the host's name; it does not cover a fault
 %% the runtime raises, whose frames are the runtime's
 raise_has_line_test() ->
-    Frames = fun(Trace) -> binary:split(Trace, <<"\n">>, [global, trim]) end,
     {{fault, <<"float arithmetic error">>, FloatTrace}, _} =
         run(['Floats'], "let divide = fn(x : Float) =\n"
                         "    x / 0.0\n"
                         "export fn main() : Unit = Io.println(Float.toString(divide(1.0)))\n",
             #{}),
-    ?assertEqual([<<"Floats.divide:2">>, <<"Floats.main:3">>], Frames(FloatTrace)),
+    ?assertEqual([<<"Floats.divide:2">>, <<"Floats.main:3">>], frames(FloatTrace)),
     %% a host function whose result the host's compiler does not know, so
     %% that the caller's frame stays: where it knows the result never
     %% matches, as a reference never does, it takes the call for one that
@@ -546,11 +549,11 @@ raise_has_line_test() ->
     {{fault, UnitCause, UnitTrace}, _} =
         run(['Units'], "foreign fn wrong(key : Int) : Unit = \"erlang:get/1\"\n" ++ Called, #{}),
     ?assertEqual(return_cause("erlang:get/1", "Unit"), UnitCause),
-    ?assertEqual([<<"Units.wrong:1">>, <<"Units.main:3">>], Frames(UnitTrace)),
+    ?assertEqual([<<"Units.wrong:1">>, <<"Units.main:3">>], frames(UnitTrace)),
     {{fault, WordCause, WordTrace}, _} =
         run(['Words'], "foreign fn wrong(key : Int) : Int = \"erlang:get/1\"\n" ++ Called, #{}),
     ?assertEqual(return_cause("erlang:get/1", "Int"), WordCause),
-    ?assertEqual([<<"Words.wrong:1">>, <<"Words.main:3">>], Frames(WordTrace)).
+    ?assertEqual([<<"Words.wrong:1">>, <<"Words.main:3">>], frames(WordTrace)).
 
 %% report §11.1, §8.7, §11.5: the `.erc` records beside each definition's
 %% form the lines of its source, the locals' names left out, its name where
@@ -594,6 +597,79 @@ recorded_source_test() ->
                  Twice),
     ?assertMatch(#definition{name = [<<"base">>], sourced = {'$at', {15, _, none}, _}}, Base).
 
+%% report Appendix E.21, §11.1, §11.2: a foreign function's frame has the
+%% line of its declaration however its unit is made: from the source as a
+%% build makes it; as an input of a shell's session, whose lines the
+%% session counts and whose sites name what it declares by its own name;
+%% and from what a compiled form records, as the shell and `Code.load` make
+%% a unit beside another of its name (ern_compile:from_compiled/5), the
+%% compiled form recording each foreign declaration with its place. A
+%% regression test, written after the fix (the log's *The Full Review
+%% Before 0.5.0*: an input's foreign declaration kept the line within its
+%% input, and one made from a compiled form had none); a unit an exchange
+%% makes is ern_exchange_tests' received_linked_test's
+foreign_line_test() ->
+    Text = "foreign fn boom(text : String) : Int = \"erlang:binary_to_integer/1\"\n"
+           "fn go() : Int = boom(\"x\") + 1\n"
+           "export fn main() : Unit = Io.println(Int.toString(go()))\n",
+    {ok, Typed, Interface, Env} = ern_typecheck:check_string(['Placed'], Text),
+    Compiled = fun(Build) ->
+                       {ok, ErlangModule, Beam} =
+                           ern_compile:compile(['Placed'], Typed, Interface, Env,
+                                               Build#{source_hash => <<>>, deps => []}),
+                       {ErlangModule, Beam}
+               end,
+    Traced = fun(ErlangModule, Beam) ->
+                     code:purge(ErlangModule),
+                     {module, ErlangModule} = code:load_binary(ErlangModule, "test", Beam),
+                     {{fault, _, Trace}, _} = run_loaded(ErlangModule, #{}),
+                     code:purge(ErlangModule),
+                     code:delete(ErlangModule),
+                     frames(Trace)
+             end,
+    {Built, Beam} = Compiled(#{}),
+    ?assertMatch({ok, #recorded{foreign = [{['Placed', boom], _, erlang, binary_to_integer, _,
+                                            {1, 1, none}}]}},
+                 ern_canonical:read(Beam)),
+    {ok, Made} = ern_compile:from_compiled(Beam, 'ern@placed$2', [], ern_typecheck:prelude_env(),
+                                           #{}),
+    Frames = [<<"erlang:binary_to_integer/1">>, <<"Placed.boom:1">>, <<"Placed.go:2">>,
+              <<"Placed.main:3">>],
+    ?assertEqual(Frames, Traced(Built, Beam)),
+    ?assertEqual(Frames, Traced('ern@placed$2', Made)),
+    {Input, InputBeam} = Compiled(#{session_offset => 10}),
+    ?assertMatch({ok, #recorded{foreign = [{_, _, _, _, _, {11, 1, none}}]}},
+                 ern_canonical:read(InputBeam)),
+    ?assertEqual([<<"erlang:binary_to_integer/1">>, <<"boom:11">>, <<"go:12">>, <<"main:13">>],
+                 Traced(Input, InputBeam)).
+
+%% report §11.2, §11.1, §8.7: a compiled module made a unit of another name
+%% from what it records lists the entry of a lambda written in a top-level
+%% binding that a spawn on a peer starts, with its reach, as the build's
+%% unit lists it. A regression test, written after the fix (the log's *The
+%% Full Review Before 0.5.0*: the reaches of a unit made so held no
+%% binding's lambda, so the shell's load of such a module beside another
+%% unit of its name, and `Code.load`'s, failed in the back end); the shell
+%% and `Code.load` themselves are not run
+from_compiled_lambda_in_binding_test() ->
+    Text = "fn heavy(n : Int) : Int = n * n\n"
+           "export let job = fn() = Peer.computeAt(\"p\", fn() = heavy(4), 100)\n",
+    {ok, Typed, Interface, Env} = ern_typecheck:check_string(['Inbound'], Text),
+    {ok, Built, Beam} = ern_compile:compile(['Inbound'], Typed, Interface, Env,
+                                            #{source_hash => <<>>, deps => []}),
+    {ok, Made} = ern_compile:from_compiled(Beam, 'ern@inbound$2', [],
+                                           ern_typecheck:prelude_env(), #{}),
+    Lambdas = fun(ErlangModule, Compiled) ->
+                      code:purge(ErlangModule),
+                      {module, ErlangModule} = code:load_binary(ErlangModule, "test", Compiled),
+                      Rows = [Row || {_, {lambda, _, _, _, _, _} = Row} <- ErlangModule:'$code'()],
+                      code:purge(ErlangModule),
+                      code:delete(ErlangModule),
+                      Rows
+              end,
+    ?assertMatch([{lambda, _, 2, '$2.2.entry', 0, {[], []}}], Lambdas(Built, Beam)),
+    ?assertEqual(Lambdas(Built, Beam), Lambdas('ern@inbound$2', Made)).
+
 %% The names of the locals a form with its source's lines holds.
 local_names({'$at', {_, _, Name}, Node}) ->
     [Name || Name =/= none] ++ local_names(Node);
@@ -618,7 +694,7 @@ trace_twelve_frames_test() ->
            "fn again(count : Int, text : String) : Int = 1 + nested(count, text)\n"
            "export fn main() : Unit = Io.println(Int.toString(nested(20, \"x\")))\n",
     {{fault, _, Trace}, _} = run(['Deep'], Text, #{}),
-    Frames = binary:split(Trace, <<"\n">>, [global, trim]),
+    Frames = frames(Trace),
     ?assertMatch([<<"erlang:binary_to_integer/1">>, <<"Deep.parsed:1">> | _], Frames),
     %% each call returns to another function than the last, so that the
     %% host keeps every frame, which it does not of a function's own
@@ -635,8 +711,8 @@ trace_twelve_frames_test() ->
 %% callee had ended, its fault raised in the runtime's code, each show the
 %% frame of `main` that called it alone. A regression test, written after
 %% the code: the runtime's frame, `ern_rt:call_forever/3:639`, stood above
-%% the program's (the skeptics' read of 2026-10-23, docs/findings.md's L21
-%% and M13). The host's frame above the program's, which stays, is
+%% the program's (the log's *What the Skeptics Found*). The host's frame
+%% above the program's, which stays, is
 %% trace_twelve_frames_test's; a frame of the runtime's between two of the
 %% program's is not covered; a failure's trace, which keeps them, is
 %% trace_keeps_the_runtime_of_a_failure_test's
@@ -672,22 +748,23 @@ trace_keeps_the_runtime_of_a_failure_test() ->
             "export fn main() : Unit = Io.println(Int.toString(systemProcess(3)))\n"),
     ?assertEqual(<<"foreign function ern_rt:system_process/1 raised error:badarg">>, Raised),
     ?assertMatch([<<"persistent_term:get/1">>, <<"ern_rt:system_process/1:", _/binary>>,
-                  <<"M.systemProcess:1">>, <<"M.main:2">>], lines(Trace)),
+                  <<"M.systemProcess:1">>, <<"M.main:2">>], frames(Trace)),
     true = register(ern_stack_here, self()),
     {ok, _} = run("foreign fn here() : Int = \"ern_emitter_tests:stack_here/0\"\n"
                   "export fn main() : Unit = Io.println(Int.toString(here()))\n"),
     true = unregister(ern_stack_here),
-    Here = receive {stack_here, Stack} -> Stack after 5000 -> error(no_stack) end,
+    Here = receive {stack_here, Stack} -> Stack after 0 -> error(no_stack) end,
     Laid = [{erlang, spawn_opt, 4, []}, {ern_rt, spawn, 2, [{line, 1}]} | Here],
     {ern, fault, <<"error:system_limit">>, Failure} =
         ern_rt:fault_exit_reason(error, system_limit, Laid),
     ?assertMatch([<<"erlang:spawn_opt/4">>, <<"ern_rt:spawn/2:1">>, <<"M.here:1">>,
-                  <<"M.main:2">>], lines(Failure)),
+                  <<"M.main:2">>], frames(Failure)),
     {ern, fault, <<"designed">>, Designed} =
         ern_rt:fault_exit_reason(throw, {ern, fault, <<"designed">>}, Laid),
-    ?assertEqual(lines(Failure) -- [<<"ern_rt:spawn/2:1">>], lines(Designed)).
+    ?assertEqual(frames(Failure) -- [<<"ern_rt:spawn/2:1">>], frames(Designed)).
 
-lines(Trace) ->
+%% A fault's trace as its frames, a line each (Appendix E.21).
+frames(Trace) ->
     binary:split(Trace, <<"\n">>, [global, trim]).
 
 %% A foreign function of trace_keeps_the_runtime_of_a_failure_test's, which
@@ -717,8 +794,7 @@ one_form_two_definitions_test() ->
             "    Io.println(Int.toString(second(3)))\n"
             "}\n"],
     {{fault, _, Trace}, Out} = run(['Twice'], lists:flatten(Text), #{}),
-    Named = [Frame || <<"Twice.", _/binary>> = Frame
-                          <- binary:split(Trace, <<"\n">>, [global, trim])],
+    Named = [Frame || <<"Twice.", _/binary>> = Frame <- frames(Trace)],
     ?assertEqual([<<"Twice.boom:1">>, <<"Twice.first:2">>, <<"Twice.main:14">>], Named),
     ?assertEqual(<<"Twice.watched:5\n">>, iolist_to_binary(Out)).
 
@@ -1690,12 +1766,11 @@ float_fault_test() ->
 %% compiler as OTP 29 has it, and a change of what that compiler knows of
 %% the operands changes the first frame
 float_chain_fault_test() ->
-    Frames = fun(Trace) -> binary:split(Trace, <<"\n">>, [global, trim]) end,
     Big = "fn big() : Float = Float.max(1.0e300, 0.0)\n",
     {{fault, <<"float arithmetic error">>, Product}, _} =
         run(Big ++ "export fn main() : Unit =\n"
                    "    Io.println(Float.toString(big() * big()))\n"),
-    ?assertEqual([<<"erlang:'*'/2">>, <<"M.main:3">>], Frames(Product)),
+    ?assertEqual([<<"erlang:'*'/2">>, <<"M.main:3">>], frames(Product)),
     {{fault, <<"float arithmetic error">>, Chain}, _} =
         run(Big ++ "fn chain(x : Float, y : Float) : Float = {\n"
                    "    let sum = x + y;\n"
@@ -1704,16 +1779,16 @@ float_chain_fault_test() ->
                    "}\n"
                    "export fn main() : Unit =\n"
                    "    Io.println(Float.toString(chain(big(), 1.0)))\n"),
-    ?assertEqual([<<"M.chain:4">>, <<"M.main:8">>], Frames(Chain)),
+    ?assertEqual([<<"M.chain:4">>, <<"M.main:8">>], frames(Chain)),
     {{fault, <<"float arithmetic error">>, Undefined}, _} =
         run("export fn main() : Unit =\n"
             "    Io.println(Float.toString(0.0 / 0.0))\n"),
-    ?assertEqual([<<"M.main:2">>], Frames(Undefined)),
+    ?assertEqual([<<"M.main:2">>], frames(Undefined)),
     {{fault, <<"division by zero">>, Division}, _} =
         run("fn zero() : Int = List.size([])\n"
             "export fn main() : Unit =\n"
             "    Io.println(Int.toString(1 / zero()))\n"),
-    ?assertEqual([<<"erlang:'div'/2">>, <<"M.main:3">>], Frames(Division)).
+    ?assertEqual([<<"erlang:'div'/2">>, <<"M.main:3">>], frames(Division)).
 
 %% report §3.1, §7.4, §11.1: a chain of Float operations is written as the
 %% host's own, with no `try`, a product and a quotient adding 0.0 so that
@@ -1775,8 +1850,7 @@ float_fault_everywhere_test() ->
             "    each(fn(x : Float) = Io.println(Float.toString(x * x)),\n"
             "        [2.0, 1.0e300])\n"),
     ?assertEqual(<<"4.0\n">>, Printed),
-    ?assertMatch([<<"erlang:'*'/2">>, <<"M.main:3">> | _],
-                 binary:split(Called, <<"\n">>, [global, trim])).
+    ?assertMatch([<<"erlang:'*'/2">>, <<"M.main:3">> | _], frames(Called)).
 
 %% report §3.1: there is no negative zero; an operation, a negation, a
 %% float segment, parsed text, and a foreign value give 0.0. A sum or a
@@ -2128,9 +2202,10 @@ foreign_function_value_test() ->
     {{fault, Cause, _}, Output} = run(Source),
     ?assertEqual(<<"2\n">>, Output),
     %% the bad function is a fun of funs/0, which the host names by its
-    %% compiler's count of the module's funs
+    %% compiler's count of the module's funs, written in the host's quoted
+    %% form
     ?assertMatch({match, _}, re:run(Cause, "^the return of foreign function"
-                                           " ern_emitter_tests:-funs/0-fun-[0-9]+-/1"
+                                           " ern_emitter_tests:'-funs/0-fun-[0-9]+-'/1"
                                            " does not match Int$")).
 
 %% report §7.4, §8.4: a foreign function's return declared `Unit` that is
@@ -2678,19 +2753,28 @@ bitstrings_test() ->
                    "104 105 52 \n"/utf8>>, Output).
 
 %% report §7.4, §5.11: a computed value that does not fit its width faults
-%% with segment overflow, an Int, a Float, a Bytes of another size; a
-%% dynamic size that leaves the count unaligned faults at construction
+%% with segment overflow, an Int, a Float, a Bytes of another size, the
+%% cause saying what did not fit; a dynamic size that leaves the count
+%% unaligned faults at construction. Report §7.3, Appendix E.21: the
+%% frame that meets the fault has the bitstring's line, a regression test
+%% of that, written with the fix (the log's *The Full Review Before
+%% 0.5.0*: the frame had none)
 bitstring_faults_test() ->
-    Main = "export fn main() : Unit = ",
+    Main = "export fn main() : Unit =\n    ",
     Three = "fn three() : Int = List.size([1, 2, 3])\n",
-    Faults = [{"<<(299 + 1):size(8)>>", <<"segment overflow">>},
-              {"<<(0 - 129):size(8)-signed>>", <<"segment overflow">>},
-              {"<<(1.0e300 * 1.0):size(32)-float>>", <<"segment overflow">>},
-              {"<<(<<1, 2, 3>>):size(2)-bytes>>", <<"segment overflow">>},
+    Faults = [{"<<(299 + 1):size(8)>>", <<"segment overflow: 300 does not fit 8 bits">>},
+              {"<<(0 - 129):size(8)-signed>>",
+               <<"segment overflow: -129 does not fit 8 signed bits">>},
+              {"<<(1.0e300 * 1.0):size(32)-float>>",
+               <<"segment overflow: 1.0e300 does not fit a 32-bit float">>},
+              {"<<(<<1, 2, 3>>):size(2)-bytes>>",
+               <<"segment overflow: a 3-byte value does not fit 2 bytes">>},
               {"<<7:size(three())>>", <<"bitstring not byte-aligned">>}],
     lists:foreach(fun({Bits, Cause}) ->
                       {Result, _} = run(Three ++ Main ++ "{ let _ = " ++ Bits ++ "; Unit }\n"),
-                      ?assertMatch({fault, Cause, _}, Result)
+                      ?assertMatch({fault, Cause, _}, Result),
+                      {fault, _, Trace} = Result,
+                      ?assertEqual([<<"M.main:3">>], frames(Trace))
                   end, Faults).
 
 %% report §5.11: a bare segment is an unsigned big-endian int of size 8;
@@ -2711,7 +2795,7 @@ bitstring_defaults_test() ->
     ?assertEqual(<<"1 2 \n255\n255 \n">>, Output),
     {Result, _} =
         run("export fn main() : Unit = { let n = 0 - 1; let _ = <<n>>; Unit }\n"),
-    ?assertMatch({fault, <<"segment overflow">>, _}, Result).
+    ?assertMatch({fault, <<"segment overflow: -1 does not fit 8 bits">>, _}, Result).
 
 %% report §8.5: top-level lets run in the order the checker's let_order/1
 %% gives, a let after every let it reaches through the functions it names,
@@ -2790,7 +2874,8 @@ bitstring_edges_test() ->
               "<<(65519.0 * 1.0):size(16)-float>>"],
     lists:foreach(fun(Bits) ->
                       {Result, _} = run(Neg ++ Main ++ "{ let _ = " ++ Bits ++ "; Unit }\n"),
-                      ?assertMatch({Bits, {fault, <<"segment overflow">>, _}}, {Bits, Result})
+                      ?assertMatch({Bits, {fault, <<"segment overflow", _/binary>>, _}},
+                                   {Bits, Result})
                   end, Faults),
     {ok, Output} = run(
         "fn half(b : Bytes) : String = match b {\n"
@@ -3485,7 +3570,7 @@ io_write_waits_test() ->
                          #{stdout => fun(_) -> counters:add(Taken, 1, 1) end,
                            stderr => fun(Text) -> Self ! {err, Text} end}),
     persistent_term:erase({?MODULE, taken}),
-    ?assertEqual(<<"true\n">>, receive {err, Text} -> Text after 5000 -> none end).
+    ?assertEqual(<<"true\n">>, receive {err, Text} -> Text after 0 -> none end).
 
 %% The writes io_write_waits_test's standard output has taken.
 -spec taken() -> non_neg_integer().
@@ -3504,7 +3589,7 @@ io_write_error_test() ->
     ok = ern_rt:run_main(fun() -> (ern_named:main(ErlangModule))() end, <<"main">>,
                          #{stdout => fun(Text) -> Self ! {out, Text} end,
                            stderr => fun(Text) -> Self ! {err, Text} end}),
-    ?assertEqual(<<104, 105, 255>>, receive {err, Text} -> Text after 5000 -> none end),
+    ?assertEqual(<<104, 105, 255>>, receive {err, Text} -> Text after 0 -> none end),
     ?assertEqual(none, receive {out, Written} -> Written after 0 -> none end).
 
 %% report §8.5: a module the program does not depend on is not initialized,
