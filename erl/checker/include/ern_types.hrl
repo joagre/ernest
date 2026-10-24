@@ -59,6 +59,9 @@
 -record(required_member, {variable, member}).
 %% the member the enclosing declaration's requirement names at the type
 %% variable, which the declaration was given
+-record(tuple_compare, {supplies = []}).
+%% a tuple's compare, which has no namespace and is the language's: its
+%% components' compares in order, each a supply (report §3.10, Appendix H)
 -record(shown_type, {type, member = show}).
 %% `show` at a type known whole, written by its descriptor (Appendix E.1),
 %% or, where member is `exposed`, the type `Foreign.term` gives its value

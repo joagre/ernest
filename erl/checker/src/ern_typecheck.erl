@@ -88,7 +88,10 @@
               generalizing = false, provided = [], inferring = [], requirement = [], failed = [],
               signature = [], definition, private_types = #{}, identities = #{},
               reaches = #{}, positions = #{}, terms = #{}, foreign = #{}, declaring = #{},
-              uses = #{}}).
+              uses = #{}, binder = none}).
+%% binder: the local or the top-level `let` an initializer is checked for,
+%% with the initializer's span, or none: a fill that is the whole
+%% initializer asks for that name's annotation (filled/7, report §5.6)
 %% declaring: the namespace of the module that declares each value of the
 %% modules given, by qualified name, which their interfaces hold, so that
 %% `M.T.f` is told M's member of its type T from the module M.T's f
@@ -359,16 +362,30 @@ no_alias(Declarations, #env{types = Types} = Env) ->
                   lists:member(Name, Own) orelse is_map_key([Name], Types)
                       orelse session_name(types, Name, Env) =/= error
               end,
-    case [{Span, Name} || #type_declaration{name = TypeName, constructors = Constructors}
-                              <- declared_types(Declarations),
-                          #constructor{span = Span, name = Name} <- Constructors,
-                          Name =/= TypeName, InScope(Name)] of
+    case [{Span, TypeName, Name}
+          || #type_declaration{name = TypeName, constructors = Constructors}
+                 <- declared_types(Declarations),
+             #constructor{span = Span, name = Name} <- Constructors,
+             Name =/= TypeName, InScope(Name)] of
         [] ->
             ok;
-        [{Span, Name} | _] ->
+        [{Span, TypeName, Name} | _] ->
             fail(Span, "constructor " ++ atom_to_list(Name) ++ " is named as the type "
-                 ++ atom_to_list(Name), [], "there are no type aliases (report §3.1)")
+                 ++ atom_to_list(Name), [], alias_help(TypeName, Name))
     end.
+
+%% Report §3.1, §11.5: the help writes the fix, the type that holds the
+%% other: `there are no type aliases; a type that holds a String is written
+%% type Word = Word(String)`.
+alias_help(TypeName, Name) ->
+    Held = atom_to_list(Name),
+    Article = case Held of
+                  [First | _] when First =:= $A; First =:= $E; First =:= $I; First =:= $O -> "an ";
+                  _ -> "a "
+              end,
+    Type = atom_to_list(TypeName),
+    "there are no type aliases; a type that holds " ++ Article ++ Held ++ " is written type "
+        ++ Type ++ " = " ++ Type ++ "(" ++ Held ++ ")".
 
 %% Report §11.1: the host holds a name of at most 255 characters, so a
 %% member whose Erlang function name, its type's name and its own joined by
@@ -1685,9 +1702,11 @@ generalized(_, Variable, #env{type_state = TypeState}) ->
 
 %% Report §4.6: the scheme of a top-level let whose initializer is or holds
 %% a call, which has the type the call gives, generalized where that type
-%% is data (non_data/2), and otherwise keeping no type variable: one that
-%% stands in no value position (§3.9) is Never, as a spawned function's
-%% unfixed mailbox type is (§6.2), and any other is a type error.
+%% is data (non_data/2), and otherwise keeping no type variable: an effect
+%% variable that stands in no value position and is not process-only is
+%% none as a function type's effect and Never as a type argument
+%% (settled_call_type/2), a spawned function's unfixed mailbox type is
+%% Never (§6.2), and any other is a type error.
 call_scheme(Span, Name, Variable, #env{type_state = TypeState} = Env) ->
     case ern_types:free_variables(Variable, TypeState) =:= [] orelse non_data(Variable, Env) of
         true ->
@@ -1710,36 +1729,57 @@ call_scheme(Span, Name, Variable, #env{type_state = TypeState} = Env) ->
                                " and a top-level `let` whose initializer is no value is not"
                                " generalized where its type holds " ++ Held, [],
                          "annotate it, `let " ++ Text ++ " : "
-                         ++ ern_types:format_annotation(Variable, TypeState1) ++ " = ...`")
+                         ++ chosen_annotation(Variable, TypeState1) ++ " = ...`")
             end
     end.
 
+%% Report §11.5: the type a binding's help writes, each variable left in
+%% it, which the writer chooses, written `...`, a process-only effect
+%% variable among them: `() -> Unit receiving ...`.
+chosen_annotation(Type, TypeState) ->
+    Substituted = ern_types:substitute(Type, TypeState),
+    Chosen = maps:from_list([{Id, {tcon, ['...'], []}}
+                             || Id <- ern_types:free_variables(Substituted, TypeState)]),
+    ern_types:format(ern_types:replace_variables(Substituted, Chosen), TypeState).
+
 %% Report §4.6, §3.9: the type state with the type a call gives a top-level
-%% `let`, Type, settled: a function type's own effect variable that occurs
-%% nowhere else is none, as a type read outside generalization elides it
-%% (ern_types:elided/2): it is no variable of the type the call gives but
-%% the one by which a function that receives nothing stands for one that
-%% receives (§3.9), so that a function a call answers that receives
-%% nothing receives nothing; then each type variable left that stands in
-%% no value position, after `receiving` or in a type argument whose
-%% parameter no field holds in one, is Never. Neither binding can fail:
-%% the effect variables elided are neither process-only nor marked, and
-%% Never is a type.
+%% `let`, Type, settled: each effect variable left in it that stands in no
+%% value position and is not process-only is none where it stands as a
+%% function type's effect, as one's or as several's, within a parameter's
+%% type too, where none asks for a function that receives nothing, which
+%% stands wherever one that receives is expected; and Never where it
+%% stands as a type argument, `m` of `Test.Case(m)`, a type argument being
+%% a type (§6.2, §11.2). A spawned function's unfixed mailbox type is Never
+%% by now (unfixed_mailboxes/2), and any other variable left, a
+%% process-only one among them, is the binding's error (call_scheme/4). A
+%% mark a call of `self` or `monitor` left is the definition's, which has
+%% ended, as generalization reads it (§3.9).
 settled_call_type(Type, TypeState) ->
     Substituted = ern_types:substitute(Type, TypeState),
-    Elided = ern_types:elided(Substituted, TypeState),
-    Nones = ern_types:free_variables(Substituted, TypeState)
-        -- ern_types:free_variables(Elided, TypeState),
-    TypeState1 = lists:foldl(fun(Id, Acc) -> variable_bound(Id, none, Acc) end, TypeState,
-                             Nones),
-    Nevers = ern_types:free_variables(Elided, TypeState1)
-        -- ern_types:value_variables(Elided, TypeState1),
-    lists:foldl(fun(Id, Acc) -> variable_bound(Id, ?NEVER, Acc) end, TypeState1, Nevers).
+    Arguments = argument_variables(Substituted),
+    Settled = fun(Id, Acc) ->
+                  case lists:member(Id, Arguments) of
+                      true ->
+                          {ok, Acc1} = ern_types:unify({tvar, Id}, ?NEVER, Acc),
+                          Acc1;
+                      false ->
+                          ern_types:settled_none(Id, Acc)
+                  end
+              end,
+    lists:foldl(Settled, TypeState,
+                [Id || Id <- ern_types:free_variables(Substituted, TypeState)
+                             -- ern_types:value_variables(Substituted, TypeState),
+                       not lists:member(process_only, ern_types:restrictions(Id, TypeState))]).
 
-%% The variable Id bound to Type, by a unification that cannot fail.
-variable_bound(Id, Type, TypeState) ->
-    {ok, TypeState1} = ern_types:unify({tvar, Id}, Type, TypeState),
-    TypeState1.
+%% The variables that stand as a type argument in a substituted type.
+argument_variables({tcon, _, Args}) ->
+    [Id || {tvar, Id} <- Args] ++ lists:append([argument_variables(Arg) || Arg <- Args]);
+argument_variables({ttuple, Elements}) ->
+    lists:append([argument_variables(Element) || Element <- Elements]);
+argument_variables({tfn, Params, Effect, Result}) ->
+    lists:append([argument_variables(Part) || Part <- [Effect, Result | Params]]);
+argument_variables(_) ->
+    [].
 
 %% Report §4.6: what of a type keeps a value of it from being data, which
 %% a call's binding generalizes, as a phrase, or none: a function type, a
@@ -2297,6 +2337,7 @@ check_value(#let_declaration{span = Span, annotation = Annotation, body = Body} 
                    %% report §3.9: a lambda that is the whole initializer is
                    %% generalized with it, and may name variables of its own
                    generalizing = is_record(Body, e_lambda),
+                   binder = {ern_ast:span(Body), Declaration#let_declaration.name},
                    effect_origin = #effect_origin{
                                       what = top_let, span = Span,
                                       label = "the initializer of " ++ declaration_name(Declaration)
@@ -3230,6 +3271,9 @@ field_annotations({named, Fields}) -> [Annotation || #field{annotation = Annotat
 %% requirement names at the type's arguments.
 reach(#t_var{name = Param}, Member, _MemberOf, _Known, _Env) ->
     [{Param, Member}];
+%% report §3.10: a tuple's compare reaches its components'
+reach(#t_tuple{elements = Elements}, compare, MemberOf, Known, Env) ->
+    lists:append([reach(Element, compare, MemberOf, Known, Env) || Element <- Elements]);
 reach(#t_named{span = Span, namespace = Namespace, name = Name, args = Args} = Annotation, Member,
       MemberOf, Known, Env) ->
     {QualifiedName, _} = lookup_type_name(Span, Namespace, Name, Env),
@@ -3461,9 +3505,16 @@ fill_namespace(_, _) ->
 %% Report §5.6: `Ops(..Set)`, each field not given beside the namespace the
 %% declaration of its name there, at the field's type, as the construction
 %% that names each would be.
-filled(#e_constructor{namespace = ConstructorNamespace, name = Name, base = Base} = Expr, Namespace,
-       Names, FieldTypes, Constructed, FieldSets, Env) ->
+filled(#e_constructor{span = Span, namespace = ConstructorNamespace, name = Name,
+                      base = Base} = Expr,
+       Namespace, Names, FieldTypes, Constructed, FieldSets, Env) ->
     BaseSpan = ern_ast:span(Base),
+    %% report §5.6: the local or the binding the record is the initializer
+    %% of, whose annotation fixes the record's type
+    Binder = case Env#env.binder of
+                 {Span, Bound} -> atom_to_list(Bound);
+                 _ -> none
+             end,
     Written = ern_namespace:text(ConstructorNamespace ++ [Name]) ++ "(.."
         ++ ern_namespace:text(Namespace) ++ ")",
     %% report §5.6: a path updates a value, which a namespace is not
@@ -3480,7 +3531,7 @@ filled(#e_constructor{namespace = ConstructorNamespace, name = Name, base = Base
                                         fill_field(BaseSpan, Written, Namespace, Field, Acc)
                                     end, Env, Missing),
     infer_named(Expr#e_constructor{base = undefined}, Names, FieldTypes, Constructed, undefined,
-                FieldSets ++ Filled, {Written, Namespace, Missing}, Env1).
+                FieldSets ++ Filled, {Written, Namespace, Missing, Binder}, Env1).
 
 %% A field filled from the namespace, which must declare its name.
 fill_field(Span, Written, Namespace, Field, Env) ->
@@ -3777,12 +3828,34 @@ supply(Span, Type, Member, Need, Outer, #env{type_state = TypeState} = Env) ->
                         _ -> not_in_force(Span, {tvar, Id}, show, Need, Env)
                     end
             end;
-        {tcon, [_], _} when element(1, Need) =:= operator ->
+        {tcon, [Name], _}
+          when element(1, Need) =:= operator,
+               Member =/= compare orelse Name =:= 'Int' orelse Name =:= 'Float'
+                   orelse Name =:= 'String' orelse Name =:= 'Char' ->
             %% report §4.8, §9.6: a prelude type's operator is the runtime's
-            %% own operation, or its module's, which the emitter names
+            %% own operation, or its module's, which the emitter names; an
+            %% ordering is the runtime's on the four types it orders, and
+            %% any other prelude type's is its module's compare, which a
+            %% requirement may need supplied, `List.compare`'s (§3.10)
             {undefined, Env};
         {tcon, QualifiedName, _} = Resolved ->
             known_member(Span, QualifiedName, Resolved, Member, Need, Outer, Env);
+        {ttuple, Elements} = Resolved when Member =:= compare ->
+            %% report §3.10: a tuple's compare is the language's, its
+            %% components' compares in order, each supplied at its type
+            Outer1 = case Outer of
+                         undefined -> member_text(Resolved, compare, TypeState);
+                         _ -> Outer
+                     end,
+            Supplying = case Need of
+                            {operator, Operator} -> {operand, Operator};
+                            _ -> Need
+                        end,
+            {Supplies, Env1} =
+                lists:mapfoldl(fun(Element, Acc) ->
+                                   supply(Span, Element, compare, Supplying, Outer1, Acc)
+                               end, Env, Elements),
+            {#tuple_compare{supplies = Supplies}, Env1};
         Resolved ->
             no_member(Span, Resolved, Member, Need, Outer, Env)
     end.
@@ -3893,11 +3966,17 @@ no_member(Span, Type, Member, Need, Outer, #env{type_state = TypeState,
                ++ atom_to_list(Member), [], Help).
 
 -spec not_in_force(ern_diagnostic:span(), term(), atom(), term(), env()) -> no_return().
-not_in_force(Span, Variable, Member, {fill, _} = Need, #env{type_state = TypeState}) ->
+not_in_force(Span, Variable, Member, {fill, _, Binder} = Need, #env{type_state = TypeState}) ->
     Name = variable_text(Variable, TypeState),
+    %% report §5.6: the local that holds the record is what an annotation
+    %% fixes, `annotate ops`
+    Annotated = case Binder of
+                    none -> "it";
+                    _ -> Binder
+                end,
     fail(Span, needer_text(Need) ++ " needs " ++ Name ++ "." ++ atom_to_list(Member)
                ++ ", and the record's type leaves the variable " ++ Name
-               ++ " undetermined; annotate it");
+               ++ " undetermined; annotate " ++ Annotated);
 not_in_force(Span, Variable, Member, Need, Env) ->
     case signature_variable(Variable, Env) of
         none when element(1, Need) =:= shown ->
@@ -3968,7 +4047,7 @@ holds_signature_variable(Type, #env{signature = Signature, type_state = TypeStat
               end, Signature).
 
 needer_text({call, Name}) -> Name;
-needer_text({fill, Name}) -> Name;
+needer_text({fill, Name, _}) -> Name;
 needer_text({shown, Name}) -> "Io." ++ atom_to_list(Name);
 needer_text({operator, Operator}) -> "`" ++ operator_text(Operator) ++ "`";
 needer_text({operand, Operator}) -> "`" ++ operator_text(Operator) ++ "`".
@@ -4117,6 +4196,9 @@ resolve_operator(Span, Operator, OperandType, #env{type_state = TypeState} = Env
         ?STRING when Operator =:= '<>' -> {OperandType, Env};
         ?STRING -> arith_or_order(Operator, OperandType, [], Span, Env);
         ?CHAR -> arith_or_order(Operator, OperandType, [], Span, Env);
+        %% report §3.10: a tuple is ordered where its components are, which
+        %% its compare's supply checks once the definition is inferred
+        {ttuple, _} -> arith_or_order(Operator, OperandType, [], Span, Env);
         {tcon, ['List'], _} when Operator =:= '<>' -> {OperandType, Env};
         ?BYTES when Operator =:= '<>' -> {OperandType, Env};
         {tcon, QualifiedName, _} when length(QualifiedName) > 1 ->
@@ -4446,7 +4528,8 @@ infer(#e_member{span = Span, member_of = Variable, name = Member} = Expr, Env)
     {Expr#e_member{supply = #required_member{variable = TypeVariable, member = Member},
                    type = Type},
      Type, Env#env{type_state = TypeState}};
-infer(#e_member{span = Span, member_of = #t_named{} = Annotation, name = Member} = Expr, Env) ->
+infer(#e_member{span = Span, member_of = Annotation, name = Member} = Expr, Env)
+  when is_record(Annotation, t_named); is_record(Annotation, t_tuple) ->
     %% report §3.5: a derived compare's field compared by its type's own,
     %% supplied at the definition's end as any member is
     {FieldType, _, TypeState} = annotation_type(Annotation, Env#env.annotation_variables, Env),
@@ -5262,11 +5345,11 @@ check_field_set(#field_set{name = FieldName, expr = Value} = FieldSet,
                ++ declared_field_text(Expr, index_of(FieldName, Names), Env1),
     {Rule, Given} =
         case Fill of
-            {Written, Namespace, Filled} ->
+            {Written, Namespace, Filled, Binder} ->
                 case lists:member(FieldName, Filled) of
                     true ->
                         #e_var{supplies = Supplies} = TypedValue,
-                        Need = {fill, atom_to_list(FieldName)},
+                        Need = {fill, atom_to_list(FieldName), Binder},
                         {Written ++ " fills " ++ atom_to_list(FieldName) ++ " with "
                          ++ ern_namespace:text(Namespace ++ [FieldName]),
                          TypedValue#e_var{supplies = [Supply#pending_member{need = Need}
@@ -5760,11 +5843,16 @@ let_binding(#binding{span = BindingSpan, pattern = Pattern, annotation = Annotat
                      Env#env{type_state = Entered, generalizing = true, deferred = []};
                  false -> Env
              end,
-    {TypedExpr, ExprType, Env1} =
+    Binder = case Pattern of
+                 #p_var{name = Local} -> {ern_ast:span(Expr), Local};
+                 _ -> none
+             end,
+    {TypedExpr, ExprType, Bound} =
         case Annotation of
-            undefined -> infer(Expr, Scoped);
+            undefined -> infer(Expr, Scoped#env{binder = Binder});
             _ -> annotated_value(BindingSpan, Annotation, Expr, Generalize, Scoped)
         end,
+    Env1 = Bound#env{binder = Env#env.binder},
     {TypedPattern, PatternType, Bindings, Env2} = check_pattern(Pattern, Env1),
     irrefutable(Pattern, Env2) orelse fail(BindingSpan, "a `let` pattern must be irrefutable", [],
                                            "use `match` for a pattern that can fail"),

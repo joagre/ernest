@@ -1123,6 +1123,10 @@ supply(#known_member{qualified_name = QualifiedName, member = Member, supplies =
     {Reference, Walk1} = member_reference(QualifiedName, Member, Walk),
     {SupplyForms, Walk2} = lists:mapfoldl(fun supply/2, Walk1, Supplies),
     {{known, Reference, SupplyForms}, Walk2};
+supply(#tuple_compare{supplies = Supplies}, Walk) ->
+    %% report §3.10, Appendix H: a tuple's compare, its components' in order
+    {SupplyForms, Walk1} = lists:mapfoldl(fun supply/2, Walk, Supplies),
+    {{tuple, SupplyForms}, Walk1};
 supply(#required_member{variable = Variable, member = Member}, Walk) ->
     {Form, Walk1} = type(Variable, Walk),
     {{required, Form, Member}, Walk1};

@@ -4,8 +4,8 @@
 -module(ern_types).
 
 -export([new/0, fresh/1, fresh/2, fresh_named/2, restrictions/2,
-         add_restriction/3, in_value_position/2, is_unknown/2, unknown_marked/2, unfixed/2,
-         enter/1, leave/1,
+         add_restriction/3, in_value_position/2, settled_none/2, is_unknown/2, unknown_marked/2,
+         unfixed/2, enter/1, leave/1,
          resolve/2, substitute/2, unify/3, free_variables/2,
          monomorphic/1, generalize/2, generalize/3, elided/2, instantiate/2, instance/2,
          unknown_instance/2, value_positions_marked/2, replace_variables/2,
@@ -92,6 +92,15 @@ add_restriction(Type, Restriction, TypeState) ->
 -spec in_value_position(id(), type_state()) -> boolean().
 in_value_position(Id, #type_state{variables = Variables}) ->
     (maps:get(Id, Variables))#type_variable.value_position.
+
+%% Report §4.6, §3.9: the variable Id bound to none as the top-level `let`
+%% that holds it ends, a variable that stands in no value position of the
+%% binding's type and is not process-only; a mark a call of `self` or
+%% `monitor` left is its definition's, which has ended, as generalization
+%% elides a marked variable (generalize/3).
+-spec settled_none(id(), type_state()) -> type_state().
+settled_none(Id, TypeState) ->
+    bind(Id, none, TypeState).
 
 %% Report §11.5: whether a type holds a variable that stands, at a use of a
 %% definition whose check failed, for what its signature leaves open

@@ -2178,11 +2178,18 @@ type_declarations_test() ->
 %% type, one the module declares, one of the session's at the prompt
 %% (§11.2), and one with a field alike; a constructor named as its own type
 %% is not. A regression test of the principles review's W8 (2026-10-09):
-%% `type Word = String` declared a constructor `String` and was accepted
+%% `type Word = String` declared a constructor `String` and was accepted.
+%% The help writes the fix, with the declared type's name and the held
+%% type's, `an` before a vowel's name, as the full review's X17 asked
 no_alias_test() ->
     ?assertEqual({"constructor String is named as the type String",
-                  "there are no type aliases (report §3.1)"},
+                  "there are no type aliases; a type that holds a String is written"
+                  " type Word = Word(String)"},
                  refusal_and_help("type Word = String")),
+    ?assertEqual({"constructor Int is named as the type Int",
+                  "there are no type aliases; a type that holds an Int is written"
+                  " type Count = Count(Int)"},
+                 refusal_and_help("type Count = Int")),
     ?assertMatch({error, [#diagnostic{span = {1, 13, _}}]}, check("type Word = String")),
     ?assertEqual("constructor List is named as the type List",
                  refusal("type Numbers = List(Int)")),
@@ -2651,32 +2658,66 @@ unfixed_mailbox_is_never_test() ->
                          "let shared = spawn(fn() = hold(None))")).
 
 %% report §4.6, §3.9, §6.2: a call's binding that is not generalized has
-%% each type variable left in its type that stands in no value position,
-%% after `receiving` or in a type argument whose parameter the type's
-%% fields hold in none, Never, as a spawned function's unfixed mailbox type
-%% is: a test case a helper builds, its annotation's variable among them,
-%% and a function a call returns that receives; one a call returns that
-%% receives nothing receives nothing, the variable by which it stands for
-%% one that receives (§3.9) none, and is no longer refused; a variable in a
-%% value position beside one is still refused. A regression test, written after
-%% the fix (the release review before 0.4.0 found `let t = case("x")`
-%% refused, "annotate it"); it does not cover a group of bindings
-not_generalized_effect_only_is_never_test() ->
+%% each effect variable left in its type that stands in no value position
+%% and is not process-only none where it stands as a function type's
+%% effect: of a function a call returns that receives nothing, of two
+%% function types, P's `twice`, and within a parameter's function type,
+%% C2's `make`, which then takes a function that receives nothing alone;
+%% and Never where it stands as a type argument, a test case a helper
+%% builds, its annotation's variable among them, and one beside a function
+%% type that holds it. A process-only one is
+%% refused at the binding, K's `mkWaiter` and a function a call returns
+%% that waits, its help writing `...` where the writer chooses; a variable
+%% in a value position beside one is still refused. A spawned function's
+%% unfixed mailbox type is Never (unfixed_mailbox_is_never_test). A
+%% regression test, written after the code (the release review before
+%% 0.4.0 found `let t = case("x")` refused, "annotate it", and the full
+%% review of 2026-10-24 the rest, P2, K13 and C2-C4); it does not cover a
+%% group of bindings
+not_generalized_effect_variable_is_none_test() ->
     Case = "fn case(name : String) : Test.Case(m) =\n"
            "    Test.Case(name = name, run = fn() = Test.Passed)\n",
     ?assertEqual("Test.Case(Never)", type_of(Case ++ "export let t = case(\"x\")", t)),
     ?assertEqual("Test.Case(Never)",
                  type_of(Case ++ "export let u : Test.Case(m) = case(\"y\")", u)),
-    ?assertEqual("() -> Unit receiving Never",
-                 type_of("fn make() : () -> Unit receiving m = fn() = receive { _ -> Unit }\n"
-                         "export let f = make()", f)),
+    ?assertEqual("#(Test.Case(Never), () -> Test.Result receiving Never)",
+                 type_of(Case ++ "fn both() : #(Test.Case(m), () -> Test.Result receiving m) =\n"
+                                 "    #(case(\"z\"), fn() = Test.Passed)\n"
+                                 "export let v = both()", v)),
     ?assertEqual("() -> Unit",
                  type_of("fn make() = fn() = Io.println(\"k\")\nexport let k = make()", k)),
     ?assertEqual(ok, ok("fn make() = fn() = Io.println(\"k\")\nlet k = make()\n"
                         "fn main() : Unit = k()\n")),
-    ?assertEqual({"the type of g, (a) -> a receiving Never, is not determined, and a top-level"
+    Twice = "fn twice(f) = #(f, f)\nexport let p = twice(fn(x : Int) = x)\n",
+    ?assertEqual("#((Int) -> Int, (Int) -> Int)", type_of(Twice, p)),
+    ?assertEqual(ok, ok(Twice ++ "fn main() : Unit = {\n"
+                                 "    let #(f, _) = p;\n"
+                                 "    Io.println(Int.toString(f(1)))\n"
+                                 "}\n")),
+    Make = "fn make() : ((() -> Unit receiving e) -> Unit) = fn(g) = Unit\n"
+           "export let k = make()\n",
+    ?assertEqual("(() -> Unit) -> Unit", type_of(Make, k)),
+    ?assertEqual(ok, ok(Make ++ "fn main() : Unit = k(fn() = Io.println(\"x\"))\n")),
+    ?assertEqual("the argument does not fit k: a function that receives where one that"
+                 " receives nothing is needed",
+                 refusal(Make ++ "fn main() : Unit receiving Int ="
+                                 " k(fn() = receive { n -> Unit })\n")),
+    ?assertEqual({"the type of w, () -> Unit receiving e+, is not determined, and a top-level"
                   " `let` whose initializer is no value is not generalized where its type holds"
-                  " a function", "annotate it, `let g : (...) -> ... receiving Never = ...`"},
+                  " a function", "annotate it, `let w : () -> Unit receiving ... = ...`"},
+                 refusal_and_help("fn mkWaiter(ms : Int) = fn() = receive { after ms -> Unit }\n"
+                                  "let w = mkWaiter(10)")),
+    ?assertEqual(ok, ok("fn mkWaiter(ms : Int) = fn() = receive { after ms -> Unit }\n"
+                        "let w : () -> Unit receiving Never = mkWaiter(10)\n")),
+    ?assertEqual({"the type of f, () -> Unit receiving e+, is not determined, and a top-level"
+                  " `let` whose initializer is no value is not generalized where its type holds"
+                  " a function", "annotate it, `let f : () -> Unit receiving ... = ...`"},
+                 refusal_and_help("fn make() : () -> Unit receiving m ="
+                                  " fn() = receive { _ -> Unit }\n"
+                                  "let f = make()")),
+    ?assertEqual({"the type of g, (a) -> a receiving e+, is not determined, and a top-level"
+                  " `let` whose initializer is no value is not generalized where its type holds"
+                  " a function", "annotate it, `let g : (...) -> ... receiving ... = ...`"},
                  refusal_and_help("fn make() : (a) -> a receiving m = fn(x) = receive { _ -> x }\n"
                          "let g = make()")).
 
@@ -3073,7 +3114,7 @@ prelude_types_test() ->
     ?assertEqual(ok, ok("fn f(x : Ordering) = match x { Less -> 0 | Equal -> 1 | Greater -> 2 }")),
     ?assertEqual(ok, ok("fn f(x : Down) = match x { Down(reason = r, site = _) -> r }")),
     ?assertEqual(ok, ok("fn f(x : Reason) = match x { Returned -> 0 | Killed -> 1 | ProgramEnd -> 2"
-                        " | Fault(_) -> 3 | Unknown -> 4 | Unreachable -> 5 }")),
+                        " | Fault(_) -> 3 | Unknown -> 4 | Unreachable -> 5 | Restarted -> 6 }")),
     ?assertEqual(ok, ok("fn f(x : RestartLimit) = match x {"
                         " RestartLimit(restarts = n, within = _) -> n | Unlimited -> -1 }")).
 
@@ -3624,10 +3665,10 @@ helps_and_spans_test() ->
     ?assertEqual({1, 4, {1, 16}},
                  (diagnostic("fn Color.negate(n : Int) : Int = n\n"))#diagnostic.span),
     ?assertEqual({1, 6, {1, 13}}, (diagnostic("type Prelude = Prelude\n"))#diagnostic.span),
-    ?assertEqual("List(Int) has no ordering; hold it in a type of your own that declares"
+    ?assertEqual("Map(Int, Int) has no ordering; hold it in a type of your own that declares"
                  " `compare`",
-                 (diagnostic("fn f() : Int =\n"
-                             "    OrderedSet.size(OrderedSet.fromList([[1], [2]]))\n"))
+                 (diagnostic("fn f(m : Map(Int, Int)) : Int =\n"
+                             "    OrderedSet.size(OrderedSet.fromList([m]))\n"))
                      #diagnostic.help),
     ?assertEqual("give Color a compare, `derives compare` on its declaration or"
                  " `fn Color.compare`",
@@ -3635,7 +3676,7 @@ helps_and_spans_test() ->
                              "fn f() : Int = OrderedSet.size(OrderedSet.fromList([Red]))\n"))
                      #diagnostic.help),
     ?assertEqual("declare `fn Date.compare` yourself, or hold a field whose type has a compare",
-                 (diagnostic("type Date = Date(year : Int, at : Optional(Int)) derives"
+                 (diagnostic("type Date = Date(year : Int, at : Bool) derives"
                              " compare\n"))#diagnostic.help),
     ?assertEqual("bind two names and compare them in a guard, `when x == y`",
                  (diagnostic("fn f(p : #(Int, Int)) : Int = match p { #(x, x) -> x }\n"))
@@ -4151,8 +4192,9 @@ requirement_supplied_test() ->
                   "add `needs a.compare` to unique's signature"},
                  refusal_and_help("fn unique(list : List(a)) : List(a) =\n"
                          "    OrderedSet.toList(OrderedSet.fromList(list))")),
-    ?assertEqual("fromList needs List(Int).compare, and List(Int) has no compare",
-                 refusal("fn f() : Int = OrderedSet.size(OrderedSet.fromList([[1]]))")),
+    ?assertEqual("fromList needs Map(Int, Int).compare, and Map(Int, Int) has no compare",
+                 refusal("fn f(m : Map(Int, Int)) : Int =\n"
+                         "    OrderedSet.size(OrderedSet.fromList([m]))")),
     %% the member's shape, its result the type itself
     ?assertEqual({"total needs Vec.+ : (Vec, Vec) -> Vec, and Vec.+ answers Float",
                   "a function over an operation of another shape takes it as a parameter"},
@@ -4212,8 +4254,8 @@ derives_test() ->
     ?assertEqual(ok, ok(Types ++ "fn earlier(x : Date, y : Date) : Bool = x < y\n"
                         "fn f(x : Pair(Int, String)) : Bool = x > x\n"
                         "fn g(x : Pair(a, b)) : Bool needs a.compare, b.compare = x <= x\n")),
-    ?assertEqual("fromList needs Pair(List(Int), Int).compare, and List(Int) has no compare",
-                 refusal(Types ++ "fn f(x : Pair(List(Int), Int)) : Int =\n"
+    ?assertEqual("fromList needs Pair(Bool, Int).compare, and Bool has no compare",
+                 refusal(Types ++ "fn f(x : Pair(Bool, Int)) : Int =\n"
                          "    OrderedSet.size(OrderedSet.fromList([x]))\n")),
     %% a parameter the comparison does not reach is not required
     ?assertEqual("(M.Holder(a), M.Holder(a)) -> Ordering",
@@ -4224,14 +4266,50 @@ derives_test() ->
                                 "export type Holder(a) = Holder(Wrap(a)) derives compare\n",
                                 'Holder', compare)).
 
+%% report §3.10, §9.3, §9.6, §4.9, §3.5: a tuple and a list are ordered
+%% where every component type is, component by component, and Optional and
+%% Either where their elements are: `<` on each, a requirement at each
+%% supplied from its elements' and reaching through to the enclosing
+%% requirement, `List.compare`, `Optional.compare` and `Either.compare`
+%% with their requirements, a derived compare over fields of all four, and
+%% the refusals naming the component without one. Written with the rule
+%% (the full review's N25)
+structural_compare_test() ->
+    ?assertEqual(ok, ok("fn a(x : #(Int, String)) : Bool = x < #(1, \"b\")\n"
+                        "fn b(x : List(List(Int))) : Bool = x >= [[1]]\n"
+                        "fn c(x : Optional(String)) : Bool = x > None\n"
+                        "fn d(x : Either(Int, Char)) : Bool = x <= Right('a')\n"
+                        "fn e(x : #(a, List(a))) : Bool needs a.compare = x < x\n"
+                        "fn f(x : List(#(a, Optional(a)))) : Int needs a.compare =\n"
+                        "    OrderedSet.size(OrderedSet.fromList(x))\n")),
+    ?assertEqual(ok, ok("fn a(x : List(Int)) : Ordering = List.compare(x, [2])\n"
+                        "fn b(x : Optional(a)) : Ordering needs a.compare =\n"
+                        "    Optional.compare(x, None)\n"
+                        "fn c(x : List(Either(Int, String))) : List(Either(Int, String)) =\n"
+                        "    List.sort(x, Either.compare)\n")),
+    ?assertEqual("(M.Row(a), M.Row(a)) -> Ordering needs a.compare",
+                 member_type_of("export type Row(a) = Row(key : #(Int, a), tags : List(String),"
+                                " at : Optional(a), why : Either(String, Int)) derives compare\n",
+                                'Row', compare)),
+    ?assertEqual("`<` needs #(Int, Bool).compare, and Bool has no compare",
+                 refusal("fn f(x : #(Int, Bool)) : Bool = x < x")),
+    ?assertEqual("fromList needs List(Bool).compare, and Bool has no compare",
+                 refusal("fn f(x : List(Bool)) : Int = OrderedSet.size(OrderedSet.fromList([x]))")),
+    ?assertEqual({"fromList needs a.compare, which f does not declare",
+                  "add `needs a.compare` to f's signature"},
+                 refusal_and_help("fn f(x : Optional(a)) : Int =\n"
+                                  "    OrderedSet.size(OrderedSet.fromList([x]))")).
+
 %% report §3.5: a field whose type has no compare is an error at the
 %% declaration, and a type derives no compare it declares; written after the
 %% code
 derives_refused_test() ->
-    ?assertEqual("Date.compare cannot be derived: Optional(Int) has no compare",
-                 refusal("type Date = Date(year : Int, at : Optional(Int)) derives compare")),
-    ?assertEqual("T.compare cannot be derived: #(Int, Int) has no compare",
-                 refusal("type T = T(#(Int, Int)) derives compare")),
+    ?assertEqual("Date.compare cannot be derived: Bool has no compare",
+                 refusal("type Date = Date(year : Int, at : Bool) derives compare")),
+    ?assertEqual("T.compare cannot be derived: Bool has no compare",
+                 refusal("type T = T(#(Int, Bool)) derives compare")),
+    ?assertEqual("T.compare cannot be derived: Map(Int, Int) has no compare",
+                 refusal("type T = T(List(Map(Int, Int))) derives compare")),
     ?assertEqual("T derives compare and declares it too",
                  refusal("type T = T(Int) derives compare\n"
                          "fn T.compare(x : T, y : T) : Ordering = Equal")).
@@ -4252,8 +4330,18 @@ fill_test() ->
                  refusal("type Ops(s, a) = Ops(min : (s) -> Optional(a))\n"
                          "let hashed : Ops(Set(Int), Int) = Ops(..Set)")),
     ?assertEqual("fromList needs a.compare, and the record's type leaves the variable a"
-                 " undetermined; annotate it",
+                 " undetermined; annotate ops",
                  refusal(Ops ++ "fn f() : Int = { let ops = Ops(..OrderedSet); 1 }")),
+    %% report §5.6: the binding the record initializes is named, at top level
+    %% as in a block, and a record no local holds asks for it to be
+    %% annotated; written with the name (the full review's X26)
+    ?assertEqual("fromList needs a.compare, and the record's type leaves the variable a"
+                 " undetermined; annotate ordered",
+                 refusal(Ops ++ "let ordered = Ops(..OrderedSet)")),
+    ?assertEqual("fromList needs a.compare, and the record's type leaves the variable a"
+                 " undetermined; annotate it",
+                 refusal(Ops ++ "fn size(ops : Ops(s, a)) : Int = 1\n"
+                                "fn f() : Int = size(Ops(..OrderedSet))")),
     %% the help names the part that differs, past a variable on either
     %% side; a regression: it said "the types differ at a=! and a=!". The
     %% two types are named as one, so two variables are `a` and `b`; a
@@ -4397,6 +4485,28 @@ monitor_takes_a_process_test() ->
     ?assertEqual(ok, ok(Source ++ "fn f(p : Process) : Unit receiving M = monitor(p, Died)")),
     ?assertEqual("the argument does not fit monitor: expected Process, found Address(Int)",
                  refusal(Source ++ "fn f(a : Address(Int)) : Unit receiving M = monitor(a, Died)")).
+
+%% report §6.9, §9.5: monitorService has monitor's type, a Process and a
+%% wrap whose result is the caller's message, so an address is refused and
+%% a caller that receives nothing is too; and §9.3: Reason has the
+%% constructor Restarted, which a `match` on a Reason covers as any other
+monitor_service_types_test() ->
+    Source = "type M = Told(Down)\n",
+    ?assertEqual(ok, ok(Source ++ "fn f(a : Address(Int)) : Unit receiving M ="
+                        " monitorService(Process.fromAddress(a), Told)")),
+    ?assertEqual("(Process) -> Unit",
+                 type_of("export fn watch(p) = monitorService(p, fn(d) = fault(\"down\"))",
+                         watch)),
+    ?assertEqual("the argument does not fit monitorService: expected Process, found Address(Int)",
+                 refusal(Source ++ "fn f(a : Address(Int)) : Unit receiving M ="
+                         " monitorService(a, Told)")),
+    ?assertEqual("monitorService needs a mailbox, and f receives nothing",
+                 refusal("fn f(p : Process) : Unit = monitorService(p, fn(d) = 5)")),
+    Reasons = "fn f(r : Reason) : Int = match r {\n"
+              "    Returned -> 1 | Killed -> 2 | ProgramEnd -> 3 | Fault(_) -> 4\n"
+              "  | Unknown -> 5 | Unreachable -> 6",
+    ?assertEqual(ok, ok(Reasons ++ " | Restarted -> 7 }")),
+    ?assertEqual("match on Reason is not exhaustive; missing Restarted", refusal(Reasons ++ " }")).
 
 %% report Appendix E.24, §11.2: a test's run has the mailbox type of the
 %% test's process, so one that receives infers Test.Case of its message
