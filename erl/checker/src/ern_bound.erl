@@ -196,8 +196,9 @@ is_running(_) ->
 %% top-level `fn` declaration of any arity, which has a hash, whose result
 %% type is Unit and whose mailbox type, where it has one, holds no type
 %% variable, read from its declaration and not from this use, since every
-%% process listed has it as its mailbox type; one that receives nothing
-%% names none.
+%% process listed has it as its mailbox type; one that receives nothing,
+%% and one that is process-only, list their processes at Never
+%% (ern_typecheck:is_running_never/2).
 running([#e_var{span = Span, namespace = Namespace, name = Name, referent = Referent}], Env) ->
     Written = ern_namespace:text(Namespace ++ [Name]),
     Help = "name a top-level `fn` whose result type is `Unit`: `Code.running(count)`"
@@ -216,8 +217,9 @@ running([#e_var{span = Span, namespace = Namespace, name = Name, referent = Refe
                              "`Code.running(count)` (report §3.11)"),
             ern_typecheck:is_foreign(Referent, Env)
                 andalso fail(Span, What(" is a foreign declaration, which has no hash"), Help),
-            #scheme{type = Type} = ern_typecheck:declaration_scheme(Referent, Env),
-            declared_running(Span, {Written, atom_to_list(Name)}, Type, Env)
+            Scheme = ern_typecheck:declaration_scheme(Referent, Env),
+            declared_running(Span, {Written, atom_to_list(Name)}, Scheme,
+                             ern_typecheck:is_running_never(Referent, Env), Env)
     end;
 running([Function], _Env) ->
     fail(ern_ast:span(Function),
@@ -225,24 +227,29 @@ running([Function], _Env) ->
          " written",
          "name a top-level `fn` whose result type is `Unit`: `Code.running(count)` (report §3.11)").
 
-%% The declaration's type: its result Unit, and its mailbox type, where it
-%% has one, known whole, holding no type variable.
-declared_running(Span, {Written, Declared}, Type, Env) ->
+%% The declaration's type: its result Unit, and its mailbox type, where its
+%% processes are not listed at Never, known whole, holding no type variable.
+%% The type is the declaration's as the checker holds it, a scheme's own
+%% variables apart from the type state's (ern_typecheck:declaration_type/2),
+%% and prints so.
+declared_running(Span, {Written, Declared}, Scheme, Never, Env) ->
     TypeState = ern_typecheck:type_state(Env),
-    {tfn, _, Effect, Result} = ern_types:substitute(Type, TypeState),
+    {tfn, _, Effect, Result} = ern_typecheck:declaration_type(Scheme, TypeState),
+    Shown = fun(Type) ->
+                ern_types:format_scheme(Scheme#scheme{type = Type, requirement = []}, TypeState)
+            end,
     Annotated = "give " ++ Written ++ " its mailbox type, `fn " ++ Declared
         ++ "(...) : Unit receiving Msg = ...`: every process listed has it (report §3.11)",
     case Result of
         {tcon, ['Unit'], []} -> ok;
         _ -> fail(Span, "Code.running lists the processes that run " ++ Written
-                        ++ ", whose result type is " ++ ern_types:format(Result, TypeState)
-                        ++ ", not Unit",
+                        ++ ", whose result type is " ++ Shown(Result) ++ ", not Unit",
                   "a process runs a function whose result type is `Unit` (report §3.11)")
     end,
-    ern_types:free_variables(Effect, TypeState) =:= []
+    Never orelse ern_types:free_variables(Effect, ern_types:printing(TypeState)) =:= []
         orelse fail(Span, "Code.running lists the processes that run " ++ Written
-                          ++ ", whose mailbox type " ++ ern_types:format(Effect, TypeState)
-                          ++ " holds a type variable", Annotated).
+                          ++ ", whose mailbox type " ++ Shown(Effect) ++ " holds a type variable",
+                    Annotated).
 
 %% Report §3.11: the function the spawn or the compute starts, written
 %% where its captures are seen, each capture and the process's mailbox type
@@ -349,6 +356,7 @@ capture_crosses(Name, #e_var{span = Span, name = Local, type = Type}, Env) ->
     case binds(Substituted, Env) of
         false ->
             ern_types:free_variables(Substituted, TypeState) =:= []
+                orelse ern_types:is_unknown(Substituted, TypeState)
                 orelse fail(Span, "the function " ++ Name ++ verb(Name) ++ "captures "
                                   ++ atom_to_list(Local) ++ ", whose type " ++ Text
                                   ++ " holds a type variable",
@@ -387,6 +395,7 @@ result_crosses(Name, Span, {tfn, [], _, Result}, Env) ->
     case binds(Substituted, Env) of
         false ->
             ern_types:free_variables(Substituted, TypeState) =:= []
+                orelse ern_types:is_unknown(Substituted, TypeState)
                 orelse fail(Span, Name ++ " answers a value of type " ++ Text ++ ", which holds a"
                                   " type variable, so whether it crosses is not known here",
                             "give the function its result type, `fn() : Int = ...`: the value"
@@ -402,18 +411,22 @@ result_crosses(Name, Span, {tfn, [], _, Result}, Env) ->
 %% A mailbox type that is still a variable is one an annotation names or
 %% each call of the definition fixes, since one nothing fixed is Never by
 %% now, and an instance of the definition could make it a bound type.
+%% Report §11.5: in all three, a type variable that a failed definition left
+%% open is that definition's error.
 mailbox_crosses(Name, Span, Mailbox, Env) ->
     TypeState = ern_typecheck:type_state(Env),
     Text = ern_types:format(Mailbox, TypeState),
     case {binds(Mailbox, Env), ern_types:resolve(Mailbox, TypeState)} of
         {false, {tvar, _}} ->
-            fail(Span, Name ++ " starts a process whose mailbox type " ++ Text
-                       ++ " is not known whole here",
-                 "give the function its mailbox type, " ++ annotated(Name) ++ ": an"
-                 " instance of this definition could make the variable a type bound to"
-                 " its node (report §3.11)");
+            ern_types:is_unknown(Mailbox, TypeState)
+                orelse fail(Span, Name ++ " starts a process whose mailbox type " ++ Text
+                                  ++ " is not known whole here",
+                            "give the function its mailbox type, " ++ annotated(Name) ++ ": an"
+                            " instance of this definition could make the variable a type bound"
+                            " to its node (report §3.11)");
         {false, _} ->
             ern_types:free_variables(Mailbox, TypeState) =:= []
+                orelse ern_types:is_unknown(Mailbox, TypeState)
                 orelse fail(Span, Name ++ " starts a process whose mailbox type " ++ Text
                                   ++ " is not known whole here",
                             "give the function its mailbox type, " ++ annotated(Name) ++ ": a"

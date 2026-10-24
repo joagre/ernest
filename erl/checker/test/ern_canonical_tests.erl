@@ -103,8 +103,8 @@ literal_hashes_test() ->
 %% hash to the values written here, computed once from the appendix's
 %% terms, as a literal's do, so that a change of a type's form, of its
 %% encoding or of the version changes them; the form's version is part of
-%% the floor, so a patch release moves none of them. Written after the code
-%% (findings H5, H10): no type's hash was written out
+%% the floor, so a patch release moves none of them. Written after the code:
+%% no type's hash was written out
 type_hashes_test() ->
     Shape = "type Shape = Circle(Float) | Rect(w : Float, h : Float)",
     ?assertEqual(<<"b43e479076a61ba66a01d525c92941d11468e15c841f8715154e92cd5a4c5f63">>,
@@ -242,7 +242,11 @@ same_definition_same_hash_test() ->
 %% type than it has without it gives another definition. Written with the
 %% change (the plan's MVP 3.27, the release review's KP30): the form held
 %% each annotation as written, so `fn f(x : Int) : Int` and `fn f(x) : Int`
-%% were two hashes
+%% were two hashes. The lambdas no call fixes, whose effect variable an
+%% annotation fixes to none or nothing fixes, a regression test written
+%% after the fix of the full review before 0.5.0: the form wrote that
+%% variable where the scheme held none; it does not cover a lambda a block
+%% `let` binds that receives what its parameter's function receives
 annotation_left_out_test() ->
     Same = fun(Name, Annotated, Bare) ->
                ?assertEqual({Annotated, hash(Annotated, Name)}, {Annotated, hash(Bare, Name)})
@@ -258,6 +262,11 @@ annotation_left_out_test() ->
          "fn g(x : Int) : Int = { let y = x + 1; y * 2 }"),
     Same(g, "fn g(o : Optional(Int)) : Optional(Int) = { let v : Int <- o; Some(v + 1) }",
          "fn g(o : Optional(Int)) : Optional(Int) = { let v <- o; Some(v + 1) }"),
+    Same(f, "let f : (Int) -> Int = fn(x : Int) = x + 1", "let f = fn(x : Int) = x + 1"),
+    Same(g, "fn g(n : Int) : Int = { let h = fn(x : Int) : Int = x + 1; h(n) }",
+         "fn g(n : Int) : Int = { let h = fn(x) = x + 1; h(n) }"),
+    Same(make, "fn make() : () -> Unit = fn() = Io.println(\"k\")",
+         "fn make() = fn() = Io.println(\"k\")"),
     Empty = fun(Element) ->
                 "fn e() : Int = { let xs : List(" ++ Element ++ ") = []; List.size(xs) }"
             end,

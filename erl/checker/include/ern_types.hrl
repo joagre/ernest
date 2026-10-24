@@ -17,11 +17,9 @@
 %% Every variable has an entry in the checker's variable table keyed by id().
 %% Its restrictions are the two inferred restrictions of report §3.9:
 %% `equality` (the variable was compared with ==) and `process_only` (it
-%% may not bind to none), beside the checker's own `value_position` (it
-%% stands in a value position, and may not bind to none while its
-%% definition is inferred), which no scheme holds. A bound variable's
-%% binding lives in the substitution, not in the term, so a type is read
-%% through ern_types:resolve/2 before inspection.
+%% may not bind to none). A bound variable's binding lives in the
+%% substitution, not in the term, so a type is read through
+%% ern_types:resolve/2 before inspection.
 %%
 %% A scheme quantifies variables together with their restrictions, which is
 %% what makes the restrictions travel with a function value (report §3.9).
@@ -29,9 +27,19 @@
 -ifndef(ERN_TYPES_HRL).
 -define(ERN_TYPES_HRL, true).
 
--record(type_variable, {id, level, restrictions = [], name}).
+-record(type_variable, {id, level, restrictions = [], name, value_position = false,
+                        unknown = false}).
 %% level: the let-nesting depth at creation, for generalization; name: the
 %% annotation's name for the variable, if any (report §11.5)
+%% value_position: whether the variable, an effect variable, stands in a
+%% value position of a type the definition under inference holds, so that
+%% it ranges over types alone and none does not bind it while the
+%% definition is inferred (report §3.9); no scheme holds the mark, and an
+%% instance marks it again from its type (ern_types:value_positions_marked/2)
+%% unknown: whether the variable stands, at a use of a definition whose
+%% check failed, for what the definition's signature leaves open, so that
+%% the use draws no error of its own from it (report §11.5,
+%% ern_types:is_unknown/2)
 
 -record(scheme, {quantified = [], type, names = #{}, requirement = []}).
 %% quantified: [{id(), restrictions()}]; a monomorphic type is a scheme with

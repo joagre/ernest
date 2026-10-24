@@ -956,47 +956,49 @@ code_running_test() ->
     ?assertEqual(ok, peer_ok("fn g() : Unit = Io.println(\"g\")\n" ++ Listing("g"))),
     ?assertEqual(ok, peer_ok("fn g() : Unit = Unit\n"
                              "fn f() : Unit = List.forEach(Code.running(g), kill)\n")),
-    ?assertEqual("Code.running lists the processes that run g, whose mailbox type m holds a"
-                 " type variable",
-                 peer_refusal("fn g() : Unit receiving m = receive { after 1 -> Unit }\n"
+    ?assertEqual("Code.running lists the processes that run g, whose mailbox type Msg(a) holds"
+                 " a type variable",
+                 peer_refusal("type Msg(a) = Msg(a)\n"
+                              "fn g() : Unit receiving Msg(a) = receive { _ -> Unit }\n"
                               ++ Listing("g"))),
     ?assertEqual("Code.running is called where it is named, so that the compiler sees the"
                  " declaration it names",
                  peer_refusal("fn f() : Unit = { let r = Code.running; Unit }\n")).
 
 %% report §3.11, Appendix E.28, §6.2: Code.running of a function that
-%% receives nothing answers addresses at Never, since the function runs in
-%% a process whose mailbox type it does not know: its declaration's, though
-%% the function stands at the call for one that receives (§3.9). A send to
-%% one is refused, `expected Never`, a send over the list too, and an
-%% annotation of another mailbox type; `kill` over it is not. A regression
-%% test, written after the fix (the release review before 0.4.0 found the
-%% addresses at a variable nothing fixed, a send of 42 to a process that
-%% received another type compiling and breaking its mailbox at run time);
-%% it does not run a program
+%% receives nothing, or of a process-only one, answers addresses at Never,
+%% since the function runs in a process whose mailbox type it does not
+%% know: its declaration's, though the function stands at the call for one
+%% that receives (§3.9). A send to one is refused, `expected Never`, a send
+%% over the list too, and an annotation of another mailbox type; `kill`
+%% over it is not. A regression test, written after the fix (the release
+%% review before 0.4.0 found the addresses at a variable nothing fixed, a
+%% send of 42 to a process that received another type compiling and
+%% breaking its mailbox at run time); the process-only function a
+%% regression test of its own, written after the fix of the full review
+%% before 0.5.0, which found it refused. It does not run a program
 code_running_never_test() ->
-    Work = "fn work(n : Int) : Unit = if n == 0 then Unit else work(n - 1)
-",
-    ?assertEqual(ok, peer_ok(Work ++ "fn f() : List(Address(Never)) = Code.running(work)
-")),
-    ?assertEqual(ok, peer_ok(Work ++ "fn f() : Unit = List.forEach(Code.running(work), kill)
-")),
-    ?assertEqual("the argument does not fit send: expected Never, found Int",
-                 peer_refusal(Work ++ "fn f() : Unit = match Code.running(work) {
-"
-                              "    [p] -> send(p, 42)
-  | _ -> Unit
-}
-")),
-    ?assertEqual("the argument does not fit List.forEach: expected (Address(Never)) -> Unit,"
-                 " found (Address(Int)) -> Unit",
-                 peer_refusal(Work ++ "fn f() : Unit =
-"
-                              "    List.forEach(Code.running(work), fn(q) = send(q, 42))
-")),
-    ?assertMatch({error, _},
-                 peer_ok(Work ++ "fn f() : List(Address(Int)) = Code.running(work)
-")).
+    Work = "fn work(n : Int) : Unit = if n == 0 then Unit else work(n - 1)\n",
+    Pause = "fn pause(ms : Int) : Unit receiving m = receive { after ms -> Unit }\n",
+    lists:foreach(
+      fun({Name, Function}) ->
+              Listed = "Code.running(" ++ Name ++ ")",
+              ?assertEqual(ok, peer_ok(Function ++ "fn f() : List(Address(Never)) = "
+                                       ++ Listed ++ "\n")),
+              ?assertEqual(ok, peer_ok(Function ++ "fn f() : Unit = List.forEach(" ++ Listed
+                                       ++ ", kill)\n")),
+              ?assertEqual("the argument does not fit send: expected Never, found Int",
+                           peer_refusal(Function ++ "fn f() : Unit = match " ++ Listed
+                                        ++ " {\n    [p] -> send(p, 42)\n  | _ -> Unit\n}\n")),
+              ?assertEqual("the argument does not fit List.forEach: expected"
+                           " (Address(Never)) -> Unit, found (Address(Int)) -> Unit",
+                           peer_refusal(Function ++ "fn f() : Unit =\n    List.forEach("
+                                        ++ Listed ++ ", fn(q) = send(q, 42))\n")),
+              ?assertEqual("the body does not have the declared result type: expected"
+                           " List(Address(Int)), found List(Address(Never))",
+                           peer_refusal(Function ++ "fn f() : List(Address(Int)) = "
+                                        ++ Listed ++ "\n"))
+      end, [{"work", Work}, {"pause", Pause}]).
 
 %% report §3.11, §8.7, §3.9: the value a compute answers crosses back, so
 %% the result type of its function is known whole where the compute is
@@ -1117,14 +1119,36 @@ private_type_named_by_a_dependent_test() ->
                                       unknown_namespace = ['Plain']}]},
                  ern_typecheck:check(['M'], Absent, [Interface])).
 
+%% report §8.7, §11.1, §11.2: an interface given after another of its
+%% module, a reload's version, takes the place of what the first held of
+%% each of its values, a function's reach among it, which the interface
+%% carries only where it names a binding or a foreign declaration, so that
+%% a function whose new reach names none names none it named before. A
+%% regression test, written after the fix: the full review before 0.5.0
+%% found the old reach kept, as the module's ground terms once were; it
+%% does not cover a build, which reads one interface of each module
+interface_replaces_a_reach_test() ->
+    Function = #scheme{type = {tfn, [], none, {tcon, ['Unit'], []}}},
+    Interface = fun(Reaches) ->
+                    #interface{namespace = ['A'], values = #{['A', f] => Function},
+                               reaches = Reaches}
+                end,
+    Reach = {[{['A', limit], <<"hash">>}], []},
+    First = ern_typecheck:with_interfaces([Interface(#{['A', f] => Reach})],
+                                          ern_typecheck:prelude_env()),
+    ?assertEqual(Reach, ern_typecheck:reach(['A', f], First)),
+    ?assertEqual({[], []},
+                 ern_typecheck:reach(['A', f],
+                                     ern_typecheck:with_interfaces([Interface(#{})], First))).
+
 %% report §11.5, §4.2: a dependent that names a constructor of a type
 %% another module keeps private, which that module's interface carries, is
 %% refused as the private type's, in an expression and a pattern alike,
 %% with no namespace to load; a constructor nothing declares, and one of a
 %% private type the interface does not carry, stay unknown. A regression
 %% test, written after the code: the constructor was refused as unknown
-%% (the tour's spike, docs/findings.md's S2); it does not cover the
-%% prompt, which the shell's tests do
+%% (the tour's spike, the log's *Two Messages, and the Runtime's Frames
+%% Weighed Again*); it does not cover the prompt, which the shell's tests do
 private_constructor_named_by_a_dependent_test() ->
     {ok, _, Interface, _} =
         ern_typecheck:check_string(['Plain'],
@@ -1548,18 +1572,21 @@ process_only_marks_a_wait_alone_test() ->
 %% report §4.5, §3.9, §11.5: `: T` stands over a body that calls `self` or
 %% `monitor`, or a function whose type holds their variable, where the
 %% body neither waits nor has the variable in a value position of the
-%% signature, so that the type the shell prints can be written. The
-%% variable is read as the definition ends, and is refused in the words
-%% and at the place a call that receives is refused at once: where a
-%% parameter holds it, through a tuple, a record's field or a callback;
+%% signature, so that the type the shell prints can be written, a `fn`'s
+%% and a lambda's alike. The variable is read as the function ends, and is
+%% refused in the words and at the place a call that receives is refused
+%% at once: where a parameter holds it, through a tuple, a record's field
+%% or a callback;
 %% where the result does; where the body fixes it, through a block `let`,
 %% a returned lambda or a wrap's result; and where an enclosing
 %% definition holds it, a local fn's. A wait and a process-only callee are
 %% refused at once, as before, and a parameter the body calls still
-%% receives nothing. A regression test, written after the checker: it
-%% does not cover a recursive group whose other member fixes the
-%% variable, nor the shell's prompt, whose inputs are typed as a block's
-%% statements are
+%% receives nothing. A regression test, written after the checker, the
+%% lambda's `: T` after the fix of the full review before 0.5.0, which
+%% found it refused: it does not cover a recursive group whose other
+%% member fixes the variable (group_member_written_none_test covers one
+%% whose member calls `self`), nor the shell's prompt, whose inputs are
+%% typed as a block's statements are
 standing_over_a_body_that_calls_self_test() ->
     ?assertEqual("() -> Unit", type_of("export fn k() : Unit = kill(self())", k)),
     ?assertEqual("() -> Unit",
@@ -1608,12 +1635,129 @@ standing_over_a_body_that_calls_self_test() ->
     ?assertEqual("w needs a mailbox, and f receives nothing",
                  refusal("fn w() = receive { x -> x }\nfn f() : Unit = { let _ = w(); Unit }")),
     ?assertEqual("((a) -> Int, a) -> Int", type_of("export fn apply(f, x) : Int = f(x)", apply)),
-    %% a lambda's `: T` and a guard are no `fn` declaration's
+    %% a lambda's `: T` stands over its body as a `fn`'s does, and is read
+    %% as the lambda ends; a guard is no function's
+    ?assertEqual("() -> Unit", type_of("export fn f() = (fn() : Unit = kill(self()))()", f)),
     ?assertEqual("self needs a mailbox, and the lambda receives nothing",
-                 refusal("fn f() = (fn() : Unit = kill(self()))()")),
+                 refusal("fn f() = (fn() : Unit = send(self(), 5))()")),
     ?assertEqual("self needs a mailbox, and a guard receives nothing",
                  refusal("fn f(n : Int) : Int receiving Int ="
                          " match n { k when kill(self()) == Unit -> k | _ -> 0 }")).
+
+%% report §4.5, §3.9: a lambda whose body calls `self` or `monitor` without
+%% the address standing in a value position of its type receives nothing
+%% as it ends, as a `fn` with that body does, and stands where a function
+%% that receives nothing is expected, a parameter's, a field's and a
+%% type variable's whose binding is annotated so among them; its body
+%% keeps the variable. One whose variable is fixed, waits, stands in its
+%% result, is held by a name around it, a capture or the enclosing
+%% function's parameter, or by a selection the enclosing definition
+%% resolves as it ends, keeps it, and is refused there; so is a call under
+%% a lambda's `: T` whose variable such a selection holds. A regression
+%% test, written after the fix: the full review before 0.5.0 found the
+%% lambda refused where the same body as a `fn` or a `let`-bound lambda was
+%% accepted; it does not cover the prompt
+lambda_calling_self_receives_nothing_test() ->
+    Run = "fn run(f : () -> Unit) : Unit = f()\n",
+    ?assertEqual("() -> Unit", type_of(Run ++ "export fn g() : Unit = run(fn() = kill(self()))",
+                                       g)),
+    ?assertEqual(ok, ok("export type Job = Job(run : () -> Unit)\n"
+                        "export fn job() : Job = Job(run = fn() = kill(self()))\n")),
+    Id = "fn id(x : a) : a = x\n",
+    ?assertEqual("() -> Unit", type_of(Id ++ "export let k = id(fn() = kill(self()))", k)),
+    ?assertEqual("() -> Unit",
+                 type_of(Id ++ "export let k : () -> Unit = id(fn() = kill(self()))", k)),
+    ?assertEqual("(Process) -> Unit receiving M.Msg",
+                 type_of("export type Msg = Done\n"
+                         "export fn lambda(p : Process) : Unit receiving Msg = {\n"
+                         "    monitor(p, fn(d) = { kill(self()); Done });\n"
+                         "    receive { Done -> Unit }\n"
+                         "}\n", lambda)),
+    Refused = "the argument does not fit run: a function that receives where one that"
+              " receives nothing is needed",
+    ?assertEqual(Refused, refusal(Run ++ "fn f(out) = run(fn() = send(out, self()))")),
+    ?assertEqual(Refused, refusal(Run ++ "fn f() : Unit = { let me = self();"
+                                  " run(fn() = send(me, self())) }")),
+    ?assertEqual(Refused, refusal(Run ++ "fn f() : Unit ="
+                                  " run(fn() = { kill(self()); receive { after 1 -> Unit } })")),
+    ?assertEqual(Refused, refusal("fn run(f : () -> Address(m)) : Unit = { let _ = f(); Unit }\n"
+                                  "fn f() : Unit = run(fn() = self())")),
+    ?assertEqual("the argument does not fit run: expected () -> Unit, found () -> Unit receiving"
+                 " Int (a function that receives nothing and one that receives do not match)",
+                 refusal(Run ++ "fn f(out : Address(Address(Int))) : Unit ="
+                         " run(fn() = send(out, self()))")),
+    Late = fun(Lambda) ->
+               refusal("type R = R(f : Address(Address(Int)))\n" ++ Run
+                       ++ "fn h(x) : Unit = {\n    run(" ++ Lambda ++ " = {"
+                       " let me = self(); send(x.f, me) });\n"
+                       "    let R(f = _) = x;\n    Unit\n}\n")
+           end,
+    ?assertEqual(Refused, Late("fn()")),
+    ?assertEqual("self needs a mailbox, and the lambda receives nothing", Late("fn() : Unit")).
+
+%% report §4.5, §3.9: a recursive group whose member written `: T` calls
+%% one that calls `self` checks, in either order of declaration, since the
+%% members written `: T` are checked after the others, each group's members
+%% in the order of their declarations; one whose other member waits is
+%% refused at the call. A regression test, written after the fix: the full
+%% review before 0.5.0 found the verdict changing with the order the
+%% host's graph gave the members, which changed from one start of the host
+%% to the next; within one start of the host the test cannot show that
+%% order, only each order of declaration
+group_member_written_none_test() ->
+    A = "export fn a(n : Int) = { kill(self()); b(n) }\n",
+    B = "fn b(n : Int) : Unit = a(n)\n",
+    ?assertEqual("(Int) -> Unit", type_of(A ++ B, a)),
+    ?assertEqual("(Int) -> Unit", type_of(B ++ A, a)),
+    Waits = "fn a(n : Int) = { receive { after 1 -> Unit }; b(n) }\n",
+    ?assertEqual("a needs a mailbox, and b receives nothing", refusal(Waits ++ B)),
+    ?assertEqual("a needs a mailbox, and b receives nothing", refusal(B ++ Waits)).
+
+%% report §3.9: generalization quantifies a variable no name around the
+%% definition holds, and so writes a function's lone effect variable as
+%% none only where it quantifies it: a lambda or a local `fn` that calls
+%% the enclosing function's callback keeps the callback's mailbox type,
+%% and is refused where a function that receives nothing is expected. A
+%% regression test, written after the fix: the full review before 0.5.0
+%% found the variable written as none, a process started by a function
+%% that receives nothing reading an `Int` as a `String`; it does not cover
+%% the prompt
+generalization_keeps_a_held_effect_test() ->
+    Run = "fn run(f : () -> Unit) : Address(Int) = spawn(f)\n",
+    Refused = "the argument does not fit run: a function that receives where one that"
+              " receives nothing is needed",
+    ?assertEqual(Refused, refusal(Run ++ "fn outer(g : () -> Unit receiving e) : Address(Int)"
+                                  " receiving e = { let k = fn() = g(); run(k) }\n")),
+    ?assertEqual(Refused, refusal(Run ++ "fn outer(g : () -> Unit receiving e) : Address(Int)"
+                                  " receiving e = { fn k() = g(); run(k) }\n")),
+    ?assertEqual("(() -> Unit) -> Address(Int)",
+                 type_of(Run ++ "export fn outer(g) = { let k = fn() = g(); run(k) }\n", outer)).
+
+%% report §11.5: a use of a definition whose own check failed draws no
+%% error of its own from what the definition's signature leaves open, in a
+%% call's value that `Io.debug` writes, an operator's operand, a selection,
+%% a `<-` or a top-level `let` that the call gives its type, so that the
+%% definition's error is the one reported; an error of the user's own is
+%% still reported. A regression test, written after the fix: the full
+%% review before 0.5.0 found `the type a is not known whole here` after
+%% the error it followed from
+failed_definition_draws_no_second_error_test() ->
+    Failed = "type Shape = Dot(name : String) | Circle(name : String, radius : Int)\n"
+             "fn f(s : Shape) = s.radius\n",
+    Radius = "not every constructor of Shape has the field radius: Dot has none",
+    ?assertEqual([Radius],
+                 refusals(Failed ++ "fn main() : Unit = {\n"
+                          "    let _ = Io.debug(f(Dot(name = \"x\")));\n    Unit\n}\n")),
+    ?assertEqual([Radius],
+                 refusals(Failed ++ "fn g(s : Shape) = {\n"
+                          "    let a = f(s) + f(s);\n    let b = f(s).size;\n"
+                          "    let _ = Io.debug(a);\n    let _ = Io.debug(b);\n    Unit\n}\n"
+                          "let k = f(Dot(name = \"x\"))\n"
+                          "fn r(s : Shape) : Either(String, Int) = { let v <- f(s); Right(v) }\n")),
+    ?assertEqual([Radius, "both operands of `+` must have the same type: expected Int, found"
+                          " String"],
+                 refusals(Failed ++ "fn h(s : Shape) : Int = { let _ = Io.debug(f(s));"
+                          " 1 + \"a\" }\n")).
 
 %% report §6.2, §4.6
 spawn_test() ->
@@ -3204,6 +3348,48 @@ local_helper_over_an_operator_test() ->
                         " { fn add(a : Int, b : Int) = a + b; add(x, 1) }")),
     ?assertEqual(ok, ok("fn f(x : Int) : Int = List.foldLeft([x, 1], 0, fn(acc, n) = acc + n)")).
 
+%% report §3.9, §4.8: a lambda a block `let` binds is a definition, whose
+%% operators, negations, orderings, selections and `<-`s are resolved as
+%% it ends, before it is generalized, so that a variable one of them still
+%% constrains is never quantified: a lambda that applies an operator in an
+%% inner lambda whose parameter a later call types gives the type the
+%% operator gives, `List(Int)` where `List(String)` is declared, refused as
+%% the top-level `let`, the top-level `fn`, the member written out and the
+%% annotated parameter always were, and an operand the lambda leaves open
+%% is refused at its `let`, whatever calls it later. A regression test,
+%% written after the fix: the full review before 0.5.0 found the result
+%% quantified, an `Int` reaching `String.toUpper` and the shell's printer;
+%% it does not cover the prompt, whose inputs are typed as a block's
+%% statements are
+lambda_let_resolves_before_it_generalizes_test() ->
+    Declared = fun(Type, Found, Body) ->
+                   ?assertEqual("the body does not have the declared result type: expected "
+                                ++ Type ++ ", found " ++ Found,
+                                refusal("type R = R(x : Int)\n"
+                                        "fn apply(f : (Int) -> b, x : Int) : b = f(x)\n"
+                                        "fn strings() : " ++ Type ++ " = " ++ Body ++ "\n"))
+               end,
+    Strings = "List(String)",
+    Declared(Strings, "List(Int)", "{ let f = fn(n) = List.map([1], fn(d) = d + n); f(6) }"),
+    Declared("String", "Int", "{ let f = fn(n) = apply(fn(d) = n + d, 1); f(6) }"),
+    Declared(Strings, "List(Int)", "{ let f = fn(n) = List.map([1, 2], fn(d) = n / d); f(6) }"),
+    Declared(Strings, "List(Int)", "{ let f = fn(n) = List.map([1], fn(d) = -d); f(6) }"),
+    Declared(Strings, "List(Bool)", "{ let f = fn(n) = List.map([1], fn(d) = d < n); f(6) }"),
+    Declared(Strings, "List(Int)",
+             "{ let f = fn(n) = List.map([R(x = 1)], fn(d) = d.x); f(6) }"),
+    Declared("List(Either(Int, String))", "List(Either(a, Int))",
+             "{ let f = fn(n) = List.map([Right(1)], fn(d) = { let x <- d; Right(x) }); f(6) }"),
+    Declared(Strings, "List(Int)", "{ let f = fn(n) = List.map([1], fn(d) = Int.+(n, d)); f(6) }"),
+    Declared("String", "Int", "{ let f = fn(n) = { let g = fn(d : Int) = n + d; g(1) }; f(6) }"),
+    Declared(Strings, "List(Int)", "g(6)\nfn g(n) = List.map([1], fn(d) = n + d)"),
+    Declared(Strings, "List(Int)", "h(6)\nlet h = fn(n) = List.map([1], fn(d) = n + d)"),
+    ?assertEqual("(Int) -> List(Int)",
+                 type_of("export fn f(n : Int) = { let g = fn(m) = List.map([1], fn(d) = d + m);"
+                         " g(n) }", f)),
+    ?assertEqual("the type whose field x is read is not determined; annotate it",
+                 refusal("type R = R(x : Int)\n"
+                         "fn f() = { let g = fn(n) = List.map([n], fn(d) = d.x); g(R(x = 1)) }")).
+
 %% report §5.7, Appendix A: a construction is a value and no call, so the
 %% pipe applies a bare constructor and does not fill a construction. A
 %% regression test: the refusals named the callee or a missing field and
@@ -3559,9 +3745,9 @@ receive_guard_test() ->
                             " receive { N(k) when big(k) -> Unit | _ -> Unit }"),
     ?assertEqual("a `receive` guard combines `true`, `false`, Bool variables, and comparisons"
                  " with `!`, `&&`, and `||`, and calls nothing", Diagnostic#diagnostic.message),
-    ?assertEqual("bind what the guard needs with a `let` before the `receive` and compare"
-                 " that; or receive the message and `match` it, which takes it out of the"
-                 " mailbox", Diagnostic#diagnostic.help).
+    ?assertEqual("bind what the guard needs that does not come from the message with a `let`"
+                 " before the `receive` and compare that; or receive the message and `match`"
+                 " it, which takes it out of the mailbox", Diagnostic#diagnostic.help).
 
 %% report §6.3: each form of a guard expression: `true`, `false`, a Bool
 %% operand, `!` before a guard expression, and a comparison whose operands
@@ -3767,7 +3953,8 @@ show_named_in_body_test() ->
 %% where it names none of the field's name, or the field is `show`, which
 %% is no member, there is none. A regression test, written after the code:
 %% the read asked for an annotation, which does not help (the tour's spike,
-%% docs/findings.md's S1); it does not cover the prompt
+%% the log's *Two Messages, and the Runtime's Frames Weighed Again*); it
+%% does not cover the prompt
 member_read_on_a_value_test() ->
     Tally = "export abstract type Tally(k) = Tally(Map(k, Int))\n"
             "export fn report(Tally(counts)) : List(#(k, Int)) needs k.compare =\n",

@@ -31,8 +31,9 @@
 %% exchange and the shell's load of a compiled form read: its definitions,
 %% each with its source's lines, its name and its printing; its foreign
 %% declarations, in the order declared, each {QualifiedName, Scheme,
-%% HostModule, HostFunction, Printing}, the scheme as a form writes it
-%% (Appendix H), which no form holds, the module and the function atoms,
+%% HostModule, HostFunction, Printing, Source}, the scheme as a form writes
+%% it (Appendix H), which no form holds, Source where it is written,
+%% {Line, Column, none}, the module and the function atoms,
 %% but in a unit an exchange made, which records every declaration its
 %% reach and its code frames carried, text for one the node holds no atom
 %% of, the call linked to a fault (§8.7); and its top-level bindings'

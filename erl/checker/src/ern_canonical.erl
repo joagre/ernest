@@ -34,8 +34,8 @@
 
 -export([form_version/0, chunk_name/0, bytes/1, hashed/1, member_hash/2, module/4, module/5,
          interface/2, declared_type/4, stripped/1, session_source/2, recorded_source/1, lambdas/2,
-         unit_reaches/2,
-         scheme_arity/1, references/1, verified/2, is_verified/1, encode/1, read/1]).
+         unit_reaches/2, scheme_arity/1, references/1, verified/2, is_verified/1, encode/1,
+         read/1]).
 
 -export_type([canonical/0, reach/0, source/0]).
 
@@ -80,7 +80,10 @@
 %% the scope where the pattern being walked began, undefined outside a
 %% pattern; bound, the locals that pattern has bound; segments, the locals
 %% a bitstring pattern's earlier segments bound; locals, the numbers taken;
-%% variables, each type variable to its number;
+%% variables, each type variable to its number; quantified, the type
+%% variables the schemes met so far quantify, the definition's and its
+%% local functions', which a type the checker gave a node writes as
+%% variables (given_type/2);
 %% references, the other modules' definitions referenced by hash;
 %% functions, the span of each lambda and local function met, reversed, in
 %% the order the walk meets them, which is their positions' (lambdas/2);
@@ -89,7 +92,7 @@
 %% the walk wrote, with the qualified name it names, by which the build
 %% links it (module/5).
 -record(walk, {env, namespace, form_namespace, standard, own, scope = #{}, outer,
-               bound = #{}, segments = #{}, locals = 0, variables = #{},
+               bound = #{}, segments = #{}, locals = 0, variables = #{}, quantified = [],
                references = [], functions = [], services = [], links = []}).
 
 -spec form_version() -> pos_integer().
@@ -532,22 +535,24 @@ union({Bindings, Foreigns}, {MoreBindings, MoreForeigns}) ->
     {lists:umerge(Bindings, MoreBindings), lists:umerge(Foreigns, MoreForeigns)}.
 
 %% Report §8.7, §11.1: the reaches a unit's '$code'/0 lists, computed from
-%% its definitions' forms as a build computes them: each function's by its
-%% qualified name, and each lambda's and local function's by its
-%% definition's qualified name and its position; Others, the reach of each
-%% definition of another unit its forms reference by hash. A unit made from
-%% forms that arrived, or from a compiled form, has no checker to give them.
+%% its definitions' forms as a build computes them (module/5): each
+%% function's by its qualified name, and each lambda's and local
+%% function's, a top-level binding's among them, by its definition's
+%% qualified name and its position; Others, the reach of each definition
+%% of another unit its forms reference by hash. A unit made from forms that
+%% arrived, or from a compiled form, has no checker to give them.
 -spec unit_reaches([#definition{}], #{binary() => reach()}) -> #{term() => reach()}.
 unit_reaches(Definitions, Others) ->
     Reaches = reaches(Definitions, Others),
     maps:from_list(
-      lists:append([[{QualifiedName, Reach}
-                     | [{{QualifiedName, Position},
-                         element(1, named(Function, Reach, #{}, Reaches))}
-                        || {{_, Position}, Function} <- lambdas(Hash, Form)]]
-                    || #definition{qualified_name = QualifiedName, kind = function, hash = Hash,
-                                   form = Form} <- Definitions,
-                       Reach <- [maps:get(Hash, Reaches)]])).
+      [{QualifiedName, maps:get(Hash, Reaches)}
+       || #definition{qualified_name = QualifiedName, kind = function, hash = Hash}
+              <- Definitions]
+      ++ [{{QualifiedName, Position},
+           element(1, named(Function, maps:get(Hash, Reaches), #{}, Reaches))}
+          || #definition{qualified_name = QualifiedName, kind = Kind, hash = Hash, form = Form}
+                 <- Definitions,
+             Kind =/= type, {{_, Position}, Function} <- lambdas(Hash, Form)]).
 
 %% Report §8.7: each lambda and local function of a definition by its span,
 %% with the definition's qualified name, its position and its reach; the
@@ -687,7 +692,10 @@ scheme(#scheme{quantified = Quantified, type = Type, requirement = Requirement},
         lists:mapfoldl(fun({Id, Restrictions}, Acc) ->
                            {Number, Acc1} = variable({tvar, Id}, Acc),
                            {{Number, lists:usort(Restrictions)}, Acc1}
-                       end, Walk, Ranked),
+                       end,
+                       Walk#walk{quantified = [Id || {Id, _} <- Quantified]
+                                     ++ Walk#walk.quantified},
+                       Ranked),
     {TypeForm, Walk2} = type(Resolved, Walk1),
     {RequirementForms, Walk3} =
         lists:mapfoldl(fun({Id, Member}, Acc) ->
@@ -720,12 +728,46 @@ closed_scheme(Scheme, #walk{env = Env, standard = Standard, own = Own, namespace
     {Form, Walk#walk{references = Named, links = Linked}}.
 
 %%
-%% Types and annotations
+%% Types
 %%
 
 %% Report Appendix H: a type the checker made, written out.
 type(Type, #walk{env = Env} = Walk) ->
     written(ern_typecheck:resolve_type(Type, Env), Walk).
+
+%% Report Appendix H, §3.9: a type the checker gave a node, a lambda, a
+%% binding's value, what a `<-` unwraps to, an operator's operand or a
+%% call's answer, written out, each effect variable that no scheme of the
+%% definition quantifies and that stands in no value position of the type
+%% written none, as generalization writes one that nothing fixed: so that
+%% a definition hashes alike whether an annotation fixed such a variable to
+%% none or nothing fixed it.
+given_type(Type, #walk{env = Env, quantified = Quantified} = Walk) ->
+    Resolved = ern_typecheck:resolve_type(Type, Env),
+    Values = ern_types:value_variables(Resolved, ern_typecheck:type_state(Env)),
+    written(effects_none(Resolved, fun(Id) -> not lists:member(Id, Quantified)
+                                                  andalso not lists:member(Id, Values)
+                                   end),
+            Walk).
+
+effects_none({tfn, Params, Effect, Result}, IsNone) ->
+    Written = case Effect of
+                  {tvar, Id} ->
+                      case IsNone(Id) of
+                          true -> none;
+                          false -> Effect
+                      end;
+                  _ ->
+                      effects_none(Effect, IsNone)
+              end,
+    {tfn, [effects_none(Param, IsNone) || Param <- Params], Written,
+     effects_none(Result, IsNone)};
+effects_none({tcon, QualifiedName, Args}, IsNone) ->
+    {tcon, QualifiedName, [effects_none(Arg, IsNone) || Arg <- Args]};
+effects_none({ttuple, Elements}, IsNone) ->
+    {ttuple, [effects_none(Element, IsNone) || Element <- Elements]};
+effects_none(Type, _IsNone) ->
+    Type.
 
 written({tvar, Id}, Walk) ->
     {Number, Walk1} = variable({tvar, Id}, Walk),
@@ -872,7 +914,7 @@ expr_form(#e_var{referent = {prelude, ['Address', Name]} = Referent, supplies = 
     {SupplyForms, Walk2} = lists:mapfoldl(fun supply/2, Walk1, Supplies),
     {tfn, [_, {tfn, [{tcon, ['Reply'], [Answer]}], _, _} | _], _, _} =
         ern_typecheck:resolve_type(Type, Walk2#walk.env),
-    {AnswerForm, Walk3} = type(Answer, Walk2),
+    {AnswerForm, Walk3} = given_type(Answer, Walk2),
     {{var, Reference, SupplyForms, AnswerForm}, Walk3};
 expr_form(#e_var{referent = Referent, name = Name, supplies = Supplies}, Walk) ->
     {Reference, Walk1} = value_reference(Referent, Name, Walk),
@@ -940,7 +982,7 @@ expr_form(#e_lambda{span = Span, params = Params, body = Body, type = Type},
     %% Appendix H: the type the checker gave it, in place of its annotations
     Walk1 = Walk#walk{functions = [Span | Functions]},
     {ParamForms, Walk2} = lists:mapfoldl(fun param/2, Walk1, Params),
-    {TypeForm, Walk3} = type(Type, Walk2),
+    {TypeForm, Walk3} = given_type(Type, Walk2),
     {BodyForm, Walk4} = expr(Body, Walk3),
     {{lambda, ParamForms, TypeForm, BodyForm}, Walk4#walk{scope = Scope}};
 expr_form(#e_if{condition = Condition, then_branch = Then, else_branch = Else}, Walk) ->
@@ -973,7 +1015,7 @@ literal(_, Value) -> Value.
 operation(Operator, Operand, undefined, #walk{} = Walk) ->
     case Operator =:= negate orelse lists:member(Operator, ?AT_TYPE) of
         true ->
-            {Form, Walk1} = type(ern_typecheck:node_type(Operand), Walk),
+            {Form, Walk1} = given_type(ern_typecheck:node_type(Operand), Walk),
             {{runtime, Form}, Walk1};
         false ->
             {runtime, Walk}
@@ -992,7 +1034,7 @@ statement(#fn_declaration{span = Span, name = Name} = Declaration,
 statement(#binding{pattern = Pattern, operator = '=', expr = Expr} = Binding, Walk) ->
     %% report Appendix H: the type the checker gave the value, in place of
     %% its annotation
-    {TypeForm, Walk1} = type(ern_typecheck:node_type(Expr), Walk),
+    {TypeForm, Walk1} = given_type(ern_typecheck:node_type(Expr), Walk),
     {ExprForm, Walk2} = expr(Expr, Walk1),
     {PatternForm, Walk3} = pattern(Pattern, Walk2),
     {at(Binding, {bind, TypeForm, ExprForm, PatternForm}, none), Walk3};
@@ -1001,7 +1043,7 @@ statement(#binding{pattern = Pattern, operator = '<-', expr = Expr} = Binding,
     %% report §5.5, Appendix H: the sum a `<-` unwraps, and the type of what
     %% it unwraps to, its last argument, in place of its annotation
     {tcon, [Sum], Args} = ern_typecheck:resolve_type(ern_typecheck:node_type(Expr), Env),
-    {TypeForm, Walk1} = type(lists:last(Args), Walk),
+    {TypeForm, Walk1} = given_type(lists:last(Args), Walk),
     {ExprForm, Walk2} = expr(Expr, Walk1),
     {PatternForm, Walk3} = pattern(Pattern, Walk2),
     {at(Binding, {unwrap, {named, [Sum]}, TypeForm, ExprForm, PatternForm}, none), Walk3};

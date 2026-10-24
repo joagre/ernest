@@ -4,13 +4,13 @@
 -module(ern_types).
 
 -export([new/0, fresh/1, fresh/2, fresh_named/2, restrictions/2,
-         add_restriction/3, unfixed/2, enter/1, leave/1,
+         add_restriction/3, in_value_position/2, is_unknown/2, unknown_marked/2, unfixed/2,
+         enter/1, leave/1,
          resolve/2, substitute/2, unify/3, free_variables/2,
          monomorphic/1, generalize/2, generalize/3, elided/2, instantiate/2, instance/2,
-         value_positions_marked/2, replace_variables/2,
+         unknown_instance/2, value_positions_marked/2, replace_variables/2,
          mismatch_pair/3, format/2, format_pair/3, value_variables/2, value_args/3,
-         args_in_value/3, effect_variables/1, set_scope/5, printing/1, printed_scope/1,
-         set_effect_params/2,
+         args_in_value/3, set_scope/5, printing/1, printed_scope/1, set_effect_params/2,
          format_scheme/2, format_with_requirement/3, format_call/4, format_error/1]).
 
 -export_type([type_state/0, type/0, effect/0, qualified_name/0, id/0, restrictions/0]).
@@ -19,12 +19,8 @@
 
 -type id() :: pos_integer().
 -type qualified_name() :: [atom()].
-%% value_position is the checker's own mark, beside report §3.9's two
-%% restrictions, on an effect variable that stands in a value position of a
-%% type the definition under inference holds, which ranges over types alone
-%% (§3.9); generalization drops it, and an instance marks it again from its
-%% type (value_positions_marked/2), so that no scheme holds it.
--type restriction() :: equality | process_only | value_position.
+%% Report §3.9's two inferred restrictions.
+-type restriction() :: equality | process_only.
 -type restrictions() :: [restriction()].
 -type effect() :: none | type().
 -type type() :: {tvar, id()} | {tcon, qualified_name(), [type()]} | {ttuple, [type()]}
@@ -88,6 +84,29 @@ add_restriction(Type, Restriction, TypeState) ->
         _ ->
             TypeState
     end.
+
+%% Report §3.9: whether the variable stands in a value position of a type
+%% the definition under inference holds, `m` of an instance of `self`'s
+%% type, so that none does not bind it (value_positions_marked/2).
+-spec in_value_position(id(), type_state()) -> boolean().
+in_value_position(Id, #type_state{variables = Variables}) ->
+    (maps:get(Id, Variables))#type_variable.value_position.
+
+%% Report §11.5: whether a type holds a variable that stands, at a use of a
+%% definition whose check failed, for what its signature leaves open
+%% (unknown_instance/2), so that what reads the type reports nothing of it:
+%% the definition's own error is the cause.
+-spec is_unknown(type() | none, type_state()) -> boolean().
+is_unknown(Type, #type_state{variables = Variables} = TypeState) ->
+    lists:any(fun(Id) -> (maps:get(Id, Variables))#type_variable.unknown end,
+              free_variables(Type, TypeState)).
+
+%% Report §11.5: each variable of Type marked unknown, a check that waited
+%% on an unknown one standing for what the failed definition left open as
+%% it does (is_unknown/2).
+-spec unknown_marked(type() | none, type_state()) -> type_state().
+unknown_marked(Type, TypeState) ->
+    lists:foldl(fun marked_unknown/2, TypeState, free_variables(Type, TypeState)).
 
 %% Report §3.9, §6.2: whether a type is still a variable as the definition
 %% of the current level ends: `own` where the variable is the definition's,
@@ -205,27 +224,32 @@ unify_list([Expected | ExpectedRest], [Actual | ActualRest], TypeState) ->
 %% adjustment. None against a process-only variable, or one that stands in
 %% a value position (report §3.9), fails with Reason, which says on which
 %% side of the unification, the expected or the actual, none stood.
-bind_variable(Id, _Variable, none, Reason, TypeState) ->
-    Restrictions = restrictions(Id, TypeState),
-    case lists:member(process_only, Restrictions)
-         orelse lists:member(value_position, Restrictions) of
-        true -> throw({unify_error, Reason});
-        false -> bind(Id, none, TypeState)
+bind_variable(Id, _Variable, none, Reason, #type_state{variables = Variables} = TypeState) ->
+    case maps:get(Id, Variables) of
+        #type_variable{value_position = true} -> throw({unify_error, Reason});
+        #type_variable{restrictions = Restrictions} ->
+            case lists:member(process_only, Restrictions) of
+                true -> throw({unify_error, Reason});
+                false -> bind(Id, none, TypeState)
+            end
     end;
 bind_variable(Id, _Variable, {tvar, SurvivorId}, _Reason, TypeState) ->
-    %% two variables: merge the restrictions into the survivor, keep the
-    %% lower level and the annotation's name, if only the bound one has it
-    %% (§11.5)
+    %% two variables: merge the restrictions and the marks into the
+    %% survivor, keep the lower level and the annotation's name, if only the
+    %% bound one has it (§11.5)
     #type_state{variables = Variables} = TypeState,
-    #type_variable{level = Level, restrictions = Restrictions, name = Name} =
-        maps:get(Id, Variables),
+    #type_variable{level = Level, restrictions = Restrictions, name = Name,
+                   value_position = InValue, unknown = Unknown} = maps:get(Id, Variables),
     #type_variable{level = SurvivorLevel, restrictions = SurvivorRestrictions,
-                   name = SurvivorName} = Survivor = maps:get(SurvivorId, Variables),
+                   name = SurvivorName, value_position = SurvivorInValue,
+                   unknown = SurvivorUnknown} = Survivor = maps:get(SurvivorId, Variables),
     KeptName = case SurvivorName of undefined -> Name; _ -> SurvivorName end,
     Merged = Survivor#type_variable{level = min(Level, SurvivorLevel),
                                     restrictions = lists:usort(Restrictions
                                                                ++ SurvivorRestrictions),
-                                    name = KeptName},
+                                    name = KeptName,
+                                    value_position = InValue orelse SurvivorInValue,
+                                    unknown = Unknown orelse SurvivorUnknown},
     TypeState1 = TypeState#type_state{variables = Variables#{SurvivorId => Merged}},
     bind(Id, {tvar, SurvivorId}, TypeState1);
 bind_variable(Id, Variable, Type, _Reason, TypeState) ->
@@ -233,7 +257,7 @@ bind_variable(Id, Variable, Type, _Reason, TypeState) ->
         true -> throw({unify_error, {occurs, Variable, Type}});
         false ->
             TypeState1 = adjust_levels(Id, Type, TypeState),
-            bind(Id, Type, pass_equality(Id, Type, TypeState1))
+            bind(Id, Type, pass_unknown(Id, Type, pass_equality(Id, Type, TypeState1)))
     end.
 
 %% Report §3.10: a variable with the equality restriction passes it to the
@@ -248,6 +272,21 @@ pass_equality(Id, Type, TypeState) ->
         false ->
             TypeState
     end.
+
+%% Report §11.5: an unknown variable passes the mark to the variables of
+%% the type it is bound to, which stand for what the failed definition left
+%% open as it did.
+pass_unknown(Id, Type, #type_state{variables = Variables} = TypeState) ->
+    case maps:get(Id, Variables) of
+        #type_variable{unknown = true} ->
+            lists:foldl(fun marked_unknown/2, TypeState, free_variables(Type, TypeState));
+        _ ->
+            TypeState
+    end.
+
+marked_unknown(Id, #type_state{variables = Variables} = TypeState) ->
+    Variable = maps:get(Id, Variables),
+    TypeState#type_state{variables = Variables#{Id => Variable#type_variable{unknown = true}}}.
 
 occurs(Id, Type, TypeState) ->
     case resolve(Type, TypeState) of
@@ -306,8 +345,10 @@ monomorphic(Type) -> #scheme{quantified = [], type = Type}.
 %% Quantify the variables of Type created at a deeper level than the
 %% current one, carrying their restrictions, every effect variable among
 %% them (report §3.9), but for a function's own effect that occurs nowhere
-%% else, outside a parameter, which is none (elided_own_effect/3). The mark
-%% of a value position is the body's and not the scheme's: a variable that
+%% else, outside a parameter, which is none (elided_own_effect/3); one it
+%% does not quantify, which a name in scope around the definition holds,
+%% is that name's mailbox type and stays (§3.9). The mark of a value
+%% position is the body's and not the scheme's: a variable that
 %% stands in one of the scheme's type is marked again at each instance,
 %% and one that stands in none, whose body called `self` or `monitor`
 %% without showing the address, may be none at a call (§3.9).
@@ -316,53 +357,64 @@ generalize(Type, TypeState) -> generalize(Type, [], TypeState).
 
 -spec generalize(type(), [id()], type_state()) -> {#scheme{}, type_state()}.
 generalize(Type, Keep, #type_state{level = Level, variables = Variables} = TypeState) ->
-    Elided = elided_own_effect(substitute(Type, TypeState), Keep, TypeState),
-    Ids = [Id || Id <- free_variables(Elided, TypeState),
-                 (maps:get(Id, Variables))#type_variable.level > Level
-                     orelse lists:member(Id, Keep)],
+    Quantifies = fun(Id) ->
+                     (maps:get(Id, Variables))#type_variable.level > Level
+                         orelse lists:member(Id, Keep)
+                 end,
+    Elides = fun(Id) -> Quantifies(Id) andalso not lists:member(Id, Keep) end,
+    Elided = elided_own_effect(substitute(Type, TypeState), Elides, TypeState),
+    Ids = [Id || Id <- free_variables(Elided, TypeState), Quantifies(Id)],
     Names = maps:from_list([{Id, Name} || Id <- Ids,
                                           Name <- [(maps:get(Id, Variables))#type_variable.name],
                                           Name =/= undefined]),
-    Quantified = [{Id, lists:delete(value_position,
-                                    (maps:get(Id, Variables))#type_variable.restrictions)}
-                  || Id <- Ids],
+    Quantified = [{Id, (maps:get(Id, Variables))#type_variable.restrictions} || Id <- Ids],
     {#scheme{quantified = Quantified, type = Elided, names = Names}, TypeState}.
 
 %% Report §3.9: a type with the substitution applied, each function type's
-%% own effect variable that occurs nowhere else none, as generalization
-%% writes it (elided_own_effect/3).
+%% own effect variable that occurs nowhere else none, as a type read
+%% outside generalization elides it (elided_own_effect/3).
 -spec elided(type(), type_state()) -> type().
 elided(Type, TypeState) ->
-    elided_own_effect(substitute(Type, TypeState), [], TypeState).
+    elided_own_effect(substitute(Type, TypeState), unmarked(TypeState), TypeState).
 
 %% Report §3.9, §11.5: a function type's own effect variable that occurs
-%% nowhere else in the type, unrestricted and not kept, is none, in the
-%% type itself and within its result alike, since every caller binds such a
-%% variable as it binds none; one within a parameter's type stays, since
-%% none there would refuse a function with a mailbox type where the variable
-%% admits one. Generalization and printing apply it alike.
-elided_own_effect(Type, Keep, TypeState) ->
-    elided_own_effect(Type, count_variables(Type, #{}), Keep, TypeState).
+%% nowhere else in the type, is not process-only and is one Elides takes,
+%% is none, in the type itself and within its result alike, since every
+%% caller binds such a variable as it binds none; one within a parameter's
+%% type stays, since none there would refuse a function with a mailbox
+%% type where the variable admits one. Generalization takes one it
+%% quantifies and does not keep (generalize/3); a printed type, and a type
+%% read outside generalization, one that stands in no value position of a
+%% type the definition holds (unmarked/1).
+elided_own_effect(Type, Elides, TypeState) ->
+    elided_own_effect(Type, count_variables(Type, #{}), Elides, TypeState).
 
-elided_own_effect({tfn, Params, Effect, Result}, Counts, Keep, TypeState) ->
+elided_own_effect({tfn, Params, Effect, Result}, Counts, Elides, TypeState) ->
     Kept = case Effect of
                {tvar, Id} ->
                    case maps:get(Id, Counts) =:= 1
                        andalso not lists:member(process_only, restrictions(Id, TypeState))
-                       andalso not lists:member(Id, Keep) of
+                       andalso Elides(Id) of
                        true -> none;
                        false -> Effect
                    end;
                _ ->
                    Effect
            end,
-    {tfn, Params, Kept, elided_own_effect(Result, Counts, Keep, TypeState)};
-elided_own_effect({tcon, QualifiedName, Args}, Counts, Keep, TypeState) ->
-    {tcon, QualifiedName, [elided_own_effect(Arg, Counts, Keep, TypeState) || Arg <- Args]};
-elided_own_effect({ttuple, Elements}, Counts, Keep, TypeState) ->
-    {ttuple, [elided_own_effect(Element, Counts, Keep, TypeState) || Element <- Elements]};
-elided_own_effect(Type, _Counts, _Keep, _TypeState) ->
+    {tfn, Params, Kept, elided_own_effect(Result, Counts, Elides, TypeState)};
+elided_own_effect({tcon, QualifiedName, Args}, Counts, Elides, TypeState) ->
+    {tcon, QualifiedName, [elided_own_effect(Arg, Counts, Elides, TypeState) || Arg <- Args]};
+elided_own_effect({ttuple, Elements}, Counts, Elides, TypeState) ->
+    {ttuple, [elided_own_effect(Element, Counts, Elides, TypeState) || Element <- Elements]};
+elided_own_effect(Type, _Counts, _Elides, _TypeState) ->
     Type.
+
+%% Report §3.9: the lone effect variables a type read outside
+%% generalization elides, those that stand in no value position of a type
+%% the definition holds, since a marked one is a mailbox type until its
+%% definition ends, where a call of `self` or `monitor` left it.
+unmarked(TypeState) ->
+    fun(Id) -> not in_value_position(Id, TypeState) end.
 
 count_variables({tvar, Id}, Counts) -> maps:update_with(Id, fun(Count) -> Count + 1 end, 1, Counts);
 count_variables({tcon, _, Args}, Counts) -> lists:foldl(fun count_variables/2, Counts, Args);
@@ -392,7 +444,20 @@ instantiate(Scheme, TypeState) ->
 %% names them as they are. Report §3.9: an effect variable of the instance
 %% that stands in a value position too, `m` of `self`'s, is marked so.
 -spec instance(#scheme{}, type_state()) -> {type(), [{type(), atom()}], type_state()}.
-instance(#scheme{quantified = Quantified, type = Type, requirement = Requirement}, TypeState) ->
+instance(Scheme, TypeState) ->
+    {Instance, Requirement, _, TypeState1} = replaced(Scheme, TypeState),
+    {Instance, Requirement, TypeState1}.
+
+%% Report §11.5: an instance of the scheme of a definition whose check
+%% failed, as instance/2 makes it, each variable that stands for one its
+%% signature leaves open, which no annotation names, marked unknown.
+-spec unknown_instance(#scheme{}, type_state()) -> {type(), [{type(), atom()}], type_state()}.
+unknown_instance(#scheme{names = Names} = Scheme, TypeState) ->
+    {Instance, Requirement, Replacements, TypeState1} = replaced(Scheme, TypeState),
+    Open = [NewId || Id := {tvar, NewId} <- Replacements, not is_map_key(Id, Names)],
+    {Instance, Requirement, lists:foldl(fun marked_unknown/2, TypeState1, Open)}.
+
+replaced(#scheme{quantified = Quantified, type = Type, requirement = Requirement}, TypeState) ->
     Fresh = fun({Id, Restrictions}, {Replacements, Acc}) ->
                 {Variable, Acc1} = fresh(Acc, Restrictions),
                 {Replacements#{Id => Variable}, Acc1}
@@ -401,7 +466,7 @@ instance(#scheme{quantified = Quantified, type = Type, requirement = Requirement
     Instance = replace_variables(Type, Replacements),
     {Instance,
      [{maps:get(Id, Replacements, {tvar, Id}), Member} || {Id, Member} <- Requirement],
-     value_positions_marked(Instance, TypeState1)}.
+     Replacements, value_positions_marked(Instance, TypeState1)}.
 
 %% Report §3.9: each effect variable of Type that also stands in a value
 %% position, in a signature or an instance, ranges over types alone, and is
@@ -414,9 +479,14 @@ value_positions_marked(Type, TypeState) ->
             TypeState;
         Effects ->
             Values = value_variables(Substituted, TypeState),
-            lists:foldl(fun(Id, Acc) -> add_restriction({tvar, Id}, value_position, Acc) end,
-                        TypeState, [Id || Id <- Effects, lists:member(Id, Values)])
+            lists:foldl(fun marked_in_value_position/2, TypeState,
+                        [Id || Id <- Effects, lists:member(Id, Values)])
     end.
+
+marked_in_value_position(Id, #type_state{variables = Variables} = TypeState) ->
+    Variable = maps:get(Id, Variables),
+    TypeState#type_state{variables =
+                             Variables#{Id => Variable#type_variable{value_position = true}}}.
 
 %% The type with each variable Replacements names replaced by its type.
 -spec replace_variables(type() | none, #{id() => type()}) -> type() | none.
@@ -479,8 +549,10 @@ is_variable(_) -> false.
 -spec format(type() | none, type_state()) -> string().
 format(Type, TypeState) ->
     %% report §11.5: a function's own effect variable that occurs nowhere
-    %% else, outside a parameter, and is not process-only, prints as none
-    Elided = elided_own_effect(substitute(Type, TypeState), [], TypeState),
+    %% else, outside a parameter, and is not process-only, prints as none,
+    %% but one a call of `self` or `monitor` marked while its definition is
+    %% inferred, which is a mailbox type until the definition ends (§3.9)
+    Elided = elided_own_effect(substitute(Type, TypeState), unmarked(TypeState), TypeState),
     EffectOnly = effect_only_variables(Elided, TypeState),
     {Text, _} = format_type(Elided, TypeState, #variable_names{effect_only = EffectOnly}),
     lists:flatten(Text).
@@ -494,8 +566,9 @@ format_pair(Expected, Actual, TypeState) ->
         substitute({ttuple, [Expected, Actual]}, TypeState),
     Counts = count_variables(Substituted, #{}),
     {ttuple, [ElidedExpected, ElidedActual]} = Elided =
-        {ttuple, [elided_own_effect(SubstitutedExpected, Counts, [], TypeState),
-                  elided_own_effect(SubstitutedActual, Counts, [], TypeState)]},
+        {ttuple, [elided_own_effect(SubstitutedExpected, Counts, unmarked(TypeState),
+                                    TypeState),
+                  elided_own_effect(SubstitutedActual, Counts, unmarked(TypeState), TypeState)]},
     EffectOnly = effect_only_variables(Elided, TypeState),
     Names = #variable_names{effect_only = EffectOnly},
     {ExpectedText, Names1} = format_type(ElidedExpected, TypeState, Names),
@@ -536,7 +609,6 @@ args_in_value(QualifiedName, Args, IsValue) ->
 
 %% The variable ids in effect positions of a substituted type, those after
 %% `receiving`.
--spec effect_variables(type() | none) -> [id()].
 effect_variables(Type) -> lists:usort(effect_positions(Type, [])).
 
 value_positions({tvar, Id}, _EffectParams, Acc) ->
@@ -608,7 +680,7 @@ type_name(QualifiedName, #type_state{namespace = Namespace, session_types = Sess
 -spec format_scheme(#scheme{}, type_state()) -> string().
 format_scheme(#scheme{type = Type, requirement = Requirement} = Scheme, TypeState) ->
     SchemeState = scheme_state(Scheme, TypeState),
-    Elided = elided_own_effect(substitute(Type, SchemeState), [], SchemeState),
+    Elided = elided_own_effect(substitute(Type, SchemeState), unmarked(SchemeState), SchemeState),
     EffectOnly = effect_only_variables(Elided, SchemeState),
     {Text, Names} = format_type(Elided, SchemeState, #variable_names{effect_only = EffectOnly}),
     lists:flatten([Text | requirement_text(over_variables(Requirement), SchemeState, Names)]).
@@ -617,7 +689,7 @@ format_scheme(#scheme{type = Type, requirement = Requirement} = Scheme, TypeStat
 %% use, ending in its requirement at that use, each member at its type.
 -spec format_with_requirement(type(), [{type(), atom()}], type_state()) -> string().
 format_with_requirement(Type, Requirement, TypeState) ->
-    Elided = elided_own_effect(substitute(Type, TypeState), [], TypeState),
+    Elided = elided_own_effect(substitute(Type, TypeState), unmarked(TypeState), TypeState),
     EffectOnly = effect_only_variables(Elided, TypeState),
     {Text, Names} = format_type(Elided, TypeState, #variable_names{effect_only = EffectOnly}),
     lists:flatten([Text | requirement_text([{substitute(Instance, TypeState), Member}
@@ -654,7 +726,9 @@ scheme_state(#scheme{quantified = Quantified, names = Names},
     Declare = fun({Id, Restrictions}, Acc) ->
                   Variable = maps:get(Id, Acc, #type_variable{id = Id, level = 0}),
                   Acc#{Id => Variable#type_variable{restrictions = Restrictions,
-                                                    name = maps:get(Id, Names, undefined)}}
+                                                    name = maps:get(Id, Names, undefined),
+                                                    value_position = false,
+                                                    unknown = false}}
               end,
     TypeState#type_state{variables = lists:foldl(Declare, Variables, Quantified),
                          substitution = maps:without([Id || {Id, _} <- Quantified], Substitution)}.
@@ -671,7 +745,8 @@ scheme_state(#scheme{quantified = Quantified, names = Names},
           {string(), string(), string()}.
 format_call(#scheme{type = Type} = Scheme, Params, MarkedIndex, TypeState) ->
     SchemeState = scheme_state(Scheme, TypeState),
-    case elided_own_effect(substitute(Type, SchemeState), [], SchemeState) of
+    case elided_own_effect(substitute(Type, SchemeState), unmarked(SchemeState),
+                           SchemeState) of
         {tfn, ParamTypes, Effect, Result} = Elided ->
             Names = #variable_names{effect_only = effect_only_variables(Elided, SchemeState)},
             {Shown, Names1} = lists:mapfoldl(fun(ParamType, Acc) ->
