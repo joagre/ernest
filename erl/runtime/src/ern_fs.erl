@@ -30,7 +30,7 @@ serve(Message) ->
         [] ->
             handle(Message);
         _ ->
-            [Reply] = [Field || Field <- Fields, is_reference(Field)],
+            [Reply] = [Field || Field <- Fields, ern_rt:is_reply(Field)],
             ern_rt:answer(Reply, {'Left', 'Invalid'})
     end.
 

@@ -120,7 +120,8 @@ looked(Count) ->
 %% before it ends, so what it delivered is in Recipient's mailbox then.
 -spec delivered(pid()) -> ok.
 delivered(Recipient) ->
-    Deliveries = [Pid || {{Target, _, Pid}} <- ets:tab2list(ern_deliveries), Target =:= Recipient],
+    Deliveries = [Pid || {{Target, _, Pid}, _} <- ets:tab2list(ern_deliveries),
+                         Target =:= Recipient],
     lists:foreach(fun(Pid) ->
                       MonitorRef = erlang:monitor(process, Pid),
                       receive {'DOWN', MonitorRef, process, Pid, _} -> ok end

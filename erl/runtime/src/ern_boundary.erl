@@ -202,7 +202,8 @@ arm({'fun', _, ResultDescriptor, _, Make, _}, Value, Bound) ->
     Make(Value, closed(ResultDescriptor, Bound));
 arm({address, MessageDescriptor, _}, Value, Bound) when is_pid(Value) ->
     ern_rt:held(Value, MessageDescriptor, Bound);
-arm({reply, AnswerDescriptor, _}, Value, Bound) when is_reference(Value) ->
+arm({reply, AnswerDescriptor, _}, {Alias, Pid} = Value, Bound)
+  when is_reference(Alias), is_pid(Pid) ->
     {foreign_reply, Value, AnswerDescriptor, Bound};
 arm({list, ElementDescriptor}, Value, Bound) ->
     [arm(ElementDescriptor, Item, Bound) || Item <- Value];
@@ -299,9 +300,8 @@ matches({address, never, _}, Value, _) ->
     ern_rt:is_address(Value);
 matches({address, _, _}, Value, _) ->
     ern_rt:is_address(Value) andalso not ern_rt:is_never_given(Value);
-matches({reply, _, _}, Value, _) when is_reference(Value) -> true;
-matches({reply, _, _}, {foreign_reply, Value, _, _}, _) -> is_reference(Value);
-matches({reply, _, _}, _, _) -> false;
+matches({reply, _, _}, {foreign_reply, Value, _, _}, _) -> ern_rt:is_reply(Value);
+matches({reply, _, _}, Value, _) -> ern_rt:is_reply(Value);
 matches(process, Value, _) -> is_pid(Value);
 matches({'fun', Arity, _, _, _, _}, Value, _) -> is_function(Value, Arity);
 matches(never, _, _) -> false;

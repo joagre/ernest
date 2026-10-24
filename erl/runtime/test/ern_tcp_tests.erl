@@ -139,7 +139,7 @@ close_listener_test() ->
                %% the close raced it, and the close could come first
                _ = erlang:spawn(fun() ->
                                     Reply = erlang:alias(),
-                                    Pid ! {'Accept', 5000, self(), Reply},
+                                    Pid ! {'Accept', 5000, self(), {Reply, self()}},
                                     EntryProcess ! sent,
                                     Self ! {accepted, receive {Reply, answered, Value} -> Value
                                                       after 5000 -> timeout end}

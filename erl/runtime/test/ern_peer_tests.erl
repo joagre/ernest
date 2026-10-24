@@ -299,7 +299,7 @@ no_run_test() ->
     end.
 
 -define(REACHING,
-        "let greeting : String = \"hello\"\n"
+        "let greeting : String = if true then \"hello\" else \"bye\"\n"
         "export fn speak() : Unit = Io.println(greeting)\n"
         "export fn quiet() : Unit = Unit\n"
         "export fn twice() : Unit = speak()\n"
@@ -473,7 +473,7 @@ failed_spawn_ends_no_call_test() ->
     end.
 
 -define(COMPUTED,
-        "let greeting : String = \"hello\"\n"
+        "let greeting : String = if true then \"hello\" else \"bye\"\n"
         "export fn answer() : Int = 42\n"
         "export fn divided() : Int = 1 / List.size([])\n"
         "export fn waits() : Int receiving Int = receive { n -> n }\n"
@@ -840,7 +840,7 @@ group_binding_test() ->
     Unit = 'ern@peergroup',
     Hashes = loaded(['Peergroup'],
                     "type T = T(Int)\n"
-                    "let zero : T = T(0)\n"
+                    "let zero : T = T(1 - 1)\n"
                     "fn T.compare(a : T, b : T) : Ordering = if a == zero then Less else Equal\n"
                     "export fn ordered() : Unit = { let _ = T(1) < T(2); Unit }\n"),
     Self = self(),
@@ -1042,7 +1042,7 @@ restart_asks_gateway_test() ->
            end,
     Quiet = #{stdout => fun(_) -> ok end, stderr => fun(_) -> ok end},
     ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, Quiet)),
-    ?assertEqual({told, <<"crashed">>}, receive {told, _} = Told -> Told end).
+    ?assertEqual({told, {fault, <<"crashed">>}}, receive {told, _} = Told -> Told end).
 
 crashes() ->
     receive crash -> ern_rt:fault(<<"crashed">>) end.

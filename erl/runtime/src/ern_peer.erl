@@ -36,10 +36,11 @@
 %% other shims read a table or a persistent term, or write a table.
 -receives({foreign_wait, [alias_answer/3, spawn_answer/3, given_up/2, spawner_word/2]}).
 
-%% A spawn waiting for its answer, {{Node, Ref}, Waiting, Order}, by the
-%% peer's node and the spawn's reference: the waiting process, and the
-%% row's place in the order of the node's moments as it was written, which
-%% a loss compares with its own (lost/2). Ordered, so that a peer's loss
+%% A spawn waiting for its answer, {{Node, Ref}, Caller, Order}, by the
+%% peer's node and the spawn's reference: the process that called for it,
+%% which waits for the answer, and the row's place in the order of the
+%% node's moments as it was written, which a loss compares with its own
+%% (lost/2). Ordered, so that a peer's loss
 %% reads that peer's rows alone, and an answer is taken only from the peer
 %% the spawn went to.
 -define(SPAWNS, ern_spawns).
@@ -711,12 +712,14 @@ is_present(HostModule) ->
     end.
 
 %% Whether a binding a peer names has its value here, in a unit that holds
-%% it; one whose names are no atoms here is held nowhere.
+%% it, or as a constant a unit lists, by its hash (report §4.6); one whose
+%% names are no atoms here is held nowhere but so.
 has_value(QualifiedName, Hash) ->
-    case existing_atoms(QualifiedName) of
-        none -> false;
-        Names -> ern_code:absent_binding([{Names, Hash}]) =:= none
-    end.
+    ern_code:ground({binding, QualifiedName, Hash}) =/= none
+        orelse case existing_atoms(QualifiedName) of
+                   none -> false;
+                   Names -> ern_code:absent_binding([{Names, Hash}]) =:= none
+               end.
 
 %% Report §8.7: the function a spawn or a compute frame names, as this node
 %% runs it: the unit the code table answers for its identity, one whose
@@ -828,9 +831,9 @@ absent({QualifiedName, _}) ->
 %% waits, the process it names is ended.
 answered(From, Ref, Answer) ->
     case ets:take(?SPAWNS, {node(From), Ref}) of
-        [{_, Waiting, _}] ->
-            case erlang:is_process_alive(Waiting) of
-                true -> Waiting ! {Ref, Answer};
+        [{_, Caller, _}] ->
+            case erlang:is_process_alive(Caller) of
+                true -> Caller ! {Ref, Answer};
                 false -> ended(Answer)
             end;
         [] ->
@@ -849,9 +852,9 @@ answered(From, Ref, Answer) ->
 %% own.
 -spec lost(node(), integer()) -> ok.
 lost(Node, Order) ->
-    lists:foreach(fun({{_, Ref} = Key, Waiting, _}) ->
+    lists:foreach(fun({{_, Ref} = Key, Caller, _}) ->
                       case ets:take(?SPAWNS, Key) of
-                          [_] -> Waiting ! {Ref, {failed, 'Unreachable'}};
+                          [_] -> Caller ! {Ref, {failed, 'Unreachable'}};
                           [] -> ok
                       end
                   end, ets:select(?SPAWNS, [{{{Node, '_'}, '_', '$1'}, [{'<', '$1', Order}],

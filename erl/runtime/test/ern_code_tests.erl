@@ -266,25 +266,30 @@ one_hash_in_two_units_test() ->
     ?assertEqual(none, ern_code:spawnable({hash, Hash})),
     [begin code:purge(Unit), code:delete(Unit) end || Unit <- ['ern@tablesame', 'ern@tableother']].
 
-%% report §8.7, §8.5: a binding by its identity has its value in the run in
-%% progress where its unit's initializers have run, and none where they
-%% have not, or where no unit holds it
+%% report §8.7, §8.5, §11.1: a binding by its identity has its value in the
+%% run in progress where its unit's initializers have run, and none where
+%% they have not, or where no unit holds it; a ground binding has its term
+%% wherever its unit is held, its initializers run or not (the ground case
+%% a regression test, written after the code)
 binding_value_test() ->
     Run = definitions(loaded(['Tableran'], "export let answer : Int = 6 * 7\n")),
-    NotRun = definitions(loaded(['Tablenotrun'], "export let other : Int = 1\n")),
+    NotRun = definitions(loaded(['Tablenotrun'], "export let other : Int = 1 + 1\n"
+                                                 "export let fixed : Int = 1\n")),
     Ran = {['Tableran', answer], hash(['Tableran', answer], Run)},
     Unrun = {['Tablenotrun', other], hash(['Tablenotrun', other], NotRun)},
+    Fixed = {['Tablenotrun', fixed], hash(['Tablenotrun', fixed], NotRun)},
     Unknown = {['Tableran', gone], <<0:256>>},
     Self = self(),
     Entry = fun() ->
                 Self ! {absent, [ern_code:absent_binding('ern@tableran', [Ran]),
                                  ern_code:absent_binding('ern@tablenotrun', [Unrun]),
+                                 ern_code:absent_binding('ern@tablenotrun', [Fixed]),
                                  ern_code:absent_binding('ern@tableran', [Ran, Unknown])]}
             end,
     ok = ern_rt:run_main(Entry, <<"main">>,
                          #{init => fun() -> ern_rt:init_modules(['ern@tableran']) end,
                            stdout => fun(_) -> ok end}),
-    ?assertEqual({absent, [none, Unrun, Unknown]}, receive {absent, _} = V -> V end),
+    ?assertEqual({absent, [none, Unrun, none, Unknown]}, receive {absent, _} = V -> V end),
     [begin ern_code:unloaded(Unit), code:purge(Unit), code:delete(Unit) end
      || Unit <- ['ern@tableran', 'ern@tablenotrun']].
 
@@ -367,7 +372,8 @@ compiled(Namespace, Text, Interfaces, Units) ->
 reach_read_where_the_code_reads_test() ->
     Greeter = ['Tablegreet'],
     Caller = ['Tablecaller'],
-    Greet = "let greeting : String = \"hello\"\nexport fn hello() : String = greeting\n",
+    Greet = "let greeting : String = if true then \"hello\" else \"bye\"\n"
+            "export fn hello() : String = greeting\n",
     Call = "export fn call() : String = Tablegreet.hello()\n",
     Second = #{Greeter => 'ern@tablegreet$2'},
     {_, BuildGreet, BuildGreetDefinitions} = compiled(Greeter, Greet, [], #{}),

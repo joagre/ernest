@@ -19,9 +19,9 @@ helper_ends_under_a_write_and_a_read_test() ->
                {os_pid, OsPid} = erlang:port_info(Helper, os_pid),
                erlang:suspend_process(Program),
                WriteReply = alias(),
-               Program ! {'Write', <<"x">>, 5000, WriteReply},
+               Program ! {'Write', <<"x">>, 5000, {WriteReply, self()}},
                ReadReply = alias(),
-               Program ! {'Read', 5000, ReadReply},
+               Program ! {'Read', 5000, {ReadReply, self()}},
                PortRef = erlang:monitor(port, Helper),
                _ = os:cmd("kill -9 " ++ integer_to_list(OsPid)),
                %% the port closes once the host has seen the helper end
@@ -134,7 +134,7 @@ lost_program_holds_no_timer_test() ->
                ern_rt:untimed(),
                Self ! {queued, process_info(Program, message_queue_len)},
                ReadReply = alias(),
-               Program ! {'Read', 5000, ReadReply},
+               Program ! {'Read', 5000, {ReadReply, self()}},
                Self ! {read, answer(ReadReply)}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual({message_queue_len, 0}, wait(queued)),

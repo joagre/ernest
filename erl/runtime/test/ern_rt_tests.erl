@@ -229,6 +229,44 @@ fault_reports_test() ->
 flush() ->
     receive Message -> [Message | flush()] after 0 -> [] end.
 
+%% report Appendix E.24, E.21, §11.2: a process whose function
+%% `Test.faults` gives it, ern_rt:expected/1's, is marked in its row as it
+%% begins, and its fault, a restart's among them, reaches neither a
+%% subscriber nor the runtime's reporter, whatever its site says, while a
+%% fault of a process beside it reaches both. Written with the mark (the
+%% full review's E23), which took the place of a match on the site's text
+expected_fault_told_to_no_one_test() ->
+    Self = self(),
+    Reporter = fun(Report, _Peer) -> Self ! {reported, Report} end,
+    ok = ern_rt:run_main(
+           fun() ->
+               ern_rt:faults(ern_rt:adapted(ern_rt:self(), fun(Report) -> {report, Report} end)),
+               Limit = {'RestartLimit', 1, 60000},
+               Twice = ern_rt:restarting(Limit, fun() -> 1 div zero() end),
+               Expected = ern_rt:expected(fun() ->
+                                               Self ! {row, ets:lookup(ern_processes,
+                                                                       erlang:self())},
+                                               Twice()
+                                           end),
+               _ = ern_rt:spawn_monitored(Expected, fun(Down) -> {expected, Down} end,
+                                          <<"M.main:4">>),
+               _ = ern_rt:spawn_monitored(Twice, fun(Down) -> {plain, Down} end,
+                                          <<"M.main:5">>),
+               ern_rt:timed(),
+               receive {expected, _} -> ok end,
+               receive {plain, _} -> ok end,
+               ern_waits:delivered(erlang:self()),
+               ern_rt:untimed(),
+               Self ! {heard, lists:sort([{Site, Restarted}
+                                          || {report, {'FaultReport', _, Site, _, Restarted, _,
+                                                       _}} <- flush()])}
+           end, <<"M.main">>, #{stdout => fun(_) -> ok end, faults => Reporter}),
+    ?assertMatch([{_, <<"M.main:4">>, _, _, none, true}], wait(row)),
+    ?assertEqual([{<<"M.main:5">>, false}, {<<"M.main:5">>, true}], wait(heard)),
+    ?assertEqual([<<"M.main:5">>, <<"M.main:5">>],
+                 [Site || {reported, {'FaultReport', _, Site, _, _, _, _}} <- flush()]).
+
+
 %% report §6.6, §6.9, §8.6: a call ends with the key, the monitor and the
 %% alias it made, and the timed wait it marked, however it ends: its message's
 %% function faulting, or its callee answering with a fault, as a system
@@ -240,7 +278,7 @@ call_leaves_nothing_test() ->
            fun() ->
                EntryProcess = ern_rt:self(),
                Refusing = fun() ->
-                              receive {ask, Reply} -> Reply ! {Reply, fault, <<"no">>} end,
+                              receive {ask, {Alias, _}} -> Alias ! {Alias, fault, <<"no">>} end,
                               receive never -> ok end
                           end,
                Faulting = ern_rt:spawn(Refusing, <<"M.faulting:1">>),
@@ -621,7 +659,9 @@ compute_wait_is_no_deadlock_test() ->
 late(Count) ->
     erlang:spawn(fun() ->
                      receive
-                         {ask, Reply} -> ern_waits:looked(Count), Reply ! {Reply, answered, late}
+                         {ask, {Alias, _}} ->
+                             ern_waits:looked(Count),
+                             Alias ! {Alias, answered, late}
                      end
                  end).
 
@@ -798,6 +838,126 @@ monitors_by_caller_test() ->
                ern_rt:untimed()
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual([first, other, second], wait(downs)).
+
+%% report §6.9, §9.5: a service monitor is told of each restart, its
+%% Down's reason Restarted and its site the process's spawn site, and
+%% stands to the process's end, which it is told as a monitor is; a
+%% monitor of the same process is told of the end alone; a service monitor
+%% made once the process has ended is told Unknown at once, with no site.
+%% Each restart is waited for until its new run has begun, since a message
+%% sent while a process restarts may be dropped
+service_monitor_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = erlang:self(),
+               Zero = zero(),
+               Run = fun() ->
+                         Main ! {ready, erlang:self()},
+                         receive go -> 1 div Zero end
+                     end,
+               Holder = ern_rt:spawn(ern_rt:restarting('Unlimited', Run), <<"Main.main:3">>),
+               receive {ready, Holder} -> ok end,
+               ern_rt:monitor_service(Holder, fun(Down) -> {service, Down} end),
+               ern_rt:monitor(Holder, fun(Down) -> {plain, Down} end),
+               Restarts = [begin
+                               Holder ! go,
+                               receive {ready, Holder} -> ok end,
+                               receive {service, Down} -> Down end
+                           end || _ <- [1, 2]],
+               ern_rt:kill(Holder),
+               Ended = receive {service, ServiceDown} -> ServiceDown end,
+               Plain = receive {plain, PlainDown} -> PlainDown end,
+               ern_waits:delivered(Main),
+               Left = flush(),
+               ern_rt:monitor_service(Holder, fun(Down) -> {late, Down} end),
+               Late = receive {late, LateDown} -> LateDown end,
+               Self ! {downs, {Holder, Restarts, Ended, Plain, Left, Late}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end, faults => fun(_, _) -> ok end}),
+    {Holder, Restarts, Ended, Plain, Left, Late} = wait(downs),
+    Restarted = {'Down', Holder, 'Restarted', <<"Main.main:3">>},
+    ?assertEqual([Restarted, Restarted], Restarts),
+    ?assertEqual({'Down', Holder, 'Killed', <<"Main.main:3">>}, Ended),
+    ?assertEqual(Ended, Plain),
+    ?assertEqual([], Left),
+    ?assertEqual({'Down', Holder, 'Unknown', <<>>}, Late).
+
+%% report §6.9, §9.5: a restart cancels the restarting process's own
+%% monitors, its service monitors among them, so a watcher that has
+%% restarted is told nothing of the restart of the process it watched
+service_monitor_canceled_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = erlang:self(),
+               Zero = zero(),
+               Holding = fun() ->
+                             Main ! {ready, erlang:self()},
+                             receive go -> 1 div Zero end
+                         end,
+               Holder = ern_rt:spawn(ern_rt:restarting('Unlimited', Holding), <<"Main.main:3">>),
+               receive {ready, Holder} -> ok end,
+               Watching = fun() ->
+                              case get(runs) of
+                                  undefined ->
+                                      put(runs, 1),
+                                      ern_rt:monitor_service(Holder,
+                                                             fun(Down) -> {service, Down} end),
+                                      Main ! watching,
+                                      receive go -> 1 div Zero end;
+                                  1 ->
+                                      Main ! {watching_again, erlang:self()},
+                                      receive check -> Main ! {told, flush()} end
+                              end
+                          end,
+               Watcher = ern_rt:spawn(ern_rt:restarting('Unlimited', Watching),
+                                      <<"Main.main:5">>),
+               receive watching -> ok end,
+               Watcher ! go,
+               receive {watching_again, Watcher} -> ok end,
+               Holder ! go,
+               receive {ready, Holder} -> ok end,
+               ern_waits:delivered(Watcher),
+               Watcher ! check,
+               Self ! {told, receive {told, Told} -> Told end}
+           end, <<"main">>, #{stdout => fun(_) -> ok end, faults => fun(_, _) -> ok end}),
+    ?assertEqual([], wait(told)).
+
+%% report §6.9, §9.5: demonitor ends every monitor the caller holds on a
+%% process, a service monitor beside a monitor, so the process's end tells
+%% the caller nothing of them, while a monitor made after the demonitor is
+%% told, which shows the end was taken; a Down already in the caller's
+%% mailbox stays; and a demonitor of a process the caller does not
+%% monitor does nothing. It does not cover a Down on its way as the
+%% demonitor is made, which no test can place there at will
+demonitor_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = erlang:self(),
+               Spawn = fun(Site) -> ern_rt:spawn(fun() -> receive go -> ok end end, Site) end,
+               Ended = Spawn(<<"Main.main:3">>),
+               ern_rt:monitor(Ended, fun(Down) -> {ended, Down} end),
+               ern_rt:monitor(Ended, fun(Down) -> {ended, Down} end),
+               Ended ! go,
+               receive {ended, _} -> ok end,
+               ern_waits:delivered(Main),
+               'Unit' = ern_rt:demonitor(Ended),
+               Watched = Spawn(<<"Main.main:6">>),
+               ern_rt:monitor(Watched, fun(Down) -> {plain, Down} end),
+               ern_rt:monitor_service(Watched, fun(Down) -> {service, Down} end),
+               'Unit' = ern_rt:demonitor(Watched),
+               Unwatched = Spawn(<<"Main.main:9">>),
+               'Unit' = ern_rt:demonitor(Unwatched),
+               ern_rt:monitor(Watched, fun(Down) -> {late, Down} end),
+               ern_rt:kill(Watched),
+               Late = receive {late, LateDown} -> LateDown end,
+               ern_waits:delivered(Main),
+               Self ! {demonitored, {Ended, Watched, Late, flush()}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    {Ended, Watched, Late, Left} = wait(demonitored),
+    ?assertEqual({'Down', Watched, 'Killed', <<"Main.main:6">>}, Late),
+    ?assertEqual([{ended, {'Down', Ended, 'Returned', <<"Main.main:3">>}}], Left).
 
 %% report §6.9, §8.6: the runtime keeps nothing of a process that has
 %% ended, so a monitor made after its end answers Unknown with no spawn
@@ -2364,7 +2524,8 @@ asked_monitor_goes_with_its_asker() ->
 %% before the entry process's end among them however late the reaper
 %% learns of them: a chain of processes each waiting on the next in
 %% `callForever`, the last dividing by zero, faults whole, each of its
-%% faults reported, the entry process's last. Here the reporter holds the
+%% faults reported, the entry process's last, each cause the callee's with
+%% the callee's site after it (§6.6). Here the reporter holds the
 %% reaper in the first report until the entry process has ended, so that
 %% the reaper learns of the others' ends after it. A regression test,
 %% written after the code: the reaper took a fault it learned of after the
@@ -2386,10 +2547,13 @@ faults_before_the_end_are_reported_test() ->
                     A = ern_rt:spawn(Next(B), <<"Main.main:5">>),
                     (Next(A))()
                 end, <<"main">>, #{stdout => fun(_) -> ok end, faults => Reporter}),
-    ?assertMatch({fault, <<"division by zero">>, _}, Outcome),
-    Cause = <<"division by zero">>,
-    ?assertEqual([{<<"Main.main:3">>, Cause}, {<<"Main.main:4">>, Cause},
-                  {<<"Main.main:5">>, Cause}, {<<"main">>, Cause}],
+    OfC = <<"division by zero">>,
+    OfB = <<OfC/binary, ", the fault of the callee Main.main:3">>,
+    OfA = <<OfB/binary, ", the fault of the callee Main.main:4">>,
+    OfMain = <<OfA/binary, ", the fault of the callee Main.main:5">>,
+    ?assertMatch({fault, OfMain, _}, Outcome),
+    ?assertEqual([{<<"Main.main:3">>, OfC}, {<<"Main.main:4">>, OfB},
+                  {<<"Main.main:5">>, OfA}, {<<"main">>, OfMain}],
                  [wait(reported) || _ <- [c, b, a, main]]).
 
 %% The reaper held in a fault's report until the entry process has ended.

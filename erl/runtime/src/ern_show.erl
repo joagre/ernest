@@ -112,7 +112,10 @@ represented(Value, Limits) when is_binary(Value) ->
     end;
 represented(Pid, _) when is_pid(Pid) -> address(Pid);
 %% a Reply and an address foreign code gave (ern_rt)
-represented({foreign_reply, Reply, _, _}, _) when is_reference(Reply) -> "<reply>";
+represented({foreign_reply, Reply, _, _}, _) -> case ern_rt:is_reply(Reply) of
+                                                    true -> "<reply>";
+                                                    false -> "<foreign>"
+                                                end;
 represented({foreign, Pid, _, _} = Address, _) when is_pid(Pid) -> address(Address);
 represented(Function, _) when is_function(Function) -> "<function>";
 represented(Value, #limits{depth = 0}) when is_list(Value); is_tuple(Value); is_map(Value) ->

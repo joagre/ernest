@@ -9,7 +9,9 @@
 %% function and arity and its reach, each type by its hash, each top-level
 %% binding by its identity, its qualified name with its hash, with the key
 %% its value is kept under (§8.5), and, whose initializer is a ground term,
-%% with its value under `{term, QualifiedName, Hash}` (§11.1), each foreign
+%% a constant (§4.6), its getter and its value under `{constant, Hash}`,
+%% since one form is one value whichever binding holds it (§11.1), each
+%% foreign
 %% declaration's
 %% implementation and function by its qualified name as text, as a spawn
 %% frame names it, and, in the unit's own row, the units its code calls. A
@@ -44,12 +46,11 @@
 -module(ern_code).
 
 -export([ensure_loaded/1, own_file/1, load/3, loaded/2, loaded/3, unloaded/1, spawnable/1,
-         holders/1, linkable/1, valued/1, ground/1, forms/1, called/1, absent_binding/1,
-         absent_binding/2,
-         foreign/2, declared/1, declared/2, present/1, function/2, function_text/3,
-         value_text/1, is_free/1,
-         is_held/2, fresh_unit/1, unit_beside/2, placement/4, running/1, hashes/1,
-         binding_keys/1, nearing/0, nearing/1, nearing/2, line/3, counts/0]).
+         holders/1, linkable/1, valued/1, ground/1, grounded/1, forms/1, called/1, absent_binding/1,
+         absent_binding/2, foreign/2, declared/1, declared/2, present/1, function/2,
+         function_text/3, value_text/1, is_free/1, is_held/2, fresh_unit/1, unit_beside/2,
+         placement/4, running/1, hashes/1, binding_keys/1, nearing/0, nearing/1, nearing/2, line/3,
+         counts/0]).
 
 -include_lib("checker/include/ern_canonical.hrl").
 -include_lib("kernel/include/file.hrl").
@@ -237,8 +238,8 @@ rows(Unit, _, {lambda, Hash, Position, Function, Arity, Reach}) ->
     [{{lambda, Hash, Position}, Unit, {function, Function, Arity, Reach}}];
 rows(Unit, QualifiedName, {binding, Hash, Key}) ->
     [{{binding, QualifiedName, Hash}, Unit, {binding, Key}}, {{hash, Hash}, Unit, binding}];
-rows(Unit, QualifiedName, {term, Hash, Term}) ->
-    [{{term, QualifiedName, Hash}, Unit, Term}];
+rows(Unit, _, {term, Hash, Getter, Term}) ->
+    [{{constant, Hash}, Unit, {Getter, Term}}];
 rows(Unit, _, {type, Hash}) ->
     [{{hash, Hash}, Unit, type}];
 rows(Unit, QualifiedName, {foreign, HostModule, HostFunction, Function, Arity}) ->
@@ -345,10 +346,22 @@ valued(Key) ->
 %% a unit an exchange makes holds where its code reads the binding; none
 %% for any other binding. One identity is one form, so every unit that
 %% holds it lists one value.
--spec ground({binding, [atom()], binary()}) -> {term, term()} | none.
-ground({binding, QualifiedName, Hash}) ->
-    case lookup({term, QualifiedName, Hash}) of
-        [{_, _, Term} | _] -> {term, Term};
+-spec ground({binding, [atom() | binary()], binary()}) -> {term, term()} | none.
+ground(Binding) ->
+    case grounded(Binding) of
+        {_, _, Term} -> {term, Term};
+        none -> none
+    end.
+
+%% Report §4.6, §8.7: the same with the unit that lists it, the first loaded
+%% of those, and its getter, which a unit that reads the value names as it
+%% would read it, its code calling that unit (ern_arrival); none for a
+%% binding no unit lists so. A constant's value is its form's, so it is
+%% found by its hash whatever the binding's name.
+-spec grounded({binding, [atom() | binary()], binary()}) -> {module(), atom(), term()} | none.
+grounded({binding, _, Hash}) ->
+    case lookup({constant, Hash}) of
+        [{_, Unit, {Getter, Term}} | _] -> {Unit, Getter, Term};
         [] -> none
     end.
 
@@ -429,10 +442,13 @@ called([Unit | Units], Called) ->
 %% without its value in the run in progress in every unit that holds it,
 %% or none: what a peer that lacks a function asks of the bindings its
 %% reach names before any of its code crosses (§8.7, The exchange), where
-%% no unit of this node runs the function yet.
+%% no unit of this node runs the function yet. Report §4.6: a constant has
+%% its value wherever its form is, which a unit lists with its value
+%% (ground/1), evaluated nowhere.
 -spec absent_binding([{[atom()], binary()}]) -> {[atom()], binary()} | none.
 absent_binding(Bindings) ->
     case [Binding || {QualifiedName, Hash} = Binding <- Bindings,
+                     lookup({constant, Hash}) =:= [],
                      not lists:any(fun({_, Holder, {binding, Key}}) ->
                                            ern_rt:binding_value(Holder, Key) =/= absent
                                    end, lookup({binding, QualifiedName, Hash}))] of
@@ -444,8 +460,9 @@ absent_binding(Bindings) ->
 %% identity, without its value in the run in progress as the code of Unit
 %% reads it, or none. It is read in the units Unit's code calls (called/1)
 %% that hold it, and has its value where each of them has been initialized
-%% and gave it one (§8.5); one no such unit holds has none here. Nothing is
-%% initialized because a peer asked.
+%% and gave it one (§8.5), or where one of them lists it as a constant with
+%% its value (§4.6, ground/1); one no such unit holds has none here. Nothing
+%% is initialized because a peer asked.
 -spec absent_binding(module(), [{[atom()], binary()}]) -> {[atom()], binary()} | none.
 absent_binding(_Unit, []) ->
     none;
@@ -457,6 +474,10 @@ absent_binding(Unit, Bindings) ->
     end.
 
 has_value({QualifiedName, Hash}, Called) ->
+    lists:any(fun({_, Holder, _}) -> is_map_key(Holder, Called) end, lookup({constant, Hash}))
+        orelse held_with_value(QualifiedName, Hash, Called).
+
+held_with_value(QualifiedName, Hash, Called) ->
     case [Row || {_, Holder, _} = Row <- lookup({binding, QualifiedName, Hash}),
                  is_map_key(Holder, Called)] of
         [] -> false;
