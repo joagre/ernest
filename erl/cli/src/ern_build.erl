@@ -693,10 +693,14 @@ member_clash(#build_module{namespace = [_, _ | _] = Namespace, file = File,
         [{Span, Name} | _] ->
             %% report §11.5: the module that declares the type, by its
             %% name, which a source or a .erc may hold
-            Message = ern_namespace:text(Namespace ++ [Name]) ++ " is a member of the type "
-                ++ atom_to_list(Type) ++ " in the module " ++ ern_namespace:text(Parent),
+            QualifiedName = ern_namespace:text(Namespace ++ [Name]),
+            Message = QualifiedName ++ " is a member of the type " ++ atom_to_list(Type)
+                ++ " in the module " ++ ern_namespace:text(Parent),
+            %% the help says the value is that name too, and names the fix
+            Help = "this module's " ++ atom_to_list(Name) ++ " is " ++ QualifiedName
+                ++ " too; rename it",
             throw({errors, File, [#diagnostic{span = ern_diagnostic:span(Span),
-                                              message = Message}]})
+                                              message = Message, help = Help}]})
     end;
 member_clash(_, _) ->
     ok.

@@ -87,7 +87,8 @@
               groups = #{}, typed = [], diagnostics = [], let_order = [],
               generalizing = false, provided = [], inferring = [], requirement = [], failed = [],
               signature = [], definition, private_types = #{}, identities = #{},
-              reaches = #{}, positions = #{}, terms = #{}, foreign = #{}, declaring = #{}}).
+              reaches = #{}, positions = #{}, terms = #{}, foreign = #{}, declaring = #{},
+              uses = #{}}).
 %% declaring: the namespace of the module that declares each value of the
 %% modules given, by qualified name, which their interfaces hold, so that
 %% `M.T.f` is told M's member of its type T from the module M.T's f
@@ -114,12 +115,19 @@
 %% is a ground term, by qualified name, which their interfaces hold and a
 %% dependent's code holds where it reads it (ground_term/2, report §11.1);
 %% the checker reads none
+%% uses: the uses of each definition under inference, by its placeholder's
+%% variable, newest first, each with whether its result type was still
+%% undetermined there, the last such the use that gave it, which labels a
+%% body that disagrees (giving_use/4, report §11.5)
 -opaque env() :: #env{}.
 
 %% What fixes the mailbox where an expression stands, which an effect error
 %% names (report §11.5): what receives nothing or has the mailbox, "f",
 %% "the lambda", "a guard", or top_let for a top-level `let`, whose mailbox
-%% is Never; the span that made it so, its label, and what to do.
+%% is Never; the span that made it so, its label, undefined where no
+%% annotation made it so, and what to do, which for a function written
+%% `: T` is {receiving, Name, Entry}, its help naming the mailbox type the
+%% error needs (help/2).
 -record(effect_origin, {what, span, label, help}).
 
 %% The equality constraint an instance carries, checked when its
@@ -135,13 +143,17 @@
 %% result; and a `<-` whose sum type is (§5.5). What a requirement is
 %% supplied with, and what `Io.show` writes by (§4.9, Appendix E.1), waits
 %% in the typed AST as a #pending_member{}. settled: the span of the
-%% unification that fixed the operand type, a label of the mismatch (§11.5).
--record(deferred_operator, {span, operator, operand_type, result, origin, settled}).
--record(deferred_selection, {span, field, operand_type, result, origin, settled}).
--record(deferred_bind_arrow, {span, spans, expr_type, pattern_type, rest_type, fixed}).
+%% unification that fixed the operand type, a label of the mismatch (§11.5);
+%% annotated: the local whose annotation would fix the operand's type,
+%% which the request to annotate names, or undefined (annotatable/1).
+-record(deferred_operator, {span, operator, operand_type, result, origin, settled, annotated}).
+-record(deferred_selection, {span, field, operand_type, result, origin, settled, annotated}).
+-record(deferred_bind_arrow, {span, spans, expr_type, pattern_type, rest_type, fixed, bound}).
+%% bound: the names the `<-`'s pattern binds, which a type its mismatch
+%% prints beside it does not give its variables (§11.5)
 %% A `receive` guard's ordering whose operand type is still a variable
 %% (report §6.3), checked once the type is known.
--record(deferred_guard_order, {span, operator, operand_type}).
+-record(deferred_guard_order, {span, operator, operand_type, annotated}).
 
 %% What the checks after inference need of a definition: its scope as it
 %% ends, since a deferred operator calls its member under the definition's
@@ -366,26 +378,28 @@ no_alias(Declarations, #env{types = Types} = Env) ->
 %% refused where it is checked. Every other name the module compiles to is
 %% a name of §2.3's length or the emitter's own, which it cuts to fit.
 host_names(Declarations) ->
-    Members = [{Span, MemberOf, Name}
+    Members = [{Span, MemberOf, Name, "member"}
                || #fn_declaration{span = Span, member_of = MemberOf, name = Name} <- Declarations,
                   MemberOf =/= undefined]
-        ++ [{Span, MemberOf, Name}
+        ++ [{Span, MemberOf, Name, "member"}
             || #foreign_fn_declaration{span = Span, member_of = MemberOf, name = Name}
                    <- Declarations,
                MemberOf =/= undefined]
-        ++ [{Span, Name, compare}
+        ++ [{Span, Name, compare, "derived member"}
             || #type_declaration{name = Name, derives = Span} <- declared_types(Declarations),
                Span =/= undefined],
-    lists:foreach(fun({Span, MemberOf, Name}) ->
+    lists:foreach(fun({Span, MemberOf, Name, Kind}) ->
                       Function = atom_to_list(MemberOf) ++ "." ++ atom_to_list(Name),
                       length(Function) =< ern_namespace:host_name_limit()
-                          orelse fail(Span, host_member_text(Function), [],
+                          orelse fail(Span, host_member_text(Kind, Name, Function), [],
                                       host_member_help(MemberOf, Function))
                   end, Members).
 
-host_member_text(Function) ->
-    ern_namespace:host_name_text("the member's Erlang name, its type's and its own joined by"
-                                 " `.`,", Function).
+%% Report §11.5: the member named, its kind and its name, since the caret
+%% under `derives compare` names it nowhere else.
+host_member_text(Kind, Name, Function) ->
+    ern_namespace:host_name_text("the Erlang name of the " ++ Kind ++ " " ++ atom_to_list(Name)
+                                 ++ ", its type's name and its own joined by `.`,", Function).
 
 host_member_help(MemberOf, Function) ->
     Most = length(atom_to_list(MemberOf)) - (length(Function) - ern_namespace:host_name_limit()),
@@ -916,8 +930,8 @@ at_parameters(#t_named{span = Span, namespace = Namespace, name = Named, args = 
                     Written = [Name || #t_var{name = Name} <- Args],
                     Written =:= Params
                         orelse fail(ern_ast:span(Annotation),
-                                    atom_to_list(Named) ++ " is named at " ++ atom_to_list(Named)
-                                    ++ "(" ++ Listed(Written) ++ ") in " ++ Where
+                                    atom_to_list(Named) ++ " is named at "
+                                    ++ arguments_text(Listed(Written), Written) ++ " in " ++ Where
                                     ++ ", and a type of a recursive group is named in its fields"
                                     " at the declaring type's parameters, each in its place, ("
                                     ++ Listed(Params) ++ ")", [],
@@ -943,6 +957,11 @@ at_parameters(#t_fn{params = FnParams, result_type = Result, effect = Effect}, D
 at_parameters(_, _, _, _, _) ->
     ok.
 
+%% Report §11.5: the arguments a type is named at, as the message names
+%% them: one alone, `b`, and several in parentheses, `(b, a)`.
+arguments_text(Text, [_]) -> Text;
+arguments_text(Text, _) -> "(" ++ Text ++ ")".
+
 %% Report §11.5: the fix, the type named at the declaring type's parameters,
 %% held in the type it was named at where that one takes it, `List(Nest(a))`
 %% for `Nest(List(a))`; where the arities differ, the parameters alone.
@@ -964,9 +983,9 @@ is_parameter(#t_var{name = Name}, Params) ->
 is_parameter(_, _) ->
     false.
 
-declare_type_name(#type_declaration{span = Span, name = Name, params = Params,
+declare_type_name(#type_declaration{name_span = NameSpan, name = Name, params = Params,
                                     param_spans = ParamSpans}, Env) ->
-    not_prelude(Span, Name),
+    not_prelude(NameSpan, Name),
     distinct_parameters(Name, Params, ParamSpans),
     QualifiedName = Env#env.namespace ++ [Name],
     {Variables, Env1} = parameter_variables(Params, Env),
@@ -983,10 +1002,11 @@ parameter_variables(Params, #env{type_state = TypeState} = Env) ->
 
 %% Report §4.7: a foreign type, whose parameters written `k=` require
 %% equality.
-declare_foreign_type(#foreign_type_declaration{span = Span, name = Name, params = Params,
-                                               param_spans = ParamSpans, equality = Equality},
+declare_foreign_type(#foreign_type_declaration{name_span = NameSpan, name = Name,
+                                               params = Params, param_spans = ParamSpans,
+                                               equality = Equality},
                      Env) ->
-    not_prelude(Span, Name),
+    not_prelude(NameSpan, Name),
     distinct_parameters(Name, Params, ParamSpans),
     QualifiedName = Env#env.namespace ++ [Name],
     RequiresEquality = case lists:member(true, Equality) of
@@ -1093,8 +1113,9 @@ type_declaration_of(#type_declaration{} = TypeDeclaration) -> [TypeDeclaration];
 type_declaration_of(#abstract_declaration{declaration = TypeDeclaration}) -> [TypeDeclaration];
 type_declaration_of(_) -> [].
 
-%% Report §4.2: `Prelude.X` names the prelude's X, so no type is Prelude.
-%% A type declared twice is declared_twice/1's to refuse, before any is.
+%% Report §4.2: `Prelude.X` names the prelude's X, so no type is Prelude,
+%% refused at the name. A type declared twice is declared_twice/1's to
+%% refuse, before any is.
 not_prelude(Span, 'Prelude') ->
     fail(Span, "Prelude names the prelude, and a type may not take it");
 not_prelude(_, _) ->
@@ -1293,6 +1314,10 @@ replace_typed(Declaration, Typed) ->
         [] -> Declaration
     end.
 
+%% Where a declaration's name stands, a member's `Color.negate` whole.
+name_span(#fn_declaration{name_span = NameSpan}) -> NameSpan;
+name_span(#foreign_fn_declaration{name_span = NameSpan}) -> NameSpan.
+
 declaration_key(#fn_declaration{member_of = MemberOf, name = Name}) -> {MemberOf, Name};
 declaration_key(#let_declaration{name = Name}) -> {undefined, Name};
 declaration_key(#foreign_fn_declaration{member_of = MemberOf, name = Name}) -> {MemberOf, Name};
@@ -1303,12 +1328,13 @@ value_qualified_name(#env{namespace = Namespace}, MemberOf, Name) -> Namespace +
 
 register_value_name(Declaration, #env{local_values = LocalValues} = Env) ->
     {MemberOf, Name} = declaration_key(Declaration),
-    Span = ern_ast:span(Declaration),
     Key = local_key(MemberOf, Name),
-    %% report §11.2: at the prompt, a member of a type the session declares
+    %% report §11.2: at the prompt, a member of a type the session declares;
+    %% report §11.5: one of no such type is refused at its name
     Declared = MemberOf =:= undefined orelse maps:is_key(MemberOf, Env#env.local_types)
                    orelse session_name(types, MemberOf, Env) =/= error,
-    Declared orelse fail(Span, atom_to_list(MemberOf) ++ " is not a type declared in this module"),
+    Declared orelse fail(name_span(Declaration),
+                         atom_to_list(MemberOf) ++ " is not a type declared in this module"),
     QualifiedName = value_qualified_name(Env, MemberOf, Name),
     Lets = case Declaration of
                #let_declaration{} -> (Env#env.lets)#{QualifiedName => true};
@@ -1678,11 +1704,13 @@ call_scheme(Span, Name, Variable, #env{type_state = TypeState} = Env) ->
                     {ern_types:monomorphic(ern_types:substitute(Variable, TypeState1)),
                      TypeState1};
                 false ->
-                    fail(Span, "the type of " ++ atom_to_list(Name) ++ " is not determined ("
-                               ++ ern_types:format(Variable, TypeState1)
-                               ++ "), and a top-level `let` whose initializer is no value is"
-                               " not generalized where its type holds " ++ Held
-                               ++ "; annotate it")
+                    Text = atom_to_list(Name),
+                    fail(Span, "the type of " ++ Text ++ ", "
+                               ++ ern_types:format(Variable, TypeState1) ++ ", is not determined,"
+                               " and a top-level `let` whose initializer is no value is not"
+                               " generalized where its type holds " ++ Held, [],
+                         "annotate it, `let " ++ Text ++ " : "
+                         ++ ern_types:format_annotation(Variable, TypeState1) ++ " = ...`")
             end
     end.
 
@@ -1816,7 +1844,10 @@ member_shape(Declaration, #scheme{type = {tfn, Params, Effect, ResultType}} = Sc
                     Shown = fun(Type) ->
                                 ern_types:format_scheme(Scheme#scheme{type = Type}, TypeState)
                             end,
-                    fail(ern_ast:span(Declaration),
+                    Breaking = shape_span(Declaration, Params, MemberOfType, Arity,
+                                          ern_types:substitute(Effect, TypeState) =/= none,
+                                          TypeState),
+                    fail(Breaking,
                          ern_namespace:text([lists:last(TypeQualifiedName), Member])
                          ++ " must have the type " ++ Shown(Expected) ++ ", not "
                          ++ Shown(Scheme#scheme.type), [], Help)
@@ -1824,6 +1855,28 @@ member_shape(Declaration, #scheme{type = {tfn, Params, Effect, ResultType}} = Sc
     end;
 member_shape(_, _, _) ->
     ok.
+
+%% Report §11.5: the part of a member's declaration that breaks its shape:
+%% the first parameter not of its type or past its arity, else the
+%% `receiving` of one that receives, else the declaration whole, which has
+%% too few parameters or a result of another type.
+shape_span(Declaration, Params, MemberOfType, Arity, Receives, TypeState) ->
+    {Written, Effect} = case Declaration of
+                            #fn_declaration{params = FnParams, effect = FnEffect} ->
+                                {FnParams, FnEffect};
+                            #foreign_fn_declaration{params = ForeignParams,
+                                                    effect = ForeignEffect} ->
+                                {ForeignParams, ForeignEffect}
+                        end,
+    Breaking = [Span || {Index, #param{span = Span}, Type}
+                            <- lists:zip3(lists:seq(1, length(Written)), Written, Params),
+                        Index > Arity
+                            orelse ern_types:substitute(Type, TypeState) =/= MemberOfType],
+    case {Breaking, Receives andalso Effect =/= undefined} of
+        {[Span | _], _} -> Span;
+        {[], true} -> ern_ast:span(Effect);
+        {[], false} -> ern_ast:span(Declaration)
+    end.
 
 %% The type and the member a declaration names by an operator, compare, or
 %% negate, or none.
@@ -2200,8 +2253,8 @@ check_value(#fn_declaration{span = Span, params = Params, result_type = ResultAn
     Env2 = unify_at(Span, Placeholder, FunctionType, Env1#env{type_state = TypeState},
                     "recursive use does not match the definition"),
     TypeState1 = Env2#env.type_state,
-    Origin = effect_origin(declaration_name(Declaration), ResultAnnotation, Effect, ResultType,
-                           EffectType, TypeState1),
+    Origin = effect_origin({declaration_name(Declaration), is_entry(Declaration)},
+                           ResultAnnotation, Effect, ResultType, EffectType, TypeState1),
     %% report §4.9: the declaration's requirement is in force in its body,
     %% beside the enclosing declarations' for the variables it shares
     Name = declaration_name(Declaration),
@@ -2221,7 +2274,8 @@ check_value(#fn_declaration{span = Span, params = Params, result_type = ResultAn
                                   ++ Env#env.requirement,
                     signature = Signature ++ Env#env.signature, definition = {fn, Name}},
     early_compare_shape(Declaration, ResultAnnotation, FunctionType, Env3),
-    {TypedBody, Env4} = checked_body(Body, ResultAnnotation, ResultType, Name, Env3),
+    {TypedBody, Env4} = checked_body(Body, ResultAnnotation, ResultType, {Name, Placeholder},
+                                     Env3),
     Env5 = unify_at(Span, Placeholder, FunctionType, Env4,
                     "recursive use does not match the definition"),
     {Declaration#fn_declaration{params = TypedParams, requirement = Members, body = TypedBody},
@@ -2379,7 +2433,8 @@ param_annotation(Annotation, Pattern, PatternType, AnnotationVariables, Env) ->
     {AnnotationType, Extended, TypeState} = annotation_type(Annotation, AnnotationVariables, Env),
     Annotated = Env#env{type_state = TypeState},
     {Extended, unify_at(ern_ast:span(Pattern), AnnotationType, PatternType, Annotated,
-                        "the parameter pattern does not fit its annotation",
+                        {pattern, "the parameter pattern does not fit its annotation",
+                         bound_names(Pattern)},
                         annotation_origin(Annotation, AnnotationType, Annotated))}.
 
 %% The result type and the effect a function's annotation writes, fresh
@@ -2400,17 +2455,30 @@ result_types(ResultAnnotation, Effect, AnnotationVariables, Env) ->
 %% against a variable of its own, since its result type is no fresh one:
 %% an earlier use, or the body's own recursive one, may have given it a
 %% type, and the body that disagrees is the mismatch.
-checked_body(Body, undefined, ResultType, Name, Env) ->
+checked_body(Body, undefined, ResultType, {Name, Placeholder}, Env) ->
     {Fresh, TypeState} = ern_types:fresh(Env#env.type_state),
     {TypedBody, BodyType, Env1} =
         check_expr(Body, Fresh, undefined, undefined, Env#env{type_state = TypeState}),
     {TypedBody, unify_at(ern_ast:span(Body), ResultType, BodyType, Env1,
-                         "the body does not have the result type " ++ Name ++ "'s uses give it")};
-checked_body(Body, ResultAnnotation, ResultType, _Name, Env) ->
+                         "the body does not have the result type " ++ Name ++ "'s uses give it",
+                         giving_use(Name, Placeholder, ResultType, Env1))};
+checked_body(Body, ResultAnnotation, ResultType, _Named, Env) ->
     {TypedBody, _, Env1} =
         check_expr(Body, ResultType, "the body does not have the declared result type",
                    result_origin(ResultAnnotation, ResultType, Env), Env),
     {TypedBody, Env1}.
+
+%% Report §11.5: the use that gave a definition its result type, the last
+%% at which the result was still undetermined, as the label of a body that
+%% disagrees; undefined where no use gave it one.
+giving_use(Name, {tvar, Id}, ResultType, #env{uses = Uses, type_state = TypeState}) ->
+    case [Span || {Span, true} <- maps:get(Id, Uses, [])] of
+        [Span | _] ->
+            {Span, "this use gives " ++ Name ++ "'s result as "
+                   ++ ern_types:format(ResultType, TypeState)};
+        [] ->
+            undefined
+    end.
 
 result_rule(undefined, _Rule) -> undefined;
 result_rule(_ResultAnnotation, Rule) -> Rule.
@@ -2427,17 +2495,26 @@ annotation_origin(Annotation, AnnotationType, Env) ->
 %% Report §11.5: the labels an error carries. A result annotation is the
 %% origin of the body's expected type; a `receiving`, or a result type
 %% without one, is the origin of the function's effect.
-effect_origin(_Name, undefined, undefined, _ResultType, _EffectType, _TypeState) -> undefined;
-effect_origin(Name, ResultAnnotation, undefined, ResultType, _EffectType, TypeState) ->
+%% {Name, Entry}: what the function is named in an error, and whether it is
+%% an entry point (§8.1), whose help differs.
+effect_origin(_Named, undefined, undefined, _ResultType, _EffectType, _TypeState) -> undefined;
+effect_origin({Name, Entry}, ResultAnnotation, undefined, ResultType, _EffectType, TypeState) ->
     #effect_origin{what = Name, span = ern_ast:span(ResultAnnotation),
                    label = "`: " ++ ern_types:format(ResultType, TypeState)
                            ++ "` without `receiving` declares that " ++ Name
                            ++ " receives nothing",
-                   help = "give " ++ Name ++ " its mailbox type with `receiving`"};
-effect_origin(Name, _ResultAnnotation, Effect, _ResultType, EffectType, TypeState) ->
+                   help = {receiving, Name, Entry}};
+effect_origin({Name, _Entry}, _ResultAnnotation, Effect, _ResultType, EffectType, TypeState) ->
     #effect_origin{what = Name, span = ern_ast:span(Effect),
                    label = Name ++ " is declared `receiving "
                            ++ ern_types:format(EffectType, TypeState) ++ "` here"}.
+
+%% Report §8.1: an exported `main` of no parameters is the entry point a
+%% module's run starts, which `--main` may name otherwise.
+is_entry(#fn_declaration{export = true, member_of = undefined, name = main, params = []}) ->
+    true;
+is_entry(_) ->
+    false.
 
 %% Report §4.5: whether a function, a `fn` or a lambda, is written `: T`
 %% without `receiving`, over whose body a call of `self` or `monitor`
@@ -2695,8 +2772,8 @@ earliest(Items) ->
 -spec unresolved(tuple(), env()) -> no_return().
 unresolved(#deferred_bind_arrow{span = Span}, _Env) ->
     fail(Span, "`<-` needs to know whether the value is an Either or an Optional; annotate it");
-unresolved(#deferred_operator{span = Span, operator = Operator, operand_type = OperandType},
-           Env) ->
+unresolved(#deferred_operator{span = Span, operator = Operator, operand_type = OperandType,
+                              annotated = Annotated}, Env) ->
     %% report §4.9: on a type variable of the signature, its member is the
     %% requirement's to name; report §4.8: resolution precedes
     %% generalization
@@ -2709,12 +2786,13 @@ unresolved(#deferred_operator{span = Span, operator = Operator, operand_type = O
                  requirement_help(Wanted, Declaration));
         none ->
             fail(Span, "the operand type of `" ++ atom_to_list(Operator)
-                       ++ "` is not determined; annotate it")
+                       ++ "` is not determined; " ++ annotate_text(Annotated))
     end;
-unresolved(#deferred_guard_order{span = Span, operator = Operator}, _Env) ->
+unresolved(#deferred_guard_order{span = Span, operator = Operator, annotated = Annotated}, _Env) ->
     fail(Span, "the operand type of `" ++ atom_to_list(Operator)
-               ++ "` is not determined; annotate it");
-unresolved(#deferred_selection{span = Span, field = Field, operand_type = OperandType}, Env) ->
+               ++ "` is not determined; " ++ annotate_text(Annotated));
+unresolved(#deferred_selection{span = Span, field = Field, operand_type = OperandType,
+                               annotated = Annotated}, Env) ->
     %% report §11.5: a type variable of the signature is determined and has
     %% no field; report §4.9: a member the requirement names on it is
     %% written on the variable
@@ -2725,8 +2803,20 @@ unresolved(#deferred_selection{span = Span, field = Field, operand_type = Operan
                  written_on_variable(Variable, Field, OperandType, Env));
         none ->
             fail(Span, "the type whose field " ++ atom_to_list(Field)
-                       ++ " is read is not determined; annotate it")
+                       ++ " is read is not determined; " ++ annotate_text(Annotated))
     end.
+
+%% Report §4.8, §11.5: the request to annotate, naming the local whose
+%% annotation fixes the type where there is one.
+annotate_text(undefined) -> "annotate it";
+annotate_text(Name) -> "annotate " ++ atom_to_list(Name).
+
+%% The local whose annotation would fix an operand's type: the variable at
+%% the root of a chain of selections, `line` of `line.total`; undefined
+%% for any other operand.
+annotatable(#e_var{namespace = [], name = Name, referent = var}) -> Name;
+annotatable(#e_selection{expr = Expr}) -> annotatable(Expr);
+annotatable(_) -> undefined.
 
 %% Report §11.5, §4.9: the help that writes a member the requirement names
 %% on the type variable, its values left to the writer; none where the
@@ -2815,11 +2905,12 @@ solve_one(#deferred_bind_arrow{span = Span, spans = {_, ExprSpan}, expr_type = E
 %% inside, whose type the value's span labels. The value is reported against
 %% the block's sum type, labeled where that type was fixed.
 bind_arrow(#deferred_bind_arrow{spans = {PatternSpan, ExprSpan}, expr_type = ExprType,
-                                pattern_type = PatternType, rest_type = RestType, fixed = Fixed},
+                                pattern_type = PatternType, rest_type = RestType, fixed = Fixed,
+                                bound = Bound},
            Wrap, ErrorType, ValueType, Env) ->
     Label = "the value inside has type " ++ ern_types:format(ValueType, Env#env.type_state),
     Env1 = unify_at(PatternSpan, ValueType, PatternType, Env,
-                    "the pattern does not fit the value inside the sum type",
+                    {pattern, "the pattern does not fit the value inside the sum type", Bound},
                     {ExprSpan, Label}),
     {RestValue, TypeState} = ern_types:fresh(Env1#env.type_state),
     Rest = case Wrap of
@@ -2878,11 +2969,12 @@ check_pending(#pending_restriction{id = Id, span = Span, need = Need, who = Who,
         {false, _} ->
             ok;
         {Lack, undefined} ->
-            fail(Span, ern_types:format(Type, Env#env.type_state) ++ " does not support equality ("
-                       ++ Lack ++ "), " ++ need_text(Need, Who) ++ identity_hint(Type));
+            fail(Span, lacking_text(ern_types:format(Type, Env#env.type_state), Lack)
+                       ++ ", does not support equality, " ++ need_text(Need, Who)
+                       ++ identity_hint(Type));
         {Lack, {ArgumentSpan, Index}} ->
-            fail(ArgumentSpan, ern_types:format(Type, Env#env.type_state)
-                               ++ " does not support equality (" ++ Lack ++ "), "
+            fail(ArgumentSpan, lacking_text(ern_types:format(Type, Env#env.type_state), Lack)
+                               ++ ", does not support equality, "
                                ++ argument_need_text(Need, Who, Index) ++ identity_hint(Type),
                  [callee_label(Span, Who)], undefined)
     end.
@@ -3005,8 +3097,10 @@ literal_type(bool) -> ?BOOL.
 %% result: the operand type for Int, Float, and `<>`; Bool for an
 %% ordering; a user type's own member, `T.+` or `T.compare`, instantiated
 %% and applied to two operands of the type, or `T.negate` to one, since
-%% prefix `-` is `negate` in the operand type's namespace (§5.1).
-operator_result(Span, Operator, OperandType, Env) ->
+%% prefix `-` is `negate` in the operand type's namespace (§5.1). Operand,
+%% the left one as typed, names the local an unresolved operator asks to
+%% annotate (annotatable/1).
+operator_result(Span, Operator, Operand, OperandType, Env) ->
     case ern_types:resolve(OperandType, Env#env.type_state) of
         {tvar, _} = Variable ->
             case required_operator(Operator, Variable, Env) of
@@ -3015,7 +3109,8 @@ operator_result(Span, Operator, OperandType, Env) ->
                 error ->
                     {Result, TypeState} = ern_types:fresh(Env#env.type_state),
                     Deferred = #deferred_operator{span = Span, operator = Operator,
-                                                  operand_type = OperandType, result = Result},
+                                                  operand_type = OperandType, result = Result,
+                                                  annotated = annotatable(Operand)},
                     {Result, Env#env{type_state = TypeState,
                                      deferred = [Deferred | Env#env.deferred]}}
             end;
@@ -3150,13 +3245,16 @@ reach(Annotation, Member, MemberOf, _Known, Env) ->
     cannot_derive(MemberOf, Annotation, Member, Env).
 
 %% Report §3.5: a field whose type has no compare is an error at the
-%% declaration, at that field.
+%% declaration, at that field, with the help that declares the member or
+%% changes the field (§11.5).
 -spec cannot_derive(atom(), tuple(), atom(), env()) -> no_return().
 cannot_derive(MemberOf, Annotation, Member, Env) ->
     {Type, _, TypeState} = annotation_type(Annotation, #{}, Env),
     fail(ern_ast:span(Annotation),
          atom_to_list(MemberOf) ++ ".compare cannot be derived: "
-         ++ ern_types:format(Type, TypeState) ++ " has no " ++ atom_to_list(Member)).
+         ++ ern_types:format(Type, TypeState) ++ " has no " ++ atom_to_list(Member), [],
+         "declare `fn " ++ atom_to_list(MemberOf) ++ ".compare` yourself, or hold a field whose"
+         " type has a compare").
 
 %% The requirement of the member Member of the type QualifiedName, each of
 %% its members with the route, through the type's arguments, to the type
@@ -3353,7 +3451,7 @@ fill_namespace(#e_constructor{span = Span, namespace = ['Prelude'], name = Name,
                               base = undefined}, _) ->
     fail(Span, "`Prelude." ++ atom_to_list(Name) ++ "` names no namespace: `Prelude.` reaches"
                " one of the prelude's names", [],
-         "write the namespace after `..` as it is, `.." ++ atom_to_list(Name) ++ "` (report §5.6)");
+         "write the namespace after `..` as it is, `.." ++ atom_to_list(Name) ++ "`");
 fill_namespace(#e_constructor{namespace = Namespace, name = Name, args = none, base = undefined},
                _) ->
     {namespace, Namespace ++ [Name]};
@@ -3643,8 +3741,8 @@ supply(Span, Type, service, _Need, _Outer, #env{type_state = TypeState} = Env) -
         Why ->
             fail(Span, "Peer.service names a service at " ++ Text ++ ", which is bound to its"
                        " node, since it holds " ++ Why, [],
-                 "a service's message type crosses to the node's peers, so the process offered"
-                 " as the service receives values that cross (report §3.11)")
+                 "keep " ++ Why ++ " out of " ++ Text ++ "; send a value that crosses, which the"
+                 " process acts on (report §3.11)")
     end;
 supply(Span, Type, exposed, _Need, _Outer, #env{type_state = TypeState} = Env) ->
     %% report §8.4, Appendix E.12: Foreign.term gives its value at a type
@@ -3763,13 +3861,36 @@ misfit(Span, Type, Member, Shape, Instance, Need, TypeState) ->
                ++ ern_types:format(Instance, TypeState)).
 
 -spec no_member(ern_diagnostic:span(), term(), atom(), term(), term(), env()) -> no_return().
-no_member(Span, Type, Member, Need, Outer, #env{type_state = TypeState}) ->
+no_member(Span, Type, Member, Need, Outer, #env{type_state = TypeState,
+                                                 namespace = Namespace}) ->
     Wanted = case Outer of
                  undefined -> member_text(Type, Member, TypeState);
                  _ -> Outer
              end,
-    fail(Span, needer_text(Need) ++ " needs " ++ Wanted ++ ", and "
-               ++ ern_types:format(Type, TypeState) ++ " has no " ++ atom_to_list(Member)).
+    Text = ern_types:format(Type, TypeState),
+    MemberText = atom_to_list(Member),
+    %% report §11.5, §3.5, §4.5: the help names the fix: the member declared
+    %% on a type of this module, and another's value held in a type of the
+    %% program's own that declares it
+    Own = case ern_types:resolve(Type, TypeState) of
+              {tcon, QualifiedName, _} ->
+                  case lists:droplast(QualifiedName) =:= Namespace of
+                      true -> {own, atom_to_list(lists:last(QualifiedName))};
+                      false -> other
+                  end;
+              _ ->
+                  other
+          end,
+    Help = case {Own, Member} of
+               {{own, Name}, compare} -> "give " ++ Name ++ " a compare, `derives compare` on its"
+                                         " declaration or `fn " ++ Name ++ ".compare`";
+               {{own, Name}, _} -> "declare `fn " ++ Name ++ "." ++ MemberText ++ "`";
+               {other, compare} -> Text ++ " has no ordering; hold it in a type of your own that"
+                                   " declares `compare`";
+               {other, _} -> "hold it in a type of your own that declares `" ++ MemberText ++ "`"
+           end,
+    fail(Span, needer_text(Need) ++ " needs " ++ Wanted ++ ", and " ++ Text ++ " has no "
+               ++ atom_to_list(Member), [], Help).
 
 -spec not_in_force(ern_diagnostic:span(), term(), atom(), term(), env()) -> no_return().
 not_in_force(Span, Variable, Member, {fill, _} = Need, #env{type_state = TypeState}) ->
@@ -3812,10 +3933,14 @@ requirement_help(Wanted, Declaration) ->
 
 -spec not_shown(ern_diagnostic:span(), term(), term(), env()) -> no_return().
 not_shown(Span, Type, {shown, Name}, #env{type_state = TypeState}) ->
+    %% report §11.5: an annotation stands where a value is bound, so the
+    %% help binds it with one, its type written with `...` for what the
+    %% writer chooses
     fail(Span, "the type " ++ ern_types:format(Type, TypeState) ++ " is not known whole here, and"
                " Io." ++ atom_to_list(Name) ++ " writes a value by its type", [],
-         "annotate the value where it is bound; at a type variable of the signature, a"
-         " requirement `needs a.show` lets it write the value");
+         "bind the value with an annotation, `let value : "
+         ++ ern_types:format_annotation(Type, TypeState) ++ " = ...`, and show that; at a type"
+         " variable of the signature, a requirement `needs a.show` lets it write the value");
 not_shown(Span, Type, Need, #env{type_state = TypeState}) ->
     fail(Span, needer_text(Need) ++ " needs " ++ ern_types:format(Type, TypeState)
                ++ ".show, and Io.show writes a type known whole, or a requirement's type"
@@ -3857,13 +3982,14 @@ variable_text(Variable, TypeState) ->
     string:trim(ern_types:format(Variable, TypeState), trailing, "=+").
 
 %% Report §3.5, §4.8: a field selection resolves against its operand's type
-%% as an operator does, deferred while that type is still a variable.
-select_result(Span, Field, OperandType, Env) ->
+%% as an operator does, deferred while that type is still a variable, the
+%% operand as typed naming the local to annotate.
+select_result(Span, Field, Operand, OperandType, Env) ->
     case ern_types:resolve(OperandType, Env#env.type_state) of
         {tvar, _} ->
             {Result, TypeState} = ern_types:fresh(Env#env.type_state),
             Deferred = #deferred_selection{span = Span, field = Field, operand_type = OperandType,
-                                           result = Result},
+                                           result = Result, annotated = annotatable(Operand)},
             {Result, Env#env{type_state = TypeState, deferred = [Deferred | Env#env.deferred]}};
         _ ->
             resolve_select(Span, Field, OperandType, Env)
@@ -4190,52 +4316,12 @@ infer(#e_var{span = Span, namespace = Namespace, name = Name} = Expr, Env) ->
     Mailboxes = spawned_mailbox(Referent, ern_types:resolve(Type, TypeState)),
     %% report §4.2: what the name resolved to is recorded, so that the
     %% emitter reads the decision rather than making it again
-    {Expr#e_var{type = Type, referent = Referent, supplies = Supplies}, Type,
-     Env1#env{type_state = TypeState, pending = Pending ++ Env1#env.pending,
-              mailboxes = Mailboxes ++ Env1#env.mailboxes}};
-infer(#e_constructor{span = Span, namespace = ConstructorNamespace, name = Name, base = Base,
-                     args = Args} = Expr, Env) ->
-    ConstructorInfo = lookup_constructor(Span, ConstructorNamespace, Name, Env),
-    {ConstructorType, TypeState} =
-        ern_types:instantiate(ConstructorInfo#constructor_info.scheme, Env#env.type_state),
-    Env1 = Env#env{type_state = TypeState},
-    case {ConstructorInfo#constructor_info.fields, Args} of
-        {none, none} ->
-            {Expr#e_constructor{type = ConstructorType}, ConstructorType, Env1};
-        {none, _} ->
-            fail(Span, atom_to_list(Name) ++ " takes no fields");
-        {positional, {positional, Arg}} ->
-            {tfn, [FieldType], none, Constructed} = ConstructorType,
-            {TypedArg, _ArgType, Env2} = check_expr(Arg, FieldType,
-                                                    "the field of " ++ atom_to_list(Name),
-                                                    undefined, Env1),
-            {Expr#e_constructor{args = {positional, TypedArg}, type = Constructed}, Constructed,
-             Env2};
-        {positional, none} ->
-            %% a single-positional constructor is a function value (§5.6)
-            {Opened, TypeState1} = open_effect(ConstructorType, TypeState),
-            {Expr#e_constructor{type = Opened}, Opened, Env1#env{type_state = TypeState1}};
-        {positional, {named, _}} ->
-            fail(Span, atom_to_list(Name) ++ " has one positional field, not named fields");
-        {{named, Names}, {named, FieldSets}} ->
-            {tfn, FieldTypes, none, Constructed} = ConstructorType,
-            Base =:= undefined orelse one_constructor(Span, ConstructorInfo, Env1),
-            case fill_namespace(Base, Env1) of
-                {namespace, Namespace} ->
-                    filled(Expr, Namespace, Names, FieldTypes, Constructed, FieldSets, Env1);
-                expression ->
-                    %% report §5.6: a record update gives at least one field
-                    Base =:= undefined orelse FieldSets =/= []
-                        orelse fail(Span, "a record update gives at least one field after its"
-                                          " `..`", [],
-                                    "give the fields that change; with none, the value after"
-                                    " `..` is the record"),
-                    infer_named(Expr, Names, FieldTypes, Constructed, Base, FieldSets, none, Env1)
-            end;
-        {{named, Names}, _} ->
-            fail(Span, atom_to_list(Name) ++ " has named fields; write "
-                       ++ named_form(Name, Names, "value"))
-    end;
+    Typed = Expr#e_var{type = Type, referent = Referent, supplies = Supplies},
+    {Typed, Type,
+     used(Typed, Scheme, Env1#env{type_state = TypeState, pending = Pending ++ Env1#env.pending,
+                                  mailboxes = Mailboxes ++ Env1#env.mailboxes})};
+infer(#e_constructor{} = Expr, Env) ->
+    constructed(Expr, undefined, Env);
 infer(#e_tuple{elements = Elements} = Expr, Env) ->
     {TypedElements, Types, Env1} = infer_list(Elements, Env),
     Type = {ttuple, Types},
@@ -4270,14 +4356,15 @@ infer(#e_call{pipe = true,
     fail(ConstructorSpan, "a construction is a value, not a call, and `|>` does not fill it", [],
          "put the piped value in the construction itself");
 infer(#e_call{span = Span, callee = Callee, args = Args} = Expr, Env) ->
-    {TypedCallee, CalleeType, Env1} = infer(Callee, Env),
+    {TypedCallee, CalleeType, Env0} = infer(Callee, Env),
+    Env1 = called(TypedCallee, Span, Env0),
     Name = callee_name(Callee),
     case ern_types:resolve(CalleeType, Env1#env.type_state) of
         {tfn, ParamTypes, _, _} when length(ParamTypes) =/= length(Args) ->
             fail(Span, io_lib:format("~s takes ~B argument~s, not ~B",
                                      [Name, length(ParamTypes), plural(length(ParamTypes)),
                                       length(Args)]),
-                 [], "a call supplies all the arguments");
+                 [], arity_help(Name, ParamTypes, Args, Env1));
         {tfn, ParamTypes, Effect, ResultType} ->
             %% report §11.5: the callee's type ends in its requirement
             Origin = {ern_ast:span(Callee), Name ++ " : " ++ callee_text(Callee, TypedCallee,
@@ -4316,10 +4403,11 @@ infer(#e_call{span = Span, callee = Callee, args = Args} = Expr, Env) ->
             fail(Span, Name ++ " is not a function; it has type "
                        ++ ern_types:format(Other, Env1#env.type_state))
     end;
-infer(#e_not{span = Span, expr = Operand} = Expr, Env) ->
-    %% report §4.8: `!` is Bool's, as `&&` and `||` are
+infer(#e_not{expr = Operand} = Expr, Env) ->
+    %% report §4.8: `!` is Bool's, as `&&` and `||` are, its operand's
+    %% mismatch at the operand (§11.5)
     {TypedOperand, OperandType, Env1} = infer(Operand, Env),
-    Env2 = unify_at(Span, ?BOOL, OperandType, Env1, "the operand of `!`"),
+    Env2 = unify_at(ern_ast:span(Operand), ?BOOL, OperandType, Env1, "the operand of `!`"),
     {Expr#e_not{expr = TypedOperand, type = ?BOOL}, ?BOOL, Env2};
 infer(#e_selection{span = Span, expr = Operand, field = Field, field_span = FieldSpan} = Expr,
       Env) ->
@@ -4329,12 +4417,12 @@ infer(#e_selection{span = Span, expr = Operand, field = Field, field_span = Fiel
                     undefined -> Span;
                     _ -> FieldSpan
                 end,
-    {Closed, Env2} = select_result(ErrorSpan, Field, OperandType, Env1),
+    {Closed, Env2} = select_result(ErrorSpan, Field, TypedOperand, OperandType, Env1),
     {Type, TypeState} = open_effect(Closed, Env2#env.type_state),
     {Expr#e_selection{expr = TypedOperand, type = Type}, Type, Env2#env{type_state = TypeState}};
 infer(#e_negation{span = Span, expr = Operand} = Expr, Env) ->
     {TypedOperand, OperandType, Env1} = infer(Operand, Env),
-    {Closed, Env2} = operator_result(Span, negate, OperandType, Env1),
+    {Closed, Env2} = operator_result(Span, negate, TypedOperand, OperandType, Env1),
     {Type, TypeState} = open_effect(Closed, Env2#env.type_state),
     Member = operator_member(Span, negate, OperandType),
     {Expr#e_negation{expr = TypedOperand, member = Member, type = Type}, Type,
@@ -4342,7 +4430,8 @@ infer(#e_negation{span = Span, expr = Operand} = Expr, Env) ->
 infer(#e_binop{span = Span, operator = Operator, left = Left, right = Right} = Expr, Env) ->
     {TypedLeft, LeftType, Env1} = infer(Left, Env),
     {TypedRight, RightType, Env2} = infer(Right, Env1),
-    {Closed, Env3} = binop_type(Span, Operator, Left, LeftType, Right, RightType, Env2),
+    {Closed, Env3} = binop_type(Span, Operator, TypedLeft, LeftType, TypedRight, RightType,
+                                Env2),
     {Type, TypeState} = open_effect(Closed, Env3#env.type_state),
     Member = operator_member(Span, Operator, LeftType),
     {Expr#e_binop{left = TypedLeft, right = TypedRight, member = Member, type = Type}, Type,
@@ -4401,8 +4490,8 @@ infer(#e_lambda{span = LambdaSpan, params = Params, result_type = ResultAnnotati
                     %% report §11.5: the label names the annotation that fixed the
                     %% mailbox, and an unannotated lambda's is its own, not the
                     %% enclosing definition's
-                    effect_origin = effect_origin("the lambda", ResultAnnotation, Effect,
-                                                  ResultType, EffectType, TypeState)},
+                    effect_origin = effect_origin({"the lambda", false}, ResultAnnotation,
+                                                  Effect, ResultType, EffectType, TypeState)},
     Rule = result_rule(ResultAnnotation, "the lambda body does not have the declared type"),
     ResultOrigin = result_origin(ResultAnnotation, ResultType, Env2),
     {TypedBody, _BodyType, Env3} = check_expr(Body, ResultType, Rule, ResultOrigin, Env2),
@@ -4559,7 +4648,7 @@ check_expr(#e_match{scrutinee = Scrutinee, clauses = Clauses} = Expr, Expected, 
      Env2};
 check_expr(#e_receive{span = Span, clauses = Clauses, 'after' = After} = Expr, Expected, Rule,
            Origin, Env) ->
-    {MailboxType, Env1} = mailbox_type(Span, Env),
+    {MailboxType, Env1} = mailbox_type(Span, Clauses, Env),
     case Clauses =/= [] andalso ern_types:resolve(MailboxType, Env1#env.type_state) =:= ?NEVER of
         true -> never_receives(Span, Env1#env.effect_origin);
         false -> ok
@@ -4595,11 +4684,77 @@ check_expr(Expr, Expected, undefined, _Origin, Env) ->
     constructor_as_function(Expr, Expected, Env),
     {Typed, Type, Env1} = infer(Expr, Env),
     {Typed, Type, bound(Expected, Type, Env1)};
+check_expr(#e_constructor{} = Expr, Expected, Rule, Origin, Env) ->
+    constructor_as_function(Expr, Expected, Env),
+    {Typed, Type, Env1} = constructed(Expr, Expected, Env),
+    {Typed, Type,
+     unify_at(ern_ast:span(Expr), Expected, Type, expecting(Type, Origin, Env1), Rule, Origin)};
 check_expr(Expr, Expected, Rule, Origin, Env) ->
     constructor_as_function(Expr, Expected, Env),
     {Typed, Type, Env1} = infer(Expr, Env),
     {Typed, Type,
      unify_at(ern_ast:span(Expr), Expected, Type, expecting(Type, Origin, Env1), Rule, Origin)}.
+
+%% Report §5.6, §11.5: a construction, Expected the type expected of it or
+%% undefined. A fill fills each field at the field's type, which the
+%% expected type, where it is of the construction's own type, fixes before
+%% the fields are read, so that a field filled at another type is told at
+%% the types the record has; any other construction is inferred, and its
+%% type then fits the expected one (check_expr/5).
+constructed(#e_constructor{span = Span, namespace = ConstructorNamespace, name = Name,
+                           base = Base, args = Args} = Expr, Expected, Env) ->
+    ConstructorInfo = lookup_constructor(Span, ConstructorNamespace, Name, Env),
+    {ConstructorType, TypeState} =
+        ern_types:instantiate(ConstructorInfo#constructor_info.scheme, Env#env.type_state),
+    Env1 = Env#env{type_state = TypeState},
+    case {ConstructorInfo#constructor_info.fields, Args} of
+        {none, none} ->
+            {Expr#e_constructor{type = ConstructorType}, ConstructorType, Env1};
+        {none, _} ->
+            fail(Span, atom_to_list(Name) ++ " takes no fields");
+        {positional, {positional, Arg}} ->
+            {tfn, [FieldType], none, Constructed} = ConstructorType,
+            {TypedArg, _ArgType, Env2} = check_expr(Arg, FieldType,
+                                                    "the field of " ++ atom_to_list(Name),
+                                                    undefined, Env1),
+            {Expr#e_constructor{args = {positional, TypedArg}, type = Constructed}, Constructed,
+             Env2};
+        {positional, none} ->
+            %% a single-positional constructor is a function value (§5.6)
+            {Opened, TypeState1} = open_effect(ConstructorType, TypeState),
+            {Expr#e_constructor{type = Opened}, Opened, Env1#env{type_state = TypeState1}};
+        {positional, {named, _}} ->
+            fail(Span, atom_to_list(Name) ++ " has one positional field, not named fields");
+        {{named, Names}, {named, FieldSets}} ->
+            {tfn, FieldTypes, none, Constructed} = ConstructorType,
+            Base =:= undefined orelse one_constructor(Span, ConstructorInfo, Env1),
+            case fill_namespace(Base, Env1) of
+                {namespace, Namespace} ->
+                    filled(Expr, Namespace, Names, FieldTypes, Constructed, FieldSets,
+                           expected_record(Constructed, Expected, Env1));
+                expression ->
+                    %% report §5.6: a record update gives at least one field
+                    Base =:= undefined orelse FieldSets =/= []
+                        orelse fail(Span, "a record update gives at least one field after its"
+                                          " `..`", [],
+                                    "give the fields that change; with none, the value after"
+                                    " `..` is the record"),
+                    infer_named(Expr, Names, FieldTypes, Constructed, Base, FieldSets, none, Env1)
+            end;
+        {{named, Names}, _} ->
+            fail(Span, atom_to_list(Name) ++ " has named fields; write "
+                       ++ named_form(Name, Names, "value"))
+    end.
+
+%% The record's type unified with Expected, where Expected is a type of its
+%% own constructor; the record's arguments being fresh, nothing fails.
+expected_record(_Constructed, undefined, Env) ->
+    Env;
+expected_record({tcon, QualifiedName, _} = Constructed, Expected, Env) ->
+    case ern_types:resolve(Expected, Env#env.type_state) of
+        {tcon, QualifiedName, _} -> bound(Constructed, Expected, Env);
+        _ -> Env
+    end.
 
 %% Report §5.6, §11.5: a constructor of named fields is no function, and
 %% one that stands where a function of as many parameters as it has fields
@@ -4696,7 +4851,8 @@ receive_guard(#e_binop{span = Span, operator = Operator, left = Left, right = Ri
     Env1 = case ern_types:resolve(node_type(Left), Env#env.type_state) of
                {tvar, _} ->
                    Deferred = #deferred_guard_order{span = Span, operator = Operator,
-                                                    operand_type = node_type(Left)},
+                                                    operand_type = node_type(Left),
+                                                    annotated = annotatable(Left)},
                    Env#env{deferred = [Deferred | Env#env.deferred]};
                Type ->
                    guard_order(Span, Type, Env),
@@ -4742,8 +4898,8 @@ guard_operand(#e_var{referent = Referent} = Variable, Env) ->
                     callee_name(Variable) ++ " is a function, and a `receive` guard calls nothing",
                     [], ?GUARD_CALLS_HELP);
 guard_operand(Operand, _) ->
-    fail(ern_ast:span(Operand), "a comparison in a `receive` guard compares variables, literals,"
-                                " and nullary constructors",
+    fail(ern_ast:span(Operand), "a comparison in a `receive` guard compares variables, top-level"
+                                " lets, literals, and nullary constructors",
          [], "receive the message and `match` it").
 
 %% Whether a name's referent is a top-level `let`, of this module or another.
@@ -4823,26 +4979,91 @@ callee_name(#e_constructor{namespace = Namespace, name = Name, args = none}) ->
     ern_namespace:text(Namespace ++ [Name]);
 callee_name(_) -> "the callee".
 
+%% Report §5.2, §11.5: the help of a call with the wrong number of
+%% arguments. Too few: there is no partial application. Too many to a
+%% function of one tuple of as many: the values are passed as the tuple.
+%% Any other: none, the message having said how many it takes.
+arity_help(_Name, ParamTypes, Args, _Env) when length(Args) < length(ParamTypes) ->
+    "a call supplies all the arguments; there is no partial application";
+arity_help(Name, [ParamType], Args, #env{type_state = TypeState}) ->
+    case ern_types:resolve(ParamType, TypeState) of
+        {ttuple, Elements} when length(Elements) =:= length(Args) ->
+            Tuple = "#(" ++ lists:append(lists:join(", ", lists:duplicate(length(Args), "...")))
+                ++ ")",
+            Called = case Name of
+                         "the callee" -> Tuple;
+                         _ -> Name ++ "(" ++ Tuple ++ ")"
+                     end,
+            "pass the values as one tuple, `" ++ Called ++ "`";
+        _ ->
+            undefined
+    end;
+arity_help(_Name, _ParamTypes, _Args, _Env) ->
+    undefined.
+
 %% Report §3.9, §11.5: an argument's mismatch in a recursive call, one to a
 %% definition whose inference is under way, names the rule it breaks: no
 %% polymorphic recursion.
-argument_rule(Name, Callee, #env{inferring = Inferring} = Env) ->
-    Recursive = case Callee of
-                    #e_var{referent = var, namespace = [], name = LocalName} ->
-                        lists:member({local, LocalName}, Inferring);
-                    #e_var{referent = #own_declaration{member_of = MemberOf,
-                                                       name = DeclarationName}} ->
-                        lists:member({global,
-                                      value_qualified_name(Env, MemberOf, DeclarationName)},
-                                     Inferring);
-                    _ -> false
-                end,
-    case Recursive of
+argument_rule(Name, Callee, Env) ->
+    case is_under_inference(Callee, Env) of
         true -> {help, "the argument of a recursive call does not fit " ++ Name ++ " at its own"
-                       " type (report §3.9)",
+                       " type",
                  "declare a second function for the call at another type"};
         false -> "the argument does not fit " ++ Name
     end.
+
+%% Whether a name is of a definition whose inference is under way, a local
+%% fn's or a top-level group's.
+is_under_inference(#e_var{referent = var, namespace = [], name = LocalName},
+                   #env{inferring = Inferring}) ->
+    lists:member({local, LocalName}, Inferring);
+is_under_inference(#e_var{referent = #own_declaration{member_of = MemberOf,
+                                                      name = DeclarationName}},
+                   #env{inferring = Inferring} = Env) ->
+    lists:member({global, value_qualified_name(Env, MemberOf, DeclarationName)}, Inferring);
+is_under_inference(_, _) ->
+    false.
+
+%% Report §11.5: a use of a definition under inference, its placeholder a
+%% variable, recorded with whether its result type is still undetermined,
+%% so that the use that gave it, the last of those, labels a body that
+%% disagrees (checked_body/5).
+used(Typed, #scheme{quantified = [], type = {tvar, Id}}, #env{uses = Uses} = Env) ->
+    case is_under_inference(Typed, Env) of
+        true ->
+            Open = case ern_types:resolve({tvar, Id}, Env#env.type_state) of
+                       {tvar, _} -> true;
+                       {tfn, _, _, Result} -> is_variable(Result, Env#env.type_state);
+                       _ -> false
+                   end,
+            Env#env{uses = Uses#{Id => [{ern_ast:span(Typed), Open} | maps:get(Id, Uses, [])]}};
+        false ->
+            Env
+    end;
+used(_Typed, _Scheme, Env) ->
+    Env.
+
+%% Report §11.5: a use that a call's callee is, as the use just recorded
+%% (used/3), is the call, which a label underlines whole.
+called(#e_var{span = CalleeSpan} = Callee, Span, #env{uses = Uses} = Env) ->
+    case is_under_inference(Callee, Env) andalso placeholder_of(Callee, Env) of
+        {tvar, Id} ->
+            case maps:get(Id, Uses, []) of
+                [{CalleeSpan, Open} | Rest] -> Env#env{uses = Uses#{Id => [{Span, Open} | Rest]}};
+                _ -> Env
+            end;
+        _ ->
+            Env
+    end;
+called(_Callee, _Span, Env) ->
+    Env.
+
+%% The placeholder of a definition under inference, as its name holds it.
+placeholder_of(#e_var{referent = var, name = Name}, #env{locals = Locals}) ->
+    (maps:get(Name, Locals))#scheme.type;
+placeholder_of(#e_var{referent = #own_declaration{member_of = MemberOf, name = Name}},
+               #env{globals = Globals} = Env) ->
+    (maps:get(value_qualified_name(Env, MemberOf, Name), Globals))#scheme.type.
 
 %% A callee's effect: one that receives nothing constrains nothing;
 %% anything else is the enclosing function's effect (report §6.1). Report
@@ -4872,7 +5093,7 @@ use_effect(Span, Name, Effect,
                                        ++ ern_types:format(Have, TypeState),
                                  labels(Origin), undefined);
                         {error, _Reason} ->
-                            needs_mailbox(Span, Name, Origin)
+                            needs_mailbox(Span, Name, Effect, Origin, TypeState)
                     end
             end
     end.
@@ -4883,10 +5104,16 @@ is_standing({tvar, Id}, TypeState) ->
 is_standing(_Effect, _TypeState) ->
     false.
 
--spec needs_mailbox(ern_diagnostic:span(), string(), term()) -> no_return().
-needs_mailbox(Span, Name, Origin) ->
+%% Effect: the mailbox type the callee needs, which the help gives where it
+%% is known, a variable where any will do (help/2).
+-spec needs_mailbox(ern_diagnostic:span(), string(), term(), term(), term()) -> no_return().
+needs_mailbox(Span, Name, Effect, Origin, TypeState) ->
+    Need = case ern_types:resolve(Effect, TypeState) of
+               {tvar, _} -> any;
+               Type -> {mailbox, ern_types:format(Type, TypeState)}
+           end,
     fail(Span, Name ++ " needs a mailbox, and " ++ what(Origin) ++ " receives nothing",
-         labels(Origin), help(Origin)).
+         labels(Origin), help(Origin, Need)).
 
 %% Report §4.5, §3.9: as a function written `: T` ends, a `fn` or a
 %% lambda, each variable a call in its body left free (use_effect/4) is
@@ -4901,7 +5128,7 @@ read_standing(Type, #env{standing = Standing, type_state = TypeState,
     Held = held_variables(Type, Env),
     lists:foreach(fun({Span, Name, Effect}) ->
                       is_free_standing(Effect, Held, TypeState)
-                          orelse needs_mailbox(Span, Name, Origin)
+                          orelse needs_mailbox(Span, Name, Effect, Origin, TypeState)
                   end, lists:reverse(Standing)).
 
 %% Report §3.9, §4.8: the variables a function of type Type may not leave
@@ -4946,6 +5173,7 @@ never_receives(Span, _) ->
 labels(undefined) -> [];
 labels(Origins) when is_list(Origins) -> lists:append([labels(Origin) || Origin <- Origins]);
 labels({Span, Label}) -> [{ern_diagnostic:span(Span), Label}];
+labels(#effect_origin{label = undefined}) -> [];
 labels(#effect_origin{span = Span, label = Label}) -> [{ern_diagnostic:span(Span), Label}].
 
 what(undefined) -> "this function";
@@ -4962,8 +5190,24 @@ twice(Fields, Verb) ->
                  [{ern_diagnostic:span(First), "first " ++ Verb ++ " here"}], undefined)
     end.
 
-help(undefined) -> "give the function its mailbox type with `receiving`";
-help(#effect_origin{help = Help}) -> Help.
+%% Report §11.5, §8.1: the help of an effect error names the fix. A function
+%% written `: T` that needs a mailbox is given one: the mailbox type Need
+%% names, where it is known; where any will do, as for a timed wait,
+%% `Never` for an entry point, whose process has that mailbox (§8.1), and a
+%% variable for any other function, which its callers fix; where a
+%% `receive`'s clauses will fix it, the type of the messages they take.
+help(undefined, _Need) -> "give the function its mailbox type with `receiving`";
+help(#effect_origin{help = {receiving, Name, Entry}}, Need) -> receiving_help(Name, Entry, Need);
+help(#effect_origin{help = Help}, _Need) -> Help.
+
+receiving_help(Name, _Entry, {mailbox, Text}) ->
+    "give " ++ Name ++ " its mailbox type, `receiving " ++ Text ++ "`";
+receiving_help(Name, _Entry, clauses) ->
+    "give " ++ Name ++ " its mailbox type with `receiving`, the type of the messages it takes";
+receiving_help(Name, true, any) ->
+    "give " ++ Name ++ " its mailbox type, `receiving Never`";
+receiving_help(Name, false, any) ->
+    "give " ++ Name ++ " its mailbox type, `receiving e`".
 
 infer_named(Expr, Names, FieldTypes, Constructed, Base, FieldSets, none, Env)
   when Base =/= undefined ->
@@ -4974,16 +5218,17 @@ infer_named(Expr, Names, FieldTypes, Constructed, Base, FieldSets, none, Env)
 infer_named(Expr, Names, FieldTypes, Constructed, Base, FieldSets, Fill, Env) ->
     infer_fields(Expr, Names, FieldTypes, Constructed, Base, FieldSets, Fill, Env).
 
-infer_fields(#e_constructor{span = Span, name = Name} = Expr, Names, FieldTypes, Constructed,
+infer_fields(#e_constructor{name = Name} = Expr, Names, FieldTypes, Constructed,
              Base, FieldSets, Fill, Env) ->
     SetNames = [FieldName || #field_set{name = FieldName} <- FieldSets],
     twice([{FieldName, FieldSpan} || #field_set{span = FieldSpan, name = FieldName} <- FieldSets],
           "given"),
-    lists:foreach(fun(FieldName) ->
+    %% report §11.5: at the field given, as a field matched is
+    lists:foreach(fun(#field_set{span = FieldSpan, name = FieldName}) ->
                       lists:member(FieldName, Names) orelse
-                          fail(Span, atom_to_list(Name) ++ " has no field "
-                                     ++ atom_to_list(FieldName))
-                  end, SetNames),
+                          fail(FieldSpan, atom_to_list(Name) ++ " has no field "
+                                          ++ atom_to_list(FieldName))
+                  end, FieldSets),
     {TypedBase, Env1} = named_base(Expr, Base, Names -- SetNames, Constructed, Env),
     Check = fun(FieldSet, Acc) ->
                     check_field_set(FieldSet, Expr, Names, FieldTypes, Fill, Acc)
@@ -5072,7 +5317,7 @@ named_form(Name, Fields, Part) ->
 binop_type(Span, Operator, Left, LeftType, Right, RightType, Env)
   when Operator =:= '+'; Operator =:= '-'; Operator =:= '*'; Operator =:= '/';
        Operator =:= '%'; Operator =:= '<>' ->
-    operator_result(Span, Operator, LeftType,
+    operator_result(Span, Operator, Left, LeftType,
                     same_operands(Operator, Left, LeftType, Right, RightType, Env));
 binop_type(Span, Operator, Left, LeftType, Right, RightType, Env)
   when Operator =:= '=='; Operator =:= '!=' ->
@@ -5081,7 +5326,7 @@ binop_type(Span, Operator, Left, LeftType, Right, RightType, Env)
     {?BOOL, Env2};
 binop_type(Span, Operator, Left, LeftType, Right, RightType, Env)
   when Operator =:= '<'; Operator =:= '<='; Operator =:= '>'; Operator =:= '>=' ->
-    operator_result(Span, Operator, LeftType,
+    operator_result(Span, Operator, Left, LeftType,
                     same_operands(Operator, Left, LeftType, Right, RightType, Env));
 binop_type(_Span, Operator, Left, LeftType, Right, RightType, Env)
   when Operator =:= '&&'; Operator =:= '||' ->
@@ -5122,8 +5367,9 @@ restrict_equality(Span, Type, Env) ->
                         || Id <- Variables],
             Env#env{type_state = TypeState1, pending = Compared ++ Env#env.pending};
         Lack ->
-            fail(Span, "`==` is not defined on " ++ ern_types:format(Substituted, TypeState)
-                       ++ ": " ++ Lack ++ identity_hint(Substituted))
+            fail(Span, "`==` is not defined on "
+                       ++ lacking_text(ern_types:format(Substituted, TypeState), Lack)
+                       ++ identity_hint(Substituted))
     end.
 
 %% Report §3.10, Appendix E.21: where an address is what is compared, the
@@ -5148,17 +5394,34 @@ has_address(_) -> false.
 %% its fields hold of their own is being read already, and what its
 %% arguments bring is read in their place. A regression: a declared type's
 %% fields were not read, and `Box(f) == Box(f)` compared two functions.
+%% The answer is false, {itself, What} where the type is one of the three,
+%% or {inside, What} where it holds one, What naming it for a message.
 lacks_equality(Type, Env) ->
-    lacks(Type, Env, []).
+    case ern_types:resolve(Type, Env#env.type_state) of
+        {tfn, _, _, _} -> {itself, "a function type"};
+        {tcon, ['Address'], _} -> {itself, "the type of an address"};
+        {tcon, ['Reply'], _} -> {itself, "the type of a reply"};
+        _ ->
+            case lacks(Type, Env, []) of
+                false -> false;
+                What -> {inside, What}
+            end
+    end.
+
+%% Report §3.10, §11.5: the type and why it has no equality, as a message
+%% writes them: `() -> Int, a function type`, `List(() -> Int), which
+%% contains a function`.
+lacking_text(Text, {itself, What}) -> Text ++ ", " ++ What;
+lacking_text(Text, {inside, What}) -> Text ++ ", which contains " ++ What.
 
 lacks(Type, #env{type_state = TypeState} = Env, Seen) ->
     case ern_types:resolve(Type, TypeState) of
         {tfn, _, _, _} ->
-            "it contains a function, an address or a reply";
+            "a function";
         {tcon, ['Address'], _} ->
-            "it contains a function, an address or a reply";
+            "an address";
         {tcon, ['Reply'], _} ->
-            "it contains a function, an address or a reply";
+            "a reply";
         {tcon, QualifiedName, Args} ->
             case {lists:member(QualifiedName, Seen), declared_fields(QualifiedName, Args, Env)} of
                 {false, {ok, Fields}} ->
@@ -5208,12 +5471,17 @@ declared_fields(QualifiedName, Args, Env) ->
             erlang:error({undeclared_type, ern_namespace:text(QualifiedName)})
     end.
 
-%% The enclosing function's effect must be a mailbox type here.
-mailbox_type(Span, Env) ->
+%% The enclosing function's effect must be a mailbox type here; the help
+%% of a `receive` without clauses, a timed wait, takes any (help/2).
+mailbox_type(Span, Clauses, Env) ->
+    Need = case Clauses of
+               [] -> any;
+               _ -> clauses
+           end,
     case ern_types:resolve(Env#env.effect, Env#env.type_state) of
         none -> fail(Span, "`receive` needs a mailbox, and " ++ what(Env#env.effect_origin)
                            ++ " receives nothing",
-                     labels(Env#env.effect_origin), help(Env#env.effect_origin));
+                     labels(Env#env.effect_origin), help(Env#env.effect_origin, Need));
         {tvar, _} = Variable ->
             {Mailbox, TypeState} = ern_types:fresh(Env#env.type_state, [process_only]),
             {Mailbox, bound(Variable, Mailbox, Env#env{type_state = TypeState})};
@@ -5239,7 +5507,8 @@ check_clause(Kind, #clause{pattern = Pattern, guard = Guard, body = Body} = Clau
              ScrutineeType, ScrutineeOrigin, Expected, Rule, Origin, Env) ->
     {TypedPattern, PatternType, Bindings, Env1} = check_pattern(Pattern, Env),
     Env2 = unify_at(ern_ast:span(Pattern), ScrutineeType, PatternType, Env1,
-                    "the pattern does not fit the value", ScrutineeOrigin),
+                    {pattern, "the pattern does not fit the value", bound_names(Pattern)},
+                    ScrutineeOrigin),
     Env3 = bind_locals(Bindings, alternatives_agree(TypedPattern, Env2)),
     {TypedGuard, Env4} = check_guard(Kind, Guard, Env3),
     {TypedBody, _, Env5} = check_expr(Body, Expected, Rule, Origin, Env4),
@@ -5251,8 +5520,9 @@ check_clause(Kind, #clause{pattern = Pattern, guard = Guard, body = Body} = Clau
 check_guard(_Kind, undefined, Env) ->
     {undefined, Env};
 check_guard(Kind, Guard, Env) ->
+    %% report §11.5: no annotation made the guard receive nothing, so the
+    %% error labels nothing beside the message, which says so
     Origin = #effect_origin{what = "a guard", span = ern_ast:span(Guard),
-                            label = "a guard receives nothing (report §5.9)",
                             help = "compute the value before the match"},
     Guarded = Env#env{effect = none, effect_origin = Origin, declared_none = false},
     {TypedGuard, _, GuardEnv} = check_expr(Guard, ?BOOL, "a guard is a Bool", undefined, Guarded),
@@ -5421,7 +5691,8 @@ infer_statements([#binding{span = BindingSpan, pattern = Pattern, annotation = A
                                  "the value does not have the declared type")
                 end,
     Spans = {ern_ast:span(Pattern), ern_ast:span(Expr)},
-    Env3 = known_bind_arrow(BindingSpan, Spans, ExprType, PatternType, Annotated),
+    Bound = bound_names(Pattern),
+    Env3 = known_bind_arrow(BindingSpan, Spans, Bound, ExprType, PatternType, Annotated),
     Env4 = bind_locals(Bindings, Env3),
     {TypedRest, RestType, Env5} = infer_statements(Rest, Span, Expect, Env4, Local, []),
     %% report §11.5: what fixed the block's type, the annotation that did,
@@ -5432,7 +5703,7 @@ infer_statements([#binding{span = BindingSpan, pattern = Pattern, annotation = A
             end,
     Deferred = #deferred_bind_arrow{span = BindingSpan, spans = Spans, expr_type = ExprType,
                                     pattern_type = PatternType, rest_type = RestType,
-                                    fixed = Fixed},
+                                    fixed = Fixed, bound = Bound},
     Env6 = Env5#env{deferred = [Deferred | Env5#env.deferred]},
     TypedBinding = Binding#binding{pattern = TypedPattern, expr = TypedExpr},
     {lists:reverse(Acc) ++ [TypedBinding | TypedRest], RestType, Env6};
@@ -5458,11 +5729,12 @@ infer_statements([Expr | Rest], Span, Expect, Env, Local, Acc) ->
 %% in it stops its block before what follows uses its names or settles its
 %% types; one whose sum type is still open waits for the end of the
 %% definition (solve_one), which checks the rest against the block.
-known_bind_arrow(Span, {PatternSpan, ExprSpan}, ExprType, PatternType, Env) ->
+known_bind_arrow(Span, {PatternSpan, ExprSpan}, Bound, ExprType, PatternType, Env) ->
     TypeState = Env#env.type_state,
     Inside = fun(ValueType) ->
                  unify_at(PatternSpan, ValueType, PatternType, Env,
-                          "the pattern does not fit the value inside the sum type",
+                          {pattern, "the pattern does not fit the value inside the sum type",
+                           Bound},
                           {ExprSpan, "the value inside has type "
                                      ++ ern_types:format(ValueType, TypeState)})
              end,
@@ -5497,7 +5769,7 @@ let_binding(#binding{span = BindingSpan, pattern = Pattern, annotation = Annotat
     irrefutable(Pattern, Env2) orelse fail(BindingSpan, "a `let` pattern must be irrefutable", [],
                                            "use `match` for a pattern that can fail"),
     Env3 = unify_at(ern_ast:span(Pattern), ExprType, PatternType, Env2,
-                    "the pattern does not fit the value",
+                    {pattern, "the pattern does not fit the value", bound_names(Pattern)},
                     {ern_ast:span(Expr), "the value has type "
                                          ++ ern_types:format(ExprType, Env2#env.type_state)}),
     Env4 = case Generalize of
@@ -5620,9 +5892,19 @@ check_pattern(Pattern, Env) ->
             [First, Second | _] = [Span || {Name, Span, _} <- ern_ast:pattern_binders(Pattern),
                                            Name =:= Repeated],
             fail(Second, "variable " ++ atom_to_list(Repeated) ++ " appears twice in the pattern",
-                 [{ern_diagnostic:span(First), "first bound here"}], undefined)
+                 [{ern_diagnostic:span(First), "first bound here"}], twice_help(Repeated))
     end,
     {TypedPattern, Type, Bindings, Env1}.
+
+%% Report §5.10, §11.5: equality is written in a guard, so the help binds
+%% a second name and compares the two there.
+twice_help(Name) ->
+    Other = case Name of
+                y -> "z";
+                _ -> "y"
+            end,
+    Text = atom_to_list(Name),
+    "bind two names and compare them in a guard, `when " ++ Text ++ " == " ++ Other ++ "`".
 
 %% Report §5.9: the alternatives bind each variable at one type, checked
 %% once the clause's pattern has met the value's type.
@@ -5692,7 +5974,7 @@ infer_pattern(#p_constructor{span = Span, namespace = Namespace, name = Name,
              Constructed, Bindings, Env3};
         {positional, _} ->
             fail(Span, atom_to_list(Name) ++ " has one positional field; write "
-                       ++ atom_to_list(Name) ++ "(p)");
+                       ++ atom_to_list(Name) ++ "(_) to match any " ++ atom_to_list(Name));
         {{named, Names}, {named, FieldPatterns}} ->
             {tfn, FieldTypes, none, Constructed} = ConstructorType,
             twice([{FieldName, FieldSpan}
@@ -5824,7 +6106,6 @@ bit_pattern(#bit_segment{span = Span, value = SegmentValue, specs = Specs} = Seg
     %% a size expression receives nothing and sees the earlier segments
     %% (report §5.11)
     Origin = #effect_origin{what = "a size expression", span = Span,
-                            label = "a size expression receives nothing",
                             help = "compute the size before the match"},
     Scoped = bind_locals(Bindings, Env#env{effect = none, effect_origin = Origin,
                                            declared_none = false}),
@@ -6216,7 +6497,7 @@ selection_operand(#e_var{namespace = [], name = Name} = Operand, show, Env) ->
             throw({type_error,
                    Diagnostic#diagnostic{help = Variable ++ ".show names nothing in a body;"
                                          " under needs " ++ Variable ++ ".show, write the"
-                                         " value with Io.show (report §4.9)"}})
+                                         " value with Io.show"}})
     end;
 selection_operand(Operand, _Field, Env) ->
     infer(Operand, Env).
@@ -6428,7 +6709,7 @@ check_exports(Declarations,
                   lists:member(QualifiedName, OwnTypes)
                       andalso not lists:member(QualifiedName, Exported)
               end,
-    lists:append([[private_type_diagnostic(Declaration, Type)
+    lists:append([[private_type_diagnostic(Declaration, Type, Types)
                    || Type <- lists:usort(named_types(Declaration, Globals, Types, Env)),
                       Private(Type)]
                   || Declaration <- Declarations]).
@@ -6449,13 +6730,20 @@ named_types(Declaration, Globals, Types, Env) ->
             []
     end.
 
-private_type_diagnostic(Declaration, QualifiedName) ->
-    Name = lists:last(QualifiedName),
+%% Report §4.2, §4.4, §11.5: the help exports the type, or, where it is a
+%% declared type, exports it abstract, which keeps its constructors; an
+%% abstract type is exported (§4.4), so both fixes export it.
+private_type_diagnostic(Declaration, QualifiedName, Types) ->
+    Text = atom_to_list(lists:last(QualifiedName)),
+    Help = case maps:get(QualifiedName, Types) of
+               #type_info{foreign = true} -> "export " ++ Text;
+               #type_info{} -> "export " ++ Text ++ ", or export it as `export abstract type "
+                               ++ Text ++ "` so that its constructors stay private"
+           end,
     #diagnostic{span = ern_diagnostic:span(ern_ast:span(Declaration)),
                 message = declared_text(Declaration) ++ " is exported and its type names "
-                          ++ atom_to_list(Name) ++ ", which this module keeps private",
-                help = "export " ++ atom_to_list(Name) ++ ", or declare it `abstract type` so that"
-                       " its constructors stay private (report §4.4)"}.
+                          ++ Text ++ ", which this module keeps private",
+                help = Help}.
 
 declared_text(#type_declaration{name = Name}) -> atom_to_list(Name);
 declared_text(#abstract_declaration{declaration = #type_declaration{name = Name}}) ->
@@ -6538,13 +6826,15 @@ bound(Expected, Actual, #env{type_state = TypeState} = Env) ->
 %% rigid (§3.9), so a unification that binds one to a type, or two to one
 %% another, is the mismatch.
 %% Rule, which the message opens with, may carry its own help line,
-%% {help, Text, Help}, as a recursive call's does.
+%% {help, Text, Help}, as a recursive call's does, or the names a pattern
+%% binds, {pattern, Text, Bound}, which the types printed do not use.
 unify_at(Span, Expected, Actual, #env{type_state = TypeState, rigid = Rigid} = Env, Rule,
          Origin) ->
-    {RuleText, RuleHelp} = case Rule of
-                               {help, Text, TextHelp} -> {Text, TextHelp};
-                               _ -> {Rule, undefined}
-                           end,
+    {RuleText, RuleHelp, Taken} = case Rule of
+                                      {help, Text, TextHelp} -> {Text, TextHelp, []};
+                                      {pattern, Text, Bound} -> {Text, undefined, Bound};
+                                      _ -> {Rule, undefined, []}
+                                  end,
     case ern_types:unify(Expected, Actual, TypeState) of
         {ok, TypeState1} ->
             case {rigid_kept(Rigid, TypeState), rigid_kept(Rigid, TypeState1)} of
@@ -6554,7 +6844,8 @@ unify_at(Span, Expected, Actual, #env{type_state = TypeState, rigid = Rigid} = E
                                _ -> RuleHelp
                            end,
                     Reason = rigid_reason(Rigid, Expected, Actual, TypeState, TypeState1),
-                    fail(Span, unify_message(RuleText, Reason, Expected, Actual, TypeState),
+                    fail(Span, unify_message(RuleText, Reason, Expected, Actual, Taken,
+                                             TypeState),
                          labels(Origin), Help);
                 _ ->
                     settle(Span, TypeState, Env#env{type_state = TypeState1})
@@ -6564,9 +6855,14 @@ unify_at(Span, Expected, Actual, #env{type_state = TypeState, rigid = Rigid} = E
                        undefined -> differing_help(Reason, Expected, Actual, TypeState);
                        _ -> RuleHelp
                    end,
-            fail(Span, unify_message(RuleText, Reason, Expected, Actual, TypeState),
+            fail(Span, unify_message(RuleText, Reason, Expected, Actual, Taken, TypeState),
                  labels(Origin), Help)
     end.
+
+%% Report §11.5: the names a pattern binds, which a type the message prints
+%% beside it does not give its variables.
+bound_names(Pattern) ->
+    [atom_to_list(Name) || {Name, _, _} <- ern_ast:pattern_binders(Pattern)].
 
 %% Whether the rigid variables are still distinct variables.
 rigid_kept(Rigid, TypeState) ->
@@ -6628,18 +6924,18 @@ differing_help({mismatch, _, _}, Expected, Actual, TypeState) ->
     end;
 differing_help(_, _, _, _) -> undefined.
 
-unify_message(Rule, {mismatch, _, _}, Expected, Actual, TypeState) ->
-    {ExpectedText, ActualText} = ern_types:format_pair(Expected, Actual, TypeState),
+unify_message(Rule, {mismatch, _, _}, Expected, Actual, Taken, TypeState) ->
+    {ExpectedText, ActualText} = ern_types:format_pair(Expected, Actual, Taken, TypeState),
     lists:flatten([Rule, ": expected ", ExpectedText, ", found ", ActualText]);
-unify_message(Rule, Reason, _, _, _) when Reason =:= none_where_mailbox_needed;
-                                              Reason =:= mailbox_where_none_needed ->
+unify_message(Rule, Reason, _, _, _, _) when Reason =:= none_where_mailbox_needed;
+                                                 Reason =:= mailbox_where_none_needed ->
     lists:flatten([Rule, ": ", ern_types:format_error(Reason)]);
-unify_message(Rule, {none_vs_mailbox, _}, Expected, Actual, TypeState) ->
-    {ExpectedText, ActualText} = ern_types:format_pair(Expected, Actual, TypeState),
+unify_message(Rule, {none_vs_mailbox, _}, Expected, Actual, Taken, TypeState) ->
+    {ExpectedText, ActualText} = ern_types:format_pair(Expected, Actual, Taken, TypeState),
     lists:flatten([Rule, ": expected ", ExpectedText, ", found ", ActualText,
                    " (a function that receives nothing and one that receives do not"
                    " match)"]);
-unify_message(Rule, Reason, Expected, Actual, TypeState) ->
+unify_message(Rule, Reason, Expected, Actual, _Taken, TypeState) ->
     lists:flatten([Rule, ": ", ern_types:format_error(Reason), " (",
                    ern_types:format(Expected, TypeState), " against ",
                    ern_types:format(Actual, TypeState), ")"]).

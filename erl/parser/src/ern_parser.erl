@@ -357,6 +357,7 @@ doc(Tokens) -> {undefined, Tokens}.
 
 type_declaration([{type, Position} | Rest], Doc, Export) ->
     {Name, Rest1} = expect_typename(Rest),
+    NameSpan = ern_diagnostic:span(span_through(position(hd(Rest)), Rest, Rest1)),
     {Parameters, Rest2} = optional_typevars(Rest1),
     Rest3 = expect(Rest2, '='),
     {Constructors, Rest4} = constructors(Rest3),
@@ -364,7 +365,8 @@ type_declaration([{type, Position} | Rest], Doc, Export) ->
     spanned({#type_declaration{span = Position, doc = Doc, export = Export, name = Name,
                                params = [Parameter || {Parameter, _} <- Parameters],
                                param_spans = [Span || {_, Span} <- Parameters],
-                               constructors = Constructors, derives = Derives},
+                               constructors = Constructors, derives = Derives,
+                               name_span = NameSpan},
              Rest5}).
 
 %% Report §3.5, §2.4, Appendix A's TypeDecl: `derives compare` after the
@@ -458,6 +460,7 @@ abstract_declaration([{abstract, Position} | Rest], Doc, Export) ->
 
 fn_declaration([{fn, Position} | Rest], Doc, Export) ->
     {MemberOf, Name, Rest1} = declaration_name(Rest),
+    NameSpan = ern_diagnostic:span(span_through(position(hd(Rest)), Rest, Rest1)),
     {Params, Rest2} = params(Rest1),
     {ResultType, Effect, Rest3} = optional_result_type(Rest2),
     {Requirement, Rest4} = optional_requirement(Rest3),
@@ -465,7 +468,7 @@ fn_declaration([{fn, Position} | Rest], Doc, Export) ->
     Declaration = #fn_declaration{span = Position, doc = Doc, export = Export,
                                   member_of = MemberOf, name = Name, params = Params,
                                   result_type = ResultType, effect = Effect,
-                                  requirement = Requirement, body = Body},
+                                  requirement = Requirement, body = Body, name_span = NameSpan},
     spanned({members_named(Declaration), Rest5}).
 
 %% Report §4.9, §2.4, Appendix A's Requirement: `needs` and the members it
@@ -487,7 +490,7 @@ member([{ident, Position, Variable}, {'.', _}, {ident, NamePosition, Name} | Res
     {Line, Column, _, _} = Position,
     {_, _, End, _} = NamePosition,
     NoMember = atom_to_list(Name) ++ " is not a member: a requirement names compare, negate, an"
-               " operator or show (report §4.8, E.1)",
+               " operator or show",
     lists:member(Name, [compare, negate, show]) orelse fail({Line, Column, End}, NoMember),
     spanned({#member{span = Position, member_of = Variable, name = Name}, Rest});
 member([{ident, _, _}, {'.', _}, Token | _]) ->
@@ -644,6 +647,7 @@ let_declaration([{'let', Position} | Rest], Doc, Export) ->
 
 foreign_declaration([{foreign, Position}, {type, _} | Rest], Doc, Export) ->
     {Name, Rest1} = expect_typename(Rest),
+    NameSpan = ern_diagnostic:span(span_through(position(hd(Rest)), Rest, Rest1)),
     {Parameters, Rest2} = case Rest1 of
                               [{'(', _} | AfterParen] ->
                                   {Written, AfterParameters} =
@@ -654,10 +658,12 @@ foreign_declaration([{foreign, Position}, {type, _} | Rest], Doc, Export) ->
     spanned({#foreign_type_declaration{span = Position, doc = Doc, export = Export, name = Name,
                                        params = [Parameter || {Parameter, _, _} <- Parameters],
                                        param_spans = [Span || {_, Span, _} <- Parameters],
-                                       equality = [Equality || {_, _, Equality} <- Parameters]},
+                                       equality = [Equality || {_, _, Equality} <- Parameters],
+                                       name_span = NameSpan},
              Rest2});
 foreign_declaration([{foreign, Position}, {fn, _} | Rest], Doc, Export) ->
     {MemberOf, Name, Rest1} = declaration_name(Rest),
+    NameSpan = ern_diagnostic:span(span_through(position(hd(Rest)), Rest, Rest1)),
     Rest2 = expect(Rest1, '('),
     {Params, Rest3} = case Rest2 of
                           [{')', _} | _] -> {[], Rest2};
@@ -678,7 +684,8 @@ foreign_declaration([{foreign, Position}, {fn, _} | Rest], Doc, Export) ->
                                              result_type = ResultType, effect = Effect,
                                              implementation = Implementation,
                                              implementation_span =
-                                                 ern_diagnostic:span(ImplementationPosition)},
+                                                 ern_diagnostic:span(ImplementationPosition),
+                                             name_span = NameSpan},
                      Rest7});
         [Token | _] ->
             fail(position(Token), "expected the implementation name as a string instead of "
@@ -699,26 +706,34 @@ foreign_type_parameter(Tokens) ->
 foreign_param(Tokens) ->
     {Name, Position, Rest} = expect_ident_position(Tokens),
     {Variable, _} = spanned({#p_var{span = Position, name = Name}, Rest}),
-    {Type, Rest1} = listed_type(expect(Rest, ':')),
+    {Type, Rest1} = listed_type(expect(Rest, ':'), foreign),
     spanned({#param{span = Position, pattern = Variable, annotation = Type}, Rest1}).
 
 %%
 %% Types
 %%
 
-type([{'(', Position} | Rest]) ->
+%% A type, outside a foreign function's parameters, where an equality mark
+%% stands only for the checker to refuse (report §4.7).
+type(Tokens) ->
+    type(Tokens, plain).
+
+%% Marks: `foreign` within a foreign function's parameter, where a type
+%% variable in a list of types may carry the equality mark (report §4.7),
+%% `plain` elsewhere; it chooses the help of a mark in parentheses.
+type([{'(', Position} | Rest], Marks) ->
     {Types, Rest1} = case Rest of
                          [{')', _} | _] -> {[], Rest};
-                         _ -> separated(Rest, ',', fun listed_type/1)
+                         _ -> separated(Rest, ',', listed(Marks))
                      end,
-    parenthesized(Position, Types, expect(Rest1, ')'));
-type([{'#(', Position} | Rest]) ->
-    {Elements, Rest1} = components(Position, separated(Rest, ',', fun listed_type/1)),
+    parenthesized(Position, Types, expect(Rest1, ')'), Marks);
+type([{'#(', Position} | Rest], Marks) ->
+    {Elements, Rest1} = components(Position, separated(Rest, ',', listed(Marks))),
     spanned({#t_tuple{span = Position, elements = Elements}, expect(Rest1, ')')});
-type([{typename, Position, _} | _] = Tokens) ->
+type([{typename, Position, _} | _] = Tokens, Marks) ->
     case qualified(Tokens) of
         {{con, Namespace, Name}, [{'(', _} | Rest]} ->
-            {Args, Rest1} = separated(Rest, ',', fun listed_type/1),
+            {Args, Rest1} = separated(Rest, ',', listed(Marks)),
             spanned({#t_named{span = Position, namespace = Namespace, name = Name, args = Args},
                      expect(Rest1, ')')});
         {{con, Namespace, Name}, Rest} ->
@@ -732,55 +747,66 @@ type([{typename, Position, _} | _] = Tokens) ->
                  "a type's arguments are written in parentheses, as List(a), and a lowercase"
                  " name after `.` names a value")
     end;
-type([{ident, Position, Name} | Rest]) ->
+type([{ident, Position, Name} | Rest], _Marks) ->
     spanned({#t_var{span = Position, name = Name}, Rest});
-type([{fn, Position} = Token | _]) ->
+type([{fn, Position} | _], _Marks) ->
     %% report §3.4, §11.5: a function type is written without `fn`, and the
     %% help names the form, a fixed example rather than the types written
-    wanted(typename, Position, instead("expected a type", Token),
-           "a function type is written without `fn`, as (Int) -> Int");
-type([Token | _]) ->
+    wanted(typename, Position, "expected a type instead of the reserved word `fn`",
+           "a function type is written without `fn`, as `(Int) -> Int`");
+type([Token | _], _Marks) ->
     wanted(typename, position(Token), instead("expected a type", Token)).
+
+%% What reads one type of a list of types under Marks.
+listed(Marks) ->
+    fun(Tokens) -> listed_type(Tokens, Marks) end.
 
 %% Report §3, Appendix A's ListedType: in a list of types, a type variable
 %% followed by `=` is marked with equality (§4.7).
-listed_type([{ident, Position, Name}, {'=', _} | Rest]) ->
+listed_type([{ident, Position, Name}, {'=', _} | Rest], _Marks) ->
     spanned({#t_var{span = Position, name = Name, equality = true}, Rest});
-listed_type(Tokens) ->
-    type(Tokens).
+listed_type(Tokens, Marks) ->
+    type(Tokens, Marks).
 
 %% Appendix A's FnType and ParenType: the types in parentheses are a
 %% function type's parameters where `->` follows them, else the one type
 %% they hold.
-parenthesized(Position, Params, [{'->', _} | Rest]) ->
-    {ResultType, Rest1} = type(Rest),
+parenthesized(Position, Params, [{'->', _} | Rest], Marks) ->
+    {ResultType, Rest1} = type(Rest, Marks),
     case Rest1 of
         [{receiving, ReceivingPosition} | Rest2] ->
             not is_bare_effectful_function(ResultType, Rest) orelse
                 fail(ReceivingPosition, "a second `receiving` after a function type's own",
                      "write the function's mailbox type after its result in parentheses,"
                      " (A) -> ((B) -> C receiving M) receiving N"),
-            {Effect, Rest3} = type(Rest2),
+            {Effect, Rest3} = type(Rest2, Marks),
             spanned({#t_fn{span = Position, params = Params, result_type = ResultType,
                            effect = Effect}, Rest3});
         _ ->
             spanned({#t_fn{span = Position, params = Params, result_type = ResultType}, Rest1})
     end;
-parenthesized(_, [#t_var{span = Span, name = Name, equality = true}], _) ->
+parenthesized(_, [#t_var{span = Span, name = Name, equality = true}], _, Marks) ->
+    %% report §3, §4.7: the mark is written in a foreign function's
+    %% parameters alone, so outside them the help drops it, and within them
+    %% it names the lists of types where it stands
     Text = atom_to_list(Name),
-    fail(Span, "a type in parentheses takes no equality mark",
-         "the mark stands in a list of types, as List(" ++ Text ++ "=) or (" ++ Text
-         ++ "=) -> Bool");
-parenthesized(_, [Type], Rest) ->
+    Help = case Marks of
+               plain -> "write " ++ Text ++ "; the mark is written in a foreign function's"
+                        " parameters alone";
+               foreign -> "the mark stands in a list of types, as List(" ++ Text ++ "=) or ("
+                          ++ Text ++ "=) -> Bool"
+           end,
+    fail(Span, "a type in parentheses takes no equality mark", Help);
+parenthesized(_, [Type], Rest, _Marks) ->
     spanned({Type, Rest});
-parenthesized(Position, [], Rest) ->
+parenthesized(Position, [], Rest, _Marks) ->
     %% report §11.2: at the input's end a further line may hold the `->`
     Diagnostic = diagnostic(Position, "expected a type inside the parentheses, or `->` after them",
-                            "the type whose one value is written () is Unit"),
+                            "the type with one value is Unit, and its value is written Unit"),
     throw({parse_error, Diagnostic#diagnostic{incomplete = is_at_end(Rest)}});
-parenthesized(_, _, [Token | _]) ->
+parenthesized(_, _, [Token | _], _Marks) ->
     fail(position(Token), "expected `->` after a parameter list instead of " ++ describe(Token),
-         "a tuple type is written with `#(`, as #(Int, Int)").
+         "a tuple type is written with `#(`, as `#(Int, Int)`").
 
 %% {typename "."} followed by a final segment. Returns {con, Namespace, Name}
 %% for an uppercase final, {value, Namespace, Name} for an ident or userop final.
@@ -1055,10 +1081,10 @@ primary([{match, Position} | Rest]) ->
     match_expr(Rest, Position);
 primary([{'receive', Position} | Rest]) ->
     receive_expr(Rest, Position);
-primary([{'(', _}, {')', Position} = Token | _]) ->
+primary([{'(', _}, {')', Position} | _]) ->
     %% report §3.1, §11.5: `()` is no value, and the help says how Unit's
     %% one value is written
-    wanted(expression, Position, "expected an expression instead of " ++ describe(Token),
+    wanted(expression, Position, "expected an expression instead of `)`",
            "Unit's one value is written Unit");
 primary([{'(', {Line, Column, _, _}} | Rest]) ->
     %% report §11.5: a parenthesized expression spans its parentheses, so a
@@ -1313,7 +1339,7 @@ constructor_pattern(Position, Namespace, Name, [{'(', _} | Rest]) ->
         _ ->
             {Pattern, Rest1} = pattern(Rest),
             no_path_pattern(Pattern, Rest1),
-            no_second_positional(Rest1),
+            no_second_positional(Name, Rest1),
             spanned({#p_constructor{span = Position, namespace = Namespace, name = Name,
                                     args = {positional, Pattern}},
                      expect(Rest1, ')')})
@@ -1322,10 +1348,14 @@ constructor_pattern(Position, Namespace, Name, Tokens) ->
     spanned({#p_constructor{span = Position, namespace = Namespace, name = Name}, Tokens}).
 
 %% Report §3.5, §11.5: a `,` after a constructor pattern's positional field
-%% is refused as a second positional field in a declaration is.
-no_second_positional([{',', Position} | _]) ->
-    fail(Position, "a constructor has exactly one positional field");
-no_second_positional(_) ->
+%% is refused as a second positional field in a declaration is, with a help
+%% in a pattern's terms.
+no_second_positional(Name, [{',', Position} | _]) ->
+    Text = atom_to_list(Name),
+    fail(Position, "a constructor has exactly one positional field",
+         "name the fields, `" ++ Text ++ "(x = ..., y = ...)`, or match a tuple, `" ++ Text
+         ++ "(#(..., ...))`");
+no_second_positional(_, _) ->
     ok.
 
 %% Report §5.6: a path written where a constructor pattern's one
@@ -1390,10 +1420,23 @@ bit_spec([{ident, Position, unit} | _]) ->
 bit_spec([{ident, Position, Name} | Rest]) ->
     case lists:member(Name, ?SPECS) of
         true -> {Name, Rest};
-        false -> fail(Position, "unknown bitstring specifier `" ++ atom_to_list(Name) ++ "`")
+        false -> fail(Position, "unknown bitstring specifier `" ++ atom_to_list(Name) ++ "`",
+                      specifiers_help())
     end;
+bit_spec([{int, _, Size} = Token | _]) ->
+    %% report §5.11: a size is written as a specifier of its own, where
+    %% Erlang writes the number after the colon
+    fail(position(Token), "expected a bitstring specifier instead of " ++ describe(Token),
+         "a size is written `size(" ++ integer_to_list(Size) ++ ")`");
 bit_spec([Token | _]) ->
     fail(position(Token), "expected a bitstring specifier instead of " ++ describe(Token)).
+
+%% Report §5.11: the specifiers, as the help of one the language lacks
+%% lists them.
+specifiers_help() ->
+    [Last | Others] = lists:reverse(["`size(N)`" | ["`" ++ atom_to_list(Spec) ++ "`"
+                                                     || Spec <- ?SPECS]]),
+    "a specifier is " ++ lists:append(lists:join(", ", lists:reverse(Others))) ++ " or " ++ Last.
 
 %% Report §5.11: a size counts bits, and octets for `bytes`, so no specifier
 %% scales it; the help writes the size with the scale where both are
@@ -1526,7 +1569,7 @@ describe({ident, _, Name}) -> "identifier `" ++ atom_to_list(Name) ++ "`";
 describe({typename, _, Name}) -> "type name `" ++ atom_to_list(Name) ++ "`";
 describe({int, _, Value}) -> "integer " ++ integer_to_list(Value);
 describe({float, _, Value}) -> "float " ++ float_to_list(Value, [short]);
-describe({char, _, _}) -> "char literal";
+describe({char, _, _}) -> "character literal";
 describe({string, _, _}) -> "string literal";
 describe({bool, _, Value}) -> "the reserved word `" ++ atom_to_list(Value) ++ "`";
 describe({doc, _, _}) -> "doc block";

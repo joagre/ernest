@@ -17,10 +17,11 @@
 
 -record(module_doc, {span, text}). % the module's doc block, first in the list, report §2.2
 -record(type_declaration, {span, doc, export = false, name, params = [], constructors,
-                           derives, param_spans = []}).
+                           derives, param_spans = [], name_span}).
 %% derives: undefined, or the span of `derives compare`, which gives the type
 %% the member compare (report §3.5); param_spans: each parameter's span, in
-%% the order of params, for the error of one written twice (§4.3, §11.5)
+%% the order of params, for the error of one written twice (§4.3, §11.5);
+%% name_span: where the type's name stands, for an error in the name alone
 -record(constructor, {span, doc, name, fields = none}).
 %% fields: none | {positional, Type} | {named, [#field{}]}
 -record(field, {span, doc, name, annotation}).
@@ -30,9 +31,10 @@
 %% (report §4.4)
 
 -record(fn_declaration, {span, doc, export = false, member_of, name, params, result_type, effect,
-                         requirement = [], body, scheme}).
+                         requirement = [], body, scheme, name_span}).
 %% DeclName: name is an ident or a userop atom; member_of is the typename
-%% prefix of a type member (`fn Distance.+`), else undefined.
+%% prefix of a type member (`fn Distance.+`), else undefined; name_span is
+%% where the DeclName stands, `Distance.+`, for an error in the name alone.
 %% result_type/effect: the annotation; result_type = undefined means none,
 %% result_type given with effect = undefined receives nothing. requirement: the
 %% #member{}s its `needs` names, report §4.9, [] where it has none. scheme:
@@ -49,14 +51,14 @@
 %% annotation: the type written, or undefined; scheme: set by the checker
 
 -record(foreign_type_declaration, {span, doc, export = false, name, params = [],
-                                   equality = [], param_spans = []}).
+                                   equality = [], param_spans = [], name_span}).
 %% equality: for each parameter, whether it is written `k=` and requires equality
 %% (report §4.7); [] where it has none; param_spans: as a type declaration's
 -record(foreign_fn_declaration, {span, doc, export = false, member_of, name, params, result_type,
-                                 effect, implementation, implementation_span, scheme}).
+                                 effect, implementation, implementation_span, scheme, name_span}).
 %% scheme: set by the checker, as on fn_declaration; implementation_span:
 %% where the implementation's string stands, for its diagnostics (report
-%% §11.5)
+%% §11.5); name_span, as a type's or a fn's
 
 %%
 %% Types (syntactic)

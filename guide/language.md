@@ -690,7 +690,7 @@ fn twice(value) =
 
 ```console
 $ ern build twice.ern
-twice.ern:2:5: the operand type of `+` is not determined; annotate it
+twice.ern:2:5: the operand type of `+` is not determined; annotate value
 1 | fn twice(value) =
 2 |     value + value
   |     ^^^^^^^^^^^^^
@@ -2821,7 +2821,7 @@ bound.ern:4:54: the function Peer.spawn starts captures listener, whose type Add
 3 |         Right(listener) -> {
 4 |             let _ = Peer.spawn("alice", fn() = serve(listener), 5000);
   |                                                      ^^^^^^^^
-  | = help: a value of a bound type never crosses to another node; give the process what crosses (report §3.11)
+  | = help: compute what the process needs of listener before the spawn and capture that, or spawn on this node (report §3.11)
 ```
 
 A program that needs such a thing on another node makes it there: the spawned function opens the listener on `alice`, with the address to bind captured in its place. State in a table crosses the same way, as the entries it is made of, from which the peer fills a table of its own (§8.5).

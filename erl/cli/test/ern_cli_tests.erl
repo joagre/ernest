@@ -1544,6 +1544,10 @@ member_clash_test() ->
     Output = iolist_to_binary(?capturedOutput),
     ?assertMatch([_, _, _], binary:matches(Output, Message)),
     ?assertMatch({_, _}, binary:match(Output, <<"4 | export let compare = 5\n">>)),
+    %% the help says the value is that name too: a regression test, written
+    %% after the code, of the help's text alone
+    ?assertMatch({_, _}, binary:match(Output, <<"help: this module's compare is"
+                                                " Main.Stack.compare too; rename it\n">>)),
     ?assertNot(filelib:is_regular(Dir ++ "/build/main/stack.erc")).
 
 %% report §4.9, §11.5: a call of a function of the module of a type's name

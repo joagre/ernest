@@ -113,7 +113,7 @@ check(_, _) ->
 walk(#e_call{callee = #e_var{referent = Referent} = Callee, args = Args}, Scope, Env) ->
     case {spawn_name(Referent), is_running(Referent)} of
         {none, false} -> walk(Callee, Scope, Env);
-        {none, true} -> running(Args, Env);
+        {none, true} -> running(Args, Scope, Env);
         {Name, _} -> spawned(Name, Callee, Args, Scope, Env)
     end,
     walk(Args, Scope, Env);
@@ -155,6 +155,13 @@ statement(#binding{pattern = #p_var{name = Name}, operator = '=', expr = #e_lamb
           Scope, Env) ->
     walk(Lambda, Scope, Env),
     Scope#{Name => {lambda, Lambda}};
+statement(#binding{pattern = #p_var{name = Name}, operator = '=',
+                   expr = #e_var{referent = Referent} = Declared}, Scope, Env)
+  when Referent =/= var, not is_tuple(Referent) orelse element(1, Referent) =/= prelude ->
+    %% report §11.5: a local bound to a declaration's name, which the help
+    %% of `Code.running` of the local names
+    walk(Declared, Scope, Env),
+    Scope#{Name => {named, Declared}};
 statement(#binding{pattern = Pattern, expr = Expr}, Scope, Env) ->
     walk(Expr, Scope, Env),
     shadowed(pattern_names(Pattern), Scope);
@@ -199,33 +206,50 @@ is_running(_) ->
 %% process listed has it as its mailbox type; one that receives nothing,
 %% and one that is process-only, list their processes at Never
 %% (ern_typecheck:is_running_never/2).
-running([#e_var{span = Span, namespace = Namespace, name = Name, referent = Referent}], Env) ->
+running([#e_var{span = Span, namespace = Namespace, name = Name, referent = Referent}], Scope,
+        Env) ->
     Written = ern_namespace:text(Namespace ++ [Name]),
-    Help = "name a top-level `fn` whose result type is `Unit`: `Code.running(count)`"
-        " (report §3.11)",
+    Help = "name a top-level `fn` of this program whose result type is `Unit` (report §3.11)",
     What = fun(Text) -> "Code.running lists the processes that run a declaration, and "
                             ++ Written ++ Text end,
     case Referent of
         var ->
-            fail(Span, What(" is a local, whose function is no declaration"), Help);
+            fail(Span, What(" is a local, whose function is no declaration"),
+                 local_running_help(maps:get(Name, Scope, value), Help));
         {prelude, _} ->
             fail(Span, What(" is the prelude's, which no module declares"), Help);
         _ ->
             ern_typecheck:is_top_let(Referent, Env)
                 andalso fail(Span, What(" is a top-level `let`, whose value is no declaration"),
-                             "declare the function with `fn` and name it: "
-                             "`Code.running(count)` (report §3.11)"),
+                             "declare " ++ Written ++ " with `fn` and name it,"
+                             " `Code.running(" ++ Written ++ ")` (report §3.11)"),
             ern_typecheck:is_foreign(Referent, Env)
-                andalso fail(Span, What(" is a foreign declaration, which has no hash"), Help),
+                andalso fail(Span, What(" is a foreign declaration, which has no hash"),
+                             "declare a top-level `fn` that calls " ++ Written ++ ", and name"
+                             " it (report §3.11)"),
             Scheme = ern_typecheck:declaration_scheme(Referent, Env),
             declared_running(Span, {Written, atom_to_list(Name)}, Scheme,
                              ern_typecheck:is_running_never(Referent, Env), Env)
     end;
-running([Function], _Env) ->
+running([Function], _Scope, _Env) ->
     fail(ern_ast:span(Function),
-         "Code.running lists the processes that run a declaration, named where the call is"
-         " written",
-         "name a top-level `fn` whose result type is `Unit`: `Code.running(count)` (report §3.11)").
+         "Code.running lists the processes that run a declaration, and "
+         ++ running_argument(Function) ++ " is no declaration",
+         "declare the function with `fn` at the top level and name it (report §3.11)").
+
+%% Report §3.11, §11.5: the help of a local named, the declaration itself
+%% where a `let` bound the local to one's name.
+local_running_help({named, #e_var{namespace = Namespace, name = Declared}}, _Help) ->
+    Text = ern_namespace:text(Namespace ++ [Declared]),
+    "name " ++ Text ++ " itself, `Code.running(" ++ Text ++ ")` (report §3.11)";
+local_running_help(_, Help) ->
+    Help.
+
+%% What `Code.running` was given where no name stands, as its message
+%% names it.
+running_argument(#e_lambda{}) -> "a lambda";
+running_argument(#e_call{}) -> "a function a call answers";
+running_argument(_) -> "a function an expression computes".
 
 %% The declaration's type: its result Unit, and its mailbox type, where its
 %% processes are not listed at Never, known whole, holding no type variable.
@@ -244,7 +268,8 @@ declared_running(Span, {Written, Declared}, Scheme, Never, Env) ->
         {tcon, ['Unit'], []} -> ok;
         _ -> fail(Span, "Code.running lists the processes that run " ++ Written
                         ++ ", whose result type is " ++ Shown(Result) ++ ", not Unit",
-                  "a process runs a function whose result type is `Unit` (report §3.11)")
+                  "name the function the processes run, a top-level `fn` whose result type is"
+                  " `Unit` (report §3.11)")
     end,
     Never orelse ern_types:free_variables(Effect, ern_types:printing(TypeState)) =:= []
         orelse fail(Span, "Code.running lists the processes that run " ++ Written
@@ -302,10 +327,26 @@ captures(Name, #e_var{span = Span, name = Declared, referent = Referent}, _Scope
     end;
 captures(Name, Function, _Scope, _Env) ->
     fail(ern_ast:span(Function),
-         Name ++ verb(Name) ++ "a function written where the compiler sees what it captures: a"
-                 " declaration's name, or a lambda or a `fn` written in this definition",
+         Name ++ verb(Name) ++ what_function(Function) ++ ", whose captures the compiler does"
+                 " not see",
          "write the lambda at " ++ act(Name) ++ ", bind it with `let`, or declare it with"
          " `fn`, in this definition (report §3.11)").
+
+%% Report §3.11, §11.5: what a function the compiler does not see the
+%% captures of is, as the message names it: a call's answer, the callee
+%% named where it is a name, a field read, or else an expression.
+what_function(#e_call{callee = #e_var{namespace = Namespace, name = Callee}, args = Args}) ->
+    Arguments = case Args of
+                    [] -> "()";
+                    _ -> "(...)"
+                end,
+    ern_namespace:text(Namespace ++ [Callee]) ++ Arguments ++ ", a function a call answers";
+what_function(#e_call{}) ->
+    "a function a call answers";
+what_function(#e_selection{field = Field}) ->
+    "the field " ++ atom_to_list(Field) ++ ", a function read from a value";
+what_function(_) ->
+    "a function an expression computes".
 
 %% Report §3.11, §4.9: the locals a lambda's or a local fn's body names, its
 %% captures, where the body uses no member of a requirement in force, which
@@ -360,9 +401,9 @@ capture_crosses(Name, #e_var{span = Span, name = Local, type = Type}, Env) ->
                 orelse fail(Span, "the function " ++ Name ++ verb(Name) ++ "captures "
                                   ++ atom_to_list(Local) ++ ", whose type " ++ Text
                                   ++ " holds a type variable",
-                            "a value " ++ act_on_peer(Name) ++ " captures has a type known"
-                            " whole, since a type variable could stand for one bound to its node"
-                            " (report §3.11)");
+                            "capture a value whose type is known whole: compute what the process"
+                            " needs of " ++ atom_to_list(Local) ++ " before " ++ act(Name)
+                            ++ " and capture that (report §3.11)");
         Why ->
             %% a function's type at its use has the effect of its use's
             %% context (§3.9), not the binding's, so it is named, not shown
@@ -373,8 +414,8 @@ capture_crosses(Name, #e_var{span = Span, name = Local, type = Type}, Env) ->
                    end,
             fail(Span, "the function " ++ Name ++ verb(Name) ++ "captures " ++ atom_to_list(Local)
                        ++ What,
-                 "a value of a bound type never crosses to another node; give the process"
-                 " what crosses (report §3.11)")
+                 "compute what the process needs of " ++ atom_to_list(Local) ++ " before "
+                 ++ act(Name) ++ " and capture that, or " ++ here(Name) ++ " (report §3.11)")
     end.
 
 %% The function the spawn or the compute takes, the parameter at Position,
@@ -398,14 +439,15 @@ result_crosses(Name, Span, {tfn, [], _, Result}, Env) ->
                 orelse ern_types:is_unknown(Substituted, TypeState)
                 orelse fail(Span, Name ++ " answers a value of type " ++ Text ++ ", which holds a"
                                   " type variable, so whether it crosses is not known here",
-                            "give the function its result type, `fn() : Int = ...`: the value"
-                            " crosses back to this node, and its type is known whole where the"
-                            " compute is written (report §3.11)");
+                            "give the function its result type, `fn() : "
+                            ++ ern_types:format_annotation(Substituted, TypeState)
+                            ++ " = ...`: the value crosses back to this node, and its type is"
+                            " known whole where the compute is written (report §3.11)");
         Why ->
             fail(Span, Name ++ " answers a value of type " ++ Text ++ ", which is bound to its"
                        " node, since it holds " ++ Why,
-                 "the value crosses back to this node, so its type is one that crosses; answer"
-                 " what crosses (report §3.11)")
+                 "answer a value that crosses, from which this node builds what it needs"
+                 " (report §3.11)")
     end.
 
 %% A mailbox type that is still a variable is one an annotation names or
@@ -435,7 +477,8 @@ mailbox_crosses(Name, Span, Mailbox, Env) ->
         {Why, _} ->
             fail(Span, Name ++ " starts a process whose mailbox type " ++ Text
                        ++ " is bound to its node, since it holds " ++ Why,
-                 bound_mailbox_help(Name))
+                 "keep " ++ Why ++ " on this node and send the process values that cross, or "
+                 ++ here(Name) ++ " (report §3.11)")
     end.
 
 %% Appendix E.27: whether the operation is a compute, on a peer named or on
@@ -443,25 +486,12 @@ mailbox_crosses(Name, Span, Mailbox, Env) ->
 is_compute(Name) ->
     Name =:= "Peer.compute" orelse Name =:= "Peer.computeAt".
 
-%% The help of a bound mailbox type: a spawn answers the process's address,
-%% which may cross; a compute's function is checked as a spawn's, one rule
-%% for the function a peer runs (§3.11).
-bound_mailbox_help(Name) ->
-    case is_compute(Name) of
-        true -> "the function a peer runs, a compute's as a spawn's, has a mailbox type that"
-                " crosses (report §3.11)";
-        false -> "the spawn answers an address that may cross to another node, so its messages"
-                 " are values that cross (report §3.11)"
-    end.
-
 %% What the operation does with its function, in the report's words
 %% (§3.11): a spawn starts it, a compute runs it; and the operation as a
 %% help names it, the one written.
 verb(Name) -> by_kind(Name, " runs ", " starts ").
 
 act(Name) -> by_kind(Name, "the compute", "the spawn").
-
-act_on_peer(Name) -> by_kind(Name, "a compute on a peer", "a spawn on a peer").
 
 here(Name) -> by_kind(Name, "run the function on this node, `f()`", "spawn on this node").
 

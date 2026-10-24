@@ -9,8 +9,9 @@
          resolve/2, substitute/2, unify/3, free_variables/2,
          monomorphic/1, generalize/2, generalize/3, elided/2, instantiate/2, instance/2,
          unknown_instance/2, value_positions_marked/2, replace_variables/2,
-         mismatch_pair/3, format/2, format_pair/3, value_variables/2, value_args/3,
-         args_in_value/3, set_scope/5, printing/1, printed_scope/1, set_effect_params/2,
+         mismatch_pair/3, format/2, format_annotation/2, format_pair/3, format_pair/4,
+         value_variables/2, value_args/3, args_in_value/3, set_scope/5, printing/1,
+         printed_scope/1, set_effect_params/2,
          format_scheme/2, format_with_requirement/3, format_call/4, format_error/1]).
 
 -export_type([type_state/0, type/0, effect/0, qualified_name/0, id/0, restrictions/0]).
@@ -513,34 +514,46 @@ replace_variables(none, _) ->
 -spec mismatch_pair(type() | none, type() | none, type_state()) ->
           {type() | none, type() | none}.
 mismatch_pair(Expected, Actual, TypeState) ->
-    differing(substitute(Expected, TypeState), substitute(Actual, TypeState)).
+    differing(substitute(Expected, TypeState), substitute(Actual, TypeState), TypeState).
 
-differing({tcon, QualifiedName, ExpectedArgs}, {tcon, QualifiedName, ActualArgs})
+differing({tcon, QualifiedName, ExpectedArgs}, {tcon, QualifiedName, ActualArgs}, TypeState)
   when length(ExpectedArgs) =:= length(ActualArgs) ->
     first_differing(ExpectedArgs, ActualArgs,
-                    {{tcon, QualifiedName, ExpectedArgs}, {tcon, QualifiedName, ActualArgs}});
-differing({ttuple, ExpectedElements}, {ttuple, ActualElements})
+                    {{tcon, QualifiedName, ExpectedArgs}, {tcon, QualifiedName, ActualArgs}},
+                    TypeState);
+differing({ttuple, ExpectedElements}, {ttuple, ActualElements}, TypeState)
   when length(ExpectedElements) =:= length(ActualElements) ->
     first_differing(ExpectedElements, ActualElements,
-                    {{ttuple, ExpectedElements}, {ttuple, ActualElements}});
+                    {{ttuple, ExpectedElements}, {ttuple, ActualElements}}, TypeState);
 differing({tfn, ExpectedParams, ExpectedEffect, ExpectedResult} = Expected,
-          {tfn, ActualParams, ActualEffect, ActualResult} = Actual)
+          {tfn, ActualParams, ActualEffect, ActualResult} = Actual, TypeState)
   when length(ExpectedParams) =:= length(ActualParams) ->
     first_differing(ExpectedParams ++ [ExpectedEffect, ExpectedResult],
-                    ActualParams ++ [ActualEffect, ActualResult], {Expected, Actual});
-differing(Expected, Actual) ->
+                    ActualParams ++ [ActualEffect, ActualResult], {Expected, Actual}, TypeState);
+differing(Expected, Actual, _TypeState) ->
     {Expected, Actual}.
 
-%% A part where either side is a variable does not differ, since the
-%% variable takes the other; the first part that does is named. A
+%% The parts unified in order, each under what the parts before it bound,
+%% and the first that does not unify named. A part where either side is a
+%% variable does not differ, since the variable takes the other. A
 %% regression: the help named a variable against the type it would take,
-%% `a` and `Set(a)`, where the results differed.
-first_differing(ExpectedParts, ActualParts, Whole) ->
-    case [{Expected, Actual} || {Expected, Actual} <- lists:zip(ExpectedParts, ActualParts),
-                                Expected =/= Actual, not is_variable(Expected),
-                                not is_variable(Actual)] of
-        [{Expected, Actual} | _] -> differing(Expected, Actual);
-        [] -> Whole
+%% `a` and `Set(a)`, where the results differed; and another, the help named
+%% `Set(Int)` against `Set(a=)`, which unify, where the results differed.
+first_differing(ExpectedParts, ActualParts, Whole, TypeState) ->
+    first_failing(lists:zip(ExpectedParts, ActualParts), Whole, TypeState).
+
+first_failing([], Whole, _TypeState) ->
+    Whole;
+first_failing([{Expected, Actual} | Rest], Whole, TypeState) ->
+    case unify(Expected, Actual, TypeState) of
+        {ok, TypeState1} ->
+            first_failing(Rest, Whole, TypeState1);
+        {error, _} ->
+            case is_variable(Expected) orelse is_variable(Actual) of
+                true -> first_failing(Rest, Whole, TypeState);
+                false -> differing(substitute(Expected, TypeState),
+                                   substitute(Actual, TypeState), TypeState)
+            end
     end.
 
 is_variable({tvar, _}) -> true;
@@ -557,11 +570,28 @@ format(Type, TypeState) ->
     {Text, _} = format_type(Elided, TypeState, #variable_names{effect_only = EffectOnly}),
     lists:flatten(Text).
 
+%% Report §11.5: a type as a help writes it in an annotation, each variable
+%% in a value position, which the writer chooses, written `...`:
+%% `Address(Optional(...))`.
+-spec format_annotation(type() | none, type_state()) -> string().
+format_annotation(Type, TypeState) ->
+    Substituted = substitute(Type, TypeState),
+    Chosen = maps:from_list([{Id, {tcon, ['...'], []}}
+                             || Id <- value_variables(Substituted, TypeState)]),
+    format(replace_variables(Substituted, Chosen), TypeState).
+
 %% Report §11.5: two types a message prints together, an expected one and
 %% one found, named as one, so that a variable has one name in both and
 %% two variables never share one.
 -spec format_pair(type(), type(), type_state()) -> {string(), string()}.
 format_pair(Expected, Actual, TypeState) ->
+    format_pair(Expected, Actual, [], TypeState).
+
+%% The same, no variable named with one of Taken, the names a pattern the
+%% message shows binds, so that a type found for `#(a, b)` reads
+%% `#(c, d)` and not the pattern again.
+-spec format_pair(type(), type(), [string()], type_state()) -> {string(), string()}.
+format_pair(Expected, Actual, Taken, TypeState) ->
     {ttuple, [SubstitutedExpected, SubstitutedActual]} = Substituted =
         substitute({ttuple, [Expected, Actual]}, TypeState),
     Counts = count_variables(Substituted, #{}),
@@ -570,7 +600,7 @@ format_pair(Expected, Actual, TypeState) ->
                                     TypeState),
                   elided_own_effect(SubstitutedActual, Counts, unmarked(TypeState), TypeState)]},
     EffectOnly = effect_only_variables(Elided, TypeState),
-    Names = #variable_names{effect_only = EffectOnly},
+    Names = #variable_names{effect_only = EffectOnly, taken = Taken},
     {ExpectedText, Names1} = format_type(ElidedExpected, TypeState, Names),
     {ActualText, _} = format_type(ElidedActual, TypeState, Names1),
     {lists:flatten(ExpectedText), lists:flatten(ActualText)}.

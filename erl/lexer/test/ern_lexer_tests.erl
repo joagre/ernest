@@ -90,7 +90,7 @@ integers_test() ->
 %% `1e` is still an integer an `e` follows
 exponent_floats_test() ->
     ?assertEqual([{float, 1.0e10}, {float, 100.0}, {float, 2.0e-3}], tokens("1e10 1E+2 2e-3")),
-    ?assertEqual({1, 2, "e cannot follow a number directly"}, refusal("1e")).
+    ?assertEqual({1, 2, "`e` cannot follow a number directly"}, refusal("1e")).
 
 %% report §4.8: `!` is a symbol of its own, and `!=` stays one token
 not_symbol_test() ->
@@ -102,17 +102,17 @@ not_symbol_test() ->
 based_integers_test() ->
     ?assertEqual([{int, 16#10FFFF}, {int, 255}, {int, 8#644}, {int, 10}, {int, 0}],
                  tokens("0x10FFFF 0xfF 0o644 0b1010 0x0")),
-    ?assertEqual({1, 5, "2 is not a binary digit"}, refusal("0b102")),
-    ?assertEqual({1, 1, "0x needs a hexadecimal digit"}, refusal("0x")),
+    ?assertEqual({1, 5, "`2` is not a binary digit"}, refusal("0b102")),
+    ?assertEqual({1, 1, "`0x` needs a hexadecimal digit"}, refusal("0x")),
     %% the article goes with the base: a regression test, which wrote "a octal"
-    ?assertEqual({1, 1, "0o needs an octal digit"}, refusal("0o")),
-    ?assertEqual({1, 4, "8 is not an octal digit"}, refusal("0o78")),
-    ?assertEqual({1, 1, "a base prefix is lowercase: 0x"}, refusal("0XFF")).
+    ?assertEqual({1, 1, "`0o` needs an octal digit"}, refusal("0o")),
+    ?assertEqual({1, 4, "`8` is not an octal digit"}, refusal("0o78")),
+    ?assertEqual({1, 1, "a base prefix is lowercase: `0x`"}, refusal("0XFF")).
 
 %% report §2.5: nothing word-like directly after a number
 number_then_word_test() ->
-    ?assertEqual({1, 3, "p cannot follow a number directly"}, refusal("12px")),
-    ?assertEqual({1, 4, "x cannot follow a number directly"}, refusal("1.5x")).
+    ?assertEqual({1, 3, "`p` cannot follow a number directly"}, refusal("12px")),
+    ?assertEqual({1, 4, "`x` cannot follow a number directly"}, refusal("1.5x")).
 
 %% report §2.5: an `_` between two digits groups them; anywhere else in a
 %% number it is an error
@@ -120,10 +120,10 @@ digit_separators_test() ->
     ?assertEqual([{int, 1000000}, {int, 16#FFFFFFFF}, {int, 2#10101010}, {int, 8#7_55},
                   {float, 3.141592}, {float, 1.0e10}],
                  tokens("1_000_000 0xFFFF_FFFF 0b1010_1010 0o7_55 3.141_592 1.0e1_0")),
-    ?assertEqual({1, 2, "_ must stand between two digits"}, refusal("1_")),
-    ?assertEqual({1, 2, "_ must stand between two digits"}, refusal("1__0")),
-    ?assertEqual({1, 3, "_ must stand between two digits"}, refusal("0x_FF")),
-    ?assertEqual({1, 4, "_ must stand between two digits"}, refusal("1.5_")),
+    ?assertEqual({1, 2, "`_` must stand between two digits"}, refusal("1_")),
+    ?assertEqual({1, 2, "`_` must stand between two digits"}, refusal("1__0")),
+    ?assertEqual({1, 3, "`_` must stand between two digits"}, refusal("0x_FF")),
+    ?assertEqual({1, 4, "`_` must stand between two digits"}, refusal("1.5_")),
     ?assertEqual([{int, 1000}, '..', {int, 2000}], tokens("1_000..2_000")).
 
 %% report §2.5
@@ -198,7 +198,7 @@ block_comment_test() ->
     ?assertEqual([{ident, a}, {ident, b}], tokens("a /* x */ b")),
     ?assertEqual([{ident, a}, {ident, b}], tokens("a /* x /* nested */ still */ b")),
     ?assertEqual([{ident, a}, {ident, b}], tokens("a /* multi\nline\n*/ b")),
-    ?assertEqual({1, 3, "unterminated block comment"}, refusal("a /* x /* y */")).
+    ?assertEqual({1, 3, "the block comment never closes"}, refusal("a /* x /* y */")).
 
 %% report §2.2, §11.6: with the formatter's `comments` option every
 %% ordinary comment is a token, as written, and the other tokens' spans
@@ -274,41 +274,49 @@ not_utf8_test() ->
 
 %% report §2.5: a string ends on its line, at its closing quote
 string_literal_errors_test() ->
-    ?assertEqual({1, 1, "unterminated string literal"}, refusal("\"abc")),
-    ?assertEqual({1, 5, "newline in string literal; use \\n"}, refusal("\"abc\ndef\"")).
+    ?assertEqual({1, 1, "the string literal never closes"}, refusal("\"abc")),
+    ?assertEqual({1, 5, "a line break in a string literal; use `\\n`"}, refusal("\"abc\ndef\"")).
 
 %% report §2.5: an escape is one of §2.5's, and `\u{...}` names a Unicode
 %% scalar value in one to six hex digits
 escape_errors_test() ->
     %% an input that ends just after a backslash; a regression test, as the
     %% unterminated string
-    ?assertEqual({1, 2, "unterminated escape"}, refusal("\"\\")),
-    ?assertEqual({1, 2, "unknown escape \\q"}, refusal("\"\\q\"")),
+    ?assertEqual({1, 2, "the input ends inside an escape"}, refusal("\"\\")),
+    ?assertEqual({1, 2, "unknown escape `\\q`"}, refusal("\"\\q\"")),
     %% a line break after a backslash is named, not printed into the message; a
     %% regression test, the catalog of diagnostics having found it printed
-    ?assertEqual({1, 2, "a line break cannot follow `\\`; use \\n"}, refusal("\"\\\nx\"")),
-    ?assertEqual({1, 2, "\\u{D800} is not a Unicode scalar value"}, refusal("\"\\u{D800}\"")),
-    ?assertEqual({1, 2, "\\u{110000} is not a Unicode scalar value"}, refusal("\"\\u{110000}\"")),
-    ?assertEqual({1, 2, "\\u{ needs one to six hex digits followed by }"},
+    ?assertEqual({1, 2, "a line break cannot follow `\\`; use `\\n`"}, refusal("\"\\\nx\"")),
+    ?assertEqual({1, 2, "`\\u{D800}` is not a Unicode scalar value"}, refusal("\"\\u{D800}\"")),
+    ?assertEqual({1, 2, "`\\u{110000}` is not a Unicode scalar value"}, refusal("\"\\u{110000}\"")),
+    ?assertEqual({1, 2, "`\\u{` needs one to six hexadecimal digits followed by `}`"},
                  refusal("\"\\u{1234567}\"")),
-    ?assertEqual({1, 2, "\\u{ needs one to six hex digits"}, refusal("\"\\u{}\"")).
+    ?assertEqual({1, 2, "`\\u{` needs one to six hexadecimal digits"}, refusal("\"\\u{}\"")).
+
+%% report §2.5, §11.5: an unknown escape's help lists the escapes and names
+%% the one that writes any code point. A regression test, written after the
+%% code: it does not cover the help's wording beyond this one escape
+unknown_escape_help_test() ->
+    {error, #diagnostic{help = Help}} = ern_lexer:tokenize("\"\\a\""),
+    ?assertEqual("the escapes are `\\'`, `\\\"`, `\\\\`, `\\n`, `\\r`, `\\t` and `\\u{...}`, which"
+                 " writes any code point, a bell as `\\u{7}`", Help).
 
 %% report §2.5: a char literal holds one code point and closes on its line
 char_literal_errors_test() ->
-    ?assertEqual({1, 1, "empty char literal"}, refusal("''")),
+    ?assertEqual({1, 1, "empty character literal"}, refusal("''")),
     %% a literal of two code points is closed, and named as what it is; a
     %% regression test, the catalog of diagnostics having found it called
     %% unterminated
-    ?assertEqual({1, 1, "a char literal holds one code point; a string is written between"
-                        " double quotes"}, refusal("'ab'")),
-    ?assertEqual({1, 1, "unterminated char literal"}, refusal("'a")),
-    ?assertEqual({1, 1, "unterminated char literal"}, refusal("'ab\n'")).
+    ?assertEqual({1, 1, "a character literal holds one code point; a string is written"
+                        " between double quotes"}, refusal("'ab'")),
+    ?assertEqual({1, 1, "the character literal never closes"}, refusal("'a")),
+    ?assertEqual({1, 1, "the character literal never closes"}, refusal("'ab\n'")).
 
 %% report §2.1, §2.3: a character no token begins with is refused where it
 %% stands
 illegal_character_test() ->
-    ?assertEqual({2, 3, "illegal character '@'"}, refusal("a\n  @")),
-    ?assertEqual({1, 1, "illegal character 'é'"}, refusal(<<"é"/utf8>>)).
+    ?assertEqual({2, 3, "illegal character `@`"}, refusal("a\n  @")),
+    ?assertEqual({1, 1, "illegal character `é`"}, refusal(<<"é"/utf8>>)).
 
 %% report §11.5: a token's position is its line, column, end, and the end of the
 %% token before it
@@ -345,4 +353,4 @@ raw_string_test() ->
     ?assertEqual([{string, <<"a\nb">>}], tokens("`a\nb`")),
     ?assertEqual([{string, <<"a\nb">>}], tokens("`a\r\nb`")),
     {ok, [_, {ident, {2, 4, _, _}, _} | _]} = ern_lexer:tokenize("`a\nb` x"),
-    ?assertEqual({1, 1, "unterminated raw string"}, refusal("`abc")).
+    ?assertEqual({1, 1, "the raw string never closes"}, refusal("`abc")).

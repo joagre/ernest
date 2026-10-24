@@ -266,6 +266,7 @@ color.ern:7:24: sorted needs Color.compare, and Color has no compare
 6 | export fn main() : Unit =
 7 |     Io.println(Io.show(sorted([Green, Red])))
   |                        ^^^^^^
+  | = help: give Color a compare, `derives compare` on its declaration or `fn Color.compare`
 ```
 
 An *operations record* is a record of functions, filled from a module by naming it. `Operations(..Set)` takes `fromList` and `toList` from the module `Set`, and `Operations(..OrderedSet)` the same two from `OrderedSet`. `Set` is the prelude's type, what every module sees without naming a module, and has no order of its own; `OrderedSet` is a module of the standard library, so its type is written whole, `OrderedSet.Set`:

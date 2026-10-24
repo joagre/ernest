@@ -40,6 +40,10 @@ expression_help(Text) ->
     {error, #diagnostic{help = Help}} = ern_parser:parse_expr(Text),
     Help.
 
+expression_refusal_and_help(Text) ->
+    {error, #diagnostic{message = Message, help = Help}} = ern_parser:parse_expr(Text),
+    {Message, Help}.
+
 %% The pattern of a match's one clause.
 pattern_of(Text) ->
     #e_match{clauses = [#clause{pattern = Pattern}]} =
@@ -458,14 +462,15 @@ second_positional_field_test() ->
 
 %% report §3.5, §5.10, §11.5: a `,` after a constructor pattern's
 %% positional field is refused at the `,` as a declaration's second
-%% positional field is, with no help, since a pattern does not change the
-%% declaration; one positional field, named fields and two constructors
-%% side by side parse. A regression test, written after the code: the
-%% parser said only that it expected `)`
+%% positional field is, with a help in a pattern's terms; one positional
+%% field, named fields and two constructors side by side parse. A
+%% regression test, written after the code: the parser said only that it
+%% expected `)`, and then gave no help
 second_positional_field_in_pattern_test() ->
     ?assertMatch({error, #diagnostic{span = {2, 11, _},
                                      message = "a constructor has exactly one positional field",
-                                     help = undefined}},
+                                     help = "name the fields, `Down(x = ..., y = ...)`, or match"
+                                            " a tuple, `Down(#(..., ...))`"}},
                  ern_parser:parse_string("fn f(m : Down) : Int = match m {\n"
                                          "    Down(_, _) -> 1\n}")),
     ?assertEqual("a constructor has exactly one positional field",
@@ -718,9 +723,18 @@ listed_type_mark_test() ->
     ?assertMatch(#fn_declaration{result_type = #t_var{name = a, equality = false},
                                  body = #e_var{name = needs}},
                  declaration("fn f(needs : a) : a = needs")),
+    %% outside a foreign function the help drops the mark, and in a foreign
+    %% function's parameter it names the lists of types where it stands: a
+    %% regression test, where the help outside led to a second error
+    ?assertEqual({"a type in parentheses takes no equality mark",
+                  "write a; the mark is written in a foreign function's parameters alone"},
+                 refusal_and_help("fn f(x : (a=)) : Int = 1")),
     ?assertEqual({"a type in parentheses takes no equality mark",
                   "the mark stands in a list of types, as List(a=) or (a=) -> Bool"},
-                 refusal_and_help("fn f(x : (a=)) : Int = 1")),
+                 refusal_and_help("foreign fn f(x : List((a=))) : Int = \"m:f/1\"")),
+    ?assertEqual({"a type in parentheses takes no equality mark",
+                  "write a; the mark is written in a foreign function's parameters alone"},
+                 refusal_and_help("foreign fn f(x : a=) : (a=) = \"m:f/1\"")),
     ?assertEqual("expected `)` instead of `=`", refusal("fn f(x : a=) : Int = 1")).
 
 %% report §2.2
@@ -941,6 +955,20 @@ empty_parentheses_name_unit_test() ->
                  expression("None()")),
     ?assertMatch(#e_literal{value = 1}, expression("(1)")).
 
+%% report §3, §3.1, §11.5: `()` where a type stands names Unit and how its
+%% one value is written, and a parameter list without `->` how a tuple type
+%% is written. A regression test, written after the code: the first help
+%% said `()` wrote Unit's value, against §3.1, and the second quoted half
+%% its code; it does not cover `()` at the input's end, which the shell
+%% continues
+type_form_helps_test() ->
+    ?assertEqual({"expected a type inside the parentheses, or `->` after them",
+                  "the type with one value is Unit, and its value is written Unit"},
+                 refusal_and_help("fn f(x : ()) : Int = 1")),
+    ?assertEqual({"expected `->` after a parameter list instead of `)`",
+                  "a tuple type is written with `#(`, as `#(Int, Int)`"},
+                 refusal_and_help("fn f(x : (Int, Int)) : Int = 1")).
+
 %% report §3, §4.2: a type's form, a parameter list's `->` and a qualified
 %% type's last name
 type_form_errors_test() ->
@@ -949,14 +977,15 @@ type_form_errors_test() ->
     ?assertEqual("expected a type name; a qualified type ends in an uppercase name",
                  refusal("let x : Int.foo = 1")).
 
-%% report §2.4, §3.4, §11.5: a `fn` where a type stands is a reserved word,
-%% with the help that names how a function type is written, the same fixed
-%% example wherever the type stands; the form it names parses. A regression
-%% test, written after the code: the error had no help
+%% report §2.4, §3.4, §11.5: a `fn` where a type stands is a reserved word
+%% where a type was expected, with the help that names how a function type
+%% is written, the same fixed example wherever the type stands; the form it
+%% names parses. A regression test, written after the code: the error had
+%% no help, and then a message that said only that `fn` names nothing
 function_type_without_fn_test() ->
-    Help = "a function type is written without `fn`, as (Int) -> Int",
+    Help = "a function type is written without `fn`, as `(Int) -> Int`",
     ?assertMatch({error, #diagnostic{span = {1, 10, _},
-                                     message = "`fn` is a reserved word, and names nothing",
+                                     message = "expected a type instead of the reserved word `fn`",
                                      help = Help}},
                  ern_parser:parse_string("fn f(g : fn(Int) -> Int) : Int = g(1)")),
     ?assertEqual(Help, help("fn f() : fn(String) -> Bool = g")),
@@ -980,9 +1009,19 @@ negative_comparison_help_test() ->
     ?assertEqual("`<-` is one token; write `a < -1` to compare with a negative number",
                  help("fn f(a : Int) : Bool = a<-1")).
 
-%% report §5.11: a specifier is one of §5.11's, `bits` and `native` being
-%% Erlang's, not Ernest's
+%% report §5.11, §11.5: a specifier is one of §5.11's, `bits` and `native`
+%% being Erlang's, not Ernest's, and the help lists them; a size written as
+%% Erlang writes it is told how Ernest writes it. The helps are a
+%% regression test, written after the code: it does not cover a token
+%% after the colon other than a name or an integer
 bitstring_specifier_errors_test() ->
+    ?assertEqual({"unknown bitstring specifier `wide`",
+                  "a specifier is `size(N)`, `bytes`, `int`, `float`, `utf8`, `utf16`, `utf32`,"
+                  " `big`, `little`, `signed` or `unsigned`"},
+                 expression_refusal_and_help("<<x:wide>>")),
+    ?assertEqual({"expected a bitstring specifier instead of integer 1",
+                  "a size is written `size(1)`"},
+                 expression_refusal_and_help("<<b:1>>")),
     ?assertEqual("unknown bitstring specifier `bogus`", expression_refusal("<<x:bogus>>")),
     ?assertEqual("unknown bitstring specifier `bits`", expression_refusal("<<x:bits>>")),
     ?assertEqual("unknown bitstring specifier `native`",
@@ -995,7 +1034,8 @@ negative_pattern_errors_test() ->
 
 %% report §11.1
 lexer_errors_pass_through_test() ->
-    ?assertMatch({error, #diagnostic{span = {1, 10, _}, message = "unterminated string literal"}},
+    ?assertMatch({error, #diagnostic{span = {1, 10, _},
+                                     message = "the string literal never closes"}},
                  ern_parser:parse_string("fn f() = \"abc")).
 
 %% report §11.5: a node's span runs from its first token to the end of its
@@ -1193,8 +1233,7 @@ requirement_test() ->
                                    #member{member_of = a, name = show}]} =
         declaration("fn f(x : a, y : b) : a receiving m needs a.compare, b.+, a.show = x"),
     #fn_declaration{requirement = []} = declaration("fn f(x : a) : a = x"),
-    ?assertEqual("zero is not a member: a requirement names compare, negate, an operator or show"
-                 " (report §4.8, E.1)",
+    ?assertEqual("zero is not a member: a requirement names compare, negate, an operator or show",
                  refusal("fn f(x : a) : a needs a.zero = x")),
     %% the member underlined whole: a regression test
     ?assertMatch({error, #diagnostic{span = {1, 23, {1, 29}}}},

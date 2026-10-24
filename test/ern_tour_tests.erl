@@ -294,8 +294,8 @@ door(#tour{shell = Shell} = Tour) ->
            " bound to its node, since it holds a function",
            "1 | Peer.spawn(\"foo\", fn() = Counter.count(Tally.empty()), 5000)",
            "  |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
-           "  | = help: the spawn answers an address that may cross to another node, so its"
-           " messages are values that cross (report §3.11)"]},
+           "  | = help: keep a function on this node and send the process values that cross,"
+           " or spawn on this node (report §3.11)"]},
          {"kill(counter)", []},
          {"let counter = Counter.start()", ["counter : Address(Counter.ClientMsg)"]},
          {"let far = match Peer.computeAt(\"foo\", fn() = Counter.start(), 5000) {"

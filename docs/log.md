@@ -9367,7 +9367,9 @@ The sorting of `findings.md` was read with the user the day it was written, who 
 
 **A hazard found at the end.** The shell hung at every end once a fault met as the program ends gave `ProgramEnd`: the runner's flush of the screen went through an adapted address whose function faulted, and `ern_rt:ended/2` answers a local callee's `ProgramEnd` with a wait for the program's end, which the runner, trapping exits, never leaves. The flush asks the screen's own process under a monitor now, as `say/2` asks standard error's, and any call from the runner to a process that ends with the program would hang the same way; the runtime's design note says so.
 
-**Counts.** Of the 218 lines, the `fix` lines are made but the diagnostics catalog's, made in the round that follows this entry, and the two stopped, K14 and C2-C16; 27 of the 52 `decide` lines were made as no-brainers; 11 are dropped; and 31 stand as decisions for the user, six of them opened by the round itself. The readers' tool refused their report files; the next run has them return text.
+**The diagnostics round** followed the same afternoon on one agent: every X line, the catalog's five missing programs among them, no message citing the report but a §3.11 help, the parser knowing when it stands inside a foreign function's parameters, a fill meeting the record's expected type before its fields, the lexer's one word for each concept, and a latent defect in the routine that names the differing part of two types, which ignored unification; `make test-full` passed in 9m03s.
+
+**Counts.** Of the 218 lines, the `fix` lines are made but two the report's own texts fix, §3.1's help and §5.6's `annotate it`, and the two stopped, K14 and C2-C16; 27 of the 52 `decide` lines were made as no-brainers; 11 are dropped; and 31 stand as decisions for the user, six of them opened by the round itself. The readers' tool refused their report files; the next run has them return text.
 
 ## The Runtime's Note States No Why, 2026-10-24
 

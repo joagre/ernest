@@ -164,7 +164,7 @@ lex(Input, Line, Column, PreviousEnd, Acc, Options) ->
             lex(Rest, Line, EndColumn, {Line, EndColumn},
                 [{Symbol, {Line, Column, {Line, EndColumn}, PreviousEnd}} | Acc], Options);
         none ->
-            error_at(Line, Column, io_lib:format("illegal character '~ts'", [[hd(Input)]]))
+            error_at(Line, Column, io_lib:format("illegal character `~ts`", [[hd(Input)]]))
     end.
 
 %%
@@ -235,7 +235,7 @@ next_doc_line_start(_) -> no.
 %% A block comment's text, from its `/*` to its `*/`, gathered reversed in
 %% Seen as it is read, and what follows it.
 block_comment([], _Depth, _Line, _Column, StartLine, StartColumn, _Seen) ->
-    unfinished_at(StartLine, StartColumn, "unterminated block comment");
+    unfinished_at(StartLine, StartColumn, "the block comment never closes");
 block_comment("*/" ++ Rest, 1, Line, Column, _StartLine, _StartColumn, Seen) ->
     {lists:reverse("/*" ++ Seen), Rest, Line, Column + 2};
 block_comment("*/" ++ Rest, Depth, Line, Column, StartLine, StartColumn, Seen) ->
@@ -262,15 +262,15 @@ number([$0, Prefix | Rest], Line, Column) when Prefix =:= $x; Prefix =:= $o; Pre
                    end,
     {Digits, Consumed, Rest1} = digits(Rest, fun(Char) -> digit_value(Char) < Base end),
     case {Digits, Rest} of
-        {[], [$_ | _]} -> error_at(Line, Column + 2, "_ must stand between two digits");
-        {[], _} -> error_at(Line, Column, [$0, Prefix] ++ " needs " ++ Name ++ " digit");
+        {[], [$_ | _]} -> error_at(Line, Column + 2, "`_` must stand between two digits");
+        {[], _} -> error_at(Line, Column, [$`, $0, Prefix, $`] ++ " needs " ++ Name ++ " digit");
         _ -> ok
     end,
     EndColumn = Column + 2 + Consumed,
     case Rest1 of
         [Char | _] when Char =/= $_ ->
             case is_word_char(Char) of
-                true -> error_at(Line, EndColumn, [Char] ++ " is not " ++ Name ++ " digit");
+                true -> error_at(Line, EndColumn, [$`, Char, $`] ++ " is not " ++ Name ++ " digit");
                 false -> ok
             end;
         _ ->
@@ -278,7 +278,7 @@ number([$0, Prefix | Rest], Line, Column) when Prefix =:= $x; Prefix =:= $o; Pre
     end,
     {int, list_to_integer(Digits, Base), Rest1, EndColumn};
 number([$0, Prefix | _], Line, Column) when Prefix =:= $X; Prefix =:= $O; Prefix =:= $B ->
-    error_at(Line, Column, "a base prefix is lowercase: 0" ++ [Prefix + 32]);
+    error_at(Line, Column, "a base prefix is lowercase: `0" ++ [Prefix + 32, $`]);
 number(Input, Line, Column) ->
     {Whole, WholeWidth, AfterWhole} = digits(Input, fun is_digit/1),
     case AfterWhole of
@@ -302,10 +302,10 @@ number(Input, Line, Column) ->
 
 %% Report §2.5: nothing word-like directly after a number.
 refuse_word_after_number([$_ | _], Line, Column) ->
-    error_at(Line, Column, "_ must stand between two digits");
+    error_at(Line, Column, "`_` must stand between two digits");
 refuse_word_after_number([Next | _], Line, Column) ->
     case is_word_char(Next) of
-        true -> error_at(Line, Column, [Next] ++ " cannot follow a number directly");
+        true -> error_at(Line, Column, [$`, Next, $`] ++ " cannot follow a number directly");
         false -> ok
     end;
 refuse_word_after_number([], _, _) ->
@@ -367,12 +367,12 @@ exponent(Rest) ->
 %%
 
 string_body([], _Line, _Column, StartLine, StartColumn, _Acc) ->
-    error_at(StartLine, StartColumn, "unterminated string literal");
+    error_at(StartLine, StartColumn, "the string literal never closes");
 string_body([$" | Rest], Line, Column, _StartLine, _StartColumn, Acc) ->
     {lists:reverse(Acc), Rest, Line, Column + 1};
 string_body([Char | _], Line, Column, _StartLine, _StartColumn, _Acc)
   when Char =:= $\n; Char =:= $\r ->
-    error_at(Line, Column, "newline in string literal; use \\n");
+    error_at(Line, Column, "a line break in a string literal; use `\\n`");
 string_body([$\\ | Rest], Line, Column, StartLine, StartColumn, Acc) ->
     {Char, Rest1, Length} = escape(Rest, Line, Column),
     string_body(Rest1, Line, Column + 1 + Length, StartLine, StartColumn, [Char | Acc]);
@@ -382,7 +382,7 @@ string_body([Char | Rest], Line, Column, StartLine, StartColumn, Acc) ->
 %% Report §2.5: everything up to the next backtick, a line break being a
 %% line feed and a carriage return before it dropped.
 raw_body([], _Line, _Column, StartLine, StartColumn, _Acc) ->
-    unfinished_at(StartLine, StartColumn, "unterminated raw string");
+    unfinished_at(StartLine, StartColumn, "the raw string never closes");
 raw_body([$` | Rest], Line, Column, _StartLine, _StartColumn, Acc) ->
     {lists:reverse(Acc), Rest, Line, Column + 1};
 raw_body([$\r, $\n | Rest], Line, _Column, StartLine, StartColumn, Acc) ->
@@ -396,21 +396,21 @@ char_body([$\\ | Rest], Line, Column) ->
     {Char, Rest1, Length} = escape(Rest, Line, Column + 1),
     closed_char(Char, Rest1, Line, Column, Column + 2 + Length);
 char_body([$' | _], Line, Column) ->
-    error_at(Line, Column, "empty char literal");
+    error_at(Line, Column, "empty character literal");
 char_body([Char | _], Line, Column) when Char =:= $\n; Char =:= $\r ->
-    error_at(Line, Column, "newline in char literal; use '\\n'");
+    error_at(Line, Column, "a line break in a character literal; use `'\\n'`");
 char_body([Char | Rest], Line, Column) ->
     closed_char(Char, Rest, Line, Column, Column + 2);
 char_body([], Line, Column) ->
-    error_at(Line, Column, "unterminated char literal").
+    error_at(Line, Column, "the character literal never closes").
 
 closed_char(Char, [$' | Rest], _Line, _StartColumn, QuoteColumn) ->
     {Char, Rest, QuoteColumn + 1};
 closed_char(_Char, Rest, Line, StartColumn, _QuoteColumn) ->
     case is_closed_on_line(Rest) of
-        true -> error_at(Line, StartColumn, "a char literal holds one code point; a string is"
-                                            " written between double quotes");
-        false -> error_at(Line, StartColumn, "unterminated char literal")
+        true -> error_at(Line, StartColumn, "a character literal holds one code point; a string"
+                                            " is written between double quotes");
+        false -> error_at(Line, StartColumn, "the character literal never closes")
     end.
 
 %% Whether a quote closes a char literal later on its line, past more than
@@ -432,23 +432,28 @@ escape([$t | Rest], _Line, _Column) -> {$\t, Rest, 1};
 escape([$u, ${ | Rest], Line, Column) ->
     {Hex, Rest1} = lists:splitwith(fun is_hex/1, Rest),
     case {Hex, Rest1} of
-        {[], _} -> error_at(Line, Column, "\\u{ needs one to six hex digits");
+        {[], _} -> error_at(Line, Column, "`\\u{` needs one to six hexadecimal digits");
         {_, [$} | Rest2]} when length(Hex) =< 6 ->
             CodePoint = list_to_integer(Hex, 16),
             case CodePoint =< 16#10FFFF
                 andalso not (CodePoint >= 16#D800 andalso CodePoint =< 16#DFFF) of
                 true -> {CodePoint, Rest2, 3 + length(Hex)};
                 false ->
-                    error_at(Line, Column, "\\u{" ++ Hex ++ "} is not a Unicode scalar value")
+                    error_at(Line, Column, "`\\u{" ++ Hex ++ "}` is not a Unicode scalar value")
             end;
-        _ -> error_at(Line, Column, "\\u{ needs one to six hex digits followed by }")
+        _ -> error_at(Line, Column, "`\\u{` needs one to six hexadecimal digits followed by"
+                                     " `}`")
     end;
 escape([Char | _], Line, Column) when Char =:= $\n; Char =:= $\r ->
-    error_at(Line, Column, "a line break cannot follow `\\`; use \\n");
+    error_at(Line, Column, "a line break cannot follow `\\`; use `\\n`");
 escape([Char | _], Line, Column) ->
-    error_at(Line, Column, io_lib:format("unknown escape \\~ts", [[Char]]));
+    %% report §2.5: the help lists the escapes, and the one that writes any
+    %% code point
+    error_at(Line, Column, io_lib:format("unknown escape `\\~ts`", [[Char]]),
+             "the escapes are `\\'`, `\\\"`, `\\\\`, `\\n`, `\\r`, `\\t` and `\\u{...}`, which"
+             " writes any code point, a bell as `\\u{7}`");
 escape([], Line, Column) ->
-    error_at(Line, Column, "unterminated escape").
+    error_at(Line, Column, "the input ends inside an escape").
 
 %%
 %% Words: identifiers, type names, reserved words, bool literals, wildcard.
@@ -500,7 +505,11 @@ symbol(Input, [Symbol | Symbols]) ->
 %%
 
 error_at(Line, Column, Message) ->
-    throw({lex_error, diagnostic(Line, Column, lists:flatten(Message), false)}).
+    error_at(Line, Column, Message, undefined).
+
+error_at(Line, Column, Message, Help) ->
+    Diagnostic = diagnostic(Line, Column, lists:flatten(Message), false),
+    throw({lex_error, Diagnostic#diagnostic{help = Help}}).
 
 %% Report §11.2, §2.5: a raw string and a block comment may span lines, so
 %% more input can finish one, and the diagnostic says so; a string or a
