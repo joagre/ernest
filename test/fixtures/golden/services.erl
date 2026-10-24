@@ -138,10 +138,10 @@
 '$16'(Line_38) ->
     case ern@string:'$18'(Line_38) of
         [<<"add">>, Key_39, Count_40] ->
-            ern@optional:'$4'('$17'(Count_40),
+            ern@optional:'$5'('$17'(Count_40),
                               fun (N_41) -> {'Add', Key_39, N_41} end);
         [<<"take">>, Key_42, Count_43] ->
-            ern@optional:'$4'('$17'(Count_43),
+            ern@optional:'$5'('$17'(Count_43),
                               fun (N_44) -> {'Take', Key_42, N_44} end);
         [<<"count">>, Key_45] -> {'Some', {'Count', Key_45}};
         [<<"audit">>] -> {'Some', 'Audit'};
@@ -150,7 +150,7 @@
 
 %% Services.counted
 '$17'(Text_46) ->
-    case ern@list:'$14'(ern@string:'$42'(Text_46),
+    case ern@list:'$15'(ern@string:'$42'(Text_46),
                         fun ern@char:'$1'/1)
         of
         true -> ern@string:'$24'(Text_46);
@@ -159,11 +159,11 @@
 
 %% Services.inStock
 '$18'(Stock_47, Key_48) ->
-    ern@optional:'$3'(ern@map:'$18'(Stock_47, Key_48), 0).
+    ern@optional:'$4'(ern@map:'$18'(Stock_47, Key_48), 0).
 
 %% Services.audited
 '$19'(Entries_49) ->
-    case ern@list:'$2'(Entries_49) of
+    case ern@list:'$3'(Entries_49) of
         true -> <<"none">>;
         false -> ern@string:'$23'(Entries_49, <<", ">>)
     end.

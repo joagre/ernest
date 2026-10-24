@@ -1,7 +1,8 @@
 // Report §8.7: a binding the store's program does not depend on, so that its
-// module has no values there.
+// module has no values there; computed, since a constant has its value
+// wherever its code is (§11.1).
 
-let greeting : String = "never initialized on the store"
+let greeting : String = "never initialized" <> " on the store"
 
 export fn speak() : Unit =
     Io.println(greeting)

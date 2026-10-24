@@ -4,7 +4,7 @@
 // Each wait is given the test's time for one step (Harness.waitMs), but
 // where a line says otherwise.
 
-type Msg = Died(Down) | Reported(Process.FaultReport) | Started(String)
+type Msg = Died(Down) | Told(Down) | Reported(Process.FaultReport) | Started(String)
 
 let early : Either(Io.Error, Address(Counter.Msg)) = Peer.find(Counter.service, Harness.waitMs())
 
@@ -122,9 +122,10 @@ fn started(answer : Either(Io.Error, Address(m))) : String =
     }
 
 // Report §8.7: what crosses, an address on a third node, an address of a
-// node not listed, a fault in an adapted address's function, a loss, and
-// the store's new start, which the test makes when the desk says so and
-// tells the desk of on its standard input.
+// node not listed, a fault in an adapted address's function, a loss, which
+// a monitor and a service monitor (§6.9) are told of alike, and the store's
+// new start, which the test makes when the desk says so and tells the desk
+// of on its standard input.
 fn across() : Unit receiving Msg = {
     let counter = Shared.found(Counter.service);
     let census = Shared.found(Census.service);
@@ -143,8 +144,10 @@ fn across() : Unit receiving Msg = {
     send(Shared.found(Counter.strict), -1);
     ended("adapted");
     monitor(Process.fromAddress(counter), Died);
+    monitorService(Process.fromAddress(counter), Told);
     sever(Process.fromAddress(counter));
     ended("severed");
+    told("severed service");
     send(counter, Counter.Add(5));
     Io.println("after the loss: " <> Int.toString(total(counter, 15)));
     restarted(counter)
@@ -214,6 +217,12 @@ fn watched(what : String, process : Process) : Unit receiving Msg = {
 fn ended(what : String) : Unit receiving Msg =
     receive {
         Died(down) -> Io.println(what <> ": " <> Io.show(down.reason) <> " " <> Io.show(down.site))
+    }
+
+// A service monitor's Down, and how it says the process ended.
+fn told(what : String) : Unit receiving Msg =
+    receive {
+        Told(down) -> Io.println(what <> ": " <> Io.show(down.reason) <> " " <> Io.show(down.site))
     }
 
 fn shape(n : Int) : Census.Shape =

@@ -112,7 +112,8 @@ rows(Unit, Callers, Callees) ->
              {"+ the callee's row, so that its restart ends the call", Host, fun restartable/2},
              {"+ the caller's CALL key, which the look and a kill read", Host, fun keyed/2},
              {"+ the caller marked as in a timed receive", Host, fun marked/2},
-             {"+ the answer given by answer/2, among the forms a wait takes", Ernest,
+             {"+ the reply the alias and the caller, answered by answer/2, among the forms a wait"
+              " takes", Ernest,
               fun answered/2},
              {"+ the wait against a deadline, sliced, in tries, as call/4's", Ernest,
               fun waited/2},
@@ -284,13 +285,14 @@ marked(Address, Request) ->
     flushed(Reply),
     Answer.
 
-%% + the answer as answer/2 gives it, taken among every form a call's wait
+%% + the answer as answer/2 gives it, to a reply that is the alias with
+%% the caller's process beside it, taken among every form a call's wait
 %% takes, and made Some: the callee is the compiled counter's form.
 answered(Address, Request) ->
     guarded(),
     Callee = ern_rt:process_of(Address),
     Reply = erlang:monitor(process, Callee, [{alias, demonitor}]),
-    Message = Request(Reply),
+    Message = Request({Reply, self()}),
     pending(Callee, Reply),
     ern_rt:send(Address, Message),
     ern_rt:timed(),
@@ -320,7 +322,7 @@ waited(Address, Request) ->
     Callee = ern_rt:process_of(Address),
     Reply = erlang:monitor(process, Callee, [{alias, demonitor}]),
     Answer = try
-                 Message = Request(Reply),
+                 Message = Request({Reply, self()}),
                  pending(Callee, Reply),
                  ern_rt:send(Address, Message),
                  ern_rt:timed(),

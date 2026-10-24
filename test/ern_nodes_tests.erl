@@ -413,8 +413,8 @@ bare_started(Dir, LoadPath) ->
 %% writes as it starts to listen.
 -spec bound_port(file:filename()) -> inet:port_number().
 bound_port(Dir) ->
-    says(Dir, "listening on port"),
-    {match, [Port]} = re:run(written(Dir, err), "listening on port ([0-9]+)",
+    says(Dir, "listening on "),
+    {match, [Port]} = re:run(written(Dir, err), "listening on [^ ]*:([0-9]+)\n",
                              [{capture, all_but_first, list}]),
     list_to_integer(Port).
 
@@ -663,7 +663,9 @@ unlisted(Base) ->
     {OutA, ErrA} = said(A),
     {_, ErrB} = said(B),
     has(OutA, "connect: false"),
-    ?assertEqual("", ErrA),
+    %% the dialer says only that it listens
+    [Listening] = string:split(string:trim(ErrA, trailing, "\n"), "\n", all),
+    has(Listening, "listening on 127.0.0.1:" ++ integer_to_list(PortA)),
     has(ErrB, "a node with the key " ++ digest(A) ++ " was refused: no peer has its key"),
     ?assertEqual(nomatch, string:find(ErrB, "TLS")),
     %% the line as the deployment guide quotes it
@@ -945,6 +947,8 @@ replaced(Base) ->
     [{ok, _} = file:copy(filename:join(A, File), filename:join(Copy, File))
      || File <- ["ernest.conf", "certificate.pem", "private-key.pem"]],
     ok = file:change_mode(filename:join(Copy, "private-key.pem"), 8#600),
+    [ok = file:change_mode(filename:join(Copy, File), 8#644)
+     || File <- ["ernest.conf", "certificate.pem"]],
     edit(Copy, fun(Conf) -> maps:remove(<<"listen">>, Conf) end),
     Program = program(filename:join(Base, "build")),
     WaitB = start(B, Program, []),
@@ -959,9 +963,11 @@ replaced(Base) ->
     %% the line as the deployment guide quotes it
     ern_deployment_tests:cataloged(ErrB, "7", "was replaced by another", [{"b", "a"}]).
 
-%% report §8.7: a node whose `listen` names port 0 takes the port the host
-%% picks and says which it bound; a node without `listen` does not listen,
-%% and dials
+%% report §8.7: a node says the address and the port it listens on, once
+%% at every start: one whose `listen` names port 0 the port the host picks,
+%% and one whose `listen` names a port that port, which a peer waits on
+%% before it dials (the full review's G-B, written with the line); a node
+%% without `listen` does not listen, says nothing of it, and dials
 listening_test_() ->
     nodes_test({waits, 12}, fun listening/1).
 
@@ -975,21 +981,23 @@ listening(Base) ->
     Program = program(filename:join(Base, "build")),
     WaitZ = start(Z, Program, []),
     WaitB = start(B, Program, []),
-    prints(B, "waiting"),
+    says(B, "listening on 127.0.0.1:" ++ integer_to_list(PortB) ++ "\n"),
     WaitA = start(A, Program, ["connect", name(B)]),
     ?assertEqual(0, WaitA()),
-    says(Z, "listening on port"),
+    says(Z, "listening on "),
     says(B, "the peer a connected"),
     stop(B, WaitB),
     stop(Z, WaitZ),
-    {OutA, _} = said(A),
+    {OutA, ErrA} = said(A),
     {_, ErrB} = said(B),
     {_, ErrZ} = said(Z),
     has(OutA, "connect: true"),
     has(ErrB, "the peer a connected"),
-    {match, [Bound]} = re:run(ErrZ, "listening on port ([0-9]+)", [{capture, all_but_first, list}]),
+    {match, [Bound]} = re:run(ErrZ, "listening on 127\\.0\\.0\\.1:([0-9]+)\n",
+                              [{capture, all_but_first, list}]),
     ?assert(list_to_integer(Bound) > 0),
-    ?assertEqual(nomatch, string:find(ErrB, "listening")).
+    ?assertEqual(1, length(string:split(ErrB, "listening on", all)) - 1),
+    ?assertEqual(nomatch, string:find(ErrA, "listening")).
 
 %% report §8.7: a frame the gateway cannot read is faulty, and the node ends
 %% the connection, saying so; the sender's node is told of the loss; a
@@ -1861,7 +1869,8 @@ utilization_of_peer(Base) ->
 %% took it from the store and sends to it; an address of a node not listed
 %% takes no send and gives a monitor Unreachable; a fault in an adapted
 %% address's function is its target's; a monitor does not outlive a loss,
-%% and the address does: a send after it reaches the same process; with
+%% a service monitor told of it as a monitor is (§9.5), and the address
+%% does: a send after it reaches the same process; with
 %% its node ended and its port taking the dial and answering nothing, a
 %% send returns before the host gives the dial up, and a monitor gives
 %% Unreachable; and once the node starts again, the address of its earlier
@@ -1913,6 +1922,7 @@ across(Base) ->
     [has(Out, Line)
      || Line <- ["new atoms: 0", "through the third node: 10", "not listed: Unreachable \"\"",
                  "adapted: Fault(\"negative\") \"\"", "severed: Unreachable \"\"",
+                 "severed service: Unreachable \"\"",
                  "after the loss: 15", "killed: Unreachable \"\"", "send at once: true",
                  "out of reach: Unreachable \"\"", "old call: None true",
                  "old monitor: Unknown \"\"", "same process: false", "fresh total: 0",
@@ -2292,10 +2302,11 @@ twins(Dir, Changed) ->
             "foreign fn absent() : Unit = \"ern_twins_host:absent/0\"\n"
             "\n"
             "export fn callsAbsent() : Unit = absent()\n"],
-    Aside = "// Report §8.7: a binding the server's program never runs, beside a\n"
+    Aside = "// Report §8.7: a binding the server's program never runs, computed,\n"
+            "// since a constant has its value wherever its code is (§11.1), beside a\n"
             "// function that names no binding.\n"
             "\n"
-            "let note : String = \"never run on the server\"\n"
+            "let note : String = \"never run\" <> \" on the server\"\n"
             "\n"
             "export fn tell() : Unit = Io.println(note)\n"
             "\n"
@@ -2461,7 +2472,7 @@ exchanged(Base) ->
              "\n"
              "export type Count = Count(Int)\n"
              "\n"
-             "let note : String = \"never run on the receiver\"\n"
+             "let note : String = \"never run\" <> \" on the receiver\"\n"
              "\n"
              "export fn told() : Unit = Io.println(note)\n"
              "\n"
@@ -2711,8 +2722,8 @@ bare_build(Base) ->
              "\n"
              "export fn greet() : Unit = Io.println(greeting)\n"
              "\n"
-             "// Report §11.1: a binding compiled to its value, which a bare node that\n"
-             "// holds its module does not evaluate either.\n"
+             "// Report §4.6, §11.1: a constant, compiled to its value, which a bare\n"
+             "// node that holds its module does not evaluate and has the value of.\n"
              "let farewell : String = \"bye\"\n"
              "\n"
              "export fn bid() : Unit = Io.println(farewell)\n",
@@ -2860,9 +2871,9 @@ line_of(Text, Part) ->
 %% utilization answers, and it tells it as any node does, so that a
 %% compute that names no peer runs there once it has; a library on its
 %% load path is loaded and its binding not evaluated, so a spawn whose reach
-%% names the binding is NotLoaded, the node saying so, one compiled to its
-%% value (§11.1) as much as one computed, the first a regression test
-%% written after the code; a fault in received
+%% names the binding is NotLoaded, the node saying so, a regression test
+%% written after the code, but a constant, which has its value wherever its
+%% form is (§4.6, the full review's K14); a fault in received
 %% code is reported there at the spawn's site, the sender's, with the peer
 %% that spawned it; a function that crossed with the first lambda's
 %% enclosing definition is spawned twice and faults twice, the traces of
@@ -2900,11 +2911,9 @@ bare_node(Base) ->
     [says(B, Line)
      || Line <- ["the peer a's spawn at " ++ Site("Shared.greet") ++ " was not loaded: the"
                  " binding Shared.greeting has no value here",
-                 "the peer a's spawn at " ++ Site("Shared.bid") ++ " was not loaded: the"
-                 " binding Shared.farewell has no value here",
                  Site("\"divides: \"") ++ " faulted: division by zero, spawned by the peer a\n",
                  Site("\"raises: \"") ++ Raised, Site("\"raises again: \"") ++ Raised]],
-    [prints(B, Line) || Line <- ["counted 1", "counted 7"]],
+    [prints(B, Line) || Line <- ["counted 1", "counted 7", "bye"]],
     ?assertMatch({0, _}, signaled("stop", B)),
     ?assertEqual(143, WaitB()),
     {Out, _} = said(A),
@@ -2912,7 +2921,7 @@ bare_node(Base) ->
     [has(Out, Line)
      || Line <- ["spawn: Right", "compute: Right(42)", "entry shown: Right(true)",
                  "offering: Right", "found: Right", "utilization: Right",
-                 "picked: Right(42)", "binding: NotLoaded", "ground: NotLoaded",
+                 "picked: Right(42)", "binding: NotLoaded", "ground: Right",
                  "divides: Right",
                  "raises: Right", "raises again: Right", "Shared.greeting evaluated"]],
     ?assertEqual(nomatch, string:find(OutB, "Shared.greeting evaluated")),
@@ -2931,6 +2940,53 @@ bare_node(Base) ->
     has(OutExiting, "exit: Right"),
     ?assertEqual(nomatch, string:find(ErrExit, "faulted")),
     ?assertNot(filelib:is_file(filename:join(B, "ernest.pid"))).
+
+%% report §4.6, §8.7, §11.1: a constant a function's reach names has its
+%% value wherever its form is, made from the form and evaluated nowhere:
+%% a compute on a bare node, which holds none of the program's definitions,
+%% reads a literal binding, a constructed one and a list of tuples, their
+%% forms crossing with the function's, and a binding whose initializer is
+%% computed is still NotLoaded there, the node saying so. K's
+%% `nodes/main.ern` of the full review (K14), written with the rule
+constant_crosses_test_() ->
+    nodes_test({waits, 6}, fun constant_crosses/1).
+
+constant_crosses(Base) ->
+    ProgramDir = filename:join(Base, "program"),
+    ok = filelib:ensure_path(ProgramDir),
+    ok = file:write_file(
+           filename:join(ProgramDir, "main.ern"),
+           ["type Point = Point(x : Int, y : Int)\n"
+            "let limit = 10\n"
+            "let origin = Point(x = 1, y = 2)\n"
+            "let tags = [#(\"a\", 1), #(\"b\", -2)]\n"
+            "let computed = List.size([1, 2])\n"
+            "export fn main() : Unit = {\n"
+            "    let added = Peer.computeAt(\"b\", fn() = limit + 1, waitMs());\n"
+            "    Io.println(\"limit: \" <> Io.show(added));\n"
+            "    let summed = Peer.computeAt(\"b\", fn() = origin.x + origin.y, waitMs());\n"
+            "    Io.println(\"origin: \" <> Io.show(summed));\n"
+            "    Io.println(\"tags: \" <> Io.show(Peer.computeAt(\"b\", fn() = tags, waitMs())));\n"
+            "    let read = Peer.computeAt(\"b\", fn() = computed, waitMs());\n"
+            "    Io.println(\"computed: \" <> Io.show(read))\n"
+            "}\n",
+            wait_ms_declaration()]),
+    0 = ern_cli:ern(["build", ProgramDir], group_leader()),
+    A = made(Base, "a", none),
+    B = made(Base, "b", 0),
+    lists(B, [{"a", A, none}]),
+    WaitB = bare_started(B, []),
+    lists(A, [{"b", B, bound_port(B)}]),
+    {_, WaitA} = launched(A, [?ERN, " run --config-dir ", A, " ",
+                              filename:join(ProgramDir, "main.erc")]),
+    ?assertEqual(0, WaitA()),
+    says(B, "the binding Main.computed has no value here"),
+    ?assertMatch({0, _}, signaled("stop", B)),
+    ?assertEqual(143, WaitB()),
+    {Out, _} = said(A),
+    [has(Out, Line) || Line <- ["limit: Right(11)", "origin: Right(3)",
+                                "tags: Right([#(\"a\", 1), #(\"b\", -2)])",
+                                "computed: Left(NotLoaded)"]].
 
 %% report §8.7, §11.2, §7.4, §11.8: a bare node whose `ernest.conf` has no
 %% `listen` is refused at its start, as the launcher's second start says
@@ -2960,8 +3016,8 @@ bare_node_refused(Base) ->
 %% ways: a bare node from either takes the other's spawn by the name
 %% `--peer-dir` gave it, and its process sends back what it computed. Its
 %% limit is the sum of its fifteen waits, each bounded by the harness's
-%% time for one wait: four jobs and a build, two ports that answer, two
-%% runs, what they printed and the line of the node each dialed, and two
+%% time for one wait: four jobs and a build, two nodes that say they
+%% listen, two runs, what they printed and the line of the node each dialed, and two
 %% nodes' ends
 peer_option_test_() ->
     nodes_test({waits, 15}, fun peer_option/1).
@@ -2975,9 +3031,9 @@ peer_option(Base) ->
      || Words <- [[A, " --listen ", Listen(PortA, "0.0.0.0")],
                   [Foo, " --listen ", Listen(PortFoo, "127.0.0.1")],
                   [A, " --peer-dir ", Foo], [Foo, " --peer-dir ", A]]],
-    lists:foreach(fun({Node, Port, Dialer}) ->
+    lists:foreach(fun({Node, Address, Dialer}) ->
                       Wait = bare_started(Node, []),
-                      ern_deployment_tests:answering(Port),
+                      says(Node, "listening on " ++ Address ++ "\n"),
                       Name = filename:basename(Node),
                       {_, Ran} = launched(Dialer, [?ERN, " run --config-dir ", Dialer, " ",
                                                    Program, " ", Name]),
@@ -2986,7 +3042,8 @@ peer_option(Base) ->
                       has(Out, Name ++ " computed 42"),
                       says(Node, "the peer " ++ filename:basename(Dialer) ++ " connected"),
                       stop(Node, Wait)
-                  end, [{Foo, PortFoo, A}, {A, PortA, Foo}]).
+                  end, [{Foo, Listen(PortFoo, "127.0.0.1"), A},
+                        {A, Listen(PortA, "0.0.0.0"), Foo}]).
 
 %% The program peer_option/1 runs, built in Root: a spawn on the peer its
 %% argument names, whose process sends back what it computed.
@@ -3073,7 +3130,7 @@ beyond_reach(Base) ->
     Source = "// Report §8.7: lambdas spawned on a bare node from definitions that name\n"
              "// what the bare node lacks and the lambdas do not.\n"
              "\n"
-             "let config : Int = 5\n"
+             "let config : Int = 2 + 3\n"
              "\n"
              "foreign fn parsed(text : String) : Int = \"erlang:binary_to_integer/1\"\n"
              "\n"
@@ -3773,7 +3830,7 @@ shell_node(Base) ->
     Root = filename:join(Base, "build"),
     ok = filelib:ensure_path(Root),
     ok = file:write_file(filename:join(Root, "greet.ern"),
-                         "let greeting : String = \"hello from the shell's load\"\n\n"
+                         "let greeting : String = \"hello from\" <> \" the shell's load\"\n\n"
                          "export fn hello() : Unit = Io.println(greeting)\n"),
     ok = file:write_file(filename:join(Root, "store.ern"),
                          "// A spawn on the shell's node once a line comes.\n"
@@ -3952,7 +4009,7 @@ shell_node_reach(Base) ->
     Root = filename:join(Base, "build"),
     Source = filename:join(Base, "src"),
     [ok = filelib:ensure_path(Dir) || Dir <- [Root, Source]],
-    Greet = "let greeting : String = \"hello from the greeter\"\n"
+    Greet = "let greeting : String = \"hello from\" <> \" the greeter\"\n"
             "\n"
             "export fn hello() : Unit = Io.println(greeting)\n",
     Caller = "export fn call() : Unit = Greet.hello()\n",
@@ -4906,9 +4963,9 @@ upgraded_builds(Base) ->
              "      | Upgrade(migrate = migrate, next = next) -> next(migrate(total))\n"
              "    }\n"
              "\n"
-             "// Report §8.5: a binding a bare node evaluates when Code.load loads the\n"
-             "// module there.\n"
-             "export let start : Int = 100\n"
+             "// Report §8.5, §11.1: a computed binding, which a bare node evaluates\n"
+             "// when Code.load loads the module there.\n"
+             "export let start : Int = 99 + 1\n"
              "\n"
              "export fn fromStart() : Unit receiving Int =\n"
              "    receive {\n"

@@ -74,6 +74,7 @@ timing off
   | ^
 > the session declares no nosuchname
 > Optional.andThen : (Optional(a), (a) -> Optional(b) receiving e) -> Optional(b) receiving e
+Optional.compare : (Optional(a), Optional(a)) -> Ordering needs a.compare
 Optional.isNone : (Optional(a)) -> Bool
 Optional.isSome : (Optional(a)) -> Bool
 Optional.map : (Optional(a), (a) -> b receiving e) -> Optional(b) receiving e

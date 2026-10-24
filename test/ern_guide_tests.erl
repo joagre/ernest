@@ -185,7 +185,7 @@ check({modules, #{files := Files, launch := Launch}}) ->
     LoadPathOptions = lists:append([["--load-path", filename:absname(Library)]
                                     || Library <- filelib:wildcard("../build/libs/*"),
                                        filelib:is_dir(Library)]),
-    ?assertEqual(0, ern_cli:ern(["build", "--short-errors", "--source-root", Dir,
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir,
                                  "--build-root", Build | LoadPathOptions] ++ [Dir],
                                 group_leader())),
     ?assertEqual(<<>>, iolist_to_binary(?capturedOutput)),

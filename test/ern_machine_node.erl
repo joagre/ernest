@@ -124,7 +124,7 @@ started(#machine_node{machine = Machine, config_dir = ConfigDir}, Words) ->
 %% says so.
 -spec port_bound(pid()) -> non_neg_integer().
 port_bound(Reader) ->
-    [Port] = ern_machine:seen(Reader, "listening on port ([0-9]+)"),
+    [Port] = ern_machine:seen(Reader, "listening on [^ ]*:([0-9]+)"),
     list_to_integer(Port).
 
 %% Report §8.7, §11.2: a node sent hangup reads `ernest.conf` again, and

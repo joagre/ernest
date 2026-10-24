@@ -15,7 +15,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("kernel/include/file.hrl").
 
--export([cataloged/4, job/2, keyed/1, answering/1]).
+-export([cataloged/4, job/2, keyed/1, listens/2]).
 
 -define(ERN, filename:absname("../bin/ern")).
 -define(GUIDE, "../guide/deployment.md").
@@ -66,7 +66,7 @@ runbook(Base) ->
     [ern_nodes_tests:lists(Dir, [{"a", A, none}, {"ops", Ops, none}]) || Dir <- [B, C]],
     ern_nodes_tests:lists(Ops, [{"b", B, PortB}, {"c", C, PortC}]),
     [{B, WaitB}, {C, WaitC}] = ran(Base, Started),
-    [answering(Port) || Port <- [PortB, PortC]],
+    [listens(Dir, Port) || {Dir, Port} <- [{B, PortB}, {C, PortC}]],
     %% the check from a shell, its file none, since a file's main would run
     Home = Ops ++ ".home",
     ok = filelib:ensure_path(Home),
@@ -105,9 +105,11 @@ runbook(Base) ->
     {_, ErrC} = ern_nodes_tests:said(C),
     [?assertEqual(nomatch, string:find(Err, "the end waits for")) || Err <- [ErrB, ErrC]],
     [?assertNot(filelib:is_file(filename:join(Dir, "ernest.pid"))) || Dir <- [B, C]],
-    %% each said nothing before a peer connected
-    ?assertMatch({match, _}, re:run(ErrB, "\\A[^\n]* the peer ops connected\n")),
-    ?assertMatch({match, _}, re:run(ErrC, "\\A[^\n]* the peer a connected\n")),
+    %% each said where it listens, then nothing before a peer connected
+    ?assertMatch({match, _}, re:run(ErrB, "\\A[^\n]* listening on [^\n]*\n"
+                                          "[^\n]* the peer ops connected\n")),
+    ?assertMatch({match, _}, re:run(ErrC, "\\A[^\n]* listening on [^\n]*\n"
+                                          "[^\n]* the peer a connected\n")),
     %% the lines as the guide's section 7 quotes them
     cataloged(ErrB, "7", "connected", [{"b", "ops"}]),
     cataloged(ErrB, "7", "ended", [{"b", "a"}]),
@@ -174,7 +176,7 @@ one_node(Base) ->
     ern_nodes_tests:edit(Dir, fun(Conf) -> Conf#{<<"peers">> := []} end),
     %% the start, and a second start from the directory
     {_, Wait} = node(Base, mapped(Run, Paths)),
-    answering(Port),
+    listens(Dir, Port),
     {ok, Number} = file:read_file(PidFile),
     {1, "", Held} = job(Base, mapped(Run, Paths)),
     %% a reload with a peer added, and one that changes `listen`
@@ -194,7 +196,7 @@ one_node(Base) ->
     ern_nodes_tests:has(Err, "ernest.conf was read again"),
     Gone = [no_node(Base, Job, Dir) || Job <- ["stop", "reload"]],
     {_, Killed} = node(Base, mapped(Run, Paths)),
-    answering(Port),
+    listens(Dir, Port),
     {ok, Last} = file:read_file(PidFile),
     "" = os:cmd("kill -KILL " ++ string:trim(binary_to_list(Last))),
     ?assertEqual(137, Killed()),
@@ -283,7 +285,7 @@ upgrade(Base) ->
     ern_nodes_tests:lists(B, [{"a", A, none}]),
     ?assertEqual({0, "", ""}, job(Base, "build upgrade/v1")),
     {_, WaitB} = node(Base, "run --config-dir b --main Counter.serve upgrade/v1/counter.erc"),
-    answering(PortB),
+    listens(B, PortB),
     [] = ran(Base, [Build, Moved]),
     ern_nodes_tests:lists(A, [{"b", B, PortB}, {"c", C, ern_nodes_tests:free_port()}]),
     {_, Again} = node(Base, Tool),
@@ -377,7 +379,7 @@ refused_code(Base) ->
     ern_nodes_tests:says(B, "could not take the code it received"),
     ern_nodes_tests:stop(B, WaitB),
     {_, ErrB} = ern_nodes_tests:said(B),
-    cataloged(ErrB, "7", "listening on port", [{"51204", integer_to_list(PortB)}]),
+    cataloged(ErrB, "7", "listening on", [{"51204", integer_to_list(PortB)}]),
     cataloged(ErrB, "7", "could not take the code", [{"a", "z"}, {"Site", "Taker.main:1"}]),
     cataloged(ErrB, "4.3", "could not take the code",
               [{"a", "z"}, {"Counter.main:17", "Taker.main:1"}]).
@@ -669,15 +671,14 @@ mapped(Words, Paths) ->
                                       string:replace(Acc, Guide, Harness, all)
                               end, Words, Paths)).
 
-%% Report §8.7: once a node of this machine listens at Port, which shows
-%% in its port's answer alone: where `listen` names a port the node says
-%% nothing of it, nor does the guide's counter print anything, and its
-%% `ernest.pid` is written before its initializers run. The harness's time
-%% for one wait bounds a failure (ern_machine:answering/4).
--spec answering(inet:port_number()) -> ok.
-answering(Port) ->
-    ern_machine:answering(ern_machine:host(ern_machine:local()), Port, ern_nodes_tests:wait_ms(),
-                          fun() -> ok end).
+%% Report §8.7: once the node of Dir listens at Port of the loopback
+%% interface, which it says once at every start; the harness's time for
+%% one wait bounds a failure. A regression of the full review's G-B: a node
+%% with a fixed port said nothing, and the tests dialed it until a dial
+%% succeeded.
+-spec listens(file:filename(), inet:port_number()) -> ok.
+listens(Dir, Port) ->
+    ern_nodes_tests:says(Dir, "listening on 127.0.0.1:" ++ integer_to_list(Port) ++ "\n").
 
 listening(Dir, Port) ->
     ern_nodes_tests:edit(Dir, fun(Conf) ->

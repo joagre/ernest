@@ -6,7 +6,7 @@
 
 %% Kv_parser.main
 '$1'() ->
-    ern@list:'$12'([<<"a=12">>,
+    ern@list:'$13'([<<"a=12">>,
                     <<"=1">>,
                     <<"a">>,
                     <<"a=x">>],
@@ -37,9 +37,9 @@
 
 %% Kv_parser.keyOf
 '$4'(Chars_14) ->
-    {Letters_15, Rest_16} = ern@list:'$21'(Chars_14,
+    {Letters_15, Rest_16} = ern@list:'$22'(Chars_14,
                                            fun ern@char:'$7'/1),
-    case not ern@list:'$2'(Letters_15) of
+    case not ern@list:'$3'(Letters_15) of
         true ->
             {'Right', {ern@string:'$43'(Letters_15), Rest_16}};
         false ->

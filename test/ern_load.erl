@@ -89,7 +89,7 @@ round_inputs(Step) ->
 %% be mid-work.
 -spec mark(integer()) -> 'Unit'.
 mark(Round) ->
-    Ending = [Pid || {Pid, _, _, _, _} <- ets:tab2list(ern_processes),
+    Ending = [Pid || {Pid, _, _, _, _, _} <- ets:tab2list(ern_processes),
                      not erlang:is_process_alive(Pid)],
     [begin
          MonitorRef = erlang:monitor(process, Pid),
@@ -103,7 +103,7 @@ mark(Round) ->
     [begin
          MonitorRef = erlang:monitor(process, Delivery),
          receive {'DOWN', MonitorRef, process, Delivery, _} -> ok end
-     end || {{_, _, Delivery}} <- ets:tab2list(ern_deliveries)],
+     end || {{_, _, Delivery}, _} <- ets:tab2list(ern_deliveries)],
     Caller = self(),
     Sampler = spawn(fun() -> Caller ! {self(), sample(Round)} end),
     receive

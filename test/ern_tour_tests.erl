@@ -127,8 +127,9 @@ tour(Base) ->
     [Foo, Bar] = [filename:join(Base, Name) || Name <- ["foo", "bar"]],
     WaitFoo = ern_nodes_tests:bare_started(Foo, []),
     WaitBar = ern_nodes_tests:bare_started(Bar, []),
-    [ern_deployment_tests:answering(Port) || Port <- [PortFoo, PortBar]],
-    Shell = started(Base, filename:join(Base, "a"), " --config-dir a"),
+    [ern_deployment_tests:listens(Dir, Port) || {Dir, Port} <- [{Foo, PortFoo}, {Bar, PortBar}]],
+    Shell = started(Base, filename:join(Base, "a"), " --config-dir a",
+                    [<<"listening on ", (ern_nodes_tests:address(PortA))/binary>>]),
     Chapters = [{2, fun far/1}, {3, fun client/1}, {4, fun fault/1}, {5, fun per_key/1},
                 {6, fun door/1}, {7, fun anywhere/1}, {8, fun fix/1}],
     Tour = #tour{base = Base, foo = Foo, bar = Bar, wait_foo = WaitFoo, wait_bar = WaitBar,
@@ -140,9 +141,11 @@ tour(Base) ->
     quit(Ended),
     {FooOut, FooErr} = ern_nodes_tests:said(Foo),
     {BarOut, BarErr} = ern_nodes_tests:said(Bar),
-    %% each said its peer's connection and nothing else, and each of
-    %% chapter 7's three computes printed its line where it ran
-    [?assertEqual([<<"the peer a connected">>], stamped(Err)) || Err <- [FooErr, BarErr]],
+    %% each said where it listens, its peer's connection and nothing else,
+    %% and each of chapter 7's three computes printed its line where it ran
+    [?assertEqual([<<"listening on ", (ern_nodes_tests:address(Port))/binary>>,
+                   <<"the peer a connected">>], stamped(Err))
+     || {Err, Port} <- [{FooErr, PortFoo}, {BarErr, PortBar}]],
     ?assertEqual(lists:duplicate(3, <<"counting the primes below 200000">>),
                  untimed_lines(FooOut) ++ untimed_lines(BarOut)).
 
@@ -197,7 +200,8 @@ far(#tour{foo = Foo, shell = Shell} = Tour) ->
                      {"send(far, Counter.Inc(5))", []},
                      {"Address.call(far, Counter.Get, 1000)", ["Some(5) : Optional(Int)"]}]),
     ern_nodes_tests:says(Foo, "the peer a connected"),
-    ?assertEqual([<<"the peer a connected">>], untimed_lines(ern_nodes_tests:written(Foo, err))),
+    ?assertMatch([<<"listening on ", _/binary>>, <<"the peer a connected">>],
+                 untimed_lines(ern_nodes_tests:written(Foo, err))),
     Tour#tour{shell = Typed}.
 
 %% Chapter 3: a reload that changes no type says the module compiled
@@ -242,7 +246,8 @@ fault(#tour{shell = Shell} = Tour) ->
 
 %% Chapter 5: `ern build .` compiles both modules and says nothing, and
 %% `ern test counter.erc` passes the first test and faults the second with
-%% a deadlock, its trace beneath it, ending with status 1. The reload
+%% a deadlock, its trace beneath it and the processes left waiting beneath
+%% that, ending with status 1. The reload
 %% loads Tally from the build and names the two bindings of the previous
 %% type, chapter 4's ended counter among them; the counter on foo is
 %% refused the new protocol, with the help naming the previous version;
@@ -250,7 +255,9 @@ fault(#tour{shell = Shell} = Tour) ->
 %% §3.6, §4.4, §4.9, §8.6, §11.1, §11.2, §11.5, Appendix E.24).
 per_key(#tour{base = Base, shell = Shell} = Tour) ->
     ?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "build .")),
-    ?assertEqual({1, "counts per key: passed\nreports: faulted: deadlock\n    Counter.reports:70\n",
+    ?assertEqual({1, "counts per key: passed\nreports: faulted: deadlock\n    Counter.reports:70\n"
+                     "    1 process of Counter.countsPerKey:62 waits in Counter.count:10\n"
+                     "    1 process of Counter.reports:69 waits in Counter.count:10\n",
                   ""},
                  ern_deployment_tests:job(Base, "test counter.erc")),
     Tour#tour{shell = session(
@@ -403,20 +410,26 @@ copied(Chapter, Base) ->
      || Source <- Sources],
     ok.
 
-%% Report §11.2: a shell started in the reader's directory, `ern shell`
-%% with Options, its HOME a directory of its own so that no person's
-%% startup file runs; once it has printed its start line, as this build
-%% writes it, and its first prompt.
+%% Report §11.2, §8.7: a shell started in the reader's directory, `ern
+%% shell` with Options, its HOME a directory of its own so that no
+%% person's startup file runs; once it has printed its start line, as this
+%% build writes it, and its first prompt, after the lines its node says as
+%% it starts, Said, each without its time.
 started(Base, Dir, Options) ->
+    started(Base, Dir, Options, []).
+
+started(Base, Dir, Options, Said) ->
     Home = Dir ++ ".home",
     ok = filelib:ensure_path(Home),
     {Port, Wait} = ern_nodes_tests:launched(Dir, ["cd ", Base, " && HOME=", Home, " ", ?ERN,
                                                   " shell", Options]),
     ern_nodes_tests:prints(Dir, "> "),
     Started = written(Dir),
-    ?assertEqual(iolist_to_binary(["Ernest ", ern_release:version_text(),
-                                   ". :help for the commands, :quit to leave.\n> "]),
-                 Started),
+    Start = iolist_to_binary(["Ernest ", ern_release:version_text(),
+                              ". :help for the commands, :quit to leave.\n> "]),
+    Before = byte_size(Started) - byte_size(Start),
+    ?assertEqual({Said, Start}, {stamped(binary:part(Started, 0, Before)),
+                                 binary:part(Started, Before, byte_size(Start))}),
     #shell{dir = Dir, port = Port, wait = Wait, read = Started}.
 
 %% Inputs typed in order, each once the one before it has printed all it

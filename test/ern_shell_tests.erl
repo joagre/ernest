@@ -257,13 +257,13 @@ startup() ->
     %% report §8.3, §11.2: `--config-dir` makes the shell a node, so it
     %% names a configuration directory `ern config` made
     node_dir(filename:join(Node, ".ernest")),
-    ok = file:write_file(filename:join([Home, ".ernest", "startup"]),
-                         "let greeting = \"from the user file\"\nlet shared = 1\n"),
+    startup_file(filename:join([Home, ".ernest", "startup"]),
+                 "let greeting = \"from the user file\"\nlet shared = 1\n"),
     %% the node's file binds the same name, holds a line that does not
     %% parse, which a blank line ends as it would at a terminal, and a
     %% command, which runs as a typed one does
-    ok = file:write_file(filename:join([Node, ".ernest", "startup"]),
-                         "let shared = 2\n1 +\n\n:set depth 1\n"),
+    startup_file(filename:join([Node, ".ernest", "startup"]),
+                 "let shared = 2\n1 +\n\n:set depth 1\n"),
     InputFile = filename:join(Node, "session.in"),
     ok = file:write_file(InputFile, "greeting\nshared\n[[1]]\n"),
     {0, Output} = ern_pty:sh(
@@ -295,8 +295,8 @@ startup_failures_named() ->
     ConfigDir = filename:join(fresh_home(), ".ernest"),
     node_dir(ConfigDir),
     Startup = filename:join(ConfigDir, "startup"),
-    ok = file:write_file(Startup, ":set depth x\n:bogus\n1 / 0\nlet k = 2\n:type  1 + \"a\"\n"
-                         ":load Nope\n"),
+    startup_file(Startup, ":set depth x\n:bogus\n1 / 0\nlet k = 2\n:type  1 + \"a\"\n"
+                          ":load Nope\n"),
     InputFile = filename:join(ConfigDir, "session.in"),
     ok = file:write_file(InputFile, "k\n"),
     Command = "HOME=" ++ fresh_home() ++ " ../bin/ern shell --config-dir " ++ ConfigDir
@@ -353,7 +353,8 @@ host_flags_cleared() ->
     ?assertMatch({_, _}, binary:match(Output, <<"ern ">>)).
 
 %% report §11.2: a startup file another user could change is said and not
-%% run: one that anyone may write, and one in a directory that anyone may
+%% run: one that anyone may write, one that its group may write (the full
+%% review's S3), and one in a directory that anyone or its group may
 %% write; the person's directory is its owner's alone after the session,
 %% in line mode too. A regression test: each was run,
 %% and in line mode the directory kept its mode (the log's *The Full
@@ -368,8 +369,7 @@ startup_of_anothers() ->
                   Home = fresh_home(),
                   Dir = filename:join(Home, ".ernest"),
                   File = filename:join(Dir, "startup"),
-                  ok = filelib:ensure_path(Dir),
-                  ok = file:write_file(File, "Io.println(\"planted\")\n"),
+                  startup_file(File, "Io.println(\"planted\")\n"),
                   ok = Change(Dir, File),
                   {0, Output} = ern_pty:sh("echo 1 | HOME=" ++ Home ++ " ../bin/ern shell"),
                   ?assertEqual(nomatch, binary:match(Output, <<"planted">>)),
@@ -381,7 +381,9 @@ startup_of_anothers() ->
                   ?assertEqual(8#700, Mode band 8#777)
               end,
     Refused(fun(_Dir, File) -> file:change_mode(File, 8#666) end),
-    Refused(fun(Dir, _File) -> file:change_mode(Dir, 8#777) end).
+    Refused(fun(_Dir, File) -> file:change_mode(File, 8#664) end),
+    Refused(fun(Dir, _File) -> file:change_mode(Dir, 8#777) end),
+    Refused(fun(Dir, _File) -> file:change_mode(Dir, 8#770) end).
 
 %% report §11.2: at a terminal too, a startup file is checked as it is
 %% found, before the history makes the person's directory its owner's
@@ -630,8 +632,8 @@ line_mode_continues() ->
     ok = file:write_file(InputFile, "fn f(x : Int) : Int =\n    x + 1\nf(2)\n1 +\n\ny\n1 +\n"),
     ConfigDir = filename:join(Dir, "conf"),
     node_dir(ConfigDir),
-    ok = file:write_file(filename:join(ConfigDir, "startup"),
-                         "fn g(x : Int) : Int =\n    x * 2\n\nlet y =\n    g(4)\n2 *\n"),
+    startup_file(filename:join(ConfigDir, "startup"),
+                 "fn g(x : Int) : Int =\n    x * 2\n\nlet y =\n    g(4)\n2 *\n"),
     {0, Output} = ern_pty:sh(
         "HOME=" ++ fresh_home() ++ " ../bin/ern shell --config-dir " ++ ConfigDir
         ++ " < " ++ InputFile),
@@ -719,8 +721,7 @@ startup_of_the_working_directory() ->
     Ern = filename:absname("../bin/ern"),
     Tree = fresh_home(),
     ok = filelib:ensure_path(filename:join(Tree, ".ernest")),
-    ok = file:write_file(filename:join([Tree, ".ernest", "startup"]),
-                         "let planted = \"ran\"\n"),
+    startup_file(filename:join([Tree, ".ernest", "startup"]), "let planted = \"ran\"\n"),
     InputFile = filename:join(Tree, "session.in"),
     ok = file:write_file(InputFile, "planted\n"),
     {0, Planted} = ern_pty:sh(
@@ -731,7 +732,7 @@ startup_of_the_working_directory() ->
     %% runs once: its failing line is reported once
     Home = fresh_home(),
     node_dir(filename:join(Home, ".ernest")),
-    ok = file:write_file(filename:join([Home, ".ernest", "startup"]), "1 +\n"),
+    startup_file(filename:join([Home, ".ernest", "startup"]), "1 +\n"),
     Empty = filename:join(Home, "session.in"),
     ok = file:write_file(Empty, ""),
     lists:foreach(fun(Option) ->
@@ -759,6 +760,28 @@ fault_line_escaped() ->
     ?assertMatch({_, _}, binary:match(Output, <<"input 1:1 faulted: a\\u{1B}b\\nforged">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"fault: c\\u{1B}d">>)),
     ?assertEqual(nomatch, binary:match(Output, <<27>>)).
+
+%% report §11.2, Appendix E.21: `Process.live()` at the prompt lists what
+%% `:processes` lists, the processes the session's inputs started, and
+%% none of the shell's own, its chain, its evaluators and the input that
+%% asks among them. Written with the inputs spawned as roots of their own
+%% (the full review's B11), when it listed `Shell.main`; it does not cover a
+%% process a load's evaluation started, which program_test lists
+process_live_at_the_prompt_test_() ->
+    {timeout, waits(1), fun process_live_at_the_prompt/0}.
+
+process_live_at_the_prompt() ->
+    Dir = fresh_home(),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, "Process.live()\n"
+                                    "let p : Address(Int) = spawn(fn() = receive { _ -> Unit })\n"
+                                    "Process.live() == [Process.fromAddress(p)]\n"
+                                    ":processes\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"> [] : List(Process)\n"
+                                                "> p : Address(Int)\n"
+                                                "> true : Bool\n"
+                                                "> input 2:1\n">>)).
 
 %% report §11.2, Appendix E.24: the shell reports as `ern run` does, so a
 %% fault `Test.faults` expects is no line and not among `:faults`; the
@@ -918,8 +941,11 @@ reader_and_screen_ends_test_() ->
 reader_and_screen_ends() ->
     Stop = "foreign fn stop(process : Process, reason : Foreign.Term) : Bool ="
            " \"erlang:exit/2\"\r",
+    %% the host's processes, since Process.live() at the prompt lists none of
+    %% the shell's own (report §11.2)
+    Processes = "foreign fn processes() : List(Process) = \"erlang:processes/0\"\r",
     Ending = fun(Site) ->
-                 "{ let found = List.filter(Process.live(), fn(p) = match Process.status(p) {"
+                 "{ let found = List.filter(processes(), fn(p) = match Process.status(p) {"
                  " Some(status) -> String.startsWith(status.site, \"" ++ Site ++ "\")"
                  " | None -> false });"
                  " List.forEach(found, fn(p) = { let _ = stop(p, Foreign.atom(\"kill\")); Unit });"
@@ -929,6 +955,8 @@ reader_and_screen_ends() ->
                                    [{expect, "> "},
                                     {send, hex(Stop)},
                                     {expect, "stop : "},
+                                    {send, hex(Processes)},
+                                    {expect, "processes : "},
                                     {send, hex(Ending("Shell.readKeys"))},
                                     {expect, "stopped reading the keyboard"}],
                                    wait_seconds(), " --size 30x120"),
@@ -937,6 +965,8 @@ reader_and_screen_ends() ->
                                     [{expect, "> "},
                                      {send, hex(Stop)},
                                      {expect, "stop : "},
+                                     {send, hex(Processes)},
+                                     {expect, "processes : "},
                                      {send, hex(Ending("Shell.main:"))},
                                      {expect, "screen ended"}],
                                     wait_seconds(), " --size 30x120"),
@@ -1606,7 +1636,8 @@ shift_tab_color() ->
 %% modules, and the prelude's names but its constructors, alphabetically.
 %% A regression test for findings of the session of real use: `List.map(`
 %% and `Tab` put four spaces inside the call, and then listed every prelude
-%% constructor first
+%% constructor first. The screen holds the whole list, the session's
+%% name last, which a row fewer than the names would cut short
 tab_mid_row_test_() ->
     {timeout, 60, fun tab_mid_row/0}.
 
@@ -1620,7 +1651,7 @@ tab_mid_row() ->
                  {send, hex("[1], fn(n) = n)\r")},
                  {expect, "[1] : List(Int)"},
                  {send, "04"}],
-                30, " --size 40x80"),
+                30, " --size 50x80"),
     ?assertEqual(nomatch, binary:match(Bytes, <<"List.map(    ">>)),
     ?assertEqual(nomatch, binary:match(Bytes, <<"ArrowDown">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"module Bool\r\nmodule Bytes\r\n">>)),
@@ -2143,8 +2174,8 @@ shadowed_type_by_input_test_() ->
 shadowed_type_by_input() ->
     Home = scratch("ern_home_"),
     ok = filelib:ensure_path(filename:join(Home, ".ernest")),
-    ok = file:write_file(filename:join([Home, ".ernest", "startup"]),
-                         "1 + 1\ntype S = P\nlet s = P\n"),
+    startup_file(filename:join([Home, ".ernest", "startup"]),
+                 "1 + 1\ntype S = P\nlet s = P\n"),
     InputFile = filename:join(Home, "session.in"),
     ok = file:write_file(InputFile, ":bindings\n:bindings\ntype T = A\nlet x = A\n"
                                     "type T = B\ntype S = Q\nx\ns\n"),
@@ -3066,8 +3097,10 @@ commands_mirror_test() ->
 %% Process.faults. An input that faults at its wait, an adapted address's
 %% function having faulted on the message it waits for, answers with the
 %% fault rather than waiting for a `Done` that never comes; a restart is
-%% reported as one, and the end after it; `:faults` keeps both; a binding
-%% `:load` evaluates is reported by `:load` alone. A regression test for
+%% reported as one, and the end after it; `:faults` keeps both, each line
+%% its time first as `ern run` stamps a line (the full review's B-C8,
+%% written with the time); a binding `:load` evaluates is reported by
+%% `:load` alone. A regression test for
 %% the move off the front end's watcher; it does not cover a process
 %% `:reload` ends. The input that spawns the restarting process waits for
 %% its end, so that `:faults` comes after both faults: sent at once, it
@@ -3100,6 +3133,10 @@ fault_subscriber() ->
                            ern_pty:count(Output, <<Line/binary, "\n    ">>)})
      || Line <- [<<"input 4:1 faulted, restarted: division by zero">>,
                  <<"input 4:1 faulted: division by zero">>]],
+    Stamp = "^(?:> )?[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z ",
+    [?assertMatch({match, _}, re:run(Output, Stamp ++ Line ++ "$", [multiline]))
+     || Line <- ["input 4:1 faulted, restarted: division by zero",
+                 "input 4:1 faulted: division by zero"]],
     ?assertMatch({_, _}, binary:match(Output, <<"Bad.boom:2 faulted">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"Shell.load">>)).
 
@@ -4921,6 +4958,15 @@ alone(Command) ->
 %% A home of its own, which holds no history but the session's.
 fresh_home() ->
     scratch("ern_home_").
+
+%% A startup file the shell runs (report §11.2): its user's own, and it and
+%% its directory written by none but their owner, whatever the umask.
+startup_file(File, Text) ->
+    Dir = filename:dirname(File),
+    ok = filelib:ensure_path(Dir),
+    ok = file:change_mode(Dir, 8#700),
+    ok = file:write_file(File, Text),
+    ok = file:change_mode(File, 8#644).
 
 hex(Text) ->
     lists:flatten([io_lib:format("~2.16.0b", [Char]) || Char <- Text]).
