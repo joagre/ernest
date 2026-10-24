@@ -21,7 +21,7 @@ $ ern run tally.erc words.txt
 2 3 14 total
 ```
 
-`ern run snake.erc` plays the snake game at your terminal, `ern run shout.erc` serves until you stop it, and `ern test file_sync.erc` runs a program's own tests. `typed_channels_nodes.ern` and `upgrade/` run as nodes, with the configuration directories their first comments make. Each program's first comment says how it is run and what to look at in it.
+`ern run snake.erc` plays the snake game at your terminal, `ern run shout.erc` serves until you stop it, `ern run lease_broker.erc deadlock` ends in the deadlock the runtime reports, and `ern test file_sync.erc` runs a program's own tests. `typed_channels_nodes.ern` and `upgrade/` run as nodes, and `lease_broker.ern` as two nodes too, with the configuration directories their first comments make. Each program's first comment says how it is run and what to look at in it.
 
 ## The programs
 
@@ -32,6 +32,7 @@ $ ern run tally.erc words.txt
 | [`word_count.ern`](word_count.ern) | the words of the file named, counted by one function over two kinds of map | an operations record filled from a module, a requirement the fill supplies, a derived order | chapter 7 |
 | [`repl.ern`](repl.ern) | a read-evaluate-print loop for a small language | a lexer, a parser and an evaluator as pure functions; a process that bounds an evaluation, killed when it runs too long | chapters 3, 5 and 6 |
 | [`services.ern`](services.ern) | a stock kept by three services under one supervisor, told what to do on standard input | services reached by name, a fault the input causes, a restart that keeps the address and loses the state | chapter 6 |
+| [`lease_broker.ern`](lease_broker.ern) | numbered leases lent to client processes by a broker, which takes back what a client held when it restarts or ends | a service monitor told of each restart, `demonitor`, the caller's process from its reply, a ledger of pairs sorted by a tuple's order, the listing of a deadlock, a service monitor across nodes | chapters 4, 5, 6 and 8 |
 | [`shout.ern`](shout.ern) | a TCP server that answers each line in capitals; it serves until stopped | a socket as a process, a process for each connection, reading until a line has arrived | chapters 4 and 8 |
 | [`web_server.ern`](web_server.ern) | a web server with sessions; it serves until stopped | state shared by processes as a process that owns a `Map`, request and reply, an alarm | chapters 4 and 6 |
 | [`file_sync.ern`](file_sync.ern) | two directories kept identical; it runs until stopped | two processes that learn each other's address from a message, the file system, a program's own tests | chapters 4 and 5 |

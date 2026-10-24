@@ -11,7 +11,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("kernel/include/file.hrl").
 
--export([del/1, build/1, sh/1, sh/2, succeed/1, succeed/2]).
+-export([del/1, shown/2, printed/1, build/1, sh/1, sh/2, succeed/1, succeed/2]).
 
 %% Report §11.1: an example compiled into test/build, the libraries' builds
 %% on its load path as on every job's (Appendix G), libs/ansi among them,
@@ -125,6 +125,34 @@ services() ->
     0 = build(?BUILD ++ "../examples/services.ern"),
     {0, Output} = sh("../bin/ern run build/services.erc < fixtures/input/services.in"),
     ?assertEqual(expected("services"), untraced(unstamped(lines(Output)))).
+
+%% report §3.10, §4.9, §6.5, §6.6, §6.9, §8.6, §11.2, Appendix E.24: the
+%% lease broker as its first comment runs it, each run printing the lines
+%% its console block shows there, in any order, since several processes
+%% print: four clients, a restarted client's lease taken back and lent to
+%% the client that waits, a killed client's the same, and a ledger of pairs
+%% sorted by holder, then lease; with the argument deadlock, three clients
+%% that each hold a lease and wait for a second, status 1, the deadlock's
+%% report listing the processes left waiting by site and frame; its own
+%% tests, the broker's fault among them; and a word it does not take,
+%% status 2. A regression test, written with the example. It does not cover
+%% a waiting request dropped at its client's end, since no run orders the
+%% end before the lease that would answer it; the two nodes are
+%% ern_nodes_tests' lease_broker_test_
+lease_broker_test_() ->
+    {timeout, ern_nodes_tests:waits(5), fun lease_broker/0}.
+
+lease_broker() ->
+    0 = build(?BUILD ++ "../examples/lease_broker.ern"),
+    Run = fun(Arguments) -> sh("../bin/ern run build/lease_broker.erc" ++ Arguments) end,
+    {0, Played} = Run(""),
+    ?assertEqual(shown("lease_broker.ern", "ern run lease_broker.erc"), printed(Played)),
+    {1, Deadlocked} = Run(" deadlock"),
+    ?assertEqual(shown("lease_broker.ern", "ern run lease_broker.erc deadlock"),
+                 printed(Deadlocked)),
+    {0, Tested} = sh("../bin/ern test build/lease_broker.erc"),
+    ?assertEqual(shown("lease_broker.ern", "ern test lease_broker.erc"), printed(Tested)),
+    ?assertEqual({2, <<"usage: lease_broker [deadlock]\n">>}, Run(" holiday")).
 
 %% report §3.5, §4.9, §5.6, Appendix E.3, E.26: word_count counts the words
 %% of the file its command line names in both maps, the ordered map's
@@ -1857,6 +1885,29 @@ is_frame(_) -> false.
 unstamped(Lines) ->
     lists:sort([re:replace(Line, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z ", "", [{return, binary}])
                 || Line <- Lines]).
+
+%% The lines a console block of an example's first comment shows a command
+%% printing, as a terminal shows them: those after the block's line
+%% `$ Command`, up to its next command or the comment's next line of prose,
+%% sorted as lines/1 sorts what a run prints. Example is a file of
+%% examples/, read from this directory.
+-spec shown(string(), string()) -> [binary()].
+shown(Example, Command) ->
+    {ok, Text} = file:read_file("../examples/" ++ Example),
+    Prompt = iolist_to_binary(["//     $ ", Command]),
+    [_ | After] = lists:dropwhile(fun(Line) -> Line =/= Prompt end,
+                                  binary:split(Text, <<"\n">>, [global])),
+    Block = lists:takewhile(fun(<<"//     $ ", _/binary>>) -> false;
+                               (<<"//     ", _/binary>>) -> true;
+                               (_) -> false
+                            end, After),
+    lists:sort([Line || <<"//     ", Line/binary>> <- Block]).
+
+%% Report §11.2: what a run printed, standard output and standard error,
+%% its lines sorted as a terminal shows them (unstamped/1).
+-spec printed(binary() | string()) -> [binary()].
+printed(Output) ->
+    unstamped(lines(iolist_to_binary(Output))).
 
 %% A build in this node, as `ern build` does it: a launch of `ern` costs
 %% the start of a host, which the builds here, which only ready what a test

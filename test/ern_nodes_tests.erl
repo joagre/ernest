@@ -4402,6 +4402,56 @@ typed_channels(Base) ->
     {OutA, _} = said(ConfigDirA),
     has(OutA, "total on b: Some(5)").
 
+%% report §6.6, §6.9, §8.7, Appendix E.27: examples/lease_broker.ern as two
+%% nodes, as its first comment runs them. b runs serve, which offers the
+%% broker as its service and says where it listens, the port the host
+%% picked, at which a lists it once it has said so. a runs visit, whose two
+%% clients borrow from b's broker; bob restarts, which visit's service
+%% monitor on bob's node is told of and the broker's on b is not, so the
+%% ledger a reads after the restart still lists bob's lease, and the
+%% broker takes it back as a's program ends, ProgramEnd. Each node prints
+%% the lines its console block shows, a without its listening line, since
+%% it does not listen here, and b at its port. A regression test, written
+%% with the example; a loss, which the comment says a service monitor is
+%% told of, is across/1's
+lease_broker_test_() ->
+    nodes_test({waits, 6}, fun lease_broker/1).
+
+lease_broker(Base) ->
+    BuildRoot = filename:join(Base, "build"),
+    0 = ern_cli:ern(["build", "--source-root", "../examples", "--build-root", BuildRoot,
+                     "../examples/lease_broker.ern"], group_leader()),
+    Program = filename:join(BuildRoot, "lease_broker.erc"),
+    A = made(Base, "a", none),
+    B = made(Base, "b", 0),
+    lists(B, [{"a", A, none}]),
+    {_, WaitB} = launched(B, [?ERN, " run --config-dir ", B, " --main LeaseBroker.serve ",
+                              Program]),
+    PortB = bound_port(B),
+    lists(A, [{"b", B, PortB}]),
+    edit(A, fun(Conf) -> Conf#{<<"services">> => #{<<"leases">> => [<<"b">>]}} end),
+    prints(B, "offered"),
+    {_, WaitA} = launched(A, [?ERN, " run --config-dir ", A, " --main LeaseBroker.visit ",
+                              Program]),
+    ?assertEqual(0, WaitA()),
+    prints(B, "the broker took back 1 from ann: ProgramEnd"),
+    prints(B, "the broker took back 2 from bob: ProgramEnd"),
+    stop(B, WaitB),
+    {OutA, ErrA} = said(A),
+    {OutB, ErrB} = said(B),
+    Shown = fun(Command) -> ern_integration_tests:shown("lease_broker.ern", Command) end,
+    ?assertEqual(Shown("ern run --config-dir a --main LeaseBroker.visit lease_broker.erc")
+                     -- [<<"listening on 0.0.0.0:8654">>],
+                 ern_integration_tests:printed([OutA, ErrA])),
+    %% the last line of b's standard error, `Terminated`, is the line the
+    %% shell launched/2 runs the node under writes of its end by the signal
+    ?assertEqual(lists:sort([<<"listening on 127.0.0.1:", (integer_to_binary(PortB))/binary>>,
+                             <<"Terminated">>
+                             | Shown("ern run --config-dir b --main LeaseBroker.serve"
+                                     " lease_broker.erc")
+                               -- [<<"listening on 127.0.0.1:8655">>]]),
+                 ern_integration_tests:printed([OutB, ErrB])).
+
 %% report §8.7, Appendix E.27, C, G.4: a compute on a peer the desk picks,
 %% the store and the desk telling every `utilization-interval` of their
 %% configurations, of the desk's two peers the store alone reached: before
