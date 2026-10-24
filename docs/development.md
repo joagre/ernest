@@ -330,7 +330,6 @@ bin/ern build --build-root build/modules test/fixtures/programs/modules  # a tre
 bin/ern run build/modules/main.erc                # loads net/http.erc by namespace
 bin/ern build --emit-erl examples/hello.ern       # the Erlang source, for reading
 bin/ern doc src/stdlib/list.ern                   # the module's documentation as CommonMark
-bin/ern build --short-errors examples/hello.ern   # the first line of each error only
 bin/ern config --config-dir a                     # a/ with a key pair, its public key printed
 bin/ern config --config-dir a --peer-dir b        # a's ernest.conf lists the node of b/
 bin/ern reload --config-dir node                  # the node running from node/ reads its ernest.conf again
