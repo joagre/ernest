@@ -16,3 +16,10 @@
 %% none.
 -record(loaded, {load_path = [], source_root = ".", interfaces = [], program = [],
                  entry = none, config_startup = none}).
+
+%% A doc example as `ern test` runs it (report §11.2, ern_examples): its
+%% case, `{'Case', Name, Run}`, as a test's is, its run answering `'Passed'`,
+%% `{'Failed', Text}` or, for one that only compiles, `'Compiled'`; the
+%% units its program initializes, the top first (§8.5); and what writes a
+%% trace of its fault with its frames named as its case is (Appendix E.21).
+-record(example, {test_case, initialized = [], frames}).

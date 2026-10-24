@@ -206,3 +206,21 @@ wait(Tag) ->
 
 quiet() ->
     #{stdout => fun(_) -> ok end, stderr => fun(_) -> ok end}.
+
+%% report §8.7, §2.5: the line a node says of a spawn it did not start
+%% writes the site, a peer's text, with its control characters as escapes,
+%% so that a site with a line feed forges no line of the node's. A
+%% regression test (S4), written after the code: the site went in raw
+not_loaded_site_test() ->
+    Self = self(),
+    Site = <<"Main.w:1\e[2J\n2026-10-24T00:00:00.000Z the peer x connected">>,
+    ok = ern_rt:run_main(fun() ->
+                             ok = ern_gateway:outcome(?PEER, {not_loaded, spawn, Site,
+                                                              "the binding Main.x has no value"
+                                                              " here"})
+                         end, <<"main">>, #{stderr => fun(Bytes) -> Self ! {said, Bytes} end}),
+    Said = receive {said, Bytes} -> Bytes end,
+    ?assertMatch([_], binary:split(Said, <<"\n">>, [global, trim_all])),
+    ?assertMatch({_, _}, binary:match(Said, <<"'s spawn at Main.w:1\\u{1B}[2J\\n2026-10-24T00:00"
+                                              ":00.000Z the peer x connected was not loaded: the"
+                                              " binding Main.x has no value here\n">>)).

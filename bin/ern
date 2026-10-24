@@ -5,7 +5,8 @@
 # path works wherever the tree is (docs/design/install.md); it
 # refuses a working directory whose name is not UTF-8 before the host
 # starts, since the host hangs as it boots in one where its names are UTF-8
-# (report §11); and it starts the host with the tree's code on its path. The host reads no
+# (report §11), but for --help and --version; and it starts the host with
+# the tree's code on its path. The host reads no
 # input of its own (-noinput), so that standard input is the runtime's
 # alone (report §8.2), and -noinput comes after -noshell, since the host
 # takes the last of the two; its break handler is off (+B), so that the
@@ -33,10 +34,20 @@ if ! command -v iconv >/dev/null 2>&1; then
     exit 1
 fi
 
-if ! pwd -P | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1; then
-    echo "ern: the working directory's name is not UTF-8" >&2
-    exit 1
-fi
+# Report §11: `ern --help` and `ern --version` read nothing of the working
+# directory, so the host starts for them in the root directory, whose name
+# is UTF-8, wherever ern was started.
+case "$#:${1-}" in
+    1:--help | 1:--version)
+        cd /
+        ;;
+    *)
+        if ! pwd -P | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1; then
+            echo "ern: the working directory's name is not UTF-8" >&2
+            exit 1
+        fi
+        ;;
+esac
 
 if ! command -v erl >/dev/null 2>&1; then
     echo "ern: erl, of Erlang/OTP 29, is not on the path" >&2

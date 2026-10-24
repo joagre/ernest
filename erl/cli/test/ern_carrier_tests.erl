@@ -18,7 +18,7 @@ tmp() ->
 %% A configuration directory `ern config` made, read.
 configured() ->
     Dir = filename:join(tmp(), "node"),
-    _ = ern_node:create(Dir),
+    _ = ern_node:create(Dir, ern_node:default_listen()),
     ern_node:read(Dir).
 
 certificate(#configuration{config_dir = Dir}) ->
@@ -48,8 +48,8 @@ name_test() ->
 %% release, the protocol's version, 2 since MVP 3.1, the form's version, 2
 %% since MVP 3.27, `ern`'s major and minor and OTP's major release, so that
 %% two patch levels of one minor stand on one floor and two minors do not;
-%% for a build that is no release, which its version text marks, the
-%% digest of its own code, the code of the repository's build, and two
+%% for a build that is no release, development, the digest of its own
+%% code, the code of the repository's build, and two
 %% codes stand apart; and nothing of a program's build, the same for every
 %% load path and not changed by a module built. A regression test of MVP 3.0's fingerprint,
 %% which held every compiled module of the load path, and of findings H5,
@@ -65,28 +65,33 @@ cookie_test() ->
              end,
     Unasked = fun() -> erlang:error(code_digest_asked) end,
     Otp = erlang:system_info(otp_release),
-    ?assertEqual(Digest({2, 2, 0, 3, Otp}), ern_carrier:cookie("0.3.1", Unasked)),
-    ?assertEqual(ern_carrier:cookie("0.3.1", Unasked), ern_carrier:cookie("0.3.7", Unasked)),
-    ?assertNotEqual(ern_carrier:cookie("0.3.1", Unasked), ern_carrier:cookie("0.4.0", Unasked)),
-    ?assertNotEqual(ern_carrier:cookie("0.3.1", Unasked), ern_carrier:cookie("1.3.1", Unasked)),
+    ?assertEqual(Digest({3, 2, 0, 3, Otp}), ern_carrier:cookie({0, 3, 1}, Unasked)),
+    ?assertEqual(ern_carrier:cookie({0, 3, 1}, Unasked), ern_carrier:cookie({0, 3, 7}, Unasked)),
+    ?assertNotEqual(ern_carrier:cookie({0, 3, 1}, Unasked), ern_carrier:cookie({0, 4, 0}, Unasked)),
+    ?assertNotEqual(ern_carrier:cookie({0, 3, 1}, Unasked), ern_carrier:cookie({1, 3, 1}, Unasked)),
     Code = fun(Bytes) -> fun() -> Bytes end end,
-    ?assertEqual(Digest(<<1>>), ern_carrier:cookie("0.3.1-dev", Code(<<1>>))),
-    ?assertNotEqual(ern_carrier:cookie("0.3.1-dev", Code(<<1>>)),
-                    ern_carrier:cookie("0.3.1-dev", Code(<<2>>))),
-    %% a version text of another shape is refused plainly, naming it; a
+    ?assertEqual(Digest(<<1>>), ern_carrier:cookie(development, Code(<<1>>))),
+    ?assertNotEqual(ern_carrier:cookie(development, Code(<<1>>)),
+                    ern_carrier:cookie(development, Code(<<2>>))),
+    %% report §8.7: a release's version is three whole numbers, each part
+    %% its digits alone, which ern_release reads, the carrier parsing
+    %% nothing; one of another shape is refused plainly, naming it. A
     %% regression test, written after the fix (the release review before
-    %% 0.4.0 found a badmatch)
-    [?assertThrow({cli_error, _}, ern_carrier:cookie(Text, Unasked))
-     || Text <- ["0.3", "0.3.1.2", "0.x.1", "0.3.1-rc1", "-1.3.1"]],
-    ?assertThrow({cli_error, "the version text 0.3 is neither a release's, three whole numbers,"
-                             " nor a development build's, ending in -dev"},
-                 ern_carrier:cookie("0.3", Unasked)),
+    %% 0.4.0 found a badmatch; the full review before 0.5.0 found `+0.4.0`
+    %% taken)
+    ?assertEqual({0, 4, 0}, ern_release:release("0.4.0")),
+    ?assertEqual({0, 4, 0}, ern_release:release("00.4.0")),
+    [?assertThrow({cli_error, _}, ern_release:release(Text))
+     || Text <- ["0.3", "0.3.1.2", "0.x.1", "0.3.1-rc1", "-1.3.1", "+0.4.0", "0.+4.0", "0..1", ""]],
+    ?assertThrow({cli_error, "the version 0.3 is not a release's, three whole numbers"},
+                 ern_release:release("0.3")),
     %% the repository's build is no release, and stands on its code's digest
     {ok, Version} = file:read_file("../../../VERSION"),
     Release = binary_to_list(string:trim(Version)),
     ?assertEqual(Release ++ "-dev", ern_release:version_text()),
     Cookie = ern_carrier:cookie(),
-    ?assertNotEqual(ern_carrier:cookie(Release, Unasked), Cookie),
+    ?assertEqual(development, ern_release:release()),
+    ?assertNotEqual(ern_carrier:cookie(ern_release:release(Release), Unasked), Cookie),
     Dir = tmp(),
     ok = file:write_file(filename:join(Dir, "one.ern"), "export fn f() : Int = 1\n"),
     ?assertEqual(0, ern_cli:ern(["build", Dir], group_leader())),
@@ -154,10 +159,13 @@ listed_test() ->
 %% the client's side the rule takes a listed key only where it gives the
 %% host the process that dialed recorded as it asked the peer's address,
 %% the process the connection's own monitors, and refuses another listed
-%% key, the node saying which peer answered the dial of which. A regression
-%% test, written after the fix (the release review before 0.4.0 found a
-%% listed key taken for any peer dialed); test/ern_nodes_tests.erl's
-%% answered_by_another_key_test_ dials through the host's TLS
+%% key, the node saying which peer answered the dial of which; a check
+%% that finds no process that dialed refuses the key, saying so, and fails
+%% in nothing of the host's. A regression test, written after the fix (the
+%% release review before 0.4.0 found a listed key taken for any peer
+%% dialed; the full review before 0.5.0 a badmatch where none had dialed);
+%% test/ern_nodes_tests.erl's answered_by_another_key_test_ dials through
+%% the host's TLS
 dialed_test() ->
     Own = configured(),
     Peer = configured(),
@@ -185,7 +193,9 @@ dialed_test() ->
                                  erlang:demonitor(MonitorRef),
                                  Verified
                              end,
-                   Self ! {verified, Checked(certificate(Peer)), Checked(certificate(Other))}
+                   Self ! {verified, Checked(certificate(Peer)), Checked(certificate(Other))},
+                   Self ! {unknown, ern_carrier:verify(certificate(Peer),
+                                                       {bad_cert, selfsigned_peer}, client)}
            end,
     Said = fun(Bytes) -> Self ! {said, Bytes} end,
     ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => Said, stderr => Said})),
@@ -193,6 +203,9 @@ dialed_test() ->
     ?assertEqual({verified, {valid, client}, {fail, not_dialed}},
                  receive {verified, _, _} = Verified -> Verified end),
     ?assertEqual({said, <<"the peer desk was refused: it answered the dial of the peer store\n">>},
+                 receive {said, _} = Line -> Line end),
+    ?assertEqual({unknown, {fail, not_dialed}}, receive {unknown, _} = Unknown -> Unknown end),
+    ?assertEqual({said, <<"the peer store was refused: the dial it answered is not known\n">>},
                  receive {said, _} = Line -> Line end).
 
 %% report §8.7: the lines a node says of its connections: a peer connected,

@@ -11,6 +11,8 @@
 
 -include_lib("shared/include/ern_diagnostic.hrl").
 -include_lib("checker/include/ern_types.hrl").
+-include_lib("parser/include/ern_fence.hrl").
+-include("ern_build.hrl").
 
 %% Report §11.2: the module an example is compiled in: its namespace, the
 %% text before the example's, the interfaces it is checked against beside
@@ -24,8 +26,9 @@
 -record(example_module, {namespace, before = <<>>, interfaces, build, unit = own, uses,
                          waiting = []}).
 
-%% Report §11.2: an example's case, and the units its program initializes.
--type example() :: {{'Case', binary(), fun(() -> term())}, [module()]}.
+%% Report §11.2: an example's case, the units its program initializes and
+%% what names the frames of its fault's trace.
+-type example() :: #example{}.
 
 %% Report §11.2: the run's load of a module an example names, with those
 %% it uses, given the modules its load waits on and the units loaded, the
@@ -36,39 +39,44 @@
 
 %% The doc examples of the module Namespace, which the run has loaded with
 %% the modules it uses, Loaded, its own first: each a case as a test is,
-%% `{'Case', Name, Run}`, its run answering `'Passed'` or `{'Failed', Text}`,
-%% with the units its program initializes (report §8.5), the top first: its
-%% own, those of the modules it names and those it uses, the documented
-%% module's among them or, inside it, the example's unit in its place, so
-%% that each is initialized once; none for an example that does not run.
-%% Beside them the units their compiling loaded, which unload/1 takes out
-%% once they have run. Report §11.2: an example is named by the declaration
-%% it documents and its number among that declaration's, `List.take example
-%% 2`, the module's own as `List example 1`; the fenced `ernest` blocks of
-%% a type's constructors and fields are the type's, after its own. A
-%% module an example names is found on LoadPath, the documented module's
-%% root first, and loaded by Load, as the run loads a module the
-%% documented one uses (report §11.1). The source a private declaration's
-%% example is compiled inside is read once, where the module has one.
+%% `{'Case', Name, Run}`, its run answering `'Passed'`, `{'Failed', Text}`
+%% or `'Compiled'`, with the units its program initializes (report §8.5),
+%% the top first: its own, those of the modules it names and those it
+%% uses, the documented module's among them or, inside it, the example's
+%% unit in its place, so that each is initialized once; none for an
+%% example that does not run. Beside them the units their compiling loaded,
+%% which unload/1 takes out once they have run. Report §11.2: an example is
+%% named by the declaration it documents and its number among that
+%% declaration's, `List.take example 2`, the module's own as `List example
+%% 1`; the fenced `ernest` blocks of a type's constructors and fields are
+%% the type's, after its own. A module an example names is found on
+%% LoadPath, the documented module's root first, and loaded by Load, as the
+%% run loads a module the documented one uses (report §11.1). The source of
+%% the module is read once, where it has examples: a private declaration's
+%% example is compiled inside it, and every example's frames name the line
+%% of the source that holds it (frames/2).
 -spec cases([atom()], [module()], [file:filename()], load()) -> {[example()], [module()]}.
 cases(Namespace, [ErlangModule | _] = Loaded, LoadPath, Load) ->
     Erc = code:which(ErlangModule),
     {ok, Beam} = file:read_file(Erc),
     Interfaces = interfaces(Loaded),
-    Examples = [{iolist_to_binary([Owner, " example ", integer_to_list(Number)]), Where, Block}
-                || {Owner, Docs} <- documented(Namespace, Beam),
-                   {Number, {Where, Block}} <- lists:enumerate([{Where, Block}
-                                                                || {Where, Doc} <- Docs,
-                                                                   Block <- fences(Doc)])],
-    Module = case lists:keymember(inside, 2, Examples) of
-                 true -> module_source(Namespace, Erc, Beam);
-                 false -> none
+    Documented = documented(Namespace, Beam),
+    Source = case [Doc || {_, Docs} <- Documented, {_, Doc} <- Docs, fences(Doc) =/= []] of
+                 [] -> none;
+                 _ -> module_source(Namespace, Erc, Beam)
              end,
+    Examples = [{iolist_to_binary([Declaration, " example ", integer_to_list(Number)]), Where,
+                 Block, Start}
+                || {Declaration, Docs} <- placed(Documented, Source),
+                   {Number, {Where, Block, Start}}
+                       <- lists:enumerate([{Where, Block, started(DocLine, Offset)}
+                                           || {Where, Doc, DocLine} <- Docs,
+                                              {Offset, Block} <- fences(Doc)])],
     Naming = {ern_build:compiled_dependencies(LoadPath), Load},
-    Compiled = [example(Name, Block, example_module(Where, Index, Namespace, Interfaces, Module,
-                                                    Loaded),
+    Compiled = [example(Name, Block, Start, example_module(Where, Index, Namespace, Interfaces,
+                                                           Source, Loaded),
                         Naming)
-                || {Index, {Name, Where, Block}} <- lists:enumerate(Examples)],
+                || {Index, {Name, Where, Block, Start}} <- lists:enumerate(Examples)],
     {[Example || {Example, _} <- Compiled], [Unit || {_, Unit} <- Compiled, Unit =/= none]}.
 
 %% The interfaces of loaded units, those they use before them, each read
@@ -86,12 +94,12 @@ interfaces(Units) ->
 %% where the program's start initializes the modules it uses and
 %% `Os.workingDirectory` names it (Appendix E.23), and the run's again
 %% after it. Where the run's directory cannot be read, or the example's
-%% cannot be made, the case fails with the host's reason, and its program
+%% cannot be made, the case fails with the reason, and its program
 %% initializes nothing; a directory the example left that cannot be removed
 %% is said on ErrorDevice, the job's standard error, as the job says its
 %% own lines, since the example's launch has ended then.
 -spec in_directory(example(), fun((example()) -> Outcome), io:device()) -> Outcome.
-in_directory({{'Case', Name, _}, _} = Example, Run, ErrorDevice) ->
+in_directory(#example{test_case = {'Case', Name, _}} = Example, Run, ErrorDevice) ->
     %% an empty `TMPDIR` is none, as mktemp(1) takes it
     Base = case os:getenv("TMPDIR", "") of
                "" -> "/tmp";
@@ -108,27 +116,39 @@ in_directory({{'Case', Name, _}, _} = Example, Run, ErrorDevice) ->
                         ok = file:set_cwd(Working),
                         remove(Name, Dir, ErrorDevice)
                     end;
-                {error, Error} ->
-                    Run({failed(Name, ["its directory cannot be made under ", Base, ": ",
-                                       file:format_error(Error)]), []})
+                {error, Why} ->
+                    Run(failed(Name, ["its directory cannot be made under ", Base, ": ", Why]))
             end;
         {error, Error} ->
-            Run({failed(Name, ["the working directory cannot be read: ",
-                               file:format_error(Error)]), []})
+            Run(failed(Name, ["the working directory cannot be read: ",
+                              file:format_error(Error)]))
     end.
 
+%% An example that fails with Text, its program initializing nothing.
 failed(Name, Text) ->
     Failed = {'Failed', unicode:characters_to_binary(Text)},
-    {'Case', Name, fun() -> Failed end}.
+    #example{test_case = {'Case', Name, fun() -> Failed end}, frames = fun(Trace) -> Trace end}.
 
-%% A directory of a name no other holds, made empty under Base.
+%% A directory of a name no other holds, made under Base, which others
+%% share, as ern_node:create/2 makes the configuration directory: made here
+%% or not at all, and its owner's alone before the example writes in it, so
+%% that no one else can put a link where the example writes; what another
+%% put in it before it was its owner's alone would be written through, so
+%% it must hold nothing then. Or why it cannot be made.
 made_directory(Base) ->
     Dir = filename:join(Base, "ern_example_" ++ os:getpid() ++ "_"
                               ++ integer_to_list(erlang:unique_integer([positive]))),
     case file:make_dir(Dir) of
-        ok -> {ok, Dir};
-        {error, eexist} -> made_directory(Base);
-        {error, _} = Error -> Error
+        ok ->
+            ok = file:change_mode(Dir, 8#700),
+            case file:list_dir_all(Dir) of
+                {ok, []} -> {ok, Dir};
+                _ -> {error, [Dir, " was written to by another as it was made"]}
+            end;
+        {error, eexist} ->
+            made_directory(Base);
+        {error, Error} ->
+            {error, file:format_error(Error)}
     end.
 
 remove(Name, Dir, ErrorDevice) ->
@@ -175,6 +195,33 @@ documented(Namespace, Beam) ->
 where(#{private := true}) -> inside;
 where(_) -> outside.
 
+%% The documented declarations with each doc block's first line in the
+%% module's source, Source, as the source's doc blocks give it, in the
+%% order both write them, or none for each where no source holds the
+%% module as it was compiled.
+placed(Documented, {source, Source, _}) ->
+    {ok, Tokens} = ern_lexer:tokenize(Source, [comments]),
+    Lines = [{Line, Text} || {doc, {Line, _, _, _}, Text} <- Tokens],
+    {Placed, _} = lists:mapfoldl(fun({Declaration, Docs}, Left) ->
+                                     {Own, Rest} = lists:mapfoldl(fun doc_line/2, Left, Docs),
+                                     {{Declaration, Own}, Rest}
+                                 end, Lines, Documented),
+    Placed;
+placed(Documented, _NoSource) ->
+    [{Declaration, [{Where, Doc, none} || {Where, Doc} <- Docs]}
+     || {Declaration, Docs} <- Documented].
+
+%% A doc block with the line it begins on, the first of the source's doc
+%% blocks left, Left, that holds its text, and those after that one.
+doc_line({Where, Doc}, [{Line, Doc} | Rest]) -> {{Where, Doc, Line}, Rest};
+doc_line(Documented, [_ | Rest]) -> doc_line(Documented, Rest);
+doc_line({Where, Doc}, []) -> {{Where, Doc, none}, []}.
+
+%% The line of the source an example's first line stands on, Offset lines
+%% into a doc block that begins on DocLine, or none.
+started(none, _Offset) -> none;
+started(DocLine, Offset) -> DocLine + Offset.
+
 %% Report §11.2: the source of the module, Namespace, that its `.erc`, Erc,
 %% was compiled from, as Beam records it, and whether it is the standard
 %% library's own; or why no source holds the module as it was compiled:
@@ -211,7 +258,7 @@ module_source(Namespace, Erc, Beam) ->
 %% Each program initializes the modules its example names too. Or why the
 %% example has no module to be compiled in, its source not as it was
 %% compiled.
-example_module(outside, Index, _Namespace, Interfaces, _Module, Loaded) ->
+example_module(outside, Index, _Namespace, Interfaces, _Source, Loaded) ->
     #example_module{namespace = [list_to_atom("$Example" ++ integer_to_list(Index))],
                     interfaces = Interfaces, build = #{source_hash => <<>>, deps => []},
                     uses = Loaded};
@@ -245,65 +292,129 @@ item_where(Meta, Item) ->
         _ -> inside
     end.
 
-%% Report §2.2: a doc block's fenced `ernest` blocks.
+%% Report §2.2, §11.2: a doc block's fenced `ernest` blocks, its examples,
+%% as CommonMark finds them (ern_parser:fenced/1), each with the number of
+%% the doc block's lines before its content.
 fences(Doc) ->
-    case re:run(Doc, "```ernest\\n(.*?)\\n```", [global, dotall, {capture, all_but_first, binary}])
-    of
-        {match, Matches} -> [Block || [Block] <- Matches];
-        nomatch -> []
-    end.
+    Parts = ern_parser:fenced(binary:split(Doc, <<"\n">>, [global])),
+    {Blocks, _} = lists:mapfoldl(fun(Part, Offset) -> {{Offset, Part}, Offset + taken(Part)} end,
+                                 0, Parts),
+    [{Offset + 1, iolist_to_binary(lists:join(<<"\n">>, Content))}
+     || {Offset, #fence{language = <<"ernest">>, content = Content}} <- Blocks].
+
+%% The lines a part of a doc block takes, a fenced block's or a line's.
+taken(#fence{lines = Lines, closing = Closing}) ->
+    1 + length(Lines) + length([Closing || Closing =/= none]);
+taken(_Line) ->
+    1.
 
 %% One example, its case and the units its program initializes, and the
 %% unit its compiling loaded, or none, compiled in its module, the modules
 %% it names found and loaded by Naming, the finding on the load path and
-%% the run's load (named/3). Report §11.2, Appendix E.0 shape rule 6: an
-%% example that does not compile fails with the diagnostic's message, the
-%% first of its errors, or with the refusal of a module it names that the
-%% run would refuse; one that ends in `// => v` runs, and fails where
-%% `Io.show` of its value is not `v`; one without the line passes where it
-%% compiles (module_text/3).
-example(Name, _Block, {error, Text}, _Naming) ->
-    {{failed(Name, Text), []}, none};
-example(Name, Block, #example_module{namespace = Namespace, before = Before, build = Build,
-                                     unit = Unit} = Module, Naming) ->
+%% the run's load (named/3); Start is the line of the module's source its
+%% first line stands on, or none. Report §11.2, Appendix E.0 shape rule 6:
+%% an example that does not compile fails with the diagnostic's message,
+%% the first of its errors, or with the refusal of a module it names that
+%% the run would refuse; one whose last line is `// => v`, standing alone,
+%% runs, and fails where `Io.show` of its value is not `v`; any other is
+%% `compiled` where it compiles, and runs nothing (module_text/3).
+example(Name, _Block, _Start, {error, Text}, _Naming) ->
+    {failed(Name, Text), none};
+example(Name, Block, Start, #example_module{namespace = Namespace, before = Before,
+                                            build = Build, unit = Unit} = Module, Naming) ->
     {Text, Value} = module_text(Namespace, Before, Block),
     case {checked(iolist_to_binary(Text), Module, Naming), Value} of
         {{error, [#diagnostic{message = Message} | _]}, _} ->
-            {{failed(Name, Message), []}, none};
+            {failed(Name, Message), none};
         {{refused, Refusal}, _} ->
-            {{failed(Name, Refusal), []}, none};
+            {failed(Name, Refusal), none};
         {{ok, _, _, _, _}, none} ->
-            {{{'Case', Name, fun() -> 'Passed' end}, []}, none};
+            {#example{test_case = {'Case', Name, fun() -> 'Compiled' end},
+                      frames = fun(Trace) -> Trace end},
+             none};
         {{ok, Typed, Interface, Env, Uses}, Expected} ->
             case unit_built(Namespace, Unit, Build) of
                 {ok, Built} ->
                     {Case, Loaded} = loaded(Name, Namespace, Typed, Interface, Env, Built,
                                             Expected),
-                    {{Case, [Loaded | Uses]}, Loaded};
+                    Named = {Name, Namespace, lines(Before), Start},
+                    {#example{test_case = Case, initialized = [Loaded | Uses],
+                              frames = fun(Trace) -> frames(Trace, Named) end},
+                     Loaded};
                 {error, Refusal} ->
-                    {{failed(Name, Refusal), []}, none}
+                    {failed(Name, Refusal), none}
             end
     end.
+
+%% How many lines a text takes before what follows it, which begins on the
+%% line after its last line feed.
+lines(Text) ->
+    length(binary:matches(Text, <<"\n">>)).
+
+%% Report §11.2, Appendix E.21: the trace of an example's fault with its
+%% frames named as its case is. A frame of the example's own code, which
+%% its module, of the namespace Namespace, holds past the lines Before
+%% takes, names the case and the line of the module's source that holds
+%% it, `Adds.f example 1:12`, the example's lines standing in its module
+%% as they stand in its doc block (module_text/3), or the case alone where
+%% Start, the line its first line stands on, is none. Every other frame is
+%% as the runtime wrote it, the module's own beside a private
+%% declaration's example among them; `docShown` leaves none, since it calls
+%% the example last.
+frames(Trace, {Name, Namespace, Before, Start}) ->
+    Prefix = unicode:characters_to_binary([ern_namespace:text(Namespace), "."]),
+    iolist_to_binary([[framed(Line, Prefix, {Name, Before, Start}), "\n"]
+                      || Line <- binary:split(Trace, <<"\n">>, [global, trim_all])]).
+
+%% A frame as the runtime wrote it, `Name:Line` or `Name` (§6.9), as an
+%% example's trace writes it.
+framed(Line, Prefix, Named) ->
+    case string:prefix(Line, Prefix) of
+        nomatch ->
+            Line;
+        Rest ->
+            case string:split(Rest, ":", trailing) of
+                [_, Number] -> framed_at(Line, binary_to_integer(Number), Named);
+                [_] -> Line
+            end
+    end.
+
+%% A frame of the example's module at the line Number: the case's where
+%% the line is past Before's, the example's, at the line of the source that
+%% holds it.
+framed_at(Line, Number, {_Name, Before, _Start}) when Number =< Before ->
+    Line;
+framed_at(_Line, _Number, {Name, _Before, none}) ->
+    Name;
+framed_at(_Line, Number, {Name, Before, Start}) ->
+    ern_namespace:site_text([Name], Start + Number - Before - 1).
 
 %% Report §11.2, Appendix E.0 shape rule 6: the text of the module, of the
 %% namespace Namespace, that an example, Block, is compiled in, after
 %% Before, and the value its last line `// => v` promises, or none. The
-%% example is the body of `docExample`, its declarations before it. One
-%% without a value is a lambda's body, since it runs nothing, so that it
-%% may receive; one with a value runs, shown by `docShown`, which calls
-%% `Io.show` as the module writes it (shown/1) and has the mailbox type
-%% Never, as an entry point's left open has (report §8.1).
+%% example is the body of `docExample`, its declarations before it, each
+%% of its lines on the line after Before's that is its line in the doc
+%% block: `docExample`'s head stands on the blank line after the
+%% declarations, or before the example's first line where there are none,
+%% so that a trace names the example's line (frames/2). One without a
+%% value is a lambda's body, since it runs nothing, so that it may receive.
+%% One with a value runs, `docExample` giving its value to `Io.show` as the
+%% module writes it (shown/1), so that the example's last call leaves its
+%% frame, and `docShown`, which calls it, has the mailbox type Never, as
+%% an entry point's left open has (report §8.1).
 -spec module_text([atom()], binary(), binary()) -> {iodata(), binary() | none}.
 module_text(Namespace, Before, Block) ->
     {Body, Value} = split_result(Block),
-    {Declared, Expression} = declared(Body),
-    Text = case Value of
-               none -> [Before, Declared, "fn docExample() = fn() = {\n", Expression, "\n}\n"];
-               _ -> [Before, Declared, "fn docExample() = {\n", Expression, "\n}\n\n"
-                     "export fn docShown() : String receiving Never = ", shown(Namespace),
-                     "(docExample())\n"]
-           end,
-    {Text, Value}.
+    {Head, Close} = case Value of
+                        none -> {"fn docExample() = fn() = {", "\n}\n"};
+                        _ -> {["fn docExample() = ", shown(Namespace), "({"], "\n})\n\n"
+                              "export fn docShown() : String receiving Never = docExample()\n"}
+                    end,
+    Opened = case declared(Body) of
+                 {none, Expression} -> [Head, " ", Expression];
+                 {Declared, Expression} -> [Declared, "\n", Head, "\n", Expression]
+             end,
+    {[Before, Opened, Close], Value}.
 
 %% Report §4.2: `Io.show` as the example's module writes it, plain within
 %% Io itself, which writes its own declaration qualified only where a
@@ -379,7 +490,8 @@ named(Declarations, #example_module{namespace = Namespace, uses = Uses, waiting 
         throw:{cli_error, Refusal} -> {error, Refusal}
     end.
 
-%% An example's body and the value its last line `// => v` promises, or none.
+%% An example's body and the value its last line `// => v` promises, the
+%% line standing alone, or none.
 split_result(Block) ->
     Lines = binary:split(Block, <<"\n">>, [global]),
     case lists:last(Lines) of
@@ -388,17 +500,21 @@ split_result(Block) ->
         _ -> {Block, none}
     end.
 
-%% Appendix E.0 shape rule 6: an example is an expression, which
-%% declarations may stand before, as in a module: the paragraphs before its
-%% last blank line, where they parse as a module's declarations, and the
-%% expression after them; else no declaration and the whole example.
+%% Report §11.2, Appendix E.0 shape rule 6: an example is an expression,
+%% which declarations may stand before, as in a module: the longest run of
+%% its first paragraphs, those its blank lines part, that parses as a
+%% module's declarations, and the expression in the paragraphs after them;
+%% else none and the whole example.
 declared(Body) ->
-    case string:split(Body, <<"\n\n">>, trailing) of
-        [Declared, Expression] ->
-            case ern_parser:parse_string(Declared) of
-                {ok, [_ | _]} -> {<<Declared/binary, "\n">>, Expression};
-                _ -> {<<>>, Body}
-            end;
-        _ ->
-            {<<>>, Body}
+    Paragraphs = binary:split(Body, <<"\n\n">>, [global]),
+    declared(Body, Paragraphs, length(Paragraphs) - 1).
+
+declared(Body, _Paragraphs, 0) ->
+    {none, Body};
+declared(Body, Paragraphs, Count) ->
+    {First, Rest} = lists:split(Count, Paragraphs),
+    Declared = iolist_to_binary(lists:join(<<"\n\n">>, First)),
+    case ern_parser:parse_string(Declared) of
+        {ok, [_ | _]} -> {Declared, iolist_to_binary(lists:join(<<"\n\n">>, Rest))};
+        _ -> declared(Body, Paragraphs, Count - 1)
     end.

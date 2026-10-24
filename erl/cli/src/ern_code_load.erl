@@ -38,11 +38,6 @@
 
 -export([load/1]).
 
-%% Report §8.6: Code.load reads files, loads code through the host's code
-%% server and evaluates bindings, and its caller is inside foreign code for
-%% the look while it runs (load/1), whatever the bindings it evaluates wait
-%% on.
-
 -include_lib("checker/include/ern_types.hrl").
 -include_lib("checker/include/ern_canonical.hrl").
 
@@ -59,14 +54,24 @@
 %% Appendix E.28: `Right(Unit)`, or `Left` with the load's Io.Error.
 -spec load({'Path', binary()}) -> {'Right', 'Unit'} | {'Left', term()}.
 load({'Path', Path}) ->
-    ern_rt:entered_foreign(),
     try
-        Found = reach(Path),
-        Placed = placed(Found),
-        loaded(Placed),
-        evaluated(Placed)
+        evaluated(placed_and_loaded(Path))
     catch
         throw:{refused, Error} -> {'Left', Error}
+    end.
+
+%% Report §8.6: the load's reading of its files, its placing and its load
+%% through the host's code server, which wait on the host's file and code
+%% servers, where the look cannot see them deliver, so that the caller is
+%% inside foreign code for the look meanwhile; the evaluation of the
+%% bindings after it is Ernest code, whose waits the look reads, a
+%% deadlock among them.
+placed_and_loaded(Path) ->
+    ern_rt:entered_foreign(),
+    try
+        Placed = placed(reach(Path)),
+        loaded(Placed),
+        Placed
     after
         ern_rt:left_foreign()
     end.
@@ -104,7 +109,7 @@ reach(Path) ->
 %% them of §11.1's path shape; a file elsewhere is no `.erc` of its module.
 root(File, Namespace) ->
     Root = lists:foldl(fun(_, Dir) -> filename:dirname(Dir) end, File, Namespace),
-    Relative = ern_build:module_path(Namespace) ++ ".erc",
+    Relative = ern_namespace:module_path(Namespace) ++ ".erc",
     ern_build:relative(File, Root) =:= Relative
         andalso lists:all(fun ern_namespace:is_component/1,
                           filename:split(filename:rootname(Relative)))
@@ -135,7 +140,7 @@ with_dependencies(#found{chunk = #{deps := Dependencies}} = Module, LoadPath, Wa
 %% load path, the first root that holds it; one the load path lacks is
 %% `NotFound`.
 compiled_file(Namespace, LoadPath) ->
-    Relative = ern_build:module_path(Namespace) ++ ".erc",
+    Relative = ern_namespace:module_path(Namespace) ++ ".erc",
     case [Found || Dir <- LoadPath, Found <- [filename:join(Dir, Relative)],
                    filelib:is_regular(Found)] of
         [Found | _] -> Found;

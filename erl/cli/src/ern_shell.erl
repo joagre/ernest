@@ -1,6 +1,6 @@
-%% The shell's front end (report §11.2, plan MVP 2.6): the toolchain behind
-%% the foreign interface the shell in `src/shell/` calls. An input is a module
-%% of its own, `$Input<n>`, checked against the load path and the session,
+%% The shell's front end (report §11.2): the toolchain behind the foreign
+%% interface the shell in `src/shell/` calls. An input is a module of its
+%% own, `$Input<n>`, checked against the load path and the session,
 %% compiled, and run in a process of its own; the value is printed by E.1's
 %% printer, which `Io.debug` uses, over the descriptor of the input's type.
 %% An expression and a `let` are the module's entry point, and what the
@@ -24,6 +24,7 @@
 
 %% Report §8.6: each receive that can wait, by its kind (docs/style.md).
 -receives({ernest_wait, [withdraw/2, evaluate/3, session_ended/1]}).
+-receives({own_process, [flush_screen/0]}).
 
 -define(UNIT, {tcon, ['Unit'], []}).
 
@@ -136,13 +137,13 @@
 %% session as it stands (keep_session/1), the holders' and the inputs'
 %% numbers free to give again (release/1, collected/1), what each session
 %% module needs (uses/0), each input's name (input_site/2), each declaring
-%% input's text, which a reload compiles it again from (input_text/2), and
-%% the processes the loads evaluated bindings in (evaluators/0). A binding's
-%% value
-%% is §8.5's store, a persistent term, as a module's is, so that a later
-%% input reads it as it reads another module's value; its release when it
-%% is replaced, `it` at almost every input, scans every process, a cost
-%% that grows with the processes the session has (the log's *The Hardening
+%% input's text, which a reload compiles it again from (input_text/2), the
+%% modules whose `:load` was refused (refusal_kept/2), and the processes
+%% the loads evaluated bindings in (evaluators/0). A binding's value is
+%% §8.5's store, a persistent term, as a module's is, so that a later input
+%% reads it as it reads another module's value; its release when it is
+%% replaced, `it` at almost every input, scans every process, a cost that
+%% grows with the processes the session has (the log's *The Hardening
 %% Built*).
 -spec loaded(#loaded{}) -> ok.
 loaded(Loaded) ->
@@ -708,7 +709,8 @@ run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interfac
     Kept = Binds =:= declarations orelse BuildsFunctions,
     Body = fun() ->
                %% report §11.2: the input's own fault is its answer, caught
-               %% here, so that its process does not end with a fault
+               %% here, so that its process does not end with a fault; its
+               %% cause and its trace, a frame a line (Appendix E.21)
                Outcome = try
                              Value = value(ErlangModule, Binds),
                              BoundSession = bind(Session1, Binds, Namespace, Value, Type, Env,
@@ -717,7 +719,8 @@ run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interfac
                               #value{term = Value, descriptor = Descriptor}}
                          catch
                              Class:Error:Stack ->
-                                 {'Faulted', fault_cause(Class, Error, Stack), Serial}
+                                 {Cause, Trace} = caught_fault(Class, Error, Stack),
+                                 {'Faulted', Cause, Trace, Serial}
                          end,
                case Kept of
                    true -> kept;
@@ -749,7 +752,8 @@ record_uses(ErlangModule, Beam, #checked{namespace = Namespace, interface = Inte
 %% Report §11.2: an input that declares, or whose code builds a function
 %% value, a lambda, an adapted address's function, a function taken as a value, which
 %% may then be held anywhere, is kept while the session runs, as a
-%% program's modules are; the emitter says which (ern_emitter:compile/5).
+%% program's modules are; the emitter marks which (ern_emitter's
+%% function_value/2), and the interface chunk records it, `builds_functions`.
 %% Any other is done with its module once its answer is in, whether it
 %% faulted or not: no process runs its code then, and no value holds a
 %% function of it, so it is deleted and purged, and its number, and so its
@@ -819,10 +823,15 @@ value(ErlangModule, _Binds) ->
     ErlangModule:Entry().
 
 %% Report §7.3, §7.4: the cause of a fault the shell catches in a process
-%% of its own, as the runtime gives a process's.
-fault_cause(Class, Error, Stack) ->
-    {ern, fault, Cause, _Trace} = ern_rt:fault_exit_reason(Class, Error, Stack),
-    Cause.
+%% of its own, an input's or an evaluator's, and its trace (Appendix E.21),
+%% as the runtime gives a process's. What such a catch meets is a fault of
+%% the process's own: the one other end ern_rt:fault_exit_reason/3
+%% answers, `carried`, is a compute's process's, which throws it after its
+%% function's catch once its caller has the fault (report §8.7), and so
+%% runs no input and no binding.
+caught_fault(Class, Error, Stack) ->
+    {ern, fault, Cause, Trace} = ern_rt:fault_exit_reason(Class, Error, Stack),
+    {Cause, Trace}.
 
 %% Appendix E.1: the value as Ernest writes it, by the descriptor of its
 %% type; report §11.2: to the depth and the length the session is set to,
@@ -1051,7 +1060,7 @@ source_root() ->
 %% no module.
 -spec segment(binary()) -> 'None' | {'Some', binary()}.
 segment(Name) ->
-    case ern_build:segment(unicode:characters_to_list(Name)) of
+    case ern_namespace:segment(unicode:characters_to_list(Name)) of
         {ok, Segment} -> {'Some', unicode:characters_to_binary(Segment)};
         error -> 'None'
     end.
@@ -1190,20 +1199,23 @@ prelude_listing(#session{prelude = Env}) ->
     %% its module's name; the prelude's own are unqualified
     [unicode:characters_to_binary(["type ", ern_namespace:text(QualifiedName)])
      || [_] = QualifiedName <- lists:sort(Types)]
-        ++ [unicode:characters_to_binary([ern_namespace:text(QualifiedName), " : ",
-                                          ern_types:format_scheme(Scheme, TypeState)])
-            || {QualifiedName, Scheme} <- lists:sort(ern_typecheck:prelude_values(Env) ++ Shown)].
+        ++ value_lines(ern_typecheck:prelude_values(Env) ++ Shown, TypeState).
 
 %% Report §11.2, §9: the prelude's functions under a namespace no module
 %% of the session's or the standard library's has, `Address.call` and
 %% `Address.callForever`, each with its type, as `:browse Prelude` lists
 %% them; none for any other namespace.
 prelude_namespace_listing(Namespace, #session{prelude = Env}) ->
-    TypeState = ern_typecheck:type_state(Env),
+    value_lines([Value || {QualifiedName, _} = Value <- ern_typecheck:prelude_values(Env),
+                          lists:droplast(QualifiedName) =:= Namespace],
+                ern_typecheck:type_state(Env)).
+
+%% Report §11.2, §11.5: values as `:browse` lists them, by name, each
+%% qualified and with its type.
+value_lines(Values, TypeState) ->
     [unicode:characters_to_binary([ern_namespace:text(QualifiedName), " : ",
                                    ern_types:format_scheme(Scheme, TypeState)])
-     || {QualifiedName, Scheme} <- lists:sort(ern_typecheck:prelude_values(Env)),
-        lists:droplast(QualifiedName) =:= Namespace].
+     || {QualifiedName, Scheme} <- lists:sort(Values)].
 
 %% Report §11.5: each name and each type as the session writes it, the
 %% names qualified and another module's types too.
@@ -1228,11 +1240,7 @@ browse(Text, Namespace, #session{interfaces = Interfaces, scope = Scope,
             Types = [unicode:characters_to_binary([type_keyword(TypeInfo), "type ",
                                                    ern_namespace:text(QualifiedName)])
                      || {QualifiedName, TypeInfo} <- lists:sort(maps:to_list(InterfaceTypes))],
-            Values = [unicode:characters_to_binary(
-                        [ern_namespace:text(QualifiedName), " : ",
-                         ern_types:format_scheme(Scheme, TypeState)])
-                      || {QualifiedName, Scheme} <- lists:sort(maps:to_list(InterfaceValues))],
-            {'Right', Types ++ Values}
+            {'Right', Types ++ value_lines(maps:to_list(InterfaceValues), TypeState)}
     end.
 
 %% A type the session declares, as its declaration writes it.
@@ -1349,7 +1357,9 @@ doc(Session, Text) ->
 
 %% Report §11.2: a name of a module the session has not loaded, but the
 %% source root or the load path holds, is answered with the `:load` that
-%% puts it in scope: the module the name is, or the longest that begins it.
+%% puts it in scope: the module the name is, or the longest that begins it;
+%% or, where the session's last `:load` of that module was refused, with
+%% the refusal (refusal_kept/2).
 load_suffix(Session, Text) ->
     Parts = [binary_to_list(Part) || Part <- binary:split(without_dot(Text), <<".">>, [global])],
     case load_help(Session, Parts) of
@@ -1361,7 +1371,11 @@ load_help(Session, Segments) ->
     Modules = [lists:sublist(Segments, Length) || Length <- lists:seq(length(Segments), 1, -1)],
     case lists:search(fun(Module) -> is_loadable(Session, Module) end, Modules) of
         {value, Module} ->
-            {ok, [":load ", lists:join(".", Module), " puts it in scope"]};
+            Name = lists:join(".", Module),
+            case kept({refused, unicode:characters_to_binary(Name)}, none) of
+                none -> {ok, [":load ", Name, " puts it in scope"]};
+                Refusal -> {ok, [":load ", Name, " was refused: ", Refusal]}
+            end;
         false ->
             none
     end.
@@ -1444,25 +1458,45 @@ appeared(Session, Segments) ->
     end.
 
 %% The compiled module, or the prelude, whose documentation entry a
-%% documented name is, and the entry's name: a member of a module's type,
-%% `Point.compare` of `Shape.Point.compare`; a module's function, `map` of
-%% `List.map`; or the prelude's name. Report §4.2: the member comes first,
-%% as a qualified name is the member where the type has one.
-declaring(Session, Segments) when length(Segments) >= 2 ->
+%% documented name is, and the entry's name: a module's (declared_entry/2),
+%% or else the prelude's name.
+declaring(Session, Segments) ->
+    case declared_entry(Session, Segments) of
+        none -> prelude_entry(Segments);
+        Found -> Found
+    end.
+
+%% Report §4.2: the documentation entry a qualified name is in a module the
+%% session can name, the compiled module and the entry's name, or none. A
+%% member of a module's type comes first, `Point.compare` in the module
+%% `Shape` for `Shape.Point.compare`, as a qualified name is the member
+%% where the type has one; then the module's value, `map` in `List` for
+%% `List.map`. `:doc`, `Shift-Tab`'s brief and a signature's parameters
+%% each find a module's declaration here.
+declared_entry(Session, Segments) when length(Segments) >= 2 ->
     Namespace = lists:droplast(Segments),
+    %% the namespace of the module that declares the type, `Shape`
     TypeNamespace = lists:droplast(Namespace),
-    Member = lists:nthtail(length(Segments) - 2, Segments),
-    Beams = [{Beam, entry_name(Member)}
-             || TypeNamespace =/= [], Beam <- [beam_of(Session, TypeNamespace)], Beam =/= none]
-        ++ [{Beam, entry_name([lists:last(Segments)])}
-            || Beam <- [beam_of(Session, Namespace)], Beam =/= none],
-    case [Found || {Beam, Name} = Found <- Beams, ern_page:declaration(Beam, Name, entry) =/= none]
-    of
-        [Found | _] -> Found;
-        [] -> prelude_entry(Segments)
-    end;
-declaring(_, Segments) ->
-    prelude_entry(Segments).
+    Member = [{TypeNamespace, lists:nthtail(length(Segments) - 2, Segments)}
+              || TypeNamespace =/= []],
+    first_entry(Session, Member ++ [{Namespace, [lists:last(Segments)]}]);
+declared_entry(_, _) ->
+    none.
+
+%% The first of the places, each a module's namespace and the name an entry
+%% of it would be written, whose module has the entry.
+first_entry(_, []) ->
+    none;
+first_entry(Session, [{Namespace, Written} | Rest]) ->
+    Name = entry_name(Written),
+    case beam_of(Session, Namespace) of
+        none -> first_entry(Session, Rest);
+        Beam ->
+            case ern_page:declaration(Beam, Name, entry) of
+                {ok, _} -> {Beam, Name};
+                none -> first_entry(Session, Rest)
+            end
+    end.
 
 prelude_entry(Segments) ->
     case prelude_doc(Segments) of
@@ -1643,30 +1677,41 @@ enclosing_call(Before) ->
         [] -> none
     end.
 
-%% The parameter names a function's documentation entry carries, from the
-%% session's input or the module that declares it, or the prelude's; none
-%% where no declaration carries them, a function value's.
+%% The parameter names a function's documentation entry carries: a name
+%% the session declares, in scope before a module's and the prelude's
+%% (report §11.2), from the input that declares it, under the name as the
+%% session writes it, a member as `Point.compare`; any other from the
+%% module that declares it (declared_entry/2), or else the prelude's. None
+%% where no declaration carries them, a function value's and what a `let`
+%% at the prompt binds.
 parameters(Session, Namespace, Name) ->
-    Beam = case session_beam(Session, Namespace, Name) of
-               none when Namespace =/= [] -> beam_of(Session, Namespace);
-               Found -> Found
-           end,
-    %% a module's function by its local name, a type's member as `Type.name`
-    Keys = [entry_name([Name]) | [entry_name([lists:last(Namespace), Name]) || Namespace =/= []]],
-    case Beam of
+    case session_beam(Session, Namespace, Name) of
+        not_session ->
+            case declared_entry(Session, Namespace ++ [Name]) of
+                {Beam, EntryName} ->
+                    entry_parameters(Beam, EntryName);
+                none ->
+                    %% report §9.4, §9.5: a prelude function's parameters,
+                    %% named for their roles
+                    ern_prelude:parameters(Namespace ++ [Name])
+            end;
         none ->
-            %% report §9.4, §9.5: a prelude function's parameters, named for
-            %% their roles
-            ern_prelude:parameters(Namespace ++ [Name]);
-        _ ->
-            {ok, {docs_v1, _, _, _, _, _, Entries}} = ern_docs:read(Beam),
-            case [Params || {{function, Key, _}, _, _, _, #{params := Params}} <- Entries,
-                            lists:member(atom_to_binary(Key), Keys)] of
-                [Params | _] -> Params;
-                [] -> none
-            end
+            none;
+        Beam ->
+            entry_parameters(Beam, entry_name(Namespace ++ [Name]))
     end.
 
+entry_parameters(Beam, EntryName) ->
+    {ok, {docs_v1, _, _, _, _, _, Entries}} = ern_docs:read(Beam),
+    case [Params || {{function, Key, _}, _, _, _, #{params := Params}} <- Entries,
+                    atom_to_binary(Key) =:= EntryName] of
+        [Params | _] -> Params;
+        [] -> none
+    end.
+
+%% The compiled input that declares a name the session declares, none for
+%% one no input holds, what a `let` binds, and not_session for a name the
+%% session does not declare.
 session_beam(#session{scope = Scope, beams = Beams}, Namespace, Name) ->
     Key = case Namespace of
               [] -> Name;
@@ -1674,7 +1719,7 @@ session_beam(#session{scope = Scope, beams = Beams}, Namespace, Name) ->
               _ -> none
           end,
     case maps:get(Key, maps:get(values, Scope, #{}), none) of
-        none -> none;
+        none -> not_session;
         QualifiedName -> declaring_beam(QualifiedName, Namespace ++ [Name], Beams)
     end.
 
@@ -1833,42 +1878,33 @@ declaring_beam(QualifiedName, Segments, Beams) ->
     maps:get(Namespace, Beams, none).
 
 %% The name a documentation entry is under, as it is written: `map`, a
-%% member as `Stack.push`, and a prelude name as `Address.call`.
+%% member as `Point.compare`, and a prelude name as `Address.call`.
 entry_name(Segments) ->
     unicode:characters_to_binary(ern_namespace:text(Segments)).
 
-%% One of a module's type's members on the load path,
-%% `Net.Http.Request.method`, or a module's value, `List.map`. Report
-%% §11.2: a value's declaration shows the type the shell prints, `Fs.Entry`
-%% and not the page's `Entry`, and a type's its own. Report §4.2: the
-%% member comes first, as a qualified name is the member where the type
-%% has one.
-module_doc(Session, Segments) when length(Segments) >= 2 ->
-    Namespace = lists:droplast(Segments),
-    Name = lists:last(Segments),
-    Signature = module_signature(Session, Segments, Namespace, Name),
-    Member = case length(Segments) >= 3 of
-                 true -> entry(beam_of(Session, lists:droplast(Namespace)),
-                               entry_name(lists:nthtail(length(Segments) - 2, Segments)),
-                               Signature);
-                 false -> none
-             end,
-    case Member of
-        {ok, Page} -> {ok, Page};
-        none -> entry(beam_of(Session, Namespace), entry_name([Name]), Signature)
-    end;
-module_doc(_, _) ->
-    none.
+%% A module's declaration on the load path, a member of its type,
+%% `Shape.Point.compare`, or its value, `List.map`, found as
+%% declared_entry/2 finds it. Report §11.2: a value's declaration shows the
+%% type the shell prints, `Fs.Entry` and not the page's `Entry`, and a
+%% type's its own.
+module_doc(Session, Segments) ->
+    case declared_entry(Session, Segments) of
+        {Beam, EntryName} ->
+            ern_page:declaration(Beam, EntryName, module_signature(Session, Segments));
+        none ->
+            none
+    end.
 
 %% The signature a module's value is shown with, its parameters as its
 %% documentation names them and its type as `:type` prints it; a type's
 %% entry keeps its own.
-module_signature(Session, QualifiedName, Namespace, Name) ->
+module_signature(Session, QualifiedName) ->
     Text = unicode:characters_to_binary(ern_namespace:text(QualifiedName)),
     case declared_scheme(Session, Text) of
         {ok, Scheme, Env} ->
             TypeState = ern_typecheck:type_state(Env),
-            Line = case parameters(Session, Namespace, Name) of
+            Namespace = lists:droplast(QualifiedName),
+            Line = case parameters(Session, Namespace, lists:last(QualifiedName)) of
                        Params when is_list(Params) ->
                            {Head, Marked, Rest} =
                                ern_types:format_call(Scheme, Params, length(Params), TypeState),
@@ -1914,15 +1950,12 @@ read_beam(File) ->
         _ -> none
     end.
 
-entry(none, _, _) -> none;
-entry(Beam, Name, Signature) -> ern_page:declaration(Beam, Name, Signature).
-
 %% Report §11.2: a qualified name that names nothing in scope, of a module
 %% the session could load, has the `:load` that puts it there as its help.
 load_hinted(Session, #diagnostic{unknown_namespace = [_ | _] = Namespace,
                                  help = undefined} = Diagnostic) ->
     case load_help(Session, [atom_to_list(Segment) || Segment <- Namespace]) of
-        {ok, Help} -> Diagnostic#diagnostic{help = lists:flatten(Help)};
+        {ok, Help} -> Diagnostic#diagnostic{help = unicode:characters_to_list(Help)};
         none -> Diagnostic
     end;
 load_hinted(_Session, Diagnostic) ->
@@ -1988,11 +2021,25 @@ load_named(#session{source_hashes = SourceHashes} = Session, Text) ->
                     {'Left', <<Name/binary, " is loaded already; :reload compiles it again"
                                " when its source has changed\n">>};
                 false ->
-                    load(Session, Name, Namespace)
+                    refusal_kept(Name, load(Session, Name, Namespace))
             end;
         {error, Refusal} ->
             {'Left', <<Refusal/binary, "\n">>}
     end.
+
+%% Report §11.2: a module whose `:load` was refused is named so by the
+%% help a name of it is answered with (load_help/2), with the refusal's
+%% first line, until a `:load` of it is not refused. A row of the front
+%% end's table for each such module, by its name, which the help reads
+%% from what was typed and so makes no atom; one never loaded again keeps
+%% its row while the session runs, a row for each module there is to load.
+refusal_kept(Name, {'Left', Refusal} = Refused) ->
+    [First | _] = binary:split(Refusal, <<"\n">>),
+    keep({refused, Name}, First),
+    Refused;
+refusal_kept(Name, Loaded) ->
+    ets:delete(?MODULE, {refused, Name}),
+    Loaded.
 
 %% A refusal ends in a line feed, as a diagnostic the compiler gives does,
 %% since the shell prints both alike. What is loaded is kept, since
@@ -2021,7 +2068,7 @@ load(#session{source_root = SourceRoot} = Session, Name, Namespace) ->
                 _ ->
                     {'Left', <<(unicode:characters_to_binary(ern_namespace:text(Declared)))/binary,
                                " is declared in ",
-                               (unicode:characters_to_binary(relative(File, Session)))/binary,
+                               (unicode:characters_to_binary(ern_build:shown(File)))/binary,
                                ", which is not where ", Name/binary, " belongs\n">>}
             end;
         none ->
@@ -2034,7 +2081,7 @@ load(#session{source_root = SourceRoot} = Session, Name, Namespace) ->
                             loaded_with(Session, All,
                                         <<Name/binary, ", from ",
                                           (unicode:characters_to_binary(
-                                             relative(File, Session)))/binary>>);
+                                             ern_build:shown(File)))/binary>>);
                         {_, Refusal} ->
                             {'Left', Refusal}
                     end;
@@ -2081,9 +2128,10 @@ loaded_with(Session, All, Answer) ->
     end.
 
 %% Report §11.2: a compiled module is refused as `ern run` refuses one: a
-%% file that holds another module than its path names, and a module compiled
-%% against another interface of a module it uses, or of the standard
-%% library, than the session holds; none, or the refusal.
+%% module compiled against another interface of a module it uses, or of the
+%% standard library, than the session holds; none, or the refusal. A file
+%% that holds another module than its path names is refused as it is found
+%% (compiled_of/2).
 refused_compiled(Session, All) ->
     StdlibHash = ern_build:stdlib_hash(),
     Interfaces = [Interface || #compiled{beam = Beam} <- All,
@@ -2097,13 +2145,10 @@ refused_compiled(Session, All) ->
     end.
 
 compiled_refusals(Namespace, Beam, Interfaces, StdlibHash) ->
-    {ok, #{interface := #interface{namespace = FileNamespace}, deps := DependencyHashes} = Chunk} =
-        ern_interface:read(Beam),
+    {ok, #{deps := DependencyHashes} = Chunk} = ern_interface:read(Beam),
     Name = ern_namespace:text(Namespace),
-    [Name ++ "'s compiled file holds " ++ ern_namespace:text(FileNamespace)
-     ++ "; build it again from its source root" || FileNamespace =/= Namespace]
-        ++ [Name ++ " was compiled against another standard library; build " ++ Name ++ " again"
-            || not lists:member(maps:get(stdlib, Chunk, none), [none, StdlibHash])]
+    [Name ++ " was compiled against another standard library; build " ++ Name ++ " again"
+     || not lists:member(maps:get(stdlib, Chunk, none), [none, StdlibHash])]
         ++ [Name ++ " was compiled against another " ++ ern_namespace:text(Dependency)
             ++ "; build " ++ Name ++ " again"
             || {Dependency, Hash} <- DependencyHashes,
@@ -2218,7 +2263,8 @@ evaluate(#compiled{unit = Unit} = Compiled, Rest, Roots) ->
                             _ -> ok
                         catch
                             Class:Error:Stack ->
-                                {fault, ern_rt:site(), fault_cause(Class, Error, Stack)}
+                                {Cause, _Trace} = caught_fault(Class, Error, Stack),
+                                {fault, ern_rt:site(), Cause}
                         end,
                Self ! {Ref, Result},
                case Result of
@@ -2598,12 +2644,13 @@ compiled_line(Session, Compiled) ->
 
 %% Report §11.2: what `:load` says of a module whose source it holds: the
 %% file of the current compiled form it took, `Greet, from greet.erc`, or
-%% the source it compiled, `Greet, compiled from greet.ern`.
+%% the source it compiled, `Greet, compiled from greet.ern`, each named from
+%% the working directory as §11.5 names a file (ern_build:shown/1).
 loaded_line(Session, #compiled{namespace = Namespace, erc = none}) ->
     {ok, File} = source_of(Session, Namespace),
-    [ern_namespace:text(Namespace), ", compiled from ", relative(File, Session)];
-loaded_line(Session, #compiled{namespace = Namespace, erc = Erc}) ->
-    [ern_namespace:text(Namespace), ", from ", relative(Erc, Session)].
+    [ern_namespace:text(Namespace), ", compiled from ", ern_build:shown(File)];
+loaded_line(_Session, #compiled{namespace = Namespace, erc = Erc}) ->
+    [ern_namespace:text(Namespace), ", from ", ern_build:shown(Erc)].
 
 %% Report §11.2: a reloaded module's binding that faulted, after which the
 %% bindings the reload left as they were keep what the previous version
@@ -2818,7 +2865,7 @@ first_current_form([Root | Roots], Module, Against) ->
 %% `ern` wrote keeps no defect this one has fixed. A file that cannot be
 %% read is none, and the module is compiled from its source.
 qualified_form(Root, #build_module{namespace = Namespace, file = File} = Module, Against) ->
-    Erc = filename:join(Root, ern_build:module_path(Namespace) ++ ".erc"),
+    Erc = filename:join(Root, ern_namespace:module_path(Namespace) ++ ".erc"),
     case {modified(Erc), modified(File)} of
         {{ok, Written}, {ok, Edited}} when Written >= Edited ->
             case file:read_file(Erc) of
@@ -3458,7 +3505,7 @@ load_path(#session{load_path = LoadPath, source_root = SourceRoot}) ->
     lists:uniq(LoadPath ++ [filename:absname(SourceRoot)]).
 
 source_of(#session{source_root = SourceRoot}, Namespace) ->
-    File = filename:join(SourceRoot, ern_build:module_path(Namespace) ++ ".ern"),
+    File = filename:join(SourceRoot, ern_namespace:module_path(Namespace) ++ ".ern"),
     case filelib:is_regular(File) of
         true -> {ok, File};
         false -> none
@@ -3466,17 +3513,25 @@ source_of(#session{source_root = SourceRoot}, Namespace) ->
 
 %% Report §11.2, §11.8: a module's compiled form on the load path, or
 %% none; one that cannot be read is refused with the file and the host's
-%% reason, as the build refuses a file it cannot read.
+%% reason, as the build refuses a file it cannot read, and one that holds
+%% another module as `ern run` refuses it, the file named from the working
+%% directory (§11.5).
 compiled_of(Session, Namespace) ->
-    Relative = ern_build:module_path(Namespace) ++ ".erc",
+    Relative = ern_namespace:module_path(Namespace) ++ ".erc",
     case [Candidate || Dir <- load_path(Session), Candidate <- [filename:join(Dir, Relative)],
                        filelib:is_regular(Candidate)] of
         [File | _] ->
             case file:read_file(File) of
                 {ok, Beam} ->
                     case ern_interface:read(Beam) of
-                        {ok, #{source_hash := Hash}} -> {ok, File, Beam, Hash};
-                        {error, _} -> none
+                        {ok, #{interface := #interface{namespace = Namespace},
+                               source_hash := Hash}} ->
+                            {ok, File, Beam, Hash};
+                        {ok, #{interface := #interface{namespace = Held}}} ->
+                            {error, unicode:characters_to_binary(
+                                      ern_build:held_another(File, Held, Namespace))};
+                        {error, _} ->
+                            none
                     end;
                 {error, Error} ->
                     {error, unicode:characters_to_binary([ern_build:bytes_text(File), ": ",
@@ -3490,12 +3545,6 @@ source_hash(File) ->
     case file:read_file(File) of
         {ok, SourceText} -> {ok, crypto:hash(sha256, SourceText)};
         {error, _} -> none
-    end.
-
-relative(File, #session{source_root = SourceRoot}) ->
-    case string:prefix(filename:absname(File), filename:absname(SourceRoot) ++ "/") of
-        nomatch -> File;
-        Relative -> Relative
     end.
 
 %% The toolchain's version text (ern_release), which the start line names
@@ -3528,18 +3577,23 @@ to_screen(Bytes) ->
 %% Report §8.6, §11.2: what the screen has been sent, written before the
 %% program ends, since a program the session ran may write while the end
 %% waits for its subscribers, after the session has ended; the screen
-%% answers Flush once it has written what came before it. A screen that has
-%% ended has nothing left to write.
+%% answers Flush once it has written what came before it. The runner asks
+%% it, which is no program's process: it asks the screen's own process, not
+%% the address that wraps what programs write, and under a monitor, as
+%% ern_rt:say/2 asks standard error's process, since a screen that has
+%% ended, with the program among the ways, has nothing left to write.
 -spec flush_screen() -> ok.
 flush_screen() ->
     case persistent_term:get({?MODULE, screen}, undefined) of
         undefined ->
             ok;
         Screen ->
-            try ern_rt:call_forever(Screen, fun(Reply) -> {'Flush', Reply} end) of
-                _ -> ok
-            catch
-                throw:{ern, fault, _} -> ok
+            Process = ern_rt:process_of(Screen),
+            Reply = erlang:monitor(process, Process, [{alias, demonitor}]),
+            Process ! {'Flush', Reply},
+            receive
+                {Reply, answered, _} -> erlang:demonitor(Reply, [flush]), ok;
+                {'DOWN', Reply, process, _, _} -> ok
             end
     end.
 
@@ -3862,8 +3916,9 @@ needs_named(Namespace, Term) ->
             ok
     end.
 
-%% A name as an input after this one writes it: a type member under the
-%% type that owns it (report §4.2), anything else under its own name.
+%% A name as an input after this one writes it: a type's member under the
+%% type it is a member of, its MemberOf (report §4.2), anything else under
+%% its own name.
 value_key(Namespace, QualifiedName) ->
     case lists:nthtail(length(Namespace), QualifiedName) of
         [Name] -> Name;
@@ -3878,11 +3933,6 @@ value_key(Namespace, QualifiedName) ->
 %% functions are (§11.1), and what the module holds, each binding by its
 %% identity with the key its value is kept under, which the code table
 %% reads as it loads, as it reads a compiled unit's (ern_emitter).
-%%
-%% Report §8.6: the host's compiler waits for a process of its own, and the
-%% input's process waits with it in the compiler's function, which the
-%% deadlock detector reads on top of the process's stack as the host's
-%% work, so that `Deadlock` is not declared over a binding being made.
 holder(ErlangModule, Names, Code) ->
     Getters = [ern_emitter:function_name(Number) || {Number, _} <- lists:enumerate(Names)],
     Get = fun(Getter) ->

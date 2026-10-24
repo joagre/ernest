@@ -9,7 +9,7 @@
 %% (ern_build:fail/1), naming the file.
 -module(ern_node).
 
--export([create/1, create/2, add_peer/2, start/1, start/2, stop/1, file/2, read/1,
+-export([default_listen/0, create/2, add_peer/2, start/1, start/2, stop/1, file/2, read/1,
          measures_changed/3, signaled/2, stopped/1, family/1]).
 
 -include_lib("public_key/include/public_key.hrl").
@@ -25,7 +25,7 @@
 -define(PID_FILE, "ernest.pid").
 
 %% Report §11.3: the `listen` of a directory `ern config` makes where
-%% `--listen` gives none.
+%% `--listen` gives none (default_listen/0).
 -define(LISTEN, "0.0.0.0:8654").
 
 %% The certificate's subject, the same for every node, since a peer is known
@@ -41,6 +41,12 @@
 %% ern config
 %%
 
+%% Report §11.3: the `listen` of a directory `ern config` makes where
+%% `--listen` gives none, which its help names.
+-spec default_listen() -> string().
+default_listen() ->
+    ?LISTEN.
+
 %% Report §11.3, Appendix C: the configuration directory made, with this
 %% node's key, the certificate it signs itself and `ernest.conf`; the
 %% public key is answered, which `ern config` prints. The directory is made
@@ -49,13 +55,11 @@
 %% that no one else can open a file there, the key's while it is being
 %% written among them. What another put in it before it was its owner's
 %% alone would be written through, a link among them, so it must hold
-%% nothing then. A name ending in `/` names the directory before it.
--spec create(file:filename()) -> binary().
-create(Given) ->
-    create(Given, ?LISTEN).
-
-%% The same, its `listen` the one `--listen` gives, refused before the
-%% directory is made where a node would refuse it (report §11.3).
+%% nothing then. A name ending in `/` names the directory before it. Its
+%% `listen` is the one `--listen` gives, or default_listen/0's, refused
+%% before the directory is made where a node would refuse it; and the
+%% directory is the one directory made, its parent there before it, so
+%% that a mistyped path makes no tree.
 -spec create(file:filename(), string()) -> binary().
 create(Given, Listen) ->
     Text = unicode:characters_to_binary(Listen),
@@ -65,7 +69,8 @@ create(Given, Listen) ->
         no_address -> ern_build:fail("--listen names no address: " ++ Listen)
     end,
     ConfigDir = filename:join([Given]),
-    ok = ern_build:make_dirs(ConfigDir),
+    Parent = filename:dirname(ConfigDir),
+    filelib:is_dir(Parent) orelse ern_build:fail(Parent ++ ": no such directory"),
     case file:make_dir(ConfigDir) of
         ok -> ok = file:change_mode(ConfigDir, 8#700);
         {error, eexist} -> ern_build:fail(ConfigDir ++ " exists");
@@ -176,7 +181,7 @@ add_peer(ConfigDir, PeerDir) ->
     Entry = maps:merge(#{<<"name">> => Name,
                          <<"public-key">> => pem([{'SubjectPublicKeyInfo', Key, not_encrypted}])},
                        local_address(PeerDir, PeerListen)),
-    _ = peer(ConfigDir, {object, maps:to_list(Entry)}, family(Listen)),
+    _ = peer(ConfigDir, {object, maps:to_list(Entry)}, Listen),
     {object, Fields} = decoded(ConfigDir),
     Listing = case lists:keyfind(<<"peers">>, 1, Fields) of
                   {_, Items} -> Items;
@@ -498,12 +503,11 @@ configuration(ConfigDir) ->
                  #{<<"listen">> := ListenText} -> listen(ConfigDir, ListenText);
                  _ -> none
              end,
-    Family = family(Listen),
     PublicKey = case Fields of
                     #{<<"public-key">> := Pem} -> public_key_der(ConfigDir, "public-key", Pem);
                     _ -> fail(ConfigDir, ?CONF, "names no public-key")
                 end,
-    Peers = peers(ConfigDir, maps:get(<<"peers">>, Fields, []), Family),
+    Peers = peers(ConfigDir, maps:get(<<"peers">>, Fields, []), Listen),
     #configuration{config_dir = ConfigDir, listen = Listen, public_key = PublicKey,
                    peers = Peers,
                    services = services(ConfigDir, maps:get(<<"services">>, Fields, {object, []}),
@@ -616,9 +620,10 @@ family({Address, _}) when tuple_size(Address) =:= 4 -> inet;
 family({_, _}) -> inet6.
 
 %% Report §8.7: each peer a name, a public key and an address, the address
-%% left out where the peer is never dialed; names and keys each once.
-peers(ConfigDir, List, Family) when is_list(List) ->
-    Peers = [peer(ConfigDir, Item, Family) || Item <- List],
+%% left out where the peer is never dialed, of the family of the node's
+%% listener, Listen; names and keys each once.
+peers(ConfigDir, List, Listen) when is_list(List) ->
+    Peers = [peer(ConfigDir, Item, Listen) || Item <- List],
     Names = [Name || #peer{name = Name} <- Peers],
     Keys = [Key || #peer{public_key = Key} <- Peers],
     case Names -- lists:usort(Names) of
@@ -632,7 +637,7 @@ peers(ConfigDir, List, Family) when is_list(List) ->
 peers(ConfigDir, _, _) ->
     fail(ConfigDir, ?CONF, "peers is not a JSON array").
 
-peer(ConfigDir, Item, Family) ->
+peer(ConfigDir, Item, Listen) ->
     Fields = object(ConfigDir, "a peer", Item, ?PEER_FIELDS),
     Name = case Fields of
                #{<<"name">> := Text} when is_binary(Text), Text =/= <<>> -> Text;
@@ -646,7 +651,7 @@ peer(ConfigDir, Item, Family) ->
           end,
     Address = case Fields of
                   #{<<"network-address">> := AddressText} ->
-                      address(ConfigDir, Shown, AddressText, Family);
+                      address(ConfigDir, Shown, AddressText, Listen);
                   _ -> none
               end,
     #peer{name = Name, public_key = Key, address = Address}.
@@ -655,13 +660,12 @@ peer(ConfigDir, Item, Family) ->
 %% node's family or a name, which is not resolved here: the host resolves
 %% it at each dial, where its family is checked (ern_epmd), so that reading
 %% the file waits on no resolver.
-address(ConfigDir, Shown, Text, Family) when is_binary(Text) ->
+address(ConfigDir, Shown, Text, Listen) when is_binary(Text) ->
     case endpoint(Text) of
         {ok, Host, Port} when Port > 0 ->
             case inet:parse_strict_address(Host) of
                 {ok, Address} ->
-                    same_family(ConfigDir, Shown, Text, family({Address, Port}) =:= Family,
-                                Family),
+                    same_family(ConfigDir, Shown, Text, family({Address, Port}), Listen),
                     {Address, Port};
                 {error, _} ->
                     {Host, Port}
@@ -673,13 +677,22 @@ address(ConfigDir, Shown, Text, Family) when is_binary(Text) ->
 address(ConfigDir, Shown, _, _) ->
     fail(ConfigDir, ?CONF, Shown ++ "'s network-address is not a string").
 
-same_family(_, _, _, true, _) ->
-    ok;
-same_family(ConfigDir, Shown, Text, false, Family) ->
-    {Own, Other} = case Family of inet -> {"IPv4", "IPv6"}; inet6 -> {"IPv6", "IPv4"} end,
-    fail(ConfigDir, ?CONF, Shown ++ "'s network-address " ++ json_quoted(Text) ++ " is " ++ Other
-                           ++ ", and this node runs over " ++ Own ++ ", its listener's family or"
-                           " IPv4 where it has none").
+%% A peer's address of the family the node runs over, its listener's or
+%% IPv4 where it has none; one of the other family is refused, saying
+%% which of the two the node's is.
+same_family(ConfigDir, Shown, Text, PeerFamily, Listen) ->
+    case family(Listen) of
+        PeerFamily ->
+            ok;
+        Family ->
+            {Own, Other} = case Family of inet -> {"IPv4", "IPv6"}; inet6 -> {"IPv6", "IPv4"} end,
+            Why = case Listen of
+                      none -> ", since it has no listener";
+                      _ -> ", its listener's family"
+                  end,
+            fail(ConfigDir, ?CONF, Shown ++ "'s network-address " ++ json_quoted(Text) ++ " is "
+                                   ++ Other ++ ", and this node runs over " ++ Own ++ Why)
+    end.
 
 %% A public key in PEM: the DER of its SubjectPublicKeyInfo, which the
 %% host's decoder reads; one it cannot read is no public key (report §8.7).

@@ -16,6 +16,7 @@
 -export([format/1, markdown/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
+-include_lib("parser/include/ern_fence.hrl").
 
 %% What the template reads: the code tokens and their text as written,
 %% where each begins and ends, and each opening bracket's closing one.
@@ -70,36 +71,46 @@ laid_out(Declarations, CodeTokens, Trivia, SourceLines) ->
 %% A CommonMark text with each Ernest block in the layout: one that
 %% parses as a module is laid out as one, one that parses as a function's
 %% body, as a doc block's example does, as that body, and any other is
-%% left as it is (report §11.6).
+%% left as it is (report §11.6). An Ernest block is a fenced block of the
+%% language `ernest`, or of one the documents name after it, `ernest-` and
+%% a word, an example that must not compile among them.
 -spec markdown(unicode:unicode_binary()) -> unicode:unicode_binary().
 markdown(Text) ->
     Lines = binary:split(Text, <<"\n">>, [global]),
-    iolist_to_binary(lists:join(<<"\n">>, fences(Lines))).
+    IsErnest = fun(Language) ->
+                   Language =:= <<"ernest">> orelse string:prefix(Language, "ernest-") =/= nomatch
+               end,
+    Kept = fun(Line) -> Line end,
+    iolist_to_binary(lists:join(<<"\n">>, fences(Lines, Kept, Kept, IsErnest))).
 
-fences([]) ->
-    [];
-fences([Line | Rest]) ->
-    Trimmed = string:trim(Line, leading),
-    case string:prefix(Trimmed, <<"```ernest">>) of
-        nomatch -> [Line | fences(Rest)];
-        _ -> fenced(Line, byte_size(Line) - byte_size(Trimmed), Rest)
-    end.
+%% Report §2.2, §11.6: lines whose CommonMark text Text gives, each fenced
+%% block among them whose language IsLaid takes laid out
+%% (ern_parser:fenced/1), its lines indented as its opening fence is and
+%% each made a line by Written; a line outside one, a block of another
+%% language, an unclosed block and one that does not change, as written.
+fences(Lines, Text, Written, IsLaid) ->
+    laid_out_fences(ern_parser:fenced([Text(Line) || Line <- Lines]), Lines, {Written, IsLaid}).
 
-%% The Ernest block Opening opens, its lines indented by Indent, laid out,
-%% and the text after it; an unclosed block as it is.
-fenced(Opening, Indent, Rest) ->
-    IsInside = fun(BodyLine) -> string:trim(BodyLine) =/= <<"```">> end,
-    case lists:splitwith(IsInside, Rest) of
-        {Body, [Close | After]} ->
-            Dedented = [dedent(BodyLine, Indent) || BodyLine <- Body],
+laid_out_fences([#fence{lines = Body, closing = Closing} = Fence | Parts], Lines, Laying) ->
+    {Own, Rest} = lists:split(1 + length(Body) + length([Closing || Closing =/= none]), Lines),
+    laid_fence(Fence, Own, Laying) ++ laid_out_fences(Parts, Rest, Laying);
+laid_out_fences([_Text | Parts], [Line | Rest], Laying) ->
+    [Line | laid_out_fences(Parts, Rest, Laying)];
+laid_out_fences([], [], _Laying) ->
+    [].
+
+laid_fence(#fence{closing = none}, Own, _Laying) ->
+    Own;
+laid_fence(#fence{language = Language, indent = Indent, content = Content}, [Opening | Own],
+           {Written, IsLaid}) ->
+    case IsLaid(Language) andalso fence(Content) of
+        false ->
+            [Opening | Own];
+        Content ->
+            [Opening | Own];
+        Formatted ->
             Pad = binary:copy(<<" ">>, Indent),
-            Laid = case fence(Dedented) of
-                       Dedented -> Body;
-                       Formatted -> [indent(Pad, FormattedLine) || FormattedLine <- Formatted]
-                   end,
-            [Opening] ++ Laid ++ [Close | fences(After)];
-        {_, []} ->
-            [Opening | Rest]
+            [Opening] ++ [Written(indent(Pad, Line)) || Line <- Formatted] ++ [lists:last(Own)]
     end.
 
 fence(Lines) ->
@@ -192,31 +203,12 @@ trivium({doc, {Line, Column, {EndLine, _}, _}, _}, SourceLines) ->
     #trivium{kind = doc, line = Line, column = Column, end_line = EndLine - 1,
              text = doc_lines(Lines)}.
 
-%% A doc block's lines, each Ernest example in it laid out; a line
-%% outside an example, and an example that does not change, as written.
-doc_lines([]) ->
-    [];
-doc_lines([Line | Rest]) ->
-    case string:prefix(doc_content(Line), <<"```ernest">>) of
-        nomatch -> [Line | doc_lines(Rest)];
-        _ -> doc_fenced(Line, Rest)
-    end.
-
-%% The example Opening opens in a doc block, laid out, and the lines after
-%% it; an unclosed example as it is.
-doc_fenced(Opening, Rest) ->
-    IsInside = fun(DocLine) -> string:trim(doc_content(DocLine)) =/= <<"```">> end,
-    case lists:splitwith(IsInside, Rest) of
-        {Body, [Close | After]} ->
-            Content = [doc_content(BodyLine) || BodyLine <- Body],
-            Laid = case fence(Content) of
-                       Content -> Body;
-                       Formatted -> [doc_line(FormattedLine) || FormattedLine <- Formatted]
-                   end,
-            [Opening] ++ Laid ++ [Close | doc_lines(After)];
-        {_, []} ->
-            [Opening | Rest]
-    end.
+%% A doc block's lines, each Ernest example in it, a fenced `ernest`
+%% block (report §11.2), laid out; a line outside an example, and an
+%% example that does not change, as written.
+doc_lines(Lines) ->
+    IsExample = fun(Language) -> Language =:= <<"ernest">> end,
+    fences(Lines, fun doc_content/1, fun doc_line/1, IsExample).
 
 doc_content(<<"/// ", Rest/binary>>) -> Rest;
 doc_content(<<"///", Rest/binary>>) -> Rest.

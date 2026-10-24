@@ -17,7 +17,7 @@ tmp() ->
 %% A directory `ern config` made.
 made() ->
     Dir = filename:join(tmp(), "node"),
-    _ = ern_node:create(Dir),
+    _ = ern_node:create(Dir, ern_node:default_listen()),
     Dir.
 
 %% The refusal `ern_node` throws, as the runner prints it.
@@ -55,7 +55,7 @@ ends(Message, Suffix) ->
 %% answers the public key
 create_test() ->
     Dir = filename:join(tmp(), "node"),
-    Public = ern_node:create(Dir),
+    Public = ern_node:create(Dir, ern_node:default_listen()),
     {ok, #file_info{mode = DirMode}} = file:read_file_info(Dir),
     ?assertEqual(8#700, DirMode band 8#777),
     {ok, #file_info{mode = KeyMode}} = file:read_file_info(filename:join(Dir, "private-key.pem")),
@@ -88,10 +88,9 @@ create_test() ->
     [SpkiEntry] = public_key:pem_decode(Public),
     ?assert(public_key:pkix_verify(Der, public_key:pem_entry_decode(SpkiEntry))),
     ?assert(public_key:pkix_is_self_signed(Certificate)),
+    Again = fun() -> ern_node:create(Dir, ern_node:default_listen()) end,
     ?assertEqual(<<"node exists">>,
-                 iolist_to_binary(lists:last(string:split(refusal(fun() ->
-                                                                      ern_node:create(Dir)
-                                                                  end), "/", trailing)))),
+                 iolist_to_binary(lists:last(string:split(refusal(Again), "/", trailing)))),
     %% what it makes, a node reads, its tellings every 5000 ms
     ?assertMatch({configuration, _, {{0, 0, 0, 0}, 8654}, _, [], #{}, #{}, run_queue, 5000},
                  ern_node:read(Dir)).
@@ -179,11 +178,11 @@ read_refusals_test() ->
           " \"store:0\""},
          {#{<<"peers">> => [Peer(#{<<"network-address">> => <<"[::1]:8654">>})]},
           "peer \"store\"'s network-address \"[::1]:8654\" is IPv6, and this node runs over IPv4,"
-          " its listener's family or IPv4 where it has none"},
+          " since it has no listener"},
          {#{<<"listen">> => <<"[::]:8654">>,
             <<"peers">> => [Peer(#{<<"network-address">> => <<"127.0.0.1:8654">>})]},
           "peer \"store\"'s network-address \"127.0.0.1:8654\" is IPv4, and this node runs over"
-          " IPv6, its listener's family or IPv4 where it has none"},
+          " IPv6, its listener's family"},
          {#{<<"services">> => []}, "services is not a JSON object"},
          {#{<<"services">> => #{<<"counter">> => [<<"store">>]}},
           "service \"counter\" names \"store\", which is no peer's name"},
@@ -282,7 +281,7 @@ certificate_refusals_test() ->
 peer_certificate_test() ->
     Dir = made(),
     Peer = filename:join(tmp(), "peer"),
-    _ = ern_node:create(Peer),
+    _ = ern_node:create(Peer, ern_node:default_listen()),
     Certificate = filename:join(Peer, "certificate.pem"),
     ok = file:write_file(Certificate, named(Peer, "a.b")),
     Conf = filename:join(Dir, "ernest.conf"),

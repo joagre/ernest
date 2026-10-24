@@ -5,6 +5,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("parser/include/ern_ast.hrl").
+-include_lib("parser/include/ern_fence.hrl").
 -include_lib("shared/include/ern_diagnostic.hrl").
 
 expression(Text) ->
@@ -376,6 +377,31 @@ doc_heading_level_test() ->
     Fine = "/// The module.\n///\n/// ## Examples\n///\n/// ```\n/// # a comment\n/// ```\n\n"
            "/// F.\n///\n/// ### Errors\nfn f() = 1\n",
     ?assertMatch({ok, _}, ern_parser:parse_string(list_to_binary(Fine))).
+
+%% report §2.2: the one reader of a doc block's fenced code, CommonMark's:
+%% a fence of three or more backticks or tildes after up to three spaces,
+%% its info string's first word its language, its content's lines without
+%% as many spaces as the fence had, up to a closing fence of its character
+%% at least as long, before nothing but spaces, or up to the text's end; a
+%% backtick in a backtick fence's info string, four spaces before it, or a
+%% shorter closing fence, makes none. A regression test, written after the
+%% code: three readers disagreed, one a pattern of three backticks alone
+fenced_test() ->
+    Lines = fun(Text) -> binary:split(Text, <<"\n">>, [global]) end,
+    ?assertMatch([<<"a">>,
+                  #fence{language = <<"ernest">>, indent = 2,
+                         lines = [<<"   x">>, <<"y">>, <<"  ```">>], closing = <<"  ````  ">>,
+                         content = [<<" x">>, <<"y">>, <<"```">>]},
+                  <<"b">>],
+                 ern_parser:fenced(Lines(<<"a\n  ````ernest  more\n   x\ny\n  ```\n"
+                                           "  ````  \nb">>))),
+    ?assertMatch([#fence{language = <<"ernest">>, lines = [<<"x">>, <<"```">>],
+                         closing = <<"~~~">>}],
+                 ern_parser:fenced(Lines(<<"~~~ernest\nx\n```\n~~~">>))),
+    ?assertEqual([<<"```ernest`">>, <<"    ```ernest">>, <<"``ernest">>],
+                 ern_parser:fenced(Lines(<<"```ernest`\n    ```ernest\n``ernest">>))),
+    ?assertMatch([#fence{language = <<>>, lines = [<<"x">>], closing = none}],
+                 ern_parser:fenced(Lines(<<"```\nx">>))).
 
 %% report §5.9: a clause lists one or more patterns separated by `or`
 or_pattern_test() ->

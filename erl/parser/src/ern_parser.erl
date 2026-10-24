@@ -9,9 +9,10 @@
 -module(ern_parser).
 
 -export([parse/1, parse_string/1, parse_string/2, parse_expr/1, parse_expr/2, parse_statement/1,
-         parse_statement/2, parse_type/1]).
+         parse_statement/2, parse_type/1, fenced/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
+-include_lib("parser/include/ern_fence.hrl").
 -include_lib("shared/include/ern_diagnostic.hrl").
 
 -define(DECLARATION_START, [export, type, abstract, fn, 'let', foreign]).
@@ -125,39 +126,92 @@ doc_headings(ModuleDoc, Tokens) ->
                   end, Tokens).
 
 headings(Line, Column, Text, Lowest) ->
-    lists:foldl(fun(DocLine, {Index, Fence}) ->
-                    Unindented = unindented(binary_to_list(DocLine), 3),
-                    case {Fence, fence_of(Unindented)} of
-                        {none, {_, _} = Opened} ->
-                            {Index + 1, Opened};
-                        {{Char, Length}, {Char, Closing}} when Closing >= Length ->
-                            {Index + 1, none};
-                        {none, none} ->
-                            Level = heading_level(Unindented),
-                            Level =:= 0 orelse Level >= Lowest
-                                orelse throw({parse_error,
-                                              heading_too_high(Line + Index, Column, Level,
-                                                               Lowest)}),
-                            {Index + 1, none};
-                        _ ->
-                            {Index + 1, Fence}
-                    end
-                end, {0, none}, binary:split(Text, <<"\n">>, [global])),
+    lists:foldl(fun(#fence{lines = Lines, closing = Closing}, Index) ->
+                        Index + 1 + length(Lines) + length([Closing || Closing =/= none]);
+                   (DocLine, Index) ->
+                        Level = heading_level(binary_to_list(unindented(DocLine, 3))),
+                        Level =:= 0 orelse Level >= Lowest
+                            orelse throw({parse_error,
+                                          heading_too_high(Line + Index, Column, Level, Lowest)}),
+                        Index + 1
+                end, 0, fenced(binary:split(Text, <<"\n">>, [global]))),
     ok.
 
-%% A line without up to that many spaces before it.
-unindented([$\s | Rest], Count) when Count > 0 -> unindented(Rest, Count - 1);
-unindented(Line, _) -> Line.
+%% Report §2.2: a CommonMark text's lines as its fenced code blocks part
+%% them (CommonMark 0.31, *Fenced code blocks*), each line outside a block
+%% as it is and each block a #fence{}. An opening fence is a run of three
+%% or more backticks, or of three or more tildes, after up to three spaces,
+%% and its info string the rest of its line, which holds no backtick after
+%% backticks. The block's content is every line after it up to a closing
+%% fence, a run of its character at least as long after up to three spaces
+%% and before nothing but spaces and tabs, or up to the text's end. The
+%% one reader of fences, which ern_format and ern_examples ask too.
+-spec fenced([binary()]) -> [binary() | #fence{}].
+fenced([]) ->
+    [];
+fenced([Line | Rest]) ->
+    case opening(Line) of
+        {Char, Length, Indent, Info} ->
+            {Lines, Closing, After} = fence_content(Rest, Char, Length, []),
+            [#fence{language = first_word(Info), indent = Indent, opening = Line, lines = Lines,
+                    closing = Closing, content = [unindented(Kept, Indent) || Kept <- Lines]}
+             | fenced(After)];
+        none ->
+            [Line | fenced(Rest)]
+    end.
 
-%% CommonMark's code fence: a run of three or more backticks or tildes, its
-%% character and its length; none for a line that is no fence.
-fence_of([Char | _] = Line) when Char =:= $`; Char =:= $~ ->
-    case length(lists:takewhile(fun(Next) -> Next =:= Char end, Line)) of
-        Length when Length >= 3 -> {Char, Length};
+%% An opening fence's character, its length, the spaces before it and its
+%% info string; none for a line that opens no block.
+opening(Line) ->
+    Unindented = unindented(Line, 3),
+    Indent = byte_size(Line) - byte_size(Unindented),
+    case fence_run(Unindented) of
+        {$`, Length, Info} ->
+            case binary:match(Info, <<"`">>) of
+                nomatch -> {$`, Length, Indent, Info};
+                _ -> none
+            end;
+        {$~, Length, Info} ->
+            {$~, Length, Indent, Info};
+        none ->
+            none
+    end.
+
+%% A block's content's lines up to its closing fence, the closing line, and
+%% the lines after it; or every line, none and nothing where the text ends
+%% first.
+fence_content([], _Char, _Length, Acc) ->
+    {lists:reverse(Acc), none, []};
+fence_content([Line | Rest], Char, Length, Acc) ->
+    case fence_run(unindented(Line, 3)) of
+        {Char, Closing, After} when Closing >= Length ->
+            case string:trim(After, both, " \t\r") of
+                <<>> -> {lists:reverse(Acc), Line, Rest};
+                _ -> fence_content(Rest, Char, Length, [Line | Acc])
+            end;
+        _ ->
+            fence_content(Rest, Char, Length, [Line | Acc])
+    end.
+
+%% A run of three or more backticks or tildes at a line's start: its
+%% character, its length and what follows it; none for a line that begins
+%% otherwise.
+fence_run(<<Char, _/binary>> = Line) when Char =:= $`; Char =:= $~ ->
+    Rest = string:trim(Line, leading, [Char]),
+    case byte_size(Line) - byte_size(Rest) of
+        Length when Length >= 3 -> {Char, Length, Rest};
         _ -> none
     end;
-fence_of(_) ->
+fence_run(_) ->
     none.
+
+%% An info string's first word, which names the block's language.
+first_word(Info) ->
+    hd(string:lexemes(Info, " \t\r") ++ [<<>>]).
+
+%% A line without up to that many spaces before it.
+unindented(<<$\s, Rest/binary>>, Count) when Count > 0 -> unindented(Rest, Count - 1);
+unindented(Line, _) -> Line.
 
 %% CommonMark's ATX heading: one to six `#`, then a space, a tab or the
 %% line's end; 0 for a line that is no heading.
@@ -422,8 +476,8 @@ optional_requirement([{ident, _, needs} | Rest]) ->
 optional_requirement(Tokens) ->
     {[], Tokens}.
 
-%% Appendix A's Member: a type variable, `.`, and compare, negate, an
-%% operator or show (report §4.9, §4.8, E.1).
+%% Appendix A's Need, the member a requirement names: a type variable, `.`,
+%% and compare, negate, an operator or show (report §4.9, §4.8, E.1).
 member([{ident, Position, Variable}, {'.', _}, {Operator, _} | Rest])
   when Operator =:= '+'; Operator =:= '-'; Operator =:= '*';
        Operator =:= '/'; Operator =:= '%'; Operator =:= '<>' ->

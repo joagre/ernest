@@ -121,6 +121,54 @@ load_test() ->
     ?assert(erlang:module_loaded('ern@plug@bad')),
     ?assertNot(erlang:module_loaded('ern@plug@bad$2')).
 
+%% Appendix E.28, report §8.6: a binding a load evaluates that waits on
+%% what nothing will send is a deadlock, the fault of the process that
+%% waits, as one in the program's own code is, since the load marks its
+%% caller inside foreign code only while it reads, places and loads. A
+%% regression test, written after the code: the whole load was marked, the
+%% evaluation among it, so the look never saw the wait and the program
+%% waited for ever; it does not cover a load on a node, where the look
+%% seeks no deadlock (§8.6)
+load_deadlock_test() ->
+    Dir = tmp(),
+    Lib = filename:join(Dir, "lib"),
+    write(Lib, "plug/stuck.ern",
+          "type Msg = Ask(Reply(Int))\n\n"
+          "fn silent() : Unit receiving Msg =\n"
+          "    receive {\n"
+          "        Ask(_) -> silent()\n"
+          "    }\n\n"
+          "let stuck : Int = Address.callForever(spawn(silent), Ask)\n"),
+    built(Lib, "plug/stuck.ern"),
+    Main = write(Dir, "main.ern",
+                 "export fn main() : Unit =\n"
+                 "    Io.println(Io.show(Code.load(Path(\"" ++ Lib ++ "/plug/stuck.erc\"))))\n"),
+    built(Dir, "main.ern"),
+    Self = self(),
+    Device = spawn(fun() -> said(Self, []) end),
+    ?assertEqual(1, ern_cli:ern(["run", filename:rootname(Main) ++ ".erc"], Device)),
+    Device ! {done, self()},
+    Said = receive {said, Text} -> unicode:characters_to_binary(Text) end,
+    ?assertMatch({0, _}, binary:match(Said, <<"Plug.Stuck.stuck:8 faulted: deadlock\n">>)).
+
+%% What a job wrote on its error device, an I/O server of its own, for
+%% Owner, once told it is done.
+said(Owner, Acc) ->
+    receive
+        {io_request, From, ReplyAs, {put_chars, Encoding, Chars}} ->
+            From ! {io_reply, ReplyAs, ok},
+            said(Owner, [unicode:characters_to_list(Chars, Encoding) | Acc]);
+        {io_request, From, ReplyAs, {put_chars, Encoding, Module, Function, Arguments}} ->
+            From ! {io_reply, ReplyAs, ok},
+            Chars = apply(Module, Function, Arguments),
+            said(Owner, [unicode:characters_to_list(Chars, Encoding) | Acc]);
+        {io_request, From, ReplyAs, _} ->
+            From ! {io_reply, ReplyAs, {error, enotsup}},
+            said(Owner, Acc);
+        {done, Owner} ->
+            Owner ! {said, lists:append(lists:reverse(Acc))}
+    end.
+
 %% Appendix E.28, report §3.1, §7.4, §8.5: a binding that meets the float
 %% fault in a load's evaluation answers it as §8.5 reports it, with the
 %% binding's line, as the runtime reads it anywhere. A regression test,

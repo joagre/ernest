@@ -468,6 +468,55 @@ doc_examples_test() ->
                        "/// ```",
                        "export fn f(n : Int) : Int = n + 1"])).
 
+%% report §2.2, §11.6: a doc block's examples are its fenced `ernest`
+%% blocks as CommonMark finds them, as `ern test` finds them: a fence of
+%% tildes and one indented in a list item are laid out, the indented one's
+%% lines indented as its fence is, and a block of another language, or one
+%% whose info string's first word is another, is not. A regression test,
+%% written after the code: the formatter read only three backticks and
+%% `ernest` at the start of a line's text, so `~~~ernest` was left as it
+%% was, and a block of `ernestx` was laid out
+doc_example_fences_test() ->
+    ?assertEqual([<<"/// Fences.">>,
+                  <<"///">>,
+                  <<"/// ~~~ernest">>,
+                  <<"/// match f(1) {">>,
+                  <<"///     2 -> true">>,
+                  <<"///   | _ -> false">>,
+                  <<"/// }">>,
+                  <<"/// ~~~">>,
+                  <<"///">>,
+                  <<"/// - an item:">>,
+                  <<"///">>,
+                  <<"///   ```ernest">>,
+                  <<"///   match f(2) {">>,
+                  <<"///       3 -> true">>,
+                  <<"///     | _ -> false">>,
+                  <<"///   }">>,
+                  <<"///   ```">>,
+                  <<"///">>,
+                  <<"/// ```ernestx">>,
+                  <<"/// match f(3) { 4 -> true | _ -> false }">>,
+                  <<"/// ```">>,
+                  <<"export fn f(n : Int) : Int =">>,
+                  <<"    n + 1">>],
+                 laid(["/// Fences.",
+                       "///",
+                       "/// ~~~ernest",
+                       "/// match f(1) { 2 -> true | _ -> false }",
+                       "/// ~~~",
+                       "///",
+                       "/// - an item:",
+                       "///",
+                       "///   ```ernest",
+                       "///   match f(2) { 3 -> true | _ -> false }",
+                       "///   ```",
+                       "///",
+                       "/// ```ernestx",
+                       "/// match f(3) { 4 -> true | _ -> false }",
+                       "/// ```",
+                       "export fn f(n : Int) : Int = n + 1"])).
+
 %% report §11.6: a raw string in a doc block's example that is laid out as
 %% a body keeps its lines as written, however few or many spaces open
 %% them. A regression test: the wrapper's four columns

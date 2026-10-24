@@ -9,10 +9,10 @@
 %% nothing.
 -module(ern_build).
 
--export([compile/4, compile_in_memory/5, verbose/2, modules_of/3, compiled_in_order/3,
+-export([compile/4, compile_in_memory/5, held_another/3, verbose/2, modules_of/3,
+         compiled_in_order/3,
          report_errors/4, shown/1, sources/1, compiled_under/1, bytes_text/1, module_of/2,
-         module_of/3, shape/2, segment/1,
-         module_path/1, compile_order/2, compile_order/3, module_cycle/1,
+         module_of/3, shape/2, compile_order/2, compile_order/3, module_cycle/1,
          compiled_dependencies/1, source_root/3, build_root/2, is_stdlib_root/1, stdlib_hash/0,
          dependency_interfaces/5, load_path/1, is_compiled_against/4, compiler_modules/0,
          compiler_build/0, sweep_pages/5, compile_source/5, compile_source/6, absolute/1,
@@ -48,7 +48,7 @@ compile_in_memory(Job, Options, Path, ErrorDevice, Given) ->
     compile(Job, Options, Path, ErrorDevice, {memory, Given}).
 
 compile(Job, Options, Path, ErrorDevice, Emit) ->
-    filelib:is_file(Path) orelse fail(Path ++ ": no such file or directory"),
+    filelib:is_file(Path) orelse fail(Path ++ ": no such file"),
     IsDirectory = filelib:is_dir(Path),
     %% report §11.1: --verbose says each decision as it is made
     Say = verbose(Options, ErrorDevice),
@@ -65,8 +65,13 @@ compile(Job, Options, Path, ErrorDevice, Emit) ->
                false -> file
            end,
     %% report §11.1: a path that is no module's fails that file alone, and
-    %% the rest are built
-    {Modules, Misnamed} = modules_of(Files, SourceRoot, Mode),
+    %% the rest are built; so does a module whose .erc holds another's
+    {Found, Misnamed} = modules_of(Files, SourceRoot, Mode),
+    IsRootGiven = proplists:is_defined(source_root, Options),
+    {Modules, Held} = case Emit of
+                          erc -> unheld(Found, BuildRoot, IsRootGiven);
+                          _ -> {Found, []}
+                      end,
     %% report §11.1: the roots a dependency is found under, the build root
     %% and then each root of the load path
     DependencyRoots = [BuildRoot | load_path(Options)],
@@ -75,7 +80,7 @@ compile(Job, Options, Path, ErrorDevice, Emit) ->
         %% report §11.1: a module outside the source root is found under
         %% build-root, then under each --load-path root
         {Parsed, Unparsed1} = parse_all(Modules, SourceRoot, DependencyRoots),
-        Unparsed = Misnamed ++ Unparsed1,
+        Unparsed = Misnamed ++ Held ++ Unparsed1,
         %% report §11.1: the library's own modules depend on each other as
         %% ordinary modules do, and record no hash of it
         StdlibHash = case is_stdlib_root(SourceRoot) of
@@ -99,13 +104,98 @@ compile(Job, Options, Path, ErrorDevice, Emit) ->
                     andalso sweep(absolute(Path), SourceRoot, BuildRoot, Say),
                 {0, Compiled};
             Reported ->
-                [report_failure(Job, Options, Failure, Diagnostics, ErrorDevice)
+                [report_failure(Job, Options, Failure,
+                                nearer_roots(Failure, Diagnostics, SourceRoot, IsRootGiven),
+                                ErrorDevice)
                  || {Failure, Diagnostics} <- Reported],
                 {1, Compiled}
         end
     after
         put_back(SetAside)
     end.
+
+%% Report §11.1: a .erc that holds another namespace than the build names
+%% is not written over, as a build of a file under another source root
+%% would write it: the file is another module's, and its module fails, by
+%% its namespace, so that a module that uses it is not compiled either.
+%% Where the build was given no source root, the refusal names the option
+%% that names one; where it was, the file is to be removed. The modules
+%% the build compiles, and those it refuses so.
+unheld(Modules, BuildRoot, IsRootGiven) ->
+    lists:foldr(fun(#build_module{namespace = Namespace, relative = Relative} = Module,
+                    {Kept, Held}) ->
+                        Erc = filename:join(BuildRoot, filename:rootname(Relative)) ++ ".erc",
+                        case read_erc(Erc) of
+                            {ok, #{interface := #interface{namespace = Other}}}
+                              when Other =/= Namespace ->
+                                Refusal = held_by_another(Erc, Other, Namespace, IsRootGiven),
+                                {Kept, [{Namespace, {refused, Refusal}, []} | Held]};
+                            _ ->
+                                {[Module | Kept], Held}
+                        end
+                end, {[], []}, Modules).
+
+held_by_another(Erc, Other, Namespace, false) ->
+    lists:flatten([shown(Erc), " holds ", ern_namespace:text(Other), ", not ",
+                   ern_namespace:text(Namespace), "; name ", ern_namespace:text(Namespace),
+                   "'s source root with --source-root"]);
+held_by_another(Erc, Other, Namespace, true) ->
+    lists:flatten([shown(Erc), " holds ", ern_namespace:text(Other), ", not ",
+                   ern_namespace:text(Namespace), ", and a build writes over no other module's"
+                   " file; remove it to build ", ern_namespace:text(Namespace), " there"]).
+
+%% Report §11.1, §11.2: a file found by a module's namespace that holds
+%% another module, Held, the refusal a build's and a run's reading of it
+%% give: it is no module of that name, and the module is built where it
+%% goes once the file is gone.
+-spec held_another(file:filename(), [atom()], [atom()]) -> string().
+held_another(File, Held, Namespace) ->
+    lists:flatten([shown(File), " holds ", ern_namespace:text(Held), ", not ",
+                   ern_namespace:text(Namespace), "; remove it, and build ",
+                   ern_namespace:text(Namespace), " from its source root"]).
+
+%% Report §11.1, §11.5: a module's errors, each unknown qualified name
+%% given the help, where the build was given no source root and the error
+%% has none, of a source root nearer the module's file under which the
+%% name's module is a source, `this module is Src.Main; --source-root src
+%% makes it Main`; a failure that is no file's as it is.
+nearer_roots(File, Diagnostics, SourceRoot, false) when is_list(File) ->
+    [nearer_root(Diagnostic, File, SourceRoot) || Diagnostic <- Diagnostics];
+nearer_roots(_Failure, Diagnostics, _SourceRoot, _IsRootGiven) ->
+    Diagnostics.
+
+nearer_root(#diagnostic{unknown_namespace = [_ | _] = Namespace, help = undefined} = Diagnostic,
+            File, SourceRoot) ->
+    case relative(File, SourceRoot) of
+        outside ->
+            Diagnostic;
+        Relative ->
+            Components = filename:split(filename:rootname(Relative)),
+            Directories = lists:droplast(Components),
+            Roots = [lists:sublist(Directories, Depth)
+                     || Depth <- lists:seq(1, length(Directories))],
+            case [Root || Root <- Roots,
+                          names_a_source(Namespace, filename:join([SourceRoot | Root]))] of
+                [] ->
+                    Diagnostic;
+                [Root | _] ->
+                    Module = ern_namespace:namespace(Components),
+                    Nearer = ern_namespace:namespace(lists:nthtail(length(Root), Components)),
+                    Help = ["this module is ", ern_namespace:text(Module), "; --source-root ",
+                            shown(filename:join([SourceRoot | Root])), " makes it ",
+                            ern_namespace:text(Nearer)],
+                    Diagnostic#diagnostic{help = lists:flatten(Help)}
+            end
+    end;
+nearer_root(Diagnostic, _File, _SourceRoot) ->
+    Diagnostic.
+
+%% Whether a prefix of Namespace is a module whose source lies under Root.
+names_a_source([], _Root) ->
+    false;
+names_a_source(Namespace, Root) ->
+    filelib:is_regular(filename:join(Root, ern_namespace:module_path(Namespace) ++ ".ern"))
+        orelse names_a_source(lists:droplast(Namespace), Root).
 
 %% Report §11.1, §11.2: what --verbose writes with, a line on the job's
 %% ErrorDevice for each decision as the job makes it, where Options hold
@@ -425,18 +515,6 @@ shape(File, Component, Advice) ->
             end
     end.
 
-%% Report §11.1, §4.2: the namespace segment a path component names, where
-%% it is one; the shell's `:load` completion asks here.
--spec segment(string()) -> {ok, string()} | error.
-segment(Component) ->
-    ern_namespace:segment(Component).
-
-%% Report §11.2: the inverse, a namespace as a relative path without
-%% extension.
--spec module_path([atom()]) -> string().
-module_path(Namespace) ->
-    ern_namespace:module_path(Namespace).
-
 %% Parse every module, find its dependencies, and order them; a cycle among
 %% them is an error naming the modules in it (§11.1). What a module of the
 %% load path records that it uses is not read here: the shell, which
@@ -564,8 +642,9 @@ module_cycle(Cycle) ->
     Names = [ern_namespace:text(Namespace) || Namespace <- lists:sort(Cycle)],
     lists:flatten(["module cycle: ", lists:join(", ", Names)]).
 
-%% One module parsed alone, its namespace checked against its parent's
-%% source as it stands.
+%% One module parsed alone, the values it exports checked against the
+%% members of its parent's type of its name (member_clash/2), its parent
+%% read as it stands.
 parse_module(Module, SourceRoot, DependencyRoots) ->
     parsed_module(Module, source_parsed(Module), SourceRoot, {DependencyRoots, #{}}).
 
@@ -586,12 +665,12 @@ parsed_module(#build_module{file = File} = Module, Source, SourceRoot,
               {DependencyRoots, Declared}) ->
     case Source of
         {ok, Declarations} ->
-            Members = fun(Parent, Type) ->
-                          type_members(Parent, Type, SourceRoot, DependencyRoots, Declared)
-                      end,
-            member_clash(Module#build_module{declarations = Declarations}, Members),
+            TypeMembers = fun(Parent, Type) ->
+                              type_members(Parent, Type, SourceRoot, DependencyRoots, Declared)
+                          end,
+            member_clash(Module#build_module{declarations = Declarations}, TypeMembers),
             %% a module naming itself qualified (report §4.2) depends on nothing by it
-            Dependencies = dependencies(Declarations, SourceRoot, DependencyRoots, Members)
+            Dependencies = dependencies(Declarations, SourceRoot, DependencyRoots, TypeMembers)
                 -- [Module#build_module.namespace],
             Module#build_module{declarations = Declarations, dependencies = Dependencies};
         {error, Diagnostic} -> throw({errors, File, [Diagnostic]});
@@ -603,17 +682,19 @@ parsed_module(#build_module{file = File} = Module, Source, SourceRoot,
 %% type, which its parent exports, a function or a top-level `let`, is an
 %% error at the value's declaration, since `M.T.f` would name both.
 member_clash(#build_module{namespace = [_, _ | _] = Namespace, file = File,
-                           declarations = Declarations}, Members) ->
+                           declarations = Declarations}, TypeMembers) ->
     Parent = lists:droplast(Namespace),
     Type = lists:last(Namespace),
-    TypeMembers = Members(Parent, Type),
+    ParentMembers = TypeMembers(Parent, Type),
     case [{Span, Name} || {Span, Name} <- exported_values(Declarations),
-                          lists:member(Name, TypeMembers)] of
+                          lists:member(Name, ParentMembers)] of
         [] ->
             ok;
         [{Span, Name} | _] ->
+            %% report §11.5: the module that declares the type, by its
+            %% name, which a source or a .erc may hold
             Message = ern_namespace:text(Namespace ++ [Name]) ++ " is a member of the type "
-                ++ atom_to_list(Type) ++ " in " ++ module_path(Parent) ++ ".ern",
+                ++ atom_to_list(Type) ++ " in the module " ++ ern_namespace:text(Parent),
             throw({errors, File, [#diagnostic{span = ern_diagnostic:span(Span),
                                               message = Message}]})
     end;
@@ -643,7 +724,7 @@ exported_value(_) ->
 %% compiled form under DependencyRoots, found as a dependency is; none
 %% where no root holds the module.
 type_members(Parent, Type, SourceRoot, DependencyRoots, Declared) ->
-    File = absolute(filename:join(SourceRoot, module_path(Parent) ++ ".ern")),
+    File = absolute(filename:join(SourceRoot, ern_namespace:module_path(Parent) ++ ".ern")),
     case Declared of
         #{File := Declarations} -> exported_members(Declarations, Type);
         _ ->
@@ -741,9 +822,7 @@ dependencies(Declarations, SourceRoot, DependencyRoots, TypeMembers) ->
 %% source: a module is its compiled form under a root of LoadPath, and a
 %% type's members are read from its interface; the prelude's and the
 %% standard library's namespaces aside, which every check is given, and
-%% which are read once for every example it answers, since reading them
-%% costs some ten times what the rest of an example's finding does
-%% (ern_examples).
+%% which are read once for every example it answers (ern_examples).
 -spec compiled_dependencies([file:filename()]) -> fun(([tuple()]) -> [[atom()]]).
 compiled_dependencies(LoadPath) ->
     Skip = taken_namespaces(),
@@ -755,10 +834,10 @@ compiled_dependencies(LoadPath) ->
 %% longest prefix of a qualified name whose path IsModule answers is a
 %% module's, or the module M of `M.T.name` where TypeMembers says so.
 named_modules(Declarations, Skip, IsModule, TypeMembers) ->
-    Members = local_members(Declarations),
+    OwnMembers = local_members(Declarations),
     References = lists:usort([{Path, Name} || {Path, Name} <- references(Declarations),
                                               Path =/= [], not lists:member(hd(Path), Skip),
-                                              not lists:member({Path, Name}, Members)]),
+                                              not lists:member({Path, Name}, OwnMembers)]),
     Found = maps:from_list([{Path, Module}
                             || Path <- lists:usort([Path || {Path, _} <- References]),
                                {true, Module} <- [module_prefix(Path, IsModule)]]),
@@ -796,7 +875,7 @@ local_members(Declarations) ->
 module_prefix([], _IsModule) ->
     false;
 module_prefix(Path, IsModule) ->
-    case IsModule(module_path(Path)) of
+    case IsModule(ern_namespace:module_path(Path)) of
         true -> {true, Path};
         false -> module_prefix(lists:droplast(Path), IsModule)
     end.
@@ -954,47 +1033,34 @@ longest_module(QualifiedName, Namespaces) ->
 %% module does (§8.7), so its dependents are compiled against its hashes
 %% too, which its check gave them (build/8). Report §11.1: Say says each
 %% file written, with the module and its source.
-emitted(erl, #build_module{namespace = Namespace, relative = Relative} = Module,
+emitted(erl, #build_module{namespace = Namespace, file = File} = Module,
         {Typed, _Interface, Env}, Build, OutputBase, Say) ->
     Erl = OutputBase ++ ".erl",
     ok = make_dirs(Erl),
     Source = ern_compile:erl_source(Namespace, Typed, Env, maps:with([standard, canonical], Build)),
     ok = write_output(Erl, unicode:characters_to_binary(["%% Generated by ern build from ",
-                                                         Relative, "\n", Source])),
+                                                         shown(File), "\n", Source])),
     Say(compiled_line(Module, Erl)),
     none;
 emitted(erc, #build_module{namespace = Namespace} = Module, {Typed, Interface, Env}, Build,
         OutputBase, Say) ->
     Erc = OutputBase ++ ".erc",
     ok = make_dirs(Erc),
-    held_by_another(Erc, Namespace),
     {ok, _, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
     ok = write_output(Erc, Beam),
     Say(compiled_line(Module, Erc)),
     none;
-emitted({memory, _}, #build_module{namespace = Namespace}, {Typed, Interface, Env}, Build,
-        _OutputBase, _Say) ->
+emitted({memory, _}, #build_module{namespace = Namespace, file = File},
+        {Typed, Interface, Env}, Build, _OutputBase, Say) ->
     {ok, _, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
+    %% report §11.4: `ern doc` says a module it compiled to read its page
+    Say(["compiled ", ern_namespace:text(Namespace), " from ", shown(File)]),
     Beam.
 
 %% Report §11.1: --verbose's line of a module compiled, `compiled Net.Http
 %% from src/net/http.ern to build/net/http.erc`.
 compiled_line(#build_module{namespace = Namespace, file = File}, Written) ->
     ["compiled ", ern_namespace:text(Namespace), " from ", shown(File), " to ", shown(Written)].
-
-%% Report §11.1: a .erc that holds another namespace is not written over, as
-%% a single-file build from another source root would: the file is another
-%% module's. A regression: the build replaced it, and a run of a module
-%% using it failed in the host's loader.
-held_by_another(Erc, Namespace) ->
-    case read_erc(Erc) of
-        {ok, #{interface := #interface{namespace = Held}}} when Held =/= Namespace ->
-            fail(shown(Erc) ++ " holds " ++ ern_namespace:text(Held)
-                 ++ ", and this build names the module "
-                 ++ ern_namespace:text(Namespace) ++ "; name its source root with --source-root");
-        _ ->
-            ok
-    end.
 
 %% Report §11.1: one hash over every installed standard library interface,
 %% so that any change to one recompiles the modules built against it; an
@@ -1079,12 +1145,16 @@ dependency_interface(User, Dependency, Interfaces, [BuildRoot | _] = DependencyR
         _ ->
             {Dir, Erc} = case compiled_found(Dependency, DependencyRoots) of
                              none ->
-                                 {BuildRoot,
-                                  filename:join(BuildRoot, module_path(Dependency) ++ ".erc")};
+                                 Relative = ern_namespace:module_path(Dependency) ++ ".erc",
+                                 {BuildRoot, filename:join(BuildRoot, Relative)};
                              Found ->
                                  Found
                          end,
             case read_erc(Erc) of
+                %% report §11.1: a .erc of another module is none of this
+                %% one's, stale or not
+                {ok, #{interface := #interface{namespace = Held}}} when Held =/= Dependency ->
+                    fail(held_another(Erc, Held, Dependency));
                 {ok, #{interface := Interface} = Chunk} ->
                     case gone(Chunk, Dir, SourceRoot) of
                         false -> {Dependency, Interface};
@@ -1094,17 +1164,68 @@ dependency_interface(User, Dependency, Interfaces, [BuildRoot | _] = DependencyR
                                  ++ ", which no longer exists")
                     end;
                 %% report §11.5: the path from the working directory, and
-                %% the module that needs the one not compiled
+                %% the module that needs the one not compiled; report §4.1:
+                %% or the cycle compiling it first would meet
                 {error, Error} ->
-                    fail("compile " ++ ern_namespace:text(Dependency) ++ " first, which "
-                         ++ ern_namespace:text(User) ++ " uses: " ++ shown(Erc) ++ ": " ++ Error)
+                    case source_cycle(User, Dependency, SourceRoot, DependencyRoots) of
+                        none ->
+                            fail("compile " ++ ern_namespace:text(Dependency) ++ " first, which "
+                                 ++ ern_namespace:text(User) ++ " uses: " ++ shown(Erc) ++ ": "
+                                 ++ Error);
+                        Cycle ->
+                            fail(module_cycle(Cycle))
+                    end
+            end
+    end.
+
+%% Report §11.1, §4.1: a module not compiled that User uses, Dependency,
+%% whose source under the source root uses User again, itself or through
+%% the sources between, is a cycle, which a build of one file reports as a
+%% build of the directory does, and not as a module to compile first: the
+%% modules of the cycle, or none. A source that cannot be read or parsed
+%% uses nothing here; its build says why.
+source_cycle(User, Dependency, SourceRoot, DependencyRoots) ->
+    case cycle_through([Dependency], User, [], SourceRoot, DependencyRoots) of
+        {cycle, Cycle} -> Cycle;
+        {seen, _} -> none
+    end.
+
+cycle_through([Namespace | _] = Path, User, Seen, SourceRoot, DependencyRoots) ->
+    Uses = source_uses(Namespace, SourceRoot, DependencyRoots),
+    case lists:member(User, Uses) of
+        true ->
+            {cycle, [User | Path]};
+        false ->
+            lists:foldl(fun(Used, {seen, SeenAcc}) ->
+                                case lists:member(Used, SeenAcc) orelse lists:member(Used, Path) of
+                                    true -> {seen, SeenAcc};
+                                    false -> cycle_through([Used | Path], User, [Used | SeenAcc],
+                                                           SourceRoot, DependencyRoots)
+                                end;
+                           (_, Cycle) ->
+                                Cycle
+                        end, {seen, Seen}, Uses)
+    end.
+
+%% The modules the source of Namespace under the source root uses, none
+%% where it has none there or it does not parse.
+source_uses(Namespace, SourceRoot, DependencyRoots) ->
+    File = filename:join(SourceRoot, ern_namespace:module_path(Namespace) ++ ".ern"),
+    case filelib:is_regular(File) of
+        false ->
+            [];
+        true ->
+            try parse_module(module_of(absolute(File), SourceRoot), SourceRoot, DependencyRoots) of
+                #build_module{dependencies = Dependencies} -> Dependencies
+            catch
+                throw:_ -> []
             end
     end.
 
 %% Report §11.1: the first root of DependencyRoots that holds a module's
 %% compiled form, with the form's path under it, or none.
 compiled_found(Namespace, DependencyRoots) ->
-    Relative = module_path(Namespace) ++ ".erc",
+    Relative = ern_namespace:module_path(Namespace) ++ ".erc",
     case [{Dir, Candidate} || Dir <- DependencyRoots, Candidate <- [filename:join(Dir, Relative)],
                               filelib:is_regular(Candidate)] of
         [First | _] -> First;
@@ -1201,9 +1322,9 @@ one_of_each_name(Dir, Applications) ->
     end.
 
 %% Report §11.2: an application's name, from its directory's, `name` or
-%% `name-version`, the version digits separated by dots, as the host
-%% splits it (code_server's split_base/1 and is_vsn/1): a last part after
-%% `-` that is no version is the name's.
+%% `name-version`, the version digits separated by dots: its name up to its
+%% last `-` where a version so written follows it, and its whole name
+%% otherwise.
 application_name(Directory) ->
     case string:split(Directory, "-", trailing) of
         [Name, Version] when Name =/= [] ->
@@ -1334,24 +1455,23 @@ outputs(Dir, Extension) ->
         {error, _} -> []
     end.
 
-%% Report §11.4: remove every page `ern doc` wrote under the mirror of the
-%% documented subtree whose module is not among Kept, and each directory
-%% the removals leave empty. A page names its module in its title and
-%% stands at the module's place; a file that does not is no page of `ern
-%% doc`'s, and is kept.
--spec sweep_pages(markdown | man, file:filename(), file:filename(), file:filename(),
-                  [[atom()]]) -> ok.
-sweep_pages(Kind, Dir, SourceRoot, BuildRoot, Kept) ->
+%% Report §11.4: remove every document and every manual page `ern doc`
+%% wrote under the mirror of the documented subtree whose module is not
+%% among Kept, whichever kind the run writes, each said by Say (--verbose),
+%% and each directory the removals leave empty. A page names its module in
+%% its title and stands at the module's place; a file that does not is no
+%% page of `ern doc`'s, and is kept.
+-spec sweep_pages(file:filename(), file:filename(), file:filename(), [[atom()]],
+                  fun((iodata()) -> ok)) -> ok.
+sweep_pages(Dir, SourceRoot, BuildRoot, Kept, Say) ->
     Mirror = absolute(filename:join(BuildRoot, relative(Dir, SourceRoot))),
-    Extension = case Kind of
-                    markdown -> ".md";
-                    man -> ".3ern"
-                end,
     Names = [[atom_to_list(Segment) || Segment <- Namespace] || Namespace <- Kept],
     lists:foreach(fun(Page) ->
                       ok = delete(Page),
+                      Say(["removed ", shown(Page)]),
                       remove_emptied(filename:dirname(Page), Mirror, BuildRoot)
-                  end, [Page || Page <- outputs(Mirror, Extension),
+                  end, [Page || {Kind, Extension} <- [{markdown, ".md"}, {man, ".3ern"}],
+                                Page <- outputs(Mirror, Extension),
                                 {ok, Segments} <- [page_of(Kind, Page, BuildRoot)],
                                 not lists:member(Segments, Names)]).
 
@@ -1560,7 +1680,11 @@ made_beside(File, Place, Tries) ->
     case file:open(New, [write, exclusive, raw]) of
         {ok, Device} -> {New, Device};
         {error, eexist} when Tries < 16 -> made_beside(File, Place, Tries + 1);
-        {error, Error} -> fail(shown(File) ++ ": " ++ file:format_error(Error))
+        %% report §11: the file is written whole by a rename in its
+        %% directory, so a directory that takes no file is the refusal's
+        {error, Error} ->
+            fail(shown(filename:dirname(Place)) ++ ": " ++ file:format_error(Error) ++ ", and "
+                 ++ filename:basename(File) ++ " is written whole by a rename there")
     end.
 
 %% Report §11.8: a file a job cannot read, a directory it cannot make, and

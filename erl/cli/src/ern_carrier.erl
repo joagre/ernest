@@ -19,9 +19,10 @@
 -include("ern_node.hrl").
 
 %% Report §8.7: the protocol's version, in the cookie, so that two nodes of
-%% different protocols never connect: 2 since MVP 3.1, whose key and spawn
-%% frames name a type and a function by hash.
--define(PROTOCOL, 2).
+%% different protocols never connect: 3 since MVP 3.9, whose reach and code
+%% frames carry where each foreign declaration is written and whose code
+%% frame no longer carries the hashes its forms reference.
+-define(PROTOCOL, 3).
 
 %% The constant before the host of a node's name on the carrier, whose host
 %% is its key's digest and names no network address: a peer's address is
@@ -103,46 +104,33 @@ digest(PublicKey) ->
     binary_to_list(binary:encode_hex(crypto:hash(sha256, PublicKey), lowercase)).
 
 %% Report §8.7: the cookie, the digest of the floor this build of `ern`
-%% stands on (cookie/2), which its version text names (ern_release), taken
-%% as the node's host first starts (boot_flags/1).
+%% stands on (cookie/2), which ern_release gives, taken as the node's host
+%% first starts (boot_flags/1).
 -spec cookie() -> string().
 cookie() ->
-    cookie(ern_release:version_text(), fun code_digest/0).
+    cookie(ern_release:release(), fun code_digest/0).
 
-%% Report §8.7, Appendix H: the cookie of a build whose version text is
-%% VersionText: for a release, the digest of the protocol's version, the
-%% form's version, `ern`'s major and minor, which stand for the runtime's
-%% functions and the standard library, a patch adding nothing, and OTP's
-%% major release, within which the host keeps its term format, its
-%% distribution and its compiled modules; for a build that is no release,
-%% which the version text marks, the digest of its own code, which
-%% CodeDigest gives. Nothing of a program's build is in it, so that nodes of
-%% different builds connect, and the hashes tell what they share.
--spec cookie(string(), fun(() -> binary())) -> string().
-cookie(VersionText, CodeDigest) ->
-    Floor = case string:split(VersionText, "-") of
-                [_, "dev"] ->
+%% Report §8.7, Appendix H: the cookie of a build that stands on Release:
+%% for a release, the digest of the protocol's version, the form's version,
+%% `ern`'s major and minor, which stand for the runtime's functions and the
+%% standard library, a patch adding nothing, and OTP's major release, within
+%% which the host keeps its term format, its distribution and its compiled
+%% modules; for a build that is no release, development, the digest of its
+%% own code, which CodeDigest gives. Nothing of a program's build is in it,
+%% so that nodes of different builds connect, and the hashes tell what they
+%% share.
+-spec cookie(development | {non_neg_integer(), non_neg_integer(), non_neg_integer()},
+             fun(() -> binary())) -> string().
+cookie(Release, CodeDigest) ->
+    Floor = case Release of
+                development ->
                     CodeDigest();
-                _ ->
-                    {Major, Minor} = release(VersionText),
+                {Major, Minor, _Patch} ->
                     {?PROTOCOL, ern_canonical:form_version(), Major, Minor,
                      erlang:system_info(otp_release)}
             end,
     binary_to_list(binary:encode_hex(crypto:hash(sha256, term_to_binary(Floor, [deterministic])),
                                      lowercase)).
-
-%% A release's major and minor, of the three whole numbers of its version,
-%% `0.4.0`; a version text of another shape, which no build of `ern` writes,
-%% a development build's ending in `-dev`, is refused, naming it.
-release(VersionText) ->
-    case [string:to_integer(Part) || Part <- string:split(VersionText, ".", all)] of
-        [{Major, ""}, {Minor, ""}, {Patch, ""}]
-          when Major >= 0, Minor >= 0, Patch >= 0 ->
-            {Major, Minor};
-        _ ->
-            ern_build:fail("the version text " ++ VersionText ++ " is neither a release's,"
-                           " three whole numbers, nor a development build's, ending in -dev")
-    end.
 
 %% Report §8.7: the digest of a development build's own code: each module
 %% of the toolchain's, its applications', the standard library's, the
@@ -360,18 +348,23 @@ verify(Certificate, _Event, Side) ->
     end.
 
 %% A listed key whose certificate names its own host: taken on the server's
-%% side, and on the client's where it gives the host dialed.
+%% side, and on the client's where it gives the host dialed; refused, the
+%% node saying why, where it gives another, or where the dial it answers is
+%% not known, which fails the dial with no failure of the host's.
 answered(server, #peer{public_key = Key}) ->
     ok = allow([Key]),
     {valid, server};
 answered(client, #peer{name = Name, public_key = Key}) ->
     Host = host(Key),
     case dialed() of
-        Host ->
+        {dialed, Host} ->
             ok = allow([Key]),
             {valid, client};
-        Dialed ->
+        {dialed, Dialed} ->
             say(["the peer ", Name, " was refused: it answered the dial of ", host_named(Dialed)]),
+            {fail, not_dialed};
+        unknown ->
+            say(["the peer ", Name, " was refused: the dial it answered is not known"]),
             {fail, not_dialed}
     end.
 
@@ -386,17 +379,24 @@ dialing(Host) ->
     ok.
 
 %% The host dialed for the connection whose certificate the rule checks on
-%% the client's side. The host's TLS gives the check nothing of its
-%% connection but the certificate, and runs it in the connection's own
-%% process, which monitors the process that dialed, its controlling
-%% process, the one process it monitors that holds a host dialed
-%% (dialing/1); a check that finds none fails, and the dial with it.
+%% the client's side, or unknown where no process, or more than one, holds
+%% one. The host's TLS gives the check nothing of its connection but the
+%% certificate, and runs it in the connection's own process, which monitors
+%% the process that dialed, its user, the one process it monitors that
+%% holds a host dialed (dialing/1). That monitor is ssl's own and
+%% undocumented, read from OTP 29's ssl 11.7, its connection's
+%% `user_application` monitor (ssl_gen_statem), where the host's
+%% distribution dials and connects in one process (inet_tls_dist's
+%% do_setup/7); a release that drops it leaves every dial unknown, and so
+%% refused, saying so.
 dialed() ->
     {monitors, Monitored} = process_info(self(), monitors),
-    [Host] = [Host || {process, Pid} <- Monitored, is_pid(Pid),
-                      {_, Host} <- [process_info(Pid, {dictionary, ?DIALED})],
-                      Host =/= undefined],
-    Host.
+    case [Host || {process, Pid} <- Monitored, is_pid(Pid),
+                  {_, Host} <- [process_info(Pid, {dictionary, ?DIALED})],
+                  Host =/= undefined] of
+        [Host] -> {dialed, Host};
+        _ -> unknown
+    end.
 
 %% The peer a certificate's key is listed for, or the key's digest where it
 %% is listed for none.

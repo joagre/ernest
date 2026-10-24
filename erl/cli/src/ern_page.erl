@@ -6,25 +6,29 @@
 %% which libs/markdown writes from the CommonMark (Appendix G.2).
 -module(ern_page).
 
--export([page/1, prelude_page/0, module_head/1, manual/1, prelude_manual/0, declaration/3,
+-export([page/2, prelude_page/0, module_head/1, manual/2, prelude_manual/0, declaration/3,
          session_declaration/3, prelude_declaration/1, since/1, declared_since/2]).
 
 -include_lib("checker/include/ern_types.hrl").
 
 %% Report §11.4: the page of one compiled module, built from its
-%% documentation chunk and the namespace in its interface chunk (§11.1).
--spec page(binary() | file:filename()) -> unicode:chardata().
-page(Beam) ->
+%% documentation chunk and the namespace in its interface chunk (§11.1),
+%% its last line naming Source, the module's source as the job names a
+%% path, from the working directory (§11.5).
+-spec page(binary() | file:filename(), file:filename()) -> unicode:chardata().
+page(Beam, Source) ->
     {ok, #{interface := #interface{namespace = Namespace}}} = ern_interface:read(Beam),
     {ok, Docs} = ern_docs:read(Beam),
     Name = ern_namespace:text(Namespace),
-    render(["Ernest module ", Name], Name ++ ".", Docs).
+    render(["Ernest module ", Name], Name ++ ".", Docs, Source).
 
 %% Report §9, §11.4: the prelude's page, from the documentation its table
-%% carries. A prelude name is written without a module's name before it.
+%% carries, its source the one the table names. A prelude name is written
+%% without a module's name before it.
 -spec prelude_page() -> unicode:chardata().
 prelude_page() ->
-    render("Ernest prelude", "", ern_prelude:docs()).
+    Docs = ern_prelude:docs(),
+    render("Ernest prelude", "", Docs, prelude_source(Docs)).
 
 %% Report §11.2: a module's documentation as `:doc` shows it, the head of
 %% its page: the title, the version, and the module's doc block. What the
@@ -36,26 +40,32 @@ module_head(Beam) ->
     head(["Ernest module ", ern_namespace:text(Namespace)], ModuleDoc).
 
 %% Report §11.4: the page of one compiled module as a manual page,
-%% `Ernest.Net.Http` in section 3ern.
--spec manual(binary() | file:filename()) -> unicode:chardata().
-manual(Beam) ->
+%% `Ernest.Net.Http` in section 3ern, naming Source as page/2 does.
+-spec manual(binary() | file:filename(), file:filename()) -> unicode:chardata().
+manual(Beam, Source) ->
     {ok, #{interface := #interface{namespace = Namespace}}} = ern_interface:read(Beam),
     {ok, Docs} = ern_docs:read(Beam),
     Name = ern_namespace:text(Namespace),
-    roff("Ernest." ++ Name, ["Ernest module ", Name], Name ++ ".", Docs).
+    roff("Ernest." ++ Name, ["Ernest module ", Name], Name ++ ".", Docs, Source).
 
 %% Report §9, §11.4: the prelude's page as a manual page, `Ernest.Prelude`.
 -spec prelude_manual() -> unicode:chardata().
 prelude_manual() ->
-    roff("Ernest.Prelude", "Ernest prelude", "", ern_prelude:docs()).
+    Docs = ern_prelude:docs(),
+    roff("Ernest.Prelude", "Ernest prelude", "", Docs, prelude_source(Docs)).
+
+%% The prelude's source as its documentation names it, the report's
+%% section.
+prelude_source({docs_v1, _, ernest, _, _, #{source := Source}, _}) ->
+    Source.
 
 %% Appendix E.0 shape rule 6: a doc block's text is the page's as written,
 %% an example's declarations before its expression among it, where the call
 %% needs one, a `fn` that `Code.running` names (Appendix E.28).
-render(Title, Prefix, {docs_v1, _, ernest, _, ModuleDoc, Meta, Entries}) ->
+render(Title, Prefix, {docs_v1, _, ernest, _, ModuleDoc, _, Entries}, Source) ->
     [head(Title, ModuleDoc),
      [entry(Entry, Prefix) || Entry <- Entries],
-     "---\n\n", generated(Meta), "\n"].
+     "---\n\n", generated(Source), "\n"].
 
 %% Report §11.4: the page after its title, under the manual page's header.
 %% The NAME line is the first sentence of the module's doc block, its
@@ -63,7 +73,7 @@ render(Title, Prefix, {docs_v1, _, ernest, _, ModuleDoc, Meta, Entries}) ->
 %% paragraph, and the page's last line is a comment at the head of the
 %% source. libs/markdown takes the header as a `Manual`, a named
 %% constructor, whose fields stand in their declared order.
-roff(Name, Title, Prefix, {docs_v1, _, ernest, _, ModuleDoc, Meta, Entries}) ->
+roff(Name, Title, Prefix, {docs_v1, _, ernest, _, ModuleDoc, _, Entries}, Source) ->
     Body = [module_text(ModuleDoc), [entry(Entry, Prefix) || Entry <- Entries]],
     {Prose, _} = case ModuleDoc of
                      none -> {<<>>, undefined};
@@ -73,10 +83,10 @@ roff(Name, Title, Prefix, {docs_v1, _, ernest, _, ModuleDoc, Meta, Entries}) ->
                   [] -> markdown_call(firstSentence, [markdown(Title)]);
                   Sentence -> Sentence
               end,
-    Manual = {'Manual', list_to_binary(Name), <<"3ern">>, Summary, <<"Ernest ", ?VERSION>>,
-              <<"Ernest Manual">>},
+    Manual = {'Manual', list_to_binary(Name), <<"3ern">>, Summary,
+              list_to_binary(["Ernest ", ern_release:version_text()]), <<"Ernest Manual">>},
     Lines = markdown_call(roff, [markdown(Body), Manual]),
-    [".\\\" ", generated(Meta), "\n", lists:join("\n", Lines), "\n"].
+    [".\\\" ", generated(Source), "\n", lists:join("\n", Lines), "\n"].
 
 markdown(Text) ->
     markdown_call(parse, [unicode:characters_to_binary(Text)]).
@@ -87,24 +97,13 @@ markdown_call(Name, Arguments) ->
     {Function, _} = ern_code:function('ern@markdown', ['Markdown', Name]),
     apply('ern@markdown', Function, Arguments).
 
-%% The source's name is the chunk's own word, which a module from anywhere
-%% may have written: its control characters are written as escapes, so
-%% that none ends the comment line a manual page keeps it on. A page, and
-%% a manual page's header, name VERSION's text, the last release when they
-%% were written, without the mark of a build that is no release
-%% (ern_release), since the repository's build writes the pages a release
-%% installs and commits (docs/release_review.md, step 5).
-generated(Meta) ->
-    Source = case maps:get(source, Meta, <<>>) of
-                 Name when is_binary(Name) ->
-                     case unicode:characters_to_binary(Name) of
-                         Name -> ern_show:controls(Name, line);
-                         _ -> <<>>
-                     end;
-                 _ ->
-                     <<>>
-             end,
-    ["Generated by ern ", ?VERSION, " from ", Source, "."].
+%% Report §11.4: a page's last line, which names `ern`'s version, its
+%% version text as `ern --version` prints it (ern_release), and the
+%% module's source, its control characters written as escapes, so that
+%% none ends the comment line a manual page keeps it on.
+generated(Source) ->
+    ["Generated by ern ", ern_release:version_text(), " from ",
+     ern_show:controls(unicode:characters_to_binary(Source), line), "."].
 
 head(Title, ModuleDoc) ->
     ["# ", Title, "\n\n", module_text(ModuleDoc)].

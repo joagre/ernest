@@ -3,11 +3,11 @@
 %% is no release: VERSION's text in a release, and VERSION's text and the
 %% mark `-dev` in every other build. The repository's build compiles this
 %% module with DEVELOPMENT defined (erl/app.mk), and the release archive's
-%% compiles it again without (tools/install.sh). A node's floor reads the
-%% mark (ern_carrier:cookie/0).
+%% compiles it again without (tools/install.sh). A node's floor reads
+%% which it is, and a release's numbers (release/0, ern_carrier:cookie/0).
 -module(ern_release).
 
--export([version_text/0]).
+-export([version_text/0, release/0, release/1]).
 
 -ifdef(DEVELOPMENT).
 -define(MARK, "-dev").
@@ -18,3 +18,28 @@
 -spec version_text() -> string().
 version_text() ->
     ?VERSION ++ ?MARK.
+
+%% Report §8.7: what the build stands on, which the floor names:
+%% development for a build that is no release, and for a release the
+%% three whole numbers of VERSION.
+-spec release() -> development | {non_neg_integer(), non_neg_integer(), non_neg_integer()}.
+release() ->
+    case ?MARK of
+        "" -> release(?VERSION);
+        _ -> development
+    end.
+
+%% A release's major, minor and patch, of the three whole numbers its
+%% version writes, `0.4.0`, each part its digits alone; a version of
+%% another shape, which no release of `ern` has, is refused, naming it.
+-spec release(string()) -> {non_neg_integer(), non_neg_integer(), non_neg_integer()}.
+release(Version) ->
+    Parts = string:split(Version, ".", all),
+    case length(Parts) =:= 3 andalso lists:all(fun is_digits/1, Parts) of
+        true -> list_to_tuple([list_to_integer(Part) || Part <- Parts]);
+        false -> ern_build:fail("the version " ++ Version ++ " is not a release's, three whole"
+                                " numbers")
+    end.
+
+is_digits(Part) ->
+    Part =/= [] andalso lists:all(fun(Char) -> Char >= $0 andalso Char =< $9 end, Part).
