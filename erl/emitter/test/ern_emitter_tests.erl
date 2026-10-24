@@ -1405,29 +1405,30 @@ replies_kept_as_values_test() ->
         "    let a = receive { Got(v) -> v };\n"
         "    let b = receive { Got(v) -> v };\n"
         "    let c = receive { Got(v) -> v };\n"
-        "    Io.println(Io.show(List.sort([a, b, c], Int.compare)))\n"
+        "    Io.println(Io.show(List.sort([a, b, c])))\n"
         "}\n"),
     ?assertEqual(<<"[<reply>]\n[10, 20, 30]\n">>, Output).
 
 %% report §4.2, §4.5: a module's own type named Float may have members
-%% negate and compare, and a call of them, each as a value, and prefix `-`
-%% on the type are the module's. A regression test, rewritten when a member
-%% became an operator, `compare` or `negate`: it held the same of `Io.show`
-%% and `Io.debug`, where the emitter read the written path and called the
-%% library's in their place
+%% negate and compare, and prefix `-`, in a lambda too, `compare` and `<`
+%% on the type reach the module's. A regression test, rewritten when a
+%% member became an operator, `compare` or `negate`, and when a member's
+%% name left the expressions: it held the same of `Io.show` and `Io.debug`,
+%% where the emitter read the written path and called the library's in
+%% their place
 own_member_over_prelude_test() ->
     {ok, Output} = run(
         "type Float = Float(n : Int)\n"
         "fn Float.negate(x : Float) : String = \"mine \" <> Int.toString(x.n)\n"
         "fn Float.compare(a : Float, b : Float) : Ordering = Less\n"
         "export fn main() : Unit = {\n"
-        "    Io.println(Float.negate(Float(n = 1)));\n"
-        "    let f = Float.negate;\n"
+        "    Io.println(-Float(n = 1));\n"
+        "    let f = fn(x : Float) = -x;\n"
         "    Io.println(f(Float(n = 2)));\n"
-        "    Io.println(-Float(n = 3));\n"
-        "    Io.println(Io.show(Float.compare(Float(n = 1), Float(n = 1))))\n"
+        "    Io.println(Io.show(compare(Float(n = 1), Float(n = 1))));\n"
+        "    Io.println(Io.show(Float(n = 1) < Float(n = 1)))\n"
         "}\n"),
-    ?assertEqual(<<"mine 1\nmine 2\nmine 3\nLess\n">>, Output).
+    ?assertEqual(<<"mine 1\nmine 2\nLess\ntrue\n">>, Output).
 
 %% report Appendix E.1: Io.debug writes a String as a literal, with `"`,
 %% `\\`, a line feed and a tab escaped by name, another control character
@@ -1559,7 +1560,7 @@ call_ends_with_callee() ->
 %% report §3.10, §9.3, §9.6, §4.9, §3.5: a tuple and a list order
 %% component by component from the left, a list before a longer one it
 %% begins, Optional None before Some and Either Left before Right, then by
-%% the element: `<` on each, a sort by an order over tuples, a requirement
+%% the element: `<` on each, a sort of tuples, a requirement
 %% reaching through a tuple and a list to the element, a derived compare
 %% over fields of the four, and an ordered set of lists. Written with the
 %% rule (the full review's N25)
@@ -1568,8 +1569,6 @@ structural_compare_test() ->
         "type Date = Date(year : Int, at : Optional(Int), tags : List(String),"
         " pair : #(Int, String)) derives compare\n"
         "type Box(a) = Box(items : List(a), first : Optional(a)) derives compare\n"
-        "fn byFirst(left : #(Int, String), right : #(Int, String)) : Ordering =\n"
-        "    if left < right then Less else if left > right then Greater else Equal\n"
         "fn largest(list : List(a)) : Optional(a) needs a.compare =\n"
         "    List.foldLeft(list, None, fn(acc, x) = if Some(x) > acc then Some(x) else acc)\n"
         "export fn main() : Unit = {\n"
@@ -1579,11 +1578,11 @@ structural_compare_test() ->
         "    let right : Either(Int, Int) = Right(1);\n"
         "    Io.println(Io.show(#(Left(9) < Right(\"a\"), right < Right(2))));\n"
         "    let pairs = [#(2, \"a\"), #(1, \"z\"), #(1, \"b\")];\n"
-        "    Io.println(Io.show(List.sort(pairs, byFirst)));\n"
+        "    Io.println(Io.show(List.sort(pairs)));\n"
         "    Io.println(Io.show(largest([#(1, [2]), #(1, [3]), #(0, [9])])));\n"
         "    let earlier = Date(year = 1, at = None, tags = [], pair = #(1, \"a\"));\n"
         "    let later = Date(year = 1, at = Some(0), tags = [], pair = #(0, \"a\"));\n"
-        "    Io.println(Io.show(Date.compare(earlier, later)));\n"
+        "    Io.println(Io.show(compare(earlier, later)));\n"
         "    let empty = Box(items = [1], first = None);\n"
         "    Io.println(Io.show(empty < Box(items = [1], first = Some(0))));\n"
         "    Io.println(Io.show(OrderedSet.toList(OrderedSet.fromList([[2], [1, 5], [1]]))))\n"
@@ -1595,8 +1594,8 @@ structural_compare_test() ->
 %% report §3.10, §9.6, §4.9: the prelude's `compare(a, b)` runs the
 %% operand type's compare, as `<` does: an Int's, a String's, a tuple's, a
 %% list's, a derived one, the requirement's member in a generic function,
-%% and as a value, a sort of pairs and a piped call among them. Written
-%% with the rule (feedback 159)
+%% and as a value and in a piped call, beside a sort of pairs, which needs
+%% the order and writes none. Written with the rule (feedback 159)
 prelude_compare_test() ->
     {ok, Output} = run(
         "type Day = Mon | Tue | Wed derives compare\n"
@@ -1606,7 +1605,7 @@ prelude_compare_test() ->
         "    Io.println(Io.show(#(compare(#(1, \"a\"), #(1, \"b\")), compare([1, 2], [1]))));\n"
         "    Io.println(Io.show(#(compare(Tue, Mon), ordered(#(Wed, [1]), #(Wed, [2])))));\n"
         "    let pairs = [#(\"pear\", 2), #(\"fig\", 3), #(\"pear\", 1)];\n"
-        "    Io.println(Io.show(List.sort(pairs, compare)));\n"
+        "    Io.println(Io.show(List.sort(pairs)));\n"
         "    let order = compare;\n"
         "    Io.println(Io.show(#(order('b', 'a'), 5 |> compare(5))))\n"
         "}\n"),
@@ -1847,10 +1846,10 @@ float_fault_test() ->
                        "export fn main() : Unit = "
                        "Io.println(Float.toString(Int.toFloat(1 / n()) + 1.0))\n"),
     ?assertMatch({fault, <<"division by zero">>, _}, Result4),
-    %% Float.+ taken as a value faults the same way
+    %% an addition in a function value faults the same way
     {Result5, _} = run("export fn main() : Unit = "
                        "Io.println(Float.toString(List.foldLeft([1.0e308, 1.0e308], 0.0,"
-                       " Float.+)))\n"),
+                       " fn(sum, x) = sum + x)))\n"),
     ?assertMatch({fault, <<"float arithmetic error">>, _}, Result5).
 
 %% report §3.1, §7.3, §7.4: a Float operation is the host's own, and the
@@ -2042,7 +2041,7 @@ user_operators_test() ->
     Vec = "export type Vec = Vec(Int)\n"
           "export fn Vec.+(Vec(a), Vec(b)) : Vec = Vec(a + b)\n"
           "export fn Vec.*(Vec(a), Vec(b)) : Float = Int.toFloat(a * b)\n"
-          "export fn Vec.compare(Vec(a), Vec(b)) : Ordering = Int.compare(b, a)\n"
+          "export fn Vec.compare(Vec(a), Vec(b)) : Ordering = compare(b, a)\n"
           "export fn Vec.negate(Vec(a)) : Vec = Vec(-a)\n"
           "fn show(Vec(n)) : String = Int.toString(n)\n",
     {ok, Output} = run(Vec ++
@@ -2084,7 +2083,7 @@ let_order_through_supplied_member_test() ->
         "    OrderedSet.toList(ops.fromList([T(4), T(3)]))\n"
         "}\n"
         "let derived = OrderedSet.toList(OrderedSet.fromList([P(t = T(6)), P(t = T(5))]))\n"
-        "fn T.compare(T(a) : T, T(b) : T) : Ordering = Int.compare(a * scale, b * scale)\n"
+        "fn T.compare(T(a) : T, T(b) : T) : Ordering = compare(a * scale, b * scale)\n"
         "let scale = 1\n"
         "export fn main() : Unit =\n"
         "    Io.println(Io.show(#(sorted, filled, derived)))\n"),
@@ -2124,7 +2123,8 @@ foreign_fn_test() ->
         "    Io.println(Int.toString(size(\"abc\")));\n"
         "    let _ = each(fn(n : Int) = Io.println(Int.toString(n)), [1, 2]);\n"
         "    let f = size;\n"
-        "    Io.println(Int.toString(List.foldLeft(List.map([\"a\", \"bb\"], f), 0, Int.+)))\n"
+        "    Io.println(Int.toString(List.foldLeft(List.map([\"a\", \"bb\"], f), 0,"
+        " fn(sum, n) = sum + n)))\n"
         "}\n"),
     ?assertEqual(<<"one\n3\n1\n2\n3\n">>, Output).
 
@@ -2711,7 +2711,7 @@ qualified_own_name_test() ->
                  Refused("type Box = Box(Int)\nfn f() : M.Box = Box(1)\n")),
     ?assertEqual("M.Box is the module's own Box, which no binding hides",
                  Refused("type Box = Box(Int)\nfn f() : Box = M.Box(1)\n")),
-    ?assertEqual("M.Box.negate is the module's own Box.negate, which no binding hides",
+    ?assertEqual("`M.Box.negate` names a member, which an expression reaches through prefix `-`",
                  Refused("type Box = Box(Int)\n"
                          "fn Box.negate(b : Box) : Box = b\n"
                          "fn f() : Box = M.Box.negate(Box(1))\n")).
@@ -2911,7 +2911,8 @@ initialization_order_test() ->
 
 %% report §4.2: a name shadowed at each step of the lookup order compiles
 %% to the declaration the checker resolved it to, which the emitter reads
-%% from the name's `ref` rather than resolving again: a type's member, the
+%% from the name's `ref` rather than resolving again: a type's member,
+%% which prefix `-` reaches, beside a function of the member's name, the
 %% module's own function over the prelude's `self`, the module named
 %% qualified past a local binding that hides it, `Prelude.self`, and a
 %% local binding over them all. A regression test for the single decision;
@@ -2923,7 +2924,7 @@ lookup_order_test() ->
                        "fn self() : Int = 5\n"
                        "export fn main() : Unit receiving Never = {\n"
                        "    let me = Prelude.self();\n"
-                       "    let first = Box.negate(Box(1)) + negate(Box(1)) + self();\n"
+                       "    let first = -Box(1) + negate(Box(1)) + self();\n"
                        "    let self = fn() : Int = 10;\n"
                        "    let second = self() + M.self();\n"
                        "    let negate = fn(b : Box) : Int = 1000;\n"
@@ -3145,25 +3146,28 @@ down_site_test() ->
         "export fn main() : Unit receiving Msg = outer()\n"),
     ?assertEqual(<<"M.outer:7\nM.outer:9\nM.outer:11\n">>, Output).
 
-%% report §9.4, §9.6: spawn, the Int operators, and <> are functions and
-%% may be passed as values
+%% report §9.4, §9.6: spawn and compare are functions and may be passed as
+%% values; report §4.5: an operator's member is no value, and a lambda
+%% passes the operation
 prelude_values_test() ->
     {ok, Output} = run(
         "fn apply2(f : (Int, Int) -> Int, a : Int, b : Int) : Int = f(a, b)\n"
         "fn twice(f : (Int) -> Int, a : Int) : Int = f(f(a))\n"
         "fn join(f : (String, String) -> String) : String = f(\"a\", \"b\")\n"
+        "fn order(f : (Int, Int) -> Ordering) : Ordering = f(1, 2)\n"
         "fn start(s : (() -> Unit receiving Never) -> Address(Never)) : Address(Never) ="
         " s(fn() = Unit)\n"
         "export fn main() : Unit = {\n"
-        "    Io.println(Int.toString(apply2(Int.+, 2, 3)));\n"
-        "    Io.println(Int.toString(apply2(Int./, 7, 2)));\n"
-        "    Io.println(Int.toString(apply2(Int.%, 7, 2)));\n"
-        "    Io.println(Int.toString(twice(Int.negate, 5)));\n"
-        "    Io.println(join(String.<>));\n"
+        "    Io.println(Int.toString(apply2(fn(a, b) = a + b, 2, 3)));\n"
+        "    Io.println(Int.toString(apply2(fn(a, b) = a / b, 7, 2)));\n"
+        "    Io.println(Int.toString(apply2(fn(a, b) = a % b, 7, 2)));\n"
+        "    Io.println(Int.toString(twice(fn(a) = -a, 5)));\n"
+        "    Io.println(join(fn(a, b) = a <> b));\n"
+        "    Io.println(Io.show(order(compare)));\n"
         "    let _ = start(spawn);\n"
         "    Unit\n"
         "}\n"),
-    ?assertEqual(<<"5\n3\n1\n5\nab\n">>, Output).
+    ?assertEqual(<<"5\n3\n1\n5\nab\nLess\n">>, Output).
 
 %% report Appendix E, §5.2: a stdlib function and an Address function
 %% passed as values
@@ -3248,12 +3252,13 @@ prelude_targets_test() ->
 %% arithmetic and negate, the `<>` of String and Bytes, and `compare`, are
 %% inline and have no target; Float's operators, and the `<>` of List and Path, are
 %% their modules' functions (report §4.8), each the function its unit names
-%% it by (report §11.1, ern_code:function/2).
+%% it by (report §11.1, ern_code:function/2), a parameter after the
+%% function's own for each member its requirement names (report §4.9).
 prelude_target(QualifiedName, Text) ->
-    {TypeText, _} = ern_prelude:signature(Text),
+    {TypeText, Requirement} = ern_prelude:signature(Text),
     {ok, Syntax} = ern_parser:parse_type(TypeText),
     Arity = case Syntax of
-                #t_fn{params = Params} -> length(Params);
+                #t_fn{params = Params} -> length(Params) + length(Requirement);
                 _ -> 0
             end,
     case QualifiedName of
@@ -3886,7 +3891,7 @@ requirement_supplied_test() ->
             "fn Money.+(Money(a) : Money, Money(b) : Money) : Money =\n    Money(a + b)\n"
             "fn Money.negate(Money(a) : Money) : Money =\n    Money(0 - a)\n"
             "fn total(list : List(a), zero : a) : a needs a.+ =\n"
-            "    List.foldLeft(list, zero, a.+)\n"
+            "    List.foldLeft(list, zero, fn(acc, x) = acc + x)\n"
             "fn opposite(x : a) : a needs a.negate =\n    -x\n"
             "fn largest(list : List(a)) : Optional(a) needs a.compare = {\n"
             "    fn larger(x : a, y : a) : a =\n        if x < y then y else x;\n"
@@ -3981,7 +3986,7 @@ derived_compare_test() ->
             "    Io.println(Io.show(one < Pair(first = 1, second = \"c\")));\n"
             "    let leaf = Node(left = Leaf, value = 2, right = Leaf);\n"
             "    Io.println(Io.show(leaf > Node(left = Leaf, value = 1, right = Leaf)));\n"
-            "    Io.println(Io.show(Pair.compare(one, one)))\n}\n"),
+            "    Io.println(Io.show(compare(one, one)))\n}\n"),
     ?assertEqual(<<"[Dot, Circle(2), Circle(3), Rect(w = 1, h = 1), Rect(w = 1, h = 2)]\n"
                    "true\ntrue\nEqual\n">>, Output).
 

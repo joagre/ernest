@@ -936,7 +936,7 @@ fn screenWidth() : Int =
 // those its loads evaluated bindings in among them.
 fn sessionProcesses() : List(String) = {
     let sites = List.map(List.filterMap(Process.live(), Process.status), fn(status) = status.site);
-    List.sort(sites, compare)
+    List.sort(sites)
 }
 
 // Report §11.2: the depth and the length a value is printed to, the rows

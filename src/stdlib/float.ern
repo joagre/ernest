@@ -78,7 +78,7 @@ export fn Float./(dividend : Float, divisor : Float) : Float =
 /// ### Examples
 ///
 /// ```ernest
-/// Float.negate(1.5)
+/// -(1.0 + 0.5)
 /// // => -1.5
 /// ```
 export fn negate(float : Float) : Float =
@@ -89,7 +89,7 @@ export fn negate(float : Float) : Float =
 /// ### Examples
 ///
 /// ```ernest
-/// Float.compare(2.0, 1.0)
+/// compare(2.0, 1.0)
 /// // => Greater
 /// ```
 export fn compare(left : Float, right : Float) : Ordering =

@@ -1222,7 +1222,7 @@ operators_across_modules_test() ->
           "export type Vec = Vec(Int)\n"
           "export fn Vec.+(Vec(a), Vec(b)) : Vec = Vec(a + b)\n"
           "export fn Vec.*(Vec(a), Vec(b)) : Float = Int.toFloat(a * b)\n"
-          "export fn Vec.compare(Vec(a), Vec(b)) : Ordering = Int.compare(a, b)\n"
+          "export fn Vec.compare(Vec(a), Vec(b)) : Ordering = compare(a, b)\n"
           "export fn show(Vec(n)) : String = Int.toString(n)\n"),
     write(Dir, "src/main.ern",
           "export fn main() : Unit = {\n"
@@ -1241,9 +1241,9 @@ operators_across_modules_test() ->
                                     "bad.ern:1:35: `-` is not defined on Geo.Vec.Vec\n")),
     ?assertNot(filelib:is_regular(Dir ++ "/build/bad.erc")).
 
-%% report §3.10, §4.2, §11.2: a type member of another module is called by
-%% its module path, type, and member, and loads from the module that owns
-%% it; `<` on the type reaches it there
+%% report §3.10, §4.5, §11.2: a type member of another module is reached
+%% by `compare` and `<` on the type, and loads from the module that owns
+%% it
 type_member_across_modules_test() ->
     Dir = tmp(),
     write(Dir, "src/lib/stack.ern",
@@ -1251,12 +1251,12 @@ type_member_across_modules_test() ->
           "export let empty : Stack(a) = Stack([])\n"
           "export fn push(x : a, Stack(xs) : Stack(a)) : Stack(a) = Stack(x :: xs)\n"
           "export fn Stack.compare(Stack(xs) : Stack(a), Stack(ys) : Stack(a)) : Ordering =\n"
-          "    Int.compare(List.size(xs), List.size(ys))\n"),
+          "    compare(List.size(xs), List.size(ys))\n"),
     write(Dir, "src/main.ern",
           "export fn main() : Unit = {\n"
           "    let s = Lib.Stack.push(1, Lib.Stack.empty);\n"
           "    let t = Lib.Stack.push(2, s);\n"
-          "    Io.println(Io.show(Lib.Stack.Stack.compare(t, s)));\n"
+          "    Io.println(Io.show(compare(t, s)));\n"
           "    Io.println(Io.show(s < t));\n"
           "    Io.println(Io.show(#(s, 2)))\n"
           "}\n"),
@@ -1305,10 +1305,11 @@ foreign_shown_as_foreign_test() ->
     ?assertEqual(<<"#(<foreign>, [<foreign>], <foreign>)\n">>,
                  iolist_to_binary(?capturedOutput)).
 
-%% report §4.2: `T.name` is the module's own member where its type `T`
-%% declares one of that name, and the module T's `name` otherwise. A
-%% regression test: the build left module T out wherever the module
-%% declared a type T, and `Stack.other` was an unknown name
+%% report §4.2: `T.name` is the module T's `name`, a dotted name's first
+%% segment being a namespace, beside the module's own type `T`, whose
+%% member prefix `-` reaches (§4.5). A regression test: the build left
+%% module T out wherever the module declared a type T, and `Stack.other`
+%% was an unknown name
 type_name_shares_a_module_test() ->
     Dir = tmp(),
     write(Dir, "src/stack.ern", "export fn other() : Int = 7\n"),
@@ -1316,7 +1317,7 @@ type_name_shares_a_module_test() ->
           "type Stack = Stack(List(Int))\n\n"
           "fn Stack.negate(s : Stack) : Int = match s { Stack(xs) -> List.size(xs) }\n\n"
           "export fn main() : Unit =\n"
-          "    Io.println(Int.toString(Stack.other() + Stack.negate(Stack([1]))))\n"),
+          "    Io.println(Int.toString(Stack.other() + -Stack([1])))\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"8\n">>, iolist_to_binary(?capturedOutput)).
@@ -1441,16 +1442,16 @@ stack_parent() ->
     "export type Stack = Stack(items : List(Int))\n"
     "\n"
     "export fn Stack.compare(left : Stack, right : Stack) : Ordering =\n"
-    "    Int.compare(List.size(left.items), List.size(right.items))\n"
+    "    compare(List.size(left.items), List.size(right.items))\n"
     "\n"
     "export fn empty() : Stack = Stack(items = [])\n".
 
-%% report §4.2, §11.5: the module of a type's name shares the type's
-%% namespace, and a third module reaches the member and the module's
-%% functions by one prefix, `Main.Stack.compare` the member and
-%% `Main.Stack.push` the module's. A regression test, written after the
-%% code: the checker took `Main.Stack.push` for a member, which worked by
-%% accident; it does not cover a member of a private type
+%% report §4.2, §4.5, §11.5: the module of a type's name shares the type's
+%% namespace, and a third module reaches the member by `compare` and the
+%% module's functions by the prefix, `Main.Stack.push`. A regression test,
+%% written after the code: the checker took `Main.Stack.push` for a
+%% member, which worked by accident; it does not cover a member of a
+%% private type
 shared_namespace_test() ->
     Dir = tmp(),
     write(Dir, "src/main.ern", stack_parent()),
@@ -1463,7 +1464,7 @@ shared_namespace_test() ->
           "export fn main() : Unit = {\n"
           "    let one = Main.Stack.push(Main.empty(), 1);\n"
           "    let two = Main.Stack.push(one, 2);\n"
-          "    Io.println(Io.show(Main.Stack.compare(one, two)));\n"
+          "    Io.println(Io.show(compare(one, two)));\n"
           "    Io.println(Io.show(two));\n"
           "    Io.println(Int.toString(Main.Stack.size(two)))\n"
           "}\n"),
@@ -1472,11 +1473,12 @@ shared_namespace_test() ->
     ?assertEqual(<<"Less\nStack(items = [2, 1])\n2\n">>,
                  iolist_to_binary(?capturedOutput)).
 
-%% report §4.2, §11.1: a module that names a member of a type through the
-%% type's namespace depends on the module that declares the type, though
-%% the module of the type's name exists and uses nothing of it. A
-%% regression test, written after the code: the build took the module of
-%% the name for the dependency, and the member was unknown
+%% report §4.2, §4.5, §11.1: a module that names a member of a type
+%% through the type's namespace depends on the module that declares the
+%% type, though the module of the type's name exists and uses nothing of
+%% it, so that the name is refused as the member's it is. A regression
+%% test, written after the code: the build took the module of the name for
+%% the dependency, and the member was unknown
 member_reached_through_its_namespace_test() ->
     Dir = tmp(),
     write(Dir, "src/main.ern", stack_parent()),
@@ -1487,9 +1489,10 @@ member_reached_through_its_namespace_test() ->
           "    let _ = compare;\n"
           "    Io.println(Int.toString(Main.Stack.one()))\n"
           "}\n"),
-    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
-    ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/user.erc"])),
-    ?assertEqual(<<"1\n">>, iolist_to_binary(?capturedOutput)).
+    ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
+                                      <<"user.ern:2:19: `Main.Stack.compare` names a member, which"
+                                        " an expression reaches through `compare`\n">>)).
 
 %% report §4.2: a module calls the module of its own type's name by the
 %% qualified name the two share, `Epx.Window.open` in `epx.ern` beside its
@@ -1527,7 +1530,7 @@ member_clash_test() ->
             "    Main.Stack(items = item :: stack.items)\n"
             "\n",
     Function = Child ++ "export fn compare(left : Int, right : Int) : Ordering =\n"
-                        "    Int.compare(left, right)\n",
+                        "    if left < right then Less else Equal\n",
     write(Dir, "src/main/stack.ern", Function),
     ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
     Message = <<"main/stack.ern:4:8: Main.Stack.compare is a member of the type Stack in the"
@@ -1667,8 +1670,8 @@ abstract_constructor_outside_test() ->
 %% report §4.2: type names that differ only in case are distinct, and a
 %% type whose name differs only in case from a child module's segment does
 %% not take that module's namespace: `STACK` in main.ern beside
-%% main/stack.ern compiles, `STACK.negate` is main's own member, written
-%% plain within main (§4.2), and `Main.Stack.one` is the child module's. A
+%% main/stack.ern compiles, `STACK.negate` is main's own member, which
+%% prefix `-` reaches (§4.5), and `Main.Stack.one` is the child module's. A
 %% regression test, written after the code; single-file mode is not covered.
 case_distinct_names_test() ->
     Dir = tmp(),
@@ -1678,7 +1681,7 @@ case_distinct_names_test() ->
           "export type STACK2 = B\n"
           "export fn STACK.negate(s : STACK) : Int = match s { STACK(n) -> n }\n"
           "export fn main() : Unit = Io.println(Int.toString(\n"
-          "    STACK.negate(STACK(3)) * 100 + STACK.negate(STACK(4)) * 10\n"
+          "    -STACK(3) * 100 + -STACK(4) * 10\n"
           "    + Main.Stack.one()))\n"),
     write(Dir, "src/main/stack.ern", "export fn one() : Int = 1\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
@@ -3786,7 +3789,7 @@ doc_test() ->
                  "export fn put(x : a, Box(xs) : Box(a)) : Box(a) = Box(x :: xs)\n"
                  "/// By size.\n"
                  "export fn Box.compare(Box(xs) : Box(a), Box(ys) : Box(a)) : Ordering =\n"
-                 "    Int.compare(List.size(xs), List.size(ys))\n"
+                 "    compare(List.size(xs), List.size(ys))\n"
                  "export fn same(a, b) = a == b\n"
                  "/// Documented but private.\n"
                  "fn twice(n : Int) : Int = 2 * n\n"

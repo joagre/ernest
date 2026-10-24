@@ -512,9 +512,6 @@ bare_expr(#e_call{pipe = true} = Call, Code) ->
              {nest, 4, [[line, token('|>'), space(), lists:duplicate(Parens, token('(')),
                          expr(Callee, Code), Args, lists:duplicate(Parens, token(')'))]
                         || {Callee, Args, Parens} <- Stages]}]};
-bare_expr(#e_member{}, _) ->
-    %% report §4.9: `a.compare`, `a.+`
-    [token(), token('.'), token()];
 bare_expr(#e_selection{expr = Expr}, Code) ->
     [expr(Expr, Code), token('.'), token()];
 bare_expr(#e_negation{expr = Expr}, Code) ->

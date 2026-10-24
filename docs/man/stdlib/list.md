@@ -33,15 +33,15 @@ List.map([1, 2, 3], fn(n) = n * 2) <> [0]
 The even numbers from 1 to 10, summed:
 
 ```ernest
-List.foldLeft(List.filter(List.range(1, 10), fn(n) = n % 2 == 0), 0, Int.+)
+List.foldLeft(List.filter(List.range(1, 10), fn(n) = n % 2 == 0), 0, fn(sum, n) = sum + n)
 // => 30
 ```
 
-Words sorted by the order of `String`:
+Words sorted by the order of `String`, and by their length:
 
 ```ernest
-List.sort(["pear", "fig", "apple"], compare)
-// => ["apple", "fig", "pear"]
+#(List.sort(["pear", "fig", "apple"]), List.sortBy(["pear", "fig", "apple"], String.size))
+// => #(["apple", "fig", "pear"], ["fig", "pear", "apple"])
 ```
 
 ## See also
@@ -80,7 +80,7 @@ element type's `compare`, and a list before a longer one it begins
 ### Examples
 
 ```ernest
-#(List.compare([1, 2], [1, 3]), [1, 2] < [1, 2, 0], ["b"] > ["a", "z"])
+#(compare([1, 2], [1, 3]), [1, 2] < [1, 2, 0], ["b"] > ["a", "z"])
 // => #(Less, true, true)
 ```
 
@@ -492,21 +492,48 @@ List.reverse([1, 2, 3])
 ## List.sort
 
 ```ernest
-List.sort(list : List(a), compare : (a, a) -> Ordering receiving e) : List(a) receiving e
+List.sort(list : List(a)) : List(a) needs a.compare
 ```
 
-The elements sorted by `compare`, smallest first. `compare` is an order
-(report §3.10), the prelude's `compare` or one of the program's.
+The elements sorted by the order of their type, the least first (report
+§3.10).
 
-The sort is stable: two elements `compare` calls `Equal` keep the order they
-had. So to sort by age, and by name among equal ages, sort by name first and
-then by age.
+The sort is stable: two elements `compare` calls `Equal` keep the order
+they had. Another order is a key, which `sortBy` sorts by.
 
 ### Examples
 
 ```ernest
-List.sort([3, 1, 2], compare)
+List.sort([3, 1, 2])
 // => [1, 2, 3]
+```
+
+## List.sortBy
+
+```ernest
+List.sortBy(list : List(a), key : (a) -> k receiving e) : List(a) receiving e needs k.compare
+```
+
+*Since 0.5.0.*
+
+The elements sorted by their `key`, the least first by the order of the
+key's type (report §3.10). `key` is called once for each element, in
+order.
+
+The sort is stable: two elements whose keys `compare` calls `Equal` keep
+the order they had. A key that is a tuple orders by its first component,
+and by the next among equals; one that is a number made negative orders
+the greatest first.
+
+### Examples
+
+The words by their length, and the longest first, the order of `String`
+among equal lengths:
+
+```ernest
+#(List.sortBy(["pear", "fig", "kiwi"], String.size),
+  List.sortBy(["pear", "fig", "kiwi"], fn(word) = #(-String.size(word), word)))
+// => #(["fig", "pear", "kiwi"], ["kiwi", "pear", "fig"])
 ```
 
 ## List.minimumBy

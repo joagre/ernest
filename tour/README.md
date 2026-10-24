@@ -261,7 +261,7 @@ export fn get(Tally(counts) : Tally(k), key : k) : Int =
     Optional.withDefault(Map.get(counts, key), 0)
 
 export fn report(Tally(counts) : Tally(k)) : List(#(k, Int)) needs k.compare =
-    List.sort(Map.toList(counts), fn(#(a, _), #(b, _)) = k.compare(a, b))
+    List.sortBy(Map.toList(counts), fn(#(key, _)) = key)
 ```
 
 Below are `counter.ern`'s type, its loop, the helper that writes a report, and two tests; `apply` grows a key, `inc apples 2` and `get apples`, and a `report`, as `tour/5/` has it. The second test is the tour's one planted mistake: it waits for a message nothing sends.

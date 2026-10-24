@@ -5,17 +5,9 @@
 Operations on `Bool`, the type of `true` and `false`.
 
 The language itself has `&&`, `||`, `!` and `if`. This module holds the
-rest: `not` as a function, to pass where a function is wanted, and
-`toString`.
+rest, `toString`.
 
 ## Examples
-
-`not` of a comparison:
-
-```ernest
-Bool.not(1 < 2)
-// => false
-```
 
 A `Bool` as text:
 
@@ -23,15 +15,6 @@ A `Bool` as text:
 Bool.toString(true)
 // => "true"
 ```
-
-## Bool.not
-
-```ernest
-Bool.not(bool : Bool) : Bool
-```
-
-The other truth value, as a prefix `!` gives it, to pass where a function is
-wanted: `List.filter(flags, Bool.not)`.
 
 ## Bool.toString
 

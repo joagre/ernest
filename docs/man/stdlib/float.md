@@ -102,7 +102,7 @@ Float.negate(float : Float) : Float
 ### Examples
 
 ```ernest
-Float.negate(1.5)
+-(1.0 + 0.5)
 // => -1.5
 ```
 
@@ -117,7 +117,7 @@ Compares two floats by size, the order `<` and the other comparisons use.
 ### Examples
 
 ```ernest
-Float.compare(2.0, 1.0)
+compare(2.0, 1.0)
 // => Greater
 ```
 

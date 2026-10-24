@@ -119,11 +119,6 @@
 %% member, which the checker sets: the supply of the member an arithmetic
 %% or ordering operator resolves to (report §4.8, §4.9), undefined where the
 %% operation is the runtime's own
--record(e_member, {span, member_of, name, supply, type}).
-%% Report §4.9, Appendix A: `a.compare`, `a.negate` or `a.+`, the member of
-%% the type variable member_of under a requirement; a derived compare
-%% (§3.5) names a field's type, a #t_named{}, as member_of. supply: set by
-%% the checker
 -record(e_lambda, {span, params, result_type, effect, body, type}).
 %% result_type/effect: as on fn_declaration
 -record(e_if, {span, condition, then_branch, else_branch, type}).

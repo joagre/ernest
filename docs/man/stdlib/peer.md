@@ -351,7 +351,7 @@ The work run on the least busy of the peers that told how busy they
 are, or here, as in a program that is no node, which holds none:
 
 ```ernest
-match List.sort(Peer.utilizations(), fn(#(_, a, _), #(_, b, _)) = compare(a, b)) {
+match List.sortBy(Peer.utilizations(), fn(#(_, utilization, _)) = utilization) {
     #(name, _, _) :: _ -> Peer.computeAt(name, fn() = 6 * 7, 5000)
   | [] -> Right(6 * 7)
 }

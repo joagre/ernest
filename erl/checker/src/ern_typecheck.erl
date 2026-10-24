@@ -26,8 +26,8 @@
          ground_term/2, global_scheme/2, is_provided/2, described_type/2, let_order/1,
          foreign_implementation/1, fields/2, declared_scheme/3, is_running_never/2,
          declaration_type/2, is_top_let/2, is_foreign/2, declaration_scheme/2,
-         declared_fields/3, session_member/3, lookup_constructor/4, constructor_info/2,
-         is_value/2, resolve_type/2, node_type/1]).
+         declared_fields/3, is_member_name/3, session_member/3, lookup_constructor/4,
+         constructor_info/2, is_value/2, resolve_type/2, node_type/1]).
 
 -export_type([env/0, session_scope/0]).
 
@@ -268,7 +268,8 @@ hidden_notes(Declarations, Diagnostics, Seeded) ->
     ConstructorNames = [Name || #type_declaration{constructors = Constructors}
                                     <- declared_types(Declarations),
                                 #constructor{name = Name} <- Constructors],
-    Values = [Name || Declaration <- Declarations, Name <- top_value_name(Declaration)],
+    Values = [Name || Declaration <- Declarations, Name <- top_value_name(Declaration),
+                      not is_unprefixed_member(Name, Seeded)],
     Hidden = [{type, Name} || Name <- Types, lists:member([Name], PreludeTypes)]
         ++ [{constructor, Name} || Name <- ConstructorNames,
                                    lists:member([Name], PreludeConstructors)]
@@ -652,11 +653,11 @@ add_interface(Interface, #env{types = Types, globals = Globals} = Env) ->
                                    maps:from_keys(maps:keys(Values), Namespace))}.
 
 %% Report §4.2: the interface without the values a member of its parent's
-%% type takes the place of: `M.T.f` is the member of M's type T where T has
-%% one, so a value of the module M.T of a member's name, which the build
-%% refuses where it reads M (ern_build) and a build of M.T alone that found
-%% no M does not, never takes the member's place, whichever interface comes
-%% first.
+%% type takes the place of: the member of M's type T, which an operator
+%% reaches, keeps `M.T.f` among the globals, so a value of the module M.T
+%% of a member's name, which the build refuses where it reads M (ern_build)
+%% and a build of M.T alone that found no M does not, never takes the
+%% member's place, whichever interface comes first.
 without_shadowed(#interface{namespace = Namespace, values = Values, lets = Lets,
                             identities = Identities, reaches = Reaches,
                             positions = Positions, terms = Terms} = Interface,
@@ -1490,22 +1491,22 @@ references_in(#e_var{supplies = [_ | _] = Supplies} = Variable, Env, Acc, Bound)
                   Bound);
 references_in(#e_var{namespace = [], name = Name}, _Env, Acc, Bound) when is_map_key(Name, Bound) ->
     Acc;
-references_in(#e_var{namespace = [], name = Name}, _Env, Acc, _Bound) -> [{undefined, Name} | Acc];
+references_in(#e_var{namespace = [], name = Name}, Env, Acc, _Bound) ->
+    %% report §4.2: a prelude type's compare, in its module, is no name a
+    %% body writes
+    case is_unprefixed_member(Name, Env) of
+        true -> Acc;
+        false -> [{undefined, Name} | Acc]
+    end;
 references_in(#e_var{namespace = Namespace, name = Name}, #env{namespace = Namespace}, Acc, _Bound)
   when Namespace =/= [] ->
     %% the module's own qualified name (report §4.2), which a local binding
     %% of the same name does not hide
     [{undefined, Name} | Acc];
-references_in(#e_var{namespace = [MemberOf], name = Name}, #env{local_types = LocalTypes}, Acc,
-              _Bound) ->
-    case maps:is_key(MemberOf, LocalTypes) of true -> [{MemberOf, Name} | Acc]; false -> Acc end;
-references_in(#e_var{namespace = Namespace} = Variable, #env{namespace = OwnNamespace} = Env, Acc,
-              Bound)
-  when length(Namespace) > 1 ->
-    case is_own_type_namespace(Namespace, OwnNamespace) of
-        true -> references_in(Variable#e_var{namespace = [lists:last(Namespace)]}, Env, Acc, Bound);
-        false -> Acc
-    end;
+references_in(#e_var{}, _Env, Acc, _Bound) ->
+    %% another module's name, a dotted name's first segment being a
+    %% namespace (report §4.2)
+    Acc;
 references_in(#e_binop{operator = Operator, left = Left, right = Right}, Env, Acc, Bound)
   when is_atom(Operator) ->
     Member = case lists:member(Operator, ?ORDER) of
@@ -2144,8 +2145,9 @@ signature_shape(_, _, Env) ->
 
 %% Report §3.5, §4.9: a declaration with a requirement binds no name that
 %% is one of its signature's type variables, in a parameter, a pattern or
-%% a local fn's name, so that `a.compare` names a member and nothing else.
-%% The first such binding in the source is the error.
+%% a local fn's name, so that `a.compare` in its body is the member, which
+%% no expression names (§4.5), and no field of a value. The first such
+%% binding in the source is the error.
 binds_no_type_variable(#fn_declaration{requirement = []}) ->
     ok;
 binds_no_type_variable(#fn_declaration{params = Params, body = Body} = Declaration) ->
@@ -2160,8 +2162,7 @@ binds_no_type_variable(#fn_declaration{params = Params, body = Body} = Declarati
             fail(Span, "`" ++ Text ++ "` names a type variable of the signature, and a"
                        " declaration with a requirement binds no name that is one of its type"
                        " variables", [],
-                 "rename the binding; " ++ Text ++ ".compare names the member of " ++ Text
-                 ++ "'s type")
+                 "rename the binding")
     end.
 
 %% The names among Variables a node binds itself, each where it stands.
@@ -2850,7 +2851,7 @@ unresolved(#deferred_selection{span = Span, field = Field, operand_type = Operan
                                annotated = Annotated}, Env) ->
     %% report §11.5: a type variable of the signature is determined and has
     %% no field; report §4.9: a member the requirement names on it is
-    %% written on the variable
+    %% reached as on a known type
     case signature_variable(OperandType, Env) of
         {Variable, Declaration} ->
             fail(Span, "a value of " ++ Variable ++ ", a type variable of " ++ Declaration
@@ -2873,17 +2874,18 @@ annotatable(#e_var{namespace = [], name = Name, referent = var}) -> Name;
 annotatable(#e_selection{expr = Expr}) -> annotatable(Expr);
 annotatable(_) -> undefined.
 
-%% Report §11.5, §4.9: the help that writes a member the requirement names
-%% on the type variable, its values left to the writer; none where the
-%% requirement names no member of the field's name there, `show` being no
-%% member.
+%% Report §11.5, §4.9, §4.5: the help that writes what reaches a member
+%% the requirement names at the type variable, its values left to the
+%% writer; none where the requirement names no member of the field's name
+%% there, `show` being no member.
 written_on_variable(Variable, Field, OperandType, Env) ->
     case Field =/= show andalso is_in_force(OperandType, Field, Env) of
         true ->
-            Arguments = lists:append(lists:join(", ", lists:duplicate(member_arity(Field), "..."))),
-            "under `needs " ++ Variable ++ "." ++ atom_to_list(Field) ++ "`, write the member on"
-                " the type variable, `" ++ Variable ++ "." ++ atom_to_list(Field) ++ "("
-                ++ Arguments ++ ")`";
+            Reaching = case Field of
+                           compare -> "`compare(..., ...)`";
+                           negate -> "`-(...)`"
+                       end,
+            "under `needs " ++ Variable ++ "." ++ atom_to_list(Field) ++ "`, write " ++ Reaching;
         false ->
             undefined
     end.
@@ -3715,21 +3717,6 @@ path_text(Path) -> lists:join(".", [atom_to_list(Segment) || Segment <- Path]).
 %% Requirements (report §4.9)
 %%
 
-%% The type variable a member written `a.compare` names, which the
-%% requirement in force must name.
-in_force(Span, Variable, Member, #env{annotation_variables = AnnotationVariables} = Env) ->
-    Wanted = atom_to_list(Variable) ++ "." ++ atom_to_list(Member),
-    case AnnotationVariables of
-        #{Variable := TypeVariable} ->
-            is_in_force(TypeVariable, Member, Env)
-                orelse fail(Span, declaration_text(Env) ++ " does not declare " ++ Wanted, [],
-                            requirement_help(Wanted, declaration_text(Env))),
-            TypeVariable;
-        _ ->
-            fail(Span, atom_to_list(Variable) ++ " is no type variable of the signature", [],
-                 "a member is written on a type variable the signature names, as a.compare")
-    end.
-
 %% Whether the requirement in force names the member at the type variable.
 is_in_force(TypeVariable, Member, #env{requirement = Requirement, type_state = TypeState}) ->
     Resolved = ern_types:resolve(TypeVariable, TypeState),
@@ -4408,6 +4395,8 @@ infer(#e_literal{kind = Kind} = Expr, Env) ->
     Type = literal_type(Kind),
     {Expr#e_literal{type = Type}, Type, Env};
 infer(#e_var{span = Span, namespace = Namespace, name = Name} = Expr, Env) ->
+    %% report §4.5: a member's name is no value
+    no_member_written(Expr, value, Env),
     %% report §11.2: a name the session declared resolves to the input that
     %% declared it, which its referent records; its namespace stays as written
     {Scheme, Referent, Env1} = lookup_value(Span, Namespace, Name, Env),
@@ -4474,6 +4463,8 @@ infer(#e_call{pipe = true,
     fail(ConstructorSpan, "a construction is a value, not a call, and `|>` does not fill it", [],
          "put the piped value in the construction itself");
 infer(#e_call{span = Span, callee = Callee, args = Args} = Expr, Env) ->
+    %% report §4.5: a member's name called, refused with the call to write
+    no_member_written(Callee, {called, Args}, Env),
     {TypedCallee, CalleeType, Env0} = infer(Callee, Env),
     Env1 = called(TypedCallee, Span, Env0),
     Name = callee_name(Callee),
@@ -4529,6 +4520,8 @@ infer(#e_not{expr = Operand} = Expr, Env) ->
     {Expr#e_not{expr = TypedOperand, type = ?BOOL}, ?BOOL, Env2};
 infer(#e_selection{span = Span, expr = Operand, field = Field, field_span = FieldSpan} = Expr,
       Env) ->
+    %% report §4.5: `a.compare` names a member, which no body writes
+    no_member_written(Expr, value, Env),
     {TypedOperand, OperandType, Env1} = selection_operand(Operand, Field, Env),
     %% report §11.5: a selection's error stands at the selector
     ErrorSpan = case FieldSpan of
@@ -4554,11 +4547,12 @@ infer(#e_binop{span = Span, operator = Operator, left = Left, right = Right} = E
     Member = operator_member(Span, Operator, LeftType),
     {Expr#e_binop{left = TypedLeft, right = TypedRight, member = Member, type = Type}, Type,
      Env3#env{type_state = TypeState}};
-infer(#e_member{span = Span, member_of = Variable, name = Member} = Expr, Env)
+infer(#e_member{member_of = Variable, name = Member} = Expr,
+      #env{annotation_variables = AnnotationVariables} = Env)
   when is_atom(Variable) ->
-    %% report §4.9: `a.compare` under a requirement that names it, a value
-    %% of the member's shape at a
-    TypeVariable = in_force(Span, Variable, Member, Env),
+    %% report §3.5, §4.9: a derived compare's field of the type variable a,
+    %% compared by the member its derived requirement names
+    TypeVariable = maps:get(Variable, AnnotationVariables),
     {Type, TypeState} = open_effect(member_shape_at(Member, TypeVariable),
                                     Env#env.type_state),
     {Expr#e_member{supply = #required_member{variable = TypeVariable, member = Member},
@@ -5091,8 +5085,6 @@ callee_name(#e_selection{expr = Expr, field = Field}) ->
         "the callee" -> "the callee";
         Name -> Name ++ "." ++ atom_to_list(Field)
     end;
-callee_name(#e_member{member_of = Variable, name = Member}) when is_atom(Variable) ->
-    atom_to_list(Variable) ++ "." ++ atom_to_list(Member);
 %% report §5.6: a constructor's value called, named as written, `None()`
 callee_name(#e_constructor{namespace = Namespace, name = Name, args = none}) ->
     ern_namespace:text(Namespace ++ [Name]);
@@ -6413,6 +6405,122 @@ irrefutable(#p_constructor{span = Span, namespace = Namespace, name = Name, args
 irrefutable(_, _) -> false.
 
 %%
+%% A member's name (report §4.5)
+%%
+
+%% Report §4.5, §11.5: a member is reached by its operator, prefix `-` or
+%% `compare` alone, and its name, `Int.compare`, `Stack.negate` or under a
+%% requirement `a.compare`, stands in no expression. It is refused naming
+%% what reaches it, the help writing the call with its arguments, or where
+%% the name is a value, `compare` or a lambda. Use is value or {called,
+%% Args}. An operator's name, `Int.+`, is the parser's to refuse, since
+%% Appendix A writes none in an expression.
+no_member_written(Expr, Use, Env) ->
+    case written_member(Expr, Env) of
+        {ok, Written, Member} ->
+            fail(ern_ast:span(Expr), "`" ++ Written ++ "` names a member, which an expression"
+                                     " reaches through " ++ reaching(Member), [],
+                 member_help(Member, Use));
+        none ->
+            ok
+    end.
+
+%% The member Expr names, as written, or none: a qualified name of one
+%% (is_member_name/3), or `a.compare` and `a.negate`, a type variable of
+%% the signature that no name around it binds.
+written_member(#e_var{namespace = [_ | _] = Namespace, name = Name}, Env)
+  when Name =:= compare; Name =:= negate ->
+    case is_member_name(Namespace, Name, Env) of
+        true -> {ok, ern_namespace:text(Namespace ++ [Name]), Name};
+        false -> none
+    end;
+written_member(#e_selection{expr = #e_var{namespace = [], name = Variable}, field = Field},
+               #env{locals = Locals, local_values = LocalValues,
+                    annotation_variables = AnnotationVariables})
+  when Field =:= compare; Field =:= negate ->
+    case is_map_key(Variable, AnnotationVariables) andalso not is_map_key(Variable, Locals)
+             andalso not is_map_key(Variable, LocalValues) of
+        true -> {ok, atom_to_list(Variable) ++ "." ++ atom_to_list(Field), Field};
+        false -> none
+    end;
+written_member(_, _) ->
+    none.
+
+%% Report §4.2, §4.5: whether Namespace.Name names a member, `Prelude.`
+%% before it or not: one of a type the module or the session declares,
+%% `Stack.compare`, `M.Stack.compare` in M; one of another module's type,
+%% `M.Stack.compare`, which M declares and the module M.Stack does not; or
+%% one of a prelude type, which its module declares unprefixed,
+%% `Int.compare`. The shell's `:type` asks it of a name (§11.2).
+-spec is_member_name([atom()], atom(), env()) -> boolean().
+is_member_name([], _Name, _Env) ->
+    false;
+is_member_name(['Prelude' | [_ | _] = Namespace], Name, Env) ->
+    is_member_name(Namespace, Name, Env);
+is_member_name(Namespace, Name, #env{namespace = OwnNamespace, local_values = LocalValues,
+                                     globals = Globals, declaring = Declaring} = Env) ->
+    MemberOf = lists:last(Namespace),
+    QualifiedName = Namespace ++ [Name],
+    IsOwn = (Namespace =:= [MemberOf] orelse is_own_type_namespace(Namespace, OwnNamespace))
+        andalso (is_map_key({MemberOf, Name}, LocalValues)
+                 orelse session_name(values, {MemberOf, Name}, Env) =/= error),
+    IsUnprefixed = (Name =:= compare orelse Name =:= negate)
+        andalso is_prelude_type_module(Namespace),
+    IsOwn orelse (is_map_key(QualifiedName, Globals)
+                  andalso (maps:get(QualifiedName, Declaring, Namespace) =/= Namespace
+                           orelse IsUnprefixed)).
+
+%% Report §4.2: whether Namespace is the module of a prelude type with
+%% members, the standard library's, which declares its compare and negate
+%% unprefixed; a prelude type without members takes no namespace.
+is_prelude_type_module([TypeName]) -> lists:member(TypeName, ern_prelude:member_types());
+is_prelude_type_module(_) -> false.
+
+%% Report §4.2, §4.5: in the module of a prelude type, its compare and
+%% negate are members, declared unprefixed, and no name a body writes: the
+%% unqualified name there is the prelude's, or none.
+is_unprefixed_member(Name, #env{namespace = Namespace}) ->
+    (Name =:= compare orelse Name =:= negate) andalso is_prelude_type_module(Namespace).
+
+reaching(compare) -> "`compare`";
+reaching(negate) -> "prefix `-`".
+
+%% Report §11.5: the help that writes what reaches the member, its
+%% arguments as written where the help can write them.
+member_help(compare, {called, [Left, Right]}) ->
+    "write `compare(" ++ argument_text(Left) ++ ", " ++ argument_text(Right) ++ ")`";
+member_help(compare, {called, _}) ->
+    "write `compare(..., ...)`";
+member_help(compare, value) ->
+    "write `compare`";
+member_help(negate, {called, [Operand]}) ->
+    "write `" ++ negated_text(Operand) ++ "`";
+member_help(negate, {called, _}) ->
+    "write `-(...)`";
+member_help(negate, value) ->
+    "where a function is wanted, write a lambda, `fn(x) = -x`".
+
+%% An argument as a help writes it: a name, a field of one, or a number,
+%% and `...` for any other.
+argument_text(#e_var{namespace = Namespace, name = Name}) ->
+    ern_namespace:text(Namespace ++ [Name]);
+argument_text(#e_selection{expr = Expr, field = Field}) ->
+    case argument_text(Expr) of
+        "..." -> "...";
+        Text -> Text ++ "." ++ atom_to_list(Field)
+    end;
+argument_text(#e_literal{kind = int, value = Value}) ->
+    integer_to_list(Value);
+argument_text(_) ->
+    "...".
+
+negated_text(Operand) ->
+    case argument_text(Operand) of
+        "..." -> "-(...)";
+        Text -> "-" ++ Text
+    end.
+
+%%
 %% Name lookup (report §4.2)
 %%
 
@@ -6422,72 +6530,50 @@ irrefutable(_, _) -> false.
 %% it, then the module's declaration (report §4.2).
 lookup_value(Span, [], Name, #env{locals = Locals, local_values = LocalValues} = Env) ->
     case {Locals, LocalValues} of
-        {#{Name := Scheme}, _} -> {Scheme, var, Env};
-        {_, #{Name := QualifiedName}} -> local_global(QualifiedName, Env);
-        _ -> lookup_outside(Span, Name, Env)
+        {#{Name := Scheme}, _} ->
+            {Scheme, var, Env};
+        {_, #{Name := QualifiedName}} ->
+            case is_unprefixed_member(Name, Env) of
+                true -> lookup_outside(Span, Name, Env);
+                false -> local_global(QualifiedName, Env)
+            end;
+        _ ->
+            lookup_outside(Span, Name, Env)
     end;
 lookup_value(Span, ['Prelude'], Name,
              #env{globals = Globals, locals = Locals, local_values = LocalValues} = Env) ->
     %% report §4.2: `Prelude.x` is the prelude's x, where a binding or a
     %% declaration of the module's hides it
+    IsDeclared = is_map_key(Name, LocalValues) andalso not is_unprefixed_member(Name, Env),
     case Globals of
         #{[Name] := Scheme} ->
-            hidden(Span, [Name], is_map_key(Name, Locals) orelse is_map_key(Name, LocalValues)
+            hidden(Span, [Name], is_map_key(Name, Locals) orelse IsDeclared
                                  orelse session_name(values, Name, Env) =/= error),
             {Scheme, {prelude, [Name]}, Env};
         _ ->
             fail(Span, "the prelude declares no " ++ atom_to_list(Name))
     end;
-lookup_value(Span, ['Prelude', TypeName], Name, #env{provided = Provided} = Env) ->
+lookup_value(Span, ['Prelude', TypeName], Name,
+             #env{provided = Provided, local_types = LocalTypes} = Env) ->
     %% report §4.2: `Prelude.T.name` is the name of T, a namespace of the
-    %% prelude or the standard library, past a member of the same name that
-    %% a type T of the module's own declares
+    %% prelude or the standard library, past a type T of the module's own
     lists:member(TypeName, Provided) orelse prelude_one(Span, ['Prelude', TypeName], Name),
-    hidden(Span, [TypeName, Name], own_member(TypeName, Name, Env) =/= error),
+    hidden(Span, [TypeName, Name], is_map_key(TypeName, LocalTypes)
+                                   orelse session_name(types, TypeName, Env) =/= error),
     lookup_global(Span, [TypeName], Name, Env);
 lookup_value(Span, ['Prelude' | _] = Namespace, Name, _Env) ->
     prelude_one(Span, Namespace, Name);
-lookup_value(Span, [MemberOf] = Namespace, Name, #env{namespace = OwnNamespace,
-                                                      local_values = LocalValues} = Env) ->
-    case LocalValues of
-        #{{MemberOf, Name} := QualifiedName} -> local_global(QualifiedName, Env);
-        #{Name := QualifiedName} when Namespace =:= OwnNamespace ->
+lookup_value(Span, Namespace, Name,
+             #env{namespace = OwnNamespace, local_values = LocalValues} = Env) ->
+    %% report §4.2: a dotted name's first segment is a namespace, a member
+    %% standing in no expression (no_member_written/3); a module may name
+    %% its own declarations qualified where a binding hides the plain name
+    case {Namespace =:= OwnNamespace, LocalValues} of
+        {true, #{Name := QualifiedName}} ->
             own_qualified(Span, Namespace, Name, Env),
             local_global(QualifiedName, Env);
         _ ->
-            case session_name(values, {MemberOf, Name}, Env) of
-                {ok, QualifiedName} -> session_global(QualifiedName, Name, Env);
-                error -> lookup_global(Span, Namespace, Name, Env)
-            end
-    end;
-lookup_value(Span, Namespace, Name,
-             #env{namespace = OwnNamespace, local_values = LocalValues} = Env) ->
-    %% report §4.2: a module may name its own declarations qualified where a
-    %% binding hides the plain name
-    case Namespace =:= OwnNamespace of
-        true ->
-            case LocalValues of
-                #{Name := QualifiedName} ->
-                    own_qualified(Span, Namespace, Name, Env),
-                    local_global(QualifiedName, Env);
-                _ -> lookup_global(Span, Namespace, Name, Env)
-            end;
-        false ->
-            %% report §4.2: `M.T.name` in module M is M's own member where
-            %% its type T has one of that name, and the module M.T's `name`
-            %% otherwise, which the module's interface says it declares
-            %% (qualified_referent/3)
-            Own = case is_own_type_namespace(Namespace, OwnNamespace) of
-                      true -> own_member(lists:last(Namespace), Name, Env);
-                      false -> error
-                  end,
-            case Own of
-                {ok, QualifiedName} ->
-                    written_plain(Span, OwnNamespace, [lists:last(Namespace), Name]),
-                    local_global(QualifiedName, Env);
-                error ->
-                    lookup_global(Span, Namespace, Name, Env)
-            end
+            lookup_global(Span, Namespace, Name, Env)
     end.
 
 %% Report §4.2: a module's own qualified name is written where a binding
@@ -6525,7 +6611,7 @@ hidden(Span, QualifiedName, false) ->
     Written = "Prelude." ++ Plain,
     Hidden = case QualifiedName of
                  [_] -> "the prelude's " ++ Plain;
-                 _ -> Plain
+                 [Namespace | _] -> atom_to_list(Namespace)
              end,
     {Line, Column, _} = ern_diagnostic:span(Span),
     fail({Line, Column, {Line, Column + length(Written)}},
@@ -6541,12 +6627,6 @@ prelude_one(Span, Namespace, Name) ->
                ++ ": Prelude takes one name the prelude declares, as `Prelude.Some`, or a name"
                " of the prelude's or the standard library's namespaces, as"
                " `Prelude.Io.println`").
-
-own_member(MemberOf, Name, #env{local_values = LocalValues} = Env) ->
-    case LocalValues of
-        #{{MemberOf, Name} := QualifiedName} -> {ok, QualifiedName};
-        _ -> session_name(values, {MemberOf, Name}, Env)
-    end.
 
 %% Report §4.4: an abstract type's constructor is its module's alone, and
 %% each input of a session is a module of its own (report §11.2).
@@ -6595,13 +6675,10 @@ lookup_outside(Span, Name, Env) ->
         {{ok, QualifiedName}, _} -> session_global(QualifiedName, Name, Env);
         {error, #{[Name] := Scheme}} -> {Scheme, {prelude, [Name]}, Env};
         {error, _} ->
-            %% report §4.9: a type variable's members are named under a
-            %% requirement, and the variable is no value
+            %% report §4.9: a type variable names a type, and no value
             Help = case is_map_key(Name, Env#env.annotation_variables) of
-                       true -> atom_to_list(Name) ++ " is a type variable of the signature;"
-                               " its member, as " ++ atom_to_list(Name) ++ ".compare, is named"
-                               " under a requirement, needs " ++ atom_to_list(Name)
-                               ++ ".compare";
+                       true -> atom_to_list(Name) ++ " is a type variable of the signature,"
+                               " which names a type and no value";
                        false -> undefined
                    end,
             unknown_name(Span, Name, Help)

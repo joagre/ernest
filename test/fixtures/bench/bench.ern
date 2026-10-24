@@ -100,11 +100,11 @@ export fn main() : Unit receiving Msg = {
     measure("path_join",
             1000000,
             fn(index) = if path <> Path("index.html") == path then 0 else index);
-    measure("int_compare", 10000000, fn(index) = match Int.compare(index, 5000000) {
+    measure("int_compare", 10000000, fn(index) = match compare(index, 5000000) {
         Less -> 1
       | _ -> 0
     });
-    measure("string_compare", 10000000, fn(index) = match String.compare(first, second) {
+    measure("string_compare", 10000000, fn(index) = match compare(first, second) {
         Less -> index
       | _ -> 0
     });
@@ -164,8 +164,7 @@ fn deepened(count : Int, f : () -> Int receiving m) : Int receiving m =
 fn measureRuns(key : String,
                count : Int,
                operation : (Int) -> Int receiving m) : Unit receiving m = {
-    let timings =
-        List.sort(List.map(List.range(1, 7), fn(_) = timedMicros(count, operation)), compare);
+    let timings = List.sort(List.map(List.range(1, 7), fn(_) = timedMicros(count, operation)));
     let at = fn(index) = Int.toString(Optional.withDefault(List.get(timings, index), 0));
     Io.println(String.join([key, Int.toString(count), at(3), at(0), at(6)], " "))
 }

@@ -199,7 +199,7 @@ comparisons use.
 ### Examples
 
 ```ernest
-Char.compare('b', 'a')
+compare('b', 'a')
 // => Greater
 ```
 

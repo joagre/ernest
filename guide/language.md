@@ -134,7 +134,7 @@ Ernest 0.4.0. :help for the commands, :quit to leave.
 3 : Int
 > let xs = [3, 1, 2]
 xs : List(Int)
-> List.sort(xs, compare)
+> List.sort(xs)
 [1, 2, 3] : List(Int)
 > fn square(n : Int) : Int = n * n
 square : (Int) -> Int
@@ -438,7 +438,7 @@ Ordering is separate: `a < b` asks the type's `compare`, which answers an `Order
 type Money = Money(Int)
 
 fn Money.compare(Money(left), Money(right)) : Ordering =
-    Int.compare(left, right)
+    compare(left, right)
 
 export fn main() : Unit =
     Io.println(if Money(3) < Money(5) then "cheaper" else "not cheaper")
@@ -448,6 +448,8 @@ export fn main() : Unit =
 $ ern run money.erc
 cheaper
 ```
+
+In the body, `compare` compares the two `Int`s, by `Int`'s order: `compare` and `<` choose by the type of their operands. They are how a program reaches `Money.compare`, whose name stands in its declaration alone (report §4.5).
 
 A set in the order of its elements' `compare` is `OrderedSet`, and a map with its keys in order `OrderedMap`; code written once over both kinds of set is §7.3's. `Set` is the prelude's type, which every module names without a module's name (§2.9), so the type of the module `OrderedSet` is written with its module's name, `OrderedSet.Set`.
 
@@ -696,7 +698,7 @@ twice.ern:2:5: the operand type of `+` is not determined; annotate value
   |     ^^^^^^^^^^^^^
 ```
 
-Without a source that fixes the type, `value + value` is a type error, and `(value : Int)` or `(value : Float)` fixes it. A field read is the same: `fn age(person) = person.age` is refused until `person : Person` says whose field it is. Once the type is fixed, `+` is that type's: `Int.+` for an `Int`, `Distance.+` for a user type that declares it as a member, `fn Distance.+`, and `Int.+` is also a function value, as in `List.foldLeft(xs, 0, Int.+)` (report §4.8, report §5.6).
+Without a source that fixes the type, `value + value` is a type error, and `(value : Int)` or `(value : Float)` fixes it. A field read is the same: `fn age(person) = person.age` is refused until `person : Person` says whose field it is. Once the type is fixed, `+` is that type's: `Int.+` for an `Int`, and `Distance.+` for a user type that declares it as a member, `fn Distance.+` (report §4.8, report §5.6). A member's name stands in its declaration alone, so where a function is wanted a lambda passes the operation, `List.foldLeft(xs, 0, fn(sum, x) = sum + x)` (report §4.5).
 
 **What is polymorphic.** A polymorphic name may be used at one type here and at another there.
 
@@ -756,14 +758,12 @@ export fn add(counts : Map(String, Int), word : String, amount : Int) : Map(Stri
     Map.update(counts, word, fn(old) = Optional.withDefault(old, 0) + amount)
 
 export fn top(counts : Map(String, Int), limit : Int) : List(#(String, Int)) =
-    Map.toList(counts) |> List.sort(byCount) |> List.take(limit)
-
-fn byCount(#(leftWord, leftCount) : #(String, Int),
-           #(rightWord, rightCount) : #(String, Int)) : Ordering =
-    compare(#(rightCount, leftWord), #(leftCount, rightWord))
+    Map.toList(counts) |> List.sortBy(fn(#(word, count)) = #(-count, word)) |> List.take(limit)
 ```
 
-`words` lowers the text and splits it at its whitespace (report Appendix E.5). `count` folds the words into a map with `add`. `top` sorts the pairs by count, most first and by word where counts are equal, and keeps `limit` of them. `byCount` is not exported, and its parameters are patterns that take the pairs apart. It compares two tuples, each the count of one pair beside the word of the other, so that the larger count comes first: a tuple is ordered component by component from the left, as a list is, where each component's type is ordered, and `compare` reaches a tuple's order as `<` does (report §3.10). `ern shell words.erc` loads the module and runs nothing, since it has no `main`:
+`words` lowers the text and splits it at its whitespace (report Appendix E.5). `count` folds the words into a map with `add`. `top` sorts the pairs by count, most first and by word where counts are equal, and keeps `limit` of them.
+
+`List.sortBy` orders the pairs by a key, which the lambda makes of each pair, its parameter a pattern that takes the pair apart. The key is a tuple, the count made negative, so that the larger comes first, beside the word. A tuple is ordered component by component from the left, as a list is, where each component's type is ordered, so the word decides between equal counts (report §3.10, Appendix E.2). `ern shell words.erc` loads the module and runs nothing, since it has no `main`:
 
 ```console
 $ ern build words.ern
@@ -1011,7 +1011,7 @@ fn gather(running : Int,
 // collect.ern
 export fn main() : Unit =
     Gather.gathered([3, 1, 2], fn(n) = n * n)
-        |> List.sort(fn(a, b) = compare(a.n, b.n))
+        |> List.sortBy(fn(piece) = piece.n)
         |> List.forEach(fn(piece) =
                             Io.println(Int.toString(piece.n) <> ": " <> Int.toString(piece.value)))
 ```
@@ -2115,7 +2115,7 @@ fn largestOf(list : List(a)) : Optional(a) needs a.compare =
     }
 
 fn sorted(list : List(a)) : List(a) needs a.compare =
-    List.sort(list, a.compare)
+    List.sort(list)
 
 export fn main() : Unit = {
     Io.println(Int.toString(largest(3, [8, 5])));
@@ -2134,7 +2134,7 @@ Some(1.5)
 [1, 2, 3]
 ```
 
-In the body, an operator resolves to the member of whatever type `a` stands for, as it would on a known type: `x > best` in `largest` is `a.compare`. The member is also a value, written `a.compare`, which `sorted` hands to `List.sort`. `List.sort` takes its order as a parameter, since a sort may be given any order; a function declares a requirement where the type's own member is meant.
+In the body, an operator resolves to the member of whatever type `a` stands for, as it would on a known type: `x > best` in `largest` is `a.compare`, and `compare(x, best)` would answer its `Ordering`. The member's name, `a.compare`, stands in the requirement and in no expression. `List.sort` declares `needs a.compare` too, and the call in `sorted` writes nothing for it: `sorted`'s own requirement supplies it.
 
 A call writes nothing for the requirement. `largest(3, [8, 5])` is `largest` with `Int.compare`, which the compiler supplies, since the element type is known there, and the next call is supplied `String.compare`. Where the element type is itself a type variable, the calling function declares the requirement too, as `largestOf` does for `largest`, and the member it was given goes along. Without the requirement the call is refused, naming what to add:
 
@@ -2167,7 +2167,7 @@ A requirement names `compare`, `negate`, an operator, or `show`, and nothing els
 type Date = Date(year : Int, month : Int, day : Int) derives compare
 
 fn sum(first : a, rest : List(a)) : a needs a.+ =
-    List.foldLeft(rest, first, a.+)
+    List.foldLeft(rest, first, fn(total, x) = total + x)
 
 fn shown(list : List(a)) : Unit needs a.show =
     List.forEach(list, fn(x) = Io.println(Io.show(x)))
@@ -2176,7 +2176,7 @@ export fn main() : Unit = {
     Io.println(Int.toString(sum(1, [2, 3])));
     Io.println(Float.toString(sum(0.5, [1.5])));
     let dates = [Date(year = 2026, month = 10, day = 2), Date(year = 2025, month = 1, day = 1)];
-    shown(List.sort(dates, Date.compare))
+    shown(List.sort(dates))
 }
 ```
 
@@ -2235,7 +2235,7 @@ An order belongs to a type, since a type has one `compare`. A second order on `I
 type Descending = Descending(Int)
 
 fn Descending.compare(Descending(left) : Descending, Descending(right) : Descending) : Ordering =
-    Int.compare(right, left)
+    compare(right, left)
 
 export fn main() : Unit = {
     let up = OrderedSet.fromList([1]);
@@ -2364,7 +2364,7 @@ A service with state needs none of the three: two processes of different represe
 export abstract type Set(a) = Set(List(a))
 
 export fn fromList(list : List(a)) : Set(a) needs a.compare =
-    Set(firstOfEach(List.sort(list, a.compare)))
+    Set(firstOfEach(List.sort(list)))
 
 // The first of each run the order calls `Equal` in a sorted list. The sort
 // is stable, so the list's earlier occurrence comes first and is the one
@@ -2372,7 +2372,7 @@ export fn fromList(list : List(a)) : Set(a) needs a.compare =
 fn firstOfEach(sorted : List(a)) : List(a) needs a.compare =
     match sorted {
         first :: second :: rest ->
-            if a.compare(first, second) == Equal then
+            if compare(first, second) == Equal then
                 firstOfEach(first :: rest)
             else
                 first :: firstOfEach(second :: rest)
@@ -2388,7 +2388,7 @@ fn has(list : List(a), element : a) : Bool needs a.compare =
         [] ->
             false
       | head :: rest ->
-            match a.compare(element, head) {
+            match compare(element, head) {
                 Less -> false
               | Equal -> true
               | Greater -> has(rest, element)
@@ -2399,7 +2399,7 @@ export fn map(Set(list) : Set(a), f : (a) -> b receiving e) : Set(b) receiving e
     fromList(List.map(list, f))
 ```
 
-`fromList` declares the requirement and hands `a.compare` to `List.sort`. `firstOfEach` and `has` are helpers generic in the element, so each declares the requirement too, and the member goes along from the exported function that calls it. `map` declares `needs b.compare`, the order of the set it builds.
+`fromList` declares the requirement, which `List.sort` declares too and is supplied from it. `firstOfEach` and `has` are helpers generic in the element, so each declares the requirement too, which `compare` reaches in their bodies, and the member goes along from the exported function that calls it. `map` declares `needs b.compare`, the order of the set it builds.
 
 ### 7.4 Exercises
 
@@ -2574,7 +2574,7 @@ fn gather(running : Int, owed : Int, pieces : List(Piece)) : List(Piece) receivi
 
 export fn main() : Unit receiving GatherMsg =
     gathered([3, 1, 2])
-        |> List.sort(fn(a, b) = compare(a.n, b.n))
+        |> List.sortBy(fn(piece) = piece.n)
         |> List.forEach(fn(piece) =
                             Io.println(Int.toString(piece.n) <> ": " <> Io.show(piece.value)))
 ```

@@ -29,15 +29,15 @@
 /// The even numbers from 1 to 10, summed:
 ///
 /// ```ernest
-/// List.foldLeft(List.filter(List.range(1, 10), fn(n) = n % 2 == 0), 0, Int.+)
+/// List.foldLeft(List.filter(List.range(1, 10), fn(n) = n % 2 == 0), 0, fn(sum, n) = sum + n)
 /// // => 30
 /// ```
 ///
-/// Words sorted by the order of `String`:
+/// Words sorted by the order of `String`, and by their length:
 ///
 /// ```ernest
-/// List.sort(["pear", "fig", "apple"], compare)
-/// // => ["apple", "fig", "pear"]
+/// #(List.sort(["pear", "fig", "apple"]), List.sortBy(["pear", "fig", "apple"], String.size))
+/// // => #(["apple", "fig", "pear"], ["fig", "pear", "apple"])
 /// ```
 ///
 /// ## See also
@@ -69,7 +69,7 @@ export fn List.<>(list : List(a), other : List(a)) : List(a) =
 /// ### Examples
 ///
 /// ```ernest
-/// #(List.compare([1, 2], [1, 3]), [1, 2] < [1, 2, 0], ["b"] > ["a", "z"])
+/// #(compare([1, 2], [1, 3]), [1, 2] < [1, 2, 0], ["b"] > ["a", "z"])
 /// // => #(Less, true, true)
 /// ```
 ///
@@ -83,7 +83,7 @@ export fn compare(left : List(a), right : List(a)) : Ordering needs a.compare =
       | #(_, []) ->
             Greater
       | #(head :: rest, otherHead :: otherRest) ->
-            match a.compare(head, otherHead) {
+            match compare(head, otherHead) {
                 Equal -> compare(rest, otherRest)
               | order -> order
             }
@@ -491,23 +491,21 @@ export fn repeat(element : a, count : Int) : List(a) =
 export fn reverse(list : List(a)) : List(a) =
     foldLeft(list, [], fn(acc, element) = element :: acc)
 
-/// The elements sorted by `compare`, smallest first. `compare` is an order
-/// (report §3.10), the prelude's `compare` or one of the program's.
+/// The elements sorted by the order of their type, the least first (report
+/// §3.10).
 ///
-/// The sort is stable: two elements `compare` calls `Equal` keep the order they
-/// had. So to sort by age, and by name among equal ages, sort by name first and
-/// then by age.
+/// The sort is stable: two elements `compare` calls `Equal` keep the order
+/// they had. Another order is a key, which `sortBy` sorts by.
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// List.sort([3, 1, 2], compare)
+/// List.sort([3, 1, 2])
 /// // => [1, 2, 3]
 /// ```
-export fn sort(list : List(a), compare : (a, a) -> Ordering receiving e) : List(a) receiving e = {
-    let ordered = sorted(fn(left, right) = isInOrder(left, right, compare), indexed(list));
-    let #(_, elements) = unzip(ordered);
-    elements
+export fn sort(list : List(a)) : List(a) needs a.compare = {
+    let ordered = sorted(isInOrder, indexed(list));
+    map(ordered, fn(#(_, element)) = element)
 }
 
 // Report Appendix E.2: the host's sort promises no stability, and wants
@@ -515,9 +513,7 @@ export fn sort(list : List(a), compare : (a, a) -> Ordering receiving e) : List(
 // element carries its index, and two that `compare` calls `Equal` are in
 // the order of their indexes, which keeps the sort stable. The host's
 // sort reads a sorted list as one run (E.0 rule 1).
-fn isInOrder(left : #(Int, a),
-             right : #(Int, a),
-             compare : (a, a) -> Ordering receiving e) : Bool receiving e = {
+fn isInOrder(left : #(Int, a), right : #(Int, a)) : Bool needs a.compare = {
     let #(leftIndex, leftElement) = left;
     let #(rightIndex, rightElement) = right;
     match compare(leftElement, rightElement) {
@@ -530,6 +526,40 @@ fn isInOrder(left : #(Int, a),
 foreign fn sorted(isLessOrEqual : (a, a) -> Bool receiving e,
                   list : List(a)) : List(a) receiving e =
     "lists:sort/2"
+
+/// The elements sorted by their `key`, the least first by the order of the
+/// key's type (report §3.10). `key` is called once for each element, in
+/// order.
+///
+/// The sort is stable: two elements whose keys `compare` calls `Equal` keep
+/// the order they had. A key that is a tuple orders by its first component,
+/// and by the next among equals; one that is a number made negative orders
+/// the greatest first.
+///
+/// ### Examples
+///
+/// The words by their length, and the longest first, the order of `String`
+/// among equal lengths:
+///
+/// ```ernest
+/// #(List.sortBy(["pear", "fig", "kiwi"], String.size),
+///   List.sortBy(["pear", "fig", "kiwi"], fn(word) = #(-String.size(word), word)))
+/// // => #(["fig", "pear", "kiwi"], ["kiwi", "pear", "fig"])
+/// ```
+///
+/// since 0.5.0
+export fn sortBy(list : List(a),
+                 key : (a) -> k receiving e) : List(a) receiving e needs k.compare = {
+    let withKeys = map(list, fn(element) = Keyed(key = key(element), element = element));
+    map(sort(withKeys), fn(keyed) = keyed.element)
+}
+
+// Report Appendix E.2: an element beside its key, in the order of the key
+// alone, which `sort` keeps for two equal keys.
+type Keyed(k, a) = Keyed(key : k, element : a)
+
+fn Keyed.compare(left : Keyed(k, a), right : Keyed(k, a)) : Ordering needs k.compare =
+    compare(left.key, right.key)
 
 /// The element whose `key` is the least by the key type's `compare`, or `None`
 /// for the empty list. Of elements whose keys `compare` calls `Equal`, the
@@ -572,10 +602,7 @@ fn extremeBy(list : List(a),
             let #(chosen, _) =
                 foldLeft(rest, #(head, key(head)), fn(#(_, chosenKey) as acc, element) = {
                     let elementKey = key(element);
-                    if k.compare(elementKey, chosenKey) == beyond then
-                        #(element, elementKey)
-                    else
-                        acc
+                    if compare(elementKey, chosenKey) == beyond then #(element, elementKey) else acc
                 });
             Some(chosen)
         }

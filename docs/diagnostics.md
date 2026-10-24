@@ -420,6 +420,22 @@ example.ern:3:5: a `let` declares no member of Money
   | = help: a member is declared with `fn`: write `fn Money.+(...)`
 ```
 
+### An operator's member named in an expression (§4.5)
+
+```ernest-rejected
+fn total(list : List(Int)) : Int =
+    List.foldLeft(list, 0, Int.+)
+```
+
+```console
+$ ern build example.ern
+example.ern:2:28: `Int.+` names a member, which an expression reaches through `+`
+1 | fn total(list : List(Int)) : Int =
+2 |     List.foldLeft(list, 0, Int.+)
+  |                            ^^^^^
+  | = help: write `x + y`, or where a function is wanted a lambda, `fn(x, y) = x + y`
+```
+
 ### A declaration with no name (§4.5)
 
 ```ernest-rejected
@@ -1492,6 +1508,38 @@ example.ern:1:16: unknown name List.count
   |                ^^^^^^^^^^
 ```
 
+### A member's name called (§4.5)
+
+```ernest-rejected
+fn later(a : Int, b : Int) : Bool =
+    Int.compare(a, b) == Greater
+```
+
+```console
+$ ern build example.ern
+example.ern:2:5: `Int.compare` names a member, which an expression reaches through `compare`
+1 | fn later(a : Int, b : Int) : Bool =
+2 |     Int.compare(a, b) == Greater
+  |     ^^^^^^^^^^^
+  | = help: write `compare(a, b)`
+```
+
+### A member's name as a value (§4.5)
+
+```ernest-rejected
+fn opposites(list : List(Int)) : List(Int) =
+    List.map(list, Int.negate)
+```
+
+```console
+$ ern build example.ern
+example.ern:2:20: `Int.negate` names a member, which an expression reaches through prefix `-`
+1 | fn opposites(list : List(Int)) : List(Int) =
+2 |     List.map(list, Int.negate)
+  |                    ^^^^^^^^^^
+  | = help: where a function is wanted, write a lambda, `fn(x) = -x`
+```
+
 ### `Prelude.` before a name deeper than a prelude namespace's (§4.2)
 
 ```ernest-rejected
@@ -1500,7 +1548,7 @@ fn f() : Unit = Prelude.Io.println("x")
 
 ```console
 $ ern build example.ern
-example.ern:1:17: Prelude.Io.println is written only where the module hides Io.println
+example.ern:1:17: Prelude.Io.println is written only where the module hides Io
 1 | fn f() : Unit = Prelude.Io.println("x")
   |                 ^^^^^^^^^^^^^^^^^^
   | = help: nothing here hides it; write Io.println
@@ -1672,20 +1720,20 @@ example.ern:3:8: f is exported and its type names Box, which this module keeps p
 export type Stack = Stack(items : List(Int))
 
 export fn Stack.compare(left : Stack, right : Stack) : Ordering =
-    Int.compare(List.size(left.items), List.size(right.items))
+    compare(List.size(left.items), List.size(right.items))
 ```
 
 ```ernest-rejected
 // main/stack.ern
-export fn compare(left : Int, right : Int) : Ordering = Int.compare(left, right)
+export fn compare(left : Int, right : Int) : Ordering = Equal
 ```
 
 ```console
 $ ern build main/stack.ern
 main/stack.ern:2:8: Main.Stack.compare is a member of the type Stack in the module Main
 1 | // main/stack.ern
-2 | export fn compare(left : Int, right : Int) : Ordering = Int.compare(left, right)
-  |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2 | export fn compare(left : Int, right : Int) : Ordering = Equal
+  |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   | = help: this module's compare is Main.Stack.compare too; rename it
 ```
 
@@ -1818,7 +1866,7 @@ example.ern:2:10: a value of a, a type variable of smaller's signature, has no f
 1 | fn smaller(x : a, y : a) : a needs a.compare =
 2 |     if x.compare(y) == Less then x else y
   |          ^^^^^^^
-  | = help: under `needs a.compare`, write the member on the type variable, `a.compare(..., ...)`
+  | = help: under `needs a.compare`, write `compare(..., ...)`
 ```
 
 ### A field read at another type than its own (§3.5)
@@ -2543,20 +2591,20 @@ example.ern:1:21: `<` needs a.compare, at a type variable no requirement can nam
   | = help: annotate the value where it is bound, `let value : Either(..., Int) = ...`
 ```
 
-### A member written without its requirement (§4.9)
+### A requirement's member named in a body (§4.9, §4.5)
 
 ```ernest-rejected
-fn sum(x : a, y : a) : a needs a.compare =
-    a.+(x, y)
+fn smaller(x : a, y : a) : a needs a.compare =
+    if a.compare(x, y) == Less then x else y
 ```
 
 ```console
 $ ern build example.ern
-example.ern:2:5: sum does not declare a.+
-1 | fn sum(x : a, y : a) : a needs a.compare =
-2 |     a.+(x, y)
-  |     ^^^
-  | = help: add `needs a.+` to sum's signature
+example.ern:2:8: `a.compare` names a member, which an expression reaches through `compare`
+1 | fn smaller(x : a, y : a) : a needs a.compare =
+2 |     if a.compare(x, y) == Less then x else y
+  |        ^^^^^^^^^
+  | = help: write `compare(x, y)`
 ```
 
 ### A top-level `let` that would need a requirement (§4.9)
@@ -2598,7 +2646,7 @@ fn Vec.+(Vec(a) : Vec, Vec(b) : Vec) : Float =
     a + b
 
 fn total(list : List(a), zero : a) : a needs a.+ =
-    List.foldLeft(list, zero, a.+)
+    List.foldLeft(list, zero, fn(sum, x) = sum + x)
 
 fn f() : Vec =
     total([Vec(1.0)], Vec(0.0))
@@ -2617,7 +2665,7 @@ example.ern:10:5: total needs Vec.+ : (Vec, Vec) -> Vec, and Vec.+ answers Float
 
 ```ernest-rejected
 fn sum(list : List(a)) : a needs a.zero, a.+ =
-    List.foldLeft(list, a.zero, a.+)
+    List.foldLeft(list, a.zero, fn(total, x) = total + x)
 ```
 
 ```console
@@ -2682,7 +2730,7 @@ $ ern build example.ern
 example.ern:1:6: `a` names a type variable of the signature, and a declaration with a requirement binds no name that is one of its type variables
 1 | fn f(a : a) : a needs a.compare =
   |      ^
-  | = help: rename the binding; a.compare names the member of a's type
+  | = help: rename the binding
 ```
 
 ### A lambda with a requirement (§4.9)
@@ -4066,18 +4114,18 @@ example.ern:7:16: a `receive` guard orders only Int, Float, String, and Char, no
 ### A `receive` guard that calls a function (§6.3)
 
 ```ernest-rejected
-fn f() : Int receiving Bool =
+fn f() : Int receiving String =
     receive {
-        b when Bool.not(b) -> 1
+        text when String.isEmpty(text) -> 1
     }
 ```
 
 ```console
 $ ern build example.ern
-example.ern:3:16: a `receive` guard combines `true`, `false`, Bool variables, and comparisons with `!`, `&&`, and `||`, and calls nothing
+example.ern:3:19: a `receive` guard combines `true`, `false`, Bool variables, and comparisons with `!`, `&&`, and `||`, and calls nothing
 2 |     receive {
-3 |         b when Bool.not(b) -> 1
-  |                ^^^^^^^^^^^
+3 |         text when String.isEmpty(text) -> 1
+  |                   ^^^^^^^^^^^^^^^^^^^^
   | = help: bind what the guard needs that does not come from the message with a `let` before the `receive` and compare that; or receive the message and `match` it, which takes it out of the mailbox
 ```
 

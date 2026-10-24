@@ -196,11 +196,11 @@ operations(Server) ->
                               _ -> Iteration
                           end
                       end},
-      "int_compare" => {"Int.compare, a comparison",
+      "int_compare" => {"compare at Int, a comparison",
                         fun(Iteration) when Iteration < 5000000 -> 1;
                            (_) -> 0
                         end},
-      "string_compare" => {"String.compare, a function comparing binaries",
+      "string_compare" => {"compare at String, a function comparing binaries",
                            fun(Iteration) ->
                                case ordering(Left, Right) of
                                    'Less' -> Iteration;

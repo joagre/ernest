@@ -949,7 +949,8 @@ expr_form({negate, Expr, Supply}, _, Context) ->
 expr_form({operator, Operator, Left, Right, Operation}, Source, Context) ->
     operator(Source, Operator, Left, Right, Operation, Context);
 expr_form({member, Supply}, _, Context) ->
-    %% report §4.9: a member as a value
+    %% report §3.5, §4.9: a derived compare's field compared by the member
+    %% its requirement names, as the value the requirement supplied
     {Form, Context1} = supply_form(Supply, Context),
     {Form, function_value(Form, Context1)};
 expr_form({lambda, _Position, Params, _, Body}, _, Context) ->
@@ -1456,8 +1457,8 @@ callee(Source, {var, {named, ['Address', _] = QualifiedName}, [], _} = Node, _, 
 callee(_, {var, {named, [compare]}, [Supply]}, _, Args, Context) ->
     {ArgForms, Context1} = exprs(Args, Context),
     member_applied(Supply, ArgForms, Context1);
-%% report §4.9: a member called directly, `a.compare(x, y)` or a derived
-%% compare's field
+%% report §3.5, §4.9: a derived compare's field compared by its type's
+%% compare
 callee(_, {member, {known, Reference, Supplies}}, _, Args, Context) ->
     {ArgForms, Context1} = exprs(Args, Context),
     {SupplyForms, Context2} = supply_forms(Supplies, Context1),
@@ -1712,17 +1713,13 @@ prelude_value(_, [monitorService], _, Context) ->
     {remote_fun(ern_rt, monitor_service, 2), Context};
 prelude_value(_, ['Reply', process], _, Context) ->
     {remote_fun(ern_rt, reply_process, 1), Context};
-prelude_value(_, ['Int', Member], _, Context) ->
-    member_value({named, ['Int', Member]}, Member, Context);
-prelude_value(_, [TypeName, '<>'], _, Context) ->
-    member_value({named, [TypeName, '<>']}, '<>', Context);
 prelude_value(_, [Name] = QualifiedName, _, Context) ->
     #linked{arity = Arity} = linked({named, QualifiedName}, Context),
     {remote_fun(ern_rt, Name, Arity), Context}.
 
-%% Report §9.6, §4.8: a prelude type's member as a value: Int's arithmetic
-%% and negate, and `<>`, inline as the operators are, and any other its
-%% type's module's function, of the member's arity.
+%% Report §9.6, §4.8, §4.9: a prelude type's member supplied as a value:
+%% Int's arithmetic and negate, and `<>`, inline as the operators are, and
+%% any other its type's module's function, of the member's arity.
 member_value({named, ['Int', negate]}, negate, Context) ->
     {[Operand], Context1} = fresh_variables(1, "Operand", Context),
     Negated = erl_syntax:prefix_expr(erl_syntax:operator('-'), erl_syntax:variable(Operand)),

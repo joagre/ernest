@@ -8,7 +8,7 @@
 -module(ern_prelude).
 
 -export([equality_params/1, builtin_types/0, is_builtin/1, declared_types/0, values/0,
-         signature/1, parameters/1, member_types/0, docs/0, stdlib_interfaces/0,
+         signature/1, parameters/1, member_types/0, is_member/1, docs/0, stdlib_interfaces/0,
          stdlib_files/0, stdlib_directory/0, set_stdlib_directory/1]).
 
 -include_lib("checker/include/ern_types.hrl").
@@ -248,7 +248,7 @@ declared_types() ->
     /// ### Examples
     ///
     /// ```ernest
-    /// Int.compare(2, 1)
+    /// compare(2, 1)
     /// // => Greater
     /// ```
     type Ordering = Less | Equal | Greater
@@ -635,6 +635,10 @@ values() ->
      {['Float', compare], "(Float, Float) -> Ordering", module},
      {['String', compare], "(String, String) -> Ordering", module},
      {['Char', compare], "(Char, Char) -> Ordering", module},
+     {['List', compare], "(List(a), List(a)) -> Ordering needs a.compare", module},
+     {['Optional', compare], "(Optional(a), Optional(a)) -> Ordering needs a.compare", module},
+     {['Either', compare], "(Either(e, a), Either(e, a)) -> Ordering needs e.compare, a.compare",
+      module},
      {[fault], "(String) -> a",
       <<"""
       Ends the calling process with `cause`. It has every type, so it stands
@@ -660,7 +664,8 @@ values() ->
       Compares `left` with `right` by the order of their type: `Less`, `Equal`
       or `Greater`. It is the type's own `compare`, `Int.compare` for two
       `Int`s, chosen as `<` chooses it, and reaches every order `<` reaches, a
-      tuple's among them (report §3.10).
+      tuple's among them, and under `needs a.compare` the requirement's
+      (report §3.10, §4.9).
 
       A type without an order has no `compare`: `compare(true, false)` is
       refused, as `true < false` is.
@@ -668,8 +673,8 @@ values() ->
       ### Examples
 
       ```ernest
-      List.sort([#("pear", 2), #("fig", 3), #("pear", 1)], compare)
-      // => [#("fig", 3), #("pear", 1), #("pear", 2)]
+      #(compare(2, 1), compare(#("pear", 2), #("pear", 3)))
+      // => #(Greater, Less)
       ```
 
       since 0.5.0
@@ -719,6 +724,16 @@ parameters(_) -> none.
 member_types() ->
     lists:usort([hd(QualifiedName) || {QualifiedName, _, _} <- values(),
                                       length(QualifiedName) > 1]).
+
+%% Report §4.2, §4.5: whether a qualified name is a member of a prelude
+%% type, its compare, its negate or an operator, which its module declares
+%% and no expression names.
+-spec is_member([atom()]) -> boolean().
+is_member([TypeName, Name]) ->
+    lists:member(Name, [compare, negate, '+', '-', '*', '/', '%', '<>'])
+        andalso lists:member(TypeName, member_types());
+is_member(_) ->
+    false.
 
 %% Report §9, §11.4: the prelude's documentation, as an EEP 48 chunk of the
 %% shape ern_docs:build/4 builds for a module, so that one renderer serves

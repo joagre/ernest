@@ -981,9 +981,12 @@ names() ->
 
 names(#session{interfaces = Interfaces, scope = Scope, prelude = Prelude} = Session) ->
     TypeState = session_type_state(Session),
+    %% report §4.5: a member is no name an expression writes, the session's
+    %% `T.f` and a prelude type's alike, and does not complete
     Declared = [name('Value', name_text(Key),
                      scheme_line(name_text(Key), QualifiedName, Session, TypeState))
-                || {Key, QualifiedName} <- maps:to_list(maps:get(values, Scope, #{}))]
+                || {Key, QualifiedName} <- maps:to_list(maps:get(values, Scope, #{})),
+                   is_atom(Key)]
         ++ [name('Type', atom_to_list(Name), type_line(Name, QualifiedName, Session))
             || {Name, QualifiedName} <- maps:to_list(maps:get(types, Scope, #{}))]
         ++ [name('Constructor', atom_to_list(Name),
@@ -997,6 +1000,7 @@ names(#session{interfaces = Interfaces, scope = Scope, prelude = Prelude} = Sess
     PreludeNames = [name('Value', Text, Text ++ " : " ++ ern_types:format_scheme(Scheme,
                                                                                 PreludeState))
                     || {QualifiedName, Scheme} <- ern_typecheck:prelude_values(Prelude),
+                       not ern_prelude:is_member(QualifiedName),
                        Text <- [ern_namespace:text(QualifiedName)]]
         ++ [name('Type', Text, "type " ++ Text)
             || QualifiedName <- PreludeTypes,
@@ -1085,9 +1089,13 @@ component(Segment) ->
 %% and the constructors of those types, each by the name a person types.
 module_names(#interface{namespace = Namespace, types = Types, values = Values}, TypeState) ->
     ModuleText = ern_namespace:text(Namespace),
+    %% report §4.5: a member of the module's type, `M.T.f`, or of the
+    %% prelude type the module provides, `Int.compare`, is no name
     [name('Module', ModuleText, "module " ++ ModuleText)]
         ++ [name('Value', Text, Text ++ " : " ++ ern_types:format_scheme(Scheme, TypeState))
             || {QualifiedName, Scheme} <- maps:to_list(Values),
+               length(QualifiedName) =:= length(Namespace) + 1,
+               not ern_prelude:is_member(QualifiedName),
                Text <- [ern_namespace:text(QualifiedName)]]
         ++ lists:append([type_names(QualifiedName, TypeInfo, TypeState)
                          || {QualifiedName, TypeInfo} <- maps:to_list(Types)]).
@@ -1585,13 +1593,20 @@ scheme_of(Session, Text) ->
     end.
 
 %% Report §11.2, §4.9: the type of an input that is one name, as its
-%% declaration writes it, which `:type` shows; any other input is checked.
+%% declaration writes it, which `:type` shows; any other input is checked,
+%% a member's name among them, which stands in no expression and is
+%% refused as one (§4.5).
 -spec declared_type(#session{}, binary()) -> {'Some', binary()} | 'None'.
 declared_type(Session, Input) ->
-    case declared_scheme(Session, Input) of
-        {ok, Scheme, Env} ->
-            Text = ern_types:format_scheme(Scheme, ern_typecheck:type_state(Env)),
-            {'Some', unicode:characters_to_binary(Text)};
+    case declared(Session, Input) of
+        {ok, Namespace, Name, Scheme, Env} ->
+            case ern_typecheck:is_member_name(Namespace, Name, Env) of
+                true ->
+                    'None';
+                false ->
+                    Text = ern_types:format_scheme(Scheme, ern_typecheck:type_state(Env)),
+                    {'Some', unicode:characters_to_binary(Text)}
+            end;
         none ->
             'None'
     end.
@@ -1600,7 +1615,15 @@ declared_type(Session, Input) ->
 %% scope in a module of its own that does not enter the session, and not
 %% taken as a value, which a declaration with a requirement is not without
 %% a type for its variable (report §4.9).
-declared_scheme(#session{scope = Scope} = Session, Text) ->
+declared_scheme(Session, Text) ->
+    case declared(Session, Text) of
+        {ok, _, _, Scheme, Env} -> {ok, Scheme, Env};
+        none -> none
+    end.
+
+%% The name of an input that is one name, its declared scheme, and the
+%% environment it is read in, or none.
+declared(#session{scope = Scope} = Session, Text) ->
     maybe
         {ok, it, #e_var{namespace = Namespace, name = Name}} ?= input(Text),
         %% report §11.2: a type a later input shadows prints under the input
@@ -1608,7 +1631,7 @@ declared_scheme(#session{scope = Scope} = Session, Text) ->
         {ok, _, _, Env} ?= ern_typecheck:check(['$Signature'], [], checked_interfaces(Session),
                                                Scope#{input_names => input_names()}),
         {ok, Scheme} ?= ern_typecheck:declared_scheme(Namespace, Name, Env),
-        {ok, Scheme, Env}
+        {ok, Namespace, Name, Scheme, Env}
     else
         _ -> none
     end.

@@ -358,7 +358,7 @@ lambda_let_generalized_test() ->
 user_type_operators_test() ->
     Vec = "export type Vec = Vec(Int)\nexport fn Vec.+(Vec(a), Vec(b)) : Vec = Vec(a + b)\n"
           "export fn Vec.*(Vec(a), Vec(b)) : Float = Int.toFloat(a * b)\n"
-          "export fn Vec.compare(Vec(a), Vec(b)) : Ordering = Int.compare(a, b)\n",
+          "export fn Vec.compare(Vec(a), Vec(b)) : Ordering = compare(a, b)\n",
     ?assertEqual("(M.Vec, M.Vec) -> M.Vec", type_of(Vec ++ "export fn f(a : Vec, b) = a + b", f)),
     ?assertEqual("(M.Vec, M.Vec) -> Float",
                  type_of(Vec ++ "export fn f(a : Vec, b) = (a * b) + 1.0", f)),
@@ -1501,7 +1501,8 @@ equality_through_a_binding_test() ->
 %% ordering. A regression test: the checker conformed before it was
 %% written. It does not cover a prelude type's namespace.
 module_level_compare_gives_no_ordering_test() ->
-    Source = "type D = D(Int)\nfn compare(D(a), D(b)) : Ordering = Int.compare(a, b)\n",
+    Source = "type D = D(Int)\nfn compare(D(a), D(b)) : Ordering =\n"
+             "    if a < b then Less else if a > b then Greater else Equal\n",
     ?assertEqual("`<` is not defined on D", refusal(Source ++ "fn f(x : D, y : D) = x < y")),
     ?assertEqual(ok, ok(Source ++ "fn f(x : D, y : D) : Ordering = compare(x, y)")).
 
@@ -2135,7 +2136,7 @@ constructor_called_test() ->
 requirement_binds_no_type_variable_test() ->
     Message = "`a` names a type variable of the signature, and a declaration with a requirement"
               " binds no name that is one of its type variables",
-    ?assertEqual({Message, "rename the binding; a.compare names the member of a's type"},
+    ?assertEqual({Message, "rename the binding"},
                  refusal_and_help("fn f(a : a) : a needs a.compare = a")),
     ?assertEqual(Message, refusal("fn f(x : a) : a needs a.compare = { let a = x; a }")),
     ?assertEqual(Message, refusal("fn f(x : a) : a needs a.compare = match x { a -> a }")),
@@ -2934,35 +2935,89 @@ exhaustiveness_test() ->
 %% Names, forms and the built-in types
 %%
 
-%% report §4.2: a type's member is written `T.name`, within the type's own
-%% members too; no lookup step finds it unqualified. A regression test,
-%% written when the report dropped the step the compiler never had; report
-%% §3.10, §9.6: `compare` unqualified is the prelude's, which reaches the
-%% member by the operand type, as `<` does
+%% report §4.5, §11.5: a member's name stands in no expression, a member
+%% of the type's own within a member too, a prelude type's, past `Prelude.`
+%% too, and another module's type's; it is refused naming what reaches the
+%% member, the help writing the call with the arguments it can write, or
+%% where the name is a value, `compare` or a lambda; `compare` and prefix
+%% `-` reach the member. Written with the rule
 member_written_qualified_test() ->
     Box = "type Box = Box(Int)\nfn Box.compare(a : Box, b : Box) : Ordering = Equal\n"
           "fn Box.negate(b : Box) : Box = b\n",
+    Negate = fun(Written) ->
+                     "`" ++ Written ++ "` names a member, which an expression reaches through"
+                         " prefix `-`"
+             end,
+    Compare = fun(Written) ->
+                      "`" ++ Written ++ "` names a member, which an expression reaches through"
+                          " `compare`"
+              end,
     ?assertEqual("unknown name negate",
                  refusal(Box ++ "fn Box.+(a : Box, b : Box) : Box = negate(a)")),
-    ?assertEqual(ok, ok(Box ++ "fn Box.+(a : Box, b : Box) : Box = Box.negate(a)")),
+    ?assertEqual({Negate("Box.negate"), "write `-a`"},
+                 refusal_and_help(Box ++ "fn Box.+(a : Box, b : Box) : Box = Box.negate(a)")),
+    ?assertEqual({Compare("M.Box.compare"), "write `compare(a, b)`"},
+                 refusal_and_help(Box ++ "fn f(a : Box, b : Box) : Ordering ="
+                                         " M.Box.compare(a, b)")),
+    ?assertEqual(ok, ok(Box ++ "fn Box.+(a : Box, b : Box) : Box = -a")),
     ?assertEqual(ok, ok(Box ++ "fn Box.+(a : Box, b : Box) : Box ="
-                        " match compare(a, b) { _ -> a }")).
+                        " match compare(a, b) { _ -> a }")),
+    %% a prelude type's, called, as a value and piped, the help writing
+    %% `...` for an argument it cannot write
+    ?assertEqual({Compare("Int.compare"), "write `compare(a, b)`"},
+                 refusal_and_help("fn f(a : Int, b : Int) : Ordering = Int.compare(a, b)")),
+    ?assertEqual({Negate("Int.negate"), "write `-x`"},
+                 refusal_and_help("fn f(x : Int) : Int = Int.negate(x)")),
+    ?assertEqual({Compare("String.compare"), "write `compare`"},
+                 refusal_and_help("fn f() : (String, String) -> Ordering = String.compare")),
+    ?assertEqual({Negate("Float.negate"), "where a function is wanted, write a lambda,"
+                                          " `fn(x) = -x`"},
+                 refusal_and_help("fn f(xs : List(Float)) : List(Float) ="
+                                  " List.map(xs, Float.negate)")),
+    ?assertEqual({Negate("Int.negate"), "write `-x`"},
+                 refusal_and_help("fn f(x : Int) : Int = x |> Int.negate")),
+    ?assertEqual({Negate("Int.negate"), "write `-(...)`"},
+                 refusal_and_help("fn f(x : Int) : Int = Int.negate(x + 1)")),
+    ?assertEqual({Compare("Prelude.List.compare"), "write `compare(..., p.x)`"},
+                 refusal_and_help("type P = P(x : List(Int))\n"
+                                  "fn f(p : P) : Ordering = Prelude.List.compare([1], p.x)")),
+    %% a type's member another module exports, and that module's value
+    {ok, _, Interface, _} =
+        ern_typecheck:check_string(['Coins'], "export type Coin = Coin(Int)\n"
+                                              "export fn Coin.negate(c : Coin) : Coin = c\n"
+                                              "export fn value(c : Coin) : Int = 1\n"),
+    Checked = fun(Text) ->
+                      {ok, Declarations} = ern_parser:parse_string(Text),
+                      ern_typecheck:check(['M'], Declarations, [Interface])
+              end,
+    ?assertMatch({error, [#diagnostic{message = "`Coins.Coin.negate` names a member, which an"
+                                                " expression reaches through prefix `-`",
+                                      help = "write `-c`"}]},
+                 Checked("fn f(c : Coins.Coin) : Coins.Coin = Coins.Coin.negate(c)")),
+    ?assertMatch({ok, _, _, _}, Checked("fn f(c : Coins.Coin) : Coins.Coin = -c")),
+    ?assertMatch({ok, _, _, _}, Checked("fn f(c : Coins.Coin) : Int = Coins.value(c)")).
 
-%% report §4.2: a dotted name's first segment is the module's own type
-%% where that type has a member of the name, and otherwise the namespace
-%% of that name; `Prelude.T.name` reaches the name of a namespace of the
-%% prelude or the standard library past the module's own member. A
-%% regression test, written with the rule: the standard library's
-%% `List.size` was out of reach there, and its `Io.println` before; since
-%% a member is an operator, `compare` or `negate` (§4.5), the module's own
-%% `List.<>` stands for both
+%% report §4.2, §4.5: a dotted name's first segment is a namespace, since
+%% a member stands in no expression: in a module whose own type `List`
+%% declares `<>`, `List.reverse` is the standard library's, `<>` on the
+%% module's own `List` is its member, and the standard library's
+%% `List.compare` names a member still; `Prelude.T.name` reaches the
+%% standard library's namespace past the module's own type T, and is
+%% refused where the module declares none. A regression test, written
+%% with the rule: the standard library's `List.size` was out of reach
+%% there, and its `Io.println` before
 first_segment_test() ->
     Own = "type List = Nil | Cons(Int)\nfn List.<>(a : List, b : List) : List = a\n",
-    ?assertEqual(ok, ok(Own ++ "fn f() : List = List.<>(Nil, Nil)")),
-    ?assertEqual(ok, ok(Own ++ "fn f() : Prelude.List(Int) = Prelude.List.<>([1], [2])")),
+    ?assertEqual(ok, ok(Own ++ "fn f() : List = Nil <> Nil")),
+    ?assertEqual(ok, ok(Own ++ "fn f() : Prelude.List(Int) = [1] <> [2]")),
     ?assertEqual(ok, ok(Own ++ "fn f() : Prelude.List(Int) = List.reverse([1])")),
-    ?assertEqual("the argument does not fit List.<>: expected M.List, found List(Int)",
-                 refusal(Own ++ "fn f() : Prelude.List(Int) = List.<>([1], [2])")).
+    ?assertEqual(ok, ok(Own ++ "fn f() : Prelude.List(Int) = Prelude.List.reverse([1])")),
+    ?assertEqual("`List.compare` names a member, which an expression reaches through `compare`",
+                 refusal(Own ++ "fn f() : Ordering = List.compare([1], [2])")),
+    ?assertEqual("`List.<>` names a member, which an expression reaches through `<>`",
+                 refusal(Own ++ "fn f() : List = List.<>(Nil, Nil)")),
+    ?assertEqual("Prelude.List.reverse is written only where the module hides List",
+                 refusal("fn f() : List(Int) = Prelude.List.reverse([1])")).
 
 %% report §5.5: in `let p : T <- e`, `T` is the type of `p`, the value
 %% inside. A regression test, written after the report said so
@@ -3132,11 +3187,16 @@ prelude_values_test() ->
                                                       [atom_to_list(Part)
                                                        || Part <- QualifiedName])),
                       %% report §4.9: a name with a requirement resolves, and
-                      %% a top-level let cannot declare what it needs
-                      case Requirement of
-                          [] ->
+                      %% a top-level let cannot declare what it needs; report
+                      %% §4.5: a member's name stands in no expression
+                      case {member_reached(QualifiedName), Requirement} of
+                          {{ok, Reaching}, _} ->
+                              ?assertEqual("`" ++ Name ++ "` names a member, which an expression"
+                                           " reaches through " ++ Reaching,
+                                           refusal("export let v = " ++ Name));
+                          {none, []} ->
                               ?assertEqual(ok, ok("export let v = " ++ Name));
-                          [{Variable, Member} | _] ->
+                          {none, [{Variable, Member} | _]} ->
                               ?assertEqual(Name ++ " needs " ++ atom_to_list(Variable) ++ "."
                                            ++ atom_to_list(Member)
                                            ++ ", which a top-level let cannot declare",
@@ -3152,6 +3212,17 @@ prelude_values_test() ->
                  type_of("export fn f(xs) = List.map(xs, fn(x : Int) = x)", f)),
     %% report §9.7: the prelude binds no system reference
     ?assertEqual("unknown name Sys.stdout", refusal("let out = Sys.stdout")).
+
+%% What reaches a prelude type's member, `compare`, prefix `-` or its
+%% operator, or none for a name that is no member.
+member_reached([_, compare]) -> {ok, "`compare`"};
+member_reached([_, negate]) -> {ok, "prefix `-`"};
+member_reached([_, Name]) ->
+    case atom_to_list(Name) of
+        [First | _] when First >= $a, First =< $z -> none;
+        Operator -> {ok, "`" ++ Operator ++ "`"}
+    end;
+member_reached(_) -> none.
 
 %%
 %% Abstract types and interfaces
@@ -3176,14 +3247,15 @@ abstract_type_test() ->
     ?assertEqual("Nope is not a type declared in this module", refusal("fn Nope.negate(n) = n")).
 
 %% report §4.2: a module may name its own declaration by its qualified name
-%% where a binding hides the plain one, in any order, and not its own
-%% member, which no binding hides (the full review's P7, 2026-10-04)
+%% where a binding hides the plain one, in any order (the full review's P7,
+%% 2026-10-04); report §4.5: its own member's name stands in no expression
 self_qualified_test() ->
     ?assertEqual("() -> Int", type_of("export fn f() = { let g = 0; M.g() + g }\nfn g() = 1\n",
                                       f)),
-    ?assertEqual("M.T.negate is the module's own T.negate, which no binding hides",
-                 refusal("export type T = T(Int)\nexport fn f(t : T) : T = M.T.negate(t)\n"
-                         "fn T.negate(t : T) : T = t\n")).
+    ?assertEqual({"`M.T.negate` names a member, which an expression reaches through prefix `-`",
+                  "write `-t`"},
+                 refusal_and_help("export type T = T(Int)\nexport fn f(t : T) : T ="
+                                  " M.T.negate(t)\nfn T.negate(t : T) : T = t\n")).
 
 %% report §4.2, §8.5: a local binding does not hide the module's own
 %% qualified name, so the initializer depends on it as on the plain name.
@@ -3377,7 +3449,7 @@ prelude_namespace_test() ->
                         " Prelude.send(a, \"x\")")),
     %% the module's own names are untouched
     ?assertEqual(ok, ok(Shadow ++ "fn g() : Int = send(1)\nfn h() : Last = Fault")),
-    ?assertEqual("Prelude.Io.println is written only where the module hides Io.println",
+    ?assertEqual("Prelude.Io.println is written only where the module hides Io",
                  refusal("fn f() : Unit = Prelude.Io.println(\"x\")")),
     ?assertEqual("Prelude.Stack.other: Prelude takes one name the prelude declares, as"
                  " `Prelude.Some`, or a name of the prelude's or the standard library's"
@@ -3392,9 +3464,9 @@ prelude_namespace_test() ->
 %% to write it. A regression test: `Prelude.Some` was accepted anywhere
 prelude_only_where_hidden_test() ->
     Refused = fun(Name) ->
-                  Hidden = case lists:member($., Name) of
-                               true -> Name;
-                               false -> "the prelude's " ++ Name
+                  Hidden = case string:split(Name, ".") of
+                               [Namespace, _] -> Namespace;
+                               [_] -> "the prelude's " ++ Name
                            end,
                   "Prelude." ++ Name ++ " is written only where the module hides " ++ Hidden
               end,
@@ -3514,7 +3586,8 @@ lambda_let_resolves_before_it_generalizes_test() ->
              "{ let f = fn(n) = List.map([R(x = 1)], fn(d) = d.x); f(6) }"),
     Declared("List(Either(Int, String))", "List(Either(a, Int))",
              "{ let f = fn(n) = List.map([Right(1)], fn(d) = { let x <- d; Right(x) }); f(6) }"),
-    Declared(Strings, "List(Int)", "{ let f = fn(n) = List.map([1], fn(d) = Int.+(n, d)); f(6) }"),
+    Declared(Strings, "List(Ordering)",
+             "{ let f = fn(n) = List.map([1], fn(d) = compare(n, d)); f(6) }"),
     Declared("String", "Int", "{ let f = fn(n) = { let g = fn(d : Int) = n + d; g(1) }; f(6) }"),
     Declared(Strings, "List(Int)", "g(6)\nfn g(n) = List.map([1], fn(d) = n + d)"),
     Declared(Strings, "List(Int)", "h(6)\nlet h = fn(n) = List.map([1], fn(d) = n + d)"),
@@ -3980,8 +4053,7 @@ receive_guard_refused_test() ->
                {"N(_) when flag == go == true", Operand},
                {"N(k) when k + 1 > 2", Operand},
                {"N(k) when k > -m", Operand},
-               {"N(k) when Int.compare(k, m) == Less",
-                Operand}],
+               {"N(k) when compare(k, m) == Less", Operand}],
     [?assertEqual({Guard, Expected}, {Guard, refusal(Head ++ Guard ++ Tail)})
      || {Guard, Expected} <- Refused],
     [?assertEqual({Guard, ok}, {Guard, ok(Head ++ Guard ++ Tail)})
@@ -3992,7 +4064,7 @@ receive_guard_refused_test() ->
 receive_guard_ordering_test() ->
     ?assertEqual("a `receive` guard orders only Int, Float, String, and Char, not Vec",
                  refusal("export type Vec = Vec(Int)\n"
-                         "export fn Vec.compare(Vec(a), Vec(b)) : Ordering = Int.compare(a, b)\n"
+                         "export fn Vec.compare(Vec(a), Vec(b)) : Ordering = compare(a, b)\n"
                          "type M = Go(Vec)\n"
                          "fn loop() : Unit receiving M = receive { Go(v) when v < Vec(0) -> Unit"
                          " | _ -> Unit }")).
@@ -4077,19 +4149,19 @@ shadowed_name_is_no_reference_test() ->
 %%
 
 %% report §4.9: a requirement names members of the signature's type
-%% variables, which the body applies, and which an operator on the
-%% variable resolves to; it ends the declaration's printed type (§11.5);
-%% written after the code
+%% variables, which an operator on the variable, `compare` and a call
+%% that needs them resolve to; it ends the declaration's printed type
+%% (§11.5); written after the code
 requirement_in_the_body_test() ->
     ?assertEqual("(List(a)) -> List(a) needs a.compare",
                  type_of("export fn f(list : List(a)) : List(a) needs a.compare =\n"
-                         "    List.sort(list, a.compare)\n", f)),
+                         "    List.sort(list)\n", f)),
     ?assertEqual("(a, a) -> Bool needs a.compare",
                  type_of("export fn f(x : a, y : a) : Bool needs a.compare = x < y\n", f)),
     ?assertEqual("(a) -> a needs a.negate",
                  type_of("export fn f(x : a) : a needs a.negate = -x\n", f)),
     ?assertEqual("(a, a) -> a needs a.+, a.*",
-                 type_of("export fn f(x : a, y : a) : a needs a.+, a.* = x * y + a.+(x, y)\n", f)).
+                 type_of("export fn f(x : a, y : a) : a needs a.+, a.* = x * y + (x + y)\n", f)).
 
 %% report §4.9: a requirement's variable stands in a value position of the
 %% signature; written after the code
@@ -4114,7 +4186,7 @@ requirement_named_twice_test() ->
     ?assertMatch({1, 59, _}, Span),
     ?assertMatch([{{1, 48, _}, "first named here"}], Labels),
     ?assertEqual("the requirement names a.+ twice",
-                 refusal("fn sum(x : a, y : a) : a needs a.+, a.+ = a.+(x, y)\n")),
+                 refusal("fn sum(x : a, y : a) : a needs a.+, a.+ = x + y\n")),
     ?assertEqual("the requirement names a.compare twice",
                  refusal("fn f() : Int = {\n"
                          "    fn same(x : a) : a needs a.compare, a.compare = x;\n"
@@ -4123,20 +4195,46 @@ requirement_named_twice_test() ->
     ?assertEqual(ok, ok("fn f(x : a, y : b) : a needs a.compare, b.compare = x\n")).
 
 %% report §4.9, §4.8: a member the requirement does not name is a type
-%% error, written, by an operator, or by its type variable without a
-%% requirement; written after the code
+%% error, by an operator beside another the requirement names, or by an
+%% operator without a requirement; report §4.5: written by its name, it is
+%% refused before; written after the code
 member_not_declared_test() ->
-    ?assertEqual({"f does not declare a.+", "add `needs a.+` to f's signature"},
-                 refusal_and_help("fn f(x : a, y : a) : a needs a.compare = a.+(x, y)")),
+    ?assertEqual({"`+` needs a.+, which f does not declare", "add `needs a.+` to f's signature"},
+                 refusal_and_help("fn f(x : a, y : a) : a needs a.compare = x + y")),
     ?assertEqual({"`<` needs a.compare, which f does not declare",
                   "add `needs a.compare` to f's signature"},
                  refusal_and_help("fn f(x : a, y : a) : Bool = x < y")),
     ?assertEqual("`-` needs a.negate, which f does not declare",
                  refusal("fn f(x : a) : a = -x")),
-    ?assertEqual({"unknown name a",
-                  "a is a type variable of the signature; its member, as a.compare, is named"
-                  " under a requirement, needs a.compare"},
+    ?assertEqual({"`a.compare` names a member, which an expression reaches through `compare`",
+                  "write `compare(x, y)`"},
                  refusal_and_help("fn f(x : a, y : a) : Ordering = a.compare(x, y)")).
+
+%% report §4.9, §4.5: in the body, a member the requirement names is
+%% reached as on a known type, by `compare`, prefix `-` and the operators,
+%% and its name `a.compare` stands in no expression, called or as a
+%% value, the help writing what reaches it. Written with the rule
+member_named_under_a_requirement_test() ->
+    ?assertEqual({"`a.compare` names a member, which an expression reaches through `compare`",
+                  "write `compare(x, y)`"},
+                 refusal_and_help("fn f(x : a, y : a) : Ordering needs a.compare ="
+                                  " a.compare(x, y)")),
+    ?assertEqual({"`a.compare` names a member, which an expression reaches through `compare`",
+                  "write `compare`"},
+                 refusal_and_help("fn f(x : a) : (a, a) -> Ordering needs a.compare ="
+                                  " a.compare")),
+    ?assertEqual({"`a.negate` names a member, which an expression reaches through prefix `-`",
+                  "write `-x`"},
+                 refusal_and_help("fn f(x : a) : a needs a.negate = a.negate(x)")),
+    ?assertEqual("(a, a) -> #(Ordering, Bool, a) needs a.compare, a.negate",
+                 type_of("export fn f(x : a, y : a) : #(Ordering, Bool, a)"
+                         " needs a.compare, a.negate = #(compare(x, y), x < y, -x)", f)),
+    %% the requirement's member as a value is the prelude's `compare`, or a lambda
+    ?assertEqual("(List(a)) -> List(Ordering) needs a.compare",
+                 type_of("export fn f(list : List(a)) : List(Ordering) needs a.compare ="
+                         " List.map(list, fn(x) = compare(x, x))", f)),
+    ?assertEqual(ok, ok("fn f(list : List(a)) : List(a) needs a.negate ="
+                        " List.map(list, fn(x) = -x)")).
 
 %% report §4.9: `a.show` names nothing in a body, and the help for it names
 %% `Io.show`, which writes the value under `needs a.show`. A regression
@@ -4152,39 +4250,35 @@ show_named_in_body_test() ->
 %% report §11.5, §4.9, §4.8: a field read on a value of a type variable of
 %% the signature names the variable, whose values have no field, and the
 %% declaration whose signature writes it; where the requirement names the
-%% member at the variable, the help writes the member on the variable, and
-%% where it names none of the field's name, or the field is `show`, which
-%% is no member, there is none. A regression test, written after the code:
-%% the read asked for an annotation, which does not help (the tour's spike,
-%% the log's *Two Messages, and the Runtime's Frames Weighed Again*); it
-%% does not cover the prompt
+%% member at the variable, the help writes what reaches it, `compare` or
+%% prefix `-` (§4.5), and where it names none of the field's name, or the
+%% field is `show`, which is no member, there is none. A regression test,
+%% written after the code: the read asked for an annotation, which does not
+%% help (the tour's spike, the log's *Two Messages, and the Runtime's
+%% Frames Weighed Again*); it does not cover the prompt
 member_read_on_a_value_test() ->
     Tally = "export abstract type Tally(k) = Tally(Map(k, Int))\n"
             "export fn report(Tally(counts)) : List(#(k, Int)) needs k.compare =\n",
     ?assertEqual({"a value of k, a type variable of report's signature, has no field compare",
-                  "under `needs k.compare`, write the member on the type variable,"
-                  " `k.compare(..., ...)`"},
-                 refusal_and_help(Tally ++ "    List.sort(Map.toList(counts),"
-                                           " fn(#(a, _), #(b, _)) = a.compare(b))\n")),
-    ?assertEqual(ok, ok(Tally ++ "    List.sort(Map.toList(counts),"
-                                 " fn(#(a, _), #(b, _)) = k.compare(a, b))\n")),
+                  "under `needs k.compare`, write `compare(..., ...)`"},
+                 refusal_and_help(Tally ++ "    List.filter(Map.toList(counts),"
+                                           " fn(#(a, _)) = a.compare(a) == Equal)\n")),
+    ?assertEqual(ok, ok(Tally ++ "    List.sortBy(Map.toList(counts), fn(#(key, _)) = key)\n")),
     ?assertEqual({"a value of a, a type variable of f's signature, has no field negate",
-                  "under `needs a.negate`, write the member on the type variable, `a.negate(...)`"},
+                  "under `needs a.negate`, write `-(...)`"},
                  refusal_and_help("fn f(x : a) : a needs a.negate = x.negate()")),
     %% a local fn's own requirement, and the enclosing one's in force in it
-    ?assertEqual("under `needs b.compare`, write the member on the type variable,"
-                 " `b.compare(..., ...)`",
+    ?assertEqual("under `needs b.compare`, write `compare(..., ...)`",
                  element(2, refusal_and_help("fn f(list : List(a)) : Int = {\n"
                                              "    fn g(x : b, y : b) : Ordering needs b.compare ="
                                              " x.compare(y);\n"
                                              "    0\n"
                                              "}\n"))),
     ?assertEqual({"a value of a, a type variable of f's signature, has no field compare",
-                  "under `needs a.compare`, write the member on the type variable,"
-                  " `a.compare(..., ...)`"},
+                  "under `needs a.compare`, write `compare(..., ...)`"},
                  refusal_and_help("fn f(list : List(a)) : List(a) needs a.compare = {\n"
                                   "    fn g(x : a, y : a) : Ordering = x.compare(y);\n"
-                                  "    List.sort(list, g)\n"
+                                  "    List.filter(list, fn(x) = g(x, x) == Equal)\n"
                                   "}\n")),
     ?assertEqual({"a value of a, a type variable of f's signature, has no field compare",
                   undefined},
@@ -4216,7 +4310,7 @@ requirement_supplied_test() ->
                  refusal_and_help("type Vec = Vec(Float)\n"
                                   "fn Vec.+(Vec(a) : Vec, Vec(b) : Vec) : Float = a + b\n"
                                   "fn total(list : List(a), zero : a) : a needs a.+ =\n"
-                                  "    List.foldLeft(list, zero, a.+)\n"
+                                  "    List.foldLeft(list, zero, fn(acc, x) = acc + x)\n"
                                   "fn f() : Vec = total([Vec(1.0)], Vec(0.0))")),
     %% a top-level let declares no requirement
     ?assertEqual({"fromList needs a.compare, which a top-level let cannot declare",
@@ -4279,7 +4373,7 @@ derives_test() ->
                  member_type_of("export type Wrap(a) = Wrap(Int)\n"
                                 "export fn Wrap.compare(Wrap(x) : Wrap(a), Wrap(y) : Wrap(a))"
                                 " : Ordering =\n"
-                                "    Int.compare(x, y)\n"
+                                "    compare(x, y)\n"
                                 "export type Holder(a) = Holder(Wrap(a)) derives compare\n",
                                 'Holder', compare)).
 
@@ -4299,11 +4393,10 @@ structural_compare_test() ->
                         "fn e(x : #(a, List(a))) : Bool needs a.compare = x < x\n"
                         "fn f(x : List(#(a, Optional(a)))) : Int needs a.compare =\n"
                         "    OrderedSet.size(OrderedSet.fromList(x))\n")),
-    ?assertEqual(ok, ok("fn a(x : List(Int)) : Ordering = List.compare(x, [2])\n"
-                        "fn b(x : Optional(a)) : Ordering needs a.compare =\n"
-                        "    Optional.compare(x, None)\n"
+    ?assertEqual(ok, ok("fn a(x : List(Int)) : Ordering = compare(x, [2])\n"
+                        "fn b(x : Optional(a)) : Ordering needs a.compare = compare(x, None)\n"
                         "fn c(x : List(Either(Int, String))) : List(Either(Int, String)) =\n"
-                        "    List.sort(x, Either.compare)\n")),
+                        "    List.sort(x)\n")),
     ?assertEqual("(M.Row(a), M.Row(a)) -> Ordering needs a.compare",
                  member_type_of("export type Row(a) = Row(key : #(Int, a), tags : List(String),"
                                 " at : Optional(a), why : Either(String, Int)) derives compare\n",
@@ -4330,7 +4423,8 @@ prelude_compare_test() ->
                         "fn c() : Ordering = compare(#(1, \"a\"), #(1, \"b\"))\n"
                         "fn d() : Ordering = compare([Tue], [Mon, Tue])\n"
                         "fn e(pairs : List(#(String, Int))) : List(#(String, Int)) =\n"
-                        "    List.sort(pairs, compare)\n")),
+                        "    List.sort(pairs)\n"
+                        "fn g() : (#(Int, Char), #(Int, Char)) -> Ordering = compare\n")),
     ?assertEqual("(a, a) -> Ordering needs a.compare",
                  type_of("export fn f(x : a, y : a) : Ordering needs a.compare = compare(x, y)",
                          f)),

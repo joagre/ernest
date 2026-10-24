@@ -512,7 +512,6 @@ foreign_atom_test() ->
 
 %% report Appendix E.7
 bool_test() ->
-    ?assertEqual(false, (ern_named:function('ern@bool', 'not'))(true)),
     ?assertEqual(<<"true">>, (ern_named:function('ern@bool', toString))(true)).
 
 %% report Appendix E.8, §7.4: a shift whose result is beyond the host's

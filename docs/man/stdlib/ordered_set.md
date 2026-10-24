@@ -214,7 +214,7 @@ first.
 ### Examples
 
 ```ernest
-OrderedSet.foldLeft(OrderedSet.fromList([1, 2]), 0, Int.+)
+OrderedSet.foldLeft(OrderedSet.fromList([1, 2]), 0, fn(sum, n) = sum + n)
 // => 3
 ```
 

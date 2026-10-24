@@ -96,7 +96,7 @@ export fn isEmpty(text : String) : Bool =
 /// ### Examples
 ///
 /// ```ernest
-/// String.compare("a", "b")
+/// compare("a", "b")
 /// // => Less
 /// ```
 export fn compare(left : String, right : String) : Ordering =

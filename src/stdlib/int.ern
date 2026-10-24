@@ -65,7 +65,7 @@ export fn Int.%(dividend : Int, divisor : Int) : Int =
 /// ### Examples
 ///
 /// ```ernest
-/// Int.negate(5)
+/// -(2 + 3)
 /// // => -5
 /// ```
 export fn negate(int : Int) : Int =
@@ -85,7 +85,7 @@ export fn rem(dividend : Int, divisor : Int) : Optional(Int) =
 /// ### Examples
 ///
 /// ```ernest
-/// Int.compare(1, 2)
+/// compare(1, 2)
 /// // => Less
 /// ```
 export fn compare(left : Int, right : Int) : Ordering =

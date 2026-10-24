@@ -120,7 +120,7 @@ every capital letter of ASCII comes before every small one, so `"Z" < "a"`.
 ### Examples
 
 ```ernest
-String.compare("a", "b")
+compare("a", "b")
 // => Less
 ```
 

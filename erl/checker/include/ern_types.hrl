@@ -73,6 +73,14 @@
 %% before the enclosing definition ends: the member at the type, and what
 %% needs it, for the error that names it (report §11.5)
 
+%% Report §3.5, Appendix H: a derived compare's comparison of a field by
+%% its type's compare, an expression of the typed AST that the checker
+%% makes and no source writes, since a member stands in no expression
+%% (§4.5): member_of, the field's type variable under the derived
+%% requirement (§4.9), or its type, a #t_named{} or a #t_tuple{}; supply,
+%% what supplies the member, set as the member is checked.
+-record(e_member, {span, member_of, name, supply, type}).
+
 %% What the checker knows about a declared type, from this module or a
 %% compiled interface.
 -record(type_info, {qualified_name, params = [], param_names = [], constructors = [],

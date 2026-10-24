@@ -84,7 +84,8 @@ fn counted(words : List(String), counts : Counts(m)) : List(#(String, Int)) =
 // The `count` words seen most, the most frequent first.
 fn mostFrequent(pairs : List(#(String, Int)), count : Int) : List(Entry) =
     List.map(pairs, fn(#(word, seen)) = Entry(count = seen, word = word))
-        |> List.sort(fn(left, right) = compare(right, left))
+        |> List.sort
+        |> List.reverse
         |> List.take(count)
 
 fn wordOf(entry : Entry) : String =

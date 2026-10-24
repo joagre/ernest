@@ -339,8 +339,9 @@ documented(File) ->
                                                         doc_of(Declaration) =:= undefined]).
 
 %% Appendix E.0 shape rule 6: a module's page holds examples, and every
-%% exported function is called by one, the module's or its own; an operator
-%% member, used infix, is not a call and is not looked for
+%% exported function is called by one, the module's or its own; a member,
+%% which an operator, prefix `-` or `compare` reaches and no example names
+%% (report §4.5), is not looked for
 doc_coverage_test_() ->
     [{atom_to_list(hd(Namespace)), fun() ->
                                        coverage(Namespace, File)
@@ -352,13 +353,19 @@ coverage(Namespace, File) ->
     Examples = iolist_to_binary([Block || Doc <- docs(Declarations), Block <- fences(Doc)]),
     ?assertNotEqual(<<>>, Examples),
     Prefix = ern_namespace:text(Namespace),
+    IsMember = fun(MemberOf, Name) ->
+                       MemberOf =/= undefined orelse not is_alpha(Name)
+                           orelse (lists:member(Name, [compare, negate])
+                                   andalso lists:member(hd(Namespace),
+                                                        ern_prelude:member_types()))
+               end,
     Fns = [local_name(MemberOf, Name)
            || #fn_declaration{export = true, member_of = MemberOf, name = Name} <- Declarations,
-              is_alpha(Name)]
+              not IsMember(MemberOf, Name)]
         ++ [local_name(MemberOf, Name)
             || #foreign_fn_declaration{export = true, member_of = MemberOf,
                                        name = Name} <- Declarations,
-               is_alpha(Name)],
+               not IsMember(MemberOf, Name)],
     %% a module exports something: `Test`, Appendix E.24, declares types alone
     Types = [Name || #type_declaration{export = true, name = Name} <- Declarations],
     ?assertNotEqual([], Fns ++ Types),

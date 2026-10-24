@@ -54,7 +54,7 @@ export let empty : Map(k, v) = Map([])
 /// // => [#(1, "a"), #(2, "c")]
 /// ```
 export fn fromList(pairs : List(#(k, v))) : Map(k, v) needs k.compare =
-    Map(heldKeys(List.sort(pairs, fn(#(key, _), #(other, _)) = k.compare(key, other))))
+    Map(heldKeys(List.sortBy(pairs, fn(#(key, _)) = key)))
 
 // Each run of pairs whose keys the order calls `Equal`, in a sorted list,
 // made one: the first pair's key with the last pair's value. The sort is
@@ -63,7 +63,7 @@ export fn fromList(pairs : List(#(k, v))) : Map(k, v) needs k.compare =
 fn heldKeys(sorted : List(#(k, v))) : List(#(k, v)) needs k.compare =
     match sorted {
         #(key, value) :: #(other, later) :: rest ->
-            if k.compare(key, other) == Equal then
+            if compare(key, other) == Equal then
                 heldKeys(#(key, later) :: rest)
             else
                 #(key, value) :: heldKeys(#(other, later) :: rest)
@@ -114,7 +114,7 @@ fn found(pairs : List(#(k, v)), key : k) : Optional(v) needs k.compare =
         [] ->
             None
       | #(other, value) :: rest ->
-            match k.compare(key, other) {
+            match compare(key, other) {
                 Less -> None
               | Equal -> Some(value)
               | Greater -> found(rest, key)
@@ -138,7 +138,7 @@ fn inserted(pairs : List(#(k, v)), key : k, value : v) : List(#(k, v)) needs k.c
         [] ->
             [#(key, value)]
       | #(other, kept) :: rest ->
-            match k.compare(key, other) {
+            match compare(key, other) {
                 Less -> #(key, value) :: pairs
               | Equal -> #(other, value) :: rest
               | Greater -> #(other, kept) :: inserted(rest, key, value)
@@ -154,7 +154,7 @@ fn inserted(pairs : List(#(k, v)), key : k, value : v) : List(#(k, v)) needs k.c
 /// // => [2]
 /// ```
 export fn remove(Map(pairs) : Map(k, v), key : k) : Map(k, v) needs k.compare =
-    Map(List.filter(pairs, fn(#(other, _)) = k.compare(key, other) != Equal))
+    Map(List.filter(pairs, fn(#(other, _)) = compare(key, other) != Equal))
 
 /// The map with `f`'s value at `key`, `f` given the value there, or `None`.
 ///
@@ -306,7 +306,7 @@ fn mergedWith(pairs : List(#(k, v)),
       | #(_, []) ->
             pairs
       | #(#(key, value) :: rest, #(otherKey, otherValue) :: more) ->
-            match k.compare(key, otherKey) {
+            match compare(key, otherKey) {
                 Less -> #(key, value) :: mergedWith(rest, others, f)
               | Equal -> #(key, f(key, value, otherValue)) :: mergedWith(rest, more, f)
               | Greater -> #(otherKey, otherValue) :: mergedWith(pairs, more, f)

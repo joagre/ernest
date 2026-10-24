@@ -86,7 +86,6 @@ literals_test() ->
 names_test() ->
     ?assertMatch(#e_var{namespace = [], name = x}, expression("x")),
     ?assertMatch(#e_var{namespace = ['Net', 'Http'], name = parse}, expression("Net.Http.parse")),
-    ?assertMatch(#e_var{namespace = ['Int'], name = '+'}, expression("Int.+")),
     ?assertMatch(#e_constructor{namespace = [], name = 'None', args = none}, expression("None")),
     ?assertMatch(#e_constructor{namespace = ['Net', 'Http'], name = 'Request',
                                 args = {positional, _}},
@@ -1244,23 +1243,29 @@ requirement_test() ->
     ?assertEqual("a lambda declares no requirement",
                  expression_refusal("fn(x : a) : a needs a.compare = x")).
 
-%% report §4.9, §3.5, Appendix A: in a declaration with a requirement,
-%% `a.compare` and `a.negate` of a type variable of the signature are its
-%% members, and select nothing; `a.+` is a member wherever it stands; written
-%% after the code
+%% report §4.5, Appendix A's Primary and QName: a member's name stands in
+%% no expression, so an operator after `.` is refused with the operator to
+%% write, a type variable's `a.+` and a qualified `Int.+` and
+%% `Prelude.List.<>` alike, and `a.compare` parses as the selection it is,
+%% which the checker refuses (§4.9)
 member_test() ->
-    #fn_declaration{body = #e_call{callee = #e_member{member_of = a, name = compare}}} =
-        declaration("fn f(x : a, y : a) : Ordering needs a.compare = a.compare(x, y)"),
-    #fn_declaration{body = #e_member{member_of = a, name = negate}} =
-        declaration("fn f(x : a) : (a) -> a needs a.negate = a.negate"),
-    %% without a requirement, a selection
-    #fn_declaration{body = #e_call{callee = #e_selection{field = compare}}} =
-        declaration("fn f(x : a, y : a) : Ordering = a.compare(x, y)"),
-    %% a name that is no type variable of the signature selects
-    #fn_declaration{body = #e_selection{expr = #e_var{name = p}, field = compare}} =
-        declaration("fn f(p : a) : a needs a.compare = p.compare"),
-    #e_member{member_of = a, name = '+'} = expression("a.+"),
-    #e_call{callee = #e_member{member_of = t, name = '<>'}} = expression("t.<>(x, y)").
+    Help = fun(Operator) ->
+                   "write `x " ++ Operator ++ " y`, or where a function is wanted a lambda,"
+                       " `fn(x, y) = x " ++ Operator ++ " y`"
+           end,
+    ?assertEqual({"`a.+` names a member, which an expression reaches through `+`", Help("+")},
+                 expression_refusal_and_help("a.+(x, y)")),
+    ?assertEqual({"`Int.+` names a member, which an expression reaches through `+`", Help("+")},
+                 expression_refusal_and_help("List.foldLeft(xs, 0, Int.+)")),
+    ?assertEqual({"`Prelude.List.<>` names a member, which an expression reaches through `<>`",
+                  Help("<>")},
+                 expression_refusal_and_help("Prelude.List.<>([1], [2])")),
+    %% the name and the operator underlined whole
+    ?assertMatch({error, #diagnostic{span = {1, 9, {1, 14}}}},
+                 ern_parser:parse_string("let x = Int.*")),
+    #fn_declaration{body = #e_call{callee = #e_selection{expr = #e_var{name = a},
+                                                         field = compare}}} =
+        declaration("fn f(x : a, y : a) : Ordering needs a.compare = a.compare(x, y)").
 
 %% report Appendix A, §4.9: a declaration with a requirement that binds a
 %% name that is one of its type variables parses, and the checker refuses

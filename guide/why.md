@@ -230,11 +230,11 @@ $ ern run main.erc
 
 `Stack.Stack([])` in `main.ern` is refused, so a caller holds a stack through `empty`, `push` and `size` alone. The list inside can become anything, and no caller knows.
 
-A *requirement* names the operations a generic function needs of its type, several with commas: a type's `compare`, `negate`, an operator or `show`, and nothing else. `sorted` needs a `compare` of `a`, the type of the list's elements. Written with `Int.compare` it would sort integers alone. Written with `needs`, a call supplies nothing, and the compiler finds the `compare` declared under the element type's name, in that type's own module.
+A *requirement* names the operations a generic function needs of its type, several with commas: a type's `compare`, `negate`, an operator or `show`, and nothing else. `sorted` needs a `compare` of `a`, the type of the list's elements, since `List.sort` needs one. Written over `List(Int)` it would sort integers alone. Written with `needs`, a call supplies nothing, and the compiler finds the `compare` declared under the element type's name, in that type's own module.
 
 ```ernest
 fn sorted(list : List(a)) : List(a) needs a.compare =
-    List.sort(list, a.compare)
+    List.sort(list)
 
 export fn main() : Unit = {
     Io.println(Io.show(sorted([3, 1, 2])));
@@ -248,13 +248,13 @@ $ ern run sorted.erc
 ["a", "b"]
 ```
 
-One `sorted` sorts integers and strings. Nothing declared `Int` or `String` sortable: each has its own `compare`, and the compiler supplies it. A type of the program's own gets one by `derives compare`, or by declaring the function under its name in its own module; one that has none is refused at the call, and a program that needs an order of its own passes a function, `List.sort(list, byLength)`:
+One `sorted` sorts integers and strings. Nothing declared `Int` or `String` sortable: each has its own `compare`, and the compiler supplies it. A type of the program's own gets one by `derives compare`, or by declaring the function under its name in its own module, and another order is a key, `List.sortBy(list, String.size)`. A type that has none is refused at the call:
 
 ```ernest-rejected
 type Color = Red | Green
 
 fn sorted(list : List(a)) : List(a) needs a.compare =
-    List.sort(list, a.compare)
+    List.sort(list)
 
 export fn main() : Unit =
     Io.println(Io.show(sorted([Green, Red])))

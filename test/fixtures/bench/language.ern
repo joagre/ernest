@@ -86,24 +86,24 @@ export fn intAdded(count : Int, left : Int, right : Int, acc : Int) : Int =
 
 // Report §3.5: a derived `compare` of a record of two fields.
 export fn pairCompared(count : Int, left : Pair, right : Pair, acc : Ordering) : Ordering =
-    if count == 0 then acc else pairCompared(count - 1, left, right, Pair.compare(left, right))
+    if count == 0 then acc else pairCompared(count - 1, left, right, compare(left, right))
 
 // Report §4.9: a requirement's member, supplied at `Int` by the compiler.
 export fn required(count : Int, left : Int, right : Int, acc : Int) : Int =
     if count == 0 then acc else required(count - 1, left, right, larger(left, right))
 
 fn larger(left : a, right : a) : a needs a.compare =
-    match a.compare(left, right) {
+    match compare(left, right) {
         Less -> right
       | _ -> left
     }
 
-// The same comparison at `Int` with no requirement, `Int.compare` called.
+// The same comparison at `Int` with no requirement, `Int`'s compare reached.
 export fn direct(count : Int, left : Int, right : Int, acc : Int) : Int =
     if count == 0 then acc else direct(count - 1, left, right, largerInt(left, right))
 
 fn largerInt(left : Int, right : Int) : Int =
-    match Int.compare(left, right) {
+    match compare(left, right) {
         Less -> right
       | _ -> left
     }

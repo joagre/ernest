@@ -55,7 +55,7 @@ comparisons of two optional values read it.
 ### Examples
 
 ```ernest
-#(Optional.compare(None, Some(1)), Some(2) < Some(1), Some("a") > None)
+#(compare(None, Some(1)), Some(2) < Some(1), Some("a") > None)
 // => #(Less, false, true)
 ```
 

@@ -87,7 +87,7 @@ rows(Unit) ->
          pairCompared, fun() -> [{'Pair', 1, 2}, {'Pair', 1, 3}, 'Equal'] end),
      Row("a requirement's compare at Int, a direct call", 10000000, required, required,
          fun() -> [3, 4, 0] end),
-     Row("  Int.compare called, with no requirement", 10000000, required, direct,
+     Row("  compare at Int, with no requirement", 10000000, required, direct,
          fun() -> [3, 4, 0] end),
      Row("a String concatenation, a binary built", 10000000, appended, appended,
          fun() -> [Text(<<"ab">>), Text(<<"cd">>), <<>>] end),

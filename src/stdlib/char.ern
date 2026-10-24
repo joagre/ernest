@@ -164,7 +164,7 @@ foreign fn fromCode(code : Int) : Char =
 /// ### Examples
 ///
 /// ```ernest
-/// Char.compare('b', 'a')
+/// compare('b', 'a')
 /// // => Greater
 /// ```
 export fn compare(left : Char, right : Char) : Ordering =

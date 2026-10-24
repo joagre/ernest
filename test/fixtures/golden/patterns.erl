@@ -12,7 +12,7 @@
     ern@io:'$8'('$5'({'Some', {'Snapshot', <<"a">>, 2}})),
     ern@io:'$8'('$5'('None')),
     ern@io:'$8'(ern@int:'$24'('$7'(3))),
-    ern@io:'$8'(ern@int:'$24'(ern@list:'$39'('$9'([1,
+    ern@io:'$8'(ern@int:'$24'(ern@list:'$42'('$9'([1,
                                                    2,
                                                    3])))),
     ern@io:'$8'(ern@int:'$24'('$8'({'Square', 4}))).

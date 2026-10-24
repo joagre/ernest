@@ -17,6 +17,9 @@
 
 -define(DECLARATION_START, [export, type, abstract, fn, 'let', foreign]).
 -define(SPECS, [bytes, int, float, utf8, utf16, utf32, big, little, signed, unsigned]).
+%% §2.6's `userop`, the operators a type declares.
+-define(IS_USEROP(Operator), Operator =:= '+'; Operator =:= '-'; Operator =:= '*';
+                             Operator =:= '/'; Operator =:= '%'; Operator =:= '<>').
 
 -spec parse([ern_lexer:token()]) -> {ok, [tuple()]} | {error, ern_diagnostic:diagnostic()}.
 parse(Tokens) ->
@@ -469,7 +472,7 @@ fn_declaration([{fn, Position} | Rest], Doc, Export) ->
                                   member_of = MemberOf, name = Name, params = Params,
                                   result_type = ResultType, effect = Effect,
                                   requirement = Requirement, body = Body, name_span = NameSpan},
-    spanned({members_named(Declaration), Rest5}).
+    spanned({Declaration, Rest5}).
 
 %% Report §4.9, §2.4, Appendix A's Requirement: `needs` and the members it
 %% names, after the result type; `needs` is an identifier read by its place,
@@ -482,8 +485,7 @@ optional_requirement(Tokens) ->
 %% Appendix A's Need, the member a requirement names: a type variable, `.`,
 %% and compare, negate, an operator or show (report §4.9, §4.8, E.1).
 member([{ident, Position, Variable}, {'.', _}, {Operator, _} | Rest])
-  when Operator =:= '+'; Operator =:= '-'; Operator =:= '*';
-       Operator =:= '/'; Operator =:= '%'; Operator =:= '<>' ->
+  when ?IS_USEROP(Operator) ->
     spanned({#member{span = Position, member_of = Variable, name = Operator}, Rest});
 member([{ident, Position, Variable}, {'.', _}, {ident, NamePosition, Name} | Rest]) ->
     %% report §11.5: the error covers the member as written, `a.zero`
@@ -504,34 +506,6 @@ member([Token | _]) ->
     fail(position(Token), instead("expected a type variable", Token),
          "a requirement names a member of a type variable, as needs a.compare").
 
-%% Appendix A, report §3.5, §4.9: in a declaration with a requirement,
-%% `a.compare` and `a.negate`, where `a` is a type variable of its
-%% signature, name the members of a's type and select nothing. That the
-%% declaration binds no name that is one of its type variables is a rule
-%% of its scope, which the checker holds.
-members_named(#fn_declaration{requirement = []} = Declaration) ->
-    Declaration;
-members_named(#fn_declaration{body = Body} = Declaration) ->
-    Variables = ern_ast:signature_variables(Declaration),
-    Declaration#fn_declaration{body = named_members(Body, Variables)}.
-
-%% The body with each selection of a member from a type variable named
-%% Variables made that member.
-named_members(#e_selection{span = Span, expr = #e_var{namespace = [], name = Name},
-                           field = Field} = Selection, Variables)
-  when Field =:= compare; Field =:= negate ->
-    case lists:member(Name, Variables) of
-        true -> #e_member{span = Span, member_of = Name, name = Field};
-        false -> Selection
-    end;
-named_members(Node, Variables) when is_tuple(Node), is_atom(element(1, Node)) ->
-    list_to_tuple([element(1, Node) | [named_members(Child, Variables)
-                                       || Child <- tl(tuple_to_list(Node))]]);
-named_members(Nodes, Variables) when is_list(Nodes) ->
-    [named_members(Node, Variables) || Node <- Nodes];
-named_members(Leaf, _) ->
-    Leaf.
-
 %% Report §4.5, Appendix A's DeclName: a member, declared with `fn`, is an
 %% operator, `compare` or `negate`, what the language resolves by the
 %% operand's type; a type's other operations are functions of its module.
@@ -545,8 +519,7 @@ declaration_name([{typename, _, MemberOf}, {'.', _}, {ident, Position, Name} | R
     lists:member(Name, [compare, negate]) orelse fail(Position, NoMember, Help),
     {MemberOf, Name, Rest};
 declaration_name([{typename, _, MemberOf}, {'.', _}, {Operator, _} | Rest])
-  when Operator =:= '+'; Operator =:= '-'; Operator =:= '*';
-       Operator =:= '/'; Operator =:= '%'; Operator =:= '<>' ->
+  when ?IS_USEROP(Operator) ->
     {MemberOf, Operator, Rest};
 declaration_name([{typename, _, _}, {'.', _}, Token | _]) ->
     fail(position(Token), "expected an operator, `compare` or `negate` after `.` instead of "
@@ -809,22 +782,37 @@ parenthesized(_, _, [Token | _], _Marks) ->
          "a tuple type is written with `#(`, as `#(Int, Int)`").
 
 %% {typename "."} followed by a final segment. Returns {con, Namespace, Name}
-%% for an uppercase final, {value, Namespace, Name} for an ident or userop final.
-qualified([{typename, _, First} | Rest]) ->
-    qualified(Rest, [], First).
+%% for an uppercase final, {value, Namespace, Name} for an ident final.
+qualified([{typename, Position, First} | Rest]) ->
+    qualified(Rest, [], First, Position).
 
-qualified([{'.', _}, {typename, _, Next} | Rest], Namespace, Current) ->
-    qualified(Rest, Namespace ++ [Current], Next);
-qualified([{'.', _}, {ident, _, Name} | Rest], Namespace, Current) ->
+qualified([{'.', _}, {typename, _, Next} | Rest], Namespace, Current, Start) ->
+    qualified(Rest, Namespace ++ [Current], Next, Start);
+qualified([{'.', _}, {ident, _, Name} | Rest], Namespace, Current, _Start) ->
     {{value, Namespace ++ [Current], Name}, Rest};
-qualified([{'.', _}, {Operator, _} | Rest], Namespace, Current)
-  when Operator =:= '+'; Operator =:= '-'; Operator =:= '*';
-       Operator =:= '/'; Operator =:= '%'; Operator =:= '<>' ->
-    {{value, Namespace ++ [Current], Operator}, Rest};
-qualified([{'.', _}, Token | _], _Namespace, _Current) ->
+qualified([{'.', _}, {Operator, OperatorPosition} | _], Namespace, Current, Start)
+  when ?IS_USEROP(Operator) ->
+    %% report §4.5, Appendix A's QName: a member's name, `Int.+`, stands in
+    %% a declaration alone
+    {Line, Column, _, _} = Start,
+    {_, _, End, _} = OperatorPosition,
+    member_written({Line, Column, End},
+                   ern_namespace:text(Namespace ++ [Current]) ++ "." ++ atom_to_list(Operator),
+                   Operator);
+qualified([{'.', _}, Token | _], _Namespace, _Current, _Start) ->
     fail(position(Token), instead("expected a name after `.`", Token));
-qualified(Rest, Namespace, Current) ->
+qualified(Rest, Namespace, Current, _Start) ->
     {{con, Namespace, Current}, Rest}.
+
+%% Report §4.5, §11.5: a member written by its name where an expression
+%% reaches it by its operator alone, with the operator to write.
+-spec member_written(ern_diagnostic:span(), string(), atom()) -> no_return().
+member_written(Span, Written, Operator) ->
+    Text = atom_to_list(Operator),
+    fail(Span, "`" ++ Written ++ "` names a member, which an expression reaches through `"
+               ++ Text ++ "`",
+         "write `x " ++ Text ++ " y`, or where a function is wanted a lambda, `fn(x, y) = x "
+         ++ Text ++ " y`").
 
 %%
 %% Expressions
@@ -1004,6 +992,16 @@ calls(Expr, [{'.', _}, {ident, FieldPosition, Field} | Rest]) ->
                              field_span = ern_diagnostic:span(FieldPosition)},
     {Selection, Rest1} = spanned({Unspanned, Rest}),
     calls(Selection, Rest1);
+calls(Expr, [{'.', _}, {Operator, OperatorPosition} | _]) when ?IS_USEROP(Operator) ->
+    %% report §4.5, Appendix A: a member stands in no expression, a type
+    %% variable's `a.+` among them
+    Written = case Expr of
+                  #e_var{namespace = [], name = Name} -> atom_to_list(Name) ++ ".";
+                  _ -> "."
+              end,
+    {Line, Column, _} = ern_diagnostic:span(ern_ast:span(Expr)),
+    {_, _, End, _} = OperatorPosition,
+    member_written({Line, Column, End}, Written ++ atom_to_list(Operator), Operator);
 calls(Expr, [{'.', _}, Token | _] = Tokens) ->
     %% report §2.4: a reserved word where a field's name stands names nothing
     case reserved_word(Token) of
@@ -1046,13 +1044,6 @@ within(Namespace, Name, Argument, Parse) ->
 primary([{Kind, Position, Value} | Rest]) when Kind =:= int; Kind =:= float; Kind =:= char;
                                                Kind =:= string; Kind =:= bool ->
     spanned({#e_literal{span = Position, kind = Kind, value = Value}, Rest});
-primary([{ident, Position, Name}, {'.', _}, {Operator, _} | Rest])
-  when Operator =:= '+'; Operator =:= '-'; Operator =:= '*';
-       Operator =:= '/'; Operator =:= '%'; Operator =:= '<>' ->
-    %% report §4.9, Appendix A: a type variable's member named by an
-    %% operator, `a.+`; `a.compare` is a selection until its declaration's
-    %% requirement makes it a member (members_named/1)
-    spanned({#e_member{span = Position, member_of = Name, name = Operator}, Rest});
 primary([{ident, Position, Name} | Rest]) ->
     spanned({#e_var{span = Position, name = Name}, Rest});
 primary([{typename, Position, _} | _] = Tokens) ->

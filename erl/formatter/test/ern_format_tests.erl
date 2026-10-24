@@ -45,12 +45,13 @@ keeps_what_was_written_test() ->
                  laid(["fn f(x)=(x+0x1F_FF)|>g", "fn h(x) = x |> f() |> `raw`"])).
 
 %% report §11.6: two tokens that would read as others written together
-%% stay a space apart, a member `-` before a bitstring's `>>`, which read
-%% as `->` and `>`. A regression test, of a defect the programs generated
-%% from Appendix A found (MVP 2.99c item 1)
+%% stay a space apart, and two that would not are written together, a
+%% bitstring's specifiers among them. A regression test, of a defect the
+%% programs generated from Appendix A found (MVP 2.99c item 1), a member
+%% `-` before a bitstring's `>>`, which read as `->` and `>`; a member
+%% stands in no expression now (report §4.5), and the test does not cover
+%% a pair of tokens that would read as others
 apart_test() ->
-    ?assertEqual([<<"fn f(a) =">>, <<"    <<a.- >>">>], laid(["fn f(a) = << a.- >>"])),
-    fixed(["fn f(a) =", "    <<a.+, a.- >>"]),
     fixed(["fn f(x) =", "    <<x:int-big>>"]).
 
 %% report §11.6, §5.7: the parentheses around a pipe's stage, which make no

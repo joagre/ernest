@@ -169,7 +169,7 @@ Four *admission rules* decide whether a function is in: rules 1 to 3 each admit 
 
 Ten *shape rules* give a function its shape. Shape rules 1 to 5, 7, 9 and 10 hold in a library outside the standard library too, as Appendix D's, which the four admission rules do not reach.
 
-1. The subject comes first, callbacks last but for shape rule 8's milliseconds, an accumulator between them: `x |> f(a)` is `f(x, a)`. A time that is the operation's own subject, an alarm's, comes first; one that bounds a wait comes last (shape rule 8). No aliases, no argument-order variants. An operations record (§4.9) comes directly after the subjects, before an accumulator and the callbacks: `common(list, other, operations)`. A function takes a member as a parameter where any function of its type may be given, `List.sort(list, compare)`, and declares the requirement where the type's own member is meant (§4.9).
+1. The subject comes first, callbacks last but for shape rule 8's milliseconds, an accumulator between them: `x |> f(a)` is `f(x, a)`. A time that is the operation's own subject, an alarm's, comes first; one that bounds a wait comes last (shape rule 8). No aliases, no argument-order variants. An operations record (§4.9) comes directly after the subjects, before an accumulator and the callbacks: `common(list, other, operations)`. A function that needs a type's member declares the requirement (§4.9) and takes no function of the member's shape: `List.sort(list)` under `needs a.compare`, and `List.sortBy(list, key)` for an order by a key.
 2. One verb per operation on each kind of type that has it, and a type alone of its kind names its own; a module whose operations serve two kinds names the second's with the kind, `closeListener`, `nextFloat`.
 
    The container operations are `empty`, `size`, `isEmpty`, `contains`, `get` for lookup by index or key, `put` for insertion, `remove`, `map`, `filter`, `filterMap`, `fold`, `forEach`, `any`, `all`, `find`, `fromList`, and `toList`, and a container with an order folds by `foldLeft`, in that order, in place of `fold`; the sum-type operations are `withDefault`, `map`, and `andThen`.
@@ -210,7 +210,7 @@ Ten *shape rules* give a function its shape. Shape rules 1 to 5, 7, 9 and 10 hol
    `Address.callForever` is the one wait on another party without a limit, and says so in its name.
 
    One that delivers later takes a function from the message to the caller's mailbox type and delivers to the caller, as `monitor` does (§6.9). A time is as §7.4 says: one below zero is none, and a wait given none has run out as it begins, answering `Left(Timeout)`, or a call `None` (§6.6).
-9. An exported function takes no `Bool` that chooses between two behaviors. It takes a type whose constructors name them: `render(doc, Plain)`, not `render(doc, false)`. A `Bool` that is the value operated on, as in `Bool.not`, is not such a choice.
+9. An exported function takes no `Bool` that chooses between two behaviors. It takes a type whose constructors name them: `render(doc, Plain)`, not `render(doc, false)`. A `Bool` that is the value operated on, as in `Bool.toString`, is not such a choice.
 10. A name is the word a reader who knows the operation and not Ernest predicts from the thing named, `toCodePoint`, `removeAt`, `width`, `termination`: not a word the design used on its way to the thing, and not one that a name beside it in the module makes mean something else. Where the languages a reader comes from agree on a word or a shape, a slice by an end index, Ernest takes it, and departs only where its section states the departure.
 
 ### Appendix E.1. `io.ern` (namespace `Io`)
@@ -245,7 +245,7 @@ A value of an abstract type outside its module is written as `<abstract>`, and a
 
 ### Appendix E.2. `list.ern` (namespace `List`)
 
-`[]` is `empty` and `::` is `put`, so neither is a function; `fromList` and `toList` are the identity and are not provided. `contains` and `unique` require equality on `a` (§3.10). `sort` takes an order (§3.10); given a function that is none, its result is not stated. `minimumBy` and `maximumBy` compare the keys by the key type's `compare`, which they need (§4.9), and call `key` once for each element, in order. `List.<>` is the prelude's, §9.6; this module provides it (§9). `mapFold` departs from F#'s `List.mapFold` and Erlang's `lists:mapfoldl`, which answer the list first: it answers `#(acc, list)`, and its step `#(acc, element)`, the accumulator first as in `foldLeft`'s step. The primitives are `size`, `unique`, and a function of the host's beneath `sort`, private to the module, around which `sort` keeps a stability the host's sort does not promise (E.0 rule 1). The rest is Ernest.
+`[]` is `empty` and `::` is `put`, so neither is a function; `fromList` and `toList` are the identity and are not provided. `contains` and `unique` require equality on `a` (§3.10). `sort` orders by the element type's `compare` and `sortBy` by the key's (§3.10), each stable, equal elements in their order. `minimumBy` and `maximumBy` compare the keys by the key type's `compare`, which they need (§4.9), and call `key` once for each element, in order. `List.<>` is the prelude's, §9.6; this module provides it (§9). `mapFold` departs from F#'s `List.mapFold` and Erlang's `lists:mapfoldl`, which answer the list first: it answers `#(acc, list)`, and its step `#(acc, element)`, the accumulator first as in `foldLeft`'s step. The primitives are `size`, `unique`, and a function of the host's beneath `sort`, private to the module, around which `sort` keeps a stability the host's sort does not promise (E.0 rule 1). The rest is Ernest.
 
 ```
 List.size : (List(a)) -> Int
@@ -274,7 +274,8 @@ List.unique : (List(a=)) -> List(a=) // the first occurrence of each, in order
 List.indexed : (List(a)) -> List(#(Int, a)) // each element with its index from 0
 List.repeat : (a, Int) -> List(a) // n copies; n below 0 is 0
 List.reverse : (List(a)) -> List(a)
-List.sort : (List(a), (a, a) -> Ordering receiving e) -> List(a) receiving e // stable
+List.sort : (List(a)) -> List(a) needs a.compare // stable
+List.sortBy : (List(a), (a) -> k receiving e) -> List(a) receiving e needs k.compare // stable, by the key
 List.minimumBy : (List(a), (a) -> k receiving e) -> Optional(a) receiving e needs k.compare // the first of those whose key is least; None for the empty list
 List.maximumBy : (List(a), (a) -> k receiving e) -> Optional(a) receiving e needs k.compare // the first of those whose key is greatest; None for the empty list
 List.zip : (List(a), List(b)) -> List(#(a, b)) // to the shorter length
@@ -404,7 +405,6 @@ Char.fromCodePoint : (Int) -> Optional(Char) // None outside U+0000 to U+10FFFF 
 ### Appendix E.7. `bool.ern` (namespace `Bool`)
 
 ```
-Bool.not : (Bool) -> Bool
 Bool.toString : (Bool) -> String // "true" or "false"
 ```
 

@@ -93,7 +93,7 @@ Int.negate(int : Int) : Int
 ### Examples
 
 ```ernest
-Int.negate(5)
+-(2 + 3)
 // => -5
 ```
 
@@ -125,7 +125,7 @@ Compares two integers by size, the order `<` and the other comparisons use.
 ### Examples
 
 ```ernest
-Int.compare(1, 2)
+compare(1, 2)
 // => Less
 ```
 

@@ -70,7 +70,7 @@ export fn seed(int : Int) : Seed =
 /// since 0.4.0
 export fn nextInt(seed : Seed, bound : Int) : #(Int, Seed) = {
     let #(drawn, seed1) = below(seed, Int.abs(bound) + 1);
-    if bound < 0 then #(Int.negate(drawn), seed1) else #(drawn, seed1)
+    if bound < 0 then #(-drawn, seed1) else #(drawn, seed1)
 }
 
 // A number from 0 to below `bound`, from as many 64-bit draws as span

@@ -444,15 +444,9 @@ fn matches(typedWord : String, names : List(Name)) : #(List(Name), List(Name)) =
 }
 
 // Report §11.2: candidates are listed alphabetically, by the text a person
-// types.
+// types, and two names alike, a module and its directory, by the line shown.
 fn alphabetical(names : List(Name)) : List(Name) =
-    List.sort(names,
-              fn(left, right) =
-                  // two names alike, a module and its directory, by the line shown
-                  if left.text == right.text then
-                      compare(left.shown, right.shown)
-                  else
-                      compare(left.text, right.text))
+    List.sortBy(names, fn(name) = #(name.text, name.shown))
 
 // Report §11.2: a name is reached a segment at a time, so what is typed
 // reaches the names of as many segments as it has; a namespace's members

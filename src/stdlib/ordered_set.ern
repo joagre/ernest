@@ -67,7 +67,7 @@ export let empty : Set(a) = Set([])
 /// // => ["a", "b"]
 /// ```
 export fn fromList(list : List(a)) : Set(a) needs a.compare =
-    Set(firstOfEach(List.sort(list, a.compare)))
+    Set(firstOfEach(List.sort(list)))
 
 // The first of each run the order calls `Equal` in a sorted list. The sort
 // is stable, so the list's earlier occurrence comes first and is the one
@@ -75,7 +75,7 @@ export fn fromList(list : List(a)) : Set(a) needs a.compare =
 fn firstOfEach(sorted : List(a)) : List(a) needs a.compare =
     match sorted {
         first :: second :: rest ->
-            if a.compare(first, second) == Equal then
+            if compare(first, second) == Equal then
                 firstOfEach(first :: rest)
             else
                 first :: firstOfEach(second :: rest)
@@ -114,7 +114,7 @@ fn has(list : List(a), element : a) : Bool needs a.compare =
         [] ->
             false
       | head :: rest ->
-            match a.compare(element, head) {
+            match compare(element, head) {
                 Less -> false
               | Equal -> true
               | Greater -> has(rest, element)
@@ -138,7 +138,7 @@ fn inserted(list : List(a), element : a) : List(a) needs a.compare =
         [] ->
             [element]
       | head :: rest ->
-            match a.compare(element, head) {
+            match compare(element, head) {
                 Less -> element :: list
               | Equal -> list
               | Greater -> head :: inserted(rest, element)
@@ -155,7 +155,7 @@ fn inserted(list : List(a), element : a) : List(a) needs a.compare =
 /// // => [2]
 /// ```
 export fn remove(Set(list) : Set(a), element : a) : Set(a) needs a.compare =
-    Set(List.filter(list, fn(other) = a.compare(element, other) != Equal))
+    Set(List.filter(list, fn(other) = compare(element, other) != Equal))
 
 /// The set of `f`'s result for each element, met in order, in the order of the
 /// results' type. Two results that order calls `Equal` become one, so the
@@ -199,7 +199,7 @@ export fn filterMap(Set(list) : Set(a),
 /// ### Examples
 ///
 /// ```ernest
-/// OrderedSet.foldLeft(OrderedSet.fromList([1, 2]), 0, Int.+)
+/// OrderedSet.foldLeft(OrderedSet.fromList([1, 2]), 0, fn(sum, n) = sum + n)
 /// // => 3
 /// ```
 export fn foldLeft(Set(list) : Set(a), acc : b, step : (b, a) -> b receiving e) : b receiving e =
@@ -283,7 +283,7 @@ fn merged(list : List(a), other : List(a)) : List(a) needs a.compare =
       | #(_, []) ->
             list
       | #(head :: rest, otherHead :: others) ->
-            match a.compare(head, otherHead) {
+            match compare(head, otherHead) {
                 Less -> head :: merged(rest, other)
               | Equal -> head :: merged(rest, others)
               | Greater -> otherHead :: merged(list, others)
@@ -309,7 +309,7 @@ fn shared(list : List(a), other : List(a)) : List(a) needs a.compare =
       | #(_, []) ->
             []
       | #(head :: rest, otherHead :: others) ->
-            match a.compare(head, otherHead) {
+            match compare(head, otherHead) {
                 Less -> shared(rest, other)
               | Equal -> head :: shared(rest, others)
               | Greater -> shared(list, others)
@@ -335,7 +335,7 @@ fn remaining(list : List(a), other : List(a)) : List(a) needs a.compare =
       | #(_, []) ->
             list
       | #(head :: rest, otherHead :: others) ->
-            match a.compare(head, otherHead) {
+            match compare(head, otherHead) {
                 Less -> head :: remaining(rest, other)
               | Equal -> remaining(rest, others)
               | Greater -> remaining(list, others)
@@ -360,7 +360,7 @@ fn isWithin(list : List(a), other : List(a)) : Bool needs a.compare =
       | #(_, []) ->
             false
       | #(head :: rest, otherHead :: others) ->
-            match a.compare(head, otherHead) {
+            match compare(head, otherHead) {
                 Less -> false
               | Equal -> isWithin(rest, others)
               | Greater -> isWithin(list, others)

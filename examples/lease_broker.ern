@@ -25,8 +25,8 @@
 //   §6.6).
 // - A client watches the broker the same way, since a fault restarts the
 //   broker with every lease free, and what the old run lent is void.
-// - The ledger's pairs are sorted by `compare`, which reaches a tuple's
-//   order, holder then lease, as `<` does (report §3.10, §9.6).
+// - The ledger's pairs are sorted in a tuple's order, holder then lease,
+//   which `List.sort` needs and the call does not write (report §3.10, §4.9).
 //
 // Run it from this directory. The line of bob's restart, with the trace
 // beneath it, is ern run's report of his fault, on standard error (report
@@ -182,7 +182,7 @@ fn lending(leases : Leases) : Unit receiving BrokerMsg =
                 answer(reply, Unit);
                 let left =
                     Leases(..leases,
-                           free = List.sort(lease :: leases.free, compare),
+                           free = List.sort(lease :: leases.free),
                            lent = List.filter(leases.lent, fn(loan) = loan.lease != lease));
                 if isWatched(left, caller) then Unit else demonitor(caller);
                 lending(lendToWaiting(left))
@@ -227,7 +227,7 @@ fn takeBack(leases : Leases, process : Process, reason : Reason) : Leases = {
                            <> Io.show(reason))
     };
     if reason == Restarted then demonitor(process) else Unit;
-    Leases(free = List.sort(leases.free <> taken, compare),
+    Leases(free = List.sort(leases.free <> taken),
            lent = kept,
            waiting = List.filter(leases.waiting, fn(wait) = Reply.process(wait.reply) != process))
 }
@@ -248,7 +248,7 @@ fn lendToWaiting(leases : Leases) : Leases =
 
 // Who holds what, by holder, then by lease.
 fn entries(leases : Leases) : List(#(String, Int)) =
-    List.sort(List.map(leases.lent, fn(loan) = #(loan.holder, loan.lease)), compare)
+    List.sort(List.map(leases.lent, fn(loan) = #(loan.holder, loan.lease)))
 
 //
 // The broker's calls

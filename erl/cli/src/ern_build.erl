@@ -832,7 +832,9 @@ compiled_dependencies(LoadPath) ->
 
 %% The modules Declarations name, the namespaces Skip aside, each the
 %% longest prefix of a qualified name whose path IsModule answers is a
-%% module's, or the module M of `M.T.name` where TypeMembers says so.
+%% module's, or the module M of `M.T.name` where TypeMembers says so, so
+%% that a member's name, which stands in no expression, is refused as the
+%% member's (report §4.5).
 named_modules(Declarations, Skip, IsModule, TypeMembers) ->
     OwnMembers = local_members(Declarations),
     References = lists:usort([{Path, Name} || {Path, Name} <- references(Declarations),
@@ -849,7 +851,7 @@ named_modules(Declarations, Skip, IsModule, TypeMembers) ->
                  end || {Path, Name} <- References, #{Path := Module} <- [Found]]).
 
 %% Each qualified reference of a source, its namespace and its last name; only a
-%% value's lowercase name or operator can be a type's member.
+%% value's lowercase name can name a type's member.
 references(#e_var{namespace = Namespace, name = Name}) -> [{Namespace, Name}];
 references(#e_constructor{namespace = Namespace, name = Name, base = Base, args = Args}) ->
     [{Namespace, Name} | references(Base) ++ references(Args)];

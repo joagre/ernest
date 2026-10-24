@@ -165,11 +165,11 @@ type_compare_test() ->
                    "let set : Peer.Service(OrderedSet.Set(Coin)) = Peer.service(\"coins\")\n"
                    "fn worth(c : Coin) : Int = match c { Coin(n) -> n }\n"
            end,
-    First = Coin("match #(a, b) { #(Coin(x), Coin(y)) -> Int.compare(x, y) }",
+    First = Coin("match #(a, b) { #(Coin(x), Coin(y)) -> compare(x, y) }",
                  "match c { Coin(n) -> Coin(-n) }"),
-    Reversed = Coin("match #(a, b) { #(Coin(x), Coin(y)) -> Int.compare(y, x) }",
+    Reversed = Coin("match #(a, b) { #(Coin(x), Coin(y)) -> compare(y, x) }",
                     "match c { Coin(n) -> Coin(-n) }"),
-    Negated = Coin("match #(a, b) { #(Coin(x), Coin(y)) -> Int.compare(x, y) }",
+    Negated = Coin("match #(a, b) { #(Coin(x), Coin(y)) -> compare(x, y) }",
                    "match c { Coin(n) -> Coin(0 - n) }"),
     #definition{form = TypeForm, group = {Group, 1}} = definition(First, 'Coin'),
     #definition{group = {Group, 2}} = definition(First, ['Coin', compare]),

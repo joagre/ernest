@@ -58,14 +58,14 @@ two `Left`s by their causes' `compare` and two `Right`s by their values'
 ### Examples
 
 ```ernest
-#(Either.compare(Left("x"), Right(1)), Left("b") < Right(1))
+#(compare(Left("x"), Right(1)), Left("b") < Right(1))
 // => #(Less, true)
 ```
 
 Two `Left`s, and two `Right`s, are ordered by what they hold:
 
 ```ernest
-List.sort([Right(2), Left("b"), Right(1), Left("a")], Either.compare)
+List.sort([Right(2), Left("b"), Right(1), Left("a")])
 // => [Left("a"), Left("b"), Right(1), Right(2)]
 ```
 

@@ -45,7 +45,7 @@
 /// ### Examples
 ///
 /// ```ernest
-/// #(Optional.compare(None, Some(1)), Some(2) < Some(1), Some("a") > None)
+/// #(compare(None, Some(1)), Some(2) < Some(1), Some("a") > None)
 /// // => #(Less, false, true)
 /// ```
 ///
@@ -55,7 +55,7 @@ export fn compare(left : Optional(a), right : Optional(a)) : Ordering needs a.co
         #(None, None) -> Equal
       | #(None, Some(_)) -> Less
       | #(Some(_), None) -> Greater
-      | #(Some(value), Some(other)) -> a.compare(value, other)
+      | #(Some(value), Some(other)) -> compare(value, other)
     }
 
 /// `true` for a `Some`.

@@ -65,7 +65,7 @@ Expressions are parsed by one precedence-climbing loop, patterns by a second, an
 Every node is a record of `erl/parser/include/ern_ast.hrl`, one per production of Appendix A, `span` first, which `ern_ast:span/1` reads. Expressions and patterns end in a `type` field the checker fills, and declarations carry `doc` and `export`.
 
 - A name, `#e_var{}`, carries its `referent`, what §4.2's lookup resolved, which the canonical form reads (Appendix H).
-- A `fn` declaration's requirement is a list of `#member{}`, and `a.compare` in its body an `#e_member{}` (§4.9).
+- A `fn` declaration's requirement is a list of `#member{}` (§4.9). A member's name stands in no expression, so `a.compare` in a body parses as a selection, which the checker refuses, and an operator after `.` is the parser's refusal (§4.5).
 - The parser rewrites twice: parentheses make no node, and `x |> f(a)` is a call with its `pipe` flag set (§5.1).
 - A clause's `or` alternatives are one `#p_or{}` (§5.9).
 - `prune_docs` keeps a doc block only where §2.2 attaches it; the module's is `#module_doc{}`, first in the list.
@@ -92,7 +92,7 @@ A requirement (§4.9) is held in these places:
 - in the environment's `requirement`, the members in force;
 - in a use's `supplies` or an operator's `member`, a `#pending_member{}` until the definition ends, when `supplied/2` replaces each with a supply of `ern_types.hrl` (the glossary's *Supply*).
 
-`derived_members/2` makes each `derives compare` an `fn T.compare` declaration before the values are checked (§3.5). `filled/7` reads `Ops(..Set)` as a construction, and `updated_through_paths/7` a path in a record update as bindings and constructions (§5.6).
+`derived_members/2` makes each `derives compare` an `fn T.compare` declaration before the values are checked, each field compared by an `#e_member{}` of `ern_types.hrl`, an expression no source writes (§3.5). `filled/7` reads `Ops(..Set)` as a construction, and `updated_through_paths/7` a path in a record update as bindings and constructions (§5.6).
 
 A block's local `fn`s (§5.4), an initializer (§4.6, `is_value_form/1`) and a built-in type's operators (`builtin_operators/2`, §4.8) are checked in the same module.
 

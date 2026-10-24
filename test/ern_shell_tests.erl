@@ -117,7 +117,7 @@ brief_module_version() ->
                           "export type Point = Point(x : Int)\n\n",
                           "/// Orders points by their x.\n",
                           "export fn Point.compare(a : Point, b : Point) : Ordering =\n",
-                          "    Int.compare(a.x, b.x)\n\n",
+                          "    compare(a.x, b.x)\n\n",
                           "/// Quotes *Since 9.9.* in its text.\n",
                           "export fn quoted() : Int = 1\n"]),
     ShiftTab = "1b5b5a",
@@ -556,12 +556,13 @@ load_and_reload_dependents() ->
     ?assertMatch({_, _}, binary:match(Output, <<"Geo.Shape, compiled again\n"
                                                 "Main, compiled again\n> 30\n">>)).
 
-%% report §4.2, §11.2: a type and the module of its name share a namespace
-%% at the prompt as in a build: a load of the module brings the type's, and
-%% `Main.Stack.compare` is the type's member and `Main.Stack.push` the
-%% module's, called, typed and documented by the one prefix; and `Tab` after
-%% `Main.Stack.` lists both. A regression test, written after the code: the
-%% checker took every such name for a member
+%% report §4.2, §4.5, §11.2: a type and the module of its name share a
+%% namespace at the prompt as in a build: a load of the module brings the
+%% type's, whose member `compare` reaches, and `Main.Stack.push` is the
+%% module's, called and documented by the prefix; `Main.Stack.compare`
+%% names the member, which `:type` refuses and `Tab` after `Main.Stack.`
+%% does not list beside the module's functions. A regression test, written
+%% after the code: the checker took every such name for a member
 shared_namespace_test_() ->
     {timeout, waits(2), fun shared_namespace/0}.
 
@@ -572,26 +573,28 @@ shared_namespace() ->
                          "export type Stack = Stack(items : List(Int))\n"
                          "\n"
                          "export fn Stack.compare(left : Stack, right : Stack) : Ordering =\n"
-                         "    Int.compare(List.size(left.items), List.size(right.items))\n"
+                         "    compare(List.size(left.items), List.size(right.items))\n"
                          "\n"
                          "export fn empty() : Stack = Stack(items = [])\n"),
     ok = file:write_file(filename:join([SourceRoot, "main", "stack.ern"]),
                          "/// Pushes an item.\n"
                          "export fn push(stack : Main.Stack, item : Int) : Main.Stack =\n"
-                         "    Main.Stack(items = item :: stack.items)\n"),
+                         "    Main.Stack(items = item :: stack.items)\n"
+                         "\n"
+                         "export fn size(stack : Main.Stack) : Int = List.size(stack.items)\n"),
     InputFile = filename:join(SourceRoot, "session.in"),
     ok = file:write_file(InputFile, [":load Main.Stack\n",
                                      "let one = Main.Stack.push(Main.empty(), 1)\n",
-                                     "Main.Stack.compare(one, Main.empty())\n",
+                                     "compare(one, Main.empty())\n",
                                      ":type Main.Stack.compare\n",
                                      ":doc Main.Stack.push\n"]),
     Ern = filename:absname("../bin/ern"),
     {0, Output} = ern_pty:sh(alone(Ern ++ " shell --source-root " ++ SourceRoot ++ " < "
                                    ++ InputFile)),
     ?assertMatch({_, _}, binary:match(Output, <<"> one : Main.Stack\n"
-                                                "> Greater : Ordering\n"
-                                                "> Main.Stack.compare : (Main.Stack, Main.Stack)"
-                                                " -> Ordering\n">>)),
+                                                "> Greater : Ordering\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"`Main.Stack.compare` names a member, which an"
+                                                " expression reaches through `compare`">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"Pushes an item.">>)),
     Bytes = pty(alone(Ern ++ " shell --source-root " ++ SourceRoot),
                 [{expect, "> "},
@@ -602,8 +605,9 @@ shared_namespace() ->
                  {send, "03"},
                  {send, "04"}],
                 wait_seconds(), " --size 30x100"),
-    ?assertMatch({_, _}, binary:match(Bytes, <<"Main.Stack.compare : (Main.Stack, Main.Stack)">>)),
-    ?assertMatch({_, _}, binary:match(Bytes, <<"Main.Stack.push : (Main.Stack, Int)">>)).
+    ?assertEqual(nomatch, binary:match(Bytes, <<"Main.Stack.compare">>)),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"Main.Stack.push : (Main.Stack, Int)">>)),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"Main.Stack.size : (Main.Stack) -> Int">>)).
 
 %% report §11.2: a `let` with a pattern whose line ends unfinished takes
 %% the next line, as any input does. A regression test: `let #(a, b) =` ran
@@ -2496,9 +2500,9 @@ later_member() ->
     ok = file:write_file(InputFile, "type Coin = Coin(Int)\n"
                                     "fn Coin.+(Coin(a), Coin(b)) = Coin(a + b)\n"
                                     "Coin(1) + Coin(2)\n"
-                                    "fn Coin.compare(Coin(a), Coin(b)) = Int.compare(a, b)\n"
+                                    "fn Coin.compare(Coin(a), Coin(b)) = compare(a, b)\n"
                                     "Coin(1) < Coin(2)\n"
-                                    "Coin.compare(Coin(3), Coin(2))\n"
+                                    "compare(Coin(3), Coin(2))\n"
                                     "type Coin = Coin(Float)\n"
                                     "Coin(1.0) + Coin(2.0)\n"),
     {0, Output} = ern_pty:sh("../bin/ern shell < " ++ InputFile),
@@ -3332,7 +3336,7 @@ member_doc() ->
                          ["export type Point = Point(x : Int, y : Int)\n\n",
                           "/// Orders two points by x.\n",
                           "export fn Point.compare(left : Point, right : Point) : Ordering =\n",
-                          "    Int.compare(left.x, right.x)\n"]),
+                          "    compare(left.x, right.x)\n"]),
     InputFile = filename:join(Dir, "session.in"),
     ok = file:write_file(InputFile, ":load Shape\n:doc Shape.Point.compare\n"),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),

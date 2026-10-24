@@ -313,7 +313,7 @@ What a `compare` answers, which `<` and the other comparisons read
 ### Examples
 
 ```ernest
-Int.compare(2, 1)
+compare(2, 1)
 // => Greater
 ```
 
@@ -787,7 +787,8 @@ compare(left : a, right : a) : Ordering needs a.compare
 Compares `left` with `right` by the order of their type: `Less`, `Equal`
 or `Greater`. It is the type's own `compare`, `Int.compare` for two
 `Int`s, chosen as `<` chooses it, and reaches every order `<` reaches, a
-tuple's among them (report §3.10).
+tuple's among them, and under `needs a.compare` the requirement's
+(report §3.10, §4.9).
 
 A type without an order has no `compare`: `compare(true, false)` is
 refused, as `true < false` is.
@@ -795,8 +796,8 @@ refused, as `true < false` is.
 ### Examples
 
 ```ernest
-List.sort([#("pear", 2), #("fig", 3), #("pear", 1)], compare)
-// => [#("fig", 3), #("pear", 1), #("pear", 2)]
+#(compare(2, 1), compare(#("pear", 2), #("pear", 3)))
+// => #(Greater, Less)
 ```
 
 ---

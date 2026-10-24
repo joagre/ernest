@@ -189,7 +189,7 @@ Prefix `-` is negation and prefix `!` is negation on `Bool` (§4.8). Both bind t
 | 6     | `\|\|`                 | left          |
 | 7     | `\|>`                  | left          |
 
-Only a `userop` can be qualified, `Int.+`, or declared, `fn Distance.+` (§4.8).
+Only a `userop` can be declared, `fn Distance.+` (§4.8); a member is named in a declaration and a requirement alone (§4.5).
 
 ## 3. Types
 
@@ -309,7 +309,7 @@ fn same(f : () -> Int, g : () -> Int) : Bool =
     f == g // rejected: == is not defined on functions
 ```
 
-Ordering is per type, through `compare` in the type's namespace: `Int.compare : (Int, Int) -> Ordering` (§9.3). For a type a module declares, that is its member `T.compare` (§4.2); a function named `compare` outside the type's namespace gives no ordering. For operand type `T`, `a < b` is `T.compare(a, b) == Less`; `<=`, `>`, and `>=` likewise. They resolve against the operand type as the operators of §4.8 do. A type without `compare` has no ordering, and `<` on it is a type error. The prelude defines `compare` for `Int`, `Float`, `String`, and `Char` (§9.6); for `Optional` and `Either` where their element types have one, `None` before `Some` and `Left` before `Right`, then by the element (§9.3); and for a tuple and a list where every component type has one, component by component from the left, a shorter list before a longer one it begins. `Bool`, `Path`, `Map` and `Set` have no ordering, and neither has a tuple or a list whose component type has none. `List.compare`, `Optional.compare` and `Either.compare` are the prelude's (§9.6), each provided by its module as `List.<>` is (Appendix E.2, E.10, E.11); a tuple's `compare` is the language's, since a tuple has no namespace. `compare(a, b)`, §9.6, is `T.compare(a, b)` for operand type `T`, resolved as `<` is, and reaches every order the operators reach, a tuple's among them.
+Ordering is per type, through `compare` in the type's namespace: `Int.compare : (Int, Int) -> Ordering` (§9.3). For a type a module declares, that is its member `T.compare` (§4.2); a function named `compare` outside the type's namespace gives no ordering. For operand type `T`, `a < b` is `T.compare(a, b) == Less`; `<=`, `>`, and `>=` likewise. They resolve against the operand type as the operators of §4.8 do. A type without `compare` has no ordering, and `<` on it is a type error. The prelude defines `compare` for `Int`, `Float`, `String`, and `Char` (§9.6); for `Optional` and `Either` where their element types have one, `None` before `Some` and `Left` before `Right`, then by the element (§9.3); and for a tuple and a list where every component type has one, component by component from the left, a shorter list before a longer one it begins. `Bool`, `Path`, `Map` and `Set` have no ordering, and neither has a tuple or a list whose component type has none. `List.compare`, `Optional.compare` and `Either.compare` are the prelude's (§9.6), each provided by its module as `List.<>` is (Appendix E.2, E.10, E.11); a tuple's `compare` is the language's, since a tuple has no namespace. `compare(a, b)`, §9.6, is `T.compare(a, b)` for operand type `T`, resolved as `<` is, and reaches every order the operators reach, a tuple's among them. An order is used through `compare` and the operators alone: `T.compare` names the declaration (§4.5), and a function that needs an order declares the requirement (§4.9).
 
 An *order* on a type `T` is a function `f : (T, T) -> Ordering` for which, for all `a`, `b`, and `c` of `T`: `f(a, a)` is `Equal`; `f(a, b)` is `Less` exactly when `f(b, a)` is `Greater`; where `f(a, b)` and `f(b, c)` are `Less`, `f(a, c)` is `Less`; and where `f(a, b)` is `Equal`, `f(a, c)` is `f(b, c)`.
 
@@ -383,15 +383,15 @@ fn helper(x) =
     ...
 ```
 
-**Type members.** A type `T` declared in a module, concrete or abstract, is a nested namespace. Its members are its operators, its `compare` and its `negate` (§4.5), declared with the single prefix `T.`, as in §4.8's `fn Distance.+`, or derived (§3.5), and exported at `Module.T.member`. The module of a prelude type is the exception §4.8 states: `export fn Float.+` in `float.ern` declares `Float.+`, and its `compare` and `negate` are declared unprefixed.
+**Type members.** A type `T` declared in a module, concrete or abstract, is a nested namespace. Its members are its operators, its `compare` and its `negate` (§4.5), declared with the single prefix `T.`, as in §4.8's `fn Distance.+`, or derived (§3.5); an operator reaches a member of an exported type from every module, and `Module.T.member` names the declaration alone (§4.5). The module of a prelude type is the exception §4.8 states: `export fn Float.+` in `float.ern` declares `Float.+`, and its `compare` and `negate` are declared unprefixed.
 
-The namespace belongs to the file that declares the type, and the module of that name shares it: `main.ern` may declare `Stack` beside `main/stack.ern`, as the prelude's `Map` stands beside the standard library's. A qualified name `Main.Stack.compare` is the member where the type `Stack` has one, and the module `Main.Stack`'s `compare` otherwise, in `main.ern` and elsewhere alike. A member of an exported type and an exported value of the module of its name, a function or a `let`, may not share a name: `main/stack.ern` exporting `compare` while `main.ern` exports `Stack` with a `compare` is an error, reported in `main/stack.ern`. The sharing is by the exact name: `main.ern` declaring `STACK` beside `main/stack.ern` shares nothing, and a module may declare two types whose names differ only in case.
+The namespace belongs to the file that declares the type, and the module of that name shares it: `main.ern` may declare `Stack` beside `main/stack.ern`, as the prelude's `Map` stands beside the standard library's. A qualified name `Main.Stack.compare` in an expression is the module `Main.Stack`'s `compare`, since a member stands in no expression (§4.5). A member of an exported type and an exported value of the module of its name, a function or a `let`, may not share a name all the same: `main/stack.ern` exporting `compare` while `main.ern` exports `Stack` with a `compare` is an error, reported in `main/stack.ern`. The sharing is by the exact name: `main.ern` declaring `STACK` beside `main/stack.ern` shares nothing, and a module may declare two types whose names differ only in case.
 
-**Unqualified lookup.** An unqualified name in a body is looked up first among the names bound around it, the innermost first: parameters, `let` bindings, pattern and `receive` variables, and local `fn`s. It is then looked up in the module's declarations, exported or not, then in the prelude. A name not found there is written qualified; a type's member is written `T.name`, within the type's own members too. A module may declare a type, a constructor, a function or a value with a prelude name, and the name then means the local one throughout the module.
+**Unqualified lookup.** An unqualified name in a body is looked up first among the names bound around it, the innermost first: parameters, `let` bindings, pattern and `receive` variables, and local `fn`s. It is then looked up in the module's declarations, exported or not, then in the prelude. A name not found there is written qualified. A type's member is no name a body writes: an operator reaches it (§4.5). A module may declare a type, a constructor, a function or a value with a prelude name, and the name then means the local one throughout the module.
 
-A dotted name's first segment is a type the module declares where that type has a member of the name, and otherwise the namespace of that name: in a module that declares `type List` with a member `List.<>`, `List.<>` is that member, and `List.map` the standard library's.
+A dotted name's first segment is a namespace, since a member stands in no expression (§4.5): in a module that declares `type List` with a member `List.<>`, `List.map` is the standard library's `map`, and `<>` on the module's own `List` is its member.
 
-`Prelude` names the prelude's own namespace: `Prelude.Some` is the prelude's `Some` in a module that declares its own. It is written only where a declaration or a binding of the module hides the name it reaches: `Prelude.Some` in a module that declares no `Some` is an error. It takes one name the prelude declares, or a namespace of the prelude or the standard library and one of its names: `Prelude.List.<>` is the prelude's `List.<>` past a member `List.<>` of the module's own. A member `T.f` of the module's own type is reached before a program module `T`'s `f`, and no prefix reaches past it, as `Prelude.` reaches past a prelude name. No module and no type is named `Prelude`. Within a module, type names are unique and constructor names are unique across its types.
+`Prelude` names the prelude's own namespace: `Prelude.Some` is the prelude's `Some` in a module that declares its own. It is written only where a declaration or a binding of the module hides the name it reaches: `Prelude.Some` in a module that declares no `Some` is an error. It takes one name the prelude declares, or a namespace of the prelude or the standard library and one of its names, `Prelude.List.map` in a module whose own `List` hides the standard library's namespace. No module and no type is named `Prelude`. Within a module, type names are unique and constructor names are unique across its types.
 
 ### 4.3 Type declarations
 
@@ -434,7 +434,7 @@ A function has one clause. Patterns in parameters are irrefutable, §5.10: `fn s
 
 `fn` may appear at top level and as a statement in a block; it sees its own name, and `fn` declarations in the same block or at top level may refer to each other. A type-member name, `fn T.f`, is a top-level form; in a block it is an error.
 
-A type's operations are functions of its module. A member, `fn T.f`, is declared only for what the language resolves by the operand's type: an operator of §2.6, `compare` (§3.10), and `negate` (§5.1); a `let` declares no member. A type whose declaration ends in `derives compare` has that member without declaring it (§3.5). A function declaration may end in a requirement, which names members of its type variables (§4.9). A module reaches its abstract type's constructors by being its module (§4.4).
+A type's operations are functions of its module. A member, `fn T.f`, is declared only for what the language resolves by the operand's type: an operator of §2.6, `compare` (§3.10), and `negate` (§5.1); a `let` declares no member. A type whose declaration ends in `derives compare` has that member without declaring it (§3.5). A function declaration may end in a requirement, which names members of its type variables (§4.9). A member is reached by what resolves to it alone, the operator of §4.8, prefix `-` (§5.1) and `compare` (§3.10); its name, `T.f` and a requirement's `a.f`, stands in a declaration and in a requirement and in no expression, where it is an error naming the operator to write: `Int.negate(x)` is written `-x`, and `Int.compare(a, b)` is written `compare(a, b)`. A program that needs an operation as a value writes the lambda, `fn(x) = -x`. A module reaches its abstract type's constructors by being its module (§4.4).
 
 ### 4.6 Bindings
 
@@ -466,7 +466,7 @@ An operator is resolved once its definition is inferred, and before the definiti
 
 A member named by an operator has the type `(T, T) -> R` for its type `T`, `T.compare` the type `(T, T) -> Ordering`, and `T.negate` the type `(T) -> R`; each receives nothing. For a type with parameters, `T` is the type applied to any arguments, the same in each place: `Vec.+` of a type `Vec(a)` has the type `(Vec(a), Vec(a)) -> R`. A member of another shape is an error at its declaration. An operator on a type that declares no member for it, `%` on `Float` or `<>` on `Int`, is a type error.
 
-`!` is negation on `Bool`, the prefix operator beside the logical operators `&&` and `||`, and `Bool.not` (E.7) is the same operation as a function, as `Int.negate` is of prefix `-`. `==`, `!=`, `<`, `<=`, `>`, `>=`, `&&`, and `||` cannot be defined per type: equality is structural and ordering goes through `compare` (§3.10); `&&` and `||` short-circuit on `Bool`. `::` is cons (§3.3); `|>` is a syntactic form (§5.7). The operators are the closed set of §2.6, and every other operation is a function.
+`!` is negation on `Bool`, the prefix operator beside the logical operators `&&` and `||`; an operation the language writes as an operator has no function form (§4.5). `==`, `!=`, `<`, `<=`, `>`, `>=`, `&&`, and `||` cannot be defined per type: equality is structural and ordering goes through `compare` (§3.10); `&&` and `||` short-circuit on `Bool`. `::` is cons (§3.3); `|>` is a syntactic form (§5.7). The operators are the closed set of §2.6, and every other operation is a function.
 
 ### 4.9 Requirements
 
@@ -474,9 +474,9 @@ A `fn` declaration may end in a *requirement*: `needs` and the members it names,
 
 The variable is a type variable of the signature that stands in a value position (§3.9); one in effect positions alone, and one the signature does not name, are errors at the declaration, `b is no type variable of the signature`. A variable that stands in the result type alone may carry one. A requirement names a variable's member once; naming it twice is an error, `the requirement names a.compare twice`. A type has one member of each name.
 
-In the body, a member the requirement names is a value of the member's shape at `a`: `a.compare` has the type `(a, a) -> Ordering`, `a.negate` the type `(a) -> a`, and an operator `a.+` the type `(a, a) -> a`. An operator on `a` resolves to it as it resolves on a known type (§4.8), `x < y` through `a.compare` (§3.10) and prefix `-` through `a.negate` (§5.1). Under `needs a.show`, `Io.show` and `Io.debug` apply to a value of the type `a` itself (Appendix E.1). `a.show` names nothing in a body: under `needs a.show` the value is written with `Io.show`.
+In the body, a member the requirement names is reached as on a known type: an operator on `a` resolves to it (§4.8), `x < y` and `compare(x, y)` through `a.compare` (§3.10) and prefix `-` through `a.negate` (§5.1). The member has its shape at `a`: `a.compare` the type `(a, a) -> Ordering`, `a.negate` the type `(a) -> a`, and an operator `a.+` the type `(a, a) -> a`. Under `needs a.show`, `Io.show` and `Io.debug` apply to a value of the type `a` itself (Appendix E.1). `a.show` names nothing in a body: under `needs a.show` the value is written with `Io.show`.
 
-A member of a type variable the requirement does not name, `a.compare`, `<` or `Io.show` on it, is a type error (§4.8, Appendix E.1). The member is written `a.member` where `a` is a type variable of the signature of a declaration with a requirement (§3.5); such a declaration binds no name that is one of its type variables: a parameter, a `let` or a pattern variable so named is an error.
+A member of a type variable the requirement does not name, `<`, `compare` or `Io.show` on it, is a type error (§4.8, Appendix E.1). `a.member` is written in a requirement alone (§4.5), `a` a type variable of the signature; a declaration with a requirement binds no name that is one of its type variables: a parameter, a `let` or a pattern variable so named is an error.
 
 A call writes nothing for a requirement. The requirement is supplied once the enclosing definition is inferred, as an operator is resolved (§4.8), by the type the variable is instantiated to there. Where that type is known, the compiler supplies its member, and `show` as `Io.show` is supplied at a known type: `OrderedSet.fromList([3, 1, 3])` is `fromList` with `Int.compare`. Where it is a type variable of the enclosing declaration's signature, the enclosing requirement at that variable supplies it: `fn unique(list : List(a)) : List(a) needs a.compare = OrderedSet.toList(OrderedSet.fromList(list))`. A type built from a variable, `List(b)`, is a known type, whose member is looked for. A member with a requirement of its own, a derived `Pair.compare` (§3.5), is supplied with its own requirement met at its type by the same rule: at `Pair(Int, String)` with `Int.compare` and `String.compare`, and at `Pair(a, b)` with the enclosing requirement's.
 
@@ -522,10 +522,9 @@ BinExpr   = Unary { binop Unary } .
 Unary     = [ "-" | "!" ] Primary { Call | Select } .
 Call      = "(" [ Expr { "," Expr } ] ")" .
 Select    = "." ident .
-Primary   = literal | QName | typevar "." userop | Tuple | ListLit
+Primary   = literal | QName | Tuple | ListLit
           | BitExpr | Block | MatchExpr | ReceiveExpr | "(" Expr ")" .
-QName     = { typename "." } ( ident | conname [ "(" ( Expr | Fields ) ")" ] )
-          | typename "." { typename "." } userop .
+QName     = { typename "." } ( ident | conname [ "(" ( Expr | Fields ) ")" ] ) .
 Fields    = ".." Expr [ "," UpdateSet { "," UpdateSet } ] | FieldSet { "," FieldSet } .
 UpdateSet = ident { "." ident } "=" Expr .
 FieldSet  = ident "=" Expr .
@@ -1279,10 +1278,9 @@ BinExpr     = Unary { binop Unary } .
 Unary       = [ "-" | "!" ] Primary { Call | Select } .
 Call        = "(" [ Expr { "," Expr } ] ")" .
 Select      = "." ident .
-Primary     = literal | QName | typevar "." userop | Tuple | ListLit
+Primary     = literal | QName | Tuple | ListLit
             | BitExpr | Block | MatchExpr | ReceiveExpr | "(" Expr ")" .
-QName       = { typename "." } ( ident | conname [ "(" ( Expr | Fields ) ")" ] )
-            | typename "." { typename "." } userop .
+QName       = { typename "." } ( ident | conname [ "(" ( Expr | Fields ) ")" ] ) .
 Fields      = ".." Expr [ "," UpdateSet { "," UpdateSet } ] | FieldSet { "," FieldSet } .
 UpdateSet   = ident { "." ident } "=" Expr .
 FieldSet    = ident "=" Expr .
@@ -1426,7 +1424,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **code frame** — the exchange's frame that carries one definition's canonical form, its name, its source's lines and what prints a type as its module writes it, with the host's module and function and the line of each foreign declaration the definition calls. §8.7.
 - **code replacement** — a running process going on in a new function it received in a message. §6.10.
 - **code table** — a node's table from each definition's hash to the unit and function that hold it. §10.
-- **compare** — the per-type function that produces `Ordering`, `T.compare`, and the prelude function that reaches the operand type's, as `<` does. §3.10, §9.6.
+- **compare** — the member that defines a type's order, `fn T.compare`, and the prelude function that reaches the operand type's as `<` does, the one way an order is used as an `Ordering`. §3.10, §9.6.
 - **compiled interface** — what a compiled module records of what it exports, their types and schemes, and the hash of each of its definitions, against which a module that uses it is checked. §3.9, §11.1.
 - **compute** — `Peer.computeAt(name, f, ms)`, or `Peer.compute(f, ms)` on a peer the node draws by the utilizations it holds, which runs `f` in a process on the peer and answers its value to the caller, a fault in `f` being the caller's. §6.7, §8.7, Appendix E.27.
 - **concat operator** — `<>`, resolved per type. §4.8.
@@ -1484,7 +1482,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **mailbox type** — the `M` in `(A) -> B receiving M`; the type of the process's mailbox. §6.1.
 - **`match`** — the pattern-matching expression form. §5.9.
 - **measure** — one of the host's measures a node runs, `cpu`, `memory` or `disk`, named in `ernest.conf`. §8.7, Appendix C.
-- **member** — an operator, `compare` or `negate` of a type, in the type's nested namespace: declared with the type's prefix, `fn Distance.+`, derived (§3.5), or, for a prelude type, declared unprefixed in its module; a requirement names one on a type variable. §4.2, §4.5, §4.9.
+- **member** — an operator, `compare` or `negate` of a type, in the type's nested namespace: declared with the type's prefix, `fn Distance.+`, derived (§3.5), or, for a prelude type, declared unprefixed in its module; a requirement names one on a type variable; reached by its operator or `compare` alone, named in no expression. §4.2, §4.5, §4.9.
 - **module** — a single Ernest source file (`.ern`); the unit of compilation and namespace. §4.1.
 - **monitor** — `monitor(p, wrap)`; sends `wrap(d)` to the caller when the process `p` dies. §6.9, §9.5.
 - **named field** — a field on a constructor identified by name, not position. §3.5.
@@ -1503,7 +1501,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **positional field** — a field on a constructor identified by position, not name. §3.5.
 - **precedence** — the binding tightness of a binary operator. §2.6.
 - **prelude** — the names §9 lists, which the language requires to exist. §9.
-- **`Prelude`** — the prelude's own namespace, `Prelude.Some`, for a name a module has shadowed, and the way past a member of the module's own to a name of the prelude's or the standard library's namespaces, `Prelude.List.<>`. §4.2.
+- **`Prelude`** — the prelude's own namespace, `Prelude.Some`, for a name a module has shadowed, and the way to a namespace of the prelude's or the standard library's that a module's own type hides, `Prelude.List.map`. §4.2.
 - **primitive** — an operation beneath what Ernest writes: the language's, a built-in function of §9, or a named function that is no value, `Peer.spawn`; a standard library module's, one that reads or writes what the host owns, or one a function of the host does exactly, the rest of the module being Ernest over its primitives. §0, Appendix E.0.
 - **process** — an execution of a function with a mailbox. §6.
 - **`Process`** — the identity of a process, with equality; nothing can be sent to it. §6.5, Appendix E.21.
@@ -1518,7 +1516,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **remote computation** — work on a peer: a process spawned there, or a function run there for its value. §6.7.
 - **`Reply(a)`** — a one-shot address for the answer to a request. §3.7, §6.6.
 - **request-reply** — `Address.call` sends a request that carries a `Reply`, and the callee answers it with `answer`. §6.6.
-- **requirement** — `needs a.compare` after a function's result type, naming members of its type variables that the body may use and a call supplies without writing. §4.9.
+- **requirement** — `needs a.compare` after a function's result type, naming members of its type variables that the body reaches through the operators and `compare`, and a call supplies without writing. §4.9.
 - **reserved word** — a word the grammar keeps for itself. §2.4.
 - **restart** — `restarting`'s run of its function again after a fault, or when a `Supervisor` asks, in the same process with its address, its mailbox emptied. §6.9.
 - **restart limit** — `RestartLimit(restarts, within)`, how many faults a restarting function or a group takes within a time, or `Unlimited`. §6.9, Appendix E.22.

@@ -31,7 +31,7 @@ The elements of one set that are not in another; a set has no order, so the
 list is sorted to compare it:
 
 ```ernest
-List.sort(Set.toList(Set.difference(Set.fromList([1, 2, 3]), Set.fromList([2]))), compare)
+List.sort(Set.toList(Set.difference(Set.fromList([1, 2, 3]), Set.fromList([2]))))
 // => [1, 3]
 ```
 
@@ -114,7 +114,7 @@ values become one, so the result may be smaller.
 ### Examples
 
 ```ernest
-List.sort(Set.toList(Set.map(Set.fromList([1, 2]), fn(n) = n * 10)), compare)
+List.sort(Set.toList(Set.map(Set.fromList([1, 2]), fn(n) = n * 10)))
 // => [10, 20]
 ```
 
@@ -165,7 +165,7 @@ any order.
 ### Examples
 
 ```ernest
-Set.fold(Set.fromList([1, 2]), 0, Int.+)
+Set.fold(Set.fromList([1, 2]), 0, fn(sum, n) = sum + n)
 // => 3
 ```
 
@@ -253,7 +253,7 @@ The set of the elements in either set.
 ### Examples
 
 ```ernest
-List.sort(Set.toList(Set.union(Set.fromList([1]), Set.fromList([2]))), compare)
+List.sort(Set.toList(Set.union(Set.fromList([1]), Set.fromList([2]))))
 // => [1, 2]
 ```
 
