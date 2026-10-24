@@ -59,3 +59,17 @@ text_test() ->
     ?assertEqual("OrderedSet", ern_namespace:text(['OrderedSet'])),
     ?assertEqual("Net.Http.get", ern_namespace:text(['Net', 'Http', get])),
     ?assertEqual("", ern_namespace:text([])).
+
+%% report §7.4, §8.4, Appendix E.21: a function of the host's as the host
+%% writes it, quoted where the host quotes an atom, in a cause and in a
+%% trace alike, and a fun the host holds no code for without its name. A
+%% regression test, written after the code: a cause wrote `erlang:div/2`
+%% where a trace wrote `erlang:'div'/2`; it does not cover the callers'
+%% texts, which the boundary's and the trace's tests hold
+host_function_text_test() ->
+    ?assertEqual("erlang:abs/1", ern_namespace:host_function_text(erlang, abs, 1)),
+    ?assertEqual("erlang:'div'/2", ern_namespace:host_function_text(erlang, 'div', 2)),
+    ?assertEqual("erlang:'+'/2", ern_namespace:host_function_text(erlang, '+', 2)),
+    ?assertEqual("ern@main:'-main/0-fun-0-'/1",
+                 ern_namespace:host_function_text('ern@main', '-main/0-fun-0-', 1)),
+    ?assertEqual("ern@main:/1", ern_namespace:host_function_text('ern@main', [], 1)).

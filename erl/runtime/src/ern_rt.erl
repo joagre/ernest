@@ -35,7 +35,7 @@
 %% in its own dictionary, under the look's keys, and no operation writes a
 %% shared row for it (look/0).
 %%
-%% Thirteen tables hold a launch's state, each described where it is
+%% Twelve tables hold a launch's state, each described where it is
 %% defined. `ern_processes` has a row {Pid, Site, SpawnOrder, Root, Peer}
 %% per process the runtime started or adopted, where SpawnOrder is its
 %% place in the order of spawns, Root the process at the head of its spawn
@@ -44,12 +44,11 @@
 %% the pending calls by their callee, `ern_faults` the subscriptions to
 %% faults, `ern_terminating` the subscriptions to the program's end,
 %% `ern_held` the sources and the processes the system modules opened,
-%% `ern_deliveries` the deliveries in flight, `ern_restarts` the restarts a
-%% process may be asked, `ern_checkers` the checkers of §8.4, and
-%% `ern_launch` the launch itself, its runner, its reaper and what its
-%% options give it (#launch{}), the way the terminal is read, the process a
-%% deadlock faults and whether the end waits for its subscribers, and the
-%% utilization the program set (§8.7). A node's (§8.7):
+%% `ern_deliveries` the deliveries in flight, `ern_checkers` the checkers
+%% of §8.4, and `ern_launch` the launch itself, its runner, its reaper and
+%% what its options give it (#launch{}), the way the terminal is read, the
+%% process a deadlock faults and whether the end waits for its
+%% subscribers, and the utilization the program set (§8.7). A node's (§8.7):
 %% `ern_offers` and `ern_offered` hold the offers, `ern_initialized` the
 %% modules whose initializers have run, whose bindings a peer's spawn asks
 %% for, and `ern_notes` the notes of calls from other nodes, a compute's
@@ -57,8 +56,8 @@
 -module(ern_rt).
 
 -export([send/2, kept/1, acting_for/1, launch_reaper/0, process_of/1, held/3, is_never_given/1,
-         is_address/1, spawn/2, spawn_monitored/3, spawn_root/3, self/0, current/0, adapted/2,
-         call/3, call/4, call_forever/2, call_forever/3, compute/3, answer/2, refuse/2,
+         is_started/1, is_address/1, spawn/2, spawn_monitored/3, spawn_root/3, self/0, current/0,
+         adapted/2, call/3, call/4, call_forever/2, call_forever/3, compute/4, answer/2, refuse/2,
          monitor/2, kill/1, killed/2, reason/1, started_by/1, kill_started/1, kill_all/1,
          rooting/0, rooted/2, processes/0, status/1, faults/1,
          termination/1, checker_for/3, checker_forget/2, source_begin/0, source_begin/1,
@@ -82,14 +81,15 @@
 -compile({no_auto_import, [spawn/2, self/0, monitor/2]}).
 
 %% Report §8.6: each receive that can wait, by its kind (docs/style.md).
--receives({foreign_wait, [computed_answer/3, exit_program/1, fresh_run/0]}).
+-receives({foreign_wait, [computed_answer/3, exit_program/1, fresh_run/0, end_with_program/0]}).
 -receives({ernest_wait, [waited_answer/3, call_forever/3]}).
--receives({answered_at_once, [spawn_with_monitors/4, end_with_program/0, monitor/2, spawned/7,
-                              kill_all/1, rooted/2, opened/3, asked_of_run/1]}).
+-receives({answered_at_once, [spawn_with_monitors/4, monitor/2, spawned/7, kill_all/1, rooted/2,
+                              opened/3, asked_of_run/1]}).
 -receives({own_process, [kept_loop/2, reaper_loop/2, wait_for_end/1, ended_program/0,
                          counted_link/2, abandoned/1, write_loop/1, stream_loop/2, dropping/0,
                          stdin_loop/2, read_input/1, clock_loop/1, waited/5, told_how/3,
-                         entry_end/2, end_program/4, sink_flushed/1, stop/1]}).
+                         entry_end/2, end_program/4, sink_flushed/1, stop/1, stopped_in_order/1,
+                         say/2]}).
 
 -define(UNIT, 'Unit').
 %% Report §8.6: the look's keys, which a process keeps in its own
@@ -108,12 +108,21 @@
 -define(FOREIGN, '$ern_foreign').
 -define(TIMED, '$ern_timed').
 -define(CALL, '$ern_call').
+%% Report §6.9, Appendix E.22: while a restarting function runs, its
+%% outermost's start cause and the alias a supervisor asks it to restart
+%% through, {Cause, Alias}, kept in the process's own dictionary, which the
+%% process reads (start_cause/0, is_restarting/0) and a supervisor reads of
+%% it, a process_info at its ask (ask_restart/1), so that no row is written
+%% for a reader that asks seldom (restartable/0).
+-define(START, '$ern_start').
 -define(PROCESSES, ern_processes).
-%% report §6.6, §6.9: each pending call on a process of this node,
-%% {{Callee, Caller}, Reply}, ordered, so that a restart reads its own
-%% callers and no other process's calls (restarted/1); every call writes
-%% one, so the table is made with the host's write concurrency
-%% (table_options/1)
+%% report §6.6, §6.9, §8.7: each pending call, {{Callee, Caller}, Reply},
+%% Callee a process of this node or another, or for a compute the peer's
+%% gateway, ordered, so that a restart reads its own callers and no other
+%% process's calls (restarted/1); every call writes one, so the table is
+%% made with the host's write concurrency (table_options/1). A caller the
+%% host ends while it waits, which keeps its CALL key no longer, is found
+%% here, its call dropped and the peer told (left_call/1).
 -define(CALLEES, ern_callees).
 %% Appendix E.21: each subscription to faults, {Subscriber, Address}, in a table
 %% of its own, so that a fault reads the subscriptions and not every
@@ -133,9 +142,6 @@
 %% {{Recipient, Starter, Pid}}, ordered, so that a restart of the recipient
 %% reads its own deliveries and no other process's
 -define(DELIVERIES, ern_deliveries).
-%% report §6.9: the alias of each restart a process may be asked,
-%% {Pid, Alias}
--define(RESTARTS, ern_restarts).
 %% report §8.4: each checker, {{checker, Key}, Checker}, and what it
 %% stands in front of, {{behind, Checker}, Pid, Address, Key}
 -define(CHECKERS, ern_checkers).
@@ -218,17 +224,27 @@
 %% monitors of each process by the process that made them, a Wrap for
 %% each; Wrap(Down) is sent to Caller, or for the runner, whose monitor is
 %% made with the spawn so that no race can take the entry process's cause,
-%% {raw, Tag}: {Tag, Site, ExitReason}. monitoring: #{Caller => #{Pid =>
-%% true}}, the processes each caller monitors, so that a caller's death
-%% takes its monitors with it: nothing is left to deliver them to. Each is
-%% read and written by its key alone, so that a monitor, an end and a
-%% caller's death cost the same however many monitors other processes
-%% hold. monitor_refs: #{Pid => MonitorRef}, a process the runtime did not
+%% {raw, Tag}: {Tag, Site, ExitReason}; a monitor a process of the
+%% runtime's own asked for Caller holds its Wrap as {asked, Asker, Wrap}.
+%% monitoring: #{Caller => #{Pid => true}}, the processes each caller
+%% monitors, so that a caller's death takes its monitors with it: nothing
+%% is left to deliver them to. Each is read and written by its key alone,
+%% so that a monitor, an end and a caller's death cost the same however
+%% many monitors other processes hold.
+%%
+%% monitor_refs: #{Pid => MonitorRef}, a process the runtime did not
 %% start, monitored here only while a monitor of it stands. watched:
 %% #{Pid => true}, a process the runtime did not start that holds an offer
 %% or a call's note (report §8.7), watched once until it ends, so that
 %% they end with it.
--record(reaper, {monitors = #{}, monitoring = #{}, monitor_refs = #{}, watched = #{}}).
+%%
+%% askers: #{Asker => {MonitorRef, [{Pid, Caller}]}}, a process of the
+%% runtime's own that asked for a monitor for the process it acts for, a
+%% delivery among them, monitored here until it ends, so that one that
+%% ends otherwise than it returns, ended with its recipient's run
+%% (abandoned/1), takes the monitors it asked for with it (asker_ended/3).
+-record(reaper, {monitors = #{}, monitoring = #{}, monitor_refs = #{}, watched = #{},
+                 askers = #{}}).
 
 %% Report §8.5, §8.6, §11.2: the launch in progress, a row of its own
 %% table, made as it begins and gone with the table at its end
@@ -265,11 +281,13 @@ send(Address, Message) ->
 %% function is the target's, on one node and across nodes alike: it takes
 %% the message's place in the target's mailbox, and the target faults at
 %% the wait that reaches it, as at a bad message's fault (§8.4), which
-%% `restarting` restarts (§6.9); the sender goes on. Report §8.7, §11.2: one
-%% made by an earlier start of this node, or by an earlier run of `ern
-%% test` over a directory, is dead, and a message to it is dropped, its
-%% function not applied, wherever the function would be applied: a send
-%% here, and a peer's frame as it arrives (kept/1).
+%% `restarting` restarts (§6.9); a target of this node the runtime did not
+%% start, a foreign process, has no wait of Ernest's and is ended by the
+%% fault as an exit signal (sent/1); the sender goes on. Report §8.7,
+%% §11.2: one made by an earlier start of this node, or by an earlier run
+%% of `ern test` over a directory, is dead, and a message to it is
+%% dropped, its function not applied, wherever the function would be
+%% applied: a send here, and a peer's frame as it arrives (kept/1).
 deliver(Address, Message) ->
     sent(adapted_way(Address, Message)).
 
@@ -305,6 +323,14 @@ adapted_way(Address, Message) ->
 
 sent(dropped) ->
     ok;
+%% report §6.5: a process the runtime started, on this node or another,
+%% takes the fault at its next wait; a process of this node it did not
+%% start, which has no row, is ended by it
+sent({fault, Pid, Fault}) when node(Pid) =:= node() ->
+    case ets_lookup(?PROCESSES, Pid) of
+        [_] -> Pid ! {'$ern_fault', Fault};
+        [] -> exit(Pid, Fault)
+    end;
 sent({fault, Pid, Fault}) ->
     Pid ! {'$ern_fault', Fault};
 %% report §6.5, §8.7: a message to an adapted address made on another node
@@ -484,6 +510,14 @@ is_never_given(Pid) when is_pid(Pid) ->
     ets_lookup(?CHECKERS, {behind, Pid}) =:= [] andalso ets_lookup(?PROCESSES, Pid) =/= [];
 is_never_given(_) ->
     false.
+
+%% Report §6.9, §8.7: whether the runtime started or adopted a process of
+%% this node, one with a row, which a peer's kill frame alone reaches
+%% (ern_peer:frame/2); a process of the runtime's own, a foreign one and
+%% one that has ended have none.
+-spec is_started(pid()) -> boolean().
+is_started(Pid) ->
+    ets_lookup(?PROCESSES, Pid) =/= [].
 
 %% Whether a term is an address in one of the forms the runtime holds.
 -spec is_address(term()) -> boolean().
@@ -674,7 +708,7 @@ call_forever(Address, Request, Check) ->
         %% report §6.6, Appendix E.18: a socket or a listener the program
         %% closed ended as a function returns, and its caller learns why
         {ended, {ern, closed}} -> fault(<<"callee was closed">>);
-        {ended, ExitReason} -> ended(reason(ExitReason));
+        {ended, ExitReason} -> ended(Callee, reason(ExitReason));
         restart -> restart_now()
     end.
 
@@ -686,44 +720,59 @@ foreign_answer({Descriptor, Cause}, Value) -> ern_boundary:value(Descriptor, Val
 %% Report §6.6, §7.4: a callForever whose callee ended faults the caller with
 %% the callee's cause, or says how it ended; with the program the caller
 %% ends too.
--spec ended(term()) -> no_return().
-ended({'Fault', Cause}) -> fault(Cause);
-ended('Killed') -> fault(<<"callee was killed">>);
-ended('Returned') -> fault(<<"callee returned without answering">>);
-ended('Unknown') -> fault(<<"callee had ended">>);
+-spec ended(pid(), term()) -> no_return().
+ended(_Callee, {'Fault', Cause}) -> fault(Cause);
+ended(_Callee, 'Killed') -> fault(<<"callee was killed">>);
+ended(_Callee, 'Returned') -> fault(<<"callee returned without answering">>);
+ended(_Callee, 'Unknown') -> fault(<<"callee had ended">>);
 %% report §8.7: the callee's node was lost, and the callee may live on
-ended('Unreachable') -> fault(<<"callee is unreachable">>);
-ended('ProgramEnd') ->
-    end_with_program().
+ended(_Callee, 'Unreachable') -> fault(<<"callee is unreachable">>);
+ended(Callee, 'ProgramEnd') when node(Callee) =:= node() ->
+    end_with_program();
+%% report §6.6, §8.7: a callee of another node ended with its program, its
+%% node stopping in order, and the caller's program runs on
+ended(_Callee, 'ProgramEnd') ->
+    fault(<<"callee ended with its program">>).
 
 %% Report §8.6: the caller ended with the program, by a signal, not an
-%% exception, which run/1 would take for a fault.
+%% exception, which run/1 would take for a fault. The signal ends a process
+%% that traps no exits before exit/2 returns; one that traps them takes it
+%% as a message, and waits for the end the program brings, inside foreign
+%% code for the look, as exit_program/1's caller does.
 -spec end_with_program() -> no_return().
 end_with_program() ->
     exit(erlang:self(), {ern, program_end}),
+    entered_foreign(),
     receive after infinity -> ok end.
 
 %% A call's monitor of the process behind the address, whose alias is the
 %% reply's (watched/1); and, once the request is made, the call noted
 %% against that process (pending/2): the caller's CALL key put first, so
 %% that whatever row or note the call has, a kill finds by it (killed/2);
-%% then, for a process of this node, the callee's row, by which its restart
-%% ends the call, and report §8.7: for a process of another node, a note to
-%% its gateway, which that node keeps beside its own row of the callee,
-%% sent before the request so that it arrives first.
+%% then the callee's row, by which a restart of a callee of this node ends
+%% the call, and by which the reaper finds the call of a caller the host
+%% ends (left_call/1); and report §8.7: for a process of another node, a
+%% note to its gateway, which that node keeps beside its own row of the
+%% callee, sent before the request so that it arrives first.
 watched(Address) ->
     Callee = process_of(Address),
     {Callee, erlang:monitor(process, Callee, [{alias, demonitor}])}.
 
 pending(Callee, Reply) ->
-    _ = erlang:put(?CALL, {Callee, Reply}),
+    noted(Callee, Reply),
     case node(Callee) =:= node() of
         true ->
-            ets:insert(?CALLEES, {{Callee, erlang:self()}, Reply});
+            true;
         false ->
             erlang:send({ern_gateway, node(Callee)},
                         {ern_frame, erlang:self(), {call_waits, Callee, Reply}})
     end.
+
+%% The calling process's CALL key, and then its row of the callees, Callee a
+%% process or, for a compute, the peer's gateway (compute/4).
+noted(Callee, Reply) ->
+    _ = erlang:put(?CALL, {Callee, Reply}),
+    ets:insert(?CALLEES, {{Callee, erlang:self()}, Reply}).
 
 %% The call is over: its records go (uncalled/0), its monitor and with it
 %% the alias go, and every answer that came before them, after a restart's
@@ -746,45 +795,67 @@ uncalled() ->
     end.
 
 %% Report §6.6, §8.7: the records of Caller's call, Call its CALL key,
-%% dropped: the callee's row, for a callee of this node; where its callee
-%% is of another node, whose note no answer there, restart or end has let
-%% go, the second note tells that node the call is over, and so it tells
-%% the peer a compute waits on. A row dropped twice, or a second note for
-%% a note let go, does nothing, since a kill may read the key between the
-%% two (killed/2). The table goes with the program's end, which a kill
-%% under way may meet.
+%% dropped: the callee's row; and where its callee is of another node,
+%% whose note no answer there, restart or end has let go, the second note
+%% tells that node the call is over, and so it tells the peer a compute
+%% waits on. A row dropped twice, or a second note for a note let go, does
+%% nothing, since a kill may read the key between the two (killed/2). The
+%% table goes with the program's end, which a kill under way may meet.
 uncalled(_Caller, undefined) ->
     true;
 uncalled(Caller, {Callee, Reply}) ->
+    try ets:delete(?CALLEES, {Callee, Caller}) catch error:badarg -> true end,
     case gateway_of(Callee) of
-        none -> try ets:delete(?CALLEES, {Callee, Caller}) catch error:badarg -> true end;
+        none -> true;
         Gateway -> erlang:send(Gateway, {ern_frame, Caller, {call_over, Reply}})
     end.
 
+%% Report §6.6, §6.9, §8.7: the call of a process the host ended while it
+%% waited, killed by foreign code or by the end of a process it was linked
+%% to, which ran no `after` and keeps its CALL key no longer: its rows,
+%% found among every pending call's, a read that such an end alone pays,
+%% dropped as its own end of the call drops them (uncalled/2), the peer
+%% told where its callee is of another node. An end the runtime gives
+%% dropped them first (killed/2), and a fault or a restart ended the call
+%% as the process left its wait.
+left_call(Pid) ->
+    lists:foreach(fun({{Callee, _}, Reply}) -> uncalled(Pid, {Callee, Reply}) end,
+                  matching_rows(?CALLEES, {{'_', Pid}, '_'})).
+
+%% Whether an end is the host's, none the runtime gives and not the
+%% process's own: a return, a fault, a kill, the program's end and a close
+%% are the runtime's, and any other reason the host gave (§6.9).
+is_host_end(normal) -> false;
+is_host_end({ern, _}) -> false;
+is_host_end({ern, _, _, _}) -> false;
+is_host_end(_) -> true.
+
 %% The gateway a call's second note goes to: the peer's a compute waits on
-%% (compute/3), the node's of a callee of another node, or none.
+%% (compute/4), the node's of a callee of another node, or none.
 gateway_of({ern_gateway, _} = Gateway) -> Gateway;
 gateway_of(Callee) when node(Callee) =:= node() -> none;
 gateway_of(Callee) -> {ern_gateway, node(Callee)}.
 
 %% Report §8.7, §6.6: a compute on a peer, whose wait is a call's: the
-%% caller's CALL key, its callee the peer's gateway, so that the call's
-%% second note follows where its time runs out, where it is asked to
-%% restart, and where it is killed while it waits (killed/2); an alias,
-%% which takes one answer and drops a late one; and a watch of the peer's
-%% gateway, as a find keeps one, whose end is a loss, which drops the
-%% peer's notes, so that no second note follows it. The frame, which Frame
-%% makes of the alias, is the call's first note. The answer is the value,
-%% the caller's fault with the cause and the host's stack that crossed
-%% (§11.2), `Other` with the Reason of a process that ended before it
+%% caller's CALL key and its row, its callee the peer's gateway, so that
+%% the call's second note follows where its time runs out, where it is
+%% asked to restart, where it is killed while it waits (killed/2), and
+%% where the host ends it (left_call/1); an alias, which takes one answer
+%% and drops a late one; and a watch of the peer's gateway, as a find
+%% keeps one, whose end is a loss, which drops the peer's notes, so that no
+%% second note follows it. The frame, which Frame makes of the alias, is
+%% the call's first note. The answer is the value, the caller's fault with
+%% the cause and the trace that crossed, the cause followed by the peer's
+%% name and the trace by the compute's site, Where being the two (§8.7,
+%% §11.2), `Other` with the Reason of a process that ended before it
 %% answered, or the failure the peer answered or the wait met.
--spec compute(node(), fun((reference()) -> term()), integer()) ->
+-spec compute(node(), fun((reference()) -> term()), integer(), {binary(), binary()}) ->
           {'Right', term()} | {'Left', term()}.
-compute(Node, Frame, Deadline) ->
+compute(Node, Frame, Deadline, {Peer, Site}) ->
     Gateway = {ern_gateway, Node},
     MonitorRef = erlang:monitor(process, Gateway),
     Alias = erlang:alias([reply]),
-    _ = erlang:put(?CALL, {Gateway, Alias}),
+    noted(Gateway, Alias),
     erlang:send(Gateway, {ern_frame, erlang:self(), Frame(Alias)}),
     %% report §8.6: a peer's answer is none the look sees coming
     entered_foreign(),
@@ -793,7 +864,9 @@ compute(Node, Frame, Deadline) ->
     case Answer of
         {'Right', _} = Value -> Value;
         {'Left', _} = Failure -> Failure;
-        {faulted, Cause, Trace} -> fault(Cause, Trace);
+        {faulted, Cause, Trace} ->
+            fault(<<Cause/binary, ", on the peer ", Peer/binary>>,
+                  <<Trace/binary, Site/binary, "\n">>);
         {ended, Reason} -> {'Left', {'Other', ern_show:show(?REASON, Reason)}};
         {thrown, Fault} -> throw(Fault);
         '$ern_restart' -> restart_now()
@@ -835,14 +908,33 @@ computed_answer(Alias, MonitorRef, Deadline) ->
         end
     end.
 
+%% Report §8.7: the peer's answer as the caller takes it. A fault's cause
+%% and trace cross as text, and are taken where both are UTF-8, since the
+%% caller's fault is reported as text (§11.2); an answer of another shape,
+%% or a fault that is not text, is none a peer's runtime writes, and
+%% answers `Other` with this node's reason. The answer comes through the
+%% caller's alias and not through the gateway, which ends the connection
+%% of a peer whose frame it cannot read.
 answer_taken(Message) ->
     closed(),
     case Message of
-        {_, computed, Value} -> {'Right', Value};
-        {_, failed, Error} -> {'Left', Error};
-        {_, ended, Reason} -> {ended, Reason};
-        {_, faulted, Cause, Trace} -> {faulted, Cause, Trace}
+        {_, computed, Value} ->
+            {'Right', Value};
+        {_, failed, Error} ->
+            {'Left', Error};
+        {_, ended, Reason} ->
+            {ended, Reason};
+        {_, faulted, Cause, Trace} when is_binary(Cause), is_binary(Trace) ->
+            case ern_fs:is_utf8(Cause) andalso ern_fs:is_utf8(Trace) of
+                true -> {faulted, Cause, Trace};
+                false -> unreadable_answer()
+            end;
+        _ ->
+            unreadable_answer()
     end.
+
+unreadable_answer() ->
+    {'Left', {'Other', <<"the peer's answer could not be read">>}}.
 
 %% The compute given up before its answer: the alias goes, and the second
 %% note tells the peer.
@@ -853,14 +945,12 @@ over(Alias) ->
 %% Report §8.7: the calling process's call over where its callee's node has
 %% already let its note go: by an answer given there, by the restart it
 %% told, or by the callee's end or the connection's, so that no second note
-%% follows; the callee's row, for a callee of this node, which its end
-%% leaves to its callers, goes, and then the CALL key (uncalled/0).
+%% follows; the callee's row, which a callee's end leaves to its callers,
+%% goes, and then the CALL key (uncalled/0).
 closed() ->
     case erlang:get(?CALL) of
-        {Callee, _} when is_pid(Callee), node(Callee) =:= node() ->
-            ets:delete(?CALLEES, {Callee, erlang:self()});
-        _ ->
-            true
+        {Callee, _} -> ets:delete(?CALLEES, {Callee, erlang:self()});
+        undefined -> true
     end,
     erlang:erase(?CALL).
 
@@ -933,7 +1023,9 @@ monitor(Process, Wrap) ->
 -spec kill(address()) -> 'Unit'.
 kill(Address) ->
     %% report §8.2: no program can name a system process, whose reference is
-    %% private to its module, so any address given here is a program's
+    %% private to its module, so an address a program gives here is a
+    %% program's; report §8.7: a peer's frame is carried out only for a
+    %% process the runtime started (ern_peer:frame/2)
     case process_of(Address) of
         Pid when node(Pid) =:= node() ->
             killed(Pid, {ern, killed}),
@@ -968,13 +1060,14 @@ kill(Address) ->
 %% The suspension ends with that process. Report §8.6: it is a source while
 %% it works, since the look sees neither it nor the end it brings.
 %%
-%% The calling process waits in no call as it kills, since a call's request
-%% and an adapted address's functions are made before the call is noted
-%% (call/4), so it ends at once; no fault is found in the process that
-%% finds it.
+%% A process that kills itself, by the prelude's kill, waits in no call as
+%% it kills, since a call's request and an adapted address's functions are
+%% made before the call is noted (call/4), so it ends at once; any other
+%% end, a fault found among them, comes from a process of its own.
 -spec killed(pid(), term()) -> ok.
-killed(Pid, ExitReason) when Pid =:= erlang:self() ->
-    exit(Pid, ExitReason);
+killed(Pid, {ern, killed} = ExitReason) when Pid =:= erlang:self() ->
+    exit(Pid, ExitReason),
+    ok;
 killed(Pid, How) ->
     %% report §6.9: a kill of a process that has ended does nothing
     case erlang:is_process_alive(Pid) of
@@ -1104,6 +1197,8 @@ reaper_loop(Reaper, Wait) ->
         %% process's do
         {watch, Pid} ->
             reaper_loop(watched(Pid, Reaper));
+        {'ASKER_DOWN', _MonitorRef, process, Asker, ExitReason} ->
+            reaper_loop(asker_ended(Asker, ExitReason, Reaper));
         {'WATCHED_DOWN', _MonitorRef, process, Pid, ExitReason} ->
             unoffered(Pid),
             drop_callee_notes(Pid, ExitReason),
@@ -1161,8 +1256,8 @@ spawned(From, Ref, Function, Site, SpawnMonitors, Chain, Reaper) ->
             exit(Pid, {ern, killed}),
             From ! {Ref, over}
     end,
-    monitors_kept(Pid, [Monitor || {Caller, _} = Monitor <- SpawnMonitors,
-                                   is_caller_live(Caller, From)], Reaper).
+    lists:foldl(fun({Caller, Wrap}, Acc) -> monitor_asked(Pid, Caller, From, Wrap, Acc) end,
+                Reaper, SpawnMonitors).
 
 %% Report Appendix E.18, E.23: a listener, a socket or a running program,
 %% which its system process starts, is a process of the program's as one
@@ -1186,20 +1281,45 @@ root(Parent, Pid) ->
     end.
 
 %% A monitor of Pid that Caller made, From the process told it is made, a
-%% process of the runtime's own where it acts for Caller (monitor/2). A
-%% process the runtime did not start is monitored from here; report §8.6:
-%% its death would deliver a message, which is a source while a monitor of
-%% it stands.
+%% process of the runtime's own where it acts for Caller (monitor/2).
 monitored(Pid, Caller, From, Wrap, Ref, Reaper) ->
-    Reaper1 = case is_caller_live(Caller, From) of
-                  true -> monitor_made(Pid, Caller, Wrap, Reaper);
-                  false -> Reaper
-              end,
+    Reaper1 = monitor_asked(Pid, Caller, From, Wrap, Reaper),
     From ! {Ref, monitored},
     Reaper1.
 
-monitor_made(Pid, Caller, Wrap, #reaper{monitors = Monitors, monitoring = Monitoring,
-                                        monitor_refs = MonitorRefs} = Reaper) ->
+%% Report §6.9: a monitor of Pid that From asked for Caller, by monitor or
+%% with a spawn, standing where the ask is live. A process asks for its
+%% own, and its end comes after its ask. A process of the runtime's own
+%% that acts for Caller asks for Caller's (current/0), and Caller's end or
+%% restart has no order with that ask: a delivery the restart or the end
+%% has ended (abandoned/1), or a Caller that has ended, asks for none;
+%% otherwise Caller's restart or end, which the reaper learns of after the
+%% ask, cancels the monitor as it cancels Caller's own.
+%%
+%% The asker is kept beside the monitor, and one that ends otherwise than
+%% it returns, a delivery ended with its recipient's run by the clock after
+%% the reaper has taken the restart among them, takes the monitor with it
+%% (asker_ended/3). A delivery that returns before its starter has taken
+%% the restart leaves its monitor standing into the new run: the reaper,
+%% the clock and the terminal take a restart each in its own order
+%% (fresh_run/0).
+monitor_asked(Pid, Caller, Caller, Wrap, Reaper) ->
+    monitor_stood(Pid, Caller, Wrap, Reaper);
+monitor_asked(Pid, Caller, From, Wrap, Reaper) ->
+    case erlang:is_process_alive(From) andalso erlang:is_process_alive(Caller) of
+        true ->
+            Reaper1 = monitor_stood(Pid, Caller, {asked, From, Wrap}, Reaper),
+            asked_by(From, Pid, Caller, Reaper1);
+        false ->
+            Reaper
+    end.
+
+%% Caller's monitor of Pid standing, Wrap beside those it made of Pid
+%% before: each monitor call is one message (report §6.9). A process the
+%% runtime did not start is monitored from here; report §8.6: its death
+%% would deliver a message, which is a source while a monitor of it stands.
+monitor_stood(Pid, Caller, Wrap, #reaper{monitors = Monitors, monitoring = Monitoring,
+                                         monitor_refs = MonitorRefs} = Reaper) ->
     MonitorRefs1 = case ets:lookup(?PROCESSES, Pid) of
                        [] when not is_map_key(Pid, MonitorRefs) ->
                            source_begin(),
@@ -1207,20 +1327,60 @@ monitor_made(Pid, Caller, Wrap, #reaper{monitors = Monitors, monitoring = Monito
                        _ ->
                            MonitorRefs
                    end,
-    Reaper#reaper{monitors = monitor_kept(Pid, Caller, Wrap, Monitors),
-                  monitoring = added(Caller, Pid, Monitoring), monitor_refs = MonitorRefs1}.
+    Monitors1 = case Monitors of
+                    #{Pid := #{Caller := Wraps} = ByCaller} ->
+                        Monitors#{Pid := ByCaller#{Caller := [Wrap | Wraps]}};
+                    #{Pid := ByCaller} ->
+                        Monitors#{Pid := ByCaller#{Caller => [Wrap]}};
+                    #{} ->
+                        Monitors#{Pid => #{Caller => [Wrap]}}
+                end,
+    Reaper#reaper{monitors = Monitors1, monitoring = added(Caller, Pid, Monitoring),
+                  monitor_refs = MonitorRefs1}.
 
-%% Report §6.9: whether a monitor From asked for Caller stands. A process
-%% asks for its own, and its end comes after its ask. A process of the
-%% runtime's own that acts for Caller asks for Caller's (current/0), and
-%% Caller's end or restart has no order with that ask: a delivery the
-%% restart or the end has ended (abandoned/1), or a Caller that has ended,
-%% asks for none; otherwise Caller's restart or end, which the reaper
-%% learns of after the ask, cancels the monitor as it cancels Caller's own.
-is_caller_live(Caller, Caller) ->
-    true;
-is_caller_live(Caller, From) ->
-    erlang:is_process_alive(From) andalso erlang:is_process_alive(Caller).
+%% The asker of a monitor for Caller noted, and monitored from here until
+%% it ends, once however many it asks for.
+asked_by(Asker, Pid, Caller, #reaper{askers = Askers} = Reaper) ->
+    Askers1 = case Askers of
+                  #{Asker := {MonitorRef, Asked}} ->
+                      Askers#{Asker := {MonitorRef, [{Pid, Caller} | Asked]}};
+                  #{} ->
+                      MonitorRef = erlang:monitor(process, Asker, [{tag, 'ASKER_DOWN'}]),
+                      Askers#{Asker => {MonitorRef, [{Pid, Caller}]}}
+              end,
+    Reaper#reaper{askers = Askers1}.
+
+%% Report §6.9: an asker that ended. One that returned leaves the monitors
+%% it asked for standing, which are Caller's; one that ended otherwise
+%% delivered nothing, and the monitors it asked for go, each that still
+%% stands, as a caller's go at its end (unmonitored/4).
+asker_ended(Asker, normal, #reaper{askers = Askers} = Reaper) ->
+    Reaper#reaper{askers = maps:remove(Asker, Askers)};
+asker_ended(Asker, _ExitReason, #reaper{askers = Askers} = Reaper) ->
+    {_, Asked} = maps:get(Asker, Askers),
+    lists:foldl(fun({Pid, Caller}, Acc) -> withdrawn(Pid, Caller, Asker, Acc) end,
+                Reaper#reaper{askers = maps:remove(Asker, Askers)}, Asked).
+
+%% Caller's monitors of Pid without those Asker asked for.
+withdrawn(Pid, Caller, Asker, #reaper{monitors = Monitors, monitoring = Monitoring,
+                                      monitor_refs = MonitorRefs} = Reaper) ->
+    case Monitors of
+        #{Pid := #{Caller := Wraps} = ByCaller} ->
+            case [Wrap || Wrap <- Wraps, not is_asked_by(Asker, Wrap)] of
+                [] ->
+                    {Monitors1, MonitorRefs1} = unmonitored(Caller, [Pid], Monitors, MonitorRefs),
+                    Reaper#reaper{monitors = Monitors1,
+                                  monitoring = forgotten(Caller, Pid, Monitoring),
+                                  monitor_refs = MonitorRefs1};
+                Left ->
+                    Reaper#reaper{monitors = Monitors#{Pid := ByCaller#{Caller := Left}}}
+            end;
+        #{} ->
+            Reaper
+    end.
+
+is_asked_by(Asker, {asked, Asker, _}) -> true;
+is_asked_by(_, _) -> false.
 
 %% Report §6.9: a restarted process's monitors and its subscriptions to
 %% faults and to the program's end are canceled, with what is on its way
@@ -1271,16 +1431,17 @@ down(Pid, ExitReason, #reaper{monitors = Monitors, monitoring = Monitoring,
 
 %% Each monitor of a process that ended told how. A process that ended
 %% leaves no call: one that faulted or restarted while it waited ended its
-%% call as it left the wait, and one the runtime killed had it ended first
-%% (killed/2); a caller learns of a callee's end by its own monitor, and
-%% removes its own. Report §6.9: the spawn site of a process the runtime
-%% did not start, or of one that had ended, is not known.
+%% call as it left the wait, one the runtime killed had it ended first
+%% (killed/2), and one the host ended has it ended here (left_call/1); a
+%% caller learns of a callee's end by its own monitor, and removes its own.
+%% Report §6.9: the spawn site of a process the runtime did not start, or
+%% of one that had ended, is not known.
 delivered_down(Pid, ExitReason, #reaper{monitors = Monitors, monitor_refs = MonitorRefs}) ->
     case ets:take(?PROCESSES, Pid) of
         [{_, Site, _, _, Peer}] ->
-            Ended = ended_with_program(Pid, ExitReason),
-            died(Pid, Site, Peer, Ended),
-            Down = {'Down', Pid, reason(Ended), Site},
+            is_host_end(ExitReason) andalso left_call(Pid),
+            died(Pid, Site, Peer, ExitReason),
+            Down = {'Down', Pid, reason(ExitReason), Site},
             lists:foreach(fun({Caller, {raw, Tag}}) -> Caller ! {Tag, Site, ExitReason};
                              ({Caller, Wrap}) -> wrapped(Caller, Wrap, Down)
                           end, monitors_of(Pid, Monitors));
@@ -1291,32 +1452,20 @@ delivered_down(Pid, ExitReason, #reaper{monitors = Monitors, monitor_refs = Moni
             is_map_key(Pid, MonitorRefs) andalso source_end()
     end.
 
-%% Report §8.6, §11.2: a process that faulted as the program ends dies
-%% with the reason ProgramEnd as every live process does, and its fault is
-%% not reported.
-ended_with_program(Pid, ExitReason) ->
-    case reason(ExitReason) of
-        {'Fault', _} ->
-            case is_program_ending(Pid) of
-                true -> {ern, program_end};
-                false -> ExitReason
-            end;
-        _ ->
-            ExitReason
-    end.
-
 %% Report §8.6: "Once the wait is over, and from the entry process's death
 %% where no subscriber waits", a process that faults before it is ended
 %% dies with the reason ProgramEnd, and its fault is not reported (§11.2);
 %% while the end waits, a fault is the process's own. Whether a fault of
 %% Pid is so: the entry process's own fault is its own; the runner marks
 %% the wait over once the end's wait has returned (run_main/3); and a
-%% subscription's row stands while its subscriber's run lives (died/3,
-%% new_run/3), so that with none standing no subscriber waits. A fault the
-%% entry's end causes comes after that end, so the entry found dead here is
-%% the program's end, whatever order the two signals came in. The reaper
-%% asks it of a process that ended, and a restarting process of its own
-%% fault before it restarts (restarts/4).
+%% subscription's row stands while its subscriber's run lives (died/4,
+%% new_run/3), so that with none standing no subscriber waits. The process
+%% that faults asks it as it meets the fault, so that the answer is the
+%% fault's moment's: a process's body (run/1), a restarting process before
+%% it restarts (restarts/4) and a compute's process before it answers
+%% (answered_compute/2). Report §11.2: a fault met before the entry's end
+%% is reported however late the reaper learns of it, behind the entry's
+%% end among them, and one the entry's end causes is met after it.
 is_program_ending(Pid) ->
     case ets_lookup(?LAUNCH, entry_process) of
         [{_, Pid}] ->
@@ -1397,31 +1546,17 @@ forgotten(Key, Gone, Sets) ->
         #{} -> Sets
     end.
 
-%% The monitors made with a spawn of Pid kept, as monitored/6 keeps one.
-monitors_kept(_Pid, [], Reaper) ->
-    Reaper;
-monitors_kept(Pid, [{Caller, Wrap} | Rest],
-              #reaper{monitors = Monitors, monitoring = Monitoring} = Reaper) ->
-    monitors_kept(Pid, Rest, Reaper#reaper{monitors = monitor_kept(Pid, Caller, Wrap, Monitors),
-                                           monitoring = added(Caller, Pid, Monitoring)}).
-
-%% Monitors, with Caller's monitor of Pid, Wrap, beside those it made of
-%% Pid before: each monitor call is one message (report §6.9).
-monitor_kept(Pid, Caller, Wrap, Monitors) ->
-    case Monitors of
-        #{Pid := #{Caller := Wraps} = ByCaller} ->
-            Monitors#{Pid := ByCaller#{Caller := [Wrap | Wraps]}};
-        #{Pid := ByCaller} ->
-            Monitors#{Pid := ByCaller#{Caller => [Wrap]}};
-        #{} ->
-            Monitors#{Pid => #{Caller => [Wrap]}}
-    end.
-
-%% The monitors of Pid, each {Caller, Wrap}.
+%% The monitors of Pid, each {Caller, Wrap}, an asker's taken from beside
+%% its Wrap.
 monitors_of(Pid, Monitors) ->
     case Monitors of
-        #{Pid := ByCaller} -> [{Caller, Wrap} || Caller := Wraps <- ByCaller, Wrap <- Wraps];
-        #{} -> []
+        #{Pid := ByCaller} ->
+            [{Caller, case Wrap of
+                          {asked, _, Asked} -> Asked;
+                          _ -> Wrap
+                      end} || Caller := Wraps <- ByCaller, Wrap <- Wraps];
+        #{} ->
+            []
     end.
 
 %% The monitors of a caller that died, taken from the processes it
@@ -1493,11 +1628,13 @@ delivered(Recipient, Starter) ->
 %% the deliveries on their way, which an end of this kind alone pays; one a
 %% delivery's recipient ended, or a restart of it, has had its rows taken
 %% already (abandoned/1), and one that is no delivery has none, which its
-%% source's row says. A call its function was making when foreign code
-%% killed it is outside §8.4's promise, and its records stay.
+%% source's row says. Report §6.6, §8.7: a call its function was making
+%% goes with it, as a call of a program's process the host ends does
+%% (left_call/1).
 undelivered(_Pid, normal) ->
     false;
 undelivered(Pid, _ExitReason) ->
+    left_call(Pid),
     try ets:take(?HELD, {source, Pid}) of
         [] ->
             false;
@@ -1512,7 +1649,8 @@ undelivered(Pid, _ExitReason) ->
 %% ended (reaper_held/2): what it delivered nothing of is no source any
 %% more (undelivered/2), the deliveries to it end with it, and the monitors
 %% it made go, as a caller's go at its end, a teller's of its subscriber. A
-%% call it was making the runtime ended as it killed it (killed/2).
+%% call it was making the runtime ended as it killed it (killed/2), or ends
+%% here where the host ended it (undelivered/2).
 held_ended(Pid, ExitReason, Reaper) ->
     _ = undelivered(Pid, ExitReason),
     abandoned(Pid),
@@ -1595,7 +1733,7 @@ kill_started(Roots) ->
 -spec kill_all([pid()]) -> ok.
 kill_all(Pids) ->
     MonitorRefs = [erlang:monitor(process, Pid) || Pid <- Pids],
-    lists:foreach(fun kill/1, Pids),
+    lists:foreach(fun(Pid) -> killed(Pid, {ern, killed}) end, Pids),
     lists:foreach(fun(MonitorRef) -> receive {'DOWN', MonitorRef, process, _, _} -> ok end end,
                   MonitorRefs).
 
@@ -1705,7 +1843,7 @@ faults(Address) ->
 %% Appendix E.23, report §8.6: Os.termination, the caller subscribed to the
 %% program's end, Address being the caller seen through its wrap. A process
 %% holds one subscription, the latest, which ends when it dies or restarts
-%% (died/3, new_run/3); a later one in the same run takes the place of the
+%% (died/4, new_run/3); a later one in the same run takes the place of the
 %% first and keeps whether the end has told the run. One made while the end
 %% waits is told at once: the runner that waits is told of it, and tells it.
 -spec termination(address()) -> 'Unit'.
@@ -1807,7 +1945,6 @@ answered_compute({faulted, Fault}, Alias) ->
 died(Pid, Site, Peer, ExitReason) ->
     ets:delete(?FAULTS, Pid),
     ets:delete(?TERMINATING, Pid),
-    ets:delete(?RESTARTS, Pid),
     case {ExitReason, reason(ExitReason)} of
         %% report §8.7: a fault a compute carried to its caller is reported
         %% once, on the caller's node, and told no subscriber here
@@ -2139,10 +2276,10 @@ monotonic_micros() ->
 %% wrapper the compiler writes around it (ern_emitter's called/2), which a
 %% tail call of foreign code leaves alone on the stack; and while the
 %% runtime waits for the process on what the look cannot see deliver, a
-%% peer, a port, the code table's holder, a restart's answers or the
-%% program's end. One may come inside another, a callback that calls
-%% foreign code that calls back, so the key counts them, and the last to
-%% leave takes it away.
+%% peer, a port, the code table's holder, a restart's answers, Code.load's
+%% placing and evaluation (ern_code_load:load/1) or the program's end. One
+%% may come inside another, a callback that calls foreign code that calls
+%% back, so the key counts them, and the last to leave takes it away.
 -spec entered_foreign() -> ok.
 entered_foreign() ->
     _ = erlang:put(?FOREIGN, case erlang:get(?FOREIGN) of
@@ -2196,7 +2333,12 @@ run(Function) ->
     try
         Function()
     catch
-        Class:Error:Stack -> exit(fault_exit_reason(Class, Error, Stack))
+        Class:Error:Stack ->
+            Fault = fault_exit_reason(Class, Error, Stack),
+            %% report §8.6, §11.2: a fault met as the program ends ends the
+            %% process with the program, and is not reported
+            is_program_ending(erlang:self()) andalso end_with_program(),
+            exit(Fault)
     end.
 
 %% Report §7.3, §7.4: what a host error is as an Ernest fault, with its
@@ -2273,13 +2415,18 @@ found_fault(Pid, Cause) ->
 
 %% Appendix E.21: the trace of a fault the runtime raises by design, a
 %% cause of §7.4's or a library function's, the deadlock and a failed
-%% check among them: a frame of the toolchain's own Erlang, the runtime's,
-%% is left out wherever it stands, the twelve counted without it
-%% (own_modules/0), and a frame of the host's above the program's stays.
+%% check among them: a frame of the runtime's is left out wherever it
+%% stands, the twelve counted without it, and a frame of the host's above
+%% the program's stays. A frame of the runtime's is one of the toolchain's
+%% own Erlang (own_modules/0), or one of a unit that names no definition
+%% of the program's, a helper the compiler writes into the unit, the
+%% boundary's wrapper, a spawn's entry or an arrival's lacked function
+%% among them (ern_code:function_text/3).
 -spec trace([tuple()]) -> binary().
 trace(Stack) ->
     Own = own_modules(),
-    traced([Entry || {ErlangModule, _, _, _} = Entry <- Stack, not is_map_key(ErlangModule, Own)]).
+    traced([Entry || {ErlangModule, _, _, _} = Entry <- Stack, not is_map_key(ErlangModule, Own),
+                     not is_helper_frame(Entry)]).
 
 %% Appendix E.21, report §7.4: the trace of a fault whose cause names a
 %% host error, a failure in the runtime or a foreign function's raise,
@@ -2296,9 +2443,10 @@ failure_trace(Stack) ->
 %% written as a spawn site is (§6.9), by the name the unit's sites write
 %% its function by (ern_code:function_text/3) and its line,
 %% `Counter.worker:23`; a frame of the host's or the runtime's by the
-%% function as the host names it and its line, `lists:nth/2:213`; either
-%% without a line where the host gives none. Report §11.2: the printer
-%% indents it.
+%% function as the host writes it, quoted where the host quotes it, and its
+%% line, `lists:nth/2:213`, `erlang:'div'/2` (ern_namespace:host_function_text/3);
+%% either without a line where the host gives none. Report §11.2: the
+%% printer indents it.
 traced(Stack) ->
     Program = lists:reverse(lists:dropwhile(fun(Entry) -> not is_program_frame(Entry) end,
                                             lists:reverse(Stack))),
@@ -2311,15 +2459,22 @@ is_program_frame({ErlangModule, Function, _, Info}) ->
 is_program_frame(_) ->
     false.
 
+%% Whether a frame is of a unit, which exports '$code'/0 as every unit
+%% does (is_ernest/1), and names no definition of the program's.
+is_helper_frame({ErlangModule, _, _, _} = Entry) ->
+    erlang:function_exported(ErlangModule, '$code', 0) andalso not is_program_frame(Entry).
+
+%% Report §8.7, §11.2: a frame's line, its name written with each control
+%% character as its escape, since a unit an exchange made names its
+%% definitions by a peer's text, which may hold any (ern_code:function_text/3),
+%% and a line feed in one would forge a frame.
 trace_line({ErlangModule, Function, Arguments, Info}) ->
     Line = proplists:get_value(line, Info, none),
-    case ern_code:function_text(ErlangModule, Function, Line) of
-        none ->
-            Host = io_lib:format("~tw:~tw/~B", [ErlangModule, Function, arity(Arguments)]),
-            ern_namespace:site_text([Host], Line);
-        Name ->
-            ern_namespace:site_text([Name], Line)
-    end.
+    Name = case ern_code:function_text(ErlangModule, Function, Line) of
+               none -> ern_namespace:host_function_text(ErlangModule, Function, arity(Arguments));
+               Text -> Text
+           end,
+    ern_show:controls(ern_namespace:site_text([Name], Line), line).
 
 arity(Arguments) when is_list(Arguments) -> length(Arguments);
 arity(Arguments) -> Arguments.
@@ -2355,6 +2510,8 @@ write_loop(Write) ->
         {flush, From, Ref} ->
             From ! {Ref, flushed},
             write_loop(Write);
+        stop ->
+            ok;
         {'Write', Bytes, Reply} ->
             Write(Bytes),
             answer(Reply, ?UNIT),
@@ -2366,6 +2523,8 @@ write_loop(Write) ->
 
 stream_loop(Stream, Name) ->
     receive
+        stop ->
+            ok;
         {flush, From, Ref} ->
             case drained(Stream) of
                 ok ->
@@ -2414,11 +2573,11 @@ gone(Name) ->
 %% its writer goes on, so that no writer faults for a stream that ended.
 dropping() ->
     receive
-        {flush, From, Ref} -> From ! {Ref, gone};
-        {'Write', _, Reply} -> answer(Reply, ?UNIT);
-        _ -> ok
-    end,
-    dropping().
+        stop -> ok;
+        {flush, From, Ref} -> From ! {Ref, gone}, dropping();
+        {'Write', _, Reply} -> answer(Reply, ?UNIT), dropping();
+        _ -> dropping()
+    end.
 
 %% Report §8.2: keys and lines are the same terminal, so a program does one
 %% or the other; doing both ends the program with a fault, as Deadlock ends
@@ -2807,22 +2966,23 @@ wait({time, At}, ReadTime) -> min(?SLICE, max(0, At - ReadTime())).
 %% Report §8.1, §8.6: the runner
 %%
 
--type outcome() :: ok | killed | {fault, binary()} | {fault, binary(), binary()}
-                 | {initializer_fault, binary(), binary()}
+-type outcome() :: ok | killed | {fault, binary(), binary()}
                  | {initializer_fault, binary(), binary(), binary()}
                  | {exit, 0..255} | {gone, stdout | stderr} | {signal, sigterm | sighup}.
 
-%% Runs EntryPoint as the entry process. It returns ok, killed if the entry
-%% process was killed, {fault, Cause} if it faulted, a deadlock among the
-%% faults (report §8.6: the entry process faults with `Fault("deadlock")`),
-%% and {fault, Cause, Trace} where the fault was a failure of the runtime
-%% or a foreign function's raise, the host's stack beneath it;
-%% {initializer_fault, Site, Cause} if a top-level binding faulted before
-%% EntryPoint ran, Site naming the binding (report §8.5), and the host's
-%% stack after them where it faulted so; {exit, Status} if a process
-%% called Os.exit, {gone, Stream} if standard output or standard error
-%% could no longer be written, or {signal, Signal} if the host's
-%% termination or hangup ended the program. Every local process is then
+%% Runs EntryPoint as the entry process. It returns ok where the entry
+%% process returned, killed where it was killed, {fault, Cause, Trace}
+%% where it faulted, the trace the fault's (Appendix E.21): a deadlock and
+%% a system process's fault among the faults, whose trace is the process's
+%% stack where the runtime found it (report §8.6: the entry process faults
+%% with `Fault("deadlock")`), a fault a compute carried to it (§8.7), and
+%% an end the host gave it otherwise, Cause its reason and Trace empty
+%% (§6.9); {initializer_fault, Site, Cause, Trace} where a top-level
+%% binding faulted so before EntryPoint ran, Site naming the binding
+%% (report §8.5); {exit, Status} where a process called
+%% Os.exit, {gone, Stream} where standard output or standard error could
+%% no longer be written, or {signal, Signal} where the host's termination
+%% or hangup ended the program (entry_end/2). Every local process is then
 %% ended with ProgramEnd, and standard output and standard error are
 %% flushed, however the run ended.
 %%
@@ -2844,8 +3004,8 @@ wait({time, At}, ReadTime) -> min(?SLICE, max(0, At - ReadTime())).
 %% node's carrier once the bindings have their values, a node detecting no
 %% deadlock (report §8.6, §8.7); say => fun((iodata()) -> any()), which
 %% writes the runtime's own line on standard error, ern_carrier:say/1 for
-%% `ern run` and `ern test`, and by default the line as it is through
-%% stderr (said/1, report §11.2); flush => fun(() -> any()), the shell's,
+%% `ern run` and `ern test`, and by default the line through stderr
+%% (say/2, report §11.2); flush => fun(() -> any()), the shell's,
 %% run once the end's wait is over and stdout and stderr have taken what
 %% was sent them, which writes what they passed on to its screen
 %% (passed_on/2, §8.6). Report §8.2: the standard streams carry bytes for
@@ -2864,9 +3024,15 @@ run_main(EntryPoint, Site, Options) ->
     true = ets:update_element(?LAUNCH, launch, {#launch.reaper, Reaper}),
     System = started_system(Options),
     Encodings = bytes_out(),
+    %% report §11.2: the runner's own lines, through standard error's process
+    %% where the run was given no function to say them with (say/2)
+    Say = maps:get(say, Options,
+                   fun(Text) ->
+                       say(iolist_to_binary([Text, "\n"]),
+                           fun(Line) -> io:put_chars(standard_error, Line) end)
+                   end),
     Ended = try
-                Told = told(entry_outcome(EntryPoint, Site, Options, Launch), Launch,
-                            maps:get(say, Options, fun said/1)),
+                Told = told(entry_outcome(EntryPoint, Site, Options, Launch), Launch, Say),
                 %% report §8.6: from here a fault is the program's end's
                 %% (is_program_ending/1)
                 true = ets:insert(?LAUNCH, {wait_over}),
@@ -3098,24 +3264,29 @@ passed_on(System, #{flush := Flush}) ->
 passed_on(_System, _Options) ->
     ok.
 
-%% Report §11.2: a line on standard error, where the runner was given no
-%% function of its own to say it with.
-said(Text) ->
-    system_process(stderr) ! iolist_to_binary([Text, "\n"]),
-    ok.
-
 %% Report §8.2, §8.7, §11.2: a line of the toolchain's own on standard
 %% error, Line, its line feed ending it. While a launch's standard error
 %% process runs, from its start until its launch's end has written the
-%% program's output (end_program/4), the line is sent to it, as a fault's
-%% line is, so that it keeps its place among what the program wrote there.
-%% Before the first launch, between two and after the last, where the ended
-%% launch's process would drop it, Outside writes it on the job's own.
+%% program's output (end_program/4), the line is written by it, as a
+%% fault's line is, so that it keeps its place among what the program wrote
+%% there: a write the process answers once it has taken the line, under a
+%% monitor, so that a line the process never took, the end having stopped
+%% it first, is written by Outside. The end stops the process in order
+%% (stopped_in_order/1), so that a line it took it has answered, and none
+%% is written twice. Before the first launch, between two and after the
+%% last, Outside writes it on the job's own.
 -spec say(binary(), fun((binary()) -> term())) -> ok.
 say(Line, Outside) ->
     case launch_field(#launch.stderr, none) of
-        none -> Outside(Line);
-        Stderr -> Stderr ! Line
+        none ->
+            Outside(Line);
+        Stderr ->
+            Reply = erlang:monitor(process, Stderr, [{alias, demonitor}]),
+            Stderr ! {'Write', Line, Reply},
+            receive
+                {Reply, answered, _} -> erlang:demonitor(Reply, [flush]);
+                {'DOWN', Reply, process, _, _} -> Outside(Line)
+            end
     end,
     ok.
 
@@ -3129,8 +3300,8 @@ outcome_flushed({ended, _}, [Stream | _]) -> {gone, Stream}.
 %% describes and `make load` counts the rows of (docs/memory.md).
 -spec tables() -> [atom()].
 tables() ->
-    [?PROCESSES, ?CALLEES, ?FAULTS, ?TERMINATING, ?HELD, ?DELIVERIES, ?RESTARTS,
-     ?CHECKERS, ?LAUNCH, ?OFFERS, ?OFFERED, ?INITIALIZED, ?NOTES].
+    [?PROCESSES, ?CALLEES, ?FAULTS, ?TERMINATING, ?HELD, ?DELIVERIES, ?CHECKERS, ?LAUNCH,
+     ?OFFERS, ?OFFERED, ?INITIALIZED, ?NOTES].
 
 make_tables() ->
     lists:foreach(fun(Table) -> ets:new(Table, [named_table, public | table_options(Table)]) end,
@@ -3193,8 +3364,8 @@ started_system(Options) ->
 %% standard library's first, run in main's process, so one that faults is
 %% the program's fault; its modules are loaded here, where their order is
 %% read from them. Report §6.9: the runner's monitor is made with the
-%% spawn, so the entry process's cause, and the host's stack beside a
-%% failure of the runtime (§11.2), reach it however soon the process ends.
+%% spawn, so the entry process's cause, and the trace beside a fault
+%% (§7.3, §11.2), reach it however soon the process ends.
 %% Report §8.5, §11.2: an initializer's fault is reported under its
 %% binding, and main's under main's site again once they have run.
 entry_outcome(EntryPoint, Site, Options, Launch) ->
@@ -3216,8 +3387,6 @@ entry_outcome(EntryPoint, Site, Options, Launch) ->
     EntryProcess = spawn_with_monitors(Entry, Site,
                                        [{erlang:self(), {raw, {entry_down, Launch}}}], chained),
     case entry_end(EntryProcess, Launch) of
-        {{fault, Cause}, FaultSite} when FaultSite =/= Site ->
-            {initializer_fault, FaultSite, Cause};
         {{fault, Cause, Trace}, FaultSite} when FaultSite =/= Site ->
             {initializer_fault, FaultSite, Cause, Trace};
         {Outcome, _} ->
@@ -3235,8 +3404,12 @@ entry_end(EntryProcess, Launch) ->
                  {'Returned', _} -> ok;
                  {'Killed', _} -> killed;
                  {{'Fault', Cause}, {ern, fault, _, Trace}} -> {fault, Cause, Trace};
-                 {{'Fault', Cause}, _} -> {fault, Cause};
-                 {Other, _} -> {fault, format("~p", [Other])}
+                 %% report §8.7: a fault a compute carried to the entry
+                 %% process, which died of it
+                 {{'Fault', Cause}, {ern, carried, _, Trace}} -> {fault, Cause, Trace};
+                 %% report §6.9: the host ended it, and no trace was kept
+                 {{'Fault', Cause}, _} -> {fault, Cause, <<>>};
+                 {Other, _} -> {fault, format("~p", [Other]), <<>>}
              end, Site};
         {deadlock, Launch} ->
             found_fault(EntryProcess, <<"deadlock">>),
@@ -3437,29 +3610,33 @@ restarting(Limit, F) ->
     end.
 
 %% Report §6.9, Appendix E.22: a restarting process can be asked to restart,
-%% by a priority message to an alias of its own that the runtime keeps
-%% beside it, taken before its other messages at its next wait. The
-%% outermost restarting function of the process is the one asked, and the
-%% one whose start start_cause/0 tells; one nested in it is neither. The
-%% alias's row is what a supervisor reads (ask_restart/1); the process
-%% itself reads in its own dictionary whether a restarting function runs,
-%% by the start cause the outermost sets.
+%% by a priority message to an alias of its own, taken before its other
+%% messages at its next wait. The outermost restarting function of the
+%% process is the one asked, and the one whose start start_cause/0 tells;
+%% one nested in it is neither. The outermost puts its start cause and the
+%% alias in the process's own dictionary (?START), where the process reads
+%% whether a restarting function runs and a supervisor finds the alias
+%% (ask_restart/1).
 restartable() ->
-    case get('$ern_start') of
+    case get(?START) of
         undefined ->
-            ets:insert(?RESTARTS, {erlang:self(), erlang:alias([priority])}),
-            put('$ern_start', 'First'),
+            _ = put(?START, {'First', erlang:alias([priority])}),
             outer;
         _ ->
             inner
     end.
 
+%% The outermost restarting function begins again, for Cause.
+started_again(Cause) ->
+    {_, Alias} = get(?START),
+    _ = put(?START, {Cause, Alias}),
+    ok.
+
 %% The outermost restarting function has ended: the process is no longer
 %% asked to restart.
 unrestartable() ->
-    [{_, Alias}] = ets:take(?RESTARTS, erlang:self()),
+    {_, Alias} = erase(?START),
     erlang:unalias(Alias),
-    erase('$ern_start'),
     %% a request that came as the function returned is not taken later
     receive '$ern_restart' -> ok after 0 -> ok end.
 
@@ -3471,13 +3648,16 @@ restart_now() ->
 %% Appendix E.22: the supervisor's request that a child restart, and
 %% whether it was made; a process that has ended, or has not yet begun to
 %% run what restarts, is not asked, and the supervisor waits for none such.
+%% The alias is read of the child's dictionary (restartable/0), a question
+%% the supervisor asks only as a group restarts. A child runs on its
+%% supervisor's node (§8.7).
 -spec ask_restart(pid()) -> boolean().
-ask_restart(Pid) ->
-    case ets_lookup(?RESTARTS, Pid) of
-        [{_, Alias}] ->
+ask_restart(Pid) when node(Pid) =:= node() ->
+    case erlang:process_info(Pid, {dictionary, ?START}) of
+        {_, {_, Alias}} ->
             erlang:send(Alias, '$ern_restart', [priority]),
             true;
-        [] ->
+        _ ->
             false
     end.
 
@@ -3485,9 +3665,9 @@ ask_restart(Pid) ->
 %% the first time, after a fault, or because it was asked.
 -spec start_cause() -> 'First' | 'AfterFault' | 'Asked'.
 start_cause() ->
-    case get('$ern_start') of
+    case get(?START) of
         undefined -> 'First';
-        Cause -> Cause
+        {Cause, _} -> Cause
     end.
 
 %% Appendix E.22: whether a restarting function already runs in the calling
@@ -3495,7 +3675,7 @@ start_cause() ->
 %% outermost's start cause stands while it runs (restartable/0).
 -spec is_restarting() -> boolean().
 is_restarting() ->
-    get('$ern_start') =/= undefined.
+    get(?START) =/= undefined.
 
 %% Appendix E.22: whether a process runs on the caller's node, where a
 %% supervisor and its children run (§8.7).
@@ -3520,7 +3700,7 @@ restarts(F, Allowed, Times, Level) ->
             %% report §6.9: a restart asked for is no fault, counts against
             %% no limit, and is not reported; the calls waiting on the
             %% process end as at a fault
-            put('$ern_start', 'Asked'),
+            started_again('Asked'),
             fresh_run(),
             restarted(<<"callee was restarted">>),
             restarts(F, Allowed, Times, Level);
@@ -3538,7 +3718,7 @@ restarts(F, Allowed, Times, Level) ->
                     launch_reaper() ! {report, erlang:self(), site(), Fault},
                     fresh_run(),
                     restarted(fault_cause(Fault)),
-                    Level =:= outer andalso put('$ern_start', 'AfterFault'),
+                    Level =:= outer andalso started_again('AfterFault'),
                     restarts(F, Allowed, Recent, Level);
                 false ->
                     %% raised again as the fault it is, for run/1 to end the
@@ -3556,9 +3736,13 @@ fault_cause({ern, fault, Cause, _Trace}) -> Cause.
 %% end by the reaper, its alarms by the clock, its keys by the terminal;
 %% then its mailbox is emptied, before the calls waiting on it are told
 %% they have ended, so that the request of an ended call is not taken by
-%% the new run.
-%% The three are asked at once, and each is monitored, so that one that has
-%% died holds up no restart.
+%% the new run. The three are asked at once, and each is monitored, so
+%% that one that has died holds up no restart. Each takes the restart in
+%% its own order: a delivery the clock starts after the reaper has taken
+%% it, an alarm of the old run's, may ask for a monitor the reaper makes;
+%% the clock's end of the delivery takes the monitor with it, and one the
+%% delivery made and returned from before the clock took the restart
+%% stands into the new run (monitor_asked/5).
 fresh_run() ->
     Self = erlang:self(),
     Asked = [begin
@@ -3648,13 +3832,17 @@ end_program(Launch, Reaper, System, Encodings) ->
                     sink_flushed(proplists:get_value(Name, System)) =:= gone],
     %% report §8.2, §8.7, §11.2: the program's output written, the host's
     %% streams take text again, and a line of the toolchain's own said from
-    %% here on goes to the job's own standard error (say/2); one sent the
-    %% moment before is written by standard error's process, unless it is
-    %% still in that process's mailbox as the process is stopped
+    %% here on goes to the job's own standard error (say/2); the streams are
+    %% stopped in order, so that a line sent the moment before is written
+    %% by standard error's process where it came before the stop, and by
+    %% its sayer where it came after
     restore_encodings(Encodings),
     true = ets:update_element(?LAUNCH, launch, {#launch.stderr, none}),
+    {Streams, Others} = lists:partition(fun({Name, _}) -> lists:member(Name, [stdout, stderr]) end,
+                                        System),
+    lists:foreach(fun({_, Pid}) -> stopped_in_order(Pid) end, Streams),
     %% each ended before the table goes, which the reaper reads
-    lists:foreach(fun stop/1, [Pid || {_, Pid} <- System] ++ [Reaper]),
+    lists:foreach(fun stop/1, [Pid || {_, Pid} <- Others] ++ [Reaper]),
     case ets:lookup(?LAUNCH, reading) of
         [{reading, keys}] -> ern_tty:restore();
         _ -> ok
@@ -3964,7 +4152,7 @@ dropped_note(Reply) ->
 %% watches no process of this node, whichever node the caller's is; one
 %% whose note has gone tells no one. The callee's rows are read by their
 %% key's prefix alone and told apart here, a read the host makes in less
-%% time than one that tests each row (MVP 3.27's measure of the spawn).
+%% time than one that tests each row (the log's *The Numbers Across Machines*).
 drop_callee_notes(Pid, ExitReason) ->
     Callers = ets:select(?CALLEES, [{{{Pid, '$1'}, '$2'}, [], [{{'$1', '$2'}}]}]),
     lists:foreach(fun({Caller, {compute, Alias}}) ->
@@ -4006,8 +4194,9 @@ visit(ErlangModule, ErlangModules, {Order, Seen}) ->
             {[ErlangModule | Order1], Seen1}
     end.
 
-%% A module is loaded as the error handler loads one, counted as a foreign
-%% call, since init_modules/1 runs in the entry process (report §8.6).
+%% A module, loaded as the error handler loads one (load/1), the host's
+%% work, which the look reads on top of the stack of the entry process
+%% that init_modules/1 runs in (report §8.6).
 dependencies_of(ErlangModule) ->
     load(ErlangModule),
     declared_dependencies(ErlangModule).
@@ -4015,6 +4204,14 @@ dependencies_of(ErlangModule) ->
 stop(Pid) ->
     MonitorRef = erlang:monitor(process, Pid),
     exit(Pid, kill),
+    receive {'DOWN', MonitorRef, process, Pid, _} -> ok end.
+
+%% A stream stopped after what was sent it before the stop, which it has
+%% written or, where its stream has gone, dropped (stream/2): a write it
+%% takes it answers, and one that comes after the stop finds it ended.
+stopped_in_order(Pid) ->
+    MonitorRef = erlang:monitor(process, Pid),
+    Pid ! stop,
     receive {'DOWN', MonitorRef, process, Pid, _} -> ok end.
 
 %% What the reaper, the system processes and a signal may still send about

@@ -289,7 +289,7 @@ matches(char, Value, _) ->
         andalso (Value < 16#D800 orelse Value > 16#DFFF);
 matches(string, Value, _) -> is_binary(Value) andalso unicode:characters_to_binary(Value) =:= Value;
 matches(bytes, Value, _) -> is_binary(Value);
-%% report §8.4: the host's `ok` is `Unit` at a return's top alone (result/3)
+%% report §8.4: the host's `ok` is `Unit` at a return's top alone (result/4)
 matches(unit, Value, _) -> Value =:= 'Unit';
 %% an answer checked because its Reply crossed may be Ernest's own, which
 %% holds an address in any of its forms; a process of the program's whose

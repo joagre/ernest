@@ -10,7 +10,7 @@
 %% answers through the spawner's gateway, which ends a process no one waits
 %% for any more; a compute sends them so too, its frame the call's first
 %% note, and its process answers the function's value, or its fault,
-%% through the caller's alias, its call the runtime's (ern_rt:compute/3),
+%% through the caller's alias, its call the runtime's (ern_rt:compute/4),
 %% on the peer named or on one the node picks by the utilizations its
 %% peers told it (picked/0), which the gateway holds (hold_utilization/3);
 %% a utilization asks the peer's gateway, which answers it
@@ -29,16 +29,12 @@
 
 -export_type([identity/0]).
 
-%% Report §8.6: the shims that wait on a peer's answer, a find's, a
-%% spawn's, a compute's and a utilization's, are inside foreign code for
-%% the look while they wait, since a peer's answer is none it sees coming
-%% (ern_rt:entered_foreign/0), and so is a process a peer's monitored spawn
-%% started here while it waits for the spawner's word (held/4); the
-%% others, a table or a persistent term read or a table written, wait on no
-%% process.
-
-%% Report §8.6: each receive that can wait, by its kind (docs/style.md).
--receives({foreign_wait, [gateway_answered/3, spawn_answer/3, given_up/2, spawner_word/2]}).
+%% Report §8.6: each receive that can wait, by its kind (docs/style.md):
+%% a find's, a spawn's and a utilization's wait on a peer's answer, and a
+%% process a peer's monitored spawn started here on the spawner's word
+%% (held/4), none the look sees coming (ern_rt:entered_foreign/0); the
+%% other shims read a table or a persistent term, or write a table.
+-receives({foreign_wait, [alias_answer/3, spawn_answer/3, given_up/2, spawner_word/2]}).
 
 %% A spawn waiting for its answer, {{Node, Ref}, Waiting, Order}, by the
 %% peer's node and the spawn's reference: the waiting process, and the
@@ -180,11 +176,15 @@ asked(Node, Name, Hash, Deadline) ->
     erlang:send(Gateway, {ern_frame, erlang:self(), {find, Name, Hash, Alias}}),
     gateway_answer(Alias, MonitorRef, Deadline).
 
+%% Report §8.6: the gateway's answer, waited for inside foreign code for
+%% the look, since a peer's answer is none it sees coming.
 gateway_answer(Alias, MonitorRef, Deadline) ->
     ern_rt:entered_foreign(),
-    try gateway_answered(Alias, MonitorRef, Deadline) after ern_rt:left_foreign() end.
+    try alias_answer(Alias, MonitorRef, Deadline) after ern_rt:left_foreign() end.
 
-gateway_answered(Alias, MonitorRef, Deadline) ->
+%% The answer through the alias, `Unreachable` at the gateway's end, or
+%% timeout.
+alias_answer(Alias, MonitorRef, Deadline) ->
     receive
         {Alias, Answer} ->
             erlang:demonitor(MonitorRef, [flush]),
@@ -199,7 +199,7 @@ gateway_answered(Alias, MonitorRef, Deadline) ->
                 erlang:demonitor(MonitorRef, [flush]),
                 receive {Alias, Answer} -> Answer after 0 -> timeout end;
             _ ->
-                gateway_answered(Alias, MonitorRef, Deadline)
+                alias_answer(Alias, MonitorRef, Deadline)
         end
     end.
 
@@ -299,8 +299,8 @@ compute(_Function, _Ms) ->
 
 -spec compute(spawned(), integer(), binary()) -> {'Right', term()} | {'Left', term()}.
 compute(Spawned, Ms, Site) ->
-    case picked() of
-        {picked, Node} -> computed(Node, Spawned, Ms, Site);
+    case pick() of
+        {picked, Node, Name} -> computed(Node, Name, Spawned, Ms, Site);
         Error -> {'Left', Error}
     end.
 
@@ -321,15 +321,16 @@ compute_at(Name, Spawned, Ms, Site) ->
         _ when node() =:= nonode@nohost ->
             {'Left', 'Unreachable'};
         Node ->
-            computed(Node, Spawned, Ms, Site)
+            computed(Node, Name, Spawned, Ms, Site)
     end.
 
 %% The compute on the peer's node, whose frame is the call's first note,
 %% carrying the milliseconds the caller waits as a spawn's frame does, and
-%% whose wait is a call's (ern_rt:compute/3).
-computed(Node, Spawned, Ms, Site) ->
+%% whose wait is a call's (ern_rt:compute/4); a fault it carries back names
+%% the peer by Name and the compute by its site (§8.7).
+computed(Node, Name, Spawned, Ms, Site) ->
     ern_rt:compute(Node, fun(Alias) -> {compute, Alias, Spawned, Site, Ms} end,
-                   ern_rt:deadline(Ms)).
+                   ern_rt:deadline(Ms), {Name, Site}).
 
 %% Report §8.7: the peer a compute that names none runs on, the one
 %% picked: of the peers whose utilization this node may use, each heard
@@ -342,12 +343,21 @@ computed(Node, Spawned, Ms, Site) ->
 %% peers' rows and a draw, and no frame (§10).
 -spec picked() -> {picked, node()} | 'NotListed' | 'Unreachable'.
 picked() ->
+    case pick() of
+        {picked, Node, _Name} -> {picked, Node};
+        Error -> Error
+    end.
+
+%% The peer picked, by its name on the carrier and the name the
+%% configuration lists it under as it was picked, which a compute's
+%% carried fault names (§8.7).
+pick() ->
     case peers() of
         [] ->
             'NotListed';
         Names ->
             Now = erlang:monotonic_time(millisecond),
-            drawn(list_to_tuple([{Utilization, Node}
+            drawn(list_to_tuple([{Utilization, Node, Name}
                                  || Name <- Names, Node <- [node_of(Name)],
                                     {Utilization, At, Interval} <- held(Node),
                                     Now - At =< 2 * Interval]))
@@ -359,8 +369,8 @@ picked() ->
 %% either of the two as the draw falls.
 drawn({}) ->
     'Unreachable';
-drawn({{_, Node}}) ->
-    {picked, Node};
+drawn({{_, Node, Name}}) ->
+    {picked, Node, Name};
 drawn(Usable) ->
     Count = tuple_size(Usable),
     First = rand:uniform(Count),
@@ -368,12 +378,12 @@ drawn(Usable) ->
                  Drawn when Drawn >= First -> Drawn + 1;
                  Drawn -> Drawn
              end,
-    {FirstUtilization, FirstNode} = element(First, Usable),
+    {FirstUtilization, FirstNode, FirstName} = element(First, Usable),
     case element(Second, Usable) of
-        {SecondUtilization, SecondNode} when SecondUtilization < FirstUtilization ->
-            {picked, SecondNode};
+        {SecondUtilization, SecondNode, SecondName} when SecondUtilization < FirstUtilization ->
+            {picked, SecondNode, SecondName};
         _ ->
-            {picked, FirstNode}
+            {picked, FirstNode, FirstName}
     end.
 
 %% Report §8.7: how busy the peer named is, the Float its gateway answers
@@ -468,9 +478,11 @@ drop_utilization(Node) ->
 %% its process ended; a message to an adapted address this node made, the
 %% address and the message, which the worker hands to the process it keeps
 %% for the address (ern_rt:kept/1), so that it goes on with the next frame
-%% while the function is applied; and a kill of a process of this node,
-%% which this node carries out as its own kill (ern_rt:kill/1), one of a
-%% process that has ended doing nothing. A find, a spawn or a compute is
+%% while the function is applied; and a kill of a process of this node the
+%% runtime started, which this node carries out as its own kill
+%% (ern_rt:kill/1), one of any other process doing nothing: a process of
+%% the runtime's own, a foreign one, and one that has ended since the peer
+%% sent it. A find, a spawn or a compute is
 %% asked of the run in progress, and one that comes while none is answers
 %% `Unreachable`: between two runs of `ern test` over a directory, in one
 %% host, and as a run ends (ern_rt:asked_of_run/1). Any other frame is one
@@ -541,7 +553,10 @@ frame(_From, {adapted, {adapted, Function, _Target, Maker, Launch} = Address, Me
   when is_function(Function, 1), is_pid(Maker), node(Maker) =:= node(), is_reference(Launch) ->
     {adapted, Address, Message};
 frame(_From, {kill, Pid}) when is_pid(Pid), node(Pid) =:= node() ->
-    'Unit' = ern_rt:kill(Pid),
+    case ern_rt:is_started(Pid) of
+        true -> 'Unit' = ern_rt:kill(Pid);
+        false -> 'Unit'
+    end,
     ok;
 frame(_From, _Body) ->
     unreadable.
@@ -628,12 +643,13 @@ ms({compute, _Alias, _Spawned, _Site, Ms}) ->
 %% Report §8.7: what this node lacks of a reach a peer gave, before any of
 %% its code crosses, or none: the first foreign declaration whose module is
 %% not here, or whose function is not in it, each `{QualifiedName,
-%% HostModule, HostFunction, Scheme, Printing}`, then the first binding
+%% HostModule, HostFunction, Scheme, Printing, Source}`, then the first binding
 %% without its value here, each `{QualifiedName, Hash}`. The names are a
 %% peer's text, which makes no atom here where none is, and is written with
 %% its controls shown, as a foreign function's name a spawn gives is.
 -spec reach_lacked([{[binary()], binary()}],
-                   [{[binary()], binary(), binary(), term(), term()}]) -> iodata() | none.
+                   [{[binary()], binary(), binary(), term(), term(), term()}]) ->
+          iodata() | none.
 reach_lacked(Bindings, Foreigns) ->
     case [Lacked || Foreign <- Foreigns, Lacked <- [foreign_lacked(Foreign)], Lacked =/= none] of
         [Lacked | _] ->
@@ -654,8 +670,9 @@ reach_lacked(Bindings, Foreigns) ->
 %% and its functions' are atoms here once it answers none. A unit an
 %% exchange makes asks it of each foreign function its definitions call
 %% beyond the reach (ern_arrival).
--spec foreign_lacked({[binary()], binary(), binary(), term(), term()}) -> iodata() | none.
-foreign_lacked({QualifiedName, HostModule, HostFunction, Scheme, _}) ->
+-spec foreign_lacked({[binary()], binary(), binary(), term(), term(), term()}) ->
+          iodata() | none.
+foreign_lacked({QualifiedName, HostModule, HostFunction, Scheme, _, _}) ->
     Module = ["the module ", ern_show:controls(HostModule, line), ", which ",
               qualified_text(QualifiedName), " calls, "],
     case is_present(HostModule) andalso code:ensure_loaded(binary_to_atom(HostModule)) of
@@ -772,10 +789,11 @@ lacked_module(Called, QualifiedName) ->
     case ern_code:foreign(Called, QualifiedName) of
         [] ->
             case ern_code:declared(Called, QualifiedName) of
-                [{_, {_, Scheme, HostModule, HostFunction, Printing}} | _] ->
+                [{_, {_, Scheme, HostModule, HostFunction, Printing, Source}} | _] ->
                     linked_to_fault({ern_namespace:text_segments(QualifiedName),
                                      ern_namespace:text_segment(HostModule),
-                                     ern_namespace:text_segment(HostFunction), Scheme, Printing},
+                                     ern_namespace:text_segment(HostFunction), Scheme, Printing,
+                                     Source},
                                     Named);
                 [] ->
                     ["this node does not have ", Named]
@@ -794,7 +812,7 @@ lacked_module(Called, QualifiedName) ->
 %% the code arrived is told; and where the module and the function have
 %% come since, that they were not here when the code arrived, which the
 %% unit's code still calls the fault for.
-linked_to_fault({_, HostModule, _, _, _} = Declaration, Named) ->
+linked_to_fault({_, HostModule, _, _, _, _} = Declaration, Named) ->
     case foreign_lacked(Declaration) of
         none -> ["the module ", ern_show:controls(HostModule, line), ", which ", Named,
                  " calls, was not here when its code arrived"];

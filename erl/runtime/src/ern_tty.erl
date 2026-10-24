@@ -30,10 +30,6 @@
 
 -export([loop/2, size/0, restore/0, is_terminal/1, more/2, decode/1, flush/1]).
 
-%% Report §8.6: Terminal.size asks the host's `user` process, and waits in
-%% the host's io functions, which the look reads on top of the process's
-%% stack as the host's work, so it needs no key of the look's.
-
 %% Report §8.6: each receive that can wait, by its kind (docs/style.md).
 -receives({own_process, [refusing/0, loop/4, courier/1, unsubscribe/3, stty/1, settings/2]}).
 
@@ -243,7 +239,9 @@ size_now() ->
 %% Report Appendix E.16, E.0 rule 1: Terminal.size, the size the host
 %% answers, read without the terminal's process. The host has no size for
 %% a device that is not a terminal, nor for a terminal with no rows or no
-%% columns.
+%% columns. Report §8.6: the caller waits in the host's io functions, which
+%% the look reads on top of its stack as the host's work, so it needs no
+%% key of the look's.
 -spec size() -> {'Right', {'Size', pos_integer(), pos_integer()}} | {'Left', 'NotATerminal'}.
 size() ->
     case size_now() of

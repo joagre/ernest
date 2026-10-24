@@ -114,12 +114,17 @@ host_name_text(What, Name) ->
     lists:flatten(io_lib:format("~s is ~B characters long, and the host's names are at most ~B",
                                 [What, length(Name), host_name_limit()])).
 
-%% Report §4.7, §7.4: a function of the host's as a foreign declaration's
-%% implementation writes it, `erlang:abs/1`, by which a cause of §7.4 names
-%% a foreign function, a declared one or a function value foreign code gave.
--spec host_function_text(atom(), atom(), arity()) -> string().
+%% Report §4.7, §7.4, Appendix E.21: a function of the host's as the host
+%% writes it, each atom quoted where the host quotes it, `erlang:abs/1`,
+%% `erlang:'div'/2`, `ern@main:'-main/0-fun-0-'/1`, by which a cause of
+%% §7.4 names a foreign function, a declared one or a function value
+%% foreign code gave, and a trace a frame of the host's. A fun whose code
+%% the host no longer holds has no name, `[]`, which the text leaves out.
+-spec host_function_text(atom(), atom() | [], arity()) -> string().
+host_function_text(Module, [], Arity) ->
+    lists:flatten(io_lib:format("~tw:/~B", [Module, Arity]));
 host_function_text(Module, Function, Arity) ->
-    lists:flatten(io_lib:format("~ts:~ts/~B", [Module, Function, Arity])).
+    lists:flatten(io_lib:format("~tw:~tw/~B", [Module, Function, Arity])).
 
 component_or_lowered(Segment) ->
     case component(Segment) of

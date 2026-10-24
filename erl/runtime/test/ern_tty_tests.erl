@@ -79,8 +79,8 @@ second_subscription_test() ->
 %% report §6.9, Appendix E.16, E.21: the terminal's wrap acts for its
 %% subscriber, as every wrap acts for the process it delivers to:
 %% Process.current there is the subscriber, and not the courier that
-%% applies it. A regression test, written after the code (finding D1's
-%% read-back): the courier was nobody's
+%% applies it. A regression test, written after the code (the log's
+%% *Before the Tag, the Last Builds*): the courier was nobody's
 wrap_acts_for_its_subscriber_test() ->
     Self = self(),
     Process = ern_named:functions('ern@process'),
@@ -115,8 +115,10 @@ dead_subscriber() ->
                        ern_waits:forever()
                    end, <<"main">>, #{stdout => fun(_) -> ok end, keys => Never})).
 
+%% What the program sent the test before it ended: ern_rt:run_main/3 has
+%% returned, so the message is in the mailbox already or never comes.
 wait(Tag) ->
-    receive {Tag, Value} -> Value after 2000 -> timeout end.
+    receive {Tag, Value} -> Value after 0 -> timeout end.
 
 %% report §8.2: the keys are UTF-8 whatever the host's locale, a
 %% character cut across two reads is one key, and keys that are not UTF-8
@@ -183,7 +185,13 @@ couriers_test() ->
                                         EntryProcess ! stuck_subscribed,
                                         receive never -> ok end
                                     end, <<"stuck">>),
-               wait_atom(stuck_subscribed),
+               %% its subscription answered, or its end, a fault in its call
+               %% among the ways
+               ern_rt:monitor(Stuck, fun(Down) -> {stuck_ended, Down} end),
+               receive
+                   stuck_subscribed -> ok;
+                   {stuck_ended, Down} -> error({stuck_ended, Down})
+               end,
                subscribe(Tty, fun(Event) -> {key, Event} end),
                Tty ! {chars, "ab"},
                Keys = [receive {key, FirstKey} -> FirstKey end,
@@ -226,6 +234,51 @@ restart_ends_subscription_test() ->
     ?assertEqual({'Some', {'Right', 'Unit'}}, wait(subscribed)),
     ?assertEqual(none, wait(got)).
 
+%% report §6.9, §8.2: a subscription ends with its process, and so does a
+%% call its wrap makes in the courier, the call's records dropped as its
+%% own end of the call drops them: the callee's row goes. A regression
+%% test, written after the code (the log's *The Sitting on §8.6's
+%% Bookkeeping*, where the courier came to be ended through
+%% ern_rt:killed/2): ended by the host's kill, the courier left the row for
+%% the program's life. It does not cover a subscriber's restart, which ends
+%% the subscription the same way (unsubscribe/3), nor the caller's CALL
+%% key, which goes with the courier's process
+unsubscribe_ends_a_wraps_call_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Tty = ern_rt:system_process(terminal),
+               EntryProcess = erlang:self(),
+               %% a callee that keeps the request's reply and never answers
+               Callee = ern_rt:spawn(fun() ->
+                                         receive {ask, _Reply} -> EntryProcess ! asked end,
+                                         receive never -> ok end
+                                     end, <<"callee">>),
+               Wrap = fun(_Event) ->
+                          EntryProcess ! {courier, erlang:self()},
+                          ern_rt:call_forever(Callee, fun(Reply) -> {ask, Reply} end)
+                      end,
+               Subscriber = ern_rt:spawn(fun() ->
+                                             subscribe(Tty, Wrap),
+                                             EntryProcess ! subscribed,
+                                             receive never -> ok end
+                                         end, <<"subscriber">>),
+               receive subscribed -> ok end,
+               Tty ! {chars, "a"},
+               Courier = receive {courier, Pid} -> Pid end,
+               %% the call is noted before its request is sent
+               %% (ern_rt:call_forever/3)
+               receive asked -> ok end,
+               Row = {ern_rt:process_of(Callee), Courier},
+               Noted = ets:member(ern_callees, Row),
+               MonitorRef = erlang:monitor(process, Courier),
+               ern_rt:kill(Subscriber),
+               receive {'DOWN', MonitorRef, process, Courier, _} -> ok end,
+               Self ! {rows, {Noted, ets:member(ern_callees, Row)}},
+               ern_rt:kill(Callee)
+           end, <<"main">>, #{stdout => fun(_) -> ok end, keys => fun silent/0}),
+    ?assertEqual({true, false}, wait(rows)).
+
 %% A terminal's key reader that never reads a key, a terminal at which
 %% nothing is typed, so that a test's keys are the ones it sends the
 %% terminal's process itself.
@@ -241,9 +294,6 @@ subscribe(Tty) ->
 subscribe(Tty, Wrap) ->
     Address = ern_rt:adapted(ern_rt:self(), Wrap),
     ern_rt:call(Tty, fun(Reply) -> {'Subscribe', Address, Reply} end, 5000).
-
-wait_atom(Atom) ->
-    receive Atom -> Atom after 2000 -> error({no, Atom}) end.
 
 %% report §8.2, Appendix E.16: a paste is one event and not the keys of its
 %% characters, its line endings are line feeds whichever the terminal

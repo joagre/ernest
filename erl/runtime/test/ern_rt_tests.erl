@@ -604,7 +604,8 @@ compute_wait_is_no_deadlock_test() ->
     Self = self(),
     Compute = fun() ->
                   Self ! {computed, ern_rt:compute(node(), fun(Alias) -> {compute, Alias} end,
-                                                   ern_rt:deadline(600000))}
+                                                   ern_rt:deadline(600000),
+                                                   {<<"p">>, <<"M.f:1">>})}
               end,
     try
         ?assertEqual(ok, ern_rt:run_main(Compute, <<"main">>, #{stdout => fun(_) -> ok end})),
@@ -772,11 +773,11 @@ monitor_test() ->
 %% report §6.9: each monitor call produces one message, whoever else
 %% monitors the process: a process monitored twice by one caller and once
 %% by another gives the first two Downs and the other one. A regression
-%% test, written after the code (MVP 3.27 item 3, a process's monitors
-%% held by their callers and a caller's by the processes it monitors, each
-%% read by its key alone, so that an end and a caller's death cost the
-%% same however many monitors other processes hold); it does not cover
-%% that cost, which no test measures
+%% test, written after the code (the log's *The Rows That Grew*, a
+%% process's monitors held by their callers and a caller's by the
+%% processes it monitors, each read by its key alone, so that an end and a
+%% caller's death cost the same however many monitors other processes
+%% hold); it does not cover that cost, which no test measures
 monitors_by_caller_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -918,8 +919,8 @@ clock_test() ->
     ?assertEqual(true, wait(clock_ok)).
 
 %% report Appendix E.15: Clock.now reads the host's clock and sends no
-%% message, so it answers while the clock's process cannot (MVP 2.99d's
-%% item 13). A regression test: `now` asked the clock's process.
+%% message, so it answers while the clock's process cannot. A regression
+%% test: `now` asked the clock's process.
 clock_now_reads_the_host_test_() ->
     {timeout, 10, fun clock_now_reads_the_host/0}.
 
@@ -1379,10 +1380,10 @@ deliveries_end_with_their_recipient_test() ->
 %% monitored finds it ended. That Down is not delivered, the wrap that
 %% spins for an earlier Down to it ends too, no row of the deliveries
 %% stays, and nothing can deliver, so the entry process's wait is a
-%% deadlock. A regression test, written after the code (MVP 3.27 item 3,
-%% a delivery to an ended recipient ending every delivery to it): the wrap
-%% that spun was ended by nothing; it does not cover a delivery the clock
-%% or a teller starts to a process that has ended
+%% deadlock. A regression test, written after the code (the log's *The
+%% Rows That Grew*, a delivery to an ended recipient ending every delivery
+%% to it): the wrap that spun was ended by nothing; it does not cover a
+%% delivery the clock or a teller starts to a process that has ended
 deliveries_to_an_ended_caller_test_() ->
     {timeout, 30, fun deliveries_to_an_ended_caller/0}.
 
@@ -2077,12 +2078,13 @@ subscribe(Tty) ->
 
 %% report §6.9, Appendix E.22: a restarting function marks its process
 %% while it runs, the outermost alone: in it and in a restarting function
-%% nested in it the process is restarting, the row a supervisor asks
-%% through stands and the start cause is the outermost's; once the
-%% outermost returns, the process is not restarting, the row has gone and
-%% no restart can be asked of it. A regression test, written after the
-%% code (MVP 3.27 item 3, the process's own question read from its
-%% dictionary, the row taken at the end); it does not cover a request to
+%% nested in it the process is restarting, the alias a supervisor asks
+%% through stands in its dictionary and the start cause is the
+%% outermost's; once the outermost returns, the process is not restarting,
+%% the alias has gone and no restart can be asked of it. A regression
+%% test, written after the code (the log's *The Rows That Grew*, the
+%% process's own question read from its dictionary), and again as the
+%% alias left its row for the dictionary; it does not cover a request to
 %% restart that comes as the function returns, which nothing here orders
 restarting_marks_its_process_test() ->
     Self = self(),
@@ -2090,8 +2092,11 @@ restarting_marks_its_process_test() ->
            fun() ->
                Pid = erlang:self(),
                Marks = fun() ->
-                           {ern_rt:is_restarting(), ets:member(ern_restarts, Pid),
-                            ern_rt:start_cause()}
+                           Alias = case erlang:process_info(Pid, {dictionary, '$ern_start'}) of
+                                       {_, {_, Reference}} -> is_reference(Reference);
+                                       _ -> false
+                                   end,
+                           {ern_rt:is_restarting(), Alias, ern_rt:start_cause()}
                        end,
                Before = Marks(),
                Inside = (ern_rt:restarting(
@@ -2253,3 +2258,157 @@ alarm_at_follows_the_clock() ->
                Self ! {ended, {Before, Minute >= 60000, Unmoved, SetBack, SetAgain, AfterMs}}
            end, <<"main">>, #{time => Time, stdout => fun(_) -> ok end}),
     ?assertEqual({waiting, true, waiting, waiting, fired, fired}, wait(ended)).
+
+%% report §6.5: a fault in an adapted address's function is the target's,
+%% and a target the runtime did not start, a foreign process, which has no
+%% wait of Ernest's, is ended by it as an exit signal, while a process the
+%% runtime started takes it at its next wait. A regression test, written
+%% after the code: every target was sent the fault as a message, which a
+%% foreign process ignored and lived on; it does not cover a foreign target
+%% on another node, which takes the message
+fault_ends_a_foreign_target_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Foreign = erlang:spawn(fun() -> receive never -> ok end end),
+               MonitorRef = erlang:monitor(process, Foreign),
+               ern_rt:send(ern_rt:adapted(Foreign, fun(Divisor) -> 1 div Divisor end), 0),
+               Ended = receive {'DOWN', MonitorRef, process, Foreign, Why} -> Why end,
+               Program = ern_rt:spawn(fun waiting/0, <<"Main.main:4">>),
+               ern_rt:monitor(Program, fun(Down) -> {down, Down} end),
+               ern_rt:send(ern_rt:adapted(Program, fun(Divisor) -> 1 div Divisor end), 0),
+               Faulted = receive {down, {'Down', _, Reason, _}} -> Reason end,
+               Self ! {ended, {Ended, Faulted}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end, stderr => fun(_) -> ok end}),
+    ?assertMatch({{ern, fault, <<"division by zero">>, _}, {'Fault', <<"division by zero">>}},
+                 wait(ended)).
+
+%% report §6.6, §6.9: a caller the host ends while it waits in a call,
+%% killed by foreign code, runs no `after` and keeps its CALL key no
+%% longer, so the reaper drops its row of the callees as it learns of the
+%% end. A regression test, written after the code: the row stayed until
+%% the callee restarted or the launch ended; the peer's side, told by the
+%% second note, is ern_peer_tests:host_ended_compute_test/0's
+host_ended_caller_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Callee = ern_rt:spawn(fun() -> receive never -> ok end end, <<"Main.main:2">>),
+               Caller = ern_rt:spawn(fun() ->
+                                         ern_rt:call_forever(Callee, fun(Reply) -> {ask, Reply} end)
+                                     end, <<"Main.main:3">>),
+               ok = ern_waits:calling(Caller),
+               Pending = ets:match_object(ern_callees, {{'_', Caller}, '_'}),
+               ok = ern_waits:returned(ern_rt:launch_reaper(), {ern_rt, left_call, [Caller]},
+                                       fun() -> exit(Caller, kill) end),
+               Left = ets:match_object(ern_callees, {{'_', Caller}, '_'}),
+               Self ! {rows, {length(Pending), Left}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({1, []}, wait(rows)).
+
+%% report §8.2, §8.7, §11.2: a line of the toolchain's own is written by
+%% the launch's standard error process, which answers once it has taken
+%% it, and a line that finds the process stopped, as the end stops it, is
+%% written outside. A regression test, written after the code: a line sent
+%% between the end's flush and its stop of the process was lost; it does
+%% not cover the race itself, which the end's stop in order closes
+say_outside_a_stopped_stream_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Outside = fun(Line) -> Self ! {outside, Line} end,
+               ok = ern_rt:say(<<"inside\n">>, Outside),
+               Stderr = ern_rt:system_process(stderr),
+               MonitorRef = erlang:monitor(process, Stderr),
+               Stderr ! stop,
+               receive {'DOWN', MonitorRef, process, Stderr, _} -> ok end,
+               ok = ern_rt:say(<<"late\n">>, Outside)
+           end, <<"main">>, #{stdout => fun(_) -> ok end,
+                              stderr => fun(Bytes) -> Self ! {stderr, Bytes} end}),
+    ?assertEqual(<<"inside\n">>, wait(stderr)),
+    ?assertEqual(<<"late\n">>, wait(outside)),
+    %% the run has ended, so all its standard error process wrote is here
+    ?assertEqual(none, receive {stderr, Bytes} -> Bytes after 0 -> none end).
+
+%% report §6.9, §8.6: a monitor a process of the runtime's own asked for
+%% the process it acts for, as a delivery's wrap asks it, goes with the
+%% asker where the asker ends otherwise than it returns, as a delivery
+%% the clock ends with its recipient's run is ended: the monitor of a
+%% process the runtime did not start is then no source, and the entry
+%% process's wait is a deadlock. A regression test, written after the
+%% code: such a monitor stood into the recipient's new run; it does not
+%% cover the race in which the clock's delivery asks after the reaper has
+%% taken the restart, which nothing here orders, nor a delivery that
+%% returns before the clock takes it, whose monitor stands
+asked_monitor_goes_with_its_asker_test_() ->
+    {timeout, 30, fun asked_monitor_goes_with_its_asker/0}.
+
+asked_monitor_goes_with_its_asker() ->
+    Outcome = ern_rt:run_main(
+                fun() ->
+                    Main = erlang:self(),
+                    Foreign = erlang:spawn(fun() -> receive never -> ok end end),
+                    Asker = erlang:spawn(fun() ->
+                                             ern_rt:acting_for(Main),
+                                             ern_rt:monitor(Foreign, fun(Down) -> Down end),
+                                             Main ! asked,
+                                             receive never -> ok end
+                                         end),
+                    receive asked -> ok end,
+                    exit(Asker, kill),
+                    ern_waits:forever()
+                end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertMatch({fault, <<"deadlock">>, _}, Outcome).
+
+%% report §11.2, §8.6: every fault is reported as it happens, those met
+%% before the entry process's end among them however late the reaper
+%% learns of them: a chain of processes each waiting on the next in
+%% `callForever`, the last dividing by zero, faults whole, each of its
+%% faults reported, the entry process's last. Here the reporter holds the
+%% reaper in the first report until the entry process has ended, so that
+%% the reaper learns of the others' ends after it. A regression test,
+%% written after the code: the reaper took a fault it learned of after the
+%% entry's end for one the program's end caused, and dropped it
+faults_before_the_end_are_reported_test() ->
+    Self = self(),
+    Zero = zero(),
+    Next = fun(Callee) -> fun() -> ern_rt:call_forever(Callee, fun(Reply) -> {ask, Reply} end) end
+           end,
+    Reporter = fun({'FaultReport', _, Site, Cause, _, _, _}, _Peer) ->
+                   Site =:= <<"Main.main:3">> andalso held_until_the_entry_ends(),
+                   Self ! {reported, {Site, Cause}}
+               end,
+    Outcome = ern_rt:run_main(
+                fun() ->
+                    C = ern_rt:spawn(fun() -> receive {ask, _} -> 1 div Zero end end,
+                                     <<"Main.main:3">>),
+                    B = ern_rt:spawn(Next(C), <<"Main.main:4">>),
+                    A = ern_rt:spawn(Next(B), <<"Main.main:5">>),
+                    (Next(A))()
+                end, <<"main">>, #{stdout => fun(_) -> ok end, faults => Reporter}),
+    ?assertMatch({fault, <<"division by zero">>, _}, Outcome),
+    Cause = <<"division by zero">>,
+    ?assertEqual([{<<"Main.main:3">>, Cause}, {<<"Main.main:4">>, Cause},
+                  {<<"Main.main:5">>, Cause}, {<<"main">>, Cause}],
+                 [wait(reported) || _ <- [c, b, a, main]]).
+
+%% The reaper held in a fault's report until the entry process has ended.
+held_until_the_entry_ends() ->
+    MonitorRef = erlang:monitor(process, ern_rt:entry_process()),
+    receive {'DOWN', MonitorRef, process, _, _} -> true end.
+
+%% report §5.11, §7.4: a segment overflow's cause says what did not fit,
+%% the value and the segment's width, where the check knows them. A
+%% regression test, written after the code: the cause named neither; it
+%% does not cover the frame's line, the emitter's
+segment_overflow_cause_test() ->
+    Cause = fun(Check) -> try Check() catch throw:{ern, fault, Text} -> Text end end,
+    ?assertEqual(<<"segment overflow: 300 does not fit 8 bits">>,
+                 Cause(fun() -> ern_bits:int(300, 8, unsigned) end)),
+    ?assertEqual(<<"segment overflow: -129 does not fit 8 signed bits">>,
+                 Cause(fun() -> ern_bits:int(-129, 8, signed) end)),
+    ?assertEqual(<<"segment overflow: 1.0e300 does not fit a 32-bit float">>,
+                 Cause(fun() -> ern_bits:float(1.0e300, 32) end)),
+    ?assertEqual(<<"segment overflow: a 3-byte value does not fit 2 bytes">>,
+                 Cause(fun() -> ern_bits:bytes(<<1, 2, 3>>, 16) end)),
+    ?assertEqual(<<"segment overflow">>, Cause(fun ern_bits:overflow/0)).

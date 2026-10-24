@@ -1,7 +1,7 @@
 %% The documentation rules of report §2.2 and Appendix E.0 shape rule 6, checked
 %% over every standard library module written in Ernest, every library
-%% under src/libs/, which keeps the standard library's discipline (plan, MVP
-%% 2.7), and the fictive module that docs/module_doc_template.md shows. The
+%% under src/libs/, which keeps the standard library's discipline (Appendix
+%% E.0), and the fictive module that docs/module_doc_template.md shows. The
 %% examples are run by `ern test` alone (report §11.2): the library's by
 %% `make test-library`, and the template's and the prelude's page's here,
 %% which no build of the library holds.
@@ -55,7 +55,9 @@ template_examples_test_() ->
     {timeout, 60, fun template_examples/0}.
 
 template_examples() ->
-    Dir = tmp(),
+    in_tmp(fun template_examples/1).
+
+template_examples(Dir) ->
     Programs = filename:join(?ROOT, "test/fixtures/programs"),
     Template = filename:join(Programs, "template.ern"),
     ?assertEqual(0, ern_cli:ern(["build", "--source-root", Programs, "--build-root", Dir,
@@ -76,7 +78,9 @@ prelude_examples_test_() ->
     {timeout, 60, fun prelude_examples/0}.
 
 prelude_examples() ->
-    Dir = tmp(),
+    in_tmp(fun prelude_examples/1).
+
+prelude_examples(Dir) ->
     Blocks = [Block || Doc <- prelude_docs(), Block <- fences(Doc)],
     Fenced = [["///\n/// ```ernest\n",
                [["///", [[" ", Line] || Line =/= <<>>], "\n"]
@@ -90,24 +94,34 @@ prelude_examples() ->
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     passed(Dir ++ "/build/prelude_page.erc", Blocks).
 
-%% A directory of the test's own, under the run's, which `make` removes
-%% when the run ends (erl/app.mk).
-tmp() ->
+%% Test run in a directory of its own, under the run's, which `make`
+%% removes when the run ends (erl/app.mk), or under the host's temporary
+%% directory where no run's is given; the directory goes when Test ends,
+%% whatever its outcome.
+in_tmp(Test) ->
     Base = os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
     Dir = filename:join(Base, "ern_doc_" ++ os:getpid() ++ "_"
                               ++ integer_to_list(erlang:unique_integer([positive]))),
     ok = filelib:ensure_path(Dir),
-    Dir.
+    try Test(Dir) after file:del_dir_r(Dir) end.
 
 %% Report §11.2, §11.8: `ern test` of the compiled module passes, a case for
-%% each of the examples, Blocks, as the lines it writes say, which EUnit's
-%% group leader holds.
+%% each of the examples, Blocks, as the lines it writes say, which EUnit
+%% captures: `passed` for one that ends in `// => v`, which is run, and
+%% `compiled` for one without it, which is compiled and not run.
 passed(Erc, Blocks) ->
     ?assertNotEqual([], Blocks),
     ?assertEqual(0, ern_cli:ern(["test", Erc])),
-    group_leader() ! {get_output, self()},
-    Output = receive {output, Captured} -> iolist_to_binary(Captured) end,
-    ?assertEqual(length(Blocks), length(binary:matches(Output, <<": passed\n">>))).
+    Output = iolist_to_binary(?capturedOutput),
+    Run = length([Block || Block <- Blocks, is_run(Block)]),
+    ?assertEqual({Run, length(Blocks) - Run},
+                 {length(binary:matches(Output, <<": passed\n">>)),
+                  length(binary:matches(Output, <<": compiled\n">>))}).
+
+%% Report §11.2: whether an example's last line is `// => v`.
+is_run(Block) ->
+    Lines = [Line || Line <- binary:split(Block, <<"\n">>, [global]), Line =/= <<>>],
+    string:prefix(lists:last(Lines), <<"// =>">>) =/= nomatch.
 
 %% Appendix E, Appendix G, report §11.5, §3.9: every listed function's type
 %% is the type its module's interface prints, its inferred restrictions
@@ -442,7 +456,7 @@ fences(Doc) ->
         nomatch -> []
     end.
 
-%% plan MVP 2.5: every value a compiled standard library interface
+%% Appendix E, report §4.9, §11.1: every value a compiled standard library interface
 %% declares is exported by its module with the arity of its type and its
 %% requirement (report §4.9), as the function of the number the interface
 %% gives it (report §11.1)

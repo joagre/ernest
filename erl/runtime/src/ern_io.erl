@@ -7,10 +7,6 @@
 
 -export([show/1, show/2, debug/1, debug/2, host_error/2, helper_error/1, helper_reason/1, other/2]).
 
-%% Report §8.6: Io.debug writes through standard error's process and waits
-%% until it is written, a call to a system process, which the look counts
-%% as one (ern_rt:calling_the_system/2); Io.show waits on no process.
-
 -spec show(term()) -> binary().
 show(Value) -> show(Value, any).
 
@@ -24,7 +20,9 @@ debug(Value) -> debug(Value, any).
 debug(Value, Descriptor) ->
     Line = <<(show(Value, Descriptor))/binary, "\n">>,
     %% report §8.2, Appendix E.1: to standard error, as Io.OutMsg's
-    %% Write(bytes, reply), answered once written
+    %% Write(bytes, reply), answered once written; report §8.6: a call to a
+    %% system process, which the look takes for one in progress
+    %% (ern_rt:calling_the_system/2)
     ern_rt:call_forever(ern_rt:system_process(stderr), fun(Reply) -> {'Write', Line, Reply} end),
     Value.
 

@@ -56,12 +56,11 @@
 
 -export_type([host_table/0, reach/0]).
 
-%% Report §8.6: Code.hashes reads its file through the host's file server,
-%% whose functions the look reads on top of the process's stack as the
-%% host's work, so it needs no key of the look's; Code.running reads the
-%% host's stacks and waits on no process.
-
-%% Report §8.6: each receive that can wait, by its kind (docs/style.md).
+%% Report §8.6: each receive that can wait, by its kind (docs/style.md):
+%% the wait for the table's holder, which the look cannot see deliver, and
+%% the holder's own. Code.hashes reads its file through the host's file
+%% server, whose functions the look reads on top of the process's stack as
+%% the host's work, and Code.running reads the host's stacks.
 -receives({foreign_wait, [made/0]}).
 -receives({own_process, [hold/1]}).
 
@@ -222,20 +221,22 @@ declared_rows(_Unit, none) ->
     [];
 declared_rows(Unit, #recorded{foreign = Foreign}) ->
     [{{declared, texts(QualifiedName)}, Unit, Declaration}
-     || {QualifiedName, _, _, _, _} = Declaration <- Foreign].
+     || {QualifiedName, _, _, _, _, _} = Declaration <- Foreign].
 
 %% A unit's rows for one of its declarations: a definition by its identity,
-%% a ground binding's value by the binding's identity (§11.1), a lambda or
-%% a local function a spawn on a peer starts by its identity, and a
-%% foreign declaration, which has no identity, by its qualified name
-%% (Appendix H) as text, as a peer's frame and an exchange's unit name it,
-%% whatever atoms the node has (§8.7).
+%% a binding's form by its hash too, which holders/1 finds where a lambda
+%% written in the binding is spawned on a peer and the binding crosses for
+%% its code (§8.7), a ground binding's value by the binding's identity
+%% (§11.1), a lambda or a local function a spawn on a peer starts by its
+%% identity, and a foreign declaration, which has no identity, by its
+%% qualified name (Appendix H) as text, as a peer's frame and an
+%% exchange's unit name it, whatever atoms the node has (§8.7).
 rows(Unit, _, {function, Hash, Function, Arity, Reach}) ->
     [{{hash, Hash}, Unit, {function, Function, Arity, Reach}}];
 rows(Unit, _, {lambda, Hash, Position, Function, Arity, Reach}) ->
     [{{lambda, Hash, Position}, Unit, {function, Function, Arity, Reach}}];
 rows(Unit, QualifiedName, {binding, Hash, Key}) ->
-    [{{binding, QualifiedName, Hash}, Unit, {binding, Key}}];
+    [{{binding, QualifiedName, Hash}, Unit, {binding, Key}}, {{hash, Hash}, Unit, binding}];
 rows(Unit, QualifiedName, {term, Hash, Term}) ->
     [{{term, QualifiedName, Hash}, Unit, Term}];
 rows(Unit, _, {type, Hash}) ->
@@ -293,7 +294,8 @@ spawnable(Key) ->
 
 %% Report §8.7: the units that hold an identity, a function's or a type's
 %% by `{hash, Hash}` or a binding's by `{binding, QualifiedName, Hash}`, in
-%% the order they were loaded; none where this node holds it nowhere.
+%% the order they were loaded, and by `{hash, Hash}` those that hold a
+%% binding's form; none where this node holds it nowhere.
 -spec holders({hash, binary()} | {binding, [atom()], binary()}) -> [module()].
 holders(Key) ->
     lists:uniq([Unit || {_, Unit, _} <- lookup(Key)]).
@@ -477,21 +479,21 @@ foreign(Called, QualifiedName) ->
 %% Report §8.7, §11.2: the declarations of a foreign function by its
 %% qualified name, its segments atoms or text, that the units this node
 %% keeps a record of record, each with the unit, {QualifiedName, Scheme,
-%% HostModule, HostFunction, Printing}, the module and the function atoms,
-%% or text where the node had no atom of them as the unit's code arrived
-%% and linked the call to a fault (ern_arrival), in the order the units
-%% were loaded. A unit a file holds has none here: its code holds every
-%% declaration it records, which foreign/2 finds.
+%% HostModule, HostFunction, Printing, Source}, the module and the function
+%% atoms, or text where the node had no atom of them as the unit's code
+%% arrived and linked the call to a fault (ern_arrival), in the order the
+%% units were loaded. A unit a file holds has none here: its code holds
+%% every declaration it records, which foreign/2 finds.
 -spec declared([atom() | binary()]) ->
           [{module(), {[atom() | binary()], term(), atom() | binary(), atom() | binary(),
-                       term()}}].
+                       term(), term()}}].
 declared(QualifiedName) ->
     [{Holder, Declaration} || {_, Holder, Declaration} <- lookup({declared, texts(QualifiedName)})].
 
 %% The same, of the units of Called (called/1).
 -spec declared(#{module() => true}, [atom() | binary()]) ->
           [{module(), {[atom() | binary()], term(), atom() | binary(), atom() | binary(),
-                       term()}}].
+                       term(), term()}}].
 declared(Called, QualifiedName) ->
     [Declared || {Holder, _} = Declared <- declared(QualifiedName), is_map_key(Holder, Called)].
 
@@ -590,7 +592,7 @@ held_function(_) -> [].
 %% host's names.
 -spec function_text(module(), atom(), pos_integer() | none) -> string() | none.
 function_text(Unit, Function, Line) ->
-    case erlang:module_loaded(Unit) andalso erlang:function_exported(Unit, '$code', 0) of
+    case erlang:function_exported(Unit, '$code', 0) of
         true -> named_function(atom_to_list(Function), Line, Unit, Unit:'$code'());
         false -> none
     end.
@@ -619,10 +621,10 @@ value_text(Function) ->
 %% The binding of Unit whose value is Function, by the name its sites
 %% write it by, or none.
 bound_name(Unit, Function) ->
-    case erlang:module_loaded(Unit) andalso erlang:function_exported(Unit, '$code', 0) of
+    case erlang:function_exported(Unit, '$code', 0) of
         true ->
             Code = Unit:'$code'(),
-            case [site_name(QualifiedName, Held, Unit, Code)
+            case [written_name(QualifiedName, Held, Unit, Code)
                   || {QualifiedName, {binding, _, Key} = Held} <- Code,
                      persistent_term:get(Key, none) =:= Function] of
                 [Name | _] -> Name;
@@ -656,7 +658,7 @@ named_function(_, _, _, _) ->
 declared_name(Function, Unit, Code) ->
     case [{QualifiedName, Held} || {QualifiedName, Held} <- Code, {Held1, _} <- held_function(Held),
                                    atom_to_list(Held1) =:= Function] of
-        [{QualifiedName, Held} | _] -> site_name(QualifiedName, Held, Unit, Code);
+        [{QualifiedName, Held} | _] -> written_name(QualifiedName, Held, Unit, Code);
         [] -> none
     end.
 
@@ -670,16 +672,23 @@ initializer_name(none, _, _) ->
 initializer_name(Line, Unit, Code) ->
     Begun = [QualifiedName || {_, {initializers, Initializers}} <- Code,
                               {First, QualifiedName} <- Initializers, First =< Line],
-    Rows = [Held || Begun =/= [], {QualifiedName, {binding, _, _} = Held} <- Code,
-                    QualifiedName =:= lists:last(Begun)],
-    case Rows of
-        [Held | _] -> site_name(lists:last(Begun), Held, Unit, Code);
-        [] -> none
+    case Begun of
+        [] ->
+            none;
+        _ ->
+            Last = lists:last(Begun),
+            case [Held || {Named, {binding, _, _} = Held} <- Code, Named =:= Last] of
+                [Held | _] -> written_name(Last, Held, Unit, Code);
+                [] -> none
+            end
     end.
 
-site_name(QualifiedName, Held, Unit, Code) ->
+%% The name a definition's sites write it by: the one Unit's recorded forms
+%% give it, or its qualified name under the namespace its sites name it
+%% under.
+written_name(QualifiedName, Held, Unit, Code) ->
     case recorded_name(Unit, Held) of
-        none -> sites_name(QualifiedName, Code);
+        none -> in_site_namespace(QualifiedName, Code);
         Name -> ern_namespace:text(Name)
     end.
 
@@ -706,7 +715,7 @@ recorded_name(Unit, Held) ->
 %% A qualified name under the namespace the unit's forms name its
 %% declarations under, written under the one its sites name them under,
 %% which '$code'/0 lists (ern_emitter:code/4).
-sites_name(QualifiedName, Code) ->
+in_site_namespace(QualifiedName, Code) ->
     case [{FormNamespace, SiteNamespace} || {FormNamespace, {sites, SiteNamespace}} <- Code] of
         [{FormNamespace, SiteNamespace}] ->
             Declaration = lists:nthtail(length(FormNamespace), QualifiedName),

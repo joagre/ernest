@@ -13,14 +13,13 @@
 -export([loop/0, helper_failed/0, helper/0, signal/2, locked/2, node_signaled/3, host/0, user/0,
          umask/0, working_directory/0]).
 
-%% Report §8.6: Os's host facts are read from a port, a wait inside foreign
-%% code for the look (host/0); its working directory is the host's file
-%% server's, whose functions the look reads on top of the process's stack
-%% as the host's work, so it needs no key of the look's. The user a node
-%% runs as is read from a port too, on a node only, which looks for no
-%% deadlock (user/0).
-
 %% Report §8.6: each receive that can wait, by its kind (docs/style.md).
+%% The host's facts are read from a port, a wait inside foreign code for
+%% the look (host/0); the working directory is the host's file server's,
+%% whose functions the look reads on top of the process's stack as the
+%% host's work. user/0 reads the user `ern` runs as from a port in a
+%% process that is no program's: the job's, as a node starts or `ern
+%% config` reads a directory, and the carrier's at a reload (§8.7).
 -receives({foreign_wait, [host_read/1, variables/2]}).
 -receives({own_process, [serve/1, signal/2, locked/2, node_signaled/3, ended/1, starting/2,
                          running/4, exited/2, over/2, user/0]}).

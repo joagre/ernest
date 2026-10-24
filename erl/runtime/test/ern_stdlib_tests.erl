@@ -1027,7 +1027,7 @@ fs_hard_links_test() ->
 %% report Appendix E.17: `readRange` reads a part of a file, fewer bytes at
 %% its end and none past it, a regular file only, and an offset or a count
 %% below 0 is none (§7.4, a regression test of the rule, before which one
-%% was refused in words). Written with the code (MVP 2.98); the counts and
+%% was refused in words). Written with the code; the counts and
 %% the offset past what the host can hold are a regression test, since the
 %% host made room for the count first and answered `Other("not enough
 %% memory")` or `Other("invalid argument")`
@@ -1054,8 +1054,8 @@ fs_read_range_test() ->
     file:del_dir_r(Dir).
 
 %% report Appendix E.17: `makeFile` makes a new file or none; `setModified`
-%% sets the time a `stat` then reads, to the second. Written with the code
-%% (MVP 2.98); a write that fails after the file is made is not covered,
+%% sets the time a `stat` then reads, to the second. Written with the code;
+%% a write that fails after the file is made is not covered,
 %% since a test cannot make one fail there
 fs_create_modified_test() ->
     Self = self(),

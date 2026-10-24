@@ -184,8 +184,8 @@ unit_load_fills_table_test() ->
 %% reach, and a type, which has no function, by the unit that holds it; a
 %% function its unit holds without exporting it is not reached, since a
 %% build's unit exports the functions its module exports, so a peer's
-%% exchange counts it lacked. A regression test, written after the code
-%% (MVP 3.2's item 4); it does not cover two units holding one hash
+%% exchange counts it lacked. A regression test, written after the code;
+%% it does not cover two units holding one hash
 linkable_test() ->
     Beam = loaded(['Tablelink'], ?SOURCE),
     Definitions = definitions(Beam),
@@ -205,7 +205,7 @@ linkable_test() ->
 %% and the foreign declarations it names through the functions it calls;
 %% a lambda a spawn on a peer starts by its definition's hash and its
 %% position, its reach its own; and a foreign function by its qualified
-%% name. A regression test, written after the code (MVP 3.1's item 4); the
+%% name. A regression test, written after the code; the
 %% names are the units' functions' by their numbers (report §11.1), the
 %% lambda's entry by its definition's and its position
 spawnable_test() ->
@@ -476,3 +476,28 @@ said_once_test() ->
     %% the test's own lines forgotten, so that the host's are said
     ets:delete(ern_code, {said, module_names}),
     ets:delete(ern_code, {said, exports}).
+
+%% Appendix E.21, §7.4: a trace leaves out a frame of the runtime's
+%% wherever it stands, one of a unit that names no definition of the
+%% program's among them, a helper the compiler writes into the unit, the
+%% boundary's wrapper here; a failure's trace keeps it, as the host writes
+%% the function, quoted where the host quotes it, as a frame of the
+%% host's is. A regression test, written after the code: the wrapper's
+%% frame was printed in host form in every trace; it does not cover a
+%% unit an exchange made, whose names are a peer's text
+trace_leaves_out_a_units_helper_test() ->
+    _ = loaded(['Tracehelper'], "export fn main() : Int = 1\n"),
+    Unit = 'ern@tracehelper',
+    try
+        {Main, 0} = ern_code:function(Unit, ['Tracehelper', main]),
+        Stack = [{Unit, '-$type_1/0-fun-0-', 3, []}, {lists, map, 2, [{line, 1}]},
+                 {Unit, Main, 0, [{line, 3}]}],
+        ?assertEqual(<<"lists:map/2:1\nTracehelper.main:3\n">>, ern_rt:trace(Stack)),
+        ?assertEqual(<<"ern@tracehelper:'-$type_1/0-fun-0-'/3\nlists:map/2:1\n"
+                       "Tracehelper.main:3\n">>, ern_rt:failure_trace(Stack))
+    after
+        ern_code:unloaded(Unit),
+        code:purge(Unit),
+        code:delete(Unit),
+        code:purge(Unit)
+    end.

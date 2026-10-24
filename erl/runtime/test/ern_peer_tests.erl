@@ -2,8 +2,8 @@
 %% spawn's answer and a spawn from a peer, a supervisor's child on another
 %% node, and a proxy's finds, each where a run of real nodes
 %% cannot show it whenever it runs. Real nodes are test/ern_nodes_tests.erl's.
-%% Regression tests, written after the code, the spawn by identity's (MVP
-%% 3.1's item 4) among them; the proxy's was written before.
+%% Regression tests, written after the code, the spawn by identity's among
+%% them; the proxy's was written before.
 -module(ern_peer_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -314,16 +314,16 @@ no_run_test() ->
 %% and `restarting` over one of these, where every binding its reach names
 %% has its value in the run, and every module a foreign declaration of its
 %% reach calls is here; a function that names no binding starts in a run
-%% that never initialized its module, where MVP 3.0's rule by module
-%% refused it. Otherwise it answers NotLoaded, and the frame's reading
+%% that never initialized its module, where a rule by module once refused
+%% it. Otherwise it answers NotLoaded, and the frame's reading
 %% answers what this node lacked, which the gateway says: a binding with no
 %% value, which a function it calls names, and a foreign declaration's
 %% module. A function it does not hold, by its hash, a lambda by its
 %% definition's hash and position, `restarting` over one, and a foreign
 %% function it does not have, by its name as text, whose names make no
 %% atom here, the frame's reading hands to the exchange by the identity
-%% this node lacks, and answers nothing itself (MVP 3.2's items 3 and 4).
-%% Nothing is initialized because a peer asked
+%% this node lacks, and answers nothing itself. Nothing is initialized
+%% because a peer asked
 spawn_by_identity_test() ->
     Unit = 'ern@peerreach',
     Hashes = loaded(['Peerreach'], ?REACHING),
@@ -415,8 +415,8 @@ spawn_by_identity_test() ->
 %% that answers through its copy gives the caller the failure; a reply
 %% captured alone and one inside a captured value, through Peer.spawn and
 %% Peer.spawnMonitored. Here the spawn names no peer, NotListed, in a
-%% program that is no node. A regression test, written after the code
-%% (MVP 3.26's item 2a); a spawn that fails on a node, and an answer from
+%% program that is no node. A regression test, written after the code; a
+%% spawn that fails on a node, and an answer from
 %% another node, are the nodes' (test/ern_nodes_tests.erl)
 failed_spawn_ends_no_call_test() ->
     Unit = 'ern@peerheld',
@@ -622,13 +622,16 @@ computed_restarting_test() ->
 %% report §8.7, §6.6, §11.2: a compute's caller waits as a call's caller
 %% does, on one host its peer's gateway a process that records each frame:
 %% the frame names the caller's alias, through which the value, a failure,
-%% a fault with the stack that crossed, which faults the caller and which
+%% a fault with the trace that crossed, which faults the caller, its cause
+%% naming the peer and its trace ending in the compute's site, and which
 %% its report prints, and the Reason of a process that ended before it
 %% answered come, each letting the caller's CALL key go with no second
 %% note; where the time runs out, or the caller is killed while it waits,
 %% the second note follows; and where the gateway is gone the wait ends
-%% Unreachable, the key gone with each. A regression test, written after
-%% the code
+%% Unreachable, the key gone with each. A fault that is not text answers
+%% `Other`, the caller faulting with nothing that is not. A regression
+%% test, written after the code, and again for the carried fault's peer
+%% and site and the answer that is not text
 compute_caller_test() ->
     Self = self(),
     Frame = fun(Alias) -> {compute, Alias, {function, <<0:256>>}, <<"M.f:1">>, ?MS} end,
@@ -657,11 +660,15 @@ compute_caller_test() ->
                                     Told ! registered,
                                     Gateway(Told, [[computed, 7], [failed, 'NotLoaded'],
                                                    [ended, 'ProgramEnd'],
+                                                   [faulted, 42, foo],
                                                    [faulted, <<"x">>, <<"M.f:4\n">>]])
                                 end),
                receive registered -> ok end,
-               Compute = fun(Ms) -> ern_rt:compute(node(), Frame, ern_rt:deadline(Ms)) end,
-               Answered = [Compute(600000), Compute(600000), Compute(600000)],
+               Compute = fun(Ms) ->
+                             ern_rt:compute(node(), Frame, ern_rt:deadline(Ms),
+                                            {<<"p">>, <<"M.f:1">>})
+                         end,
+               Answered = [Compute(600000), Compute(600000), Compute(600000), Compute(600000)],
                Faulting = ern_rt:spawn_monitored(fun() -> Compute(600000) end,
                                                  fun(Down) -> Down end, <<"M.f:2">>),
                Faulted = receive {'Down', Faulting, Reason, _} -> Reason end,
@@ -669,7 +676,7 @@ compute_caller_test() ->
                %% the gateway told of each frame in the order they came: a
                %% second note follows the time run out alone
                Frames = [receive {Kind, From} when Kind =:= noted; Kind =:= over -> {Kind, From} end
-                         || _ <- lists:seq(1, 6)],
+                         || _ <- lists:seq(1, 7)],
                Waiting = ern_rt:spawn(fun() -> Compute(600000) end, <<"M.f:3">>),
                receive {noted, Waiting} -> ern_rt:kill(Waiting) end,
                WaitingOver = receive {over, WaitingCaller} -> WaitingCaller end,
@@ -679,8 +686,8 @@ compute_caller_test() ->
                Lost = Compute(600000),
                Me = self(),
                Self ! {caller, Answered, Faulted, TimedOut,
-                       Frames =:= [{noted, Me}, {noted, Me}, {noted, Me}, {noted, Faulting},
-                                   {noted, Me}, {over, Me}],
+                       Frames =:= [{noted, Me}, {noted, Me}, {noted, Me}, {noted, Me},
+                                   {noted, Faulting}, {noted, Me}, {over, Me}],
                        WaitingOver =:= Waiting, {Lost, get('$ern_call')}}
            end,
     Reporter = fun(Report, _Peer) -> Self ! {reported, Report} end,
@@ -688,12 +695,13 @@ compute_caller_test() ->
                                                          faults => Reporter,
                                                          node => fun() -> ok end})),
     ?assertEqual({caller, [{'Right', 7}, {'Left', 'NotLoaded'},
-                           {'Left', {'Other', <<"ProgramEnd">>}}],
-                  {'Fault', <<"x">>}, {'Left', 'Timeout'}, true, true,
+                           {'Left', {'Other', <<"ProgramEnd">>}},
+                           {'Left', {'Other', <<"the peer's answer could not be read">>}}],
+                  {'Fault', <<"x, on the peer p">>}, {'Left', 'Timeout'}, true, true,
                   {{'Left', 'Unreachable'}, undefined}},
                  receive {caller, _, _, _, _, _, _} = Got -> Got end),
-    ?assertMatch({reported, {'FaultReport', _, <<"M.f:2">>, <<"x">>, false, <<"M.f:4\n">>,
-                             'None'}},
+    ?assertMatch({reported, {'FaultReport', _, <<"M.f:2">>, <<"x, on the peer p">>, false,
+                             <<"M.f:4\nM.f:1\n">>, 'None'}},
                  receive {reported, _} = Reported -> Reported end).
 
 %% report §8.7, §6.9: a peer's kill frame, the fifteenth frame, ends a
@@ -721,7 +729,8 @@ kill_frame_test() ->
                                end),
                true = register(ern_gateway, Gateway),
                Waiting = ern_rt:spawn(fun() ->
-                                          ern_rt:compute(node(), Frame, ern_rt:deadline(600000))
+                                          ern_rt:compute(node(), Frame, ern_rt:deadline(600000),
+                                                         {<<"p">>, <<"M.f:1">>})
                                       end, <<"M.f:2">>),
                MonitorRef = erlang:monitor(process, Waiting),
                ern_rt:timed(),
@@ -741,6 +750,73 @@ kill_frame_test() ->
     ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
     ?assertEqual({killed, {ok, true, {ern, killed}, ok, unreadable}},
                  receive {killed, _} = Got -> Got end).
+
+%% report §8.7, §6.9: a peer's kill frame reaches only a process the
+%% runtime started: one naming the reaper, a system process or a foreign
+%% process of this node does nothing, and the frame is still one this node
+%% reads, as one naming a process that has ended since is. The frames are
+%% read in order, a kill of a process the runtime started last, whose end
+%% is waited for. A regression test, written after the code: the frame
+%% killed any process of this node; with the old code a kill it made is
+%% carried out by a process of its own, so the test sees it as the last
+%% kill's end is waited for, unless that kill's process overtakes the
+%% earlier ones
+kill_frame_reaches_only_the_runtimes_test() ->
+    Self = self(),
+    Main = fun() ->
+               Foreign = spawn(fun() -> receive stop -> ok end end),
+               Others = [ern_rt:launch_reaper(), ern_rt:system_process(clock), Foreign],
+               MonitorRefs = [erlang:monitor(process, Pid) || Pid <- Others],
+               Read = [ern_peer:frame(self(), {kill, Pid}) || Pid <- Others],
+               Started = ern_rt:spawn(fun() -> receive never -> ok end end, <<"M.f:2">>),
+               StartedRef = erlang:monitor(process, Started),
+               Killed = ern_peer:frame(self(), {kill, Started}),
+               Ended = receive {'DOWN', StartedRef, process, Started, Why} -> Why end,
+               Alive = [receive {'DOWN', MonitorRef, process, _, _} -> ended after 0 -> alive end
+                        || MonitorRef <- MonitorRefs],
+               Foreign ! stop,
+               Self ! {killed, {Read, Killed, Ended, Alive}}
+           end,
+    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
+    ?assertEqual({killed, {[ok, ok, ok], ok, {ern, killed}, [alive, alive, alive]}},
+                 receive {killed, _} = Got -> Got end).
+
+%% report §8.7, §6.6: a caller the host ends while it waits in a compute,
+%% killed by foreign code, runs no `after`, and the reaper sends the call's
+%% second note as it learns of the end, so that the peer kills the
+%% compute's process. Here a gateway of this host's stands in for the
+%% peer's. A regression test, written after the code: the second note was
+%% sent for a caller the runtime killed alone
+host_ended_compute_test() ->
+    Self = self(),
+    Frame = fun(Alias) -> {compute, Alias, {function, <<0:256>>}, <<"M.f:1">>, ?MS} end,
+    Main = fun() ->
+               Told = self(),
+               Gateway = spawn(fun Gateway() ->
+                                   receive
+                                       {ern_frame, From, {compute, _, _, _, _}} ->
+                                           Told ! {noted, From}, Gateway();
+                                       {ern_frame, From, {call_over, _}} ->
+                                           Told ! {over, From}, Gateway();
+                                       stop -> ok
+                                   end
+                               end),
+               true = register(ern_gateway, Gateway),
+               Waiting = ern_rt:spawn(fun() ->
+                                          ern_rt:compute(node(), Frame, ern_rt:deadline(600000),
+                                                         {<<"p">>, <<"M.f:1">>})
+                                      end, <<"M.f:2">>),
+               ern_rt:timed(),
+               receive {noted, Waiting} -> exit(Waiting, kill) end,
+               Over = receive {over, From} -> From end,
+               ern_rt:untimed(),
+               GatewayRef = erlang:monitor(process, Gateway),
+               Gateway ! stop,
+               receive {'DOWN', GatewayRef, process, Gateway, _} -> ok end,
+               Self ! {over, Over =:= Waiting}
+           end,
+    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
+    ?assertEqual({over, true}, receive {over, _} = Got -> Got end).
 
 %% report §8.7, Appendix E.27: a program that is no node has no peers, so
 %% a compute on a peer named or picked and a utilization answer NotListed,
