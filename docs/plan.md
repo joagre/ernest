@@ -128,6 +128,11 @@ no release waits for hardware, and the design note is bounded by its altitude be
   the operations programs and the code-update experiments went with their tests, since the guide's
   blocks and `examples/upgrade/` show what they showed and six of the experiments no longer compiled.
 
+  The attached shell's, the site's and `ernest_host/` stay for the milestones after 0.5.0, each
+  going as its milestone closes; the last to go takes `docs/README.md`'s line,
+  `docs/development.md`'s layout and CLAUDE.md's *Proposals* and *Handouts and scratch* paragraphs
+  with it.
+
 - **The process-only mark marks a wait alone**, done 2026-10-24 (the log's *The Process-Only
   Mark Marks a Wait*), a defect found by the sweep on 2026-10-24: §3.9
   names one process-only case, a `receive` that fixes no type, and the checker marks a second, a
@@ -149,24 +154,12 @@ no release waits for hardware, and the design note is bounded by its altitude be
   no value position of the signature, stated in §4.5, so that the type the shell prints can be
   written.
 
-- **Two nodes tests race**, found 2026-10-24: `shell_peer_fault` and `shell_compute` each send an
-  input after a peer-spawned fault and wait for the fault's line, which the shell writes as it
-  next writes its screen, so under load the fault can arrive after that input, and the run fails
-  in most runs of `make test-nodes` beside other work, three of four on 2026-10-24; the tests take the line with either input, as the tour's test does, by
-  2026-10-26. A proposal's directory goes when the milestone built from it closes, after one pass
-  takes to the log what it still argues that the log lacks.
-
-  The review runs that pass over every proposal built by 0.5.0, `nodes_and_code/`, `operations/`,
-  `kill_darlings/`, `placement/` and `balancer/`, measured against across machines (the log's *The
-  Numbers Across Machines*), and finds
-  the operations programs and the code-update experiments, which the tests run, a home under
-  `examples/` or `test/fixtures/`, or lets them go with their tests.
-
-  The attached shell's, the site's and `ernest_host/` stay for the milestones after 0.5.0, each
-  going as its milestone closes; the last to go takes `docs/README.md`'s line,
-  `docs/development.md`'s layout and CLAUDE.md's *Proposals* and *Handouts and scratch* paragraphs
-  with it. CLAUDE.md's sentence that a built proposal is kept changes in the commit that removes the
-  first directory.
+- **Two nodes tests race**, found 2026-10-24, done 2026-10-25 (the log's *Two Nodes Tests Take
+  the Fault's Line*): `shell_peer_fault` and `shell_compute` each sent an input after a
+  peer-spawned fault and waited for the fault's line, which the shell writes before its next
+  prompt (§11.2), so under load the fault reached the shell after that input, and the run failed
+  in most runs of `make test-nodes` beside other work; the tests now type an input that prints
+  nothing and wait for its prompt until the line is there, within one wait.
 - **The release, Ernest 0.5.0**, as `release_review.md` says, its notes saying what changed since
   0.4.0 and that a release may still refuse a program the previous release accepted, as every
   release before 1.0 may (the log's *A Release Carries No History*); no section of the report states

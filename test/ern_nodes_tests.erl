@@ -510,6 +510,30 @@ terminated(Dir) ->
     _ = os:cmd("kill -TERM " ++ string:trim(binary_to_list(Pid))),
     ok.
 
+%% Report §11.2: a fault reported while the shell waits for a line is
+%% written before the next prompt, so the line of a fault a peer's spawn
+%% made comes with the first input the shell reads once the fault has
+%% reached it, which under load is not always the first typed after the
+%% test saw what the process printed before it faulted. An input that
+%% prints nothing is typed and the prompt it brings waited for, then
+%% standard output read for Part, until it holds Part or the harness's
+%% time for one wait is out; each round waits on its prompt and none on a
+%% time. A prompt is counted as the shell's `> `, which what the inputs
+%% here print holds nowhere else.
+fault_line(Input, Dir, Part) ->
+    fault_line(Input, Dir, Part, erlang:monotonic_time(millisecond) + ?WAIT_MS).
+
+fault_line(Input, Dir, Part, Deadline) ->
+    Prompts = length(string:split(written(Dir, out), "> ", all)) - 1,
+    true = port_command(Input, "Unit\n"),
+    Left = Deadline - erlang:monotonic_time(millisecond),
+    prints(Dir, "> ", Prompts + 1, max(Left, 1)),
+    case string:find(written(Dir, out), Part) of
+        nomatch when Left > 0 -> fault_line(Input, Dir, Part, Deadline);
+        nomatch -> erlang:error({not_said, Dir, Part});
+        _ -> ok
+    end.
+
 %% What a running node's stream has written so far.
 written(Dir, Stream) ->
     watcher_name(Dir) ! {written, Stream, self()},
@@ -3478,11 +3502,9 @@ shell_compute(Base) ->
     prints(Desk, "Right(54) : Either(Io.Error, Int)"),
     prints(Desk, ?SPAWNED),
     prints(Worker, "counting"),
-    %% the shell writes a fault's line as it next writes its screen
-    true = port_command(InputWorker, "Io.println(\"last\")\n"),
-    prints(Worker, "last"),
-    prints(Worker, "input 9:1 faulted: the return of foreign function erlang:yield/0 does not"
-                   " match Count, spawned by the peer desk"),
+    fault_line(InputWorker, Worker,
+               "input 9:1 faulted: the return of foreign function erlang:yield/0 does not"
+               " match Count, spawned by the peer desk"),
     true = port_command(InputDesk, ":quit\n"),
     ?assertEqual(0, WaitDesk()),
     true = port_command(InputWorker, ":quit\n"),
@@ -3544,9 +3566,9 @@ shell_offered_adapted(Base) ->
 %% process after the cause, which the FaultReport's `spawnedBy` names. A
 %% regression test, written after the code (finding N12): the shell's line
 %% named the spawner's site alone. A shell in line mode reports a fault
-%% before its next prompt, so the shell that faulted is given two inputs
-%% after it. A local fault's report, which names no peer, is
-%% ern_rt_tests' fault_reports_test's
+%% before its next prompt, so the shell that faulted is given inputs until
+%% the line comes (fault_line/3). A local fault's report, which names no
+%% peer, is ern_rt_tests' fault_reports_test's
 shell_peer_fault_test_() ->
     nodes_test({waits, 7}, fun shell_peer_fault/1).
 
@@ -3573,9 +3595,7 @@ shell_peer_fault(Base) ->
                                         "}\n"]),
     prints(B, "spawned"),
     prints(A, "dividing"),
-    true = port_command(InputA, ["Io.println(\"next\")\n", "Io.println(\"last\")\n"]),
-    prints(A, "last"),
-    prints(A, " faulted: division by zero, spawned by the peer b\n"),
+    fault_line(InputA, A, " faulted: division by zero, spawned by the peer b\n"),
     true = port_command(InputB, ":quit\n"),
     ?assertEqual(0, WaitB()),
     true = port_command(InputA, ":quit\n"),
