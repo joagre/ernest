@@ -535,7 +535,7 @@ Path.toString : (Path) -> String
 
 ### Appendix E.15. `clock.ern` (namespace `Clock`)
 
-Over the clock's system reference (§8.2). The primitives are `alarm` and `alarmAt`, which reach the clock's process, and `now`, `monotonic` and `monotonicMicros`, which read the host's clock and its monotonic clock (E.0 rule 1).
+Over the clock's system reference (§8.2). The primitives are `alarm` and `alarmAt`, which reach the clock's process, `now`, `monotonic` and `monotonicMicros`, which read the host's clock and its monotonic clock, and `toString`, which writes a time as the host writes one (E.0 rule 1). `toString` writes an epoch time in RFC 3339, in UTC to the millisecond, `2026-10-24T09:21:03.512Z`, as the runtime's own lines write theirs (§11.2); nothing else of dates is the standard library's; a time outside the years 0 to 9999 is written as the host writes it.
 
 Times are milliseconds since the epoch, by the host's clock, which may be set while the program runs. `monotonic` is milliseconds since a moment the runtime chose, and never goes back; `monotonicMicros` is the same clock in microseconds, for a program that measures what takes less than a millisecond. The difference of two readings of `monotonic` is the time the host ran between them: where the host's monotonic clock stops while the machine is suspended, that time is left out. The difference of two `now`s is not that time when the clock is set between them.
 
@@ -547,6 +547,7 @@ Clock.monotonic : () -> Int
 Clock.monotonicMicros : () -> Int
 Clock.alarm : (Int, (Int) -> m) -> Unit receiving m // after the milliseconds, wrap(time) in the caller's mailbox, time the time it fired
 Clock.alarmAt : (Int, (Int) -> m) -> Unit receiving m // at the time, wrap(time) in the caller's mailbox, time the time it fired
+Clock.toString : (Int) -> String // RFC 3339, UTC, to the millisecond
 ```
 
 ### Appendix E.16. `terminal.ern` (namespace `Terminal`)
@@ -604,7 +605,7 @@ Fs.setMode : (Path, Int, Int) -> Either(Io.Error, Unit) // the permission bits, 
 
 Over TCP's system reference (§8.2). The primitives are `listen` and `connect`, which reach TCP's process (E.0 rule 1); the rest are Ernest over the prelude's sends and calls to the process of the listener or the socket they are given.
 
-A socket is a process: its address can be sent and killed like any other, and its process monitored. A socket and a listener are bound to their node: their addresses never cross to another (§3.11). Sockets and listeners are foreign processes (§8.4) but not system processes, so `Process.live`, `Process.status` and `Process.faults` include them.
+A socket is a process: its address can be sent and killed like any other, and its process monitored. A socket and a listener are bound to their node: their addresses never cross to another (§3.11). Sockets and listeners are foreign processes (§8.4) but not system processes, so `Process. An operation on a socket or a listener is a call on its process, and faults as a call does, with §6.6's causes, `callee was closed` for one the program closed.live`, `Process.status` and `Process.faults` include them.
 
 The site of a listener is `Tcp.listen`, and of a socket `Tcp.accept` or `Tcp.connect`, the function that opened it (§6.9), with no line. It is owned by the process that opened it, the caller of `listen`, `accept` or `connect`, and `give(socket, process)` makes another a socket's owner. It lives until `Tcp.close`, until it is killed, until its owner dies, which kills it as a running program's is killed (Appendix E.23), or until the program ends; a socket given to a process that has ended is killed at once, and a restart is no death (§6.9). After its connection closes, from either end or by a failure, each `Tcp.read` answers `Left(Closed)`. A listener lives until `Tcp.closeListener`, until it is killed, until its owner dies, or until the program ends; closing it answers an `accept` waiting on it with `Left(Closed)`. A listener takes a port whose earlier connections are still closing, the host's `SO_REUSEADDR`.
 
@@ -673,7 +674,7 @@ A `Process` is the identity of a process. It has equality and no ordering, exact
 
 `status` is a snapshot of a live process, which may have changed when it is read. It answers `None` for a process that has ended (§6.9), for one on another node, and for one of the runtime's own, which applies a wrap or an adapted function (§6.5, §6.9). `live` answers the processes the runtime started that have not ended, the system processes excepted: those a program spawned, and a listener, a socket or a running program a system module opened (Appendix E.18, E.23).
 
-`faults(wrap)` delivers `wrap(report)` to the caller for every fault of every process the runtime started, the system processes' and the runtime's own excepted (§6.9), as E.0 shape rule 8 says of a function that delivers later. A process holds one subscription to faults, beside one to the terminal (§8.2): a second call replaces the first, its wrap from then on, and a subscription ends when its process dies or restarts (§6.9). A subscription to faults is no source that can deliver under §8.6.
+`faults(wrap)` delivers `wrap(report)` to the caller for every fault of every process the runtime started, the system processes', the runtime's own and those `Test.faults` started excepted (§6.9, E.24), as E.0 shape rule 8 says of a function that delivers later. A process holds one subscription to faults, beside one to the terminal (§8.2): a second call replaces the first, its wrap from then on, and a subscription ends when its process dies or restarts (§6.9). A subscription to faults is no source that can deliver under §8.6.
 
 In a `FaultReport`, `restarted` is `true` where the process restarts after the fault (§6.9), and `spawnedBy` names the peer whose spawn started the process (§8.7), by its name as the configuration lists it; it is `None` where no peer did, and where the configuration lists the peer no more.
 
@@ -704,7 +705,7 @@ A child joins the group when it starts, before `f` runs, and waits until the sup
 
 The strategy says what else a child's fault restarts: `OneForOne` nothing, `OneForAll` every other child, and `RestForOne` the children spawned after it, in the order the runtime spawned their processes, whatever order they joined in. Those are restarted as §6.9 says of a restart a supervisor asks for. A child that has not yet begun its first run of `f` is not asked, and one that faults before it takes the restart has restarted by its fault. The child whose fault restarts them runs `f` again once each of them has restarted or ended; a call to it after its fault is answered by the group restarted whole. A sibling that computes without waiting takes no restart until it waits (§6.9), and the child waits with it.
 
-When the children's faults pass `limit`, counted as `restarting` counts them, the supervisor faults with `Fault("supervisor restart limit reached")`. A supervisor that is itself a child restarts in place, after its own fault or when its parent asks, and asks each of its children to restart; they keep their order. When a supervisor dies, killed, faulted, or of a defect of its own, a process the module spawns beside it kills its children in the reverse of the order they were spawned, each once the one before has ended, and `kill(sup)` stops a group.
+When the children's faults pass `limit`, counted as `restarting` counts them, the supervisor faults with `Fault("supervisor restart limit reached")`; a child's fault is reported as its own `restarting` restarts it, `faulted, restarted`, and the group's verdict is the group's own line, this fault where the limit is reached (§11.2). A supervisor that is itself a child restarts in place, after its own fault or when its parent asks, and asks each of its children to restart; they keep their order. When a supervisor dies, killed, faulted, or of a defect of its own, a process the module spawns beside it kills its children in the reverse of the order they were spawned, each once the one before has ended, and `kill(sup)` stops a group.
 
 ```
 type Strategy = OneForOne | OneForAll | RestForOne
@@ -762,7 +763,7 @@ Os.run : (Command, Int) -> Either(Io.Error, Finished)
 
 A top-level `let` of type `Test.Case(m)` is a test, which `ern test` runs in a process whose mailbox type is `m` (§11.2). Its `run` answers `Passed`, or `Failed` with what went wrong. The module declares these two types and `equal`, which answers `Passed` where its two arguments are equal, and otherwise `Failed("expected e, got a")`, the expected value and the actual one written as `Io.show` writes them (§9.4).
 
-`faults(run, cause)` answers `Passed` where `run()` faults with `cause`: it runs `run` in a process of its own, monitored (§6.9), and reads the process's end. `run` is the call `faults` tests, its subject, and comes first (E.0 shape rule 1). It waits for `run`'s end without a limit, as a direct call of `run` waits for the caller's own work (E.0 shape rule 8). Where the caller ends before `run`'s process does, that process is killed. Otherwise it answers `Failed` naming what came instead of the fault: another cause, `expected the fault division by zero, got the fault float arithmetic error`; a return, `got a return`; or the reason, `got Killed`. No job reports a fault of a process `faults` started (§11.2).
+`faults(run, cause)` answers `Passed` where `run()` faults with `cause`: it runs `run` in a process of its own, monitored (§6.9), and reads the process's end. `run` is the call `faults` tests, its subject, and comes first (E.0 shape rule 1). It waits for `run`'s end without a limit, as a direct call of `run` waits for the caller's own work (E.0 shape rule 8). Where the caller ends before `run`'s process does, that process is killed. Otherwise it answers `Failed` naming what came instead of the fault: another cause, `expected the fault division by zero, got the fault float arithmetic error`; a return, `got a return`; or the reason, `got Killed`. A process `faults` started is marked as the runtime starts it, and its fault reaches no job's report (§11.2) and no subscriber of `Process.faults` (E.21); the mark is the runtime's, set by no text of the process's site (§11.2).
 
 ```
 type Case(m) = Case(name : String, run : () -> Result receiving m)
