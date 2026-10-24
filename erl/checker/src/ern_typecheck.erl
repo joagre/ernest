@@ -65,7 +65,8 @@
 %% whole value that is generalized, so that a type variable its annotation
 %% names first is rigid and quantified (report §3.9)
 %% provided: the namespaces the toolchain provides, the prelude's and the
-%% standard library's, which `Prelude.T.name` reaches (report §4.2)
+%% standard library's, whose names a canonical form holds by name (report
+%% Appendix H)
 %% inferring: the definitions whose inference is under way, {global,
 %% QualifiedName} for a top-level group's members and {local, Name} for a
 %% block's local fns, so that a call to one is known as a recursive call
@@ -6553,14 +6554,6 @@ lookup_value(Span, ['Prelude'], Name,
         _ ->
             fail(Span, "the prelude declares no " ++ atom_to_list(Name))
     end;
-lookup_value(Span, ['Prelude', TypeName], Name,
-             #env{provided = Provided, local_types = LocalTypes} = Env) ->
-    %% report §4.2: `Prelude.T.name` is the name of T, a namespace of the
-    %% prelude or the standard library, past a type T of the module's own
-    lists:member(TypeName, Provided) orelse prelude_one(Span, ['Prelude', TypeName], Name),
-    hidden(Span, [TypeName, Name], is_map_key(TypeName, LocalTypes)
-                                   orelse session_name(types, TypeName, Env) =/= error),
-    lookup_global(Span, [TypeName], Name, Env);
 lookup_value(Span, ['Prelude' | _] = Namespace, Name, _Env) ->
     prelude_one(Span, Namespace, Name);
 lookup_value(Span, Namespace, Name,
@@ -6609,24 +6602,19 @@ hidden(_Span, _QualifiedName, true) ->
 hidden(Span, QualifiedName, false) ->
     Plain = ern_namespace:text(QualifiedName),
     Written = "Prelude." ++ Plain,
-    Hidden = case QualifiedName of
-                 [_] -> "the prelude's " ++ Plain;
-                 [Namespace | _] -> atom_to_list(Namespace)
-             end,
     {Line, Column, _} = ern_diagnostic:span(Span),
     fail({Line, Column, {Line, Column + length(Written)}},
-         Written ++ " is written only where the module hides " ++ Hidden, [],
+         Written ++ " is written only where the module hides the prelude's " ++ Plain, [],
          "nothing here hides it; write " ++ Plain).
 
-%% Report §4.2: `Prelude.` takes one name the prelude declares, or a
-%% namespace of the prelude or the standard library and one of its names;
-%% a module of the program's own is reached by its namespace alone.
+%% Report §4.2: `Prelude.` takes one name the prelude declares and no
+%% namespace, since a module's own type hides none; the help writes the
+%% name without it.
 -spec prelude_one(ern_diagnostic:span(), [atom()], atom()) -> no_return().
-prelude_one(Span, Namespace, Name) ->
-    fail(Span, ern_namespace:text(Namespace ++ [Name])
-               ++ ": Prelude takes one name the prelude declares, as `Prelude.Some`, or a name"
-               " of the prelude's or the standard library's namespaces, as"
-               " `Prelude.Io.println`").
+prelude_one(Span, ['Prelude' | Namespace] = Written, Name) ->
+    fail(Span, ern_namespace:text(Written ++ [Name])
+               ++ ": Prelude takes one name the prelude declares, as `Prelude.Some`", [],
+         "nothing here hides it; write " ++ ern_namespace:text(Namespace ++ [Name])).
 
 %% Report §4.4: an abstract type's constructor is its module's alone, and
 %% each input of a session is a module of its own (report §11.2).

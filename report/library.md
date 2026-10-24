@@ -161,7 +161,7 @@ Four *admission rules* decide whether a function is in: rules 1 to 3 each admit 
    A constant of the type enters as an operation does.
 4. It is not a composition: a function whose body is calls of functions already here and the language's operators, with no case of its own, is a composition whatever its length; one with a case of its own, `Int.div`, `Os.run`, is not.
 
-   A composition outside rule 2's vocabulary, shape rule 2's operations, and shape rule 3's conversions is not added: `List.concat` is `List.flatMap(xs, fn(x) = x)`, `List.sum` is `List.foldLeft(xs, 0, Int.+)`.
+   A composition outside rule 2's vocabulary, shape rule 2's operations, and shape rule 3's conversions is not added: `List.concat` is `List.flatMap(xs, fn(x) = x)`, `List.sum` is `List.foldLeft(xs, 0, fn(sum, x) = sum + x)`.
 
    The vocabulary is admitted whole, whether or not one of its functions composes others: `Map.contains` is in, though it is `isSome` of `get`. `Io.debug` is kept alone, by name.
 
@@ -275,7 +275,7 @@ List.indexed : (List(a)) -> List(#(Int, a)) // each element with its index from 
 List.repeat : (a, Int) -> List(a) // n copies; n below 0 is 0
 List.reverse : (List(a)) -> List(a)
 List.sort : (List(a)) -> List(a) needs a.compare // stable
-List.sortBy : (List(a), (a) -> k receiving e) -> List(a) receiving e needs k.compare // stable, by the key
+List.sortBy : (List(a), (a) -> k receiving e) -> List(a) receiving e needs k.compare // stable, by the key, which it calls once for each element, in order
 List.minimumBy : (List(a), (a) -> k receiving e) -> Optional(a) receiving e needs k.compare // the first of those whose key is least; None for the empty list
 List.maximumBy : (List(a), (a) -> k receiving e) -> Optional(a) receiving e needs k.compare // the first of those whose key is greatest; None for the empty list
 List.zip : (List(a), List(b)) -> List(#(a, b)) // to the shorter length

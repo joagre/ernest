@@ -2998,26 +2998,28 @@ member_written_qualified_test() ->
     ?assertMatch({ok, _, _, _}, Checked("fn f(c : Coins.Coin) : Int = Coins.value(c)")).
 
 %% report §4.2, §4.5: a dotted name's first segment is a namespace, since
-%% a member stands in no expression: in a module whose own type `List`
-%% declares `<>`, `List.reverse` is the standard library's, `<>` on the
-%% module's own `List` is its member, and the standard library's
-%% `List.compare` names a member still; `Prelude.T.name` reaches the
-%% standard library's namespace past the module's own type T, and is
-%% refused where the module declares none. A regression test, written
-%% with the rule: the standard library's `List.size` was out of reach
-%% there, and its `Io.println` before
+%% a member stands in no expression, and a module's own type hides none:
+%% in a module whose own type `List` declares `<>`, `List.reverse` is the
+%% standard library's, `<>` on the module's own `List` is its member, and
+%% the standard library's `List.compare` names a member still. `Prelude.`
+%% takes one prelude name and no namespace, so `Prelude.List.reverse` is
+%% refused there as everywhere, the help writing `List.reverse`. A
+%% regression test, written with the rule: the standard library's
+%% `List.size` was out of reach there, and its `Io.println` before
 first_segment_test() ->
     Own = "type List = Nil | Cons(Int)\nfn List.<>(a : List, b : List) : List = a\n",
     ?assertEqual(ok, ok(Own ++ "fn f() : List = Nil <> Nil")),
     ?assertEqual(ok, ok(Own ++ "fn f() : Prelude.List(Int) = [1] <> [2]")),
     ?assertEqual(ok, ok(Own ++ "fn f() : Prelude.List(Int) = List.reverse([1])")),
-    ?assertEqual(ok, ok(Own ++ "fn f() : Prelude.List(Int) = Prelude.List.reverse([1])")),
     ?assertEqual("`List.compare` names a member, which an expression reaches through `compare`",
                  refusal(Own ++ "fn f() : Ordering = List.compare([1], [2])")),
     ?assertEqual("`List.<>` names a member, which an expression reaches through `<>`",
                  refusal(Own ++ "fn f() : List = List.<>(Nil, Nil)")),
-    ?assertEqual("Prelude.List.reverse is written only where the module hides List",
-                 refusal("fn f() : List(Int) = Prelude.List.reverse([1])")).
+    Refused = {"Prelude.List.reverse: Prelude takes one name the prelude declares, as"
+               " `Prelude.Some`", "nothing here hides it; write List.reverse"},
+    ?assertEqual(Refused, refusal_and_help(Own ++ "fn f() : Prelude.List(Int) ="
+                                                  " Prelude.List.reverse([1])")),
+    ?assertEqual(Refused, refusal_and_help("fn f() : List(Int) = Prelude.List.reverse([1])")).
 
 %% report §5.5: in `let p : T <- e`, `T` is the type of `p`, the value
 %% inside. A regression test, written after the report said so
@@ -3449,11 +3451,11 @@ prelude_namespace_test() ->
                         " Prelude.send(a, \"x\")")),
     %% the module's own names are untouched
     ?assertEqual(ok, ok(Shadow ++ "fn g() : Int = send(1)\nfn h() : Last = Fault")),
-    ?assertEqual("Prelude.Io.println is written only where the module hides Io",
+    ?assertEqual("Prelude.Io.println: Prelude takes one name the prelude declares, as"
+                 " `Prelude.Some`",
                  refusal("fn f() : Unit = Prelude.Io.println(\"x\")")),
     ?assertEqual("Prelude.Stack.other: Prelude takes one name the prelude declares, as"
-                 " `Prelude.Some`, or a name of the prelude's or the standard library's"
-                 " namespaces, as `Prelude.Io.println`",
+                 " `Prelude.Some`",
                  refusal("fn f() : Int = Prelude.Stack.other()")),
     ?assertEqual("the prelude declares no constructor Nope", refusal("fn f() = Prelude.Nope")),
     ?assertEqual("Prelude names the prelude, and a type may not take it",
@@ -3464,17 +3466,13 @@ prelude_namespace_test() ->
 %% to write it. A regression test: `Prelude.Some` was accepted anywhere
 prelude_only_where_hidden_test() ->
     Refused = fun(Name) ->
-                  Hidden = case string:split(Name, ".") of
-                               [Namespace, _] -> Namespace;
-                               [_] -> "the prelude's " ++ Name
-                           end,
-                  "Prelude." ++ Name ++ " is written only where the module hides " ++ Hidden
+                  "Prelude." ++ Name ++ " is written only where the module hides the prelude's "
+                      ++ Name
               end,
     ?assertEqual(Refused("Some"), refusal("fn f() : Optional(Int) = Prelude.Some(1)")),
     ?assertEqual(Refused("Reason"), refusal("fn f(w : Prelude.Reason) : Int = 0")),
     ?assertEqual(Refused("send"),
                  refusal("fn f(a : Address(Int)) : Unit = Prelude.send(a, 1)")),
-    ?assertEqual(Refused("List.size"), refusal("fn f() : Int = Prelude.List.size([1])")),
     %% a parameter hides a prelude value as a declaration does
     ?assertEqual(ok, ok("fn f(send : Int, a : Address(Int)) : Unit ="
                         " Prelude.send(a, send)")).

@@ -1540,7 +1540,7 @@ example.ern:2:20: `Int.negate` names a member, which an expression reaches throu
   | = help: where a function is wanted, write a lambda, `fn(x) = -x`
 ```
 
-### `Prelude.` before a name deeper than a prelude namespace's (§4.2)
+### `Prelude.` before a namespace (§4.2)
 
 ```ernest-rejected
 fn f() : Unit = Prelude.Io.println("x")
@@ -1548,7 +1548,7 @@ fn f() : Unit = Prelude.Io.println("x")
 
 ```console
 $ ern build example.ern
-example.ern:1:17: Prelude.Io.println is written only where the module hides Io
+example.ern:1:17: Prelude.Io.println: Prelude takes one name the prelude declares, as `Prelude.Some`
 1 | fn f() : Unit = Prelude.Io.println("x")
   |                 ^^^^^^^^^^^^^^^^^^
   | = help: nothing here hides it; write Io.println

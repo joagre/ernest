@@ -215,6 +215,13 @@ no release waits for hardware, and the design note is bounded by its altitude be
   Added the same day: `Reply.process`, the caller's `Process` from a reply, one word carried beside
   the alias (§6.6, §9.5; N22), and `demonitor(p)`, ending every monitor the caller holds on `p`,
   a `Down` already delivered staying (§6.9, §9.5; N23), with their pages and tests.
+- **What writing the lease broker found**, done 2026-10-24: the prelude's `compare`, the function form
+  of `<` (the log's *One Name for Every Order*); the shell writing before it ends every fault reported
+  to it (*The Shell's End Writes What It Was Told*); the restart's order of §6.9 (*A Restart Empties
+  Before It Tells*); and a member with one face, named in a declaration and a requirement alone and
+  reached through its operator or `compare`, `List.sort(list)` under `needs a.compare` with
+  `List.sortBy(list, key)`, and `Bool.not` gone (*A Member Has One Face*), each built the same day
+  with its tests, the guide, the tour and the examples following.
 - **The release, Ernest 0.5.0**, as `release_review.md` says, its notes saying what changed since
   0.4.0 and that a release may still refuse a program the previous release accepted, as every
   release before 1.0 may (the log's *A Release Carries No History*); no section of the report states
