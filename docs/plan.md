@@ -121,6 +121,14 @@ no release waits for hardware, and the design note is bounded by its altitude be
   review runs beside it (decided 2026-10-13), and its findings worked as a row of their own in the
   table of milestones, as 0.3.0's were, so that the review's run and the days of working its
   findings are told apart.
+
+  Run 2026-10-24 over `1329d1d2` (the log's *The Full Review Before 0.5.0*): twenty readers, P on
+  the most advanced model and the rest on the one below, the report, the newcomer's path and the
+  code read where they changed since `fb2324e8` and every other area whole. Their 218 lines stand
+  sorted in [`findings.md`](findings.md), 159 `fix`, 52 `decide` with a recommendation each, 9
+  `dropped`; the sorting is read with the user before anything is built, the `fix` lines then made
+  in batches and the `decide` lines taken one at a time, and the days of working them are a row of
+  their own.
 - **The proposals built by then go**, decided 2026-10-16 (the log's *The Design Notes Leave the
   Proposals*), done 2026-10-24 (the log's *The Nodes' Reasons, Kept*, *What Other Systems Taught the
   Nodes*, *The Placement Proposals Swept*, *The Operations and Kill Darlings Proposals Swept*): the
@@ -154,7 +162,7 @@ no release waits for hardware, and the design note is bounded by its altitude be
   no value position of the signature, stated in §4.5, so that the type the shell prints can be
   written.
 
-- **Two nodes tests race**, found 2026-10-24, done 2026-10-25 (the log's *Two Nodes Tests Take
+- **Two nodes tests race**, found 2026-10-24, done 2026-10-24 (the log's *Two Nodes Tests Take
   the Fault's Line*): `shell_peer_fault` and `shell_compute` each sent an input after a
   peer-spawned fault and waited for the fault's line, which the shell writes before its next
   prompt (§11.2), so under load the fault reached the shell after that input, and the run failed
