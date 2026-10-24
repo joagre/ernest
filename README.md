@@ -10,26 +10,85 @@
 
 Ernest is a small functional language for concurrent programs, on the Erlang runtime. A program is functions, whose types the compiler infers, and processes that talk through typed mailboxes.
 
+A counter is a process that holds a number. Its mailbox type, `CounterMsg`, is in the type of `count`, the loop the process runs. `counter` is the program's counter, started under `restarting` so that a fault in `count` starts it again with its address kept, and `main` sends it two increments and asks for the total:
+
+```ernest
+export type CounterMsg = Inc(Int) | Get(Reply(Int))
+
+export let counter : Address(CounterMsg) =
+    spawn(restarting(RestartLimit(restarts = 3, within = 5000), fn() = count(0)))
+
+export fn main() : Unit = {
+    send(counter, Inc(5));
+    send(counter, Inc(3));
+    match Address.call(counter, Get, 1000) {
+        Some(total) -> Io.println("count is " <> Int.toString(total))
+      | None -> Io.println("counter did not answer")
+    }
+}
+
+fn count(total : Int) : Unit receiving CounterMsg =
+    receive {
+        Inc(amount) ->
+            count(total + amount)
+      | Get(reply) -> {
+            answer(reply, total);
+            count(total)
+        }
+    }
+```
+
+```console
+$ ern run counter.erc
+count is 8
+```
+
+A function that receives runs only in a process whose mailbox takes what it receives, so `count` called by a `main` whose mailbox takes another type is refused before the program runs:
+
+```ernest-rejected
+type CounterMsg = Inc(Int)
+
+type OtherMsg = Ticked
+
+export fn main() : Unit receiving OtherMsg =
+    count(0)
+
+fn count(total : Int) : Unit receiving CounterMsg =
+    receive {
+        Inc(amount) -> count(total + amount)
+    }
+```
+
+```console
+$ ern build other.ern
+other.ern:6:5: count needs mailbox CounterMsg, and the mailbox here is OtherMsg
+4 | 
+5 | export fn main() : Unit receiving OtherMsg =
+  |                                   -------- main is declared `receiving OtherMsg` here
+6 |     count(0)
+  |     ^^^^^^^^
+```
+
 Its parts come from elsewhere: Erlang's processes, the types of ML, which Gleam made ordinary on that runtime, and Unison's small core and its code known by the hash of its definition.
 
-What Ernest adds is where the parts meet, six claims that [Why Ernest](guide/why.md) argues, the first five with a program:
+What Ernest adds is where the parts meet, six claims that [Why Ernest](guide/why.md) argues, four of them with a program and one with its file:
 
 - **[The mailbox in the function's type](guide/why.md#the-mailbox-in-the-functions-type).** A function that receives says what it receives, and the compiler checks every message against the mailbox it will reach.
 - **[Code known by its hash](guide/why.md#code-known-by-its-hash).** A module's versions run side by side, a running process moves to a new one when told, and a process spawned on another node brings its code along.
 - **[A distribution built for a WAN](guide/why.md#a-distribution-built-for-a-wan).** Two nodes are two files, each naming the other by key and address, with one TLS connection between them and no cluster to join.
 - **[Abstract types and requirements](guide/why.md#abstract-types-and-requirements).** A type keeps its representation to its module, and a generic function names the operations it needs, which the compiler supplies at each call.
-- **[A deadlock is found](guide/why.md#a-deadlock-is-found).** A program in which every process waits for a message none can send ends with a fault and a trace, since the runtime owns every source of a message; a program at work pays nanoseconds for the question.
+- **[A deadlock is found](guide/why.md#a-deadlock-is-found).** A program in which every process waits for a message none can send ends with a fault and a trace, since the runtime owns every source of a message; a node, which its peers can reach, detects none. A program at work pays for the question with a mark in a process's own state at each timed wait, call and callback from foreign code.
 - **[Little else](guide/why.md#little-else).** Functions and processes are the whole language, and a report of three files defines all of it.
 
 Ernest is for programs written in it from the start, not for an OTP application or a codebase of several languages; [Why Ernest](guide/why.md) says how it meets Erlang.
 
 Three ways in, each for a reader:
 
-- **[The tour](tour/README.md)**, for the programmer who wants the whole picture in an evening: one program, a counter, grown through eight chapters from a process with a typed mailbox to the same counter on a node that holds none of its code, moved to new code there. An hour to read, about three to do along.
+- **[The tour](tour/README.md)**, for the programmer who wants the whole picture in an evening: one program, a counter, grown through eight chapters from a process with a typed mailbox to the same counter on a node started with none of its code, moved to new code there. An hour to read, about three to do along.
 - **[The guide](guide/language.md)**, *Programming in Ernest*, for the programmer learning the language, who has used a functional language: every rule taught where a program first needs it, with the report's section named. An afternoon to read; [`guide/README.md`](guide/README.md) says what stands beside it, for whom and how long.
 - **[The report](report/README.md)**, for whoever builds or checks a toolchain or writes a library against the exact rules: the definition, three files, which everything else defers to.
 
-The counter that shows the first claim, with its output, and the rest of the argument are [Why Ernest](guide/why.md).
+The counter above is the first claim at work, and the rest of the argument is [Why Ernest](guide/why.md).
 
 ## Where it stands
 
@@ -52,7 +111,7 @@ man ern                            # the toolchain; man Ernest.List for a module
 
 Or from a release: download `ern-<version>.tar.gz` from the [releases page](https://github.com/joagre/ernest/releases), and in the directory it unpacks to run `make` and `sudo make install`, as its own README says; the archive holds the source, which `make` compiles, with OTP 29 as above.
 
-Two nodes on one machine take four more commands: `ern config` makes each node's directory with its key, `ern config --peer-dir` lists one node in the other's file, `ern run --config-dir` starts a node, and `ern stop --config-dir` ends it; [the deployment guide](guide/deployment.md) walks through them.
+Two nodes on one machine take four more commands: `ern config --config-dir` makes each node's directory with its key, `ern config --peer-dir` lists one node in the other's file, `ern run --config-dir` starts a node, and `ern stop --config-dir` ends it; [the deployment guide](guide/deployment.md) walks through them.
 
 `make install PREFIX=$HOME/.local` installs Ernest for you alone, with no `sudo`, where `~/.local/bin` is on your `PATH`. `make uninstall`, with the same `PREFIX`, removes it. Without installing, the checkout's `bin/ern` runs in place. The Emacs mode is installed with the rest, as `share/emacs/site-lisp/ernest-mode.el`, and [`editors/emacs/README.md`](editors/emacs/README.md) says how to turn it on.
 

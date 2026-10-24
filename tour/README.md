@@ -1,6 +1,6 @@
 # The tour
 
-Ernest in an evening: one program, a counter, grown through eight chapters from a process with a typed mailbox to the same counter on a node that holds none of its code, moved to new code there. It is for the programmer who has used a functional language and will read neither the report nor the guide first. Every rule the tour meets is the guide's, [*Programming in Ernest*](../guide/language.md), or the [deployment guide](../guide/deployment.md)'s where the operator's world is met, and the tour names the section, the report's where no guide states the rule; what the program has just done that your language cannot, the tour says in one line of its own, naming the claim of [*Why Ernest*](../guide/why.md) it meets.
+Ernest in an evening: one program, a counter, grown through eight chapters from a process with a typed mailbox to the same counter on a node started with none of its code, moved to new code there. It is for the programmer who has used a functional language and will read neither the report nor the guide first. Every rule the tour meets is the guide's, [*Programming in Ernest*](../guide/language.md), or the [deployment guide](../guide/deployment.md)'s where the operator's world is met, and the tour names the section, the report's where no guide states the rule; what the program has just done that your language cannot, the tour says in one line of its own, naming the claim of [*Why Ernest*](../guide/why.md) it meets.
 
 An hour to read, and about three to do along, with `ern` installed as the [README](../README.md) says and four terminals: your own, the shell's, and from chapter 2 one for each of two nodes. Each chapter is a change to the program, then what was typed and what was printed, then a few sentences.
 
@@ -52,7 +52,7 @@ input 5:1:15: the argument does not fit send: expected Counter.CounterMsg, found
   |               ^^^^^^
 ```
 
-A counter is a process that holds a number, and `count` is its loop: it takes one message, `Inc` or `Get`, does what the message says, and calls itself with the total. Its type says what it takes, `receiving CounterMsg`; the type and the loop are exported so that the prompt can name `Counter.Inc` and `Counter.count` (the guide's §4.1). `spawn` starts a process on the loop and answers its address, whose type comes from the loop's. `send` puts a message in the mailbox and answers nothing. `Address.call` makes a `Reply`, gives it to `Get`, sends the request and waits up to 1000 milliseconds for the answer, which the counter gives with `answer`: `Some(5)`, where `None` would be an answer that did not come (§4.4).
+A counter is a process that holds a number, and `count` is its loop: it takes one message, `Inc` or `Get`, does what the message says, and calls itself with the total. Its type says what it takes, `receiving CounterMsg`; the type and the loop are exported so that the prompt can name `Counter.Inc` and `Counter.count` (the guide's §7.1). `spawn` starts a process on the loop and answers its address, whose type comes from the loop's. `send` puts a message in the mailbox and answers nothing. `Address.call` makes a `Reply`, gives it to `Get`, sends the request and waits up to 1000 milliseconds for the answer, which the counter gives with `answer`: `Some(5)`, where `None` would be an answer that did not come (§4.4).
 
 The last input never runs: the address carries the mailbox's type, and a `String` is not a `CounterMsg`. The refusal is placed at `input 5:1:15`, the session's fifth input, line 1, column 15. That is the first claim of *Why Ernest*. The mailbox type is in the function's type, so a wrong send is refused before the program runs, and `count` runs only in a process of that type.
 
@@ -125,7 +125,7 @@ A node is a program, or a shell, started with a configuration directory, and `er
 
 A node accepts a connection from a listed key alone, and nothing else is set up: two nodes are two files each naming the other, with no cluster to join and no shared secret, the third claim of *Why Ernest* (the deployment guide's §2). `foo` and `bar` are *bare nodes*, started with no program: they hold nothing of the counter's and wait for work.
 
-`Peer.spawn` starts `count` on `foo` and answers `Right(address)`, or `Left(error)` with the reason it could not, an `Either`; the `match` takes the address and ends the shell's process on anything else, `fault` with the error written as text, the shortest way to a `Right` at a prompt (the guide's §2.7). The shell connected to `foo` as the spawn needed it, and `count` crossed with the spawn, since `foo` had no code of it. The counter there is then the counter of chapter 1: the same `send`, the same call, the same answer. That is the second claim of *Why Ernest*: a process started on another node brings its code along, and nothing was installed first.
+`Peer.spawn` starts `count` on `foo` and answers `Right(address)`, or `Left(error)` with the reason it could not, an `Either`; the `match` takes the address and ends the input's process on anything else, `fault` with the error written as text, the shortest way to a `Right` at a prompt (the guide's §2.7). The shell connected to `foo` as the spawn needed it, and `count` crossed with the spawn, since `foo` had no code of it. The counter there is then the counter of chapter 1: the same `send`, the same call, the same answer. That is the second claim of *Why Ernest*: a process started on another node brings its code along, and nothing was installed first.
 
 Chapter 1's counter ended with its shell; this shell runs to the end of the tour. A shell started with `--config-dir` is a node like any other (the guide's §9.2 and §8.1).
 
@@ -216,7 +216,7 @@ The precondition is written as the guide's §6.3 writes one: `fault` ends the pr
 A counter that must come back is started under `restarting`, and a watcher monitors it:
 
 ```console
-> let counter = spawn(restarting(RestartLimit(restarts = 1, within = 5000), fn() = Counter.count(0)))
+> let counter = spawn(restarting(RestartLimit(restarts = 1, within = 60000), fn() = Counter.count(0)))
 counter : Address(Counter.CounterMsg)
 > let watcher = spawn(fn() = Counter.watch(counter))
 watcher : Address(Counter.WatchMsg)
@@ -230,7 +230,7 @@ input 14:1 faulted, restarted: a negative amount
 "0" : String
 ```
 
-A process started under `restarting` runs its function again from the start after a fault, its mailbox emptied and its address kept, so `counter` is still good and the count is gone: `"0"` (§6.5). The limit allows one restart in five seconds, so the next fault is the end:
+A process started under `restarting` runs its function again from the start after a fault, its mailbox emptied and its address kept, so `counter` is still good and the count is gone: `"0"` (§6.5). The limit allows one restart in a minute, so the next fault within that minute is the end:
 
 ```console
 > Counter.apply(counter, "inc -1")
@@ -264,7 +264,7 @@ export fn report(Tally(counts) : Tally(k)) : List(#(k, Int)) needs k.compare =
     List.sort(Map.toList(counts), fn(#(a, _), #(b, _)) = k.compare(a, b))
 ```
 
-`counter.ern`'s type, its loop, the helper that writes a report, and two tests; `apply` grows a key, `inc apples 2` and `get apples`, and a `report`, as `tour/5/` has it. The second test is the tour's one planted mistake: it waits for a message nothing sends.
+Below are `counter.ern`'s type, its loop, the helper that writes a report, and two tests; `apply` grows a key, `inc apples 2` and `get apples`, and a `report`, as `tour/5/` has it. The second test is the tour's one planted mistake: it waits for a message nothing sends.
 
 ```ernest
 export type CounterMsg =
@@ -325,7 +325,7 @@ reports: faulted: deadlock
     Counter.reports:70
 ```
 
-A module worth keeping gets a test: `ern build .` compiles both modules, and `ern test` runs every `Test.Case` the program declares (the guide's §6.6). The planted test waits for a `Reported` that no process sends, and the runtime ends it with a fault where your test framework would wait for its timeout, the trace naming the line of the last call before the wait: that is the fifth claim of *Why Ernest*, a program in which every process waits for a message none can send is a deadlock, found.
+A module worth keeping gets a test: `ern build .` compiles both modules, and `ern test` runs every `Test.Case` the program declares (the guide's §7.1). The planted test waits for a `Reported` that no process sends, and the runtime ends it with a fault where your test framework would wait for its timeout, the trace naming the line of the last call before the wait, since a wait leaves no frame of its own (report Appendix E.21): that is the fifth claim of *Why Ernest*, a program in which every process waits for a message none can send is a deadlock, found.
 
 The fix, a `Report` call in place of the `receive`, is chapter 6's. The test's type, `Test.Case(TestMsg)`, is the mailbox in the type once more: its `run` receives, so its type says what; the first test's `Test.Case(m)` leaves it open, since its `run` receives nothing.
 
@@ -347,7 +347,7 @@ input 21:1:15: the argument does not fit Counter.apply: expected Address(Counter
 
 `:reload` brings `Tally` in from the build and compiles `Counter` again, and this time a type changed. Each reload makes a *version* of the module, counted from the first load, `Counter$3` now the previous one; a process keeps its mailbox type for life, so the two counters spawned under the old type, chapter 4's ended one and the one on `foo`, are of `Counter$3.CounterMsg`, and the compiler refuses them the new protocol, the new mailbox type, with the reason (the guide's §9.3).
 
-The first claim and the second meet here: a process on another machine that has run since chapter 2 cannot be sent what it does not take, and only `far`, bound before the reload, still reaches it. It is killed; chapter 6 gives the counter a door by which its code changes without a kill. A new counter counts per key:
+The first claim and the second meet here: a process on another node that has run since chapter 2 cannot be sent what it does not take, and only `far`, bound before the reload, still reaches it. It is killed; chapter 6 gives the counter a door by which its code changes without a kill. A new counter counts per key:
 
 ```console
 > let counter = spawn(fn() = Counter.count(Tally.empty()))
@@ -510,7 +510,7 @@ Right(17984) : Either(Io.Error, Int)
 
 `foo`'s terminal printed `counting the primes below 200000` twice and `bar`'s once, in this run. Each node tells its peers how busy it is, on a scale where 1.0 is every scheduler busy, and `Peer.utilizations()` is what the shell has heard: each peer, its utilization and how many milliseconds ago it said so.
 
-`Peer.compute` draws two of the peers at random, both of them here, and runs the function on the one that was less busy at its last telling, carrying its code there as the spawn did, and answers the value; the tellings come every few seconds, so which node ran each is the terminals' to show, and the program never names one (the guide's §8.1, *Which peer*). Nothing was installed on `foo` or `bar`, and nothing named either: that is the last sentence of the second claim of *Why Ernest*, a computation that names no node goes to one with room, and no program is deployed first.
+`Peer.compute` draws two of the peers at random, both of them here, and runs the function on the one that was less busy at its last telling, carrying its code there as the spawn did, and answers the value; the tellings come every few seconds, so which node ran each is the terminals' to show, and the program never names one (the guide's §8.1, *Which peer*). Nothing was installed on `foo` or `bar`, and nothing named either: that is the last sentence of the second claim of *Why Ernest*, a computation that names no node goes to the less busy of two peers drawn at random, and no program is deployed first.
 
 ## 8. The fix
 
@@ -550,7 +550,7 @@ Counter, compiled again
 "apples: 2" : String
 ```
 
-`Code.running(f)` lists the processes on this node that are running `f`, by the hash of its definition, so the two lists are the two versions side by side (the guide's §8.9). `move` sends each counter on the old loop its `Upgrade`, `next` a function of this node's that never crosses, and the counter switches to `count2` with its tally in hand; the `report` in between was answered after the `Upgrade`, since both went from the shell to the counter in that order, and the lists then read the other way round, the same address in each, which is what shows where the process now runs.
+`Code.running(f)` lists the processes on this node that are running `f`, by the hash of its definition, so the two lists are the two versions side by side. It is a *form*, written as a call and read by the compiler by a rule of its own, `f` the name of a top-level `fn` (the guide's §8.9). `move` sends each counter on the old loop its `Upgrade`, `next` a function of this node's that never crosses, and the counter switches to `count2` with its tally in hand. The `report` in between was answered after the `Upgrade`: a `send` puts its message in the mailbox before it returns, and the shell runs an input only once the one before it has ended (the guide's §1.2, §4.1). The lists then read the other way round, the same address in each, which is what shows where the process now runs.
 
 `Client(Inc(amount = amount)) when amount < 0` names one field and guards the clause (the guide's §2.6). A negative amount is now passed over, and the tally stands.
 
@@ -567,7 +567,7 @@ Right(Unit) : Either(Io.Error, Unit)
 "apples: 3, pears: 1" : String
 ```
 
-The compute carried the new loop and `move` to `foo` and ran `move` there, where `Code.running` finds `foo`'s counter and sends it the door's message, so no function crossed in a message; it answered once `move` had sent, so the `Upgrade` was in the counter's mailbox before anything of ours reached it. The counter on the node that holds none of this program's code runs its new code, with the tally it has counted since chapter 6.
+The compute carried the new loop and `move` to `foo` and ran `move` there, where `Code.running` finds `foo`'s counter and sends it the door's message, so no function crossed in a message. It answered once `move` had sent, and a `send` on the counter's own node puts its message in the mailbox before it returns (the guide's §4.1), so the `Upgrade` was there before anything of ours reached it. The counter on the node started with none of this program's code runs its new code, with the tally it has counted since chapter 6.
 
 In your own terminal, `ern stop --config-dir foo`, and the shell says:
 
@@ -579,6 +579,6 @@ the peer foo ended
 "no answer" : String
 ```
 
-`ern stop` ends a node in order, and the shell is told. `far` now names a process that ended with its node: the send answers `"ok"` and is dropped, and the request has no one to answer it, at once; a process that monitored the counter would have heard a `Down` with the reason `Unreachable`, and a peer started again is reached by a new spawn or compute, since its processes are gone with it (the deployment guide's §2.3). `ern stop --config-dir bar` ends the rest, and the shell says `the peer bar ended`. One command, and you have seen a node's whole life.
+`ern stop` ends a node in order, and the shell is told. `far` now names a process that ended with its node: the send answers `"ok"` and is dropped, and the request has no one to answer it, at once; a process that monitored the counter would have heard a `Down` with the reason `ProgramEnd`, and a peer started again is reached by a new spawn or compute, since its processes are gone with it (the deployment guide's §2.3). `ern stop --config-dir bar` ends the rest, and the shell says `the peer bar ended`. One command, and you have seen a node's whole life.
 
 The tour ends here, where the operator's work begins. The deployment guide's §8 runs this move across three nodes with `examples/upgrade/`, and the deployment guide's §5.3 is the operator's side of it; the guide's §9 names the tools, and the guide's §8.9 the rule the move rests on.

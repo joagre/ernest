@@ -6,7 +6,7 @@ The questions a reader of [*Programming in Ernest*](language.md) brings, each an
 
 The types are the same family, Hindley-Milner as ML has it, which Gleam made ordinary on the Erlang runtime, and made well, in semantics and in syntax. Ernest owes Gleam its look: `fn`, the pipe `|>`, the update `Con(..x, f = v)` and foreign declarations as the one door to Erlang follow it, its line comment was taken outright, and every other form of Gleam's was weighed against the design principles of report §0 and left out where it only gave a shorter way to write what the language already says (the guide's §11).
 
-Gleam's typed messaging is a library over the runtime's processes, well made too. What differs is how far the types reach, since in Ernest the process is the language: a function that receives names its mailbox's type, a `receive` is checked against it, every `send` against the address it reaches, a request carries a `Reply`, a value the server answers once and the caller waits on, and `spawn`, `monitor` and `Address.call` are the prelude's, what every module sees without naming a module, so the compiler sees all of them (the guide's §4).
+In Ernest the process is the language, where Gleam's typed messaging is a library over the runtime's processes, well made too. What differs is how far the types reach: a function that receives names its mailbox's type, a `receive` is checked against it, every `send` against the address it reaches, a request carries a `Reply`, a value the server answers once and the caller waits on, and `spawn`, `monitor` and `Address.call` are the prelude's, what every module sees without naming a module, so the compiler sees all of them (the guide's §4).
 
 Being the language buys what a library cannot: the function's type says which mailbox it runs in, so `spawn` types the address from the function and refuses the function for a mailbox of another type, where a `Subject` is a value a process makes and hands out.
 
@@ -14,11 +14,11 @@ Nodes are the language too: a node lists its peers by their public keys, a spawn
 
 **Where are `gen_server` and the supervisors?**
 
-In the language, as what they were made of. A server is a `receive` loop that keeps its state in its arguments, and a request carries a `Reply`, which `Address.call` waits on with a deadline (the guide's §4.4). Of what `gen_server` adds to the loop: `code_change` is the message of the process's own type that carries the new loop (the guide's §4.6); `terminate`'s work is the runtime's, since what a process opened ends with it (the guide's §6.4), and what the other side hears is a monitor's `Down` with the reason (the guide's §5.2); and `sys`, its suspend, its state read from outside and its trace, has nothing in its place, a shell beside the node being the operator's window (the deployment guide's §6).
+In the language, as what they were made of. A server is a `receive` loop that keeps its state in its arguments, and a request carries a `Reply`, which `Address.call` waits on with a deadline (the guide's §4.4). Of what `gen_server` adds to the loop: `code_change` is the message of the process's own type that carries the new loop (the guide's §4.6); `terminate`'s work is the runtime's, since what a process opened ends with it (the guide's §8.7), and what the other side hears is a monitor's `Down` with the reason (the guide's §5.2); and `sys`, its suspend, its state read from outside and its trace, has nothing in its place, a shell beside the node being the operator's window (the deployment guide's §6).
 
-A process that must come back runs its function under `restarting`, which runs the function again in the same process when it faults, so that the address holds; that is why there is no registry: a service is a top-level binding that holds such an address, made when the program starts, in dependency order with every other binding (report §8.5), and good for its life (the guide's §6.5).
+A process that must come back runs its function under `restarting`, which runs the function again in the same process when it faults, so that the address holds; that is why there is no registry on a node: a service is a top-level binding that holds such an address, made when the program starts, in dependency order with every other binding (report §8.5), and good for its life (the guide's §6.5).
 
-A supervision tree is the standard library's `Supervisor`: a group with a strategy, `OneForOne`, `OneForAll` or `RestForOne`, and a restart limit, its children restarted in place with their addresses kept, and killed in the reverse of their order when the supervisor dies (the guide's §6.6, report Appendix E.22). A child joins the group when it starts, whenever that is, so there is no `simple_one_for_one`; and a child is killed, not asked to stop, so there is no shutdown timeout.
+A supervision tree is the standard library's `Supervisor`: a group with a strategy, `OneForOne`, `OneForAll` or `RestForOne`, and a restart limit, its children restarted in place with their addresses kept, and killed in the reverse of their order when the supervisor dies (the guide's §6.6, report Appendix E.22). A child joins the group when it starts, whenever that is, so there is no `simple_one_for_one`; and a child is killed, not asked to stop, so there is no shutdown timeout. A sibling restarts only when it next waits, in a `receive` or for a call's answer, so a sibling that never waits is never restarted (the guide's §6.6).
 
 A process replaces its own code while it runs, by a message of its type that carries the new loop, keeping its address and its state (the guide's §4.6); it keeps its mailbox type for life, so a change of its messages is a new process. A module reloaded or brought by a peer runs beside its earlier versions (report §11.2).
 
@@ -28,11 +28,11 @@ Failure arrives as a message: a `monitor` is given a function of the watcher's, 
 
 It began there. Ernest's core was taken from Unison's: types inferred with signatures optional, sums and products with exhaustive matching, an effect written in a function's type, of which Ernest keeps one, what the function receives, structural equality with none on functions, and a definition known by the hash of its form.
 
-What was left behind is Unison's concurrency, its abilities, its exceptions and its codebase manager, since Ernest keeps modules and files and takes Erlang's processes whole; the hash serves the exchange of code between nodes and a module's versions, not a store in place of files (the guide's §8, report §8.7, report §11.1). Unison runs a distributed program on Unison Cloud, its hosted service or, since October 2025, its software on machines of your own; in Ernest the nodes are yours with no service between them, each listed in the other's `ernest.conf`. The idea's parents, on this runtime and Unison's own, are the log's *The Hash's Parents*. Unison's founders are named in the acknowledgments.
+What was left behind is Unison's concurrency, its abilities, its exceptions and its codebase manager, since Ernest keeps modules and files and takes Erlang's processes whole; the hash serves the exchange of code between nodes and a module's versions, not a store in place of files (the guide's §8, report §8.7, report §11.1). Unison runs a distributed program on Unison Cloud, its hosted service, or with its software on machines of your own; in Ernest the nodes are yours with no service between them, each listed in the other's `ernest.conf`. Unison's founders are named in the acknowledgments.
 
 **Why one mailbox per process, and not several typed channels?**
 
-A process receives values of one type, so a `receive` is a `match` over that type and the compiler can say what is left out; there is no selective receive, and a loop takes the next message of its type, whatever it is.
+A process receives values of one type, so every clause of a `receive` is checked against that type, and a clause that can never match is refused. A `receive` takes the first message a clause matches and leaves the others in the mailbox (the guide's §4.3).
 
 A process that hears from several sources gives each an adapted address, `adapted(self(), Logged)`, `Logged` a constructor of the process's own type, which wraps that source's messages as they arrive, written where the reader sees it (the guide's §5.5, report §6.5).
 
@@ -48,15 +48,15 @@ A send needs no such fact. What it sends is in the address, `Address(M)`, and it
 
 A message is checked at both ends against the mailbox's one type. A `receive` is checked against it, and a clause that cannot run is refused: in the counter of the guide's §4.1, `Inc(_) -> count(total)` after `Inc(amount)` is refused with `this clause can never match` (report §6.3). A `send` is checked against the type its address carries, and `send(counter, "increment")` is refused with `the argument does not fit send: expected CounterMsg, found String` (the guide's §0, report §6.5).
 
-An address takes exactly its type and no smaller one. A client written to send only `Tick`, a type whose one constructor is `Tick`, is given an address of that type, `adapted(counter, fn(Tick) = Inc(1))`, an `Address(Tick)` whose messages reach the counter as `Inc(1)` (the guide's §5.5, report §6.5).
+An address takes exactly its type and no smaller one. A client written to send only `Ticked`, a type whose one constructor is `Ticked`, is given an address of that type, `adapted(counter, fn(Ticked) = Inc(1))`, an `Address(Ticked)` whose messages reach the counter as `Inc(1)` (the guide's §5.5, report §6.5).
 
-Whether a reply is answered is checked as the program runs, not by the compiler. A request carries a `Reply`, which is answered once: a second answer is no error the compiler sees, and is dropped as it runs, the caller keeping the first (the guide's §4.2, report §6.6). An answer never made is the next question.
+Whether a reply is answered is not checked; the caller's call bounds its wait. A request carries a `Reply`, which is answered once: a second answer is no error the compiler sees, and is dropped as it runs, the caller keeping the first (the guide's §4.2, report §6.6). An answer never made is the next question.
 
 **Is a forgotten answer caught?**
 
 Not by the compiler: a reply is a value, kept, passed on or dropped as any value is (the guide's §4.2). What protects the caller is the call it chose. `Address.call` has a deadline, and answers `None` when it passes, which says that no answer came and nothing of why. Where the callee ends before it answers, the wait ends at once: `None` for `Address.call`, and for `Address.callForever` a fault, which ends the calling process with a cause that names how the callee ended; an answer that comes after the deadline is discarded (the guide's §6.3, report §6.6).
 
-Where every process waits and nothing is in flight, the program ends with `Fault("deadlock")` (report §8.6).
+Where every process waits and nothing is in flight, the program ends with `Fault("deadlock")` (report §8.6). A node detects no deadlock, nor does the shell while it holds the terminal (report §11.2).
 
 What nothing catches is `Address.callForever` on a callee that lives on and never answers: the caller waits for as long as the callee lives, which is why `callForever` is for a callee that always answers, a queue's `Take` among them (the guide's §4.4).
 
@@ -84,15 +84,17 @@ Across nodes a definition is known by the hash of its form, so two nodes agree o
 
 **Is there a type class, an interface or a trait?**
 
-Not as a construct. A type's members are the functions declared under its name in its own module, `Int.compare`, so a type has one `compare`. A function generic in `a` that needs it writes `needs a.compare`, and a call writes nothing, since the compiler supplies the type's own; code written once over several representations takes a record of functions the program declares, and `Operations(..Set)` fills each field from the declaration of its name in the module `Set` (the guide's §7.3).
+Not as a construct. A type's members are the functions declared under its name in its own module, `Int.compare`, so a type has one `compare`. A requirement names `compare`, `negate`, an operator or `show`, and nothing else. A function generic in `a` that needs it writes `needs a.compare`, and a call writes nothing, since the compiler supplies the type's own; code written once over several representations takes a record of functions the program declares, and `Operations(..Set)` fills each field from the declaration of its name in the module `Set` (the guide's §7.3).
 
 The `needs` is written, never inferred, no type is declared an instance of anything, and there is no hierarchy and no lookup as the program runs, the caller passing the member as an argument the program never writes: what a class would have added is what is not there. All three stand in code under *Abstract types and requirements* in [Why Ernest](why.md), with the refusal of a type that lacks the member.
 
 **Where are ETS, tracing, `observer`, back pressure and releases?**
 
-A table is the library `Ets`, a process's own table of the host's with Ernest types on it (report Appendix G.1). There is no tracing and no `observer`: a shell started beside a node is the operator's window, each look through it a compute on the node (the deployment guide's §6), and a shell attached to a running node is planned (the plan's MVP 4.0).
+A table is the library `Ets`, a process's own table of the host's with Ernest types on it (report Appendix G.1). There is no tracing and no `observer`: a shell started beside a node is the operator's window, each look through it a compute on the node (the deployment guide's §6). A shell does not attach to a running node: its inputs run on its own node.
 
-A mailbox is unbounded, as Erlang's is, and back pressure is the program's, a credit the receiver grants or a call, since a full mailbox that held a sender would hold a caller waiting on that sender's reply, and the two would wait for good (the log's *Back Pressure, Again*). A release of a program is its `.erc` files beside `ern`, which `ern build` writes and the deployment guide's §1 and §5 run.
+In place of `global`, a service has one holder on each node that offers it, and a find answers the address offered by the first peer that offers it, in the order the configuration lists them (the guide's §8.2). In place of `pg`, a group of processes across nodes is the program's own, a process that keeps their addresses.
+
+A mailbox is unbounded, as Erlang's is, and back pressure is the program's, a credit the receiver grants or a call, since a full mailbox that held a sender would hold a caller waiting on that sender's reply, and the two would wait for good. A release of a program is its `.erc` files beside `ern`, which `ern build` writes and the deployment guide's §1 and §5 run.
 
 **Why `fn(x) = ...` for a lambda, and not `x -> ...`?**
 
@@ -102,6 +104,6 @@ It begins with `fn`, so a reader and the parser see a lambda begin at its first 
 
 A warning is a rule the compiler states and does not hold, so a program that builds with warnings is one whose author decided each, or did not, and its reader cannot tell which. Ernest gives one answer, a program builds or it does not, so that a program that builds meets every rule, and its reader knows which rules those are.
 
-The rules are few, and each catches a mistake concurrent programs are prone to: a message of a type the process does not take, a failure dropped, an `Either` result left unread (the guide's §0), a constructor a `match` leaves out, a value discarded without `let _` (the guide's §11).
+The rules are few, and each catches a mistake concurrent programs are prone to: a message of a type the process does not take, a value a statement drops without `let _`, a failure among them (the guide's §0), and a constructor a `match` leaves out (the guide's §2.3).
 
 What is a habit of style the compiler leaves alone: `ern format` lays the code out, and the reader's eye does the rest.

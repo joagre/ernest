@@ -26,12 +26,11 @@ Each complete program in the guide compiles as shown and prints what is shown af
 - [9. Tools](#9-tools)
 - [10. From Erlang](#10-from-erlang)
 - [11. The design](#11-the-design)
-- [12. Frequently asked questions](#12-frequently-asked-questions)
-- [13. Answers to the exercises](#13-answers-to-the-exercises)
-- [14. Reading further](#14-reading-further)
+- [12. Answers to the exercises](#12-answers-to-the-exercises)
+- [13. Reading further](#13-reading-further)
 <!-- /contents -->
 
-Beside the guide: [Why Ernest](why.md), the argument for the design, in six claims, the first four with a program, and [Frequently asked questions](faq.md).
+Beside the guide: [Why Ernest](why.md), the argument for the design, and [Frequently asked questions](faq.md).
 
 ## 0. What the compiler refuses
 
@@ -69,7 +68,7 @@ message.ern:15:19: the argument does not fit send: expected CounterMsg, found St
    |                   ^^^^^^^^^^^
 ```
 
-An error in a module's source has this form: the position as `file:line:column`, the message, and the source with the error's span underlined with `^`. A span the error depends on is underlined with `-` and labeled, here the type of `send`, whose two arguments must agree. The names in these examples, `spawn`, `send`, `receive`, an address, where a `send` goes, `Reply`, `answer`, and `receiving`, are taught in §1 to §4; here only the errors matter.
+An error in a module's source has this form: the position as `file:line:column`, the message, and the source with the error's span underlined with `^`. A span the error depends on is underlined with `-` and labeled, here the type of `send`, whose two arguments must agree. The names in these examples, `spawn`, `send`, `receive`, an address, `Reply`, `answer`, and `receiving`, are taught in §1 to §4; here only the errors matter. An address is where a `send` goes.
 
 **A failure dropped.** `Fs.write` returns `Either(Io.Error, Unit)`, a value that is `Right(Unit)` or `Left(error)` (§2.7): the file was written, or the reason it was not. Its last argument, `1000`, is how many milliseconds it may take. A statement in a block must be `Unit`, so the failure cannot pass unseen. `let _ = ...` discards it where that is meant.
 
@@ -89,9 +88,9 @@ notes.ern:2:5: this statement's value is discarded: expected Unit, found Either(
   | = help: `let _ = ...` discards it on purpose
 ```
 
-These rules come from one design. What Ernest adds to the parts it takes from Erlang, ML and Unison, six claims, the first four with a program, is [Why Ernest](why.md), beside this guide; the first refusal above is its first claim at work, and the second is the third of the five principles the guide ends with (§11).
+These rules come from one design. What Ernest adds to the parts it takes from Erlang, ML and Unison is [Why Ernest](why.md), beside this guide; the first refusal above is its first claim at work, and the second is the third of the five principles of §11.
 
-Sections 1 to 8 are eight stages: run a program, compute with values, pass behavior, run a protocol, manage process lifetime, handle failure, organize code, and cross boundaries. Each builds on the ones before it and ends with an exercise, whose answer is in §13. A complete program is shown whole; a fragment is part of the program around it. After the stages come the tools (§9), a word for the Erlang programmer (§10), the design behind the rules (§11), and questions a reader asks (§12).
+Sections 1 to 8 are eight stages: run a program, compute with values, pass behavior, run a protocol, manage process lifetime, handle failure, organize code, and cross boundaries. Each builds on the ones before it and ends with an exercise, whose answer is in §12. A complete program is shown whole; a fragment is part of the program around it. After the stages come the tools (§9), a word for the Erlang programmer (§10), the design behind the rules (§11), the answers (§12), and further reading (§13).
 
 ## 1. Run a program
 
@@ -149,7 +148,7 @@ A value of type `Unit` prints nothing, so the last input shows only what it wrot
 
 At a terminal the shell edits the line with Readline's Emacs keys, stands the cursor for a moment on the bracket a typed `)`, `]` or `}` closes, and keeps a history across sessions that `C-r` searches. An input the parser cannot finish takes another line, and `M-Enter` adds one whatever the parser says.
 
-What programs write appears in a region at the foot of the screen, apart from the inputs, and a process that faults, that meets an error it did not expect (§6.3), is reported at the prompt with the place it was spawned.
+What programs write appears in a region at the foot of the screen, apart from the inputs, and a process that faults, that meets an error it did not expect (§6.3), is reported at the prompt with the place it was spawned. An input that faults itself is reported as `fault:` and its cause, the fault's trace beneath.
 
 A fault, an error, and a refused command are shown in red and a result's type dimmed, and documentation is styled, unless the environment sets `NO_COLOR`. A line wider than the screen wraps as it is typed.
 
@@ -181,7 +180,7 @@ hello, Grace
 
 `Os.exit(status)` ends the program with that exit status. A program whose `main` returns exits with 0, and one whose entry process faults exits with 1. A variable of the environment is asked for by its name: `Os.environment("HOME")` answers `Some(dir)` where the home directory is set, and `None` where it is not, the two values of `Optional` (§2.3). The directory the program was started in is `Os.workingDirectory`, and a relative path names a file under it.
 
-A program the host has, the Erlang runtime Ernest runs on and the operating system under it, is run with `Os.run`, which gives it its input and answers its exit status and what it wrote once it has ended, or an `Io.Error` where it could not start. Its name is found as the host finds a command, and each argument reaches it as it is, with no shell between:
+The *host* is the Erlang runtime Ernest runs on and the operating system under it. A program the host has is run with `Os.run`, which gives it its input and answers its exit status and what it wrote once it has ended, or an `Io.Error` where it could not start. Its name is found as the host finds a command, and each argument reaches it as it is, with no shell between:
 
 ```ernest
 export fn main() : Unit =
@@ -191,7 +190,7 @@ export fn main() : Unit =
     }
 ```
 
-`Os.Command(program = ..., ...)` builds a value by naming its fields (§2.4), and `Right(finished)` and `Left(error)` are the two cases of `Either` (§2.7); `<<>>` is the empty bytes (§2.4), and `finished.stdout` a field of the record `Os.run` answers (§2.1).
+`Os.Command(program = ..., ...)` builds a value by naming its fields (§2.4), and `Right(finished)` and `Left(error)` are the two cases of `Either` (§2.7); `<<>>` is the empty bytes (§2.1), and `finished.stdout` a field of the record `Os.run` answers (§2.4).
 
 ```console
 $ ern run echo.erc
@@ -222,27 +221,9 @@ WORLD
 
 Standard input is read as UTF-8, and a line that is not faults the process that read it. Input that is not text is read as bytes: `Io.read()` answers `Some(bytes)` with what has arrived, and `Io.write(bytes)` writes bytes to standard output as they are. Lines and bytes come from one stream, so a program can read a line and then the bytes after it. A program reads lines or single keys, not both: `Terminal.subscribe` gives keys as they are pressed, or answers `Left(Io.NotATerminal)` where standard input is not a terminal, so that the program can read lines instead (report §8.2).
 
-### 1.4 Prediction exercise
+### 1.4 A taste of the rest
 
-Consider hello-world (a) with no annotation:
-
-```ernest
-export fn main() =
-    Io.println("hello, world")
-```
-
-and (b) with `: Unit`, as §1 writes it:
-
-```ernest
-export fn main() : Unit =
-    Io.println("hello, world")
-```
-
-Which of these compile, and what type does each give `main`?
-
-### 1.5 A taste of the rest
-
-The counter of §0, run on a node that holds none of its code. `foo` is a node started with a configuration directory and no program, and the shell is a node too, started with its own; `Peer.spawn` starts `count` on `foo`, which is sent the code it lacks, and answers an address like any other:
+The tour's counter, `counter.ern`, whose type and loop are exported, run on a node started with none of its code. `foo` is a node started with a configuration directory and no program, and the shell is a node too, started with its own; `Peer.spawn` starts `count` on `foo`, which is sent the code it lacks, and answers an address like any other:
 
 ```console
 $ ern shell --config-dir a
@@ -257,6 +238,24 @@ Some(5) : Optional(Int)
 ```
 
 How the nodes are made and listed is §8.1, and the whole picture in an evening is [the tour](../tour/README.md), whose chapter 2 these lines are.
+
+### 1.5 Prediction exercise
+
+Consider hello-world written with `Io.debug`, which prints its argument and returns it (§1.1), (a) with no annotation:
+
+```ernest
+export fn main() =
+    Io.debug("hello, world")
+```
+
+and (b) with `: Unit`, as §1 writes `main`:
+
+```ernest-rejected
+export fn main() : Unit =
+    Io.debug("hello, world")
+```
+
+Which of these compile, what type does each give `main`, and which can `ern run` run?
 
 ## 2. Compute with immutable values
 
@@ -308,7 +307,7 @@ A block groups statements between `{` and `}`, separated by `;`. Its value is th
 
 Shadowing is allowed: a later `let` with the same name hides the earlier one from the next statement on. The original value is unchanged where it was already used; there is no mutation.
 
-**Constants.** A `let` at the top level, outside any `fn`, is a constant, evaluated once before `main` starts. Its name is lowercase like any value's; an uppercase name is a type or a constructor. `export` makes it visible to other modules.
+**Top-level bindings.** A `let` at the top level, outside any `fn`, is a *top-level binding*, evaluated once before `main` starts. Its name is lowercase like any value's; an uppercase name is a type or a constructor. `export` makes it visible to other modules.
 
 ```ernest
 let pi : Float = 3.14159265358979
@@ -318,9 +317,9 @@ let defaultPort : Int = 8080
 export let helloBanner : String = "hello, world"
 ```
 
-Constants are evaluated before `main`, in the order their references need, and otherwise in the order the module declares them. A cycle among them is an error (report §4.6, §8.5).
+Top-level bindings are evaluated before `main`, in the order their references need, and otherwise in the order the module declares them. A cycle among them is an error (report §4.6, §8.5).
 
-An initializer may do more than compute. It runs in the entry process, as a body that may spawn, send and call, though not receive, and a top-level `let` that holds a process's address is a *service binding*. §6.5 teaches both, once §4 has taught processes.
+An initializer may do more than compute. It runs in the entry process, as a body whose mailbox type is `Never` (§4.1): it may spawn, send, call and wait a while, and takes no message. A top-level `let` that holds a process's address is a *service binding*. §6.5 teaches both, once §4 has taught processes.
 
 ### 2.3 Sum types and pattern matching
 
@@ -419,11 +418,11 @@ y : Int
 A map and a set are built from the empty one, or from a list:
 
 ```console
-> let m = Map.empty |> Map.put("a", 1) |> Map.put("b", 2)
-m : Map(String, Int)
-> Map.get(m, "a")
+> let scores = Map.empty |> Map.put("a", 1) |> Map.put("b", 2)
+scores : Map(String, Int)
+> Map.get(scores, "a")
 Some(1) : Optional(Int)
-> Map.update(m, "a", fn(v) = Optional.withDefault(v, 0) + 1)
+> Map.update(scores, "a", fn(score) = Optional.withDefault(score, 0) + 1)
 Map.fromList([#("a", 2), #("b", 2)]) : Map(String, Int)
 > Set.fromList([1, 2, 3])
 Set.fromList([1, 2, 3]) : Set(Int)
@@ -450,7 +449,7 @@ $ ern run money.erc
 cheaper
 ```
 
-A set in the order of its elements' `compare` is `OrderedSet`, and a map with its keys in order `OrderedMap`; code written once over both kinds of set is §7.3's.
+A set in the order of its elements' `compare` is `OrderedSet`, and a map with its keys in order `OrderedMap`; code written once over both kinds of set is §7.3's. `Set` is the prelude's type, which every module names without a module's name (§2.9), so the type of the module `OrderedSet` is written with its module's name, `OrderedSet.Set`.
 
 ### 2.6 Patterns and irrefutability
 
@@ -483,6 +482,17 @@ Ernest 0.4.0. :help for the commands, :quit to leave.
 x : Int
 > match 3 { n when n == x -> "same as x" | _ -> "different" }
 "same as x" : String
+```
+
+A literal is a pattern too, and matches the value equal to it: a number, a character, a string, `true` or `false`. A list pattern takes literals as it takes names:
+
+```ernest
+fn reply(words : List(String)) : String =
+    match words {
+        ["hello"] -> "hello to you"
+      | "add" :: numbers -> "adding " <> Int.toString(List.size(numbers)) <> " numbers"
+      | _ -> "pardon?"
+    }
 ```
 
 A name appears at most once in a pattern. A pattern of a constructor with named fields may leave out the fields it does not need: `Rectangle(width = w)` binds one field of the `Rectangle` above, and `Rectangle()` matches any.
@@ -557,7 +567,7 @@ Ernest 0.4.0. :help for the commands, :quit to leave.
 "cba" : String
 ```
 
-`x |> f` is `f(x)`, and `x |> f(a, b)` is `f(x, a, b)`: the pipe inserts the first argument. Parentheses change nothing, so `x |> (f(a))` is `f(x, a)` too. A lambda is parenthesized, `x |> (fn(y) = y + 1)`, since its body would take in a `|>` after it (§3.2), and a function a call computes is applied in writing, `adder(3)(x)`.
+`x |> f` is `f(x)`, and `x |> f(a, b)` is `f(x, a, b)`: the pipe inserts the first argument. Parentheses change nothing, so `x |> (f(a))` is `f(x, a)` too. A lambda is parenthesized, `x |> (fn(y) = y + 1)`, since its body would take in a `|>` after it (§3.2), and a function a call computes is applied by writing its arguments after the call, `adder(3)(x)`, since `x |> adder(3)` is `adder(x, 3)`.
 
 ### 2.9 The standard library
 
@@ -579,7 +589,7 @@ Three more rules concern processes, and are for after §4:
   There is no time that means no limit. A server that waits for as long as it takes asks again on each `Left(Timeout)` (§8.7).
 
   A read of standard input and a write to standard output wait without a limit, since those streams are the program's own. A socket's far end or a program the runtime started can hang unseen, so `Tcp.write`, `Os.read` and `Os.write` take a time too (report Appendix E.0 shape rule 8).
-- **A function that delivers later takes a function that makes the message.** `Clock.alarm(100, Tick)` puts `Tick(t)` in the mailbox after 100 ms, `t` being the time it fired. The function that makes the message receives nothing; the one that takes it, `Clock.alarm` or `Terminal.subscribe`, asks for a delivery into the caller's mailbox, and its type says so, `receiving m` (§3.4). `Clock.now()` is the time now, in milliseconds since the epoch. A process that only waits a while writes `receive { after ms -> Unit }` (§4.3); `Clock` has no sleep.
+- **A function that delivers later takes a function that makes the message.** `Clock.alarm(100, Ticked)` puts `Ticked(time)` in the mailbox after 100 ms, `time` being the moment it fired. The function that makes the message receives nothing; the one that takes it, `Clock.alarm` or `Terminal.subscribe`, asks for a delivery into the caller's mailbox, and its type says so, `receiving m` (§4.1). `Clock.now()` is the time now, in milliseconds since the epoch. A process that only waits a while writes `receive { after ms -> Unit }` (§4.3); `Clock` has no sleep.
 
 What a type does not say, the entry in Appendix E does: `List.sort` is stable, `Map.toList` has no order. In the shell, `:doc List.sort` prints it. `:browse Fs` lists a module's types by name and its functions with their types, and `:doc Fs.Entry` shows a type's declaration, its fields among it.
 
@@ -598,9 +608,9 @@ text : String
 words : List(String)
 > words
 ["the", "cat", "and", "the", "hat"] : List(String)
-> let counts = Map.update(Map.empty, "the", fn(n) = Optional.withDefault(n, 0) + 1)
+> let counts = Map.update(Map.empty, "the", fn(count) = Optional.withDefault(count, 0) + 1)
 counts : Map(String, Int)
-> Map.update(counts, "the", fn(n) = Optional.withDefault(n, 0) + 1)
+> Map.update(counts, "the", fn(count) = Optional.withDefault(count, 0) + 1)
 Map.fromList([#("the", 2)]) : Map(String, Int)
 ```
 
@@ -713,9 +723,9 @@ input 2:1:46: the argument does not fit one: expected List(Int), found List(Stri
 
 ### 3.4 Functions that receive
 
-A function whose type has `receiving M` receives from the mailbox of the process it runs in, whose type is `M`: it runs a `receive`, gives out its address by `self`, asks for a message to be delivered into its mailbox, as `monitor` does, or calls a function that does one of these (report §6.1). A function whose type has no `receiving` receives nothing and runs in any process. Either may send, spawn, print, or call another process (§4).
+A function whose type has `receiving M` receives messages of the type `M`, and one whose type has no `receiving` receives nothing and runs in any process; what receiving is, once processes are taught, is §4.1's. Either may send, spawn, print, or call another process (§4).
 
-Either kind of function can fault or run for ever: `a / b` with `b = 0` faults although its type is `(Int, Int) -> Int`, and `fault("...")` has every type and faults when it is reached. `receiving` says only that a function receives, not whether it can fault (§6).
+Either kind of function can fault or run forever: `a / b` with `b = 0` faults although its type is `(Int, Int) -> Int`, and `fault("...")` has every type and faults when it is reached. `receiving` says only that a function receives, not whether it can fault (§6).
 
 ### 3.5 Higher-order and effect polymorphism
 
@@ -726,9 +736,9 @@ fn apply(f, x) =
 
 The inferred type is `((a) -> b receiving e, a) -> b receiving e`: `apply` receives where the function it is given receives, so `apply(f, x)` receives nothing when `f` receives nothing. Written out, it is `fn apply(f : (a) -> b receiving e, x : a) : b receiving e = f(x)`. An annotation without the `receiving e`, `f : (a) -> b`, takes only a function that receives nothing. `List.map`, `List.forEach`, and every other function of the standard library that calls a function it takes are the same.
 
-An effect variable may stand for a mailbox type or for none. One that also appears inside `Address`, the type of an address to a process whose mailbox is `m` (§4.1), as in `self : () -> Address(m) receiving m`, stands for a mailbox type only, since an address needs one. The letters in a printed type mean nothing of their own.
+An effect variable may stand for a mailbox type or for none; one that must stand for a mailbox type is §4.1's. The letters in a printed type mean nothing of their own.
 
-**A timed wait.** A `receive` with an `after` clause alone waits on the mailbox and reads no type from it: `fn pause(ms) = receive { after ms -> Unit }`. Its effect variable is *process-only*, never none, since the wait is on a mailbox, and a printed type marks it `+`, `pause : (Int) -> Unit receiving e+` (report §3.9, report §11.5).
+Where a function's result is itself a function, a `receiving` after the result is the result's: `fn later() : () -> Unit receiving e` answers a function that receives. Parenthesized, the result leaves the `receiving` to the function declared: `fn first() : (() -> Unit) receiving e` receives, and answers a function that receives nothing. A printed type is parenthesized the same way (report §4.5).
 
 ### 3.6 The word counter as functions
 
@@ -807,7 +817,29 @@ fn count(total : Int) : Unit receiving CounterMsg =
 
 A `Reply(Int)` is where an answer goes. The process that asks gets one from `Address.call`, which puts it in the request and waits for the answer (§4.4), and the process that receives the request answers it with `answer(reply, total)`. §4.5 runs the counter whole.
 
-**A process that receives nothing.** A process with no `receive` has nothing in it that says what its mailbox takes. `spawn`'s type ties its function to the address it returns: the function is a `() -> Unit receiving n`, and the address an `Address(n)`. A function that receives nothing fits wherever one with a mailbox type is expected, so it is spawned as any other, and the first `send` to its address fixes `n`. A call of the definition fixes `n` too, where `n` stands in a parameter's type: `fn start(f) = spawn(f)` spawns a function of any mailbox type, and `start(count)` fixes `n` to `count`'s. Where `n` is the definition's own mailbox type, the process the definition runs in fixes it.
+**What receives.** A function whose type has `receiving M` involves the mailbox of the process it runs in, whose type is `M`: it runs a `receive`, gives out the process's address through its type, as `self` does, asks for a message to be delivered into the mailbox, as `monitor` does, or calls a function that does one of these (report §6.1). A function that calls `self` and keeps the address to itself receives nothing: `fn stop() = kill(self())` is a `() -> Unit` (report §4.5).
+
+An effect variable that also appears inside `Address`, the type of an address to a process whose mailbox is `m`, as in `self : () -> Address(m) receiving m`, stands for a mailbox type only, since an address needs one (§3.5).
+
+**A timed wait.** A `receive` with an `after` clause alone waits on the mailbox and reads no type from it (§4.3). Its effect variable is *process-only*, a mailbox type and never none, since the wait is on a mailbox, and a printed type marks it `+` (report §3.9, report §11.5). Written out, such a function carries `receiving e`, and so does every function that calls it:
+
+```ernest
+fn pause(ms : Int) : Unit receiving e =
+    receive {
+        after ms -> Unit
+    }
+
+fn rest() : Unit receiving e =
+    pause(10)
+```
+
+`pause` prints as `pause : (Int) -> Unit receiving e+`. Written `fn rest() : Unit = pause(10)`, the caller is refused, `pause needs a mailbox, and rest receives nothing`. An entry point that waits so is `: Unit receiving Never`, its mailbox the one nothing can be sent to (below).
+
+**A process that receives nothing.** A process with no `receive` has nothing in it that says what its mailbox takes. `spawn`'s type ties its function to the address it returns: the function is a `() -> Unit receiving n`, and the address an `Address(n)`. A function that receives nothing fits wherever one with a mailbox type is expected, so it is spawned as any other, and the definition the spawn is written in fixes `n`:
+
+- The first `send` to the address fixes it: in `{ let worker = spawn(fn() = Unit); send(worker, 5); worker }`, `worker` is an `Address(Int)`.
+- A call of the definition fixes it where it stands in a parameter's type: `fn start(f) = spawn(f)` is an `(() -> Unit receiving n) -> Address(n)`, and `start(fn() = count(0))` an `Address(CounterMsg)`.
+- The process the definition runs in fixes it where it is the definition's own mailbox type: `fn standIn(here : Bool) = if here then self() else spawn(fn() = Unit)` is a `(Bool) -> Address(m) receiving m`, which called in the counter answers an `Address(CounterMsg)`.
 
 Where nothing fixes it by the end of the definition the spawn is written in, or of the input at the prompt, the process receives nothing and its mailbox type is `Never`, one rule for every process: one spawned here or on a peer (§8.1), and `main` (§1.1). Its address is an `Address(Never)`, to which nothing can be sent:
 
@@ -818,11 +850,23 @@ Ernest 0.4.0. :help for the commands, :quit to leave.
 worker : Address(Never)
 ```
 
-A top-level `let`, and one at the prompt, must have its type settled, and is refused until an annotation settles it (§3.3); the shell shows the open type and keeps `it` as it was:
+A top-level `let`, and one at the prompt, must have its type settled, and is refused until an annotation settles it (§3.3):
 
 ```console
 $ ern shell
 Ernest 0.4.0. :help for the commands, :quit to leave.
+> let xs = []
+input 1:1:1: the type of xs is not determined by this input; it is List(a)
+1 | let xs = []
+  | ^^^^^^^^^^^
+  | = help: bind it with an annotation that settles the variable, as in `let xs : List(Int) = []`, or declare a function with `fn`
+> let xs : List(Int) = []
+xs : List(Int)
+```
+
+An expression at the prompt whose type stays open is run, and the shell shows the open type and keeps `it` as it was:
+
+```console
 > List.reverse([])
 [] : List(a)
 `it` is unchanged: this input did not determine the type of its value
@@ -839,7 +883,7 @@ A reply is a value. A server that cannot answer yet keeps it until it can, as an
 `receive` takes the first message that matches a clause and leaves the others in the mailbox for later. Unlike `match`, it need not cover every case, but a clause that can never match is still an error.
 
 ```ernest
-type Inbox = Data(Int) | Wake
+type Inbox = Data(Int) | Woke
 
 fn waitForData() : Optional(Int) receiving Inbox =
     receive {
@@ -852,7 +896,7 @@ fn waitForData() : Optional(Int) receiving Inbox =
 
 A guard in `receive` is narrower than one in `match`, since it chooses a message before taking it: it compares and tests only what is already at hand, the variables in scope, a top-level `let`, literals and nullary constructors, joins these with `!`, `&&` and `||`, and calls nothing (report §6.3). For more, receive the message and `match` it. That is another program: the message is then out of the mailbox, where a guard that does not hold would have left it for a later `receive`.
 
-If a `Wake` is already in the mailbox, `waitForData` leaves it there and waits for a `Data`; a later `receive` can take the `Wake`.
+If a `Woke` is already in the mailbox, `waitForData` leaves it there and waits for a `Data`; a later `receive` can take the `Woke`.
 
 ### 4.4 `Address.call`
 
@@ -869,7 +913,7 @@ Address.call : (Address(m), (Reply(a)) -> m, Int) -> Optional(a)
 
 The call returns `Some(v)` for an answer and `None` for none. `None` does not cancel the work: the recipient may still be computing, so a request that changes state and is sent again may change it twice. An answer that comes late is dropped and never reaches the caller's mailbox, so `Address.call` works whatever that mailbox's type is (report §6.6).
 
-`Address.callForever` waits without a deadline and returns the answer itself. When the process called ends or restarts before it answers, either call ends at once: `Address.call` returns `None`, and `Address.callForever` faults its caller, with the callee's cause, the text that says what went wrong (§6.3), where it faulted, and otherwise with a cause saying it was killed, returned without answering, was closed, was restarted (§6.5), had ended already, or is unreachable, its node out of reach (§8.3). A callee that lives on without answering holds a `callForever` caller for as long as it lives, one that only waits as much as one that dropped the reply.
+`Address.callForever` waits without a deadline and returns the answer itself. When the process called ends or restarts before it answers, either call ends at once: `Address.call` returns `None`, and `Address.callForever` faults its caller. A callee that faulted gives the caller its cause, the text that says what went wrong (§6.3). Otherwise the caller's cause says how the callee ended: it was killed, returned without answering, was closed, was restarted (§6.5), had ended already, or is unreachable, its node out of reach (§8.2). A callee that lives on without answering holds a `callForever` caller for as long as it lives, one that only waits as much as one that dropped the reply.
 
 A server that cannot answer at once keeps the reply until it can, in a list as well as anywhere else a value waits (§4.2). A queue answers a `Take` with an item it has, or keeps the reply until a `Put` brings one:
 
@@ -985,9 +1029,9 @@ $ ern run collect.erc
 **Pacing.** A mailbox has no limit. A process that sends faster than its receiver takes messages fills the receiver's mailbox, and the node's memory with it. A call paces its caller, since the caller waits for each answer before it asks again. A stream of messages is paced by a window of credits: the receiver grants a number of messages, and the sender waits for the next grant when it has sent them.
 
 ```ernest
-type ConsumerMsg = Item(Int) | Last
+type ConsumerMsg = Item(Int) | Finished
 
-type ProducerMsg = Credit(Int)
+type ProducerMsg = Granted(Int)
 
 // Sends the items from `next` to `last` while it has credit, and waits for
 // more when it has none.
@@ -996,9 +1040,9 @@ fn produce(consumer : Address(ConsumerMsg),
            last : Int,
            credit : Int) : Unit receiving ProducerMsg =
     if next > last then
-        send(consumer, Last)
+        send(consumer, Finished)
     else if credit == 0 then receive {
-        Credit(granted) -> produce(consumer, next, last, granted)
+        Granted(granted) -> produce(consumer, next, last, granted)
     } else {
         send(consumer, Item(next));
         produce(consumer, next + 1, last, credit - 1)
@@ -1008,17 +1052,17 @@ fn produce(consumer : Address(ConsumerMsg),
 fn consume(producer : Address(ProducerMsg), taken : Int, sum : Int) : Unit receiving ConsumerMsg =
     receive {
         Item(value) -> {
-            if (taken + 1) % 10 == 0 then send(producer, Credit(10)) else Unit;
+            if (taken + 1) % 10 == 0 then send(producer, Granted(10)) else Unit;
             consume(producer, taken + 1, sum + value)
         }
-      | Last ->
+      | Finished ->
             Io.println("sum " <> Int.toString(sum))
     }
 
 export fn main() : Unit receiving ConsumerMsg = {
     let me = self();
-    let producer = spawn(fn() : Unit receiving ProducerMsg = produce(me, 1, 100, 0));
-    send(producer, Credit(10));
+    let producer = spawn(fn() = produce(me, 1, 100, 0));
+    send(producer, Granted(10));
     consume(producer, 0, 0)
 }
 ```
@@ -1028,7 +1072,7 @@ $ ern run pacing.erc
 sum 5050
 ```
 
-However slow the consumer, no more than ten items wait in its mailbox. Where nothing paces a queue, `Process.status` (§5.3) shows it building: for a live process it answers `Some(status)`, and `status.queued` is the number of messages waiting in its mailbox. A write paces its writer as a call does: `Io.println`, and every other write of the system modules, returns once its stream has taken the bytes, so a program's output goes at the pace of what reads it.
+However slow the consumer, no more than ten items wait in its mailbox. Where nothing paces a queue, `Process.status` (§5.2) shows it building: for a live process it answers `Some(status)`, and `status.queued` is the number of messages waiting in its mailbox. A write paces its writer as a call does: `Io.println`, and every other write of the system modules, returns once its stream has taken the bytes, so a program's output goes at the pace of what reads it.
 
 **Fan-out.** A process that sends each message to many receivers, as a chat room sends each line to its members, is not paced by any of them. A call to each would pace it by the slowest, and one receiver that stalls would then hold up all the others. So each receiver gets a window of its own. The sender keeps the credit each receiver has left, and sends only to one that has some; each receiver grants more as it takes what it was sent.
 
@@ -1068,13 +1112,13 @@ $ ern run counter.erc
 count is 8
 ```
 
-When `main` returns, or its process ends in any other way, the program ends: every process on the node ends with the reason `ProgramEnd`, one of the reasons a `Down` carries (§5.2), which is not a fault, and output still on its way is written first. A program stopped from outside by a termination or a hangup signal ends the same way; the terminal's interrupt ends it at once, and output still on its way may be lost, unless the program reads the terminal's keys, which then deliver the interrupt as a key (report §8.2, §8.6).
+When `main` returns, or its process ends in any other way, the program ends: every process on the node ends with the reason `ProgramEnd`, one of the reasons a `Down` carries (§5.2), which is not a fault, and output still on its way is written first. A program stopped from outside by a termination signal ends the same way, and so does one that is no node at a hangup signal, which a node takes as a reload (§9.2); the terminal's interrupt ends it at once, and output still on its way may be lost, unless the program reads the terminal's keys, which then deliver the interrupt as a key (report §8.2, §8.6).
 
 The count is 8 because messages from one sender arrive in the order sent: both `Inc`s come before the `Get`. Were the counter too slow, `main` would print `counter did not answer`.
 
 ### 4.6 Explicit code replacement
 
-A process can change its code while it runs, keeping its address and its state. The new code arrives in a message that the process's type provides for, as a function value: here one compiled into the program, in the shell one from a module that `:reload`, the shell's command that compiles a changed module again (§9.3), compiled, and on a peer, a node the program's configuration lists (§8), one that a spawn there brings, since a function value does not cross in a message but a spawn carries its code (§8.1, §8.4).
+A process can change its code while it runs, keeping its address and its state. The new code arrives in a message that the process's type provides for, as a function value. Here the function is one compiled into the program. In the shell it is one from a module that `:reload` compiled, the shell's command that compiles a changed module again (§9.3). On a peer, a node the program's configuration lists (§8), it is one that a spawn there brings, since a function value does not cross in a message but a spawn carries its code (§8.1, §8.4).
 
 The counter of §4.5 gains an `Upgrade` constructor. The program is three parts of one file, `counter.ern`, which replaces the one of §4.5:
 
@@ -1172,11 +1216,11 @@ export fn tally(counts : Map(String, Int)) : Unit receiving TallyMsg =
 $ ern build words.ern
 $ ern shell words.erc
 Ernest 0.4.0. :help for the commands, :quit to leave.
-> let t = spawn(fn() = Words.tally(Map.empty))
-t : Address(Words.TallyMsg)
-> send(t, Words.Add(Words.count("the cat and the hat")))
-> send(t, Words.Add(Words.count("the bat")))
-> Address.call(t, fn(reply) = Words.Top(limit = 2, reply = reply), 1000)
+> let tally = spawn(fn() = Words.tally(Map.empty))
+tally : Address(Words.TallyMsg)
+> send(tally, Words.Add(Words.count("the cat and the hat")))
+> send(tally, Words.Add(Words.count("the bat")))
+> Address.call(tally, fn(reply) = Words.Top(limit = 2, reply = reply), 1000)
 Some([#("the", 3), #("and", 1)]) : Optional(List(#(String, Int)))
 ```
 
@@ -1300,16 +1344,16 @@ fn runWorker(job : Int) : Optional(Int) receiving MainMsg = {
 
 fn waitFor(child : Process) : Optional(Int) receiving MainMsg =
     receive {
-        Result(from = w, value = v) when w == child -> Some(v)
+        Result(from = sender, value = value) when sender == child -> Some(value)
       // the Down came before the result; a worker that returned has sent it, so go on waiting
-      | Died(Down(process = p, reason = Returned)) when p == child -> waitFor(child)
-      | Died(Down(process = p)) when p == child -> None
+      | Died(Down(process = process, reason = Returned)) when process == child -> waitFor(child)
+      | Died(Down(process = process)) when process == child -> None
       | _ -> waitFor(child)
     }
 
 fn report(job : Int) : Unit receiving MainMsg =
     match runWorker(job) {
-        Some(v) -> Io.println("job " <> Int.toString(job) <> ": " <> Int.toString(v))
+        Some(value) -> Io.println("job " <> Int.toString(job) <> ": " <> Int.toString(value))
       | None -> Io.println("job " <> Int.toString(job) <> ": the worker died")
     }
 
@@ -1329,7 +1373,7 @@ Anything else is an earlier worker's death, and `waitFor` takes it and passes ov
 
 Where the `Down` comes first, `waitFor` reads its reason. A worker that `Returned` sent its result before it did, so the wait goes on until the result comes. Any other reason, a fault or a kill, ended the worker before it sent one, and the wait answers `None`. Where the result is the worker's answer to a call (§4.4), no such care is needed: a call's answer is never overtaken by the callee's end.
 
-`Process.live()` lists the live processes, `Process.status(p)` tells where one was spawned, how many messages wait for it and whether it runs, and `Process.faults(wrap)` sends you every fault as it happens (report Appendix E.21). They are for seeing what runs, and a program is still written with the addresses it was given.
+`Process.live()` lists the live processes, `Process.status(process)` tells where one was spawned, how many messages wait for it and whether it runs, and `Process.faults(wrap)` sends you every fault as it happens (report Appendix E.21). They are for seeing what runs, and a program is still written with the addresses it was given.
 
 A fault in one process does not affect another, apart from the cases §6.3 lists.
 
@@ -1342,11 +1386,15 @@ Ernest 0.4.0. :help for the commands, :quit to leave.
 kill : (Address(a)) -> Unit
 ```
 
-`kill(addr)` ends the process at `addr`, and its monitors receive `Down(reason = Killed, ...)`. The process may run a little before it stops. The REPL of [`examples/repl.ern`](../examples/repl.ern) kills an evaluation that runs too long.
+`kill(address)` ends the process at `address`, and its monitors receive `Down(reason = Killed, ...)`. The process may run a little before it stops. The REPL of [`examples/repl.ern`](../examples/repl.ern) kills an evaluation that runs too long.
 
 ### 5.4 Deadlock
 
 When every process waits in a `receive` or a `callForever` that nothing can ever satisfy, the entry process faults with `deadlock`, and the program ends. A process waiting for a timer, a key, a socket, or a file is waiting for something that can come, so an idle server is not deadlocked. Report §8.6 gives the exact condition.
+
+The fault's trace is the entry process's. A waiting frame names the line of the last call before the wait, since a wait leaves no frame of its own (report Appendix E.21): in a function that spawns and then waits in a `receive`, the frame names the `spawn`'s line.
+
+A node detects no deadlock, so a program started with `--config-dir` waits on where every process waits, and a wait on another node's process, which only a node can make, is never found to be one (report §8.6). Nor does a shell detect one while it holds the terminal (report §11.2).
 
 ### 5.5 A process's addresses
 
@@ -1364,7 +1412,7 @@ adapted : (Address(b), (a) -> b) -> Address(a)
 **Why.** Whoever sends need not know the type of the mailbox it sends to. A worker written to report to an `Address(Either(String, Int))` knows nothing of your `GameMsg`. Given `adapted(me, Done)`, its report arrives as `Done(result)`:
 
 ```ernest
-type GameMsg = Done(Either(String, Int)) | Tick(Int)
+type GameMsg = Done(Either(String, Int)) | Ticked(Int)
 
 fn worker(report : Address(Either(String, Int))) : Unit =
     send(report, Right(42))
@@ -1375,18 +1423,18 @@ fn startWorker() : Unit receiving GameMsg = {
     receive {
         Done(Right(n)) -> Io.println("done: " <> Int.toString(n))
       | Done(Left(error)) -> Io.println("failed: " <> error)
-      | Tick(_) -> Unit
+      | Ticked(_) -> Unit
     }
 }
 ```
 
 A library is used the same way, written against a message type of its own, so a program never needs one message type for all its processes.
 
-**Whatever arrives later is delivered so too.** Wherever something arrives later, the function that asks for it takes the function that makes your message from its own (report Appendix E.0 shape rule 8): `monitor(child, wrap)` (§5.2), `Clock.alarm(ms, wrap)`, which puts `wrap(t)` in your mailbox after `ms` milliseconds, `t` the time it fired, `Terminal.subscribe(wrap)`, which puts every key pressed and every resize in it, and `Process.faults(wrap)`.
+**Whatever arrives later is delivered so too.** Wherever something arrives later, the function that asks for it takes the function that makes your message from its own (report Appendix E.0 shape rule 8): `monitor(child, wrap)` (§5.2), `Clock.alarm(ms, wrap)`, which puts `wrap(time)` in your mailbox after `ms` milliseconds, `time` the moment it fired, `Terminal.subscribe(wrap)`, which puts every key pressed and every resize in it, and `Process.faults(wrap)`.
 
-A constructor with one positional field is a function value, so `Clock.alarm(100, Tick)` delivers `Tick(t)`. A message that needs no value is made by a lambda that ignores it, `Clock.alarm(100, fn(_) = Refresh)` for a constructor `Refresh` without fields.
+A constructor with one positional field is a function value, so `Clock.alarm(100, Ticked)` delivers `Ticked(time)`. A message that needs no value is made by a lambda that ignores it, `Clock.alarm(100, fn(_) = Refresh)` for a constructor `Refresh` without fields.
 
-**Where the function runs.** A `send` to an adapted address applies the function in the sender, at the `send`, which returns once it has, on the node that made the address; from another node it is applied as the message arrives, in a process of the runtime's (report §6.5, §8.2). The sender's messages keep their order through it (§5.1). A wrap has no sender to run in, so the runtime applies it as it delivers the message. Either way, a fault in the function is the fault of the process the message is for, not of the one that sent it (report §6.5, report §6.9), so keep the function to shaping the value:
+**Where the function runs.** A `send` to an adapted address applies the function in the sender, at the `send`, which returns once it has, on the node that made the address; from another node it is applied as the message arrives, in a process of the runtime's (report §6.5, §8.7). The sender's messages keep their order through it (§5.1). A wrap has no sender to run in, so the runtime applies it as it delivers the message. Either way, a fault in the function is the fault of the process the message is for, not of the one that sent it (report §6.5, report §6.9), so keep the function to shaping the value:
 
 ```ernest
 type SplitMsg = Half(Int)
@@ -1450,7 +1498,7 @@ fn oneProcess(me : Address(CountMsg)) : Bool =
 `Clock.alarm` fires once. A periodic tick is scheduled again after each tick is handled, and only then: a loop that scheduled one on every message would add a timer per key pressed. Two functions keep the two apart:
 
 ```ernest
-type GameMsg = Tick(Int) | Input(Char)
+type GameMsg = Ticked(Int) | Typed(Char)
 
 type World = World(score : Int)
 
@@ -1458,18 +1506,18 @@ fn step(world : World) : World =
     World(score = world.score + 1)
 
 fn game(state : World) : Unit receiving GameMsg = {
-    Clock.alarm(100, Tick);
+    Clock.alarm(100, Ticked);
     waitForTick(state)
 }
 
 fn waitForTick(state : World) : Unit receiving GameMsg =
     receive {
-        Tick(_) -> game(step(state))
-      | Input(_) -> waitForTick(state)
+        Ticked(_) -> game(step(state))
+      | Typed(_) -> waitForTick(state)
     }
 ```
 
-`game` schedules one alarm and hands over to `waitForTick`, which takes inputs without touching the alarm; only a `Tick` returns to `game`, which schedules the next. `step` reads the world's field by selecting it, `world.score`.
+`game` schedules one alarm and hands over to `waitForTick`, which takes the keys typed without touching the alarm; only a `Ticked` returns to `game`, which schedules the next. `step` reads the world's field by selecting it, `world.score`.
 
 An alarm cannot be canceled. A process that no longer wants one takes its message when it comes and drops it, since even a cancel could not take back a message already delivered. A deadline for a piece of work carries the work's id, `Clock.alarm(5000, fn(_) = Expired(job))`, and the loop that waits matches every `Expired`, acting on one whose job is still open and dropping the rest; a message that no `receive` takes stays in the mailbox for as long as the process lives (report Appendix E.15).
 
@@ -1578,7 +1626,7 @@ no config: workers is not a number
 
 ### 6.2 A message
 
-Between processes a failure is part of the protocol. A request whose work can fail is answered with an `Either`, and the process that asked handles a `Left` as it handles any answer. `Address.call` adds a case of its own, `None`, for an answer that did not come: in time, or at all, since a call ends at once when the process called ends or restarts, or its node goes out of reach (§8.3). A deadline bounds how long the caller waits: `None` says that no answer was obtained, not whether the process called did the work, or will.
+Between processes a failure is part of the protocol. A request whose work can fail is answered with an `Either`, and the process that asked handles a `Left` as it handles any answer. `Address.call` adds a case of its own, `None`, for an answer that did not come: in time, or at all, since a call ends at once when the process called ends or restarts, or its node goes out of reach (§8.2). A deadline bounds how long the caller waits: `None` says that no answer was obtained, not whether the process called did the work, or will.
 
 ```ernest
 type ParserMsg = Parse(text : String, reply : Reply(Either(String, Int)))
@@ -1677,17 +1725,19 @@ fn supervise(jobs : List(Int)) : Unit receiving SupervisorMsg =
         }
     }
 
-// The worker's answer, or the fault that ended it. A worker that returned
-// has sent its answer, so after its end the answer is taken too, whichever
-// arrived first, and neither is left for the next worker.
+// The worker's answer, or how it ended. A worker that returned has sent its
+// answer, so after its end the answer is taken too, whichever arrived first,
+// and neither is left for the next worker; one that ended otherwise sent none.
 fn outcome() : String receiving SupervisorMsg =
     receive {
-        Ended(Down(reason = Fault(cause), site = _)) ->
-            "failed, " <> cause
-      | Ended(_) ->
+        Ended(Down(reason = Returned)) ->
             receive {
-                Result(n) -> Int.toString(n)
+                Result(value) -> Int.toString(value)
             }
+      | Ended(Down(reason = Fault(cause))) ->
+            "failed, " <> cause
+      | Ended(Down(reason = reason)) ->
+            "ended, " <> Io.show(reason)
     }
 
 export fn main() : Unit receiving SupervisorMsg =
@@ -1695,11 +1745,11 @@ export fn main() : Unit receiving SupervisorMsg =
 ```
 
 ```console
-$ ern run jobs.erc
+$ ern run tasks.erc
 4: 25
-Jobs.supervise:9 faulted: division by zero
+Tasks.supervise:9 faulted: division by zero
     erlang:'div'/2
-    Jobs.supervise:9
+    Tasks.supervise:9
 0: failed, division by zero
 5: 20
 all jobs done
@@ -1711,7 +1761,7 @@ What must survive a fault lives in the process that does not fault: here the lis
 
 ### 6.5 A service
 
-A *service* is a process the program reaches by name. The name is a top-level binding whose value is the process's address, `counter` below, so a module sends to the process by writing its name, and `export` says which modules may. It is not a registry: the name is resolved by the compiler, in the module's scope, like any other name, and is typed by its declaration. It needs none, because `restarting` keeps the process's address across its faults: the binding is made once and stays good, where a registry exists to find the new process behind an old name.
+A *service* is a process the program reaches by name. The name is a top-level binding whose value is the process's address, `counter` below, so a module sends to the process by writing its name, and `export` says which modules may. It is no registry on the node: the name is resolved by the compiler, in the module's scope, like any other name, and is typed by its declaration. It needs none, because `restarting` keeps the process's address across its faults: the binding is made once and stays good, where a registry exists to find the new process behind an old name.
 
 ```ernest
 export type CounterMsg = Add(amount : Int, reply : Reply(Int))
@@ -1754,13 +1804,13 @@ None
 Some(3)
 ```
 
-`counter` is evaluated before `main` runs, in the entry process, like every top-level `let` (§2.2). An initializer may spawn, send and call, but not receive, so a service's `let` starts its process and nothing waits.
+`counter` is evaluated before `main` runs, in the entry process, like every top-level `let` (§2.2). An initializer may spawn, send and call, and takes no message, so a service's `let` starts its process and nothing waits.
 
 `restarting(RestartLimit(restarts = 3, within = 5000), f)` is a function that runs `f`, and runs it again after a fault, in the same process, with the same address. The new run begins with an empty mailbox, and what the process asked the runtime for, an alarm, a monitor, a subscription, is canceled (report §6.9). Whoever holds the address keeps it, so nothing is handed out again after a restart. What the loop held is gone: the count starts at zero again, as `Some(3)` shows.
 
 After three restarts within five seconds, the next fault ends the process (report §6.9); `restarting(Unlimited, f)` runs `f` again after every fault. A restart is not an end: no `monitor` hears of it, and the process's `Down` comes only when it ends for good.
 
-The call that was waiting when the counter faulted ends at once: `Address.call` answers `None`, and `Address.callForever` would fault the caller with the same cause. A caller that must outlive a service's faults calls with a limit. The second line, with the trace beneath it, is `ern run`'s report of the fault, on standard error (§6.3).
+A client is not told of a restart, and a call waiting at it ends at once: `Address.call` answers `None`, as the call waiting when the counter faulted does here, and `Address.callForever` would fault the caller with the same cause. A caller that must outlive a service's faults calls with a limit. The second line, with the trace beneath it, is `ern run`'s report of the fault, on standard error (§6.3).
 
 `fault` is the fault a program raises when it finds a case it will not handle. The path that calls it does not answer `reply`: the fault ends the counter's process, and the call waiting on it ends at once. `start` is exported beside the binding so that a test can start a counter of its own instead of sharing the program's.
 
@@ -1904,6 +1954,12 @@ The source root is `--source-root dir`; without it, the directory `ern build` is
 **Testing a module.** A test is a top-level `let` of the type `Test.Case(m)`, a name and a function returning `Test.Passed` or `Test.Failed(text)`, which runs in a process whose mailbox type is `m` (report Appendix E.24). `Test.equal(actual, expected)` is the comparison most tests make: `Test.Passed` where the two are equal, and otherwise `Test.Failed("expected 2, got 3")`, each value as `Io.show` writes it:
 
 ```ernest
+/// The sum of two integers.
+///
+/// ```ernest
+/// add(1, 2)
+/// // => 3
+/// ```
 fn add(left : Int, right : Int) : Int =
     left + right
 
@@ -1925,9 +1981,10 @@ $ ern build checks.ern
 $ ern test checks.erc
 adds two: passed
 a worker answers back: passed
+Checks.add example 1: passed
 ```
 
-`ern test` runs every test of the module, one at a time in the order the module declares them, each in a process of its own, and prints each as it ends: passed, failed with its text, or faulted with its cause. It then runs the module's doc examples as cases (report §11.2), each named by the declaration it documents, `Checks.add example 1`, one that ends in `// => v` passing where `Io.show` of its value is `v`, and one without the line where it compiles.
+`ern test` runs every test of the module, one at a time in the order the module declares them, each in a process of its own, and prints each as it ends: passed, failed with its text, or faulted with its cause. It then runs the module's doc examples as cases (report §11.2). A doc example is an `ernest` block in a declaration's doc block, the `///` lines above it (below), and is named by the declaration, `Checks.add example 1`. One whose last line is `// => v`, alone on its line, passes where `Io.show` of its value is `v`; one without the line is reported `compiled` where it compiles.
 
 `Test.faults(run, cause)` tests that a call faults: `Test.Passed` where `run` faults with `cause`, and otherwise `Test.Failed` naming what came instead, `expected the fault division by zero, got a return`. `run` runs in a process of its own, whose fault no job reports, `ern test`, `ern run` or the shell, since the test's answer carries it (report Appendix E.24).
 
@@ -1967,6 +2024,8 @@ export fn size(Stack(items)) =
 ```
 
 Inside `stack.ern` the operations are `push` and the rest, and any definition may take a `Stack` apart, a private helper or a test included. Outside, they are `Stack.push` and the rest, the type is `Stack.Stack`, and `Stack.Stack([])` is an error: another module sees the type and the operations, never the constructor.
+
+`empty` is a binding of the module's, and has its value only on a node that loaded the module: a spawn or a compute on a bare node whose function names it is not started there, and a module meant for such work makes its empty value a function, `empty()` (§8.1).
 
 An abstract type is exported, since one its module keeps would hide from no module:
 
@@ -2250,7 +2309,7 @@ Reach for an operations record where code written once must keep the representat
 
 A service with state needs none of the three: two processes of different representations take one message type, and the caller holds an `Address(M)` (§4).
 
-**For the curious: how `OrderedSet` is written.** The module is Ernest over `List`, and its source shows a requirement at work in a library. Here are the parts of `src/stdlib/ordered_set.ern` that carry it, with their doc blocks left out; the rest of the module is in the file, and `:doc OrderedSet` lists it:
+**For the curious: how `OrderedSet` is written.** The module is Ernest over `List`, and its source shows a requirement at work in a library. Here are the parts of `src/stdlib/ordered_set.ern` that carry it, with their doc blocks left out; the rest of the module is in that file of the repository, which an installation does not ship, and `:doc OrderedSet` lists it:
 
 ```ernest-fragment
 // src/stdlib/ordered_set.ern  (namespace OrderedSet), in part, its doc blocks left out
@@ -2308,9 +2367,9 @@ A program reaches outside its node's Ernest code in three ways: to peers over th
 
 A *node* is a program started with `--config-dir`, and its *peers* are the nodes its `ernest.conf` lists (report §8.3). `ern config` makes the directory once: `ernest.conf` with the node's `listen` address and its public key, no peer and no service yet, and the private key and a certificate beside it.
 
-A peer has a name, which the program uses, a public key and a network address. A peer on the same machine is added by `ern config --peer-dir`, which reads all three from the peer's directory; one on another machine by editing the file, with the key `ern config` printed on the peer's machine (report §11.3). Under `services`, each service's name lists the peers that may offer it, hold a process under that name for peers to find (§8.2), in the order a *find*, the lookup of a service by its name (§8.2), asks them (report §8.7, Appendix C).
+A peer has a name, which the program uses, a public key and a network address. A peer on the same machine is added by `ern config --peer-dir`, which reads all three from the peer's directory; one on another machine by editing the file, with the key `ern config` printed on the peer's machine (report §11.3). Under `services`, each service's name lists the peers that may offer it, in the order a *find* asks them (report §8.7, Appendix C). A peer offers a service by holding a process under its name for peers to find, and a find is the lookup of a service by its name (§8.2).
 
-Two nodes connect when the first operation needs it, over TLS, each accepting the other by its listed key alone, and only where both stand on one *floor*, one minor release of `ern`, any patch, on one major release of OTP, the Erlang distribution Ernest runs on; their builds may differ (§8.2). What a node says on its standard error is report §8.7's, and `ern reload` and `ern stop` are §9.2's; this chapter teaches what a program writes.
+Two nodes connect when the first operation needs it, over TLS, each accepting the other by its listed key alone, and only where both stand on one *floor*, one minor release of `ern`, any patch, on one major release of OTP, the Erlang release Ernest runs on; their builds may differ (§8.2). What a node says on its standard error is report §8.7's, and `ern reload` and `ern stop` are §9.2's; this chapter teaches what a program writes.
 
 Every example here runs on a program that is no node too: without a configuration a program has no peers, and `Peer.find`, `Peer.spawn` and `Peer.compute` answer `Left(NotListed)`.
 
@@ -2326,7 +2385,7 @@ fn heavy(a : Int, b : Int) : Int =
 export fn main() : Unit =
     match Peer.computeAt("foo", fn() = heavy(3, 4), 5000) {
         Right(value) -> Io.println("foo computed " <> Int.toString(value))
-      | Left(failure) -> Io.println("no foo: " <> Io.show(failure))
+      | Left(error) -> Io.println("no foo: " <> Io.show(error))
     }
 ```
 
@@ -2373,7 +2432,7 @@ $ ern config --config-dir foo --peer-dir a
 
 What `--peer-dir` does not write is written by hand: `services`, §8.2's, and a peer on another machine, its key the one `ern config` printed there, as one JSON string with its line breaks `\n` (the deployment guide's §2.1). One key listed under two names is refused, `two peers have one public-key, and two nodes with one key are one node`.
 
-Start `foo` first and give it a moment to listen, about a second; a compute that reaches it before answers `Left(Unreachable)`. Each terminal shows its own node's lines: `foo`'s says `the peer a connected` as `a` dials it, and `the peer a ended` when `a`'s run ends. Then:
+Start `foo` first. A node with a fixed port says nothing as it begins to listen, and a compute that reaches `foo` before it listens answers `Left(Unreachable)`. Each terminal shows its own node's lines: `foo`'s says `the peer a connected` as `a` dials it, and `the peer a ended` when `a`'s run ends. Then:
 
 ```console
 $ ern run --config-dir foo &
@@ -2409,11 +2468,11 @@ fn heavy(n : Int) : Int =
     n * n
 ```
 
-The node picks by what its peers tell it. A node that lists peers tells each one it is connected to how busy it is every `utilization-interval` milliseconds its `ernest.conf` names, 5000 where it names none, and holds the last utilization each peer told it with the moment it came (report §8.7, Appendix C). How busy is on one scale, 1.0 every scheduler, a thread of the host that runs processes, busy, below it room and above it work waiting, measured as the node's `"utilization"` entry says, by its run queue, the processes running or ready to run with the one measuring left out, where it says nothing.
+The node picks by what its peers tell it. A node that lists peers tells each one it is connected to how busy it is every `utilization-interval` milliseconds its `ernest.conf` names, 5000 where it names none, and holds the last utilization each peer told it with the moment it came (report §8.7, Appendix C). How busy is on one scale: 1.0 is every scheduler busy, below it room and above it work waiting. A scheduler is a thread of the host that runs processes. The node measures as its `"utilization"` entry says, and by its run queue where it says nothing, the processes running or ready to run with the one measuring left out.
 
-`Peer.compute` draws two of the peers whose utilizations the node may use, at random, and takes the less busy, the first drawn where the two are equal; a utilization older than two intervals of the peer that told it, which each *telling*, the message that carries one, names, is not used, and a peer's loss drops its utilization.
+`Peer.compute` draws two of the peers whose utilizations the node may use, at random, and takes the less busy, the first drawn where the two are equal. A *telling* is the message that carries a peer's utilization, and names the peer's interval. A utilization older than two of its peer's intervals is not used, and a peer's loss drops its utilization.
 
-Where no peer has told a utilization the node may use, the compute answers `Left(Unreachable)`, and where the node lists no peer, as a program that is no node lists none, `Left(NotListed)`; at both the work runs here, `heavy(n)`: a node has no name for itself, and `compute` takes none. `Peer.utilization(name, ms)` asks one peer how busy it is now, where the node's table holds what each said last.
+Where no peer has told a utilization the node may use, the compute answers `Left(Unreachable)`, and where the node lists no peer, as a program that is no node lists none, `Left(NotListed)`; at both, `placed.ern` runs the work here, `heavy(n)`: a node has no name for itself, and `compute` takes none. `Peer.utilization(name, ms)` asks one peer how busy it is now, where the node's table holds what each said last.
 
 A rule of the program's own is a function over `Peer.utilizations()`, the utilizations the node holds, each peer's name, its utilization and the milliseconds since it came, in the configuration's order, a peer not heard from left out. The least busy of them all:
 
@@ -2526,8 +2585,8 @@ export fn main() : Unit receiving Msg = {
             receive {
                 Computed(value) -> Io.println("foo computed " <> Int.toString(value))
             }
-      | Left(failure) ->
-            Io.println("no foo: " <> Io.show(failure))
+      | Left(error) ->
+            Io.println("no foo: " <> Io.show(error))
     }
 }
 ```
@@ -2640,8 +2699,8 @@ export fn main() : Unit =
               | None -> Io.println("no answer")
             }
         }
-      | Left(failure) ->
-            Io.println("no store: " <> Io.show(failure))
+      | Left(error) ->
+            Io.println("no store: " <> Io.show(error))
     }
 ```
 
@@ -2692,7 +2751,7 @@ It reads `count` when it begins to count: no file is the first start, and 0, and
 
 While the end waits every process runs on, and a peer still finds and calls the store. Nothing of the runtime's times the wait: a second `ern stop`, and the interrupt, end the program at once. `ern stop` itself returns once the node has ended, so a script that restarts a node writes `ern stop --config-dir foo && ern run --config-dir foo store.erc`.
 
-The runtime says on standard error whom the end waits for, each subscriber by its spawn site, `the end waits for 1 subscriber: Store.counter:6`, and each as it answers, `the subscriber Store.counter:6 answered`, for a node and for a program that is none alike; where a second `ern stop` cuts the wait short, it names the subscribers that went unanswered (report §8.6, report §11.2, Appendix E.23).
+The runtime says on standard error whom the end waits for, each subscriber by its spawn site, `the end waits for 1 subscriber: Store.counter:6`, and each as it answers, `the subscriber Store.counter:6 answered`, for a node and for a program that is none alike; where a second termination cuts the wait short, a second `ern stop` for a node, it names the subscribers that went unanswered (report §8.6, report §11.2, Appendix E.23).
 
 What the program keeps is its own: the runtime holds no state and reads none back, a state of more parts is written in the form the program chooses, `Json` (report Appendix G.6) among them, and where a new build changes the shape, the program's own code reads the old one.
 
@@ -2700,9 +2759,9 @@ The store's `main` offers nothing and subscribes to nothing: it waits for its co
 
 **A service that comes back.** When the store is stopped and started again the address the desk found is dead: it died with its process, and each start of a node is a number of its own in every address (report §8.7).
 
-A client that is to go on calling the counter finds it again, or holds a *proxy* for the service from the library `Proxy` (report Appendix G.7), on the load path as every library of the toolchain's is (§9.1); a node reads every module of its load path at its start, so the store and the desk hold the library `board.erc` needs with no flag.
+A client that is to go on calling the counter finds it again, or holds a *proxy* for the service from the library `Proxy` (report Appendix G.7), on the load path as every library of the toolchain's is (§9.1); a node reads every module of its load path at its start, so the board's node holds the library with no flag.
 
-`Proxy.start(Counter.service, 5000)` in `board.ern` answers the proxy's address, an `Address(Counter.Msg)` behind which the proxy's process finds the service, forwards each message to the service found, and, when that service ends or its node is lost, finds it again at the next message, on whichever listed peer offers it, one find under way at a time; the process ends with the one that called `start`, so at the shell's prompt, where the caller is the input's process, a proxy is started in a process that lives on, as a socket is given to one (§9.3).
+`Proxy.start(Counter.service, 5000)` in `board.ern` answers the proxy's address, an `Address(Counter.Msg)` behind which the proxy's process finds the service, forwards each message to the service found, and, when that service ends or its node is lost, finds it again at the next message, on whichever listed peer offers it, one find under way at a time; the process ends with the one that called `start`, so at the shell's prompt, where the caller is the input's process, a proxy is started in a process that lives on, as a socket is given to one (report §11.2).
 
 A find that answers `OtherType`, the service offered at another type, faults the process, and the fault's line names the service: that is what the board of an older build sees against a store whose protocol changed.
 
@@ -2734,7 +2793,7 @@ A value foreign code made and Ernest does not inspect has the foreign type `Fore
 
 A value crosses to another node as a value, and some cannot: a function, a foreign value, a `Foreign.Term` or an `Ets.Table` of §8.3, a *resource*, a thing of the host's a process opened and owns, a socket, a listener or a program `Os.start` started among them, and an address or a reply whose message type holds one of these. Their types are *bound* to the node, and nothing of a bound type leaves it.
 
-Every address a program holds of another node's process came from a find or a spawn, and there the compiler refuses what would let a bound value cross: a service at a bound type, a spawn or a compute whose function captures a bound value, or one whose type is not known whole, a spawn whose mailbox type is bound, and a compute whose result type is bound or not known whole (report §3.11). So a message to another node is of a type that crosses, by construction, and nothing is checked at a `send`.
+Every address a program holds of another node's process came from a find, a spawn or a compute, or in a message, and the compiler refuses what would let a bound value cross: a service at a bound type, a spawn or a compute whose function captures a bound value, or one whose type is not known whole, a spawn whose mailbox type is bound, and a compute whose result type is bound or not known whole (report §3.11). So a message to another node is of a type that crosses, by construction, and nothing is checked at a `send`.
 
 The listener below is a resource, so the lambda that captures it cannot be spawned on `alice`:
 
@@ -2792,7 +2851,7 @@ Erlang's `{ok, V}` and `{error, R}` are not an Ernest `Either`, whose values are
 A small Erlang helper returns the Ernest shape, with an integer for `Int` and a UTF-8 binary for `String`:
 
 ```erlang
--module(store_helper).
+-module(entries_helper).
 -export([lookup/1]).
 
 lookup(Key) ->
@@ -2808,9 +2867,9 @@ find(Key) -> {error, <<"no entry for ", Key/binary>>}.
 The Ernest `foreign fn` binds to that helper, and the term it returns is already an Ernest `Either`:
 
 ```ernest
-// store.ern (namespace Store)
+// entries.ern (namespace Entries)
 export foreign fn lookup(key : String) : Either(String, Int) =
-    "store_helper:lookup/1"
+    "entries_helper:lookup/1"
 
 export fn main() : Unit =
     match lookup("answer") {
@@ -2822,9 +2881,9 @@ export fn main() : Unit =
 `ern` finds an Erlang module of your own as a `.beam` in a directory of its load path, which includes the root of the module it runs (report §11.2):
 
 ```console
-$ ern build --build-root build store.ern
-$ erlc -o build store_helper.erl
-$ ern run build/store.erc
+$ ern build --build-root build entries.ern
+$ erlc -o build entries_helper.erl
+$ ern run build/entries.erc
 found 42
 ```
 
@@ -2879,7 +2938,7 @@ One process may read a socket while another writes to it, and a read that waits 
 Bytes arrive in pieces that need not end where a line ends, so what follows the last line feed waits for the next piece. A server that sends each line back, and says it is still there every ten seconds:
 
 ```ernest
-type Session = Arrived(Optional(Bytes)) | Tick(Int)
+type Session = Arrived(Optional(Bytes)) | Ticked(Int)
 
 export fn main() : Unit =
     match Tcp.listen("127.0.0.1", 7000) {
@@ -2904,7 +2963,7 @@ fn serve(listener : Address(Tcp.ListenerMsg)) : Unit =
 fn session(socket : Address(Tcp.SocketMsg)) : Unit receiving Session = {
     let me = self();
     let _ = spawn(fn() = reader(socket, adapted(me, Arrived)));
-    Clock.alarm(10000, Tick);
+    Clock.alarm(10000, Ticked);
     talk(socket, <<>>)
 }
 
@@ -2932,9 +2991,9 @@ fn talk(socket : Address(Tcp.SocketMsg), rest : Bytes) : Unit receiving Session 
             });
             talk(socket, Optional.withDefault(List.last(parts), <<>>))
         }
-      | Tick(_) -> {
+      | Ticked(_) -> {
             let _ = Tcp.write(socket, String.toUtf8("still here\n"), 5000);
-            Clock.alarm(10000, Tick);
+            Clock.alarm(10000, Ticked);
             talk(socket, rest)
         }
       | Arrived(None) ->
@@ -3003,7 +3062,9 @@ inc 3
 total: Some(5)
 ```
 
-`count2` is the new loop, written beside the old. `Code.running(count)` lists the one counter, which waits in `count`'s `receive`; the call to `Get` before it makes sure the counter is there and not still starting. `migrate` carries the total from the old loop's shape to the new, and here the shape is the same. The order of the moves is the program's, and nothing of the runtime orders them.
+`count2` is the new loop, written beside the old. `Code.running(count)` lists the one counter, which waits in `count`'s `receive`; the call to `Get` before it makes sure the counter is there and not still starting. `migrate` carries the total from the old loop to the new. The order of the moves is the program's, and nothing of the runtime orders them.
+
+The state's type is in the message type, `next : (Int) -> Unit receiving CounterMsg`, and a process keeps its mailbox type for life, so no `Upgrade` gives a running server a state of another type. A server whose state takes a new type is a new process of the new build, started from the old one's state. The old one gives its state up in answer to a request of its own protocol, or writes it to a file the new one reads, as §8.2's store keeps its count. The clients are then given the new process's address, or find it again as a service (§8.2).
 
 On a peer, the tool cannot send the `Upgrade` from here, since a function value does not cross in a message (§8.4). It spawns on the peer a process that moves the peer's counters there, naming `count`, `count2` and `Upgrade` by their declarations; what the peer lacks, `count2` among it, crosses with the spawn (§8.1), so a fix reaches a node that never had it:
 
@@ -3033,19 +3094,19 @@ One command, `ern`, whose first word is its job, and a mode for Emacs. `ern --he
 
 ### 9.2 `ern run`, `ern test`, `ern shell` and `ern config`
 
-- `ern run hello.erc` runs `main` and exits with status 0 when it returns. Every fault is printed on standard error as it happens, the spawn site and the cause, and a fault of the entry process makes the status 1 (§6.3); an entry process that is killed prints `killed`, and the status is 1.
+- `ern run hello.erc` runs `main` and exits with status 0 when it returns. Every fault is printed on standard error as it happens, the spawn site and the cause, and a fault of the entry process makes the status 1 (§6.3); an entry process that is killed prints its site and `killed`, `Hello.main killed`, and the status is 1.
 
   A termination tells the processes that subscribed with `Os.termination` first (§8.2), and the runtime says on standard error that it waits for them and each as it answers; of the signal itself it prints nothing, and `ern run` ends by it, which a shell reports as 128 plus its number, 143 for a termination.
 - `--main Module.name` runs another exported function of no arguments instead of `main`.
 - `--load-path dir` adds compiled modules and Erlang `.beam` files the program needs (§8.5); the toolchain's libraries are on the load path already, after it.
-- `--libs-dir dir` adds the Erlang applications under `dir`, each one's `ebin`, as the host's `ERL_LIBS` would: one flag where a program's foreign functions call several of them (report §11.2).
+- `--libs-dir dir` adds the Erlang applications under `dir`, each one's `ebin`: one flag where a program's foreign functions call several of them (report §11.2).
 - `ern test module.erc` runs the module's tests, and `ern test dir` those of every module compiled under the directory; it exits with status 1 unless all passed (§7.1).
 - `ern shell`, with or without a file, starts the shell (§1.2). A file's `main`, or the function `--main` names, runs beside it; a file without either is loaded with nothing running. `--source-root dir` names where `:load` finds a module's source, and `--config-dir dir` the configuration directory.
-- `ern config` makes the configuration a node with peers needs (§8), in `./.ernest` or the directory `--config-dir` names, listening where `--listen address:port` says; `ern config --config-dir dir --peer-dir other` lists the node of `other`, a directory of this machine, in `dir`'s (§8.1, report §11.3). `ern run --config-dir dir` runs the program as that node, and `ern reload --config-dir dir` and `ern stop --config-dir dir` have the running node read its configuration again, or end, `ern stop` returning once it has (report §11.2).
+- `ern config --config-dir dir` makes the configuration a node with peers needs (§8) in the directory `dir`, listening where `--listen address:port` says; `ern config --config-dir dir --peer-dir other` lists the node of `other`, a directory of this machine, in `dir`'s (§8.1, report §11.3). `ern run --config-dir dir` runs the program as that node, and `ern reload --config-dir dir` and `ern stop --config-dir dir` have the running node read its configuration again, or end, `ern stop` returning once it has (report §11.2). `ern reload` reads the directory as the node would, and refuses a configuration the node would refuse, with status 1, before it signals.
 
 ### 9.3 The shell
 
-§1.2 teaches inputs and the first commands. A command begins with `:`, and `:help` lists the commands, among them these: `:type` gives an expression's type and `:doc` a name's documentation, `:browse` lists a module's exports, `:load` puts a module in scope and `:reload` brings in what changed, `:bindings` and `:forget` manage what the session has declared, `:processes` and `:faults` show what runs and what has faulted, `:set` sets the depth and length values are printed to, the rows of the live region, and timing, and `:output` sends what programs write to a terminal or a file.
+§1.2 teaches inputs and the first commands. A command begins with `:`, and `:help` lists the commands, among them these: `:type` gives an expression's type and `:doc` a name's documentation, `:browse` lists a module's exports, `:load` puts a module in scope and `:reload` brings in what changed, `:bindings` and `:forget` manage what the session has declared, `:processes` and `:faults` show what runs and what has faulted, `:faults` a line for each fault without its trace, `:set` sets the depth and length values are printed to, the rows of the live region, `:set rows`, and timing, and `:output` sends what programs write to a terminal or a file.
 
 A command may be shortened to a prefix of its name that begins no other, `:br` for `:browse`; `:b` begins `:bindings` too, and the shell says so.
 
@@ -3059,7 +3120,7 @@ A name completed alone is shown under the line with its type, and a second `Tab`
 
 Both evaluate a module's top-level bindings, so a service it declares starts, and after a reload a service of the new version runs beside the old. One that offers a service, as §8.2's counter does, finds the service held by the old one, and waits on the old one's end to take it.
 
-`kill(old)`, `old` the old one's address, which a find of the service gives, ends the old one, as does a request of its protocol that makes it write what it keeps and end; the service moves to the new one at the old one's `Down`. What the old one counted since it last wrote is lost at a `kill`, which is why a service that must lose nothing writes at each change, or on request.
+`kill(old)`, `old` the old one's address, which a binding made before the reload holds, ends the old one, as does a request of its protocol that makes it write what it keeps and end; the service moves to the new one at the old one's `Down`. What the old one counted since it last wrote is lost at a `kill`, which is why a service that must lose nothing writes at each change, or on request.
 
 Processes running the old version go on running it, and a binding that holds a function of it keeps it: a reload unloads nothing. A binding made before a reload keeps the type it was checked under. Where the reload changed a type, the binding's type is the previous version's, which prints as `Counter$1.Msg`, and a message of the new version sent to it is a type error.
 
@@ -3090,12 +3151,13 @@ Ernest runs on the Erlang runtime, and a program in it is processes that send me
 
 **What differs.**
 
-- A mailbox has a type, so a message the process does not take is a compile error, not a message that sits in the mailbox for ever.
+- A mailbox has a type, so a message not of the mailbox's type is a compile error, not a message that sits in the mailbox forever.
 
 - A function says in its type whether it receives, `receiving M`, and one that only sends says nothing (§3.4).
 - There are no exceptions, no `catch`, and no `try`. A failure is a value, a message, or a fault (§6).
 - There are no links and no exit signals, only monitors. A process that must die with another monitors it and returns.
-- There are no registered names, and none are needed: a registry exists so that a name can be looked up again after the process behind it has died and been replaced, and `restarting` restarts a process in place, so its address stays good across its faults and a top-level binding can hold it for the program's life (§6.5).
+- A `Down` comes from the runtime and not from the process that ended, so it may arrive before that process's last message to the watcher (§5.2).
+- There are no registered names on a node, and none are needed: a registry exists so that a name can be looked up again after the process behind it has died and been replaced, and `restarting` restarts a process in place, so its address stays good across its faults and a top-level binding can hold it for the program's life (§6.5).
 
   Addresses cannot be compared; the processes behind them can, `Process.fromAddress(a)`, which is a pid without the right to send.
 
@@ -3123,13 +3185,9 @@ Principle 3 turns an omission into a statement. Exhaustiveness makes you say wha
 
 Several of these tell the compiler nothing it could not work out for itself. What they add is that the decision is written down, where a reader meets it. It is programming on purpose, to borrow P. J. Plauger's phrase for designing deliberately rather than by accident; his subject is software design as a whole, broader than these rules (*Programming on Purpose: Essays on Software Design*, Prentice Hall, 1993).
 
-## 12. Frequently asked questions
+## 12. Answers to the exercises
 
-The questions a reader brings, from the likeness to Gleam to where the supervisors are, are answered in [faq.md](faq.md), beside this guide.
-
-## 13. Answers to the exercises
-
-**§1.4.** Both compile, and both give `main` the type `() -> Unit`. `Io.println` sends to standard output's process, and a function that only sends receives nothing, so its type names no mailbox; inference finds in (a) the type (b) writes. A `main` that waited on its own mailbox, `receive { after 10 -> Unit }`, would compile as (a) and need `receiving` in (b) (§3.4).
+**§1.5.** (a) compiles, and gives `main` the type `() -> String`: `Io.debug` returns its argument, and inference takes the body's type. It sends to standard error's process, and a function that only sends receives nothing, so its type names no mailbox. `ern run` refuses it, since an entry point is a function of no arguments that returns `Unit` (§7.1). (b) is refused when it is built: `: Unit` declares the result, and the body is a `String`. With `Io.println`, as §1 writes it, both compile to `() -> Unit`, and `ern run` runs both. A `main` that waits a while, `receive { after 10 -> Unit }`, compiles as (a), and under `: Unit` needs `receiving Never` beside it (§4.1).
 
 **§2.11.** (a) and (d) compile. Every constructor of `Shape` has `name`, with one type, so `s.name` reads it whichever built `s`.
 
@@ -3161,14 +3219,9 @@ The questions a reader brings, from the likeness to Gleam to where the superviso
 
 **§8.8.** The build stops at the service: `Peer.service names a service at Registry.Msg, which is bound to its node, since it holds a function` (§8.4). The registry's address is bound too, so no process on `foo` can be given it. The spawn names the service's binding instead, which on `foo` is `foo`'s own: `Peer.spawn("foo", fn() = send(Registry.registry, Registry.Register(fn(x) = x + 1)), 5000)`. The function may be written in any module: the spawn carries to `foo` what it lacks, and runs since `Registry.registry` has its value there (§8.1, report §8.7).
 
-## 14. Reading further
+## 13. Reading further
 
-The programs under [`examples/`](../examples/README.md) are complete, each larger than a section can hold, and [`examples/README.md`](../examples/README.md) lists them by topic, with what each shows. Four of the larger:
-
-- [`examples/snake.ern`](../examples/snake.ern) — snake game with tick-based updates; `..` record updates, one process per player, `Clock`, `Terminal`, `Random`.
-- [`examples/repl.ern`](../examples/repl.ern) — small read-eval-print loop; errors as `Either` values through the lexer, the parser and the evaluator, `spawnMonitored` + `kill` for aborting slow evaluation, `Io.readLine`.
-- [`examples/file_sync.ern`](../examples/file_sync.ern) — file sync between two directories, whose two sides run on one node and would run the same on two; mutual-address setup, one process per file operation, `Fs`.
-- [`examples/web_server.ern`](../examples/web_server.ern) — HTTP server with sessions in a process that owns a `Map`; request-reply, `Tcp`.
+The programs under [`examples/`](../examples/README.md) are complete, each larger than a section can hold, and [`examples/README.md`](../examples/README.md) lists them by topic, with what each shows.
 
 For the language rules themselves, the report is the authority: [`report/language.md`](../report/language.md), the language, [`report/toolchain.md`](../report/toolchain.md), the toolchain, and [`report/library.md`](../report/library.md), the standard library. Appendix F glosses every technical term.
 

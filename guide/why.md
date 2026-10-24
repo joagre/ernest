@@ -9,10 +9,10 @@ Its parts come from elsewhere: Erlang's processes, the types of ML, which Gleam 
 What Ernest adds is where the parts meet:
 
 - **The mailbox in the function's type.** Every process receives messages of one type, which a function that receives names in its own type and a process's address carries. So the compiler checks every message sent against the mailbox it will reach and every receive against the mailbox it reads, and a program can never send a server a message it does not take. A function that receives runs only in a process of its mailbox's type.
-- **Code known by its hash.** A function or a type is known by a hash of its definition, not by the name of the module it stands in. So a module reloaded is a new version beside its earlier ones, a running process moves to the new version of its function when a message tells it to, and a process started on another node brings its code along: any node can run anything, a computation that names no node goes to one with room, and no program is deployed first.
+- **Code known by its hash.** A function or a type is known by a hash of its definition, not by the name of the module it stands in. So a module reloaded is a new version beside its earlier ones, a running process moves to the new version of its function when a message tells it to, and a process started on another node brings its code along: any node can run anything, a computation that names no node goes to the less busy of two peers drawn at random, and no program is deployed first.
 - **A distribution built for a WAN.** A node lists its peers in a file, each by name, public key and address, accepts a connection only from a key it lists, and opens one TLS connection to a peer when it first needs it. There is no cluster to join and no shared secret: a laptop and a server, or two data centers, are two nodes with one file each naming the other.
 - **Abstract types and requirements.** A type declared abstract keeps its constructor to its own module, so the representation can change and no caller knows. A generic function names the operations it needs of its type, and the compiler supplies that type's own at each call. Nothing is declared an instance of anything: a type's members are declared in its own module, a requirement is written and never inferred, and there is no hierarchy and no lookup as the program runs, since the caller passes the member as an argument the program never writes.
-- **A deadlock is found.** A program in which every process waits for a message none can send ends with a fault and a trace, where the host would wait forever. The runtime owns every source of a message, a typed mailbox, a process it spawned, a timer or a socket, which it counts, so it can decide that nothing can deliver, under `ern run`, `ern test` and the shell; a node is left to its peers, which can reach it. A program at work pays nanoseconds for the question, and the reading of every process only when it is idle.
+- **A deadlock is found.** A program in which every process waits for a message none can send ends with a fault and a trace, where the host would wait forever. The runtime owns every source of a message, a typed mailbox, a process it spawned, a timer or a socket, which it counts, so it can decide that nothing can deliver, under `ern run` and `ern test`; a node, which its peers can reach, detects none, and nor does the shell while it holds the terminal. A program at work pays for the question with a mark in a process's own state at each timed wait, call and callback from foreign code, and the reading of every process only when it is idle.
 - **Little else.** Functions and processes are the whole language, with one way to do each thing. A report of three files defines all of it. Five principles decide what goes in, and the first is that nothing surprises a reader who knows the rest.
 
 Ernest is for programs written in it from the start. An Ernest program is not an OTP application, and its own code is Ernest: what ships with Erlang/OTP, and any library of the host's, a package from hex among them, is reached through declarations that give it Ernest types, which a program may write for itself. What an OTP programmer finds in place of each part, the supervisor, the release and `sys` among them, is the guide's §10 and [the questions](faq.md).
@@ -54,21 +54,19 @@ $ ern run counter.erc
 count is 8
 ```
 
-`main` receives nothing, so its type names no mailbox. The counter is spawned on this node as the program starts, before `main` runs, every top-level binding of every module evaluated in dependency order (report §8.5). `Address.call` gives `Get` a `Reply(Int)` of its own, which the counter answers with `answer`, and waits for the answer at most 1000 milliseconds: `None` is an answer that did not come.
+`main` receives nothing, so its type names no mailbox. The counter is spawned on this node as the program starts, before `main` runs, the top-level bindings of the standard library and of every module the program uses evaluated in dependency order (report §8.5). `Address.call` gives `Get` a `Reply(Int)` of its own, which the counter answers with `answer`, and waits for the answer at most 1000 milliseconds: `None` is an answer that did not come.
 
 A fault, a division by zero or a `fault` call, ends the process, and nothing catches it. Whoever monitors the process hears of its end as a `Down` with the reason, wrapped as a message of their own type. A process started under `restarting` runs its function again from its start after a fault, its mailbox emptied and its address kept, so the name `counter` stays good and a request that waited in the mailbox is lost; the guide's §6.5 shows a restart.
 
-A function that receives runs only in a process of its mailbox's type, which `spawn` takes from the function: `spawn(fn() = count(0))` is an `Address(CounterMsg)` and nothing else, no channel is made inside the process and handed out, and no process reads another's mailbox, since `receive` reads the mailbox of the process it runs in, the one the function's type names. Spawned for an address of another type, it is refused:
+A function that receives runs only in a process of its mailbox's type. `spawn` takes the address's type from the function, `spawn(fn() = count(0))` being an `Address(CounterMsg)` and nothing else; no channel is made inside the process and handed out, and no process reads another's mailbox, since `receive` reads the mailbox of the process it runs in, the one the function's type names. Called in a process whose mailbox takes another type, here `main`'s, `count` is refused, though no address is in sight:
 
 ```ernest-rejected
 type CounterMsg = Inc(Int)
 
-type OtherMsg = Tick
+type OtherMsg = Ticked
 
-export fn main() : Unit = {
-    let other : Address(OtherMsg) = spawn(fn() = count(0));
-    send(other, Tick)
-}
+export fn main() : Unit receiving OtherMsg =
+    count(0)
 
 fn count(total : Int) : Unit receiving CounterMsg =
     receive {
@@ -78,12 +76,12 @@ fn count(total : Int) : Unit receiving CounterMsg =
 
 ```console
 $ ern build other.ern
-other.ern:6:37: the value does not have the declared type: expected Address(OtherMsg), found Address(CounterMsg)
-5 | export fn main() : Unit = {
-6 |     let other : Address(OtherMsg) = spawn(fn() = count(0));
-  |                 ----------------- declared Address(OtherMsg) here
-  |                                     ^^^^^^^^^^^^^^^^^^^^^^
-  | = help: the types differ at OtherMsg and CounterMsg
+other.ern:6:5: count needs mailbox CounterMsg, and the mailbox here is OtherMsg
+4 | 
+5 | export fn main() : Unit receiving OtherMsg =
+  |                                   -------- main is declared `receiving OtherMsg` here
+6 |     count(0)
+  |     ^^^^^^^^
 ```
 
 The host's own code, Erlang's libraries and whatever else runs on the runtime, is *foreign code* to a program, reached through a `foreign fn` that declares the Ernest type of a host function (the guide's §8.3):
@@ -99,7 +97,7 @@ So a mailbox type holds for messages from the host too, and a wrong value from a
 
 ### Code known by its hash
 
-The hash is never written in a program. It is what tells two versions of a definition apart, and what a peer asks for. The counter replaces its own code while it runs. A message of its type carries the new loop, and the process switches to it with a tail call, keeping its address and its state; the old loop keeps running wherever a process still runs it. `countTwice` is a loop of the same type, sent as a value:
+The hash is never written in a program. It is what tells two versions of a definition apart, and what a peer asks for. The counter replaces its own code while it runs. A message of its type carries the new loop, and the process switches to it with a tail call, keeping its address and its state; the old loop keeps running wherever a process still runs it. `countTwice`, a loop of the same type that the guide's §4.6 writes, is sent as a value:
 
 ```ernest-fragment
 type CounterMsg =
@@ -126,9 +124,12 @@ send(counter, Upgrade(next = countTwice))
 
 In the shell the versions are visible. `:reload` compiles again every module edited since it was loaded; a module so compiled is a new version beside the old, and a binding made under the old keeps it. Nothing is purged: every version a node has loaded stays for the node's life, so a node reloaded without end grows with its versions, and the deployment guide's §4.2 says when a node is restarted.
 
-Here the counter is the module `Counter`, and `CounterMsg` gained a `Reset` between the two spawns, both processes run, and a message of the new type to the old process is refused by the compiler, with the reason. `Counter.Inc(1)` is refused the same way, every constructor being the new type's: new code reaches a process of the old version through a binding made before the reload alone.
+Here the counter is the module `Counter`, and `CounterMsg` gained a `Reset` between the two spawns. Both processes run. A message of the new type to the old process is refused by the compiler, with the reason. `Counter.Inc(1)` is refused the same way, every constructor being the new type's: new code reaches a process of the old version through a binding made before the reload alone.
 
 ```
+$ ern shell
+> :load Counter
+Counter, compiled from counter.ern
 > let old = spawn(fn() = Counter.count(0))
 old : Address(Counter.CounterMsg)
 > :reload
@@ -137,7 +138,7 @@ Counter.CounterMsg changed: the binding old is of its previous version, Counter$
 > let new = spawn(fn() = Counter.count(0))
 new : Address(Counter.CounterMsg)
 > send(old, Counter.Reset)
-input 4:1:11: the argument does not fit send: expected Counter$1.CounterMsg, found Counter.CounterMsg
+input 5:1:11: the argument does not fit send: expected Counter$1.CounterMsg, found Counter.CounterMsg
 1 | send(old, Counter.Reset)
   | ---- send : (Address(a), a) -> Unit
   |           ^^^^^^^^^^^^^
@@ -149,22 +150,22 @@ The first claim's counter, whose messages carry no function and so may cross to 
 ```ernest-fragment
 match Peer.spawn("foo", fn() = count(0), 5000) {
     Right(counter) -> send(counter, Inc(5))
-  | Left(failure) -> Io.println("no foo: " <> Io.show(failure))
+  | Left(error) -> Io.println("no foo: " <> Io.show(error))
 }
 ```
 
 `Peer.spawn` waits at most 5000 milliseconds for the peer, and answers `Left` with the reason where it cannot reach it. The tour's chapter 2 runs this spawn, on a bare node started for it, and shows what each terminal printed.
 
-A computation need not name a node at all. `Peer.compute(f, ms)` runs `f` on the less busy of two peers drawn at random from those the node knows, which spreads work with no central choice, carrying its code there as the spawn does, and answers the value, or `Left` with the reason where no peer can be reached within `ms`; a fault in `f` is the caller's, as if `f` had faulted in it:
+A computation need not name a node at all. `Peer.compute(f, ms)` runs `f` on the less busy of two peers drawn at random from those the node knows, which spreads work with no central choice, carrying its code there as the spawn does, and answers the value within `ms` milliseconds, or `Left` with the reason; a fault in `f` is the caller's, as if `f` had faulted in it:
 
 ```ernest-fragment
 match Peer.compute(fn() = render(scene, row), 5000) {
     Right(pixels) -> putRow(row, pixels)
-  | Left(failure) -> Io.println("no peer: " <> Io.show(failure))
+  | Left(error) -> Io.println("no peer: " <> Io.show(error))
 }
 ```
 
-Nothing of the program was installed on the peer, and nothing names it: the node that ran `render` was whichever had room when the row was asked for, and `scene` and `row`, which the function captured, crossed with each call. The tour's chapter 7 runs such a compute three times between two bare nodes.
+Nothing of the program was installed on the peer, and nothing names it: the node that ran `render` was the less busy of two peers drawn at random when the row was asked for, and `scene` and `row`, which the function captured, crossed with each call. The tour's chapter 7 runs such a compute three times between two bare nodes.
 
 ### A distribution built for a WAN
 
@@ -195,7 +196,7 @@ A peer that goes out of reach is the monitor's `Down` with the reason `Unreachab
 
 ### Abstract types and requirements
 
-A reader who knows another language looks for a type class, an interface or a trait. Three things stand in their place, and each is shown here.
+Three forms carry what a type does and how code is written over several types: an abstract type, a requirement and an operations record, each shown here. None of them is a type class, an interface or a trait.
 
 An *abstract type* keeps its constructor to its module. Every function of `stack.ern` takes a `Stack` apart, and no other module can:
 
@@ -229,7 +230,7 @@ $ ern run main.erc
 
 `Stack.Stack([])` in `main.ern` is refused, so a caller holds a stack through `empty`, `push` and `size` alone. The list inside can become anything, and no caller knows.
 
-A *requirement* names the operations a generic function needs of its type, several with commas. `sorted` needs a `compare` of `a`, the type of the list's elements. Written with `Int.compare` it would sort integers alone. Written with `needs`, a call supplies nothing, and the compiler finds the `compare` declared under the element type's name, in that type's own module.
+A *requirement* names the operations a generic function needs of its type, several with commas: a type's `compare`, `negate`, an operator or `show`, and nothing else. `sorted` needs a `compare` of `a`, the type of the list's elements. Written with `Int.compare` it would sort integers alone. Written with `needs`, a call supplies nothing, and the compiler finds the `compare` declared under the element type's name, in that type's own module.
 
 ```ernest
 fn sorted(list : List(a)) : List(a) needs a.compare =
@@ -297,7 +298,7 @@ $ ern run unique.erc
 
 ### A deadlock is found
 
-A program in which every process waits for a message none can send ends with `Fault("deadlock")` and a trace, under `ern run`, under `ern test`, where it is the test's fault and the run goes on, and in the shell (report §8.6, §11.2). `main` waits for `Done` from the worker, and the worker waits for `Go` from `main`:
+A program in which every process waits for a message none can send ends with `Fault("deadlock")` and a trace, under `ern run`, and under `ern test`, where it is the test's fault and the run goes on (report §8.6, §11.2). `main` waits for `Done` from the worker, and the worker waits for `Go` from `main`:
 
 ```ernest
 type MainMsg = Done
@@ -324,13 +325,15 @@ Dead.main faulted: deadlock
     Dead.main:7
 ```
 
+The trace names line 7, the `spawn`, and not the `receive` below it: a wait leaves no frame of its own, so a waiting process's frame names the last call before the wait (report Appendix E.21).
+
 On Erlang a bare `receive` waits forever, and a `gen_server:call` gives up after five seconds with an exit that names the timeout and not the cause; a programmer learns of the deadlock from that, a dashboard or a user.
 
-Ernest can decide it because the runtime owns every source of a message. A mailbox is typed and reached through an address the program holds; a process is spawned by the runtime, which monitors it; a timer, a socket, a file and a running program are system processes that count what they hold; foreign code is entered through a declaration, and a process inside it is read as able to be delivered to. So "nothing can deliver and everyone waits" is a question with an answer, and the runtime asks it when a program has been quiet for a while, never on a node, which a peer can always reach.
+Ernest can decide it because the runtime owns every source of a message. A mailbox is typed and reached through an address the program holds; a process is spawned by the runtime, which monitors it; the clock, the file system and TCP are system processes, and a socket and a running program are processes of the runtime, each counting what it holds; foreign code is entered through a declaration, and a process inside it is read as able to be delivered to. So "nothing can deliver and everyone waits" is a question with an answer, and the runtime asks it when a program has been quiet for a while, never on a node, which a peer can always reach.
 
-A deadlock is quiescence, not a cycle, and the look may be late but is never wrong: a process it cannot see into, in foreign code or on a socket, is read as able to deliver, so it reports no deadlock that is not one.
+A deadlock is quiescence, not a cycle, and the runtime's look for one may be late but is never wrong: a process it cannot see into, in foreign code or on a socket, is read as able to deliver, so it reports no deadlock that is not one.
 
-What it costs a program is what the design note of the runtime states ([`docs/design/runtime.md`](../docs/design/runtime.md)): a mark a process leaves in its own state as it enters foreign code through a callback, a timed receive or a call, which costs it nanoseconds and no other process anything; and one reading of every process when the program seems idle, which a program at work never pays. A foreign call that answers at once costs what the host's call costs and a `try`. The log's *The Sitting on §8.6's Bookkeeping* measured each piece.
+The design note of the runtime states what the look costs a program ([`docs/design/runtime.md`](../docs/design/runtime.md)): a process marks its own state while it waits with a deadline, makes a call or runs a callback from foreign code, which costs no other process anything, and the look reads every process only when the program seems idle, which a program at work never pays.
 
 ### Little else
 
