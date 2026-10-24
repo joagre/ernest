@@ -428,8 +428,6 @@ build_options() ->
       "a root of compiled modules a module may use; may be repeated"},
      {emit_erl, undefined, "emit-erl", undefined,
       "write the module's Erlang source instead of .erc"},
-     {short_errors, undefined, "short-errors", undefined,
-      "the first line of each error only"},
      verbose_option(),
      help_option()].
 
@@ -482,7 +480,7 @@ doc_path(Options, Path, ErrorDevice) ->
                 0
             catch
                 throw:{errors, File, Diagnostics} ->
-                    ern_build:report_errors(Options, File, Diagnostics, ErrorDevice)
+                    ern_build:report_errors(File, Diagnostics, ErrorDevice)
             end
     end.
 
@@ -801,8 +799,6 @@ names(Directory) ->
 format_options() ->
     [{check, undefined, "check", undefined,
       "name the modules not laid out, and change none"},
-     {short_errors, undefined, "short-errors", undefined,
-      "the first line of each error only"},
      help_option()].
 
 %% Report §11.6: each module named, and every module under each directory
@@ -818,7 +814,7 @@ format(Options, ["-"], ErrorDevice) ->
         %% report §11.6: a module that does not parse is written back as
         %% it is, since standard output stands for the file it came from
         {error, Diagnostic} ->
-            io:format(ErrorDevice, "~ts~n", [error_text(Options, "-", Text, Diagnostic)]),
+            io:format(ErrorDevice, "~ts~n", [ern_diagnostic:format("-", Text, Diagnostic)]),
             lists:member(check, Options) orelse io:put_chars(Text),
             1
     end;
@@ -890,14 +886,8 @@ format_file(Options, File, ErrorDevice) ->
             end;
         {error, Diagnostic} ->
             io:format(ErrorDevice, "~ts~n",
-                      [error_text(Options, ern_build:shown(File), Text, Diagnostic)]),
+                      [ern_diagnostic:format(ern_build:shown(File), Text, Diagnostic)]),
             error
-    end.
-
-error_text(Options, Shown, Source, Diagnostic) ->
-    case lists:member(short_errors, Options) of
-        true -> ern_diagnostic:short(Shown, Diagnostic);
-        false -> ern_diagnostic:format(Shown, Source, Diagnostic)
     end.
 
 %% Standard input to its end, through a port on its descriptor, since
@@ -1188,14 +1178,15 @@ shell(Options, Rest, ErrorDevice) ->
         end,
     %% report §11.2: the sinks are the screen's, which the shell names
     Sink = fun(Bytes) -> ern_shell:to_screen(Bytes) end,
-    %% report §11.2: Os.exit faults the process that calls it
+    %% report §11.2: Os.exit faults the process that calls it, and
+    %% Process.live() leaves the shell's own processes out
     %% report §11.1: the unit names its functions by their position
     {Main, 0} = ern_code:function(ErlangModule, ['Shell', main]),
     Outcome = as_node(Options, LoadPath, Say,
                       fun(Node) ->
                           ern_rt:run_main(fun() -> ErlangModule:Main() end, <<"Shell.main">>,
                                           Node#{stdout => Sink, stderr => Sink, init => Init,
-                                                exit => fault,
+                                                exit => fault, own => fun ern_shell:own/0,
                                                 flush => fun ern_shell:flush_screen/0})
                       end),
     report_shell_outcome(ErrorDevice, Outcome).
@@ -1289,13 +1280,11 @@ no_main_file(run) ->
 %% none, by which a peer a reload has removed since is named as a node's
 %% line names one not listed, where the report's `peer` is `None`. Where
 %% standard error is neither a terminal nor a service manager's journal,
-%% each line begins with the time, in UTC as RFC 3339 writes it. Report
-%% §11.2, Appendix E.24: a fault of a process Test.faults started, whose
-%% site is that function's (§6.9), is not reported, since the call's answer
-%% carries it; `ern run` and `ern test` alike.
-report_fault({'FaultReport', _, <<"Test.faults:", _/binary>>, _, _, _, _}, _, _) ->
-    ok;
-report_fault({'FaultReport', _Process, Site, Cause, Restarted, Trace, _}, Peer, Stamped) ->
+%% each line begins with the time, in UTC as RFC 3339 writes it. A fault of
+%% a process Test.faults started never comes here, the runtime telling no
+%% one of it (Appendix E.24, ern_rt:expected/1). Report §8.6: beneath a
+%% deadlock's trace, the processes it left waiting (left_waiting/1).
+report_fault({'FaultReport', Process, Site, Cause, Restarted, Trace, _}, Peer, Stamped) ->
     Faulted = case Restarted of
                   true -> <<" faulted, restarted: ">>;
                   false -> <<" faulted: ">>
@@ -1307,7 +1296,13 @@ report_fault({'FaultReport', _Process, Site, Cause, Restarted, Trace, _}, Peer, 
     ern_rt:send(ern_rt:system_process(stderr),
                 iolist_to_binary([stamp(Stamped), ern_show:controls(Site, line), Faulted,
                                   ern_show:controls(Cause, line), SpawnedBy, "\n",
-                                  indented_trace(Trace)])).
+                                  indented_trace(Trace), left_waiting(Process)])).
+
+%% Report §8.6, §11.2: the lines of the processes a deadlock left waiting
+%% beside the process it faulted, indented as a trace's frames are, beneath
+%% the trace; none for any other fault.
+left_waiting(Process) ->
+    [["    ", Line, "\n"] || Line <- ern_rt:left_waiting(Process)].
 
 %% Report §11.2, Appendix E.21: a fault's trace as it is printed beneath
 %% the fault's line, a frame a line, each indented by four spaces, a
@@ -1740,12 +1735,14 @@ run_test({'Case', Name, Run}, Running, Frames) ->
                 [{_, Faulted}] -> Faulted;
                 [{_}] -> <<>>
             end,
-    ern_rt:send(ern_rt:system_process(stdout), case_line(Name, Outcome, Frames(Trace))),
+    ern_rt:send(ern_rt:system_process(stdout),
+                iolist_to_binary([case_line(Name, Outcome, Frames(Trace)), left_waiting(Pid)])),
     lists:member(Outcome, [<<"passed">>, <<"compiled">>]).
 
 %% Report §11.2: a case's line, its name written as a cause is, its
 %% controls escaped, then what it came to, and beneath the line of a case
-%% that faulted its trace.
+%% that faulted its trace, and beneath a deadlock's the processes it left
+%% waiting (§8.6).
 case_line(Name, Outcome, Trace) ->
     iolist_to_binary([ern_show:controls(Name, line), ": ", Outcome, "\n", indented_trace(Trace)]).
 

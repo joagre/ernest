@@ -27,14 +27,19 @@ register_node(Name, Port) ->
     register_node(Name, Port, inet).
 
 %% Report §8.7: the number of this start, drawn, which marks every address
-%% of the start; and the port the listener bound, which the node says where
-%% `listen` let the host pick it.
+%% of the start; and the address and the port the listener bound, which
+%% the node says once at every start, the port the host's where `listen`
+%% let the host pick it, an IPv6 address in brackets as `listen` writes
+%% one.
 -spec register_node(term(), inet:port_number(), atom()) -> {ok, pos_integer()}.
 register_node(_Name, Port, _Family) ->
     case ern_carrier:configuration() of
-        #configuration{listen = {_, 0}} -> ern_carrier:say(["listening on port ",
-                                                             integer_to_list(Port)]);
-        _ -> ok
+        #configuration{listen = {{_, _, _, _} = Address, _}} ->
+            ern_carrier:say(["listening on ", inet:ntoa(Address), ":", integer_to_list(Port)]);
+        #configuration{listen = {Address, _}} ->
+            ern_carrier:say(["listening on [", inet:ntoa(Address), "]:", integer_to_list(Port)]);
+        _ ->
+            ok
     end,
     {ok, rand:uniform(16#7fffffff)}.
 

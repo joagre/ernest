@@ -11,7 +11,7 @@
 
 -export([compile/4, compile_in_memory/5, held_another/3, verbose/2, modules_of/3,
          compiled_in_order/3,
-         report_errors/4, shown/1, sources/1, compiled_under/1, bytes_text/1, module_of/2,
+         report_errors/3, shown/1, sources/1, compiled_under/1, bytes_text/1, module_of/2,
          module_of/3, shape/2, compile_order/2, compile_order/3, module_cycle/1,
          compiled_dependencies/1, source_root/3, build_root/2, is_stdlib_root/1, stdlib_hash/0,
          dependency_interfaces/5, load_path/1, is_compiled_against/4, compiler_modules/0,
@@ -230,8 +230,8 @@ report_failure(Job, _Options, {refused, Refusal}, [], ErrorDevice) ->
 report_failure(Job, _Options, {skipped, Namespace, Dependency}, [], ErrorDevice) ->
     io:format(ErrorDevice, "~s: ~ts is not compiled, since it uses ~ts, which failed~n",
               [Job, ern_namespace:text(Namespace), ern_namespace:text(Dependency)]);
-report_failure(_Job, Options, File, Diagnostics, ErrorDevice) ->
-    report_errors(Options, File, Diagnostics, ErrorDevice).
+report_failure(_Job, _Options, File, Diagnostics, ErrorDevice) ->
+    report_errors(File, Diagnostics, ErrorDevice).
 
 %% Report §11.1: the parsed modules Order compiled in memory in that order,
 %% each after the modules it depends on, against the `.erc`s under
@@ -333,23 +333,19 @@ failure(Namespace, {errors, File, Diagnostics}) ->
 failure(Namespace, {cli_error, Refusal}) ->
     {Namespace, {refused, Refusal}, []}.
 
-%% Report §11.5: each error as ern_diagnostic renders it, the first line alone
-%% under --short-errors; status 1. The file is named from the working
+%% Report §11.5: each error as ern_diagnostic renders it, its first line
+%% the one a tool reads; status 1. The file is named from the working
 %% directory when it lies under it.
--spec report_errors([term()], file:filename(), [ern_diagnostic:diagnostic()], io:device()) -> 1.
-report_errors(Options, File, Diagnostics, ErrorDevice) ->
-    Short = lists:member(short_errors, Options),
+-spec report_errors(file:filename(), [ern_diagnostic:diagnostic()], io:device()) -> 1.
+report_errors(File, Diagnostics, ErrorDevice) ->
     Source = case file:read_file(File) of
                  {ok, Bytes} -> Bytes;
                  _ -> <<>>
              end,
     Shown = shown(File),
     lists:foreach(fun(Diagnostic) ->
-                      Text = case Short of
-                                 true -> ern_diagnostic:short(Shown, Diagnostic);
-                                 false -> ern_diagnostic:format(Shown, Source, Diagnostic)
-                             end,
-                      io:format(ErrorDevice, "~ts~n", [Text])
+                      io:format(ErrorDevice, "~ts~n",
+                                [ern_diagnostic:format(Shown, Source, Diagnostic)])
                   end, Diagnostics),
     1.
 

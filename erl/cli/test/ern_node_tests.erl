@@ -51,8 +51,9 @@ ends(Message, Suffix) ->
 %% report §11.3, Appendix C: `ern config` makes the directory, its owner's
 %% alone, with an ed25519 key readable by its owner alone, the certificate
 %% the node signs itself, its name a constant and its validity the longest,
-%% and `ernest.conf` with the key's public half, no peer and no service; it
-%% answers the public key
+%% and `ernest.conf` with the key's public half, no peer and no service, the
+%% two readable by all and writable by their owner alone, 0644 whatever the
+%% umask (the full review's S3); it answers the public key
 create_test() ->
     Dir = filename:join(tmp(), "node"),
     Public = ern_node:create(Dir, ern_node:default_listen()),
@@ -60,6 +61,10 @@ create_test() ->
     ?assertEqual(8#700, DirMode band 8#777),
     {ok, #file_info{mode = KeyMode}} = file:read_file_info(filename:join(Dir, "private-key.pem")),
     ?assertEqual(8#600, KeyMode band 8#777),
+    [begin
+         {ok, #file_info{mode = Mode}} = file:read_file_info(filename:join(Dir, File)),
+         ?assertEqual({File, 8#644}, {File, Mode band 8#777})
+     end || File <- ["ernest.conf", "certificate.pem"]],
     ?assertEqual(Public, public(Dir)),
     ?assertMatch(<<"-----BEGIN PUBLIC KEY-----\n", _/binary>>, Public),
     ?assertEqual($\n, binary:last(Public)),
@@ -367,8 +372,9 @@ unreadable_directory_test() ->
     ?assertNotEqual(nomatch, string:find(Message, "not a directory")).
 
 %% report §8.7: a node refuses a configuration directory, or a file of it
-%% that it reads, that anyone beyond its owner and group may write, as the
-%% shell's startup files are refused, and a key any but its owner may read
+%% that it reads, that anyone but its owner may write, its group as much as
+%% the world (the full review's S3), as the shell's startup files are
+%% refused, and a key any but its owner may read
 %% or write; a file it needs that is not there is named with the command
 %% that makes a directory, and one it cannot read with the host's reason, a
 %% regression: such a file made `ern` fail with an internal error. Not
@@ -386,16 +392,18 @@ permissions_test() ->
     Conf = filename:join(Dir, "ernest.conf"),
     Key = filename:join(Dir, "private-key.pem"),
     Certificate = filename:join(Dir, "certificate.pem"),
-    ?assertEqual(Dir ++ " may be written by anyone beyond its owner and group",
-                 Refused(Dir, 8#702)),
-    ?assertEqual(Conf ++ " may be written by anyone beyond its owner and group",
-                 Refused(Conf, 8#646)),
-    ?assertEqual(Certificate ++ " may be written by anyone beyond its owner and group",
+    ?assertEqual(Dir ++ " may be written by others than its owner", Refused(Dir, 8#702)),
+    ?assertEqual(Conf ++ " may be written by others than its owner", Refused(Conf, 8#646)),
+    ?assertEqual(Certificate ++ " may be written by others than its owner",
                  Refused(Certificate, 8#666)),
     ?assertEqual(Key ++ " may be read or written by others than its owner", Refused(Key, 8#640)),
-    %% written by its group, as a umask of 002 leaves a file
-    ?assertMatch({accepted, _}, Refused(Conf, 8#664)),
-    ?assertMatch({accepted, _}, Refused(Dir, 8#770)),
+    %% written by its group, as a umask of 002 leaves a file, refused as
+    %% written by the world is
+    ?assertEqual(Conf ++ " may be written by others than its owner", Refused(Conf, 8#664)),
+    ?assertEqual(Dir ++ " may be written by others than its owner", Refused(Dir, 8#770)),
+    ?assertEqual(Certificate ++ " may be written by others than its owner",
+                 Refused(Certificate, 8#664)),
+    ?assertMatch({accepted, _}, Refused(Conf, 8#644)),
     [?assertEqual(File ++ ": permission denied", Refused(File, 8#000))
      || File <- [Conf, Key, Certificate]],
     ok = file:delete(Certificate),

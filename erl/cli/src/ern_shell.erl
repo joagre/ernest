@@ -12,7 +12,7 @@
          check/3, is_unit/1, type_text/1, run/4, show/3, bindings/1, slot/1, names/0,
          session_names/0, session_texts/0, source_root/0, segment/1, component/1, forget/2,
          browse/2, doc/2,
-         documentation/1, fields/1, signature/1, declared_type/2, load/2, evaluators/0,
+         documentation/1, fields/1, signature/1, declared_type/2, load/2, own/0,
          reload/1, version/0, write/1, screen/1, to_screen/1, flush_screen/0,
          leaves_it_unchanged/1, collect/1, input_site/2, is_expression/1, declared/1]).
 
@@ -139,7 +139,8 @@
 %% module needs (uses/0), each input's name (input_site/2), each declaring
 %% input's text, which a reload compiles it again from (input_text/2), the
 %% modules whose `:load` was refused (refusal_kept/2), and the processes
-%% the loads evaluated bindings in (evaluators/0). A binding's value is
+%% of the shell's own beside its chain, those the loads evaluated bindings
+%% in and the last input's (own/0). A binding's value is
 %% §8.5's store, a persistent term, as a module's is, so that a later input
 %% reads it as it reads another module's value; its release when it is
 %% replaced, `it` at almost every input, scans every process, a cost that
@@ -201,7 +202,7 @@ spawn_program() ->
     case persistent_term:get({?MODULE, loaded}, #loaded{}) of
         #loaded{entry = #entry_point{erlang_module = ErlangModule, function = Function,
                                      site = Site}} ->
-            _ = ern_rt:spawn(fun() -> ErlangModule:Function() end, Site),
+            _ = ern_rt:spawn_root(fun() -> ErlangModule:Function() end, Site),
             'Unit';
         _ ->
             'Unit'
@@ -708,6 +709,9 @@ run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interfac
                end,
     Kept = Binds =:= declarations orelse BuildsFunctions,
     Body = fun() ->
+               %% report §11.2: the shell's own while it runs, said before
+               %% anything of the input's runs (own/0)
+               keep(input, self()),
                %% report §11.2: the input's own fault is its answer, caught
                %% here, so that its process does not end with a fault; its
                %% cause and its trace, a frame a line (Appendix E.21)
@@ -728,7 +732,9 @@ run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interfac
                end,
                ern_rt:send(Address, Outcome)
            end,
-    ern_rt:spawn(Body, <<InputName/binary, ":", (integer_to_binary(1 + Offset))/binary>>).
+    %% report §11.2: a root of its own, so that what it starts is no
+    %% process of the shell's own
+    ern_rt:spawn_root(Body, <<InputName/binary, ":", (integer_to_binary(1 + Offset))/binary>>).
 
 %% Report §11.2: what the input's module needs of the session's modules,
 %% kept while it is (collected/1): those its code calls and, where it
@@ -2298,16 +2304,18 @@ session_ended(SessionProcess) ->
 
 %% Report §11.2: the processes a load or a reload evaluated bindings in,
 %% which live on while the session runs, among the shell's own, which
-%% `:processes` leaves out (evaluators/0).
+%% Process.live() leaves out (own/0).
 evaluating(Roots) ->
     keep(evaluators, [Root || {Root, _} <- Roots] ++ kept(evaluators, [])),
     ok.
 
-%% Report §11.2: the processes of the shell's own that the session's loads
-%% and reloads evaluated bindings in, which live while it runs.
--spec evaluators() -> [pid()].
-evaluators() ->
-    kept(evaluators, []).
+%% Report §11.2: the processes of the shell's own beside its chain, which
+%% Process.live() leaves out (ern_rt:processes/0): those the session's
+%% loads and reloads evaluated bindings in, which live while it runs, and
+%% the last input's, which runs while it asks.
+-spec own() -> [pid()].
+own() ->
+    kept(evaluators, []) ++ [kept(input, none)].
 
 %% Report §8.7: the units whose bindings a load evaluated, so that a peer's
 %% spawn finds their values, as it finds a run's.
@@ -3590,7 +3598,7 @@ flush_screen() ->
         Screen ->
             Process = ern_rt:process_of(Screen),
             Reply = erlang:monitor(process, Process, [{alias, demonitor}]),
-            Process ! {'Flush', Reply},
+            Process ! {'Flush', {Reply, erlang:self()}},
             receive
                 {Reply, answered, _} -> erlang:demonitor(Reply, [flush]), ok;
                 {'DOWN', Reply, process, _, _} -> ok

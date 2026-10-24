@@ -58,7 +58,7 @@
 %% Report §6.5, §8.7: the process the worker for a peer keeps for an
 %% adapted address the peer sends to (ern_rt:kept/1), the worker's monitor
 %% of it, and how many messages it has been handed and has not applied.
--record(kept, {pid, monitor_ref, waiting}).
+-record(kept, {pid, monitor_ref, handed}).
 
 %% Report §8.7: the state of the worker for a peer: the peer's node, the
 %% gateway that hands it the peer's frames and losses, a #kept{} for each
@@ -454,9 +454,9 @@ forgotten(Pid, #worker{kept = Kept, addresses = Addresses} = State) ->
 %% (ern_rt:kept/1).
 handed(Address, Message, Kept, Addresses) ->
     case Kept of
-        #{Address := #kept{pid = Pid, monitor_ref = MonitorRef, waiting = Waiting}} ->
+        #{Address := #kept{pid = Pid, monitor_ref = MonitorRef, handed = Handed}} ->
             Pid ! {apply, Message},
-            {Kept#{Address := #kept{pid = Pid, monitor_ref = MonitorRef, waiting = Waiting + 1}},
+            {Kept#{Address := #kept{pid = Pid, monitor_ref = MonitorRef, handed = Handed + 1}},
              Addresses};
         _ ->
             case ern_rt:kept(Address) of
@@ -465,26 +465,26 @@ handed(Address, Message, Kept, Addresses) ->
                 Pid ->
                     MonitorRef = erlang:monitor(process, Pid),
                     Pid ! {apply, Message},
-                    {Kept#{Address => #kept{pid = Pid, monitor_ref = MonitorRef, waiting = 1}},
+                    {Kept#{Address => #kept{pid = Pid, monitor_ref = MonitorRef, handed = 1}},
                      Addresses#{Pid => Address}}
             end
     end.
 
 %% Report §6.5, §8.7: a message the process kept for its address has
-%% applied, counted off; once none waits the process is told to stop and
-%% forgotten, so that it ends having applied every message it was handed,
+%% applied, counted off; once none handed is left to apply, the process is
+%% told to stop and forgotten, so that it ends having applied every message it was handed,
 %% and the next message to the address starts another.
 applied(Pid, #worker{kept = Kept, addresses = Addresses} = State) ->
     #{Pid := Address} = Addresses,
     case Kept of
-        #{Address := #kept{monitor_ref = MonitorRef, waiting = 1}} ->
+        #{Address := #kept{monitor_ref = MonitorRef, handed = 1}} ->
             erlang:demonitor(MonitorRef, [flush]),
             Pid ! stop,
             State#worker{kept = maps:remove(Address, Kept),
                          addresses = maps:remove(Pid, Addresses)};
-        #{Address := #kept{pid = Pid, monitor_ref = MonitorRef, waiting = Waiting}} ->
+        #{Address := #kept{pid = Pid, monitor_ref = MonitorRef, handed = Handed}} ->
             State#worker{kept = Kept#{Address := #kept{pid = Pid, monitor_ref = MonitorRef,
-                                                       waiting = Waiting - 1}}}
+                                                       handed = Handed - 1}}}
     end.
 
 %% Report §8.7: what a frame's reading tells the node to say and do, here

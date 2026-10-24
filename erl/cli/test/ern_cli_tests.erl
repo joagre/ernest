@@ -1236,9 +1236,9 @@ operators_across_modules_test() ->
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"3\n2.5\ntrue\n">>, iolist_to_binary(?capturedOutput)),
     write(Dir, "src/bad.ern", "export fn f(a : Geo.Vec.Vec, b) = a - b\n"),
-    ?assertEqual(1, build_err(["--short-errors", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertMatch({match, _}, re:run(iolist_to_binary(?capturedOutput),
-                                    "bad.ern:1:35: `-` is not defined on Geo.Vec.Vec\n$")),
+                                    "bad.ern:1:35: `-` is not defined on Geo.Vec.Vec\n")),
     ?assertNot(filelib:is_regular(Dir ++ "/build/bad.erc")).
 
 %% report §3.10, §4.2, §11.2: a type member of another module is called by
@@ -1594,6 +1594,62 @@ deadlock_test() ->
     ?assertEqual(1, ern_err(["run", Dir ++ "/build/main.erc"])),
     ?assertMatch({match, _}, re:run(iolist_to_binary(?capturedOutput),
                                     "^Main.main faulted: deadlock\n")).
+
+%% report §8.6, §11.2: a deadlock's report lists, beneath the trace, the
+%% processes it left waiting but the one it faults, a line for each group
+%% of one spawn site and one waiting frame, with their count, in the order
+%% of the sites, the frame the first of the program's in the process's
+%% stack: two accounts each calling the other, the full review's locks.ern
+%% (B-C1, N5), and three workers of one site waiting in one frame, under
+%% `ern run`, and under `ern test`, where the deadlock is the test's fault.
+%% Written with the listing
+deadlock_lists_the_waiting_test() ->
+    Dir = tmp(),
+    Program = "type AccountMsg = Peer(Address(AccountMsg)) | Audit(Reply(Int))\n"
+              "type Waits = Waits\n"
+              "fn account(balance : Int) : Unit receiving AccountMsg = receive {\n"
+              "    Peer(other) -> audited(balance, other)\n"
+              "  | Audit(reply) -> { answer(reply, balance); account(balance) }\n"
+              "}\n"
+              "fn audited(balance : Int, other : Address(AccountMsg)) : Unit\n"
+              "        receiving AccountMsg = {\n"
+              "    let theirs = Address.callForever(other, Audit);\n"
+              "    audited(balance + theirs, other)\n"
+              "}\n"
+              "fn worker() : Unit receiving Waits = receive { Waits -> Unit }\n"
+              "fn locked() : Unit = {\n"
+              "    let a = spawn(fn() = account(1));\n"
+              "    let b = spawn(fn() = account(2));\n"
+              "    send(a, Peer(b));\n"
+              "    send(b, Peer(a));\n"
+              "    List.forEach([1, 2, 3], fn(_) = { let _ = spawn(worker); Unit })\n"
+              "}\n",
+    Waiting = <<"    1 process of Locks.locked:14 waits in Locks.audited:9\n"
+                "    1 process of Locks.locked:15 waits in Locks.audited:9\n"
+                "    3 processes of Locks.locked:18 wait in Locks.worker:12\n">>,
+    write(Dir, "src/locks.ern",
+          Program ++ "export fn main() : Unit receiving Waits = {\n"
+                     "    locked();\n"
+                     "    receive { Waits -> Unit }\n"
+                     "}\n"
+                     "let stuck = Test.Case(name = \"stuck\",\n"
+                     "    run = fn() : Test.Result receiving Waits = {\n"
+                     "    locked();\n"
+                     "    receive { Waits -> Test.Passed }\n"
+                     "})\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    {Errors, Status} = standard_error_of(["run", Dir ++ "/build/locks.erc"]),
+    ?assertEqual(1, Status),
+    {match, [Listed]} = re:run(Errors,
+                               "^Locks.main faulted: deadlock\n    Locks.main:[0-9]+\n(.*)$",
+                               [dotall, {capture, [1], binary}]),
+    ?assertEqual(Waiting, Listed),
+    _ = ?capturedOutput,
+    ?assertEqual(1, ern_err(["test", Dir ++ "/build/locks.erc"])),
+    {match, [Tested]} = re:run(iolist_to_binary(?capturedOutput),
+                               "^stuck: faulted: deadlock\n    Locks\\.[^\n]*\n(.*)$",
+                               [dotall, {capture, [1], binary}]),
+    ?assertEqual(Waiting, Tested).
 
 %% report §4.4: an abstract type's constructor is not visible outside its module
 abstract_constructor_outside_test() ->
@@ -3588,14 +3644,19 @@ compile_error_test() ->
                  iolist_to_binary(?capturedOutput)),
     ?assertNot(filelib:is_regular(filename:join(Dir, "bad.erc"))).
 
-%% report §11.5: --short-errors is the first line alone
-errors_short_test() ->
+%% report §11.5, §11.7: a diagnostic's first line, `file:line:column:
+%% message`, is the one a tool reads, and no line after it begins with the
+%% path; the build takes no option for a short form. Written as the option
+%% went (the full review's T30)
+error_first_line_test() ->
     Dir = tmp(),
     File = write(Dir, "bad.ern", "export fn main() : Unit = Io.println(1)\n"),
-    ?assertEqual(1, build_err(["--short-errors", "--source-root", Dir, File])),
+    ?assertEqual(1, build_err(["--source-root", Dir, File])),
+    [First | Rest] = binary:split(iolist_to_binary(?capturedOutput), <<"\n">>, [global]),
     ?assertEqual(<<(list_to_binary(File))/binary, ":1:38: the argument does not fit Io.println:"
-                   " expected String, found Int\n">>,
-                 iolist_to_binary(?capturedOutput)).
+                   " expected String, found Int">>, First),
+    ?assertEqual([], [Line || Line <- Rest, binary:match(Line, list_to_binary(File)) =/= nomatch]),
+    [?assertEqual(1, ern_err([Job, "--short-errors", File])) || Job <- ["build", "doc", "format"]].
 
 %% report §11.5: an error prints its source line whole, whatever the line
 %% holds (a regression test: a character outside Latin-1 crashed the compiler)
@@ -3615,7 +3676,7 @@ error_names_file_from_cwd_test() ->
     {ok, Cwd} = file:get_cwd(),
     ok = file:set_cwd(Dir),
     try
-        ?assertEqual(1, build_err(["--short-errors", "bad.ern"])),
+        ?assertEqual(1, build_err(["bad.ern"])),
         ?assertMatch(<<"bad.ern:1:38: ", _/binary>>, iolist_to_binary(?capturedOutput))
     after
         file:set_cwd(Cwd)
@@ -4485,7 +4546,7 @@ every_failure_reported_test() ->
     write(Dir, "src/p.ern", "export fn p( : Int = 1\n"),
     write(Dir, "src/d.ern", "export fn d() : Int = C.c()\n"),
     write(Dir, "src/fine.ern", "export fn ok() : Int = 1\n"),
-    ?assertEqual(1, build_err(["--short-errors", Dir ++ "/src"])),
+    ?assertEqual(1, build_err([Dir ++ "/src"])),
     Output = iolist_to_binary(?capturedOutput),
     [?assertMatch({_, _}, binary:match(Output, Text))
      || Text <- [<<"c.ern:1:23:">>, <<"e.ern:1:23:">>, <<"p.ern:1:14:">>]],
@@ -4534,8 +4595,8 @@ option_spellings_test() ->
                 <<"ern build: --build-root is given more than once">>},
                {["run", "--main", "A.b", "--main", "A.c", "x.erc"],
                 <<"ern run: --main is given more than once">>},
-               {["build", "--short-errors", "--short-errors", "x.ern"],
-                <<"ern build: --short-errors is given more than once">>},
+               {["build", "--emit-erl", "--emit-erl", "x.ern"],
+                <<"ern build: --emit-erl is given more than once">>},
                {["build", "--build-root=b", "x.ern"],
                 <<"--build-root=b: an option's value is the next word, --build-root value">>},
                {["build", "--build-root", "", "x.ern"],
@@ -5052,6 +5113,8 @@ config_peer_keeps_fields_test() ->
                           ", \"peers\": [{\"public-key\": ", json:encode(KeyB),
                           ", \"name\": \"b\"}], \"services\": {\"counter\": [\"b\"]},"
                           " \"listen\": \"127.0.0.1:8654\", \"measures\": {\"cpu\": {}}}"]),
+    %% report §8.7: written by none but its owner, whatever the umask
+    ok = file:change_mode(Elsewhere, 8#644),
     Conf = filename:join(A, "ernest.conf"),
     ok = file:delete(Conf),
     ok = file:make_symlink(Elsewhere, Conf),
@@ -5154,8 +5217,7 @@ config_peer_read_as_a_node_test() ->
     Said = unicode:characters_to_binary(?capturedOutput),
     Shown = fun(Made, File) -> ern_build:shown(filename:join(Made, File)) end,
     [?assertMatch({_, _}, binary:match(Said, list_to_binary("ern config: " ++ Line ++ "\n")))
-     || Line <- [Shown(Open, "ernest.conf") ++ " may be written by anyone beyond its owner and"
-                 " group",
+     || Line <- [Shown(Open, "ernest.conf") ++ " may be written by others than its owner",
                  Shown(Broken, "ernest.conf") ++ ": is not JSON",
                  Shown(Uncertified, "certificate.pem") ++ ": is not one certificate in PEM"]].
 

@@ -70,7 +70,7 @@ The front end's values reach the shell as handles of three foreign types, `Sessi
 
 - **The session**: `start`, `check`, `spawnInput`, `load`, `reload`, `forget` and `collect`, each answering the `Session` it made, `spawnInput` in its outcome. `check` answers §11.5's text instead for an input that does not check, and a `Checked` beside the `Session` for one that does.
 - **A result**: `typeText`, `isUnit`, `isExpression`, `declared`, `leavesItUnchanged` and `declaredType` read a `Checked` for what is printed and what `:type` and `it` do. `show` prints a `Value` to a depth and a length.
-- **The commands** that reach past the shell: `bindings`, `browse`, `doc`, and `evaluators`, the processes `:processes` leaves out.
+- **The commands** that reach past the shell: `bindings`, `browse` and `doc`.
 - **The questions the reader and `Shell.Complete` ask**: `names`, `sessionNames`, `sessionTexts`, `sourceRoot`, `slot`, `needsMore`, `opening`, `fields`, `documentation`, `signature`, `segment` and `component`. None takes a `Session`; those that read the session read the front end's copy.
 - **The host's alone**: `version`, `configStartup`, `isSameFile`, `spawnProgram`, `write`, `setScreen` and `holdTerminal`.
 
@@ -239,7 +239,7 @@ Pages are rendered by `libs/markdown`, which the shell is built against, at the 
 
 `Shell.Command.commands` is the one table of commands: each command's name, its action, what it takes and what completes after it, and its help line. `commands_mirror_test`, in `test/ern_shell_tests.erl`, holds it equal to the list of §11.2 *Commands*. The session carries each action out, most through the foreign function of its name.
 
-The settings are an Ernest value in the session's state, not the front end's. `:processes` lists `Process.live()` less the shell's own processes and the evaluators, and `:faults` reads the session's state.
+The settings are an Ernest value in the session's state, not the front end's. `:processes` lists what `Process.live()` lists at the prompt, which the shell's launch has the runtime leave its own processes out of, its chain, the evaluators and the input that asks, and `:faults` reads the session's state, each fault with the time the session was told of it.
 
 ## Faults
 
