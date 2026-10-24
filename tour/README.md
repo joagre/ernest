@@ -103,7 +103,7 @@ $ ern config --config-dir bar --peer-dir a
 }
 ```
 
-In a second terminal `ern run --config-dir foo`, in a third `ern run --config-dir bar`; each waits, saying nothing. Then the shell, started again in your directory as a node:
+In a second terminal `ern run --config-dir foo`, in a third `ern run --config-dir bar`; each says where it listens, `listening on 127.0.0.1:8655` for `foo`, and waits. Then the shell, started again in your directory as a node:
 
 ```console
 $ ern shell --config-dir a
@@ -323,9 +323,13 @@ $ ern test counter.erc
 counts per key: passed
 reports: faulted: deadlock
     Counter.reports:70
+    1 process of Counter.countsPerKey:62 waits in Counter.count:10
+    1 process of Counter.reports:69 waits in Counter.count:10
 ```
 
 A module worth keeping gets a test: `ern build .` compiles both modules, and `ern test` runs every `Test.Case` the program declares (the guide's §7.1). The planted test waits for a `Reported` that no process sends, and the runtime ends it with a fault where your test framework would wait for its timeout, the trace naming the line of the last call before the wait, since a wait leaves no frame of its own (report Appendix E.21): that is the fifth claim of *Why Ernest*, a program in which every process waits for a message none can send is a deadlock, found.
+
+Beneath the trace come the processes left waiting, a line for each spawn site and the frame its processes wait in (report §8.6): the planted test's counter, and the first test's, which outlived its test.
 
 The fix, a `Report` call in place of the `receive`, is chapter 6's. The test's type, `Test.Case(TestMsg)`, is the mailbox in the type once more: its `run` receives, so its type says what; the first test's `Test.Case(m)` leaves it open, since its `run` receives nothing.
 
@@ -460,23 +464,13 @@ foreign fn systemInfo(item : Foreign.Term) : Int =
 
 export fn primes(below : Int) : Int = {
     Io.println("counting the primes below " <> Int.toString(below));
-    let composites = sieved(2, below, Set.empty);
-    List.size(List.filter(List.range(2, below - 1), fn(n) = !Set.contains(composites, n)))
+    List.size(List.filter(List.range(2, below - 1), fn(n) = isPrime(n, 2)))
 }
 
-fn sieved(prime : Int, below : Int, composites : Set(Int)) : Set(Int) =
-    if prime * prime >= below then
-        composites
-    else if Set.contains(composites, prime) then
-        sieved(prime + 1, below, composites)
-    else
-        sieved(prime + 1, below, crossed(prime * prime, prime, below, composites))
-
-fn crossed(multiple : Int, prime : Int, below : Int, composites : Set(Int)) : Set(Int) =
-    if multiple >= below then
-        composites
-    else
-        crossed(multiple + prime, prime, below, Set.put(composites, multiple))
+// Whether no divisor from `divisor` up to the square root of `number`
+// divides it.
+fn isPrime(number : Int, divisor : Int) : Bool =
+    divisor * divisor > number || number % divisor != 0 && isPrime(number, divisor + 1)
 ```
 
 First the question, asked on each bare node:

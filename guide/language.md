@@ -760,13 +760,15 @@ export fn top(counts : Map(String, Int), limit : Int) : List(#(String, Int)) =
 
 fn byCount(#(leftWord, leftCount) : #(String, Int),
            #(rightWord, rightCount) : #(String, Int)) : Ordering =
-    if leftCount != rightCount then
-        Int.compare(rightCount, leftCount)
+    if #(rightCount, leftWord) < #(leftCount, rightWord) then
+        Less
+    else if #(rightCount, leftWord) > #(leftCount, rightWord) then
+        Greater
     else
-        String.compare(leftWord, rightWord)
+        Equal
 ```
 
-`words` lowers the text and splits it at its whitespace (report Appendix E.5). `count` folds the words into a map with `add`. `top` sorts the pairs by count, most first and by word where counts are equal, and keeps `limit` of them. `byCount` is not exported, and its parameters are patterns that take the pairs apart. `ern shell words.erc` loads the module and runs nothing, since it has no `main`:
+`words` lowers the text and splits it at its whitespace (report Appendix E.5). `count` folds the words into a map with `add`. `top` sorts the pairs by count, most first and by word where counts are equal, and keeps `limit` of them. `byCount` is not exported, and its parameters are patterns that take the pairs apart. It compares two tuples, each the count of one pair beside the word of the other, so that the larger count comes first: a tuple is ordered component by component from the left, as a list is, where each component's type is ordered (report §3.10). `ern shell words.erc` loads the module and runs nothing, since it has no `main`:
 
 ```console
 $ ern build words.ern
@@ -913,7 +915,7 @@ Address.call : (Address(m), (Reply(a)) -> m, Int) -> Optional(a)
 
 The call returns `Some(v)` for an answer and `None` for none. `None` does not cancel the work: the recipient may still be computing, so a request that changes state and is sent again may change it twice. An answer that comes late is dropped and never reaches the caller's mailbox, so `Address.call` works whatever that mailbox's type is (report §6.6).
 
-`Address.callForever` waits without a deadline and returns the answer itself. When the process called ends or restarts before it answers, either call ends at once: `Address.call` returns `None`, and `Address.callForever` faults its caller. A callee that faulted gives the caller its cause, the text that says what went wrong (§6.3). Otherwise the caller's cause says how the callee ended: it was killed, returned without answering, was closed, was restarted (§6.5), had ended already, or is unreachable, its node out of reach (§8.2). A callee that lives on without answering holds a `callForever` caller for as long as it lives, one that only waits as much as one that dropped the reply.
+`Address.callForever` waits without a deadline and returns the answer itself. When the process called ends or restarts before it answers, either call ends at once: `Address.call` returns `None`, and `Address.callForever` faults its caller. A callee that faulted gives the caller its cause, the text that says what went wrong (§6.3), with the callee's spawn site after it: `division by zero, the fault of the callee Ledger.start:6`. Otherwise the caller's cause says how the callee ended: it was killed, returned without answering, was closed, was restarted (§6.5), had ended already, or is unreachable, its node out of reach (§8.2). A callee that lives on without answering holds a `callForever` caller for as long as it lives, one that only waits as much as one that dropped the reply.
 
 A server that cannot answer at once keeps the reply until it can, in a list as well as anywhere else a value waits (§4.2). A queue answers a `Take` with an item it has, or keeps the reply until a `Put` brings one:
 
@@ -967,6 +969,8 @@ took 7
 ```
 
 A `Put` answers the first caller waiting, and a `Take` answers at once or keeps its reply in the list. `main` cannot wait in the call itself, since it is `main` that puts the item. A process of its own makes the call and sends the answer on as `Took(item)`, and `main` goes on to put. A process that must keep receiving while an answer is on its way calls from such a helper; one with nothing else to do calls.
+
+A kept reply outlives a caller that ends. `Reply.process(reply)` is the caller's `Process`, which the server may monitor (§5.2) to drop the reply of a caller that has ended (report §6.6).
 
 **A library that waits.** A function that receives is tied to the mailbox type of the process it runs in, so a function that must wait on messages of its own, from whatever process calls it, is a process and a call. The library spawns a process whose mailbox is its own, and the caller gets the result by a call, which leaves the caller's mailbox as it was. `gathered` runs `f` on each number in a process of its own and collects the pieces as they come, in any process. It uses `spawnMonitored` and `Down`, which §5.2 teaches: a process started and watched, whose end comes back as a message:
 
@@ -1311,6 +1315,8 @@ $ ern shell
 Ernest 0.4.0. :help for the commands, :quit to leave.
 > :type monitor
 monitor : (Process, (Down) -> m) -> Unit receiving m
+> :type monitorService
+monitorService : (Process, (Down) -> m) -> Unit receiving m
 > :type spawnMonitored
 spawnMonitored : (() -> Unit receiving n, (Down) -> m) -> Address(n) receiving m
 ```
@@ -1318,10 +1324,10 @@ spawnMonitored : (() -> Unit receiving n, (Down) -> m) -> Address(n) receiving m
 ```ernest-prelude
 type Down = Down(process : Process, reason : Reason, site : String)
 
-type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown | Unreachable
+type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown | Unreachable | Restarted
 ```
 
-`monitor(child, wrap)` puts `wrap(d)` in your mailbox when the process `child` dies, or at once if it is dead already, with the reason `Unknown`, since the runtime keeps nothing of a process that has ended. `child` is a `Process`, the identity of a process, which `Process.fromAddress(a)` gives for an address `a`: watching a process needs no permission to send to it, so a server watches the clients it holds no address to. A process you start yourself is watched from its start with `spawnMonitored(f, wrap)`, `spawn` and `monitor` in one step, so that no end comes before the watch.
+`monitor(child, wrap)` puts `wrap(d)` in your mailbox when the process `child` dies, or at once if it is dead already, with the reason `Unknown`, since the runtime keeps nothing of a process that has ended. `child` is a `Process`, the identity of a process, which `Process.fromAddress(a)` gives for an address `a`: watching a process needs no permission to send to it, so a server watches the clients it holds no address to. A process you start yourself is watched from its start with `spawnMonitored(f, wrap)`, `spawn` and `monitor` in one step, so that no end comes before the watch. `monitorService(child, wrap)` watches as `monitor` does and is told of each restart in place too, with the reason `Restarted` (§6.5). `demonitor(child)` ends every watch you hold on `child`; a `Down` already in your mailbox stays, and none comes after (report §6.9).
 
 `wrap` makes your message from the runtime's `Down`: in ping-pong, `PongDone` is a constructor of `MainMsg` that carries one. A `Down` says the process ended, not that it succeeded; its `process` says which, its `reason` says how, and its `site` says where it was spawned, the top-level declaration and the line of the spawn, `Counter.main:19`.
 
@@ -1392,7 +1398,7 @@ kill : (Address(a)) -> Unit
 
 When every process waits in a `receive` or a `callForever` that nothing can ever satisfy, the entry process faults with `deadlock`, and the program ends. A process waiting for a timer, a key, a socket, or a file is waiting for something that can come, so an idle server is not deadlocked. Report §8.6 gives the exact condition.
 
-The fault's trace is the entry process's. A waiting frame names the line of the last call before the wait, since a wait leaves no frame of its own (report Appendix E.21): in a function that spawns and then waits in a `receive`, the frame names the `spawn`'s line.
+The fault's trace is the entry process's. A waiting frame names the line of the last call before the wait, since a wait leaves no frame of its own (report Appendix E.21): in a function that spawns and then waits in a `receive`, the frame names the `spawn`'s line. Beneath the trace the report lists the other processes left waiting, a line for each spawn site and the frame they wait in, with their count: `3 processes of Dinner.table:40 wait in Dinner.take:112` (report §8.6).
 
 A node detects no deadlock, so a program started with `--config-dir` waits on where every process waits, and a wait on another node's process, which only a node can make, is never found to be one (report §8.6). Nor does a shell detect one while it holds the terminal (report §11.2).
 
@@ -1702,7 +1708,7 @@ Beneath the line it writes the fault's trace, where the fault was met, a frame a
 
 Where standard error goes to a file or a pipe, and not to a service manager's journal (§9.5), each line begins with the time of the fault (report §11.2).
 
-Some faults reach beyond their process. A fault in the entry process ends the program, and `ern run` exits with status 1, as a fault in an initializer does. A fault in a function that makes a message, an adapted address's (§5.5) or the wrap given to `monitor`, `Clock.alarm`, `Terminal.subscribe` or `Process.faults`, is the fault of the process the message is for. The loss of a peer faults no process, but one waiting in `Address.callForever` on one of its processes (§8.2, report §8.7). A fault in a process that a `callForever` waits on faults the caller with the same cause (report §6.6).
+Some faults reach beyond their process. A fault in the entry process ends the program, and `ern run` exits with status 1, as a fault in an initializer does. A fault in a function that makes a message, an adapted address's (§5.5) or the wrap given to `monitor`, `Clock.alarm`, `Terminal.subscribe` or `Process.faults`, is the fault of the process the message is for. The loss of a peer faults no process, but one waiting in `Address.callForever` on one of its processes (§8.2, report §8.7). A fault in a process that a `callForever` waits on faults the caller with the same cause, the callee's spawn site after it (report §6.6).
 
 A process that is killed, or that ends with the program, has not faulted. A deadlock is a fault of the entry process (§5.4).
 
@@ -1808,11 +1814,58 @@ Some(3)
 
 `restarting(RestartLimit(restarts = 3, within = 5000), f)` is a function that runs `f`, and runs it again after a fault, in the same process, with the same address. The new run begins with an empty mailbox, and what the process asked the runtime for, an alarm, a monitor, a subscription, is canceled (report §6.9). Whoever holds the address keeps it, so nothing is handed out again after a restart. What the loop held is gone: the count starts at zero again, as `Some(3)` shows.
 
-After three restarts within five seconds, the next fault ends the process (report §6.9); `restarting(Unlimited, f)` runs `f` again after every fault. A restart is not an end: no `monitor` hears of it, and the process's `Down` comes only when it ends for good.
+After three restarts within five seconds, the next fault ends the process (report §6.9); `restarting(Unlimited, f)` runs `f` again after every fault. A restart is not an end: no `monitor` hears of it, and the process's `Down` comes only when it ends for good; a service monitor hears of it, as the end of this section shows.
 
 A client is not told of a restart, and a call waiting at it ends at once: `Address.call` answers `None`, as the call waiting when the counter faulted does here, and `Address.callForever` would fault the caller with the same cause. A caller that must outlive a service's faults calls with a limit. The second line, with the trace beneath it, is `ern run`'s report of the fault, on standard error (§6.3).
 
 `fault` is the fault a program raises when it finds a case it will not handle. The path that calls it does not answer `reply`: the fault ends the counter's process, and the call waiting on it ends at once. `start` is exported beside the binding so that a test can start a counter of its own instead of sharing the program's.
+
+A process that keeps something for another, a lease it lent or a lock it granted, must hear of the other's restart, since the new run holds nothing of the old one. `monitorService(process, wrap)` is a *service monitor*: a monitor that is told of each restart too, with the reason `Restarted`, and stands until the process ends, which it is told of as `monitor` is (report §6.9):
+
+```ernest
+type MainMsg = Watched(Down)
+
+type HolderMsg = Hold(lease : Int) | Use(lease : Int)
+
+// A holder of leases, restarted in place, which faults on a lease it does
+// not hold.
+fn hold(leases : List(Int)) : Unit receiving HolderMsg =
+    receive {
+        Hold(lease = lease) ->
+            hold(lease :: leases)
+      | Use(lease = lease) ->
+            if List.contains(leases, lease) then hold(leases) else fault("no such lease")
+    }
+
+// What the holder was lent, taken back when the service monitor tells of
+// a restart, since the new run holds none of it, or of the end.
+fn takeBack(lent : List(Int)) : Unit receiving MainMsg =
+    receive {
+        Watched(Down(reason = reason)) ->
+            Io.println(Io.show(reason) <> ", taken back: " <> Io.show(lent))
+    }
+
+export fn main() : Unit receiving MainMsg = {
+    let holder = spawn(restarting(Unlimited, fn() = hold([])));
+    monitorService(Process.fromAddress(holder), Watched);
+    send(holder, Hold(lease = 1));
+    send(holder, Hold(lease = 2));
+    send(holder, Use(lease = 3));
+    takeBack([1, 2]);
+    kill(holder);
+    takeBack([])
+}
+```
+
+```console
+$ ern run lease.erc
+Lease.main:24 faulted, restarted: no such lease
+    Lease.hold:12
+Restarted, taken back: [1, 2]
+Killed, taken back: []
+```
+
+`main` lends the holder two leases and asks it to use a third, which faults it. The service monitor tells `main` of the restart, and `main` takes back what the old run held. The monitor stands, so the `kill` is told too; a `monitor` in its place would have told only the `Killed`.
 
 ### 6.6 A supervisor
 
@@ -2432,7 +2485,7 @@ $ ern config --config-dir foo --peer-dir a
 
 What `--peer-dir` does not write is written by hand: `services`, §8.2's, and a peer on another machine, its key the one `ern config` printed there, as one JSON string with its line breaks `\n` (the deployment guide's §2.1). One key listed under two names is refused, `two peers have one public-key, and two nodes with one key are one node`.
 
-Start `foo` first. A node with a fixed port says nothing as it begins to listen, and a compute that reaches `foo` before it listens answers `Left(Unreachable)`. Each terminal shows its own node's lines: `foo`'s says `the peer a connected` as `a` dials it, and `the peer a ended` when `a`'s run ends. Then:
+Start `foo` first. A node says where it listens as it begins to, `listening on 127.0.0.1:8655`, and a compute that reaches `foo` before it listens answers `Left(Unreachable)`. Each terminal shows its own node's lines: `foo`'s says `the peer a connected` as `a` dials it, and `the peer a ended` when `a`'s run ends. Then:
 
 ```console
 $ ern run --config-dir foo &
@@ -3087,7 +3140,6 @@ One command, `ern`, whose first word is its job, and a mode for Emacs. `ern --he
 - `ern build hello.ern` compiles one module to `hello.erc`, beside it.
 - `ern build --build-root build src` compiles every module under `src` in dependency order, mirroring the tree into `build`. A module is compiled again only when its source, an interface it depends on, another module's exported names and types, a definition of another module its code uses, any interface of the standard library, or the compiler has changed, and a `.erc` whose source is gone is removed.
 - `--source-root dir` names the directory a module's namespace is read from, as §7.1 describes. `--load-path dir` adds compiled modules from outside the tree, such as a library of your own, and may be given more than once; the toolchain's libraries, report Appendix G, are on the load path already, after every directory it adds.
-- `--short-errors` prints the first line of each error only, `file:line:column: message`, for a tool to read.
 - `--emit-erl` writes the Erlang the module compiles to, for reading.
 - `ern doc file.ern` writes the module's documentation to standard output as CommonMark. `ern doc src` writes a page for each module under `src` and an `index.md`, and for the standard library's root a `prelude.md` as well. `ern doc --man` renders a manual page instead, to standard output for one module and, for a directory, as a file beside each module, `Ernest.List.3ern`, which `man -l` shows, or `man Ernest.List` once it is installed where `man` looks.
 - `ern format file.ern` lays the module out in the one layout report §11.6 states, and `ern format src` every module under `src`; only line breaks and spaces change, and every comment stays where it was. `ern format --check src` names each module not laid out and changes none; `ern format - < file.ern` writes the module as `ern format` would lay it out, to standard output, and changes nothing.
@@ -3143,7 +3195,7 @@ Ernest runs on the Erlang runtime, and a program in it is processes that send me
 - A process is a function that loops by a tail call and keeps its state in its arguments.
 - `receive` selects a message by pattern and leaves the others in the mailbox. `after` gives a timeout in milliseconds.
 - Messages from one sender arrive in the order they were sent.
-- `monitor` delivers a message when a process dies, whatever the reason. `kill` ends a process from outside.
+- `monitor` delivers a message when a process dies, whatever the reason, and `monitorService` at each restart in place too (§6.5). `kill` ends a process from outside.
 - `Address.call` is `gen_server:call` with a timeout, and `Address.callForever` is the call without one.
 - The shell's `:load` is `c()` and `l()` as needed, compiling where the source is newer and loading the compiled form where it is not; nothing loads by being named, since loading a module runs its top-level bindings, which Erlang's modules have none of.
 - Integers are exact and unbounded. On `Int`, `/` is Erlang's `div` and `%` is `rem`.

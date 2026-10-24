@@ -39,7 +39,7 @@ The directory belongs to the user who runs the node. A node refuses to start fro
 
 `ernest.conf` is JSON, and Appendix C of the report shows it whole. Its entries, in the order you will meet them:
 
-- `listen`: the address the node's listener binds to, `0.0.0.0:8654` as created, or what `ern config --listen` gave, an address of one interface or `0.0.0.0` or `::` for all of them, and a port. Port `0` lets the host pick one, and the node then says `listening on port 51204` on standard error. Two words recur from here: a node *listens* for connections from its peers, and it *dials* a peer when it opens the connection itself, at the address its configuration lists for that peer (report §8.7). A node without `listen` does not listen and only dials; a bare node (section 3.4) must listen.
+- `listen`: the address the node's listener binds to, `0.0.0.0:8654` as created, or what `ern config --listen` gave, an address of one interface or `0.0.0.0` or `::` for all of them, and a port. Port `0` lets the host pick one. At every start the node says on standard error the address and the port it listens on, `listening on 127.0.0.1:51204`. Two words recur from here: a node *listens* for connections from its peers, and it *dials* a peer when it opens the connection itself, at the address its configuration lists for that peer (report §8.7). A node without `listen` does not listen and only dials; a bare node (section 3.4) must listen.
 - `public-key`: this node's, as `ern config` printed it. It cannot change while the node runs.
 - `peers`: a list, each peer with a `name` you choose, which the program uses, its `public-key`, and a `network-address`, `host:port`, which is left out where this node never dials that peer. A host name is resolved at each dial, not when the file is read.
 - `services`: a service is a process a program offers under a name, which a program on another node looks up, a *find*, to get its address; under each service's name, the peers that may offer it, in the order a find asks them. A service not listed here is found nowhere from this node.
@@ -308,7 +308,7 @@ The first column is the line as it is written, with the peer's name from `ernest
 
 | The line | What happened | The move |
 |---|---|---|
-| `listening on port 51204` | `listen` had port 0, and the host chose one. | Tell the peers that dial it. |
+| `listening on 127.0.0.1:51204` | The node listens; the port is the host's where `listen` had port 0. | Tell the peers that dial it, where they do not know the port. |
 | `the peer b connected` | A connection opened, dialed by either side. | None. |
 | `the peer b ended` | `b` stopped in order; a process here that monitored one of `b`'s was told `ProgramEnd`. | None; expected at `b`'s stop. |
 | `the peer b was lost: it closed` | The connection broke at once: `b`'s process died or its machine closed the socket. | Look at `b`'s machine and journal. |
@@ -358,7 +358,7 @@ $ ern run --config-dir b --main Counter.serve upgrade/v1/counter.erc &
 $ ern run --config-dir c --main Counter.serve upgrade/v1/counter.erc &
 ```
 
-Each says nothing until a peer connects, since `listen` has a fixed port. The counters wait.
+Each says the address and the port it listens on, `listening on 127.0.0.1:8655` from `b`, and nothing more until a peer connects. The counters wait.
 
 **Check from a shell.** From `ops`, which lists `b` and `c` with their addresses and which they list, start a shell with no file, since a file's `main` would run beside the prompt, and look at `b`:
 

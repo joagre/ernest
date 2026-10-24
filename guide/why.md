@@ -324,9 +324,12 @@ fn work(main : Address(MainMsg)) : Unit receiving WorkerMsg =
 $ ern run dead.erc
 Dead.main faulted: deadlock
     Dead.main:7
+    1 process of Dead.main:7 waits in Dead.work:13
 ```
 
 The trace names line 7, the `spawn`, and not the `receive` below it: a wait leaves no frame of its own, so a waiting process's frame names the last call before the wait (report Appendix E.21).
+
+Beneath the trace the fault lists the processes left waiting, a line for each spawn site and the frame its processes wait in: here the worker, spawned on line 7, waiting in `work` (report §8.6).
 
 On Erlang a bare `receive` waits forever, and a `gen_server:call` gives up after five seconds with an exit that names the timeout and not the cause; a programmer learns of the deadlock from that, a dashboard or a user.
 
