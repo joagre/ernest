@@ -110,7 +110,14 @@ in the order to do them, the word 0.5.0 ships decided before §8.7's text moves.
    end's line of two subscribers, which six runs by hand and the shell's tests alone did not repeat
    and whose output the assertion did not keep, carries the shell's output in its failure, so that
    the next red is diagnosed. The repository's own, costing no program anything; the log's *The
-   Review's Fixes, First Round* and the findings' lines.
+   Review's Fixes, First Round* and the findings' lines. Its shape, decided 2026-10-25: a step is
+   each bounded wait the harness runs, a `says`, a `prints`, a node's end, a `said`, a job or one
+   typed input of a shell session, counted in the harness's own wait functions and nowhere else;
+   the count is exact, a test failing past it and at its end short of it; EUnit's timeout stays as
+   the fallback, set from the same count; the first run with the counter is the audit of the sixty
+   numbers, each wrong one read against its comment's list, and a test whose waits vary between
+   runs comes back for a decision rather than loosening the rule. Built by an agent after item 2's
+   build, since both edit the nodes tests, by 2026-10-31.
 5. **The review round's method gets an owner.** The log describes it in four entries, *The Full
    Review Run*, *The Review's Fixes, First Round*, *The Full Review Before 0.5.0* and *The Release
    Review Before 0.5.0*; `full_review.md`'s *How it runs* has one of its facts, that a reader
