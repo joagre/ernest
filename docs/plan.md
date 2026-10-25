@@ -138,9 +138,10 @@ in the order to do them, the word 0.5.0 ships decided before §8.7's text moves.
    standing into the new run, against §6.9; `fresh_run/0`'s comment names the race. Closing it means
    asking the clock and the terminal before the reaper, and a teller's late delivery would remain;
    decided and built with item 2, which changes the restart's steps too, by 2026-10-31.
-9. **The member regime's missing test.** A module's own bare `fn compare` shadows the prelude's
-   and gives no ordering, which *A Member Has One Face* built and no test holds; written by
-   2026-10-31.
+9. **The member regime's missing test**, done 2026-10-25: the checker's
+   `module_level_compare_gives_no_ordering_test`, from before the prelude's `compare`, sharpened to
+   hold that a module's own bare `fn compare` hides the prelude's whatever its type and gives the
+   type no ordering, citing §4.2's *Unqualified lookup* (the log's *A Member Has One Face*).
 10. **The release that closes the milestone**, so that MVP 4.0 starts from a tag: run as
    `release_review.md` says, whole, since the machines are what make a tag solid. 0.6.0, since item
    2 adds two frames and the protocol's version moves, so that its nodes and 0.5.0's do not mix

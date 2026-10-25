@@ -1539,17 +1539,27 @@ equality_through_a_binding_test() ->
     ?assertEqual(ok, ok(Source ++ "fn h() = g(1)")),
     ?assertEqual("(a=) -> Bool", type_of(Source, g)).
 
-%% report §3.10: a type's ordering is the `compare` in its own namespace; a
-%% module-level `fn compare` is an ordinary function and gives the type no
-%% ordering. A regression test: the checker conformed before it was
-%% written. It does not cover a prelude type's namespace.
+%% report §3.10, §4.2 (*Unqualified lookup*), §9.6: a type's ordering is the
+%% `compare` in its own namespace, and a module-level `fn compare` is an
+%% ordinary function that gives the type no ordering; a bare `compare` in
+%% the module's body is looked up among the module's declarations before
+%% the prelude, so the module's own hides the prelude's `compare(a, b)`,
+%% whatever its type. A regression test: the checker conformed before it
+%% was written, and the prelude's `compare` came after it (the log's *A
+%% Member Has One Face*). It does not cover a prelude type's namespace.
 module_level_compare_gives_no_ordering_test() ->
-    Source = "type D = D(Int)\nfn compare(D(a), D(b)) : Ordering =\n"
+    Source = "export type D = D(Int)\nfn compare(D(a), D(b)) : Ordering =\n"
              "    if a < b then Less else if a > b then Greater else Equal\n",
     ?assertEqual({"`<` needs D.compare, and D has no compare",
                   "give D a compare, `derives compare` on its declaration or `fn D.compare`"},
                  refusal_and_help(Source ++ "fn f(x : D, y : D) = x < y")),
-    ?assertEqual(ok, ok(Source ++ "fn f(x : D, y : D) : Ordering = compare(x, y)")).
+    %% the module's own, since the prelude's would need D.compare
+    ?assertEqual("(M.D, M.D) -> Ordering",
+                 type_of(Source ++ "export fn f(x : D, y : D) = compare(x, y)", f)),
+    %% the module's own hides the prelude's whatever its type
+    ?assertEqual("(Int, Int) -> String",
+                 type_of("fn compare(a : Int, b : Int) : String = \"same\"\n"
+                         "export fn f(x : Int, y : Int) = compare(x, y)", f)).
 
 %% report §3.10: a Map over a key without equality is refused at its first
 %% operation, and the error names the key, not a comparison; a Set's element
