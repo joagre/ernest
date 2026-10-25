@@ -242,7 +242,7 @@ test-full: all
 	@$(MAKE) -s -C test beams
 	@for a in $(SPLIT_APPS); do $(MAKE) -s -C erl/$$a/src beams || exit 1; done
 	@$(MAKE) -s -j$(JOBS) -O -o all test-guide $(EMACS_JOBS) $(APP_JOBS) test-library \
-	  test-docs test-grammar test-typed
+	  test-docs test-grammar test-typed dialyzer
 	@$(MAKE) -s -j1 -k -o all test-shell $(PROGRAM_PARTS)
 
 # The unit tests of the applications under erl/, side by side, or of one

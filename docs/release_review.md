@@ -3,8 +3,7 @@
 What a release runs to be ready, and nothing else. Between releases a change runs `make test-full` before the commit that closes its plan item (CLAUDE.md, *Tests*). The plan says when a review runs; each finding is fixed, planned, or dropped, and the commit messages say which. A full review, every reader over the whole of its area, runs seldom, as [`full_review.md`](full_review.md) says.
 
 1. **A fresh clone builds and passes:** `git clone`, then `make` and `make test-full`, in a directory of its own, on a machine running nothing else, before the readers start. `make test-full` installs into a scratch prefix and from the release archive, and runs from there (`installation_test_`, [`design/install.md`](design/install.md)).
-2. **Six machines**, over the commit the review starts on; once the findings are made, `make dialyzer`, `make sections` and `make bench` run again over the release's commit, `make load` where the round changed the runtime and `make sanitize` where it changed the helper:
-   - `make dialyzer`;
+2. **Five machines**, over the commit the review starts on; once the findings are made, `make sections` and `make bench` run again over the release's commit, `make load` where the round changed the runtime and `make sanitize` where it changed the helper; dialyzer runs in the clone's full run:
    - `make sanitize`, the helper in C under Clang's analyzer and the sanitizers;
    - `make load`, the loads of [`memory.md`](memory.md);
    - `make service`, a program started, stopped and started again by the host's service manager, whose launchd checks, written for macOS in MVP 2.99b's item 10, run on the first Mac at hand and until then the release's notes say they have not;

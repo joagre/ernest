@@ -120,8 +120,11 @@ in the order to do them, the word 0.5.0 ships decided before §8.7's text moves.
    eunit's timeout with the harness's. The harness counts a test's steps as they happen and fails
    past the count it was given, refusing a bare number; `ern_machine`'s waits take `wait_ms()`
    bounds; and the shell's tests convert under one rule, a session's bound being its steps' sum as
-   any test's is. The repository's own, costing no program anything; the log's *The Review's Fixes,
-   First Round* and the findings' lines.
+   any test's is. With it `reload_version_sites`, red once in the full run of 2026-10-25 on the
+   end's line of two subscribers, which six runs by hand and the shell's tests alone did not repeat
+   and whose output the assertion did not keep, carries the shell's output in its failure, so that
+   the next red is diagnosed. The repository's own, costing no program anything; the log's *The
+   Review's Fixes, First Round* and the findings' lines.
 5. **The review round's method gets an owner.** The log describes it in four entries, *The Full
    Review Run*, *The Review's Fixes, First Round*, *The Full Review Before 0.5.0* and *The Release
    Review Before 0.5.0*; `full_review.md`'s *How it runs* has one of its facts, that a reader
@@ -147,7 +150,7 @@ in the order to do them, the word 0.5.0 ships decided before §8.7's text moves.
    after the reaper has taken the restart and returns before the clock takes it leaves that monitor
    standing into the new run, against §6.9; `fresh_run/0`'s comment names the race. Closing it means
    asking the clock and the terminal before the reaper, and a teller's late delivery would remain;
-   decided and built with the review's remaining decisions, by 2026-10-31.
+   decided and built with item 2, which changes the restart's steps too, by 2026-10-31.
 9. **The member regime's missing test.** A module's own bare `fn compare` shadows the prelude's
    and gives no ordering, which *A Member Has One Face* built and no test holds; written by
    2026-10-31.
@@ -155,12 +158,10 @@ in the order to do them, the word 0.5.0 ships decided before §8.7's text moves.
    `release_review.md` says, whole, since the machines are what make a tag solid. 0.6.0, since item
    2 adds two frames and the protocol's version moves, so that its nodes and 0.5.0's do not mix
    (report §8.7).
-11. **Dialyzer in the full run**, a decision for the user from item 1 (the log's *The Release
-   Review Read Back*): the five warnings the review found all came in the week since dialyzer last
-   ran, and `make dialyzer` costs 27 s against a full run of about nine minutes. Recommended:
-   `make test-full` runs it, so that a warning is met at its item's commit, the fresh clone then
-   building the PLT once, a cost the next review measures; else dropped, the release review keeping
-   it as it stands.
+11. **Dialyzer in the full run**, done 2026-10-25 (the log's *The Release Review Read Back*):
+   `make test-full` runs `make dialyzer`, 27 s, so that a warning is met at its item's commit, and
+   the release review's machines are five; the fresh clone builds the PLT once, a cost the next
+   review measures.
 
 ## MVP 4.0 (a shell attached to a running node), about a week
 

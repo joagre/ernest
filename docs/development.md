@@ -130,8 +130,8 @@ make test         build, then the unit tests of every application, the library's
                   examples, and the document and style tests, side by side: the light
                   run, about a minute
 make test-full    build, then two phases: first the guide's tests, the Emacs mode's, the unit
-                  tests, the library's, the documents', the grammar's and the typed programs',
-                  side by side; then the shell's and the six program parts, one after another,
+                  tests, the library's, the documents', the grammar's, the typed programs' and
+                  the dialyzer's, which builds its PLT once, side by side; then the shell's and the six program parts, one after another,
                   each running its own tests as many at once as the host has schedulers: the
                   whole suite
 make test-erl     the unit tests of every application under erl/, side by side;
@@ -275,7 +275,7 @@ make uninstall    remove the installation under the same PREFIX and DESTDIR
 make release      write the release archive, build/release/ern-VERSION.tar.gz
 make dialyzer     Dialyzer over the toolchain and the Erlang the compiler writes for
                   src/stdlib/, src/shell/ and src/libs/; its first run builds
-                  build/dialyzer.plt
+                  build/dialyzer.plt; part of make test-full
 make sanitize     the helper in C under Clang's analyzer, and the runtime's and the
                   programs' tests with it built under the sanitizers
 make sections     list the report sections no test cites
