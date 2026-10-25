@@ -105,6 +105,82 @@ told_boundary(Base) ->
                  " String")).
 
 %%
+%% The README's transcript
+%%
+
+%% README.md's console, the front page's transcript; report §8.7, §11.2,
+%% Appendix E.27: `a` and `foo` made with `ern config` and listed in each
+%% other's by `--peer-dir`, `a` listening on a port the harness found free
+%% in place of the README's 0.0.0.0:8654 and `foo` on another; `foo`
+%% started bare; the README's counter, tour/2/counter.ern, in the reader's
+%% directory; the shell started as `a`, its start line the release's as the
+%% README shows it, and the console's inputs typed, each held to the lines
+%% the console shows after it, in order, a peer's connection among them
+%% held where the shell may print it, before or after the answer; `foo`
+%% said where it listens, that `a` connected and, once the shell has quit,
+%% that it ended, and nothing else. A regression test, written after the
+%% README; it does not cover the configuration, which the README leaves to
+%% the tour, nor the shell at a terminal. Its limit is the sum of its
+%% sixteen waits, each bounded by the harness's time for one wait: four
+%% `ern config` jobs, `foo`'s listening,
+%% the shell's start, five inputs, the shell's end and what it said, the
+%% stop, `foo`'s end and what it said
+readme_test_() ->
+    ern_nodes_tests:nodes_test({waits, 16}, fun readme/1).
+
+readme(Base) ->
+    [<<"$ ern shell --config-dir a">>, <<"listening on 0.0.0.0:8654">>, Start | Session] =
+        readme_console(),
+    {ok, Version} = file:read_file("../VERSION"),
+    ?assertEqual(<<"Ernest ", (string:trim(Version))/binary,
+                   ". :help for the commands, :quit to leave.">>, Start),
+    [PortA, PortFoo] = [ern_nodes_tests:free_port() || _ <- [a, foo]],
+    [AddressA, AddressFoo] = [ern_nodes_tests:address(Port) || Port <- [PortA, PortFoo]],
+    [A, Foo] = [filename:join(Base, Name) || Name <- ["a", "foo"]],
+    created(Base, "config --config-dir a"),
+    ern_nodes_tests:edit(A, fun(Conf) -> Conf#{<<"listen">> => AddressA} end),
+    created(Base, "config --config-dir foo --listen " ++ binary_to_list(AddressFoo)),
+    [?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "config --config-dir " ++ Words))
+     || Words <- ["a --peer-dir foo", "foo --peer-dir a"]],
+    {ok, _} = file:copy(filename:join([?TOUR, "2", "counter.ern"]),
+                        filename:join(Base, "counter.ern")),
+    WaitFoo = ern_nodes_tests:bare_started(Foo, []),
+    ern_deployment_tests:listens(Foo, PortFoo),
+    Shell = started(Base, A, " --config-dir a", [<<"listening on ", AddressA/binary>>]),
+    quit(session(Shell, inputs(Session))),
+    ?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "stop --config-dir foo")),
+    ?assertEqual(143, WaitFoo()),
+    {"", Err} = ern_nodes_tests:said(Foo),
+    ?assertEqual([<<"listening on ", AddressFoo/binary>>, <<"the peer a connected">>,
+                  <<"the peer a ended">>],
+                 stamped(Err)).
+
+%% The lines of the README's console whose command starts the shell as a
+%% node, the command first.
+readme_console() ->
+    {ok, Text} = file:read_file("../README.md"),
+    readme_console(binary:split(Text, <<"\n">>, [global])).
+
+readme_console(Lines) ->
+    {_, [_ | Rest]} = lists:splitwith(fun(Line) -> Line =/= <<"```console">> end, Lines),
+    case lists:splitwith(fun(Line) -> Line =/= <<"```">> end, Rest) of
+        {[<<"$ ern shell --config-dir a">> | _] = Console, _} -> Console;
+        {_, [_ | After]} -> readme_console(After)
+    end.
+
+%% A console's inputs as session/2 types them: each `> ` line with the
+%% lines shown after it, a line a node says, `the peer foo connected`,
+%% among the unordered, since nothing orders it against the answer.
+inputs([]) ->
+    [];
+inputs([<<"> ", Input/binary>> | Rest]) ->
+    {Shown, After} = lists:splitwith(fun(Line) -> binary:match(Line, <<"> ">>) =/= {0, 2} end,
+                                     Rest),
+    IsSaid = fun(Line) -> binary:match(Line, <<"the peer ">>) =:= {0, 9} end,
+    {Said, Answered} = lists:partition(IsSaid, Shown),
+    [{binary_to_list(Input), Answered, [[Line] || Line <- Said]} | inputs(After)].
+
+%%
 %% Chapters 2 to 8, one session on three nodes
 %%
 

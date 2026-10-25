@@ -181,7 +181,7 @@ among(Shown, [_ | Rest]) -> among(Shown, Rest).
 %% block, is the module the tour's chapter 2 spawns on a bare node, byte
 %% for byte, so that the front page shows what the tour's test runs. A
 %% regression test, written after the README's block; it does not cover the
-%% README's console, the transcript of the spawn, which no test runs.
+%% README's console, the transcript of the spawn, which ern_tour_tests runs.
 readme_counter_is_the_tours_test() ->
     Lines = binary:split(ern_repository:read("README.md"), <<"\n">>, [global]),
     {_, [_ | Rest]} = lists:splitwith(fun(Line) -> Line =/= <<"```ernest">> end, Lines),
