@@ -139,7 +139,7 @@ Meanwhile it does not change but in its form, a paragraph broken where it turns 
 ## Writing
 
 - **The report and the guide are tight, in a Wirth language report's register.** State the rule; no rationale, no restating. Clear before short: plain sentences, one rule per sentence, its exception and its example in sentences of their own. Cut a sentence for restating or rationale, never for a count: a long section is kept when every sentence states a rule.
-- **A paragraph is one turn of the text, in every document and in a message to the user.** It says one thing, with that thing's exception and example, and a new paragraph begins where the text turns to the next thing.
+- **A paragraph is one turn of the text, in every document, in a comment of the code and in a message to the user.** It says one thing, with that thing's exception and example, and a new paragraph begins where the text turns to the next thing.
 
   A break is made where it helps the reader take the next thing in, and nowhere else: never at a count of words, never to shorten, and never later than the turn. A paragraph past about a hundred words, a list item among them, which `make paragraphs` lists, is read again for a turn it may hide, and left whole where it holds one thing. One past 150 words no reader takes in whole, so a test refuses it, in every tracked document the listing reads, and the writer splits it at its turn before the commit.
 

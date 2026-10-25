@@ -15,6 +15,7 @@ A name in the Erlang and the C is chosen as [`guide/style.md`](../guide/style.md
 - A record names what it holds, as the guide says of a type: `#emit_context{}`, not `#cx{}`. A function that gives a value made so is a past participle, `armed`, `held`. Longer names make longer code, and that is accepted.
 - A value changing through a function is numbered, `Env1`, `Env2`, `env1` in Ernest, and a numbered name is nothing else; past two steps the function is split.
 - A comment says why and cites the report section the code implements, `%% Report §8.4: ...`, `// Report §11.2: ...`; the names say what it does.
+- A comment is paragraphs as a document is: a blank comment line, `%%` or `//` alone, stands between them, each says one thing, and none is past 150 words, the ceiling CLAUDE.md's *Writing* gives a document; a module's header keeps what a reader of the module needs and points at the design note for the rest, which lives there. A test holds the ceiling once MVP 3.96's sixth item has split what stands past it.
 
 ## Erlang
 
