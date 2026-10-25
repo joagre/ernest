@@ -79,10 +79,11 @@ let off =
 
 let faults =
     Test.Case(name = "a fault is red",
-              run = fn() = if fault("x", Markdown.Styled) == "\u{1b}[31mx\u{1b}[39m" then
-                  Test.Passed
-              else
-                  Test.Failed(fault("x", Markdown.Styled)))
+              run = fn() =
+                  if fault("x", Markdown.Styled) == "\u{1b}[31mx\u{1b}[39m" then
+                      Test.Passed
+                  else
+                      Test.Failed(fault("x", Markdown.Styled)))
 
 let diagnostics =
     Test.Case(name = "a diagnostic's first line is red, its source plain",
@@ -104,14 +105,16 @@ let names =
 
 let marksWithout =
     Test.Case(name = "without color the marked parameter is between asterisks",
-              run = fn() = if emphasis("f : Int", Markdown.Plain) == "*f : Int*" then
-                  Test.Passed
-              else
-                  Test.Failed(emphasis("f : Int", Markdown.Plain)))
+              run = fn() =
+                  if emphasis("f : Int", Markdown.Plain) == "*f : Int*" then
+                      Test.Passed
+                  else
+                      Test.Failed(emphasis("f : Int", Markdown.Plain)))
 
 let empties =
     Test.Case(name = "an empty text takes no color",
-              run = fn() = if emphasis("", Markdown.Styled) == "" then
-                  Test.Passed
-              else
-                  Test.Failed("colored nothing"))
+              run = fn() =
+                  if emphasis("", Markdown.Styled) == "" then
+                      Test.Passed
+                  else
+                      Test.Failed("colored nothing"))

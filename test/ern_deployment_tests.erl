@@ -436,7 +436,7 @@ four_fifths() ->
                        ++ ["-eval", "io:put_chars([[Line, $\\n] || Line <- ern_code:nearing("
                                     ++ Counts ++ ")]), halt()."]},
                       exit_status, binary]),
-    {0, Said} = collected(Host),
+    {0, Said} = ern_nodes_tests:collected(Host, 1),
     ?assertEqual(<<"the host has used 52429 of its 65536 module names, which it never gives"
                    " back\n">>, Said),
     cataloged(binary_to_list(Said), "7", "never gives back", [{"N", "52429"}, {"M", "65536"}]).
@@ -634,23 +634,9 @@ job(Base, Words) ->
     Err = filename:join(Base, "job.err"),
     Command = lists:flatten(["cd ", Base, " && ", ?ERN, " ", Words, " 2> ", Err]),
     Job = open_port({spawn_executable, "/bin/sh"}, [{args, ["-c", Command]}, exit_status, binary]),
-    {Status, Out} = collected(Job),
+    {Status, Out} = ern_nodes_tests:collected(Job, 1),
     {ok, Said} = file:read_file(Err),
     {Status, binary_to_list(Out), binary_to_list(Said)}.
-
-%% What the command the port runs wrote, to its end, and its status: one
-%% step, within the harness's time for one wait.
-collected(Port) ->
-    ern_nodes_tests:step({collected, Port}),
-    collected(Port, <<>>, erlang:monotonic_time(millisecond) + ern_nodes_tests:wait_ms()).
-
-collected(Port, Acc, Deadline) ->
-    receive
-        {Port, {data, Bytes}} -> collected(Port, <<Acc/binary, Bytes/binary>>, Deadline);
-        {Port, {exit_status, Status}} -> {Status, Acc}
-    after max(Deadline - erlang:monotonic_time(millisecond), 0) ->
-        erlang:error({still_running, Port, Acc})
-    end.
 
 %% Whether Out is the lines a console shows, a line that ends in `...` the
 %% start of its line.

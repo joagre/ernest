@@ -23,20 +23,21 @@
 -export([configure/2, tables/0, name/1, service/1, service/2, offer/2, find/2, spawn/3, spawn/4,
          spawn_monitored/4, spawn_monitored/5, compute/2, compute/3, compute_at/3, compute_at/4,
          pick/0, utilization/2, peers/0, utilizations/0, set_utilization/1,
-         hold_utilization/3, drop_utilization/1, frame/2, failed/4, unstarted/2, ms/1,
-         reach_lacked/2,
-         foreign_lacked/1, lost/2]).
+         hold_utilization/3, drop_utilization/1, frame/2, restart_told/1, watchers_told/1,
+         failed/4, unstarted/2, ms/1, reach_lacked/2, foreign_lacked/1, lost/2]).
 
 -export_type([identity/0]).
 
 -include_lib("emitter/include/ern_unit.hrl").
 
 %% Report §8.6: each receive that can wait, by its kind (docs/style.md):
-%% a find's, a spawn's and a utilization's wait on a peer's answer, and a
+%% a find's, a spawn's and a utilization's wait on a peer's answer, a
 %% process a peer's monitored spawn started here on the spawner's word
-%% (held/4), none the look sees coming (ern_rt:entered_foreign/0); the
-%% other shims read a table or a persistent term, or write a table.
--receives({foreign_wait, [alias_answer/3, spawn_answer/3, given_up/2, spawner_word/2]}).
+%% (held/4), and a restart's wait for a peer's answer (watchers_told/1),
+%% none the look sees coming (ern_rt:entered_foreign/0); the other shims
+%% read a table or a persistent term, or write a table.
+-receives({foreign_wait, [alias_answer/3, spawn_answer/3, given_up/2, spawner_word/2,
+                          watchers_told/1]}).
 
 %% A spawn waiting for its answer, {{Node, Ref}, Caller, Order}, by the
 %% peer's node and the spawn's reference: the process that called for it,
@@ -557,26 +558,70 @@ frame(_From, {kill, Pid}) when is_pid(Pid), node(Pid) =:= node() ->
         false -> 'Unit'
     end,
     ok;
-%% report §8.7: "that node delivers `Restarted` through the wraps of the
-%% service monitors it holds and answers once every delivery has ended, at
-%% once where it holds none": the restart of From, the process that sent
-%% the frame, told to this node's service monitors of it
-%% (ern_rt:peer_restarted/2), and answered through the alias it carries
-%% by a frame to its node's gateway, over the connection that stands,
-%% since a loss has ended the wait where none does
+%% report §8.7, *A restart*: "Each node told delivers `Restarted` through
+%% the wraps of the service monitors it holds and answers once every
+%% delivery has ended, at once where it holds none": the restart of From,
+%% the process that sent the frame, told to this node's service monitors
+%% of it (ern_rt:peer_restarted/2), and answered through the alias it
+%% carries by a frame to its node's gateway, over the connection that
+%% stands, since a loss has ended the wait where none does
 frame(From, {restarted, Alias}) when is_reference(Alias), node(Alias) =:= node(From) ->
     Answer = {ern_frame, erlang:self(), {watchers_told, Alias}},
     ern_rt:peer_restarted(From, fun() ->
                                     erlang:send({ern_gateway, node(From)}, Answer, [noconnect])
                                 end);
-%% report §8.7: a peer's answer that its watchers have been told of a
-%% restart here, handed to the restarting process through its alias, which
-%% takes one answer (ern_rt's tell_service_monitors/0)
+%% report §8.7, *A restart*: a peer's answer that its watchers have been
+%% told of a restart here, handed to the restarting process through its
+%% alias, which takes one answer (watchers_told/1), as `{watchers_told,
+%% Alias}`, a shape no call's wait takes, so that an alias a peer names
+%% wrongly faults no caller
 frame(_From, {watchers_told, Alias}) when is_reference(Alias), node(Alias) =:= node() ->
-    Alias ! {Alias, watchers_told},
+    Alias ! {watchers_told, Alias},
     ok;
 frame(_From, _Body) ->
     unreadable.
+
+%% Report §8.7, *A restart*: the restart's ask of Node, which
+%% watchers_told/1 waits on: the frame `restarted` to the node's gateway,
+%% from the restarting process, carrying an alias of the process's that the
+%% answer comes back through, which takes one answer; the gateway watched,
+%% so that a loss of the connection, or the node's end, which ends its
+%% gateway, ends the wait. A connection lost since the host listed the
+%% monitor is dialed by the watch, as the next operation towards a peer
+%% dials one, and the node answers at once, since its monitors of the
+%% process went with the loss.
+-spec restart_told(node()) -> {reference(), reference()}.
+restart_told(Node) ->
+    Gateway = {ern_gateway, Node},
+    MonitorRef = erlang:monitor(process, Gateway),
+    Alias = erlang:alias([reply]),
+    erlang:send(Gateway, {ern_frame, erlang:self(), {restarted, Alias}}),
+    {Alias, MonitorRef}.
+
+%% Report §8.7, *A restart*: the restart's wait on one node's answer that
+%% its watchers have been told, which this node's gateway hands to the
+%% alias (frame/2), or on the end of the watch on that node's gateway, a
+%% loss or the node's end; "the answer comes through an alias of the
+%% restarting process's, which takes one answer and is let go when the
+%% wait ends, so nothing of the wait reaches the new run": an answer that
+%% came before the watch's end is taken, and one that comes after is
+%% dropped at the alias let go. Report §8.6: a peer's answer is none the
+%% look sees coming.
+-spec watchers_told({reference(), reference()}) -> ok.
+watchers_told({Alias, MonitorRef}) ->
+    ern_rt:entered_foreign(),
+    try
+        receive
+            {watchers_told, Alias} ->
+                erlang:demonitor(MonitorRef, [flush]);
+            {'DOWN', MonitorRef, process, _, _} ->
+                erlang:unalias(Alias),
+                receive {watchers_told, Alias} -> true after 0 -> true end
+        end
+    after
+        ern_rt:left_foreign()
+    end,
+    ok.
 
 %% A process a peer's spawn starts here, where this node holds the function
 %% and every module its reach's foreign declarations call, and the run in

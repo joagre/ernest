@@ -132,7 +132,8 @@ connected(Machine, Port, Said, Deadline) ->
             Machine
     end.
 
-%% The ssh connection closed, once ssh has ended it.
+%% The ssh connection closed, once ssh has ended it: two steps, the command
+%% that asks the connection's ssh to end and the wait for that ssh's end.
 -spec closed(machine()) -> ok.
 closed(#machine{ssh = none}) ->
     ok;
@@ -356,28 +357,35 @@ unended(Reader, What) ->
 %% of that time, not with the time, as asks without a pause would, which
 %% keep a core busy while the node starts. At each refusal Refused is
 %% called, which fails where the node has ended; a port that has not
-%% answered within the harness's time for one wait fails the run. One step.
+%% answered within the harness's time for one wait fails the run, each
+%% connection and each pause given what is left of it. One step.
 -spec answering(string(), inet:port_number(), fun(() -> ok)) -> ok.
 answering(Host, Port, Refused) ->
     ern_nodes_tests:step({answering, Host, Port}),
-    answering(Host, Port, Refused, erlang:monotonic_time(millisecond)).
+    Asked = erlang:monotonic_time(millisecond),
+    answering(Host, Port, Refused, Asked, Asked + ern_nodes_tests:wait_ms()).
 
-answering(Host, Port, Refused, Asked) ->
-    Now = erlang:monotonic_time(millisecond),
-    Now - Asked =< ern_nodes_tests:wait_ms()
-        orelse fail(io_lib:format("~s:~B did not answer within ~B ms",
-                                  [Host, Port, ern_nodes_tests:wait_ms()])),
-    case gen_tcp:connect(Host, Port, []) of
+answering(Host, Port, Refused, Asked, Deadline) ->
+    Left = Deadline - erlang:monotonic_time(millisecond),
+    Left > 0 orelse unanswered(Host, Port),
+    case gen_tcp:connect(Host, Port, [], Left) of
         {ok, Socket} ->
             gen_tcp:close(Socket);
         {error, econnrefused} ->
             ok = Refused(),
-            receive after max(Now - Asked, 1) -> ok end,
-            answering(Host, Port, Refused, Asked);
+            Now = erlang:monotonic_time(millisecond),
+            receive after max(min(Now - Asked, Deadline - Now), 1) -> ok end,
+            answering(Host, Port, Refused, Asked, Deadline);
+        {error, timeout} ->
+            unanswered(Host, Port);
         {error, Error} ->
             fail(io_lib:format("~s:~B cannot be reached from here: ~s",
                                [Host, Port, inet:format_error(Error)]))
     end.
+
+unanswered(Host, Port) ->
+    fail(io_lib:format("~s:~B did not answer within ~B ms",
+                       [Host, Port, ern_nodes_tests:wait_ms()])).
 
 %% A word the shell reads as the text itself.
 -spec quoted(string()) -> string().

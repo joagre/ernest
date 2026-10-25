@@ -360,8 +360,8 @@ del_read_only_test() ->
 %% does not hold within one step of the harness's
 %% (ern_nodes_tests:wait_ms/0), the signal is sent then, and the test's
 %% checks say what did not come. Its status and its output are returned.
-%% The wait for Until is one step of the harness's, and the end after the
-%% signal another (ended/2).
+%% The wait for Until is one step of the harness's, and the program's end
+%% another, after the signal (ended/2) or before it.
 run_for(Dir, Command, Until, Signal) ->
     ern_nodes_tests:step({run_for, Command}),
     Out = filename:join(Dir, "run.out"),
@@ -375,6 +375,7 @@ run_for(Dir, Command, Until, Signal) ->
     port_close(Changes),
     Status = case Waited of
                  {ended, Ended} ->
+                     ern_nodes_tests:step({ended, Program}),
                      Ended;
                  due ->
                      {os_pid, ProcessNumber} = erlang:port_info(Program, os_pid),
@@ -1938,25 +1939,23 @@ build(Args) ->
 
 %% A command run by the host's shell to its end: its status, and what it
 %% wrote, its standard error beside its standard output, Options given to
-%% its port beside. One step of the harness's (ern_nodes_tests:step/1).
+%% its port beside. One step of the harness's (ern_nodes_tests:collected/2).
 -spec sh(string()) -> {integer(), binary()}.
 sh(Command) ->
     sh(Command, []).
 
 -spec sh(string(), [term()]) -> {integer(), binary()}.
 sh(Command, Options) ->
-    ern_nodes_tests:step({command, Command}),
     Shell = open_port({spawn, Command}, [exit_status, stderr_to_stdout, binary | Options]),
-    collect(Shell, []).
+    ern_nodes_tests:collected(Shell, 1).
 
 %% A script run by the host's shell to its end, as sh/1 runs a command,
 %% which gives each of Steps waits of its own, its runs of `ern` and their
 %% ends, the harness's time for one wait: Steps steps of the harness's,
 %% which cannot see them.
 scripted(Command, Steps) ->
-    ern_nodes_tests:step({script, Command}, Steps),
     Shell = open_port({spawn, Command}, [exit_status, stderr_to_stdout, binary]),
-    collect(Shell, []).
+    ern_nodes_tests:collected(Shell, Steps).
 
 %% A FIFO at Path, made anew: two sides of a test's command line meet at
 %% it, the one that reads it waiting until the other has written its line.
@@ -1988,11 +1987,4 @@ succeed(Command, Options) ->
 %% What the program the port Program runs wrote, to its end, and its
 %% status: one step of the harness's.
 finished(Program) ->
-    ern_nodes_tests:step({finished, Program}),
-    collect(Program, []).
-
-collect(Program, Acc) ->
-    receive
-        {Program, {data, Data}} -> collect(Program, [Data | Acc]);
-        {Program, {exit_status, Status}} -> {Status, iolist_to_binary(lists:reverse(Acc))}
-    end.
+    ern_nodes_tests:collected(Program, 1).

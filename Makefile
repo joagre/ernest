@@ -366,23 +366,36 @@ bench-release:
 	@$(MAKE) -C test bench-release
 
 # The Emacs mode's tests (docs/design/emacs_mode.md). It is an editor and not
-# part of the toolchain, so a machine without Emacs skips them; they are
-# the only tests `make test-full` will run and not have built. `format` runs
-# `ern format`, so the toolchain is built first. EMACS names the Emacs to
-# run them under: `make test-emacs EMACS=/opt/emacs-29/bin/emacs`.
+# part of the toolchain, so a machine without Emacs skips them, and so does
+# one whose Emacs is older than the mode's floor, which
+# editors/emacs/README.md states; they are the only tests `make test-full`
+# will run and not have built. `format` runs `ern format`, so the toolchain
+# is built first. EMACS names the Emacs to run them under: `make test-emacs
+# EMACS=/opt/emacs-29/bin/emacs`, which fails where that Emacs is missing or
+# older than the floor.
 EMACS ?= emacs
+EMACS_FLOOR = 29
 EMACS_TESTS = flatten reindent format lint color editing broken
 # typing.el costs the square of a file's length, so it runs in four parts,
 # the largest files in different parts, the longest jobs first.
 TYPING_PARTS = $(addprefix emacs-test-typing-,0 1 2 3)
 EMACS_ALL = $(TYPING_PARTS) $(EMACS_TESTS:%=emacs-test-%)
-EMACS_JOBS = $(if $(shell command -v $(EMACS) 2>/dev/null),$(EMACS_ALL),test-emacs)
+# The tests themselves where the Emacs is there and not older than the
+# floor, and otherwise test-emacs, which says why they do not run.
+EMACS_JOBS = $(if $(shell v=$$($(EMACS) -Q -batch --eval '(princ emacs-major-version)' \
+	  2>/dev/null) && [ "$$v" -ge $(EMACS_FLOOR) ] && echo yes),$(EMACS_ALL),test-emacs)
 test-emacs: all
 	@if ! command -v $(EMACS) >/dev/null 2>&1; then \
 	  if [ "$(origin EMACS)" = file ]; then \
 	    echo "  Emacs not installed; the mode's tests were skipped."; exit 0; fi; \
-	  echo "  $(EMACS): no such Emacs"; exit 1; fi
-	@$(MAKE) -s -j $(EMACS_ALL)
+	  echo "  $(EMACS): no such Emacs"; exit 1; fi; \
+	version=$$($(EMACS) -Q -batch --eval '(princ emacs-version)'); \
+	if [ "$${version%%.*}" -lt $(EMACS_FLOOR) ]; then \
+	  older="Emacs $$version is older than $(EMACS_FLOOR), which the mode needs"; \
+	  if [ "$(origin EMACS)" = file ]; then \
+	    echo "  $$older; the mode's tests were skipped."; exit 0; fi; \
+	  echo "  $$older."; exit 1; fi; \
+	$(MAKE) -s -j $(EMACS_ALL)
 
 # One Emacs test, each in an Emacs of its own, so they run side by side.
 $(EMACS_TESTS:%=emacs-test-%): emacs-test-%:

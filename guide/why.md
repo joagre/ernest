@@ -7,10 +7,10 @@ Ernest is a small functional language for concurrent programs, on the Erlang run
 What Ernest adds is where the parts meet:
 
 - **The mailbox in the function's type.** Every process receives messages of one type, which a function that receives names in its own type and a process's address carries. So the compiler checks every message sent against the mailbox it will reach and every receive against the mailbox it reads, and a program can never send a server a message of a type the server does not take. A function that receives runs only in a process of its mailbox's type.
-- **Code known by its hash.** A function or a type is known by a hash of its definition, not by the name of the module it stands in. So a module reloaded is a new version beside its earlier ones, a running process moves to the new version of its function when a message tells it to, and a process started on another node brings its code along: any node can run anything, a computation that names no node goes to the less busy of two peers drawn at random, which spreads a burst among three peers or more, and no program is deployed first.
+- **Code known by its hash.** A function or a type is known by a hash of its definition, not by the name of the module it stands in. So a module reloaded is a new version beside its earlier ones, a running process moves to the new version of its function when a message tells it to, and a process started on another node brings its code along: any node can run anything, a computation that names no node goes to the less busy of two peers drawn at random, which spreads a burst among three peers or more, since with two the draw takes both and the less busy takes the burst whole, and no program is deployed first.
 - **A distribution built for a WAN.** A node lists its peers in a file, each by name, public key and address, accepts a connection only from a key it lists, and opens one TLS connection to a peer when it first needs it. There is no cluster to join and no shared secret: a laptop and a server, or two data centers, are two nodes with one file each naming the other.
 - **Abstract types and requirements.** A type declared abstract keeps its constructor to its own module, so the representation can change and no caller knows. A generic function names the operations it needs of its type, and the compiler supplies that type's own at each call. Nothing is declared an instance of anything: a type's members are declared in its own module, a requirement is written and never inferred, and the members are a closed set no program adds to, which is what sets a requirement apart from a class.
-- **A deadlock is found.** A program in which every process waits for a message none can send ends with a fault and a trace, where the host would wait forever. The runtime owns every source of a message, a typed mailbox, a process it spawned, a timer or a socket, which it counts, but for a delivery foreign code arranges for after its call has returned, so it can decide that nothing can deliver, under `ern run` and `ern test`; a node, which its peers can reach, detects none, and nor does the shell while it holds the terminal. Finding one costs a running program almost nothing.
+- **A deadlock is found.** A program in which every process waits for a message none can send ends with a fault and a trace under `ern run` and `ern test`, where the host would wait forever. The runtime owns every source of a message, a typed mailbox, a process it spawned, a timer or a socket, which it counts, so it can decide that nothing can deliver. The one source it cannot count is a delivery foreign code arranges for after its call has returned. A node, which its peers can reach, detects none, and nor does the shell while it holds the terminal. Finding one costs a running program almost nothing.
 - **Little else.** Functions and processes are the whole language, with one way to do each thing. A report of three files defines all of it. Five principles decide what goes in, and the first is that nothing surprises a reader who knows the rest.
 
 Its parts come from elsewhere: Erlang's processes, the types of ML, which Gleam made ordinary on that runtime, and Unison's small core and its code known by the hash of its definition.
@@ -54,7 +54,7 @@ $ ern run counter.erc
 count is 8
 ```
 
-`main` receives nothing, so its type names no mailbox. The counter is spawned on this node as the program starts, before `main` runs, the top-level bindings of the standard library and of every module the program uses evaluated in dependency order (report §8.5). `Address.call` gives `Get` a `Reply(Int)` of its own, which the counter answers with `answer`, and waits for the answer at most 1000 milliseconds: `None` is an answer that did not come.
+`main` receives nothing, so its type names no mailbox. The counter is spawned on this node as the program starts, before `main` runs: the top-level bindings of the standard library and of every module the program uses are evaluated first, each after those it depends on (report §8.5). `Address.call` gives `Get` a `Reply(Int)` of its own, which the counter answers with `answer`, and waits for the answer at most 1000 milliseconds: `None` is an answer that did not come.
 
 A fault, a division by zero or a `fault` call, ends the process, and nothing catches it. Whoever monitors the process hears of its end as a `Down` with the reason, wrapped as a message of their own type. A process started under `restarting` runs its function again from its start after a fault, its mailbox emptied and its address kept, so the name `counter` stays good and a request that waited in the mailbox is lost; the guide's §6.5 shows a restart.
 
@@ -120,7 +120,7 @@ fn count(total : Int) : Unit receiving CounterMsg =
 send(counter, Upgrade(next = countTwice))
 ```
 
-`next` is of the counter's own type, `receiving CounterMsg`, so the type says that the loop a message may install reads this mailbox and no other, and such a message changes the loop and not the messages. A process keeps its mailbox type for life, so a change of the messages is a new process, started beside the old or in its place; a new message type is a new version of the module, which the shell shows.
+`next` is of the counter's own type, `receiving CounterMsg`, so the type says that the loop a message may install reads this mailbox and no other, and such a message changes the loop and not the messages. A process keeps its mailbox type for life, so a change of the messages is a new process, started beside the old or in its place. A module compiled again with a changed message type is a new version of it, beside the old, as the shell session below shows.
 
 The first claim's counter runs under `restarting`, and a restart runs the function the process was started with, so a counter moved to `countTwice` runs `count` again after its next fault; how a service under `restarting` takes new code is the deployment guide's §5.3.
 
@@ -160,7 +160,7 @@ match Peer.spawn("foo", fn() = count(0), 5000) {
 
 `Peer.spawn` waits at most 5000 milliseconds for the peer, and answers `Left` with the reason where it cannot reach it. The tour's chapter 2 runs this spawn, on a bare node started for it, and shows what each terminal printed.
 
-A computation need not name a node at all. `Peer.compute(f, ms)` runs `f` on the less busy of two peers drawn at random from those the node knows, carrying its code there as the spawn does, and answers the value within `ms` milliseconds, or `Left` with the reason. The draw spreads work among three peers or more with no central choice; with two peers it takes both each time, so a burst within one telling goes to the one less busy at it. A fault in `f` is the caller's, with `f`'s cause, and the line the caller's node writes of it names the peer `f` ran on, `, on the peer foo`:
+A computation need not name a node at all. `Peer.compute(f, ms)` runs `f` on the less busy of two peers drawn at random from those that have told the node how busy they are, carrying its code there as the spawn does, and answers the value within `ms` milliseconds, or `Left` with the reason. A peer tells the node as it connects, and a connection opens when an operation reaches for the peer or the peer dials in, so where no peer has told it yet the compute answers `Left(Io.Unreachable)` (report §8.7). The draw spreads work among three peers or more with no central choice; with two peers it takes both each time, so a burst goes whole to the one that last reported itself less busy. A fault in `f` is the caller's, with `f`'s cause, and the line the caller's node writes of it names the peer `f` ran on, `, on the peer foo`:
 
 ```ernest-fragment
 match Peer.compute(fn() = render(scene, row), 5000) {
@@ -190,7 +190,7 @@ A node is Ernest started from a configuration directory, with a program or with 
 }
 ```
 
-`ern config` makes the directory, the node's private key and its certificate, and prints the public key, which is what another node lists. A service is a process a node offers its peers under a name, whose address they find by that name. `services`, empty here, names for each service a program looks up the peers that may offer it. A service a node offers under a name is found from a peer by that name and the hash of its message type, so two programs built apart agree on what passes between them, or the find answers `OtherType`.
+`ern config` makes the directory, the node's private key and its certificate, and prints the public key, which is what another node lists. A service is a process a node offers its peers under a name; a peer finds its address by that name and the hash of its message type, so two programs built apart agree on what passes between them, or the find answers `Io.OtherType`. `services`, empty here, names for each service a program looks up the peers that may offer it.
 
 A listed peer is trusted whole. One that may spawn on a node may run anything on it, so the list of peers is the whole of the trust.
 
@@ -217,7 +217,7 @@ export fn size(Stack(items)) =
     List.size(items)
 ```
 
-`main.ern` uses it. `ern build` compiles the two to `main.erc`, which `ern run` runs:
+`main.ern` uses it. `ern build .` compiles the two to `stack.erc` and `main.erc`, and `ern run` runs `main.erc`:
 
 ```ernest
 // main.ern  (namespace Main)
@@ -228,13 +228,14 @@ export fn main() : Unit = {
 ```
 
 ```console
+$ ern build .
 $ ern run main.erc
 2
 ```
 
 `Stack.Stack([])` in `main.ern` is refused, so a caller holds a stack through `empty`, `push` and `size` alone. The list inside can become anything, and no caller knows.
 
-A *requirement* names the operations a generic function needs of its type, several with commas: a type's `compare`, `negate`, one of the six operators `+`, `-`, `*`, `/`, `%` and `<>`, or `show`, and nothing else. `sorted` needs a `compare` of `a`, the type of the list's elements, since `List.sort` needs one. Written over `List(Int)` it would sort integers alone. Written with `needs`, a call supplies nothing, and the compiler finds the `compare` declared under the element type's name, in that type's own module.
+A *requirement* names the operations a generic function needs of its type, several with commas: a type's `compare`, `negate`, one of the six operators `+`, `-`, `*`, `/`, `%` and `<>`, or `show`, and nothing else. `sorted` needs a `compare` of `a`, the type of the list's elements, since `List.sort` needs one. Written over `List(Int)` it would sort integers alone. Written with `needs`, the caller writes nothing more, and the compiler finds the `compare` declared under the element type's name, in that type's own module.
 
 ```ernest
 fn sorted(list : List(a)) : List(a) needs a.compare =
@@ -335,7 +336,7 @@ The trace names line 7, the `spawn`, and not the `receive` below it: a wait leav
 
 Beneath the trace the fault lists the processes left waiting, a line for each spawn site and the frame its processes wait in: here the worker, spawned on line 7, waiting in `work` (report §8.6).
 
-On Erlang a bare `receive` waits forever, and a `gen_server:call` gives up after five seconds with an exit that names the timeout and not the cause; a programmer learns of the deadlock from that, a dashboard or a user.
+The fault names the deadlock and the processes it left waiting. On Erlang a bare `receive` waits forever, and a `gen_server:call` gives up after five seconds with an exit that names the timeout and not the cause; a programmer learns of the deadlock from that, a dashboard or a user.
 
 Ernest can decide it because the runtime owns every source of a message but one, which the next paragraph names. A mailbox is typed and reached through an address the program holds; a process is spawned by the runtime, which monitors it; the clock, the file system and TCP are system processes, and a socket and a running program are processes of the runtime, each counting what it holds; foreign code is entered through a declaration, and a process inside it is read as able to be delivered to. So "nothing can deliver and everyone waits" is a question with an answer, and the runtime asks it when a program has been quiet for a while, never on a node, which a peer can always reach.
 

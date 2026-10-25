@@ -156,7 +156,8 @@ jobs() ->
       fun reload/3},
      {"stop", signal_options("the node that ends"), "", fun stop/3}].
 
-%% Report §11: a first word that is no job; an option a job takes, given
+%% Report §11: a first word that is no job, refused with the jobs named
+%% and `ern --help`, which describes them; an option a job takes, given
 %% before it, is refused with where it goes.
 no_job("--help") -> "--help stands alone: ern --help, or ern <job> --help";
 no_job("--version") -> "--version stands alone: ern --version";
@@ -175,7 +176,7 @@ no_job(Word) ->
 
 no_such_job(Word) ->
     "no job " ++ Word ++ "; the jobs are build, doc, format, run, test, shell, config, reload"
-        " and stop".
+        " and stop; ern --help describes them".
 
 %% An option's whole name, before any `=`.
 option_name(Word) ->

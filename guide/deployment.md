@@ -81,7 +81,7 @@ The node says `ernest.conf was read again` and a line for each peer added, remov
 
 `listen` and `public-key` cannot change while the node runs: a file that changes either, or breaks a rule of section 1.2, is refused with `the reload was refused, and the configuration stays as it was: ...`, and the old configuration stays. `ern reload` first reads the directory as the node would, and refuses a configuration the node would refuse with status 1, before it signals. `kill -HUP` by the number in `ernest.pid` signals without reading, and the node then refuses such a file itself; the service manager's reload, section 1.5, runs `ern reload`.
 
-`ern stop --config-dir dir` sends the node the termination signal and returns once the node has ended, which it waits for on the lock (report §11.2). Termination is orderly: the processes that asked to be told of the end, its *subscribers*, are told and the end waits for each to answer, saying `the end waits for 1 subscriber: Keeper.main` while it waits, so that what a program keeps is written; then the node tells each connected peer that it ends, so that the peer says `ended` and not `lost`, and exits.
+`ern stop --config-dir dir` sends the node the termination signal and returns once the node has ended, which it waits for on the lock (report §11.2). Termination is orderly: the processes that asked to be told of the end, its *subscribers*, are told and the end waits for each to answer, saying `the end waits for 1 subscriber: Keeper.main` while it waits, so that what a program keeps is written; then the node tells each connected peer that it ends and waits for each peer's answer, so that the peer says `ended` and not `lost`, and exits; a peer that has fallen silent holds the end until it is lost, 45 to 75 seconds (report §8.7).
 
 A second `ern stop` while the first waits is a second termination, which ends the node at once. `kill -TERM` by the number in `ernest.pid` signals without waiting.
 
@@ -161,7 +161,7 @@ Two nodes connect only where they stand on one *floor*: one major and minor rele
 
 A build of `ern` that is no release stands on the floor of its own code's digest, so two development builds connect only where they are the same build. Nodes of different builds of the *program* connect, and agree on the code they share by a hash of each definition (section 5): a *definition* is one function or type of the program, and its *hash* a number computed from its text, which changes when the text does.
 
-The handshake proves the floor by its *cookie*, a digest of the floor, which every node's command line carries and `ps` shows, `-setcookie` and the digest. It is the same on every node of one floor, and grants nothing: a connection is accepted by its key alone (report §8.7).
+The handshake proves the floor by its *cookie*, the digest of the protocol's version, the form's version, `ern`'s major and minor and OTP's major release, or of a development build's own code, which every node's command line carries and `ps` shows, `-setcookie` and the digest. It is the same on every node of one floor, is no secret, and grants nothing: a connection is accepted by its key alone (report §8.7).
 
 The node says `the peer b connected` as the connection opens, `the peer b ended` when `b` stopped in order, and `the peer b's connection was replaced by another from the same node` where `b` dialed anew while the old connection was alive, as after `b`'s restart.
 
@@ -172,6 +172,8 @@ A connection is lost when the network breaks it, when the node's own detector fi
 The node says `the peer b was lost: it fell silent` or `the peer b was lost: it closed`.
 
 What the program sees is the loss run on this node: every process here that watches one of `b`'s processes, through a monitor, is told so, a `Down` message with the reason `Unreachable`, where a peer that stopped in order gives `ProgramEnd` instead (the language guide's §5.2), every call waiting on one of them ends, and a process waiting forever on one faults. Nothing else ends.
+
+A restart here of a process that one of `b`'s processes monitors or calls waits for `b`'s answer, at the latest until the loss or `b`'s end (report §6.9, §8.7). While `b` is silent that service is down: its fault's line says `restarted` at once, and its new run begins at `the peer b was lost`.
 
 The connection is opened again by the next operation that needs it, never in the background: a node that is lost stays lost until an operation that needs it reaches for it, a send, a find, a spawn, a compute or an ask of its utilization (section 3.2), or until it dials in, and a dial that nothing answers is given up after 7 seconds. A peer that cannot be dialed, listed without an address, is reached again only when it dials in.
 
@@ -185,9 +187,9 @@ How a program offers a service, finds one, places a computation and sets its own
 
 ### 3.1 Services
 
-`services` lists, under a name, the peers that may offer it, in the order a find asks them (report §8.7). A find asks the first; where it holds the service the address comes back; where it does not, or is unreachable, the next is asked, and so on within the find's time; a name not listed answers `NotListed` without asking anyone. The order is the preference you give the program, and a reload changes it live.
+`services` lists, under a name, the peers that may offer it, in the order a find asks them (report §8.7). A find asks the first; where it holds the service the address comes back; where it does not, or is unreachable, the next is asked, and so on within the find's time; a name not listed answers `Io.NotListed` without asking anyone. The order is the preference you give the program, and a reload changes it live.
 
-A service carries a hash of its message type, the type of the messages its process takes. A peer that offers the name at another type answers `OtherType`: two builds of the program disagree on the protocol, and no retry mends it. The move is to align the builds (section 5), or to let the program's author know the type changed under a service that peers still find by its old shape.
+A service carries a hash of its message type, the type of the messages its process takes. A peer that offers the name at another type answers `Io.OtherType`: two builds of the program disagree on the protocol, and no retry mends it. The move is to align the builds (section 5), or to let the program's author know the type changed under a service that peers still find by its old shape.
 
 ### 3.2 How busy a node is
 
@@ -223,7 +225,7 @@ Two things never cross: the value of a top-level binding a node evaluates, which
 
 A node keeps every *unit* of code it loads, one module as the host counts them, its build's modules, the ones it was sent and the ones a program loaded, for its life (report §11.2, *What a node holds*). The host counts what they add, in four tables it fills and never empties, module names, exported functions, defined functions and *atoms*, its interned names, which every new name in received code adds to, and never gives one back, so a node that is sent new code without end slowly uses the counts up.
 
-The limits are the host's, 65,536 module names, 524,288 export entries, 524,288 function entries and 1,048,576 atoms, and a node says once, at four fifths of one, `the host has used 52429 of its 65536 module names, which it never gives back`. Past a limit the node runs on and serves what it holds; a spawn or a load that would pass it fails, and the program is given the error `Other` as a `Left`, Ernest's failed result.
+The limits are the host's, 65,536 module names, 524,288 export entries, 524,288 function entries and 1,048,576 atoms, and a node says once, at four fifths of one, `the host has used 52429 of its 65536 module names, which it never gives back`. Past a limit the node runs on and serves what it holds; a spawn or a load that would pass it fails, and the program is given the error `Io.Other` as a `Left`, Ernest's failed result.
 
 How fast the counts move is a question of how much new code a node is sent, not of how long it runs or how much work it does. A node that runs the same build as its peers is sent almost nothing.
 
@@ -238,9 +240,9 @@ A spawn or a compute a peer asked for that this node did not start is said on th
 - `the peer a's spawn at Counter.main:13 was not loaded: the binding Counter.config has no value here`: the function reads a top-level binding whose value lives only where the program that declares it was started. Run that program on this node, or place the work with a compute on a node that runs it.
 - `the peer a's spawn at Counter.main:15 was not loaded: the module counter_host, which Counter.tick calls, is not here`, or `has no function tick/0 here`: the program calls a module of the host's directly, through a foreign declaration, and this node finds no such module among the directories it loads code from, its load path, to which `--load-path` adds a directory and `--libs-dir` the `ebin` of each of the host's applications under one. Install the module there, or the right version of it.
 - `the peer a's spawn at Counter.main:17 was not loaded: this node could not take the code it received: ...`: the host refused to compile or load what arrived, a count of section 4.2 passed among the reasons. Restart the node.
-- `the peer a's spawn at Counter.main:19 was not loaded: the spawner's node no longer holds the function's reach`: the spawning side let go of the code between asking and sending, as Ernest's shell, `ern shell`, does when a spawn typed at it gave up waiting. Nothing to do here; the spawner sees `Other`.
+- `the peer a's spawn at Counter.main:19 was not loaded: the spawner's node no longer holds the function's reach`: the spawning side let go of the code between asking and sending, as Ernest's shell, `ern shell`, does when a spawn typed at it gave up waiting. Nothing to do here; the spawner sees `Io.Other`.
 
-The program on the spawning side sees each of these as a failed result, a `Left`, with `NotLoaded` for the first two and `Other` for the rest.
+The program on the spawning side sees each of these as a failed result, a `Left`, with `Io.NotLoaded` for the first two and `Io.Other` for the rest.
 
 The list is a selection: report §8.7, *What it says*, names every line a spawn or a compute can leave, a compute's lines beside these and the exchange's time run out among them.
 
@@ -250,7 +252,7 @@ The list is a selection: report §8.7, *What it says*, names every line a spawn 
 
 Nodes of different builds of a program connect, as long as they stand on one floor of `ern` (section 2.2), and they agree on what they share by hash: a service names its message type by the hash of its definition, a spawn names its function by the hash of its definition, and a definition that did not change hashes the same in both builds.
 
-A definition's hash covers the hashes of the definitions it uses, so a fix to one function changes its hash and the hashes of the functions that use it; those cross to a node at the old build, and nothing else; two versions of a type are two types, and a service offered at one is not found at the other, which `OtherType` says (section 3.1).
+A definition's hash covers the hashes of the definitions it uses, so a fix to one function changes its hash and the hashes of the functions that use it; those cross to a node at the old build, and nothing else; two versions of a type are two types, and a service offered at one is not found at the other, which `Io.OtherType` says (section 3.1).
 
 Nodes on two floors never connect (section 2.2). A fleet moves to a new minor release of `ern`, or a new major release of OTP, whole, every node stopped and started again on the new floor, or as a second fleet beside the first, with directories of their own, its programs found or placed there and the first fleet stopped once nothing needs it.
 
@@ -329,7 +331,7 @@ The first column is the line as it is written, with the peer's name from `ernest
 | `the peer b connected` | A connection opened, dialed by either side. | None. |
 | `the peer b ended` | `b` stopped in order; a process here that monitored one of `b`'s was told `ProgramEnd`. | None; expected at `b`'s stop. |
 | `the peer b was lost: it closed` | The connection broke at once: `b`'s process died or its machine closed the socket. | Look at `b`'s machine and journal. |
-| `the peer b was lost: it fell silent` | Nothing came from `b` for 45 to 75 seconds: network, or a frozen machine. | Look at the network between them; `b` reconnects at the next operation. |
+| `the peer b was lost: it fell silent` | Nothing came from `b` for 45 to 75 seconds: network, or a frozen machine. A restart here of a process that `b` monitored or called waited until this line, and so did this node's own end, where it had begun. | Look at the network between them; `b` reconnects at the next operation. |
 | `the peer b's connection was replaced by another from the same node` | `b` dialed anew while the old connection was believed alive, as after a restart. | None. |
 | `a node with the key ... was refused: no peer has its key` | A node dialed in whose key this node's `peers` does not list, named by its key's digest. | Add its key under `peers`, then `ern reload`; or ignore a stranger. |
 | `a node named ... was refused: its key gives another name` | A node dialed in under a name that is not the one its key gives, named as it named itself. | Check which key is listed beside which address on the dialing node; a copied directory is not the cause, since a copy has the same key and shows as `replaced`. |

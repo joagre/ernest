@@ -312,9 +312,24 @@ examples(Document, Kind) ->
     Named = [{label(Kind, Number, Unit), Unit}
              || {Number, Unit} <- lists:zip(lists:seq(1, length(Units)), Units)],
     {Apart, Here} = lists:partition(fun({_, Unit}) -> loads_nothing(Unit) end, Named),
-    [{inparallel, erlang:system_info(schedulers_online),
-      [{Name, {timeout, 60, fun() -> check(Unit) end}} || {Name, Unit} <- Apart]}
-     | [{Name, {timeout, 60, fun() -> check(Unit) end}} || {Name, Unit} <- Here]].
+    [{inparallel, erlang:system_info(schedulers_online), [checked(Example) || Example <- Apart]}
+     | [checked(Example) || Example <- Here]].
+
+%% The check of a unit, a test of the harness's steps
+%% (ern_nodes_tests:counted_test/3), named Name.
+checked({Name, Unit}) ->
+    ern_nodes_tests:counted_test(Name, {waits, steps(Unit)}, fun() -> check(Unit) end).
+
+%% The steps check/1 takes for a unit: each Erlang module's compile by
+%% `erlc`, the build, and the console's run, in this node or a host of its
+%% own; a refused program's build; a session's run. A continuation fails
+%% before it takes its one.
+steps({modules, #{files := Files, launch := Launch}}) ->
+    length([Name || {Name, _} <- Files, filename:extension(Name) =:= ".erl"]) + 1
+        + case Launch of none -> 0; #launch{} -> 1 end;
+steps({rejected, _}) -> 1;
+steps({session, _}) -> 1;
+steps({continuation, _}) -> 1.
 
 %% The catalog's errors may be the parser's or an unknown name's.
 cataloged("diagnostics", {rejected, Unit}) -> {rejected, Unit#{any_reason => true}};
@@ -335,8 +350,7 @@ check({modules, #{files := Files, launch := Launch}}) ->
     ok = filelib:ensure_path(Build),
     [{0, <<>>} = sh("erlc -o " ++ Build ++ " " ++ filename:join(Dir, Name))
      || {Name, _} <- Files, filename:extension(Name) =:= ".erl"],
-    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, "--build-root", Build, Dir],
-                                group_leader())),
+    ?assertEqual(0, ern_nodes_tests:built(["--source-root", Dir, "--build-root", Build, Dir])),
     ?assertEqual(<<>>, iolist_to_binary(?capturedOutput)),
     Checked = case Launch of
         none ->
@@ -347,6 +361,8 @@ check({modules, #{files := Files, launch := Launch}}) ->
             Args = string:lexemes(Invocation, " ") ++ [filename:join(Build, CompiledFile) | Words],
             ErrorFile = filename:join(Dir, "stderr"),
             {ok, ErrorDevice} = file:open(ErrorFile, [write]),
+            %% a step, bounded as a build in this node is, by the test's limit
+            ern_nodes_tests:step({run, Args}),
             ?assertEqual(exit_status(Launch), ern_cli:ern(Args, ErrorDevice)),
             ok = file:close(ErrorDevice),
             {ok, Stderr} = file:read_file(ErrorFile),
@@ -374,7 +390,7 @@ check({rejected, #{files := [{Name, Code} | Beside], shown := Shown} = Unit}) ->
     File = filename:join(Dir, Name),
     ok = write(File, Code),
     %% built in this node, the file named as a build started in Dir names it
-    Status = ern_cli:ern(["build", "--source-root", Dir, File], group_leader()),
+    Status = ern_nodes_tests:built(["--source-root", Dir, File]),
     Output = named_from(Dir, unicode:characters_to_binary(?capturedOutput)),
     ok = file:del_dir_r(Dir),
     ?assertMatch({1, _}, {Status, Output}),
@@ -752,16 +768,13 @@ write(Path, Code) ->
     ok = filelib:ensure_dir(Path),
     file:write_file(Path, Code).
 
+%% A command run by the host's shell to its end: its status, and what it
+%% wrote, its standard error beside its standard output; one step of the
+%% harness's (ern_nodes_tests:collected/2).
 sh(Command) ->
-    Shell = open_port({spawn_executable, "/bin/sh"},
-                      [{args, ["-c", Command]}, exit_status, stderr_to_stdout, binary]),
-    collect(Shell, []).
-
-collect(Shell, Acc) ->
-    receive
-        {Shell, {data, Data}} -> collect(Shell, [Data | Acc]);
-        {Shell, {exit_status, Status}} -> {Status, iolist_to_binary(lists:reverse(Acc))}
-    end.
+    ern_nodes_tests:collected(open_port({spawn_executable, "/bin/sh"},
+                                        [{args, ["-c", Command]}, exit_status, stderr_to_stdout,
+                                         binary]), 1).
 
 captured_output() ->
     group_leader() ! {get_output, self()},

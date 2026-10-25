@@ -12,7 +12,7 @@
 
 Ernest is a small functional language for concurrent programs, on the Erlang runtime. A process receives messages of one type, which the compiler checks every send against, and a process started on another node brings its code along: nothing is installed there first.
 
-`foo` is a node started with no program, `ern run --config-dir foo` in a terminal of its own, and it holds nothing of the counter's. The shell is a node too, and the two are two directories each listing the other by key and address, which [the tour](tour/README.md)'s chapter 2 makes in seven commands. `Peer.spawn` starts `count` on `foo`, its code crossing with the spawn, and the shell counts on it from here:
+`foo` is a *node*, a running program or shell that lists its peers in a configuration directory, started here with no program, `ern run --config-dir foo` in a terminal of its own, and it holds nothing of the counter's. The shell is a node too, and the two are two directories each listing the other by key and address, which [the tour](tour/README.md)'s chapter 2 makes, with a third, in seven commands. `Peer.spawn` starts `count` on `foo`, its code crossing with the spawn, and the shell counts on it from here:
 
 ```console
 $ ern shell --config-dir a
@@ -79,7 +79,7 @@ What Ernest adds is where the parts meet, six claims that [Why Ernest](guide/why
 - **[Code known by its hash](guide/why.md#code-known-by-its-hash).** A module's versions run side by side, a running process moves to a new one when told, and a process spawned on another node brings its code along.
 - **[A distribution built for a WAN](guide/why.md#a-distribution-built-for-a-wan).** Two nodes are two configuration files, each naming the other by key and address, with one TLS connection between them and no cluster to join.
 - **[Abstract types and requirements](guide/why.md#abstract-types-and-requirements).** A type keeps its representation to its module, and a generic function names the operations it needs, which the compiler supplies at each call.
-- **[A deadlock is found](guide/why.md#a-deadlock-is-found).** A program in which every process waits for a message none can send ends with a fault and a trace, since the runtime owns every source of a message but a delivery foreign code arranges for after its call has returned; a node, which its peers can reach, detects none. Finding it costs a running program almost nothing.
+- **[A deadlock is found](guide/why.md#a-deadlock-is-found).** A program in which every process waits for a message none can send ends with a fault and a trace under `ern run` and `ern test`; [Why Ernest](guide/why.md#a-deadlock-is-found) says where it cannot be found. Finding it costs a running program almost nothing.
 - **[Little else](guide/why.md#little-else).** Functions and processes are the whole language, and a report of three files defines all of it.
 
 Ernest is for programs written in it from the start, not for an OTP application or a codebase of several languages; [Why Ernest](guide/why.md) says how it meets Erlang.

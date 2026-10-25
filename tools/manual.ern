@@ -132,10 +132,11 @@ fn raised(block : Markdown.Block) : Markdown.Block =
 fn seeAlso(files : List(String)) : List(Markdown.Block) = {
     let names =
         List.filterMap(files,
-                       fn(file) = if Path.extension(Path(file)) == Some("3ern") then
-                           Path.name(Path.withoutExtension(Path(file)))
-                       else
-                           None);
+                       fn(file) =
+                           if Path.extension(Path(file)) == Some("3ern") then
+                               Path.name(Path.withoutExtension(Path(file)))
+                           else
+                               None);
     let #(prelude, modules) = List.partition(List.sort(names), fn(name) = name == "Ernest.Prelude");
     let rest =
         [Markdown.Text("; every Ernest page installed, which "),

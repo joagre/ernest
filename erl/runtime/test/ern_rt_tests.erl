@@ -2242,6 +2242,67 @@ teller_after_the_restart_test() ->
     ?assertEqual([<<"the end waits for 1 subscriber: Main.main:4">>,
                   <<"the subscriber Main.main:4 restarted without answering">>], said()).
 
+%% report §6.9, §8.6, Appendix E.23: the end tells the run whose
+%% subscription stands as it tells: a subscriber that restarts after the
+%% end has read the subscriptions, and subscribes again in its new run
+%% before the end marks the run it tells, has its new run told, the new
+%% run's wrap applied and the old run's not, and its answer ends the wait.
+%% The race is placed: the end's first line, which it says between its read
+%% of the subscriptions and its telling, holds the end until the subscriber
+%% has restarted and subscribed again. A regression test, written after the
+%% code (told_run/4); a new run that subscribes after the end has marked the
+%% old run's row is told as a subscription made while the end waits, which
+%% no test here places
+new_run_told_test() ->
+    Self = self(),
+    Outcome = ern_rt:run_main(
+                fun() ->
+                    Main = erlang:self(),
+                    Zero = zero(),
+                    Run = fun() ->
+                              case get(runs) of
+                                  undefined ->
+                                      put(runs, 1),
+                                      Wrap = fun(Reply) -> Self ! {applied, old}, {told, Reply} end,
+                                      ern_rt:termination(ern_rt:adapted(ern_rt:self(), Wrap)),
+                                      Main ! subscribed,
+                                      receive crash -> 1 div Zero end;
+                                  1 ->
+                                      Wrap = fun(Reply) -> Self ! {applied, new}, {told, Reply} end,
+                                      ern_rt:termination(ern_rt:adapted(ern_rt:self(), Wrap)),
+                                      Self ! subscribed_again,
+                                      receive {told, Reply} -> ern_rt:answer(Reply, 'Unit') end,
+                                      receive never -> ok end
+                              end
+                          end,
+                    Subscriber = ern_rt:spawn(ern_rt:restarting('Unlimited', Run),
+                                              <<"Main.main:4">>),
+                    receive subscribed -> ok end,
+                    Self ! {subscriber, Subscriber}
+                end, <<"main">>, #{stdout => fun(_) -> ok end, faults => fun(_, _) -> ok end,
+                                   say => fun(Line) -> restarted_as_said(Self, Line) end}),
+    ?assertEqual(ok, Outcome),
+    ?assertEqual([new], applied()),
+    ?assertEqual([<<"the end waits for 1 subscriber: Main.main:4">>,
+                  <<"the subscriber Main.main:4 answered">>], said()).
+
+%% A line the end said, in new_run_told_test, Runner being the test's
+%% process, which runs the program and says the end's lines: its first
+%% line, said between the end's read of the subscriptions and its telling,
+%% holds the end until the subscriber has faulted and its new run has
+%% subscribed again.
+restarted_as_said(Runner, Line) ->
+    Said = iolist_to_binary(Line),
+    Runner ! {said, Said},
+    case Said of
+        <<"the end waits for ", _/binary>> ->
+            Subscriber = receive {subscriber, Pid} -> Pid end,
+            Subscriber ! crash,
+            receive subscribed_again -> ok end;
+        _ ->
+            ok
+    end.
+
 %% The subscriber's restart taken by the reaper before the end's teller
 %% asks it for anything, in teller_after_the_restart_test, Runner being
 %% the test's process, which runs the program: the reaper suspended, the

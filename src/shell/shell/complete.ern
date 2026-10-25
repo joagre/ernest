@@ -329,14 +329,15 @@ fn admitted(names : List(Name), slot : Slot) : List(Name) =
 // offered, where `Shell` holds `Shell.Region.Region`.
 fn held(names : List(Name), keep : (Name) -> Bool) : List(Name) =
     List.filter(names,
-                fn(name) = if isHolder(name) then
-                    List.any(names,
-                             fn(inner) =
-                                 !isHolder(inner)
-                                     && String.startsWith(inner.text, name.text <> ".")
-                                     && keep(inner))
-                else
-                    keep(name))
+                fn(name) =
+                    if isHolder(name) then
+                        List.any(names,
+                                 fn(inner) =
+                                     !isHolder(inner)
+                                         && String.startsWith(inner.text, name.text <> ".")
+                                         && keep(inner))
+                    else
+                        keep(name))
 
 // A module or a namespace, which holds the names that begin with it.
 fn isHolder(name : Name) : Bool =

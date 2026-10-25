@@ -201,17 +201,16 @@ let plain =
 
 let newlines =
     Test.Case(name = "a newline is written as an escape and read back",
-              run = fn() = if encode("a\nb") == "a\\nb" then
-                  same("a\nb")
-              else
-                  Test.Failed(encode("a\nb")))
+              run = fn() =
+                  if encode("a\nb") == "a\\nb" then same("a\nb") else Test.Failed(encode("a\nb")))
 
 let backslash =
     Test.Case(name = "a backslash is doubled, so `\\n` is not a newline",
-              run = fn() = if encode("a\\nb") == "a\\\\nb" then
-                  same("a\\nb")
-              else
-                  Test.Failed(encode("a\\nb")))
+              run = fn() =
+                  if encode("a\\nb") == "a\\\\nb" then
+                      same("a\\nb")
+                  else
+                      Test.Failed(encode("a\\nb")))
 
 let both =
     Test.Case(name = "a backslash before a newline reads back whole",

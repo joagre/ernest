@@ -1019,7 +1019,7 @@ parse_error_test() ->
     ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir])),
     Output = iolist_to_binary(?capturedOutput),
     ?assertEqual(<<(list_to_binary(File))/binary, ":2:1: expected an expression instead of"
-                   " end of input\n1 | export fn f() : Int = \n2 |\n  | ^\n\n">>,
+                   " end of input\n1 | export fn f() : Int =\n2 |\n  | ^\n\n">>,
                  Output).
 
 %% report Appendix D, §11.1, §11.2, §4.7: the foreign library Appendix D
@@ -4651,18 +4651,23 @@ job_words_test() ->
     [?assertMatch({_, _}, binary:match(Output, Text)) || {_, Text} <- Refused].
 
 %% report §11: the first word is the job, and none is refused with the jobs
-%% named; an empty first word is none. A regression test of the empty
-%% word, which was refused as `no job ;`
+%% named and `ern --help`, which describes them; an empty first word is
+%% none. A regression test of the empty word, which was refused as
+%% `no job ;`, and of `ern help`, whose refusal named no `--help`
 job_first_test() ->
     ?assertEqual(1, ern_err([])),
     ?assertEqual(1, ern_err(["", "x.erc"])),
     ?assertEqual(1, ern_err(["compile", "x.ern"])),
+    ?assertEqual(1, ern_err(["help"])),
     Output = iolist_to_binary(?capturedOutput),
     ?assertEqual(2, length(binary:matches(Output, <<"ern: a job is required\nUsage: ern <job>">>))),
     ?assertEqual(nomatch, binary:match(Output, <<"no job ;">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"ern: no job compile; the jobs are build, doc,"
                                                 " format, run, test, shell, config, reload and"
-                                                " stop">>)).
+                                                " stop; ern --help describes them\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"ern: no job help; the jobs are build, doc,"
+                                                " format, run, test, shell, config, reload and"
+                                                " stop; ern --help describes them\n">>)).
 
 %% report §11: a compiled module given first is refused with the job that
 %% runs it, an option before the job with where it goes, and a spelling of

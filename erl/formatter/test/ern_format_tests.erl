@@ -292,8 +292,9 @@ nested_clauses_test() ->
            "      | B -> 2",
            "    })"]).
 
-%% report §11.6: a lambda has no rule of its own; its body after `=` is a
-%% body, as a `let`'s value is
+%% report §11.6: a lambda's body after its `=` stays on its line whole or
+%% up to a brace that ends its first line, and otherwise begins the next
+%% line, a step in; a lambda has no other rule of its own
 lambda_test() ->
     fixed(["let f = List.map(xs, fn(x) = x + 1)"]),
     ?assertEqual([<<"let names =">>,
@@ -305,6 +306,37 @@ lambda_test() ->
                  laid(["let names = List.map(Shell.Command.commands, fn(c) ="
                        " Shell.Complete.Name(text = \":\" <> c.name, kind = Shell.Complete.Value,"
                        " shown = Shell.Command.line(c)))"])).
+
+%% report §11.6: a lambda's body that does not fit whole and ends its
+%% first line in a `then` begins the next line, where a `let`'s stays, so
+%% that the `else` stands under the `if` and not at the lambda's column,
+%% where it read as the call's next argument; one that ends its first line
+%% in a brace stays. A regression test: the `then` rule held for a lambda's
+%% body as for a `let`'s (the release review's N12)
+lambda_then_test() ->
+    ?assertEqual([<<"let total =">>,
+                  <<"    List.foldLeft(titles,">>,
+                  <<"                  0,">>,
+                  <<"                  fn(acc, title) =">>,
+                  <<"                      if List.contains(title.holders, patron) then">>,
+                  <<"                          acc + title.count + List.length(title.holders)">>,
+                  <<"                      else">>,
+                  <<"                          acc)">>],
+                 laid(["let total = List.foldLeft(titles, 0, fn(acc, title) = if List.contains("
+                       "title.holders, patron) then acc + title.count + List.length("
+                       "title.holders) else acc)"])),
+    fixed(["let total = if List.contains(title.holders, patron) then",
+           "    acc + title.count + List.length(title.holders) + List.length(title.waiting) + 1",
+           "else",
+           "    acc"]),
+    fixed(["fn f(xs) =",
+           "    List.map(xs,",
+           "             fn(x) = if x then {",
+           "                 a();",
+           "                 b()",
+           "             } else {",
+           "                 c()",
+           "             })"]).
 
 %% report §11.6: a `let`'s value is a body, as a lambda's is: on the
 %% `let`'s line when it fits whole or its first line ends in a brace or

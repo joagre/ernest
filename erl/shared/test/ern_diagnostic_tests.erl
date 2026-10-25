@@ -117,6 +117,19 @@ format_empty_line_test() ->
                  "  | ^\n",
                  lists:flatten(ern_diagnostic:format("f", "a\n\nx\n", Diagnostic))).
 
+%% report §11.5: a shown source line's trailing blanks are trimmed, so a
+%% line of blanks ends at its bar and no line ends in a space. A
+%% regression test: a line of blanks, and a line ending in a blank or a
+%% tab, ended in spaces
+format_trailing_blanks_test() ->
+    Diagnostic = #diagnostic{span = {3, 1, {3, 2}}, message = "m"},
+    ?assertEqual("f:3:1: m\n"
+                 "2 |\n"
+                 "3 | x = 1\n"
+                 "  | ^\n",
+                 lists:flatten(ern_diagnostic:format("f", "a\n  \t \nx = 1 \t\n",
+                                                     Diagnostic))).
+
 %% report §11.5: a token position becomes its span
 span_test() ->
     ?assertEqual({1, 2, {1, 5}}, ern_diagnostic:span({1, 2, {1, 5}, {1, 1}})),

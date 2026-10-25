@@ -1630,6 +1630,25 @@ example.ern:2:13: unknown constructor Red
   |             ^^^
 ```
 
+### A constructor of another module's type written plain (§4.2, §11.5)
+
+```ernest-rejected
+fn missing(error : Io.Error) : Bool =
+    match error {
+        NotFound -> True
+      | _ -> False
+    }
+```
+
+```console
+$ ern build example.ern
+example.ern:3:9: unknown constructor NotFound
+2 |     match error {
+3 |         NotFound -> True
+  |         ^^^^^^^^
+  | = help: write `Io.NotFound`
+```
+
 ### A shadowed prelude constructor where the prelude's is wanted (§4.2)
 
 ```ernest-rejected

@@ -10,7 +10,7 @@
 
 *The Importance of Being Ernest, a Trivial Comedy for Serious People*
 
-Ernest in an evening: one program, a counter, grown through eight chapters from a process with a typed mailbox to the same counter on a node started with none of its code, moved to new code there. It is for the programmer who has used a functional language and will read neither the report nor the guide first. Every rule the tour meets is the guide's, [*Programming in Ernest*](../guide/language.md), or the [deployment guide](../guide/deployment.md)'s where the operator's world is met, and the tour names the section, the report's where no guide states the rule; what the program has just done that your language cannot, the tour says in one line of its own, naming the claim of [*Why Ernest*](../guide/why.md) it meets.
+Ernest in an evening: one program, a counter, grown through eight chapters from a process with a typed mailbox to the same counter on a node started with none of its code, moved to new code there. It is for the programmer who has used a functional language and will read neither the report nor the guide first. Every rule the tour meets is the guide's, [*Programming in Ernest*](../guide/language.md), or the [deployment guide](../guide/deployment.md)'s where the operator's world is met, and the tour names the section, the report's where no guide states the rule; what the program has just done that your language cannot, the tour says where it happens, naming the claim of [*Why Ernest*](../guide/why.md) it meets.
 
 An hour to read, and about three to do along, with `ern` installed as the [README](../README.md) says and four terminals: your own, the shell's, and from chapter 2 one for each of two nodes. Each chapter is a change to the program, then what was typed and what was printed, then a few sentences.
 
@@ -144,7 +144,7 @@ A node accepts a connection from a listed key alone, and nothing else is set up:
 
 `Peer.spawn` starts `count` on `foo` and answers `Right(address)`, or `Left(error)` with the reason it could not, an `Either`; the `match` takes the address and ends the input's process on anything else, `fault` with the error written as text, the shortest way to a `Right` at a prompt (the guide's §2.7). The shell connected to `foo` as the spawn needed it, and `count` crossed with the spawn, since `foo` had no code of it. The counter there is then the counter of chapter 1: the same `send`, the same call, the same answer. That is the second claim of *Why Ernest*: a process started on another node brings its code along, and nothing was installed first.
 
-Chapter 1's counter ended with its shell; this shell runs to the end of the tour. A shell started with `--config-dir` is a node like any other (the guide's §9.2 and §8.1).
+Chapter 1's counter ended with its shell; this shell runs to the end of the tour. A shell started with `--config-dir` is a node like any other (the guide's §9.2 and §8.1). A node started with a program reads every compiled module under the program's directory at its start, where `ern run` without a configuration reads only those the program uses, so an `.erc` there built from another source root keeps the node from starting (the deployment guide's §5.1).
 
 ## 3. The client
 
@@ -257,7 +257,7 @@ input 14:1 faulted: a negative amount
 the counter ended: Fault("a negative amount")
 ```
 
-`watch` monitors the counter, giving `monitor` the constructor that wraps the end into the watcher's own type, so the end arrives as `Ended(Down(...))`, a `Down` whose reason is the fault, `Fault` with its cause (§5.2, §6.4). The fault's report and the watcher's line too are written as each happens, in no fixed order.
+`watch` monitors the counter, giving `monitor` the constructor that wraps the end into the watcher's own type, so the end arrives as `Ended(Down(...))`, a `Down` whose reason is the fault, `Fault` with its cause (§5.2, §6.4). Here too the fault's report and the watcher's line may come in either order.
 
 A program binds such an address at the top of a module and sends to it by name, and the restart is what keeps the binding good; that is a *service*, the guide's §6.5, which the tour's counters at the prompt do not need. The counter on `foo` has felt nothing of this.
 
@@ -366,7 +366,7 @@ input 21:1:15: the argument does not fit Counter.apply: expected Address(Counter
 > kill(far)
 ```
 
-`:reload` brings `Tally` in from the build and compiles `Counter` again, and this time a type changed. Each reload makes a *version* of the module, counted from the first load, `Counter$3` now the previous one; a process keeps its mailbox type for life, so the two counters spawned under the old type, chapter 4's ended one and the one on `foo`, are of `Counter$3.CounterMsg`, and the compiler refuses them the new protocol, the new mailbox type, with the reason (the guide's §9.3).
+`:reload` brings `Tally` in from the build and compiles `Counter` again, and this time a type changed. Each reload makes a *version* of the module, counted from the first load, `Counter$3` now the previous one; a process keeps its mailbox type for life, so the two counters spawned under the old type, chapter 4's ended one and the one on `foo`, are of `Counter$3.CounterMsg`, though `far` was spawned under the first: a type several versions hold unchanged takes the number of the last of them (report §11.2), and the compiler refuses them the new protocol, the new mailbox type, with the reason (the guide's §9.3).
 
 The first claim and the second meet here: a process on another node that has run since chapter 2 cannot be sent what it does not take, and only `far`, bound before the reload, still reaches it. It is killed; chapter 6 gives the counter a door by which its code changes without a kill. A new counter counts per key:
 
@@ -507,7 +507,7 @@ Right(8) : Either(Io.Error, Int)
 
 The host's own code, Erlang's libraries and whatever else runs on the runtime, is *foreign code* to a program, reached through a `foreign fn` that declares the Ernest type of a host function; `erlang:system_info/1` takes an atom, so the question is passed as one (the guide's §8.3). The declaration promised an `Int` of the host, and the runtime checked the answer against it as it arrived; declared `: String`, the same call faults its caller at the crossing, `the return of foreign function erlang:system_info/1 does not match String`, naming the function and the type.
 
-That is the first claim of *Why Ernest* at its boundary: the type is checked, not trusted, and a wrong value from the host is a fault where it crosses, not a crash later in code that believed it. The shell connected to `bar` as the first compute on it needed to, and `bar`'s terminal says `the peer a connected`.
+That is the first claim of *Why Ernest* at its boundary: the type is checked, not trusted, and a wrong value from the host is a fault where it crosses, not a crash later in code that believed it. The shell connected to `bar` as the first compute on it needed to, and `bar`'s terminal says `the peer a connected`. With these two computes both peers are connected, and each has told the shell how busy it is, as a peer does as it connects, so the computes below that name no node have utilizations to draw by (report §8.7).
 
 Then the work, three times, naming no node:
 
@@ -522,11 +522,13 @@ Right(17984) : Either(Io.Error, Int)
 Right(17984) : Either(Io.Error, Int)
 ```
 
-Each compute printed `counting the primes below 200000` in the terminal of the node that ran it. Each node tells its peers how busy it is, on a scale where 1.0 is every scheduler busy, and `Peer.utilizations()` is what the shell has heard: each peer, its utilization and how many milliseconds ago it said so.
+Each compute printed `counting the primes below 200000` in the terminal of the node that ran it, `foo`'s all three times in the run the page shows. Each node tells its peers how busy it is, on a scale where 1.0 is every scheduler busy, and `Peer.utilizations()` is what the shell has heard: each peer, its utilization and how many milliseconds ago it said so.
 
 `Peer.compute` draws two of the peers at random, both of them here, and runs the function on the one that was less busy at its last telling, carrying its code there as the spawn did, and answers the value; the tellings come every few seconds, so which node ran each is the terminals' to show, and the program never names one (the guide's §8.1, *Which peer*). With two peers the draw takes both each time, so the computes made within one telling go to the one less busy at it; a draw spreads them only among three peers or more.
 
-The number is written into each lambda, since a `let` typed at the prompt is a binding of the shell's node, which no peer has: after `let below = 200000`, `Peer.compute(fn() = Counter.primes(below), 5000)` answers `Left(NotLoaded)`, where `{ let n = below; Peer.compute(fn() = Counter.primes(n), 5000) }` carries the value, a local the lambda captures (the guide's §8.1).
+`bar` reads 0.25, though it has no work of yours: a node tells a peer how busy it is as the peer connects, and at that moment the processes that open the connection are running or ready to run, which is what a node counts by default, over its schedulers (the deployment guide's §3.2). Its next telling, five seconds later, reads it idle.
+
+The number is written into each lambda, since a `let` typed at the prompt is a binding of the shell's node, which no peer has: after `let below = 200000`, `Peer.compute(fn() = Counter.primes(below), 5000)` answers `Left(Io.NotLoaded)`, where `{ let n = below; Peer.compute(fn() = Counter.primes(n), 5000) }` carries the value, a local the lambda captures (the guide's §8.1).
 
 Nothing was installed on `foo` or `bar`, and nothing named either: that is the last sentence of the second claim of *Why Ernest*, a computation that names no node goes to the less busy of two peers drawn at random, and no program is deployed first.
 

@@ -72,10 +72,14 @@ source_line(LineNumber, Lines, Width) ->
         false -> []
     end.
 
-%% A source line behind its gutter's bar; an empty line leaves no space
-%% behind it, so that no line of a diagnostic ends in a space.
-text([]) -> [];
-text(Line) -> [" ", Line].
+%% A source line behind its gutter's bar, its trailing blanks trimmed; a
+%% line of blanks leaves no space behind the bar, so that no line of a
+%% diagnostic ends in a space.
+text(Line) ->
+    case string:trim(Line, trailing, " ") of
+        [] -> [];
+        Trimmed -> [" ", Trimmed]
+    end.
 
 gutter(Width) -> [lists:duplicate(Width, $\s), " | "].
 

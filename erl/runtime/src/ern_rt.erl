@@ -84,7 +84,7 @@
 
 %% Report §8.6: each receive that can wait, by its kind (docs/style.md).
 -receives({foreign_wait, [computed_answer/3, exit_program/1, restart_taken/1, end_with_program/0,
-                          waited_deliveries/1, tell_service_monitors/0, watchers_told/1, say/2]}).
+                          waited_deliveries/1, tell_service_monitors/0, say/2]}).
 -receives({ernest_wait, [waited_answer/3, call_forever/3]}).
 -receives({answered_at_once, [spawn_with_monitors/4, ask_monitor/2, demonitor/1, spawned/7,
                               kill_all/1, rooted/2, opened/3, asked_of_run/1]}).
@@ -1558,18 +1558,18 @@ delivered_restart(Pid, #reaper{monitors = Monitors}) ->
 %% Report §6.9, §8.7: a restart of Pid, a process of another node, which
 %% Pid's node tells this one by a frame (ern_peer:frame/2): each service
 %% monitor the run in progress holds of it told, as at a restart of a
-%% process of this node (delivered_restart/2), and Told called once every
-%% delivery has ended, by a process of its own, so that a wrap that does
-%% not finish holds up the restart on Pid's node and no frame here; at
-%% once where the run holds none, and where no run is in progress
-%% (asked_of_run/1, told_once_delivered/2).
+%% process of this node (delivered_restart/2), and Answer, which answers
+%% Pid's node, called once every delivery has ended, by a process of its
+%% own, so that a wrap that does not finish holds up the restart on Pid's
+%% node and no frame here; at once where the run holds none, and where no
+%% run is in progress (asked_of_run/1, told_once_delivered/2).
 -spec peer_restarted(pid(), fun(() -> term())) -> ok.
-peer_restarted(Pid, Told) ->
+peer_restarted(Pid, Answer) ->
     Deliveries = case asked_of_run({restarted, Pid}) of
                      {answered, Started} -> Started;
                      none -> []
                  end,
-    told_once_delivered(Deliveries, Told).
+    told_once_delivered(Deliveries, Answer).
 
 %% A caller's own monitors canceled, taken from the processes it
 %% monitored: at its restart (new_run/3), and at the end of a process of
@@ -1582,11 +1582,15 @@ monitors_canceled(Caller, #reaper{monitors = Monitors, monitoring = Monitoring,
                   monitor_refs = MonitorRefs1}.
 
 %% A process that ended: each monitor of it told, the monitors of it, and
-%% its own, gone, and the deliveries to it ended (abandoned/1).
+%% its own, gone, and the deliveries to it ended (abandoned/1). A process
+%% of a peer whose connection is lost, which the host's monitor gives as
+%% noconnection, has its deliveries of Restarted ended first
+%% (restarts_ended/2).
 down(Pid, ExitReason, #reaper{monitors = Monitors, monitoring = Monitoring,
                               monitor_refs = MonitorRefs} = Reaper) ->
     unoffered(Pid),
     drop_callee_notes(Pid, ExitReason),
+    ExitReason =:= noconnection andalso restarts_ended(Pid, Monitors),
     delivered_down(Pid, ExitReason, Reaper),
     abandoned(Pid),
     case is_map_key(Pid, Monitors) orelse is_map_key(Pid, Monitoring)
@@ -1604,6 +1608,28 @@ down(Pid, ExitReason, #reaper{monitors = Monitors, monitoring = Monitoring,
             Reaper#reaper{monitors = Monitors1, monitoring = Monitoring1,
                           monitor_refs = MonitorRefs1}
     end.
+
+%% Report §8.7, *A restart*: "A loss ends the wait on both sides: the
+%% restarting process goes on, and the node that lost the connection ends
+%% its deliveries of `Restarted` for the peer's processes not yet placed, as
+%% it ends the monitors they deliver for, so no `Down` follows the loss's":
+%% Pid, a process of the lost peer, has each delivery to a caller that
+%% holds a service monitor of it ended, before the loss's Down is given. A
+%% delivery that names Pid then is one of Restarted, which a peer's restart
+%% alone starts of a process of another node (peer_restarted/2), every other
+%% Down of it coming from the host's one end of the monitor, which this is.
+%% One that has placed its message has placed it before the loss's
+%% delivery begins. The rows are read by each caller's prefix, as a
+%% demonitor reads them (demonitored/5), so that a restart pays nothing for
+%% it and a loss pays what the lost process's watchers hold. The process
+%% that waits for these deliveries to answer the peer (told_once_delivered/2)
+%% answers into nothing: its frame goes on no connection, and the alias it
+%% names on one opened again was let go with the restart's wait.
+restarts_ended(Pid, Monitors) ->
+    Callers = lists:usort([Caller || {Caller, _} <- service_monitors_of(Pid, Monitors)]),
+    lists:foreach(fun delivery_ended/1,
+                  [Delivery || Caller <- Callers,
+                               Delivery <- deliveries({{Caller, '_', '_'}, Pid})]).
 
 %% Each monitor of a process that ended told how. A process that ended
 %% leaves no call: one that faulted or restarted while it waited ended its
@@ -4235,89 +4261,66 @@ restart_taken(Pids) ->
 %% the new run begins, so that the Restarted reaches its watcher before
 %% anything the new run sends; a wrap that does not finish holds up the
 %% restart. The reaper is monitored, so that one that has died holds up no
-%% restart. Report §8.7: "the restarting process's node tells each node
-%% whose process monitors it, as the host keeps the monitors, a caller
-%% that waits for its answer among them (§6.6); that node delivers
-%% `Restarted` through the wraps of the service monitors it holds and
-%% answers once every delivery has ended, at once where it holds none; and
-%% the restart waits for each answer as it waits for a wrap on its own
-%% node. A loss ends the wait." Report §8.6: a delivery waited for is a
+%% restart. Report §8.7, *A restart*: "A restart (§6.9) is told by the
+%% restarting process's node to each other node with a process that
+%% monitors the restarting one when the restart reads them, after it has
+%% ended its calls (§6.9)"; each node is asked by a frame before the
+%% deliveries here are waited for (ern_peer:restart_told/1), and "the
+%% restart waits for each answer as it waits for a wrap on its own node; a
+%% loss, or the node's end (**Its start and its end**), ends the wait"
+%% (ern_peer:watchers_told/1). Report §8.6: a delivery waited for is a
 %% source until it ends, and a peer's answer is none the look sees coming.
 tell_service_monitors() ->
     Reaper = launch_reaper(),
     ReaperRef = erlang:monitor(process, Reaper),
     Reaper ! {tell_service_monitors, erlang:self(), ReaperRef},
-    Tellings = [told_to(Node) || Node <- watching_nodes()],
+    Asked = [ern_peer:restart_told(Node) || Node <- watching_nodes()],
     entered_foreign(),
     try
-        Told = receive
-                   {ReaperRef, told, Deliveries} ->
-                       erlang:demonitor(ReaperRef, [flush]),
-                       Deliveries;
-                   {'DOWN', ReaperRef, process, _, _} ->
-                       []
-               end,
+        Deliveries = receive
+                         {ReaperRef, told, Delivered} ->
+                             erlang:demonitor(ReaperRef, [flush]),
+                             Delivered;
+                         {'DOWN', ReaperRef, process, _, _} ->
+                             []
+                     end,
         lists:foreach(fun(Delivery) ->
                           MonitorRef = erlang:monitor(process, Delivery),
                           receive {'DOWN', MonitorRef, process, _, _} -> ok end
-                      end, Told),
-        lists:foreach(fun watchers_told/1, Tellings)
+                      end, Deliveries),
+        lists:foreach(fun ern_peer:watchers_told/1, Asked)
     after
         left_foreign()
     end.
 
-%% Report §8.7: the other nodes with a process that monitors the calling
-%% process, as the host lists its monitors, each once: a node whose reaper
-%% holds a monitor a program's process there made, a service monitor or
-%% another, or whose process waits for an answer of the calling process's,
-%% a port and a resource that monitor it left out.
+%% Report §8.7, *A restart*: the other nodes with a process that monitors
+%% the calling process when the restart reads them, each once, "a
+%% watcher's node, whose runtime holds the watcher's monitor, and a
+%% caller's whose call's end has not reached it (§6.6)": as the host lists
+%% the processes that monitor this one, a node's reaper among them, which
+%% holds the monitors of the node's processes, and a caller, whose call
+%% monitors its callee until its end, a port and a resource that monitor
+%% it left out.
 watching_nodes() ->
     {monitored_by, Monitoring} = erlang:process_info(erlang:self(), monitored_by),
     lists:usort([node(Pid) || Pid <- Monitoring, is_pid(Pid), node(Pid) =/= node()]).
 
-%% Report §8.7: Node told of the restart by a frame from the restarting
-%% process to the node's gateway, carrying the alias its answer comes back
-%% through, which takes one; the gateway watched, so that a loss of the
-%% connection, or the gateway's end, ends the wait. A connection lost
-%% since the host listed the monitor is dialed by the watch, as the next
-%% operation towards a peer dials one, and the node answers at once, since
-%% its monitors of the process went with the loss.
-told_to(Node) ->
-    Gateway = {ern_gateway, Node},
-    MonitorRef = erlang:monitor(process, Gateway),
-    Alias = erlang:alias([reply]),
-    erlang:send(Gateway, {ern_frame, erlang:self(), {restarted, Alias}}),
-    {Alias, MonitorRef}.
-
-%% Report §8.7: a node's answer that its watchers have been told, which
-%% this node's gateway hands to the alias (ern_peer:frame/2), or the end of
-%% the watch on that node's gateway, a loss among them; an answer that came
-%% before the watch's end is taken, so that none is left in the mailbox the
-%% new run reads.
-watchers_told({Alias, MonitorRef}) ->
-    receive
-        {Alias, watchers_told} ->
-            erlang:demonitor(MonitorRef, [flush]);
-        {'DOWN', MonitorRef, process, _, _} ->
-            erlang:unalias(Alias),
-            receive {Alias, watchers_told} -> true after 0 -> true end
-    end.
-
-%% Report §8.7: Told called once each of the deliveries that tell this
+%% Report §8.7: Answer called once each of the deliveries that tell this
 %% node's service monitors of a peer's restart has ended: at once where
 %% there is none, and else by a process of the runtime's own, so that the
 %% gateway's worker that reads the frame waits for none (peer_restarted/2).
-%% The deliveries end at the latest with the run.
-told_once_delivered([], Told) ->
-    _ = Told(),
+%% The deliveries end at the latest with the run, or at a loss of the peer
+%% (restarts_ended/2).
+told_once_delivered([], Answer) ->
+    _ = Answer(),
     ok;
-told_once_delivered(Deliveries, Told) ->
+told_once_delivered(Deliveries, Answer) ->
     _ = erlang:spawn(fun() ->
                          lists:foreach(fun(Delivery) ->
                                            MonitorRef = erlang:monitor(process, Delivery),
                                            receive {'DOWN', MonitorRef, process, _, _} -> ok end
                                        end, Deliveries),
-                         Told()
+                         Answer()
                      end),
     ok.
 

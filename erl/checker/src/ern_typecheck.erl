@@ -6870,7 +6870,7 @@ lookup_constructor(Span, [], Name,
                 error ->
                     case Constructors of
                         #{[Name] := ConstructorInfo} -> ConstructorInfo;
-                        _ -> fail(Span, "unknown constructor " ++ atom_to_list(Name))
+                        _ -> unknown_plain_constructor(Span, Name, Env)
                     end
             end
     end;
@@ -6925,6 +6925,30 @@ unknown_constructor(Span, QualifiedName, #env{private_types = PrivateTypes}) ->
                        ++ " keeps private");
         [] ->
             unknown(Span, "constructor", QualifiedName)
+    end.
+
+%% Report §4.2, §11.5: a plain constructor nothing declares is unknown,
+%% with the help that writes it qualified where exactly one type in scope,
+%% the prelude's, the standard library's or a module's the module names,
+%% has a constructor of its name that another module can write: one of an
+%% abstract type is its module's alone (§4.4), and a namespace that holds
+%% a `$`, a previous version's or the session's (§11.2), is written by no
+%% source.
+-spec unknown_plain_constructor(ern_diagnostic:span(), atom(), env()) -> no_return().
+unknown_plain_constructor(Span, Name, #env{constructors = Constructors, types = Types}) ->
+    Message = "unknown constructor " ++ atom_to_list(Name),
+    Writable = [QualifiedName
+                || [_, _ | _] = QualifiedName := #constructor_info{type_qualified_name = Type}
+                       <- Constructors,
+                   lists:last(QualifiedName) =:= Name,
+                   not (maps:get(Type, Types))#type_info.abstract,
+                   not lists:any(fun(Segment) -> lists:member($$, atom_to_list(Segment)) end,
+                                 QualifiedName)],
+    case Writable of
+        [QualifiedName] ->
+            fail(Span, Message, [], "write `" ++ ern_namespace:text(QualifiedName) ++ "`");
+        _ ->
+            fail(Span, Message)
     end.
 
 %% A constructor by its qualified name, one a checked pattern or a type's

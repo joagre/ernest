@@ -17,8 +17,10 @@
 %%   {choice, Kind, First, Second}  First when its first line fits and, for
 %%                    hug and branch, ends in a brace, or, for body, holds
 %%                    First whole or ends in a brace or `then`, or, for
-%%                    alternative, holds First whole or ends in `(`; for
-%%                    clauses, First when each whole in it is; else Second
+%%                    lambda_body, holds First whole or ends in a brace,
+%%                    or, for alternative, holds First whole or ends in
+%%                    `(`; for clauses, First when each whole in it is;
+%%                    else Second
 %%   {whole, Inner}   Inner, which a clauses choice's First holds whole on
 %%                    the line it begins
 %%   {suffix, Text}   Text at the end of the line, which then ends
@@ -35,7 +37,8 @@
                 | {align, layout()}
                 | {group, layout()}
                 | {bracket, layout()}
-                | {choice, hug | branch | body | alternative | clauses, layout(), layout()}
+                | {choice, hug | branch | body | lambda_body | alternative | clauses,
+                   layout(), layout()}
                 | {whole, layout()}
                 | {suffix, unicode:unicode_binary()}.
 
@@ -243,8 +246,10 @@ accept(clauses, [Table | _], Printer) ->
     end;
 %% A choice takes its first layout when a trial of it, written up to its
 %% first line break, fits, and: for hug and branch, ends in the brace that
-%% opens what runs over lines; for body, reaches the mark after the body or
-%% ends in a brace or `then`; for alternative, reaches the mark or ends in
+%% opens what runs over lines; for body, a `let`'s, reaches the mark after
+%% the body or ends in a brace or `then`; for lambda_body, reaches the mark
+%% or ends in a brace, since an `else` at the lambda's line would read as
+%% what follows the lambda; for alternative, reaches the mark or ends in
 %% `(`; and a whole layout reaches its mark.
 accept(Kind, Stack, Printer) ->
     Start = case Printer#printer.pending of
@@ -263,6 +268,7 @@ accept(Kind, Stack, Printer) ->
             whole -> Tried#printer.marked;
             body -> Tried#printer.marked orelse ends_with(Written, <<"{">>)
                         orelse ends_with(Written, <<" then">>);
+            lambda_body -> Tried#printer.marked orelse ends_with(Written, <<"{">>);
             %% a type's one alternative stays after its `=` where it fits
             %% whole, or where a doc block breaks its bracket after `(`
             alternative -> Tried#printer.marked orelse ends_with(Written, <<"(">>)

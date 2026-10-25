@@ -14,7 +14,9 @@ order; a file rather than arguments, since a step's text holds whatever a
 program prints, `>` among it, and no shell should read that.  A blank
 line and a line beginning with # are skipped.  Each wait, an expect's and
 the wait for the program's end after the last step, is bounded by S
-seconds of its own, so that a wait that fails is told by its own bound.
+seconds of its own, so that a wait that fails is told by its own bound;
+a put shares the bound of the wait that comes after it, and the end's
+wait holds the graces it signals the program within.
 
     expect:TEXT   wait until TEXT appears on the screen, after whatever
                   the previous expect matched; a color sequence, ESC [ ... m,
@@ -22,7 +24,8 @@ seconds of its own, so that a wait that fails is told by its own bound.
     send:HEX      write those bytes to the terminal
     resize:RxC    give the terminal a new size, as a window manager does
     put:PATH      open the named pipe PATH for writing and close it, which
-                  ends a read of it that the program under test waits on
+                  ends a read of it that the program under test waits on,
+                  once the program has opened it for reading
 
 A step that waits for text is what keeps a test from racing a program
 that is slower under load than it was when the test was written; a test
@@ -38,8 +41,17 @@ the writes played onto a grid of the given size: a test of a program
 that paints, rather than scrolls, asserts on that and not on the bytes.
 """
 
+import sys
+
+# os.waitstatus_to_exitcode, which the end's status is read by, came in 3.9
+if sys.version_info < (3, 9):
+    print("ern_pty.py needs Python 3.9 or later; this is Python %d.%d."
+          % sys.version_info[:2], file=sys.stderr)
+    sys.exit(2)
+
 import argparse
 import base64
+import errno
 import fcntl
 import os
 import pty
@@ -47,9 +59,13 @@ import re
 import select
 import signal
 import struct
-import sys
 import termios
 import time
+
+# The two graces, after a signal TERM and after a KILL, within which the
+# child is waited for, taken out of the end's own wait so that the end
+# keeps the bound of one wait.
+GRACE = 2.0
 
 
 def step_spec(text):
@@ -193,6 +209,27 @@ def ended_by(pid, screen, signal_number, grace):
     return None
 
 
+# Open the named pipe at path for writing and close it, once the program
+# has opened it for reading, which an open that does not wait tells; until
+# then the screen is read, for as long as the put has waited so far and at
+# least a millisecond, so that the asks grow with the logarithm of the
+# wait, until the deadline. Whether it was put.
+def put(path, screen, deadline):
+    asked = time.monotonic()
+    while not screen.eof:
+        try:
+            os.close(os.open(path, os.O_WRONLY | os.O_NONBLOCK))
+            return True
+        except OSError as error:
+            if error.errno != errno.ENXIO:
+                raise
+        now = time.monotonic()
+        if now >= deadline:
+            return False
+        screen.read(min(max(now - asked, 0.001), deadline - now))
+    return False
+
+
 def run(command, steps, timeout, size):
     wake, woken = os.pipe()
     os.set_blocking(woken, False)
@@ -226,13 +263,12 @@ def run(command, steps, timeout, size):
                 deadline = time.monotonic() + timeout
             else:
                 screen.read(deadline - time.monotonic())
-        else:
-            with open(arg, "wb"):
-                pass
+        elif put(arg, screen, deadline):
             left.pop(0)
     status = None
-    while time.monotonic() < deadline and not screen.eof:
-        screen.read(deadline - time.monotonic())
+    ending = deadline - 2 * GRACE
+    while time.monotonic() < ending and not screen.eof:
+        screen.read(ending - time.monotonic())
         ended, wait_status = os.waitpid(pid, os.WNOHANG)
         if ended:
             status = os.waitstatus_to_exitcode(wait_status)
@@ -242,9 +278,9 @@ def run(command, steps, timeout, size):
         # still printing fills the terminal's buffer, blocks in its write,
         # and never reaches the signal, so waiting without reading is a
         # deadlock between the two of us
-        status = ended_by(pid, screen, 15, 2.0)
+        status = ended_by(pid, screen, 15, GRACE)
         if status is None:
-            status = ended_by(pid, screen, 9, 2.0)
+            status = ended_by(pid, screen, 9, GRACE)
         if status is None:
             status = "timeout"
     # whatever the program wrote as it ended, to the terminal's end, which

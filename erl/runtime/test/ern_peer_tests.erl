@@ -1073,19 +1073,154 @@ restarted_frame_test() ->
                AtOnce = receive {ern_frame, _, OtherBody} -> OtherBody after 0 -> late end,
                Reply = erlang:alias(),
                HandedOn = ern_peer:frame(self(), {watchers_told, Reply}),
-               Handed = receive {Reply, _} = Got -> Got end,
+               Handed = receive {watchers_told, _} = Got -> Got end,
                ern_waits:delivered(Watcher),
                Plain = receive {plain, _} -> told after 0 -> none end,
                [Stood ! stop || Stood <- [Restarting, Unwatched]],
                Self ! {restarted, {Read, Early, Answer =:= {watchers_told, Alias}, Told,
                                    AtOnce =:= {watchers_told, Other}, HandedOn,
-                                   Handed =:= {Reply, watchers_told}, Plain, Restarting}}
+                                   Handed =:= {watchers_told, Reply}, Plain, Restarting}}
            end,
     ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
     {Read, Early, Answered, Told, AtOnce, HandedOn, Handed, Plain, Restarting} =
         receive {restarted, Got} -> Got end,
     ?assertEqual({ok, held, true, {'Down', Restarting, 'Restarted', <<>>}, true, ok, true, none},
                  {Read, Early, Answered, Told, AtOnce, HandedOn, Handed, Plain}).
+
+%% report §8.7, *A restart*: "The answer comes through an alias of the
+%% restarting process's, which takes one answer and is let go when the
+%% wait ends, so nothing of the wait reaches the new run", and the node's
+%% end ends the wait: the restart's ask of a node whose gateway then ends
+%% takes the answer that came behind the end of the watch, and one that
+%% comes after the wait has ended is dropped, the restarting process's
+%% mailbox holding neither. Here this host stands in for the peer's node,
+%% a process registered as its gateway for the peer's gateway, its end for
+%% the node's end or a loss, which the wait reads alike, and a process of
+%% this host's for the restarting one, which reads its mailbox only once
+%% the end of the watch and the answer behind it are there. A regression
+%% test, written after the code; the wait between real nodes is
+%% test/ern_nodes_tests.erl's restart_told_test_
+restart_answer_after_the_end_test() ->
+    Self = self(),
+    Gateway = spawn(fun() ->
+                        true = register(ern_gateway, erlang:self()),
+                        Self ! registered,
+                        receive
+                            {ern_frame, From, {restarted, Alias}} -> Self ! {asked, From, Alias}
+                        end,
+                        receive stop -> ok end
+                    end),
+    receive registered -> ok end,
+    Restarting = spawn(fun() ->
+                           Asked = ern_peer:restart_told(node()),
+                           receive go -> ok end,
+                           ok = ern_peer:watchers_told(Asked),
+                           Self ! {waited, erlang:self()},
+                           receive check -> Self ! {left, erlang:self(), flushed()} end
+                       end),
+    Alias = receive {asked, Restarting, Asked} -> Asked end,
+    GatewayRef = erlang:monitor(process, Gateway),
+    Gateway ! stop,
+    receive {'DOWN', GatewayRef, process, Gateway, _} -> ok end,
+    ok = ern_waits:until(Restarting, fun() -> holds_down(Restarting) end),
+    ok = ern_peer:frame(self(), {watchers_told, Alias}),
+    Restarting ! go,
+    receive {waited, Restarting} -> ok end,
+    ok = ern_peer:frame(self(), {watchers_told, Alias}),
+    Restarting ! check,
+    ?assertEqual([], receive {left, Restarting, Left} -> Left end).
+
+%% report §8.7, *A restart*: "The restart waits for each answer as it waits
+%% for a wrap on its own node": a restart told to two nodes asks each
+%% before it waits for any, and waits until both have answered, whichever
+%% answers first. Here two asks of this host's stand-in gateway stand in for
+%% two watching nodes, as tell_service_monitors/0 asks each node
+%% watching_nodes/0 reads and then waits for each. A regression test,
+%% written after the code; it does not cover the reading of the nodes, which
+%% needs a process of another node to monitor the restarting one, nor more
+%% than one real node, test/ern_nodes_tests.erl's restart_told_test_ holding
+%% one
+restart_waits_for_each_node_test() ->
+    Self = self(),
+    true = register(ern_gateway, self()),
+    try
+        Restarting = spawn(fun() ->
+                               Asked = [ern_peer:restart_told(Node) || Node <- [node(), node()]],
+                               lists:foreach(fun ern_peer:watchers_told/1, Asked),
+                               Self ! {waited, erlang:self()},
+                               receive check -> Self ! {left, erlang:self(), flushed()} end
+                           end),
+        [First, Second] = [receive {ern_frame, Restarting, {restarted, Alias}} -> Alias end
+                           || _ <- [first, second]],
+        ok = ern_peer:frame(self(), {watchers_told, Second}),
+        ok = ern_waits:until(Restarting,
+                             fun() -> waits_holding(Restarting, [{watchers_told, Second}]) end),
+        Early = receive {waited, Restarting} -> early after 0 -> held end,
+        ok = ern_peer:frame(self(), {watchers_told, First}),
+        receive {waited, Restarting} -> ok end,
+        Restarting ! check,
+        ?assertEqual({held, []}, {Early, receive {left, Restarting, Left} -> Left end})
+    after
+        unregister(ern_gateway)
+    end.
+
+%% report §8.7, *A restart*: "A loss ends the wait on both sides: ... the
+%% node that lost the connection ends its deliveries of `Restarted` for the
+%% peer's processes not yet placed, as it ends the monitors they deliver
+%% for, so no `Down` follows the loss's": a restart of a peer's process told
+%% to a service monitor whose wrap has not finished, and then the loss of
+%% that process's node, gives the watcher the loss's `Unreachable` and no
+%% `Restarted`, before or after it, the delivery of `Restarted` ended
+%% though its wrap would finish later. Here a process of this host's stands
+%% in for the peer's, the watcher for the peer's gateway, and the host's end
+%% of the reaper's monitor with the reason noconnection, which the reaper
+%% reads as a loss, is sent to the reaper by the test. Written with the
+%% fix: under the code before it, the held delivery placed `Restarted`
+%% after the loss's `Unreachable`. It does not cover a real loss between nodes, a `restarted` frame
+%% the gateway's worker reads after the reaper has run the loss, which
+%% finds no monitor left to tell, nor a delivery that has placed its
+%% message, which comes before the loss's
+restarted_ended_at_a_loss_test() ->
+    Self = self(),
+    Main = fun() ->
+               Watcher = erlang:self(),
+               true = register(ern_gateway, Watcher),
+               Restarting = spawn(fun() -> receive stop -> ok end end),
+               Wrap = fun({'Down', _, 'Restarted', _} = Down) ->
+                              Watcher ! {holding, erlang:self()},
+                              receive go -> {service, Down} end;
+                         (Down) ->
+                              {service, Down}
+                      end,
+               ern_rt:monitor_service(Restarting, Wrap),
+               ok = ern_peer:frame(Restarting, {restarted, make_ref()}),
+               Delivery = receive {holding, Pid} -> Pid end,
+               ern_rt:launch_reaper() ! {'DOWN', make_ref(), process, Restarting, noconnection},
+               Lost = receive {service, Down} -> Down end,
+               Delivery ! go,
+               ern_waits:delivered(Watcher),
+               Left = [Later || {service, Later} <- flushed()],
+               Restarting ! stop,
+               Self ! {lost, {Lost, Left, erlang:is_process_alive(Delivery), Restarting}}
+           end,
+    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
+    {Lost, Left, Alive, Restarting} = receive {lost, Got} -> Got end,
+    ?assertEqual({{'Down', Restarting, 'Unreachable', <<>>}, [], false}, {Lost, Left, Alive}).
+
+%% Whether Pid's mailbox holds the end of a watch, a monitor's DOWN.
+holds_down(Pid) ->
+    {messages, Messages} = erlang:process_info(Pid, messages),
+    lists:any(fun({'DOWN', _, process, _, _}) -> true; (_) -> false end, Messages).
+
+%% Whether Pid waits in a receive, its mailbox holding Messages, which the
+%% receive does not take.
+waits_holding(Pid, Messages) ->
+    {status, waiting} =:= erlang:process_info(Pid, status)
+        andalso {messages, Messages} =:= erlang:process_info(Pid, messages).
+
+%% What the calling process's mailbox holds, taken.
+flushed() ->
+    receive Message -> [Message | flushed()] after 0 -> [] end.
 
 %% report §8.7, §6.9: a restart on a node asks its gateway, as it asks the
 %% reaper, before it reads the calls waiting on the process, so that it

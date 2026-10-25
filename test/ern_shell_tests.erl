@@ -1098,9 +1098,9 @@ fault_while_typing() ->
 %% ends the session, since no key can interrupt it any more; the screen's
 %% end faults the session, a failure of the shell's own (§11.8). Each is
 %% ended by a host function a session declares, called by the input
-%% itself, which runs while it calls it and then waits longer than the
-%% test, so that the end comes while it runs, whenever the session takes
-%% it. Regression tests: the session waited for the input, and wrote to a
+%% itself, which runs while it calls it and then waits for a message
+%% nothing sends, so that the end comes while it runs, whenever the
+%% session takes it. Regression tests: the session waited for the input, and wrote to a
 %% screen that had ended. The end came first from a process the input
 %% spawned after a fixed 300 ms, which waited for nothing the input does
 %% not already show, and the 300 ms went; and each session's bound on a
@@ -1121,7 +1121,7 @@ reader_and_screen_ends() ->
                  " Some(status) -> String.startsWith(status.site, \"" ++ Site ++ "\")"
                  " | None -> false });"
                  " List.forEach(found, fn(p) = { let _ = stop(p, Foreign.atom(\"kill\")); Unit });"
-                 " receive { after 20000 -> 1 } }\r"
+                 " receive { _ -> 1 } }\r"
              end,
     {0, ReaderEnded} = ern_pty:run(alone("../bin/ern shell"),
                                    [{expect, "> "},

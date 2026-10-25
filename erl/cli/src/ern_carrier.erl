@@ -170,9 +170,9 @@ is_test(File) ->
 %% reports of its nodes turned off, the gateway, which watches the node's
 %% connections, and the host's distribution under the node's name,
 %% listening where `listen` names an interface, its listed peers' names
-%% allowed (allow/1). A carrier that cannot start, its port taken among the
-%% reasons, ends the node as an initializer that faults ends a program
-%% (§8.5), the cause naming the host's reason.
+%% allowed (allow/1). A carrier that cannot start ends the node as an
+%% initializer that faults ends a program (§8.5), the cause saying why
+%% (not_started/2).
 -spec start(#configuration{}) -> ok.
 start(_Configuration) when node() =/= nonode@nohost ->
     %% report §11.2: `ern test` over a directory runs each module in a
@@ -186,9 +186,35 @@ start(#configuration{public_key = PublicKey, listen = Listen}) ->
         {ok, _} ->
             allow([Key || #peer{public_key = Key} <- (configuration())#configuration.peers]);
         {error, Reason} ->
-            ern_rt:fault(iolist_to_binary(io_lib:format("the node's carrier did not start: ~0p",
-                                                        [Reason])))
+            ern_rt:fault(iolist_to_binary(["the node's carrier did not start: ",
+                                           not_started(Listen, Reason)]))
     end.
+
+%% Report §8.7: why the carrier did not start: its listen address in use,
+%% which the host's reason does not name, the host saying it only in a
+%% report of its own (filter/2), and which a listen on the address, made
+%% once the host has failed, finds, so that a start that succeeds pays
+%% nothing for it; else the host's reason, as the host writes it. A port
+%% the host picks is never in use.
+not_started({Address, Port} = Listen, Reason) when Port =/= 0 ->
+    case gen_tcp:listen(Port, [ern_node:family(Listen), {ip, Address}, {reuseaddr, true}]) of
+        {error, eaddrinuse} ->
+            ["its listen address ", listen_text(Listen), " is in use"];
+        {ok, Socket} ->
+            ok = gen_tcp:close(Socket),
+            io_lib:format("~0p", [Reason]);
+        {error, _} ->
+            io_lib:format("~0p", [Reason])
+    end;
+not_started(_, Reason) ->
+    io_lib:format("~0p", [Reason]).
+
+%% Report §8.7: a listen address as `listen` writes it, an IPv6 address in
+%% brackets.
+listen_text({{_, _, _, _} = Address, Port}) ->
+    [inet:ntoa(Address), ":", integer_to_list(Port)];
+listen_text({Address, Port}) ->
+    ["[", inet:ntoa(Address), "]:", integer_to_list(Port)].
 
 %% Report §8.7: the configuration the node runs by, and its peer table,
 %% which the rule, the port map and the lines read, each peer by the host
@@ -282,7 +308,9 @@ changed(#configuration{config_dir = ConfigDir, public_key = Key, listen = Listen
 %% may watch, the frame goes after their Downs on the connection, and the
 %% host's own question, whether the peer is there, after the frame, so that
 %% its answer comes once they have arrived; a peer that fell silent is given
-%% up by the detector, which answers it. The gateway tells no peer how busy
+%% up by the detector, which answers it, and one lost while another was
+%% waited for has ended with its loss, so the question is not put to it,
+%% which would dial. The gateway tells no peer how busy
 %% the node is once the frame has gone (ern_gateway:departing/0), since a
 %% peer takes a telling after it for a node that goes on.
 -spec depart() -> ok.
@@ -290,7 +318,7 @@ depart() ->
     ok = ern_gateway:departing(),
     lists:foreach(fun(Node) ->
                       erlang:send({ern_gateway, Node}, {ern_frame, self(), node_ends}),
-                      _ = net_adm:ping(Node)
+                      _ = lists:member(Node, nodes(connected)) andalso net_adm:ping(Node)
                   end, nodes(connected)).
 
 %% Report §8.7: the host takes a peer's connection only under a name it

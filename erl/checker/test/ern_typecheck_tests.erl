@@ -1257,6 +1257,38 @@ interface_replaces_a_reach_test() ->
                  ern_typecheck:reach(['A', f],
                                      ern_typecheck:with_interfaces([Interface(#{})], First))).
 
+%% report §11.5, §4.2: a plain constructor nothing declares has the help
+%% that writes it qualified where exactly one type in scope has a
+%% constructor of its name, the standard library's or a module's the
+%% module names; none where none has, where two have, or where the one is
+%% an abstract type's, which only its module writes (§4.4). A regression
+%% test, written after the code: the release review's newcomer met
+%% `unknown constructor NotFound` with no help; it does not cover the
+%% prompt's previous versions, whose namespaces no source writes
+plain_constructor_help_test() ->
+    Interface = fun(Namespace, Text) ->
+                    {ok, _, Checked, _} = ern_typecheck:check_string([Namespace], Text),
+                    Checked
+                end,
+    A = Interface('A', "export type T = Same | OnlyA\nexport abstract type K = Hidden(Int)\n"),
+    B = Interface('B', "export type U = Same\n"),
+    Refused = fun(Text) ->
+                  {ok, Module} = ern_parser:parse_string(Text),
+                  {error, [#diagnostic{message = Message, help = Help} | _]} =
+                      ern_typecheck:check(['M'], Module, [A, B]),
+                  {Message, Help}
+              end,
+    ?assertEqual({"unknown constructor NotFound", "write `Io.NotFound`"},
+                 Refused("fn f() : Io.Error = NotFound\n")),
+    ?assertEqual({"unknown constructor OnlyA", "write `A.OnlyA`"},
+                 Refused("fn f() : A.T = OnlyA\n")),
+    ?assertEqual({"unknown constructor Same", undefined}, Refused("fn f() : A.T = Same\n")),
+    ?assertEqual({"unknown constructor Hidden", undefined},
+                 Refused("fn f() : A.K = Hidden(1)\n")),
+    ?assertEqual({"unknown constructor Nope", undefined}, Refused("fn f() : Int = Nope\n")),
+    ?assertEqual({"unknown constructor NotFound", "write `Io.NotFound`"},
+                 Refused("fn f(e : Io.Error) : Int = match e { NotFound -> 1 | _ -> 0 }\n")).
+
 %% report §11.5, §4.2: a dependent that names a constructor of a type
 %% another module keeps private, which that module's interface carries, is
 %% refused as the private type's, in an expression and a pattern alike,

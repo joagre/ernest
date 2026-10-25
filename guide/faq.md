@@ -4,9 +4,9 @@ The questions a reader of [*Programming in Ernest*](language.md) brings, each an
 
 **It looks like Gleam. What differs?**
 
-The process is the language, where Gleam's typed messaging is a library over the runtime's processes, well made too. What differs is how far the types reach: a function that receives names its mailbox's type, a `receive` reads only the mailbox of its own process, the one that type names, and `spawn`, `monitor` and `Address.call` are the prelude's, what every module sees without naming a module, so the compiler sees all of them (the guide's §4).
+The process is the language, where Gleam's typed messaging is a library over the runtime's processes, well made too. What differs is how far the types reach: a function that receives names its mailbox's type, a `receive` reads only the mailbox of its own process, the one that type names, and `spawn` and `monitor` are the prelude's, what every module sees without naming a module, and `Address.call` is the prelude type's, written with the type's name, so the compiler sees all of them (the guide's §4).
 
-Being the language buys what a library cannot: the function's type says which mailbox it runs in, so `spawn` types the address from the function and refuses the function for a mailbox of another type, where a `Subject` is a value a process makes and hands out.
+Being the language buys what a library cannot: the function's type says which mailbox it runs in, so `spawn` types the address from the function and refuses the function for a mailbox of another type, where a `Subject` is a value a process makes and hands out, or that an actor's start answers.
 
 What is the same is the types, Hindley-Milner as ML has it, which Gleam made ordinary on the Erlang runtime, and made well, in semantics and in syntax, and the look, which Ernest owes Gleam: `fn`, the pipe `|>`, the update `Con(..x, f = v)` and foreign declarations as the one door to Erlang follow it, its line comment was taken outright, and every other form of Gleam's was weighed against the design principles of report §0 and left out where it only gave a shorter way to write what the language already says (the guide's §11).
 
@@ -20,7 +20,7 @@ In the language, as what they were made of. A server is a `receive` loop that ke
 
 A process that must come back runs its function under `restarting`, which runs the function again in the same process when it faults, so that the address holds; that is why there is no registry on a node: a service is a top-level binding that holds such an address, made when the program starts, in dependency order with every other binding (report §8.5), and good for its life (the guide's §6.5).
 
-Past its restart limit the process ends, and the binding names an ended process for the rest of the run: `Address.call` to it answers `None` at once, and the program goes on unless a process that monitors the service acts on its end (the guide's §6.5). A process that holds something for it, a lock it granted, hears of each restart through a service monitor, `monitorService` (the guide's §6.5).
+Past its restart limit the process ends, and the binding names an ended process for the rest of the run: `Address.call` to it answers `None` at once, and the program goes on unless a process that monitors the service acts on its end, by ending the program or by starting a new service (the guide's §6.5). A process that keeps something for the service, a lock granted to it, hears of each of its restarts through a service monitor, `monitorService` (the guide's §6.5).
 
 A supervision tree is the standard library's `Supervisor`: a group with a strategy, `OneForOne`, `OneForAll` or `RestForOne`, and a restart limit, its children restarted in place with their addresses kept, and killed in the reverse of their order when the supervisor dies (the guide's §6.6, report Appendix E.22). A child joins the group when it starts, whenever that is, so there is no `simple_one_for_one`; and a child is killed, not asked to stop, so there is no shutdown timeout.
 

@@ -16,18 +16,20 @@
 %% the harness runs, an expect's and the program's end, is a step of the
 %% test's (ern_nodes_tests:step/2), bounded by the time for one wait
 %% (ern_nodes_tests:wait_ms/0), so that the session's bound is its steps'
-%% sum, and a step that fails is told by its own bound before the test's
-%% runs out. The command is one word to the shell that starts the harness,
+%% sum, to which the harness's run is held too (ern_nodes_tests:collected/2),
+%% and a step that fails is told by its own bound before the test's runs
+%% out. The command is one word to the shell that starts the harness,
 %% since its own `;` and `|` belong to the shell inside the terminal; it may
 %% hold no single quote.
 -spec run(string(), [tuple()], string()) -> {integer() | timeout, binary()}.
 run(Command, Steps, Extra) ->
     nomatch = binary:match(unicode:characters_to_binary(Command), <<"'">>),
     File = steps_file(Steps),
-    ern_nodes_tests:step({terminal, Command}, length([Text || {expect, Text} <- Steps]) + 1),
     Seconds = ern_nodes_tests:wait_ms() div 1000,
-    {0, Output} = ran("./ern_pty.py --timeout " ++ integer_to_list(Seconds) ++ " --steps " ++ File
-                      ++ Extra ++ " -- '" ++ Command ++ "'"),
+    Harness = shell("./ern_pty.py --timeout " ++ integer_to_list(Seconds) ++ " --steps " ++ File
+                    ++ Extra ++ " -- '" ++ Command ++ "'"),
+    {0, Output} = ern_nodes_tests:collected(Harness,
+                                            length([Text || {expect, Text} <- Steps]) + 1),
     Lines = [Line || Line <- binary:split(Output, <<"\n">>, [global]), Line =/= <<>>],
     ?assertEqual([], [Line || <<"unmet ", _/binary>> = Line <- Lines]),
     [<<"status ", Status/binary>>] = [Line || <<"status ", _/binary>> = Line <- Lines],
@@ -64,19 +66,13 @@ status(Text) -> binary_to_integer(Text).
 %% it stands, a variable's setting before it among what it may hold.
 -spec sh(string()) -> {non_neg_integer(), binary()}.
 sh(Command) ->
-    ern_nodes_tests:step({command, Command}),
-    ran(Command).
+    ern_nodes_tests:collected(shell(Command), 1).
 
-ran(Command) ->
-    Shell = open_port({spawn_executable, "/bin/sh"},
-                      [{args, ["-c", Command]}, exit_status, stderr_to_stdout, binary]),
-    collect(Shell, []).
-
-collect(Shell, Acc) ->
-    receive
-        {Shell, {data, Data}} -> collect(Shell, [Data | Acc]);
-        {Shell, {exit_status, Status}} -> {Status, iolist_to_binary(lists:reverse(Acc))}
-    end.
+%% The port of the host's shell running Command, its standard error beside
+%% its standard output.
+shell(Command) ->
+    open_port({spawn_executable, "/bin/sh"},
+              [{args, ["-c", Command]}, exit_status, stderr_to_stdout, binary]).
 
 %% How many times Needle stands in Haystack.
 -spec count(binary(), binary()) -> non_neg_integer().

@@ -120,7 +120,7 @@ A list that lives in two places is held equal by a test where one is cheap, whos
 
 ## Building
 
-Beyond what the README's *Installing* needs, `make test-full` needs python3, which opens the terminal tests' pseudo-terminal, signals `ern` in the tests of how it ends, and watches, through Linux's inotify, the files a program writes in the tests that wait for them, which therefore need Linux, and `make sanitize` needs clang. Emacs, man, and groff or mandoc are optional: where one is missing, the tests that need it say so and are skipped.
+Beyond what the README's *Installing* needs, `make test-full` needs python3, 3.9 or later, which opens the terminal tests' pseudo-terminal, signals `ern` in the tests of how it ends, and watches, through Linux's inotify, the files a program writes in the tests that wait for them, which therefore need Linux, and `make sanitize` needs clang. Emacs, man, and groff or mandoc are optional: where one is missing, the tests that need it say so and are skipped, and so are the Emacs mode's under an Emacs older than 29, which the mode needs.
 
 ```
 make              build the helper, compile every application into its ebin/, then

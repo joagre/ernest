@@ -17,11 +17,11 @@
 -include_lib("public_key/include/public_key.hrl").
 -include_lib("checker/include/ern_canonical.hrl").
 
--export([nodes_test/2, counted_test/2, step/1, step/2, free_port/0, made/3, address/1, edit/2,
-         configuration/1, lists/2, peer/3, name/1, program/1, built/1, wait_ms_text/0, client/0,
-         client/8, key_files/1, start/3, bare_started/2, bound_port/1, launched/2, says/2, says/3,
-         prints/2, prints/4, stop/2, written/2, said/1, wait_ms/0, detector_ms/0, has/2,
-         connected/2, accepted/1, received/2]).
+-export([nodes_test/2, counted_test/2, counted_test/3, step/1, step/2, free_port/0, made/3,
+         address/1, edit/2, configuration/1, lists/2, peer/3, name/1, program/1, built/1,
+         wait_ms_text/0, client/0, client/8, key_files/1, start/3, bare_started/2, bound_port/1,
+         launched/2, says/2, says/3, prints/2, prints/4, stop/2, written/2, said/1, wait_ms/0,
+         detector_ms/0, has/2, connected/2, accepted/1, received/2, collected/2]).
 
 %% What waits for a node's end: its status, or `timeout` where it has not
 %% ended within the harness's time for one wait.
@@ -86,14 +86,20 @@ nodes_test({waits, Count, Beyond}, Test) ->
 
 %% A test of the harness's steps that starts no node here, an integration
 %% test's, the shell's or the terminal's: its time and its count as a
-%% nodes test's.
+%% nodes test's, named by its function.
 -spec counted_test({waits, pos_integer()}, fun(() -> term())) ->
           {timeout, pos_integer(), {string(), fun(() -> ok)}}.
 counted_test({waits, Count}, Test) ->
     {module, Module} = erlang:fun_info(Test, module),
     {name, Name} = erlang:fun_info(Test, name),
-    {timeout, waits(Count),
-     {lists:concat([Module, ":", Name]), fun() -> counted(Count, Test) end}}.
+    counted_test(lists:concat([Module, ":", Name]), {waits, Count}, Test).
+
+%% The same, named Name, for a test whose function is a closure, one of
+%% the many a document's examples make (ern_guide_tests).
+-spec counted_test(string(), {waits, pos_integer()}, fun(() -> term())) ->
+          {timeout, pos_integer(), {string(), fun(() -> ok)}}.
+counted_test(Name, {waits, Count}, Test) ->
+    {timeout, waits(Count), {Name, fun() -> counted(Count, Test) end}}.
 
 %% A test's limit in seconds, as EUnit's `timeout` takes it: its Count
 %% steps, each bounded by the harness's time for one wait. EUnit's limit is
@@ -706,6 +712,31 @@ accepted(Listener) ->
 received(Socket, Length) ->
     step({received, Socket}),
     gen_tcp:recv(Socket, Length, ?WAIT_MS).
+
+%% docs/log.md, *The Harness Counts a Test's Steps*: a step past a test's
+%% count fails the test at once, naming the step and the count, and a
+%% failed test leaves no count behind in its process. A regression test,
+%% written after the counter; it does not cover a step taken in another
+%% process, which counts nothing.
+steps_past_the_count_test() ->
+    {timeout, _, {_, Counted}} = counted_test({waits, 1}, fun two_steps/0),
+    ?assertError({steps_past_the_count, 1, second}, Counted()),
+    ?assertEqual(undefined, get(?STEPS)).
+
+two_steps() ->
+    step(first),
+    step(second).
+
+%% docs/log.md, *The Harness Counts a Test's Steps*: a test that ends short
+%% of its count fails, naming the steps it took and its count. A regression
+%% test, written after the counter.
+fewer_steps_than_counted_test() ->
+    {timeout, _, {_, Counted}} = counted_test({waits, 2}, fun one_step/0),
+    ?assertError({fewer_steps_than_counted, 1, 2}, Counted()),
+    ?assertEqual(undefined, get(?STEPS)).
+
+one_step() ->
+    step(first).
 
 %% report §8.7: two nodes that list each other connect over TLS with a
 %% certificate on each side, by the first operation that needs it, and each
@@ -1404,12 +1435,12 @@ refused_after_start(Base) ->
 
 %% report §7.4, §8.7: a node whose carrier cannot start, its port taken,
 %% ends before `main` runs, its entry process faulting with the cause §7.4
-%% states, under the entry point's site, and with nothing of the host's
-%% reports on its standard output. A regression test of the principles
-%% review (the log's *The Principles Review of 2026-10-09*), which stated
-%% the cause in §7.4: the fault was reported under the last initializer's
-%% site, `Terminal.widths`, and the host's crash report of its distribution
-%% was written on standard output
+%% states, which names the listen address in use, under the entry point's
+%% site, and with nothing of the host's reports on its standard output. A
+%% regression test of the principles review (the log's *The Principles
+%% Review of 2026-10-09*), which stated the cause in §7.4: the fault was
+%% reported under the last initializer's site, `Terminal.widths`, and the
+%% host's crash report of its distribution was written on standard output
 carrier_not_started_test_() ->
     nodes_test({waits, 2}, fun carrier_not_started/1).
 
@@ -1426,7 +1457,8 @@ carrier_not_started(Base) ->
     Out = filename:join(Base, "out"),
     {1, Said} = finished(?ERN ++ " run --config-dir " ++ A ++ " " ++ Program ++ " 2>&1 >" ++ Out),
     ok = gen_tcp:close(Held),
-    has(Said, "Prog.main faulted: the node's carrier did not start: "),
+    has(Said, "Prog.main faulted: the node's carrier did not start: its listen address 127.0.0.1:"
+              ++ integer_to_list(Port) ++ " is in use\n"),
     ?assertEqual({ok, <<>>}, file:read_file(Out)),
     ?assertNot(filelib:is_file(filename:join(A, "ernest.pid"))),
     %% the line as the deployment guide quotes it
@@ -3131,7 +3163,8 @@ constant_crosses(Base) ->
 %% `listen` is refused at its start, as the launcher's second start says
 %% it, and writes no ernest.pid; and one whose carrier cannot start, its
 %% port taken, ends with its entry process's fault under the site `bare
-%% node`, with status 1. Written after the code
+%% node`, its cause naming the listen address in use, with status 1.
+%% Written after the code, the address with the line that names it
 bare_node_refused_test_() ->
     nodes_test({waits, 2}, fun bare_node_refused/1).
 
@@ -3146,7 +3179,8 @@ bare_node_refused(Base) ->
     D = made(Base, "d", Port),
     {1, Taken} = finished(?ERN ++ " run --config-dir " ++ D ++ " 2>&1"),
     ok = gen_tcp:close(Held),
-    has(Taken, "bare node faulted: the node's carrier did not start: "),
+    has(Taken, "bare node faulted: the node's carrier did not start: its listen address 127.0.0.1:"
+               ++ integer_to_list(Port) ++ " is in use\n"),
     ?assertNot(filelib:is_file(filename:join(D, "ernest.pid"))).
 
 %% report §11.3, §8.7: two directories made and listed by `ern config`'s
@@ -4874,7 +4908,10 @@ output(Port) ->
 
 %% A port's output to its end, and its exit status, within Steps steps,
 %% each given the harness's time for one wait: one, or a run's own steps,
-%% which the harness cannot see.
+%% which the harness cannot see. The port is opened with `binary` and
+%% `exit_status`; one that has not ended by then is closed and fails the
+%% test, naming what it wrote.
+-spec collected(port(), pos_integer()) -> {integer(), binary()}.
 collected(Port, Steps) ->
     step({collected, Port}, Steps),
     collected(Port, <<>>, erlang:monotonic_time(millisecond) + Steps * ?WAIT_MS).
@@ -4884,6 +4921,7 @@ collected(Port, Acc, Deadline) ->
         {Port, {data, Bytes}} -> collected(Port, <<Acc/binary, Bytes/binary>>, Deadline);
         {Port, {exit_status, Status}} -> {Status, Acc}
     after max(Deadline - erlang:monotonic_time(millisecond), 0) ->
+        port_close(Port),
         erlang:error({still_running, Port, Acc})
     end.
 

@@ -294,10 +294,11 @@ let refusals = Test.Case(name = "a command line that selects nothing says why", 
 
 let three =
     Test.Case(name = "three alternatives read as a list",
-              run = fn() = if alternatives(["a", "b", "c"]) == ":a, :b or :c" then
-                  Test.Passed
-              else
-                  Test.Failed(alternatives(["a", "b", "c"])))
+              run = fn() =
+                  if alternatives(["a", "b", "c"]) == ":a, :b or :c" then
+                      Test.Passed
+                  else
+                      Test.Failed(alternatives(["a", "b", "c"])))
 
 let completing =
     Test.Case(name = "what completes is what the command takes",

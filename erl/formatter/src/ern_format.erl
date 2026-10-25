@@ -527,7 +527,7 @@ bare_expr(#e_binop{} = Binop, Code) ->
 bare_expr(#e_lambda{params = Params, result_type = ResultType, effect = Effect, body = Body},
           Code) ->
     [token(fn), params(Params, Code), result_type(ResultType, Effect, Code), space(), token('='),
-     {body, expr(Body, Code)}];
+     {lambda_body, expr(Body, Code)}];
 bare_expr(#e_if{} = If, Code) ->
     {group, ladder(If, Code)};
 bare_expr(#e_match{scrutinee = Scrutinee, clauses = Clauses}, Code) ->
@@ -748,9 +748,16 @@ resolve({clauses, [First | Rest]}, Code, Cursor) ->
                                        Cursor1, Rest),
     {{choice, clauses, clauses_placed(FirstParts, Barred, table),
       clauses_placed(FirstParts, Barred, down)}, Cursor2};
+%% Report §11.6: the body after a `let`'s `=` or `<-` stays on its line
+%% whole or up to a brace or a `then` that ends its first line, and the
+%% body after a lambda's `=` whole or up to a brace alone; otherwise each
+%% begins the next line.
 resolve({body, Template}, Code, Cursor) ->
     {Layout, Cursor1} = resolve(Template, Code, Cursor),
     {{choice, body, [space(), Layout], {nest, 4, [hardline, Layout]}}, Cursor1};
+resolve({lambda_body, Template}, Code, Cursor) ->
+    {Layout, Cursor1} = resolve(Template, Code, Cursor),
+    {{choice, lambda_body, [space(), Layout], {nest, 4, [hardline, Layout]}}, Cursor1};
 resolve({alternative, Template}, Code, Cursor) ->
     {Layout, Cursor1} = resolve(Template, Code, Cursor),
     {{choice, alternative, [space(), Layout], {nest, 4, [hardline, Layout]}}, Cursor1};
