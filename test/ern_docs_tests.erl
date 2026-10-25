@@ -451,6 +451,25 @@ loads_listed_test() ->
     ?assertNotEqual(nomatch, binary:match(Makefile, <<"ern_load:main([\"shell\"])">>)),
     ?assertEqual(lists:sort(["shell" | Programs]), lists:sort(Listed)).
 
+%% report §11.2, docs/release_review.md: a shell's start line a tracked
+%% document shows, `Ernest 0.5.0. :help for the commands, :quit to leave.`,
+%% names the release VERSION holds, in every document but the log, which is
+%% history, and a proposal, so that a release that forgets one is told. The
+%% guide's and the catalog's sessions are held to it as they run
+%% (ern_guide_tests), and the README's by ern_tour_tests; the tour's two
+%% were held by nothing. A regression test, written after the tour
+start_lines_test() ->
+    Version = string:trim(ern_repository:read("VERSION")),
+    Expected = <<"Ernest ", Version/binary, ". :help for the commands, :quit to leave.">>,
+    Files = [File || File <- string:lexemes(os:cmd("git -C " ++ ?ROOT ++ " ls-files '*.md'"), "\n"),
+                     File =/= "docs/log.md", not lists:prefix("docs/proposals/", File)],
+    Found = [{File, Line} || File <- Files,
+                             Line <- binary:split(ern_repository:read(File), <<"\n">>, [global]),
+                             binary:match(Line, <<"Ernest ">>) =:= {0, 7},
+                             binary:match(Line, <<". :help for the commands">>) =/= nomatch],
+    ?assert(length(lists:usort([File || {File, _} <- Found])) >= 3),
+    ?assertEqual([], [Each || {_, Line} = Each <- Found, Line =/= Expected]).
+
 %% docs/release_review.md, step 5: docs/man/ holds the pages `make man`
 %% writes from main, so the release that changes VERSION writes them again;
 %% a page names the version text of the ern that wrote it on its last line,
