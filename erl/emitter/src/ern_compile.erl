@@ -9,11 +9,12 @@
 %% no unit's and so are made from the typed tree and the environment; and
 %% what the unit records of its definitions as "ErnC", their forms with the
 %% lines of their source and their names, its foreign declarations with
-%% theirs and its bindings' order (§12.7, §11.1). It gives too the interface
-%% with the ground terms that the build writes before it emits the module
-%% (interface/5), the link of a unit made from forms alone, by name and
-%% through interfaces (link/5, named/2), and the host's compile of any unit
-%% (compiled/2).
+%% theirs and its bindings' order (§12.7, §11.1).
+%%
+%% The module gives too the interface with the ground terms that the build
+%% writes before it emits the module (interface/5), the link of a unit made
+%% from forms alone, by name and through interfaces (link/5, named/2), and
+%% the host's compile of any unit (compiled/2).
 -module(ern_compile).
 
 -export([compile/4, compile/5, interface/5, from_compiled/5, compiled/2, forms/3, forms/4,
@@ -38,18 +39,21 @@ compile(Namespace, Declarations, Interface, Env) ->
 %% shell gives an input, is the namespace its forms and its '$code'/0 name
 %% what the session declares under, the session's one (Appendix H, §11.2),
 %% and is not kept; `standard` marks a module of the standard library's own
-%% source root. `units` names the unit of each namespace whose unit is not
-%% its module's Erlang name, the module's own among them, as the shell
-%% gives them where a reload brought a version as a unit of its own (report
-%% §11.2), and is not kept; `site_namespace`, which the shell gives such a
-%% version, is the namespace its spawn sites name its declarations under,
-%% `Counter$2` (§11.2), and is not kept; `input_name`, which the shell gives
-%% an input, is the name its expression's sites write, `input 3`, which the
-%% forms' chunk records beside the expression's form (§12.7), and is not
-%% kept; `canonical`, the module's canonical forms where the build made
-%% them already (ern_build), is not kept either. The chunk records beside
-%% the build's facts whether the module builds a function value,
+%% source root.
+%%
+%% `units` names the unit of each namespace whose unit is not its module's
+%% Erlang name, the module's own among them, as the shell gives them where a
+%% reload brought a version as a unit of its own (report §11.2), and is not
+%% kept; `site_namespace`, which the shell gives such a version, is the
+%% namespace its spawn sites name its declarations under, `Counter$2`
+%% (§11.2), and is not kept; `input_name`, which the shell gives an input,
+%% is the name its expression's sites write, `input 3`, which the forms'
+%% chunk records beside the expression's form (§12.7), and is not kept;
+%% `canonical`, the module's canonical forms where the build made them
+%% already (ern_build), is not kept either. The chunk records beside the
+%% build's facts whether the module builds a function value,
 %% `builds_functions`, by which the shell keeps an input's code (§11.2).
+%%
 %% The declarations are the checker's, so every rule a program can break
 %% has been checked: what the emitter cannot emit, or emits and the host
 %% does not compile, is a defect of the toolchain, raised as one, which
@@ -127,11 +131,12 @@ with_terms(#interface{lets = Lets} = Interface, Canonical, Unit) ->
 %% the prelude's environment, each module's code calling the unit Units
 %% names for its namespace, as the session links a version; and compiled
 %% with the chunks of the compiled form, its interface, its documentation
-%% and its forms, so that it is that module whatever its unit's name. The
-%% shell loads so a compiled module beside another unit of its name, which
-%% no source makes again. What the forms reference outside the module is a
-%% definition of a module whose interface the session holds, so a failure
-%% here is the toolchain's.
+%% and its forms, so that it is that module whatever its unit's name.
+%%
+%% The shell loads so a compiled module beside another unit of its name,
+%% which no source makes again. What the forms reference outside the module
+%% is a definition of a module whose interface the session holds, so a
+%% failure here is the toolchain's.
 -spec from_compiled(binary(), atom(), [#interface{}], ern_typecheck:env(),
                     #{[atom()] => atom()}) -> {ok, binary()}.
 from_compiled(Beam, Unit, Interfaces, Prelude, Units) ->

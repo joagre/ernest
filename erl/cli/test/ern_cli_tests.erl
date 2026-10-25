@@ -64,11 +64,12 @@ stdlib_build_sets_its_copy_aside() ->
 %% dependency of §11.1's, is called rightly whatever order the build
 %% checks the library in: the library compiled in the order a build takes
 %% and in the latest its dependencies allow, each module as late as the
-%% modules that use it let it come, gives the same units. A regression test
-%% for a defect MVP 3.2's item 4 found, which the order a build took met by
-%% chance; the library names, today, no module it does not depend on, so
-%% the test holds the order's not mattering, not a module reached by name
-%% alone
+%% modules that use it let it come, gives the same units.
+%%
+%% A regression test for a defect MVP 3.2's item 4 found, which the order a
+%% build took met by chance; the library names, today, no module it does
+%% not depend on, so the test holds the order's not mattering, not a module
+%% reached by name alone
 stdlib_order_test_() ->
     {timeout, 120, fun stdlib_order/0}.
 
@@ -2429,8 +2430,9 @@ doc_example_initializers_test() ->
 %% faults in the example's empty directory, where the tests' launch found
 %% its file, and one that kills the entry process there; the fault is not
 %% reported on standard error too. An example that itself faults keeps its
-%% line, and the next runs after it. The status is 1 for each module. A
-%% regression test, written after the code: the initializer's fault was
+%% line, and the next runs after it. The status is 1 for each module.
+%%
+%% A regression test, written after the code: the initializer's fault was
 %% reported on standard error as `ern run` reports it and ended the
 %% module's run, with no line for the example and none after it, and the
 %% kill printed `killed`; it does not cover a signal or a stream that can

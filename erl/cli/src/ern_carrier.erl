@@ -255,8 +255,9 @@ is_node() ->
 %% the measures, the utilization and its interval are the new file's, the
 %% utilization holding from the next ask and the interval from the next
 %% telling (ern_gateway:reloaded/0), and a peer removed, or listed under
-%% another key, has its connection ended, both nodes running the loss. The
-%% node says that it read the file, and each peer added, removed or
+%% another key, has its connection ended, both nodes running the loss.
+%%
+%% The node says that it read the file, and each peer added, removed or
 %% renamed, or why the file was refused. Whatever fails as the file is read
 %% and checked refuses the reload, the host's reason named where it is not
 %% a refusal, so that the signal handler, in whose process this runs, never
@@ -350,12 +351,14 @@ peer(Host) ->
 %% host's checks of them, which come as a bad certificate, are answered by
 %% the key; an extension is the host's. A key not listed, and a
 %% certificate that names another host than its key gives, are refused, and
-%% the node says so. A node this node dials must answer under the name
-%% dialed: the host's handshake checks only the name the answering node
-%% gives, which a node may give falsely, and checks no dialed name against
-%% a certificate that signs itself, so on the client's side the rule takes
-%% a key only where it gives the host dialed (dialed/0), and the node says
-%% which peer answered the dial of which.
+%% the node says so.
+%%
+%% A node this node dials must answer under the name dialed: the host's
+%% handshake checks only the name the answering node gives, which a node
+%% may give falsely, and checks no dialed name against a certificate that
+%% signs itself, so on the client's side the rule takes a key only where it
+%% gives the host dialed (dialed/0), and the node says which peer answered
+%% the dial of which.
 -spec verify(#'OTPCertificate'{}, term(), client | server) ->
           {valid, client | server} | {unknown, client | server} | {fail, term()}.
 verify(_Certificate, {extension, _}, Side) ->

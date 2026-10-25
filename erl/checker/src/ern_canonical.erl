@@ -5,23 +5,29 @@
 %% definition's hash by its qualified name (interface/2), by which a
 %% dependent's forms name it, and each function's reach, the bindings and
 %% the foreign declarations it names transitively, by which a dependent's
-%% reaches take it in (§11.1). Beside them module/4 gives the emitter the
-%% hash of each type a service is made at, and the identity and the reach of
+%% reaches take it in (§11.1).
+%%
+%% Beside the chunk and the interface, module/4 gives the emitter the hash
+%% of each type a service is made at, and the identity and the reach of
 %% each lambda and local function, by its span, which a spawn on a peer
-%% names (§8.7). It gives the back end too, in each definition beside its
-%% form, its sourced form, the form with the source woven in, each node's
-%% line and column and the name of each local the source binds, which the
-%% hash leaves out (stripped/1); the position of each function in the unit, its
+%% names (§8.7).
+%%
+%% The back end is given too, in each definition beside its form, its
+%% sourced form, the form with the source woven in, each node's line and
+%% column and the name of each local the source binds, which the hash
+%% leaves out (stripped/1); the position of each function in the unit, its
 %% definitions in the order of their forms and then its foreign functions
 %% (§11.1), by which its unit and a dependent name it; the foreign
 %% functions' schemes as forms write them; the qualified name each
 %% reference to another module's declaration names (links); and a type's
 %% shape as a form writes it, by which the build links a type of another
-%% module (declared_type/4). The chunk records beside each form the lines
-%% of its source and its name, the locals' names left out, so that a
-%% definition shipped onward or loaded from its compiled form is compiled
-%% with them (recorded_source/1, §12.7, §11.1); and each reach a unit's
-%% `'$code'/0` lists, computed from its forms (unit_reaches/2).
+%% module (declared_type/4).
+%%
+%% The chunk records beside each form the lines of its source and its name,
+%% the locals' names left out, so that a definition shipped onward or loaded
+%% from its compiled form is compiled with them (recorded_source/1, §12.7,
+%% §11.1); and each reach a unit's `'$code'/0` lists, computed from its
+%% forms (unit_reaches/2).
 %%
 %% A form is made in two steps. The walk writes each definition with a
 %% reference to another definition of its own module left open, `{'$own',
@@ -83,14 +89,15 @@
 %% variables, each type variable to its number; quantified, the type
 %% variables the schemes met so far quantify, the definition's and its
 %% local functions', which a type the checker gave a node writes as
-%% variables (given_type/2);
-%% references, the other modules' definitions referenced by hash;
-%% functions, the span of each lambda and local function met, reversed, in
-%% the order the walk meets them, which is their positions' (lambdas/2);
-%% services, each service's message type with its form, its own module's
-%% types left open; links, each reference to another module's declaration
-%% the walk wrote, with the qualified name it names, by which the build
-%% links it (module/5).
+%% variables (given_type/2).
+%%
+%% What the walk gathers: references, the other modules' definitions
+%% referenced by hash; functions, the span of each lambda and local function
+%% met, reversed, in the order the walk meets them, which is their
+%% positions' (lambdas/2); services, each service's message type with its
+%% form, its own module's types left open; links, each reference to another
+%% module's declaration the walk wrote, with the qualified name it names, by
+%% which the build links it (module/5).
 -record(walk, {env, namespace, form_namespace, standard, own, scope = #{}, outer,
                bound = #{}, segments = #{}, locals = 0, variables = #{}, quantified = [],
                references = [], functions = [], services = [], links = []}).

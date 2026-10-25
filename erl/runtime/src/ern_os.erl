@@ -188,7 +188,9 @@ starting(#{helper := Helper} = Running, Reply) ->
 %% next reads take, in order. The helper sends one piece of output for each
 %% piece it was asked for, and the exit status once the program has exited
 %% and both its outputs have ended, which it can learn only while a piece is
-%% owed. Report Appendix E.23: a read answers `Left(Timeout)` when its
+%% owed.
+%%
+%% Report Appendix E.23: a read answers `Left(Timeout)` when its
 %% milliseconds pass, the program running on, and the piece asked for it is
 %% the next read's; a write is answered when the helper says the program has
 %% taken its bytes, `a`, or dropped them, `d`, one for each input in order,

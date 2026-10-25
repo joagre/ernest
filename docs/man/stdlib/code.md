@@ -132,6 +132,7 @@ mailbox type `m`. For one that receives nothing, and for one that is
 process-only, whose `receive` fixes no type (report §3.9), `m` is `Never`.
 A process spawned from a lambda written in `f` runs that lambda, and is not
 listed.
+
 The list is a snapshot: a process may have left `f`, or ended, by the time
 it is sent to. The host keeps at most the innermost 64 frames of a stack, so
 a process whose frame of `f` lies beneath them is not listed. `running` is

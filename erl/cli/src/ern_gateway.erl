@@ -1,50 +1,30 @@
 %% Report §12.6: a node's gateway, the one registered process that takes
-%% every frame of the runtime's from every peer, from the node's start, so
-%% that the frame which opens a connection finds it; each frame is handed to
-%% a worker for the sender's node, one across a loss of that node's
-%% connection, which runs the loss once it has read every frame that came
-%% before it, reads those that come after the connection is opened again,
-%% and ends once it holds no frame and no process kept for an address, so
-%% that a peer's messages to one address keep their order across a loss
-%% (§6.4, §6.5). Through it go what needs a process on the receiving node:
-%% a spawn and its answer, a compute, a find, a message to an adapted
-%% address, a kill of a process of the node, and a restart of a process
-%% of the peer's and the answer that its watchers have been told (§6.9),
-%% each read by ern_peer:frame/2, a spawn or a compute of a function the
-%% node lacks handed on to the node's exchange (ern_exchange), which the
-%% worker tells of the loss too, and a message to an adapted address
-%% handed to the process the worker keeps for the address (§6.5,
-%% ern_rt:kept/1), which applies its function; a frame it cannot read is
-%% faulty, and the node ends that peer's connection. The exchange's four
-%% frames, the request for a reach, the reach, the lacks and a code frame,
-%% it hands to the exchange as they come, and records nothing of them. A
-%% call's two notes it records itself, in the
-%% order they came, so that a restart, which asks it as it asks the reaper,
-%% reads every note that came before it (§6.9), and so it does a peer's
-%% word that it ends; a compute's frame is its call's first note, which it
-%% records before its worker reads the frame, so that the second note,
-%% which may come before the compute's process starts, finds it. A
-%% utilization it answers itself, from the host's counters, keeping the
-%% node's measure and its last reading, and turning on the host's keeping
-%% of the schedulers' time, which lasts as long as the process that turns it
-%% on, where the measure is the schedulers', or with the utilization the
-%% program set (ern_rt:program_utilization/0). The same number it tells
-%% each connected peer, with the interval of its tellings, every
-%% `utilization-interval` while the node lists peers, by a timer of its
-%% own, since it owns the connections and the measure, and a peer's telling
-%% it holds as it comes (ern_peer:hold_utilization/3), dropping it at the
-%% peer's loss. It watches
-%% the node's connections and says each change of one (ern_carrier:said/1),
-%% since a connection's end is said by the frames that came before it: a
-%% peer that told this node it ends ended, and one that did not was lost. A
+%% every frame of the runtime's from every peer, from the node's start. A
 %% frame is {ern_frame, From, Body}, From the process on the peer that sent
-%% it, whose node is the frame's peer; seventeen bodies are the runtime's
-%% frames, an adapted address's message, a spawn and its answer, a compute,
-%% a find, a utilization and a telling, the call's two notes, a kill, a
-%% node's end, a restart and that its watchers have been told, and the
-%% exchange's `reach_request`, `reach`, `lacks` and `code_frame`. A
-%% message to the gateway that names no process of another node names no
-%% connection to end, and is dropped, which the node says.
+%% it, whose node is the frame's peer.
+%%
+%% Each frame that needs a process on the receiving node is handed to the
+%% worker for the sender's node, which reads it by ern_peer:frame/2. The
+%% worker hands a spawn or a compute of a function the node lacks on to the
+%% node's exchange (ern_exchange), which it tells of the loss too, and a
+%% message to an adapted address to the process it keeps for the address
+%% (§6.5, ern_rt:kept/1). The exchange's four frames the gateway hands to
+%% the exchange as they come, and records nothing of them.
+%%
+%% A call's two notes the gateway records itself, in the order they came,
+%% and so it does a peer's word that it ends (§6.9). A compute's frame is
+%% its call's first note, which the gateway records before its worker reads
+%% the frame, so that the second note, which may come before the compute's
+%% process starts, finds it.
+%%
+%% A utilization the gateway answers itself, or with the utilization the
+%% program set (ern_rt:program_utilization/0), and it tells each connected
+%% peer the same number every `utilization-interval` while the node lists
+%% peers, holding a peer's telling as it comes
+%% (ern_peer:hold_utilization/3). It says each change of a connection
+%% (ern_carrier:said/1).
+%%
+%% The shape is docs/design/nodes.md's.
 -module(ern_gateway).
 
 -export([start/0, reloaded/0, departing/0, work/2, outcome/2]).
@@ -384,13 +364,15 @@ started(Node) ->
 %% this node lacks handed to the exchange, which asks the peer for its
 %% reach while the worker goes on with the next frame, and a message to an
 %% adapted address handed to the process kept for the address (§6.5,
-%% handed/4). At a loss, the frames before it read, the spawns that waited
-%% on the peer before it are let go, and then the exchanges asked of it, the
-%% frames the worker handed it having come before; each process kept goes
-%% on with what it was handed, since nothing else ends at a loss, and the
-%% worker reads the frames of the connection opened again after the loss,
-%% so that a message sent after the loss is applied after one sent before
-%% it to the same address (§6.4). Once it holds no kept process it asks the
+%% handed/4).
+%%
+%% At a loss, the frames before it read, the spawns that waited on the peer
+%% before it are let go, and then the exchanges asked of it, the frames the
+%% worker handed it having come before; each process kept goes on with what
+%% it was handed, since nothing else ends at a loss, and the worker reads
+%% the frames of the connection opened again after the loss, so that a
+%% message sent after the loss is applied after one sent before it to the
+%% same address (§6.4). Once it holds no kept process the worker asks the
 %% gateway to end it (idled/1), and ends at the gateway's `stop`.
 -spec work(node(), pid()) -> ok.
 work(Node, Gateway) ->

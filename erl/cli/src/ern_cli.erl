@@ -1286,18 +1286,19 @@ no_main_file(run) ->
 %% it from a peer, the peer's name (§8.7), and for a process a peer
 %% spawned, the peer, named as a node's line names it (§12.5), since the
 %% site is the spawner's; and beneath it the fault's trace (§7.3,
-%% indented_trace/1). It goes through standard error's
-%% process, so that it keeps its place among what the program wrote there,
-%% and is flushed with it when the program ends. The runtime's own
-%% subscriber of Process.faults (Appendix E.21), given the peer's node or
-%% none, by which a peer a reload has removed since is named as a node's
-%% line names one not listed, where the report's `spawnedBy` is `None`.
-%% Where standard error is neither a terminal nor a service manager's
-%% journal, each line begins with the moment the fault was met, the
-%% report's `time`, in UTC as RFC 3339 writes it. A fault of a process
-%% Test.faults started never comes here, the runtime telling no one of it
-%% (Appendix E.24, ern_rt:expected/1). Report §12.4: beneath a deadlock's
-%% trace, the processes it left waiting (left_waiting/1).
+%% indented_trace/1). It goes through standard error's process, so that it
+%% keeps its place among what the program wrote there, and is flushed with
+%% it when the program ends.
+%%
+%% The runtime's own subscriber of Process.faults (Appendix E.21), given
+%% the peer's node or none, by which a peer a reload has removed since is
+%% named as a node's line names one not listed, where the report's
+%% `spawnedBy` is `None`. Where standard error is neither a terminal nor a
+%% service manager's journal, each line begins with the moment the fault
+%% was met, the report's `time`, in UTC as RFC 3339 writes it. A fault of
+%% a process Test.faults started never comes here, the runtime telling no
+%% one of it (Appendix E.24, ern_rt:expected/1). Report §12.4: beneath a
+%% deadlock's trace, the processes it left waiting (left_waiting/1).
 report_fault({'FaultReport', Process, Site, Cause, Restarted, Trace, _, Callee, From, Time},
              Peer, Stamped) ->
     Faulted = case Restarted of

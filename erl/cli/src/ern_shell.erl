@@ -5,6 +5,8 @@
 %% printer, which `Io.debug` uses, over the descriptor of the input's type.
 %% An expression and a `let` are the module's entry point, and what the
 %% input declares is the module's declarations.
+%%
+%% The shape is docs/design/shell.md's.
 -module(ern_shell).
 
 -export([loaded/1, start/0, spawn_program/0, config_startup/0, is_same_file/2, needs_more/1,
@@ -57,6 +59,7 @@
 %% last_input: the highest input number given; last_holder: the highest
 %% `$Bindings` number given; a number freed is given again first, from the
 %% kept row `free` (free_namespace/1)
+%%
 %% source_hashes: the namespace of a module the session has loaded, to the hash
 %% of the source it was compiled from, which `:reload` compares (§11.2);
 %% source_expected: the namespace of each whose source the session looks
@@ -67,19 +70,22 @@
 %% or `:reload` compiled, to its compiled module, its latest version's,
 %% which `:doc` reads the documentation of (report §11.2, §11.4) and a
 %% reload what its forms reference (recorded/2)
+%%
 %% prelude: the prelude's environment, the standard library's interfaces
 %% among it, built when the session starts and kept while it lives, since
 %% neither changes while it runs; the queries of completion, `:browse` and
 %% `:doc` read it rather than build it each time
+%%
 %% units: the unit each namespace runs as where it is not the module's
 %% Erlang name: a version a reload brought, `ern@counter$2`, of a module or
 %% of a declaring input, and a previous version's namespace, its unit
 %% (§8.7, §11.2); versions: each reloaded module's version, and each
 %% declaring input's a reload compiled again, counted from 1, its first
-%% load or its input; previous:
-%% the interfaces of previous versions, `Counter$1`, of the types a reload
-%% changed, which what the session held before it names, and which the
-%% checker is given beside the loaded modules' (§11.2)
+%% load or its input; previous: the interfaces of previous versions,
+%% `Counter$1`, of the types a reload changed, which what the session held
+%% before it names, and which the checker is given beside the loaded
+%% modules' (§11.2)
+%%
 %% A checked input: the namespace of the module it became, its typed tree,
 %% the declarations it was checked as, the module's interface, the
 %% checker's environment, its type, what it binds, and its site, the name
@@ -97,6 +103,7 @@
 %% names a `let` with a pattern binds, `it` for an expression, or
 %% `declarations`; a name is tagged, so that no name stands for a tag.
 %% printed_name: the name the input's module prints with (input_names/0).
+%%
 %% A module a load or a reload brings: its namespace, the unit it is, its
 %% compiled form, the hash of the source it was compiled from (§11.2),
 %% whether its source is the session's, the session compiling it or taking
@@ -141,12 +148,13 @@
 %% input's text, which a reload compiles it again from (input_text/2), the
 %% modules whose `:load` was refused (refusal_kept/2), and the processes
 %% of the shell's own beside its chain, those the loads evaluated bindings
-%% in and the last input's (own/0). A binding's value is
-%% §8.5's store, a persistent term, as a module's is, so that a later input
-%% reads it as it reads another module's value; its release when it is
-%% replaced, `it` at almost every input, scans every process, a cost that
-%% grows with the processes the session has (the log's *The Hardening
-%% Built*).
+%% in and the last input's (own/0).
+%%
+%% A binding's value is §8.5's store, a persistent term, as a module's is,
+%% so that a later input reads it as it reads another module's value; its
+%% release when it is replaced, `it` at almost every input, scans every
+%% process, a cost that grows with the processes the session has (the
+%% log's *The Hardening Built*).
 -spec loaded(#loaded{}) -> ok.
 loaded(Loaded) ->
     persistent_term:put({?MODULE, loaded}, Loaded),
@@ -2343,12 +2351,14 @@ in_order(CompiledModules) ->
 %% and then each of Roots that lives on, the shell's own, which nothing
 %% names; and the values the bindings of every unit it evaluated stored
 %% go, so that a unit the node held, which the session had not evaluated,
-%% is without them as before. The units the load brought stay loaded and
-%% in the code table, as any unit does, out of the session's scope, since
-%% a process running before the load may have been handed a function of
-%% one, as an input's code is kept; the module loaded again, unchanged,
-%% makes no unit (compile_unit/5, compiled_unit/5). Code.load undoes a
-%% load so too (Appendix E.28). The spawn sites of the processes killed.
+%% is without them as before.
+%%
+%% The units the load brought stay loaded and in the code table, as any
+%% unit does, out of the session's scope, since a process running before
+%% the load may have been handed a function of one, as an input's code is
+%% kept; the module loaded again, unchanged, makes no unit (compile_unit/5,
+%% compiled_unit/5). Code.load undoes a load so too (Appendix E.28). The
+%% spawn sites of the processes killed.
 withdraw(All, Roots) ->
     Keys = lists:append([ern_code:binding_keys(Unit) || #compiled{unit = Unit} <- All]),
     Sites = ern_rt:kill_started([Root || {Root, _} <- Roots]),
@@ -2570,17 +2580,19 @@ placed_unit(#session{source_hashes = Loaded} = Session, Namespace, #placing{plac
 
 %% Report §8.7, §11.2: a module loaded from its compiled form is placed as
 %% Code.load places one (ern_code:placement/4), linked to the units of the
-%% modules it uses, the session's and those the load placed before it: the
-%% unit of its Erlang name where the host holds this very code there, or
-%% none, and each module it uses is under its own Erlang name, its compiled
-%% form loaded as it is, as a node holds its build's; else a unit made from
-%% its forms by the back end as it is installed, once the modules it uses
-%% are (install/2), of its Erlang name where the host holds no code of it
-%% and of a name of its own beside it otherwise, as a reload's version is;
-%% or a unit an earlier load made of these very forms, a refused load's,
-%% which stays loaded (withdraw/2), so that a module loaded again,
-%% unchanged, makes no unit. A module it uses that the load could not
-%% compile has no unit, and the load is refused (compile_in_order/2).
+%% modules it uses, the session's and those the load placed before it.
+%%
+%% The module is the unit of its Erlang name where the host holds this very
+%% code there, or none, and each module it uses is under its own Erlang
+%% name, its compiled form loaded as it is, as a node holds its build's.
+%% Else it is a unit made from its forms by the back end as it is
+%% installed, once the modules it uses are (install/2), of its Erlang name
+%% where the host holds no code of it and of a name of its own beside it
+%% otherwise, as a reload's version is. Or it is a unit an earlier load
+%% made of these very forms, a refused load's, which stays loaded
+%% (withdraw/2), so that a module loaded again, unchanged, makes no unit. A
+%% module it uses that the load could not compile has no unit, and the load
+%% is refused (compile_in_order/2).
 compiled_unit(Session, Namespace, Beam, Hash, Placing) ->
     {ok, #{deps := DependencyHashes}} = ern_interface:read(Beam),
     {ok, Recorded} = ern_canonical:read(Beam),
@@ -2979,11 +2991,13 @@ taken_or_compiled(#session{source_hashes = Loaded} = Session,
 %% version among them, since the form calls each module it uses by its
 %% own; the candidates are tried in the load path's order, the source root
 %% last, and the first that qualifies is taken, with its file and the hash
-%% of the source it records. The interfaces it is held to are those a
-%% compile would check it against: Interfaces, and for a module it uses
-%% that the session has not loaded, the one its compiled form on the load
-%% path holds. None where none qualifies, or where a module it uses is
-%% found nowhere, which compiling it reports.
+%% of the source it records.
+%%
+%% The interfaces it is held to are those a compile would check it against:
+%% Interfaces, and for a module it uses that the session has not loaded,
+%% the one its compiled form on the load path holds. None where none
+%% qualifies, or where a module it uses is found nowhere, which compiling
+%% it reports.
 current_form(#session{source_root = SourceRoot} = Session,
              #build_module{namespace = Namespace, dependencies = Dependencies} = Module,
              Interfaces, Units) ->

@@ -118,13 +118,14 @@ told_boundary(Base) ->
 %% the console shows after it, in order, a peer's connection among them
 %% held where the shell may print it, before or after the answer; `foo`
 %% said where it listens, that `a` connected and, once the shell has quit,
-%% that it ended, and nothing else. A regression test, written after the
-%% README; it does not cover the configuration, which the README leaves to
-%% the tour, nor the shell at a terminal. Its limit is the sum of its
-%% sixteen waits, each bounded by the harness's time for one wait: four
-%% `ern config` jobs, `foo`'s listening,
+%% that it ended, and nothing else.
+%%
+%% A regression test, written after the README; it does not cover the
+%% configuration, which the README leaves to the tour, nor the shell at a
+%% terminal. Its limit is the sum of its sixteen waits, each bounded by the
+%% harness's time for one wait: four `ern config` jobs, `foo`'s listening,
 %% the shell's start, five inputs, the shell's end and what it said, the
-%% stop, `foo`'s end and what it said
+%% stop, `foo`'s end and what it said.
 readme_test_() ->
     ern_nodes_tests:nodes_test({waits, 16}, fun readme/1).
 
@@ -189,20 +190,23 @@ inputs([<<"> ", Input/binary>> | Rest]) ->
 %% §8.7, §11.1, §11.2, §11.3, Appendix E.24, E.27, E.28: chapter 2's seven
 %% commands, the bare nodes started and the shell as `a`, then each
 %% chapter's files copied and its inputs typed, as each chapter's function
-%% says, and at the end what each bare node wrote. A bare node's port is
-%% one the harness found free, in place of the tour's 8655 and 8656, and
-%% so is `a`'s listen, which `ern config` sets to 0.0.0.0:8654, since one
-%% machine's nodes cannot share a port; the harness starts the bare nodes
-%% from their absolute directories, where the reader types `ern run
-%% --config-dir foo`. The inputs are the tour's, their deadlines among
-%% them. Two inputs follow chapter 8's stop of foo, which the tour's
-%% closing line tells and does not show: `far` answers "ok" to an inc and
-%% "no answer" to a report. It does not cover the four terminals as a
-%% reader sees them, a node's line's time, which bare node a compute that
-%% names none runs on, nor how long anything took. Its limit is the sum of
-%% its 81 waits, each bounded by the harness's time for one wait: eleven
-%% jobs, two ports that answer, the shell's start, 57 inputs, two nodes'
-%% first lines, two lines of a node's end, three ends and what three said
+%% says, and at the end what each bare node wrote.
+%%
+%% A bare node's port is one the harness found free, in place of the
+%% tour's 8655 and 8656, and so is `a`'s listen, which `ern config` sets to
+%% 0.0.0.0:8654, since one machine's nodes cannot share a port; the harness
+%% starts the bare nodes from their absolute directories, where the reader
+%% types `ern run --config-dir foo`. The inputs are the tour's, their
+%% deadlines among them. Two inputs follow chapter 8's stop of foo, which
+%% the tour's closing line tells and does not show: `far` answers "ok" to
+%% an inc and "no answer" to a report.
+%%
+%% The test does not cover the four terminals as a reader sees them, a
+%% node's line's time, which bare node a compute that names none runs on,
+%% nor how long anything took. Its limit is the sum of its 81 waits, each
+%% bounded by the harness's time for one wait: eleven jobs, two ports that
+%% answer, the shell's start, 57 inputs, two nodes' first lines, two lines
+%% of a node's end, three ends and what three said.
 tour_test_() ->
     ern_nodes_tests:nodes_test({waits, 81}, fun tour/1).
 

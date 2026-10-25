@@ -52,44 +52,54 @@ parts({Base, Ms}) ->
 %% module's page and a library's through the path alone. make uninstall
 %% removes what was installed and leaves a page of the user's, and refuses
 %% where nothing is installed. No installed module carries the host's debug
-%% information. Written with the code. The installed documents were not:
+%% information. Written with the code.
+%%
+%% The checks of the installed documents were not written with the code:
 %% the README is the release's, every link of a document names a file
 %% installed beside it, and the guide's link to an example leads into the
 %% repository on main. A regression test, written after the README was
 %% found installed with its image and seven of its links naming nothing,
 %% and the guide with fourteen; it does not follow a link into the
-%% repository. That the directories of the installation's own go with it
-%% is a regression test too, written on 2026-10-04 after the report's
-%% directory was found left behind, and the documents' with it; and so is
-%% that no module compiled from an application's tests is installed,
-%% written after the runtime's test helper `ern_waits` was found shipped;
-%% and so is that no source of the standard library is installed, written
-%% on 2026-10-15 when the log's *The Layout Completed* stopped installing it.
-%% So is that every `.md` under report/, guide/ and tour/ is installed where
-%% it stands, and nothing else of the checkout's documents but the README's
-%% and ACKNOWLEDGMENTS.md, and that the link check reads each document at
-%% its depth from its own directory, the deployment guide's among them:
-%% written on 2026-10-16, after guide/deployment.md was found not
-%% installed, and the check found reading the top directory alone since the
-%% report and the guide moved below it. A document of tour/, which the
-%% checkout does not hold yet, and one two directories down are not
-%% covered. So is that the installed standard library is one file for each
-%% of its modules, its `.erc`, and the shell's build one for each of the
-%% shell's: written on 2026-10-17, when the copies of each under its
-%% Erlang name, which the host's loader read from the code path, went, and
-%% `ern` came to load each module from its `.erc`; it does not cover a
-%% library's build under build/libs. So is that every file the repository
-%% tracks under examples/, and editors/emacs/README.md, is installed where
-%% it stands and no file it does not track, one written for the test among
-%% them; that each link of the guide's to either stays the one the guide
-%% writes and names a file installed, as no link to them into the
-%% repository remains; and that the installed examples build with the
-%% installed `ern` and its libraries: written on 2026-10-17, after the
-%% code that installs them, when the guide was found linking seven programs
-%% and the note that turns the Emacs mode on that no installation held. The
-%% examples are built as one directory, not each as its first comment
-%% builds it, and none is run here; nor is a checkout staged by another
-%% user than its owner, root among them, or a tree git does not hold.
+%% repository.
+%%
+%% That the directories of the installation's own go with it is a
+%% regression test too, written on 2026-10-04 after the report's directory
+%% was found left behind, and the documents' with it; and so is that no
+%% module compiled from an application's tests is installed, written after
+%% the runtime's test helper `ern_waits` was found shipped; and so is that
+%% no source of the standard library is installed, written on 2026-10-15
+%% when the log's *The Layout Completed* stopped installing it.
+%%
+%% Another regression test is that every `.md` under report/, guide/ and
+%% tour/ is installed where it stands, and nothing else of the checkout's
+%% documents but the README's and ACKNOWLEDGMENTS.md, and that the link
+%% check reads each document at its depth from its own directory, the
+%% deployment guide's among them: written on 2026-10-16, after
+%% guide/deployment.md was found not installed, and the check found reading
+%% the top directory alone since the report and the guide moved below it. A
+%% document of tour/, which the checkout does not hold yet, and one two
+%% directories down are not covered.
+%%
+%% Another is that the installed standard library is one file for each of
+%% its modules, its `.erc`, and the shell's build one for each of the
+%% shell's: written on 2026-10-17, when the copies of each under its Erlang
+%% name, which the host's loader read from the code path, went, and `ern`
+%% came to load each module from its `.erc`; it does not cover a library's
+%% build under build/libs.
+%%
+%% Another is that every file the repository tracks under examples/, and
+%% editors/emacs/README.md, is installed where it stands and no file it
+%% does not track, one written for the test among them; that each link of
+%% the guide's to either stays the one the guide writes and names a file
+%% installed, as no link to them into the repository remains; and that the
+%% installed examples build with the installed `ern` and its libraries:
+%% written on 2026-10-17, after the code that installs them, when the guide
+%% was found linking seven programs and the note that turns the Emacs mode
+%% on that no installation held. The examples are built as one directory,
+%% not each as its first comment builds it, and none is run here; nor is a
+%% checkout staged by another user than its owner, root among them, or a
+%% tree git does not hold.
+%%
 %% Answers the directory the parts after it work in.
 install() ->
     Version = version(),
@@ -220,16 +230,17 @@ version() ->
 %% with the helper as its C source, a Makefile and a README; its make
 %% compiles the helper, and its make install installs under a prefix, where
 %% a program that runs another through the helper runs, and its make
-%% uninstall removes it. Written with the code. The README it carries is the
-%% one it installs, and the installed guide's link to the log leads into the
-%% repository at the release's tag, as its links to the examples and the
-%% Emacs README stay its own: a regression test, as install/0's is. The logo
-%% the README shows stands beside it in the archive, as under the prefix.
-%% The installed `ern` is a release, whose version text is VERSION's alone,
-%% as the repository's build is not (report §12.5): a regression test,
-%% written after the code (the log's *MVP 3.1 Read*). The archive holds no
-%% module compiled from an application's tests, as the installation does
-%% not.
+%% uninstall removes it. Written with the code.
+%%
+%% The README the archive carries is the one it installs, and the installed
+%% guide's link to the log leads into the repository at the release's tag,
+%% as its links to the examples and the Emacs README stay its own: a
+%% regression test, as install/0's is. The logo the README shows stands
+%% beside it in the archive, as under the prefix. The installed `ern` is a
+%% release, whose version text is VERSION's alone, as the repository's
+%% build is not (report §12.5): a regression test, written after the code
+%% (the log's *MVP 3.1 Read*). The archive holds no module compiled from an
+%% application's tests, as the installation does not.
 release() ->
     Base = filename:absname("build/release"),
     ok = ern_integration_tests:del(Base),

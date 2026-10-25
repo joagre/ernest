@@ -135,10 +135,12 @@ services() ->
 %% that each hold a lease and wait for a second, status 1, the deadlock's
 %% report listing the processes left waiting by site and frame; its own
 %% tests, the broker's fault among them; and a word it does not take,
-%% status 2. A regression test, written with the example. It does not cover
-%% a waiting request dropped at its client's end, since no run orders the
-%% end before the lease that would answer it; the two nodes are
-%% ern_nodes_tests' lease_broker_test_
+%% status 2.
+%%
+%% A regression test, written with the example. It does not cover a
+%% waiting request dropped at its client's end, since no run orders the end
+%% before the lease that would answer it; the two nodes are
+%% ern_nodes_tests' lease_broker_test_.
 lease_broker_test_() ->
     ern_nodes_tests:counted_test({waits, 5}, fun lease_broker/0).
 
@@ -1015,14 +1017,15 @@ stream_gone() ->
 %% ended it: a program whose one write is lost, whose entry point then
 %% returns or calls Os.exit, on standard output and on standard error. A
 %% regression test, written after the code: of twenty-four such runs eleven
-%% ended with status 0, ten with 141, and three did not end. The reader
-%% closes its end of the pipe and then says so through a FIFO, which the
-%% program's side waits on before the program starts. Each run is one step
-%% of the harness's (ern_nodes_tests:wait_ms/0), after which a program that
-%% has not ended is killed, its status 137 then among the others'. Its
-%% steps: three builds and nine runs. It does not cover a device that fails,
-%% which only some hosts have one of, nor a reader that goes while the
-%% program writes, which drained_output_test_ holds.
+%% ended with status 0, ten with 141, and three did not end.
+%%
+%% The reader closes its end of the pipe and then says so through a FIFO,
+%% which the program's side waits on before the program starts. Each run is
+%% one step of the harness's (ern_nodes_tests:wait_ms/0), after which a
+%% program that has not ended is killed, its status 137 then among the
+%% others'. Its steps: three builds and nine runs. The test does not cover
+%% a device that fails, which only some hosts have one of, nor a reader
+%% that goes while the program writes, which drained_output_test_ holds.
 stream_lost_at_end_test_() ->
     ern_nodes_tests:counted_test({waits, 12}, fun stream_lost_at_end/0).
 
@@ -1120,16 +1123,18 @@ job_output_drained() ->
 %% the reader's pace, so what it has written and the reader has not taken
 %% is not held in the node. A regression test, written after the code: two
 %% million lines to a pipe read late held about 650 MB, where the node
-%% itself takes under 100. The reader takes a twentieth of the program's
-%% lines a byte at a time, then stops and says so, holding the pipe open;
-%% the node's memory is read at that word, and the reader then goes, which
-%% ends the program with status 141. A byte at a time, the reader takes
-%% about a twenty-fourth of what a program not held to its pace writes, so
-%% such a program has written all its lines by the reader's word: made so,
-%% its print a send to a stream that queued, the node held 683 MB there,
-%% and held to its pace 84. It does not cover a reader that takes nothing,
-%% nor standard error. Its steps: the build, and the command that runs the
-%% program to the reader's word and to its end.
+%% itself takes under 100.
+%%
+%% The reader takes a twentieth of the program's lines a byte at a time,
+%% then stops and says so, holding the pipe open; the node's memory is read
+%% at that word, and the reader then goes, which ends the program with
+%% status 141. A byte at a time, the reader takes about a twenty-fourth of
+%% what a program not held to its pace writes, so such a program has
+%% written all its lines by the reader's word: made so, its print a send to
+%% a stream that queued, the node held 683 MB there, and held to its pace
+%% 84. The test does not cover a reader that takes nothing, nor standard
+%% error. Its steps: the build, and the command that runs the program to
+%% the reader's word and to its end.
 paced_output_test_() ->
     ern_nodes_tests:counted_test({waits, 2}, fun paced_output/0).
 
@@ -1332,15 +1337,16 @@ signal_end() ->
 %% no longer be written while it waited gives 141. Where an Os.exit or
 %% main's return began the end, what began it stands: a termination that
 %% comes while the end waits counts, and a second cuts the wait short with
-%% the status of what began it. Two signals are sent there, a termination
-%% and a hangup, which is a termination for a program that is no node,
-%% since nothing shows when the first has reached the runner. A wait cut
-%% short, by the subscriber's Os.exit or by the second termination, says
-%% on standard error whom it left unanswered (§11.2). A regression test,
-%% written after the fix: once a termination had come, `ern` ended by it
-%% whatever ended the program; the cut-short line, written after the code.
-%% Its steps: the build, and for each of the five runs the wait for its
-%% line and its end.
+%% the status of what began it.
+%%
+%% Two signals are sent there, a termination and a hangup, which is a
+%% termination for a program that is no node, since nothing shows when the
+%% first has reached the runner. A wait cut short, by the subscriber's
+%% Os.exit or by the second termination, says on standard error whom it
+%% left unanswered (§11.2). A regression test, written after the fix: once
+%% a termination had come, `ern` ended by it whatever ended the program;
+%% the cut-short line, written after the code. Its steps: the build, and
+%% for each of the five runs the wait for its line and its end.
 end_status_test_() ->
     ern_nodes_tests:counted_test({waits, 11}, fun end_status/0).
 
@@ -1705,16 +1711,17 @@ limits_line() ->
 %% report §11: the host's termination ends a job that runs no program at
 %% once, by the signal, and the host prints nothing of its own. A regression
 %% test: a build given it stopped where it was, printed the host's report,
-%% and ended with status 0 as if it had built everything. The tree is large
-%% enough that the signal comes while it builds, once its first module is
-%% written, which the build's --verbose line says (report §11.1), read as it
-%% is written; standard error holds no line but the build's own. The build's
-%% end after the signal is one step of the harness's
-%% (ern_nodes_tests:wait_ms/0), after which it is killed, so that one that
-%% does not end fails the test and is not left running. It does not cover a
-%% signal that comes as the host itself starts, which the host drops
-%% (docs/otp_bugs.md, report 2). Its steps: the build to its first module
-%% and its end.
+%% and ended with status 0 as if it had built everything.
+%%
+%% The tree is large enough that the signal comes while it builds, once its
+%% first module is written, which the build's --verbose line says (report
+%% §11.1), read as it is written; standard error holds no line but the
+%% build's own. The build's end after the signal is one step of the
+%% harness's (ern_nodes_tests:wait_ms/0), after which it is killed, so that
+%% one that does not end fails the test and is not left running. The test
+%% does not cover a signal that comes as the host itself starts, which the
+%% host drops (docs/otp_bugs.md, report 2). Its steps: the build to its
+%% first module and its end.
 job_signal_end_test_() ->
     ern_nodes_tests:counted_test({waits, 2}, fun job_signal_end/0).
 

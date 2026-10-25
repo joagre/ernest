@@ -5,12 +5,13 @@
 %% frame a gateway cannot read is sent by a host module on the program's
 %% load path; a host that holds a peer's key and names itself as it likes
 %% is a bare `erl` with the host's TLS distribution and the key's files.
-%% `Peer`'s tests run the programs of `test/fixtures/peers/`, one build whose store
-%% and desk are two nodes; the tests of two builds (MVP 3.1) write a
-%% program and build it twice, one function and one type changed. A test
-%% that provokes a line the deployment guide quotes holds it to the guide's
-%% (ern_deployment_tests:cataloged/4), and the harness is exported for
-%% ern_deployment_tests, which runs the guide's commands on nodes.
+%%
+%% `Peer`'s tests run the programs of `test/fixtures/peers/`, one build
+%% whose store and desk are two nodes; the tests of two builds (MVP 3.1)
+%% write a program and build it twice, one function and one type changed. A
+%% test that provokes a line the deployment guide quotes holds it to the
+%% guide's (ern_deployment_tests:cataloged/4), and the harness is exported
+%% for ern_deployment_tests, which runs the guide's commands on nodes.
 -module(ern_nodes_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -1563,18 +1564,19 @@ desk_site(Definition, Part) ->
     "Desk." ++ Definition ++ ":" ++ integer_to_list(Line).
 
 %% report §8.7, Appendix E.27, §6.5, §6.9, §6.6, E.21: a find in a node's
-%% initializer answers Unreachable, the node not yet dialing; a find over
-%% a service's peers in order passes over one that cannot be reached and
+%% initializer answers Unreachable, the node not yet dialing. A find over a
+%% service's peers in order passes over one that cannot be reached and
 %% answers the next's address, a service not listed NotListed, a name
 %% offered at another type OtherType, a name not offered NotOffered, a
-%% service of an unreachable peer alone Unreachable, no time Timeout; a message to an
-%% adapted address made on the store reaches its target through the store;
-%% kill crosses, and a Down from another node's process has an empty site;
-%% Process.status answers None for another node's process; an offer of
-%% another node's process faults, and one of a service a living process
-%% holds answers that process; a lost connection gives a monitor
-%% Unreachable with an empty site, a find after it Unreachable, and a
-%% callForever on its process faults with the callee unreachable; and a
+%% service of an unreachable peer alone Unreachable, no time Timeout.
+%%
+%% A message to an adapted address made on the store reaches its target
+%% through the store. Kill crosses, and a Down from another node's process
+%% has an empty site. Process.status answers None for another node's
+%% process. An offer of another node's process faults, and one of a service
+%% a living process holds answers that process. A lost connection gives a
+%% monitor Unreachable with an empty site, a find after it Unreachable, and
+%% a callForever on its process faults with the callee unreachable; and a
 %% node killed outright, which tells its peers nothing, is said as lost,
 %% its connection closed
 find_test_() ->
@@ -1849,14 +1851,15 @@ fn held() : Unit receiving Unit = receive { _ -> held() }
 
 %% report §8.7, §6.7, Appendix E.27, §8.2: work on a peer is a process
 %% spawned at the node the program names, whose spawn answers its address or
-%% a failure within the time; a function the store holds spawns there with
+%% a failure within the time. A function the store holds spawns there with
 %% what it captured, writing to the store's standard output; a name that is
-%% no peer's is NotListed; a function that names a binding with no value on
+%% no peer's is NotListed. A function that names a binding with no value on
 %% the store is NotLoaded, which the store says, and nothing is initialized
 %% for it; a function that names no binding spawns though its module's
-%% binding has no value there, MVP 3.1 having lifted the rule by module; a
-%% top-level binding in spawned code is the peer's; a monitored spawn is
-%% monitored from its start; a spawn given no time answers Timeout; a find
+%% binding has no value there, MVP 3.1 having lifted the rule by module.
+%%
+%% A top-level binding in spawned code is the peer's. A monitored spawn is
+%% monitored from its start. A spawn given no time answers Timeout. A find
 %% and a spawn given a time past the longest wait the host takes at once
 %% wait, a regression: each failed with the host's error
 spawn_test_() ->
@@ -1885,28 +1888,29 @@ spawn_on_peer(Base) ->
     ?assertEqual(nomatch, string:find(StoreOut, "never initialized")).
 
 %% report §8.7, §6.7, Appendix E.27, §11.2, E.21: work on a peer is a
-%% function run there for its value, answered within the time or a failure:
-%% a value back; a name that is no peer's NotListed; a function whose
-%% binding has no value on the store NotLoaded, which the store says; a
-%% fault in the function the caller's, with the function's cause, which the
-%% caller's node reports once, with the caller's site and `, on the peer
-%% store` after the cause, its subscriber of faults told of it with the
-%% peer, the trace that crossed with it beneath, then the caller's frame, a
-%% cause of §7.4's as a raise's (§7.3, a regression test of 2026-10-20), and
-%% the store reports nothing, its subscriber told nothing; a process killed
-%% before it answers Other with its Reason; a process whose caller ends
-%% while it waits, one whose function kills its caller from the store, a
-%% kill the desk carries out as its own, which reads the caller's call and
-%% sends its second note (§6.9),
-%% and one whose time runs out, killed on the store, whose watcher,
-%% monitoring each, says so; and a process that ends with the store's
-%% program Other with ProgramEnd. A regression test, written after the
-%% code, the kill from the store's after the kill frame's (MVP 3.29); it
-%% reads no row of either node's, which ern_rt_tests and ern_peer_tests
-%% read; it does not cover
-%% a second note that comes before the compute's process could start, which
-%% the store's gateway reads first, nor a loss while the caller waits, which
-%% reconnect_test_'s is
+%% function run there for its value, answered within the time or a failure.
+%% A value comes back; a name that is no peer's answers NotListed; a
+%% function whose binding has no value on the store answers NotLoaded,
+%% which the store says. A fault in the function is the caller's, with the
+%% function's cause, which the caller's node reports once, with the
+%% caller's site and `, on the peer store` after the cause, its subscriber
+%% of faults told of it with the peer, the trace that crossed with it
+%% beneath, then the caller's frame, a cause of §7.4's as a raise's (§7.3,
+%% a regression test of 2026-10-20), and the store reports nothing, its
+%% subscriber told nothing.
+%%
+%% A process killed before it answers answers Other with its Reason. A
+%% process whose caller ends while it waits, one whose function kills its
+%% caller from the store, a kill the desk carries out as its own, which
+%% reads the caller's call and sends its second note (§6.9), and one whose
+%% time runs out, are killed on the store, whose watcher, monitoring each,
+%% says so; and a process that ends with the store's program answers Other
+%% with ProgramEnd. A regression test, written after the code, the kill
+%% from the store's after the kill frame's (MVP 3.29); it reads no row of
+%% either node's, which ern_rt_tests and ern_peer_tests read; it does not
+%% cover a second note that comes before the compute's process could start,
+%% which the store's gateway reads first, nor a loss while the caller
+%% waits, which reconnect_test_'s is
 compute_test_() ->
     nodes_test({waits, 10}, fun compute_on_peer/1).
 
@@ -1953,17 +1957,19 @@ compute_on_peer(Base) ->
                          {StoreOut, "the store's subscriber: foreign function"}]].
 
 %% report §8.7, §12.5, §12.8, Appendix E.27, Appendix C: how busy a peer is, on one
-%% scale: a name that is no peer's NotListed; the store's schedulers' time,
-%% as its configuration names it at its start, a fraction from 0.0 to 1.0
-%% at each ask, the host keeping the schedulers' time there from the start;
-%% a reload that leaves the entry out, the run queue by default, holds from
-%% the next ask, which answers 0.0 or more, the host keeping the time no
-%% longer; and a file that names neither measure refused with the file and
-%% the rule, by `ern reload` before it signals and by the node at a hangup
-%% `kill -HUP` sends, the run queue measuring still. A regression test, written after
-%% the code; that the run queue's measure is the run queue over the
-%% schedulers, and not the schedulers' time, is read from the code, since an
-%% idle node answers 0.0 or more under both
+%% scale. A name that is no peer's answers NotListed. The store's
+%% schedulers' time, as its configuration names it at its start, answers a
+%% fraction from 0.0 to 1.0 at each ask, the host keeping the schedulers'
+%% time there from the start. A reload that leaves the entry out, the run
+%% queue by default, holds from the next ask, which answers 0.0 or more,
+%% the host keeping the time no longer. A file that names neither measure
+%% is refused with the file and the rule, by `ern reload` before it signals
+%% and by the node at a hangup `kill -HUP` sends, the run queue measuring
+%% still.
+%%
+%% A regression test, written after the code; that the run queue's measure
+%% is the run queue over the schedulers, and not the schedulers' time, is
+%% read from the code, since an idle node answers 0.0 or more under both
 utilization_test_() ->
     nodes_test({waits, 14}, fun utilization_of_peer/1).
 
@@ -2001,26 +2007,30 @@ utilization_of_peer(Base) ->
 
 %% report §8.7, §6.5, §6.9, §12.2, §3.11: a correct program's messages make
 %% no new atom on the node that receives them, a value of many shapes and
-%% one of 8 MB among them; an address is as good on a third node, which
-%% took it from the store and sends to it; an address of a node not listed
-%% takes no send and gives a monitor Unreachable; a fault in an adapted
-%% address's function is its target's; a monitor does not outlive a loss,
-%% a service monitor told of it as a monitor is (§9.5), and the address
-%% does: a send after it reaches the same process; with
-%% its node ended and its port taking the dial and answering nothing, a
-%% send returns before the host gives the dial up, and a monitor gives
-%% Unreachable; and once the node starts again, the address of its earlier
-%% start is dead, a call through it ending before its time runs out, a send
-%% to it dropped, a monitor giving Unknown, and an adapted address it made
-%% dropping what is sent through it, its function not applied. A regression
-%% test: the runtime hands each to the host, and this holds that it does;
-%% and the new start applied the function of an adapted address its earlier
-%% start made. The silent port is a regression test too, written on
-%% 2026-10-16: the closed port refused the dial at once, so a send that
-%% waited behind the dial passed unseen, and the send's bound was a chosen
-%% 1000 ms, which failed under load. Not covered: a value crossing in
-%% pieces with other senders' messages between them, a send that waits at
-%% a full buffer, and a silence, which the detector finds in a minute
+%% one of 8 MB among them. An address is as good on a third node, which
+%% took it from the store and sends to it. An address of a node not listed
+%% takes no send and gives a monitor Unreachable. A fault in an adapted
+%% address's function is its target's.
+%%
+%% A monitor does not outlive a loss, a service monitor told of it as a
+%% monitor is (§9.5), and the address does: a send after it reaches the
+%% same process. With its node ended and its port taking the dial and
+%% answering nothing, a send returns before the host gives the dial up, and
+%% a monitor gives Unreachable. Once the node starts again, the address of
+%% its earlier start is dead, a call through it ending before its time runs
+%% out, a send to it dropped, a monitor giving Unknown, and an adapted
+%% address it made dropping what is sent through it, its function not
+%% applied.
+%%
+%% A regression test: the runtime hands each to the host, and this holds
+%% that it does; and the new start applied the function of an adapted
+%% address its earlier start made. The silent port is a regression test
+%% too, written on 2026-10-16: the closed port refused the dial at once, so
+%% a send that waited behind the dial passed unseen, and the send's bound
+%% was a chosen 1000 ms, which failed under load. Not covered: a value
+%% crossing in pieces with other senders' messages between them, a send
+%% that waits at a full buffer, and a silence, which the detector finds in
+%% a minute
 across_test_() ->
     nodes_test({waits, 12, ?DIAL_MS}, fun across/1).
 
@@ -2102,17 +2112,18 @@ calls(Base) ->
 %% monitor's wrap on the desk holds up, waiting on a gate that never
 %% answers, is held until the desk ends the connection by a frame the
 %% store's gateway cannot read, the loss ending the store's wait, so that
-%% the new run answers the desk's call after the loss. Its limit is the sum
-%% of its six waits, each bounded by the harness's time for one wait: the
-%% build, the store's offer, the desk's run, the store's end, and what
-%% each printed. A regression test, written after the code, of the
-%% decision's program, on which 0.5.0 told the watcher nothing and its
-%% next message was taken by the new run (the log's *A Restart Told Across
-%% Nodes*). It does not cover a restart of a process that another node
-%% only monitors or calls, answered at once, which no program can tell
-%% from a restart that tells no node, nor a telling whose watch dials a
-%% connection lost since the host listed the monitor, which no test can
-%% place there
+%% the new run answers the desk's call after the loss.
+%%
+%% The test's limit is the sum of its six waits, each bounded by the
+%% harness's time for one wait: the build, the store's offer, the desk's
+%% run, the store's end, and what each printed. A regression test, written
+%% after the code, of the decision's program, on which 0.5.0 told the
+%% watcher nothing and its next message was taken by the new run (the log's
+%% *A Restart Told Across Nodes*). It does not cover a restart of a process
+%% that another node only monitors or calls, answered at once, which no
+%% program can tell from a restart that tells no node, nor a telling whose
+%% watch dials a connection lost since the host listed the monitor, which
+%% no test can place there
 restart_told_test_() ->
     nodes_test({waits, 6}, fun restart_told/1).
 
@@ -2136,16 +2147,17 @@ restart_told(Base) ->
 %% store's gateway cannot read while a call waits on a process of the
 %% store's and a compute's process waits there, and the call ends with None
 %% and the compute with Unreachable, each before its time, each node saying
-%% it lost the other. Told then that both have run the loss, the desk's next
-%% call opens the connection again, which each node says, and the waits
-%% that begin on it are answered: the counter's address reaches the same
-%% process, its total kept, and a compute, a spawn, a find and a
-%% utilization answer. A regression test, written after the code; it does
-%% not cover a spawn's, a find's or a utilization's wait at a loss, which no
-%% program can hold open, a spawn's being ern_peer_tests'
-%% spawn_after_a_loss_test's, nor a wait that begins in the gap before the
-%% node runs the loss, which the loss ends as §8.7 says and no test can
-%% place there
+%% it lost the other.
+%%
+%% Told then that both have run the loss, the desk's next call opens the
+%% connection again, which each node says, and the waits that begin on it
+%% are answered: the counter's address reaches the same process, its total
+%% kept, and a compute, a spawn, a find and a utilization answer. A
+%% regression test, written after the code; it does not cover a spawn's, a
+%% find's or a utilization's wait at a loss, which no program can hold
+%% open, a spawn's being ern_peer_tests' spawn_after_a_loss_test's, nor a
+%% wait that begins in the gap before the node runs the loss, which the
+%% loss ends as §8.7 says and no test can place there
 reconnect_test_() ->
     nodes_test({waits, 10}, fun reconnect/1).
 
@@ -2570,19 +2582,20 @@ twins(Dir, Changed) ->
     {filename:join(Dir, "asker.erc"), filename:join(Dir, "server.erc")}.
 
 %% report §8.7, Appendix H, §3.11, §6.9: two nodes of different builds of
-%% one program connect; a find answers the address where the service's
-%% type is one in both builds, and a call through it is answered, and `OtherType`
-%% where the type's constructors differ, its hash another; a spawn of a
-%% function both builds hold runs on the server, and one of a function
-%% whose body differs crosses with its spawn, the server compiling it and
-%% running the asker's body (MVP 3.2's item 4); a function that names
-%% a binding the server's program
-%% never ran answers NotLoaded, and so does one whose reach calls a host
-%% module the server lacks, the server saying which; a function that names
-%% no binding of a module whose binding the server never ran spawns,
-%% MVP 3.0's rule by module gone; a lambda and a local fn spawn by identity
-%% with what they captured, and `restarting(limit, f)` spawns. Written with
-%% the code, after it: a regression test
+%% one program connect. A find answers the address where the service's type
+%% is one in both builds, and a call through it is answered, and
+%% `OtherType` where the type's constructors differ, its hash another. A
+%% spawn of a function both builds hold runs on the server, and one of a
+%% function whose body differs crosses with its spawn, the server compiling
+%% it and running the asker's body (MVP 3.2's item 4).
+%%
+%% A function that names a binding the server's program never ran answers
+%% NotLoaded, and so does one whose reach calls a host module the server
+%% lacks, the server saying which. A function that names no binding of a
+%% module whose binding the server never ran spawns, MVP 3.0's rule by
+%% module gone. A lambda and a local fn spawn by identity with what they
+%% captured, and `restarting(limit, f)` spawns. Written with the code,
+%% after it: a regression test
 two_builds_test_() ->
     nodes_test({waits, 8}, fun two_builds/1).
 
@@ -2777,38 +2790,38 @@ exchanged(Base) ->
     {filename:join(SenderDir, "sender.erc"), filename:join(ReceiverDir, "receiver.erc")}.
 
 %% report §8.7, §12.7, §6.6, §12.3, §6.9, §11.2, Appendix E.27: a spawn or a
-%% compute of a function the receiver lacks runs the exchange: the receiver
-%% asks the sender for the reach, the sender answers it from its build's
-%% forms and sends what the receiver lacks as code frames, and the
-%% receiver, having verified each, compiles them into one unit, loads it,
-%% and runs the spawn and the compute, the compute's value at the sender's
-%% type; a fault in a received function is reported on the receiver at the
-%% spawn's site, the sender's, with the peer that spawned it, and its trace
-%% names the sender's definitions; a process a received function spawns
-%% there has the sender's site, its definition's name and line, which
-%% `Process.status` reads and its fault's line writes; a foreign function
-%% spawned or computed by its name crosses as its declaration and runs
-%% through the check at its declared type, which a host function that
-%% answers another type fails, its cause naming the type as the sender's
-%% module writes it, `Count` and not `Lacked.Count`, while one whose module
-%% the receiver lacks, or whose function its module lacks, is NotLoaded; a
-%% function whose reach names a binding the receiver never
+%% compute of a function the receiver lacks runs the exchange, whose shape
+%% is docs/design/code.md's, and the receiver runs the spawn and the
+%% compute, the compute's value at the sender's type. A fault in a received
+%% function is reported on the receiver at the spawn's site, the sender's,
+%% with the peer that spawned it, and its trace names the sender's
+%% definitions. A process a received function spawns there has the
+%% sender's site, its definition's name and line, which `Process.status`
+%% reads and its fault's line writes.
+%%
+%% A foreign function spawned or computed by its name crosses as its
+%% declaration and runs through the check at its declared type, which a
+%% host function that answers another type fails, its cause naming the type
+%% as the sender's module writes it, `Count` and not `Lacked.Count`, while
+%% one whose module the receiver lacks, or whose function its module lacks,
+%% is NotLoaded. A function whose reach names a binding the receiver never
 %% ran, or a foreign declaration whose module it lacks, answers NotLoaded
 %% from the reach, before any code crosses, the receiver saying what it
-%% lacked; and a call whose reply a function captured whose spawn failed
-%% is answered by the spawner, which keeps its copy, with the failure,
+%% lacked. A call whose reply a function captured whose spawn failed is
+%% answered by the spawner, which keeps its copy, with the failure,
 %% NotLoaded or NotListed alike. A regression test, written after the code;
 %% that no code frame moves before NotLoaded is ern_exchange_tests', since
-%% no line marks it here. Each spawn, compute
-%% and call of the sender waits as long as the test waits for the sender,
-%% and the test's limit is the sum of its eighteen steps, the two builds,
-%% a line of the receiver's, the sender's end, ten lines and one more of
-%% the receiver's, its end and what each node said, each bounded by the
-%% harness's time for one wait: written on 2026-10-16, after a spawn's
-%% 5000 ms, a number of its own, ran out under the full run's load on
-%% 2026-10-13 and its answer's line was missing, its builds counted on
-%% 2026-10-21, and its host module's compile, which is no step, left out
-%% on 2026-10-25
+%% no line marks it here.
+%%
+%% Each spawn, compute and call of the sender waits as long as the test
+%% waits for the sender, and the test's limit is the sum of its eighteen
+%% steps, the two builds, a line of the receiver's, the sender's end, ten
+%% lines and one more of the receiver's, its end and what each node said,
+%% each bounded by the harness's time for one wait: written on 2026-10-16,
+%% after a spawn's 5000 ms, a number of its own, ran out under the full
+%% run's load on 2026-10-13 and its answer's line was missing, its builds
+%% counted on 2026-10-21, and its host module's compile, which is no step,
+%% left out on 2026-10-25
 exchange_test_() ->
     nodes_test({waits, 18}, fun exchange/1).
 
@@ -3035,29 +3048,32 @@ line_of(Text, Part) ->
 
 %% report §8.7, §8.1, §8.5, §8.6, §11.2, §11.8, Appendix E.21, E.27: a
 %% bare node, `ern run --config-dir` with no `.erc`, listening on the port
-%% the host picks, holds none of the program's definitions: a peer's spawn
+%% the host picks, holds none of the program's definitions. A peer's spawn
 %% of the program's function runs there with its code crossed, and takes
 %% the peer's messages; a compute answers its value; a process spawned
-%% there offers a service, which the peer finds and sends to; its
-%% utilization answers, and it tells it as any node does, so that a
-%% compute that names no peer runs there once it has; a library on its
-%% load path is loaded and its binding not evaluated, so a spawn whose reach
-%% names the binding is NotLoaded, the node saying so, a regression test
-%% written after the code, but a constant, which has its value wherever its
-%% form is (§4.6, the log's *The Review's Decisions*); a fault in received
-%% code is reported there at the spawn's site, the sender's, with the peer
-%% that spawned it; a function that crossed with the first lambda's
-%% enclosing definition is spawned twice and faults twice, the traces of
-%% both its faults naming its frame by its name and the sender's line
-%% (Appendix E.21), which since 2026-10-20 names no unit, so that it shipped
-%% nothing at its own spawns is ern_exchange_tests' alone; the entry
-%% process is among its live processes, under the site `bare node`; `ern
-%% stop` ends it by termination, with nothing said of its entry process and
-%% its ernest.pid gone; and started again, a process spawned there that
-%% calls `Os.exit(3)` ends it with status 3. The lambdas are written in the
-%% definition that spawns everything else, whose references cross with
-%% them, a function that calls a foreign function among them. Written after
-%% the code
+%% there offers a service, which the peer finds and sends to. The bare
+%% node's utilization answers, and it tells it as any node does, so that a
+%% compute that names no peer runs there once it has.
+%%
+%% A library on its load path is loaded and its binding not evaluated, so a
+%% spawn whose reach names the binding is NotLoaded, the node saying so, a
+%% regression test written after the code, but a constant, which has its
+%% value wherever its form is (§4.6, the log's *The Review's Decisions*). A
+%% fault in received code is reported there at the spawn's site, the
+%% sender's, with the peer that spawned it. A function that crossed with
+%% the first lambda's enclosing definition is spawned twice and faults
+%% twice, the traces of both its faults naming its frame by its name and
+%% the sender's line (Appendix E.21), which since 2026-10-20 names no unit,
+%% so that it shipped nothing at its own spawns is ern_exchange_tests'
+%% alone.
+%%
+%% The entry process is among its live processes, under the site `bare
+%% node`; `ern stop` ends it by termination, with nothing said of its entry
+%% process and its ernest.pid gone; and started again, a process spawned
+%% there that calls `Os.exit(3)` ends it with status 3. The lambdas are
+%% written in the definition that spawns everything else, whose references
+%% cross with them, a function that calls a foreign function among them.
+%% Written after the code
 bare_node_test_() ->
     nodes_test({waits, 20}, fun bare_node/1).
 
@@ -3288,13 +3304,14 @@ verbose_node_start(Base) ->
 %% module it lacks, each spawns there and runs; and a spawn of either
 %% enclosing definition, which the node then holds, is NotLoaded, the node
 %% naming the binding and the module, the second by the declaration the
-%% unit recorded as the code arrived. A regression test, written with the
-%% fix: MVP 3.2's item 5 found each such lambda's spawn answered `Other`,
-%% the binding refused and the foreign function undeclared, and then the
-%% held definition's line naming the foreign function and not its module.
-%% It does not cover a module that is here without the function, which
-%% ern_exchange_tests' not_loaded_from_reach_test covers before code
-%% crosses
+%% unit recorded as the code arrived.
+%%
+%% A regression test, written with the fix: MVP 3.2's item 5 found each
+%% such lambda's spawn answered `Other`, the binding refused and the
+%% foreign function undeclared, and then the held definition's line naming
+%% the foreign function and not its module. The test does not cover a
+%% module that is here without the function, which ern_exchange_tests'
+%% not_loaded_from_reach_test covers before code crosses
 beyond_reach_test_() ->
     nodes_test({waits, 10}, fun beyond_reach/1).
 
@@ -3375,14 +3392,15 @@ beyond_reach(Base) ->
 %% two lambdas of that definition on the bare nodes c1, which has the
 %% module, and c2, which lacks it, and each runs there, the definition and
 %% its references crossing from b in code frames b makes of what it holds,
-%% the declaration from what b recorded as the code arrived; then a spawn
-%% from a of the function that calls the foreign function, which each node
-%% holds by then, runs on c1, through the function c1 made of b's
-%% declaration, and is NotLoaded on b and on c2, each naming the module. A
-%% regression test, written with the fix (MVP 3.2's item 5); it does not
-%% cover a group relayed whole, nor a node asked for the reach of a lacked
-%% foreign function spawned by its name, which it answers none as it holds
-%% nothing it could run
+%% the declaration from what b recorded as the code arrived.
+%%
+%% Then a spawn from a of the function that calls the foreign function,
+%% which each node holds by then, runs on c1, through the function c1 made
+%% of b's declaration, and is NotLoaded on b and on c2, each naming the
+%% module. A regression test, written with the fix (MVP 3.2's item 5); it
+%% does not cover a group relayed whole, nor a node asked for the reach of
+%% a lacked foreign function spawned by its name, which it answers none as
+%% it holds nothing it could run
 relay_test_() ->
     nodes_test({waits, 17}, fun relay/1).
 
@@ -3673,23 +3691,25 @@ caught_up(Node) ->
 ">>.
 
 %% report §12.7: the exchange on a bare node, with a spawner of the test's
-%% own that plays the spawner's node's part: a reach answered as one the
-%% spawner's node no longer holds answers the spawn `Other`, which the
-%% node says, and a code frame of that exchange, which has ended, is
-%% dropped, the connection kept; a code frame whose bytes are not the
-%% hash it names is faulty, and the node ends the connection, saying so; a
-%% code frame verified and held apart enters nothing, so that, its
-%% connection closed before the reach was whole, a new exchange lacks it
-%% again, as it lacked it before; and then a peer of the program's, whose
-%% first spawn gives up before its exchange ends, its time a millisecond,
-%% which the node then drops at that time, saying so, spawns the function
-%% again and it runs, its fault's trace naming its frame by its name and
-%% the sender's line (Appendix E.21): the exchanges that broke or ran out
-%% of time made nothing that runs, and the next made it whole. A regression
-%% test, written after the code; that the node made one unit, which a trace
-%% named until 2026-10-20 and names no more, is not observed, the
-%% exchange's state after a loss is ern_exchange_tests' loss_test's, and
-%% the late spawn's process, killed as its answer arrives, is not observed
+%% own that plays the spawner's node's part. A reach answered as one the
+%% spawner's node no longer holds answers the spawn `Other`, which the node
+%% says, and a code frame of that exchange, which has ended, is dropped,
+%% the connection kept. A code frame whose bytes are not the hash it names
+%% is faulty, and the node ends the connection, saying so. A code frame
+%% verified and held apart enters nothing, so that, its connection closed
+%% before the reach was whole, a new exchange lacks it again, as it lacked
+%% it before.
+%%
+%% Then a peer of the program's, whose first spawn gives up before its
+%% exchange ends, its time a millisecond, which the node then drops at that
+%% time, saying so, spawns the function again and it runs, its fault's
+%% trace naming its frame by its name and the sender's line (Appendix
+%% E.21): the exchanges that broke or ran out of time made nothing that
+%% runs, and the next made it whole. A regression test, written after the
+%% code; that the node made one unit, which a trace named until 2026-10-20
+%% and names no more, is not observed, the exchange's state after a loss is
+%% ern_exchange_tests' loss_test's, and the late spawn's process, killed as
+%% its answer arrives, is not observed
 broken_exchange_test_() ->
     nodes_test({waits, 9}, fun broken_exchange/1).
 
@@ -3811,12 +3831,14 @@ shell_service(Base) ->
 %% shells type one `let` and one function over it, the second after a `let`
 %% of its own, so that its binding is held by another of its holders, and
 %% the second spawns the function on the first, which runs it with its own
-%% value. A regression test, written before the fix: the module that holds
-%% what a `let` binds was never counted as evaluated, so the spawn was
-%% refused and the node said the binding had no value there, which was
-%% false. The `let` of its own a regression test too, written after the fix
-%% (the log's *MVP 3.1 Read*): a form named the binding under its holder, so
-%% the two shells held two functions and the spawn answered NotLoaded
+%% value.
+%%
+%% A regression test, written before the fix: the module that holds what a
+%% `let` binds was never counted as evaluated, so the spawn was refused and
+%% the node said the binding had no value there, which was false. The `let`
+%% of its own a regression test too, written after the fix (the log's *MVP
+%% 3.1 Read*): a form named the binding under its holder, so the two shells
+%% held two functions and the spawn answered NotLoaded
 shell_binding_spawned_test_() ->
     nodes_test({waits, 6}, fun shell_binding_spawned/1).
 
@@ -4059,8 +4081,9 @@ shell_node(Base) ->
 %% in another function, the same spawn runs in the session's unit, its
 %% service the session's. After a `:reload` that leaves the service binding
 %% unchanged, evaluated again and so a service of its own, a peer's spawn
-%% sends to the new version's service, which the session sends to next. A
-%% regression test, written after the fix (the log's *MVP 3.1 Read*): the
+%% sends to the new version's service, which the session sends to next.
+%%
+%% A regression test, written after the fix (the log's *MVP 3.1 Read*): the
 %% table answered the first unit loaded, so the spawn after the `:load` was
 %% refused with that line, then false, and the one after the `:reload`
 %% reached the previous version's service
@@ -4591,11 +4614,12 @@ typed_channels(Base) ->
 %% takes his lease back, Restarted, before his new run sends anything, so
 %% that the ledger a reads once his new run has answered lists ann's lease
 %% alone, and the broker takes ann's back as a's program ends, ProgramEnd
-%% (the log's *A Restart Told Across Nodes*). Each node prints
-%% the lines its console block shows, a without its listening line, since
-%% it does not listen here, and b at its port. A regression test, written
-%% with the example; a loss, which the comment says a service monitor is
-%% told of, is across/1's
+%% (the log's *A Restart Told Across Nodes*).
+%%
+%% Each node prints the lines its console block shows, a without its
+%% listening line, since it does not listen here, and b at its port. A
+%% regression test, written with the example; a loss, which the comment
+%% says a service monitor is told of, is across/1's
 lease_broker_test_() ->
     nodes_test({waits, 9}, fun lease_broker/1).
 
@@ -4636,18 +4660,19 @@ lease_broker(Base) ->
 
 %% report §8.7, Appendix E.27, C, G.4: a compute on a peer the desk picks,
 %% the store and the desk telling every `utilization-interval` of their
-%% configurations, of the desk's two peers the store alone reached: before
-%% any connection, the desk holding no utilization, Unreachable; once the
-%% spawn of the readings' check has connected them and the store has told
-%% its utilization, on the store, the value its peers, the desk and the
-%% third node, and the store the one peer the desk holds a utilization of,
-%% the peer gone left out; Utilization answers the host's services'
-%% readings on the store, whose measures run them, and none on the desk,
-%% whose do not. A regression test, written after the code; the pick's
-%% rules over two peers and more are pick_test_'s and ern_peer_tests', and
-%% the desk waits for the telling by reading its utilizations at each
-%% interval, so that the telling's coming within one interval is held by no
-%% time here
+%% configurations, of the desk's two peers the store alone reached. Before
+%% any connection, the desk holding no utilization, the compute answers
+%% Unreachable. Once the spawn of the readings' check has connected them
+%% and the store has told its utilization, it runs on the store, its value
+%% the store's peers, the desk and the third node, and the store is the one
+%% peer the desk holds a utilization of, the peer gone left out.
+%%
+%% Utilization answers the host's services' readings on the store, whose
+%% measures run them, and none on the desk, whose do not. A regression
+%% test, written after the code; the pick's rules over two peers and more
+%% are pick_test_'s and ern_peer_tests', and the desk waits for the telling
+%% by reading its utilizations at each interval, so that the telling's
+%% coming within one interval is held by no time here
 placed_test_() ->
     nodes_test({waits, 7}, fun placed/1).
 
@@ -4757,24 +4782,25 @@ pick_build(Base) ->
 
 %% report §8.7, Appendix E.27, C: three nodes telling each other every
 %% `utilization-interval`, the spawner far more often than p1 and p2, each
-%% started with its name, which a compute of the node's arguments answers:
-%% the spawner, listing p1 and p2 and heard from by neither before its
-%% first operation, answers a compute that names no peer Unreachable; p1's
-%% utilization set high and p2's low by a compute on each,
+%% started with its name, which a compute of the node's arguments answers.
+%% The spawner, listing p1 and p2 and heard from by neither before its
+%% first operation, answers a compute that names no peer Unreachable. With
+%% p1's utilization set high and p2's low by a compute on each,
 %% `Peer.setUtilization` in the process it starts, the spawner's
 %% utilizations show both, in the configuration's order, and p1's
-%% utilization asked answers the number its program set; every compute that
-%% names no peer runs on p2, the less busy of the two the draw takes, each
-%% utilization aged by its teller's interval and not the spawner's, by
-%% which it would mostly be too old, and `Peer.computeAt` runs on the peer
-%% named, p1; p2 stopped, its utilization is dropped at the loss, which the
-%% spawner says, and a compute runs on p1, the one peer left, taken as it
-%% is; and a node that lists no peer answers NotListed and holds no
-%% utilization. A regression test, written after the code; the spawner
-%% waits for each telling by reading its utilizations at each interval, so
-%% that a telling's coming within one interval is held by no time here, and
-%% the draw among more than two peers and the age of a utilization are
-%% ern_peer_tests'
+%% utilization asked answers the number its program set.
+%%
+%% Every compute that names no peer runs on p2, the less busy of the two
+%% the draw takes, each utilization aged by its teller's interval and not
+%% the spawner's, by which it would mostly be too old, and `Peer.computeAt`
+%% runs on the peer named, p1. With p2 stopped, its utilization is dropped
+%% at the loss, which the spawner says, and a compute runs on p1, the one
+%% peer left, taken as it is; and a node that lists no peer answers
+%% NotListed and holds no utilization. A regression test, written after the
+%% code; the spawner waits for each telling by reading its utilizations at
+%% each interval, so that a telling's coming within one interval is held by
+%% no time here, and the draw among more than two peers and the age of a
+%% utilization are ern_peer_tests'
 pick_test_() ->
     nodes_test({waits, 11}, fun pick/1).
 
@@ -4817,17 +4843,18 @@ pick(Base) ->
 %% report §8.7, §11.2, Appendix E.23, Appendix G.6, G.7: a program's own test
 %% of two nodes, `ern test --config-dir a` as a node. The harness makes two
 %% directories as `ern config` makes them, `a` listening and listing `b`
-%% under the service `pair`, and says in `pair.json` the port `b` listens on and
-%% the load path `a` runs with; the test, in Ernest, writes `b`'s
+%% under the service `pair`, and says in `pair.json` the port `b` listens on
+%% and the load path `a` runs with; the test, in Ernest, writes `b`'s
 %% `ernest.conf` listing `a`, starts `b` with `Os` on the same build, finds
-%% and calls what it offers, and ends it with `ern stop`; a second test
-%% starts `b` with `Os` on a second build, whose `Msg` has another
-%% constructor (second_build/1), and finds `OtherType` at its service, the
-%% type it offers at having another hash; a third holds a proxy for the
-%% service against the second build, whose process faults at the first
-%% message, the fault reported as every fault is. A regression test,
-%% written after the code; it does not cover a reload, whose end a program
-%% cannot see (§12.5: the signal carries nothing back)
+%% and calls what it offers, and ends it with `ern stop`.
+%%
+%% A second test starts `b` with `Os` on a second build, whose `Msg` has
+%% another constructor (second_build/1), and finds `OtherType` at its
+%% service, the type it offers at having another hash. A third holds a
+%% proxy for the service against the second build, whose process faults at
+%% the first message, the fault reported as every fault is. A regression
+%% test, written after the code; it does not cover a reload, whose end a
+%% program cannot see (§12.5: the signal carries nothing back)
 program_test_() ->
     nodes_test({waits, 30}, fun pair_program/1).
 
@@ -5307,16 +5334,19 @@ upgraded_builds(Base) ->
 %% the code the node lacks, `count2` among it, crossing with the spawn, and
 %% moves each to `count2` by its own Upgrade, its total kept, so that
 %% `count` then lists none; the service, its address unchanged, then adds
-%% and answers from `count2`. On a bare node, which holds no program, a
-%% spawn whose reach names a binding is NotLoaded until a compute there
-%% runs Code.load of the module with its reach from the load path, which
-%% evaluates the binding, and the same spawn then runs. Written after the
-%% code; the service through the adapted address a regression test of MVP
-%% 3.2's item 7, written after the code, and the tool's add and then its
-%% call through that one address, from another node, answering the total
-%% after the add, one of MVP 3.26's item 2b (§6.4, §6.5): the counter's
-%% node applied each message in a process of its own, and the call passed
-%% the add
+%% and answers from `count2`.
+%%
+%% On a bare node, which holds no program, a spawn whose reach names a
+%% binding is NotLoaded until a compute there runs Code.load of the module
+%% with its reach from the load path, which evaluates the binding, and the
+%% same spawn then runs.
+%%
+%% Written after the code; the service through the adapted address a
+%% regression test of MVP 3.2's item 7, written after the code, and the
+%% tool's add and then its call through that one address, from another
+%% node, answering the total after the add, one of MVP 3.26's item 2b
+%% (§6.4, §6.5): the counter's node applied each message in a process of
+%% its own, and the call passed the add
 code_upgrade_test_() ->
     nodes_test({waits, 13}, fun code_upgrade/1).
 

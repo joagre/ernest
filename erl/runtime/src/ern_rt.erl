@@ -6,53 +6,38 @@
 %% {'Down', Pid, Reason, Site} in declared field order.
 %%
 %% An Address is a pid, or {adapted, Function, Target, Maker, Launch} for an
-%% address seen through a function (report §6.5), which send/2 applies in
-%% the sender where Maker, the process that made it, is of the sender's
-%% node, and otherwise the process Maker's node keeps for the address and
-%% the sending node applies (kept/1, §12.6), Launch being the reference of
-%% the launch that made it, or
-%% {foreign, Pid, Descriptor, Bound} for an address foreign code gave
-%% (report §8.4), whose messages cross into foreign code. A Reply(a) is
-%% {Alias, Pid}: the alias of the call's monitor of its callee, as
-%% gen_server's call makes one, which deactivates when the call is over and
-%% so drops a late answer (report §6.6), and the caller's process, which
-%% Reply.process answers (reply_process/1). The answer goes to the alias:
-%% Ernest answers {Alias, answered, Value}, or, on the node that keeps a
-%% remote call's note, {Alias, unnoted, Value}, which says the note is gone
-%% (§12.6); foreign code {Alias, Value}, so that a call checks the second
-%% only, as §8.4 says; a Reply foreign code gave back is {foreign_reply,
-%% Reply, Descriptor, Bound}, answered in the second form with the answer
-%% exposed. Beside an answer, a call's wait takes {Alias, restarted, How}
-%% from a callee that restarts, and {Alias, fault, Cause} from a system
-%% process that refuses.
+%% address seen through a function (report §6.5), Maker the process that
+%% made it and Launch the reference of the launch that made it, which
+%% send/2 applies (kept/1, §12.6), or {foreign, Pid, Descriptor, Bound} for
+%% an address foreign code gave (report §8.4), whose messages cross into
+%% foreign code.
+%%
+%% A Reply(a) is {Alias, Pid}: the alias of the call's monitor of its
+%% callee, as gen_server's call makes one, which deactivates when the call
+%% is over and so drops a late answer (report §6.6), and the caller's
+%% process, which Reply.process answers (reply_process/1). The answer goes
+%% to the alias: Ernest answers {Alias, answered, Value}, or, on the node
+%% that keeps a remote call's note, {Alias, unnoted, Value}, which says the
+%% note is gone (§12.6); foreign code {Alias, Value}, so that a call checks
+%% the second only, as §8.4 says; a Reply foreign code gave back is
+%% {foreign_reply, Reply, Descriptor, Bound}, answered in the second form
+%% with the answer exposed. Beside an answer, a call's wait takes {Alias,
+%% restarted, How} from a callee that restarts, and {Alias, fault, Cause}
+%% from a system process that refuses.
+%%
 %% Every process body runs under run/1, which turns an exception into an
 %% exit reason that Down reports as a Fault. All spawns go through the
 %% reaper process, which spawn_monitors each process; a monitor placed
 %% after the death reports Unknown (report §6.9), and every monitor is the
-%% reaper's. The reaper also detects deadlock (report §8.6): every live
-%% process blocked in an untimed receive or in a wait for a call's answer,
-%% no timed receive or clock alarm pending, no process inside foreign code,
-%% and no source held that can still deliver, a subscription to the
-%% program's end among them. What it needs of a process the process keeps
-%% in its own dictionary, under the look's keys, and no operation writes a
-%% shared row for it (look/0).
+%% reaper's. The reaper also detects deadlock (report §8.6, look/0).
 %%
-%% Twelve tables hold a launch's state, each described where it is
-%% defined. `ern_processes` has a row per process the runtime started or
-%% adopted, #process_row{} (ern_rt.hrl). `ern_callees` holds the pending
-%% calls by their callee, `ern_faults` the subscriptions to
-%% faults, `ern_terminating` the subscriptions to the program's end,
-%% `ern_held` the sources and the processes the system modules opened,
-%% `ern_deliveries` the deliveries in flight, each with the process whose
-%% `Down` it carries or none, `ern_checkers` the checkers
-%% of §8.4, and `ern_launch` the launch itself, its runner, its reaper and
-%% what its options give it (#launch{}), the way the terminal is read, the
-%% process a deadlock faults and whether the end waits for its
-%% subscribers, and the utilization the program set (Appendix E.27). A
-%% node's (§8.7, Appendix E.27): `ern_offers` and `ern_offered` hold the
-%% offers, `ern_initialized` the modules whose initializers have run, whose
-%% bindings a peer's spawn asks for, and `ern_notes` the notes of calls from
-%% other nodes, a compute's among them.
+%% Twelve tables hold a launch's state, listed by tables/0, each described
+%% where it is defined: `ern_processes` has a row per process the runtime
+%% started or adopted, #process_row{} (ern_rt.hrl), and `ern_launch` holds
+%% the launch itself, #launch{}.
+%%
+%% The shape is docs/design/runtime.md's, and an adapted address's
+%% docs/design/nodes.md's.
 -module(ern_rt).
 
 -export([send/2, kept/1, acting_for/1, launch_reaper/0, process_of/1, held/3, is_never_given/1,
@@ -103,6 +88,7 @@
 %% end (entered_foreign/0); TIMED while it waits in a receive with a
 %% deadline (timed/0); CALL while it makes a call, {Callee, Reply}, its
 %% callee, or for a compute the peer's gateway, and the reply (pending/2).
+%%
 %% Report §6.6, §6.9, §8.7: CALL is the call's record in the caller too,
 %% which its end of the call reads (uncalled/0), Process.status reads
 %% (status/1), and a kill reads before it kills (killed/2); a process makes
@@ -266,13 +252,13 @@
 %% none before it starts and once the end has written the program's output
 %% (say/2, §12.5); and what the options give the run, among it the
 %% function a shell's launch gives that answers the processes of its own
-%% beside its chain, which Process.live() leaves out (processes/0). A row
-%% and not a
-%% persistent term, since each update of one waits for every scheduler of
-%% the host, and the end's erase of one of more than a word sets every
-%% process scanning its heap, which the next launch's updates wait for (the
-%% log's *The Sitting on §8.6's Bookkeeping*, its *Measured* paragraphs on
-%% the launch's start).
+%% beside its chain, which Process.live() leaves out (processes/0).
+%%
+%% The launch is a row and not a persistent term, since each update of one
+%% waits for every scheduler of the host, and the end's erase of one of
+%% more than a word sets every process scanning its heap, which the next
+%% launch's updates wait for (the log's *The Sitting on §8.6's
+%% Bookkeeping*, its *Measured* paragraphs on the launch's start).
 -record(launch, {runner, tag, reaper = none, stderr = none, reporter = none, arguments = [],
                  exit = program, node = false, own = none}).
 
@@ -298,11 +284,12 @@ send(Address, Message) ->
 %% the wait that reaches it, as at a bad message's fault (§8.4), which
 %% `restarting` restarts (§6.9); a target of this node the runtime did not
 %% start, a foreign process, has no wait of Ernest's and is ended by the
-%% fault as an exit signal (sent/1); the sender goes on. Report §8.7,
-%% §11.2: one made by an earlier start of this node, or by an earlier run
-%% of `ern test` over a directory, is dead, and a message to it is
-%% dropped, its function not applied, wherever the function would be
-%% applied: a send here, and a peer's frame as it arrives (kept/1).
+%% fault as an exit signal (sent/1); the sender goes on.
+%%
+%% Report §8.7, §11.2: an address made by an earlier start of this node, or
+%% by an earlier run of `ern test` over a directory, is dead, and a message
+%% to it is dropped, its function not applied, wherever the function would
+%% be applied: a send here, and a peer's frame as it arrives (kept/1).
 deliver(Address, Message) ->
     sent(adapted_way(Address, Message)).
 
@@ -310,15 +297,17 @@ deliver(Address, Message) ->
 %% applied first, in the sender, so that a call that one of them makes ends
 %% before the call it is applied for begins (call/4): the address and the
 %% message that reach it, a fault for the target, or nothing where the
-%% address is of a launch that has ended. Report §8.7, §11.2: such an
-%% address reaches the node again inside a peer's message, and a process
-%% here may then send to it, so the send compares too. A maker that lives
-%% is of the launch in progress, since every process the runtime started
-%% ended with its launch (§8.6), so the common send pays the host's
-%% liveness check alone, and only a dead maker's address compares its
-%% launch (is_of_this_launch/1). The one exception is a process the
-%% runtime did not start that outlives its launch, which keeps its
-%% addresses alive while it lives, and which only an Erlang test can be.
+%% address is of a launch that has ended.
+%%
+%% Report §8.7, §11.2: such an address reaches the node again inside a
+%% peer's message, and a process here may then send to it, so the send
+%% compares too. A maker that lives is of the launch in progress, since
+%% every process the runtime started ended with its launch (§8.6), so the
+%% common send pays the host's liveness check alone, and only a dead
+%% maker's address compares its launch (is_of_this_launch/1). The one
+%% exception is a process the runtime did not start that outlives its
+%% launch, which keeps its addresses alive while it lives, and which only
+%% an Erlang test can be.
 adapted_way({adapted, Function, Target, Maker, Launch}, Message) when node(Maker) =:= node() ->
     case erlang:is_process_alive(Maker) orelse is_of_this_launch(Launch) of
         true ->
@@ -371,21 +360,24 @@ sent({Pid, Message}) ->
 %% target's, and tells the worker {applied, Pid} after each; it ends when
 %% the worker tells it to, `stop`, which the worker does once none waits,
 %% so that no message handed to it is lost, a loss of the peer's
-%% connection ending nothing (§8.7). The process is the runtime's, as a
-%% Down's delivery is (wrapped/3), and has no row, since Process.live
-%% lists what a program spawned and what a system module opened (Appendix
-%% E.21); the reaper holds it (reaper_held/2). Report §6.5: it acts for the
-%% address's target where the target is on this node, so that what the
-%% function opens, spawns or asks of the runtime is the target's, as a
-%% wrap's is its recipient's (acting_for/1). It is no delivery to its
-%% target, and the target's end does not end it (abandoned/1). None where
-%% no run is in progress to apply the function in, between two runs of
-%% `ern test` over a directory, in one host, and before the first, and
-%% report §8.7, §11.2: where the address is of a launch that has ended, an
-%% earlier start's of the node or an earlier run's (is_of_this_launch/1);
-%% the message is dropped then, its function not applied. A process whose
-%% run ends as it starts ends at once, the messages handed to it dropped
-%% so.
+%% connection ending nothing (§8.7).
+%%
+%% The process is the runtime's, as a Down's delivery is (wrapped/3), and
+%% has no row, since Process.live lists what a program spawned and what a
+%% system module opened (Appendix E.21); the reaper holds it
+%% (reaper_held/2). Report §6.5: it acts for the address's target where the
+%% target is on this node, so that what the function opens, spawns or asks
+%% of the runtime is the target's, as a wrap's is its recipient's
+%% (acting_for/1). It is no delivery to its target, and the target's end
+%% does not end it (abandoned/1).
+%%
+%% None is kept where no run is in progress to apply the function in,
+%% between two runs of `ern test` over a directory, in one host, and before
+%% the first, and report §8.7, §11.2: where the address is of a launch that
+%% has ended, an earlier start's of the node or an earlier run's
+%% (is_of_this_launch/1); the message is dropped then, its function not
+%% applied. A process whose run ends as it starts ends at once, the
+%% messages handed to it dropped so.
 -spec kept(address()) -> pid() | none.
 kept({adapted, _, _, _, Launch} = Address) ->
     Worker = erlang:self(),
@@ -889,12 +881,13 @@ gateway_of(Callee) -> {ern_gateway, node(Callee)}.
 %% takes one answer and drops a late one; and a watch of the peer's gateway,
 %% as a find keeps one, whose end is a loss, which drops the peer's notes,
 %% so that no second note follows it. The frame, which Frame makes of the
-%% alias, is the call's first note. The answer is the value, the caller's
-%% fault with the cause, the trace and the callee's site that crossed, the
-%% peer's name beside them and the trace followed by the compute's site,
-%% {Peer, Site} being the two (§8.7, §11.2), `Other` with the Reason of a
-%% process that ended before it answered, or the failure the peer answered
-%% or the wait met.
+%% alias, is the call's first note.
+%%
+%% The answer is the value, the caller's fault with the cause, the trace
+%% and the callee's site that crossed, the peer's name beside them and the
+%% trace followed by the compute's site, {Peer, Site} being the two (§8.7,
+%% §11.2), `Other` with the Reason of a process that ended before it
+%% answered, or the failure the peer answered or the wait met.
 -spec compute(node(), fun((reference()) -> term()), integer(), {binary(), binary()}) ->
           {'Right', term()} | {'Left', term()}.
 compute(Node, Frame, Deadline, {Peer, Site}) ->
@@ -1618,7 +1611,8 @@ down(Pid, ExitReason, #reaper{monitors = Monitors, monitoring = Monitoring,
 %% delivery that names Pid then is one of Restarted, which a peer's restart
 %% alone starts of a process of another node (peer_restarted/2), every other
 %% Down of it coming from the host's one end of the monitor, which this is.
-%% One that has placed its message has placed it before the loss's
+%%
+%% A delivery that has placed its message has placed it before the loss's
 %% delivery begins. The rows are read by each caller's prefix, as a
 %% demonitor reads them (demonitored/5), so that a restart pays nothing for
 %% it and a loss pays what the lost process's watchers hold. The process
@@ -1661,13 +1655,15 @@ delivered_down(Pid, ExitReason, #reaper{monitors = Monitors, monitor_refs = Moni
 %% Pid is so: the entry process's own fault is its own; the runner marks
 %% the wait over once the end's wait has returned (run_main/3); and a
 %% subscription's row stands while its subscriber's run lives (died/6,
-%% new_run/3), so that with none standing no subscriber waits. The process
-%% that faults asks it as it meets the fault, so that the answer is the
-%% fault's moment's: a process's body (run/1), a restarting process before
-%% it restarts (restarts/4) and a compute's process before it answers
-%% (answered_compute/2). Report §11.2: a fault met before the entry's end
-%% is reported however late the reaper learns of it, behind the entry's
-%% end among them, and one the entry's end causes is met after it.
+%% new_run/3), so that with none standing no subscriber waits.
+%%
+%% The process that faults asks it as it meets the fault, so that the
+%% answer is the fault's moment's: a process's body (run/1), a restarting
+%% process before it restarts (restarts/4) and a compute's process before
+%% it answers (answered_compute/2). Report §11.2: a fault met before the
+%% entry's end is reported however late the reaper learns of it, behind
+%% the entry's end among them, and one the entry's end causes is met after
+%% it.
 is_program_ending(Pid) ->
     case ets_lookup(?LAUNCH, entry_process) of
         [{_, Pid}] ->
@@ -1879,14 +1875,15 @@ wrapped(Caller, Wrap, {'Down', Of, _, _} = Down) ->
 %% live the run long. Report §6.9: it acts for its recipient (acting_for/1),
 %% so that what the function it applies opens, spawns or asks of the
 %% runtime is the recipient's, and Process.current there is the recipient.
-%% It is noted against its recipient and the process that started it, and
-%% ended when the recipient restarts or ends (abandoned/1); one whose
-%% recipient has ended already, an alarm's that fires after its process's
-%% end among them, ends before it starts with every delivery to that
-%% recipient, the row written first, so that an end the reaper learns of
-%% after the look finds it. A delivery of a Down names the process that
-%% ended or restarted, Of, which a demonitor reads (demonitored/5), and
-%% any other none.
+%%
+%% The delivery is noted against its recipient and the process that
+%% started it, and ended when the recipient restarts or ends (abandoned/1);
+%% one whose recipient has ended already, an alarm's that fires after its
+%% process's end among them, ends before it starts with every delivery to
+%% that recipient, the row written first, so that an end the reaper learns
+%% of after the look finds it. A delivery of a Down names the process that
+%% ended or restarted, Of, which a demonitor reads (demonitored/5), and any
+%% other none.
 counted_link(Address, Work) ->
     counted_link(Address, Work, none).
 
@@ -1918,11 +1915,12 @@ delivered(Recipient, Starter) ->
 %% the deliveries on their way, which an end of this kind alone pays; one a
 %% delivery's recipient ended, or a restart of it, has had its rows taken
 %% already (abandoned/1), and one that is no delivery has none, which its
-%% source's row says. Report §6.6, §8.7: a call its function was making
-%% where the host ended it goes with it, as a call of a program's process
-%% the host ends does (left_call/1); one the runtime ended, a delivery
-%% ended with its recipient among them, had its call dropped first
-%% (killed/2).
+%% source's row says.
+%%
+%% Report §6.6, §8.7: a call its function was making where the host ended
+%% it goes with it, as a call of a program's process the host ends does
+%% (left_call/1); one the runtime ended, a delivery ended with its
+%% recipient among them, had its call dropped first (killed/2).
 undelivered(_Pid, normal) ->
     false;
 undelivered(Pid, ExitReason) ->
@@ -1958,10 +1956,11 @@ held_ended(Pid, ExitReason, Reaper) ->
 %% clock ends them too where it is asked, so that a delivery it started as
 %% the reaper was asked is ended (alarms_canceled/2). A process kept for an
 %% adapted address (kept/1) is no delivery to its target, and runs on.
-%% Their rows are read by their key's prefix, the recipient, which the
-%% ordered table reads as one range, and each delivery's rows are taken
-%% first, so that the process that started it, told of its end, finds none
-%% to take (undelivered/2); it is unlinked first where this process
+%%
+%% The deliveries' rows are read by their key's prefix, the recipient,
+%% which the ordered table reads as one range, and each delivery's rows are
+%% taken first, so that the process that started it, told of its end, finds
+%% none to take (undelivered/2); it is unlinked first where this process
 %% started it, so that it is told nothing. Report §6.6: a call the
 %% delivery's function was making ends with it, as a killed process's does
 %% (killed/2).
@@ -2066,10 +2065,12 @@ kill_all(Pids) ->
 %% it started, is known by the mark (started_by/1) and not mixed with what
 %% the caller started before; the mark and the root the caller had, which
 %% rooted/2 gives back. A process the runtime did not start heads no chain,
-%% and is given none. Report §6.9: a process of the runtime's own that acts
-%% for another (acting_for/1) heads it in what stands for its row, and not
-%% the process it acts for, which runs on beside it: its own spawns take the
-%% mark (parent/0), and the root it had is the mark of the load it was
+%% and is given none.
+%%
+%% Report §6.9: a process of the runtime's own that acts for another
+%% (acting_for/1) heads it in what stands for its row, and not the process
+%% it acts for, which runs on beside it: its own spawns take the mark
+%% (parent/0), and the root it had is the mark of the load it was
 %% evaluating, or else the root of the process it acts for, which a load of
 %% that process's own may give back meanwhile; one that acts for a process
 %% the runtime did not start heads no chain either.
@@ -2335,13 +2336,14 @@ expected(Function) ->
 %% request (calling_the_system/2), since a request still in transit is not
 %% seen at its receiver. The reaper is the process making the check, so its
 %% own mailbox is what is read of it. §8.6 leaves a foreign process that
-%% can deliver to the runtime. Report §11.2: nothing is a deadlock while a
-%% shell holds the terminal; and report §8.6, nothing on a node, which can
-%% be reached from outside. Report §8.6, Appendix E.23: a subscription to
-%% the program's end can still deliver while it stands, since a termination
-%% tells it, as a system process's subscription can; while the end waits
-%% for a subscriber, that subscriber's stands, so nothing is a deadlock
-%% then either.
+%% can deliver to the runtime.
+%%
+%% Report §11.2: nothing is a deadlock while a shell holds the terminal;
+%% and report §8.6, nothing on a node, which can be reached from outside.
+%% Report §8.6, Appendix E.23: a subscription to the program's end can
+%% still deliver while it stands, since a termination tells it, as a system
+%% process's subscription can; while the end waits for a subscriber, that
+%% subscriber's stands, so nothing is a deadlock then either.
 %%
 %% What the look finds: `delivering`, where something can still deliver, a
 %% shell holds the terminal, or the program is a node, so that no deadlock
@@ -2719,9 +2721,10 @@ ended_as(Pid, Held, #fault{cause = Cause, trace = Trace}) ->
 %% compute carried keeps the peer's (§8.7); one a call carried from its
 %% callee (§6.6) takes the stack where it is raised. A failure of the
 %% runtime is the host's class and reason, its trace a failure's
-%% (failure_trace/1). Every place a host error becomes a fault reads it
-%% here, as a #fault{} met then, at the moment it is met, which a fault
-%% raised again keeps.
+%% (failure_trace/1).
+%%
+%% Every place a host error becomes a fault reads it here, as a #fault{}
+%% met then, at the moment it is met, which a fault raised again keeps.
 -spec met(error | exit | throw, term(), list()) -> #fault{}.
 met(error, badarith, Stack) ->
     case arithmetic_cause(Stack) of
@@ -2871,11 +2874,13 @@ system_process(Name) ->
 %% program's write, Io.OutMsg's Write(bytes, reply), is answered once the
 %% bytes are taken, the port holding this process while it is busy, so that
 %% the writer waits while the stream is behind; the runtime's own lines, a
-%% fault's report and a test's, are bytes alone. The port is busy while it
-%% holds a byte it has not written, its limits one byte, and the host holds
-%% a writer to a busy port until it is not, so that a write waits until
-%% the stream has taken everything before it, and a write of nothing
-%% returns once the port has written all it was given (drained/1).
+%% fault's report and a test's, are bytes alone.
+%%
+%% The port is busy while it holds a byte it has not written, its limits
+%% one byte, and the host holds a writer to a busy port until it is not, so
+%% that a write waits until the stream has taken everything before it, and
+%% a write of nothing returns once the port has written all it was given
+%% (drained/1).
 stream({fd, Fd}, Name) ->
     process_flag(trap_exit, true),
     stream_loop(erlang:open_port({fd, 0, Fd}, [out, binary, {busy_limits_port, {1, 1}}]), Name);
@@ -3194,18 +3199,19 @@ fed_message(Chars) -> {data, unicode:characters_to_binary(Chars)}.
 %% address, reply) and AlarmAt(time, address, reply); `now` reads the
 %% host's clock without them, and a test's `time` moves the alarms alone.
 %% Alarms are delivered through the clock itself, so each is counted as a
-%% source while it is pending (report §8.6). The clock holds each pending alarm by
-%% its timer, with its moment, where it goes and the process behind that,
-%% and each process's timers, so that a restart of that process cancels its
-%% own and reads no other's (report §6.9), and its monitor of each process
-%% it holds an alarm of, one for each, so that the end of that process
-%% forgets its alarms too (alarms_canceled/2). An alarm after milliseconds is
-%% held by its deadline on the monotonic clock, `{monotonic, Deadline}`,
-%% which a clock that is set does not move; one at a time by the time,
-%% `{time, Time}`, which the host's clock is read against. The host's
-%% timers count monotonic time, so the clock asks the host to be told of
-%% each change of its time offset, and sets every alarm at a time again
-%% then. `read_time` reads the host's clock, or a test's.
+%% source while it is pending (report §8.6). The clock holds each pending
+%% alarm by its timer, with its moment, where it goes and the process
+%% behind that, and each process's timers, so that a restart of that
+%% process cancels its own and reads no other's (report §6.9), and its
+%% monitor of each process it holds an alarm of, one for each, so that the
+%% end of that process forgets its alarms too (alarms_canceled/2).
+%%
+%% An alarm after milliseconds is held by its deadline on the monotonic
+%% clock, `{monotonic, Deadline}`, which a clock that is set does not move;
+%% one at a time by the time, `{time, Time}`, which the host's clock is read
+%% against. The host's timers count monotonic time, so the clock asks the
+%% host to be told of each change of its time offset, and sets every alarm
+%% at a time again then. `read_time` reads the host's clock, or a test's.
 -record(clock, {alarms = #{}, by_recipient = #{}, monitor_refs = #{}, read_time}).
 
 %% Report §6.5, E.15: the clock holds each alarm's delivery, a process of
@@ -3363,30 +3369,32 @@ wait({time, At}, ReadTime) -> min(?SLICE, max(0, At - ReadTime())).
 %% ended with ProgramEnd, and standard output and standard error are
 %% flushed, however the run ended.
 %%
-%% Options: init => a function run in the entry process before EntryPoint,
-%% after the system references are bound and the standard library's lets
-%% evaluated, for the program's own top-level lets (report §8.5);
-%% arguments => the program's arguments, Os.arguments, none by default;
-%% exit => fault, where Os.exit faults its caller rather than ending the
-%% program, as in the shell and under `ern test` (report §11.2); faults =>
-%% fun((FaultReport, Peer) -> any()), given every fault as it happens with
-%% the node of the peer whose spawn started the process, or none (report
-%% §11.2, §8.7); stdout, stderr => fun((binary()) -> any()), or {fd, N} to write
-%% to the file descriptor through a port, which learns when the stream has
-%% gone (§12.1); stdin => fun(() -> eof | {error, term()} |
-%% unicode:chardata()), called for each read, and keys => the same for the
-%% terminal's keys, for tests (fed/1); time => fun(() -> integer()), the
-%% clock the Clock process reads in place of the host's, for tests; node =>
-%% fun(() -> ok), run in the entry process after `init`, which starts a
-%% node's carrier once the bindings have their values, a node detecting no
-%% deadlock (report §8.6, §8.7); say => fun((iodata()) -> any()), which
-%% writes the runtime's own line on standard error, ern_carrier:say/1 for
-%% `ern run` and `ern test`, and by default the line through stderr
-%% (say/2, report §11.2); flush => fun(() -> any()), the shell's,
-%% run once the end's wait is over and stdout and stderr have taken what
-%% was sent them, which writes what they passed on to its screen
-%% (passed_on/2, §8.6). Report §12.1: the standard streams carry bytes for
-%% the run, whatever the host's locale.
+%% Options of the program and its run: init => a function run in the entry
+%% process before EntryPoint, after the system references are bound and the
+%% standard library's lets evaluated, for the program's own top-level lets
+%% (report §8.5). arguments => the program's arguments, Os.arguments, none
+%% by default. exit => fault, where Os.exit faults its caller rather than
+%% ending the program, as in the shell and under `ern test` (report §11.2).
+%% faults => fun((FaultReport, Peer) -> any()), given every fault as it
+%% happens with the node of the peer whose spawn started the process, or
+%% none (report §11.2, §8.7). node => fun(() -> ok), run in the entry
+%% process after `init`, which starts a node's carrier once the bindings
+%% have their values, a node detecting no deadlock (report §8.6, §8.7).
+%% time => fun(() -> integer()), the clock the Clock process reads in
+%% place of the host's, for tests.
+%%
+%% Options of the streams and the screen: stdout, stderr =>
+%% fun((binary()) -> any()), or {fd, N} to write to the file descriptor
+%% through a port, which learns when the stream has gone (§12.1). stdin =>
+%% fun(() -> eof | {error, term()} | unicode:chardata()), called for each
+%% read, and keys => the same for the terminal's keys, for tests (fed/1).
+%% say => fun((iodata()) -> any()), which writes the runtime's own line on
+%% standard error, ern_carrier:say/1 for `ern run` and `ern test`, and by
+%% default the line through stderr (say/2, report §11.2). flush => fun(()
+%% -> any()), the shell's, run once the end's wait is over and stdout and
+%% stderr have taken what was sent them, which writes what they passed on
+%% to its screen (passed_on/2, §8.6). Report §12.1: the standard streams
+%% carry bytes for the run, whatever the host's locale.
 -spec run_main(fun(() -> term()), binary(), map()) -> outcome().
 run_main(EntryPoint, Site, Options) ->
     make_tables(),
@@ -3429,13 +3437,14 @@ run_main(EntryPoint, Site, Options) ->
 %% (look/0), and a fault is the process's own (is_program_ending/1). A
 %% subscription made while it waits is told at once (termination/1), a
 %% restarted run's among them, since a restart ends the subscription with
-%% the run (§6.9, new_run/3). Report §11.2: the wait is said by Say, the
-%% runner's own line on standard error: once, with how many it waits for
-%% and which; each subscriber told later as it is told; each as it
-%% answers, ends or restarts; and a wait cut short. A subscriber is named
-%% by its spawn site, several in the order their processes were spawned
-%% (Appendix E.22), so that a line is the same from run to run. The
-%% outcome the program ends with.
+%% the run (§6.9, new_run/3).
+%%
+%% Report §11.2: the wait is said by Say, the runner's own line on standard
+%% error: once, with how many it waits for and which; each subscriber told
+%% later as it is told; each as it answers, ends or restarts; and a wait
+%% cut short. A subscriber is named by its spawn site, several in the order
+%% their processes were spawned (Appendix E.22), so that a line is the same
+%% from run to run. The outcome the program ends with.
 told(Outcome, Launch, Say) ->
     true = ets:insert(?LAUNCH, {ending, erlang:self(), Launch}),
     case untold(subscriptions(), #{}) of
@@ -3537,11 +3546,13 @@ untold(Subscriptions, Waiting) ->
 %% restart, has a teller all the same, whose delivery delivers nothing, so
 %% that the end hears of the end or the restart as of any subscriber's; a
 %% row the subscriber's new run has written since is the one marked, and
-%% that run is told. Report §6.9, §8.6: a teller has the
-%% subscriber's wrap applied by a delivery of its own (tell/4), and the
-%% reaper holds it as it holds a delivery (reaper_held/2), so that its end
-%% ends nothing else and it ends with the program; the runner monitors it,
-%% so that a teller that ends before its word holds up no end (waited/5).
+%% that run is told.
+%%
+%% Report §6.9, §8.6: a teller has the subscriber's wrap applied by a
+%% delivery of its own (tell/4), and the reaper holds it as it holds a
+%% delivery (reaper_held/2), so that its end ends nothing else and it ends
+%% with the program; the runner monitors it, so that a teller that ends
+%% before its word holds up no end (waited/5).
 tell_all(Launch, Untold, Waiting) ->
     Runner = erlang:self(),
     Reaper = launch_reaper(),
@@ -3577,16 +3588,17 @@ counted(Sites) -> [integer_to_list(length(Sites)), " subscribers"].
 %% callee's, which the subscriber's end or its restart ends (§6.6, §6.9),
 %% and either ends the delivery (abandoned/1), one whose wrap does not
 %% finish among them, or the delivery finds the run left.
-%% Report §11.2: its end is learned by the runtime's monitor, whose Down the
-%% reaper gives once it has reported the subscriber's fault, so that the
-%% fault's line comes before the line that it ended without answering; a
-%% restart reports its fault before it ends the calls waiting on it
-%% (restarts/4). A delivery foreign code kills before it arrives gives no
-%% word: the teller ends without one, and the runner, which monitors it,
-%% waits for the subscriber no longer (waited/5). Once it has its word it
-%% ends, and its monitor goes with it, as the reaper that holds it sees it
-%% end (held_ended/3), so that a subscriber that restarts at each telling
-%% is told by a teller each time.
+%%
+%% Report §11.2: the subscriber's end is learned by the runtime's monitor,
+%% whose Down the reaper gives once it has reported the subscriber's fault,
+%% so that the fault's line comes before the line that it ended without
+%% answering; a restart reports its fault before it ends the calls waiting
+%% on it (restarts/4). A delivery foreign code kills before it arrives
+%% gives no word: the teller ends without one, and the runner, which
+%% monitors it, waits for the subscriber no longer (waited/5). Once the
+%% teller has its word it ends, and its monitor goes with it, as the reaper
+%% that holds it sees it end (held_ended/3), so that a subscriber that
+%% restarts at each telling is told by a teller each time.
 tell(Runner, Launch, Subscriber, Told) ->
     {Callee, Reply} = watched(Subscriber),
     Ended = make_ref(),
@@ -3693,10 +3705,11 @@ passed_on(_System, _Options) ->
 %% it first, is written by Outside. The end stops the process in order
 %% (stopped_in_order/1), so that a line it took it has answered, and none
 %% is written twice. Before the first launch, between two and after the
-%% last, Outside writes it on the job's own. Report §8.6: the wait is on
-%% standard error's port, which the look cannot see take the line, and may
-%% be a program's process's, an entry process's as its initializers end
-%% among them (ern_cli:say_limits/0).
+%% last, Outside writes it on the job's own.
+%%
+%% Report §8.6: the wait is on standard error's port, which the look cannot
+%% see take the line, and may be a program's process's, an entry process's
+%% as its initializers end among them (ern_cli:say_limits/0).
 -spec say(binary(), fun((binary()) -> term())) -> ok.
 say(Line, Outside) ->
     case launch_field(#launch.stderr, none) of
@@ -4217,12 +4230,13 @@ restarts(F, Allowed, Times, Level) ->
 %% before the calls waiting on it are told they have ended (restarted/1),
 %% so that the request of an ended call is not taken by the new run, and
 %% before its service monitors are told (tell_service_monitors/0), so that
-%% what a watcher sends once it has its Restarted is the new run's. The
-%% clock, the terminal and the gateway are asked at once, and the reaper
-%% once each of them has answered, so that a monitor a delivery of the
-%% clock's or the terminal's asked for is canceled with the process's own,
-%% or never made where the delivery had ended (monitor_asked/5); each is
-%% monitored, so that one that has died holds up no restart. No end's
+%% what a watcher sends once it has its Restarted is the new run's.
+%%
+%% The clock, the terminal and the gateway are asked at once, and the
+%% reaper once each of them has answered, so that a monitor a delivery of
+%% the clock's or the terminal's asked for is canceled with the process's
+%% own, or never made where the delivery had ended (monitor_asked/5); each
+%% is monitored, so that one that has died holds up no restart. No end's
 %% teller is asked: a delivery a teller starts once the reaper has answered
 %% finds the subscription it was to tell gone, and delivers nothing to the
 %% new run (told_run/4).
@@ -4262,15 +4276,17 @@ restart_taken(Pids) ->
 %% the new run begins, so that the Restarted reaches its watcher before
 %% anything the new run sends; a wrap that does not finish holds up the
 %% restart. The reaper is monitored, so that one that has died holds up no
-%% restart. Report §8.7, *A restart*: "A restart (§6.9) is told by the
-%% restarting process's node to each other node with a process that
-%% monitors the restarting one when the restart reads them, after it has
-%% ended its calls (§6.9)"; each node is asked by a frame before the
-%% deliveries here are waited for (ern_peer:restart_told/1), and "the
-%% restart waits for each answer as it waits for a wrap on its own node; a
-%% loss, or the node's end (**Its start and its end**), ends the wait"
-%% (ern_peer:watchers_told/1). Report §8.6: a delivery waited for is a
-%% source until it ends, and a peer's answer is none the look sees coming.
+%% restart.
+%%
+%% Report §8.7, *A restart*: "A restart (§6.9) is told by the restarting
+%% process's node to each other node with a process that monitors the
+%% restarting one when the restart reads them, after it has ended its calls
+%% (§6.9)"; each node is asked by a frame before the deliveries here are
+%% waited for (ern_peer:restart_told/1), and "the restart waits for each
+%% answer as it waits for a wrap on its own node; a loss, or the node's end
+%% (**Its start and its end**), ends the wait" (ern_peer:watchers_told/1).
+%% Report §8.6: a delivery waited for is a source until it ends, and a
+%% peer's answer is none the look sees coming.
 tell_service_monitors() ->
     Reaper = launch_reaper(),
     ReaperRef = erlang:monitor(process, Reaper),
@@ -4596,11 +4612,12 @@ program_utilization() ->
 %% process started so for a compute, which runs the function for its caller,
 %% or `over` where its note has gone (is_noted/2); or the deliveries that
 %% tell this node's service monitors of a process of another node of its
-%% restart (peer_restarted/2). None where no run is in progress, its reaper
-%% ended or not yet begun: as a run ends, and between two runs of `ern test`
-%% over a directory, in one host. The gateway's worker that asks waits on
-%% the reaper's end as well as on its answer, since a frame comes at any
-%% time.
+%% restart (peer_restarted/2).
+%%
+%% None is answered where no run is in progress, its reaper ended or not
+%% yet begun: as a run ends, and between two runs of `ern test` over a
+%% directory, in one host. The gateway's worker that asks waits on the
+%% reaper's end as well as on its answer, since a frame comes at any time.
 -spec asked_of_run({offered, binary(), binary()}
                    | {spawn, fun(() -> term()), module(), [{[atom()], binary()}], binary(),
                       node()}

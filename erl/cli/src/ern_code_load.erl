@@ -10,15 +10,18 @@
 %% each verified against its hashes (ern_canonical:is_verified/1) and
 %% checked against the interfaces it was compiled against and the standard
 %% library the node holds, and a module of a cycle among them refused
-%% (§4.1). Each becomes a unit of the node's (§11.2): the node's own where
+%% (§4.1).
+%%
+%% Each module becomes a unit of the node's (§11.2): the node's own where
 %% the node holds that very code under its Erlang name and each module it
-%% uses is its own too; else a unit of its Erlang name,
-%% loaded from its file, where the host holds no code of the name and each
-%% module it uses is under its own Erlang name; and else a unit made from
-%% its forms by the back end (ern_compile:from_compiled/5), of its Erlang
-%% name where the host holds none and of a name of its own otherwise,
-%% `ern@counter$2`, linked to the units of the modules it uses, as the
-%% shell's load makes one beside another of its name (ern_code:placement/4).
+%% uses is its own too; else a unit of its Erlang name, loaded from its
+%% file, where the host holds no code of the name and each module it uses
+%% is under its own Erlang name; and else a unit made from its forms by the
+%% back end (ern_compile:from_compiled/5), of its Erlang name where the
+%% host holds none and of a name of its own otherwise, `ern@counter$2`,
+%% linked to the units of the modules it uses, as the shell's load makes
+%% one beside another of its name (ern_code:placement/4).
+%%
 %% The units are loaded by the host's atomic load, one batch, and enter the
 %% code table, so that a spawn finds their definitions and an exchange
 %% ships them (§8.7); a unit, once loaded, is held for the node's life

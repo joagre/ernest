@@ -1,19 +1,20 @@
 %% `make bench`'s part `library` (docs/development.md), MVP 2.99d's item 1:
 %% every exported function of the standard library and the libraries
 %% measured beside the host's, so that what Ernest adds to the host's work
-%% shows (Appendix E.0 rule 1, CLAUDE.md's cost rule). A function
-%% that needs no process is called with arguments drawn from its type, at
-%% 10, 100 and 10,000 elements, graphemes or bytes, and timed beside the
-%% host's function that does the same work, where one does (hosts/0), and
-%% by its own growth. A function that needs a process is timed in a
-%% scenario of its own beside the host's operation it stands on
-%% (scenarios/1), by what Ernest adds. All of it runs in one launch, so the
-%% system processes and the modules' bindings are those a program has.
+%% shows (Appendix E.0 rule 1, CLAUDE.md's cost rule). A function that
+%% needs no process is called with arguments drawn from its type, at 10,
+%% 100 and 10,000 elements, graphemes or bytes, and timed beside the host's
+%% function that does the same work, where one does (hosts/0), and by its
+%% own growth. A function that needs a process is timed in a scenario of
+%% its own beside the host's operation it stands on (scenarios/1), by what
+%% Ernest adds. All of it runs in one launch, so the system processes and
+%% the modules' bindings are those a program has.
+%%
 %% Beside the time, what each call allocates, against the host's, with no
 %% line of its own yet (allocated/1). Time is the wall clock's, which holds
 %% what a call waits for as well as what it computes; the load average
-%% before the run says whether the machine was idle. It prints what is
-%% past the line, and the whole table into the file given, and asserts
+%% before the run says whether the machine was idle. The part prints what
+%% is past the line, and the whole table into the file given, and asserts
 %% nothing: a function past the line is the user's decision.
 %% ern_measure_tests holds that every function is measured or listed with
 %% the reason it is not, and that each call made here runs.

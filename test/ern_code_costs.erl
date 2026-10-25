@@ -1,16 +1,18 @@
-%% `make bench`'s part `code` (docs/development.md), MVP 3.2's costs on
-%% nodes of this machine (plan MVP 3.2 item 7): what a spawn and a compute
-%% cost whose code crosses to a peer that lacks it, a bare node's first
-%% among them, with what that first does in a fresh host, and the share of
-%% each of the exchange's steps on both nodes (report §12.7, §10); what a
-%% fix's callers cost, crossed with it to a node of the old build; what an
-%% arrival, a `Code.load` and a development day's spawns add to the host's
-%% four counts, against their limits (§11.2); what a utilization costs, and
-%% a compute on a peer the node picks by the utilizations its peers told it
-%% beside one on a peer named, the pick alone and the read of the
-%% utilizations, and what
-%% connected nodes exchange idle, the tellings among it (§8.7, Appendix
-%% E.27, plan MVP 3.2 item 8); and the sizes of the
+%% `make bench`'s part `code` (docs/development.md) measures MVP 3.2's
+%% costs on nodes of this machine (plan MVP 3.2 item 7). It measures what
+%% a spawn and a compute cost whose code crosses to a peer that lacks it, a
+%% bare node's first among them, with what that first does in a fresh
+%% host, and the share of each of the exchange's steps on both nodes
+%% (report §12.7, §10). It measures what a fix's callers cost, crossed with
+%% it to a node of the old build, and what an arrival, a `Code.load` and a
+%% development day's spawns add to the host's four counts, against their
+%% limits (§11.2).
+%%
+%% The part measures beside them what a utilization costs, and a compute
+%% on a peer the node picks by the utilizations its peers told it beside
+%% one on a peer named, the pick alone and the read of the utilizations,
+%% and what connected nodes exchange idle, the tellings among it (§8.7,
+%% Appendix E.27, plan MVP 3.2 item 8). It measures the sizes of the
 %% standard library's `.erc` files and of a code frame, and what reading a
 %% module's forms costs (§11.1). Every number is a median of seven runs or
 %% more, with their range.
@@ -23,12 +25,14 @@
 %% `make bench-machines` the eight over the machines after this one of
 %% test/machines/machines.txt in turn, so that q1 and q2 stand on two
 %% machines where there are two, and the measuring node here (plan, MVP
-%% 3.27 item 1). The nodes show their work through
-%% `fixtures/bench/ern_code_probe.erl`, on each one's load path, whose functions the
-%% measuring program runs on a peer by a compute of their names: the host's
-%% trace of the exchange's steps, the runtime's reading of the host's
-%% counts, and the host's counts of each connection's packets. It measures
-%% and asserts nothing, so it is not part of `make test-full`.
+%% 3.27 item 1).
+%%
+%% The nodes show their work through `fixtures/bench/ern_code_probe.erl`,
+%% on each one's load path, whose functions the measuring program runs on
+%% a peer by a compute of their names: the host's trace of the exchange's
+%% steps, the runtime's reading of the host's counts, and the host's counts
+%% of each connection's packets. The part measures and asserts nothing, so
+%% it is not part of `make test-full`.
 -module(ern_code_costs).
 
 -export([main/1]).

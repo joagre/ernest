@@ -5,16 +5,18 @@
 %% of each construct, compiled from source as `ern build` compiles it, and
 %% test/fixtures/bench/ern_language_twin.erl the same loops as Erlang writes
 %% them, which `make bench` compiles with erlc into the bench's twins/
-%% directory. A `match` is a case on tagged tuples, and one whose guards
-%% call functions falls through each by a fun of the clauses after it
-%% (report §5.9); a record update rebuilds the tuple; each Float operation
-%% runs in a try of its own that makes a result that is not finite a fault,
-%% and a product adds 0.0, so that no negative zero is made (§3.1); a
-%% derived `compare` calls each field's (§3.5); a requirement's member is a
-%% fun the caller passes (§4.9); a slice, a map read and a map write are
-%% library functions, each around a foreign call (Appendix E.3, E.5); a send
-%% and a receive go through the runtime, the receive with a restart's clause
-%% and a fault's (§6.2, §6.3); and `Io.show` writes a value by its type's
+%% directory.
+%%
+%% A `match` is a case on tagged tuples, and one whose guards call
+%% functions falls through each by a fun of the clauses after it (report
+%% §5.9); a record update rebuilds the tuple; each Float operation runs in
+%% a try of its own that makes a result that is not finite a fault, and a
+%% product adds 0.0, so that no negative zero is made (§3.1); a derived
+%% `compare` calls each field's (§3.5); a requirement's member is a fun the
+%% caller passes (§4.9); a slice, a map read and a map write are library
+%% functions, each around a foreign call (Appendix E.3, E.5); a send and a
+%% receive go through the runtime, the receive with a restart's clause and
+%% a fault's (§6.2, §6.3); and `Io.show` writes a value by its type's
 %% descriptor (Appendix E.1).
 %%
 %% Measured, in language.txt: a row for each construct, the twin's loop and

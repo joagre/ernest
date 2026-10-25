@@ -20,11 +20,12 @@
 %% flight to one process, each wrap waiting for a word, started until
 %% every wrap waits, then delivered once each is given its word, until
 %% every Down is received; and one process's alarms at one time, which
-%% fire as the clock is set to it, until every alarm has fired. Each row
-%% is the median of seven runs, with their range, each run measuring every
-%% burst at every size once, in turn, so that what drifts over the runs
-%% falls on all, as ern_costs measures a table's rows. It measures and
-%% asserts nothing, so it is not part of `make test-full`.
+%% fire as the clock is set to it, until every alarm has fired.
+%%
+%% Each row is the median of seven runs, with their range, each run
+%% measuring every burst at every size once, in turn, so that what drifts
+%% over the runs falls on all, as ern_costs measures a table's rows. The
+%% part measures and asserts nothing, so it is not part of `make test-full`.
 -module(ern_burst_costs).
 
 -export([main/1]).

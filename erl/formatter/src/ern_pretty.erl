@@ -11,6 +11,7 @@
 %%   blank            a blank line where a line break falls here
 %%   {nest, N, Inner}   Inner's line breaks indent N more
 %%   {align, Inner}     Inner's line breaks indent to the column it begins at
+%%
 %%   {group, Inner}     Inner on one line when that fits, else every break taken
 %%   {bracket, Inner}   a group, which a fit after it takes flat, so that of
 %%                      two brackets on a line the first breaks

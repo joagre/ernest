@@ -10,19 +10,22 @@
 /// service ends or its node is lost, the process finds the service again
 /// when the next message comes; a message that comes while a find is under
 /// way waits for it and shares its outcome, so that one find is under way at
-/// a time. A message that comes
-/// while the service is away, and whose find fails, goes to the last address
-/// held, where it is lost as a message to an ended process is, or reaches the
-/// service where its node is back; a call through the proxy's address then
-/// answers `None` at its own time, which says nothing of whether the request
-/// ran. A service the configuration does not list is never found. A find that
-/// answers `OtherType` is no absence but a protocol the two builds disagree
-/// on: the process faults, naming the service, and the address is dead from
-/// then on. At a shell prompt the caller is the input's process, which ends
-/// with the input, so a proxy used from the prompt is started in a process
-/// that lives on. `start` spawns two processes, the forwarder and one that
-/// ends at once and stands where no address has been found. The process ends
-/// with the process that called `start`.
+/// a time.
+///
+/// A message that comes while the service is away, and whose find fails,
+/// goes to the last address held, where it is lost as a message to an ended
+/// process is, or reaches the service where its node is back; a call through
+/// the proxy's address then answers `None` at its own time, which says
+/// nothing of whether the request ran. A service the configuration does not
+/// list is never found. A find that answers `OtherType` is no absence but a
+/// protocol the two builds disagree on: the process faults, naming the
+/// service, and the address is dead from then on.
+///
+/// At a shell prompt the caller is the input's process, which ends with the
+/// input, so a proxy used from the prompt is started in a process that lives
+/// on. `start` spawns two processes, the forwarder and one that ends at once
+/// and stands where no address has been found. The process ends with the
+/// process that called `start`.
 ///
 /// **What it is not.** It is an ordinary process on the message's way: a
 /// message through it may pass one sent to the service directly, and it

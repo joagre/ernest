@@ -4,6 +4,7 @@
 %% top-level `let` whose initializer is a ground term is read as its value,
 %% which the host keeps in its literal area, and one computed through
 %% ern_rt:binding/1, a persistent term by a tuple key (report §8.5, §11.1).
+%%
 %% A receive with an `after` takes its time as a deadline, waits in slices
 %% of the host's longest wait in a fun entered again, and marks the process
 %% as in a timed receive while it waits, a key in its dictionary, so that
@@ -21,19 +22,19 @@
 %% beside the host's and Ernest's receive without one, with a model of the
 %% timed receive a piece at a time; a receive with an `after` that waits
 %% for an echo's answer, where the host sets its timer and cancels it, the
-%% same four; `Io.print` of an empty string beside the host's bare send to
-%% a process and its call of a process that takes the bytes and answers;
-%% and a bare launch, nothing in main, one after another as `ern test`
-%% runs them, beside the host's start of a program and its spawn of a
-%% function that returns, with the launch's
-%% pieces, from timestamps taken where its initializers begin and end,
-%% traced, and where main begins and returns, and a persistent term's
-%% update alone. A program's rows run its code compiled from source, as
-%% `ern build` compiles it, in a launch; the host's run outside one. Each
-%% row is the median of seven runs, in nanoseconds an iteration, the
-%% loop's own cost included, or in microseconds a launch, with their range,
-%% as ern_costs measures them. It measures and asserts nothing, so
-%% it is not part of `make test-full`.
+%% same four; and `Io.print` of an empty string beside the host's bare send
+%% to a process and its call of a process that takes the bytes and answers.
+%%
+%% A bare launch is measured too, nothing in main, one after another as
+%% `ern test` runs them, beside the host's start of a program and its spawn
+%% of a function that returns, with the launch's pieces, from timestamps
+%% taken where its initializers begin and end, traced, and where main
+%% begins and returns, and a persistent term's update alone. A program's
+%% rows run its code compiled from source, as `ern build` compiles it, in a
+%% launch; the host's run outside one. Each row is the median of seven
+%% runs, in nanoseconds an iteration, the loop's own cost included, or in
+%% microseconds a launch, with their range, as ern_costs measures them. The
+%% part measures and asserts nothing, so it is not part of `make test-full`.
 -module(ern_rules_costs).
 
 -export([main/1, literal/1, numbers/0]).

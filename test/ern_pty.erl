@@ -18,9 +18,11 @@
 %% (ern_nodes_tests:wait_ms/0), so that the session's bound is its steps'
 %% sum, to which the harness's run is held too (ern_nodes_tests:collected/2),
 %% and a step that fails is told by its own bound before the test's runs
-%% out. The command is one word to the shell that starts the harness,
-%% since its own `;` and `|` belong to the shell inside the terminal; it may
-%% hold no single quote.
+%% out.
+%%
+%% The command is one word to the shell that starts the harness, since its
+%% own `;` and `|` belong to the shell inside the terminal; it may hold no
+%% single quote.
 -spec run(string(), [tuple()], string()) -> {integer() | timeout, binary()}.
 run(Command, Steps, Extra) ->
     nomatch = binary:match(unicode:characters_to_binary(Command), <<"'">>),

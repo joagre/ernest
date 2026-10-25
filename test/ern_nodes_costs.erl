@@ -7,12 +7,14 @@
 %% step; a find of the store's counter; a spawn on the store of a process
 %% that ends at once; a compute there of a function that answers at once,
 %% which §10 costs at a spawn's and a call's answer; and a utilization of
-%% the store, its frame and its answer. Two plain nodes of the host's, on
-%% the same two machines, time its ping over TCP, which TLS is set beside.
-%% `make bench` starts both nodes on this machine; `make bench-machines` the
-%% store on the first machine after this one of test/machines/machines.txt
-%% and the desk here (plan, MVP 3.27 item 1). It measures and asserts
-%% nothing, so it is not part of `make test-full`.
+%% the store, its frame and its answer.
+%%
+%% Two plain nodes of the host's, on the same two machines, time its ping
+%% over TCP, which TLS is set beside. `make bench` starts both nodes on
+%% this machine; `make bench-machines` the store on the first machine after
+%% this one of test/machines/machines.txt and the desk here (plan, MVP 3.27
+%% item 1). The part measures and asserts nothing, so it is not part of
+%% `make test-full`.
 -module(ern_nodes_costs).
 
 -export([main/1]).

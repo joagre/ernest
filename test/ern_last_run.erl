@@ -7,16 +7,17 @@
 %% `last/`, in place of the one there, and the rest of `last/` stays; the
 %% release review keeps the tables in `release/` the same way (`make
 %% bench-release`), and so does a user whose first run on a new machine is
-%% a new reference. At a run's end every row of its tables that moved by
-%% more than the noise against either reference is named with both
-%% numbers, under the reference, printed and written to moved.txt, which
-%% names the run's tables first, since a part's run writes it as the
-%% whole's does. Beside them are named the rows that match none of the
-%% reference's, on either side, a table at once where none of its rows
-%% does, since a row whose words changed is compared with nothing, and
-%% the comparison says that no row moved only where every row matched. A
-%% part that failed leaves no table, so the next run is compared with the
-%% one before it.
+%% a new reference.
+%%
+%% At a run's end every row of its tables that moved by more than the
+%% noise against either reference is named with both numbers, under the
+%% reference, printed and written to moved.txt, which names the run's
+%% tables first, since a part's run writes it as the whole's does. Beside
+%% them are named the rows that match none of the reference's, on either
+%% side, a table at once where none of its rows does, since a row whose
+%% words changed is compared with nothing, and the comparison says that no
+%% row moved only where every row matched. A part that failed leaves no
+%% table, so the next run is compared with the one before it.
 %%
 %% A file is the text a part of the bench writes: tables, a blank line
 %% between two, the first line of each its title, the others its rows. A

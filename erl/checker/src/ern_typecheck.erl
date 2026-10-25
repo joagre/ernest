@@ -40,6 +40,7 @@
 %% were declared with `let`; the emitter reaches a value through its getter
 %% session_scope: the shell's session, a scope between this module's own
 %% declarations and the prelude (report §11.2), empty in every other module
+%%
 %% pending, deferred: what the definition being checked leaves for its
 %% end, the #pending_restriction{}s and the deferred records below
 %% mailboxes: the mailbox types of the functions the definition's spawns
@@ -49,6 +50,7 @@
 %% receives: each `receive` with a pattern clause whose mailbox type was a
 %% variable where it stood, its span and that type, read as the definition
 %% ends, where §6.2 or §8.1 may make the type Never (report §6.8)
+%%
 %% effect_origin: undefined or the #effect_origin{} of the mailbox here
 %% declared_none: whether the function whose body is inferred, a `fn` or a
 %% lambda, is written `: T` without `receiving`, over whose body a call of
@@ -58,6 +60,7 @@
 %% `self`'s and `monitor`'s, left free while the body is inferred, {Span,
 %% Name, Effect}, the latest first, each read as the function ends (report
 %% §4.5, read_standing/2)
+%%
 %% groups: qualified name => the dependency group not yet checked that
 %% declares it, checked on first demand (a reference, or an operator
 %% resolving to it); typed: the groups checked so far; diagnostics: their
@@ -70,6 +73,7 @@
 %% provided: the namespaces the toolchain provides, the prelude's and the
 %% standard library's, whose names a canonical form holds by name (report
 %% Appendix H)
+%%
 %% inferring: the definitions whose inference is under way, {global,
 %% QualifiedName} for a top-level group's members and {local, Name} for a
 %% block's local fns, so that a call to one is known as a recursive call
@@ -99,6 +103,7 @@
 %% binder: the local or the top-level `let` an initializer is checked for,
 %% with the initializer's span, or none: a fill that is the whole
 %% initializer asks for that name's annotation (filled/7, report §5.6)
+%%
 %% declaring: the namespace of the module that declares each value of the
 %% modules given, by qualified name, which their interfaces hold, so that
 %% `M.T.f` is told M's member of its type T from the module M.T's f
@@ -110,6 +115,7 @@
 %% receives or a type an abstract type's fields name; the descriptor
 %% builder reads them (described_type/2), and no name resolves to one
 %% (report §4.2, §11.1)
+%%
 %% identities: the hashes of the definitions of the modules given, by
 %% qualified name, which their interfaces hold and the canonical form names
 %% them by (identity/2, report Appendix H); the checker reads none
@@ -117,6 +123,7 @@
 %% binding or a foreign declaration, by qualified name, which their
 %% interfaces hold and a dependent's reaches take in (reach/2, report
 %% §8.7, §11.1); the checker reads none
+%%
 %% positions: the number of each function of the units of the modules
 %% given, by qualified name, with the namespace of the module that declares
 %% it, which their interfaces hold and a dependent's code calls it by
@@ -125,6 +132,7 @@
 %% is a ground term, by qualified name, which their interfaces hold and a
 %% dependent's code holds where it reads it (ground_term/2, report §11.1);
 %% the checker reads none
+%%
 %% uses: the uses of each definition under inference, by its placeholder's
 %% variable, newest first, each with whether its result type was still
 %% undetermined there, the last such the use that gave it, which labels a

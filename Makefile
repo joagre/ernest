@@ -321,8 +321,12 @@ test-docs:
 
 # The prose paragraphs past about a hundred words, for their writer to read
 # again (CLAUDE.md, *Writing*); test-docs lists them too, and fails on none.
+# The style tests hold both at 150. comments lists the comment blocks of the
+# Erlang and the Ernest the same way (docs/style.md).
 paragraphs:
 	@sh tools/paragraphs.sh
+comments:
+	@sh tools/comments.sh
 test-guide: all
 	@$(MAKE) -C test guide
 test-grammar: all
@@ -524,5 +528,5 @@ EMACS_CORPUS = $(ERNEST_SOURCES:%=../../%)
         test-emacs $(APP_TESTS) $(APP_PARTS) $(EMACS_ALL) \
         clean clean-emacs \
         sections coverage golden xref contents format doc install uninstall release unicode \
-        paragraphs \
+        paragraphs comments \
         dialyzer sanitize diagnostics

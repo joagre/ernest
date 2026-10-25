@@ -132,6 +132,16 @@ paragraph_ceiling_test() ->
     Listed = string:lexemes(os:cmd("sh " ++ ?ROOT ++ "/tools/paragraphs.sh 150"), "\n"),
     ?assertEqual([], Listed).
 
+%% docs/style.md *Every language*: a comment is paragraphs as a document
+%% is, a blank comment line between them and none past 150 words, in the
+%% Erlang and the Ernest alike; tools/comments.sh lists the blocks at a
+%% hundred for the writer and this test holds them at the ceiling. A
+%% regression test, written after the night the documents got their
+%% ceiling found 166 comment blocks past it, a module header at 569 words
+comment_ceiling_test() ->
+    Listed = string:lexemes(os:cmd("sh " ++ ?ROOT ++ "/tools/comments.sh 150"), "\n"),
+    ?assertEqual([], Listed).
+
 %% docs/style.md: the spelling is American English, in every tracked file
 %% of text but a proposal, the licenses and a borrowed file. A word is
 %% matched whole, whatever its case, and a name is read as the words it
@@ -246,15 +256,16 @@ export_faults(File) ->
 %% (ern_rt:is_ernest/1), so every `receive` there that can wait, which is
 %% every one but a `receive` with `after 0`, is named by its function under
 %% its kind in its module's `-receives` attributes, and the forms are held
-%% to the kind where they can show it. A `foreign_wait` waits on what the
-%% look cannot see deliver, under the FOREIGN key
-%% (ern_rt:entered_foreign/0), which the function, or every function of its
-%% module that calls it, puts and takes away; a receive only a signal ends
-%% needs no taking away. An `ernest_wait` waits on what the look reads, one
-%% with a deadline under the TIMED key so (ern_rt:timed/0). An `own_process`
-%% waits in a process that is no program's, which the look does not read. An
-%% `answered_at_once` waits on an answer that comes before the look can find
-%% it waiting.
+%% to the kind where they can show it.
+%%
+%% The kinds: a `foreign_wait` waits on what the look cannot see deliver,
+%% under the FOREIGN key (ern_rt:entered_foreign/0), which the function, or
+%% every function of its module that calls it, puts and takes away; a
+%% receive only a signal ends needs no taking away. An `ernest_wait` waits
+%% on what the look reads, one with a deadline under the TIMED key so
+%% (ern_rt:timed/0). An `own_process` waits in a process that is no
+%% program's, which the look does not read. An `answered_at_once` waits on
+%% an answer that comes before the look can find it waiting.
 %%
 %% A receive of no kind, a key its forms do not show, a kind of another
 %% name, and a function named twice or with no receive that can wait fail

@@ -16,13 +16,14 @@
 %% null and an array or an object as it ends, and an element or a member's
 %% value as it is pushed, which is where a string and a boolean, which have
 %% no decoder, are seen. It answers the text left after the value, which
-%% `json:decode/1` refuses as an invalid byte, its first. An object keeps a
-%% name's last member, as `Map.fromList` keeps a later pair (Appendix E.3):
-%% the members, pushed in front, are put back in the text's order, and
-%% `maps:from_list/1` keeps a key's last.
-%% An integer longer than the host holds, on which `binary_to_integer/1`
-%% raises `system_limit`, is an unexpected sequence, as a real larger than
-%% a `Float` is; and so is a high surrogate's escape that no low one's
+%% `json:decode/1` refuses as an invalid byte, its first.
+%%
+%% An object keeps a name's last member, as `Map.fromList` keeps a later
+%% pair (Appendix E.3): the members, pushed in front, are put back in the
+%% text's order, and `maps:from_list/1` keeps a key's last. An integer
+%% longer than the host holds, on which `binary_to_integer/1` raises
+%% `system_limit`, is an unexpected sequence, as a real larger than a
+%% `Float` is; and so is a high surrogate's escape that no low one's
 %% follows, which the host answers otherwise (lone_surrogate/2).
 -spec parse(binary()) -> {'Right', value()} | {'Left', error()}.
 parse(Text) ->

@@ -196,12 +196,13 @@ load_float_fault_test() ->
 %% The unit the load brought stays loaded, out of reach (§11.2): a process
 %% running before the load, the holder of a module the program uses, was
 %% handed a function of it by a binding before the fault, and calls it
-%% after; refused again, the module makes no unit. A regression test,
-%% written after the code: the delivery's process was linked to the
-%% runtime's reaper, which did not trap exits, so the purge of the unit
-%% ended the reaper with it, and the program waited for ever at its next
-%% monitor; once the reaper trapped exits, the purge left the holder a
-%% function whose code was gone, which faulted at its call
+%% after; refused again, the module makes no unit.
+%%
+%% A regression test, written after the code: the delivery's process was
+%% linked to the runtime's reaper, which did not trap exits, so the purge
+%% of the unit ended the reaper with it, and the program waited for ever at
+%% its next monitor; once the reaper trapped exits, the purge left the
+%% holder a function whose code was gone, which faulted at its call
 load_under_a_running_wrap_test() ->
     Dir = tmp(),
     Lib = filename:join(Dir, "lib"),

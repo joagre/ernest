@@ -498,12 +498,14 @@ beam_functions(Beam) ->
 %% member's by its type's and its own, a local function lifted to a
 %% function of its own and a lambda by the top-level declaration they are
 %% written in and the frame's line, as a spawn site there is named, and
-%% the standard library's by its own; a frame of the host's or the runtime's
-%% above the program's by the function as the host names it, and its line
-%% where it gives one; and the trace ends with the program's outermost
-%% frame, `main`'s, the runtime's beneath it left out. A regression test of
-%% the frame's shape, written after the code (the log's *Every Fault
-%% Carries a Trace*); a received definition's frame is test/ern_nodes_tests.erl's
+%% the standard library's by its own.
+%%
+%% A frame of the host's or the runtime's above the program's is written by
+%% the function as the host names it, and its line where it gives one; the
+%% trace ends with the program's outermost frame, `main`'s, the runtime's
+%% beneath it left out. A regression test of the frame's shape, written
+%% after the code (the log's *Every Fault Carries a Trace*); a received
+%% definition's frame is test/ern_nodes_tests.erl's
 trace_names_functions_test() ->
     Text = "foreign fn boom(x : Int) : Int = \"erlang:binary_to_integer/1\"\n"
            "type Vec = Vec(Int)\n"
@@ -3487,6 +3489,7 @@ foreign_casts_and_callbacks_test() ->
 %% `Main.main`, as a trace names its frame (Appendix E.21). A function value
 %% foreign code gave names itself as the host does, its return that does
 %% not match and an exception it raises alike, as a foreign function's.
+%%
 %% A regression test, written after the code; it does not cover a lambda
 %% inside a top-level binding's value, a tuple's or a list's, which keeps
 %% the host's name for the fun '$init'/0 made, since no line tells the

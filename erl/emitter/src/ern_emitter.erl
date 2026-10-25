@@ -17,11 +17,12 @@
 %% local functions (Appendix H), is '$N.P', and the entry a spawn on a peer
 %% starts a lambda or a local function by is '$N.P.entry' (§8.7). A
 %% descriptor's function is '$type_K', K counting the unit's descriptors.
-%% What the runtime calls on every unit
-%% keeps its name: '$init'/0, '$deps'/0, '$tests'/0, '$spawned'/2 and
-%% '$code'/0. Each function's Ernest name is in '$code'/0, by which a caller
-%% from Erlang and a fault's trace find it (ern_code), and in a comment
-%% above it in the code for reading, `--emit-erl` and the golden files.
+%%
+%% What the runtime calls on every unit keeps its name: '$init'/0,
+%% '$deps'/0, '$tests'/0, '$spawned'/2 and '$code'/0. Each function's
+%% Ernest name is in '$code'/0, by which a caller from Erlang and a fault's
+%% trace find it (ern_code), and in a comment above it in the code for
+%% reading, `--emit-erl` and the golden files.
 %%
 %% Report §5.1's left-to-right order of a call's arguments, a tuple's and a
 %% list's elements and an operator's operands rests on the host compiler's,
@@ -54,24 +55,26 @@
 %% the definition's module writes them (§11.5, printing/2); restrictions:
 %% each type variable of the definition its schemes quantify, by its
 %% number, with its restrictions, by which a check's cause prints it
-%% (§11.5); variables: a local's number => its Erlang variable; counter:
-%% the last number a made variable took; locals: a
-%% local fn's number => its #local_fn{} (see Blocks); lifted: module
-%% functions produced by lifting, reversed; descriptors: descriptor term =>
-%% the name of the module function returning it; pattern_guards: Erlang
-%% guard forms a pattern needs on its clause, a float segment's zero
-%% (report §3.1), taken by the clause that uses them; members: {Number,
-%% Member} => the Erlang variable of a member the enclosing declarations'
-%% requirements name (report §4.9), each a parameter the program does not
-%% write; outer: while a pattern is compiled, the variables in scope where
-%% it began, else undefined; let_lambdas: the Erlang variable a `let` binds
-%% to a lambda => the lambda and the variables in force at it, which its
-%% captures are, for a spawn on a peer that names it (§3.11); entries: each
-%% lambda's or local fn's entry a spawn on a peer starts, by its
-%% definition's position and its own (§8.7, §11.1); builds_functions:
-%% whether the unit builds a function value, a fun of its own code that may
-%% be held anywhere (function_value/2), which the shell reads to keep an
-%% input (§11.2).
+%% (§11.5).
+%%
+%% variables: a local's number => its Erlang variable; counter: the last
+%% number a made variable took; locals: a local fn's number => its
+%% #local_fn{} (see Blocks); lifted: module functions produced by lifting,
+%% reversed; descriptors: descriptor term => the name of the module
+%% function returning it; pattern_guards: Erlang guard forms a pattern
+%% needs on its clause, a float segment's zero (report §3.1), taken by the
+%% clause that uses them; members: {Number, Member} => the Erlang variable
+%% of a member the enclosing declarations' requirements name (report §4.9),
+%% each a parameter the program does not write; outer: while a pattern is
+%% compiled, the variables in scope where it began, else undefined.
+%%
+%% let_lambdas: the Erlang variable a `let` binds to a lambda => the lambda
+%% and the variables in force at it, which its captures are, for a spawn on
+%% a peer that names it (§3.11); entries: each lambda's or local fn's entry
+%% a spawn on a peer starts, by its definition's position and its own
+%% (§8.7, §11.1); builds_functions: whether the unit builds a function
+%% value, a fun of its own code that may be held anywhere
+%% (function_value/2), which the shell reads to keep an input (§11.2).
 -record(emit_context, {unit, own, definition, declaration, printing, restrictions = #{},
                        variables = #{}, counter = 0, locals = #{}, lifted = [],
                        descriptors = #{}, pattern_guards = [], members = #{}, outer,
@@ -721,19 +724,21 @@ foreign_arity(#foreign_function{scheme = {scheme, _, {arrow, ParamTypes, _, _}, 
 %% it reads it, and a peer's spawn finds it valued (§4.6, §11.1,
 %% ern_arrival); each foreign declaration's implementation and its
 %% function, which the canonical forms name by its qualified name alone;
-%% each lambda and local fn a spawn on a peer starts, by its identity,
-%% with its entry and its reach; under the namespace the forms name what
-%% it declares under, the namespace its spawn sites name its declarations
-%% under (site_namespace/1), by which a fault's trace names its functions
+%% and each lambda and local fn a spawn on a peer starts, by its identity,
+%% with its entry and its reach.
+%%
+%% Under the namespace the forms name what it declares under, the unit
+%% holds the namespace its spawn sites name its declarations under
+%% (site_namespace/1), by which a fault's trace names its functions
 %% (ern_code:function_text/3), the empty namespace for an input of a
 %% shell's session, whose sites name them by their own names; under the
 %% same namespace each binding's first line (initializers/2); and, last,
 %% under the module's namespace, the units its code calls (calls/2). Each
-%% qualified name is the forms' (Appendix H): an input of a shell's
-%% session names what it declares under the session's one namespace, by
-%% which a reach finds it. The last three rows are the unit's, which
-%% syntax/1 adds. A literal '$code'/0 answers, so that a load reads it
-%% without decoding the module's chunks, which costs more than the load.
+%% qualified name is the forms' (Appendix H): an input of a shell's session
+%% names what it declares under the session's one namespace, by which a
+%% reach finds it. The last three rows are the unit's, which syntax/1 adds.
+%% A literal '$code'/0 answers, so that a load reads it without decoding
+%% the module's chunks, which costs more than the load.
 code(Placed, ForeignPlaced, Entries,
      #emit_context{unit = #unit{reaches = Reaches} = Unit,
                    own = #own{forms = Forms, grounds = Grounds}} = Context) ->
@@ -1771,10 +1776,12 @@ holds_function(_) -> false.
 %% name is asked of the shell when the spawn runs, and is not the unit's
 %% code: an input typed again then compiles to the code it did before, and
 %% the host keeps an entry for each lambda of each version it loads
-%% (docs/memory.md). A form without its source names the declaration
-%% alone. Report §12.7: a definition of an exchange's unit by the name the
-%% code frame gave it, its lines the sender's. A fault's trace writes a
-%% frame of the unit's code by the same name and line (ern_code:function_text/3).
+%% (docs/memory.md).
+%%
+%% A form without its source names the declaration alone. Report §12.7: a
+%% definition of an exchange's unit by the name the code frame gave it, its
+%% lines the sender's. A fault's trace writes a frame of the unit's code by
+%% the same name and line (ern_code:function_text/3).
 site(Source, #emit_context{unit = #unit{site_namespace = SiteNamespace,
                                          name = ErlangModule} = Unit,
                            declaration = Declaration}) ->

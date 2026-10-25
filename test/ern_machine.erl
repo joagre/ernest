@@ -6,11 +6,13 @@
 %% through one ssh connection held for the run, since an ssh connection's
 %% own handshake costs 0.5 to 1.5 seconds to the user's machines, and a
 %% session over a held one about 25 ms. test/machines/machines.txt lists
-%% the machines (docs/development.md). Each wait here is bounded by the
-%% harness's time for one wait (ern_nodes_tests:wait_ms/0) and is one step
-%% of the test that runs it (ern_nodes_tests:step/1), but a command given a
-%% bound of its own, `infinity` for one that runs as long as its work does,
-%% a clone's build or a measuring program's run.
+%% the machines (docs/development.md).
+%%
+%% Each wait here is bounded by the harness's time for one wait
+%% (ern_nodes_tests:wait_ms/0) and is one step of the test that runs it
+%% (ern_nodes_tests:step/1), but a command given a bound of its own,
+%% `infinity` for one that runs as long as its work does, a clone's build
+%% or a measuring program's run.
 -module(ern_machine).
 
 -export([local/0, machine/4, name/1, host/1, interface/1, is_local/1, clone/1, ern/1,
@@ -349,16 +351,17 @@ unended(Reader, What) ->
 %% Report §8.7: once the port Port of Host answers, asked from here: a node
 %% listens only once its initializers have their values, and one started
 %% apart from the run, whose line `listening on` goes to a log of earlier
-%% starts too, shows that it listens by its port's answer. A refusal comes
-%% at once, so the next ask waits as long as the node has been waited for
-%% so far, and at least the one millisecond of the host's timer, within
-%% which the first refusal comes: however long the node takes to listen,
-%% it is seen within that time again, and the asks grow with the logarithm
-%% of that time, not with the time, as asks without a pause would, which
-%% keep a core busy while the node starts. At each refusal Refused is
-%% called, which fails where the node has ended; a port that has not
-%% answered within the harness's time for one wait fails the run, each
-%% connection and each pause given what is left of it. One step.
+%% starts too, shows that it listens by its port's answer.
+%%
+%% A refusal comes at once, so the next ask waits as long as the node has
+%% been waited for so far, and at least the one millisecond of the host's
+%% timer, within which the first refusal comes: however long the node
+%% takes to listen, it is seen within that time again, and the asks grow
+%% with the logarithm of that time, not with the time, as asks without a
+%% pause would, which keep a core busy while the node starts. At each
+%% refusal Refused is called, which fails where the node has ended; a port
+%% that has not answered within the harness's time for one wait fails the
+%% run, each connection and each pause given what is left of it. One step.
 -spec answering(string(), inet:port_number(), fun(() -> ok)) -> ok.
 answering(Host, Port, Refused) ->
     ern_nodes_tests:step({answering, Host, Port}),

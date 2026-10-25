@@ -10,12 +10,14 @@
 
 %% report §11.2, §11.5: an expression prints its value and its type, one of
 %% type Unit prints nothing, an input that does not check shows the error
-%% `ern build` shows, and a fault is reported without ending the session; a `let`
-%% binds for the inputs after it and `it` is the last value; an input
+%% `ern build` shows, and a fault is reported without ending the session; a
+%% `let` binds for the inputs after it and `it` is the last value; an input
 %% declares what a module may, a later declaration of a name shadowing the
 %% one before it, and what it declared is printed a line for each; and
 %% report §4.4, an abstract type's constructor is the input's that declared
-%% it. The commands are here too: `:type`, `:browse`, `:doc`, `:help`,
+%% it.
+%%
+%% The commands are here too: `:type`, `:browse`, `:doc`, `:help`,
 %% `:forget`, `:bindings`, `:set` with the depth and the length a value is
 %% printed to, a prefix of any of them, a prefix that begins two names
 %% refused with both, and `:help` in alphabetical order; `:load` refusing a
@@ -808,14 +810,16 @@ fault_before_the_end_written() ->
 %% report §11.2: in line mode a fault the shell writes as it ends, at the
 %% end of its input, begins a line of its own: the line of the prompt the
 %% end came at, which no input ended, is ended before the fault and not
-%% again after it. The input spawns a process that faults when the test
-%% sends it a byte and one that watches it, which tells the test once the
-%% Down has come, after the fault's report to the session is under way
-%% (delivered_down/3). The test sends the byte once the next prompt is
-%% written and ends the input once it is told, so the fault is one the end
-%% writes and none the prompt before it does. Written with the change, and
-%% red before it, the fault on the prompt's line and a blank line after
-%% it; it does not cover `:quit` in line mode, which ends the same way
+%% again after it.
+%%
+%% The input spawns a process that faults when the test sends it a byte and
+%% one that watches it, which tells the test once the Down has come, after
+%% the fault's report to the session is under way (delivered_down/3). The
+%% test sends the byte once the next prompt is written and ends the input
+%% once it is told, so the fault is one the end writes and none the prompt
+%% before it does. Written with the change, and red before it, the fault on
+%% the prompt's line and a blank line after it; it does not cover `:quit`
+%% in line mode, which ends the same way
 end_fault_on_a_line_of_its_own_test_() ->
     ern_nodes_tests:counted_test({waits, 5}, fun end_fault_on_a_line_of_its_own/0).
 
@@ -864,6 +868,7 @@ end_fault_on_a_line_of_its_own() ->
 %% no process had faulted, and the fault's line came after it, the session
 %% taking the report only before the next prompt. It does not cover a
 %% report still on its way as the line comes, which the next line takes.
+%%
 %% Report §11.2, Appendix E.21: `:faults` stamps the fault with the time it
 %% was met, the report's, at or before the moment the test learned of its
 %% Down, though the line that takes it comes later. A regression test of
@@ -1100,7 +1105,9 @@ fault_while_typing() ->
 %% ended by a host function a session declares, called by the input
 %% itself, which runs while it calls it and then waits for a message
 %% nothing sends, so that the end comes while it runs, whenever the
-%% session takes it. Regression tests: the session waited for the input, and wrote to a
+%% session takes it.
+%%
+%% Regression tests: the session waited for the input, and wrote to a
 %% screen that had ended. The end came first from a process the input
 %% spawned after a fixed 300 ms, which waited for nothing the input does
 %% not already show, and the 300 ms went; and each session's bound on a
@@ -1656,18 +1663,19 @@ load_completion_of_two_words() ->
 %% nothing after `:output`, where `Tab` neither lists nor indents. A
 %% lone candidate is completed as far as it goes, a setting with the space
 %% before its value as a command with its argument, and is listed with its
-%% line whenever `Tab` reaches it. A regression test for findings of the session of
-%% real use: `:browse` and `Tab` did nothing, `:browse ` and `Tab`
-%% indented, `:browse B` listed `module Bool`, and `:bindings` and `Tab`
-%% showed nothing. After `C-c` the session says a new prompt, which may
-%% reach the screen after the next keys typed, the line then painted
-%% without it and again with it when it comes, its listing with it; so a
-%% step whose bytes the test reads with the prompt waits for the completed
-%% line with the prompt, which the screen paints only with the listing
-%% under it, and not for the listing alone, which an earlier paint without
-%% the prompt holds. A regression test for a run under load, where the
-%% prompt came after the keys of the next line and its listing, written
-%% 2026-10-11
+%% line whenever `Tab` reaches it. A regression test for findings of the
+%% session of real use: `:browse` and `Tab` did nothing, `:browse ` and
+%% `Tab` indented, `:browse B` listed `module Bool`, and `:bindings` and
+%% `Tab` showed nothing.
+%%
+%% After `C-c` the session says a new prompt, which may reach the screen
+%% after the next keys typed, the line then painted without it and again
+%% with it when it comes, its listing with it; so a step whose bytes the
+%% test reads with the prompt waits for the completed line with the
+%% prompt, which the screen paints only with the listing under it, and not
+%% for the listing alone, which an earlier paint without the prompt holds.
+%% A regression test for a run under load, where the prompt came after the
+%% keys of the next line and its listing, written 2026-10-11
 command_argument_test_() ->
     ern_nodes_tests:counted_test({waits, 16}, fun command_argument/0).
 
@@ -2068,18 +2076,19 @@ load_failed_dependency() ->
 %% type its exported function receives, and a spawn of the function at the
 %% prompt binds an address of it, which prints with its type, the session
 %% going on; the type stays private to names, and an input that writes it
-%% or its constructor is refused as private. A regression test: the
-%% binding faulted the shell, which ended with status 70, since the
-%% interface carried nothing of the type for its descriptor, and the next
-%% input faulted the checker on the type the session's scope named; and an
-%% input that wrote the type was refused as `unknown type Plain.Msg`,
-%% which the last assertion, written 2026-10-16 after the code, holds to
-%% §11.5's text; and its constructor was refused as unknown, which the
-%% assertion before it, written 2026-10-23 after the code, holds to
-%% §11.5's text for a constructor of a type a module keeps private (the
-%% log's *What the Skeptics Found*).
-%% It does not cover a message checked at such an address, which the
-%% integration tests' exposed program does
+%% or its constructor is refused as private.
+%%
+%% A regression test: the binding faulted the shell, which ended with
+%% status 70, since the interface carried nothing of the type for its
+%% descriptor, and the next input faulted the checker on the type the
+%% session's scope named; and an input that wrote the type was refused as
+%% `unknown type Plain.Msg`, which the last assertion, written 2026-10-16
+%% after the code, holds to §11.5's text; and its constructor was refused
+%% as unknown, which the assertion before it, written 2026-10-23 after the
+%% code, holds to §11.5's text for a constructor of a type a module keeps
+%% private (the log's *What the Skeptics Found*). It does not cover a
+%% message checked at such an address, which the integration tests'
+%% exposed program does
 private_mailbox_type_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun private_mailbox_type/0).
 
@@ -2931,16 +2940,20 @@ printed(Output, Line) ->
 %% reload names the bindings it so leaves, a message of the new version to
 %% an address of the previous one is a type error whose help says which is
 %% the previous version's, and one of its own version, made by a function
-%% of that version, is taken. A session type over the changed type is
-%% compiled again over the new version, a binding of it made before being
-%% of its previous version, a binding of another type stays as it was, a
-%% binding made again is of the current version, and a reload that changes
-%% no type leaves the binding's type alone. A regression test: until MVP 3.1
-%% the reload forgot every such binding, and before that `send(c,
-%% Counter.Reset)` to an address of the previous version was accepted, and
-%% `Reset` sat in the old process's mailbox unmatched; the session type's
-%% new version written after the fix (the log's *MVP 3.1 Read*), where it stayed over the
-%% previous version and refused the new version's address
+%% of that version, is taken.
+%%
+%% A session type over the changed type is compiled again over the new
+%% version, a binding of it made before being of its previous version, a
+%% binding of another type stays as it was, a binding made again is of the
+%% current version, and a reload that changes no type leaves the binding's
+%% type alone.
+%%
+%% A regression test: until MVP 3.1 the reload forgot every such binding,
+%% and before that `send(c, Counter.Reset)` to an address of the previous
+%% version was accepted, and `Reset` sat in the old process's mailbox
+%% unmatched; the session type's new version written after the fix (the
+%% log's *MVP 3.1 Read*), where it stayed over the previous version and
+%% refused the new version's address
 reload_keeps_the_type_checked_under_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun reload_keeps_the_type_checked_under/0).
 
@@ -4071,8 +4084,9 @@ reload_bindings() ->
 %% module's dependent is compiled again where its forms reference a
 %% definition whose hash the reload changed, as `ern build` would compile
 %% it: the reload changes the body of the function the dependent calls and
-%% keeps the module's interface. Written after the code (the log's *The
-%% Shell's Reload by Hash, Built*);
+%% keeps the module's interface.
+%%
+%% Written after the code (the log's *The Shell's Reload by Hash, Built*);
 %% the line and the change kept to a body a regression test, written after
 %% the fix: the line said every binding after the fault kept its value, and
 %% the change added an export, which compiled the dependent by the rule of

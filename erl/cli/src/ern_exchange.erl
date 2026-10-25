@@ -4,60 +4,35 @@
 %% gateways (ern_gateway), which hand them here as they come. It plays both
 %% parts, for every peer.
 %%
-%% As the spawner's node it answers a peer's request for a function's reach
-%% from the code table and the forms kept beside the code
-%% (ern_code:forms/1, report §11.2): the identities the function's
-%% definition references, transitively, code and types, the bindings the
-%% function's reach names, and the foreign declarations it names, each with
-%% the module and the function of the host its declaration calls, its
-%% declared type, what prints a type in its check's cause as its module
-%% writes it and the line it is declared at, by which the peer finds what
-%% it lacks, calls the host's function and names the declaration's frame in
-%% a trace; a foreign function spawned by its name, which has no hash, has
-%% its declaration alone in its reach. It answers the peer's lacks with a
-%% code frame for each definition it lacks, a group's members in one, since
-%% a member is hashed with its group, dependencies first, each with its
-%% name, the lines of its source, what prints a type in a cause as its
-%% module writes it (§11.5), and the foreign declarations its form calls,
-%% each with the host's module and function and its line, so that the peer
-%% calls those beyond the spawned function's reach as it calls the reach's
-%% (§8.4). It keeps nothing of a peer's asking between two frames. Where it
-%% no longer holds a function it is asked the reach of, or a definition a
-%% peer lacks, the shell having let go of the input that held it once its
-%% spawn had given up, it answers a reach of none.
+%% As the spawner's node the exchange answers a peer's request for a
+%% function's reach from the code table and the forms kept beside the code
+%% (ern_code:forms/1, report §11.2), and the peer's lacks with a code frame
+%% for each definition it lacks (§11.5, §8.4). It keeps nothing of a peer's
+%% asking between two frames. Where it no longer holds a function it is
+%% asked the reach of, or a definition a peer lacks, the shell having let go
+%% of the input that held it once its spawn had given up, it answers a reach
+%% of none.
 %%
-%% As the node a spawn or a compute was asked of, it takes from the
-%% gateway's worker each one whose function the node lacks, and asks the
-%% spawner's node for the reach; answers `NotLoaded` where the node lacks
-%% the module a foreign declaration names, or the function in it, or a
-%% binding's value, before any code crosses, and otherwise the identities
-%% it lacks, a definition it holds in no unit that exports its function
-%% among them (§12.7, §11.1), since no other unit's code can call it
-%% (ern_code:linkable/1); verifies each code frame against the hashes it
-%% names as it arrives, its forms with their source's lines against the
-%% forms, and its foreign declarations against those the forms call, and
-%% holds them apart until every lacked identity has arrived; and then makes
-%% the whole reach one unit, compiled and loaded (ern_arrival), which the
-%% node holds for its life (§11.2), and reads each spawn and compute that
-%% waits again as the gateway's worker reads it, which starts it, or
-%% answers it `Other` with the reason it could not. Two spawns that wait on
-%% one identity share one exchange, and are answered together. An exchange
-%% runs within the time of the spawns that wait on it, the milliseconds
-%% their frames carry, and is dropped with its forms once the last of them
-%% has run out, each spawn said and left unanswered, its spawner having
-%% answered itself `Timeout`. A frame it cannot read, a form whose hash is
-%% not the one named among them, is faulty, and the node ends the peer's
-%% connection, as the gateway's worker does (ern_gateway's outcome/2). A
-%% loss drops the exchanges asked of the peer with the spawns that peer
+%% As the node a spawn or a compute was asked of, the exchange takes from
+%% the gateway's worker each one whose function the node lacks, and asks
+%% the spawner's node for the reach (§12.7, §11.1, ern_code:linkable/1). It
+%% verifies each code frame's forms with their source's lines against the
+%% forms, and its foreign declarations against those the forms call, makes
+%% the whole reach one unit (ern_arrival, §11.2), and reads each spawn and
+%% compute that waits again as the gateway's worker reads it, which starts
+%% it, or answers it `Other` with the reason it could not. Two spawns that
+%% wait on one identity are answered together. A frame it cannot read is
+%% faulty, as the gateway's worker's is (ern_gateway's outcome/2).
+%%
+%% A loss drops the exchanges asked of the peer with the spawns that peer
 %% asked for, each spawn of another peer that waited on one asking its own
 %% peer anew; a spawn whose spawner no longer waits is answered all the
 %% same, its answer finding no one.
 %%
 %% The node's pool of names for the units its exchanges make is the
-%% exchange's (ern_arrival:name/1), the only process that makes them; and
-%% so is the prelude's environment, by which a unit links what the
-%% standard library and the prelude declare, built at the first arrival
-%% and kept for the node's life, since neither changes while it runs.
+%% exchange's (ern_arrival:name/1), the only process that makes them, and
+%% so is the prelude's environment, by which a unit links what the standard
+%% library and the prelude declare.
 %%
 %% The frames, each {ern_frame, From, Body}, From this node's exchange or a
 %% peer's: {reach_request, Exchange, Identity}; {reach, Exchange,
@@ -70,20 +45,25 @@
 %% #foreign_function{} (ern_unit.hrl), its name, its host's module and its
 %% function as text, its scheme as a form writes it (Appendix H), its
 %% printing and its source, where the declaration is written, {Line,
-%% Column, none}, its export false, which the arrival decides; Hashes the
-%% definition alone or the group's members
-%% in order, Bytes what that definition or group is hashed as (Appendix H),
-%% and Sources the bytes of the host's external term format of a list of
-%% {Name, Sourced, Printing, Calls}, one for each of Hashes in order: the
+%% Column, none}, its export false, which the arrival decides.
+%%
+%% A code frame's Hashes are the definition alone or the group's members in
+%% order, Bytes what that definition or group is hashed as (Appendix H), and
+%% Sources the bytes of the host's external term format of a list of {Name,
+%% Sourced, Printing, Calls}, one for each of Hashes in order: the
 %% definition's name, its form with the lines of its source, the locals'
 %% names left out (§11.1), which, stripped of its source, is the form the
 %% bytes hold, and holds no atom the form does not, so that it is read once
-%% the form is, making none; Printing is {Namespace, Shadows}, the
-%% namespace its module's forms write its types under and the prelude names
-%% its types shadow, as text, by which a type prints in a cause as the
-%% module writes it (§11.5); and Calls the foreign declarations its form
-%% calls, in the order of their names, each a #foreign_function{} as a
-%% reach's is, but for its scheme, none, the form writing it (§12.7).
+%% the form is, making none.
+%%
+%% A source's Printing is {Namespace, Shadows}, the namespace its module's
+%% forms write its types under and the prelude names its types shadow, as
+%% text, by which a type prints in a cause as the module writes it (§11.5).
+%% Its Calls are the foreign declarations its form calls, in the order of
+%% their names, each a #foreign_function{} as a reach's is, but for its
+%% scheme, none, the form writing it (§12.7).
+%%
+%% The shape is docs/design/code.md's.
 -module(ern_exchange).
 
 -export([start/0, handed/1, lacking/3, lost/1]).

@@ -153,17 +153,19 @@ utilizations_test() ->
             end).
 
 %% report Appendix E.27: the pick's rules over the utilizations a node
-%% holds, the configuration's order a, b, c, d, e: a single usable peer is
-%% taken as it is, however busy; a utilization older than two of its
+%% holds, the configuration's order a, b, c, d, e. A single usable peer is
+%% taken as it is, however busy. A utilization older than two of its
 %% teller's intervals is not used, and `utilizations` answers it as it is,
 %% with its age, while one as old from a peer that tells seldom enough is
-%% used; of two peers the less busy is taken at every draw, and of two
-%% equally busy the first drawn, so that each is taken across draws; the
-%% draw among more than two stays within the usable ones, never takes the
-%% busiest, which is no less busy than any it is drawn with, and takes each
-%% other one, two being drawn at random; and of five equally busy each is
-%% taken, the last in the configuration's order among them. A regression
-%% test, written after the code; the first drawn's two assertions before its
+%% used.
+%%
+%% Of two peers the less busy is taken at every draw, and of two equally
+%% busy the first drawn, so that each is taken across draws. The draw among
+%% more than two stays within the usable ones, never takes the busiest,
+%% which is no less busy than any it is drawn with, and takes each other
+%% one, two being drawn at random; and of five equally busy each is taken,
+%% the last in the configuration's order among them. A regression test,
+%% written after the code; the first drawn's two assertions before its
 %% change of 2026-10-20, which they failed. That the draw is uniform is the
 %% host's generator's, and is not measured
 pick_test() ->
@@ -327,15 +329,16 @@ no_run_test() ->
 %% has its value in the run, and every module a foreign declaration of its
 %% reach calls is here; a function that names no binding starts in a run
 %% that never initialized its module, where a rule by module once refused
-%% it. Otherwise it answers NotLoaded, and the frame's reading
-%% answers what this node lacked, which the gateway says: a binding with no
-%% value, which a function it calls names, and a foreign declaration's
-%% module. A function it does not hold, by its hash, a lambda by its
-%% definition's hash and position, `restarting` over one, and a foreign
-%% function it does not have, by its name as text, whose names make no
-%% atom here, the frame's reading hands to the exchange by the identity
-%% this node lacks, and answers nothing itself. Nothing is initialized
-%% because a peer asked
+%% it.
+%%
+%% Otherwise the spawn answers NotLoaded, and the frame's reading answers
+%% what this node lacked, which the gateway says: a binding with no value,
+%% which a function it calls names, and a foreign declaration's module. A
+%% function it does not hold, by its hash, a lambda by its definition's
+%% hash and position, `restarting` over one, and a foreign function it does
+%% not have, by its name as text, whose names make no atom here, the
+%% frame's reading hands to the exchange by the identity this node lacks,
+%% and answers nothing itself. Nothing is initialized because a peer asked
 spawn_by_identity_test() ->
     Unit = 'ern@peerreach',
     Hashes = loaded(['Peerreach'], ?REACHING),
@@ -497,14 +500,15 @@ failed_spawn_ends_no_call_test() ->
 %% alias: the value; a fault in it, its cause and its trace, which this node
 %% reports nothing of; NotLoaded where a binding its reach names has no
 %% value here, with what this node lacked, which the gateway says of the
-%% compute; and a process that ends before it answers its Reason. The call's
-%% second note kills the process where it still runs, which then tells no
-%% one, and one that came before the process could start leaves it never
-%% run, the compute answered Unreachable, which its caller, no longer
-%% waiting, drops. A regression test, written after the code; Appendix E.21:
-%% the trace that crosses names the definition's frame by its name and its
-%% line, a regression test written after the code, where a division's was
-%% empty
+%% compute; and a process that ends before it answers its Reason.
+%%
+%% The call's second note kills the process where it still runs, which then
+%% tells no one, and one that came before the process could start leaves it
+%% never run, the compute answered Unreachable, which its caller, no longer
+%% waiting, drops. A regression test, written after the code; Appendix
+%% E.21: the trace that crosses names the definition's frame by its name
+%% and its line, a regression test written after the code, where a
+%% division's was empty
 computed_here_test() ->
     Unit = 'ern@peercomputed',
     Hashes = loaded(['Peercomputed'], ?COMPUTED),
@@ -642,8 +646,9 @@ computed_restarting_test() ->
 %% crossed, which faults the caller with the cause unchanged, its trace
 %% ending in the compute's site, and whose report names the callee and the
 %% peer beside the cause, and the Reason of a process that ended before it
-%% answered come, each letting the caller's CALL key go with no second note;
-%% where the time runs out, or the caller is killed while it waits, the
+%% answered come, each letting the caller's CALL key go with no second note.
+%%
+%% Where the time runs out, or the caller is killed while it waits, the
 %% second note follows; and where the gateway is gone the wait ends
 %% Unreachable, the key gone with each. A fault that is not text answers
 %% `Other`, the caller faulting with nothing that is not. A regression test,
@@ -1042,13 +1047,15 @@ foreign_callee_test() ->
 %% process, Restarted with an empty site, and to no monitor that is no
 %% service monitor, and is answered by the frame that its watchers have
 %% been told, carrying its alias, once the delivery has ended, a wrap that
-%% has not finished holding the answer back; one of a process this node
-%% holds no service monitor of is answered at once; and the answer, read
-%% on the restarting node, goes to the alias it carries. Here a process of
-%% this host's stands in for the peer's, and the watcher stands in for the
-%% peer's gateway, taking the answers. A regression test, written after the code; the frames between
-%% real nodes, and the restarting node's wait for them, are
-%% test/ern_nodes_tests.erl's restart_told_test_
+%% has not finished holding the answer back. One of a process this node
+%% holds no service monitor of is answered at once, and the answer, read on
+%% the restarting node, goes to the alias it carries.
+%%
+%% Here a process of this host's stands in for the peer's, and the watcher
+%% stands in for the peer's gateway, taking the answers. A regression test,
+%% written after the code; the frames between real nodes, and the
+%% restarting node's wait for them, are test/ern_nodes_tests.erl's
+%% restart_told_test_
 restarted_frame_test() ->
     Self = self(),
     Main = fun() ->
@@ -1094,13 +1101,15 @@ restarted_frame_test() ->
 %% end ends the wait: the restart's ask of a node whose gateway then ends
 %% takes the answer that came behind the end of the watch, and one that
 %% comes after the wait has ended is dropped, the restarting process's
-%% mailbox holding neither. Here this host stands in for the peer's node,
-%% a process registered as its gateway for the peer's gateway, its end for
-%% the node's end or a loss, which the wait reads alike, and a process of
-%% this host's for the restarting one, which reads its mailbox only once
-%% the end of the watch and the answer behind it are there. A regression
-%% test, written after the code; the wait between real nodes is
-%% test/ern_nodes_tests.erl's restart_told_test_
+%% mailbox holding neither.
+%%
+%% Here this host stands in for the peer's node, a process registered as
+%% its gateway for the peer's gateway, its end for the node's end or a
+%% loss, which the wait reads alike, and a process of this host's for the
+%% restarting one, which reads its mailbox only once the end of the watch
+%% and the answer behind it are there. A regression test, written after the
+%% code; the wait between real nodes is test/ern_nodes_tests.erl's
+%% restart_told_test_
 restart_answer_after_the_end_test() ->
     Self = self(),
     Gateway = spawn(fun() ->
@@ -1172,15 +1181,17 @@ restart_waits_for_each_node_test() ->
 %% to a service monitor whose wrap has not finished, and then the loss of
 %% that process's node, gives the watcher the loss's `Unreachable` and no
 %% `Restarted`, before or after it, the delivery of `Restarted` ended
-%% though its wrap would finish later. Here a process of this host's stands
-%% in for the peer's, the watcher for the peer's gateway, and the host's end
-%% of the reaper's monitor with the reason noconnection, which the reaper
-%% reads as a loss, is sent to the reaper by the test. Written with the
-%% fix: under the code before it, the held delivery placed `Restarted`
-%% after the loss's `Unreachable`. It does not cover a real loss between nodes, a `restarted` frame
-%% the gateway's worker reads after the reaper has run the loss, which
-%% finds no monitor left to tell, nor a delivery that has placed its
-%% message, which comes before the loss's
+%% though its wrap would finish later.
+%%
+%% Here a process of this host's stands in for the peer's, the watcher for
+%% the peer's gateway, and the host's end of the reaper's monitor with the
+%% reason noconnection, which the reaper reads as a loss, is sent to the
+%% reaper by the test. Written with the fix: under the code before it, the
+%% held delivery placed `Restarted` after the loss's `Unreachable`. The test
+%% does not cover a real loss between nodes, a `restarted` frame the
+%% gateway's worker reads after the reaper has run the loss, which finds no
+%% monitor left to tell, nor a delivery that has placed its message, which
+%% comes before the loss's
 restarted_ended_at_a_loss_test() ->
     Self = self(),
     Main = fun() ->

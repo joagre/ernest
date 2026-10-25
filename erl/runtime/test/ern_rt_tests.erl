@@ -933,15 +933,16 @@ service_monitor_canceled_test() ->
 %% since the reaper takes the restart once the clock has, so that the new
 %% run hears nothing of the process the delivery monitored. The clock is
 %% held suspended while the delivery asks, the restart waiting on it, so
-%% that the reaper has the monitor before it is asked. A regression test,
-%% written after the fix of the full review's C4-C5b, which it does not
-%% guard: the race was a delivery the clock started after the reaper had
-%% taken the restart, which no test places there, the clock's order of its
-%% messages being its own, and under the old order this test passes too,
-%% the reaper ending the delivery as it took the restart. It does not cover
-%% the terminal's delivery, which takes the restart beside the clock, nor a
-%% delivery of an end's teller, which no restart asks and which
-%% teller_after_the_restart_test covers
+%% that the reaper has the monitor before it is asked.
+%%
+%% A regression test, written after the fix of the full review's C4-C5b,
+%% which it does not guard: the race was a delivery the clock started after
+%% the reaper had taken the restart, which no test places there, the
+%% clock's order of its messages being its own, and under the old order
+%% this test passes too, the reaper ending the delivery as it took the
+%% restart. It does not cover the terminal's delivery, which takes the
+%% restart beside the clock, nor a delivery of an end's teller, which no
+%% restart asks and which teller_after_the_restart_test covers
 monitor_asked_as_restart_waits_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -2206,14 +2207,14 @@ spinning_wrap_ends_with_its_subscriber_test() ->
 %% the subscriber, which it makes before it starts its delivery, comes
 %% after the restart's in the reaper's mailbox, and the delivery's row is
 %% written after the reaper has read the deliveries to the subscriber.
+%%
 %% Written with the fix (MVP 3.95's item 12): under the old code the
 %% delivery applied the wrap in the new run, which held the reply and did
 %% not answer, and the end waited for it until the test's timeout. Whether
 %% the teller's word comes from its delivery or from the restart's end of
 %% the calls waiting on the subscriber is the host's scheduling, and the
-%% test holds either; a
-%% delivery the reaper's read finds is the old order's, which
-%% monitor_asked_as_restart_waits_test covers for the clock
+%% test holds either; a delivery the reaper's read finds is the old order's,
+%% which monitor_asked_as_restart_waits_test covers for the clock
 teller_after_the_restart_test() ->
     Self = self(),
     Holder = spawn(fun() -> held_restart(Self) end),
@@ -2731,12 +2732,14 @@ asked_monitor_goes_with_its_asker() ->
 %% faults reported, the entry process's last; report §6.6, Appendix E.21:
 %% each cause is the callee's unchanged along the chain, and each report
 %% names its own callee's site, and each moment comes no earlier than the
-%% one it was carried from. Here the reporter holds the reaper in the
-%% first report until the entry process has ended, so that the reaper
-%% learns of the others' ends after it. A regression test, written after
-%% the code: the reaper took a fault it learned of after the entry's end
-%% for one the program's end caused, and dropped it; and again for the
-%% cause carried unchanged, written after that code too
+%% one it was carried from.
+%%
+%% Here the reporter holds the reaper in the first report until the entry
+%% process has ended, so that the reaper learns of the others' ends after
+%% it. A regression test, written after the code: the reaper took a fault
+%% it learned of after the entry's end for one the program's end caused,
+%% and dropped it; and again for the cause carried unchanged, written after
+%% that code too
 faults_before_the_end_are_reported_test() ->
     Self = self(),
     Zero = zero(),

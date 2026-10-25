@@ -124,9 +124,11 @@ parts(Lines) ->
 %% the block so stands for the file's, or for the paragraphs left out
 %% there, and no block shows part of a paragraph. The files are `ern
 %% format`'s layout (report §11.6), which writes no two blank lines
-%% together. A block that is not so, or stands under no chapter's heading,
-%% is named by its chapter and its first line. A regression test, written
-%% after the tour's blocks; it does not cover the console blocks, which
+%% together.
+%%
+%% A block that is not so, or stands under no chapter's heading, is named
+%% by its chapter and its first line. A regression test, written after the
+%% tour's blocks; it does not cover the console blocks, which
 %% ern_tour_tests runs, nor which file the prose says a block shows.
 tour_blocks_shown_test() ->
     Lines = binary:split(ern_repository:read("tour/README.md"), <<"\n">>, [global]),

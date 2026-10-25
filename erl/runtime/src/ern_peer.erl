@@ -1,23 +1,26 @@
 %% Report §8.7, Appendix E.27: the module `Peer`'s shims, and the work its
 %% frames give a node's gateway. A service holds its name and its message
-%% type's hash, which the compiler supplies; an offer is a row of the
-%% runtime's, kept while its process lives; a find asks the service's peers
-%% in order through their gateways, each comparing the hash; a spawn sends
-%% the function's identity and captures to the peer's gateway, which finds
-%% the function in the peer's code table and starts the process through the
-%% peer's runtime, or answers `NotLoaded`, or, where the peer lacks the
-%% function, hands the spawn to the peer's exchange (ern_exchange), and
-%% answers through the spawner's gateway, which ends a process no one waits
-%% for any more; a compute sends them so too, its frame the call's first
-%% note, and its process answers the function's value, or its fault,
-%% through the caller's alias, its call the runtime's (ern_rt:compute/4),
-%% on the peer named or on one the node picks by the utilizations its
-%% peers told it (pick/0), which the gateway holds (hold_utilization/3);
-%% a utilization asks the peer's gateway, which answers it
-%% (ern_gateway). A node's peers and services are the carrier's to give
-%% (configure/2); a program that is no node has none. A wait has no upper
-%% bound: it is made against the moment its time ends, in slices the host
-%% takes (ern_rt:remaining/1).
+%% type's hash, which the compiler supplies. An offer is a row of the
+%% runtime's, kept while its process lives. A find asks the service's peers
+%% in order through their gateways, each comparing the hash.
+%%
+%% A spawn sends the function's identity and captures to the peer's
+%% gateway, which finds the function in the peer's code table and starts
+%% the process through the peer's runtime, or answers `NotLoaded`, or,
+%% where the peer lacks the function, hands the spawn to the peer's
+%% exchange (ern_exchange), and answers through the spawner's gateway,
+%% which ends a process no one waits for any more. A compute sends them so
+%% too, its frame the call's first note, and its process answers the
+%% function's value, or its fault, through the caller's alias, its call the
+%% runtime's (ern_rt:compute/4), on the peer named or on one the node picks
+%% by the utilizations its peers told it (pick/0), which the gateway holds
+%% (hold_utilization/3). A utilization asks the peer's gateway, which
+%% answers it (ern_gateway).
+%%
+%% A node's peers and services are the carrier's to give (configure/2); a
+%% program that is no node has none. A wait has no upper bound: it is made
+%% against the moment its time ends, in slices the host takes
+%% (ern_rt:remaining/1).
 -module(ern_peer).
 
 -export([configure/2, tables/0, name/1, service/1, service/2, offer/2, find/2, spawn/3, spawn/4,
@@ -464,29 +467,33 @@ drop_utilization(Node) ->
 %%
 
 %% Report §12.6: a frame a peer sent, read by the gateway's worker for that
-%% peer, each field of it checked: a find answered at once; a spawn started
-%% through this node's runtime, or `NotLoaded`, with what this node lacked,
-%% which the gateway says; a compute so too, its process answering its
-%% caller, the gateway having noted it as it came (ern_rt:note_compute/2);
-%% a spawn or a compute of a function this node lacks, the identity the
-%% exchange asks the peer for (ern_exchange), which answers it; a spawn's
-%% answer handed to the process that waits for it, where it lives, or else
-%% its process ended; a message to an adapted address this node made, the
-%% address and the message, which the worker hands to the process it keeps
-%% for the address (ern_rt:kept/1), so that it goes on with the next frame
-%% while the function is applied; and a kill of a process of this node the
-%% runtime started, which this node carries out as its own kill
-%% (ern_rt:kill/1), one of any other process doing nothing: a process of
-%% the runtime's own, a foreign one, and one that has ended since the peer
-%% sent it; a restart of the peer's process that sent the frame, told to
-%% this node's service monitors of it and answered once every delivery
-%% has ended, and that answer, handed to the restarting process of this
-%% node that waits for it. A find, a spawn or a compute is
-%% asked of the run in progress, and one that comes while none is answers
-%% `Unreachable`: between two runs of `ern test` over a directory, in one
-%% host, and as a run ends (ern_rt:asked_of_run/1). Any other frame is one
-%% the gateway cannot read; the gateway answers a utilization itself, and
-%% hands the exchange's four to the exchange.
+%% peer, each field of it checked. A find is answered at once. A spawn is
+%% started through this node's runtime, or answered `NotLoaded`, with what
+%% this node lacked, which the gateway says; a compute so too, its process
+%% answering its caller, the gateway having noted it as it came
+%% (ern_rt:note_compute/2). A spawn or a compute of a function this node
+%% lacks gives the identity the exchange asks the peer for (ern_exchange),
+%% which answers it. A spawn's answer is handed to the process that waits
+%% for it, where it lives, or else its process is ended.
+%%
+%% A message to an adapted address this node made, the address and the
+%% message, the worker hands to the process it keeps for the address
+%% (ern_rt:kept/1), so that it goes on with the next frame while the
+%% function is applied. A kill of a process of this node the runtime
+%% started this node carries out as its own kill (ern_rt:kill/1), one of
+%% any other process doing nothing: a process of the runtime's own, a
+%% foreign one, and one that has ended since the peer sent it. A restart of
+%% the peer's process that sent the frame is told to this node's service
+%% monitors of it and answered once every delivery has ended, and that
+%% answer is handed to the restarting process of this node that waits for
+%% it.
+%%
+%% A find, a spawn or a compute is asked of the run in progress, and one
+%% that comes while none is answers `Unreachable`: between two runs of
+%% `ern test` over a directory, in one host, and as a run ends
+%% (ern_rt:asked_of_run/1). Any other frame is one the gateway cannot read;
+%% the gateway answers a utilization itself, and hands the exchange's four
+%% to the exchange.
 -spec frame(pid(), term()) ->
           ok | unreadable | {not_loaded, spawn | compute, binary(), iodata()}
           | {exchange, identity()} | {adapted, ern_rt:address(), term()}.

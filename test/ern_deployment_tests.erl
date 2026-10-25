@@ -38,15 +38,17 @@
 %% the second build built and its tool run on a, which prints the lines the
 %% console shows, the peers' in the order they answer, each moved though it
 %% lacked the new loop, ends with status 0, and connects to b and c, each
-%% saying so and saying that a ended; and b and c stopped, each saying nothing of a wait, ending
-%% with status 143, and the shell saying that b ended. The guide's
-%% directories are relative, and the test runs the commands from the
-%% directory that holds them, the ports the harness's. It does not cover
-%% the counters' totals after the move, nor a shell's monitor at b's stop.
-%% Its limit is the sum of its twenty-eight waits, each bounded by the
-%% harness's time for one wait: ten jobs, two ports that answer, nine
+%% saying so and saying that a ended; and b and c stopped, each saying
+%% nothing of a wait, ending with status 143, and the shell saying that b
+%% ended.
+%%
+%% The guide's directories are relative, and the test runs the commands
+%% from the directory that holds them, the ports the harness's. It does not
+%% cover the counters' totals after the move, nor a shell's monitor at b's
+%% stop. Its limit is the sum of its twenty-eight waits, each bounded by
+%% the harness's time for one wait: ten jobs, two ports that answer, nine
 %% lines, four ends, the tool's, the two nodes' and the shell's, and what
-%% three nodes said
+%% three nodes said.
 runbook_test_() ->
     ern_nodes_tests:nodes_test({waits, 28}, fun runbook/1).
 
@@ -130,15 +132,16 @@ runbook(Base) ->
 %% refused; `ern reload` reads the file again, a peer added and a changed
 %% `listen` refused, the configuration kept; `ern stop` returns once the
 %% node has ended by termination; and `ern stop` and `ern reload` fail
-%% where no node runs, the file gone or held by none. The guide's paths
-%% are the harness's, and its counter the example's first build. It does
-%% not cover `kill -HUP`, a second `ern stop` while the first waits, which
-%% ern_nodes_tests' stop_waits covers, nor a directory another user owns
-%% or may write. Its limit is the sum of its twenty waits, each bounded by
-%% the harness's time for one wait: thirteen jobs, two ports that answer,
-%% two lines, two nodes' ends and what the first said; written on
-%% 2026-10-16, after its limit of 120 s, a number of its own, ran out under
-%% the full run's load on 2026-10-13.
+%% where no node runs, the file gone or held by none.
+%%
+%% The guide's paths are the harness's, and its counter the example's
+%% first build. The test does not cover `kill -HUP`, a second `ern stop`
+%% while the first waits, which ern_nodes_tests' stop_waits covers, nor a
+%% directory another user owns or may write. Its limit is the sum of its
+%% twenty waits, each bounded by the harness's time for one wait: thirteen
+%% jobs, two ports that answer, two lines, two nodes' ends and what the
+%% first said; written on 2026-10-16, after its limit of 120 s, a number of
+%% its own, ran out under the full run's load on 2026-10-13.
 one_node_test_() ->
     ern_nodes_tests:nodes_test({waits, 20}, fun one_node/1).
 

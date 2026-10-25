@@ -123,18 +123,11 @@ modules documented apart with an authority of their own. Why it is worth its cos
    paragraphs of contracts, what a spawn, a compute, a utilization, an offer and a find answer and
    when, under E.27 as they stood, three restatements gone, §8.7 at 2,886 words of rules, each
    once, pointing at E.27 at each place; the citations redirected and every section cited.
-6. **The comments' paragraphs.** Found 2026-10-26, the night the documents got their ceiling: the
-   Erlang's and the Ernest's comments were never listed, and a run of comment lines with no blank
-   comment line in it stands at 569 words in the gateway's header, 543 in the installation tests',
-   451 in the checker's; 166 blocks are past 150 words, 160 of them Erlang, and six are doc blocks
-   `ern doc` writes as a page's paragraph. `docs/style.md` states the rule from this night: a
-   comment is paragraphs as a document is, a blank comment line between them, none past 150 words.
-
-   The item: a style test over every run of comment lines, as `paragraph_ceiling_test` reads the
-   documents, red past 150; the 166 split at their turns, pedagogically, each part opening on its
-   subject; and each module header past the ceiling read against the design note it restates, the
-   header keeping what a reader of the module needs and pointing at the note, since a fact lives
-   in one place (CLAUDE.md, *Who owns each fact*). Then the test's mark in `docs/style.md`.
+6. **The comments' paragraphs**, done 2026-10-26 (the log's *The Comments' Paragraphs*): a comment
+   is paragraphs as a document is, none past 150 words, which `comment_ceiling_test` holds over
+   `tools/comments.sh`'s listing; the 166 blocks past it split at their turns, and the nine headers
+   past 300 words read against the design notes they restated, each keeping what a reader of the
+   module needs and pointing at its note.
 
 ## MVP 4.0 (a shell attached to a running node), about a week
 

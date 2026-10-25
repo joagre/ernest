@@ -19,17 +19,18 @@
 %% as Gleam names gleam@list, so Ernest never claims a bare name on the BEAM.
 %% A unit's functions are named by their position in it (report §11.1):
 %% the type CounterMsg is the module's first definition, main the second,
-%% '$2', and count the third, '$3'; only exported ones are exported. Every
-%% Address is a pid, a Reply is an alias, and the process primitives go
-%% through ern_rt (plan 2.4). spawn gets a third argument naming the spawn
-%% site for Down (report §6.9). Int arithmetic is emitted inline; String.<>
-%% is binary concatenation; stdlib calls go to the namespace's module,
-%% 'ern@int' for Int, to the function at its position there, so this
-%% target changes where the library's positions do. A call gives the runtime
-%% what an answer from foreign
-%% code is checked by, the reply's descriptor and the fault's text, and a
-%% message from a foreign process is checked by the proxy that delivered
-%% it, so a receive checks nothing (report §8.4).
+%% '$2', and count the third, '$3'; only exported ones are exported.
+%%
+%% Every Address is a pid, a Reply is an alias, and the process primitives
+%% go through ern_rt (plan 2.4). spawn gets a third argument naming the
+%% spawn site for Down (report §6.9). Int arithmetic is emitted inline;
+%% String.<> is binary concatenation; stdlib calls go to the namespace's
+%% module, 'ern@int' for Int, to the function at its position there, so
+%% this target changes where the library's positions do. A call gives the
+%% runtime what an answer from foreign code is checked by, the reply's
+%% descriptor and the fault's text, and a message from a foreign process is
+%% checked by the proxy that delivered it, so a receive checks nothing
+%% (report §8.4).
 %%
 %% The compiler also adds the module's interface as the BEAM chunk "ErnI".
 

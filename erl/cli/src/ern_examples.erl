@@ -47,16 +47,19 @@
 %% uses, the documented module's among them or, inside it, the example's
 %% unit in its place, so that each is initialized once; none for an
 %% example that does not run. Beside them the units their compiling loaded,
-%% which unload/1 takes out once they have run. Report §11.2: an example is
-%% named by the declaration it documents and its number among that
-%% declaration's, `List.take example 2`, the module's own as `List example
-%% 1`; the fenced `ernest` blocks of a type's constructors and fields are
-%% the type's, after its own. A module an example names is found on
-%% LoadPath, the documented module's root first, and loaded by Load, as the
-%% run loads a module the documented one uses (report §11.1). The source of
-%% the module is read once, where it has examples: a private declaration's
-%% example is compiled inside it, and every example's frames name the line
-%% of the source that holds it (frames/2).
+%% which unload/1 takes out once they have run.
+%%
+%% Report §11.2: an example is named by the declaration it documents and
+%% its number among that declaration's, `List.take example 2`, the
+%% module's own as `List example 1`; the fenced `ernest` blocks of a type's
+%% constructors and fields are the type's, after its own.
+%%
+%% A module an example names is found on LoadPath, the documented module's
+%% root first, and loaded by Load, as the run loads a module the documented
+%% one uses (report §11.1). The source of the module is read once, where it
+%% has examples: a private declaration's example is compiled inside it, and
+%% every example's frames name the line of the source that holds it
+%% (frames/2).
 -spec cases([atom()], [module()], [file:filename()], load()) -> {[example()], [module()]}.
 cases(Namespace, [ErlangModule | _] = Loaded, LoadPath, Load) ->
     Erc = code:which(ErlangModule),
@@ -405,12 +408,14 @@ framed_at(_Line, Number, {Name, Before, Start}) ->
 %% of its lines on the line after Before's that is its line in the doc
 %% block: `docExample`'s head stands on the blank line after the
 %% declarations, or before the example's first line where there are none,
-%% so that a trace names the example's line (frames/2). One without a
-%% value is a lambda's body, since it runs nothing, so that it may receive.
-%% One with a value runs, `docExample` giving its value to `Io.show` as the
-%% module writes it (shown/1), so that the example's last call leaves its
-%% frame, and `docShown`, which calls it, has the mailbox type Never, as
-%% an entry point's left open has (report §8.1).
+%% so that a trace names the example's line (frames/2).
+%%
+%% An example without a value is a lambda's body, since it runs nothing, so
+%% that it may receive. One with a value runs, `docExample` giving its
+%% value to `Io.show` as the module writes it (shown/1), so that the
+%% example's last call leaves its frame, and `docShown`, which calls it,
+%% has the mailbox type Never, as an entry point's left open has (report
+%% §8.1).
 -spec module_text([atom()], binary(), binary()) -> {iodata(), binary() | none}.
 module_text(Namespace, Before, Block) ->
     {Body, Value} = split_result(Block),

@@ -20,12 +20,13 @@
 %% piece; a function called back by foreign code, the host's and a
 %% program's; each operation of the models' alone, in a loop of its own;
 %% and the host's call, the foreign fn and the look's key alone, by one
-%% process and by eight at once, each a process with its row. Every row
-%% runs in a launch of the runtime, as `ern run` starts one. Each row is
-%% the median of seven runs, in nanoseconds an iteration, the loop's own
-%% cost included, or a call over all processes, with their range, as
-%% ern_costs measures them. It measures and asserts nothing, so it is not
-%% part of `make test-full`.
+%% process and by eight at once, each a process with its row.
+%%
+%% Every row runs in a launch of the runtime, as `ern run` starts one. Each
+%% row is the median of seven runs, in nanoseconds an iteration, the loop's
+%% own cost included, or a call over all processes, with their range, as
+%% ern_costs measures them. The part measures and asserts nothing, so it is
+%% not part of `make test-full`.
 -module(ern_foreign_costs).
 
 -export([main/1, word/1, ordering/1, nothing/1, text/1, some/1, applied/2, called/1, tried/1,

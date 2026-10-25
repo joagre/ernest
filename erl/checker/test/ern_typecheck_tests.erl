@@ -1738,17 +1738,18 @@ process_only_marks_a_wait_alone_test() ->
 %% and a lambda's alike. The variable is read as the function ends, and is
 %% refused in the words and at the place a call that receives is refused
 %% at once: where a parameter holds it, through a tuple, a record's field
-%% or a callback;
-%% where the result does; where the body fixes it, through a block `let`,
-%% a returned lambda or a wrap's result; and where an enclosing
-%% definition holds it, a local fn's. A wait and a process-only callee are
-%% refused at once, as before, and a parameter the body calls still
-%% receives nothing. A regression test, written after the checker, the
-%% lambda's `: T` after the fix of the full review before 0.5.0, which
-%% found it refused: it does not cover a recursive group whose other
-%% member fixes the variable (group_member_written_none_test covers one
-%% whose member calls `self`), nor the shell's prompt, whose inputs are
-%% typed as a block's statements are
+%% or a callback; where the result does; where the body fixes it, through
+%% a block `let`, a returned lambda or a wrap's result; and where an
+%% enclosing definition holds it, a local fn's.
+%%
+%% A wait and a process-only callee are refused at once, as before, and a
+%% parameter the body calls still receives nothing. A regression test,
+%% written after the checker, the lambda's `: T` after the fix of the full
+%% review before 0.5.0, which found it refused: it does not cover a
+%% recursive group whose other member fixes the variable
+%% (group_member_written_none_test covers one whose member calls `self`),
+%% nor the shell's prompt, whose inputs are typed as a block's statements
+%% are
 standing_over_a_body_that_calls_self_test() ->
     ?assertEqual("() -> Unit", type_of("export fn k() : Unit = kill(self())", k)),
     ?assertEqual("() -> Unit",
@@ -1811,14 +1812,15 @@ standing_over_a_body_that_calls_self_test() ->
 %% as it ends, as a `fn` with that body does, and stands where a function
 %% that receives nothing is expected, a parameter's, a field's and a
 %% type variable's whose binding is annotated so among them; its body
-%% keeps the variable. One whose variable is fixed, waits, stands in its
-%% result, is held by a name around it, a capture or the enclosing
-%% function's parameter, or by a selection the enclosing definition
-%% resolves as it ends, keeps it, and is refused there; so is a call under
-%% a lambda's `: T` whose variable such a selection holds. A regression
-%% test, written after the fix: the full review before 0.5.0 found the
-%% lambda refused where the same body as a `fn` or a `let`-bound lambda was
-%% accepted; it does not cover the prompt
+%% keeps the variable.
+%%
+%% One whose variable is fixed, waits, stands in its result, is held by a
+%% name around it, a capture or the enclosing function's parameter, or by a
+%% selection the enclosing definition resolves as it ends, keeps it, and is
+%% refused there; so is a call under a lambda's `: T` whose variable such a
+%% selection holds. A regression test, written after the fix: the full
+%% review before 0.5.0 found the lambda refused where the same body as a
+%% `fn` or a `let`-bound lambda was accepted; it does not cover the prompt
 lambda_calling_self_receives_nothing_test() ->
     Run = "fn run(f : () -> Unit) : Unit = f()\n",
     ?assertEqual("() -> Unit", type_of(Run ++ "export fn g() : Unit = run(fn() = kill(self()))",
@@ -2272,6 +2274,7 @@ type_declarations_test() ->
 %% (§11.2), and one with a field alike; a constructor named as its own type
 %% is not. A regression test of the principles review's W8 (2026-10-09):
 %% `type Word = String` declared a constructor `String` and was accepted.
+%%
 %% The help writes the fix, with the declared type's name and the held
 %% type's, `an` before a vowel's name (the log's *The Review's Fixes, First
 %% Round*), where an alias was meant and the wrapper compiles, a lone
@@ -2762,14 +2765,15 @@ pattern_receive_at_never_test() ->
 %% which is not the definition's own mailbox type, is Never: a top-level
 %% `let` of a spawn, and of a `Peer.spawn` with no mark; a `fn`, whose type
 %% then holds it, a process-only one among them, and a local `fn` as a
-%% top-level one; nothing can be sent to such an address. One a send fixes,
-%% one an annotation names, one a parameter's type holds, of the definition
-%% or of the function it answers, one that is the definition's own mailbox
-%% type, whose `receive` stands, and one an enclosing definition fixes
-%% after a local fn's end are kept, and a variable inside a mailbox type is
-%% still §4.6's refusal. A regression test, written after the code; it
-%% does not cover the shell's input, which ern_shell_tests does, nor a
-%% group of definitions
+%% top-level one; nothing can be sent to such an address.
+%%
+%% One a send fixes, one an annotation names, one a parameter's type holds,
+%% of the definition or of the function it answers, one that is the
+%% definition's own mailbox type, whose `receive` stands, and one an
+%% enclosing definition fixes after a local fn's end are kept, and a
+%% variable inside a mailbox type is still §4.6's refusal. A regression
+%% test, written after the code; it does not cover the shell's input, which
+%% ern_shell_tests does, nor a group of definitions
 unfixed_mailbox_is_never_test() ->
     ?assertEqual("Address(Never)", type_of("export let p = spawn(fn() = Io.println(\"x\"))", p)),
     ?assertEqual("Either(Io.Error, Address(Never))",
@@ -2822,15 +2826,16 @@ unfixed_mailbox_is_never_test() ->
 %% `make`, which then takes a function that receives nothing alone;
 %% and Never where it stands as a type argument, a test case a helper
 %% builds, its annotation's variable among them, and one beside a function
-%% type that holds it. A process-only one is
-%% refused at the binding, `mkWaiter` and a function a call returns
-%% that waits, its help writing `...` where the writer chooses; a variable
-%% in a value position beside one is still refused. A spawned function's
-%% unfixed mailbox type is Never (unfixed_mailbox_is_never_test). A
-%% regression test, written after the code (the release review before
-%% 0.4.0 found `let t = case("x")` refused, "annotate it", and the full
-%% review of 2026-10-24 the rest, the log's *The Review's Decisions*); it
-%% does not cover a group of bindings
+%% type that holds it.
+%%
+%% A process-only one is refused at the binding, `mkWaiter` and a function
+%% a call returns that waits, its help writing `...` where the writer
+%% chooses; a variable in a value position beside one is still refused. A
+%% spawned function's unfixed mailbox type is Never
+%% (unfixed_mailbox_is_never_test). A regression test, written after the
+%% code (the release review before 0.4.0 found `let t = case("x")` refused,
+%% "annotate it", and the full review of 2026-10-24 the rest, the log's
+%% *The Review's Decisions*); it does not cover a group of bindings
 not_generalized_effect_variable_is_none_test() ->
     Case = "fn case(name : String) : Test.Case(m) =\n"
            "    Test.Case(name = name, run = fn() = Test.Passed)\n",

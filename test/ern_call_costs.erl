@@ -4,18 +4,22 @@
 %% eight callers over eight callees at once, and with eight callers over
 %% one callee. The host's call is gen:do_call/4's: a monitor that is the
 %% reply's alias, the request sent, a receive with an `after`, the monitor
-%% dropped. ern_rt's call/4 reads the callee through the address and sends
-%% the request by its way (line_guard/1, process_of/1, adapted_way/2), so
-%% that a checker or an adapted function is honored; keeps the call's two
+%% dropped.
+%%
+%% ern_rt's call/4 reads the callee through the address and sends the
+%% request by its way (line_guard/1, process_of/1, adapted_way/2), so that
+%% a checker or an adapted function is honored. It keeps the call's two
 %% records, the callee's row in the callees table so that its restart ends
 %% the call (§6.9), and the caller's CALL key in its dictionary, which the
 %% look reads for a request in flight (§8.6) and a kill before it kills
 %% (§6.9), and drops them as the call ends (pending/2, uncalled/0), each a
-%% piece of its own; marks the caller as in a timed receive while it waits,
-%% a key in its dictionary (timed/0, untimed/0, §8.6); takes the answer
-%% among the forms a wait takes, a restart and a fault's among them, the
-%% answer of foreign code checked (waited_answer/3, §8.4), where an Ernest
-%% callee's answer is not; and waits against a deadline in slices of the
+%% piece of its own.
+%%
+%% While it waits, call/4 marks the caller as in a timed receive, a key in
+%% its dictionary (timed/0, untimed/0, §8.6). It takes the answer among
+%% the forms a wait takes, a restart and a fault's among them, the answer
+%% of foreign code checked (waited_answer/3, §8.4), where an Ernest
+%% callee's answer is not. It waits against a deadline in slices of the
 %% host's longest wait, in a try that takes the mark away and one that
 %% settles (?SLICE, remaining/1).
 %%
@@ -25,14 +29,15 @@
 %% counter, the code the compiler writes, its callee too; first the three
 %% beside the host's call, then each model; and each of the call's writes
 %% alone, the callee's row on the runtime's table and the two keys in the
-%% process's dictionary, by one process and by eight at once. Every row
-%% runs in a launch of its own, its callers and callees processes the
+%% process's dictionary, by one process and by eight at once.
+%%
+%% Every row runs in a launch of its own, its callers and callees processes the
 %% runtime spawns, each with its row as a program's has, started at once
 %% and timed until every caller has made its calls (ern_costs:at_once/2),
 %% in nanoseconds a call over all callers, the loop's own cost included.
 %% Each row is the median of seven runs, with their range, as ern_costs
-%% measures them. It measures and asserts nothing, so it is not part of
-%% `make test-full`.
+%% measures them. The part measures and asserts nothing, so it is not part
+%% of `make test-full`.
 -module(ern_call_costs).
 
 -export([main/1]).

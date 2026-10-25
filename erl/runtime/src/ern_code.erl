@@ -2,20 +2,21 @@
 %% unit that holds it, and report §11.2: the host's limits on what a
 %% runtime loads, which the runtime says it nears. A unit is a compiled
 %% module of the host's, whose '$code'/0, which the compiler writes from
-%% the canonical forms' hashes (ern_emitter), lists what it holds; loaded/2
-%% reads it into the table as the unit loads: each function by its hash,
-%% with its function, its arity and its reach, each lambda and local
-%% function a spawn on a peer starts by its identity, with its entry's
-%% function and arity and its reach, each type by its hash, each top-level
-%% binding by its identity, its qualified name with its hash, with the key
-%% its value is kept under (§8.5), and, whose initializer is a ground term,
-%% a constant (§4.6), its getter and its value under `{constant, Hash}`,
-%% since one form is one value whichever binding holds it (§11.1), each
-%% foreign
-%% declaration's
-%% implementation and function by its qualified name as text, as a spawn
-%% frame names it, and, in the unit's own row, the units its code calls. A
-%% unit loaded again with other code replaces its rows, and one unloaded
+%% the canonical forms' hashes (ern_emitter), lists what it holds.
+%%
+%% loaded/2 reads '$code'/0 into the table as the unit loads: each function
+%% by its hash, with its function, its arity and its reach, each lambda and
+%% local function a spawn on a peer starts by its identity, with its
+%% entry's function and arity and its reach, each type by its hash, each
+%% top-level binding by its identity, its qualified name with its hash,
+%% with the key its value is kept under (§8.5), and, whose initializer is a
+%% ground term, a constant (§4.6), its getter and its value under
+%% `{constant, Hash}`, since one form is one value whichever binding holds
+%% it (§11.1), each foreign declaration's implementation and function by
+%% its qualified name as text, as a spawn frame names it, and, in the
+%% unit's own row, the units its code calls.
+%%
+%% A unit loaded again with other code replaces its rows, and one unloaded
 %% takes them with it, so that the table holds what the host holds and no
 %% more (docs/memory.md).
 %%
@@ -150,16 +151,18 @@ is_regular(File) ->
 %% program's module, and every module of the standard library at a run's
 %% start (ern_rt). A unit the host holds already, with this very code from
 %% this file, is taken as it is: `ern test` over a directory loads a module
-%% again for each file whose program uses it, in one node. A unit of a name
-%% the host holds other code of is an earlier program's, which ran in this
-%% host and ended: an earlier run's of `ern test` over a directory, where a
-%% unit is held for its run and not the node's life, or an earlier one's of
-%% the toolchain's own tests, which run program after program in one host.
-%% The host's old code of the name is purged first, which the host requires
-%% before it loads the name again, and which kills no process, since every
-%% process of an ended program has ended with it (§8.6), and reaches no
-%% function of it, since an adapted address the earlier run made is dead
-%% (ern_rt:adapted/2). The host's refusal is answered.
+%% again for each file whose program uses it, in one node.
+%%
+%% A unit of a name the host holds other code of is an earlier program's,
+%% which ran in this host and ended: an earlier run's of `ern test` over a
+%% directory, where a unit is held for its run and not the node's life, or
+%% an earlier one's of the toolchain's own tests, which run program after
+%% program in one host. The host's old code of the name is purged first,
+%% which the host requires before it loads the name again, and which kills
+%% no process, since every process of an ended program has ended with it
+%% (§8.6), and reaches no function of it, since an adapted address the
+%% earlier run made is dead (ern_rt:adapted/2). The host's refusal is
+%% answered.
 -spec load(module(), file:filename(), binary()) -> ok | {error, atom()}.
 load(Unit, File, Beam) ->
     case is_held(Unit, Beam) andalso code:which(Unit) =:= File of
@@ -526,14 +529,16 @@ texts(QualifiedName) ->
 %% answers a peer for it. A node holds one identity in several units where
 %% a shell that is a node holds its build's, loaded at its start and never
 %% evaluated, beside the units its loads and its reloads brought, each
-%% evaluated. A function's code reads its own unit's bindings, so the unit
-%% that answers is one whose initializers have run, the latest loaded of
-%% them, as the session uses its latest version; where none has run, the
-%% latest loaded, since a function whose reach names no binding runs from
-%% any unit, and the reach's check (absent_binding/2) refuses one whose
-%% code reads a binding without its value. No other unit is tried where it
-%% does. The table is a bag, which keeps one key's rows in the order they
-%% were inserted, so the last row is the latest unit loaded.
+%% evaluated.
+%%
+%% A function's code reads its own unit's bindings, so the unit that
+%% answers is one whose initializers have run, the latest loaded of them,
+%% as the session uses its latest version; where none has run, the latest
+%% loaded, since a function whose reach names no binding runs from any
+%% unit, and the reach's check (absent_binding/2) refuses one whose code
+%% reads a binding without its value. No other unit is tried where it does.
+%% The table is a bag, which keeps one key's rows in the order they were
+%% inserted, so the last row is the latest unit loaded.
 answering([]) ->
     none;
 answering(Rows) ->
@@ -595,18 +600,19 @@ held_function(_) -> [].
 %% its declarations under, `Geo.area`, a member's `Geo.Vec.+`, a reload's
 %% version's `Counter$2.worker`, and in a shell's session by its own name;
 %% a definition its recorded forms name otherwise, an input's expression
-%% among them, `input 3`, by that name where the node keeps them. The
-%% unit's '$init'/0, where every top-level binding's initializer is
-%% evaluated, is named at a line by the binding whose source holds it,
-%% the last to begin at or before it. A lambda or a local function is
-%% named as the top-level declaration it is written in is, `Geo.area`, the
-%% frame's line its own, as a spawn site at the same place is (E.21): one
-%% lifted to a function of its own, '$3.2', the entry a spawn on a peer
-%% starts one by, '$3.2.entry', and a fun the host compiles one to,
-%% `-'$3'/1-fun-0-`, alike. A unit an exchange made names each by the name its
-%% code frame gave it, as text, the sender's, `Counter.worker` (§12.7). None
-%% for any other function and for a module that is no unit, which keep the
-%% host's names.
+%% among them, `input 3`, by that name where the node keeps them.
+%%
+%% The unit's '$init'/0, where every top-level binding's initializer is
+%% evaluated, is named at a line by the binding whose source holds it, the
+%% last to begin at or before it. A lambda or a local function is named as
+%% the top-level declaration it is written in is, `Geo.area`, the frame's
+%% line its own, as a spawn site at the same place is (E.21): one lifted to
+%% a function of its own, '$3.2', the entry a spawn on a peer starts one
+%% by, '$3.2.entry', and a fun the host compiles one to, `-'$3'/1-fun-0-`,
+%% alike. A unit an exchange made names each by the name its code frame
+%% gave it, as text, the sender's, `Counter.worker` (§12.7). None for any
+%% other function and for a module that is no unit, which keep the host's
+%% names.
 -spec function_text(module(), atom(), pos_integer() | none) -> string() | none.
 function_text(Unit, Function, Line) ->
     case erlang:function_exported(Unit, '$code', 0) of
@@ -809,19 +815,20 @@ unit_beside(Namespace, Wanted, Number) ->
 %% is Beam, which records Recorded, is placed as on this node, and how it
 %% comes, Dependencies being each module it uses with the unit placed for
 %% it, in the order its compiled form lists them, or `unknown` where none
-%% is placed yet. held: the node holds the unit, under the module's Erlang
-%% name with this very code and each module it uses under its own, or a
-%% unit an earlier load made from these very forms linked to the same
-%% units, a refused load's among them, which stays loaded (§11.2), so that
-%% a module loaded again, unchanged, makes no unit. file: its compiled form
-%% loaded as it is, under its Erlang name, where the host holds no code of
-%% the name and each module it uses is under its own Erlang name. forms: a
-%% unit made from its forms by the back end, linked to the units of the
-%% modules it uses, under its Erlang name where the host holds no code of
-%% it, and else under a name of its own, `ern@counter$2` (unit_beside/2).
-%% Or the refusal of a name the host does not hold. Code.load places the
-%% modules of its reach so (ern_code_load), and the shell the compiled
-%% forms it loads (ern_shell).
+%% is placed yet. Code.load places the modules of its reach so
+%% (ern_code_load), and the shell the compiled forms it loads (ern_shell).
+%%
+%% held: the node holds the unit, under the module's Erlang name with this
+%% very code and each module it uses under its own, or a unit an earlier
+%% load made from these very forms linked to the same units, a refused
+%% load's among them, which stays loaded (§11.2), so that a module loaded
+%% again, unchanged, makes no unit. file: its compiled form loaded as it
+%% is, under its Erlang name, where the host holds no code of the name and
+%% each module it uses is under its own Erlang name. forms: a unit made
+%% from its forms by the back end, linked to the units of the modules it
+%% uses, under its Erlang name where the host holds no code of it, and else
+%% under a name of its own, `ern@counter$2` (unit_beside/2). Or the refusal
+%% of a name the host does not hold.
 -spec placement([atom()], binary(), #recorded{}, [{[atom()], module() | unknown}]) ->
           {held | file | forms, module()} | {error, binary()}.
 placement(Namespace, Beam, Recorded, Dependencies) ->
@@ -953,12 +960,14 @@ binding_keys(Unit) ->
 %% runtime does not read it at each load: it keeps a sum of each, from the
 %% host's own read at the first load, adding what each unit it loads adds
 %% (summed/1), and reads the atoms, which the host counts cheaply, at each
-%% load. Where a sum, or the atoms, reach four fifths of a limit, it reads
-%% the host's counts, says the line of each the host's own count has
+%% load.
+%%
+%% Where a sum, or the atoms, reach four fifths of a limit, the runtime
+%% reads the host's counts, says the line of each the host's own count has
 %% brought there, so that no line is said on a sum, and takes the host's
-%% counts as its sums from then on; a count said is compared no more. A
-%% sum leaves out what the runtime did not load, a host module loaded on
-%% its own among it, so a line can come a little late, never early.
+%% counts as its sums from then on; a count said is compared no more. A sum
+%% leaves out what the runtime did not load, a host module loaded on its
+%% own among it, so a line can come a little late, never early.
 -spec nearing() -> [binary()].
 nearing() ->
     ensure(),

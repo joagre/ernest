@@ -170,15 +170,17 @@ export foreign fn find(service : Service(m), ms : Int) : Either(Io.Error, Addres
 /// report §3.11 says, and what it captured crosses to the peer; the peer's own
 /// top-level bindings and system processes are those `f` reaches there. A peer
 /// that lacks `f`, or a definition `f` reaches, is sent it before the process
-/// starts, a function a shell typed among them. `f` runs only where every
-/// top-level binding it reaches has its value on the peer and every module a
-/// foreign declaration it reaches calls is there; otherwise the spawn answers
-/// `NotLoaded`, and the peer says on its standard error what it lacked. A
-/// binding `f` does not reach keeps it from no peer. A process whose answer
-/// came too late is killed as it comes, and where the connection was lost
-/// meanwhile it runs on. A spawn meets `NotListed`, `Unreachable`, `Timeout`,
-/// `NotLoaded` and `Other`, the last where the peer cannot take the code it was
-/// sent. `spawn` is called where it is named, and is no value.
+/// starts, a function a shell typed among them.
+///
+/// `f` runs only where every top-level binding it reaches has its value on the
+/// peer and every module a foreign declaration it reaches calls is there;
+/// otherwise the spawn answers `NotLoaded`, and the peer says on its standard
+/// error what it lacked. A binding `f` does not reach keeps it from no peer. A
+/// process whose answer came too late is killed as it comes, and where the
+/// connection was lost meanwhile it runs on. A spawn meets `NotListed`,
+/// `Unreachable`, `Timeout`, `NotLoaded` and `Other`, the last where the peer
+/// cannot take the code it was sent. `spawn` is called where it is named, and
+/// is no value.
 export foreign fn spawn(name : String,
                         f : () -> Unit receiving m,
                         ms : Int) : Either(Io.Error, Address(m)) =
@@ -234,10 +236,12 @@ export foreign fn compute(f : () -> a receiving m, ms : Int) : Either(Io.Error, 
 /// `computeAt` is written and is not bound to its node, since the value crosses
 /// back. The peer runs `f` only where it would start it for a spawn; otherwise
 /// the compute answers `NotLoaded`, and the peer says on its standard error
-/// what it lacked. Where the process ends before it answers, killed or with the
-/// peer's program, the compute answers `Left(Other(text))`, `text` its `Reason`
-/// as `Io.show` writes it, `"Killed"` or `"ProgramEnd"`. Where the time runs
-/// out, or the caller ends while it waits, the process is killed where it still
+/// what it lacked.
+///
+/// Where the process ends before it answers, killed or with the peer's
+/// program, the compute answers `Left(Other(text))`, `text` its `Reason` as
+/// `Io.show` writes it, `"Killed"` or `"ProgramEnd"`. Where the time runs out,
+/// or the caller ends while it waits, the process is killed where it still
 /// runs; where the connection was lost, it runs on. A compute meets
 /// `NotListed`, `Unreachable`, `Timeout`, `NotLoaded` and `Other`. `computeAt`
 /// is called where it is named, and is no value; work on the running node is

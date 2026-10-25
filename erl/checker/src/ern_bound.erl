@@ -1,19 +1,22 @@
 %% Report §3.11: the type bound to its node, and the refusals that keep a
 %% value of one from starting towards another node. A service at a bound
 %% type is refused where the checker supplies the service's type
-%% (ern_typecheck's supply of `service`); a spawn on a peer, and a compute,
-%% on a peer named or on one the node picks, are read off a definition
-%% here, once the definition is inferred: the function is a declaration's
-%% name, or a lambda or a `fn` written in the definition, at the spawn or
-%% the compute or bound by a `let` it names, or
-%% `restarting` applied to one of these, and what that lambda or `fn`
+%% (ern_typecheck's supply of `service`).
+%%
+%% A spawn on a peer, and a compute, on a peer named or on one the node
+%% picks, are read off a definition here, once the definition is inferred.
+%% The function is a declaration's name, or a lambda or a `fn` written in
+%% the definition, at the spawn or the compute or bound by a `let` it names,
+%% or `restarting` applied to one of these. What that lambda or `fn`
 %% captures, and the mailbox type of the process it starts, are neither
 %% bound nor hold a type variable, a mailbox type nothing fixed being Never
 %% by then (ern_typecheck's unfixed_mailboxes); nor does its body use a
-%% member of a requirement in force, a function. A compute's
-%% function's result type, which crosses back, is neither bound nor holds a
-%% type variable. Nothing else is checked, and nothing is looked through at
-%% a send. A breach is thrown as the checker's type errors are.
+%% member of a requirement in force, a function. A compute's function's
+%% result type, which crosses back, is neither bound nor holds a type
+%% variable.
+%%
+%% Nothing else is checked, and nothing is looked through at a send. A
+%% breach is thrown as the checker's type errors are.
 -module(ern_bound).
 
 -export([binds/2, check/2]).

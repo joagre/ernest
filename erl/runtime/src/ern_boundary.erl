@@ -4,19 +4,22 @@
 %% declared type on first observation, as an answer foreign code gives is
 %% (ern_rt). What crosses into foreign code, a foreign function's argument,
 %% a message sent to a foreign address, or an answer given to a Reply
-%% foreign code gave, is exposed: every Ernest address
-%% in it is replaced by a checker that checks each message the foreign side
-%% sends against the address's mailbox type on delivery and forwards it, or
-%% ends the target with the fault. An address that comes from foreign code
-%% and names no process of the program is held as foreign, {foreign, Pid,
-%% Descriptor, Bound}, Descriptor its messages' descriptor, so that what is
-%% sent to it is exposed, and a Reply as {foreign_reply, Reply, Descriptor,
-%% Bound}, Descriptor its answer's descriptor, so that its answer is
-%% exposed, given in foreign code's form, and checked. The compiler
-%% describes a type as ern_descriptor's descriptor() says, and builds the
-%% form this module interprets, descriptor() below, the same but for a
-%% function's: {'fun', Arity, R, Cause, Make, Exposer}, R describing its
-%% result and Make wrapping a function value, given R closed over the
+%% foreign code gave, is exposed: every Ernest address in it is replaced by
+%% a checker that checks each message the foreign side sends against the
+%% address's mailbox type on delivery and forwards it, or ends the target
+%% with the fault.
+%%
+%% An address that comes from foreign code and names no process of the
+%% program is held as foreign, {foreign, Pid, Descriptor, Bound},
+%% Descriptor its messages' descriptor, so that what is sent to it is
+%% exposed, and a Reply as {foreign_reply, Reply, Descriptor, Bound},
+%% Descriptor its answer's descriptor, so that its answer is exposed, given
+%% in foreign code's form, and checked.
+%%
+%% The compiler describes a type as ern_descriptor's descriptor() says, and
+%% builds the form this module interprets, descriptor() below, the same but
+%% for a function's: {'fun', Arity, R, Cause, Make, Exposer}, R describing
+%% its result and Make wrapping a function value, given R closed over the
 %% recursive types around it, so that each call's result is checked against
 %% R, faulting with Cause (report §12.3), and Exposer wrapping one that
 %% crosses into foreign code, wherever it stands in what crosses, so that

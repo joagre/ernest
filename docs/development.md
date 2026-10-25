@@ -91,7 +91,8 @@ tools/             the programs of the build: manual.ern writes ern(1) from the
                    table, for make unicode; install.sh, with strip.escript, stages,
                    installs and archives, for make install, uninstall and release;
                    paragraphs.sh lists the long paragraphs, for make paragraphs and make
-                   test-docs; and release/ holds the archive's own Makefile and README.md
+                   test-docs, and comments.sh the long comment blocks, for make comments;
+                   and release/ holds the archive's own Makefile and README.md
 build/             build products, not in git: stdlib/, libs/, shell/, tools/ and man/
                    from make, with the manual pages; the standard library's pages
                    in stdlib/ from make doc, and each library's in libs/ too from
@@ -156,6 +157,8 @@ make test-docs    the document tests and the style tests
 make paragraphs   list every prose paragraph past about a hundred words, a list item among
                   them, for its writer to read again for a turn it may hide; test-docs lists
                   them too, and fails on none
+make comments     list every comment block of the Erlang and the Ernest past about a hundred
+                  words the same way; the style tests hold both at 150 words
 make test-guide   the guide's examples, the report's, the README's, and the catalog of
                   diagnostics
 make test-grammar  Appendix A read as data, and a thousand programs generated from it,

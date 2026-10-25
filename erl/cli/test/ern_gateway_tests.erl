@@ -123,11 +123,12 @@ adapted_forgotten_test() ->
 %% none waits; the worker, holding nothing, asks the gateway to end it with
 %% how many of its messages it has taken, and goes on where the gateway has
 %% handed it more since, its next message to the address starting another
-%% process, until it asks again and the gateway ends it. A regression test,
-%% written after the code: at the loss the worker told each process it kept
-%% to stop and ended, and the gateway handed the frames after the loss to
-%% another worker, whose process for the address applied the later message
-%% before the held one
+%% process, until it asks again and the gateway ends it.
+%%
+%% A regression test, written after the code: at the loss the worker told
+%% each process it kept to stop and ended, and the gateway handed the
+%% frames after the loss to another worker, whose process for the address
+%% applied the later message before the held one
 adapted_across_a_loss_test() ->
     Self = self(),
     ok = ern_peer:tables(),

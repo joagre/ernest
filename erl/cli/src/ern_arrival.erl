@@ -1,52 +1,59 @@
 %% Report §12.7, The exchange, §11.1, §11.2: the unit the definitions of one
 %% exchange make on the node they arrive at, made by the build's back end
 %% from the same forms as a build's (ern_emitter:unit/1), compiled by the
-%% host and loaded whole before any of it runs. A node has no checker's
-%% environment of the sender's, so what the forms reference outside the
-%% unit is linked through the code table (ern_code): a definition of
-%% another unit by its hash, to a unit that exports its function (§11.1),
-%% a type to the forms the unit that holds it keeps; a binding by its
-%% identity, to a unit that holds it with its value, through its getter,
-%% or, whose initializer is a ground term, to the value that unit lists,
-%% which its read is compiled to (§11.1); and what the
-%% standard library and the prelude declare by its name, as the build
-%% links it, from the prelude's environment, which holds the library's
-%% interfaces (ern_compile:named/2). A foreign declaration of the reach is
-%% a function of the unit's own, which calls the host's function the
-%% sender's declaration names through §8.4's check at its declared type,
-%% as the declaring module does; a foreign function spawned or computed by
-%% its name crosses so too, with no definition; and so is each foreign
-%% function the definitions call beyond the spawned function's reach, from
-%% the declaration its code frame carries. What they name beyond that reach
-%% and the node lacks, a binding without its value here or a foreign
-%% function whose module or function is not here, is linked to a function
-%% of the unit's own that faults naming it, `'$lacked_K'`, which no process
-%% reaches, since a spawn whose reach names it is answered `NotLoaded`
-%% before it starts.
+%% host and loaded whole before any of it runs.
+%%
+%% A node has no checker's environment of the sender's, so what the forms
+%% reference outside the unit is linked through the code table (ern_code):
+%% a definition of another unit by its hash, to a unit that exports its
+%% function (§11.1), a type to the forms the unit that holds it keeps; a
+%% binding by its identity, to a unit that holds it with its value, through
+%% its getter, or, whose initializer is a ground term, to the value that
+%% unit lists, which its read is compiled to (§11.1); and what the standard
+%% library and the prelude declare by its name, as the build links it, from
+%% the prelude's environment, which holds the library's interfaces
+%% (ern_compile:named/2).
+%%
+%% A foreign declaration of the reach is a function of the unit's own,
+%% which calls the host's function the sender's declaration names through
+%% §8.4's check at its declared type, as the declaring module does; a
+%% foreign function spawned or computed by its name crosses so too, with
+%% no definition; and so is each foreign function the definitions call
+%% beyond the spawned function's reach, from the declaration its code
+%% frame carries.
+%%
+%% What the definitions name beyond that reach and the node lacks, a
+%% binding without its value here or a foreign function whose module or
+%% function is not here, is linked to a function of the unit's own that
+%% faults naming it, `'$lacked_K'`, which no process reaches, since a spawn
+%% whose reach names it is answered `NotLoaded` before it starts.
 %%
 %% The unit is named from the node's pool (name/1), `ern$1`, `ern$2` and
 %% on, the first the host holds no unit of from the exchange's count, which
 %% grows with the units the node holds, for its life (§11.2), an arrival
-%% that fails taking no name; and it names each definition by the name its
+%% that fails taking no name. It names each definition by the name its
 %% code frame gave it, as text, which makes no atom here, so that a fault's
 %% trace and a spawn site its body writes show the sender's names and
 %% lines, `Counter.worker:23`, a foreign function's frame the line of its
 %% declaration, which its reach or its code frame carries, and a check's
 %% cause prints a type as the definition's module writes it, by the
 %% module's namespace and shadows the frame gave (§11.5). A type keeps the
-%% qualified name its form holds. The unit exports every function it holds
-%% (§11.1), since a later exchange's definitions call into it by hash. A
-%% binding that crosses, alone since a lambda written in it was spawned or
-%% as a member of its group, is the unit's for its lambdas' code, their
-%% entries, and its value is the node's, which nothing here evaluates
-%% (ern_emitter), read where the node holds it: the group's other members
-%% name it by its identity in place of its position. What the unit records
-%% of its definitions is kept in the code table beside its code, so that
-%% the node ships them onward as its own (§11.2): every foreign declaration
-%% the reach and the code frames carried among it, one it lacked with the
-%% host's module and function as text where the node has no atom of them,
-%% by which a later spawn whose reach names it is told the module and a
-%% code frame shipped onward carries it.
+%% qualified name its form holds.
+%%
+%% The unit exports every function it holds (§11.1), since a later
+%% exchange's definitions call into it by hash. A binding that crosses,
+%% alone since a lambda written in it was spawned or as a member of its
+%% group, is the unit's for its lambdas' code, their entries, and its value
+%% is the node's, which nothing here evaluates (ern_emitter), read where
+%% the node holds it: the group's other members name it by its identity in
+%% place of its position.
+%%
+%% What the unit records of its definitions is kept in the code table
+%% beside its code, so that the node ships them onward as its own (§11.2):
+%% every foreign declaration the reach and the code frames carried among
+%% it, one it lacked with the host's module and function as text where the
+%% node has no atom of them, by which a later spawn whose reach names it is
+%% told the module and a code frame shipped onward carries it.
 -module(ern_arrival).
 
 -export([received/5, name/1]).

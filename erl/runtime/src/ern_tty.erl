@@ -285,6 +285,7 @@ start_reader(Reader) ->
 %% a column at a time, so `opost` goes back. A paste is asked to be
 %% bracketed, so that pasted text is one `Pasted` and not the keys of its
 %% characters; a terminal that does not know the request ignores it.
+%%
 %% Report §12.1: while the terminal is claimed for keys, its interrupt is
 %% delivered to every subscriber as `Interrupt`, so raw mode's `-isig`
 %% stays, for a program's subscribers as for the shell.
@@ -340,13 +341,14 @@ system_stty() ->
 %% input is not one: keys read from a pipe need no mode, and a mode set
 %% there would be set on whatever terminal the runtime was started from.
 %% It is the system's own stty, not the first that PATH names, which could
-%% be any program in any directory the PATH lists. Its end is waited for
-%% with no time of the runtime's own, as the runtime waits for its helper
-%% (ern_os): stty waits on the terminal alone, which takes a mode once what
-%% was written to it has gone out, and a terminal whose output is stopped
-%% holds every writer so. A wait cut short would leave stty running, to set
-%% its mode after the runtime had gone on, even after the end gave the
-%% terminal back (restore/0).
+%% be any program in any directory the PATH lists.
+%%
+%% The end of stty is waited for with no time of the runtime's own, as the
+%% runtime waits for its helper (ern_os): stty waits on the terminal alone,
+%% which takes a mode once what was written to it has gone out, and a
+%% terminal whose output is stopped holds every writer so. A wait cut short
+%% would leave stty running, to set its mode after the runtime had gone on,
+%% even after the end gave the terminal back (restore/0).
 stty(Args) ->
     case terminal() andalso system_stty() of
         false ->

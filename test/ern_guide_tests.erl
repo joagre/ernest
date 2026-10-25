@@ -7,31 +7,38 @@
 %% adds to the file as it stood before, however many headings back. An
 %% `erlang` block that begins `-module(name).` joins them as `name.erl`,
 %% compiled with `erlc` beside the compiled modules, where report §11.2 has
-%% `ern` find it. When the next fenced block is a `console` block, the
-%% program its `$ ern` line names is run, with the options the line gives,
-%% and its output compared with the console's lines that are not commands;
-%% `$ printf 'a\nb\n' | ern run x.erc` gives the program those lines on
-%% standard input. The run exits with status 0, or with report §11.8's status
-%% for a fault of the entry process where a line shown is that fault's: the
-%% entry point's name before `faulted:`, `X.main` for x.erc or the name that
-%% `--main` gives. A block marked `ernest-rejected` fails to compile, and
-%% for a reason of its own: not a parse error and not an unknown name; one
-%% after a source tree under its heading is built beside the tree's files.
-%% When a console follows it, its `$ ern build` line names the file and the
-%% error is compared whole; where a line of the block holds a comment
-%% `// rejected`, the error is on that line. A console whose command is
-%% `$ ern shell` is a session: its `> ` lines are the inputs, and the rest
-%% is what the shell prints; `$ ern shell words.erc` after a module is a
-%% session with that module loaded. A console whose first line is a `> `
-%% line continues the session of the nearest console before it under its
-%% heading, its inputs and what the shell prints added to that session's,
-%% so that a long session is shown in parts with prose between; one with
-%% no session before it under its heading is an error, named by its line.
+%% `ern` find it.
+%%
+%% When the next fenced block is a `console` block, the program its `$ ern`
+%% line names is run, with the options the line gives, and its output
+%% compared with the console's lines that are not commands; `$ printf
+%% 'a\nb\n' | ern run x.erc` gives the program those lines on standard
+%% input. The run exits with status 0, or with report §11.8's status for a
+%% fault of the entry process where a line shown is that fault's: the entry
+%% point's name before `faulted:`, `X.main` for x.erc or the name that
+%% `--main` gives.
+%%
+%% A block marked `ernest-rejected` fails to compile, and for a reason of
+%% its own: not a parse error and not an unknown name; one after a source
+%% tree under its heading is built beside the tree's files. When a console
+%% follows it, its `$ ern build` line names the file and the error is
+%% compared whole; where a line of the block holds a comment `// rejected`,
+%% the error is on that line.
+%%
+%% A console whose command is `$ ern shell` is a session: its `> ` lines
+%% are the inputs, and the rest is what the shell prints; `$ ern shell
+%% words.erc` after a module is a session with that module loaded. A
+%% console whose first line is a `> ` line continues the session of the
+%% nearest console before it under its heading, its inputs and what the
+%% shell prints added to that session's, so that a long session is shown in
+%% parts with prose between; one with no session before it under its
+%% heading is an error, named by its line.
+%%
 %% A block marked `ernest-prelude` holds the prelude's own declarations,
-%% each one of `ern_prelude`'s as written. A block marked
-%% `ernest-fragment`, and any other, is a fragment, which nothing checks;
-%% a console whose `$ ern run` names `--config-dir` runs on nodes, and
-%% those of the language guide's §8.1 and §8.2 are tests of their own.
+%% each one of `ern_prelude`'s as written. A block marked `ernest-fragment`,
+%% and any other, is a fragment, which nothing checks; a console whose `$
+%% ern run` names `--config-dir` runs on nodes, and those of the language
+%% guide's §8.1 and §8.2 are tests of their own.
 -module(ern_guide_tests).
 
 %% EUnit's captured output, asked of the test's group leader, which is
@@ -161,11 +168,13 @@ faq_examples_test_() ->
 %% ended, as the section's prose says its terminal shows, each line without
 %% its time; `a`'s run prints the lines its console shows, standard output
 %% and standard error each in its own order, `foo computed 25` among them;
-%% and `ern stop` ends `foo` by termination. A regression test, written
-%% after the program; it does not cover `foo`'s lines against `a`'s, which
-%% two terminals do not order. Its limit is the sum of its ten waits, each
-%% bounded by the harness's time for one wait: the build, four `ern config`
-%% jobs, `foo`'s listening, the run, the stop, `foo`'s end and what it said
+%% and `ern stop` ends `foo` by termination.
+%%
+%% A regression test, written after the program; it does not cover `foo`'s
+%% lines against `a`'s, which two terminals do not order. Its limit is the
+%% sum of its ten waits, each bounded by the harness's time for one wait:
+%% the build, four `ern config` jobs, `foo`'s listening, the run, the stop,
+%% `foo`'s end and what it said
 work_on_a_peer_test_() ->
     ern_nodes_tests:nodes_test({waits, 10}, fun work_on_a_peer/1).
 
@@ -196,21 +205,24 @@ work_on_a_peer(Base) ->
 %% store's directory is made listening on a port the harness found free,
 %% in place of the guide's 8655, and the desk's with no `listen`, each
 %% listed in the other's by `--peer-dir` and the desk's naming the
-%% service, as the section says. The store, run as a node, says each line
-%% its console shows, each without its time, and prints nothing; the desk
-%% finds the counter and the board reaches it through a proxy, each run
-%% printing the lines its console shows, standard output and standard
-%% error each in its own order; and `ern stop` ends the store by
-%% termination. Each run waits on what comes before it: the desk on the
-%% store's listening line, the board on the store's saying that the desk
-%% ended. A regression test, written after the programs; it does not cover
-%% the store's lines against the desk's, which two terminals do not order,
-%% nor that the store's counter has offered the service when the desk, a
-%% host started once the store listens, asks for it, which nothing the
-%% store says shows. Its limit is the sum of its twelve waits, each
-%% bounded by the harness's time for one wait: the build, four `ern config`
-%% jobs, the store's listening, two runs, the desk's end on the store, the
-%% stop, the store's end and what it said
+%% service, as the section says.
+%%
+%% The store, run as a node, says each line its console shows, each without
+%% its time, and prints nothing; the desk finds the counter and the board
+%% reaches it through a proxy, each run printing the lines its console
+%% shows, standard output and standard error each in its own order; and
+%% `ern stop` ends the store by termination. Each run waits on what comes
+%% before it: the desk on the store's listening line, the board on the
+%% store's saying that the desk ended.
+%%
+%% A regression test, written after the programs; it does not cover the
+%% store's lines against the desk's, which two terminals do not order, nor
+%% that the store's counter has offered the service when the desk, a host
+%% started once the store listens, asks for it, which nothing the store
+%% says shows. Its limit is the sum of its twelve waits, each bounded by
+%% the harness's time for one wait: the build, four `ern config` jobs, the
+%% store's listening, two runs, the desk's end on the store, the stop, the
+%% store's end and what it said
 services_across_nodes_test_() ->
     ern_nodes_tests:nodes_test({waits, 12}, fun services_across_nodes/1).
 

@@ -37,15 +37,16 @@
 %% reaches from the definition it is or is in, code and types, a group's
 %% members among them and the constants it reads, whose forms cross (report
 %% §4.6, the full review's K14), the bindings its reach names that are no
-%% constants and its foreign
-%% declarations with the host's module and function and the declared
-%% type and where it is written; a foreign function's by its name, its
-%% declaration alone; and the lacks with a code frame for each, a group in
-%% one, dependencies first, each the bytes its hashes are taken of, with
+%% constants and its foreign declarations with the host's module and
+%% function and the declared type and where it is written; a foreign
+%% function's by its name, its declaration alone. A function or a
+%% definition it holds nowhere is a reach of none.
+%%
+%% The spawner's node answers the lacks with a code frame for each, a group
+%% in one, dependencies first, each the bytes its hashes are taken of, with
 %% each member's name and form with the lines of its source, the locals'
 %% names left out, and the foreign declarations its form calls with the
-%% host's module and function and where each is written. A function or a
-%% definition it holds nowhere is a reach of none
+%% host's module and function and where each is written
 reach_test() ->
     {Unit, Beam, Defined} = compiled(['Exreach'], ?REACHED),
     File = filename:join(scratch_dir(), "exreach.erc"),
@@ -256,12 +257,13 @@ received_whole_test() ->
 %% check of the ground term a regression test, written after the code);
 %% and a foreign declaration of the reach to a function of the unit's own,
 %% which calls the host's function the sender's declaration names through
-%% the check at its declared type. A compute of the function the reach
-%% brought answers its value, and the code table holds it, the node's
-%% pool's unit, which the node ships onward as its own: asked for the reach
-%% of the function now, it answers it from that unit's forms, the ground
-%% binding among the definitions, as its term crosses (§11.1), and the
-%% foreign declaration with its type
+%% the check at its declared type.
+%%
+%% A compute of the function the reach brought answers its value, and the
+%% code table holds it, the node's pool's unit, which the node ships onward
+%% as its own: asked for the reach of the function now, it answers it from
+%% that unit's forms, the ground binding among the definitions, as its term
+%% crosses (§11.1), and the foreign declaration with its type
 received_linked_test() ->
     {HeldUnit, HeldBeam, _} = compiled(['Exheld'], ?HELD),
     loaded(HeldUnit, HeldBeam),
@@ -352,21 +354,24 @@ received_linked_test() ->
 %% the check, which the code table holds as a declaration of the unit's; a
 %% foreign function whose module is not here, and a binding without its
 %% value here, each to a function of the unit's own that faults naming
-%% what the node lacks. The compute of the lambda answers its value. The
-%% unit records every declaration the frame carried, the lacked one with
-%% its module and function as text, the node holding no atom of the module,
-%% and a code frame the node makes of the definition to ship it onward
-%% carries both; asked for the reach of the lacked foreign function by its
-%% name, which it cannot run, the node answers its declaration, the module
-%% and the function as text, as a foreign function spawned by its name
-%% crosses. A regression test, written with the fix (MVP 3.2's item 5
-%% found the reach's foreign declarations alone declared, the binding
-%% refused, then the lacked declaration recorded nowhere, and then the
-%% reach by its name answered none); it does not cover a lacked function's
-%% module that is here and lacks the function, which
-%% ern_peer:foreign_lacked/1 answers as not_loaded_from_reach_test's third
-%% case shows, nor the nodes, a third node's check of what it is sent
-%% among them, which test/ern_nodes_tests.erl's relay_test_ covers in part
+%% what the node lacks. The compute of the lambda answers its value.
+%%
+%% The unit records every declaration the frame carried, the lacked one
+%% with its module and function as text, the node holding no atom of the
+%% module, and a code frame the node makes of the definition to ship it
+%% onward carries both; asked for the reach of the lacked foreign function
+%% by its name, which it cannot run, the node answers its declaration, the
+%% module and the function as text, as a foreign function spawned by its
+%% name crosses.
+%%
+%% A regression test, written with the fix (MVP 3.2's item 5 found the
+%% reach's foreign declarations alone declared, the binding refused, then
+%% the lacked declaration recorded nowhere, and then the reach by its name
+%% answered none); it does not cover a lacked function's module that is
+%% here and lacks the function, which ern_peer:foreign_lacked/1 answers as
+%% not_loaded_from_reach_test's third case shows, nor the nodes, a third
+%% node's check of what it is sent among them, which
+%% test/ern_nodes_tests.erl's relay_test_ covers in part
 received_beyond_reach_test() ->
     {_, Beam, Defined} = compiled(['Exbeyond'], ?BEYOND),
     {ok, #recorded{foreign = Compiled}} = ern_canonical:read(Beam),
@@ -465,12 +470,13 @@ received_beyond_reach_test() ->
 %% frame for each, the binding's after what it names; the node that lacks
 %% it makes the unit with the lambda's entry and evaluates nothing, the
 %% compute answers its value, and the node ships the binding onward from
-%% that unit. A regression test, written with the fix (the log's *The Full
-%% Review Before 0.5.0*: the spawner's node found no definition by the
-%% binding's hash and answered that it no longer held the reach); it does
-%% not cover a binding that crosses as a member of its group, which the
-%% unit compiles for its lambdas so too, nor real nodes,
-%% test/ern_nodes_tests.erl's
+%% that unit.
+%%
+%% A regression test, written with the fix (the log's *The Full Review
+%% Before 0.5.0*: the spawner's node found no definition by the binding's
+%% hash and answered that it no longer held the reach); it does not cover a
+%% binding that crosses as a member of its group, which the unit compiles
+%% for its lambdas so too, nor real nodes, test/ern_nodes_tests.erl's
 in_let_test() ->
     {Unit, Beam, Defined} = compiled(['Exinlet'], ?IN_LET),
     #definition{hash = Job} = JobDefinition = maps:get(['Exinlet', job], Defined),
@@ -657,12 +663,14 @@ not_loaded_from_reach_test() ->
 %% does not call, one whose declaration's host module is not text, a reach
 %% of another shape, a reach whose foreign declaration's place is no line
 %% and column, one whose place is before the first line and column, and a
-%% request for a reach of no identity. The exchange asked of the peer goes
-%% with its forms, a later frame of it passed over, and the spawn the peer
-%% asked for with it, none waiting on it now. The cases of the declarations
-%% are regression tests, written with them (MVP 3.2's item 5, and the
-%% declaration's place with MVP 3.9's carrying of it), and the place before
-%% the first line after the code: the arrival's compile failed on it
+%% request for a reach of no identity.
+%%
+%% The exchange asked of the peer goes with its forms, a later frame of it
+%% passed over, and the spawn the peer asked for with it, none waiting on
+%% it now. The cases of the declarations are regression tests, written with
+%% them (MVP 3.2's item 5, and the declaration's place with MVP 3.9's
+%% carrying of it), and the place before the first line after the code:
+%% the arrival's compile failed on it
 faulty_frame_test() ->
     {_, _, Defined} = compiled(['Exfaulty'], ?FAULTY),
     #definition{hash = Hash, form = Form} = maps:get(['Exfaulty', held], Defined),
