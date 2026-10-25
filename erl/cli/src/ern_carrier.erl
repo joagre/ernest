@@ -19,10 +19,10 @@
 -include("ern_node.hrl").
 
 %% Report §8.7: the protocol's version, in the cookie, so that two nodes of
-%% different protocols never connect: 3 since MVP 3.9, whose reach and code
-%% frames carry where each foreign declaration is written and whose code
-%% frame no longer carries the hashes its forms reference.
--define(PROTOCOL, 3).
+%% different protocols never connect: 4 since MVP 3.95, whose two frames
+%% tell a restart to the nodes that monitor the restarting process and
+%% answer that their watchers have been told (§6.9).
+-define(PROTOCOL, 4).
 
 %% The constant before the host of a node's name on the carrier, whose host
 %% is its key's digest and names no network address: a peer's address is

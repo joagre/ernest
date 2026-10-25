@@ -1,6 +1,7 @@
 // Report §8.7: the desk, which finds the store's services, spawns and
-// computes on it, asks how busy it is and computes on the peer it picks,
-// printing what each answers; the test ends the store where it says so.
+// computes on it, watches a restart there, asks how busy it is and
+// computes on the peer it picks, printing what each answers; the test ends
+// the store where it says so.
 // Each wait is given the test's time for one step (Harness.waitMs), but
 // where a line says otherwise.
 
@@ -14,6 +15,7 @@ export fn main() : Unit receiving Msg =
       | ["spawn"] -> spawns()
       | ["across"] -> across()
       | ["calls"] -> calls()
+      | ["restart"] -> restartTold()
       | ["reconnect"] -> reconnected()
       | ["ending"] -> ending()
       | ["reload"] -> reloaded()
@@ -302,6 +304,68 @@ fn calls() : Unit receiving Msg = {
     ended("its connection lost");
     Io.println("after the loss: " <> Int.toString(notes(census, sleeper, 0)))
 }
+
+// Report §6.9, §8.7: the herald's restart on the store, which a watcher
+// here service-monitors and faults once, told before anything its new run
+// sends; and its restart at a second fault, which a service monitor's wrap
+// here holds up until the connection is lost, the loss ending the store's
+// wait, so that the new run answers the call that follows the loss.
+fn restartTold() : Unit receiving Msg = {
+    let herald = Shared.found(Herald.service);
+    let _ = spawnMonitored(fn() = watchesRestarts(herald), Died);
+    ended("the watcher");
+    let me = self();
+    let gate = spawn(fn() = neverAnswers());
+    monitorService(Process.fromAddress(herald), fn(down) = holding(me, gate, down));
+    monitor(Process.fromAddress(herald), Died);
+    send(herald, Herald.Crash);
+    receive {
+        Started(label) when label == "held" -> Io.println("the wrap holds the restart")
+    };
+    sever(Process.fromAddress(herald));
+    ended("severed");
+    let pinged = Address.call(herald, fn(reply) = Herald.Ping(reply = reply), Harness.waitMs());
+    Io.println("after the loss: " <> Io.show(pinged))
+}
+
+// The herald watched by this process: its first run's word, a service
+// monitor of it, and its crash, after which this process takes the
+// Restarted first and then the new run's word.
+fn watchesRestarts(herald : Address(Herald.Msg)) : Unit receiving Herald.WatcherMsg = {
+    send(Shared.found(Herald.watcherSlot), Slot.Put(self()));
+    Io.println("the first run: " <> taken());
+    monitorService(Process.fromAddress(herald), Herald.Told);
+    send(herald, Herald.Crash);
+    Io.println("first after the crash: " <> taken());
+    Io.println("then: " <> taken())
+}
+
+// What the herald or the service monitor told this process next, or
+// nothing within the time for one wait.
+fn taken() : String receiving Herald.WatcherMsg =
+    receive {
+        Herald.Began -> "a run began"
+      | Herald.Told(down) -> "told " <> Io.show(down.reason) <> " " <> Io.show(down.site)
+      | after Harness.waitMs() -> "nothing"
+    }
+
+// A service monitor's wrap that tells the desk it holds a restart and then
+// waits on a call the gate never answers; any other Down it passes on.
+fn holding(me : Address(Msg), gate : Address(Reply(Msg)), down : Down) : Msg =
+    match down.reason {
+        Restarted -> {
+            send(me, Started("held"));
+            Address.callForever(gate, fn(reply) = reply)
+        }
+      | _ ->
+            Told(down)
+    }
+
+// A process that takes every request and answers none.
+fn neverAnswers() : Unit receiving Reply(Msg) =
+    receive {
+        _ -> neverAnswers()
+    }
 
 // The notes the store keeps on the callee, once they are the count wanted:
 // the second note and the store's gateway come after the call they follow

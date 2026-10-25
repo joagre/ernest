@@ -89,14 +89,11 @@ in the order to do them, the word 0.5.0 ships decided before §8.7's text moves.
    Back*): the clone, the machines and the readers weighed against what they found,
    `release_review.md` amended, the round's reader among it, and dialyzer in the full run held as
    item 11.
-2. **A restart told across nodes**, decided with the user on 2026-10-25 (the log's *A Restart Told
-   Across Nodes*), §6.9 and §8.7 stating it from that day; built by 2026-10-31 by an agent: two
-   frames, the restarting process's node telling each node whose process holds a service monitor on
-   it, read from the host's list of who monitors the process, and that node's answer once every
-   delivery has ended, which the restart waits for; a loss ending the wait; the protocol's version
-   moving; the nodes' and the runtime's notes and the frames test following; and the decision's
-   two-node program, a restarting worker on one node faulted by its watcher on another, as the
-   regression test (feedback 161, from the lease broker example).
+2. **A restart told across nodes**, done 2026-10-25 (the log's *A Restart Told Across Nodes* and
+   *A Restart Told Across Nodes, Built*): two frames, each node whose process monitors the
+   restarting one told, as the host lists its monitors, and its answer waited for, a loss ending
+   the wait (report §8.7, §10); the protocol's version 4; the store and the desk's program the
+   regression test.
 3. **The report pared to the language**, MVP 3.96's, after 0.6.0, so that the release reads the
    report as it is (the log's *The Report Pared After 0.6.0*).
 4. **The harness counts a test's steps.** Decided with the user on 2026-10-24 from the full review's
@@ -132,12 +129,11 @@ in the order to do them, the word 0.5.0 ships decided before §8.7's text moves.
    which lost a shell test its line until the test waited for the fault. Measured against what a
    fault's report does; the modules loaded at the launch where that costs less than the number says,
    else the number recorded in the log and the item closed (CLAUDE.md, *The tools are fast*).
-8. **A monitor asked by an old run's delivery after the restart's `new_run`**, a gap the review's
-   fixes left on 2026-10-24 (the full review's C4-C5b): a clock delivery that asks for a monitor
-   after the reaper has taken the restart and returns before the clock takes it leaves that monitor
-   standing into the new run, against §6.9; `fresh_run/0`'s comment names the race. Closing it means
-   asking the clock and the terminal before the reaper, and a teller's late delivery would remain;
-   decided and built with item 2, which changes the restart's steps too, by 2026-10-31.
+8. **A monitor asked by an old run's delivery after the restart's `new_run`**, done 2026-10-25
+   (the log's *A Restart Told Across Nodes, Built*): the clock and the terminal take a restart
+   before the reaper. A teller's late delivery remains, as the item said; whether the delivery
+   reads its subscription's row before it delivers, which would close it, is decided with the user
+   before item 10.
 9. **The member regime's missing test**, done 2026-10-25: the checker's
    `module_level_compare_gives_no_ordering_test`, from before the prelude's `compare`, sharpened to
    hold that a module's own bare `fn compare` hides the prelude's whatever its type and gives the

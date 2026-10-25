@@ -1410,7 +1410,8 @@ store_and_desk(Base) ->
     lists(Third, [{"store", Store, PortStore}]),
     Stored = [<<"adder">>, <<"victim">>, <<"nothing">>, <<"census">>, <<"counter-slot">>,
               <<"echo-slot">>, <<"fragile">>, <<"strict">>, <<"brittle">>, <<"sleeper">>,
-              <<"doomed">>, <<"adapter">>, <<"watcher">>, <<"gated">>, <<"opener">>],
+              <<"doomed">>, <<"adapter">>, <<"watcher">>, <<"gated">>, <<"opener">>,
+              <<"herald">>, <<"herald-watcher">>],
     edit(Desk, fun(Conf) ->
                    Conf#{<<"services">> => maps:merge(
                                               maps:from_list([{Name, [<<"store">>]}
@@ -1962,6 +1963,42 @@ calls(Base) ->
                  "echo: Some(7)", "while it waits: 1", "its callee killed: Returned",
                  "after the callee's end: 0", "timed out: None 0", "answered here: Some(42) 0",
                  "waits again: 1", "its connection lost: Returned", "after the loss: 0"]].
+
+%% report §6.9, §8.7: a restart of a process of another node is told to a
+%% service monitor here: the store's herald, which a watcher on the desk
+%% service-monitors and faults once, tells the watcher Restarted, its site
+%% empty, before anything its new run sends; and a restart that a service
+%% monitor's wrap on the desk holds up, waiting on a gate that never
+%% answers, is held until the desk ends the connection by a frame the
+%% store's gateway cannot read, the loss ending the store's wait, so that
+%% the new run answers the desk's call after the loss. Its limit is the sum
+%% of its six waits, each bounded by the harness's time for one wait: the
+%% build, the store's offer, the desk's run, the store's end, and what
+%% each printed. A regression test, written after the code, of the
+%% decision's program, on which 0.5.0 told the watcher nothing and its
+%% next message was taken by the new run (the log's *A Restart Told Across
+%% Nodes*). It does not cover a restart of a process that another node
+%% only monitors or calls, answered at once, which no program can tell
+%% from a restart that tells no node, nor a telling whose watch dials a
+%% connection lost since the host listed the monitor, which no test can
+%% place there
+restart_told_test_() ->
+    nodes_test({waits, 6}, fun restart_told/1).
+
+restart_told(Base) ->
+    {StoreProgram, DeskProgram} = peers(Base),
+    {Store, Desk} = store_and_desk(Base),
+    WaitStore = start(Store, StoreProgram, []),
+    prints(Store, "offered"),
+    ?assertEqual(0, (start(Desk, DeskProgram, ["restart"]))()),
+    stop(Store, WaitStore),
+    {Out, _} = said(Desk),
+    {_, StoreErr} = said(Store),
+    [has(Out, Line)
+     || Line <- ["the first run: a run began", "first after the crash: told Restarted \"\"",
+                 "then: a run began", "the watcher: Returned", "the wrap holds the restart",
+                 "severed: Unreachable \"\"", "after the loss: Some(Unit)"]],
+    has(StoreErr, "faulted, restarted: crashed").
 
 %% report §8.7: a loss ends each wait on the peer that began before the
 %% node ran it: the desk ends its connection to the store by a frame the
@@ -4419,9 +4456,11 @@ typed_channels(Base) ->
 %% broker as its service and says where it listens, the port the host
 %% picked, at which a lists it once it has said so. a runs visit, whose two
 %% clients borrow from b's broker; bob restarts, which visit's service
-%% monitor on bob's node is told of and the broker's on b is not, so the
-%% ledger a reads after the restart still lists bob's lease, and the
-%% broker takes it back as a's program ends, ProgramEnd. Each node prints
+%% monitor on bob's node is told of and so is the broker's on b, which
+%% takes his lease back, Restarted, before his new run sends anything, so
+%% that the ledger a reads once his new run has answered lists ann's lease
+%% alone, and the broker takes ann's back as a's program ends, ProgramEnd
+%% (the log's *A Restart Told Across Nodes*). Each node prints
 %% the lines its console block shows, a without its listening line, since
 %% it does not listen here, and b at its port. A regression test, written
 %% with the example; a loss, which the comment says a service monitor is
@@ -4446,8 +4485,8 @@ lease_broker(Base) ->
     {_, WaitA} = launched(A, [?ERN, " run --config-dir ", A, " --main LeaseBroker.visit ",
                               Program]),
     ?assertEqual(0, WaitA()),
+    prints(B, "the broker took back 2 from bob: Restarted"),
     prints(B, "the broker took back 1 from ann: ProgramEnd"),
-    prints(B, "the broker took back 2 from bob: ProgramEnd"),
     stop(B, WaitB),
     {OutA, ErrA} = said(A),
     {OutB, ErrB} = said(B),

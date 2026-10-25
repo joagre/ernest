@@ -242,6 +242,7 @@ faulty_fields_test() ->
     ok = ern_peer:tables(),
     try
         Elsewhere = binary_to_term(<<131, 88, 119, 13, "other@node.er", 0:32, 1:32, 1:32>>),
+        ElsewhereRef = binary_to_term(<<131, 90, 1:16, 119, 13, "other@node.er", 1:32, 1:32>>),
         Here = self(),
         Wrap = fun(Message) -> Message end,
         [?assertEqual(unreadable, ern_peer:frame(self(), Body))
@@ -266,7 +267,12 @@ faulty_fields_test() ->
                      %% or its interval out of shape, which it leaves to the
                      %% worker
                      {telling, 0.5}, {telling, 0.5, 0}, {telling, 0.5, 2.5e3},
-                     {telling, -0.5, 5000}, {telling, 1, 5000}]]
+                     {telling, -0.5, 5000}, {telling, 1, 5000},
+                     %% a restart whose alias is no reference, or of a node
+                     %% other than the restarting process's, and an answer
+                     %% whose alias is another node's
+                     {restarted, nothing}, {restarted, ElsewhereRef},
+                     {watchers_told, nothing}, {watchers_told, ElsewhereRef}]]
     after
         untabled()
     end.
@@ -290,6 +296,11 @@ no_run_test() ->
         ok = ern_peer:frame(self(), {spawn, Ref, Quiet, <<"M.f:1">>, false, ?MS}),
         ?assertEqual({answer, Ref, {failed, 'Unreachable'}},
                      receive {ern_frame, _, Body} -> Body end),
+        %% report §6.9, §8.7: a restart told while no run holds a service
+        %% monitor is answered at once
+        Restarted = make_ref(),
+        ok = ern_peer:frame(self(), {restarted, Restarted}),
+        ?assertEqual({watchers_told, Restarted}, receive {ern_frame, _, Told} -> Told end),
         %% the reaper of a run that has ended answers nothing
         ?assertEqual(none, ern_rt:asked_of_run({spawn, fun() -> ok end, Unit, [], <<"M.f:1">>,
                                                 node()})),
@@ -1022,6 +1033,59 @@ foreign_callee_test() ->
     ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
     ?assertMatch({noted, [_], [_]}, receive {noted, _, _} = Noted -> Noted end),
     ?assertEqual({ended, [], []}, receive {ended, _, _} = Ended -> Ended end).
+
+%% report §6.9, §8.7, §10: "that node delivers `Restarted` through the wraps of
+%% the service monitors it holds and answers once every delivery has
+%% ended, at once where it holds none": a peer's frame that its process
+%% restarted is told to each service monitor this node's run holds of that
+%% process, Restarted with an empty site, and to no monitor that is no
+%% service monitor, and is answered by the frame that its watchers have
+%% been told, carrying its alias, once the delivery has ended, a wrap that
+%% has not finished holding the answer back; one of a process this node
+%% holds no service monitor of is answered at once; and the answer, read
+%% on the restarting node, goes to the alias it carries. Here a process of
+%% this host's stands in for the peer's, and the watcher stands in for the
+%% peer's gateway, taking the answers. A regression test, written after the code; the frames between
+%% real nodes, and the restarting node's wait for them, are
+%% test/ern_nodes_tests.erl's restart_told_test_
+restarted_frame_test() ->
+    Self = self(),
+    Main = fun() ->
+               Watcher = erlang:self(),
+               true = register(ern_gateway, Watcher),
+               Restarting = spawn(fun() -> receive stop -> ok end end),
+               Holding = fun(Down) ->
+                             Watcher ! {holding, erlang:self()},
+                             receive go -> {service, Down} end
+                         end,
+               ern_rt:monitor_service(Restarting, Holding),
+               ern_rt:monitor(Restarting, fun(Down) -> {plain, Down} end),
+               Alias = make_ref(),
+               Read = ern_peer:frame(Restarting, {restarted, Alias}),
+               Delivery = receive {holding, Pid} -> Pid end,
+               Early = receive {ern_frame, _, _} -> early after 0 -> held end,
+               Delivery ! go,
+               Answer = receive {ern_frame, _, Body} -> Body end,
+               Told = receive {service, Down} -> Down end,
+               Unwatched = spawn(fun() -> receive stop -> ok end end),
+               Other = make_ref(),
+               ok = ern_peer:frame(Unwatched, {restarted, Other}),
+               AtOnce = receive {ern_frame, _, OtherBody} -> OtherBody after 0 -> late end,
+               Reply = erlang:alias(),
+               HandedOn = ern_peer:frame(self(), {watchers_told, Reply}),
+               Handed = receive {Reply, _} = Got -> Got end,
+               ern_waits:delivered(Watcher),
+               Plain = receive {plain, _} -> told after 0 -> none end,
+               [Stood ! stop || Stood <- [Restarting, Unwatched]],
+               Self ! {restarted, {Read, Early, Answer =:= {watchers_told, Alias}, Told,
+                                   AtOnce =:= {watchers_told, Other}, HandedOn,
+                                   Handed =:= {Reply, watchers_told}, Plain, Restarting}}
+           end,
+    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
+    {Read, Early, Answered, Told, AtOnce, HandedOn, Handed, Plain, Restarting} =
+        receive {restarted, Got} -> Got end,
+    ?assertEqual({ok, held, true, {'Down', Restarting, 'Restarted', <<>>}, true, ok, true, none},
+                 {Read, Early, Answered, Told, AtOnce, HandedOn, Handed, Plain}).
 
 %% report §8.7, §6.9: a restart on a node asks its gateway, as it asks the
 %% reaper, before it reads the calls waiting on the process, so that it

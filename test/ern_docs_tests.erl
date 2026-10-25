@@ -35,6 +35,8 @@
                  {utilization, "a utilization"}, {telling, "a node's telling"},
                  {call_waits, "that a call waits"}, {call_over, "that it is over"},
                  {kill, "a kill of a process"}, {node_ends, "that a node ends"},
+                 {restarted, "a restart of a process"},
+                 {watchers_told, "that its watchers there have been told"},
                  {reach_request, "the request for a reach"}, {reach, "the reach"},
                  {lacks, "the lacks"}, {code_frame, "a code frame"}]).
 
@@ -642,14 +644,14 @@ runtime_tables_test() ->
     ?assertEqual(lists:sort(ern_rt:tables()), lists:sort(lists:append(Named))).
 
 %% docs/design/runtime.md, report §8.7: the frames the runtime's code reads
-%% of a peer are fifteen, and the note's list and §8.7's *What passes*, each
+%% of a peer are seventeen, and the note's list and §8.7's *What passes*, each
 %% of which says so, name every one in the words ?FRAMES gives it. A
 %% regression test, written after the note; a frame a list adds in words of
 %% its own is found only by the count the list states.
 runtime_frames_test() ->
     Read = lists:usort([Tag || File <- ?FRAME_READERS, Tag <- frames_read(File)]),
     ?assertEqual(lists:sort([Tag || {Tag, _} <- ?FRAMES]), Read),
-    ?assertEqual(15, length(Read)),
+    ?assertEqual(17, length(Read)),
     ?assertEqual([], [{File, Tag} || File <- ["docs/design/runtime.md", "report/language.md"],
                                      Sentence <- [frames_sentence(File)],
                                      {Tag, Words} <- ?FRAMES,

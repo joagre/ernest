@@ -38,8 +38,8 @@
 //     ann holds 2
 //     bob holds 3
 //     ledger: ann 1, ann 2, bob 3
-//     LeaseBroker.started:347 faulted, restarted: bob's job failed
-//         LeaseBroker.holding:382
+//     LeaseBroker.started:349 faulted, restarted: bob's job failed
+//         LeaseBroker.holding:384
 //     the broker took back 3 from bob: Restarted
 //     cid holds 3
 //     the broker took back 3 from cid: Killed
@@ -62,10 +62,10 @@
 //     bob holds 2
 //     cid holds 3
 //     LeaseBroker.main faulted: deadlock
-//         LeaseBroker.heard:225
-//         LeaseBroker.holdAndWait:216
-//         1 process of LeaseBroker.broker:158 waits in LeaseBroker.lending:241
-//         3 processes of LeaseBroker.started:347 wait in LeaseBroker.holding:365
+//         LeaseBroker.heard:227
+//         LeaseBroker.holdAndWait:218
+//         1 process of LeaseBroker.broker:160 waits in LeaseBroker.lending:243
+//         3 processes of LeaseBroker.started:349 wait in LeaseBroker.holding:367
 //
 // The program's own tests fault a broker with a lease given back by a
 // client that does not hold it, lend a restarted client's lease to the
@@ -74,12 +74,12 @@
 //
 //     $ ern test lease_broker.erc
 //     a broker faults on a lease its caller does not hold: passed
-//     LeaseBroker.started:347 faulted, restarted: bob's job failed
-//         LeaseBroker.holding:382
+//     LeaseBroker.started:349 faulted, restarted: bob's job failed
+//         LeaseBroker.holding:384
 //     the broker took back 2 from bob: Restarted
 //     a restarted client's lease goes to the client that waits: passed
-//     LeaseBroker.brokerRestartVoids:482 faulted, restarted: lease 2 is not lent to the caller
-//         LeaseBroker.lending:260
+//     LeaseBroker.brokerRestartVoids:487 faulted, restarted: lease 2 is not lent to the caller
+//         LeaseBroker.lending:262
 //     a restarted broker has every lease free, and its client none: passed
 //
 // As two nodes, make a and b with ern config, b listening on
@@ -93,8 +93,8 @@
 //     listening on 127.0.0.1:8655
 //     offered
 //     the peer a connected
+//     the broker took back 2 from bob: Restarted
 //     the peer a ended
-//     the broker took back 2 from bob: ProgramEnd
 //     the broker took back 1 from ann: ProgramEnd
 //
 // and a's
@@ -104,19 +104,21 @@
 //     the peer b connected
 //     ann holds 1
 //     bob holds 2
-//     LeaseBroker.started:347 faulted, restarted: bob's job failed
-//         LeaseBroker.holding:382
+//     LeaseBroker.started:349 faulted, restarted: bob's job failed
+//         LeaseBroker.holding:384
 //     bob: Restarted
-//     ledger: ann 1, bob 2
+//     bob holds no lease
+//     ledger: ann 1
 //
-// visit, on bob's node, is told of his restart, and the broker on b is
-// not: a service monitor of a process of another node is told of its end,
-// and of a loss as `Unreachable`, but of no restart (report §6.9, §8.7).
-// So the ledger a reads after the restart still lists bob's lease 2, which
-// his new run knows nothing of, and the broker takes it back only at his
-// end, here as a's program ends, or at a loss. A client on a watches the
-// broker on b the same way: it would hear of the broker's end and of a
-// loss, and of no restart. `ern stop --config-dir b` ends b.
+// visit, on bob's node, is told of his restart, and so is the broker on b:
+// a service monitor of a process of another node is told of its restarts
+// by the runtime's own frames, before anything the new run sends, and of
+// its end and of a loss as `Unreachable` (report §6.9, §8.7). The broker
+// takes bob's lease 2 back at his restart, so the ledger a reads once his
+// new run has answered lists ann's lease alone, and it takes ann's back at
+// her end, here as a's program ends. A client on a watches the broker on b
+// the same way: it would hear of the broker's restart, of its end and of a
+// loss. `ern stop --config-dir b` ends b.
 //
 
 //
@@ -405,7 +407,9 @@ export fn serve() : Unit receiving MainMsg = {
 }
 
 // Node a's entry point, run with --main: two clients of the broker on b,
-// and bob's restart, which a service monitor on bob's node is told of
+// and bob's restart, which a service monitor on bob's node and the
+// broker's on b are told of before his new run sends anything, so that
+// the ledger read once his new run has answered holds his lease no more
 // (report §6.9, §8.7).
 export fn visit() : Unit receiving MainMsg =
     match Peer.find(service, 5000) {
@@ -420,6 +424,7 @@ export fn visit() : Unit receiving MainMsg =
             receive {
                 Watched(Down(reason = reason)) -> Io.println("bob: " <> Io.show(reason))
             };
+            Io.println(tell(bob, Release));
             printLedger(far)
         }
       | Left(error) ->

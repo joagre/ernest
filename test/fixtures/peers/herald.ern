@@ -1,0 +1,34 @@
+// Report §6.9, §8.7: a restarting process on the store that tells the
+// watcher a slot there holds that each of its runs has begun, faults when
+// it is told to, and answers a ping, so that a watcher on the desk that
+// service-monitors it sees its Restarted come before what the new run
+// sends, and the desk sees a restart that a wrap of its own holds up go on
+// once the connection is lost.
+
+export type Msg = Crash | Ping(reply : Reply(Unit))
+
+// What the herald tells its watcher, and what the watcher's service
+// monitor tells it.
+export type WatcherMsg = Began | Told(Down)
+
+export let service : Peer.Service(Msg) = Peer.service("herald")
+
+export let watcherSlot : Peer.Service(Slot.Msg(Address(WatcherMsg))) =
+    Peer.service("herald-watcher")
+
+// Each run: the watcher the slot holds told that the run has begun, once
+// one is there, and then each ping answered until a crash.
+export fn run(slot : Address(Slot.Msg(Address(WatcherMsg)))) : Unit receiving Msg = {
+    send(Slot.take(slot), Began);
+    serve()
+}
+
+fn serve() : Unit receiving Msg =
+    receive {
+        Crash ->
+            fault("crashed")
+      | Ping(reply = reply) -> {
+            answer(reply, Unit);
+            serve()
+        }
+    }

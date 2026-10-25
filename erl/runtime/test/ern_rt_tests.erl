@@ -926,6 +926,68 @@ service_monitor_canceled_test() ->
            end, <<"main">>, #{stdout => fun(_) -> ok end, faults => fun(_, _) -> ok end}),
     ?assertEqual([], wait(told)).
 
+%% report §6.9: "What the process has asked the runtime for is canceled,
+%% with what is on its way to it, whenever it asked": a monitor that an
+%% alarm's delivery asks for while its process restarts, and returns from
+%% before the clock takes the restart, is canceled with the process's own,
+%% since the reaper takes the restart once the clock has, so that the new
+%% run hears nothing of the process the delivery monitored. The clock is
+%% held suspended while the delivery asks, the restart waiting on it, so
+%% that the reaper has the monitor before it is asked. A regression test,
+%% written after the fix of the full review's C4-C5b, which it does not
+%% guard: the race was a delivery the clock started after the reaper had
+%% taken the restart, which no test places there, the clock's order of its
+%% messages being its own, and under the old order this test passes too,
+%% the reaper ending the delivery as it took the restart. It does not cover
+%% the terminal's delivery, which takes the restart beside the clock, nor a
+%% delivery of an end's teller, which no restart asks and whose monitor
+%% still stands (the runtime's note's *A call, a restart, a kill*)
+monitor_asked_as_restart_waits_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = erlang:self(),
+               Clock = ern_rt:system_process(clock),
+               Zero = zero(),
+               Target = ern_rt:spawn(fun() -> receive stop -> ok end end, <<"Main.main:3">>),
+               Asking = fun(_Fired) ->
+                            Main ! {asking, erlang:self()},
+                            receive go -> ok end,
+                            ern_rt:monitor(Target, fun(Down) -> {down, Down} end),
+                            tick
+                        end,
+               Run = fun() ->
+                         case get(runs) of
+                             undefined ->
+                                 put(runs, 1),
+                                 alarm(Clock, 0, ern_rt:adapted(ern_rt:self(), Asking)),
+                                 receive crash -> 1 div Zero end;
+                             1 ->
+                                 Main ! {new_run, erlang:self()},
+                                 receive check -> Main ! {left, flush()} end
+                         end
+                     end,
+               Restarting = ern_rt:spawn(ern_rt:restarting('Unlimited', Run), <<"Main.main:5">>),
+               Delivery = receive {asking, Asker} -> Asker end,
+               DeliveryRef = erlang:monitor(process, Delivery),
+               erlang:suspend_process(Clock),
+               erlang:trace(Restarting, true, [send]),
+               Restarting ! crash,
+               receive {trace, Restarting, send, {new_run, _, _}, Clock} -> ok end,
+               erlang:trace(Restarting, false, [send]),
+               Delivery ! go,
+               receive {'DOWN', DeliveryRef, process, Delivery, _} -> ok end,
+               erlang:resume_process(Clock),
+               receive {new_run, Restarting} -> ok end,
+               ern_rt:monitor(Target, fun(Down) -> {ended, Down} end),
+               Target ! stop,
+               receive {ended, _} -> ok end,
+               ern_waits:delivered(Restarting),
+               Restarting ! check,
+               Self ! {left, receive {left, Left} -> Left end}
+           end, <<"main">>, #{stdout => fun(_) -> ok end, faults => fun(_, _) -> ok end}),
+    ?assertEqual([], wait(left)).
+
 %% report §6.9, §9.5: demonitor ends every monitor the caller holds on a
 %% process, a service monitor beside a monitor, so the process's end tells
 %% the caller nothing of them, while a monitor made after the demonitor is

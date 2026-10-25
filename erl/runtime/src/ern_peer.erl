@@ -478,7 +478,10 @@ drop_utilization(Node) ->
 %% runtime started, which this node carries out as its own kill
 %% (ern_rt:kill/1), one of any other process doing nothing: a process of
 %% the runtime's own, a foreign one, and one that has ended since the peer
-%% sent it. A find, a spawn or a compute is
+%% sent it; a restart of the peer's process that sent the frame, told to
+%% this node's service monitors of it and answered once every delivery
+%% has ended, and that answer, handed to the restarting process of this
+%% node that waits for it. A find, a spawn or a compute is
 %% asked of the run in progress, and one that comes while none is answers
 %% `Unreachable`: between two runs of `ern test` over a directory, in one
 %% host, and as a run ends (ern_rt:asked_of_run/1). Any other frame is one
@@ -553,6 +556,24 @@ frame(_From, {kill, Pid}) when is_pid(Pid), node(Pid) =:= node() ->
         true -> 'Unit' = ern_rt:kill(Pid);
         false -> 'Unit'
     end,
+    ok;
+%% report §8.7: "that node delivers `Restarted` through the wraps of the
+%% service monitors it holds and answers once every delivery has ended, at
+%% once where it holds none": the restart of From, the process that sent
+%% the frame, told to this node's service monitors of it
+%% (ern_rt:peer_restarted/2), and answered through the alias it carries
+%% by a frame to its node's gateway, over the connection that stands,
+%% since a loss has ended the wait where none does
+frame(From, {restarted, Alias}) when is_reference(Alias), node(Alias) =:= node(From) ->
+    Answer = {ern_frame, erlang:self(), {watchers_told, Alias}},
+    ern_rt:peer_restarted(From, fun() ->
+                                    erlang:send({ern_gateway, node(From)}, Answer, [noconnect])
+                                end);
+%% report §8.7: a peer's answer that its watchers have been told of a
+%% restart here, handed to the restarting process through its alias, which
+%% takes one answer (ern_rt's tell_service_monitors/0)
+frame(_From, {watchers_told, Alias}) when is_reference(Alias), node(Alias) =:= node() ->
+    Alias ! {Alias, watchers_told},
     ok;
 frame(_From, _Body) ->
     unreadable.

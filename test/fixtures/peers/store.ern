@@ -3,8 +3,10 @@
 // process behind an adapted address whose function faults, an adapter
 // that makes adapted addresses here, and one whose addresses' function
 // calls a gate here, with an adapted address that opens it, the services
-// the desk calls, and a watcher of the processes the desk's computes start
-// here; says each fault its subscriber of faults is told of; and waits.
+// the desk calls, a herald whose restarts the desk watches, with the slot
+// it finds its watcher in, and a watcher of the processes the desk's
+// computes start here; says each fault its subscriber of faults is told
+// of; and waits.
 
 // Restarting, its window the scenario's: no test faults the counter.
 let counter : Address(Counter.Msg) =
@@ -52,6 +54,14 @@ export fn main() : Unit receiving Unit = {
         Peer.offer(Calls.brittle,
                    spawn(restarting(RestartLimit(restarts = 10, within = 60000),
                                     fn() = Calls.serve())));
+    // the herald's restarts, more than the scenario's two faults, which
+    // come within the window
+    let heraldSlot = spawn(fn() = Slot.serve(None));
+    let _ = Peer.offer(Herald.watcherSlot, heraldSlot);
+    let _ =
+        Peer.offer(Herald.service,
+                   spawn(restarting(RestartLimit(restarts = 3, within = 60000),
+                                    fn() = Herald.run(heraldSlot))));
     let _ = Peer.offer(Calls.sleeper, spawn(fn() = Calls.serve()));
     let _ = Peer.offer(Calls.doomed, spawn(fn() = Calls.serve()));
     let echoer = spawn(fn() : Unit receiving Counter.EchoMsg = echoes());
