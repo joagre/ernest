@@ -8,6 +8,8 @@
 
 # Programming in Ernest
 
+*The Importance of Being Ernest, a Trivial Comedy for Serious People*
+
 This guide teaches Ernest to a programmer who has used a functional language. It assumes immutable values, sum types, pattern matching, functions as values and recursion, and shows only how Ernest writes them. Processes and messages it teaches from the start, since their types are what is new; a reader who knows Erlang will recognize the model, and §10 says what carries over. Nothing of Ernest or of its report needs reading first.
 
 Each complete program in the guide compiles as shown and prints what is shown after it, and the guide's tests run every one. Where a process fails, `ern run` reports it on standard error, and where that line falls among the program's own lines may differ from run to run. A program the compiler refuses is shown with what the compiler says of it. The language is defined by the report, in three files under [`report/`](../report/language.md), to which the guide points where a question turns on a detail.

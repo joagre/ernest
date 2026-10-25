@@ -8,6 +8,8 @@
 
 # Ernest
 
+*The Importance of Being Ernest, a Trivial Comedy for Serious People*
+
 Ernest is a small functional language for concurrent programs, on the Erlang runtime. A program is functions, whose types the compiler infers, and processes that talk through typed mailboxes.
 
 A counter is a process that holds a number. Its mailbox type, `CounterMsg`, is in the type of `count`, the loop the process runs. `counter` is the program's counter, started under `restarting` so that a fault in `count` starts it again with its address kept, three times within 5000 milliseconds at most. `main` sends it two increments and asks for the total: `Address.call` makes a reply, `Get` builds the request around it, and the call waits 1000 milliseconds at most for the answer:
@@ -62,7 +64,7 @@ fn count(total : Int) : Unit receiving CounterMsg =
 ```console
 $ ern build other.ern
 other.ern:6:5: count needs mailbox CounterMsg, and the mailbox here is OtherMsg
-4 | 
+4 |
 5 | export fn main() : Unit receiving OtherMsg =
   |                                   -------- main is declared `receiving OtherMsg` here
 6 |     count(0)

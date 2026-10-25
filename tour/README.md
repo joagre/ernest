@@ -1,5 +1,7 @@
 # The tour
 
+*The Importance of Being Ernest, a Trivial Comedy for Serious People*
+
 Ernest in an evening: one program, a counter, grown through eight chapters from a process with a typed mailbox to the same counter on a node started with none of its code, moved to new code there. It is for the programmer who has used a functional language and will read neither the report nor the guide first. Every rule the tour meets is the guide's, [*Programming in Ernest*](../guide/language.md), or the [deployment guide](../guide/deployment.md)'s where the operator's world is met, and the tour names the section, the report's where no guide states the rule; what the program has just done that your language cannot, the tour says in one line of its own, naming the claim of [*Why Ernest*](../guide/why.md) it meets.
 
 An hour to read, and about three to do along, with `ern` installed as the [README](../README.md) says and four terminals: your own, the shell's, and from chapter 2 one for each of two nodes. Each chapter is a change to the program, then what was typed and what was printed, then a few sentences.
