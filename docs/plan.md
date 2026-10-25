@@ -157,6 +157,14 @@ modules documented apart with an authority of their own. Why it is worth its cos
    With it CLAUDE.md's authority rule and `report/README.md` say what each file holds, and
    `docs/soundness.md` cites chapter 12 where it cited §8.4 and §8.7. After 0.6.0, so that the release
    reads the report as it is.
+2. **The build's cost per function measured.** Found 2026-10-25 by MVP 3.95's item 4: `ern build` of
+   a module of 7000 functions takes 27 s, about 4 ms a function and growing about linearly, where
+   `ern format` of the same module takes 1.1 s once the parser's name span stopped counting every
+   remaining token (the log's *The Harness Counts a Test's Steps*). Measured against what the
+   checker and the emitter do for one function, by the phase, as CLAUDE.md's *The tools are fast*
+   asks; fixed at its cause where one phase carries the cost, else the number recorded in the log
+   and the item closed. After 0.6.0, since no program of that size is written and the release's
+   bench holds the sizes programs have.
 
 ## MVP 4.0 (a shell attached to a running node), about a week
 
