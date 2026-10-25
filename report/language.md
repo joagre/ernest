@@ -1,7 +1,5 @@
 # Ernest Report: The Language
 
-*The Importance of Being Ernest, a Trivial Comedy for Serious People*
-
 Revision of 25 October 2026.
 
 *Dedicated to the memory of Joe Armstrong, 1950–2019.*
