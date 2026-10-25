@@ -1,3 +1,11 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="../assets/ernest-combined-dark.svg">
+  <source media="(prefers-color-scheme: light)"
+          srcset="../assets/ernest-combined-light.svg">
+  <img src="../assets/ernest-combined-light.svg" alt="Ernest" width="520">
+</picture>
+
 # The tour
 
 *The Importance of Being Ernest, a Trivial Comedy for Serious People*
