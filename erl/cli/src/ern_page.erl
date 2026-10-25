@@ -6,8 +6,9 @@
 %% which libs/markdown writes from the CommonMark (Appendix G.2).
 -module(ern_page).
 
--export([page/2, prelude_page/0, module_head/1, manual/2, prelude_manual/0, declaration/3,
-         session_declaration/3, prelude_declaration/1, since/1, declared_since/2]).
+-export([page/2, prelude_page/0, module_head/1, manual/2, prelude_manual/0, member_order/1,
+         declaration/3, session_declaration/3, prelude_declaration/1, since/1,
+         declared_since/2]).
 
 -include_lib("checker/include/ern_types.hrl").
 
@@ -19,8 +20,7 @@
 page(Beam, Source) ->
     {ok, #{interface := #interface{namespace = Namespace}}} = ern_interface:read(Beam),
     {ok, Docs} = ern_docs:read(Beam),
-    Name = ern_namespace:text(Namespace),
-    render(["Ernest module ", Name], Name ++ ".", Docs, Source).
+    render(["Ernest module ", ern_namespace:text(Namespace)], Namespace, Docs, Source).
 
 %% Report §9, §11.4: the prelude's page, from the documentation its table
 %% carries, its source the one the table names. A prelude name is written
@@ -28,7 +28,7 @@ page(Beam, Source) ->
 -spec prelude_page() -> unicode:chardata().
 prelude_page() ->
     Docs = ern_prelude:docs(),
-    render("Ernest prelude", "", Docs, prelude_source(Docs)).
+    render("Ernest prelude", [], Docs, prelude_source(Docs)).
 
 %% Report §11.2: a module's documentation as `:doc` shows it, the head of
 %% its page: the title, the version, and the module's doc block. What the
@@ -46,13 +46,13 @@ manual(Beam, Source) ->
     {ok, #{interface := #interface{namespace = Namespace}}} = ern_interface:read(Beam),
     {ok, Docs} = ern_docs:read(Beam),
     Name = ern_namespace:text(Namespace),
-    roff("Ernest." ++ Name, ["Ernest module ", Name], Name ++ ".", Docs, Source).
+    roff("Ernest." ++ Name, ["Ernest module ", Name], Namespace, Docs, Source).
 
 %% Report §9, §11.4: the prelude's page as a manual page, `Ernest.Prelude`.
 -spec prelude_manual() -> unicode:chardata().
 prelude_manual() ->
     Docs = ern_prelude:docs(),
-    roff("Ernest.Prelude", "Ernest prelude", "", Docs, prelude_source(Docs)).
+    roff("Ernest.Prelude", "Ernest prelude", [], Docs, prelude_source(Docs)).
 
 %% The prelude's source as its documentation names it, the report's
 %% section.
@@ -62,10 +62,42 @@ prelude_source({docs_v1, _, ernest, _, _, #{source := Source}, _}) ->
 %% Appendix E.0 shape rule 6: a doc block's text is the page's as written,
 %% an example's declarations before its expression among it, where the call
 %% needs one, a `fn` that `Code.running` names (Appendix E.28).
-render(Title, Prefix, {docs_v1, _, ernest, _, ModuleDoc, _, Entries}, Source) ->
-    [head(Title, ModuleDoc),
-     [entry(Entry, Prefix) || Entry <- Entries],
-     "---\n\n", generated(Source), "\n"].
+render(Title, Namespace, {docs_v1, _, ernest, _, ModuleDoc, _, Entries}, Source) ->
+    [head(Title, ModuleDoc), laid_out(Entries, Namespace), "---\n\n", generated(Source), "\n"].
+
+%% Report §11.4: a module's entries as its page lays them out: each
+%% declaration but a member in the order the module writes it, and after
+%% them the members, each type's together, the types in the order of their
+%% first members, a type's in member_order/1's order, each headed by its
+%% qualified name as declared, its code block's line the form its
+%% documentation holds as its signature (ern_docs:member_form/4).
+laid_out(Entries, Namespace) ->
+    Prefix = prefix(Namespace),
+    Types = lists:foldl(fun({_, _, _, _, #{member := #{type := Type}}}, Acc) ->
+                                case lists:member(Type, Acc) of
+                                    true -> Acc;
+                                    false -> Acc ++ [Type]
+                                end;
+                           (_, Acc) ->
+                                Acc
+                        end, [], Entries),
+    [[entry(Entry, Prefix) || {_, _, _, _, Meta} = Entry <- Entries, not is_map_key(member, Meta)],
+     [[entry(Entry, Prefix)
+       || {_, Entry} <- lists:sort([{member_order(atom_to_list(Member)), Entry}
+                                    || {_, _, _, _, #{member := #{type := Of, name := Member}}}
+                                           = Entry <- Entries,
+                                       Of =:= Type])]
+      || Type <- Types]].
+
+prefix([]) -> "";
+prefix(Namespace) -> ern_namespace:text(Namespace) ++ ".".
+
+%% Report §11.4: the order a type's members stand in: `compare`, then the
+%% infix operators by their text, then the prefix `-`, negate.
+-spec member_order(string()) -> {0 | 1 | 2, string()}.
+member_order("compare") -> {0, ""};
+member_order("negate") -> {2, ""};
+member_order(Operator) -> {1, Operator}.
 
 %% Report §11.4: the page after its title, under the manual page's header.
 %% The NAME line is the first sentence of the module's doc block, its
@@ -73,8 +105,8 @@ render(Title, Prefix, {docs_v1, _, ernest, _, ModuleDoc, _, Entries}, Source) ->
 %% paragraph, and the page's last line is a comment at the head of the
 %% source. libs/markdown takes the header as a `Manual`, a named
 %% constructor, whose fields stand in their declared order.
-roff(Name, Title, Prefix, {docs_v1, _, ernest, _, ModuleDoc, _, Entries}, Source) ->
-    Body = [module_text(ModuleDoc), [entry(Entry, Prefix) || Entry <- Entries]],
+roff(Name, Title, Namespace, {docs_v1, _, ernest, _, ModuleDoc, _, Entries}, Source) ->
+    Body = [module_text(ModuleDoc), laid_out(Entries, Namespace)],
     {Prose, _} = case ModuleDoc of
                      none -> {<<>>, undefined};
                      #{<<"en">> := DocText} -> split_since(DocText)
@@ -194,8 +226,8 @@ since_line(Version) -> ["*Since ", Version, ".*\n\n"].
 %% Report §11.2: one declaration's documentation, as `:doc` prints it. The
 %% name is the unqualified one the entry carries, `map` or `Stack.push`, as
 %% it is written, so that no name is made of what a person typed. The
-%% signature is the one given, as the shell prints it, or with `entry` the
-%% entry's own, in the module's names.
+%% signature is the one given, as the shell prints it, a member's in its
+%% form, or with `entry` the entry's own, in the module's names.
 -spec declaration(binary() | file:filename(), binary(), [string()] | entry) ->
           {ok, unicode:chardata()} | none.
 declaration(Beam, Name, Signature) ->

@@ -7,8 +7,8 @@
 %% drift.
 -module(ern_ast).
 
--export([span/1, walk/3, binder/1, pattern_binders/1, pattern_bindings/1, signature_variables/1,
-         free_names/2, free_uses/2]).
+-export([span/1, walk/3, binder/1, pattern_binders/1, pattern_bindings/1, free_names/2,
+         free_uses/2]).
 
 -include_lib("parser/include/ern_ast.hrl").
 
@@ -71,19 +71,6 @@ pattern_binders(_) ->
 -spec pattern_bindings(tuple()) -> [{atom(), term()}].
 pattern_bindings(Pattern) ->
     [{Name, Type} || {Name, _, Type} <- pattern_binders(Pattern)].
-
-%% Report §3.9, §4.9: the type variables a fn declaration's signature
-%% names, in its parameters' annotations, its result type and its effect.
--spec signature_variables(tuple()) -> [atom()].
-signature_variables(#fn_declaration{params = Params, result_type = ResultType,
-                                    effect = Effect}) ->
-    lists:usort(type_variables([ResultType, Effect
-                                | [Annotation || #param{annotation = Annotation} <- Params]])).
-
-type_variables(#t_var{name = Name}) -> [Name];
-type_variables(Node) when is_tuple(Node) -> type_variables(tuple_to_list(Node));
-type_variables(Nodes) when is_list(Nodes) -> lists:append([type_variables(Node) || Node <- Nodes]);
-type_variables(_) -> [].
 
 %% Report §5.4: the unqualified names free in an expression, outside the
 %% names Bound around it, once for each use.

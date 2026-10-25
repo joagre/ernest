@@ -58,7 +58,7 @@ The runner, `ern_cli`, loads the file and its dependencies and runs their initia
 
 Where standard output has no size, or standard input is not a terminal and the reader's subscription is refused (E.16), there is no reader. The session holds the terminal itself and reads lines with `Io.readLine`, taking further lines by the rule `Enter` follows at a terminal (§11.2 *Editing*). The screen writes what it is sent as it comes.
 
-The session blocks in `Io.readLine`, so a fault report waits in its mailbox. Every waiting one is said before the next prompt. The end of input and `:quit` come at a prompt whose line no input ended, and the session ends that line before it says the faults that waited, so that each stands on a line of its own.
+The session blocks in `Io.readLine`, so a fault report waits in its mailbox. Every waiting one is said before the next prompt, and one that came while the session read a line is said once the line has come, before the line runs. The end of input and `:quit` come at a prompt whose line no input ended, and the session ends that line before it says the faults that waited, so that each stands on a line of its own.
 
 ## The front end
 
@@ -239,7 +239,7 @@ Pages are rendered by `libs/markdown`, which the shell is built against, at the 
 
 `Shell.Command.commands` is the one table of commands: each command's name, its action, what it takes and what completes after it, and its help line. `commands_mirror_test`, in `test/ern_shell_tests.erl`, holds it equal to the list of §11.2 *Commands*. The session carries each action out, most through the foreign function of its name.
 
-The settings are an Ernest value in the session's state, not the front end's. `:processes` lists what `Process.live()` lists at the prompt, which the shell's launch has the runtime leave its own processes out of, its chain, the evaluators and the input that asks, and `:faults` reads the session's state, each fault with the time the session was told of it.
+The settings are an Ernest value in the session's state, not the front end's. `:processes` lists what `Process.live()` lists at the prompt, which the shell's launch has the runtime leave its own processes out of, its chain, the evaluators and the input that asks, and `:faults` reads the session's state, each fault with the time it was met, its report's `time` (Appendix E.21).
 
 ## Faults
 

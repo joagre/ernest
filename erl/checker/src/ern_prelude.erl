@@ -612,7 +612,10 @@ values() ->
       ### Examples
 
       ```ernest
-      kill(spawn(fn() = receive { _ -> Unit }))
+      {
+          let worker : Address(Int) = spawn(fn() = receive { _ -> Unit });
+          kill(worker)
+      }
       ```
       """/utf8>>},
      %% §9.6 operations required by the language, documented by their modules
@@ -717,21 +720,22 @@ parameters([fault]) -> [cause];
 parameters([compare]) -> [left, right];
 parameters(_) -> none.
 
-%% Report §4.2, §9.5, §9.6: the prelude's types that have members, each a
-%% namespace of the prelude beside `Prelude`; a prelude type without
-%% members takes none.
+%% Report §4.2, §9.5, §9.6: the prelude's types whose namespace the
+%% prelude fills, with their members or, `Address` and `Reply`, functions
+%% of their own, each a namespace of the prelude beside `Prelude`; any
+%% other prelude type takes none.
 -spec member_types() -> [atom()].
 member_types() ->
     lists:usort([hd(QualifiedName) || {QualifiedName, _, _} <- values(),
                                       length(QualifiedName) > 1]).
 
-%% Report §4.2, §4.5: whether a qualified name is a member of a prelude
-%% type, its compare, its negate or an operator, which its module declares
-%% and no expression names.
+%% Report §4.2, §4.5: whether a qualified name is a member a prelude type
+%% has, its compare, its negate or an operator, which its module declares
+%% and no expression names: `Int.compare`, and not `Address.compare`.
 -spec is_member([atom()]) -> boolean().
-is_member([TypeName, Name]) ->
-    lists:member(Name, [compare, negate, '+', '-', '*', '/', '%', '<>'])
-        andalso lists:member(TypeName, member_types());
+is_member([_, Name] = QualifiedName) ->
+    lists:member(Name, [compare, negate | ?USEROPS])
+        andalso lists:keymember(QualifiedName, 1, values());
 is_member(_) ->
     false.
 

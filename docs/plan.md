@@ -268,13 +268,16 @@ in the order to do them, the word 0.5.0 ships decided before §8.7's text moves.
    bounds; and the shell's tests convert under one rule, a session's bound being its steps' sum as
    any test's is. The repository's own, costing no program anything; the log's *The Review's Fixes,
    First Round* and the findings' lines.
-5. **The review round's method gets an owner.** The log describes it in three entries, *The Full
-   Review Run*, *The Review's Fixes, First Round* and *The Full Review Before 0.5.0*: readers by
-   area returning their reports as text, since the harness refuses a subagent's file; fix agents
-   by file ownership, compiling in scratch with no `make` of their own; one integration agent; and
-   `git status` compared before and after a round. A kind of fact at its third entry gets a
-   document (CLAUDE.md, *A new owner*): `full_review.md`'s *How it runs* states it, written from
-   the three entries, and `release_review.md` points at it for a release's smaller round.
+5. **The review round's method gets an owner.** The log describes it in four entries, *The Full
+   Review Run*, *The Review's Fixes, First Round*, *The Full Review Before 0.5.0* and *The Release
+   Review Before 0.5.0*; `full_review.md`'s *How it runs* has one of its facts, that a reader
+   returns its list as text, and lacks the rest: fix agents by file ownership, compiling in
+   scratch with no `make` of their own, a second round for the decisions, the session integrating
+   and reading back, `git status` compared before and after a round, and the two lessons the
+   release review's entry records, the log searched and the program run before a decision is
+   argued. A kind of fact at its fourth entry gets a document (CLAUDE.md, *A new owner*):
+   `full_review.md`'s *How it runs* states it whole, and `release_review.md` points at it for a
+   release's smaller round.
 6. **The site proposal's sitting.** Its three lines the repository has left behind, MVP 3.3
    "writes" the tour, a list of four claims, and a test that does not exist, change at a sitting
    with the user, to the tour written and the six claims `claims_test` holds, dated as its
@@ -284,7 +287,10 @@ in the order to do them, the word 0.5.0 ships decided before §8.7's text moves.
    which lost a shell test its line until the test waited for the fault. Measured against what a
    fault's report does; the modules loaded at the launch where that costs less than the number says,
    else the number recorded in the log and the item closed (CLAUDE.md, *The tools are fast*).
-8. **The release that closes the milestone**, so that MVP 4.0 starts from a tag: run as
+8. **The member regime's missing test.** A module's own bare `fn compare` shadows the prelude's
+   and gives no ordering, which *A Member Has One Face* built and no test holds; written by
+   2026-10-31.
+9. **The release that closes the milestone**, so that MVP 4.0 starts from a tag: run as
    `release_review.md` says, whole, since the machines are what make a tag solid. 0.5.1 where item
    2 leaves §8.7's protocol as it stands, the first release whose nodes connect to the previous
    release's, two patch levels on one floor (report §8.7); 0.6.0 where it adds a frame, since the

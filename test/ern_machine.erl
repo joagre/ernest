@@ -11,7 +11,7 @@
 
 -export([local/0, machine/4, name/1, host/1, interface/1, is_local/1, clone/1, ern/1,
          directory/1, directory/2, open/2, opened/1, closed/1, run/2, ran/2, load_average/1,
-         copied/3, launched/2, seen/2, ended/1, answering/4, quoted/1, fail/1]).
+         copied/3, launched/2, seen/2, ended/1, answering/3, quoted/1, fail/1]).
 
 %% A machine: its name, the host ssh and scp take and its peers dial, the
 %% clone of the repository there, `local` for this machine's checkout, the
@@ -286,34 +286,20 @@ ended(Reader) ->
 %% it is seen within that time again, and the asks grow with the logarithm
 %% of that time, not with the time, as asks without a pause would, which
 %% keep a core busy while the node starts. At each refusal Refused is
-%% called, which fails where the node has ended; Ms bounds the whole, or
-%% nothing does where it is `infinity`.
--spec answering(string(), inet:port_number(), timeout(), fun(() -> ok)) -> ok.
-answering(Host, Port, Ms, Refused) ->
-    Asked = erlang:monotonic_time(millisecond),
-    Deadline = case Ms of
-                   infinity -> infinity;
-                   _ -> Asked + Ms
-               end,
-    answering(Host, Port, Refused, Asked, Deadline).
+%% called, which fails where the node has ended.
+-spec answering(string(), inet:port_number(), fun(() -> ok)) -> ok.
+answering(Host, Port, Refused) ->
+    answering(Host, Port, Refused, erlang:monotonic_time(millisecond)).
 
-answering(Host, Port, Refused, Asked, Deadline) ->
+answering(Host, Port, Refused, Asked) ->
     Now = erlang:monotonic_time(millisecond),
-    Left = case Deadline of
-               infinity -> infinity;
-               _ -> max(Deadline - Now, 0)
-           end,
-    Unanswered = io_lib:format("~s:~B has not answered", [Host, Port]),
-    Left =/= 0 orelse fail(Unanswered),
-    case gen_tcp:connect(Host, Port, [], Left) of
+    case gen_tcp:connect(Host, Port, []) of
         {ok, Socket} ->
             gen_tcp:close(Socket);
         {error, econnrefused} ->
             ok = Refused(),
-            receive after min(max(Now - Asked, 1), Left) -> ok end,
-            answering(Host, Port, Refused, Asked, Deadline);
-        {error, timeout} ->
-            fail(Unanswered);
+            receive after max(Now - Asked, 1) -> ok end,
+            answering(Host, Port, Refused, Asked);
         {error, Error} ->
             fail(io_lib:format("~s:~B cannot be reached from here: ~s",
                                [Host, Port, inet:format_error(Error)]))

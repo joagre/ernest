@@ -216,20 +216,20 @@ version() ->
     {ok, Text} = file:read_file("../VERSION"),
     string:trim(Text).
 
-%% docs/design/install.md: make release writes the archive, the staged tree with
-%% the helper as its C source, a Makefile and a README; its make compiles
-%% the helper, and its make install installs under a prefix, where a
-%% program that runs another through the helper runs, and its make
-%% uninstall removes it. Written with the code. The README it carries is
-%% the one it installs, and the installed guide's link to the log leads
-%% into the repository at the release's tag, as its links to the examples
-%% and the Emacs README stay its own: a regression test, as install/0's
-%% is. The logo the README shows stands beside it in the
-%% archive, as under the prefix. The installed `ern` is a release, whose
-%% version text is VERSION's alone, as the repository's build is not
-%% (report §8.7): a regression test, written after the code (finding N11).
-%% The archive holds no module compiled from an application's tests, as
-%% the installation does not.
+%% docs/design/install.md: make release writes the archive, the staged tree
+%% with the helper as its C source, a Makefile and a README; its make
+%% compiles the helper, and its make install installs under a prefix, where
+%% a program that runs another through the helper runs, and its make
+%% uninstall removes it. Written with the code. The README it carries is the
+%% one it installs, and the installed guide's link to the log leads into the
+%% repository at the release's tag, as its links to the examples and the
+%% Emacs README stay its own: a regression test, as install/0's is. The logo
+%% the README shows stands beside it in the archive, as under the prefix.
+%% The installed `ern` is a release, whose version text is VERSION's alone,
+%% as the repository's build is not (report §8.7): a regression test,
+%% written after the code (the log's *MVP 3.1 Read*). The archive holds no
+%% module compiled from an application's tests, as the installation does
+%% not.
 release() ->
     Base = filename:absname("build/release"),
     ok = ern_integration_tests:del(Base),

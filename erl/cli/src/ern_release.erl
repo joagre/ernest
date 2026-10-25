@@ -20,13 +20,13 @@ version_text() ->
     ?VERSION ++ ?MARK.
 
 %% Report §8.7: what the build stands on, which the floor names:
-%% development for a build that is no release, and for a release the
-%% three whole numbers of VERSION.
+%% development for a build that is no release, whose version text is
+%% VERSION's marked, and for a release the three whole numbers of VERSION.
 -spec release() -> development | {non_neg_integer(), non_neg_integer(), non_neg_integer()}.
 release() ->
-    case ?MARK of
-        "" -> release(?VERSION);
-        _ -> development
+    case version_text() =:= ?VERSION of
+        true -> release(?VERSION);
+        false -> development
     end.
 
 %% A release's major, minor and patch, of the three whole numbers its

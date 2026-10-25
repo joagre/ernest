@@ -53,6 +53,7 @@
          counts/0]).
 
 -include_lib("checker/include/ern_canonical.hrl").
+-include_lib("emitter/include/ern_unit.hrl").
 -include_lib("kernel/include/file.hrl").
 
 -export_type([host_table/0, reach/0]).
@@ -222,7 +223,7 @@ declared_rows(_Unit, none) ->
     [];
 declared_rows(Unit, #recorded{foreign = Foreign}) ->
     [{{declared, texts(QualifiedName)}, Unit, Declaration}
-     || {QualifiedName, _, _, _, _, _} = Declaration <- Foreign].
+     || #foreign_function{qualified_name = QualifiedName} = Declaration <- Foreign].
 
 %% A unit's rows for one of its declarations: a definition by its identity,
 %% a binding's form by its hash too, which holders/1 finds where a lambda
@@ -342,13 +343,13 @@ valued(Key) ->
     end.
 
 %% Report §11.1, §8.7: the value of a top-level binding whose initializer is
-%% a ground term, by its identity, as a unit that holds it lists it, which
-%% a unit an exchange makes holds where its code reads the binding; none
-%% for any other binding. One identity is one form, so every unit that
-%% holds it lists one value.
--spec ground({binding, [atom() | binary()], binary()}) -> {term, term()} | none.
-ground(Binding) ->
-    case grounded(Binding) of
+%% a ground term, by the hash of its form, as a unit that holds it lists
+%% it, which a unit an exchange makes holds where its code reads the
+%% binding; none for any other binding. One hash is one form, so every
+%% unit that holds it lists one value, whatever the binding's name.
+-spec ground(binary()) -> {term, term()} | none.
+ground(Hash) ->
+    case grounded(Hash) of
         {_, _, Term} -> {term, Term};
         none -> none
     end.
@@ -356,10 +357,9 @@ ground(Binding) ->
 %% Report §4.6, §8.7: the same with the unit that lists it, the first loaded
 %% of those, and its getter, which a unit that reads the value names as it
 %% would read it, its code calling that unit (ern_arrival); none for a
-%% binding no unit lists so. A constant's value is its form's, so it is
-%% found by its hash whatever the binding's name.
--spec grounded({binding, [atom() | binary()], binary()}) -> {module(), atom(), term()} | none.
-grounded({binding, _, Hash}) ->
+%% binding no unit lists so.
+-spec grounded(binary()) -> {module(), atom(), term()} | none.
+grounded(Hash) ->
     case lookup({constant, Hash}) of
         [{_, Unit, {Getter, Term}} | _] -> {Unit, Getter, Term};
         [] -> none
@@ -499,22 +499,18 @@ foreign(Called, QualifiedName) ->
 
 %% Report §8.7, §11.2: the declarations of a foreign function by its
 %% qualified name, its segments atoms or text, that the units this node
-%% keeps a record of record, each with the unit, {QualifiedName, Scheme,
-%% HostModule, HostFunction, Printing, Source}, the module and the function
-%% atoms, or text where the node had no atom of them as the unit's code
-%% arrived and linked the call to a fault (ern_arrival), in the order the
-%% units were loaded. A unit a file holds has none here: its code holds
-%% every declaration it records, which foreign/2 finds.
--spec declared([atom() | binary()]) ->
-          [{module(), {[atom() | binary()], term(), atom() | binary(), atom() | binary(),
-                       term(), term()}}].
+%% keeps a record of record, each with the unit, a #foreign_function{}
+%% whose module and function are atoms, or text where the node had no atom
+%% of them as the unit's code arrived and linked the call to a fault
+%% (ern_arrival), in the order the units were loaded. A unit a file holds
+%% has none here: its code holds every declaration it records, which
+%% foreign/2 finds.
+-spec declared([atom() | binary()]) -> [{module(), #foreign_function{}}].
 declared(QualifiedName) ->
     [{Holder, Declaration} || {_, Holder, Declaration} <- lookup({declared, texts(QualifiedName)})].
 
 %% The same, of the units of Called (called/1).
--spec declared(#{module() => true}, [atom() | binary()]) ->
-          [{module(), {[atom() | binary()], term(), atom() | binary(), atom() | binary(),
-                       term(), term()}}].
+-spec declared(#{module() => true}, [atom() | binary()]) -> [{module(), #foreign_function{}}].
 declared(Called, QualifiedName) ->
     [Declared || {Holder, _} = Declared <- declared(QualifiedName), is_map_key(Holder, Called)].
 

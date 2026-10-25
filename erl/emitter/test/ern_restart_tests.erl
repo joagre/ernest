@@ -170,7 +170,8 @@ service_monitor_told_before_the_new_run_test() ->
 %% run counting from one, fifty restarts in a row. A regression test,
 %% written after the code: the Restarted was placed before the emptying, and
 %% a request sent on it could be emptied with the old run's mailbox or its
-%% call ended with the old run's (feedback 163). It does not cover a
+%% call ended with the old run's (the log's *A Restart Empties Before It
+%% Tells*). It does not cover a
 %% service monitor of another node's process, which no restart reaches
 %% (§8.7)
 restarted_watcher_reaches_the_new_run_test() ->

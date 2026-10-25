@@ -46,21 +46,15 @@ main([Directory]) ->
 %% Erlang row, with the call it makes.
 host_tries(Count) ->
     Function = fun() -> 'Unit' end,
-    ern_costs:timed(Count, fun Loop(0) -> ok;
-                               Loop(Left) ->
-                                   try Function() catch _:_ -> ok end,
-                                   Loop(Left - 1)
-                           end).
+    ern_costs:timed(Count, ern_costs:looped(fun(_) -> try Function() catch _:_ -> ok end end)).
 
 %% Report §6.9: Ernest's restarting entered and returning, the code the
 %% compiler writes for `restarting(Unlimited, fn() = Unit)()`.
 ernest_restartings(Count) ->
-    ern_costs:timed(Count, fun Loop(0) -> ok;
-                               Loop(Left) ->
-                                   _ = (ern_rt:restarting('Unlimited',
-                                                          fun() -> 'Unit' end))(),
-                                   Loop(Left - 1)
-                           end).
+    ern_costs:timed(Count, ern_costs:looped(fun(_) ->
+                                                (ern_rt:restarting('Unlimited',
+                                                                   fun() -> 'Unit' end))()
+                                            end)).
 
 %% The same with ?WAITING messages in the mailbox.
 ernest_restartings_waiting(Count) ->

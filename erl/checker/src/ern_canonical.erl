@@ -973,9 +973,6 @@ expr_form(#e_binop{operator = Operator, left = Left, right = Right, member = Mem
     {RightForm, Walk2} = expr(Right, Walk1),
     {Operation, Walk3} = operation(Operator, Left, Member, Walk2),
     {{operator, Operator, LeftForm, RightForm, Operation}, Walk3};
-expr_form(#e_member{supply = Supply}, Walk) ->
-    {Form, Walk1} = supply(Supply, Walk),
-    {{member, Form}, Walk1};
 expr_form(#e_lambda{span = Span, params = Params, body = Body, type = Type},
      #walk{scope = Scope, functions = Functions} = Walk) ->
     %% report §8.7: its position, in the order the walk meets it; report

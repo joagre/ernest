@@ -66,10 +66,12 @@
 %% Exchange is the reference the asking node made for the exchange, an
 %% Identity is ern_peer:identity(), a hash the 32 bytes of a SHA-256, a
 %% name a list of its segments as text, which makes no atom where a peer
-%% sends it; Bindings are {QualifiedName, Hash}, Foreigns {QualifiedName,
-%% HostModule, HostFunction, Scheme, Printing, Source}, the scheme as a
-%% form writes it (Appendix H) and Source where the declaration is written,
-%% {Line, Column, none}; Hashes the definition alone or the group's members
+%% sends it; Bindings are {QualifiedName, Hash}, Foreigns each a
+%% #foreign_function{} (ern_unit.hrl), its name, its host's module and its
+%% function as text, its scheme as a form writes it (Appendix H), its
+%% printing and its source, where the declaration is written, {Line,
+%% Column, none}, its export false, which the arrival decides; Hashes the
+%% definition alone or the group's members
 %% in order, Bytes what that definition or group is hashed as (Appendix H),
 %% and Sources the bytes of the host's external term format of a list of
 %% {Name, Sourced, Printing, Calls}, one for each of Hashes in order: the
@@ -80,14 +82,14 @@
 %% namespace its module's forms write its types under and the prelude names
 %% its types shadow, as text, by which a type prints in a cause as the
 %% module writes it (§11.5); and Calls the foreign declarations its form
-%% calls, in the order of their names, each {QualifiedName, HostModule,
-%% HostFunction, Printing, Source}, the names as text, the scheme being the
-%% one the form writes (§8.7).
+%% calls, in the order of their names, each a #foreign_function{} as a
+%% reach's is, but for its scheme, none, the form writing it (§8.7).
 -module(ern_exchange).
 
 -export([start/0, handed/1, lacking/3, lost/1]).
 
 -include_lib("checker/include/ern_canonical.hrl").
+-include_lib("emitter/include/ern_unit.hrl").
 
 %% Report §8.6: each receive that can wait, by its kind (docs/style.md).
 -receives({answered_at_once, [start/0]}).
@@ -272,10 +274,10 @@ frame(From, {reach, Ref, Identities, Bindings, Foreigns}, State)
   when is_reference(Ref), node(Ref) =:= node() ->
     true = lists:all(fun is_hash/1, Identities)
         andalso lists:all(fun({Name, Hash}) -> is_name(Name) andalso is_hash(Hash) end, Bindings)
-        andalso lists:all(fun({Name, HostModule, HostFunction, Scheme, Printing, Source}) ->
-                              is_name(Name) andalso is_text(HostModule)
-                                  andalso is_text(HostFunction) andalso is_scheme(Scheme)
-                                  andalso is_printing(Printing) andalso is_source(Source)
+        andalso lists:all(fun(#foreign_function{scheme = Scheme} = Foreign) ->
+                              is_declaration(Foreign) andalso is_scheme(Scheme);
+                             (_) ->
+                              false
                           end, Foreigns),
     case exchange(From, Ref, State) of
         late -> State;
@@ -324,15 +326,24 @@ member(Hash, Form, {Name, Sourced, Printing, Calls}, Group) ->
     true = is_name(Name) andalso is_printing(Printing) andalso is_list(Calls)
         andalso lists:all(fun is_call/1, Calls),
     Form = ern_canonical:stripped(Sourced),
-    true = [Called || {Called, _, _, _, _} <- Calls] =:= called_names(Form),
+    true = [Called || #foreign_function{qualified_name = Called} <- Calls]
+        =:= called_names(Form),
     {#definition{qualified_name = Name, kind = kind(Form), hash = Hash, form = Form,
                  group = Group, sourced = Sourced, printing = Printing},
      Calls}.
 
-is_call({Name, HostModule, HostFunction, Printing, Source}) ->
+is_call(#foreign_function{scheme = none} = Call) -> is_declaration(Call);
+is_call(_) -> false.
+
+%% A foreign declaration as a peer's frame carries it, but for its scheme:
+%% its name, its host's module and its function as text, its export false,
+%% its source a line and a column, and its printing.
+is_declaration(#foreign_function{qualified_name = Name, host_module = HostModule,
+                                 host_function = HostFunction, export = false, source = Source,
+                                 printing = Printing}) ->
     is_name(Name) andalso is_text(HostModule) andalso is_text(HostFunction)
-        andalso is_printing(Printing) andalso is_source(Source);
-is_call(_) ->
+        andalso is_source(Source) andalso is_printing(Printing);
+is_declaration(_) ->
     false.
 
 kind({function, _, _, _}) -> function;
@@ -571,20 +582,16 @@ reached_definitions([Hash | Hashes], Found, Read) ->
             Found1 = maps:merge(Found, maps:from_list([{Member, Definition}
                                                        || #definition{hash = Member} = Definition
                                                               <- Members])),
-            Referenced = [Referenced
-                          || Reference <- ern_canonical:references(forms(Members)),
-                             Referenced <- [case Reference of
-                                                {hash, Referenced} -> Referenced;
-                                                {binding, _, Referenced} -> Referenced
-                                            end],
-                             element(1, Reference) =:= hash orelse is_constant(Referenced)],
+            References = ern_canonical:references(forms(Members)),
+            Referenced = [Referenced || {hash, Referenced} <- References]
+                ++ [Referenced || {binding, _, Referenced} <- References, is_constant(Referenced)],
             reached_definitions(Referenced ++ Hashes, Found1, Read1)
     end.
 
 %% Report §4.6: whether a binding's form is a constant, whose value this
 %% node's code table lists by its hash.
 is_constant(Hash) ->
-    ern_code:ground({binding, [], Hash}) =/= none.
+    ern_code:ground(Hash) =/= none.
 
 %% The foreign declarations of a function's reach, each with the module and
 %% the function of the host its declaration calls, as text, its declared
@@ -605,41 +612,50 @@ implementations(Unit, Foreigns, Read) ->
                                     end, Read, Foreigns),
     case lists:keymember(none, 2, Found) of
         false ->
-            {{ok, [{Name, HostModule, HostFunction, Scheme, Printing, Source}
-                   || {Name, {HostModule, HostFunction, Scheme, Printing, Source}} <- Found]},
+            {{ok, [Implemented#foreign_function{qualified_name = Name}
+                   || {Name, Implemented} <- Found]},
              Read1};
         true ->
             {none, Read1}
     end.
 
+%% A foreign declaration as a frame carries it, its module and its function
+%% as text, its export false, from the unit that holds its implementation
+%% or the declaration a unit records; none where neither is held.
 implementation(Called, QualifiedName, Read) ->
     case ern_code:foreign(Called, QualifiedName) of
         [{Holder, HostModule, HostFunction} | _] ->
             case declared(Holder, ern_namespace:text_segments(QualifiedName), Read) of
-                {{Scheme, Printing, Source}, Read1} ->
-                    {{atom_to_binary(HostModule), atom_to_binary(HostFunction), Scheme, Printing,
-                      Source}, Read1};
+                {#foreign_function{} = Declared, Read1} ->
+                    {Declared#foreign_function{host_module = atom_to_binary(HostModule),
+                                               host_function = atom_to_binary(HostFunction),
+                                               export = false},
+                     Read1};
                 {none, Read1} ->
                     {none, Read1}
             end;
         [] ->
             case ern_code:declared(Called, QualifiedName) of
-                [{_, {_, Scheme, HostModule, HostFunction, Printing, Source}} | _] ->
-                    {{ern_namespace:text_segment(HostModule),
-                      ern_namespace:text_segment(HostFunction), Scheme, Printing, Source}, Read};
+                [{_, #foreign_function{host_module = HostModule,
+                                       host_function = HostFunction} = Declared} | _] ->
+                    {Declared#foreign_function{
+                       host_module = ern_namespace:text_segment(HostModule),
+                       host_function = ern_namespace:text_segment(HostFunction),
+                       export = false},
+                     Read};
                 [] ->
                     {none, Read}
             end
     end.
 
-%% The scheme of the foreign declaration Name, what prints a type in its
-%% check's cause and where it is declared, as the unit Holder records them,
-%% or none.
+%% The foreign declaration Name as the unit Holder records it, its scheme,
+%% what prints a type in its check's cause and where it is declared among
+%% it, or none.
 declared(Holder, Name, Read) ->
     case recorded(Holder, Read) of
         {#recorded{foreign = Recorded}, Read1} ->
-            case [{Scheme, Printing, Source}
-                  || {QualifiedName, Scheme, _, _, Printing, Source} <- Recorded,
+            case [Declaration
+                  || #foreign_function{qualified_name = QualifiedName} = Declaration <- Recorded,
                      ern_namespace:text_segments(QualifiedName) =:= Name] of
                 [Declared | _] -> {Declared, Read1};
                 [] -> {none, Read1}
@@ -743,9 +759,9 @@ code_frame(Members, Forms, Calls) ->
     end.
 
 %% Report §8.7: the foreign declarations a definition's form calls, in the
-%% order of their names, each {QualifiedName, HostModule, HostFunction,
-%% Printing, Source} as a reach's are found (implementations/3); none where
-%% one of them is found nowhere.
+%% order of their names, each as a reach's is found (implementations/3),
+%% with no scheme, the form writing it; none where one of them is found
+%% nowhere.
 calls(Unit, Form, Read) ->
     case called_names(Form) of
         [] ->
@@ -753,8 +769,7 @@ calls(Unit, Form, Read) ->
         Names ->
             case implementations(Unit, Names, Read) of
                 {{ok, Implemented}, Read1} ->
-                    {[{Name, HostModule, HostFunction, Printing, Source}
-                      || {Name, HostModule, HostFunction, _, Printing, Source} <- Implemented],
+                    {[Declaration#foreign_function{scheme = none} || Declaration <- Implemented],
                      Read1};
                 {none, Read1} ->
                     {none, Read1}
@@ -836,9 +851,12 @@ is_hash(Hash) ->
 is_name(Name) ->
     is_list(Name) andalso Name =/= [] andalso lists:all(fun is_text/1, Name).
 
-%% Where a foreign declaration is written, its line and its column.
-is_source({Line, Column, none}) -> is_integer(Line) andalso is_integer(Column);
-is_source(_) -> false.
+%% Where a foreign declaration is written, its line and its column, each
+%% counted from 1 (§11.5).
+is_source({Line, Column, none}) ->
+    is_integer(Line) andalso Line >= 1 andalso is_integer(Column) andalso Column >= 1;
+is_source(_) ->
+    false.
 
 %% What prints a type in a cause as a module writes it: its namespace and
 %% the prelude names its types shadow, as text.

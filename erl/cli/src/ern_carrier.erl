@@ -13,7 +13,7 @@
 
 -export([boot_flags/1, name/1, host/1, cookie/0, cookie/2, start/1, list/1, booted/0,
          configuration/0, is_node/0, reload/0, depart/0, peer/1, verify/3, dialing/1, listed/1,
-         names_own_host/1, say/1, named/1, said/1, filter/2]).
+         names_own_host/1, say/1, say_later/1, named/1, said/1, filter/2]).
 
 -include_lib("public_key/include/public_key.hrl").
 -include("ern_node.hrl").
@@ -241,7 +241,7 @@ is_node() ->
 reload() ->
     #configuration{config_dir = ConfigDir} = Running = configuration(),
     try changed(Running, ern_node:read(ConfigDir)) of
-        Lines -> lists:foreach(fun say/1, ["ernest.conf was read again" | Lines])
+        Lines -> lists:foreach(fun say_later/1, ["ernest.conf was read again" | Lines])
     catch
         throw:{cli_error, Refusal} -> refuse(Refusal);
         throw:{ern, fault, Cause} -> refuse(Cause);
@@ -249,7 +249,7 @@ reload() ->
     end.
 
 refuse(Refusal) ->
-    say(["the reload was refused, and the configuration stays as it was: ", Refusal]).
+    say_later(["the reload was refused, and the configuration stays as it was: ", Refusal]).
 
 changed(#configuration{config_dir = ConfigDir, public_key = Key, listen = Listen, peers = Peers,
                        measures = Measures},
@@ -339,11 +339,11 @@ verify(Certificate, _Event, Side) ->
         {{listed, Peer}, true} ->
             answered(Side, Peer);
         {{listed, #peer{name = Name}}, false} ->
-            say(["the peer ", Name, " was refused: its certificate names another host than its"
-                                    " key gives"]),
+            say_later(["the peer ", Name, " was refused: its certificate names another host"
+                                          " than its key gives"]),
             {fail, other_host};
         {{unlisted, Digest}, _} ->
-            say(["a node with the key ", Digest, " was refused: no peer has its key"]),
+            say_later(["a node with the key ", Digest, " was refused: no peer has its key"]),
             {fail, not_listed}
     end.
 
@@ -361,10 +361,11 @@ answered(client, #peer{name = Name, public_key = Key}) ->
             ok = allow([Key]),
             {valid, client};
         {dialed, Dialed} ->
-            say(["the peer ", Name, " was refused: it answered the dial of ", host_named(Dialed)]),
+            say_later(["the peer ", Name, " was refused: it answered the dial of ",
+                       host_named(Dialed)]),
             {fail, not_dialed};
         unknown ->
-            say(["the peer ", Name, " was refused: the dial it answered is not known"]),
+            say_later(["the peer ", Name, " was refused: the dial it answered is not known"]),
             {fail, not_dialed}
     end.
 
@@ -443,8 +444,20 @@ certificate_key(Certificate) ->
 %% job's own standard error (ern_rt:say/2).
 -spec say(iodata()) -> ok.
 say(Text) ->
-    ern_rt:say(iolist_to_binary([ern_cli:stamp(ern_cli:is_stamped()), Text, "\n"]),
-               fun ern_cli:error_line/1).
+    ern_rt:say(line(Text), fun ern_cli:error_line/1).
+
+%% Report §8.7: a line on the node's standard error as say/1 writes it, said
+%% for a process that must not wait for standard error to take it: the
+%% gateway and its workers, which route every frame, the check of a
+%% certificate, inside the host's TLS, the port map's dial and the host's
+%% log filter, inside its distribution, and a reload, in the host's signal
+%% handler (ern_rt:say_later/2). Its time is the moment it was said.
+-spec say_later(iodata()) -> ok.
+say_later(Text) ->
+    ern_rt:say_later(line(Text), fun ern_cli:error_line/1).
+
+line(Text) ->
+    iolist_to_binary([ern_cli:stamp(ern_cli:is_stamped()), Text, "\n"]).
 
 %% A peer as a line names it: by its name in `ernest.conf`, or by its key's
 %% digest where it is not listed.
@@ -452,11 +465,13 @@ say(Text) ->
 named(Node) ->
     host_named(lists:last(string:split(atom_to_list(Node), "@"))).
 
-%% A peer as a line names it by the host of its name on the carrier.
+%% A peer as a line names it by the host of its name on the carrier; one
+%% not listed by that name as the node gave it, which may be any text where
+%% its handshake was refused, its control characters escaped (§11.2).
 host_named(Host) ->
     case peer(Host) of
         #peer{name = Name} -> ["the peer ", Name];
-        none -> ["the node ", [Char || Char <- Host, Char =/= $.]]
+        none -> ["the node ", controls([Char || Char <- Host, Char =/= $.])]
     end.
 
 %% Report §8.7: the line a change of a connection is said by, which the
@@ -513,8 +528,8 @@ filter(_Event, _) ->
 %% said in the node's words, and every other dropped; any other message
 %% left to the handlers.
 host_message("** Connection attempt from disallowed node ~s" ++ _, [Node]) ->
-    say(["a node named ", io_lib:format("~ts", [Node]), " was refused: its key gives another"
-                                                        " name"]),
+    say_later(["a node named ", controls(io_lib:format("~ts", [Node])),
+               " was refused: its key gives another name"]),
     stop;
 host_message(Format, Args) when is_list(Format) ->
     case {string:find(Format, "Invalid challenge"), Args} of
@@ -526,11 +541,16 @@ host_message(Format, Args) when is_list(Format) ->
                 false -> ignore
             end;
         {_, [Node]} when is_atom(Node) ->
-            say([named(Node), " was refused: it stands on another floor, another release or"
-                               " build of ern or another major release of OTP"]),
+            say_later([named(Node), " was refused: it stands on another floor, another release"
+                                     " or build of ern or another major release of OTP"]),
             stop;
         _ ->
             stop
     end;
 host_message(_, _) ->
     ignore.
+
+%% Report §8.7, §11.2: a name a node gave in its handshake, which a line
+%% writes with each control character escaped, as a cause's are.
+controls(Name) ->
+    ern_show:controls(unicode:characters_to_binary(Name), line).

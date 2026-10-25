@@ -136,7 +136,7 @@ component_or_lowered(Segment) ->
 %% its segments joined by `.`, `Net.Http.get`. Report §8.7: a definition
 %% that arrived from a peer is named by its segments as text, which make
 %% no atom on the node, and is written the same way.
--spec text([atom() | binary()]) -> string().
+-spec text([atom() | binary() | string()]) -> string().
 text(QualifiedName) ->
     lists:flatten(lists:join(".", [segment_text(Part) || Part <- QualifiedName])).
 

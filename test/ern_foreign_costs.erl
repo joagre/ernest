@@ -124,11 +124,7 @@ host_calls(Implementation) ->
 %% calls it, by its position in its unit (report §11.1).
 ernest_calls(Unit, Name) ->
     {Function, 1} = ern_code:function(Unit, ?NAMESPACE ++ [Name]),
-    fun(Count) ->
-        ern_costs:timed(Count, fun Loop(0) -> ok;
-                                   Loop(Left) -> _ = Unit:Function(Left), Loop(Left - 1)
-                               end)
-    end.
+    fun(Count) -> ern_costs:timed(Count, ern_costs:looped(fun Unit:Function/1)) end.
 
 %%
 %% The model, each row a function of its own, the code the emitter writes

@@ -30,12 +30,12 @@ export abstract type Region =
            cursor : Int,
            offered : List(String),
            resting : Int,
-           outputRows : Int,
+           rows : Int,
            size : Terminal.Size)
 
 /// Report §11.2: the tail's rows to begin with, which `:set rows n`
 /// changes and `0` takes away.
-export let tailRows = 5
+export let defaultRows = 5
 
 // Report §11.2: the rows of an input after its first.
 let continuation = "... "
@@ -53,7 +53,7 @@ export fn new(size : Terminal.Size) : Region =
            cursor = 0,
            offered = [],
            resting = 0,
-           outputRows = tailRows,
+           rows = defaultRows,
            size = size)
 
 /// What the session says is committed as it is produced; what it leaves
@@ -129,8 +129,8 @@ export fn resized(region : Region, size : Terminal.Size) : #(Region, String) =
 
 /// Report §11.2: `:set rows n` gives the tail n rows, and 0 takes the
 /// tail away, which interleaves what programs write with the transcript.
-export fn outputSized(region : Region, rows : Int) : #(Region, String) =
-    aged(Region(..region, outputRows = Int.max(0, rows)), [])
+export fn rowsSized(region : Region, rows : Int) : #(Region, String) =
+    aged(Region(..region, rows = Int.max(0, rows)), [])
 
 /// Report §11.2: `C-l` gives a clean screen. What is committed stays in
 /// the terminal's scrollback; the region is painted again at the top.
@@ -147,7 +147,7 @@ export fn cleared(region : Region) : #(Region, String) = {
 // that a tail made shorter, or a window made smaller, loses nothing.
 fn aged(region : Region, commits : List(String)) : #(Region, String) = {
     let Region(tail = tail) = region;
-    let over = List.size(tail) - height(region);
+    let over = List.size(tail) - rowsGiven(region);
     if over <= 0 then
         painted(region, commits)
     else
@@ -304,7 +304,7 @@ fn tailRowsOf(region : Region) : List(String) = {
         region.tail
     else
         region.tail <> [region.writing];
-    List.drop(all, Int.max(0, List.size(all) - height(region)))
+    List.drop(all, Int.max(0, List.size(all) - rowsGiven(region)))
 }
 
 // Report §11.2: an input may span lines, the first typed after the
@@ -340,10 +340,10 @@ fn picture(char : Char) : String = {
         "\u{FFFD}"
 }
 
-// The tail's height: what `:set rows` asks for, and never more than
-// the screen has room for, the input having the last word.
-fn height(region : Region) : Int =
-    Int.min(region.outputRows, Int.max(0, region.size.rows / 2 - 1))
+// The rows the tail is given: what `:set rows` asks for, and never more
+// than the screen has room for, the input having the last word.
+fn rowsGiven(region : Region) : Int =
+    Int.min(region.rows, Int.max(0, region.size.rows / 2 - 1))
 
 // The row of the region the cursor rests on: the tail's rows, the screen
 // rows of the input's lines before the cursor's, and the rows the cursor's

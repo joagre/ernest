@@ -6,7 +6,7 @@
 %% host's four counts, as the runtime reads them (ern_code:counts/0, report
 %% §11.2); what crossed each of the node's connections over a window of
 %% the host's ticks; and the pick of a compute that names no peer, timed
-%% where the node makes it (ern_peer:picked/0). Each function is a foreign
+%% where the node makes it (ern_peer:pick/0). Each function is a foreign
 %% function of the measuring program, run on a peer by a compute of its name
 %% (report §8.7) or called on the measuring node itself; none is any
 %% program's.
@@ -183,5 +183,5 @@ picks(Count) ->
 picked(0) ->
     ok;
 picked(Count) ->
-    {picked, _} = ern_peer:picked(),
+    {picked, _, _} = ern_peer:pick(),
     picked(Count - 1).

@@ -93,7 +93,7 @@ compile(Namespace, Declarations, Interface, Env, Build) ->
 -spec interface([atom()], #interface{}, ern_canonical:canonical(), ern_typecheck:env(), map()) ->
           #interface{}.
 interface(_, #interface{lets = []} = Interface, Canonical, _, _) ->
-    with_terms(Interface, Canonical, none);
+    ern_canonical:interface(Interface, Canonical);
 interface(Namespace, #interface{lets = Lets} = Interface,
           #{definitions := Definitions} = Canonical, Env, Build) ->
     Linking = [Definition || #definition{kind = Kind, qualified_name = QualifiedName} = Definition
@@ -173,10 +173,8 @@ from_compiled(Beam, Unit, Interfaces, Prelude, Units) ->
 %% Report §8.4, §11.1: a foreign declaration as a compiled form records it
 %% (recorded/2), a foreign function of the unit, exported where the
 %% module's interface names it, at its source's line.
-recorded_foreign({QualifiedName, Scheme, HostModule, HostFunction, Printing, Source}, Values) ->
-    #foreign_function{qualified_name = QualifiedName, scheme = Scheme, host_module = HostModule,
-                      host_function = HostFunction, export = is_map_key(QualifiedName, Values),
-                      source = Source, printing = Printing}.
+recorded_foreign(#foreign_function{qualified_name = QualifiedName} = Declaration, Values) ->
+    Declaration#foreign_function{export = is_map_key(QualifiedName, Values)}.
 
 %% Report §11.1: a unit's abstract forms compiled by the host, with its
 %% chunks, or the host's errors. A build's errors are a defect of the
@@ -329,12 +327,12 @@ recorded(#unit{namespace = Namespace, definitions = Definitions, foreign_functio
                                printing = Printing}
                              || #definition{qualified_name = QualifiedName, sourced = Sourced}
                                     = Definition <- Definitions],
-              foreign = [{FormNamespace ++ lists:nthtail(length(Namespace), QualifiedName),
-                          Scheme, HostModule, HostFunction, Printing, Source}
-                         || #foreign_function{qualified_name = QualifiedName, scheme = Scheme,
-                                              host_module = HostModule,
-                                              host_function = HostFunction,
-                                              source = Source} <- Foreign],
+              foreign = [Declaration#foreign_function{
+                           qualified_name = FormNamespace
+                                                ++ lists:nthtail(length(Namespace), QualifiedName),
+                           printing = Printing}
+                         || #foreign_function{qualified_name = QualifiedName} = Declaration
+                                <- Foreign],
               binding_order = BindingOrder}.
 
 %% Report §11.5, §8.7: what prints a type of the unit's in a cause as its

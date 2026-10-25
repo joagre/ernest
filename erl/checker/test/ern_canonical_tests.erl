@@ -149,6 +149,29 @@ type_form_test() ->
                   [{'Pair', {positional, {tuple, [{variable, 1}, {variable, 2}]}}}]},
                  form("type Pair(a, b) = Pair(#(a, b))", 'Pair')).
 
+%% report Appendix H, §3.5, §3.10: a derived compare is hashed as the
+%% written one Appendix H states, its fields compared by the prelude's
+%% `compare` at their types: the two forms are one term. A regression test
+%% of the release review's C1-C9, written after the change; before it, a
+%% field was compared by a node of the derived compare's own, which no
+%% written compare had
+derived_compare_form_test() ->
+    Type = "type Shape = Dot | Rect(w : Int, h : Int)",
+    Written = Type ++ "\n"
+              "fn Shape.compare(left : Shape, right : Shape) : Ordering =\n"
+              "    match #(left, right) {\n"
+              "        #(Dot, Dot) -> Equal\n"
+              "      | #(Dot, _) -> Less\n"
+              "      | #(_, Dot) -> Greater\n"
+              "      | #(Rect(w = left1, h = left2), Rect(w = right1, h = right2)) ->\n"
+              "            match compare(left1, right1) {\n"
+              "                Equal -> compare(left2, right2)\n"
+              "              | order -> order\n"
+              "            }\n"
+              "    }\n",
+    ?assertEqual(form(Written, ['Shape', compare]),
+                 form(Type ++ " derives compare", ['Shape', compare])).
+
 %% report Appendix H, §8.7, §3.10: a type's hash covers the compare its
 %% module declares for it, which gives its order, and no other member: a
 %% type with a written compare and one without hash apart; a change to

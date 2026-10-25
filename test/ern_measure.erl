@@ -52,11 +52,13 @@
 -define(FIRST_HEAP, 1048576).
 -define(LAST_HEAP, 67108864).
 
-%% Prints the summary, and writes the whole table into File.
+%% Prints the summary, and writes the whole table into File, making its
+%% directory where none is there, as after `make clean`.
 -spec main([string()]) -> no_return().
 main([File]) ->
     Load = load(),
     Rows = measured(?SIZES, timed),
+    ok = filelib:ensure_dir(File),
     ok = file:write_file(File, [load_text(Load), [row_text(Row) || Row <- Rows]]),
     io:put_chars([load_text(Load), summary(Rows)]),
     io:format("The whole table is in ~s.~n", [File]),
@@ -504,6 +506,7 @@ hosts() ->
       <<"String.trimStart">> => fun(Text) -> string:trim(Text, leading) end,
       <<"String.trimEnd">> => fun(Text) -> string:trim(Text, trailing) end,
       <<"String.split">> => fun(Text, Separator) -> string:split(Text, Separator, all) end,
+      <<"String.splitOnce">> => fun(Text, Separator) -> string:split(Text, Separator) end,
       <<"String.join">> => fun(Parts, Separator) -> iolist_to_binary(lists:join(Separator, Parts))
                            end,
       <<"String.contains">> => fun(Text, Part) -> string:find(Text, Part) =/= nomatch end,

@@ -31,6 +31,8 @@
 
 -export_type([descriptor/0]).
 
+-include("ern_rt.hrl").
+
 %% Report §8.6: each receive that can wait, by its kind (docs/style.md).
 -receives({own_process, [checker_loop/6]}).
 
@@ -54,7 +56,7 @@
 -spec raised(module(), atom(), arity(), error | exit | throw, term(), list()) -> no_return().
 raised(_, _, _, throw, {ern, _, _} = Passing, _) ->
     throw(Passing);
-raised(_, _, _, throw, {ern, _, _, _} = Passing, _) ->
+raised(_, _, _, throw, {ern, #fault{}} = Passing, _) ->
     throw(Passing);
 %% report §6.9: a restart asked for inside it is a restart
 raised(_, _, _, throw, '$ern_restart', _) ->
@@ -83,7 +85,7 @@ raised(Function, Class, Error, Stack) ->
 called_raised(throw, '$ern_restart', _) ->
     throw('$ern_restart');
 called_raised(Class, Error, Stack) ->
-    throw(ern_rt:fault_exit_reason(Class, Error, Stack)).
+    throw({ern, ern_rt:met(Class, Error, Stack)}).
 
 %% An argument given to foreign code (report §8.4): every address inside it
 %% replaced by the checker that checks what foreign code sends it, and a

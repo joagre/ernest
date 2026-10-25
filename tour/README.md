@@ -6,7 +6,7 @@ An hour to read, and about three to do along, with `ern` installed as the [READM
 
 The directories `tour/1/` to `tour/8/` hold the program as it stands at the end of each chapter, each a program of its own, so a chapter's build and tests run from its directory alone. Work in a directory of your own, make the nodes' directories in it, copy a chapter's files into it as the chapter begins, and from chapter 2 on the shell you started runs to the end: the sessions of chapters 2 to 8 are one session, and a reader who starts at chapter 5 types chapters 2 to 4 first.
 
-- [1. The counter](#1-the-counter): a process with a typed mailbox, and a wrong message refused
+- [1. The counter](#1-the-counter): a process with a typed mailbox, and a wrong message and a wrong mailbox refused
 - [2. Two bare nodes](#2-two-bare-nodes): the same counter on a node that holds none of its code
 - [3. The client](#3-the-client): a function that reads a line, and a quiet reload
 - [4. A fault](#4-a-fault): a process ended, a restart that keeps the address, a watcher told
@@ -50,11 +50,16 @@ input 5:1:15: the argument does not fit send: expected Counter.CounterMsg, found
 1 | send(counter, "five")
   | ---- send : (Address(a), a) -> Unit
   |               ^^^^^^
+> fn other() : Unit receiving String = Counter.count(0)
+input 6:1:38: Counter.count needs mailbox Counter.CounterMsg, and the mailbox here is String
+1 | fn other() : Unit receiving String = Counter.count(0)
+  |                             ------ other is declared `receiving String` here
+  |                                      ^^^^^^^^^^^^^^^^
 ```
 
 A counter is a process that holds a number, and `count` is its loop: it takes one message, `Inc` or `Get`, does what the message says, and calls itself with the total. Its type says what it takes, `receiving CounterMsg`; the type and the loop are exported so that the prompt can name `Counter.Inc` and `Counter.count` (the guide's §7.1). `spawn` starts a process on the loop and answers its address, whose type comes from the loop's. `send` puts a message in the mailbox and answers nothing. `Address.call` makes a `Reply`, gives it to `Get`, sends the request and waits up to 1000 milliseconds for the answer, which the counter gives with `answer`: `Some(5)`, where `None` would be an answer that did not come (§4.4).
 
-The last input never runs: the address carries the mailbox's type, and a `String` is not a `CounterMsg`. The refusal is placed at `input 5:1:15`, the session's fifth input, line 1, column 15. That is the first claim of *Why Ernest*. The mailbox type is in the function's type, so a wrong send is refused before the program runs, and `count` runs only in a process of that type.
+The last two inputs never run. The address carries the mailbox's type, and a `String` is not a `CounterMsg`; the refusal is placed at `input 5:1:15`, the session's fifth input, line 1, column 15. And `count` receives from its own process's mailbox, so a function whose mailbox takes a `String` cannot call it, though no address is in sight. That is the first claim of *Why Ernest*. The mailbox type is in the function's type, so a wrong send is refused before the program runs, and `count` runs only in a process of that type.
 
 `:load` puts a module in scope: it compiles `counter.ern` from the shell's directory, or takes a compiled form where one is as new, and its line says which; `:quit` ends the shell. The guide's §1.2 has the rest of it.
 
@@ -107,6 +112,8 @@ In a second terminal `ern run --config-dir foo`, in a third `ern run --config-di
 
 ```console
 $ ern shell --config-dir a
+listening on 0.0.0.0:8654
+Ernest 0.4.0. :help for the commands, :quit to leave.
 > :load Counter
 Counter, compiled from counter.ern
 > let counter = spawn(fn() = Counter.count(0))
@@ -119,11 +126,11 @@ far : Address(Counter.CounterMsg)
 Some(5) : Optional(Int)
 ```
 
-`foo`'s terminal says `the peer a connected`. A node's line, there and in the shell, begins with the time; the tour leaves it out.
+`foo`'s terminal says `the peer a connected`. At a terminal a node's line, there and in the shell, is as shown; where standard error is a file or a pipe, it begins with the time (the deployment guide's §1.4).
 
 A node is a program, or a shell, started with a configuration directory, and `ern config` makes one: a key, a certificate, and `ernest.conf` with the port the node listens on. `a` keeps the port `ern config` gives, 8654 on every interface, and `--listen` gives `foo` and `bar` ports of their own, since three nodes on one machine cannot share one, and `--peer-dir` lists one node in another's file by the name of its directory, its key and its address, read from the directory.
 
-A node accepts a connection from a listed key alone, and nothing else is set up: two nodes are two files each naming the other, with no cluster to join and no shared secret, the third claim of *Why Ernest* (the deployment guide's §2). `foo` and `bar` are *bare nodes*, started with no program: they hold nothing of the counter's and wait for work.
+A node accepts a connection from a listed key alone, and nothing else is set up: two nodes are two configuration files each naming the other, with no cluster to join and no shared secret, the third claim of *Why Ernest* (the deployment guide's §2). `foo` and `bar` are *bare nodes*, started with no program: they hold nothing of the counter's and wait for work.
 
 `Peer.spawn` starts `count` on `foo` and answers `Right(address)`, or `Left(error)` with the reason it could not, an `Either`; the `match` takes the address and ends the input's process on anything else, `fault` with the error written as text, the shortest way to a `Right` at a prompt (the guide's §2.7). The shell connected to `foo` as the spawn needed it, and `count` crossed with the spawn, since `foo` had no code of it. The counter there is then the counter of chapter 1: the same `send`, the same call, the same answer. That is the second claim of *Why Ernest*: a process started on another node brings its code along, and nothing was installed first.
 
@@ -313,7 +320,7 @@ let reports : Test.Case(TestMsg) = Test.Case(name = "reports", run = fn() = {
 
 The notation is the guide's §2.3 to §2.5: `#(k, Int)` is a tuple, a constructor's fields may be named and are matched by name, `Tally(counts) : Tally(k)` takes a parameter apart in the head, and `let _ =` discards a value on purpose. `report` sorts by the key, and says what it needs of the key's type, `needs k.compare`; at the call in `count` you wrote nothing, and the compiler supplied `String`'s own `compare`. That is the fourth claim of *Why Ernest*. A generic function names the operations it needs of its type, and the compiler supplies that type's own at each call; the guide's §7.3 has the rules.
 
-`empty` is a function and not a value, since a module's values belong to the node that loaded it, and chapter 6 spawns this counter on a node that loaded nothing; the standard library's values, `Map.empty` among them, are on every node, since every node holds the library (the guide's §8.1).
+`empty` is a function and not a value: a binding `let empty = Tally(Map.empty)` would be evaluated only on a node that loaded the module, and chapter 6 spawns this counter on a node that loaded nothing. A *constant*, a binding written in literals, constructors, tuples and lists alone, has its value wherever its code is, and the standard library's values, `Map.empty` among them, are on every node, since every node holds the library (the guide's §2.2, §8.1).
 
 In your own terminal:
 
@@ -464,13 +471,16 @@ foreign fn systemInfo(item : Foreign.Term) : Int =
 
 export fn primes(below : Int) : Int = {
     Io.println("counting the primes below " <> Int.toString(below));
-    List.size(List.filter(List.range(2, below - 1), fn(n) = isPrime(n, 2)))
+    List.size(List.filter(List.range(2, below - 1), isPrime))
 }
 
-// Whether no divisor from `divisor` up to the square root of `number`
-// divides it.
-fn isPrime(number : Int, divisor : Int) : Bool =
-    divisor * divisor > number || number % divisor != 0 && isPrime(number, divisor + 1)
+fn isPrime(number : Int) : Bool =
+    hasNoDivisorFrom(number, 2)
+
+// A divisor above the square root of `number` pairs with one below it,
+// so the search stops there.
+fn hasNoDivisorFrom(number : Int, divisor : Int) : Bool =
+    divisor * divisor > number || number % divisor != 0 && hasNoDivisorFrom(number, divisor + 1)
 ```
 
 First the question, asked on each bare node:
@@ -502,9 +512,13 @@ Right(17984) : Either(Io.Error, Int)
 Right(17984) : Either(Io.Error, Int)
 ```
 
-`foo`'s terminal printed `counting the primes below 200000` twice and `bar`'s once, in this run. Each node tells its peers how busy it is, on a scale where 1.0 is every scheduler busy, and `Peer.utilizations()` is what the shell has heard: each peer, its utilization and how many milliseconds ago it said so.
+Each compute printed `counting the primes below 200000` in the terminal of the node that ran it. Each node tells its peers how busy it is, on a scale where 1.0 is every scheduler busy, and `Peer.utilizations()` is what the shell has heard: each peer, its utilization and how many milliseconds ago it said so.
 
-`Peer.compute` draws two of the peers at random, both of them here, and runs the function on the one that was less busy at its last telling, carrying its code there as the spawn did, and answers the value; the tellings come every few seconds, so which node ran each is the terminals' to show, and the program never names one (the guide's §8.1, *Which peer*). Nothing was installed on `foo` or `bar`, and nothing named either: that is the last sentence of the second claim of *Why Ernest*, a computation that names no node goes to the less busy of two peers drawn at random, and no program is deployed first.
+`Peer.compute` draws two of the peers at random, both of them here, and runs the function on the one that was less busy at its last telling, carrying its code there as the spawn did, and answers the value; the tellings come every few seconds, so which node ran each is the terminals' to show, and the program never names one (the guide's §8.1, *Which peer*). With two peers the draw takes both each time, so the computes made within one telling go to the one less busy at it; a draw spreads them only among three peers or more.
+
+The number is written into each lambda, since a `let` typed at the prompt is a binding of the shell's node, which no peer has: after `let below = 200000`, `Peer.compute(fn() = Counter.primes(below), 5000)` answers `Left(NotLoaded)`, where `{ let n = below; Peer.compute(fn() = Counter.primes(n), 5000) }` carries the value, a local the lambda captures (the guide's §8.1).
+
+Nothing was installed on `foo` or `bar`, and nothing named either: that is the last sentence of the second claim of *Why Ernest*, a computation that names no node goes to the less busy of two peers drawn at random, and no program is deployed first.
 
 ## 8. The fix
 

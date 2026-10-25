@@ -47,14 +47,16 @@
 
 %% tour/1/, tour/README.md's chapter 1; report §6.1, §6.2, §6.6, §11.2,
 %% §11.5: the counter loaded at a shell that is no node, a process spawned
-%% on its loop, a send, a call that answers 5, and a send of a String
-%% refused at the prompt with the input's line and a caret under the
-%% argument; the shell ends at `:quit` with status 0. It does not cover the
-%% shell at a terminal, whose colors the tour does not show. Its limit is
-%% the sum of its eight waits, each bounded by the harness's time for one
-%% wait: the start, five inputs, the end and what the shell said
+%% on its loop, a send, a call that answers 5, a send of a String refused
+%% at the prompt with the input's line and a caret under the argument, and
+%% a function declared to receive a String refused for its call of
+%% `count`, its declared mailbox type marked; the shell ends at `:quit`
+%% with status 0. It does not cover the shell at a terminal, whose colors
+%% the tour does not show. Its limit is the sum of its nine waits, each
+%% bounded by the harness's time for one wait: the start, six inputs, the
+%% end and what the shell said
 chapter_1_test_() ->
-    ern_nodes_tests:nodes_test({waits, 8}, fun chapter_1/1).
+    ern_nodes_tests:nodes_test({waits, 9}, fun chapter_1/1).
 
 chapter_1(Base) ->
     copied(1, Base),
@@ -70,7 +72,14 @@ chapter_1(Base) ->
                     " found String",
                     "1 | send(counter, \"five\")",
                     "  | ---- send : (Address(a), a) -> Unit",
-                    "  |               ^^^^^^"]}])).
+                    "  |               ^^^^^^"]},
+                  {"fn other() : Unit receiving String = Counter.count(0)",
+                   ["input 6:1:38: Counter.count needs mailbox Counter.CounterMsg, and the mailbox"
+                    " here is String",
+                    "1 | fn other() : Unit receiving String = Counter.count(0)",
+                    "  |                             ------ other is declared `receiving String`"
+                    " here",
+                    "  |                                      ^^^^^^^^^^^^^^^^"]}])).
 
 %% tour/README.md's chapter 7, the line it tells and does not show; report
 %% §4.7, §7.4, §8.4: `erlang:system_info/1` declared to answer a String,

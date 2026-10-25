@@ -216,14 +216,18 @@ fn watched(what : String, process : Process) : Unit receiving Msg = {
 
 fn ended(what : String) : Unit receiving Msg =
     receive {
-        Died(down) -> Io.println(what <> ": " <> Io.show(down.reason) <> " " <> Io.show(down.site))
+        Died(down) -> printEnd(what, down)
     }
 
 // A service monitor's Down, and how it says the process ended.
 fn told(what : String) : Unit receiving Msg =
     receive {
-        Told(down) -> Io.println(what <> ": " <> Io.show(down.reason) <> " " <> Io.show(down.site))
+        Told(down) -> printEnd(what, down)
     }
+
+// How a Down says its process ended, its reason and its site.
+fn printEnd(what : String, down : Down) : Unit =
+    Io.println(what <> ": " <> Io.show(down.reason) <> " " <> Io.show(down.site))
 
 fn shape(n : Int) : Census.Shape =
     match n % 5 {
@@ -693,8 +697,8 @@ fn computes() : Unit receiving Msg = {
     ended("ending")
 }
 
-// The fault this node's subscriber was told of, its site, its cause and
-// whether a trace came with it.
+// The fault this node's subscriber was told of, its site, its cause, the
+// peer whose compute carried the cause, and whether a trace came with it.
 fn reported() : Unit receiving Msg =
     receive {
         Reported(report) ->
@@ -703,12 +707,14 @@ fn reported() : Unit receiving Msg =
                            <> " "
                            <> report.cause
                            <> " "
+                           <> Io.show(report.peer)
+                           <> " "
                            <> Io.show(report.trace != ""))
     }
 
 // The process running the function on the store watched there under the
 // label once it says so.
-fn watchedBy(watcher : Address(Counter.WatcherMsg), label : String) : Unit receiving m = {
+fn watchedBy(watcher : Address(Counter.WatcherMsg), label : String) : Unit = {
     let process = Process.fromAddress(self());
     Address.callForever(watcher,
                         fn(reply) = Counter.Watch(process = process, label = label, reply = reply))

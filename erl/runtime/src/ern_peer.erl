@@ -12,7 +12,7 @@
 %% note, and its process answers the function's value, or its fault,
 %% through the caller's alias, its call the runtime's (ern_rt:compute/4),
 %% on the peer named or on one the node picks by the utilizations its
-%% peers told it (picked/0), which the gateway holds (hold_utilization/3);
+%% peers told it (pick/0), which the gateway holds (hold_utilization/3);
 %% a utilization asks the peer's gateway, which answers it
 %% (ern_gateway). A node's peers and services are the carrier's to give
 %% (configure/2); a program that is no node has none. A wait has no upper
@@ -22,12 +22,14 @@
 
 -export([configure/2, tables/0, name/1, service/1, service/2, offer/2, find/2, spawn/3, spawn/4,
          spawn_monitored/4, spawn_monitored/5, compute/2, compute/3, compute_at/3, compute_at/4,
-         picked/0, utilization/2, peers/0, utilizations/0, set_utilization/1,
+         pick/0, utilization/2, peers/0, utilizations/0, set_utilization/1,
          hold_utilization/3, drop_utilization/1, frame/2, failed/4, unstarted/2, ms/1,
          reach_lacked/2,
          foreign_lacked/1, lost/2]).
 
 -export_type([identity/0]).
+
+-include_lib("emitter/include/ern_unit.hrl").
 
 %% Report §8.6: each receive that can wait, by its kind (docs/style.md):
 %% a find's, a spawn's and a utilization's wait on a peer's answer, and a
@@ -288,7 +290,7 @@ started({failed, Error}, _Ref, _Wrap) ->
     {'Left', Error}.
 
 %% Report §8.7: a function run on a peer the node picks by the utilizations
-%% it holds (picked/0), as compute_at/4 runs it on the peer named once the
+%% it holds (pick/0), as compute_at/4 runs it on the peer named once the
 %% pick is made; `NotListed` where no peer is listed, and `Unreachable`
 %% where none has a utilization to use. compute/2 is the declaration's, which the
 %% compiler calls with the function's identity and captures in place of
@@ -340,18 +342,11 @@ computed(Node, Name, Spawned, Ms, Site) ->
 %% at random, by the host's generator, and the less busy taken, the first
 %% drawn of two equally busy, and one taken as it is; `NotListed` where no
 %% peer is listed, and `Unreachable` where none has a utilization to use,
-%% in an initializer among them, before the node holds any. A read of the
-%% peers' rows and a draw, and no frame (§10).
--spec picked() -> {picked, node()} | 'NotListed' | 'Unreachable'.
-picked() ->
-    case pick() of
-        {picked, Node, _Name} -> {picked, Node};
-        Error -> Error
-    end.
-
-%% The peer picked, by its name on the carrier and the name the
-%% configuration lists it under as it was picked, which a compute's
-%% carried fault names (§8.7).
+%% in an initializer among them, before the node holds any. The peer is
+%% answered by its name on the carrier and the name the configuration
+%% lists it under as it was picked, which a compute's carried fault names.
+%% A read of the peers' rows and a draw, and no frame (§10).
+-spec pick() -> {picked, node(), binary()} | 'NotListed' | 'Unreachable'.
 pick() ->
     case peers() of
         [] ->
@@ -643,14 +638,13 @@ ms({compute, _Alias, _Spawned, _Site, Ms}) ->
 
 %% Report §8.7: what this node lacks of a reach a peer gave, before any of
 %% its code crosses, or none: the first foreign declaration whose module is
-%% not here, or whose function is not in it, each `{QualifiedName,
-%% HostModule, HostFunction, Scheme, Printing, Source}`, then the first binding
-%% without its value here, each `{QualifiedName, Hash}`. The names are a
-%% peer's text, which makes no atom here where none is, and is written with
-%% its controls shown, as a foreign function's name a spawn gives is.
--spec reach_lacked([{[binary()], binary()}],
-                   [{[binary()], binary(), binary(), term(), term(), term()}]) ->
-          iodata() | none.
+%% not here, or whose function is not in it, each a #foreign_function{}
+%% whose names, its module and its function are text, then the first
+%% binding without its value here, each `{QualifiedName, Hash}`. The names
+%% are a peer's text, which makes no atom here where none is, and is
+%% written with its controls shown, as a foreign function's name a spawn
+%% gives is.
+-spec reach_lacked([{[binary()], binary()}], [#foreign_function{}]) -> iodata() | none.
 reach_lacked(Bindings, Foreigns) ->
     case [Lacked || Foreign <- Foreigns, Lacked <- [foreign_lacked(Foreign)], Lacked =/= none] of
         [Lacked | _] ->
@@ -671,9 +665,9 @@ reach_lacked(Bindings, Foreigns) ->
 %% and its functions' are atoms here once it answers none. A unit an
 %% exchange makes asks it of each foreign function its definitions call
 %% beyond the reach (ern_arrival).
--spec foreign_lacked({[binary()], binary(), binary(), term(), term(), term()}) ->
-          iodata() | none.
-foreign_lacked({QualifiedName, HostModule, HostFunction, Scheme, _, _}) ->
+-spec foreign_lacked(#foreign_function{}) -> iodata() | none.
+foreign_lacked(#foreign_function{qualified_name = QualifiedName, scheme = Scheme,
+                                 host_module = HostModule, host_function = HostFunction}) ->
     Module = ["the module ", ern_show:controls(HostModule, line), ", which ",
               qualified_text(QualifiedName), " calls, "],
     case is_present(HostModule) andalso code:ensure_loaded(binary_to_atom(HostModule)) of
@@ -715,7 +709,7 @@ is_present(HostModule) ->
 %% it, or as a constant a unit lists, by its hash (report §4.6); one whose
 %% names are no atoms here is held nowhere but so.
 has_value(QualifiedName, Hash) ->
-    ern_code:ground({binding, QualifiedName, Hash}) =/= none
+    ern_code:ground(Hash) =/= none
         orelse case existing_atoms(QualifiedName) of
                    none -> false;
                    Names -> ern_code:absent_binding([{Names, Hash}]) =:= none
@@ -792,11 +786,12 @@ lacked_module(Called, QualifiedName) ->
     case ern_code:foreign(Called, QualifiedName) of
         [] ->
             case ern_code:declared(Called, QualifiedName) of
-                [{_, {_, Scheme, HostModule, HostFunction, Printing, Source}} | _] ->
-                    linked_to_fault({ern_namespace:text_segments(QualifiedName),
-                                     ern_namespace:text_segment(HostModule),
-                                     ern_namespace:text_segment(HostFunction), Scheme, Printing,
-                                     Source},
+                [{_, #foreign_function{host_module = HostModule,
+                                       host_function = HostFunction} = Declaration} | _] ->
+                    linked_to_fault(Declaration#foreign_function{
+                                      qualified_name = ern_namespace:text_segments(QualifiedName),
+                                      host_module = ern_namespace:text_segment(HostModule),
+                                      host_function = ern_namespace:text_segment(HostFunction)},
                                     Named);
                 [] ->
                     ["this node does not have ", Named]
@@ -815,7 +810,7 @@ lacked_module(Called, QualifiedName) ->
 %% the code arrived is told; and where the module and the function have
 %% come since, that they were not here when the code arrived, which the
 %% unit's code still calls the fault for.
-linked_to_fault({_, HostModule, _, _, _, _} = Declaration, Named) ->
+linked_to_fault(#foreign_function{host_module = HostModule} = Declaration, Named) ->
     case foreign_lacked(Declaration) of
         none -> ["the module ", ern_show:controls(HostModule, line), ", which ", Named,
                  " calls, was not here when its code arrived"];

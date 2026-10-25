@@ -404,7 +404,11 @@ fenced_test() ->
     ?assertEqual([<<"```ernest`">>, <<"    ```ernest">>, <<"``ernest">>],
                  ern_parser:fenced(Lines(<<"```ernest`\n    ```ernest\n``ernest">>))),
     ?assertMatch([#fence{language = <<>>, lines = [<<"x">>], closing = none}],
-                 ern_parser:fenced(Lines(<<"```\nx">>))).
+                 ern_parser:fenced(Lines(<<"```\nx">>))),
+    %% the lines a block takes, its fences and its content
+    ?assertEqual([3, 2], [ern_parser:line_count(Fence)
+                          || Fence <- ern_parser:fenced(Lines(<<"a\n```\nx\n```\nb\n```\ny">>)),
+                             is_record(Fence, fence)]).
 
 %% report §5.9: a clause lists one or more patterns separated by `or`
 or_pattern_test() ->
@@ -726,15 +730,26 @@ listed_type_mark_test() ->
     %% function's parameter it names the lists of types where it stands: a
     %% regression test, where the help outside led to a second error
     ?assertEqual({"a type in parentheses takes no equality mark",
-                  "write a; the mark is written in a foreign function's parameters alone"},
+                  "write `a`; the mark is written in a foreign function's parameters alone"},
                  refusal_and_help("fn f(x : (a=)) : Int = 1")),
     ?assertEqual({"a type in parentheses takes no equality mark",
-                  "the mark stands in a list of types, as List(a=) or (a=) -> Bool"},
+                  "the mark stands in a list of types, as `List(a=)` or `(a=) -> Bool`"},
                  refusal_and_help("foreign fn f(x : List((a=))) : Int = \"m:f/1\"")),
     ?assertEqual({"a type in parentheses takes no equality mark",
-                  "write a; the mark is written in a foreign function's parameters alone"},
+                  "write `a`; the mark is written in a foreign function's parameters alone"},
                  refusal_and_help("foreign fn f(x : a=) : (a=) = \"m:f/1\"")),
-    ?assertEqual("expected `)` instead of `=`", refusal("fn f(x : a=) : Int = 1")).
+    %% report §11.5, Appendix A's Param: a function's parameter takes a
+    %% type and no list of types, so a mark there is refused over the
+    %% variable and the mark, as one elsewhere outside a foreign function
+    %% is; a regression test, written after the code, where the refusal
+    %% stood at the `=` without a help
+    ?assertEqual({"the equality mark is written in a foreign function's parameters alone",
+                  "write `a`; `a` has equality where a body compares its values with `==`"},
+                 refusal_and_help("fn f(x : a=) : Int = 1")),
+    ?assertMatch({error, #diagnostic{span = {1, 10, {1, 12}}}},
+                 ern_parser:parse_string("fn f(x : a=) : Int = 1")),
+    ?assertEqual("the equality mark is written in a foreign function's parameters alone",
+                 expression_refusal("fn(x : a=) = x")).
 
 %% report §2.2
 doc_comments_test() ->
@@ -868,24 +883,36 @@ non_operand_forms_test() ->
     ?assertMatch(#e_binop{operator = '+', left = #e_receive{}},
                  expression("receive { after 0 -> 1 } + 2")).
 
-%% report §2.6, §4.8
+%% report §2.6, §4.8: an operator that may be no member is refused after
+%% `.` with the six that may be named, in a declaration's name and in a
+%% requirement, `<` among the refused
 operator_grammar_test() ->
     ?assertEqual("expected an expression instead of `+`", expression_refusal("f(+)")),
     ?assertEqual("expected a name instead of `+`", refusal("fn +(a, b) = a")),
     ?assertEqual("expected a name after `.` instead of `|>`", expression_refusal("Int.|>")),
     ?assertEqual("expected a name after `.` instead of `==`", expression_refusal("Int.==")),
-    ?assertEqual("expected an operator, `compare` or `negate` after `.` instead of `|>`",
-                 refusal("fn T.|>(a) = a")).
+    ?assertEqual("expected `+`, `-`, `*`, `/`, `%`, `<>`, `compare` or `negate` after `.`"
+                 " instead of `|>`",
+                 refusal("fn T.|>(a) = a")),
+    ?assertEqual("expected `+`, `-`, `*`, `/`, `%`, `<>`, `compare` or `negate` after `.`"
+                 " instead of `<`",
+                 refusal("fn T.<(a, b) = true")),
+    ?assertEqual("expected `+`, `-`, `*`, `/`, `%`, `<>`, `compare`, `negate` or `show` after"
+                 " `.` instead of `<`",
+                 refusal("fn f(x : a) : Bool needs a.< = true")),
+    #fn_declaration{name = '<>', member_of = 'T'} = declaration("fn T.<>(a, b) = a"),
+    #fn_declaration{requirement = [#member{name = '%'}]} =
+        declaration("fn f(x : a) : a needs a.% = x").
 
 %% report §4.5, §4.6, Appendix A's DeclName and LetDecl: a member is an
 %% operator, `compare` or `negate`, declared with `fn`
 member_names_test() ->
-    ?assertEqual({"`push` cannot be a member of Stack: a member is an operator, `compare` or"
-                  " `negate`",
+    ?assertEqual({"`push` cannot be a member of Stack: a member is `+`, `-`, `*`, `/`, `%`,"
+                  " `<>`, `compare` or `negate`",
                   "a type's other operations are functions of its module: write `fn push`"},
                  refusal_and_help("fn Stack.push(s, x) = s")),
-    ?assertEqual({"`size` cannot be a member of Stack: a member is an operator, `compare` or"
-                  " `negate`",
+    ?assertEqual({"`size` cannot be a member of Stack: a member is `+`, `-`, `*`, `/`, `%`,"
+                  " `<>`, `compare` or `negate`",
                   "a type's other operations are functions of its module: write `fn size`"},
                  refusal_and_help("foreign fn Stack.size(s : Stack) : Int = \"m:f/1\"")),
     ?assertEqual({"a `let` declares no member of Stack",
@@ -1232,7 +1259,8 @@ requirement_test() ->
                                    #member{member_of = a, name = show}]} =
         declaration("fn f(x : a, y : b) : a receiving m needs a.compare, b.+, a.show = x"),
     #fn_declaration{requirement = []} = declaration("fn f(x : a) : a = x"),
-    ?assertEqual("zero is not a member: a requirement names compare, negate, an operator or show",
+    ?assertEqual("`zero` is not a member: a requirement names `+`, `-`, `*`, `/`, `%`, `<>`,"
+                 " `compare`, `negate` or `show`",
                  refusal("fn f(x : a) : a needs a.zero = x")),
     %% the member underlined whole: a regression test
     ?assertMatch({error, #diagnostic{span = {1, 23, {1, 29}}}},
@@ -1246,8 +1274,11 @@ requirement_test() ->
 %% report §4.5, Appendix A's Primary and QName: a member's name stands in
 %% no expression, so an operator after `.` is refused with the operator to
 %% write, a type variable's `a.+` and a qualified `Int.+` and
-%% `Prelude.List.<>` alike, and `a.compare` parses as the selection it is,
-%% which the checker refuses (§4.9)
+%% `Prelude.List.<>` alike, an operator after an expression that is no
+%% name by the operator, and `a.compare` parses as the selection it is,
+%% which the checker refuses (§4.9); in a type and in a pattern a member's
+%% name is refused in their own terms, a regression test of the two,
+%% written after the code, which were told of an expression
 member_test() ->
     Help = fun(Operator) ->
                    "write `x " ++ Operator ++ " y`, or where a function is wanted a lambda,"
@@ -1260,17 +1291,26 @@ member_test() ->
     ?assertEqual({"`Prelude.List.<>` names a member, which an expression reaches through `<>`",
                   Help("<>")},
                  expression_refusal_and_help("Prelude.List.<>([1], [2])")),
+    ?assertEqual({"`+` after `.` names a member, which an expression reaches through `+`",
+                  Help("+")},
+                 expression_refusal_and_help("f(x).+(y)")),
     %% the name and the operator underlined whole
     ?assertMatch({error, #diagnostic{span = {1, 9, {1, 14}}}},
                  ern_parser:parse_string("let x = Int.*")),
+    ?assertEqual("expected a type name; a qualified type ends in an uppercase name",
+                 refusal("fn f(x : Int.+) : Int = 1")),
+    ?assertMatch({error, #diagnostic{span = {1, 10, {1, 15}}}},
+                 ern_parser:parse_string("fn f(x : Int.+) : Int = 1")),
+    ?assertEqual("expected a constructor; a pattern cannot name a function or value",
+                 refusal("fn f(x) = match x { Int.+ -> 1 }")),
     #fn_declaration{body = #e_call{callee = #e_selection{expr = #e_var{name = a},
                                                          field = compare}}} =
         declaration("fn f(x : a, y : a) : Ordering needs a.compare = a.compare(x, y)").
 
 %% report Appendix A, §4.9: a declaration with a requirement that binds a
-%% name that is one of its type variables parses, and the checker refuses
-%% it; a regression test of the parser's reading, since it refused it
-%% itself until MVP 2.99c item 1
+%% name that is one of its type variables parses, as any binding does; a
+%% regression test of the parser's reading, since it refused it itself
+%% until MVP 2.99c item 1
 requirement_binding_parses_test() ->
     #fn_declaration{} = declaration("fn f(a : a) : a needs a.compare = a"),
     #fn_declaration{} = declaration("fn f(x : a) : a needs a.compare = { let a = x; a }").

@@ -22,9 +22,11 @@
 %% its own and those of the modules it names, as the run loaded them, the
 %% top first (§8.5), and the modules the load of a module it names waits
 %% on: inside the documented module, that module, so that a module that
-%% uses it is a cycle (§4.1).
+%% uses it is a cycle (§4.1); and outside it, the documented module's
+%% interface, whose names the example writes as a caller does (qualifying/2),
+%% none inside.
 -record(example_module, {namespace, before = <<>>, interfaces, build, unit = own, uses,
-                         waiting = []}).
+                         waiting = [], documented = none}).
 
 %% Report §11.2: an example's case, the units its program initializes and
 %% what names the frames of its fault's trace.
@@ -67,9 +69,9 @@ cases(Namespace, [ErlangModule | _] = Loaded, LoadPath, Load) ->
              end,
     Examples = [{iolist_to_binary([Declaration, " example ", integer_to_list(Number)]), Where,
                  Block, Start}
-                || {Declaration, Docs} <- placed(Documented, Source),
+                || {Declaration, Docs} <- lined(Documented, Source),
                    {Number, {Where, Block, Start}}
-                       <- lists:enumerate([{Where, Block, started(DocLine, Offset)}
+                       <- lists:enumerate([{Where, Block, example_line(DocLine, Offset)}
                                            || {Where, Doc, DocLine} <- Docs,
                                               {Offset, Block} <- fences(Doc)])],
     Naming = {ern_build:compiled_dependencies(LoadPath), Load},
@@ -130,25 +132,16 @@ failed(Name, Text) ->
     #example{test_case = {'Case', Name, fun() -> Failed end}, frames = fun(Trace) -> Trace end}.
 
 %% A directory of a name no other holds, made under Base, which others
-%% share, as ern_node:create/2 makes the configuration directory: made here
-%% or not at all, and its owner's alone before the example writes in it, so
-%% that no one else can put a link where the example writes; what another
-%% put in it before it was its owner's alone would be written through, so
-%% it must hold nothing then. Or why it cannot be made.
+%% share, its owner's alone before the example writes in it, as the
+%% configuration directory is made (ern_build:make_private_dir/1); or why
+%% it cannot be made.
 made_directory(Base) ->
     Dir = filename:join(Base, "ern_example_" ++ os:getpid() ++ "_"
                               ++ integer_to_list(erlang:unique_integer([positive]))),
-    case file:make_dir(Dir) of
-        ok ->
-            ok = file:change_mode(Dir, 8#700),
-            case file:list_dir_all(Dir) of
-                {ok, []} -> {ok, Dir};
-                _ -> {error, [Dir, " was written to by another as it was made"]}
-            end;
-        {error, eexist} ->
-            made_directory(Base);
-        {error, Error} ->
-            {error, file:format_error(Error)}
+    case ern_build:make_private_dir(Dir) of
+        ok -> {ok, Dir};
+        exists -> made_directory(Base);
+        {error, _} = Error -> Error
     end.
 
 remove(Name, Dir, ErrorDevice) ->
@@ -199,15 +192,15 @@ where(_) -> outside.
 %% module's source, Source, as the source's doc blocks give it, in the
 %% order both write them, or none for each where no source holds the
 %% module as it was compiled.
-placed(Documented, {source, Source, _}) ->
+lined(Documented, {source, Source, _}) ->
     {ok, Tokens} = ern_lexer:tokenize(Source, [comments]),
     Lines = [{Line, Text} || {doc, {Line, _, _, _}, Text} <- Tokens],
-    {Placed, _} = lists:mapfoldl(fun({Declaration, Docs}, Left) ->
+    {Lined, _} = lists:mapfoldl(fun({Declaration, Docs}, Left) ->
                                      {Own, Rest} = lists:mapfoldl(fun doc_line/2, Left, Docs),
                                      {{Declaration, Own}, Rest}
                                  end, Lines, Documented),
-    Placed;
-placed(Documented, _NoSource) ->
+    Lined;
+lined(Documented, _NoSource) ->
     [{Declaration, [{Where, Doc, none} || {Where, Doc} <- Docs]}
      || {Declaration, Docs} <- Documented].
 
@@ -219,8 +212,8 @@ doc_line({Where, Doc}, []) -> {{Where, Doc, none}, []}.
 
 %% The line of the source an example's first line stands on, Offset lines
 %% into a doc block that begins on DocLine, or none.
-started(none, _Offset) -> none;
-started(DocLine, Offset) -> DocLine + Offset.
+example_line(none, _Offset) -> none;
+example_line(DocLine, Offset) -> DocLine + Offset.
 
 %% Report §11.2: the source of the module, Namespace, that its `.erc`, Erc,
 %% was compiled from, as Beam records it, and whether it is the standard
@@ -228,17 +221,15 @@ started(DocLine, Offset) -> DocLine + Offset.
 %% gone, or changed since, which the `.erc`'s hash of it tells.
 module_source(Namespace, Erc, Beam) ->
     {ok, #{source_path := SourcePath, source_hash := Hash}} = ern_interface:read(Beam),
-    %% the build root lies as many directories up as the namespace is deep
-    BuildRoot = lists:foldl(fun(_, Dir) -> filename:dirname(Dir) end, Erc, Namespace),
+    BuildRoot = ern_build:root_of(Erc, Namespace),
     File = filename:join(BuildRoot, unicode:characters_to_list(SourcePath)),
     Compiled = [ern_build:shown(Erc), " was compiled from ", ern_build:shown(File)],
     case file:read_file(File) of
         {ok, Source} ->
             case crypto:hash(sha256, Source) of
                 Hash ->
-                    SourceRoot = lists:foldl(fun(_, Dir) -> filename:dirname(Dir) end, File,
-                                             Namespace),
-                    {source, Source, ern_build:is_stdlib_root(SourceRoot)};
+                    {source, Source,
+                     ern_build:is_stdlib_root(ern_build:root_of(File, Namespace))};
                 _ ->
                     {error, [Compiled, ", which has changed since"]}
             end;
@@ -258,10 +249,11 @@ module_source(Namespace, Erc, Beam) ->
 %% Each program initializes the modules its example names too. Or why the
 %% example has no module to be compiled in, its source not as it was
 %% compiled.
-example_module(outside, Index, _Namespace, Interfaces, _Source, Loaded) ->
+example_module(outside, Index, Namespace, Interfaces, _Source, Loaded) ->
     #example_module{namespace = [list_to_atom("$Example" ++ integer_to_list(Index))],
                     interfaces = Interfaces, build = #{source_hash => <<>>, deps => []},
-                    uses = Loaded};
+                    uses = Loaded,
+                    documented = lists:keyfind(Namespace, #interface.namespace, Interfaces)};
 example_module(inside, _Index, Namespace, Interfaces, {source, Source, Standard},
                [_Documented | Used]) ->
     Others = [Interface || #interface{namespace = Other} = Interface <- Interfaces,
@@ -314,18 +306,20 @@ taken(_Line) ->
 %% the run's load (named/3); Start is the line of the module's source its
 %% first line stands on, or none. Report §11.2, Appendix E.0 shape rule 6:
 %% an example that does not compile fails with the diagnostic's message,
-%% the first of its errors, or with the refusal of a module it names that
-%% the run would refuse; one whose last line is `// => v`, standing alone,
-%% runs, and fails where `Io.show` of its value is not `v`; any other is
-%% `compiled` where it compiles, and runs nothing (module_text/3).
+%% the first of its errors, and the help that qualifies a name the
+%% documented module exports (qualifying/2), or with the refusal of a
+%% module it names that the run would refuse; one whose last line is
+%% `// => v`, standing alone, runs, and fails where `Io.show` of its value
+%% is not `v`; any other is `compiled` where it compiles, and runs nothing
+%% (module_text/3).
 example(Name, _Block, _Start, {error, Text}, _Naming) ->
     {failed(Name, Text), none};
 example(Name, Block, Start, #example_module{namespace = Namespace, before = Before,
                                             build = Build, unit = Unit} = Module, Naming) ->
     {Text, Value} = module_text(Namespace, Before, Block),
     case {checked(iolist_to_binary(Text), Module, Naming), Value} of
-        {{error, [#diagnostic{message = Message} | _]}, _} ->
-            {failed(Name, Message), none};
+        {{error, [#diagnostic{message = Message} = Diagnostic | _]}, _} ->
+            {failed(Name, [Message | qualifying(Diagnostic, Module)]), none};
         {{refused, Refusal}, _} ->
             {failed(Name, Refusal), none};
         {{ok, _, _, _, _}, none} ->
@@ -345,6 +339,21 @@ example(Name, Block, Start, #example_module{namespace = Namespace, before = Befo
                     {failed(Name, Refusal), none}
             end
     end.
+
+%% Report §11.2, §11.5: an example of an exported declaration, or of the
+%% module, stands outside the documented module and names its declarations
+%% as a caller does, qualified, so an unknown name that the module exports
+%% is given the help that writes it so after the message, as `Checks.add`;
+%% none for any other failure.
+qualifying(#diagnostic{unknown_name = Unknown},
+           #example_module{documented = #interface{namespace = Namespace, values = Values}})
+  when is_atom(Unknown), Unknown =/= undefined ->
+    case is_map_key(Namespace ++ [Unknown], Values) of
+        true -> ["; write `", ern_namespace:text(Namespace ++ [Unknown]), "`"];
+        false -> []
+    end;
+qualifying(_Diagnostic, _Module) ->
+    [].
 
 %% How many lines a text takes before what follows it, which begins on the
 %% line after its last line feed.

@@ -17,8 +17,10 @@
 //   the names of its fields (report §5.6).
 // - `OrderedMap.put` needs the keys' order, `needs k.compare`; the fill
 //   supplies `String.compare` without a word written for it (report §4.9).
-// - `Entry` derives its order, so the most frequent words sort by count and
-//   then by word (report §3.5).
+// - The most frequent words sort by a key, the count negated and then the
+//   word, so that the most frequent come first and words seen as often
+//   stand in order: a tuple orders by its components in turn (report §3.10,
+//   Appendix E.2).
 //
 // Run it from this directory, on one of the examples:
 //
@@ -33,8 +35,8 @@ type Counts(m) =
            put : (m, String, Int) -> m,
            toList : (m) -> List(#(String, Int)))
 
-// A word and how often it was seen, ordered by count and then by word.
-type Entry = Entry(count : Int, word : String) derives compare
+// A word and how often it was seen.
+type Entry = Entry(count : Int, word : String)
 
 let hashed : Counts(Map(String, Int)) = Counts(..Map)
 
@@ -81,11 +83,11 @@ fn counted(words : List(String), counts : Counts(m)) : List(#(String, Int)) =
                                                word,
                                                Optional.withDefault(counts.get(map, word), 0) + 1)))
 
-// The `count` words seen most, the most frequent first.
+// The `count` words seen most, the most frequent first, and of those seen
+// as often the first in order.
 fn mostFrequent(pairs : List(#(String, Int)), count : Int) : List(Entry) =
     List.map(pairs, fn(#(word, seen)) = Entry(count = seen, word = word))
-        |> List.sort
-        |> List.reverse
+        |> List.sortBy(fn(entry) = #(-entry.count, entry.word))
         |> List.take(count)
 
 fn wordOf(entry : Entry) : String =

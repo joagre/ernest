@@ -225,10 +225,10 @@ running(#{helper := Helper} = Running, Waiting, Owed, Kept) ->
             failed(Running, Waiting);
         {'DOWN', MonitorRef, process, _, _} when MonitorRef =:= map_get(monitor_ref, Running) ->
             killed(Running);
-        {timeout, _, {{write, Reply}, Deadline}} ->
+        {timeout, _, {deadline, {write, Reply}, Deadline}} ->
             Writes = write_timed_out(Reply, Deadline, maps:get(writes, Running)),
             running(Running#{writes := Writes}, Waiting, Owed, Kept);
-        {timeout, _, {{read, Ref}, Deadline}} ->
+        {timeout, _, {deadline, {read, Ref}, Deadline}} ->
             running(Running, read_timed_out(Ref, Deadline, Waiting), Owed, Kept)
     end.
 
@@ -347,7 +347,7 @@ expired_read(Reply, Ref, Deadline) ->
 
 %% A request's timer, which names the request and its deadline.
 arm(Kind, Deadline) ->
-    erlang:start_timer(ern_rt:remaining(Deadline), erlang:self(), {Kind, Deadline}).
+    erlang:start_timer(ern_rt:remaining(Deadline), erlang:self(), {deadline, Kind, Deadline}).
 
 %% Report Appendix E.23: a request answered holds no timer. One that fired
 %% as its request was answered finds the request gone, and does nothing.

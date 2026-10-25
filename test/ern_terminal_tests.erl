@@ -174,7 +174,7 @@ snake() ->
     %% of the game's ticks to show, which its status line counts.
     %% It runs the program compiled here, not one another suite left in
     %% build/, which a run of this area alone does not have
-    {0, Screen} = pty("../bin/ern run --load-path ../build/libs/ansi build/examples/snake.erc",
+    {0, Screen} = pty("../bin/ern run build/examples/snake.erc",
                       [{expect, "tick "},
                        {send, "1b5b42"},    % ArrowDown
                        {expect, "tick 15 "},
@@ -205,7 +205,7 @@ snake_interrupt_test_() ->
 
 snake_interrupt() ->
     ok = build("../examples/snake.ern", "../examples"),
-    {0, _} = pty("../bin/ern run --load-path ../build/libs/ansi build/examples/snake.erc",
+    {0, _} = pty("../bin/ern run build/examples/snake.erc",
                  [{expect, "tick "}, {send, "03"}],
                  15).
 
@@ -217,7 +217,7 @@ head(Frame) ->
 
 build(Source, SourceRoot) ->
     {0, _} = ern_pty:sh(
-        "../bin/ern build --source-root " ++ SourceRoot ++ " --load-path ../build/libs/ansi"
+        "../bin/ern build --source-root " ++ SourceRoot
         ++ " --build-root build/"
         ++ filename:basename(SourceRoot) ++ " " ++ Source),
     ok.

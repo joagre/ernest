@@ -3,7 +3,7 @@
 %% read: how it is built from a checked module, and how it is read back.
 -module(ern_docs).
 
--export([chunk_name/0, read/1, build/4]).
+-export([chunk_name/0, read/1, build/4, member_form/4]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("checker/include/ern_types.hrl").
@@ -31,33 +31,58 @@ read(Beam) ->
 
 %% Report §11.1, EEP 48: the module's documentation, read by `ern doc`
 %% (§11.4) and by the host's own tools. One entry per declaration §11.4
-%% renders, in source order: its signature as the page shows it, its doc
-%% block verbatim, and, for a type, its constructors and their fields in
-%% the metadata, an abstract type's marked private, and for a function its
-%% parameters' names, so a reader of the chunk needs no markdown.
-%% SourceName is the source file's name.
+%% renders, in source order: its signature as the page shows it, a
+%% member's its form (member_form/4), its doc block verbatim, and, for a
+%% type, its constructors and their fields in the metadata, an abstract
+%% type's marked private, for a function its parameters' names, and for a
+%% member its type's name and its own, so a reader of the chunk needs no
+%% markdown. SourceName is the source file's name.
 -spec build([atom()], [tuple()], ern_typecheck:env(), binary()) -> tuple().
 build(Namespace, Declarations, Env, SourceName) ->
     ModuleDoc = case [Text || #module_doc{text = Text} <- Declarations] of
                     [Text | _] -> #{<<"en">> => Text};
                     [] -> none
                 end,
-    Prefix = ern_namespace:text(Namespace) ++ ".",
     {docs_v1, erl_anno:new(0), ernest, <<"text/markdown">>, ModuleDoc, #{source => SourceName},
-     [doc_entry(Declaration, Prefix, Env) || Declaration <- Declarations, documented(Declaration)]}.
+     [doc_entry(Declaration, Namespace, Env)
+      || Declaration <- Declarations, documented(Declaration)]}.
 
-doc_entry(Declaration, Prefix, Env) ->
+doc_entry(Declaration, Namespace, Env) ->
     {Line, _, _} = ern_diagnostic:span(ern_ast:span(Declaration)),
+    Member = member(Declaration, Namespace),
     {doc_key(Declaration), erl_anno:new(Line),
-     doc_signature(Declaration, Prefix, Env),
+     doc_signature(Declaration, Member, ern_namespace:text(Namespace) ++ ".", Env),
      case doc_of(Declaration) of
          undefined -> none;
          Doc -> #{<<"en">> => Doc}
      end,
      case doc_exported(Declaration) of
-         true -> doc_meta(Declaration);
-         false -> (doc_meta(Declaration))#{private => true}
+         true -> doc_meta(Declaration, Member);
+         false -> (doc_meta(Declaration, Member))#{private => true}
      end}.
+
+%% Report §4.5, §11.4: the type a declaration of the module Namespace is a
+%% member of, and the member, `{'Point', compare}` for `fn Point.compare`;
+%% in a prelude type's module, which declares that type's members
+%% unprefixed, `Int`'s `+` or `List`'s `compare`, that type; none for any
+%% other declaration.
+member(#fn_declaration{member_of = MemberOf, name = Name}, Namespace) ->
+    member(MemberOf, Name, Namespace);
+member(#foreign_fn_declaration{member_of = MemberOf, name = Name}, Namespace) ->
+    member(MemberOf, Name, Namespace);
+member(_, _) ->
+    none.
+
+member(undefined, Name, [Type]) ->
+    case lists:member(Name, [compare, negate | ?USEROPS])
+         andalso lists:member(Type, ern_prelude:member_types()) of
+        true -> {Type, Name};
+        false -> none
+    end;
+member(undefined, _, _) ->
+    none;
+member(MemberOf, Name, _) ->
+    {MemberOf, Name}.
 
 %% A type declaration is a type entry; everything else is a function entry,
 %% under its Ernest name, a member's its type's and its own joined by `.`,
@@ -87,9 +112,36 @@ function_atom(module_info) -> 'module_info$';
 function_atom(record_info) -> 'record_info$';
 function_atom(Name) -> Name.
 
-doc_signature(Declaration, Prefix, Env) ->
+doc_signature(#fn_declaration{params = Params, scheme = Scheme}, {_, Member}, _, Env) ->
+    member_signature(Member, Params, Scheme, Env);
+doc_signature(#foreign_fn_declaration{params = Params, scheme = Scheme}, {_, Member}, _, Env) ->
+    member_signature(Member, Params, Scheme, Env);
+doc_signature(Declaration, none, Prefix, Env) ->
     [unicode:characters_to_binary(Line)
      || Line <- string:split(signature(Declaration, Prefix, Env), "\n", all)].
+
+member_signature(Member, Params, Scheme, Env) ->
+    {_, Form} = member_form(Member, param_names(Params), Scheme, ern_typecheck:type_state(Env)),
+    [unicode:characters_to_binary(Form)].
+
+%% Report §11.4: a member's form, as a program writes it at its type, from
+%% its scheme and its parameters' names, `_` for a pattern: the member
+%% applied to the names, then its result type and its requirement,
+%% `compare(left, right) : Ordering needs a.compare`, `left + right : Int`,
+%% `-int : Int`; and its type as its first parameter has it, `Stack(a)`,
+%% which `:browse` names its members under (§11.2). The types are printed
+%% under TypeState, each part of the scheme on its own, its variables named
+%% as the declaration names them.
+-spec member_form(atom(), [atom()], #scheme{}, ern_types:type_state()) -> {string(), string()}.
+member_form(Member, Params, #scheme{type = {tfn, [First | _], _, Result}} = Scheme, TypeState) ->
+    Type = ern_types:format_scheme(Scheme#scheme{type = First, requirement = []}, TypeState),
+    Applied = case {Member, [atom_to_list(Param) || Param <- Params]} of
+                  {compare, [Left, Right]} -> ["compare(", Left, ", ", Right, ")"];
+                  {negate, [Operand]} -> ["-", Operand];
+                  {Operator, [Left, Right]} -> [Left, " ", atom_to_list(Operator), " ", Right]
+              end,
+    {Type, lists:flatten([Applied, " : ", ern_types:format_scheme(Scheme#scheme{type = Result},
+                                                                  TypeState)])}.
 
 %% The parameter list as the module writes it, for the shell's completion,
 %% and a type's documented parts, for a reader that renders them itself;
@@ -97,14 +149,22 @@ doc_signature(Declaration, Prefix, Env) ->
 %% and the constructors of an abstract type, which its module keeps
 %% (§4.4), whose doc blocks `ern test` runs the examples of (§11.2) and a
 %% page leaves out.
-doc_meta(#fn_declaration{params = Params}) -> #{params => param_names(Params)};
-doc_meta(#foreign_fn_declaration{params = Params}) -> #{params => param_names(Params)};
-doc_meta(#type_declaration{constructors = Constructors}) ->
+doc_meta(#fn_declaration{params = Params}, Member) -> member_meta(param_names(Params), Member);
+doc_meta(#foreign_fn_declaration{params = Params}, Member) ->
+    member_meta(param_names(Params), Member);
+doc_meta(#type_declaration{constructors = Constructors}, none) ->
     #{items => [constructor_item(Constructor) || Constructor <- Constructors]};
-doc_meta(#abstract_declaration{declaration = #type_declaration{constructors = Constructors}}) ->
+doc_meta(#abstract_declaration{declaration = #type_declaration{constructors = Constructors}},
+         none) ->
     #{items => [(constructor_item(Constructor))#{private => true}
                 || Constructor <- Constructors]};
-doc_meta(_) -> #{}.
+doc_meta(_, none) -> #{}.
+
+%% A function's parameters' names, and a member's type and name, which a
+%% page orders the members by (report §11.4).
+member_meta(Names, none) -> #{params => Names};
+member_meta(Names, {Type, Member}) ->
+    #{params => Names, member => #{type => Type, name => Member}}.
 
 %% A parameter's name as written; one that is not a plain variable shows
 %% as `_`, since the shell completes names and has no source to quote.

@@ -239,8 +239,8 @@ gateway(Workers, Ended, Measured, Deadline, Departed) ->
             Told = told([Node || is_peer(Node), not Departed], Measured),
             gateway(Workers, Ended, Told, Deadline, Departed);
         _ ->
-            ern_carrier:say("a frame that names no peer's process came to the gateway, and was"
-                            " dropped"),
+            ern_carrier:say_later("a frame that names no peer's process came to the gateway,"
+                                  " and was dropped"),
             gateway(Workers, Ended, Measured, Deadline, Departed)
     end.
 
@@ -351,7 +351,7 @@ wall_time() ->
 said(Event) ->
     case ern_carrier:said(Event) of
         none -> ok;
-        Line -> ern_carrier:say(Line)
+        Line -> ern_carrier:say_later(Line)
     end.
 
 %% A call's notes are rows of a run's tables; between two runs of `ern test`
@@ -497,10 +497,10 @@ applied(Pid, #worker{kept = Kept, addresses = Addresses} = State) ->
 outcome(_Node, ok) ->
     ok;
 outcome(Node, {not_loaded, Kind, Site, Lacked}) ->
-    ern_carrier:say([ern_carrier:named(Node), "'s ", atom_to_list(Kind), " at ",
-                     ern_show:controls(Site, line), " was not loaded: ", Lacked]);
+    ern_carrier:say_later([ern_carrier:named(Node), "'s ", atom_to_list(Kind), " at ",
+                           ern_show:controls(Site, line), " was not loaded: ", Lacked]);
 outcome(Node, unreadable) ->
-    ern_carrier:say([ern_carrier:named(Node), " sent a frame this node cannot read, and its"
-                     " connection was ended"]),
+    ern_carrier:say_later([ern_carrier:named(Node), " sent a frame this node cannot read, and"
+                                                    " its connection was ended"]),
     _ = erlang:disconnect_node(Node),
     ok.

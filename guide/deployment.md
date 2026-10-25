@@ -33,7 +33,7 @@ MCowBQYDK2VwAyEA...
 
 The directory is made for one machine and never copied: a copied key gives two nodes one identity, which a third node cannot tell apart. A node also refuses a configuration that lists its own key under `peers`, `a peer has this node's own key, and a node is no peer of itself`.
 
-The directory belongs to the user who runs the node. A node refuses to start from a directory that is not its user's own or the superuser's, from one whose files anyone beyond the owner and the owner's group may write, or whose private key others than its owner may read, and says so.
+The directory belongs to the user who runs the node. A node refuses to start from a directory, or a file of it the node reads, that is neither its user's own nor the superuser's, or that anyone but its owner may write, and from one whose private key any but its owner may read or write, and says so.
 
 ### 1.2 The configuration
 
@@ -46,7 +46,20 @@ The directory belongs to the user who runs the node. A node refuses to start fro
 - `measures`, `utilization` and `utilization-interval`: what the node measures of itself, how busy it is on one scale among it, and tells its peers, section 3.
 - The node runs over one family of addresses, IPv4 or IPv6, its listener's, or IPv4 where it has no listener; a peer's address of the other family is refused when the file is read, and a host name's family is checked at each dial, which fails where the name resolves only to the other.
 
-A file is refused before anything runs, with a line that names the fault, where it is not JSON, names a field the node does not know or one twice, holds a number too large for the host to read, names a peer or a service twice, gives two peers one key, lists this node's own key as a peer's, names under a service a peer it does not list, gives `utilization` a value that is neither of its two or `utilization-interval` one that is no whole number of at least one, or gives a `public-key` that is not the node's private key's (report §8.7, *Its configuration*).
+A file is refused before anything runs, with a line that names the fault (report §8.7, *Its configuration*), where it:
+
+- is not JSON;
+- names a field the node does not know;
+- names a field twice;
+- holds a number too large for the host to read;
+- names a peer twice;
+- names a service twice;
+- gives two peers one key;
+- lists this node's own key as a peer's;
+- names under a service a peer it does not list;
+- gives `utilization` a value that is neither of its two;
+- gives `utilization-interval` one that is no whole number of at least one;
+- gives a `public-key` that is not the node's private key's.
 
 ### 1.3 Starting, reloading and stopping
 
@@ -148,6 +161,8 @@ Two nodes connect only where they stand on one *floor*: one major and minor rele
 
 A build of `ern` that is no release stands on the floor of its own code's digest, so two development builds connect only where they are the same build. Nodes of different builds of the *program* connect, and agree on the code they share by a hash of each definition (section 5): a *definition* is one function or type of the program, and its *hash* a number computed from its text, which changes when the text does.
 
+The handshake proves the floor by its *cookie*, a digest of the floor, which every node's command line carries and `ps` shows, `-setcookie` and the digest. It is the same on every node of one floor, and grants nothing: a connection is accepted by its key alone (report §8.7).
+
 The node says `the peer b connected` as the connection opens, `the peer b ended` when `b` stopped in order, and `the peer b's connection was replaced by another from the same node` where `b` dialed anew while the old connection was alive, as after `b`'s restart.
 
 ### 2.3 A lost peer
@@ -160,7 +175,7 @@ What the program sees is the loss run on this node: every process here that watc
 
 The connection is opened again by the next operation that needs it, never in the background: a node that is lost stays lost until an operation that needs it reaches for it, a send, a find, a spawn, a compute or an ask of its utilization (section 3.2), or until it dials in, and a dial that nothing answers is given up after 7 seconds. A peer that cannot be dialed, listed without an address, is reached again only when it dials in.
 
-A `send` to a process of a lost peer returns at once, as every `send` does. The message waits behind the dial, and is sent where the connection opens and dropped where it does not; a sender waits only where what waits for that peer fills the host's buffer for it, 1 MB (report §8.7). The window in which a silence is found is the host's, and no entry of `ernest.conf` sets it.
+A `send` to a process of a lost peer returns at once, unless what waits for that peer fills the host's buffer for it, 1 MB, when the sender waits until it drains (report §8.7). The message waits behind the dial, and is sent where the connection opens and dropped where it does not. The window in which a silence is found is the host's, and no entry of `ernest.conf` sets it.
 
 The move: look at `b`'s machine. If `b` stopped in order you would have read `ended`; `lost` means the network or the process. `b` restarting shows as `connected` again on `a`, or as `replaced` where `a` still believed the old connection alive.
 
@@ -192,7 +207,7 @@ The cost of the telling is one small frame per peer per interval, which replaces
 
 `ern run --config-dir dir` with no `.erc` starts a bare node (report §8.7): it holds no program of its own, evaluates the standard library, the modules every Ernest program has and a node holds from its start, and waits, listening for what its peers spawn and compute on it. The code it needs crosses with the first spawn or compute of each function (section 4), and it offers what the processes spawned on it offer, so a bare node is a worker that any listed peer on its floor can give work to by its name.
 
-It must listen, since it never dials, and it ends by termination alone. Its first spawn is the slow one: about 250 milliseconds on a machine of eight cores and 650 on one of two, most of it the host's compiler starting, against the exchange's own cost for every spawn after (section 4.1).
+It must listen, or no peer could reach it, and it ends by termination alone. Its first spawn is the slow one: about 250 milliseconds on a machine of eight cores and 650 on one of two, most of it the host's compiler starting, against the exchange's own cost for every spawn after (section 4.1).
 
 ## 4. Code across nodes, as the operator meets it
 
@@ -202,7 +217,7 @@ Code crosses between nodes with a spawn and a compute, and nowhere else: not wit
 
 A definition that arrived is kept, so the second spawn of the same function ships nothing. On one machine, a spawn whose code crosses costs about 7 milliseconds for one definition, 9 for five and 23 for twenty, against a third of a millisecond for a function the peer already holds; across a wire to a machine of two cores, 17, 27 and 72, most of it that machine's compiler, against about a millisecond and a half, the wire's round trip, for a function it holds.
 
-Two things never cross: a top-level binding's value, which each node computes from its own program at its start, and a module of the host's that the program calls directly, through a foreign declaration, which a node finds on its load path (section 4.3). A spawn whose function needs either on a node that lacks it is not started, and the node says so (section 4.3).
+Two things never cross: the value of a top-level binding a node evaluates, which each node computes from its own program at its start, and a module of the host's that the program calls directly, through a foreign declaration, which a node finds on its load path (section 4.3). A spawn whose function needs either on a node that lacks it is not started, and the node says so (section 4.3). A binding whose initializer is a *constant*, a literal, or a constructor, a tuple or a list of constants, is evaluated nowhere, and crosses with the code that names it (report §4.6).
 
 ### 4.2 What a node keeps, and when to restart
 
@@ -221,7 +236,7 @@ The move is a restart at a time of your choosing: a restarted node holds its bui
 A spawn or a compute a peer asked for that this node did not start is said on this node's standard error, naming the peer, the site in the program where the spawn is written, and what was lacking (report §8.7, *What it says*):
 
 - `the peer a's spawn at Counter.main:13 was not loaded: the binding Counter.config has no value here`: the function reads a top-level binding whose value lives only where the program that declares it was started. Run that program on this node, or place the work with a compute on a node that runs it.
-- `the peer a's spawn at Counter.main:15 was not loaded: the module counter_host, which Counter.tick calls, is not here`, or `has no function tick/0 here`: the program calls a module of the host's directly, through a foreign declaration, and this node finds no such module among the directories it loads code from, its load path, which `--load-path` adds a directory to and `--libs-dir` names the libraries' root of. Install the module there, or the right version of it.
+- `the peer a's spawn at Counter.main:15 was not loaded: the module counter_host, which Counter.tick calls, is not here`, or `has no function tick/0 here`: the program calls a module of the host's directly, through a foreign declaration, and this node finds no such module among the directories it loads code from, its load path, to which `--load-path` adds a directory and `--libs-dir` the `ebin` of each of the host's applications under one. Install the module there, or the right version of it.
 - `the peer a's spawn at Counter.main:17 was not loaded: this node could not take the code it received: ...`: the host refused to compile or load what arrived, a count of section 4.2 passed among the reasons. Restart the node.
 - `the peer a's spawn at Counter.main:19 was not loaded: the spawner's node no longer holds the function's reach`: the spawning side let go of the code between asking and sending, as Ernest's shell, `ern shell`, does when a spawn typed at it gave up waiting. Nothing to do here; the spawner sees `Other`.
 
@@ -239,6 +254,8 @@ A definition's hash covers the hashes of the definitions it uses, so a fix to on
 
 Nodes on two floors never connect (section 2.2). A fleet moves to a new minor release of `ern`, or a new major release of OTP, whole, every node stopped and started again on the new floor, or as a second fleet beside the first, with directories of their own, its programs found or placed there and the first fleet stopped once nothing needs it.
 
+A node reads at its start every module in its program's directory and every directory beneath it, and refuses to start where an `.erc` there holds a module of another namespace than its path gives, one built from another source root: `ern run: old/counter.erc holds Counter, not Old.Counter; remove it, and build Old.Counter from its source root`.
+
 A build written into the directory a running node was started from, where `ern build` put its `.erc`, reaches the node at its next start and nothing before; the one way code reaches a running node from disk is `Code.load`, below (report §11.1). Put each build in a directory of its own, and point the service manager's unit at the one you mean.
 
 ### 5.2 A fix from a shell
@@ -251,7 +268,7 @@ An operator with a one-line fix loads the fixed module with `:load` and spawns o
 
 A running service is moved to new code by the program's own message, never by the runtime: the service is written to take a message that hands it its new function, and a tool, a program of the author's own, lists the processes running the old function and sends each of them that message (report §6.10, Appendix E.28). How a service is written to take it is the language guide's §8.9; the operator runs the tool.
 
-A service under `restarting`, started so that the runtime restarts it at a fault, is not moved so: a restart runs the function the service was started with, the old code, at its next fault (report §6.9). Such a service takes new code as a new service, started when the new build's binding is evaluated, by `Code.load`, the program loading a build into itself (below), or a shell's `:reload`, which loads a module's new source in place of the old, and the old service runs on beside it (report §11.2, Appendix E.28).
+A service under `restarting`, started so that the runtime restarts it at a fault, is moved so only until its next fault, when the restart runs the function the service was started with, the old code (report §6.9). Such a service takes new code as a new service, started when the new build's binding is evaluated, by `Code.load`, the program loading a build into itself (below), or a shell's `:reload`, which loads a module's new source in place of the old, and the old service runs on beside it (report §11.2, Appendix E.28).
 
 The example `examples/upgrade/` is one module, `Counter`, in two builds: the first, [`v1/counter.ern`](../examples/upgrade/v1/counter.ern), is the counter alone, which section 8 starts on the peers, and the second, [`v2/counter.ern`](../examples/upgrade/v2/counter.ern), the counter with a new loop and the tool. Run from `examples/`, with counters of the first build on the peers, the second runs on a node of its own and spawns on every peer a process that moves the peer's counters and says how many it moved.
 
@@ -296,7 +313,7 @@ The first look at a node pays the dial, the lambda's crossing and the node's fir
 
 `Peer.utilization(name, ms)` asks a node now rather than reading the last telling; `Peer.utilizations()` reads what the shell's node holds of its peers, each with how many milliseconds ago it was told. `Process.status` answers `None` for another node's process, so it is asked on the node: `Peer.computeAt("b", fn() = List.map(Process.live(), Process.status), 5000)` names the site each process was spawned at, a snapshot (report Appendix E.21).
 
-A fault's trace, printed beneath the fault on the node's standard error, names the function by the name its program gives it, and names a received unit `ern$3`, which tells you the code arrived from a peer (report §11.2). Looking costs what one compute costs, and changes nothing of the program's state; each new lambda it sends is kept, as section 4.2 counts.
+A fault's trace, printed beneath the fault on the node's standard error, names each function by the name its program gives it, code that arrived from a peer among it; the fault's line says `, spawned by the peer a` where a peer spawned the process (report §11.2). Looking costs what one compute costs, and changes nothing of the program's state; each new lambda it sends is kept, as section 4.2 counts.
 
 A shell does not attach to a running node, as Erlang's own shell attaches with `erl -remsh`: its inputs run on its own node, its `:processes` lists its own processes, and its `:load` and `:reload` load code into its own node. The wrapped compute is the way in.
 
@@ -332,7 +349,7 @@ The first column is the line as it is written, with the peer's name from `ernest
 | `ern stop: dir/ernest.pid: no node holds it: no node runs from the directory` | `ern stop` or `ern reload` with no running node there; `no such file` where an orderly stop removed the file. The command writes it. | None; the node is already down. |
 | `Site faulted: the node's carrier did not start: ...` | The part of the node that listens for and dials its peers could not start, its port taken among the reasons; the node ended with the fault, named by its entry point's site. | Free the port or change `listen`, and start again. |
 
-Lines that begin with a site and `faulted`, with no peer named, are the program's own faults, as on one node; the language guide's §6 teaches what they mean to its author.
+Lines that begin with a site and `faulted`, with no peer named, are the program's own faults, as on one node, and so is one with `, on the peer b` after the cause: a compute this node ran on `b` faulted there, and faulted its caller here with its cause, the trace that crossed beneath it and the caller's frame last. The language guide's §6 and §8.1 teach what they mean to the program's author.
 
 ## 8. A deployment, end to end
 
@@ -389,7 +406,7 @@ b: 1 moved
 c: 1 moved
 ```
 
-`a` moves a counter of its own first, then dials `b` and `c`, each saying `the peer a connected`; on each it spawns a process that lists the counters on the old loop and sends each its message, and the spawn carries `count2`, which the peers at the first build lack, with it. The two peers' lines come in the order they answer. The counters go on with their totals, on the new code, and `a` ends with status 0, each peer saying `the peer a ended`.
+`a` moves a counter of its own first, then dials `b` and `c`, each saying `the peer a connected`; on each it spawns a process that lists the counters on the old loop and sends each its message, and the spawn carries `count2`, which the peers at the first build lack, with it. The two peers' lines come in the order they answer, each saying that it moved its one counter to the new code, and `a` ends with status 0, each peer saying `the peer a ended`.
 
 **Stop in order.**
 

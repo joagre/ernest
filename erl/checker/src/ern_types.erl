@@ -4,12 +4,12 @@
 -module(ern_types).
 
 -export([new/0, fresh/1, fresh/2, fresh_named/2, restrictions/2,
-         add_restriction/3, in_value_position/2, settled_none/2, is_unknown/2, unknown_marked/2,
-         unfixed/2, enter/1, leave/1,
+         add_restriction/3, is_marked_in_value_position/2, settled_none/2, is_unknown/2,
+         unknown_marked/2, unfixed/2, is_enclosing/2, enter/1, leave/1,
          resolve/2, substitute/2, unify/3, free_variables/2,
-         monomorphic/1, generalize/2, generalize/3, elided/2, instantiate/2, instance/2,
+         monomorphic/1, generalize/2, generalize/3, instantiate/2, instance/2,
          unknown_instance/2, value_positions_marked/2, replace_variables/2,
-         mismatch_pair/3, format/2, format_annotation/2, format_pair/3, format_pair/4,
+         mismatch_pair/3, format/2, format_annotation/2, format_pair/4,
          value_variables/2, value_args/3, args_in_value/3, set_scope/5, printing/1,
          printed_scope/1, set_effect_params/2,
          format_scheme/2, format_with_requirement/3, format_call/4, format_error/1]).
@@ -86,11 +86,13 @@ add_restriction(Type, Restriction, TypeState) ->
             TypeState
     end.
 
-%% Report §3.9: whether the variable stands in a value position of a type
-%% the definition under inference holds, `m` of an instance of `self`'s
-%% type, so that none does not bind it (value_positions_marked/2).
--spec in_value_position(id(), type_state()) -> boolean().
-in_value_position(Id, #type_state{variables = Variables}) ->
+%% Report §3.9: whether the variable is marked as standing in a value
+%% position of a type the definition under inference holds, `m` of an
+%% instance of `self`'s type, so that none does not bind it
+%% (value_positions_marked/2); value_variables/2 reads one type's value
+%% positions.
+-spec is_marked_in_value_position(id(), type_state()) -> boolean().
+is_marked_in_value_position(Id, #type_state{variables = Variables}) ->
     (maps:get(Id, Variables))#type_variable.value_position.
 
 %% Report §4.6, §3.9: the variable Id bound to none as the top-level `let`
@@ -137,6 +139,14 @@ unfixed(Type, #type_state{level = Level, variables = Variables} = TypeState) ->
         _ ->
             false
     end.
+
+%% Report §3.9: whether the variable Id is held by a definition around the
+%% one whose end the current level is, made at an enclosing definition's
+%% level or tied to one of its variables since, a variable its annotation
+%% names among them.
+-spec is_enclosing(id(), type_state()) -> boolean().
+is_enclosing(Id, #type_state{level = Level, variables = Variables}) ->
+    (maps:get(Id, Variables))#type_variable.level < Level.
 
 -spec enter(type_state()) -> type_state().
 enter(#type_state{level = Level} = TypeState) -> TypeState#type_state{level = Level + 1}.
@@ -380,13 +390,6 @@ generalize(Type, Keep, #type_state{level = Level, variables = Variables} = TypeS
     Quantified = [{Id, (maps:get(Id, Variables))#type_variable.restrictions} || Id <- Ids],
     {#scheme{quantified = Quantified, type = Elided, names = Names}, TypeState}.
 
-%% Report §3.9: a type with the substitution applied, each function type's
-%% own effect variable that occurs nowhere else none, as a type read
-%% outside generalization elides it (elided_own_effect/3).
--spec elided(type(), type_state()) -> type().
-elided(Type, TypeState) ->
-    elided_own_effect(substitute(Type, TypeState), unmarked(TypeState), TypeState).
-
 %% Report §3.9, §11.5: a function type's own effect variable that occurs
 %% nowhere else in the type, is not process-only and is one Elides takes,
 %% is none, in the type itself and within its result alike, since every
@@ -424,7 +427,7 @@ elided_own_effect(Type, _Counts, _Elides, _TypeState) ->
 %% the definition holds, since a marked one is a mailbox type until its
 %% definition ends, where a call of `self` or `monitor` left it.
 unmarked(TypeState) ->
-    fun(Id) -> not in_value_position(Id, TypeState) end.
+    fun(Id) -> not is_marked_in_value_position(Id, TypeState) end.
 
 count_variables({tvar, Id}, Counts) -> maps:update_with(Id, fun(Count) -> Count + 1 end, 1, Counts);
 count_variables({tcon, _, Args}, Counts) -> lists:foldl(fun count_variables/2, Counts, Args);
@@ -580,25 +583,21 @@ format(Type, TypeState) ->
     lists:flatten(Text).
 
 %% Report §11.5: a type as a help writes it in an annotation, each variable
-%% in a value position, which the writer chooses, written `...`:
-%% `Address(Optional(...))`.
+%% left in it, which the writer chooses, written `...`, a process-only
+%% effect variable among them: `Address(Optional(...))`,
+%% `() -> Unit receiving ...`.
 -spec format_annotation(type() | none, type_state()) -> string().
 format_annotation(Type, TypeState) ->
     Substituted = substitute(Type, TypeState),
     Chosen = maps:from_list([{Id, {tcon, ['...'], []}}
-                             || Id <- value_variables(Substituted, TypeState)]),
+                             || Id <- free_variables(Substituted, TypeState)]),
     format(replace_variables(Substituted, Chosen), TypeState).
 
 %% Report §11.5: two types a message prints together, an expected one and
 %% one found, named as one, so that a variable has one name in both and
-%% two variables never share one.
--spec format_pair(type(), type(), type_state()) -> {string(), string()}.
-format_pair(Expected, Actual, TypeState) ->
-    format_pair(Expected, Actual, [], TypeState).
-
-%% The same, no variable named with one of Taken, the names a pattern the
-%% message shows binds, so that a type found for `#(a, b)` reads
-%% `#(c, d)` and not the pattern again.
+%% two variables never share one, and none named with one of Taken, the
+%% names a pattern the message shows binds, so that a type found for
+%% `#(a, b)` reads `#(c, d)` and not the pattern again.
 -spec format_pair(type(), type(), [string()], type_state()) -> {string(), string()}.
 format_pair(Expected, Actual, Taken, TypeState) ->
     {ttuple, [SubstitutedExpected, SubstitutedActual]} = Substituted =

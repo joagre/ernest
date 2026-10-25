@@ -292,7 +292,7 @@ socket_loop(#connection{socket = Socket, writer = Writer, monitor_ref = MonitorR
             socket_loop(Connection);
         {'Write', Bytes, Ms, Reply} ->
             socket_loop(send(Writer, Bytes, Ms, Reply, Connection));
-        {write_timeout, Reply} ->
+        {deadline, {write, Reply}} ->
             socket_loop(write_timed_out(Reply, Connection));
         {written, Sent} ->
             ern_rt:source_end(),
@@ -336,7 +336,7 @@ socket_loop(#connection{socket = Socket, writer = Writer, monitor_ref = MonitorR
         {'Local', Reply} ->
             ern_rt:answer(Reply, endpoint(State, fun() -> inet:sockname(Socket) end)),
             socket_loop(Connection);
-        {read_timeout, Ref} ->
+        {deadline, {read, Ref}} ->
             socket_loop(read_timed_out(Ref, Connection));
         {tcp, Socket, Bytes} ->
             socket_loop(arrived(Bytes, Connection));
@@ -497,11 +497,11 @@ arrived(Bytes, #connection{socket = Socket, waiting = Waiting, buffer = Buffer} 
     end.
 
 arm(Ref, Deadline) ->
-    erlang:send_after(ern_rt:remaining(Deadline), erlang:self(), {read_timeout, Ref}).
+    erlang:send_after(ern_rt:remaining(Deadline), erlang:self(), {deadline, {read, Ref}}).
 
 %% A write's limit, armed again until it has passed (report §6.3).
 write_limit(Reply, Deadline) ->
-    erlang:send_after(ern_rt:remaining(Deadline), erlang:self(), {write_timeout, Reply}).
+    erlang:send_after(ern_rt:remaining(Deadline), erlang:self(), {deadline, {write, Reply}}).
 
 %% Report Appendix E.18: once the connection has closed, each read waiting
 %% answers `Left(Closed)`, and so does each read after, the socket living on

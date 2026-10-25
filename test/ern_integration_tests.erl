@@ -154,12 +154,14 @@ lease_broker() ->
     ?assertEqual(shown("lease_broker.ern", "ern test lease_broker.erc"), printed(Tested)),
     ?assertEqual({2, <<"usage: lease_broker [deadlock]\n">>}, Run(" holiday")).
 
-%% report §3.5, §4.9, §5.6, Appendix E.3, E.26: word_count counts the words
-%% of the file its command line names in both maps, the ordered map's
-%% alphabetically and the hash map's in an order E.3 leaves unspecified,
-%% so the two lines are compared as sets of counts; with no file it says
-%% how it is called, status 2, and a file it cannot read is named on
-%% standard error, status 1. A regression test, written with the example
+%% report §3.10, §4.9, §5.6, Appendix E.2, E.3, E.26: word_count counts the
+%% words of the file its command line names in both maps, the ordered
+%% map's alphabetically and the hash map's in an order E.3 leaves
+%% unspecified, so the two lines are compared as sets of counts, and names
+%% the two most frequent, of two seen as often the first in order; with no
+%% file it says how it is called, status 2, and a file it cannot read is
+%% named on standard error, status 1. A regression test, written with the
+%% example
 word_count_test_() ->
     {timeout, ern_nodes_tests:waits(4), fun word_count/0}.
 
@@ -171,7 +173,7 @@ word_count() ->
     ?assertEqual(<<"and 1, cat 1, dog 1, log 1, mat 1, on 2, sat 2, the 4">>, Ordered),
     ?assertEqual(lists:sort(binary:split(Ordered, <<", ">>, [global])),
                  lists:sort(binary:split(Hashed, <<", ">>, [global]))),
-    ?assertEqual(<<"most frequent: the, sat">>, Frequent),
+    ?assertEqual(<<"most frequent: the, on">>, Frequent),
     ?assertEqual({2, <<"usage: word_count file\n">>}, sh("../bin/ern run build/word_count.erc")),
     ?assertEqual({1, <<"word_count: fixtures/input/absent.txt: NotFound\n">>},
                  sh("../bin/ern run build/word_count.erc fixtures/input/absent.txt")).
@@ -453,14 +455,14 @@ hangup() ->
 
 %% report §10, §11.8: a program that exhausts the host's memory ends at
 %% once, the process that monitored the one that grew never told, with
-%% status 1 and the host's message, and no crash dump is left in the
-%% working directory. The limit is the shell's on the virtual memory, which
-%% the host meets within a second. A regression test of the full review's
-%% U1 (2026-10-04): the guide called it a fault of one process, and the host
-%% wrote its dump where the program ran. Under `make sanitize` the helper is
-%% built with the address sanitizer, whose shadow memory no limit on the
-%% virtual memory admits, so the helper itself fails at start; the test
-%% runs where the helper is the plain build, in `make test-full`
+%% status 1 and the host's message, and no crash dump is left in the working
+%% directory. The limit is the shell's on the virtual memory, which the host
+%% meets within a second. A regression test (the log's *The Full Review's
+%% Questions, One by One*): the guide called it a fault of one process, and
+%% the host wrote its dump where the program ran. Under `make sanitize` the
+%% helper is built with the address sanitizer, whose shadow memory no limit
+%% on the virtual memory admits, so the helper itself fails at start; the
+%% test runs where the helper is the plain build, in `make test-full`
 out_of_memory_test_() ->
     case os:getenv("ASAN_OPTIONS") of
         false -> {timeout, ern_nodes_tests:waits(2), fun out_of_memory/0};
@@ -786,10 +788,10 @@ os() ->
 %% flags the launcher clears and what the host's own start sets or changes
 %% reach it as given; and a started program has no signal ignored. A
 %% regression test: BINDIR, EMU, PROGNAME and ROOTDIR were the host's, the
-%% host's directories led PATH, ERL_LIBS was gone, and SIGFPE was ignored
-%%. Written after the code; the crash dump's
-%% variable, which the launcher sets for the host alone (report §10), joined
-%% it with the full review's U1
+%% host's directories led PATH, ERL_LIBS was gone, and SIGFPE was ignored.
+%% Written after the code; the crash dump's variable, which the launcher
+%% sets for the host alone (report §10), joined it with the log's *The Full
+%% Review's Questions, One by One*
 given_environment_test_() ->
     {timeout, ern_nodes_tests:waits(2), fun given_environment/0}.
 
@@ -923,10 +925,10 @@ working_directory() ->
 
 %% report §11: `ern --version` and `ern --help` read nothing of the working
 %% directory, and answer in one whose name is not UTF-8, where every job is
-%% refused before the host starts. A regression test (T34), written after
-%% the code: both were refused there; it does not cover a job's `--help`,
-%% which the launcher refuses as it refuses the job. Its steps: the four
-%% commands.
+%% refused before the host starts. A regression test (the log's *The
+%% Review's Fixes, First Round*), written after the code: both were refused
+%% there; it does not cover a job's `--help`, which the launcher refuses as
+%% it refuses the job. Its steps: the four commands.
 launcher_options_test_() ->
     {timeout, ern_nodes_tests:waits(4), fun launcher_options/0}.
 
@@ -957,7 +959,8 @@ make_dir(Dir) ->
     end.
 
 %% report §11, docs/design/install.md: the launcher needs `iconv` to read the
-%% working directory's name, and names it where the path has none. A
+%% working directory's name for a job, and names it where the path has
+%% none; `--version` reads no working directory, and needs none. A
 %% regression test: every working directory was refused as not UTF-8
 launcher_names_a_missing_iconv_test() ->
     Bin = filename:absname("build/no_iconv"),
@@ -965,9 +968,12 @@ launcher_names_a_missing_iconv_test() ->
     ok = filelib:ensure_path(Bin),
     [ok = file:make_symlink(os:find_executable(Tool), filename:join(Bin, Tool))
      || Tool <- ["erl", "dirname", "readlink"]],
+    Ern = fun(Words) -> sh("env PATH=" ++ Bin ++ " " ++ filename:absname("../bin/ern") ++ " "
+                           ++ Words) end,
     ?assertEqual({1, <<"ern: iconv, which tells whether the working directory's name is UTF-8,"
                        " is not on the path\n">>},
-                 sh("env PATH=" ++ Bin ++ " " ++ filename:absname("../bin/ern") ++ " --version")),
+                 Ern("build x")),
+    ?assertMatch({0, <<"ern ", _/binary>>}, Ern("--version")),
     ok = file:del_dir_r(Bin).
 
 %% report §8.2, §8.6, §11.2: a run whose standard output has lost its

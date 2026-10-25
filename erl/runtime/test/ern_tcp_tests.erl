@@ -355,8 +355,7 @@ answered_write_holds_no_timer_test() ->
     ?assertEqual({'Right', 'Unit'}, receive {written, Answer} -> Answer after 5000 -> none end),
     Timeouts = fun Collect() ->
                    receive
-                       {trace, _, 'receive', Timeout}
-                         when is_tuple(Timeout), element(1, Timeout) =:= write_timeout ->
+                       {trace, _, 'receive', {deadline, {write, _}} = Timeout} ->
                            [Timeout | Collect()];
                        {trace, _, _, _} -> Collect()
                    after 0 ->

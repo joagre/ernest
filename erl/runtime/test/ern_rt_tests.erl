@@ -6,6 +6,7 @@
 -export([queued_input/2]).
 
 -include_lib("eunit/include/eunit.hrl").
+-include("ern_rt.hrl").
 
 %% report §8.2: the terminal is read as lines or as keys; a claim the same
 %% way stands, and one the other way is refused with the cause
@@ -211,7 +212,8 @@ fault_reports_test() ->
                           receive {report, Second} -> Second end],
                Self ! {reports, lists:sort([{Site, Cause, Restarted}
                                             || {'FaultReport', _, Site, Cause, Restarted, <<>>,
-                                                'None'} <- Reports])},
+                                                'None', 'None', 'None', Time} <- Reports,
+                                               is_integer(Time)])},
                %% every report started is delivered, so one to the first
                %% subscription would be in the mailbox
                ern_rt:timed(),
@@ -259,12 +261,13 @@ expected_fault_told_to_no_one_test() ->
                ern_rt:untimed(),
                Self ! {heard, lists:sort([{Site, Restarted}
                                           || {report, {'FaultReport', _, Site, _, Restarted, _,
-                                                       _}} <- flush()])}
+                                                       _, _, _, _}} <- flush()])}
            end, <<"M.main">>, #{stdout => fun(_) -> ok end, faults => Reporter}),
-    ?assertMatch([{_, <<"M.main:4">>, _, _, none, true}], wait(row)),
+    ?assertMatch([#process_row{site = <<"M.main:4">>, peer = none, expected = true}],
+                 wait(row)),
     ?assertEqual([{<<"M.main:5">>, false}, {<<"M.main:5">>, true}], wait(heard)),
     ?assertEqual([<<"M.main:5">>, <<"M.main:5">>],
-                 [Site || {reported, {'FaultReport', _, Site, _, _, _, _}} <- flush()]).
+                 [Site || {reported, {'FaultReport', _, Site, _, _, _, _, _, _, _}} <- flush()]).
 
 
 %% report §6.6, §6.9, §8.6: a call ends with the key, the monitor and the
@@ -1348,7 +1351,8 @@ adapted_fault_restarts_test() ->
                receive {took, Taken} -> Self ! {took, Taken} end,
                Self ! {sender, alive}
            end, <<"main">>, #{stdout => fun(_) -> ok end, faults => Reporter}),
-    ?assertMatch({'FaultReport', _, <<"Main.worker:2">>, <<"division by zero">>, true, _, _},
+    ?assertMatch({'FaultReport', _, <<"Main.worker:2">>, <<"division by zero">>, true, _, _,
+                  'None', 'None', _},
                  wait(reported)),
     ?assertEqual(2, wait(took)),
     ?assertEqual(alive, wait(sender)).
@@ -1459,9 +1463,9 @@ own_processes_killed_test() ->
 %% report §6.5, §6.9, §8.6, §8.7, Appendix E.15: the runtime's own processes
 %% whose functions still run as the program ends, a monitor's wrap's
 %% delivery, an alarm's delivery and a process kept for an adapted address,
-%% end with it. A regression test, written after the code, which holds them
-%% to their end now that the reaper and the clock that hold them trap their
-%% exits
+%% end with it, a delivery by the runtime's kill (killed/2). A regression
+%% test, written after the code, which holds them to their end now that the
+%% reaper and the clock that hold them trap their exits
 own_processes_end_with_the_program_test() ->
     Self = self(),
     Watcher = spawn(fun() -> watching(Self) end),
@@ -1481,7 +1485,7 @@ own_processes_end_with_the_program_test() ->
                receive watching -> ok end,
                ern_rt:untimed()
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
-    ?assertEqual([killed, killed, killed], wait(ended)).
+    ?assertEqual([{ern, killed}, {ern, killed}, killed], wait(ended)).
 
 %% The process an endless function runs in, once it runs.
 endless() ->
@@ -1507,9 +1511,10 @@ watching(Tester) ->
 %% report §6.9: a delivery to a process that has ended ends with it: a
 %% monitor's wrap that never finishes, for a process that ends while it
 %% runs, is ended as the process ends, and a delivery in flight to a
-%% process that lives runs on. A regression test, written after the code:
-%% the delivery ran until its function returned, for ever here, though no
-%% one could receive what it delivered
+%% process that lives runs on, the runtime's kill ending it (killed/2). A
+%% regression test, written after the code: the delivery ran until its
+%% function returned, for ever here, though no one could receive what it
+%% delivered
 deliveries_end_with_their_recipient_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -1531,7 +1536,7 @@ deliveries_end_with_their_recipient_test() ->
                Self ! {ended, {Ended, erlang:is_process_alive(Living)}},
                ern_rt:untimed()
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
-    ?assertEqual({killed, true}, wait(ended)).
+    ?assertEqual({{ern, killed}, true}, wait(ended)).
 
 %% report §6.9: a delivery to a process that has ended ends with it, and so
 %% does every other delivery to that process, where the process had ended
@@ -2524,20 +2529,23 @@ asked_monitor_goes_with_its_asker() ->
 %% before the entry process's end among them however late the reaper
 %% learns of them: a chain of processes each waiting on the next in
 %% `callForever`, the last dividing by zero, faults whole, each of its
-%% faults reported, the entry process's last, each cause the callee's with
-%% the callee's site after it (§6.6). Here the reporter holds the
-%% reaper in the first report until the entry process has ended, so that
-%% the reaper learns of the others' ends after it. A regression test,
-%% written after the code: the reaper took a fault it learned of after the
-%% entry's end for one the program's end caused, and dropped it
+%% faults reported, the entry process's last; report §6.6, Appendix E.21:
+%% each cause is the callee's unchanged along the chain, and each report
+%% names its own callee's site, and each moment comes no earlier than the
+%% one it was carried from. Here the reporter holds the reaper in the
+%% first report until the entry process has ended, so that the reaper
+%% learns of the others' ends after it. A regression test, written after
+%% the code: the reaper took a fault it learned of after the entry's end
+%% for one the program's end caused, and dropped it; and again for the
+%% cause carried unchanged, written after that code too
 faults_before_the_end_are_reported_test() ->
     Self = self(),
     Zero = zero(),
     Next = fun(Callee) -> fun() -> ern_rt:call_forever(Callee, fun(Reply) -> {ask, Reply} end) end
            end,
-    Reporter = fun({'FaultReport', _, Site, Cause, _, _, _}, _Peer) ->
+    Reporter = fun({'FaultReport', _, Site, Cause, _, _, _, Callee, 'None', Time}, _Peer) ->
                    Site =:= <<"Main.main:3">> andalso held_until_the_entry_ends(),
-                   Self ! {reported, {Site, Cause}}
+                   Self ! {reported, {Site, Cause, Callee, Time}}
                end,
     Outcome = ern_rt:run_main(
                 fun() ->
@@ -2547,14 +2555,17 @@ faults_before_the_end_are_reported_test() ->
                     A = ern_rt:spawn(Next(B), <<"Main.main:5">>),
                     (Next(A))()
                 end, <<"main">>, #{stdout => fun(_) -> ok end, faults => Reporter}),
-    OfC = <<"division by zero">>,
-    OfB = <<OfC/binary, ", the fault of the callee Main.main:3">>,
-    OfA = <<OfB/binary, ", the fault of the callee Main.main:4">>,
-    OfMain = <<OfA/binary, ", the fault of the callee Main.main:5">>,
-    ?assertMatch({fault, OfMain, _}, Outcome),
-    ?assertEqual([{<<"Main.main:3">>, OfC}, {<<"Main.main:4">>, OfB},
-                  {<<"Main.main:5">>, OfA}, {<<"main">>, OfMain}],
-                 [wait(reported) || _ <- [c, b, a, main]]).
+    Cause = <<"division by zero">>,
+    ?assertMatch({fault, Cause, _}, Outcome),
+    Reported = [wait(reported) || _ <- [c, b, a, main]],
+    ?assertEqual([{<<"Main.main:3">>, Cause, 'None'},
+                  {<<"Main.main:4">>, Cause, {'Some', <<"Main.main:3">>}},
+                  {<<"Main.main:5">>, Cause, {'Some', <<"Main.main:4">>}},
+                  {<<"main">>, Cause, {'Some', <<"Main.main:5">>}}],
+                 [{Site, Carried, Callee} || {Site, Carried, Callee, _} <- Reported]),
+    Times = [Time || {_, _, _, Time} <- Reported],
+    ?assert(lists:all(fun erlang:is_integer/1, Times)),
+    ?assertEqual(Times, lists:sort(Times)).
 
 %% The reaper held in a fault's report until the entry process has ended.
 held_until_the_entry_ends() ->

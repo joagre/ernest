@@ -385,9 +385,25 @@ fn parts(text : String, separator : String, acc : List(String)) : List(String) =
       | Some(#(before, rest)) -> parts(rest, separator, before :: acc)
     }
 
+/// The text before the first occurrence of `separator` and the text after it,
+/// or `None` where `separator` does not occur: `"a=b=c"` split once at `"="` is
+/// `Some(#("a", "b=c"))`. An empty `separator` answers `None`, as `split`
+/// gives `[text]` for it.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(String.splitOnce("key=a=b", "="), String.splitOnce("key", "="))
+/// // => #(Some(#("key", "a=b")), None)
+/// ```
+///
+/// since 0.5.0
+export fn splitOnce(text : String, separator : String) : Optional(#(String, String)) =
+    if isEmpty(separator) then None else around(text, separator)
+
 // Report Appendix E.5: the string before the first whole-grapheme
 // occurrence of the part, and the string after it, found in one walk, a
-// primitive since graphemes are the host's.
+// primitive since graphemes are the host's, beneath `split` and `splitOnce`.
 foreign fn around(text : String, part : String) : Optional(#(String, String)) =
     "ern_string:around/2"
 

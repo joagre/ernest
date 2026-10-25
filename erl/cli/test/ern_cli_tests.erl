@@ -600,7 +600,7 @@ source_root_test() ->
 %% exported abstract type whose fields name a private type, to print it or
 %% check it, through the private types the interface carries, and naming
 %% one is refused as private.
-%% A regression test: printing an address of `Supervisor.Msg`, whose `Join`
+%% A regression test: printing an address of `Supervisor.GroupMsg`, whose `Join`
 %% names the private `WatcherMsg`, stopped `ern build` with an internal
 %% error, and binding one stopped the shell; it does not cover a foreign
 %% value checked against such a type, which takes the same descriptor
@@ -746,6 +746,43 @@ segment_test() ->
     ?assertEqual({'Some', <<"Http">>}, ern_shell:segment(<<"http">>)),
     ?assertEqual({'Some', <<"OrderedSet">>}, ern_shell:segment(<<"ordered_set">>)),
     ?assertEqual('None', ern_shell:segment(<<"Bad">>)).
+
+%% report §11.2, §4.6: the type an input gives a name, `it` among them, is
+%% closed as a top-level `let` that is not generalized closes its own, an
+%% effect variable left in it none where it stands as a function type's
+%% effect, twice here, and Never where it stands as a type argument; one a
+%% value position holds, or a wait makes process-only, is still refused. A
+%% regression test of the release review's B-S1, written after the fix:
+%% the prompt refused a pair of one lambda's type as undetermined, where a
+%% module's top-level `let` closes it
+input_type_closed_as_a_top_level_let_test() ->
+    ern_shell:loaded(#loaded{}),
+    try
+        Session = ern_shell:start(),
+        Type = fun(Input) ->
+                       case ern_shell:check(Session, {'Prompt', 1}, Input) of
+                           {'Right', {_, Checked}} -> ern_shell:type_text(Checked);
+                           {'Left', Refused} -> Refused
+                       end
+               end,
+        Pair = <<"List.partition([fn(x : Int) = x], fn(f) = true)">>,
+        ?assertEqual(<<"#(List((Int) -> Int), List((Int) -> Int))">>,
+                     Type(<<"let p = ", Pair/binary>>)),
+        ?assertEqual(<<"#(List((Int) -> Int), List((Int) -> Int))">>, Type(Pair)),
+        ?assertEqual(<<"Test.Case(Never)">>,
+                     Type(<<"let k = Test.Case(name = \"k\", run = fn() = Test.equal(1, 1))">>)),
+        Undetermined = fun(Name, Input) ->
+                               Text = <<"the type of ", Name/binary,
+                                        " is not determined by this input">>,
+                               ?assertMatch({_, _}, binary:match(Type(Input), Text))
+                       end,
+        Undetermined(<<"s">>, <<"let s = List.partition([fn() = self()], fn(f) = true)">>),
+        Undetermined(<<"t">>, <<"let t = List.partition([fn() = receive { after 1 -> Unit }],"
+                                " fn(f) = true)">>)
+    after
+        persistent_term:erase({ern_shell, loaded}),
+        ets:delete(ern_shell)
+    end.
 
 %% report §11.1, §11.4: the build's sweep passes over a name under the
 %% build root that is not UTF-8, and the host says nothing of it. A
@@ -1654,6 +1691,35 @@ deadlock_lists_the_waiting_test() ->
                                [dotall, {capture, [1], binary}]),
     ?assertEqual(Waiting, Tested).
 
+%% report §8.6: a deadlock's lines are ordered by their sites' lines as
+%% numbers, a spawn on line 9 before one on line 10, whose order as text is
+%% the reverse. A regression test: the lines were ordered as text
+deadlock_lines_by_number_test() ->
+    Dir = tmp(),
+    write(Dir, "src/pair.ern",
+          "type Waits = Waits\n"
+          "fn worker() : Unit receiving Waits = receive { Waits -> Unit }\n"
+          "// the two spawns below stand on lines 9 and 10\n"
+          "//\n"
+          "//\n"
+          "//\n"
+          "//\n"
+          "fn pair() : Unit = {\n"
+          "    let _ = spawn(worker);\n"
+          "    let _ = spawn(worker);\n"
+          "    Unit\n"
+          "}\n"
+          "export fn main() : Unit receiving Waits = {\n"
+          "    pair();\n"
+          "    receive { Waits -> Unit }\n"
+          "}\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    {Errors, 1} = standard_error_of(["run", Dir ++ "/build/pair.erc"]),
+    {match, [Listed]} = re:run(Errors, "^Pair.main faulted: deadlock\n    Pair.main:[0-9]+\n(.*)$",
+                               [dotall, {capture, [1], binary}]),
+    ?assertEqual(<<"    1 process of Pair.pair:9 waits in Pair.worker:2\n"
+                   "    1 process of Pair.pair:10 waits in Pair.worker:2\n">>, Listed).
+
 %% report §4.4: an abstract type's constructor is not visible outside its module
 abstract_constructor_outside_test() ->
     Dir = tmp(),
@@ -2076,6 +2142,49 @@ private_doc_example_test() ->
                              "/build/doubles.erc was compiled from ", Dir,
                              "/src/doubles.ern, which no longer exists\n"]),
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), Gone)).
+
+%% report §11.2, §11.5: an exported declaration's doc example, and the
+%% module's own, stand outside the module and name its declarations as a
+%% caller does, so one that names an exported function plain fails with
+%% the help that qualifies it, and one that names a private one plain is
+%% given none, since no caller can name it. A regression test: the failure
+%% said nothing of the qualified name
+example_names_the_module_qualified_test() ->
+    Dir = tmp(),
+    write(Dir, "src/checks.ern",
+          "/// Sums.\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// add(1, 2)\n"
+          "/// // => 3\n"
+          "/// ```\n"
+          "\n"
+          "/// The sum of `a` and `b`.\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// add(1, 2)\n"
+          "/// // => 3\n"
+          "/// ```\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// Checks.add(1, 2)\n"
+          "/// // => 3\n"
+          "/// ```\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// added(1)\n"
+          "/// // => 1\n"
+          "/// ```\n"
+          "export fn add(a : Int, b : Int) : Int = added(a) + b\n"
+          "\n"
+          "fn added(a : Int) : Int = a\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(1, ern_cli:ern(["test", Dir ++ "/build/checks.erc"])),
+    ?assertEqual(<<"Checks example 1: failed: unknown name add; write `Checks.add`\n"
+                   "Checks.add example 1: failed: unknown name add; write `Checks.add`\n"
+                   "Checks.add example 2: passed\n"
+                   "Checks.add example 3: failed: unknown name added\n">>,
+                 iolist_to_binary(?capturedOutput)).
 
 %% report §11.2, §4.2: a private declaration's doc example in Io itself is
 %% compiled inside Io with `Io.show` written plain, as Io writes its own
@@ -3030,6 +3139,49 @@ double_dash_test() ->
     ?assertEqual(2, ern_cli:ern(["run", "--", Dir ++ "/build/args.erc", "--", "--main"])),
     ?assertEqual(<<"[\"--\", \"--main\"]\n">>, iolist_to_binary(?capturedOutput)).
 
+%% report §8.7, §11.2: a `--config-dir` after `ern run`'s file is the
+%% program's word, so the launcher's first start, which answers the flags
+%% a node's host boots with, runs no program: parsed as that start parses
+%% it, the job is no node and answers none, the program not run; and
+%% through the launcher the program runs once, with the standard input it
+%% is given. A regression test: the launcher read every word, and the
+%% first start ran the program to its end, its effects made and its input
+%% read, before the second ran it again with nothing left to read
+program_config_dir_test() ->
+    Dir = tmp(),
+    write(Dir, "src/reads.ern",
+          "export fn main() : Unit =\n"
+          "    match Io.readLine() {\n"
+          "        Some(line) -> Io.println(\"read: \" <> line)\n"
+          "      | None -> Io.println(\"nothing to read\")\n"
+          "    }\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    Erc = Dir ++ "/build/reads.erc",
+    persistent_term:put({ern_cli, flags}, true),
+    try
+        ?assertThrow({node_flags, []}, ern_cli:ern(["run", Erc, "--config-dir", Dir]))
+    after
+        persistent_term:erase({ern_cli, flags})
+    end,
+    ?assertEqual(<<>>, iolist_to_binary(?capturedOutput)),
+    ?assertEqual("read: secret\n",
+                 os:cmd("printf 'secret\\n' | ../../../bin/ern run " ++ Erc ++ " --config-dir "
+                        ++ Dir)).
+
+%% bin/ern, report §8.7, §11.2: the launcher passes over the value of each
+%% option of `ern run` that takes one as it looks for `--config-dir` among
+%% the job's own words, so its list is held equal to the options the job's
+%% usage gives a value, `--config-dir` aside. Written with the list
+launcher_run_options_test() ->
+    {Help, 0} = help_of("run"),
+    {match, Usage} = re:run(Help, "\\[--([a-z-]+) [^]\\s]+\\]",
+                            [global, {capture, all_but_first, list}]),
+    {ok, Launcher} = file:read_file("../../../bin/ern"),
+    {match, [Line]} = re:run(Launcher, "^ *(--[a-z-]+(?: \\| --[a-z-]+)*)\\) value=1 ;;$",
+                             [multiline, {capture, all_but_first, list}]),
+    ?assertEqual(lists:sort([Name || [Name] <- Usage, Name =/= "config-dir"]),
+                 lists:sort([Name || "--" ++ Name <- string:split(Line, " | ", all)])).
+
 %% report §4.2: a module may not take a namespace of a standard library
 %% module written in Ernest
 stdlib_namespace_test() ->
@@ -3705,6 +3857,40 @@ fault_test() ->
                   <<"    Boom.main:3">>, <<>>],
                  binary:split(iolist_to_binary(?capturedOutput), <<"\n">>, [global])).
 
+%% report §6.6, §11.2, Appendix E.21, E.24: a caller whose callee faulted
+%% faults with the callee's cause unchanged, which `Test.faults` matches,
+%% and the line of the caller's fault names the callee's site after the
+%% cause, `ern run`'s and `ern test`'s alike, a test's own line among them,
+%% the callee's own line its cause alone. A regression test, written after
+%% the code, where the cause carried the site; the peer after the cause, a
+%% compute's, is ern_nodes_tests'
+callee_fault_line_test() ->
+    Dir = tmp(),
+    File = write(Dir, "calls.ern",
+                 "type Msg = Ask(Reply(Int))\n"
+                 "fn serve() : Unit receiving Msg =\n"
+                 "    receive { Ask(reply) -> answer(reply, 1 / List.size([])) }\n"
+                 "fn ask() : Int = Address.callForever(spawn(serve), Ask)\n"
+                 "let asks = Test.Case(name = \"asks\", run = fn() =\n"
+                 "    Test.faults(ask, \"division by zero\"))\n"
+                 "let calls = Test.Case(name = \"calls\", run = fn() = {\n"
+                 "    let _ = ask();\n"
+                 "    Test.Passed\n"
+                 "})\n"
+                 "export fn main() : Unit = Io.println(Int.toString(ask()))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
+    {Run, 1} = standard_error_of(["run", filename:join(Dir, "calls.erc")]),
+    ?assertEqual(<<"Calls.ask:4 faulted: division by zero\n"
+                   "Calls.main faulted: division by zero, the fault of the callee Calls.ask:4\n">>,
+                 untraced(Run)),
+    {Tests, 1} = standard_error_of(["test", filename:join(Dir, "calls.erc")]),
+    ?assertEqual(<<"asks: passed\n"
+                   "calls: faulted: division by zero, the fault of the callee Calls.ask:4\n">>,
+                 untraced(?capturedOutput)),
+    ?assertEqual(<<"Calls.ask:4 faulted: division by zero\n"
+                   "Calls.ask:4 faulted: division by zero\n">>,
+                 untraced(Tests)).
+
 %% What was written, without the trace beneath each fault's line, its
 %% frames each indented by four spaces (report §11.2), which fault_test
 %% reads.
@@ -3805,9 +3991,11 @@ doc_test() ->
     %% as a pattern with its type alone
     Expect(<<"## Shapes.put\n\n```ernest\nShapes.put(x : a, Box(a)) : Box(a)\n```\n\n"
              "Put x in the box.\n">>),
-    %% report §4.2: a member is shown under its type
+    %% report §4.2, §11.4: a member is shown in the form a program writes
+    %% at its type, a parameter written as a pattern as `_`, after the
+    %% module's other declarations
     Expect(<<"## Shapes.Box.compare\n\n```ernest\n"
-             "Shapes.Box.compare(Box(a), Box(a)) : Ordering\n```\n\nBy size.\n">>),
+             "compare(_, _) : Ordering\n```\n\nBy size.\n\n---\n">>),
     Expect(<<"## Shapes.same\n\n```ernest\nShapes.same(a : a=, b : a=) : Bool\n```\n">>),
     %% report §11.4: a private declaration is marked
     Expect(<<"## Shapes.twice\n\n```ernest\nShapes.twice(n : Int) : Int\n```\n\n"
@@ -4669,7 +4857,8 @@ other_namespace_test() ->
      || Line <- [<<Shape/binary, " holds Geo.Shape, not Src.Geo.Shape, and a build writes over no"
                    " other module's file; remove it to build Src.Geo.Shape there\n">>,
                  <<"ern build: src/geo/shape.erc holds Geo.Shape, not Src.Geo.Shape; name"
-                   " Src.Geo.Shape's source root with --source-root\n">>,
+                   " Src.Geo.Shape's source root with --source-root, or remove"
+                   " src/geo/shape.erc\n">>,
                  <<Shape/binary, " holds Src.Geo.Shape, not Geo.Shape; remove it, and build"
                    " Geo.Shape from its source root\n">>]],
     ?assertEqual(nomatch, binary:match(Output, <<"no longer exists">>)).

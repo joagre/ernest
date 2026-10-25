@@ -85,47 +85,40 @@ measures() ->
 
 %% The host's spawn of a process that returns, as the bench's Erlang row.
 host_spawns(Count) ->
-    ern_costs:timed(Count, fun Loop(0) -> ok;
-                               Loop(Left) -> _ = spawn(fun() -> ok end), Loop(Left - 1)
-                           end).
+    ern_costs:timed(Count, ern_costs:looped(fun(_) -> spawn(fun() -> ok end) end)).
 
 %% The host's spawn_monitor and its 'DOWN', as the bench's Erlang row.
 host_spawns_monitored(Count) ->
-    ern_costs:timed(Count, fun Loop(0) -> ok;
-                               Loop(Left) ->
-                                   {_, MonitorRef} = spawn_monitor(fun() -> ok end),
-                                   receive {'DOWN', MonitorRef, _, _, _} -> Loop(Left - 1) end
-                           end).
+    ern_costs:timed(Count, ern_costs:looped(fun(_) ->
+                                                {_, MonitorRef} = spawn_monitor(fun() -> ok end),
+                                                receive {'DOWN', MonitorRef, _, _, _} -> ok end
+                                            end)).
 
 %% The host's monitor of a process that has ended and its 'DOWN', as the
 %% bench's Erlang row.
 host_monitors(Count) ->
     {Ended, EndedRef} = spawn_monitor(fun() -> ok end),
     receive {'DOWN', EndedRef, _, _, _} -> ok end,
-    ern_costs:timed(Count, fun Loop(0) -> ok;
-                               Loop(Left) ->
-                                   MonitorRef = erlang:monitor(process, Ended),
-                                   receive {'DOWN', MonitorRef, _, _, _} -> Loop(Left - 1) end
-                           end).
+    ern_costs:timed(Count, ern_costs:looped(fun(_) ->
+                                                MonitorRef = erlang:monitor(process, Ended),
+                                                receive {'DOWN', MonitorRef, _, _, _} -> ok end
+                                            end)).
 
 %% Report §6.9: Ernest's spawn of a process that returns, the code the
 %% compiler writes for `spawn(fn() = Unit)`.
 ernest_spawns(Count) ->
-    ern_costs:timed(Count, fun Loop(0) -> ok;
-                               Loop(Left) ->
-                                   _ = ern_rt:spawn(fun() -> 'Unit' end, ?SITE),
-                                   Loop(Left - 1)
-                           end).
+    ern_costs:timed(Count,
+                    ern_costs:looped(fun(_) -> ern_rt:spawn(fun() -> 'Unit' end, ?SITE) end)).
 
 %% Report §6.2, §6.9: Ernest's spawnMonitored of a process that returns
 %% and its Down received, as the bench's row writes them.
 ernest_spawns_monitored(Count) ->
-    ern_costs:timed(Count, fun Loop(0) -> ok;
-                               Loop(Left) ->
-                                   _ = ern_rt:spawn_monitored(fun() -> 'Unit' end,
-                                                              fun(_) -> {'Ping', Left} end, ?SITE),
-                                   receive {'Ping', Left} -> Loop(Left - 1) end
-                           end).
+    ern_costs:timed(Count, ern_costs:looped(fun(Left) ->
+                                                _ = ern_rt:spawn_monitored(
+                                                      fun() -> 'Unit' end,
+                                                      fun(_) -> {'Ping', Left} end, ?SITE),
+                                                receive {'Ping', Left} -> ok end
+                                            end)).
 
 %% Report §6.9: Ernest's monitor of a process that has ended and its Down
 %% received, as the bench's row writes them, the process ended first as
@@ -133,11 +126,10 @@ ernest_spawns_monitored(Count) ->
 ernest_monitors(Count) ->
     Ended = ern_rt:spawn_monitored(fun() -> 'Unit' end, fun(_) -> ended end, ?SITE),
     receive ended -> ok end,
-    ern_costs:timed(Count, fun Loop(0) -> ok;
-                               Loop(Left) ->
-                                   ern_rt:monitor(Ended, fun(_) -> {'Ping', Left} end),
-                                   receive {'Ping', Left} -> Loop(Left - 1) end
-                           end).
+    ern_costs:timed(Count, ern_costs:looped(fun(Left) ->
+                                                ern_rt:monitor(Ended, fun(_) -> {'Ping', Left} end),
+                                                receive {'Ping', Left} -> ok end
+                                            end)).
 
 %% The same spawn of a process that waits for a word to return, so that
 %% no end comes between the spawns, in batches; the processes of each

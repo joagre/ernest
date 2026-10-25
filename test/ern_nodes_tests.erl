@@ -966,8 +966,9 @@ replaced(Base) ->
 %% report §8.7: a node says the address and the port it listens on, once
 %% at every start: one whose `listen` names port 0 the port the host picks,
 %% and one whose `listen` names a port that port, which a peer waits on
-%% before it dials (the full review's G-B, written with the line); a node
-%% without `listen` does not listen, says nothing of it, and dials
+%% before it dials (the log's *The Review's Decisions*, written with the
+%% line); a node without `listen` does not listen, says nothing of it, and
+%% dials
 listening_test_() ->
     nodes_test({waits, 12}, fun listening/1).
 
@@ -1307,9 +1308,10 @@ refused_after_start(Base) ->
 %% ends before `main` runs, its entry process faulting with the cause §7.4
 %% states, under the entry point's site, and with nothing of the host's
 %% reports on its standard output. A regression test of the principles
-%% review's K14 (2026-10-09), which stated the cause in §7.4: the fault was
-%% reported under the last initializer's site, `Terminal.widths`, and the
-%% host's crash report of its distribution was written on standard output
+%% review (the log's *The Principles Review of 2026-10-09*), which stated
+%% the cause in §7.4: the fault was reported under the last initializer's
+%% site, `Terminal.widths`, and the host's crash report of its distribution
+%% was written on standard output
 carrier_not_started_test_() ->
     nodes_test({waits, 2}, fun carrier_not_started/1).
 
@@ -1754,15 +1756,16 @@ spawn_on_peer(Base) ->
 %% function run there for its value, answered within the time or a failure:
 %% a value back; a name that is no peer's NotListed; a function whose
 %% binding has no value on the store NotLoaded, which the store says; a
-%% fault in the function the caller's, its cause followed by `, on the peer
-%% store`, which the caller's node reports once, with the caller's site,
-%% its subscriber of faults told of it, the trace that crossed with it
-%% beneath, then the caller's frame, a cause of §7.4's as a raise's (§7.3,
-%% a regression test of 2026-10-20), and the store reports nothing, its
-%% subscriber told nothing; a process killed before it answers Other with
-%% its Reason; a process whose caller ends while it waits, one whose
-%% function kills its caller from the store, a kill the desk carries out as
-%% its own, which reads the caller's call and sends its second note (§6.9),
+%% fault in the function the caller's, with the function's cause, which the
+%% caller's node reports once, with the caller's site and `, on the peer
+%% store` after the cause, its subscriber of faults told of it with the
+%% peer, the trace that crossed with it beneath, then the caller's frame, a
+%% cause of §7.4's as a raise's (§7.3, a regression test of 2026-10-20), and
+%% the store reports nothing, its subscriber told nothing; a process killed
+%% before it answers Other with its Reason; a process whose caller ends
+%% while it waits, one whose function kills its caller from the store, a
+%% kill the desk carries out as its own, which reads the caller's call and
+%% sends its second note (§6.9),
 %% and one whose time runs out, killed on the store, whose watcher,
 %% monitoring each, says so; and a process that ends with the store's
 %% program Other with ProgramEnd. A regression test, written after the
@@ -1790,14 +1793,15 @@ compute_on_peer(Base) ->
     {Out, Err} = said(Desk),
     {StoreOut, StoreErr} = said(Store),
     Faulted = desk_site("faulted", "spawnMonitored(f, Died)"),
-    Raised = " foreign function erlang:binary_to_integer/1 raised error:badarg, on the peer store",
+    RaisedCause = " foreign function erlang:binary_to_integer/1 raised error:badarg",
+    Raised = RaisedCause ++ ", on the peer store",
     [has(Out, Line)
      || Line <- ["value: Right(42)", "not listed: Left(NotListed)", "not loaded: Left(NotLoaded)",
-                 "divided: Fault(\"division by zero, on the peer store\")",
-                 "reported here: " ++ Faulted ++ " division by zero, on the peer store true",
+                 "divided: Fault(\"division by zero\")",
+                 "reported here: " ++ Faulted ++ " division by zero Some(\"store\") true",
                  "raised: Fault(\"foreign function erlang:binary_to_integer/1 raised"
-                 " error:badarg, on the peer store\")",
-                 "reported here: " ++ Faulted ++ Raised ++ " true",
+                 " error:badarg\")",
+                 "reported here: " ++ Faulted ++ RaisedCause ++ " Some(\"store\") true",
                  "killed: Left(Other(\"Killed\"))", "its caller killed from the store: Killed",
                  "timed out: Left(Timeout)",
                  "with the store's end: Left(Other(\"ProgramEnd\"))"]],
@@ -2075,13 +2079,13 @@ stop_in_order(Base) ->
     has(Said, "ernest.pid: no such file: no node runs from the directory").
 
 %% report §8.7, §11.2: a node holds ernest.pid locked for its life, which
-%% the host ends with it however it ends: a node killed leaves the file,
-%% and the next start from the directory takes it, saying nothing of a
-%% refusal, the file holding the new node's number; a running node refuses
-%% a second start, naming its number; and where the file names a living
-%% process that is no node, `ern stop` and `ern reload` fail, saying that
-%% no node holds it, and the process is sent nothing. A regression test,
-%% written after the code (finding E4): a start was refused by a file whose
+%% the host ends with it however it ends: a node killed leaves the file, and
+%% the next start from the directory takes it, saying nothing of a refusal,
+%% the file holding the new node's number; a running node refuses a second
+%% start, naming its number; and where the file names a living process that
+%% is no node, `ern stop` and `ern reload` fail, saying that no node holds
+%% it, and the process is sent nothing. A regression test, written after the
+%% code (the log's *MVP 3.1 Read*): a start was refused by a file whose
 %% number a living process held, and the jobs signaled that process
 pid_lock_test_() ->
     nodes_test({waits, 12}, fun pid_lock/1).
@@ -2127,9 +2131,9 @@ pid_lock(Base) ->
 %% gone, its file removed, and the next `ern run` from the directory
 %% accepted at once; a second `ern stop` while the first waits is a second
 %% termination, which ends the node at once, and both return. A regression
-%% test, written after the code (findings W4, E9): the job returned once the
-%% signal was sent, and a script's next start was refused by the node still
-%% ending
+%% test, written after the code (the log's *MVP 3.1 Read*): the job returned
+%% once the signal was sent, and a script's next start was refused by the
+%% node still ending
 stop_waits_test_() ->
     nodes_test({waits, 12}, fun stop_waits/1).
 
@@ -2472,6 +2476,7 @@ exchanged(Base) ->
              "\n"
              "export type Count = Count(Int)\n"
              "\n"
+             %% computed, since a constant has its value wherever its code is (§11.1)
              "let note : String = \"never run\" <> \" on the receiver\"\n"
              "\n"
              "export fn told() : Unit = Io.println(note)\n"
@@ -2873,7 +2878,7 @@ line_of(Text, Part) ->
 %% load path is loaded and its binding not evaluated, so a spawn whose reach
 %% names the binding is NotLoaded, the node saying so, a regression test
 %% written after the code, but a constant, which has its value wherever its
-%% form is (§4.6, the full review's K14); a fault in received
+%% form is (§4.6, the log's *The Review's Decisions*); a fault in received
 %% code is reported there at the spawn's site, the sender's, with the peer
 %% that spawned it; a function that crossed with the first lambda's
 %% enclosing definition is spawned twice and faults twice, the traces of
@@ -2946,8 +2951,9 @@ bare_node(Base) ->
 %% a compute on a bare node, which holds none of the program's definitions,
 %% reads a literal binding, a constructed one and a list of tuples, their
 %% forms crossing with the function's, and a binding whose initializer is
-%% computed is still NotLoaded there, the node saying so. K's
-%% `nodes/main.ern` of the full review (K14), written with the rule
+%% computed is still NotLoaded there, the node saying so. A program of the
+%% full review's, written with the rule (the log's *The Review's
+%% Decisions*)
 constant_crosses_test_() ->
     nodes_test({waits, 6}, fun constant_crosses/1).
 
@@ -3130,6 +3136,7 @@ beyond_reach(Base) ->
     Source = "// Report §8.7: lambdas spawned on a bare node from definitions that name\n"
              "// what the bare node lacks and the lambdas do not.\n"
              "\n"
+             %% computed, since a constant has its value wherever its code is (§11.1)
              "let config : Int = 2 + 3\n"
              "\n"
              "foreign fn parsed(text : String) : Int = \"erlang:binary_to_integer/1\"\n"
@@ -3578,11 +3585,11 @@ broken_exchange(Base) ->
 %% declare one type at different inputs, the first at its first and the
 %% second at its second, after a declaration of its own, whose input keeps
 %% its module and so its namespace, and each offers a process as a service
-%% at it; each finds the other's and sends to it. A regression test,
-%% written after the code: the shell's test asserted the printed types alone (V12). Then
-%% written again after the fix (V11): the type was hashed under its input's
-%% namespace, so the two shells held two types and a find answered
-%% `OtherType`
+%% at it; each finds the other's and sends to it. A regression test, written
+%% after the code: the shell's test asserted the printed types alone. Then
+%% written again after the fix (the log's *MVP 3.1 Read*, for both): the
+%% type was hashed under its input's namespace, so the two shells held two
+%% types and a find answered `OtherType`
 shell_service_test_() ->
     nodes_test({waits, 9}, fun shell_service/1).
 
@@ -3631,17 +3638,17 @@ shell_service(Base) ->
     [?assertEqual(nomatch, string:find(Out, "OtherType")) || {Out, _} <- [said(A), said(B)]].
 
 %% report §11.2, §8.7, Appendix H: what a `let` at the prompt binds has its
-%% value in the session, so a function typed at the prompt whose reach
-%% names it runs on a shell that is a node where a peer's spawn names it:
-%% two shells type one `let` and one function over it, the second after a
-%% `let` of its own, so that its binding is held by another of its holders,
-%% and the second spawns the function on the first, which runs it with its
-%% own value. A regression test, written before the fix: the module that
-%% holds what a `let` binds was never counted as evaluated, so the spawn
-%% was refused and the node said the binding had no value there, which was
-%% false. The `let` of its own a regression test too, written after the
-%% fix (finding V11): a form named the binding under its holder, so the two
-%% shells held two functions and the spawn answered NotLoaded
+%% value in the session, so a function typed at the prompt whose reach names
+%% it runs on a shell that is a node where a peer's spawn names it: two
+%% shells type one `let` and one function over it, the second after a `let`
+%% of its own, so that its binding is held by another of its holders, and
+%% the second spawns the function on the first, which runs it with its own
+%% value. A regression test, written before the fix: the module that holds
+%% what a `let` binds was never counted as evaluated, so the spawn was
+%% refused and the node said the binding had no value there, which was
+%% false. The `let` of its own a regression test too, written after the fix
+%% (the log's *MVP 3.1 Read*): a form named the binding under its holder, so
+%% the two shells held two functions and the spawn answered NotLoaded
 shell_binding_spawned_test_() ->
     nodes_test({waits, 6}, fun shell_binding_spawned/1).
 
@@ -3730,11 +3737,11 @@ shell_compute(Base) ->
 %% report §11.2, §6.5, §8.7: an input that builds a function value keeps its
 %% code while the session runs, since the function may be held anywhere: a
 %% shell that is a node offers as a service an adapted address made at the
-%% prompt, whose function the input built and the runtime's offers hold,
-%% and a peer's message reaches the service through it after many inputs
-%% more. A regression test, written after the fix (finding W1): the input's
-%% module was let go once its answer was in, and the message's delivery
-%% faulted with the host's `undef`
+%% prompt, whose function the input built and the runtime's offers hold, and
+%% a peer's message reaches the service through it after many inputs more. A
+%% regression test, written after the fix (the log's *MVP 3.1 Read*): the
+%% input's module was let go once its answer was in, and the message's
+%% delivery faulted with the host's `undef`
 shell_offered_adapted_test_() ->
     nodes_test({waits, 6}, fun shell_offered_adapted/1).
 
@@ -3778,11 +3785,11 @@ shell_offered_adapted(Base) ->
 %% report §11.2, §8.7, Appendix E.21: a shell that is a node writes a
 %% fault's line as `ern run` writes one, the peer whose spawn started the
 %% process after the cause, which the FaultReport's `spawnedBy` names. A
-%% regression test, written after the code (finding N12): the shell's line
-%% named the spawner's site alone. A shell in line mode reports a fault
-%% before its next prompt, so the shell that faulted is given inputs until
-%% the line comes (fault_line/3). A local fault's report, which names no
-%% peer, is ern_rt_tests' fault_reports_test's
+%% regression test, written after the code (the log's *MVP 3.1 Read*): the
+%% shell's line named the spawner's site alone. A shell in line mode reports
+%% a fault before its next prompt, so the shell that faulted is given inputs
+%% until the line comes (fault_line/3). A local fault's report, which names
+%% no peer, is ern_rt_tests' fault_reports_test's
 shell_peer_fault_test_() ->
     nodes_test({waits, 7}, fun shell_peer_fault/1).
 
@@ -3830,6 +3837,8 @@ shell_node(Base) ->
     Root = filename:join(Base, "build"),
     ok = filelib:ensure_path(Root),
     ok = file:write_file(filename:join(Root, "greet.ern"),
+                         %% computed, since a constant has its value wherever its code is
+                         %% (§11.1)
                          "let greeting : String = \"hello from\" <> \" the shell's load\"\n\n"
                          "export fn hello() : Unit = Io.println(greeting)\n"),
     ok = file:write_file(filename:join(Root, "store.ern"),
@@ -3876,14 +3885,14 @@ shell_node(Base) ->
 %% report §8.7, §11.2: a shell that is a node over a build answers a peer
 %% from the latest unit whose bindings have their values, as the session
 %% uses it. Before anything is loaded the build's unit, read at the node's
-%% start and never evaluated, answers no peer whose function's reach names
-%% a binding: the spawn is NotLoaded and the node says the binding has no
+%% start and never evaluated, answers no peer whose function's reach names a
+%% binding: the spawn is NotLoaded and the node says the binding has no
 %% value here, which is true. After `:load` of the module's source, changed
 %% in another function, the same spawn runs in the session's unit, its
 %% service the session's. After a `:reload` that leaves the service binding
 %% unchanged, evaluated again and so a service of its own, a peer's spawn
 %% sends to the new version's service, which the session sends to next. A
-%% regression test, written after the fix (findings S2, V3, N1, N5): the
+%% regression test, written after the fix (the log's *MVP 3.1 Read*): the
 %% table answered the first unit loaded, so the spawn after the `:load` was
 %% refused with that line, then false, and the one after the `:reload`
 %% reached the previous version's service
@@ -3998,10 +4007,10 @@ shell_node_versions(Base) ->
 %% spawn is NotLoaded, the node saying the binding has no value here, true
 %% of the code that would run. Once the session has loaded the caller from
 %% source too, compiled against its greeter, the spawn runs there. A
-%% regression test, written after the fix (finding S2's read-back): the
-%% binding was found by its identity in the session's greeter, the build's
-%% caller ran, and its process faulted, the binding read in the build's
-%% greeter having no value
+%% regression test, written after the fix, found on reading back a fix of
+%% the log's *MVP 3.1 Read*: the binding was found by its identity in the
+%% session's greeter, the build's caller ran, and its process faulted, the
+%% binding read in the build's greeter having no value
 shell_node_reach_test_() ->
     nodes_test({waits, 11}, fun shell_node_reach/1).
 
@@ -4009,6 +4018,8 @@ shell_node_reach(Base) ->
     Root = filename:join(Base, "build"),
     Source = filename:join(Base, "src"),
     [ok = filelib:ensure_path(Dir) || Dir <- [Root, Source]],
+    %% the binding computed, since a constant has its value wherever its code
+    %% is (§11.1)
     Greet = "let greeting : String = \"hello from\" <> \" the greeter\"\n"
             "\n"
             "export fn hello() : Unit = Io.println(greeting)\n",
@@ -4077,8 +4088,9 @@ shell_node_reach(Base) ->
 %% spawned and names it, and leaves the unit as it was before the load: a
 %% peer's spawn of its function is NotLoaded, its binding without its value
 %% here, before the load and after it alike. A regression test, written
-%% after the fix (findings V4, V1): the process ran on unnamed, since it ran
-%% no code the load brought, while the load erased the unit's values
+%% after the fix (the log's *MVP 3.1 Read*): the process ran on unnamed,
+%% since it ran no code the load brought, while the load erased the unit's
+%% values
 refused_build_load_test_() ->
     nodes_test({waits, 11}, fun refused_build_load/1).
 
@@ -4170,9 +4182,9 @@ refused_build_load(Base) ->
 %% restarting target faults at its wait, is reported restarted with the
 %% cause, and its new run takes the next message; the sender goes on, its
 %% target's three restarts within a minute the scenario's and no bound. A
-%% regression test, written after the fix (finding W3): the fault killed the
-%% target by an exit signal, so it ended without a restart, and the next
-%% message was lost
+%% regression test, written after the fix (the log's *MVP 3.1 Read*): the
+%% fault killed the target by an exit signal, so it ended without a restart,
+%% and the next message was lost
 adapted_fault_test_() ->
     nodes_test({waits, 11}, fun adapted_fault/1).
 

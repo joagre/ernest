@@ -9,14 +9,15 @@
 %% nothing.
 -module(ern_build).
 
--export([compile/4, compile_in_memory/5, held_another/3, verbose/2, modules_of/3,
+-export([compile/4, compile_in_memory/5, held_another/4, verbose/2, modules_of/3,
          compiled_in_order/3,
          report_errors/3, shown/1, sources/1, compiled_under/1, bytes_text/1, module_of/2,
          module_of/3, shape/2, compile_order/2, compile_order/3, module_cycle/1,
          compiled_dependencies/1, source_root/3, build_root/2, is_stdlib_root/1, stdlib_hash/0,
          dependency_interfaces/5, load_path/1, is_compiled_against/4, compiler_modules/0,
          compiler_build/0, sweep_pages/5, compile_source/5, compile_source/6, absolute/1,
-         relative/2, write_whole/2, write_output/2, write_output/3, read/1, make_dirs/1,
+         relative/2, root_of/2, write_whole/2, write_output/2, write_output/3, read/1, make_dirs/1,
+         make_private_dir/1,
          refused/2, fail/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
@@ -69,7 +70,7 @@ compile(Job, Options, Path, ErrorDevice, Emit) ->
     {Found, Misnamed} = modules_of(Files, SourceRoot, Mode),
     IsRootGiven = proplists:is_defined(source_root, Options),
     {Modules, Held} = case Emit of
-                          erc -> unheld(Found, BuildRoot, IsRootGiven);
+                          erc -> kept_or_held(Found, BuildRoot, IsRootGiven);
                           _ -> {Found, []}
                       end,
     %% report §11.1: the roots a dependency is found under, the build root
@@ -119,40 +120,48 @@ compile(Job, Options, Path, ErrorDevice, Emit) ->
 %% would write it: the file is another module's, and its module fails, by
 %% its namespace, so that a module that uses it is not compiled either.
 %% Where the build was given no source root, the refusal names the option
-%% that names one; where it was, the file is to be removed. The modules
-%% the build compiles, and those it refuses so.
-unheld(Modules, BuildRoot, IsRootGiven) ->
+%% that names one, or the file's removal; where it was, the file is to be
+%% removed (held_another/4). The modules the build compiles, and those it
+%% refuses so.
+kept_or_held(Modules, BuildRoot, IsRootGiven) ->
     lists:foldr(fun(#build_module{namespace = Namespace, relative = Relative} = Module,
                     {Kept, Held}) ->
                         Erc = filename:join(BuildRoot, filename:rootname(Relative)) ++ ".erc",
                         case read_erc(Erc) of
                             {ok, #{interface := #interface{namespace = Other}}}
                               when Other =/= Namespace ->
-                                Refusal = held_by_another(Erc, Other, Namespace, IsRootGiven),
+                                Advice = case IsRootGiven of
+                                             false -> source_root;
+                                             true -> kept
+                                         end,
+                                Refusal = held_another(Erc, Other, Namespace, Advice),
                                 {Kept, [{Namespace, {refused, Refusal}, []} | Held]};
                             _ ->
                                 {[Module | Kept], Held}
                         end
                 end, {[], []}, Modules).
 
-held_by_another(Erc, Other, Namespace, false) ->
-    lists:flatten([shown(Erc), " holds ", ern_namespace:text(Other), ", not ",
-                   ern_namespace:text(Namespace), "; name ", ern_namespace:text(Namespace),
-                   "'s source root with --source-root"]);
-held_by_another(Erc, Other, Namespace, true) ->
-    lists:flatten([shown(Erc), " holds ", ern_namespace:text(Other), ", not ",
-                   ern_namespace:text(Namespace), ", and a build writes over no other module's"
-                   " file; remove it to build ", ern_namespace:text(Namespace), " there"]).
-
 %% Report §11.1, §11.2: a file found by a module's namespace that holds
-%% another module, Held, the refusal a build's and a run's reading of it
-%% give: it is no module of that name, and the module is built where it
-%% goes once the file is gone.
--spec held_another(file:filename(), [atom()], [atom()]) -> string().
-held_another(File, Held, Namespace) ->
-    lists:flatten([shown(File), " holds ", ern_namespace:text(Held), ", not ",
-                   ern_namespace:text(Namespace), "; remove it, and build ",
-                   ern_namespace:text(Namespace), " from its source root"]).
+%% another module, Held, refused: it is no module of that name, and the
+%% advice says how the module is built. `rebuild`, the refusal a build's
+%% dependency, a run's reading and the shell's load give, where the module
+%% goes once the file is gone; `source_root`, a build's given no source
+%% root, by the option that names one or once the file is gone; and
+%% `kept`, a build's given its source root, which writes over no other
+%% module's file.
+-spec held_another(file:filename(), [atom()], [atom()], rebuild | source_root | kept) ->
+          string().
+held_another(File, Held, Namespace, Advice) ->
+    Name = ern_namespace:text(Namespace),
+    lists:flatten([shown(File), " holds ", ern_namespace:text(Held), ", not ", Name,
+                   advice(Advice, File, Name)]).
+
+advice(rebuild, _File, Name) ->
+    ["; remove it, and build ", Name, " from its source root"];
+advice(source_root, File, Name) ->
+    ["; name ", Name, "'s source root with --source-root, or remove ", shown(File)];
+advice(kept, _File, Name) ->
+    [", and a build writes over no other module's file; remove it to build ", Name, " there"].
 
 %% Report §11.1, §11.5: a module's errors, each unknown qualified name
 %% given the help, where the build was given no source root and the error
@@ -1156,7 +1165,7 @@ dependency_interface(User, Dependency, Interfaces, [BuildRoot | _] = DependencyR
                 %% report §11.1: a .erc of another module is none of this
                 %% one's, stale or not
                 {ok, #{interface := #interface{namespace = Held}}} when Held =/= Dependency ->
-                    fail(held_another(Erc, Held, Dependency));
+                    fail(held_another(Erc, Held, Dependency, rebuild));
                 {ok, #{interface := Interface} = Chunk} ->
                     case gone(Chunk, Dir, SourceRoot) of
                         false -> {Dependency, Interface};
@@ -1619,6 +1628,13 @@ path_from(Base, Path) ->
 unshared([Segment | Base], [Segment | Path]) -> unshared(Base, Path);
 unshared(Base, Path) -> filename:join([".." || _ <- Base] ++ Path).
 
+%% Report §4.2, §11.1: the root a module's file stands under, a source root
+%% or a build root, as many directories up from File as its namespace is
+%% deep.
+-spec root_of(file:filename(), [atom()]) -> file:filename().
+root_of(File, Namespace) ->
+    lists:foldl(fun(_, Dir) -> filename:dirname(Dir) end, File, Namespace).
+
 %% Report §11: a file a job writes is written whole or not at all. It is
 %% written beside its place, under a name that begins with a dot, which no
 %% job reads as a module (§11.1), with the mode the file has or Mode, and
@@ -1705,6 +1721,27 @@ make_dirs(File) ->
     case filelib:ensure_dir(File) of
         ok -> ok;
         {error, Error} -> refused(filename:dirname(File), Error)
+    end.
+
+%% Report §8.3, §11.2: a directory made here or not at all, and its
+%% owner's alone before anything is written in it, so that no one else can
+%% open a file there or put a link where a job writes; what another put in
+%% it before it was its owner's alone would be written through, a link
+%% among them, so it must hold nothing then. `exists` where something
+%% stands at its path, and otherwise why it was not made.
+-spec make_private_dir(file:filename()) -> ok | exists | {error, string()}.
+make_private_dir(Dir) ->
+    case file:make_dir(Dir) of
+        ok ->
+            ok = file:change_mode(Dir, 8#700),
+            case file:list_dir_all(Dir) of
+                {ok, []} -> ok;
+                _ -> {error, "it was written to by another as it was made"}
+            end;
+        {error, eexist} ->
+            exists;
+        {error, Error} ->
+            {error, file:format_error(Error)}
     end.
 
 delete(File) ->

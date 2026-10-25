@@ -83,16 +83,17 @@ markdown(Text) ->
     Kept = fun(Line) -> Line end,
     iolist_to_binary(lists:join(<<"\n">>, fences(Lines, Kept, Kept, IsErnest))).
 
-%% Report §2.2, §11.6: lines whose CommonMark text Text gives, each fenced
-%% block among them whose language IsLaid takes laid out
+%% Report §2.2, §11.6: lines whose CommonMark text ContentOf gives, each
+%% fenced block among them whose language IsLaid takes laid out
 %% (ern_parser:fenced/1), its lines indented as its opening fence is and
-%% each made a line by Written; a line outside one, a block of another
+%% each made a line by LineOf; a line outside one, a block of another
 %% language, an unclosed block and one that does not change, as written.
-fences(Lines, Text, Written, IsLaid) ->
-    laid_out_fences(ern_parser:fenced([Text(Line) || Line <- Lines]), Lines, {Written, IsLaid}).
+fences(Lines, ContentOf, LineOf, IsLaid) ->
+    laid_out_fences(ern_parser:fenced([ContentOf(Line) || Line <- Lines]), Lines,
+                    {LineOf, IsLaid}).
 
-laid_out_fences([#fence{lines = Body, closing = Closing} = Fence | Parts], Lines, Laying) ->
-    {Own, Rest} = lists:split(1 + length(Body) + length([Closing || Closing =/= none]), Lines),
+laid_out_fences([#fence{} = Fence | Parts], Lines, Laying) ->
+    {Own, Rest} = lists:split(ern_parser:line_count(Fence), Lines),
     laid_fence(Fence, Own, Laying) ++ laid_out_fences(Parts, Rest, Laying);
 laid_out_fences([_Text | Parts], [Line | Rest], Laying) ->
     [Line | laid_out_fences(Parts, Rest, Laying)];
@@ -102,7 +103,7 @@ laid_out_fences([], [], _Laying) ->
 laid_fence(#fence{closing = none}, Own, _Laying) ->
     Own;
 laid_fence(#fence{language = Language, indent = Indent, content = Content}, [Opening | Own],
-           {Written, IsLaid}) ->
+           {LineOf, IsLaid}) ->
     case IsLaid(Language) andalso fence(Content) of
         false ->
             [Opening | Own];
@@ -110,7 +111,7 @@ laid_fence(#fence{language = Language, indent = Indent, content = Content}, [Ope
             [Opening | Own];
         Formatted ->
             Pad = binary:copy(<<" ">>, Indent),
-            [Opening] ++ [Written(indent(Pad, Line)) || Line <- Formatted] ++ [lists:last(Own)]
+            [Opening] ++ [LineOf(indent(Pad, Line)) || Line <- Formatted] ++ [lists:last(Own)]
     end.
 
 fence(Lines) ->
@@ -835,11 +836,7 @@ items(Open, [First | Rest], Close, Hug, Code, Cursor) ->
     {Pairs, Cursor5} = lists:mapfoldl(fun(Item, Acc) -> comma_and_item(Item, Code, Acc) end,
                                       Cursor4, Rest),
     {Lead, Cursor6} = lead_trivia(Cursor5, Code),
-    {Closing, Cursor7} = consume(Close, Code, Cursor6),
-    CloseLayout = case Lead =:= [] andalso reads_with_previous(Code, Cursor6) of
-                      true -> [space(), Closing];
-                      false -> Closing
-                  end,
+    {CloseLayout, Cursor7} = consume(Close, Code, Cursor6),
     Items = [FirstLayout, [[Comma, line, Layout] || {Comma, Layout} <- Pairs], Lead],
     Broken = {bracket, [OpenLayout, {align, Items}, CloseLayout]},
     Laid = case {Pairs, Hug} of
@@ -855,18 +852,6 @@ items(Open, [First | Rest], Close, Hug, Code, Cursor) ->
                                   CloseLayout], Broken}
            end,
     {[Before, Laid], Cursor7}.
-
-%% Report §11.6: whether the token at the cursor, written against the one
-%% before it, would read as other tokens, as `-` and `>>` read as `->` and
-%% `>`, so that the two stay a space apart.
-reads_with_previous(Code, #cursor{index = Index}) ->
-    Indexes = [Index - 1, Index],
-    Written = iolist_to_binary([element(Each, Code#code.texts) || Each <- Indexes]),
-    Symbols = [symbol(element(Each, Code#code.tokens)) || Each <- Indexes],
-    case ern_lexer:tokenize(Written) of
-        {ok, Tokens} -> [symbol(Token) || Token <- Tokens] =/= Symbols ++ [eof];
-        {error, _} -> true
-    end.
 
 %% An item after the first, with the comma before it.
 comma_and_item(Item, Code, Cursor) ->

@@ -19,7 +19,7 @@
 supervised(Strategy, Limit, Names, Main) ->
     ern_emitter_tests:run(
         ["type Msg = Ask(reply : Reply(Int)) | Peek(reply : Reply(Int)) | Boom\n"
-         "let sup : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.",
+         "let sup : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.",
          Strategy, ", ", Limit, "))\n",
          [["let ", Name, " : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"]
           || Name <- Names],
@@ -92,7 +92,7 @@ rest_for_one_restarts_later_children_test() ->
 rest_for_one_reads_the_order_of_spawns_test() ->
     {ok, Output} = ern_emitter_tests:run(
         ["type Msg = Ask(reply : Reply(Int)) | Peek(reply : Reply(Int)) | Boom | Go\n"
-         "let sup : Address(Supervisor.Msg) = spawn(Supervisor.group("
+         "let sup : Address(Supervisor.GroupMsg) = spawn(Supervisor.group("
          "Supervisor.RestForOne, ", ?LIMIT, "))\n"
          "let a : Address(Msg) = spawn(fn() : Unit receiving Msg = {\n"
          "    receive { Go -> Unit };\n"
@@ -149,7 +149,7 @@ restart_asked_for_is_no_fault_test() ->
 call_ends_at_asked_restart_test() ->
     {Result, _} = ern_emitter_tests:run(
              "type Msg = Slow(reply : Reply(Int), trigger : Address(Unit)) | Boom\n"
-        "let sup : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForAll,"
+        "let sup : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.OneForAll,"
         " RestartLimit(restarts = 3, within = 5000)))\n"
         "let a : Address(Msg) = spawn(Supervisor.child(sup, fn() = serve()))\n"
         "let b : Address(Msg) = spawn(Supervisor.child(sup, fn() = serve()))\n"
@@ -207,15 +207,16 @@ kill_stops_in_reverse_order_test() ->
 %% Appendix E.22, §6.9: a supervisor that is a child restarts in place past
 %% its limit, its children restarted with it, their addresses kept. Each
 %% child is peeked once a service monitor has told of its restart, which
-%% comes before anything its new run takes; peeked once the group's fault
-%% was reported, a child the group had yet to restart answered from its old
-%% run, one run in sixty beside other work
+%% comes before anything its new run takes, so the call reaches the new run
+%% and waits for it; peeked once the group's fault was reported, a child
+%% the group had yet to restart answered from its old run, one run in sixty
+%% beside other work
 nested_group_restarts_in_place_test() ->
     {ok, Output} = ern_emitter_tests:run(
         "type Msg = Ask(reply : Reply(Int)) | Peek(reply : Reply(Int)) | Boom\n"
-        "let top : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForOne,"
+        "let top : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.OneForOne,"
         " RestartLimit(restarts = 5, within = 5000)))\n"
-        "let sub : Address(Supervisor.Msg) = spawn(Supervisor.child(top,"
+        "let sub : Address(Supervisor.GroupMsg) = spawn(Supervisor.child(top,"
         " Supervisor.group(Supervisor.OneForOne, RestartLimit(restarts = 0, within = 5000))))\n"
         "let a : Address(Msg) = spawn(Supervisor.child(sub, fn() = count(0)))\n"
         "let b : Address(Msg) = spawn(Supervisor.child(sub, fn() = count(0)))\n"
@@ -232,15 +233,11 @@ nested_group_restarts_in_place_test() ->
         "    send(a, Boom);\n"
         "    // each child's restart, which the nested group asks at its own\n"
         "    let restarts = [heard(), heard()];\n"
-        "    Io.println(Io.show(restarts) <> \" \" <> Int.toString(peekUntil(a)) <> \" \""
-        " <> Int.toString(peekUntil(b)))\n"
+        "    Io.println(Io.show(restarts) <> \" \" <> Int.toString(peek(a)) <> \" \""
+        " <> Int.toString(peek(b)))\n"
         "}\n"
         "fn heard() : Reason receiving Down = receive { Down(reason = reason) -> reason }\n"
-        "fn peekUntil(c : Address(Msg)) : Int =\n"
-        "    match Address.call(c, fn(r) = Peek(reply = r), 1000) {\n"
-        "        Some(n) -> n\n"
-        "      | None -> peekUntil(c)\n"
-        "    }\n"),
+        "fn peek(c : Address(Msg)) : Int = Address.callForever(c, fn(r) = Peek(reply = r))\n"),
     ?assertEqual(<<"[Restarted, Restarted] 0 0\n">>, Output).
 
 %% Appendix E.22: a supervisor restarted in place counts its limit afresh,
@@ -253,9 +250,9 @@ nested_group_restarts_in_place_test() ->
 count_survives_restart_in_place_test() ->
     {ok, Output} = ern_emitter_tests:run(
         "type Msg = Ask(reply : Reply(Int)) | Peek(reply : Reply(Int)) | Boom\n"
-        "let top : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForOne,"
+        "let top : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.OneForOne,"
         " RestartLimit(restarts = 5, within = 5000)))\n"
-        "let sub : Address(Supervisor.Msg) = spawn(Supervisor.child(top,"
+        "let sub : Address(Supervisor.GroupMsg) = spawn(Supervisor.child(top,"
         " Supervisor.group(Supervisor.OneForOne, RestartLimit(restarts = 1, within = 1000))))\n"
         "let a : Address(Msg) = spawn(Supervisor.child(sub, fn() = count(0)))\n"
         "let b : Address(Msg) = spawn(Supervisor.child(sub, fn() = count(0)))\n"
@@ -312,7 +309,7 @@ count_survives_restart_in_place_test() ->
 %% restarted without end
 child_of_ended_supervisor_test() ->
     {Result, _} = ern_emitter_tests:run(
-             "let sup : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForOne,"
+             "let sup : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.OneForOne,"
         " RestartLimit(restarts = 3, within = 5000)))\n"
         "type Seen = Ended(Down)\n"
         "export fn main() : Unit receiving Seen = {\n"
@@ -344,7 +341,7 @@ child_inside_restarting_faults_test() ->
 %% of no message, beside a group of its own.
 first_fault_cause(Spawned) ->
     {ok, Output} = ern_emitter_tests:run(
-        ["let sup : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForOne, ",
+        ["let sup : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.OneForOne, ",
          ?LIMIT, "))\n"
          "export fn main() : Unit receiving Process.FaultReport = {\n"
          "    Process.faults(fn(report) = report);\n"
@@ -462,7 +459,7 @@ crunching(Main) ->
 %% the ask with its mailbox, and the child waited for ever
 sibling_faulting_first_counts_as_restarted_test() ->
     {ok, Output} = crunching(
-        "let sup : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.RestForOne,"
+        "let sup : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.RestForOne,"
         " RestartLimit(restarts = 5, within = 5000)))\n"
         "let a : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"
         "let b : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"
@@ -486,10 +483,10 @@ sibling_faulting_first_counts_as_restarted_test() ->
 %% is not seen
 child_waits_through_its_supervisors_restart_test() ->
     {ok, Output} = crunching(
-        "let top : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForAll,"
+        "let top : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.OneForAll,"
         " RestartLimit(restarts = 5, within = 5000)))\n"
         "let x : Address(Msg) = spawn(Supervisor.child(top, fn() = count(0)))\n"
-        "let sub : Address(Supervisor.Msg) = spawn(Supervisor.child(top,"
+        "let sub : Address(Supervisor.GroupMsg) = spawn(Supervisor.child(top,"
         " Supervisor.group(Supervisor.OneForAll, RestartLimit(restarts = 5, within = 5000))))\n"
         "let a : Address(Msg) = spawn(Supervisor.child(sub, fn() = count(0)))\n"
         "let b : Address(Msg) = spawn(Supervisor.child(sub, fn() = count(0)))\n"
@@ -528,9 +525,9 @@ held_child_runs_once_test() ->
         "    Started -> logging(n + 1)\n"
         "  | Count(reply = r) -> { answer(r, n); logging(n) }\n"
         "}\n"
-        "let top : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForOne,"
+        "let top : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.OneForOne,"
         " RestartLimit(restarts = 5, within = 5000)))\n"
-        "let sub : Address(Supervisor.Msg) = spawn(Supervisor.child(top,"
+        "let sub : Address(Supervisor.GroupMsg) = spawn(Supervisor.child(top,"
         " Supervisor.group(Supervisor.OneForOne, RestartLimit(restarts = 0, within = 5000))))\n"
         "let a : Address(Msg) = spawn(Supervisor.child(sub, fn() = {\n"
         "    send(log, Started);\n"
@@ -565,10 +562,10 @@ held_child_runs_once_test() ->
 parent_restarts_subtree_test() ->
     {ok, Output} = ern_emitter_tests:run(
         "type Msg = Ask(reply : Reply(Int)) | Boom\n"
-        "let top : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForAll,"
+        "let top : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.OneForAll,"
         " RestartLimit(restarts = 5, within = 5000)))\n"
         "let x : Address(Msg) = spawn(Supervisor.child(top, fn() = count(0)))\n"
-        "let sub : Address(Supervisor.Msg) = spawn(Supervisor.child(top,"
+        "let sub : Address(Supervisor.GroupMsg) = spawn(Supervisor.child(top,"
         " Supervisor.group(Supervisor.OneForOne, RestartLimit(restarts = 5, within = 5000))))\n"
         "type LogMsg = Started | Watch(watcher : Address(Unit), reply : Reply(Int))\n"
         "let log : Address(LogMsg) = spawn(fn() = logging(0, None))\n"
@@ -630,7 +627,7 @@ restart_reaches_the_outer_function_test() ->
         "    let me = self();\n"
         "    Address.callForever(log, fn(r) = Watch(watcher = me, reply = r))\n"
         "}\n"
-        "let sup : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForAll,"
+        "let sup : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.OneForAll,"
         " RestartLimit(restarts = 5, within = 5000)))\n"
         "let a : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"
         "let b : Address(Msg) = spawn(Supervisor.child(sup, fn() = {\n"

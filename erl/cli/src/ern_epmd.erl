@@ -88,9 +88,9 @@ other_family(Name, Named, Family) ->
     case inet:getaddr(Named, Other) of
         {ok, _} ->
             {Own, Its} = case Family of inet -> {"IPv4", "IPv6"}; inet6 -> {"IPv6", "IPv4"} end,
-            ern_carrier:say(["the peer ", Name, " was not dialed: its network-address names ",
-                             Named, ", which resolves only to ", Its, ", and this node runs over ",
-                             Own]);
+            ern_carrier:say_later(["the peer ", Name, " was not dialed: its network-address"
+                                   " names ", Named, ", which resolves only to ", Its,
+                                   ", and this node runs over ", Own]);
         {error, _} ->
             ok
     end.

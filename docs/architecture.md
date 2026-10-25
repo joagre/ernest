@@ -145,7 +145,7 @@ A unit is the module's Erlang name, `ern@` and its path (§11.1), unless `compil
 |---|---|---|
 | `ErnI` | `ern_interface`: `encode/2`, `read/1`, `written/1`, `hash/1` | a format number, the canonical interface, and what §11.1's recompile rule compares, `references` and `builds_functions` among them |
 | `ErnC` | `ern_canonical`: `module/4`, `closed/1`, `recorded_source/1`, `read/1` | `{FormVersion, #recorded{}}`, the records of `ern_canonical.hrl` (§8.7, Appendix H) |
-| `Docs` | `ern_docs`: `ern_docs:build/4`, `read/1`, `doc_key/1` | EEP 48's documentation, an entry per declaration §11.4 renders, an abstract type's constructors marked private, which a page leaves out, its `BeamLanguage` `ernest` |
+| `Docs` | `ern_docs`: `ern_docs:build/4`, `read/1`, `doc_key/1` | EEP 48's documentation, an entry per declaration §11.4 renders, an abstract type's constructors marked private, which a page leaves out, a member's signature its form (`member_form/4`) and its metadata its type and name, by which a page orders it, its `BeamLanguage` `ernest` |
 
 Each chunk is read through `ern_chunk`. A name a shell session declares is written under `$Session` in a form and in `'$code'/0` (`form_name/2` in `ern_canonical` and in `ern_emitter`; Appendix H, §11.2).
 
@@ -157,7 +157,7 @@ Each chunk is read through `ern_chunk`. A name a shell session declares is writt
 
 | Table | Owner | Row, keyed by its first element | Holds |
 |---|---|---|---|
-| `ern_processes` | `ern_rt` | `{Pid, Site, SpawnOrder, Root, Peer}` | each process the runtime started or adopted |
+| `ern_processes` | `ern_rt` | `#process_row{}`, `ern_rt.hrl`'s, keyed by its process | each process the runtime started or adopted |
 | `ern_callees` | `ern_rt` | `{{Callee, Caller}, Reply}`, ordered, with the host's write concurrency | each pending call on a process of the node, which a restart reads (§6.9) |
 | `ern_faults` | `ern_rt` | `{Subscriber, Address}` | the subscriptions to faults (E.21) |
 | `ern_terminating` | `ern_rt` | `{Subscriber, Address, Told}` | the subscriptions to the program's end (E.23) |
@@ -204,7 +204,7 @@ The gateway and the exchange are the only registered processes. A delivery, a co
 
 ### Processes, calls and restarts
 
-- A spawn goes through the reaper, which writes the process's `ern_processes` row; `run/1` wraps every process body, so that an exception is a fault (§7.4). `fault_exit_reason/3` makes the fault, and every place a host error becomes one goes through it: the host's `badarith` is `division by zero` where its frame holds the integer operands of `div` or `rem`, and `float arithmetic error` where it holds floats or where the host raised in the program's own frame from its float registers (`arithmetic_cause/1`, §3.1).
+- A spawn goes through the reaper, which writes the process's `ern_processes` row; `run/1` wraps every process body, so that an exception is a fault (§7.4). `met/3` makes the fault, a `#fault{}` (`ern_rt.hrl`), and every place a host error becomes one goes through it; `ended_with/2` writes it into the process's row and gives the host's term of the end (§8.4): the host's `badarith` is `division by zero` where its frame holds the integer operands of `div` or `rem`, and `float arithmetic error` where it holds floats or where the host raised in the program's own frame from its float registers (`arithmetic_cause/1`, §3.1).
 - `send/2` applies an adapted address's functions (`adapted_way/2`), and a message to an address made on another node goes to that node's gateway (§6.5, §8.7).
 - A call (§6.6) is `call/3,4` and `call_forever/2,3`; a compute (§8.7) is `compute/3`, its process on the peer running `computing/2`.
 - `restarting/2` runs a restarting function; `fresh_run/0`, `restarted/1` and `tell_service_monitors/0` begin a new run (§6.9). `ask_restart/1`, `start_cause/0` and `spawn_order/1` are `Supervisor`'s shims (E.22).
@@ -216,11 +216,11 @@ The gateway and the exchange are the only registered processes. A delivery, a co
 ### The reaper
 
 - It monitors every process a program spawns, every listener, socket and running program a system module opens (`opened/3`), and every process a `monitor` names that it did not start (§6.9).
-- Each `Down` is delivered by `wrapped/3`, a delivery. Where the reaper learns of a process's end, it ends every delivery to it (`abandoned/1`). At a restart (`new_run/3`) it cancels the process's own monitors and tells its service monitors, marked `{service_monitor, Wrap}` beside the others, a `Down` with `Restarted` (`delivered_restart/2`, §6.9).
+- Each `Down` is delivered by `wrapped/3`, a delivery. Where the reaper learns of a process's end, it ends every delivery to it (`abandoned/1`). At a restart (`new_run/3`) it cancels the process's own monitors and tells its service monitors, each a `#monitor{service = true}` beside the others, a `Down` with `Restarted` (`delivered_restart/2`, §6.9).
 - It looks for a deadlock (`look/0`, §8.6) after `LOOK_SOON` or `LOOK_LATER` milliseconds without a message. It does not look on a node or while the shell holds the terminal.
 - Sources (§8.6) are counted where they begin: the clock's alarms, `stdin`'s requests, the terminal's subscriptions, the reaper's own monitors, and a kill under way (`killed/2`).
 - What the look needs of a process, the process keeps in its own dictionary, under the look's keys, and the look reads it with the process's top frame once every process waits (`still/1`): a receive with a deadline is `TIMED` (`timed/0`, `untimed/0`), a call to a system process, a listener, a socket or a running program is a pending I/O by its `CALL` key (`calling_the_system/2`), and a process inside foreign code where its stack cannot show it is `FOREIGN` (`entered_foreign/0`, `left_foreign/0`), while a function given to foreign code runs (the wrapper `ern_emitter`'s `called/2` writes) and while the runtime waits on a peer, a port, the code table's holder, a restart's answers, `Code.load`'s evaluation or the program's end. A function on top of the stack that is neither a unit's nor of the toolchain's own (`is_ernest/1`, `own_modules/0`) is the host's, a receive inside foreign code; a foreign call writes nothing.
-- Faults are reported by `report/5` (E.21), to the run's `faults` function and each subscriber in `ern_faults`. `run_main` sets the host's backtrace depth to 64, of which a trace shows twelve (E.21, E.28). A fault the runtime gives a waiting process, a deadlock, carries the process's stack as `found_fault/2` finds it (§7.3).
+- Faults are reported by `report/5` (E.21), to the run's `faults` function and each subscriber in `ern_faults`, from the `#fault{}` the process's row holds: a `callForever` carries its callee's fault with the callee's site beside the cause (`callee_fault/2`, §6.6), and a compute the peer's with the peer's name (`compute/4`, §8.7). `run_main` sets the host's backtrace depth to 64, of which a trace shows twelve (E.21, E.28). A fault the runtime gives a waiting process, a deadlock, carries the process's stack as `found_fault/2` finds it (§7.3).
 
 ### The runner
 
@@ -246,12 +246,12 @@ A reference tags each launch, held with its runner, its reaper, its standard err
 The modules of a node (§8.7) are `ern_node`, `ern_carrier`, `ern_epmd` and `ern_gateway` in `cli`, and `ern_peer` in `runtime`.
 
 - `ern_node` reads the configuration directory into a `#configuration{}` (`erl/cli/include/ern_node.hrl`) and holds `ernest.pid` through the helper's `lock` mode, a port the runner's process owns (`pid_written/1`).
-- `ern_carrier` is the carrier: the host's boot flags (`boot_flags/1`), the node's name (`name/1`, `host/1`), the cookie (`cookie/0`), the rule that accepts a peer (`verify/3`), the start (`start/1`), a reload (`reload/0`), the end in order (`depart/0`), and the lines a node says (`say/1`).
+- `ern_carrier` is the carrier: the host's boot flags (`boot_flags/1`), the node's name (`name/1`, `host/1`), the cookie (`cookie/0`), the rule that accepts a peer (`verify/3`), the start (`start/1`), a reload (`reload/0`), the end in order (`depart/0`), and the lines a node says (`say/1`, and `say_later/1` for a process that must not wait on standard error, which `ern_rt:say_later/2` says through a process of its own).
 - `ern_epmd` answers the host in the port mapper's place, from the configuration.
 - `ern_gateway` takes every frame of the runtime's from every peer and hands each to a worker for that peer, which `ern_peer:frame/2` reads. Its header comment lists the frames.
 - The gateway records a call's notes in `ern_notes` itself (§8.7). It answers a utilization, tells each connected peer its own every `utilization-interval`, and holds each peer's telling in `ern_utilizations`.
 - A gateway's worker keeps a process for each adapted address a peer sends to (`ern_rt:kept/1`), and hands a spawn or a compute of a function the node lacks to the exchange.
-- `ern_peer` is `Peer`'s shims (E.27): `offer/2`, `find/2`, `spawn/3`, `compute/2`, `utilization/2` and `picked/0`, with the work its frames give the gateway.
+- `ern_peer` is `Peer`'s shims (E.27): `offer/2`, `find/2`, `spawn/3`, `compute/2`, `utilization/2` and `pick/0`, with the work its frames give the gateway.
 
 ### The code table
 

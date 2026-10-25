@@ -40,6 +40,7 @@
 
 -include_lib("checker/include/ern_types.hrl").
 -include_lib("checker/include/ern_canonical.hrl").
+-include_lib("runtime/include/ern_rt.hrl").
 
 %% A module of the load as its compiled form gives it: its namespace, the
 %% file it was read from, its bytes, its interface chunk (ern_interface)
@@ -108,7 +109,7 @@ reach(Path) ->
 %% file at the path its namespace names under it, each directory between
 %% them of §11.1's path shape; a file elsewhere is no `.erc` of its module.
 root(File, Namespace) ->
-    Root = lists:foldl(fun(_, Dir) -> filename:dirname(Dir) end, File, Namespace),
+    Root = ern_build:root_of(File, Namespace),
     Relative = ern_namespace:module_path(Namespace) ++ ".erc",
     ern_build:relative(File, Root) =:= Relative
         andalso lists:all(fun ern_namespace:is_component/1,
@@ -277,8 +278,8 @@ evaluated(Placed) ->
               catch
                   Class:Error:Stack ->
                       %% report §8.5: the binding that faulted, by its site
-                      {fault, ern_rt:site(), element(3, ern_rt:fault_exit_reason(Class, Error,
-                                                                               Stack))}
+                      #fault{cause = FaultCause} = ern_rt:met(Class, Error, Stack),
+                      {fault, ern_rt:site(), FaultCause}
               end,
     _ = ern_rt:initializing(Site),
     case Outcome of

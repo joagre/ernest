@@ -388,6 +388,17 @@ builtin_types_test() ->
     same(lists:sort(Base ++ Named),
          lists:sort([{Name, Arity} || {Name, Arity, _} <- ern_prelude:builtin_types()])).
 
+%% report §4.2, §4.5: a member a prelude type has is one its module
+%% declares and no expression names, and a name of a member's form that a
+%% type lacks is none. A regression test, written after the code, where
+%% every such name of a type whose namespace the prelude fills was one; it
+%% does not cover the shell's listings, which read it
+is_member_test() ->
+    ?assertEqual([true, true, true, false, false, false],
+                 [ern_prelude:is_member(Name)
+                  || Name <- [['Int', compare], ['List', '<>'], ['Float', negate],
+                              ['Address', compare], ['Reply', '+'], ['Int', '<>']]]).
+
 %% report §11.1: the standard library's interfaces are its files' own at
 %% every call, though the host holds those it last decoded: a file whose
 %% chunk has changed is decoded again, however soon after it was read, and

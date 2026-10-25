@@ -46,13 +46,14 @@
 
 %% report §11, docs/development.md "Building": `make xref`
 %% A regression test for the possessive, `the guide's §x.y`, read as a
-%% bare `§x.y`, the report's, until 2026-10-13; it does not read a
-%% curly apostrophe, which no document writes before a `§`.
+%% bare `§x.y`, the report's, until 2026-10-13, and for `the deployment
+%% guide's §x.y`, read as the language guide's until 2026-10-25; it does
+%% not read a curly apostrophe, which no document writes before a `§`, nor
+%% a citation whose words a line break parts.
 citations_resolve_test() ->
-    Report = report(),
     Guide = ern_repository:read("guide/language.md"),
-    ReportSections = section_numbers(Report),
-    GuideSections = section_numbers(Guide),
+    Sections = #{report => section_numbers(report()), guide => section_numbers(Guide),
+                 deployment => section_numbers(ern_repository:read("guide/deployment.md"))},
     %% a review's findings, `findings.md` beside the plan while they are
     %% open, cite each document as their readers did, the guide's sections
     %% bare beside the report's, and the list goes when its plan item is done
@@ -60,12 +61,12 @@ citations_resolve_test() ->
         ++ examples() ++ stdlib() ++ shell() ++ tools() ++ toolchain(),
     Dangling =
         [{File, Citation} || File <- Live, Citation <- cites(ern_repository:read(File)),
-                             not resolves(Citation, report, ReportSections, GuideSections)]
+                             not resolves(Citation, report, Sections)]
         %% a console of the guide quotes the toolchain, whose citations are
         %% the report's (report §11.5), held to it by docs/diagnostics.md
         ++ [{"guide/language.md", Citation}
             || Citation <- cites(without_consoles(Guide)),
-               not resolves(Citation, guide, ReportSections, GuideSections)],
+               not resolves(Citation, guide, Sections)],
     ?assertEqual([], Dangling).
 
 %% The document without its fenced console blocks.
@@ -418,9 +419,7 @@ shell_modules_test() ->
 %% The module a path under a source root names (report §4.2):
 %% `shell/kv_parser.ern` is `Shell.KvParser`.
 module_named(Path) ->
-    Segments = [lists:append([string:titlecase(Word) || Word <- string:lexemes(Component, "_")])
-                || Component <- string:lexemes(filename:rootname(Path), "/")],
-    lists:flatten(lists:join(".", Segments)).
+    ern_namespace:text(ern_namespace:namespace(string:lexemes(filename:rootname(Path), "/"))).
 
 %% docs/memory.md, test/Makefile: the loads the document's table lists are
 %% the programs under test/fixtures/load/, which `LOADS` runs, and the
@@ -736,13 +735,13 @@ line_section_numbers(Line) ->
     end.
 
 %% Every citation in a document: {Kind, Target} with Kind report, guide,
-%% or bare, a `§x.y` after report or guide, or after the report's or the
-%% guide's, being that document's, and the bare ones resolved by the
-%% document's own convention.
+%% deployment or bare, a `§x.y` after report, guide or deployment guide,
+%% or after the report's, the guide's or the deployment guide's, being
+%% that document's, and the bare ones resolved by the document's own
+%% convention.
 cites(Document) ->
-    SectionCites = [{kind(Word), Number}
-                    || [Word, Number] <- matches(Document, "([Rr]eport|[Gg]uide)?(?:'s)?,? ?"
-                                                           "§([0-9]+(?:\\.[0-9]+)?)")],
+    Cited = "([Rr]eport|[Dd]eployment guide|[Gg]uide)?(?:'s)?,? ?§([0-9]+(?:\\.[0-9]+)?)",
+    SectionCites = [{kind(Word), Number} || [Word, Number] <- matches(Document, Cited)],
     AppendixCites = [case Appendix of
                          [Letter] -> {report, "Appendix " ++ Letter};
                          [Letter, Section] -> {report, Letter ++ "." ++ Section}
@@ -760,9 +759,11 @@ matches(Document, Pattern) ->
     end.
 
 kind([]) -> bare;
+kind([$D | _]) -> deployment;
+kind([$d | _]) -> deployment;
 kind(Word) -> list_to_atom(string:lowercase(Word)).
 
-resolves({report, Target}, _, ReportSections, _) -> lists:member(Target, ReportSections);
-resolves({guide, Target}, _, _, GuideSections) -> lists:member(Target, GuideSections);
-resolves({bare, Target}, report, ReportSections, _) -> lists:member(Target, ReportSections);
-resolves({bare, Target}, guide, _, GuideSections) -> lists:member(Target, GuideSections).
+%% Whether a citation names a section of the document it names, a bare
+%% one of the document Own, as the document citing it reads a bare `§`.
+resolves({bare, Target}, Own, Sections) -> lists:member(Target, maps:get(Own, Sections));
+resolves({Kind, Target}, _, Sections) -> lists:member(Target, maps:get(Kind, Sections)).

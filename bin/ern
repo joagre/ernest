@@ -4,7 +4,7 @@
 # by following its own links, so that a link to it from a directory on the
 # path works wherever the tree is (docs/design/install.md); it
 # refuses a working directory whose name is not UTF-8 before the host
-# starts, since the host hangs as it boots in one where its names are UTF-8
+# starts, since the host hangs as it boots in one whose name is not UTF-8
 # (report §11), but for --help and --version; and it starts the host with
 # the tree's code on its path. The host reads no
 # input of its own (-noinput), so that standard input is the runtime's
@@ -28,12 +28,6 @@ while [ -L "$self" ]; do
 done
 tree=$(cd "$(dirname "$self")/.." && pwd -P)
 
-if ! command -v iconv >/dev/null 2>&1; then
-    echo "ern: iconv, which tells whether the working directory's name is UTF-8," \
-         "is not on the path" >&2
-    exit 1
-fi
-
 # Report §11: `ern --help` and `ern --version` read nothing of the working
 # directory, so the host starts for them in the root directory, whose name
 # is UTF-8, wherever ern was started.
@@ -42,6 +36,11 @@ case "$#:${1-}" in
         cd /
         ;;
     *)
+        if ! command -v iconv >/dev/null 2>&1; then
+            echo "ern: iconv, which tells whether the working directory's name is UTF-8," \
+                 "is not on the path" >&2
+            exit 1
+        fi
         if ! pwd -P | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1; then
             echo "ern: the working directory's name is not UTF-8" >&2
             exit 1
@@ -83,22 +82,41 @@ ERL_CRASH_DUMP_SECONDS=0
 export ERL_CRASH_DUMP_SECONDS
 
 # Report §8.7: a node's host takes its carrier only as it boots, so where
-# the arguments of a job that makes a node, run, test or shell, hold
+# the job's own words, of a job that makes a node, run, test or shell, hold
 # --config-dir the host runs once first, parsing the command line as its
 # job does and writing the flags a node's host boots with after a marker,
 # which the second start takes. It writes none where the command starts no
 # node or is refused, and the second start then says what was refused;
-# what it writes without the marker is taken for nothing. Another job,
-# `ern config`, `ern reload` or `ern stop`, makes no node, and the host
-# starts once.
+# what it writes without the marker is taken for nothing. The words of
+# `ern run` from its file on, the file after a `--` among them, are the
+# program's (report §11.2), so the scan ends at the file or the `--`, as
+# the job's own reading of its words does (ern_cli's program_words/3), an
+# option's value passed over: the options of `ern run` that take one are
+# named here. Every word of `ern test` and `ern shell` is the job's.
+# Another job, `ern config`, `ern reload` or `ern stop`, makes no node, and
+# the host starts once.
 node=
 case ${1-} in
     run | test | shell)
+        job=$1
+        shift
+        value=
         for word do
-            if [ "$word" = --config-dir ]; then
+            if [ -n "$value" ]; then
+                value=
+            elif [ "$word" = --config-dir ]; then
                 node=1
+                value=1
+            elif [ "$job" = run ]; then
+                case $word in
+                    --load-path | --libs-dir | --main) value=1 ;;
+                    --) break ;;
+                    -?*) ;;
+                    *) break ;;
+                esac
             fi
         done
+        set -- "$job" "$@"
         ;;
 esac
 flags=

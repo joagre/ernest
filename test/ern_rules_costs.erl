@@ -194,17 +194,17 @@ numbers() -> lists:seq(1, 100).
 %% model of it a piece at a time; and one that waits for an echo's answer,
 %% the host's timer set and canceled.
 receive_tables(Unit) ->
-    Waiting = [{"the host's receive with an after", launched(fun host_waiting/1)},
-               {"  without one", launched(fun host_waiting_forever/1)},
+    Waiting = [{"the host's receive with an after", loop_launched(fun host_waiting/1)},
+               {"  without one", loop_launched(fun host_waiting_forever/1)},
                {"Ernest's receive without an after", ernest(Unit, waitingForever, none)},
                {"Ernest's receive with an after", ernest(Unit, waiting, none)}],
-    Model = [{"the host's receive with an after", launched(fun host_waiting/1)},
-             {"+ the message sent by ern_rt:send/2", launched(fun sent/1)},
+    Model = [{"the host's receive with an after", loop_launched(fun host_waiting/1)},
+             {"+ the message sent by ern_rt:send/2", loop_launched(fun sent/1)},
              {"+ a restart's clause and a fault's, as every receive has",
-              launched(fun clauses/1)},
+              loop_launched(fun clauses/1)},
              {"+ the time a deadline, the wait a fun, entered again by slices",
-              launched(fun sliced/1)},
-             {"+ the process marked as in a timed receive", launched(fun marked/1)},
+              loop_launched(fun sliced/1)},
+             {"+ the process marked as in a timed receive", loop_launched(fun marked/1)},
              {"Ernest's receive with an after", ernest(Unit, waiting, none)}],
     {Echoing, 0} = ern_code:function(Unit, ?NAMESPACE ++ [echoing]),
     Echo = fun() -> ern_rt:spawn(fun() -> Unit:Echoing() end, ?SITE) end,
@@ -286,7 +286,7 @@ marked(N) ->
 
 %% A loop of Operation in a launch's entry process, which has its row, as
 %% the program's rows run.
-launched(Operation) ->
+loop_launched(Operation) ->
     ern_costs:launched(fun(Count) -> ern_costs:timed(Count, ern_costs:looped(Operation)) end).
 
 %% The host's echo, outside a launch, and the host's receive of its answer.
@@ -323,9 +323,9 @@ host_echoed_forever(Echo, N) ->
 %%
 
 %% Report §8.2: Io.print of an empty string, a call standard output
-%% answers once it has taken the bytes, here dropped (launched/1), beside
-%% the host's bare send to a process and its call of a process that takes
-%% the bytes and answers, as gen:do_call/4 makes one.
+%% answers once it has taken the bytes, here dropped (ern_costs:launched/1),
+%% beside the host's bare send to a process and its call of a process that
+%% takes the bytes and answers, as gen:do_call/4 makes one.
 system_table(Unit) ->
     Rows = [{"the host's send to a process", sends()},
             {"the host's call of a process that takes the bytes and answers", writes()},

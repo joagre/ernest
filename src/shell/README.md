@@ -36,7 +36,7 @@ What each process holds, and how the session orders and queues its work, is the 
 - Once the sinks are bound to the screen (`setScreen`), `main` says the greeting, which names the version, `:help` and `:quit`. It does so in either mode.
 - `prompt` writes every `> `, after draining the screen: at a terminal `main` calls it after the startup files, `taking` after each input and `keyLoop` after `C-c`; in line mode `lineLoop` calls it before each line, and `moreLines` writes `... ` itself.
 
-`leave` ends the session, in either mode: it writes the faults reported until then, and `finish` takes the region away. In line mode the end of input and `:quit` come at a prompt whose line no input ended, and `leaveLines` ends that line before it writes them.
+At a terminal `leave` ends the session: `reportRemaining` writes the faults reported until then, and `finish` takes the region away. In line mode `leaveLines` ends it, since the end of input and `:quit` come at a prompt whose line no input ended: it ends that line, and then `reportRemaining` writes the faults. A startup file's `:quit` comes before any prompt, and `leave` ends the session then, in either mode.
 
 ## One input, end to end
 
@@ -52,7 +52,7 @@ At a terminal:
 
 An input typed while another runs waits in the session's mailbox, and `C-c` kills the run (the design note's *Queueing*).
 
-In line mode `lineLoop` takes the place of steps 1 to 3. It says the fault reports that waited (`reportPending`), writes the prompt, reads a line with `Io.readLine`, with the lines after it that `moreLines` takes while the parser cannot finish the input, and passes it to `submit` (the design note's *Line mode*).
+In line mode `lineLoop` takes the place of steps 1 to 3. It says the fault reports that waited (`reportPending`), writes the prompt, reads a line with `Io.readLine`, and says the reports that came while it read. `takingLine` then passes the line, with the lines after it that `moreLines` takes while the parser cannot finish the input, to `submit` (the design note's *Line mode*).
 
 ## The modules
 
@@ -87,7 +87,7 @@ The shell reaches the host as any program does: through the system modules `Term
 
 ## The shell's own names
 
-The names that recur across the shell's modules beyond those [`guide/style.md`](../../guide/style.md) gives every program, `cursor`, `serial`, `color` and `typedWord`, are the toolchain's glossary's, [`docs/style.md`](../../docs/style.md)'s *Ernest*.
+The names that recur across the shell's modules beyond those [`guide/style.md`](../../guide/style.md) gives every program, `cursor`, `serial`, `color`, `rows` and `typedWord`, are the toolchain's glossary's, [`docs/style.md`](../../docs/style.md)'s *Ernest*.
 
 ## Building and trying it
 

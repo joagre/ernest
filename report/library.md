@@ -1,6 +1,6 @@
 # Ernest Report: The Standard Library
 
-Revision of 24 October 2026.
+Revision of 25 October 2026.
 
 This file holds the report's Appendices D, E and G. §0 to §10 and Appendices A, B and F are in [`language.md`](language.md), and §11 and Appendices C and H in [`toolchain.md`](toolchain.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
@@ -153,7 +153,7 @@ Four *admission rules* decide whether a function is in: rules 1 to 3 each admit 
 
    A conversion to text has its inverse where the text form is unambiguous and the type has no other way in; a `Char` has `String.toList` and needs none.
 
-   A type that enters by rule 3 still gets its structure's vocabulary, not only the functions the program wrote. A published specification, a date, a pattern language, a format, a protocol, is a library's and no module's vocabulary.
+   A type that enters by rule 3 still gets its structure's vocabulary, not only the functions the program wrote. A published specification, a date, a pattern language, a format, a protocol, is a library's and no module's vocabulary, but for the one text form of a time the toolchain's own lines write (§11.2), which E.15 states as E.9 states `Float.toString`'s.
 3. It is a general operation of the type, and its definition is the obvious one: `List.foldRight`, `Float.sqrt`.
 
    No policy is buried in it: a choice its result depends on is an argument, or its section states it whole. `Supervisor.group` takes its strategy and its limit as arguments, and E.13 states its generator whole, as E.9 states the text form of `Float.toString`, which the language's own literals read back. A function whose result depends on a choice the library would be making for the program, a format, a locale, a tolerance, is refused whatever asks for it, and so is a function whose definition chooses for the program what the file system does with a link.
@@ -207,7 +207,7 @@ Ten *shape rules* give a function its shape. Shape rules 1 to 5, 7, 9 and 10 hol
 
    `Timeout` is `Io.Error`'s, and a function that answers it answers `Either(Io.Error, a)`. A call, whose one failure is no answer, answers `None` (§6.6).
 
-   `Address.callForever` is the one wait on another party without a limit, and says so in its name.
+   `Address.callForever` and `Test.faults` are the waits on another party without a limit: `callForever` says so in its name, and `Test.faults` waits as a direct call of its `run` would (E.24).
 
    One that delivers later takes a function from the message to the caller's mailbox type and delivers to the caller, as `monitor` does (§6.9). A time is as §7.4 says: one below zero is none, and a wait given none has run out as it begins, answering `Left(Timeout)`, or a call `None` (§6.6).
 9. An exported function takes no `Bool` that chooses between two behaviors. It takes a type whose constructors name them: `render(doc, Plain)`, not `render(doc, false)`. A `Bool` that is the value operated on, as in `Bool.toString`, is not such a choice.
@@ -245,7 +245,7 @@ A value of an abstract type outside its module is written as `<abstract>`, and a
 
 ### Appendix E.2. `list.ern` (namespace `List`)
 
-`[]` is `empty` and `::` is `put`, so neither is a function; `fromList` and `toList` are the identity and are not provided. `contains` and `unique` require equality on `a` (§3.10). `sort` orders by the element type's `compare` and `sortBy` by the key's (§3.10), each stable, equal elements in their order. `minimumBy` and `maximumBy` compare the keys by the key type's `compare`, which they need (§4.9), and call `key` once for each element, in order. `List.<>` is the prelude's, §9.6; this module provides it (§9). `mapFold` departs from F#'s `List.mapFold` and Erlang's `lists:mapfoldl`, which answer the list first: it answers `#(acc, list)`, and its step `#(acc, element)`, the accumulator first as in `foldLeft`'s step. The primitives are `size`, `unique`, and a function of the host's beneath `sort`, private to the module, around which `sort` keeps a stability the host's sort does not promise (E.0 rule 1). The rest is Ernest.
+`[]` is `empty` and `::` is `put`, so neither is a function; `fromList` and `toList` are the identity and are not provided. `contains` and `unique` require equality on `a` (§3.10). `sort` orders by the element type's `compare` and `sortBy` by the key's (§3.10), each stable, equal elements in their order. `minimumBy` and `maximumBy` compare the keys by the key type's `compare`, which they need (§4.9), and call `key` once for each element, in order. `List.<>` and `List.compare` are the prelude's, §9.6; this module provides them (§9). `mapFold` departs from F#'s `List.mapFold` and Erlang's `lists:mapfoldl`, which answer the list first: it answers `#(acc, list)`, and its step `#(acc, element)`, the accumulator first as in `foldLeft`'s step. The primitives are `size`, `unique`, and a function of the host's beneath `sort`, private to the module, around which `sort` keeps a stability the host's sort does not promise (E.0 rule 1). The rest is Ernest.
 
 ```
 List.size : (List(a)) -> Int
@@ -350,6 +350,8 @@ The primitives are `size`, `graphemes`, `indexOf`, `lastIndexOf`, `toLower` and 
 
 Whitespace, which `trim`, `trimStart`, and `trimEnd` remove at the ends and `words` splits at, is a grapheme whose first code point `Char.isSpace` is `true` for (E.6). `toLower` and `toUpper` use Unicode's full case mapping without the rules that depend on a language or a context: `String.toUpper("ß")` is `"SS"`. `String.compare` orders by code point. It and `String.<>` are the prelude's, §9.6; this module provides them (§9).
 
+`splitOnce` splits at the separator's first occurrence alone, and answers `None` for an empty separator, at which `split` does not split.
+
 ```
 String.size : (String) -> Int // graphemes
 String.graphemes : (String) -> List(String) // the graphemes in order, each a String
@@ -372,6 +374,7 @@ String.toUpper : (String) -> String
 String.lines : (String) -> List(String) // at each line feed and each carriage return with a line feed; a line's end at the end adds no empty line, and "" has no lines
 String.words : (String) -> List(String) // the parts between runs of whitespace, none empty
 String.split : (String, String) -> List(String) // at each occurrence of the second; an empty second gives the first alone
+String.splitOnce : (String, String) -> Optional(#(String, String)) // the parts before and after the second's first occurrence; None where it is not there, and for an empty second
 String.join : (List(String), String) -> String // the second between the parts
 String.toInt : (String) -> Optional(Int) // the digits 0 to 9, with an optional leading -; None for an integer the host cannot hold
 String.toIntBase : (String, Int) -> Optional(Int) // in that base, 2 to 36, its digits and letters in either case, with an optional leading -; None outside, and for an integer the host cannot hold
@@ -462,6 +465,8 @@ Float.atan2 : (Float, Float) -> Float // the angle of the point #(x, y), the y f
 
 ### Appendix E.10. `optional.ern` (namespace `Optional`)
 
+`Optional.compare` is the prelude's, §9.6; this module provides it (§9).
+
 ```
 Optional.isSome : (Optional(a)) -> Bool
 Optional.isNone : (Optional(a)) -> Bool
@@ -471,6 +476,8 @@ Optional.andThen : (Optional(a), (a) -> Optional(b) receiving e) -> Optional(b) 
 ```
 
 ### Appendix E.11. `either.ern` (namespace `Either`)
+
+`Either.compare` is the prelude's, §9.6; this module provides it (§9).
 
 ```
 Either.isLeft : (Either(e, a)) -> Bool
@@ -535,7 +542,9 @@ Path.toString : (Path) -> String
 
 ### Appendix E.15. `clock.ern` (namespace `Clock`)
 
-Over the clock's system reference (§8.2). The primitives are `alarm` and `alarmAt`, which reach the clock's process, `now`, `monotonic` and `monotonicMicros`, which read the host's clock and its monotonic clock, and `toString`, which writes a time as the host writes one (E.0 rule 1). `toString` writes an epoch time in RFC 3339, in UTC to the millisecond, `2026-10-24T09:21:03.512Z`, as the runtime's own lines write theirs (§11.2); nothing else of dates is the standard library's; a time outside the years 0 to 9999 is written as the host writes it.
+Over the clock's system reference (§8.2). The primitives are `alarm` and `alarmAt`, which reach the clock's process, `now`, `monotonic` and `monotonicMicros`, which read the host's clock and its monotonic clock, and a private one beneath `toString`, which writes a time as the host writes one (E.0 rule 1).
+
+`toString` writes an epoch time in RFC 3339, in UTC to the millisecond, `2026-10-24T09:21:03.512Z`, as the runtime's own lines write theirs (§11.2), the one text form of a time E.0 rule 2 admits; nothing else of dates is the standard library's. A year before 0 is written with its sign before its four digits, `-0001-12-31T23:59:59.999Z`. A time outside the years -9999 to 9999 is beyond the host's limit and faults (§7.4): one before the year -9999 with `Fault("the time is before the year -9999")`, and one past the year 9999 with `Fault("the time is past the year 9999")`.
 
 Times are milliseconds since the epoch, by the host's clock, which may be set while the program runs. `monotonic` is milliseconds since a moment the runtime chose, and never goes back; `monotonicMicros` is the same clock in microseconds, for a program that measures what takes less than a millisecond. The difference of two readings of `monotonic` is the time the host ran between them: where the host's monotonic clock stops while the machine is suspended, that time is left out. The difference of two `now`s is not that time when the clock is set between them.
 
@@ -547,7 +556,7 @@ Clock.monotonic : () -> Int
 Clock.monotonicMicros : () -> Int
 Clock.alarm : (Int, (Int) -> m) -> Unit receiving m // after the milliseconds, wrap(time) in the caller's mailbox, time the time it fired
 Clock.alarmAt : (Int, (Int) -> m) -> Unit receiving m // at the time, wrap(time) in the caller's mailbox, time the time it fired
-Clock.toString : (Int) -> String // RFC 3339, UTC, to the millisecond
+Clock.toString : (Int) -> String // RFC 3339, UTC, to the millisecond; faults outside the years -9999 to 9999
 ```
 
 ### Appendix E.16. `terminal.ern` (namespace `Terminal`)
@@ -605,7 +614,7 @@ Fs.setMode : (Path, Int, Int) -> Either(Io.Error, Unit) // the permission bits, 
 
 Over TCP's system reference (§8.2). The primitives are `listen` and `connect`, which reach TCP's process (E.0 rule 1); the rest are Ernest over the prelude's sends and calls to the process of the listener or the socket they are given.
 
-A socket is a process: its address can be sent and killed like any other, and its process monitored. A socket and a listener are bound to their node: their addresses never cross to another (§3.11). Sockets and listeners are foreign processes (§8.4) but not system processes, so `Process. An operation on a socket or a listener is a call on its process, and faults as a call does, with §6.6's causes, `callee was closed` for one the program closed.live`, `Process.status` and `Process.faults` include them.
+A socket is a process: its address can be sent and killed like any other, and its process monitored. A socket and a listener are bound to their node: their addresses never cross to another (§3.11). Sockets and listeners are foreign processes (§8.4) but not system processes, so `Process.live`, `Process.status` and `Process.faults` include them.
 
 The site of a listener is `Tcp.listen`, and of a socket `Tcp.accept` or `Tcp.connect`, the function that opened it (§6.9), with no line. It is owned by the process that opened it, the caller of `listen`, `accept` or `connect`, and `give(socket, process)` makes another a socket's owner. It lives until `Tcp.close`, until it is killed, until its owner dies, which kills it as a running program's is killed (Appendix E.23), or until the program ends; a socket given to a process that has ended is killed at once, and a restart is no death (§6.9). After its connection closes, from either end or by a failure, each `Tcp.read` answers `Left(Closed)`. A listener lives until `Tcp.closeListener`, until it is killed, until its owner dies, or until the program ends; closing it answers an `accept` waiting on it with `Left(Closed)`. A listener takes a port whose earlier connections are still closing, the host's `SO_REUSEADDR`.
 
@@ -613,7 +622,7 @@ The site of a listener is `Tcp.listen`, and of a socket `Tcp.accept` or `Tcp.con
 
 However a socket ends, by `close`, by `kill`, by its owner's death or by the program's end, the bytes it has taken that the far end has not are sent while the far end takes them, until the runtime stops. Those the far end has not taken 5 seconds after the end or after the last bytes it took, or 3 minutes after the end, are dropped and the connection is reset. The host's socket then closes.
 
-On a socket or a listener that has ended, a function that waits for its answer, `read`, `write`, `accept`, `port`, `remote`, or `local`, faults the caller as `Address.callForever` does (§6.6): with `Fault("callee was closed")` where the program's close ends it while the call waits in its mailbox, not yet taken, and with `Fault("callee had ended")` where it had ended before the call; `close`, `give` and `closeListener` do nothing.
+On a socket or a listener that has ended, a function that waits for its answer, `read`, `write`, `accept`, `port`, `remote`, or `local`, which is a call on its process, faults the caller as `Address.callForever` does (§6.6): with `Fault("callee was closed")` where the program's close ends it while the call waits in its mailbox, not yet taken, and with `Fault("callee had ended")` where it had ended before the call; `close`, `give` and `closeListener` do nothing.
 
 `Tcp.write` answers `Right(Unit)` once the socket has taken the bytes, and waits while the connection is behind, at most the milliseconds it is given; a write that waits holds up no read of the socket. A `Left(Timeout)` does not undo the write: the bytes may still be sent, after those written before. A write after the connection has closed, from either end or by a failure, answers `Left(Closed)`, and one the host refuses for another reason answers `Left(Other(text))`, the host's reason.
 
@@ -668,7 +677,7 @@ Bytes.fromHex : (String) -> Optional(Bytes) // two digits an octet, in either ca
 
 ### Appendix E.21. `process.ern` (namespace `Process`)
 
-`Process` is the prelude's (§9.1), and this module provides its operations. The primitives are `current`, the host's own identity of the running process, or of a wrap's recipient (§6.9), `fromAddress`, `status` and `live`, which read the runtime's record of its processes, and a private one beneath `faults`, which reaches the runtime's report of faults (E.0 rule 1).
+`Process` is the prelude's (§9.1), and this module provides its operations. The primitives are `current`, the host's own identity of the running process, of a wrap's recipient (§6.9), or, in an adapted address's function, of the process that owns what the function opens (§6.5), `fromAddress`, `status` and `live`, which read the runtime's record of its processes, and a private one beneath `faults`, which reaches the runtime's report of faults (E.0 rule 1).
 
 A `Process` is the identity of a process. It has equality and no ordering, exact as §3.10 says, and nothing can be sent to it; `monitor` takes one (§6.9). Across nodes a `Process` names its node.
 
@@ -676,7 +685,7 @@ A `Process` is the identity of a process. It has equality and no ordering, exact
 
 `faults(wrap)` delivers `wrap(report)` to the caller for every fault of every process the runtime started, the system processes', the runtime's own and those `Test.faults` started excepted (§6.9, E.24), as E.0 shape rule 8 says of a function that delivers later. A process holds one subscription to faults, beside one to the terminal (§8.2): a second call replaces the first, its wrap from then on, and a subscription ends when its process dies or restarts (§6.9). A subscription to faults is no source that can deliver under §8.6.
 
-In a `FaultReport`, `restarted` is `true` where the process restarts after the fault (§6.9), and `spawnedBy` names the peer whose spawn started the process (§8.7), by its name as the configuration lists it; it is `None` where no peer did, and where the configuration lists the peer no more.
+In a `FaultReport`, `restarted` is `true` where the process restarts after the fault (§6.9), and `spawnedBy` names the peer whose spawn started the process (§8.7), by its name as the configuration lists it; it is `None` where no peer did, and where the configuration lists the peer no more. `cause` is the cause `Down` gives (§6.9). `callee` is the site of the callee whose fault a call carried to the process (§6.6), `Ledger.start:6`, and is `None` where no call carried it and where the callee has no site, a process of another node or one the runtime did not start (§6.9). `peer` is the name of the peer whose fault a compute carried to the process (§8.7), and is `None` where no compute carried it. `time` is the moment the fault was met, in milliseconds since the epoch as `Clock.now` counts them (E.15).
 
 `trace` is the innermost twelve frames of the host's stack where the fault was met, at the moment it was (§7.3), the innermost first, a frame a line. It is empty for a process the host ended, which met no fault (§6.9). A run of identical frames is collapsed as the host gives it. A fault a system process gives the entry process, a standard input that cannot be read among them (§8.2), carries the entry process's stack as the fault finds it.
 
@@ -687,9 +696,9 @@ A frame of a process that waits in a `receive` names the line of the last call b
 ```
 type Status = Status(site : String, queued : Int, activity : Activity)
 type Activity = Running | Receiving | Calling
-type FaultReport = FaultReport(process : Process, site : String, cause : String, restarted : Bool, trace : String, spawnedBy : Optional(String))
+type FaultReport = FaultReport(process : Process, site : String, cause : String, restarted : Bool, trace : String, spawnedBy : Optional(String), callee : Optional(String), peer : Optional(String), time : Int)
 Process.fromAddress : (Address(m)) -> Process // the process behind the address, through every adapted address
-Process.current : () -> Process // the running process, or a wrap's recipient
+Process.current : () -> Process // the running process, a wrap's recipient, or in an adapted address's function the process §6.5 names
 Process.status : (Process) -> Optional(Status) // its spawn site (§6.9), the messages in its mailbox, and whether it runs, waits in a receive, or waits for a call's answer; None once it has ended, and for a process of another node
 Process.live : () -> List(Process) // in unspecified order
 Process.faults : ((FaultReport) -> m) -> Unit receiving m // every fault from now on, wrapped, in the caller's mailbox
@@ -705,13 +714,13 @@ A child joins the group when it starts, before `f` runs, and waits until the sup
 
 The strategy says what else a child's fault restarts: `OneForOne` nothing, `OneForAll` every other child, and `RestForOne` the children spawned after it, in the order the runtime spawned their processes, whatever order they joined in. Those are restarted as §6.9 says of a restart a supervisor asks for. A child that has not yet begun its first run of `f` is not asked, and one that faults before it takes the restart has restarted by its fault. The child whose fault restarts them runs `f` again once each of them has restarted or ended; a call to it after its fault is answered by the group restarted whole. A sibling that computes without waiting takes no restart until it waits (§6.9), and the child waits with it.
 
-When the children's faults pass `limit`, counted as `restarting` counts them, the supervisor faults with `Fault("supervisor restart limit reached")`; a child's fault is reported as its own `restarting` restarts it, `faulted, restarted`, and the group's verdict is the group's own line, this fault where the limit is reached (§11.2). A supervisor that is itself a child restarts in place, after its own fault or when its parent asks, and asks each of its children to restart; they keep their order. When a supervisor dies, killed, faulted, or of a defect of its own, a process the module spawns beside it kills its children in the reverse of the order they were spawned, each once the one before has ended, and `kill(sup)` stops a group.
+When the children's faults pass `limit`, counted as `restarting` counts them, the supervisor faults with `Fault("supervisor restart limit reached")`. A child's own `restarting` restarts it at each of its faults, the one at which the group gives up among them, after which it waits as above, and each is reported `faulted, restarted` (E.21). The group's verdict is the group's own line, this fault where the limit is reached (§11.2). A supervisor that is itself a child restarts in place, after its own fault or when its parent asks, and asks each of its children to restart; they keep their order. When a supervisor dies, killed, faulted, or of a defect of its own, a process the module spawns beside it kills its children in the reverse of the order they were spawned, each once the one before has ended, and `kill(sup)` stops a group.
 
 ```
 type Strategy = OneForOne | OneForAll | RestForOne
-abstract type Msg // what a supervisor takes
-Supervisor.group : (Strategy, RestartLimit) -> () -> Unit receiving Msg
-Supervisor.child : (Address(Msg), () -> Unit receiving m) -> () -> Unit receiving m
+abstract type GroupMsg // what a supervisor takes
+Supervisor.group : (Strategy, RestartLimit) -> () -> Unit receiving GroupMsg
+Supervisor.child : (Address(GroupMsg), () -> Unit receiving m) -> () -> Unit receiving m
 ```
 
 ### Appendix E.23. `os.ern` (namespace `Os`)

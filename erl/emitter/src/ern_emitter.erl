@@ -948,11 +948,6 @@ expr_form({negate, Expr, Supply}, _, Context) ->
     member_applied(Supply, [Form], Context1);
 expr_form({operator, Operator, Left, Right, Operation}, Source, Context) ->
     operator(Source, Operator, Left, Right, Operation, Context);
-expr_form({member, Supply}, _, Context) ->
-    %% report §3.5, §4.9: a derived compare's field compared by the member
-    %% its requirement names, as the value the requirement supplied
-    {Form, Context1} = supply_form(Supply, Context),
-    {Form, function_value(Form, Context1)};
 expr_form({lambda, _Position, Params, _, Body}, _, Context) ->
     {Patterns, Context1} = lists:mapfoldl(fun pattern/2, Context, Params),
     {BodyForms, Context2} = body(Body, Context1),
@@ -1457,12 +1452,6 @@ callee(Source, {var, {named, ['Address', _] = QualifiedName}, [], _} = Node, _, 
 callee(_, {var, {named, [compare]}, [Supply]}, _, Args, Context) ->
     {ArgForms, Context1} = exprs(Args, Context),
     member_applied(Supply, ArgForms, Context1);
-%% report §3.5, §4.9: a derived compare's field compared by its type's
-%% compare
-callee(_, {member, {known, Reference, Supplies}}, _, Args, Context) ->
-    {ArgForms, Context1} = exprs(Args, Context),
-    {SupplyForms, Context2} = supply_forms(Supplies, Context1),
-    {member_call(Reference, ArgForms ++ SupplyForms, Context), Context2};
 callee(_, {var, Reference, Supplies}, _, Args, Context) when element(1, Reference) =/= read ->
     declared_call(Reference, Supplies, Args, Context);
 callee(_, _, Callee, Args, Context) ->
@@ -1535,24 +1524,25 @@ supply_form({known, {named, [_, Member]} = Reference, []}, Context) ->
 %% in turn by their supplies, the first that is not Equal deciding
 supply_form({tuple, Supplies}, Context) ->
     {SupplyForms, Context1} = supply_forms(Supplies, Context),
-    {[Left, Right, Order], Context2} = fresh_variables(3, "Operand", Context1),
-    Compared = fun(Index, Compare) ->
-                   Element = fun(Tuple) ->
-                                 call_remote(erlang, element, [erl_syntax:integer(Index),
-                                                               erl_syntax:variable(Tuple)])
-                             end,
-                   erl_syntax:application(Compare, [Element(Left), Element(Right)])
-               end,
-    Indexed = lists:enumerate(SupplyForms),
-    {LastIndex, Last} = lists:last(Indexed),
-    Body = lists:foldr(fun({Index, Compare}, Rest) ->
+    Count = length(SupplyForms),
+    {Lefts, Context2} = fresh_variables(Count, "Left", Context1),
+    {Rights, Context3} = fresh_variables(Count, "Right", Context2),
+    {[Order], Context4} = fresh_variables(1, "Order", Context3),
+    Compared = [erl_syntax:application(Compare, [erl_syntax:variable(Left),
+                                                 erl_syntax:variable(Right)])
+                || {Compare, Left, Right} <- lists:zip3(SupplyForms, Lefts, Rights)],
+    Body = lists:foldr(fun(Comparison, Rest) ->
                            erl_syntax:case_expr(
-                             Compared(Index, Compare),
+                             Comparison,
                              [erl_syntax:clause([erl_syntax:atom('Equal')], none, [Rest]),
                               erl_syntax:clause([erl_syntax:variable(Order)], none,
                                                 [erl_syntax:variable(Order)])])
-                       end, Compared(LastIndex, Last), lists:droplast(Indexed)),
-    {lambda([Left, Right], Body), Context2};
+                       end, lists:last(Compared), lists:droplast(Compared)),
+    Tuple = fun(Variables) ->
+                    erl_syntax:tuple([erl_syntax:variable(Each) || Each <- Variables])
+            end,
+    {erl_syntax:fun_expr([erl_syntax:clause([Tuple(Lefts), Tuple(Rights)], none, [Body])]),
+     Context4};
 supply_form({known, Reference, Supplies}, Context) ->
     {SupplyForms, Context1} = supply_forms(Supplies, Context),
     Arity = value_arity(Reference, Context) - length(Supplies),
@@ -1859,7 +1849,7 @@ binop(Operator, _, Left, Right, _) when Operator =:= '<'; Operator =:= '>'; Oper
 %% Report §3.1, §7.4: a Float operation is the host's own, which refuses a
 %% result that is not finite with its badarith, so that a chain stays in
 %% the host's float registers; the runtime reads the float fault from the
-%% host's stack where it is met (ern_rt:fault_exit_reason/3). Report §7.3,
+%% host's stack where it is met (ern_rt:met/3). Report §7.3,
 %% Appendix E.21: the operation's own form stands at its Source, so that
 %% the frame that meets the fault has its line.
 float_operation(Source, Operator, Left, Right) ->

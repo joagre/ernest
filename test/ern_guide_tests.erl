@@ -29,7 +29,9 @@
 %% no session before it under its heading is an error, named by its line.
 %% A block marked `ernest-prelude` holds the prelude's own declarations,
 %% each one of `ern_prelude`'s as written. A block marked
-%% `ernest-fragment`, and any other, is a fragment, which nothing checks.
+%% `ernest-fragment`, and any other, is a fragment, which nothing checks;
+%% a console whose `$ ern run` names `--config-dir` runs on nodes, and
+%% those of the language guide's §8.1 and §8.2 are tests of their own.
 -module(ern_guide_tests).
 
 %% EUnit's captured output, asked of the test's group leader, which is
@@ -52,6 +54,9 @@
 -define(README, "../README.md").
 -define(WHY, "../guide/why.md").
 -define(FAQ, "../guide/faq.md").
+%% Report §11.2: the time before a line a node writes where its stream is
+%% no terminal, which the guide leaves out.
+-define(STAMP, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z ").
 
 %% A fenced block of a document: the line its fence opens on, the word
 %% after the fence, the heading it stands under, and its lines.
@@ -146,6 +151,156 @@ why_examples_test_() ->
 faq_examples_test_() ->
     examples(?FAQ, "faq").
 
+%% guide/language.md §8.1; report §8.7, §11.2, §11.3, Appendix E.27: the
+%% section's square.ern run on two nodes from one directory, as the
+%% console after its two directories shows it. `a` and `foo` are made
+%% with `ern config` and listed in each other's by `--peer-dir`, `a`
+%% listening on a port the harness found free in place of the guide's
+%% 0.0.0.0:8654 and `foo` on another in place of 8655. `foo`, a bare node
+%% started first, says where it listens, that `a` connected and that `a`
+%% ended, as the section's prose says its terminal shows, each line without
+%% its time; `a`'s run prints the lines its console shows, standard output
+%% and standard error each in its own order, `foo computed 25` among them;
+%% and `ern stop` ends `foo` by termination. A regression test, written
+%% after the program; it does not cover `foo`'s lines against `a`'s, which
+%% two terminals do not order. Its limit is the sum of its ten waits, each
+%% bounded by the harness's time for one wait: the build, four `ern config`
+%% jobs, `foo`'s listening, the run, the stop, `foo`'s end and what it said
+work_on_a_peer_test_() ->
+    ern_nodes_tests:nodes_test({waits, 10}, fun work_on_a_peer/1).
+
+work_on_a_peer(Base) ->
+    built(Base, tree_of("square.ern")),
+    [[{"run --config-dir a square.erc" = RunWords, RunShown},
+      {"stop --config-dir foo" = StopWords, []}]] = node_consoles(<<"### 8.1 ">>),
+    [ListenA, ListenFoo] = [ern_nodes_tests:address(ern_nodes_tests:free_port()) || _ <- [a, foo]],
+    [?assertMatch({0, _, ""}, ern_deployment_tests:job(Base, Words))
+     || Words <- ["config --config-dir a --listen " ++ binary_to_list(ListenA),
+                  "config --config-dir foo --listen " ++ binary_to_list(ListenFoo)]],
+    [?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, Words))
+     || Words <- ["config --config-dir a --peer-dir foo", "config --config-dir foo --peer-dir a"]],
+    Foo = filename:join(Base, "foo"),
+    Wait = ern_nodes_tests:bare_started(Foo, []),
+    ern_nodes_tests:says(Foo, "listening on "),
+    ran(Base, RunWords, [binary:replace(Line, <<"0.0.0.0:8654">>, ListenA) || Line <- RunShown]),
+    ?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, StopWords)),
+    ?assertEqual(143, Wait()),
+    {"", Err} = ern_nodes_tests:said(Foo),
+    ?assertEqual([<<"listening on ", ListenFoo/binary>>, <<"the peer a connected">>,
+                  <<"the peer a ended">>],
+                 stamped(Err)).
+
+%% guide/language.md §8.2; report §8.6, §8.7, §11.2, §11.3, Appendix E.23,
+%% E.27, G.7: the section's store, desk and board run on two nodes from one
+%% directory, as the two consoles after its programs show them. The
+%% store's directory is made listening on a port the harness found free,
+%% in place of the guide's 8655, and the desk's with no `listen`, each
+%% listed in the other's by `--peer-dir` and the desk's naming the
+%% service, as the section says. The store, run as a node, says each line
+%% its console shows, each without its time, and prints nothing; the desk
+%% finds the counter and the board reaches it through a proxy, each run
+%% printing the lines its console shows, standard output and standard
+%% error each in its own order; and `ern stop` ends the store by
+%% termination. Each run waits on what comes before it: the desk on the
+%% store's listening line, the board on the store's saying that the desk
+%% ended. A regression test, written after the programs; it does not cover
+%% the store's lines against the desk's, which two terminals do not order,
+%% nor that the store's counter has offered the service when the desk, a
+%% host started once the store listens, asks for it, which nothing the
+%% store says shows. Its limit is the sum of its thirteen waits, each
+%% bounded by the harness's time for one wait: the build, four `ern config`
+%% jobs, the store's listening, two runs, the desk's end on the store, the
+%% stop, the store's end and what it said
+services_across_nodes_test_() ->
+    ern_nodes_tests:nodes_test({waits, 13}, fun services_across_nodes/1).
+
+services_across_nodes(Base) ->
+    built(Base, tree_of("store.ern")),
+    [[{StoreWords, StoreShown}],
+     [{"run --config-dir desk desk.erc" = DeskWords, DeskShown},
+      {"run --config-dir desk board.erc" = BoardWords, BoardShown},
+      {"stop --config-dir store" = StopWords, []}]] = node_consoles(<<"### 8.2 ">>),
+    Port = ern_nodes_tests:free_port(),
+    Listen = ern_nodes_tests:address(Port),
+    [Store, Desk] = [filename:join(Base, Name) || Name <- ["store", "desk"]],
+    [?assertMatch({0, _, ""}, ern_deployment_tests:job(Base, Words))
+     || Words <- ["config --config-dir store --listen " ++ binary_to_list(Listen),
+                  "config --config-dir desk"]],
+    ern_nodes_tests:edit(Desk, fun(Conf) -> maps:remove(<<"listen">>, Conf) end),
+    [?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, Words))
+     || Words <- ["config --config-dir desk --peer-dir store",
+                  "config --config-dir store --peer-dir desk"]],
+    ern_nodes_tests:edit(Desk, fun(Conf) ->
+                                   Conf#{<<"services">> => #{<<"counter">> => [<<"store">>]}}
+                               end),
+    Ern = filename:absname("../bin/ern"),
+    {_, Wait} = ern_nodes_tests:launched(Store, ["cd ", Base, " && ", Ern, " ", StoreWords]),
+    ern_nodes_tests:says(Store, "listening on "),
+    ran(Base, DeskWords, DeskShown),
+    ern_nodes_tests:says(Store, "the peer desk ended"),
+    ran(Base, BoardWords, BoardShown),
+    ?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, StopWords)),
+    ?assertEqual(143, Wait()),
+    {Out, Err} = ern_nodes_tests:said(Store),
+    ?assertEqual("", Out),
+    ?assertEqual([binary:replace(Line, <<"127.0.0.1:8655">>, Listen) || Line <- StoreShown],
+                 stamped(Err)).
+
+%% The files of the guide's source tree that holds File.
+tree_of(File) ->
+    [Files] = [Files || {modules, #{files := Files}} <- units(?GUIDE),
+                        lists:keymember(File, 1, Files)],
+    Files.
+
+%% Files written under Base and built there, Base their source root.
+built(Base, Files) ->
+    [ok = write(filename:join(Base, Name), Code) || {Name, Code} <- Files],
+    ?assertEqual(0, ern_cli:ern(["build", Base], group_leader())).
+
+%% The commands of each console under the guide's heading that begins with
+%% Heading whose first command starts a node, `$ ern run --config-dir`.
+node_consoles(Heading) ->
+    [commands(Code) || #block{info = <<"console">>, heading = Under,
+                              code = [<<"$ ern run --config-dir ", _/binary>> | _] = Code}
+                           <- blocks(numbered(?GUIDE), none, []),
+                       is_binary(Under),
+                       lists:prefix(binary_to_list(Heading), binary_to_list(Under))].
+
+%% A document's lines, each with its number.
+numbered(Document) ->
+    {ok, Text} = file:read_file(Document),
+    Lines = binary:split(Text, <<"\n">>, [global]),
+    lists:zip(lists:seq(1, length(Lines)), Lines).
+
+%% A console's commands, {Words, Shown}: a `$ ern` line's words after
+%% `ern`, and the lines the console shows it print.
+commands([]) ->
+    [];
+commands([<<"$ ern ", Words/binary>> | Lines]) ->
+    {Shown, Rest} = lists:splitwith(fun(Line) -> not lists:prefix("$ ", binary_to_list(Line)) end,
+                                    Lines),
+    [{binary_to_list(Words), Shown} | commands(Rest)].
+
+%% A job run from Base, which ends with status 0 and prints the lines Shown,
+%% standard output and standard error each in its own order (report §11.2).
+ran(Base, Words, Shown) ->
+    {Status, Out, Err} = ern_deployment_tests:job(Base, Words),
+    ?assertEqual(0, Status),
+    same_streams(join(Shown), unicode:characters_to_binary(Out), untimed(Err)).
+
+%% Report §11.2: what a job wrote on standard error to a file, each line
+%% without the time before it.
+untimed(Text) ->
+    re:replace(Text, ?STAMP, "", [global, multiline, unicode, {return, binary}]).
+
+%% Report §11.2: the lines a node wrote on standard error with the time
+%% before them, as its runtime writes its own there, each without it. The
+%% line after them is the launching shell's, which says that termination
+%% ended the node, as a reader's shell may in the node's terminal.
+stamped(Text) ->
+    [untimed(Line) || Line <- lines(trim(unicode:characters_to_binary(Text))),
+                      re:run(Line, ?STAMP) =/= nomatch].
+
 %% report §11.5: each error the catalog shows is
 %% the compiler's, printed as the catalog prints it; the catalog's
 %% errors are its point, a parse error and an unknown name among them
@@ -180,13 +335,7 @@ check({modules, #{files := Files, launch := Launch}}) ->
     ok = filelib:ensure_path(Build),
     [{0, <<>>} = sh("erlc -o " ++ Build ++ " " ++ filename:join(Dir, Name))
      || {Name, _} <- Files, filename:extension(Name) =:= ".erl"],
-    %% the language guide §8.3: a program that uses a library under libs/ has it on its
-    %% load path, as every example here may
-    LoadPathOptions = lists:append([["--load-path", filename:absname(Library)]
-                                    || Library <- filelib:wildcard("../build/libs/*"),
-                                       filelib:is_dir(Library)]),
-    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir,
-                                 "--build-root", Build | LoadPathOptions] ++ [Dir],
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, "--build-root", Build, Dir],
                                 group_leader())),
     ?assertEqual(<<>>, iolist_to_binary(?capturedOutput)),
     Checked = case Launch of

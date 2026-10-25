@@ -20,6 +20,7 @@
 -include_lib("checker/include/ern_types.hrl").
 -include_lib("shared/include/ern_diagnostic.hrl").
 -include_lib("cli/include/ern_build.hrl").
+-include_lib("runtime/include/ern_rt.hrl").
 -include_lib("kernel/include/file.hrl").
 
 %% Report §8.6: each receive that can wait, by its kind (docs/style.md).
@@ -515,7 +516,7 @@ check_module(#session{scope = Scope} = Session, Namespace, InputOrigin, Input, D
     case ern_typecheck:check(Namespace, Declarations, checked_interfaces(Session),
                              Scope#{input_names => input_names()}) of
         {ok, Typed, Interface, Env} ->
-            Type = input_type(Typed, Binds),
+            Type = settled_input_type(input_type(Typed, Binds), Binds, Env),
             Binds1 = generalized(Binds, Typed, Env),
             case undetermined(Type, Env, Binds1, Typed) of
                 none ->
@@ -559,6 +560,15 @@ input_text(#checked{text = Text, origin = Origin, printed_name = PrintedName},
     Written = #{Which => maps:filter(IsWritten, maps:get(Which, Scope, #{}))
                 || Which <- [values, types, constructors]},
     #input_text{text = Text, origin = Origin, scope = Written, printed_name = PrintedName}.
+
+%% Report §11.2, §4.6: the type an input gives a name, `it` among them,
+%% closed as a top-level `let` that is not generalized closes its own, its
+%% effect variables none or Never (ern_typecheck:settled/2); a `let` of a
+%% lambda is generalized as in a block, and a declaring input gives no name
+%% a type.
+settled_input_type(Type, {lambda, _}, _Env) -> Type;
+settled_input_type(Type, declarations, _Env) -> Type;
+settled_input_type(Type, _Binds, Env) -> ern_typecheck:settled(Type, Env).
 
 %% Report §4.6: the scheme a `let` of a lambda binds its name to, the
 %% input's entry point's own over its result, the variables it quantifies
@@ -714,7 +724,9 @@ run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interfac
                keep(input, self()),
                %% report §11.2: the input's own fault is its answer, caught
                %% here, so that its process does not end with a fault; its
-               %% cause and its trace, a frame a line (Appendix E.21)
+               %% cause, its trace, a frame a line (Appendix E.21), and the
+               %% callee's site and the peer's name a call or a compute
+               %% carried it with (§6.6, §8.7)
                Outcome = try
                              Value = value(ErlangModule, Binds),
                              BoundSession = bind(Session1, Binds, Namespace, Value, Type, Env,
@@ -723,8 +735,9 @@ run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interfac
                               #value{term = Value, descriptor = Descriptor}}
                          catch
                              Class:Error:Stack ->
-                                 {Cause, Trace} = caught_fault(Class, Error, Stack),
-                                 {'Faulted', Cause, Trace, Serial}
+                                 {Cause, Trace, Callee, Peer} =
+                                     caught_fault(Class, Error, Stack),
+                                 {'Faulted', Cause, Trace, Callee, Peer, Serial}
                          end,
                case Kept of
                    true -> kept;
@@ -829,15 +842,21 @@ value(ErlangModule, _Binds) ->
     ErlangModule:Entry().
 
 %% Report §7.3, §7.4: the cause of a fault the shell catches in a process
-%% of its own, an input's or an evaluator's, and its trace (Appendix E.21),
-%% as the runtime gives a process's. What such a catch meets is a fault of
-%% the process's own: the one other end ern_rt:fault_exit_reason/3
-%% answers, `carried`, is a compute's process's, which throws it after its
+%% of its own, an input's or an evaluator's, its trace (Appendix E.21), and
+%% report §6.6, §8.7: the callee's site and the peer's name a call or a
+%% compute carried it with, each `None` or `Some`, as the runtime gives a
+%% process's (ern_rt:met/3). What such a catch meets is a fault of the
+%% process's own: the one other end a process of the runtime's meets,
+%% `carried`, is a compute's process's, which throws it after its
 %% function's catch once its caller has the fault (report §8.7), and so
 %% runs no input and no binding.
 caught_fault(Class, Error, Stack) ->
-    {ern, fault, Cause, Trace} = ern_rt:fault_exit_reason(Class, Error, Stack),
-    {Cause, Trace}.
+    #fault{cause = Cause, trace = Trace, callee = Callee, peer = Peer} =
+        ern_rt:met(Class, Error, Stack),
+    {Cause, Trace, optional(Callee), optional(Peer)}.
+
+optional(none) -> 'None';
+optional(Text) -> {'Some', Text}.
 
 %% Appendix E.1: the value as Ernest writes it, by the descriptor of its
 %% type; report §11.2: to the depth and the length the session is set to,
@@ -1200,7 +1219,7 @@ browse(Session, Text) ->
 
 %% Report §11.2, §9: the prelude's types and values, as `:browse` lists a
 %% module's, since `Prelude` names its namespace (§4.2).
-prelude_listing(#session{prelude = Env}) ->
+prelude_listing(#session{prelude = Env} = Session) ->
     TypeState = ern_typecheck:type_state(Env),
     {Types, _} = ern_typecheck:prelude_names(Env),
     %% report §9.4: `Io.show` and `Io.debug` are the prelude's, typed by
@@ -1211,25 +1230,104 @@ prelude_listing(#session{prelude = Env}) ->
                                                                                      Env)]],
     %% the environment holds the standard library's types too, each under
     %% its module's name; the prelude's own are unqualified
+    Values = ern_typecheck:prelude_values(Env) ++ Shown,
     [unicode:characters_to_binary(["type ", ern_namespace:text(QualifiedName)])
      || [_] = QualifiedName <- lists:sort(Types)]
-        ++ value_lines(ern_typecheck:prelude_values(Env) ++ Shown, TypeState).
+        ++ value_lines(Values, #{}, prelude_parameters(Session, Values), TypeState).
 
 %% Report §11.2, §9: the prelude's functions under a namespace no module
 %% of the session's or the standard library's has, `Address.call` and
 %% `Address.callForever`, each with its type, as `:browse Prelude` lists
 %% them; none for any other namespace.
-prelude_namespace_listing(Namespace, #session{prelude = Env}) ->
-    value_lines([Value || {QualifiedName, _} = Value <- ern_typecheck:prelude_values(Env),
-                          lists:droplast(QualifiedName) =:= Namespace],
-                ern_typecheck:type_state(Env)).
+prelude_namespace_listing(Namespace, #session{prelude = Env} = Session) ->
+    Values = [Value || {QualifiedName, _} = Value <- ern_typecheck:prelude_values(Env),
+                       lists:droplast(QualifiedName) =:= Namespace],
+    value_lines(Values, #{}, prelude_parameters(Session, Values), ern_typecheck:type_state(Env)).
 
-%% Report §11.2, §11.5: values as `:browse` lists them, by name, each
-%% qualified and with its type.
-value_lines(Values, TypeState) ->
-    [unicode:characters_to_binary([ern_namespace:text(QualifiedName), " : ",
-                                   ern_types:format_scheme(Scheme, TypeState)])
-     || {QualifiedName, Scheme} <- lists:sort(Values)].
+%% Report §11.2, §11.4, §11.5: values as `:browse` lists them, each by its
+%% qualified name: a function as its page's code block writes it, each
+%% parameter's name beside its type and its requirement after its result,
+%% where Parameters names its parameters, and any other value with its
+%% type; then, after the functions, each type's members, Types being the
+%% types the listed module declares, under a line naming the type as the
+%% members' first parameter writes it, `Optional(a)`, each indented by
+%% four spaces in the form a program writes at the type, in its page's
+%% order (ern_docs:member_form/4, ern_page:member_order/1).
+value_lines(Values, Types, Parameters, TypeState) ->
+    Listed = [{QualifiedName, Scheme, listed_member(QualifiedName, Types)}
+              || {QualifiedName, Scheme} <- lists:sort(Values)],
+    Functions = [unicode:characters_to_binary(
+                   value_line(QualifiedName, Scheme, Parameters(QualifiedName), TypeState))
+                 || {QualifiedName, Scheme, none} <- Listed],
+    Members = [{Type, ern_page:member_order(atom_to_list(Member)),
+                member_form(Member, Parameters(QualifiedName), Scheme, TypeState)}
+               || {QualifiedName, Scheme, {Type, Member}} <- Listed],
+    Functions ++ lists:append([member_lines(lists:sort([{Order, Form}
+                                                        || {Of, Order, Form} <- Members,
+                                                           Of =:= Type]))
+                               || Type <- lists:usort([Type || {Type, _, _} <- Members])]).
+
+value_line(QualifiedName, #scheme{type = {tfn, _, _, _}} = Scheme, Params, TypeState)
+  when is_list(Params) ->
+    {Head, Marked, Rest} = ern_types:format_call(Scheme, Params, length(Params), TypeState),
+    [ern_namespace:text(QualifiedName), Head, Marked, Rest];
+value_line(QualifiedName, Scheme, _, TypeState) ->
+    [ern_namespace:text(QualifiedName), " : ", ern_types:format_scheme(Scheme, TypeState)].
+
+%% Report §11.4: a member's type and its form, as the shell prints types,
+%% its parameters named as its declaration names them; a derived compare,
+%% which no declaration names, has those Appendix H gives it.
+member_form(Member, none, Scheme, TypeState) ->
+    member_form(Member, [left, right], Scheme, TypeState);
+member_form(Member, Params, Scheme, TypeState) ->
+    ern_docs:member_form(Member, Params, Scheme, TypeState).
+
+member_lines([{_, {Type, _}} | _] = Ordered) ->
+    [unicode:characters_to_binary(Type)
+     | [unicode:characters_to_binary(["    ", Form]) || {_, {_, Form}} <- Ordered]].
+
+%% Report §4.5: the type a listed value is a member of, by its qualified
+%% name, and the member: of a type of Types, the listed module's,
+%% `Shape.Point.compare`, or of a prelude type, which its module declares,
+%% `Int.+`; none for any other value.
+listed_member(QualifiedName, Types) ->
+    Name = lists:last(QualifiedName),
+    Type = lists:droplast(QualifiedName),
+    case lists:member(Name, [compare, negate | ?USEROPS])
+         andalso (is_map_key(Type, Types) orelse ern_prelude:is_member(QualifiedName)) of
+        true -> {Type, Name};
+        false -> none
+    end.
+
+%% Report §11.2: the parameters' names of the prelude's listed values, as
+%% the module of a type's operation documents them, each module's
+%% documentation read once, and else as the prelude names them
+%% (ern_prelude:parameters/1).
+prelude_parameters(Session, Values) ->
+    Modules = maps:from_list([{Namespace, module_parameters(Session, Namespace)}
+                              || Namespace <- lists:usort([lists:droplast(QualifiedName)
+                                                           || {[_, _ | _] = QualifiedName, _}
+                                                                  <- Values])]),
+    fun([_] = QualifiedName) ->
+            ern_prelude:parameters(QualifiedName);
+       (QualifiedName) ->
+            Documented = maps:get(lists:droplast(QualifiedName), Modules),
+            maps:get(atom_to_binary(lists:last(QualifiedName)), Documented,
+                     ern_prelude:parameters(QualifiedName))
+    end.
+
+%% The parameters' names each function of the module of Namespace has in
+%% its documentation, by the entry's name, `map` or `Point.compare`; none
+%% where the session can name no compiled module there.
+module_parameters(Session, Namespace) ->
+    case beam_of(Session, Namespace) of
+        none ->
+            #{};
+        Beam ->
+            {ok, {docs_v1, _, _, _, _, _, Entries}} = ern_docs:read(Beam),
+            maps:from_list([{atom_to_binary(Key), Params}
+                            || {{function, Key, _}, _, _, _, #{params := Params}} <- Entries])
+    end.
 
 %% Report §11.5: each name and each type as the session writes it, the
 %% names qualified and another module's types too.
@@ -1254,7 +1352,15 @@ browse(Text, Namespace, #session{interfaces = Interfaces, scope = Scope,
             Types = [unicode:characters_to_binary([type_keyword(TypeInfo), "type ",
                                                    ern_namespace:text(QualifiedName)])
                      || {QualifiedName, TypeInfo} <- lists:sort(maps:to_list(InterfaceTypes))],
-            {'Right', Types ++ value_lines(maps:to_list(InterfaceValues), TypeState)}
+            %% report §11.2: each value's parameters as its module's
+            %% documentation names them, read once
+            Documented = module_parameters(Session, Namespace),
+            Parameters = fun(QualifiedName) ->
+                                 Written = lists:nthtail(length(Namespace), QualifiedName),
+                                 maps:get(entry_name(Written), Documented, none)
+                         end,
+            {'Right', Types ++ value_lines(maps:to_list(InterfaceValues), InterfaceTypes,
+                                           Parameters, TypeState)}
     end.
 
 %% A type the session declares, as its declaration writes it.
@@ -1899,7 +2005,13 @@ session_line(Key, QualifiedName, Session) ->
                             {MemberOf, Member} -> {[MemberOf], Member};
                             _ -> {[], Key}
                         end,
+    IsMember = Namespace =/= [] andalso lists:member(Name, [compare, negate | ?USEROPS]),
     case {scheme(QualifiedName, Session), parameters(Session, Namespace, Name)} of
+        %% report §11.4: a member the session declares, `fn Coin.+`, in its
+        %% form
+        {{ok, Scheme}, Params} when IsMember ->
+            {_, Form} = member_form(Name, Params, Scheme, TypeState),
+            Form;
         {{ok, Scheme}, Params} when is_list(Params) ->
             {Head, Marked, Rest} = ern_types:format_call(Scheme, Params, length(Params),
                                                          TypeState),
@@ -1933,16 +2045,21 @@ module_doc(Session, Segments) ->
     end.
 
 %% The signature a module's value is shown with, its parameters as its
-%% documentation names them and its type as `:type` prints it; a type's
-%% entry keeps its own.
+%% documentation names them and its type as `:type` prints it, a member's
+%% in its form (report §11.4); a type's entry keeps its own.
 module_signature(Session, QualifiedName) ->
     Text = unicode:characters_to_binary(ern_namespace:text(QualifiedName)),
     case declared_scheme(Session, Text) of
         {ok, Scheme, Env} ->
             TypeState = ern_typecheck:type_state(Env),
             Namespace = lists:droplast(QualifiedName),
-            Line = case parameters(Session, Namespace, lists:last(QualifiedName)) of
-                       Params when is_list(Params) ->
+            Name = lists:last(QualifiedName),
+            Params = parameters(Session, Namespace, Name),
+            Line = case ern_typecheck:is_member_name(Namespace, Name, Env) of
+                       true ->
+                           {_, Form} = member_form(Name, Params, Scheme, TypeState),
+                           Form;
+                       false when is_list(Params) ->
                            {Head, Marked, Rest} =
                                ern_types:format_call(Scheme, Params, length(Params), TypeState),
                            [Text, Head, Marked, Rest];
@@ -2300,7 +2417,7 @@ evaluate(#compiled{unit = Unit} = Compiled, Rest, Roots) ->
                             _ -> ok
                         catch
                             Class:Error:Stack ->
-                                {Cause, _Trace} = caught_fault(Class, Error, Stack),
+                                {Cause, _, _, _} = caught_fault(Class, Error, Stack),
                                 {fault, ern_rt:site(), Cause}
                         end,
                Self ! {Ref, Result},
@@ -2343,10 +2460,10 @@ evaluating(Roots) ->
 %% Report §11.2: the processes of the shell's own beside its chain, which
 %% Process.live() leaves out (ern_rt:processes/0): those the session's
 %% loads and reloads evaluated bindings in, which live while it runs, and
-%% the last input's, which runs while it asks.
+%% the last input's, which runs while it asks, once an input has run.
 -spec own() -> [pid()].
 own() ->
-    kept(evaluators, []) ++ [kept(input, none)].
+    kept(evaluators, []) ++ [Input || Input <- [kept(input, none)], is_pid(Input)].
 
 %% Report §8.7: the units whose bindings a load evaluated, so that a peer's
 %% spawn finds their values, as it finds a run's.
@@ -3568,7 +3685,7 @@ compiled_of(Session, Namespace) ->
                             {ok, File, Beam, Hash};
                         {ok, #{interface := #interface{namespace = Held}}} ->
                             {error, unicode:characters_to_binary(
-                                      ern_build:held_another(File, Held, Namespace))};
+                                      ern_build:held_another(File, Held, Namespace, rebuild))};
                         {error, _} ->
                             none
                     end;

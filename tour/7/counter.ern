@@ -77,13 +77,16 @@ foreign fn systemInfo(item : Foreign.Term) : Int =
 
 export fn primes(below : Int) : Int = {
     Io.println("counting the primes below " <> Int.toString(below));
-    List.size(List.filter(List.range(2, below - 1), fn(n) = isPrime(n, 2)))
+    List.size(List.filter(List.range(2, below - 1), isPrime))
 }
 
-// Whether no divisor from `divisor` up to the square root of `number`
-// divides it.
-fn isPrime(number : Int, divisor : Int) : Bool =
-    divisor * divisor > number || number % divisor != 0 && isPrime(number, divisor + 1)
+fn isPrime(number : Int) : Bool =
+    hasNoDivisorFrom(number, 2)
+
+// A divisor above the square root of `number` pairs with one below it,
+// so the search stops there.
+fn hasNoDivisorFrom(number : Int, divisor : Int) : Bool =
+    divisor * divisor > number || number % divisor != 0 && hasNoDivisorFrom(number, divisor + 1)
 
 let countsPerKey : Test.Case(m) = Test.Case(name = "counts per key", run = fn() = {
     let counter = start();

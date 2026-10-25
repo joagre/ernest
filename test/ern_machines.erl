@@ -293,7 +293,7 @@ detached(Node) ->
                                                         ConfigDir, " >> ", Log,
                                                         " 2>&1 < /dev/null & echo $!"]))).
 
-%% Report §8.7: once the node's port answers (ern_machine:answering/4),
+%% Report §8.7: once the node's port answers (ern_machine:answering/3),
 %% the node's process asked after on its machine at each refusal, so that
 %% a node that has ended fails the start with what it wrote.
 answering(Node, Process) ->
@@ -311,7 +311,7 @@ answering(Node, Process) ->
                                                            "cat " ++ ern_machine:quoted(Log))]))
                   end
               end,
-    ern_machine:answering(ern_machine:host(Machine), ?PORT, infinity, Refused).
+    ern_machine:answering(ern_machine:host(Machine), ?PORT, Refused).
 
 %% Each machine's nodes stopped, and its directory of them removed, the
 %% files of their two streams among it.

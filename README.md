@@ -10,7 +10,7 @@
 
 Ernest is a small functional language for concurrent programs, on the Erlang runtime. A program is functions, whose types the compiler infers, and processes that talk through typed mailboxes.
 
-A counter is a process that holds a number. Its mailbox type, `CounterMsg`, is in the type of `count`, the loop the process runs. `counter` is the program's counter, started under `restarting` so that a fault in `count` starts it again with its address kept, and `main` sends it two increments and asks for the total:
+A counter is a process that holds a number. Its mailbox type, `CounterMsg`, is in the type of `count`, the loop the process runs. `counter` is the program's counter, started under `restarting` so that a fault in `count` starts it again with its address kept, three times within 5000 milliseconds at most. `main` sends it two increments and asks for the total: `Address.call` makes a reply, `Get` builds the request around it, and the call waits 1000 milliseconds at most for the answer:
 
 ```ernest
 export type CounterMsg = Inc(Int) | Get(Reply(Int))
@@ -71,13 +71,13 @@ other.ern:6:5: count needs mailbox CounterMsg, and the mailbox here is OtherMsg
 
 Its parts come from elsewhere: Erlang's processes, the types of ML, which Gleam made ordinary on that runtime, and Unison's small core and its code known by the hash of its definition.
 
-What Ernest adds is where the parts meet, six claims that [Why Ernest](guide/why.md) argues, four of them with a program and one with its file:
+What Ernest adds is where the parts meet, six claims that [Why Ernest](guide/why.md) argues, four of them with a program, one with its configuration file and one with the report:
 
 - **[The mailbox in the function's type](guide/why.md#the-mailbox-in-the-functions-type).** A function that receives says what it receives, and the compiler checks every message against the mailbox it will reach.
 - **[Code known by its hash](guide/why.md#code-known-by-its-hash).** A module's versions run side by side, a running process moves to a new one when told, and a process spawned on another node brings its code along.
-- **[A distribution built for a WAN](guide/why.md#a-distribution-built-for-a-wan).** Two nodes are two files, each naming the other by key and address, with one TLS connection between them and no cluster to join.
+- **[A distribution built for a WAN](guide/why.md#a-distribution-built-for-a-wan).** Two nodes are two configuration files, each naming the other by key and address, with one TLS connection between them and no cluster to join.
 - **[Abstract types and requirements](guide/why.md#abstract-types-and-requirements).** A type keeps its representation to its module, and a generic function names the operations it needs, which the compiler supplies at each call.
-- **[A deadlock is found](guide/why.md#a-deadlock-is-found).** A program in which every process waits for a message none can send ends with a fault and a trace, since the runtime owns every source of a message; a node, which its peers can reach, detects none. A program at work pays for the question with a mark in a process's own state at each timed wait, call and callback from foreign code.
+- **[A deadlock is found](guide/why.md#a-deadlock-is-found).** A program in which every process waits for a message none can send ends with a fault and a trace, since the runtime owns every source of a message but a delivery foreign code arranges for after its call has returned; a node, which its peers can reach, detects none. Finding it costs a running program almost nothing.
 - **[Little else](guide/why.md#little-else).** Functions and processes are the whole language, and a report of three files defines all of it.
 
 Ernest is for programs written in it from the start, not for an OTP application or a codebase of several languages; [Why Ernest](guide/why.md) says how it meets Erlang.
@@ -108,6 +108,8 @@ ern run examples/hello.erc         # hello, world
 ern shell                          # :quit to leave
 man ern                            # the toolchain; man Ernest.List for a module
 ```
+
+OTP 29 is built from its source at [erlang.org/downloads](https://www.erlang.org/downloads), or installed by a version manager such as kerl, where a distribution's own packages hold an older release.
 
 Or from a release: download `ern-<version>.tar.gz` from the [releases page](https://github.com/joagre/ernest/releases), and in the directory it unpacks to run `make` and `sudo make install`, as its own README says; the archive holds the source, which `make` compiles, with OTP 29 as above.
 

@@ -67,6 +67,9 @@ start() ->
                                [string:trim(Text, trailing)]),
                      70
              end,
+    %% report §8.7, §11.2: the lines a node's gateway or its checks said
+    %% since its last launch's end are written before the job ends
+    ok = ern_rt:wait_for_later(),
     case ern_signals:ended() of
         none -> ok;
         Signal -> ern_signals:die(Signal, Status)
@@ -178,6 +181,11 @@ no_such_job(Word) ->
 option_name(Word) ->
     lists:takewhile(fun(Char) -> Char =/= $= end, Word).
 
+%% An option's name as the command line writes it, `--load-path`, by its
+%% key in the job's Spec.
+long_name(Spec, Key) ->
+    hd(["--" ++ Long || {Taken, _, Long, _, _} <- Spec, Taken =:= Key]).
+
 refuse(Message, ErrorDevice) ->
     io:format(ErrorDevice, "ern: ~ts~n", [Message]),
     usage(ErrorDevice),
@@ -223,7 +231,7 @@ job(Job, Spec, Positional, Args, Work, ErrorDevice) ->
             {true, _} -> usage_fail("--help stands alone: " ++ Name ++ " --help");
             {false, _} ->
                 given_once(Options, Spec),
-                named_directories(Job, Options),
+                named_directories(Job, Spec, Options),
                 Work(Options, Rest ++ Program, ErrorDevice)
         end
     catch
@@ -240,7 +248,7 @@ job(Job, Spec, Positional, Args, Work, ErrorDevice) ->
 %% option given no value with its metavariable, and one the job does not
 %% take with the jobs that take it.
 parse_refusal(_Job, Spec, missing_option_arg, Key) ->
-    Long = "--" ++ hd([Spelled || {Taken, _, Spelled, _, _} <- Spec, Taken =:= Key]),
+    Long = long_name(Spec, Key),
     Long ++ " takes a value: " ++ Long ++ " " ++ metavariable(Key);
 parse_refusal(Job, _Spec, invalid_option, Word) ->
     Name = option_name(Word),
@@ -261,12 +269,12 @@ listed(Words) -> lists:join(", ", lists:droplast(Words)) ++ " and " ++ lists:las
 %% the one it creates, but with `--peer-dir`, which writes into it; and
 %% `--peer-dir` names a configuration directory, which holds `ernest.conf`
 %% and a certificate.
-named_directories(Job, Options) ->
+named_directories(Job, Spec, Options) ->
     Creates = Job =:= "config" andalso not lists:keymember(peer_dir, 1, Options),
     lists:foreach(fun({Key, Directory}) when Key =:= load_path; Key =:= libs_dir;
                                             Key =:= source_root;
                                             Key =:= config_dir andalso not Creates ->
-                          Named = ", which --" ++ option_long(Key) ++ " names",
+                          Named = ", which " ++ long_name(Spec, Key) ++ " names",
                           case {filelib:is_dir(Directory), filelib:is_file(Directory)} of
                               {true, _} -> ok;
                               {false, true} -> ern_build:fail(Directory ++ ": not a directory"
@@ -283,11 +291,6 @@ named_directories(Job, Options) ->
                      (_) ->
                           ok
                   end, Options).
-
-option_long(load_path) -> "load-path";
-option_long(libs_dir) -> "libs-dir";
-option_long(source_root) -> "source-root";
-option_long(config_dir) -> "config-dir".
 
 %% Report §11: an option's value is the next word, so `--name=value` is a
 %% second spelling, refused with the first; a flag takes none. A name the
@@ -311,15 +314,14 @@ one_spelling(_, _) ->
 %% an empty directory was accepted.
 given_once(Options, Spec) ->
     Keys = [Option || {Option, _} <- Options] ++ [Option || Option <- Options, is_atom(Option)],
-    Name = fun(Option) -> hd(["--" ++ Long || {Key, _, Long, _, _} <- Spec, Key =:= Option]) end,
     case [Option || Option <- lists:usort(Keys), Option =/= load_path,
                     length([Other || Other <- Keys, Other =:= Option]) > 1] of
         [] -> ok;
-        [Option | _] -> usage_fail(Name(Option) ++ " is given more than once")
+        [Option | _] -> usage_fail(long_name(Spec, Option) ++ " is given more than once")
     end,
     case [Option || {Option, ""} <- Options] of
         [] -> ok;
-        [Empty | _] -> usage_fail(Name(Empty) ++ " is given an empty value")
+        [Empty | _] -> usage_fail(long_name(Spec, Empty) ++ " is given an empty value")
     end.
 
 %% Report §11: a word of the command line that is not UTF-8 is refused,
@@ -455,6 +457,9 @@ build(_Options, Rest, _ErrorDevice) ->
 one_argument(Required, _One, []) ->
     Required ++ " is required";
 one_argument(_Required, One, Rest) ->
+    too_many(One, Rest).
+
+too_many(One, Rest) ->
     io_lib:format("~s is taken, and ~B were given", [One, length(Rest)]).
 
 %% Report §11.4: a file's documentation to stdout, a directory's into the
@@ -492,8 +497,7 @@ source_named(Path, Beam) ->
     case {filename:extension(Path), ern_interface:read(Beam)} of
         {".erc", {ok, #{interface := #interface{namespace = Namespace},
                         source_path := SourcePath}}} ->
-            BuildRoot = lists:foldl(fun(_, Dir) -> filename:dirname(Dir) end,
-                                    ern_build:absolute(Path), Namespace),
+            BuildRoot = ern_build:root_of(ern_build:absolute(Path), Namespace),
             ern_build:shown(filename:join(BuildRoot, unicode:characters_to_list(SourcePath)));
         _ ->
             ern_build:shown(Path)
@@ -1174,7 +1178,7 @@ shell(Options, Rest, ErrorDevice) ->
                                          config_startup = config_startup(Options)}),
                 {init_fun(Loaded ++ [ErlangModule]), FileLoadPath};
             _ ->
-                usage_fail(one_argument("", "one .erc or none", Rest))
+                usage_fail(too_many("one .erc or none", Rest))
         end,
     %% report §11.2: the sinks are the screen's, which the shell names
     Sink = fun(Bytes) -> ern_shell:to_screen(Bytes) end,
@@ -1204,9 +1208,11 @@ is_node(Options) ->
 %% the node's start, since a doc example's run sets the host's working
 %% directory (ern_examples:in_directory/3) and a reload reads the
 %% directory again (ern_carrier:reload/0); a path a refusal names is still
-%% written from the working directory (§11.5). Where the launcher asks for the
-%% host's flags (node_flags/0), they are answered and nothing runs. Say
-%% says each module the node's start reads (§11.2, --verbose).
+%% written from the working directory (§11.5). Where the launcher asks for
+%% the host's flags (node_flags/0), they are answered and nothing runs, and
+%% a run that is no node, whose `--config-dir` was a program's word,
+%% answers none. Say says each module the node's start reads (§11.2,
+%% --verbose).
 as_node(Options, LoadPath, Say, Run) ->
     as_node(Options, LoadPath, Say, program, Run).
 
@@ -1219,6 +1225,10 @@ as_node(Options, LoadPath, Say, Run) ->
 as_node(Options, LoadPath, Say, Holds, Run) ->
     case proplists:get_value(config_dir, Options) of
         undefined ->
+            %% report §8.7, §11.2: the launcher's first start runs no
+            %% program, which would read the standard input the second's
+            %% is given and make its effects twice
+            persistent_term:get({?MODULE, flags}, false) andalso throw({node_flags, []}),
             Run(#{});
         Given ->
             ConfigDir = ern_build:absolute(Given),
@@ -1270,7 +1280,9 @@ no_main_file(run) ->
     "--main names the entry point of the file run, and no file is given; a bare node has none".
 
 %% Report §11.2: every fault on standard error as it happens, a line each:
-%% the spawn site and the cause; after the cause, for a process a peer
+%% the spawn site and the cause; after the cause, where a call carried the
+%% fault from its callee, the callee's site (§6.6), where a compute carried
+%% it from a peer, the peer's name (§8.7), and for a process a peer
 %% spawned, the peer, named as a node's line names it (§8.7), since the
 %% site is the spawner's; and beneath it the fault's trace (§7.3,
 %% indented_trace/1). It goes through standard error's
@@ -1278,13 +1290,15 @@ no_main_file(run) ->
 %% and is flushed with it when the program ends. The runtime's own
 %% subscriber of Process.faults (Appendix E.21), given the peer's node or
 %% none, by which a peer a reload has removed since is named as a node's
-%% line names one not listed, where the report's `peer` is `None`. Where
-%% standard error is neither a terminal nor a service manager's journal,
-%% each line begins with the time, in UTC as RFC 3339 writes it. A fault of
-%% a process Test.faults started never comes here, the runtime telling no
-%% one of it (Appendix E.24, ern_rt:expected/1). Report §8.6: beneath a
-%% deadlock's trace, the processes it left waiting (left_waiting/1).
-report_fault({'FaultReport', Process, Site, Cause, Restarted, Trace, _}, Peer, Stamped) ->
+%% line names one not listed, where the report's `spawnedBy` is `None`.
+%% Where standard error is neither a terminal nor a service manager's
+%% journal, each line begins with the moment the fault was met, the
+%% report's `time`, in UTC as RFC 3339 writes it. A fault of a process
+%% Test.faults started never comes here, the runtime telling no one of it
+%% (Appendix E.24, ern_rt:expected/1). Report §8.6: beneath a deadlock's
+%% trace, the processes it left waiting (left_waiting/1).
+report_fault({'FaultReport', Process, Site, Cause, Restarted, Trace, _, Callee, From, Time},
+             Peer, Stamped) ->
     Faulted = case Restarted of
                   true -> <<" faulted, restarted: ">>;
                   false -> <<" faulted: ">>
@@ -1294,9 +1308,23 @@ report_fault({'FaultReport', Process, Site, Cause, Restarted, Trace, _}, Peer, S
                     _ -> [", spawned by ", ern_carrier:named(Peer)]
                 end,
     ern_rt:send(ern_rt:system_process(stderr),
-                iolist_to_binary([stamp(Stamped), ern_show:controls(Site, line), Faulted,
-                                  ern_show:controls(Cause, line), SpawnedBy, "\n",
-                                  indented_trace(Trace), left_waiting(Process)])).
+                iolist_to_binary([stamp(Stamped, Time), ern_show:controls(Site, line), Faulted,
+                                  ern_show:controls(Cause, line), carried(Callee, From),
+                                  SpawnedBy, "\n", indented_trace(Trace), left_waiting(Process)])).
+
+%% Report §11.2, §6.6, §8.7: what follows a fault's cause on its line, a
+%% report's and a test's alike: the callee's site where a call carried the
+%% fault from its callee, then the peer's name where a compute carried it
+%% from the peer, each escaped as a site is.
+carried(Callee, From) ->
+    [case Callee of
+         {'Some', Site} -> [", the fault of the callee ", ern_show:controls(Site, line)];
+         'None' -> []
+     end,
+     case From of
+         {'Some', Name} -> [", on the peer ", ern_show:controls(Name, line)];
+         'None' -> []
+     end].
 
 %% Report §8.6, §11.2: the lines of the processes a deadlock left waiting
 %% beside the process it faulted, indented as a trace's frames are, beneath
@@ -1314,12 +1342,15 @@ indented_trace(Trace) ->
 
 %% Report §11.2, §8.7: what a line on standard error begins with, a fault's
 %% or a node's: its time, in UTC as RFC 3339 writes it, where the lines are
-%% stamped, and nothing where they are not.
+%% stamped, and nothing where they are not; the time now, or a fault's,
+%% the moment it was met (Appendix E.21).
 -spec stamp(boolean()) -> iodata().
-stamp(true) ->
-    [calendar:system_time_to_rfc3339(erlang:system_time(millisecond),
-                                     [{unit, millisecond}, {offset, "Z"}]), " "];
-stamp(false) ->
+stamp(Stamped) ->
+    stamp(Stamped, erlang:system_time(millisecond)).
+
+stamp(true, Time) ->
+    [calendar:system_time_to_rfc3339(Time, [{unit, millisecond}, {offset, "Z"}]), " "];
+stamp(false, _) ->
     [].
 
 %% The options of a launch that reports its faults. From the command line the
@@ -1400,8 +1431,7 @@ program(File, Options, Say) ->
                     {ok, #{interface := #interface{namespace = Found}}} -> Found;
                     {error, Error} -> ern_build:fail(File ++ ": " ++ Error)
                 end,
-    %% the root lies as many directories up as the namespace is deep
-    ModuleRoot = lists:foldl(fun(_, Dir) -> filename:dirname(Dir) end, Absolute, Namespace),
+    ModuleRoot = ern_build:root_of(Absolute, Namespace),
     %% report §11.2: the path shape of §11.1 holds for each directory
     %% between the root and the file and for the file's name, refused as
     %% `ern build` refuses a source's, before the path is held to the
@@ -1563,7 +1593,7 @@ run_tests(Namespace, Loaded, {Examples, Units}, Heading, ErrorDevice, Node) ->
                                ErrorDevice, Node) of
                  {told, refused} -> 1;
                  {told, Passed} -> run_examples(Examples, Passed, ErrorDevice, Node);
-                 Ended -> report_outcome(ErrorDevice, Site, Ended)
+                 {ended, Ended, _} -> report_outcome(ErrorDevice, Site, Ended)
              end,
     ern_examples:unload(Units),
     Status.
@@ -1607,10 +1637,10 @@ example_launch(#example{test_case = {'Case', Name, _} = Case, initialized = Init
     case cases_launch(example, Entry, Name, init_fun(Initialized), ErrorDevice, Node) of
         {told, _} = Told ->
             Told;
-        Ended ->
+        {ended, Ended, Carried} ->
             case ended_reason(Ended) of
                 {Reason, Trace} ->
-                    io:put_chars(case_line(Name, ended(Reason), Frames(Trace))),
+                    io:put_chars(case_line(Name, [ended(Reason), Carried], Frames(Trace))),
                     {told, false};
                 none ->
                     {ended, report_outcome(ErrorDevice, Name, Ended)}
@@ -1630,10 +1660,12 @@ ended_reason({gone, _}) -> none.
 %% Report §11.2: a launch whose entry process, Entry(Running), runs cases
 %% by run_test/2 and tells the runner what they came to, Init run before it
 %% (§8.5), the cases being the module's tests or a doc example; what it
-%% told, or the outcome it ended with otherwise. A case's own fault is its
-%% line, and so, in an example's launch, is the entry process's, an
-%% initializer's among them, which the outcome carries (example_launch/3);
-%% every other fault is reported as `ern run` reports it.
+%% told, or the outcome it ended with otherwise, and what follows the
+%% cause on the line of an example's entry process's fault (carried/2). A
+%% case's own fault is its line, and so, in an example's launch, is the
+%% entry process's, an initializer's among them, which the outcome carries
+%% (example_launch/3); every other fault is reported as `ern run` reports
+%% it.
 cases_launch(Cases, Entry, Site, Init, ErrorDevice, Node) ->
     %% the test that runs, which the reporter asks for: a row, since it
     %% changes with each test, and the host copies its table of persistent
@@ -1643,16 +1675,18 @@ cases_launch(Cases, Entry, Site, Init, ErrorDevice, Node) ->
     RunOptions = reporting_options(maps:merge(#{init => Init, exit => fault}, Node),
                                    ErrorDevice),
     Report = maps:get(faults, RunOptions),
-    %% report §11.2: a test's own fault is its line, its trace beneath it,
-    %% which its row keeps until its end is here; an example's entry
-    %% process's is the example's line, which the outcome carries
-    Reporter = fun({'FaultReport', Process, _, _, _, Trace, _} = FaultReport, Peer) ->
+    %% report §11.2: a test's own fault is its line, its trace and what
+    %% follows its cause beneath it, which its row keeps until its end is
+    %% here; an example's entry process's is the example's line, which the
+    %% outcome carries, what follows its cause kept under `entry`
+    Reporter = fun({'FaultReport', Process, _, _, _, Trace, _, Callee, From, _} = FaultReport,
+                   Peer) ->
                        case {ets:member(Running, Process), Cases} of
                            {true, _} ->
-                               ets:insert(Running, {Process, Trace});
+                               ets:insert(Running, {Process, Trace, carried(Callee, From)});
                            {false, example} ->
                                case ern_rt:entry_process() of
-                                   Process -> ok;
+                                   Process -> ets:insert(Running, {entry, carried(Callee, From)});
                                    _ -> Report(FaultReport, Peer)
                                end;
                            {false, tests} ->
@@ -1660,10 +1694,14 @@ cases_launch(Cases, Entry, Site, Init, ErrorDevice, Node) ->
                        end
                end,
     Outcome = ern_rt:run_main(Entry(Running), Site, RunOptions#{faults => Reporter}),
+    Carried = case ets:lookup(Running, entry) of
+                  [{entry, EntryCarried}] -> EntryCarried;
+                  [] -> []
+              end,
     ets:delete(Running),
     case Outcome of
         ok -> receive {ern_tests, Told} -> {told, Told} end;
-        Ended -> Ended
+        Ended -> {ended, Ended, Carried}
     end.
 
 %% Report §11.2: under a directory the module's name stands on a line
@@ -1707,8 +1745,10 @@ tests_entry(ErlangModule, HasExamples, Caller, Running) ->
 %% its own, monitored from its start so that a fault is reported, however
 %% soon it comes, and not taken for the entry process's (report §6.9). A
 %% deadlock while it runs is its fault (§11.2). Its line goes through
-%% standard output's process, after what the test wrote there, the trace of
-%% its fault beneath it, which the reporter kept in its row, written by
+%% standard output's process, after what the test wrote there, a fault's
+%% cause followed by the callee or the peer it was carried from, and the
+%% trace of its fault beneath it, both of which the reporter kept in its
+%% row, the trace written by
 %% Frames, which names a doc example's frames as its case is
 %% (ern_examples); whether it passed, or, for an example that only
 %% compiles, compiled, is returned.
@@ -1731,12 +1771,13 @@ run_test({'Case', Name, Run}, Running, Frames) ->
                   {Ref, down, {'Down', _, Reason, _}} -> ended(Reason)
               end,
     ok = ern_rt:deadlock_victim(none),
-    Trace = case ets:take(Running, Pid) of
-                [{_, Faulted}] -> Faulted;
-                [{_}] -> <<>>
-            end,
+    {Trace, Carried} = case ets:take(Running, Pid) of
+                           [{_, Faulted, FaultCarried}] -> {Faulted, FaultCarried};
+                           [{_}] -> {<<>>, []}
+                       end,
     ern_rt:send(ern_rt:system_process(stdout),
-                iolist_to_binary([case_line(Name, Outcome, Frames(Trace)), left_waiting(Pid)])),
+                iolist_to_binary([case_line(Name, [Outcome, Carried], Frames(Trace)),
+                                  left_waiting(Pid)])),
     lists:member(Outcome, [<<"passed">>, <<"compiled">>]).
 
 %% Report §11.2: a case's line, its name written as a cause is, its
@@ -1753,10 +1794,13 @@ returned(Ref, Outcome) ->
 
 %% Report §11.2: what a case whose process ended before it returned came
 %% to, the Reason (§9.3) its Down carries: `killed` where it was killed,
-%% and `faulted` with the cause, its controls escaped, where it faulted.
+%% and `faulted` with the cause, its controls escaped, where it faulted. A
+%% case's process is monitored on this node from its spawn and by no
+%% service monitor, so its Down is neither Unknown, Unreachable nor
+%% Restarted (§6.9), and the program's end, which ends its runner with it,
+%% delivers no Down (ern_rt:run_main/3).
 ended('Killed') -> <<"killed">>;
-ended({'Fault', Cause}) -> <<"faulted: ", (ern_show:controls(Cause, line))/binary>>;
-ended(Reason) -> <<"faulted: ", (atom_to_binary(Reason))/binary>>.
+ended({'Fault', Cause}) -> <<"faulted: ", (ern_show:controls(Cause, line))/binary>>.
 
 run_entry(Options, Namespace, Loaded, Arguments, ErrorDevice, Node) ->
     EntryFunction = entry_point(Options, Namespace),
@@ -2001,7 +2045,7 @@ held_chunk(Namespace, File, Beam) ->
         {ok, #{interface := #interface{namespace = Namespace}} = Chunk} ->
             Chunk;
         {ok, #{interface := #interface{namespace = Held}}} ->
-            ern_build:fail(ern_build:held_another(File, Held, Namespace));
+            ern_build:fail(ern_build:held_another(File, Held, Namespace, rebuild));
         {error, Error} ->
             ern_build:fail(File ++ ": " ++ Error)
     end.

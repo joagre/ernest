@@ -234,6 +234,31 @@ said_test() ->
                  Said({nodedown, Store, [{nodedown_reason, wait_pending}]})),
     ?assertEqual(none, ern_carrier:said({nodeup, node(), []})).
 
+%% report §8.7, §11.2: a name a connecting node gave in a handshake the
+%% host refused is said with its control characters escaped, as a cause's
+%% are: the name its key does not give, and on another floor the host of
+%% its name, where no peer is listed by it. A regression test: the lines
+%% wrote the name as the node gave it, its control characters with it
+handshake_name_escaped_test() ->
+    persistent_term:put({ern_cli, error_device}, group_leader()),
+    try
+        ?assertEqual(stop, ern_carrier:filter(
+                             #{msg => {"** Connection attempt from disallowed node ~s ** ~n",
+                                       ["ghost\e[2J@node"]}}, [])),
+        ?assertEqual(stop, ern_carrier:filter(
+                             #{msg => {"** Connection attempt from node ~w rejected. Invalid"
+                                       " challenge reply. **~n", ['ernest@x\ey.z']}}, [])),
+        %% the floor's line is said later, by the runtime's own process
+        ern_rt:wait_for_later()
+    after
+        persistent_term:erase({ern_cli, error_device})
+    end,
+    ?assertEqual(<<"a node named ghost\\u{1B}[2J@node was refused: its key gives another"
+                   " name\n"
+                   "the node x\\u{1B}yz was refused: it stands on another floor, another"
+                   " release or build of ern or another major release of OTP\n">>,
+                 iolist_to_binary(?capturedOutput)).
+
 %% report §8.7: a reload whose reading fails with anything but a refusal,
 %% as a failure of the runtime's helper would, is refused, the node saying
 %% so with the host's reason, and the configuration stays; the signal

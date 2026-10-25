@@ -9,7 +9,7 @@
 -module(ern_parser).
 
 -export([parse/1, parse_string/1, parse_string/2, parse_expr/1, parse_expr/2, parse_statement/1,
-         parse_statement/2, parse_type/1, fenced/1]).
+         parse_statement/2, parse_type/1, fenced/1, line_count/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("parser/include/ern_fence.hrl").
@@ -17,9 +17,6 @@
 
 -define(DECLARATION_START, [export, type, abstract, fn, 'let', foreign]).
 -define(SPECS, [bytes, int, float, utf8, utf16, utf32, big, little, signed, unsigned]).
-%% §2.6's `userop`, the operators a type declares.
--define(IS_USEROP(Operator), Operator =:= '+'; Operator =:= '-'; Operator =:= '*';
-                             Operator =:= '/'; Operator =:= '%'; Operator =:= '<>').
 
 -spec parse([ern_lexer:token()]) -> {ok, [tuple()]} | {error, ern_diagnostic:diagnostic()}.
 parse(Tokens) ->
@@ -129,8 +126,8 @@ doc_headings(ModuleDoc, Tokens) ->
                   end, Tokens).
 
 headings(Line, Column, Text, Lowest) ->
-    lists:foldl(fun(#fence{lines = Lines, closing = Closing}, Index) ->
-                        Index + 1 + length(Lines) + length([Closing || Closing =/= none]);
+    lists:foldl(fun(#fence{} = Fence, Index) ->
+                        Index + line_count(Fence);
                    (DocLine, Index) ->
                         Level = heading_level(binary_to_list(unindented(DocLine, 3))),
                         Level =:= 0 orelse Level >= Lowest
@@ -162,6 +159,12 @@ fenced([Line | Rest]) ->
         none ->
             [Line | fenced(Rest)]
     end.
+
+%% Report §2.2: the count of the text's lines a fenced block takes, its
+%% opening line, its content's and its closing line where it has one.
+-spec line_count(#fence{}) -> pos_integer().
+line_count(#fence{lines = Lines, closing = Closing}) ->
+    1 + length(Lines) + length([Closing || Closing =/= none]).
 
 %% An opening fence's character, its length, the spaces before it and its
 %% info string; none for a line that opens no block.
@@ -484,20 +487,21 @@ optional_requirement(Tokens) ->
 
 %% Appendix A's Need, the member a requirement names: a type variable, `.`,
 %% and compare, negate, an operator or show (report §4.9, §4.8, E.1).
-member([{ident, Position, Variable}, {'.', _}, {Operator, _} | Rest])
-  when ?IS_USEROP(Operator) ->
-    spanned({#member{span = Position, member_of = Variable, name = Operator}, Rest});
 member([{ident, Position, Variable}, {'.', _}, {ident, NamePosition, Name} | Rest]) ->
     %% report §11.5: the error covers the member as written, `a.zero`
     {Line, Column, _, _} = Position,
     {_, _, End, _} = NamePosition,
-    NoMember = atom_to_list(Name) ++ " is not a member: a requirement names compare, negate, an"
-               " operator or show",
+    NoMember = "`" ++ atom_to_list(Name) ++ "` is not a member: a requirement names "
+        ++ members_text(requirement),
     lists:member(Name, [compare, negate, show]) orelse fail({Line, Column, End}, NoMember),
     spanned({#member{span = Position, member_of = Variable, name = Name}, Rest});
-member([{ident, _, _}, {'.', _}, Token | _]) ->
-    fail(position(Token), "expected compare, negate, an operator or show after `.` instead of "
-                          ++ describe(Token));
+member([{ident, Position, Variable}, {'.', _}, Token | Rest]) ->
+    %% report §2.6: the message names the six operators that may be
+    %% members, since `<` is an operator too
+    is_userop(Token)
+        orelse fail(position(Token), "expected " ++ members_text(requirement)
+                                     ++ " after `.` instead of " ++ describe(Token)),
+    spanned({#member{span = Position, member_of = Variable, name = element(1, Token)}, Rest});
 member([{ident, _, Variable}, Token | _]) ->
     fail(position(Token), "expected `.` after " ++ atom_to_list(Variable) ++ " instead of "
                           ++ describe(Token),
@@ -513,17 +517,18 @@ declaration_name([{ident, _, Name} | Rest]) ->
     {undefined, Name, Rest};
 declaration_name([{typename, _, MemberOf}, {'.', _}, {ident, Position, Name} | Rest]) ->
     NoMember = "`" ++ atom_to_list(Name) ++ "` cannot be a member of " ++ atom_to_list(MemberOf)
-               ++ ": a member is an operator, `compare` or `negate`",
+               ++ ": a member is " ++ members_text(declaration),
     Help = "a type's other operations are functions of its module: write `fn "
            ++ atom_to_list(Name) ++ "`",
     lists:member(Name, [compare, negate]) orelse fail(Position, NoMember, Help),
     {MemberOf, Name, Rest};
-declaration_name([{typename, _, MemberOf}, {'.', _}, {Operator, _} | Rest])
-  when ?IS_USEROP(Operator) ->
-    {MemberOf, Operator, Rest};
-declaration_name([{typename, _, _}, {'.', _}, Token | _]) ->
-    fail(position(Token), "expected an operator, `compare` or `negate` after `.` instead of "
-                          ++ describe(Token));
+declaration_name([{typename, _, MemberOf}, {'.', _}, Token | Rest]) ->
+    %% report §2.6: the message names the six operators that may be
+    %% members, since `<` is an operator too
+    is_userop(Token)
+        orelse fail(position(Token), "expected " ++ members_text(declaration)
+                                     ++ " after `.` instead of " ++ describe(Token)),
+    {MemberOf, element(1, Token), Rest};
 declaration_name([{typename, _, _} = Token | _]) ->
     fail(position(Token), "expected a name instead of " ++ describe(Token),
          "a function's name begins with a lowercase letter");
@@ -563,11 +568,27 @@ param(Tokens) ->
     case Rest of
         [{':', _} | Rest1] ->
             {Type, Rest2} = type(Rest1),
+            unmarked(Type, Rest2),
             spanned({#param{span = ern_ast:span(Pattern), pattern = Pattern, annotation = Type},
                      Rest2});
         _ ->
             spanned({#param{span = ern_ast:span(Pattern), pattern = Pattern}, Rest})
     end.
+
+%% Report §4.7, §11.5, Appendix A's Param: a parameter's type is no list of
+%% types, so a type variable marked there, `x : a=`, is refused over the
+%% variable and its mark in the words of a mark elsewhere outside a foreign
+%% function.
+unmarked(#t_var{span = Span, name = Name}, [{'=', MarkPosition} | _]) ->
+    {Line, Column, _} = ern_diagnostic:span(Span),
+    {_, _, End, _} = MarkPosition,
+    Text = atom_to_list(Name),
+    fail({Line, Column, End}, "the equality mark is written in a foreign function's parameters"
+                              " alone",
+         "write `" ++ Text ++ "`; `" ++ Text ++ "` has equality where a body compares its"
+         " values with `==`");
+unmarked(_, _) ->
+    ok.
 
 %% Report §4.5, Appendix A's Return: a result annotation is written `: T`,
 %% as a parameter's is; `->` after the parameters is an earlier version's
@@ -718,7 +739,11 @@ type([{typename, Position, _} | _] = Tokens, Marks) ->
             fail(span_through(Position, Tokens, Rest),
                  "expected a type name; a qualified type ends in an uppercase name",
                  "a type's arguments are written in parentheses, as List(a), and a lowercase"
-                 " name after `.` names a value")
+                 " name after `.` names a value");
+        {{member, _, _}, Rest} ->
+            %% report §4.5: a member's name, `Int.+`, names no type
+            fail(span_through(Position, Tokens, Rest),
+                 "expected a type name; a qualified type ends in an uppercase name")
     end;
 type([{ident, Position, Name} | Rest], _Marks) ->
     spanned({#t_var{span = Position, name = Name}, Rest});
@@ -764,10 +789,10 @@ parenthesized(_, [#t_var{span = Span, name = Name, equality = true}], _, Marks) 
     %% it names the lists of types where it stands
     Text = atom_to_list(Name),
     Help = case Marks of
-               plain -> "write " ++ Text ++ "; the mark is written in a foreign function's"
+               plain -> "write `" ++ Text ++ "`; the mark is written in a foreign function's"
                         " parameters alone";
-               foreign -> "the mark stands in a list of types, as List(" ++ Text ++ "=) or ("
-                          ++ Text ++ "=) -> Bool"
+               foreign -> "the mark stands in a list of types, as `List(" ++ Text ++ "=)` or `("
+                          ++ Text ++ "=) -> Bool`"
            end,
     fail(Span, "a type in parentheses takes no equality mark", Help);
 parenthesized(_, [Type], Rest, _Marks) ->
@@ -782,35 +807,45 @@ parenthesized(_, _, [Token | _], _Marks) ->
          "a tuple type is written with `#(`, as `#(Int, Int)`").
 
 %% {typename "."} followed by a final segment. Returns {con, Namespace, Name}
-%% for an uppercase final, {value, Namespace, Name} for an ident final.
-qualified([{typename, Position, First} | Rest]) ->
-    qualified(Rest, [], First, Position).
+%% for an uppercase final, {value, Namespace, Name} for an ident final, and
+%% {member, Namespace, Operator} for an operator a type declares, which
+%% each caller refuses in its own terms (report §4.5).
+qualified([{typename, _, First} | Rest]) ->
+    qualified(Rest, [], First).
 
-qualified([{'.', _}, {typename, _, Next} | Rest], Namespace, Current, Start) ->
-    qualified(Rest, Namespace ++ [Current], Next, Start);
-qualified([{'.', _}, {ident, _, Name} | Rest], Namespace, Current, _Start) ->
+qualified([{'.', _}, {typename, _, Next} | Rest], Namespace, Current) ->
+    qualified(Rest, Namespace ++ [Current], Next);
+qualified([{'.', _}, {ident, _, Name} | Rest], Namespace, Current) ->
     {{value, Namespace ++ [Current], Name}, Rest};
-qualified([{'.', _}, {Operator, OperatorPosition} | _], Namespace, Current, Start)
-  when ?IS_USEROP(Operator) ->
-    %% report §4.5, Appendix A's QName: a member's name, `Int.+`, stands in
-    %% a declaration alone
-    {Line, Column, _, _} = Start,
-    {_, _, End, _} = OperatorPosition,
-    member_written({Line, Column, End},
-                   ern_namespace:text(Namespace ++ [Current]) ++ "." ++ atom_to_list(Operator),
-                   Operator);
-qualified([{'.', _}, Token | _], _Namespace, _Current, _Start) ->
-    fail(position(Token), instead("expected a name after `.`", Token));
-qualified(Rest, Namespace, Current, _Start) ->
+qualified([{'.', _}, Token | Rest], Namespace, Current) ->
+    is_userop(Token) orelse fail(position(Token), instead("expected a name after `.`", Token)),
+    {{member, Namespace ++ [Current], element(1, Token)}, Rest};
+qualified(Rest, Namespace, Current) ->
     {{con, Namespace, Current}, Rest}.
 
+%% Report §2.6, Appendix A's userop: whether a token is an operator a type
+%% may declare as its member.
+is_userop({Operator, _}) -> lists:member(Operator, ?USEROPS);
+is_userop(_) -> false.
+
+%% Report §2.6, §4.5, §4.9: the names a member may have, as a message names
+%% them: in a declaration the operators a type may declare, `compare` and
+%% `negate`, and in a requirement `show` too.
+members_text(Where) ->
+    Operators = lists:append(lists:join(", ", ["`" ++ atom_to_list(Operator) ++ "`"
+                                               || Operator <- ?USEROPS])),
+    case Where of
+        declaration -> Operators ++ ", `compare` or `negate`";
+        requirement -> Operators ++ ", `compare`, `negate` or `show`"
+    end.
+
 %% Report §4.5, §11.5: a member written by its name where an expression
-%% reaches it by its operator alone, with the operator to write.
+%% reaches it by its operator alone, with the operator to write; Written
+%% quotes what the source wrote.
 -spec member_written(ern_diagnostic:span(), string(), atom()) -> no_return().
 member_written(Span, Written, Operator) ->
     Text = atom_to_list(Operator),
-    fail(Span, "`" ++ Written ++ "` names a member, which an expression reaches through `"
-               ++ Text ++ "`",
+    fail(Span, Written ++ " names a member, which an expression reaches through `" ++ Text ++ "`",
          "write `x " ++ Text ++ " y`, or where a function is wanted a lambda, `fn(x, y) = x "
          ++ Text ++ " y`").
 
@@ -992,24 +1027,33 @@ calls(Expr, [{'.', _}, {ident, FieldPosition, Field} | Rest]) ->
                              field_span = ern_diagnostic:span(FieldPosition)},
     {Selection, Rest1} = spanned({Unspanned, Rest}),
     calls(Selection, Rest1);
-calls(Expr, [{'.', _}, {Operator, OperatorPosition} | _]) when ?IS_USEROP(Operator) ->
-    %% report §4.5, Appendix A: a member stands in no expression, a type
-    %% variable's `a.+` among them
-    Written = case Expr of
-                  #e_var{namespace = [], name = Name} -> atom_to_list(Name) ++ ".";
-                  _ -> "."
-              end,
-    {Line, Column, _} = ern_diagnostic:span(ern_ast:span(Expr)),
-    {_, _, End, _} = OperatorPosition,
-    member_written({Line, Column, End}, Written ++ atom_to_list(Operator), Operator);
 calls(Expr, [{'.', _}, Token | _] = Tokens) ->
-    %% report §2.4: a reserved word where a field's name stands names nothing
-    case reserved_word(Token) of
-        {ok, _} -> fail(position(Token), instead("expected a field's name", Token));
-        none -> {Expr, Tokens}
+    %% report §4.5, Appendix A: a member stands in no expression, a type
+    %% variable's `a.+` among them; report §2.4: a reserved word where a
+    %% field's name stands names nothing
+    case {is_userop(Token), reserved_word(Token)} of
+        {true, _} -> member_after(Expr, Token);
+        {false, {ok, _}} -> fail(position(Token), instead("expected a field's name", Token));
+        {false, none} -> {Expr, Tokens}
     end;
 calls(Expr, Tokens) ->
     {Expr, Tokens}.
+
+%% Report §4.5, §11.5: an operator after `.` in an expression, over the
+%% expression and the operator, named as written where the expression is
+%% a name, `a.+`, and by the operator after `.` where it is not, `f(x).+`.
+-spec member_after(tuple(), ern_lexer:token()) -> no_return().
+member_after(Expr, {Operator, OperatorPosition}) ->
+    {Line, Column, _} = ern_diagnostic:span(ern_ast:span(Expr)),
+    {_, _, End, _} = OperatorPosition,
+    Text = atom_to_list(Operator),
+    Written = case Expr of
+                  #e_var{namespace = [], name = Name} ->
+                      "`" ++ atom_to_list(Name) ++ "." ++ Text ++ "`";
+                  _ ->
+                      "`" ++ Text ++ "` after `.`"
+              end,
+    member_written({Line, Column, End}, Written, Operator).
 
 %% A call's arguments, each parsed as the argument it is, so that an input
 %% that stops inside one says which.
@@ -1051,7 +1095,13 @@ primary([{typename, Position, _} | _] = Tokens) ->
         {{value, Namespace, Name}, Rest} ->
             spanned({#e_var{span = Position, namespace = Namespace, name = Name}, Rest});
         {{con, Namespace, Name}, Rest} ->
-            constructor_expr(Position, Namespace, Name, Rest)
+            constructor_expr(Position, Namespace, Name, Rest);
+        {{member, Namespace, Operator}, Rest} ->
+            %% report §4.5, Appendix A's QName: a member's name, `Int.+`,
+            %% stands in a declaration alone
+            member_written(ern_diagnostic:span(span_through(Position, Tokens, Rest)),
+                           "`" ++ ern_namespace:text(Namespace) ++ "." ++ atom_to_list(Operator)
+                           ++ "`", Operator)
     end;
 primary([{'#(', Position} | Rest]) ->
     {Elements, Rest1} = components(Position, separated(Rest, ',', fun expr/1)),
@@ -1291,7 +1341,8 @@ atompat([{'-', _}, Token | _]) ->
 atompat([{typename, Position, _} | _] = Tokens) ->
     case qualified(Tokens) of
         {{con, Namespace, Name}, Rest} -> constructor_pattern(Position, Namespace, Name, Rest);
-        {{value, _, _}, Rest} ->
+        {_, Rest} ->
+            %% a value's name or a member's, `Int.+`, which is a function
             fail(span_through(Position, Tokens, Rest),
                  "expected a constructor; a pattern cannot name a function or value")
     end;
@@ -1425,9 +1476,9 @@ bit_spec([Token | _]) ->
 %% Report §5.11: the specifiers, as the help of one the language lacks
 %% lists them.
 specifiers_help() ->
-    [Last | Others] = lists:reverse(["`size(N)`" | ["`" ++ atom_to_list(Spec) ++ "`"
-                                                     || Spec <- ?SPECS]]),
-    "a specifier is " ++ lists:append(lists:join(", ", lists:reverse(Others))) ++ " or " ++ Last.
+    Specifiers = ["`size(N)`" | ["`" ++ atom_to_list(Spec) ++ "`" || Spec <- ?SPECS]],
+    "a specifier is " ++ lists:append(lists:join(", ", lists:droplast(Specifiers))) ++ " or "
+        ++ lists:last(Specifiers).
 
 %% Report §5.11: a size counts bits, and octets for `bytes`, so no specifier
 %% scales it; the help writes the size with the scale where both are

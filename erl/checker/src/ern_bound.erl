@@ -113,7 +113,7 @@ check(_, _) ->
 walk(#e_call{callee = #e_var{referent = Referent} = Callee, args = Args}, Scope, Env) ->
     case {spawn_name(Referent), is_running(Referent)} of
         {none, false} -> walk(Callee, Scope, Env);
-        {none, true} -> running(Args, Scope, Env);
+        {none, true} -> running(Args, Env);
         {Name, _} -> spawned(Name, Callee, Args, Scope, Env)
     end,
     walk(Args, Scope, Env);
@@ -155,13 +155,6 @@ statement(#binding{pattern = #p_var{name = Name}, operator = '=', expr = #e_lamb
           Scope, Env) ->
     walk(Lambda, Scope, Env),
     Scope#{Name => {lambda, Lambda}};
-statement(#binding{pattern = #p_var{name = Name}, operator = '=',
-                   expr = #e_var{referent = Referent} = Declared}, Scope, Env)
-  when Referent =/= var, not is_tuple(Referent) orelse element(1, Referent) =/= prelude ->
-    %% report §11.5: a local bound to a declaration's name, which the help
-    %% of `Code.running` of the local names
-    walk(Declared, Scope, Env),
-    Scope#{Name => {named, Declared}};
 statement(#binding{pattern = Pattern, expr = Expr}, Scope, Env) ->
     walk(Expr, Scope, Env),
     shadowed(pattern_names(Pattern), Scope);
@@ -199,51 +192,42 @@ is_running(#remote_declaration{namespace = ['Code'], member_of = undefined, name
 is_running(_) ->
     false.
 
-%% Report §3.11, Appendix E.28: the function `Code.running` names is a
-%% top-level `fn` declaration of any arity, which has a hash, whose result
-%% type is Unit and whose mailbox type, where it has one, holds no type
-%% variable, read from its declaration and not from this use, since every
-%% process listed has it as its mailbox type; one that receives nothing,
-%% and one that is process-only, list their processes at Never
-%% (ern_typecheck:is_running_never/2).
-running([#e_var{span = Span, namespace = Namespace, name = Name, referent = Referent}], Scope,
-        Env) ->
+%% Appendix E.28: the function `Code.running` names is a top-level `fn`
+%% declaration of any arity, which has a hash, whose result type is Unit
+%% and whose mailbox type, where it has one, holds no type variable, read
+%% from its declaration and not from this use, since every process listed
+%% has it as its mailbox type; one that receives nothing, and one that is
+%% process-only, list their processes at Never
+%% (ern_typecheck:is_running_never/2). Report §11.5: the rule is E.28's, so
+%% no help cites the report.
+running([#e_var{span = Span, namespace = Namespace, name = Name, referent = Referent}], Env) ->
     Written = ern_namespace:text(Namespace ++ [Name]),
-    Help = "name a top-level `fn` of this program whose result type is `Unit` (report §3.11)",
+    Help = "name a top-level `fn` of this program whose result type is `Unit`",
     What = fun(Text) -> "Code.running lists the processes that run a declaration, and "
                             ++ Written ++ Text end,
     case Referent of
         var ->
-            fail(Span, What(" is a local, whose function is no declaration"),
-                 local_running_help(maps:get(Name, Scope, value), Help));
+            fail(Span, What(" is a local, whose function is no declaration"), Help);
         {prelude, _} ->
             fail(Span, What(" is the prelude's, which no module declares"), Help);
         _ ->
             ern_typecheck:is_top_let(Referent, Env)
                 andalso fail(Span, What(" is a top-level `let`, whose value is no declaration"),
                              "declare " ++ Written ++ " with `fn` and name it,"
-                             " `Code.running(" ++ Written ++ ")` (report §3.11)"),
+                             " `Code.running(" ++ Written ++ ")`"),
             ern_typecheck:is_foreign(Referent, Env)
                 andalso fail(Span, What(" is a foreign declaration, which has no hash"),
                              "declare a top-level `fn` that calls " ++ Written ++ ", and name"
-                             " it (report §3.11)"),
+                             " it"),
             Scheme = ern_typecheck:declaration_scheme(Referent, Env),
             declared_running(Span, {Written, atom_to_list(Name)}, Scheme,
                              ern_typecheck:is_running_never(Referent, Env), Env)
     end;
-running([Function], _Scope, _Env) ->
+running([Function], _Env) ->
     fail(ern_ast:span(Function),
          "Code.running lists the processes that run a declaration, and "
          ++ running_argument(Function) ++ " is no declaration",
-         "declare the function with `fn` at the top level and name it (report §3.11)").
-
-%% Report §3.11, §11.5: the help of a local named, the declaration itself
-%% where a `let` bound the local to one's name.
-local_running_help({named, #e_var{namespace = Namespace, name = Declared}}, _Help) ->
-    Text = ern_namespace:text(Namespace ++ [Declared]),
-    "name " ++ Text ++ " itself, `Code.running(" ++ Text ++ ")` (report §3.11)";
-local_running_help(_, Help) ->
-    Help.
+         "declare the function with `fn` at the top level and name it").
 
 %% What `Code.running` was given where no name stands, as its message
 %% names it.
@@ -255,26 +239,30 @@ running_argument(_) -> "a function an expression computes".
 %% processes are not listed at Never, known whole, holding no type variable.
 %% The type is the declaration's as the checker holds it, a scheme's own
 %% variables apart from the type state's (ern_typecheck:declaration_type/2),
-%% and prints so.
+%% and prints so; its variables are read in a state of none, since no
+%% substitution here applies to a scheme's own.
 declared_running(Span, {Written, Declared}, Scheme, Never, Env) ->
     TypeState = ern_typecheck:type_state(Env),
     {tfn, _, Effect, Result} = ern_typecheck:declaration_type(Scheme, TypeState),
     Shown = fun(Type) ->
                 ern_types:format_scheme(Scheme#scheme{type = Type, requirement = []}, TypeState)
             end,
-    Annotated = "give " ++ Written ++ " its mailbox type, `fn " ++ Declared
-        ++ "(...) : Unit receiving Msg = ...`: every process listed has it (report §3.11)",
     case Result of
         {tcon, ['Unit'], []} -> ok;
         _ -> fail(Span, "Code.running lists the processes that run " ++ Written
                         ++ ", whose result type is " ++ Shown(Result) ++ ", not Unit",
                   "name the function the processes run, a top-level `fn` whose result type is"
-                  " `Unit` (report §3.11)")
+                  " `Unit`")
     end,
-    Never orelse ern_types:free_variables(Effect, ern_types:printing(TypeState)) =:= []
-        orelse fail(Span, "Code.running lists the processes that run " ++ Written
-                          ++ ", whose mailbox type " ++ Shown(Effect) ++ " holds a type variable",
-                    Annotated).
+    case Never orelse ern_types:free_variables(Effect, ern_types:new()) =:= [] of
+        true ->
+            ok;
+        false ->
+            fail(Span, "Code.running lists the processes that run " ++ Written
+                       ++ ", whose mailbox type " ++ Shown(Effect) ++ " holds a type variable",
+                 "give " ++ Written ++ " its mailbox type, `fn " ++ Declared
+                 ++ "(...) : Unit receiving Msg = ...`: every process listed has it")
+    end.
 
 %% Report §3.11: the function the spawn or the compute starts, written
 %% where its captures are seen, each capture and the process's mailbox type
@@ -396,14 +384,18 @@ capture_crosses(Name, #e_var{span = Span, name = Local, type = Type}, Env) ->
     Text = ern_types:format(Substituted, TypeState),
     case binds(Substituted, Env) of
         false ->
-            ern_types:free_variables(Substituted, TypeState) =:= []
-                orelse ern_types:is_unknown(Substituted, TypeState)
-                orelse fail(Span, "the function " ++ Name ++ verb(Name) ++ "captures "
-                                  ++ atom_to_list(Local) ++ ", whose type " ++ Text
-                                  ++ " holds a type variable",
-                            "capture a value whose type is known whole: compute what the process"
-                            " needs of " ++ atom_to_list(Local) ++ " before " ++ act(Name)
-                            ++ " and capture that (report §3.11)");
+            case ern_types:free_variables(Substituted, TypeState) =:= []
+                 orelse ern_types:is_unknown(Substituted, TypeState) of
+                true ->
+                    ok;
+                false ->
+                    fail(Span, "the function " ++ Name ++ verb(Name) ++ "captures "
+                               ++ atom_to_list(Local) ++ ", whose type " ++ Text
+                               ++ " holds a type variable",
+                         "capture a value whose type is known whole: compute what the process"
+                         " needs of " ++ atom_to_list(Local) ++ " before " ++ act(Name)
+                         ++ " and capture that (report §3.11)")
+            end;
         Why ->
             %% a function's type at its use has the effect of its use's
             %% context (§3.9), not the binding's, so it is named, not shown
@@ -435,14 +427,18 @@ result_crosses(Name, Span, {tfn, [], _, Result}, Env) ->
     Text = ern_types:format(Substituted, TypeState),
     case binds(Substituted, Env) of
         false ->
-            ern_types:free_variables(Substituted, TypeState) =:= []
-                orelse ern_types:is_unknown(Substituted, TypeState)
-                orelse fail(Span, Name ++ " answers a value of type " ++ Text ++ ", which holds a"
-                                  " type variable, so whether it crosses is not known here",
-                            "give the function its result type, `fn() : "
-                            ++ ern_types:format_annotation(Substituted, TypeState)
-                            ++ " = ...`: the value crosses back to this node, and its type is"
-                            " known whole where the compute is written (report §3.11)");
+            case ern_types:free_variables(Substituted, TypeState) =:= []
+                 orelse ern_types:is_unknown(Substituted, TypeState) of
+                true ->
+                    ok;
+                false ->
+                    fail(Span, Name ++ " answers a value of type " ++ Text ++ ", which holds a"
+                               " type variable, so whether it crosses is not known here",
+                         "give the function its result type, `fn() : "
+                         ++ ern_types:format_annotation(Substituted, TypeState)
+                         ++ " = ...`: the value crosses back to this node, and its type is"
+                         " known whole where the compute is written (report §3.11)")
+            end;
         Why ->
             fail(Span, Name ++ " answers a value of type " ++ Text ++ ", which is bound to its"
                        " node, since it holds " ++ Why,
@@ -467,13 +463,17 @@ mailbox_crosses(Name, Span, Mailbox, Env) ->
                             " instance of this definition could make the variable a type bound"
                             " to its node (report §3.11)");
         {false, _} ->
-            ern_types:free_variables(Mailbox, TypeState) =:= []
-                orelse ern_types:is_unknown(Mailbox, TypeState)
-                orelse fail(Span, Name ++ " starts a process whose mailbox type " ++ Text
-                                  ++ " is not known whole here",
-                            "give the function its mailbox type, " ++ annotated(Name) ++ ": a"
-                            " type variable in it could stand for a type bound to its node"
-                            " (report §3.11)");
+            case ern_types:free_variables(Mailbox, TypeState) =:= []
+                 orelse ern_types:is_unknown(Mailbox, TypeState) of
+                true ->
+                    ok;
+                false ->
+                    fail(Span, Name ++ " starts a process whose mailbox type " ++ Text
+                               ++ " is not known whole here",
+                         "give the function its mailbox type, " ++ annotated(Name) ++ ": a"
+                         " type variable in it could stand for a type bound to its node"
+                         " (report §3.11)")
+            end;
         {Why, _} ->
             fail(Span, Name ++ " starts a process whose mailbox type " ++ Text
                        ++ " is bound to its node, since it holds " ++ Why,

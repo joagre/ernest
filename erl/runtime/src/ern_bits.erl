@@ -40,6 +40,7 @@ aligned(_) -> ern_rt:fault(<<"bitstring not byte-aligned">>).
 -spec overflow() -> no_return().
 overflow() -> ern_rt:fault(<<"segment overflow">>).
 
+-spec overflow(io:format(), [term()]) -> no_return().
 overflow(Format, Arguments) ->
     ern_rt:fault(unicode:characters_to_binary(["segment overflow: ",
                                                io_lib:format(Format, Arguments)])).

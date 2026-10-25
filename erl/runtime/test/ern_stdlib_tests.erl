@@ -4,6 +4,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("kernel/include/file.hrl").
+-include("ern_rt.hrl").
 
 %% report Appendix E.2
 list_test() ->
@@ -137,16 +138,37 @@ minimum_and_maximum_by_test() ->
 %% from each element to []. A regression test, written after the report
 %% gave the terms
 map_set_terms_test() ->
-    ern_rt:init_stdlib(),
-    Map = ern_named:functions('ern@map'),
-    Set = ern_named:functions('ern@set'),
-    ?assertEqual(#{a => 1}, Map(put)(Map(empty)(), a, 1)),
-    ?assertEqual({set, #{a => []}}, Set(put)(Set(empty)(), a)).
+    in_run(fun() ->
+               Map = ern_named:functions('ern@map'),
+               Set = ern_named:functions('ern@set'),
+               ?assertEqual(#{a => 1}, Map(put)(Map(empty)(), a, 1)),
+               ?assertEqual({set, #{a => []}}, Set(put)(Set(empty)(), a))
+           end).
+
+%% Body run as a program's entry point, so that the standard library's
+%% bindings have their values, the system processes their initializers
+%% name among them, as a run's start gives them (report §8.5), and what it
+%% raised, a failed assertion among them, raised again in the test's own
+%% process.
+in_run(Body) ->
+    Self = self(),
+    ok = ern_rt:run_main(fun() ->
+                             Outcome = try {returned, Body()}
+                                       catch Class:Error:Stack -> {raised, Class, Error, Stack}
+                                       end,
+                             Self ! {in_run, Outcome}
+                         end, <<"in_run">>, #{stdout => fun(_) -> ok end}),
+    receive
+        {in_run, {returned, Value}} -> Value;
+        {in_run, {raised, Class, Error, Stack}} -> erlang:raise(Class, Error, Stack)
+    end.
 
 %% report Appendix E.3, §3.10
 map_test() ->
     %% report §8.5: Map.empty is a top-level let, evaluated at program start
-    ern_rt:init_stdlib(),
+    in_run(fun map_operations/0).
+
+map_operations() ->
     Map = ern_named:functions('ern@map'),
     Empty = Map(empty)(),
     ?assertEqual(true, Map(isEmpty)(Empty)),
@@ -179,7 +201,9 @@ map_test() ->
 
 %% report Appendix E.4, §3.10
 set_test() ->
-    ern_rt:init_stdlib(),
+    in_run(fun set_operations/0).
+
+set_operations() ->
     Set = ern_named:functions('ern@set'),
     ?assertEqual(true, Set(isEmpty)(Set(empty)())),
     Filled = Set(put)(Set(put)(Set(put)(Set(empty)(), 1), 2), 2),
@@ -295,6 +319,30 @@ string_split_reads_once_test() ->
     ?assertEqual(64001, length(String(split)(Text, <<",">>))),
     ?assertEqual(64000, length(String(lines)(binary:replace(Text, <<",">>, <<"\n">>, [global])))),
     ?assertEqual(byte_size(Text), byte_size(String(replace)(Text, <<",">>, <<";">>))).
+
+%% report Appendix E.5: `splitOnce` is `split`'s first part and the rest:
+%% where it answers the two strings, `split` gives the first followed by the
+%% parts of the second, and where it answers None, the text alone. It
+%% matches whole graphemes as `split` does, and an empty separator answers
+%% None. Written with the function
+string_split_once_test() ->
+    String = ern_named:functions('ern@string'),
+    Composed = <<"e\x{301},x"/utf8>>,
+    ?assertEqual({'Some', {<<"a">>, <<"b=c">>}}, String(splitOnce)(<<"a=b=c">>, <<"=">>)),
+    ?assertEqual({'Some', {<<>>, <<>>}}, String(splitOnce)(<<"=">>, <<"=">>)),
+    ?assertEqual('None', String(splitOnce)(<<"abc">>, <<"=">>)),
+    ?assertEqual('None', String(splitOnce)(<<>>, <<"=">>)),
+    ?assertEqual('None', String(splitOnce)(<<"abc">>, <<>>)),
+    ?assertEqual('None', String(splitOnce)(<<"a\r\nb">>, <<"\n">>)),
+    ?assertEqual('None', String(splitOnce)(<<"e\x{301}x"/utf8>>, <<"\x{301}"/utf8>>)),
+    ?assertEqual({'Some', {<<"e\x{301}"/utf8>>, <<"x">>}}, String(splitOnce)(Composed, <<",">>)),
+    [?assertEqual(String(split)(Text, Separator),
+                  case String(splitOnce)(Text, Separator) of
+                      {'Some', {Before, After}} -> [Before | String(split)(After, Separator)];
+                      'None' -> [Text]
+                  end)
+     || Text <- [<<>>, <<"a">>, <<"a,b">>, <<",a,,b,">>, <<"a\r\nb">>, Composed],
+        Separator <- [<<",">>, <<"\n">>, <<>>, <<"a,">>]].
 
 %% report Appendix E.5, §9.6
 string_test() ->
@@ -510,6 +558,27 @@ bytes_text_test() ->
 foreign_atom_test() ->
     ?assertEqual(ready, (ern_named:function('ern@foreign', atom))(<<"ready">>)).
 
+%% report Appendix E.15, E.0 shape rule 4: `Clock.toString` writes a time
+%% of the years -9999 to 9999 as the host writes it, a year before 0 with its
+%% sign, and faults with a cause of its own outside them, before the host is
+%% called. The module's bindings are evaluated in a run. Written with the
+%% bounds; before them the host's refusal faulted as a foreign function's
+%% raise
+clock_to_string_test() ->
+    Self = self(),
+    ToString = ern_named:function('ern@clock', toString),
+    Times = [1792833663512, -62167219200001, 253402300799999, -377705116800000,
+             253402300800000, -377705116800001],
+    ok = ern_rt:run_main(
+           fun() ->
+               Self ! {written, [try ToString(Time) catch throw:{ern, fault, Cause} -> Cause end
+                                 || Time <- Times]}
+           end, <<"clock_to_string_test">>, #{}),
+    ?assertEqual([<<"2026-10-24T09:21:03.512Z">>, <<"-0001-12-31T23:59:59.999Z">>,
+                  <<"9999-12-31T23:59:59.999Z">>, <<"-9999-01-01T00:00:00.000Z">>,
+                  <<"the time is past the year 9999">>, <<"the time is before the year -9999">>],
+                 receive {written, Written} -> Written end).
+
 %% report Appendix E.7
 bool_test() ->
     ?assertEqual(<<"true">>, (ern_named:function('ern@bool', toString))(true)).
@@ -569,8 +638,12 @@ int_edges_test() ->
     ?assertEqual(8, Int(shiftLeft)(8, -2)),
     ?assertEqual(8, Int(shiftRight)(8, -2)).
 
-%% report Appendix E.9, §3.1, §7.4, §9.6
+%% report Appendix E.9, §3.1, §7.4, §9.6: in a run, where `Float.pi`, a
+%% top-level let, has its value (§8.5)
 float_test() ->
+    in_run(fun float_operations/0).
+
+float_operations() ->
     Float = ern_named:functions('ern@float'),
     %% E.0 rule 3: a constant of the type, the host's own nearest Float
     ?assertEqual(math:pi(), Float(pi)()),
@@ -629,12 +702,14 @@ float_test() ->
     ?assertEqual(0.0, Float(atan2)(0.0, 1.0)).
 
 %% The cause of the fault Call meets, as the runtime reads what it raised
-%% where a process ends with it (ern_rt:fault_exit_reason/3).
+%% where a process ends with it (ern_rt:met/3).
 fault_cause(Call) ->
     try Call() of
         Value -> {returned, Value}
     catch
-        Class:Error:Stack -> element(3, ern_rt:fault_exit_reason(Class, Error, Stack))
+        Class:Error:Stack ->
+            #fault{cause = Cause} = ern_rt:met(Class, Error, Stack),
+            Cause
     end.
 
 %% report §3.1, §3.10: there is no negative zero, so a negative result too

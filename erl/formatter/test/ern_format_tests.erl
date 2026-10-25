@@ -44,14 +44,10 @@ keeps_what_was_written_test() ->
                   <<"    x |> f() |> `raw`">>],
                  laid(["fn f(x)=(x+0x1F_FF)|>g", "fn h(x) = x |> f() |> `raw`"])).
 
-%% report §11.6: two tokens that would read as others written together
-%% stay a space apart, and two that would not are written together, a
-%% bitstring's specifiers among them. A regression test, of a defect the
-%% programs generated from Appendix A found (MVP 2.99c item 1), a member
-%% `-` before a bitstring's `>>`, which read as `->` and `>`; a member
-%% stands in no expression now (report §4.5), and the test does not cover
-%% a pair of tokens that would read as others
-apart_test() ->
+%% report §11.6: only the spaces between tokens change, and a bitstring's
+%% segment is written with its specifiers together. A regression test,
+%% written after the code; it does not cover a segment with a size
+specifiers_together_test() ->
     fixed(["fn f(x) =", "    <<x:int-big>>"]).
 
 %% report §11.6, §5.7: the parentheses around a pipe's stage, which make no
@@ -314,10 +310,10 @@ lambda_test() ->
 %% `let`'s line when it fits whole or its first line ends in a brace or
 %% `then`, and otherwise on the next line, a step in
 let_test() ->
-    ?assertEqual([<<"let group : Address(Supervisor.Msg) =">>,
+    ?assertEqual([<<"let group : Address(Supervisor.GroupMsg) =">>,
                   <<"    spawn(Supervisor.group(Supervisor.OneForAll,"
                     " RestartLimit(restarts = 3, within = 5000)))">>],
-                 laid(["let group : Address(Supervisor.Msg) = spawn("
+                 laid(["let group : Address(Supervisor.GroupMsg) = spawn("
                        "Supervisor.group(Supervisor.OneForAll, RestartLimit(restarts = 3,"
                        " within = 5000)))"])),
     fixed(["let readers = match keys {",

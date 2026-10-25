@@ -21,13 +21,12 @@ while read -r file; do
         /^[ \t]*$/ { flush(); next }
         /^[ \t]*(-|\*|[0-9]+[a-z]?\.) / { flush(); item = 1 }
         {
+            if (item && words > 0 && match($0, /[^ \t]/) - 1 <= indent)
+                flush()
             if (words == 0) {
                 start = NR; first = $0
                 skip = ($0 ~ /^(#|\||<)/)
                 indent = match($0, /[^ \t]/) - 1
-            } else if (item && match($0, /[^ \t]/) - 1 <= indent) {
-                flush(); item = 0; start = NR; first = $0
-                skip = ($0 ~ /^(#|\||<)/)
             }
             words += NF
         }

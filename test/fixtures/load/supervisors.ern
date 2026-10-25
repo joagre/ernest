@@ -18,11 +18,11 @@ let window = 1000
 
 let limit = RestartLimit(restarts = 1000000, within = window)
 
-let single : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForOne, limit))
+let single : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.OneForOne, limit))
 
 let alone : Address(WorkMsg) = spawn(Supervisor.child(single, working))
 
-let all : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForAll, limit))
+let all : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.OneForAll, limit))
 
 let first : Address(WorkMsg) = spawn(Supervisor.child(all, working))
 

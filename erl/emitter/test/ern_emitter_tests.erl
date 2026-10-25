@@ -15,6 +15,7 @@
 -include_lib("checker/include/ern_canonical.hrl").
 -include_lib("emitter/include/ern_unit.hrl").
 -include_lib("cli/include/ern_build.hrl").
+-include_lib("runtime/include/ern_rt.hrl").
 
 %%
 %% Helpers
@@ -628,8 +629,10 @@ foreign_line_test() ->
                      frames(Trace)
              end,
     {Built, Beam} = Compiled(#{}),
-    ?assertMatch({ok, #recorded{foreign = [{['Placed', boom], _, erlang, binary_to_integer, _,
-                                            {1, 1, none}}]}},
+    ?assertMatch({ok, #recorded{foreign = [#foreign_function{qualified_name = ['Placed', boom],
+                                                             host_module = erlang,
+                                                             host_function = binary_to_integer,
+                                                             source = {1, 1, none}}]}},
                  ern_canonical:read(Beam)),
     {ok, Made} = ern_compile:from_compiled(Beam, 'ern@placed$2', [], ern_typecheck:prelude_env(),
                                            #{}),
@@ -638,7 +641,7 @@ foreign_line_test() ->
     ?assertEqual(Frames, Traced(Built, Beam)),
     ?assertEqual(Frames, Traced('ern@placed$2', Made)),
     {Input, InputBeam} = Compiled(#{session_offset => 10}),
-    ?assertMatch({ok, #recorded{foreign = [{_, _, _, _, _, {11, 1, none}}]}},
+    ?assertMatch({ok, #recorded{foreign = [#foreign_function{source = {11, 1, none}}]}},
                  ern_canonical:read(InputBeam)),
     ?assertEqual([<<"erlang:binary_to_integer/1">>, <<"boom:11">>, <<"go:12">>, <<"main:13">>],
                  Traced(Input, InputBeam)).
@@ -755,12 +758,12 @@ trace_keeps_the_runtime_of_a_failure_test() ->
     true = unregister(ern_stack_here),
     Here = receive {stack_here, Stack} -> Stack after 0 -> error(no_stack) end,
     Laid = [{erlang, spawn_opt, 4, []}, {ern_rt, spawn, 2, [{line, 1}]} | Here],
-    {ern, fault, <<"error:system_limit">>, Failure} =
-        ern_rt:fault_exit_reason(error, system_limit, Laid),
+    #fault{cause = <<"error:system_limit">>, trace = Failure} =
+        ern_rt:met(error, system_limit, Laid),
     ?assertMatch([<<"erlang:spawn_opt/4">>, <<"ern_rt:spawn/2:1">>, <<"M.here:1">>,
                   <<"M.main:2">>], frames(Failure)),
-    {ern, fault, <<"designed">>, Designed} =
-        ern_rt:fault_exit_reason(throw, {ern, fault, <<"designed">>}, Laid),
+    #fault{cause = <<"designed">>, trace = Designed} =
+        ern_rt:met(throw, {ern, fault, <<"designed">>}, Laid),
     ?assertEqual(frames(Failure) -- [<<"ern_rt:spawn/2:1">>], frames(Designed)).
 
 %% A fault's trace as its frames, a line each (Appendix E.21).
@@ -879,6 +882,36 @@ docs_chunk_keys_and_types_test() ->
     [Signature] = [Signature || {{type, 'Holder', 0}, _, Signature, _, _} <- Entries],
     ?assertEqual([<<"type Holder = Holder(make : (Int) -> ((Int) -> Int) receiving Msg)">>],
                  Signature).
+
+%% report §11.4, §4.5: the Docs chunk writes a member's form as its
+%% signature, the member applied to its parameters' names, a pattern's as
+%% `_`, its result and its requirement after them, and keeps its type and
+%% its name beside its parameters, by which a page orders it; a function
+%% keeps its head. Written with the form (the release review's E4)
+docs_chunk_member_form_test() ->
+    Namespace = ['Stacks'],
+    Source = <<"export type Stack(a) = Stack(items : List(a))\n"
+               "export fn Stack.compare(left : Stack(a), right : Stack(a)) : Ordering"
+               " needs a.compare =\n"
+               "    compare(left.items, right.items)\n"
+               "export fn Stack.<>(Stack(items = xs) : Stack(a), other : Stack(a)) : Stack(a) =\n"
+               "    Stack(items = xs <> other.items)\n"
+               "export type Point = Point(x : Int)\n"
+               "export fn Point.negate(point : Point) : Point = Point(x = -point.x)\n"
+               "export fn size(stack : Stack(a)) : Int = List.size(stack.items)\n">>,
+    {ok, Typed, Interface, Env} = ern_typecheck:check_string(Namespace, Source),
+    {ok, _, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, #{}),
+    {ok, {docs_v1, _, _, _, _, _, Entries}} = ern_docs:read(Beam),
+    Functions = [{Name, Signature, Meta}
+                 || {{function, Name, _}, _, Signature, _, Meta} <- Entries],
+    ?assertEqual([{'Stack.compare', [<<"compare(left, right) : Ordering needs a.compare">>],
+                   #{params => [left, right], member => #{type => 'Stack', name => compare}}},
+                  {'Stack.<>', [<<"_ <> other : Stack(a)">>],
+                   #{params => ['_', other], member => #{type => 'Stack', name => '<>'}}},
+                  {'Point.negate', [<<"-point : Point">>],
+                   #{params => [point], member => #{type => 'Point', name => negate}}},
+                  {size, [<<"Stacks.size(stack : Stack(a)) : Int">>], #{params => [stack]}}],
+                 Functions).
 
 %% report §11.1, §8.5, §3.1: the bindings whose initializers are ground
 %% terms, whose values the interface holds for a dependent: a literal of
@@ -1503,12 +1536,12 @@ long_time_test() ->
 
 %% report §6.6, §7.4: a call ends at once when its callee faults, is
 %% killed, returns, or had ended, before it answers: Address.call answers
-%% None, and callForever faults the caller with the callee's cause and its
-%% site after it, or says how it ended; a restart ends the calls waiting on
-%% the process the same way. A regression test of the rule's first build: a
-%% callForever to a dead callee waited for a deadlock, and a call for its
-%% time; the site after the cause was written with the code that names it
-%% (the full review's B-C3)
+%% None, and callForever faults the caller with the callee's cause, or
+%% says how it ended; a restart ends the calls waiting on the process the
+%% same way. A regression test of the rule's first build: a callForever to
+%% a dead callee waited for a deadlock, and a call for its time; the cause
+%% the callee's alone since the release review's P8 (2026-10-25), the site
+%% left to the trace, which this test does not read
 call_ends_with_callee_test_() ->
     {timeout, 30, fun call_ends_with_callee/0}.
 
@@ -1529,7 +1562,7 @@ call_ends_with_callee() ->
         "    Io.println(Int.toString(Address.callForever(s, " ++ Ask ++ ")))\n"
         "}\n"
     end,
-    ?assertMatch({{fault, <<"bad request, the fault of the callee M.main:10">>, _}, _},
+    ?assertMatch({{fault, <<"bad request">>, _}, _},
                  run(Forever("    let s = spawn(faulty);\n"))),
     ?assertMatch({{fault, <<"callee was killed">>, _}, _},
                  run(Forever("    let s = spawn(quiet);\n"
@@ -1543,7 +1576,7 @@ call_ends_with_callee() ->
                  run(Forever("    let s = spawnMonitored(fn() : Unit receiving Msg = Unit,\n"
                              "        Died);\n"
                              "    receive { Died(_) -> Unit };\n"))),
-    ?assertMatch({{fault, <<"bad request, the fault of the callee M.main:11">>, _}, _},
+    ?assertMatch({{fault, <<"bad request">>, _}, _},
                  run(Forever("    let limit = RestartLimit(restarts = 5, within = 60000);\n"
                              "    let s = spawn(restarting(limit, faulty));\n"))),
     {ok, Output} = run(Types ++ Faulty ++
@@ -1563,7 +1596,7 @@ call_ends_with_callee() ->
 %% the element: `<` on each, a sort of tuples, a requirement
 %% reaching through a tuple and a list to the element, a derived compare
 %% over fields of the four, and an ordered set of lists. Written with the
-%% rule (the full review's N25)
+%% rule (the log's *The Review's Decisions*)
 structural_compare_test() ->
     {ok, Output} = run(
         "type Date = Date(year : Int, at : Optional(Int), tags : List(String),"
@@ -1595,7 +1628,8 @@ structural_compare_test() ->
 %% operand type's compare, as `<` does: an Int's, a String's, a tuple's, a
 %% list's, a derived one, the requirement's member in a generic function,
 %% and as a value and in a piped call, beside a sort of pairs, which needs
-%% the order and writes none. Written with the rule (feedback 159)
+%% the order and writes none. Written with the rule (the log's *One Name
+%% for Every Order*)
 prelude_compare_test() ->
     {ok, Output} = run(
         "type Day = Mon | Tue | Wed derives compare\n"
@@ -1912,7 +1946,7 @@ float_chain_emitted_test() ->
 %% regression test, written after the code (the log's *The Float chain*)
 float_fault_everywhere_test() ->
     Self = self(),
-    Faults = fun({'FaultReport', _, Site, Cause, Restarted, Trace, _}, _) ->
+    Faults = fun({'FaultReport', _, Site, Cause, Restarted, Trace, _, _, _, _}, _) ->
                      Self ! {fault, Site, Cause, Restarted, Trace}
              end,
     Big = "fn big() : Float = Float.max(1.0e300, 0.0)\n",
@@ -3969,10 +4003,21 @@ words_by_position_test() ->
 
 %% report §3.5, §4.9: a derived compare orders by constructor in declaration
 %% order, then field by field from the left, its parameters' members
-%% supplied where it is used. Written after the code, it found a defect:
-%% the member an operator resolves to supplied its own requirement as the
-%% operator's, Int's compare as the runtime's own operation, and so none
+%% supplied where it is used, each field by the prelude's `compare`, which
+%% a module's own `compare` does not hide from it (§4.2). Written after the
+%% code, it found a defect: the member an operator resolves to supplied its
+%% own requirement as the operator's, Int's compare as the runtime's own
+%% operation, and so none; the module's own `compare` is a regression test
+%% of the release review's C1-C9, written after the change
 derived_compare_test() ->
+    {ok, Hidden} =
+        run("type Pair = Pair(first : Int, second : String) derives compare\n"
+            "fn compare(a : Int, b : Int) : Int = a - b\n"
+            "export fn main() : Unit = {\n"
+            "    let one = Pair(first = 2, second = \"b\");\n"
+            "    Io.println(Io.show(#(one < Pair(first = 2, second = \"c\"), compare(3, 1))))\n"
+            "}\n"),
+    ?assertEqual(<<"#(true, 2)\n">>, Hidden),
     {ok, Output} =
         run("type Shape = Dot | Circle(Int) | Rect(w : Int, h : Int) derives compare\n"
             "type Pair(a, b) = Pair(first : a, second : b) derives compare\n"

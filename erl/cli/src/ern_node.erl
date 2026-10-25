@@ -51,11 +51,9 @@ default_listen() ->
 %% node's key, the certificate it signs itself and `ernest.conf`; the
 %% public key is answered, which `ern config` prints. The directory is made
 %% here or not at all, so that one another made first, as this runs, is
-%% refused, and it is its owner's alone before a file is written in it, so
-%% that no one else can open a file there, the key's while it is being
-%% written among them. What another put in it before it was its owner's
-%% alone would be written through, a link among them, so it must hold
-%% nothing then. A name ending in `/` names the directory before it. Its
+%% refused, and it is its owner's alone before a file is written in it, the
+%% key's among them (ern_build:make_private_dir/1). A name ending in `/`
+%% names the directory before it. Its
 %% `listen` is the one `--listen` gives, or default_listen/0's, refused
 %% before the directory is made where a node would refuse it; and the
 %% directory is the one directory made, its parent there before it, so
@@ -71,13 +69,11 @@ create(Given, Listen) ->
     ConfigDir = filename:join([Given]),
     Parent = filename:dirname(ConfigDir),
     filelib:is_dir(Parent) orelse ern_build:fail(Parent ++ ": no such directory"),
-    case file:make_dir(ConfigDir) of
-        ok -> ok = file:change_mode(ConfigDir, 8#700);
-        {error, eexist} -> ern_build:fail(ConfigDir ++ " exists");
-        {error, Error} -> ern_build:fail(ConfigDir ++ ": " ++ file:format_error(Error))
+    case ern_build:make_private_dir(ConfigDir) of
+        ok -> ok;
+        exists -> ern_build:fail(ConfigDir ++ " exists");
+        {error, Why} -> ern_build:fail(ConfigDir ++ ": " ++ Why)
     end,
-    file:list_dir_all(ConfigDir) =:= {ok, []}
-        orelse ern_build:fail(ConfigDir ++ " was written to by another as it was made"),
     %% report §8.7: an ed25519 key, which serves in the handshake under the
     %% rule (the log's *The Node's Directory*)
     Key = public_key:generate_key({namedCurve, ed25519}),

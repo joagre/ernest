@@ -8,6 +8,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("checker/include/ern_canonical.hrl").
+-include_lib("runtime/include/ern_rt.hrl").
 
 %% Report §8.7: the milliseconds a spawn's or a compute's frame says its
 %% sender waits, here a stand-in's; eunit's time for one test, which no
@@ -124,7 +125,7 @@ told(Node, Utilization, Age, Interval) ->
 
 %% The nodes Count picks named, each once, in order.
 picks(Count) ->
-    lists:usort([Node || _ <- lists:seq(1, Count), {picked, Node} <- [ern_peer:picked()]]).
+    lists:usort([Node || _ <- lists:seq(1, Count), {picked, Node, _} <- [ern_peer:pick()]]).
 
 %% report §8.7, Appendix E.27: a node that lists no peer holds no
 %% utilization and picks none, `NotListed`; one whose peers it has not
@@ -134,21 +135,21 @@ picks(Count) ->
 %% regression test, written after the code
 utilizations_test() ->
     listing([], fun() ->
-                    ?assertEqual('NotListed', ern_peer:picked()),
+                    ?assertEqual('NotListed', ern_peer:pick()),
                     ?assertEqual([], ern_peer:utilizations())
                 end),
     listing([{<<"a">>, 'a@node.ernest'}, {<<"b">>, 'b@node.ernest'}],
             fun() ->
-                ?assertEqual('Unreachable', ern_peer:picked()),
+                ?assertEqual('Unreachable', ern_peer:pick()),
                 ?assertEqual([], ern_peer:utilizations()),
                 ok = ern_peer:hold_utilization('b@node.ernest', 0.75, 5000),
                 ?assertMatch([{<<"b">>, 0.75, Age}] when Age >= 0, ern_peer:utilizations()),
-                ?assertEqual({picked, 'b@node.ernest'}, ern_peer:picked()),
+                ?assertEqual({picked, 'b@node.ernest', <<"b">>}, ern_peer:pick()),
                 ok = ern_peer:hold_utilization('b@node.ernest', 0.25, 5000),
                 ?assertMatch([{<<"b">>, 0.25, _}], ern_peer:utilizations()),
                 ok = ern_peer:drop_utilization('b@node.ernest'),
                 ?assertEqual([], ern_peer:utilizations()),
-                ?assertEqual('Unreachable', ern_peer:picked())
+                ?assertEqual('Unreachable', ern_peer:pick())
             end).
 
 %% report §8.7: the pick's rules over the utilizations a node holds, the
@@ -547,8 +548,9 @@ computed_here_test() ->
         {computed, Answers, NotLoaded, LateEnd, Told} =
             receive {computed, _, _, _, _} = Got -> Got end,
         ?assertMatch([{_, computed, 42},
-                      {_, faulted, <<"division by zero">>,
-                       <<"erlang:'div'/2\nPeercomputed.divided:3\n", _/binary>>},
+                      {_, faulted, #fault{cause = <<"division by zero">>,
+                                          trace = <<"erlang:'div'/2\nPeercomputed.divided:3\n",
+                                                    _/binary>>}},
                       {_, failed, 'NotLoaded'}, {_, failed, 'Unreachable'},
                       {_, ended, 'Killed'}], Answers),
         {not_loaded, compute, <<"M.f:1">>, Lacked} = NotLoaded,
@@ -609,10 +611,12 @@ computed_restarting_test() ->
                                                              faults => Reporter,
                                                              node => fun() -> ok end})),
         ?assertMatch({computed, {_, computed, 42},
-                      {_, faulted, <<"division by zero">>,
-                       <<"erlang:'div'/2\nPeerrestarted.divided:4\n", _/binary>>}},
+                      {_, faulted, #fault{cause = <<"division by zero">>,
+                                          trace = <<"erlang:'div'/2\nPeerrestarted.divided:4\n",
+                                                    _/binary>>}}},
                      receive {computed, _, _} = Got -> Got end),
-        ?assertMatch({reported, {'FaultReport', _, <<"M.f:1">>, <<"first">>, true, _, _}},
+        ?assertMatch({reported, {'FaultReport', _, <<"M.f:1">>, <<"first">>, true, _, _, _, _,
+                                 _}},
                      receive {reported, _} = Reported -> Reported end),
         ?assertEqual(none, receive {reported, Report} -> Report after 0 -> none end)
     after
@@ -622,16 +626,17 @@ computed_restarting_test() ->
 %% report §8.7, §6.6, §11.2: a compute's caller waits as a call's caller
 %% does, on one host its peer's gateway a process that records each frame:
 %% the frame names the caller's alias, through which the value, a failure,
-%% a fault with the trace that crossed, which faults the caller, its cause
-%% naming the peer and its trace ending in the compute's site, and which
-%% its report prints, and the Reason of a process that ended before it
-%% answered come, each letting the caller's CALL key go with no second
-%% note; where the time runs out, or the caller is killed while it waits,
-%% the second note follows; and where the gateway is gone the wait ends
-%% Unreachable, the key gone with each. A fault that is not text answers
-%% `Other`, the caller faulting with nothing that is not. A regression
-%% test, written after the code, and again for the carried fault's peer
-%% and site and the answer that is not text
+%% a fault with the trace and the callee's site that crossed, which faults
+%% the caller with the cause unchanged, its trace ending in the compute's
+%% site, and whose report names the callee and the peer beside the cause,
+%% and the Reason of a process that ended before it answered come, each
+%% letting the caller's CALL key go with no second note; where the time
+%% runs out, or the caller is killed while it waits, the second note
+%% follows; and where the gateway is gone the wait ends Unreachable, the
+%% key gone with each. A fault that is not text answers `Other`, the
+%% caller faulting with nothing that is not. A regression test, written
+%% after the code, and again for the carried fault's peer and site and the
+%% answer that is not text, and again for the peer beside the cause
 compute_caller_test() ->
     Self = self(),
     Frame = fun(Alias) -> {compute, Alias, {function, <<0:256>>}, <<"M.f:1">>, ?MS} end,
@@ -660,8 +665,12 @@ compute_caller_test() ->
                                     Told ! registered,
                                     Gateway(Told, [[computed, 7], [failed, 'NotLoaded'],
                                                    [ended, 'ProgramEnd'],
-                                                   [faulted, 42, foo],
-                                                   [faulted, <<"x">>, <<"M.f:4\n">>]])
+                                                   [faulted, #fault{cause = 42, trace = foo}],
+                                                   [faulted, #fault{cause = <<"x">>,
+                                                                    trace = <<"M.f:4\n">>,
+                                                                    callee = <<"M.g:9">>,
+                                                                    peer = <<"q">>,
+                                                                    time = 0}]])
                                 end),
                receive registered -> ok end,
                Compute = fun(Ms) ->
@@ -697,12 +706,14 @@ compute_caller_test() ->
     ?assertEqual({caller, [{'Right', 7}, {'Left', 'NotLoaded'},
                            {'Left', {'Other', <<"ProgramEnd">>}},
                            {'Left', {'Other', <<"the peer's answer could not be read">>}}],
-                  {'Fault', <<"x, on the peer p">>}, {'Left', 'Timeout'}, true, true,
+                  {'Fault', <<"x">>}, {'Left', 'Timeout'}, true, true,
                   {{'Left', 'Unreachable'}, undefined}},
                  receive {caller, _, _, _, _, _, _} = Got -> Got end),
-    ?assertMatch({reported, {'FaultReport', _, <<"M.f:2">>, <<"x, on the peer p">>, false,
-                             <<"M.f:4\nM.f:1\n">>, 'None'}},
-                 receive {reported, _} = Reported -> Reported end).
+    {reported, {'FaultReport', _, <<"M.f:2">>, <<"x">>, false, <<"M.f:4\nM.f:1\n">>, 'None',
+                {'Some', <<"M.g:9">>}, {'Some', <<"p">>}, Time}} =
+        receive {reported, _} = Reported -> Reported end,
+    %% the moment the caller met the fault, not the peer's
+    ?assert(Time > 0).
 
 %% report §8.7, §6.9: a peer's kill frame, the fifteenth frame, ends a
 %% process of this node as this node's own kill does: a caller waiting in

@@ -504,9 +504,11 @@ symbol(Input, [Symbol | Symbols]) ->
 %% Errors
 %%
 
+-spec error_at(pos_integer(), pos_integer(), io_lib:chars()) -> no_return().
 error_at(Line, Column, Message) ->
     error_at(Line, Column, Message, undefined).
 
+-spec error_at(pos_integer(), pos_integer(), io_lib:chars(), string() | undefined) -> no_return().
 error_at(Line, Column, Message, Help) ->
     Diagnostic = diagnostic(Line, Column, lists:flatten(Message), false),
     throw({lex_error, Diagnostic#diagnostic{help = Help}}).

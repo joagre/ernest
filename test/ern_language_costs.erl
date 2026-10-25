@@ -122,11 +122,11 @@ twin_function(Name) ->
 %% One run of a row: the twin's loop and then Ernest's, each in a launch of
 %% its own, in nanoseconds an iteration.
 run({_, Count, Twin, Ernest}) ->
-    {looped(Twin, Count), looped(Ernest, Count)}.
+    {iterated(Twin, Count), iterated(Ernest, Count)}.
 
 %% A loop of Count iterations of Function, over the operands Operands makes
 %% in the launch's entry process, timed there.
-looped({Function, Operands}, Count) ->
+iterated({Function, Operands}, Count) ->
     Measure = fun(Iterations) ->
                   Given = Operands(),
                   Started = erlang:monotonic_time(nanosecond),

@@ -22,7 +22,7 @@
 
 %% Kv_parser.parse
 '$3'(Line_6) ->
-    case '$4'(ern@string:'$42'(Line_6)) of
+    case '$4'(ern@string:'$43'(Line_6)) of
         {'Left', Left_7} -> {'Left', Left_7};
         {'Right', {Key_8, Rest_9}} ->
             case '$5'(Rest_9, Line_6) of
@@ -41,10 +41,10 @@
                                            fun ern@char:'$7'/1),
     case not ern@list:'$3'(Letters_15) of
         true ->
-            {'Right', {ern@string:'$43'(Letters_15), Rest_16}};
+            {'Right', {ern@string:'$44'(Letters_15), Rest_16}};
         false ->
             {'Left',
-             <<"bad key: ", (ern@string:'$43'(Chars_14))/binary>>}
+             <<"bad key: ", (ern@string:'$44'(Chars_14))/binary>>}
     end.
 
 %% Kv_parser.expectEquals
@@ -56,7 +56,7 @@
 
 %% Kv_parser.number
 '$6'(Chars_20, Line_21) ->
-    case ern@string:'$24'(ern@string:'$43'(Chars_20)) of
+    case ern@string:'$25'(ern@string:'$44'(Chars_20)) of
         {'Some', Value_22} -> {'Right', Value_22};
         'None' -> {'Left', <<"bad number: ", Line_21/binary>>}
     end.

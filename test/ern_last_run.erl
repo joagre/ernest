@@ -171,11 +171,11 @@ read(Path) ->
     {ok, Text} = file:read_file(Path),
     unicode:characters_to_list(Text).
 
-moved_text(Name, Table, Blocks) ->
+moved_text(Reference, Table, Blocks) ->
     [[io_lib:format("~ts: ~ts~n", [Table, Title]),
       [io_lib:format("  ~ts: ~s ~ts, now ~ts, ~ts~n",
-                     [Number, Name, Before, Now, change(Old, New)])
-       || {Number, {Old, Before}, {New, Now}} <- Moved]]
+                     [Row, Reference, Before, Now, change(Old, New)])
+       || {Row, {Old, Before}, {New, Now}} <- Moved]]
      || {Title, Moved} <- Blocks].
 
 unmatched_text(_, []) ->

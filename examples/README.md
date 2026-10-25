@@ -29,7 +29,7 @@ $ ern run tally.erc words.txt
 |---|---|---|---|
 | [`hello.ern`](hello.ern) | the smallest program | `main`, and a mailbox that receives nothing | chapter 1 |
 | [`tally.ern`](tally.ern) | lines, words and bytes of the files named, as `wc` counts them | the command line, files, errors as values, `<-`, a record with an operator of its own, an exit status | chapters 2, 3 and 6 |
-| [`word_count.ern`](word_count.ern) | the words of the file named, counted by one function over two kinds of map | an operations record filled from a module, a requirement the fill supplies, a derived order | chapter 7 |
+| [`word_count.ern`](word_count.ern) | the words of the file named, counted by one function over two kinds of map | an operations record filled from a module, a requirement the fill supplies, a sort by a key | chapter 7 |
 | [`repl.ern`](repl.ern) | a read-evaluate-print loop for a small language | a lexer, a parser and an evaluator as pure functions; a process that bounds an evaluation, killed when it runs too long | chapters 3, 5 and 6 |
 | [`services.ern`](services.ern) | a stock kept by three services under one supervisor, told what to do on standard input | services reached by name, a fault the input causes, a restart that keeps the address and loses the state | chapter 6 |
 | [`lease_broker.ern`](lease_broker.ern) | numbered leases lent to client processes by a broker, which takes back what a client held when it restarts or ends | a service monitor told of each restart, `demonitor`, the caller's process from its reply, a ledger of pairs sorted in a tuple's order, the listing of a deadlock, a service monitor across nodes | chapters 4, 5, 6 and 8 |

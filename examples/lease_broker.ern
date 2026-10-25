@@ -38,8 +38,8 @@
 //     ann holds 2
 //     bob holds 3
 //     ledger: ann 1, ann 2, bob 3
-//     LeaseBroker.started:276 faulted, restarted: bob's job failed
-//         LeaseBroker.holding:311
+//     LeaseBroker.started:347 faulted, restarted: bob's job failed
+//         LeaseBroker.holding:382
 //     the broker took back 3 from bob: Restarted
 //     cid holds 3
 //     the broker took back 3 from cid: Killed
@@ -62,10 +62,10 @@
 //     bob holds 2
 //     cid holds 3
 //     LeaseBroker.main faulted: deadlock
-//         LeaseBroker.heard:381
-//         LeaseBroker.holdAndWait:372
-//         1 process of LeaseBroker.broker:158 waits in LeaseBroker.lending:171
-//         3 processes of LeaseBroker.started:276 wait in LeaseBroker.holding:294
+//         LeaseBroker.heard:225
+//         LeaseBroker.holdAndWait:216
+//         1 process of LeaseBroker.broker:158 waits in LeaseBroker.lending:241
+//         3 processes of LeaseBroker.started:347 wait in LeaseBroker.holding:365
 //
 // The program's own tests fault a broker with a lease given back by a
 // client that does not hold it, lend a restarted client's lease to the
@@ -74,12 +74,12 @@
 //
 //     $ ern test lease_broker.erc
 //     a broker faults on a lease its caller does not hold: passed
-//     LeaseBroker.started:276 faulted, restarted: bob's job failed
-//         LeaseBroker.holding:311
+//     LeaseBroker.started:347 faulted, restarted: bob's job failed
+//         LeaseBroker.holding:382
 //     the broker took back 2 from bob: Restarted
 //     a restarted client's lease goes to the client that waits: passed
-//     LeaseBroker.brokerRestartVoids:481 faulted, restarted: lease 2 is not lent to the caller
-//         LeaseBroker.lending:190
+//     LeaseBroker.brokerRestartVoids:482 faulted, restarted: lease 2 is not lent to the caller
+//         LeaseBroker.lending:260
 //     a restarted broker has every lease free, and its client none: passed
 //
 // As two nodes, make a and b with ern config, b listening on
@@ -104,8 +104,8 @@
 //     the peer b connected
 //     ann holds 1
 //     bob holds 2
-//     LeaseBroker.started:276 faulted, restarted: bob's job failed
-//         LeaseBroker.holding:311
+//     LeaseBroker.started:347 faulted, restarted: bob's job failed
+//         LeaseBroker.holding:382
 //     bob: Restarted
 //     ledger: ann 1, bob 2
 //
@@ -161,6 +161,76 @@ let broker : Address(BrokerMsg) = spawn(restarting(limit, fn() = lending(allFree
 let service : Peer.Service(BrokerMsg) = Peer.service("leases")
 
 //
+// Program
+//
+
+export fn main() : Unit receiving MainMsg =
+    match Os.arguments {
+        [] ->
+            play()
+      | ["deadlock"] ->
+            holdAndWait()
+      | _ -> {
+            Io.printlnError("usage: lease_broker [deadlock]");
+            Os.exit(2)
+        }
+    }
+
+// Four clients, each step waited for before the next.
+fn play() : Unit receiving MainMsg = {
+    let me = self();
+    let ann = started(broker, "ann", me);
+    let bob = started(broker, "bob", me);
+    let cid = started(broker, "cid", me);
+    let dan = started(broker, "dan", me);
+    let step = fn(client, order) = Io.println(tell(client, order));
+    step(ann, Take);
+    step(ann, Take);
+    step(bob, Take);
+    printLedger(broker);
+    // Every lease is lent, so cid waits. Bob fails and restarts, and the
+    // broker takes his lease back and lends it to cid (report §6.9).
+    send(cid, Take);
+    send(bob, Fail("bob's job failed"));
+    Io.println(heard());
+    // Dan waits, and cid is killed: the broker takes his lease back and
+    // lends it to dan (report §6.9).
+    send(dan, Take);
+    kill(cid);
+    Io.println(heard());
+    printLedger(broker);
+    // Ann gives back her two leases, and the broker watches her no more.
+    step(ann, Release);
+    step(ann, Release);
+    step(dan, Release);
+    printLedger(broker)
+}
+
+// Each of three clients holds a lease and asks for a second: every lease is
+// lent and every client waits for one, so nothing can go on (report §8.6).
+fn holdAndWait() : Unit receiving MainMsg = {
+    let me = self();
+    let clients = List.map(["ann", "bob", "cid"], fn(name) = started(broker, name, me));
+    List.forEach(clients, fn(client) = Io.println(tell(client, Take)));
+    List.forEach(clients, fn(client) = send(client, Take));
+    Io.println(heard())
+}
+
+// A client asked to act, and its word of what it did.
+fn tell(client : Address(ClientMsg), order : ClientMsg) : String receiving MainMsg = {
+    send(client, order);
+    heard()
+}
+
+fn heard() : String receiving MainMsg =
+    receive {
+        Did(line) -> line
+    }
+
+fn printLedger(broker : Address(BrokerMsg)) : Unit =
+    Io.println("ledger: " <> ledgerText(ledger(broker)))
+
+//
 // The broker
 //
 
@@ -209,9 +279,10 @@ fn isWatched(leases : Leases, process : Process) : Bool =
 
 // What a client held taken back, and its waiting request dropped, so that
 // no lease goes to a client the broker knows has ended or restarted. A
-// restarted client lives on, and a service monitor stands until its
-// process ends, so the broker ends it, the client holding nothing now
-// (report §6.9).
+// `Restarted` reaches the broker before anything the client's new run
+// sends, so what goes is the old run's alone. A restarted client lives on,
+// and a service monitor stands until its process ends, so the broker ends
+// it, the client holding nothing now (report §6.9).
 fn takeBack(leases : Leases, process : Process, reason : Reason) : Leases = {
     let #(held, kept) = List.partition(leases.lent, fn(loan) = loan.process == process);
     let taken = List.map(held, fn(loan) = loan.lease);
@@ -315,76 +386,6 @@ fn holding(broker : Address(BrokerMsg),
             holding(broker, name, main, [])
         }
     }
-
-//
-// Program
-//
-
-export fn main() : Unit receiving MainMsg =
-    match Os.arguments {
-        [] ->
-            play()
-      | ["deadlock"] ->
-            holdAndWait()
-      | _ -> {
-            Io.printlnError("usage: lease_broker [deadlock]");
-            Os.exit(2)
-        }
-    }
-
-// Four clients, each step waited for before the next.
-fn play() : Unit receiving MainMsg = {
-    let me = self();
-    let ann = started(broker, "ann", me);
-    let bob = started(broker, "bob", me);
-    let cid = started(broker, "cid", me);
-    let dan = started(broker, "dan", me);
-    let step = fn(client, order) = Io.println(tell(client, order));
-    step(ann, Take);
-    step(ann, Take);
-    step(bob, Take);
-    printLedger(broker);
-    // Every lease is lent, so cid waits. Bob fails and restarts, and the
-    // broker takes his lease back and lends it to cid (report §6.9).
-    send(cid, Take);
-    send(bob, Fail("bob's job failed"));
-    Io.println(heard());
-    // Dan waits, and cid is killed: the broker takes his lease back and
-    // lends it to dan (report §6.9).
-    send(dan, Take);
-    kill(cid);
-    Io.println(heard());
-    printLedger(broker);
-    // Ann gives back her two leases, and the broker watches her no more.
-    step(ann, Release);
-    step(ann, Release);
-    step(dan, Release);
-    printLedger(broker)
-}
-
-// Each of three clients holds a lease and asks for a second: every lease is
-// lent and every client waits for one, so nothing can go on (report §8.6).
-fn holdAndWait() : Unit receiving MainMsg = {
-    let me = self();
-    let clients = List.map(["ann", "bob", "cid"], fn(name) = started(broker, name, me));
-    List.forEach(clients, fn(client) = Io.println(tell(client, Take)));
-    List.forEach(clients, fn(client) = send(client, Take));
-    Io.println(heard())
-}
-
-// A client asked to act, and its word of what it did.
-fn tell(client : Address(ClientMsg), order : ClientMsg) : String receiving MainMsg = {
-    send(client, order);
-    heard()
-}
-
-fn heard() : String receiving MainMsg =
-    receive {
-        Did(line) -> line
-    }
-
-fn printLedger(broker : Address(BrokerMsg)) : Unit =
-    Io.println("ledger: " <> ledgerText(ledger(broker)))
 
 //
 // Two nodes

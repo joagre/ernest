@@ -10,6 +10,8 @@
 
 -export([main/1, mark/1]).
 
+-include_lib("runtime/include/ern_rt.hrl").
+
 %% The rounds before the first sample compared, in which caches and
 %% process heaps settle.
 -define(WARM, 6).
@@ -89,7 +91,7 @@ round_inputs(Step) ->
 %% be mid-work.
 -spec mark(integer()) -> 'Unit'.
 mark(Round) ->
-    Ending = [Pid || {Pid, _, _, _, _, _} <- ets:tab2list(ern_processes),
+    Ending = [Pid || #process_row{pid = Pid} <- ets:tab2list(ern_processes),
                      not erlang:is_process_alive(Pid)],
     [begin
          MonitorRef = erlang:monitor(process, Pid),

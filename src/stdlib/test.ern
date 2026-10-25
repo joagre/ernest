@@ -86,10 +86,10 @@ export fn equal(actual : a, expected : a) : Result needs a.show =
     else
         Failed("expected " <> Io.show(expected) <> ", got " <> Io.show(actual))
 
-/// `Passed` where the call `run`, the subject, faults with `cause`, and
-/// otherwise `Failed` naming the cause expected and what came instead: another
-/// cause, a return, or the reason the process ended with as `Io.show` writes
-/// it, `expected the fault division by zero, got Killed`.
+/// `Passed` where a call of `run` faults with `cause`, and otherwise `Failed`
+/// naming the cause expected and what came instead: another cause, a return,
+/// or the reason the process ended with as `Io.show` writes it, `expected the
+/// fault division by zero, got Killed`.
 ///
 /// `run` runs in a process of its own, monitored, whose end gives the answer
 /// (report §6.9). `faults` waits for that end however long it takes, as a
@@ -132,9 +132,10 @@ export fn faults(run : () -> a receiving m, cause : String) : Result = {
     Address.callForever(judge, Judge)
 }
 
-// Report Appendix E.24, §11.2: the function a process `faults` starts
-// runs, its process marked in its row as it begins, so that its fault
-// reaches no job's report and no subscriber of `Process.faults`.
+// Report Appendix E.24, §11.2: the function a process `faults` starts,
+// which marks the process in its row as it begins and then runs `f`, so
+// that the process's fault reaches no job's report and no subscriber of
+// `Process.faults`.
 foreign fn expected(f : () -> Unit receiving m) : () -> Unit receiving m =
     "ern_rt:expected/1"
 

@@ -89,14 +89,16 @@ export type Strategy = OneForOne | OneForAll | RestForOne
 ///
 /// ```ernest
 /// {
-///     let supervisor : Address(Supervisor.Msg) =
+///     let supervisor : Address(Supervisor.GroupMsg) =
 ///         spawn(Supervisor.group(Supervisor.OneForOne,
 ///                                RestartLimit(restarts = 3, within = 5000)));
 ///     kill(supervisor)
 /// }
 /// // => Unit
 /// ```
-export abstract type Msg =
+///
+/// since 0.5.0
+export abstract type GroupMsg =
     Join(process : Process,
          stop : () -> Unit receiving WatcherMsg,
          reply : Reply(Address(WatcherMsg)))
@@ -112,7 +114,7 @@ export abstract type Msg =
 type WatcherMsg =
     Add(Member)
   | Children(reply : Reply(List(Process)))
-  | Run(supervisor : Address(Msg), reply : Reply(Bool))
+  | Run(supervisor : Address(GroupMsg), reply : Reply(Bool))
   | Release
   | Report(process : Process, reply : Reply(Bool))
   | Gone(Process)
@@ -161,7 +163,7 @@ let retryMs = 1000
 /// ```ernest
 /// spawn(Supervisor.group(Supervisor.OneForAll, RestartLimit(restarts = 5, within = 10000)))
 /// ```
-export fn group(strategy : Strategy, limit : RestartLimit) : (() -> Unit receiving Msg) = {
+export fn group(strategy : Strategy, limit : RestartLimit) : (() -> Unit receiving GroupMsg) = {
     // the watcher outlives a restart in place, which empties the
     // supervisor's mailbox, so each run finds it here (report §6.9)
     let watcher = spawn(watch);
@@ -188,7 +190,7 @@ export fn group(strategy : Strategy, limit : RestartLimit) : (() -> Unit receivi
 // Whether this process runs the group. The watcher answers at once, so a
 // call it has not answered is made again while it lives; one that has
 // ended ended with the group's first supervisor.
-fn runs(watcher : Address(WatcherMsg), supervisor : Address(Msg)) : Bool =
+fn runs(watcher : Address(WatcherMsg), supervisor : Address(GroupMsg)) : Bool =
     match Address.call(watcher, fn(reply) = Run(supervisor = supervisor, reply = reply), retryMs) {
         Some(runsGroup) ->
             runsGroup
@@ -212,7 +214,7 @@ fn runs(watcher : Address(WatcherMsg), supervisor : Address(Msg)) : Bool =
 // supervisor's end.
 fn supervise(group : Group,
              recent : Int,
-             waiting : List(#(Reply(Bool), List(Process)))) : Unit receiving Msg =
+             waiting : List(#(Reply(Bool), List(Process)))) : Unit receiving GroupMsg =
     receive {
         Join(process = process, stop = stop, reply = reply) -> {
             send(group.watcher,
@@ -252,7 +254,7 @@ fn restartSiblings(group : Group,
                    faulted : Process,
                    reply : Reply(Bool),
                    recent : Int,
-                   waiting : List(#(Reply(Bool), List(Process)))) : Unit receiving Msg = {
+                   waiting : List(#(Reply(Bool), List(Process)))) : Unit receiving GroupMsg = {
     let asked = List.filter(siblings(group.strategy, faulted, group.watcher), askRestart);
     if List.isEmpty(asked) then {
         answer(reply, false);
@@ -324,7 +326,7 @@ fn watch() : Unit receiving WatcherMsg =
 // The watcher's loop: the members in the order they were spawned, and the
 // replies of the children that wait, which it holds until the supervisor's
 // next run or its end.
-fn watching(supervisor : Address(Msg),
+fn watching(supervisor : Address(GroupMsg),
             members : List(Member),
             held : List(Reply(Unit))) : Unit receiving WatcherMsg =
     receive {
@@ -424,7 +426,8 @@ fn stopAll(members : List(Member)) : Unit receiving WatcherMsg =
 ///     }))
 /// }
 /// ```
-export fn child(supervisor : Address(Msg), f : () -> Unit receiving m) : () -> Unit receiving m =
+export fn child(supervisor : Address(GroupMsg),
+                f : () -> Unit receiving m) : () -> Unit receiving m =
     fn() = {
         if isRestarting() then fault("a child's function runs in no restarting function") else Unit;
         if isOnThisNode(Process.fromAddress(supervisor)) then
@@ -453,7 +456,7 @@ export fn child(supervisor : Address(Msg), f : () -> Unit receiving m) : () -> U
 // it, the child waits with the watcher: the group's end kills it there, and
 // a restart in place asks it to restart. A child whose supervisor has
 // ended is killed as the others are.
-fn runAgain(supervisor : Address(Msg),
+fn runAgain(supervisor : Address(GroupMsg),
             watcher : Address(WatcherMsg),
             process : Process,
             f : () -> Unit receiving m) : Unit receiving m =
@@ -474,7 +477,7 @@ fn runAgain(supervisor : Address(Msg),
 // with the group's watcher. A call that ends unanswered was made as the
 // supervisor restarted, and is made again; one made twice is joined once,
 // since the watcher keeps a child once.
-fn join(supervisor : Address(Msg),
+fn join(supervisor : Address(GroupMsg),
         process : Process,
         stop : () -> Unit receiving WatcherMsg) : Address(WatcherMsg) = {
     let request = fn(reply) = Join(process = process, stop = stop, reply = reply);

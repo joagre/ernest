@@ -11,6 +11,10 @@
 -ifndef(ERN_AST_HRL).
 -define(ERN_AST_HRL, true).
 
+%% Report §2.6, Appendix A's userop: the operators a type may declare as
+%% its members, which the operand type resolves (§4.8).
+-define(USEROPS, ['+', '-', '*', '/', '%', '<>']).
+
 %%
 %% Declarations
 %%
@@ -40,7 +44,7 @@
 %% #member{}s its `needs` names, report §4.9, [] where it has none. scheme:
 %% set by the checker.
 -record(member, {span, member_of, name, type}).
-%% A member a requirement names, Appendix A's Member, `a.compare`:
+%% A member a requirement names, Appendix A's Need, `a.compare`:
 %% member_of, the type variable's name; name, compare, negate, an operator
 %% or show; type, set by the checker: the type variable the name stands for
 %% in the signature.

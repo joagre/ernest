@@ -673,9 +673,9 @@ mapped(Words, Paths) ->
 
 %% Report §8.7: once the node of Dir listens at Port of the loopback
 %% interface, which it says once at every start; the harness's time for
-%% one wait bounds a failure. A regression of the full review's G-B: a node
-%% with a fixed port said nothing, and the tests dialed it until a dial
-%% succeeded.
+%% one wait bounds a failure. A regression test (the log's *The Review's
+%% Decisions*): a node with a fixed port said nothing, and the tests dialed
+%% it until a dial succeeded.
 -spec listens(file:filename(), inet:port_number()) -> ok.
 listens(Dir, Port) ->
     ern_nodes_tests:says(Dir, "listening on 127.0.0.1:" ++ integer_to_list(Port) ++ "\n").

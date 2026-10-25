@@ -59,7 +59,7 @@ type Command =
 // Services
 //
 
-let services : Address(Supervisor.Msg) =
+let services : Address(Supervisor.GroupMsg) =
     spawn(Supervisor.group(Supervisor.RestForOne, RestartLimit(restarts = 3, within = 10000)))
 
 let store : Address(StoreMsg) = spawn(Supervisor.child(services, fn() = storing(Map.empty)))

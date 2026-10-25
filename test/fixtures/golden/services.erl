@@ -150,10 +150,10 @@
 
 %% Services.counted
 '$17'(Text_46) ->
-    case ern@list:'$15'(ern@string:'$42'(Text_46),
+    case ern@list:'$15'(ern@string:'$43'(Text_46),
                         fun ern@char:'$1'/1)
         of
-        true -> ern@string:'$24'(Text_46);
+        true -> ern@string:'$25'(Text_46);
         false -> 'None'
     end.
 
@@ -165,7 +165,7 @@
 '$19'(Entries_49) ->
     case ern@list:'$3'(Entries_49) of
         true -> <<"none">>;
-        false -> ern@string:'$23'(Entries_49, <<", ">>)
+        false -> ern@string:'$24'(Entries_49, <<", ">>)
     end.
 
 '$init'() ->

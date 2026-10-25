@@ -114,9 +114,15 @@ export fn alarmAt(time : Int, wrap : (Int) -> m) : Unit receiving m = {
 
 /// The time, in milliseconds since the epoch, as RFC 3339 writes it, in UTC to
 /// the millisecond: `2026-10-24T09:21:03.512Z`, as `ern run` writes a time on
-/// its lines (report §11.2). The host writes it: a time before the year 0
-/// has its year's sign, `-0001-12-31T23:59:59.999Z`, and one after the year
-/// 9999 faults, as the host refuses it (report §7.4).
+/// its lines (report §11.2). A time before the year 0 is written as the host
+/// writes it, with its year's sign: `-0001-12-31T23:59:59.999Z`. A time
+/// outside the years -9999 to 9999 faults.
+///
+/// ### Errors
+///
+/// Faults where `time` is past the year 9999, with the cause `the time is past
+/// the year 9999`, and where it is before the year -9999, with the cause `the
+/// time is before the year -9999`.
 ///
 /// ### Examples
 ///
@@ -127,7 +133,19 @@ export fn alarmAt(time : Int, wrap : (Int) -> m) : Unit receiving m = {
 ///
 /// since 0.5.0
 export fn toString(time : Int) : String =
-    rfc3339(time, rfc3339Options)
+    if time >= year10000 then
+        fault("the time is past the year 9999")
+    else if time < yearMinus9999 then
+        fault("the time is before the year -9999")
+    else
+        rfc3339(time, rfc3339Options)
+
+// Report Appendix E.15: the first millisecond of the year 10000 and of the
+// year -9999, in milliseconds since the epoch, the bounds of the years RFC
+// 3339 writes in four digits, which the host refuses outside.
+let year10000 = 253402300800000
+
+let yearMinus9999 = -377705116800000
 
 // The host's options: the time in milliseconds, UTC written `Z`, and the
 // text a binary, as a String is.

@@ -39,7 +39,7 @@ Each `.md` of those paths is staged with each link into the checkout, to a file 
 
 ## The launcher
 
-`bin/ern` is a POSIX sh script, the same in the repository and in an installation. It follows its own links to the tree it stands in, however many lead to it. Before the host starts, it refuses a `PATH` without `iconv`, a working directory whose name `iconv` does not read as UTF-8 (report §11), and a `PATH` without `erl`, and it exits with status 141 where standard output or standard error is closed, since the host would open `/dev/null` in its place (report §11.8). It then starts `erl` with the tree's applications, `erl/*/ebin`, on its code path, which holds no compiled Ernest module, since `ern` loads each from its `.erc` at its first call, and:
+`bin/ern` is a POSIX sh script, the same in the repository and in an installation. It follows its own links to the tree it stands in, however many lead to it. Before the host starts, it refuses a `PATH` without `iconv` and a working directory whose name `iconv` does not read as UTF-8 (report §11), but for `ern --help` and `ern --version`, which start the host in the root directory, and a `PATH` without `erl`, and it exits with status 141 where standard output or standard error is closed, since the host would open `/dev/null` in its place (report §11.8). It then starts `erl` with the tree's applications, `erl/*/ebin`, on its code path, which holds no compiled Ernest module, since `ern` loads each from its `.erc` at its first call, and:
 
 - `+B`: the interrupt ends it, and opens no break menu (report §8.6);
 - `-boot no_dot_erlang`: `~/.erlang` is not read;

@@ -93,14 +93,13 @@ integration: $(BEAMS) prepare measured named
 nodes: $(BEAMS) prepare machines
 	@$(call NODES_RUN,nodes,$(NODES))
 
-# The deployment guide run on nodes, through ern_nodes_tests' harness, a
-# node's port waited on by the machines' tools (ern_machine:answering/4).
-deployment: $(BEAMS) prepare machines
+# The deployment guide run on nodes, through ern_nodes_tests' harness.
+deployment: $(BEAMS) prepare
 	@$(call NODES_RUN,deployment,$(DEPLOYMENT))
 
 # The tour's programs and sessions, tour/1/ to tour/8/, its shell a node
 # beside two bare nodes, through ern_nodes_tests' harness.
-tour: $(BEAMS) prepare machines
+tour: $(BEAMS) prepare
 	@$(call NODES_RUN,tour,$(TOUR))
 
 # The manual pages and the installation start no node. Both write the

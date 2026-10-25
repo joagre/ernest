@@ -221,7 +221,7 @@ program() ->
                      {send, hex("Address.call(c, fn(r) = Counter.Get(reply = r), 1000)\r")},
                      {expect, "Some(7) : Optional(Int)"},
                      {send, hex(":browse Counter\r")},
-                     {expect, "Counter.start : () -> Address(Counter.Msg)\n"},
+                     {expect, "Counter.start() : Address(Counter.Msg)\n"},
                      {send, hex("spawn(fn() = Counter.boom())\r")},
                      {expect, "input 5:1 faulted: division by zero"},
                      {send, hex(":processes\r")},
@@ -353,10 +353,10 @@ host_flags_cleared() ->
     ?assertMatch({_, _}, binary:match(Output, <<"ern ">>)).
 
 %% report §11.2: a startup file another user could change is said and not
-%% run: one that anyone may write, one that its group may write (the full
-%% review's S3), and one in a directory that anyone or its group may
-%% write; the person's directory is its owner's alone after the session,
-%% in line mode too. A regression test: each was run,
+%% run: one that anyone may write, one that its group may write (the log's
+%% *The Review's Decisions*), and one in a directory that anyone or its
+%% group may write; the person's directory is its owner's alone after the
+%% session, in line mode too. A regression test: each was run,
 %% and in line mode the directory kept its mode (the log's *The Full
 %% Review's Questions, One by One*); a file of another
 %% user's is not covered, since a test cannot make one. Written after the
@@ -437,17 +437,23 @@ prelude_shown() ->
     {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"> Prelude.List.size: Prelude takes one name the"
                                                 " prelude declares, as `Prelude.Some`; nothing"
-                                                " here hides it; write List.size\n">>)),
+                                                " here hides it; write `List.size`\n">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"List.size(list : List(a)) : Int">>)),
     [?assertMatch({_, _}, binary:match(Output, Text))
-     || Text <- [<<"type Reason\n">>, <<"spawn : (() -> Unit receiving n) -> Address(n)">>,
+     || Text <- [<<"type Reason\n">>, <<"spawn(f : () -> Unit receiving n) : Address(n)">>,
                  <<"Ernest prelude">>, <<"Starts a process that runs">>,
                  %% report §9.4, §9.6: every prelude function, `Io.show`,
                  %% `Io.debug` and `String.compare` among them; a regression
                  %% test, the listing left them out
-                 <<"\nIo.show : (a) -> String needs a.show\n">>,
-                 <<"\nIo.debug : (a) -> a needs a.show\n">>,
-                 <<"\nString.compare : (String, String) -> Ordering\n">>]],
+                 <<"\nIo.show(value : a) : String needs a.show\n">>,
+                 <<"\nIo.debug(value : a) : a needs a.show\n">>,
+                 %% report §11.4, §11.2: a member is listed under its type
+                 %% after the functions, in the form a program writes, as
+                 %% the release review's E4 and N4 asked (2026-10-25)
+                 <<"\nString\n    compare(left, right) : Ordering\n    left <> right : String\n">>,
+                 <<"\nInt\n    compare(left, right) : Ordering\n    dividend % divisor : Int\n">>,
+                 <<"    dividend / divisor : Int\n    -int : Int\n">>]],
+    ?assertEqual(nomatch, binary:match(Output, <<"\nString.compare">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"type Fs.Entry">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"no module Prelude">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"no documentation">>)).
@@ -459,7 +465,7 @@ prelude_shown() ->
 %% review before 0.4.0 found `:browse Address` answering that no module
 %% Address is in scope, where `:doc Address` answered)
 browse_address_test_() ->
-    {timeout, waits(1), fun browse_address/0}.
+    {timeout, ern_nodes_tests:waits(1), fun browse_address/0}.
 
 browse_address() ->
     Dir = fresh_home(),
@@ -467,8 +473,9 @@ browse_address() ->
     ok = file:write_file(InputFile, ":browse Address\n:browse Nowhere\n"),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
     [?assertMatch({_, _}, binary:match(Output, Text))
-     || Text <- [<<"Address.call : (Address(m), (Reply(a)) -> m, Int) -> Optional(a)\n">>,
-                 <<"Address.callForever : (Address(m), (Reply(a)) -> m) -> a\n">>,
+     || Text <- [<<"Address.call(address : Address(m), request : (Reply(a)) -> m, ms : Int)"
+                   " : Optional(a)\n">>,
+                 <<"Address.callForever(address : Address(m), request : (Reply(a)) -> m) : a\n">>,
                  <<"no module Nowhere is in scope">>]],
     ?assertEqual(nomatch, binary:match(Output, <<"no module Address">>)).
 
@@ -502,7 +509,7 @@ faulting_binding_named() ->
 %% anywhere. A regression test, written after the code (the log's *The
 %% Float chain*)
 float_fault_at_prompt_test_() ->
-    {timeout, waits(3), fun float_fault_at_prompt/0}.
+    {timeout, ern_nodes_tests:waits(3), fun float_fault_at_prompt/0}.
 
 float_fault_at_prompt() ->
     Dir = fresh_home(),
@@ -569,7 +576,7 @@ load_and_reload_dependents() ->
 %% does not list beside the module's functions. A regression test, written
 %% after the code: the checker took every such name for a member
 shared_namespace_test_() ->
-    {timeout, waits(2), fun shared_namespace/0}.
+    {timeout, ern_nodes_tests:waits(2), fun shared_namespace/0}.
 
 shared_namespace() ->
     SourceRoot = scratch("ern_root_"),
@@ -609,7 +616,7 @@ shared_namespace() ->
                  {expect, "Main.Stack.push :"},
                  {send, "03"},
                  {send, "04"}],
-                wait_seconds(), " --size 30x100"),
+                ern_nodes_tests:waits(1), " --size 30x100"),
     ?assertEqual(nomatch, binary:match(Bytes, <<"Main.Stack.compare">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"Main.Stack.push : (Main.Stack, Int)">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"Main.Stack.size : (Main.Stack) -> Int">>)).
@@ -785,7 +792,7 @@ fault_line_escaped() ->
 %% written before the last prompt or by the end, which depends on when the
 %% report arrives, and end_fault_on_a_line_of_its_own holds the end's
 fault_before_the_end_written_test_() ->
-    {timeout, waits(1), fun fault_before_the_end_written/0}.
+    {timeout, ern_nodes_tests:waits(1), fun fault_before_the_end_written/0}.
 
 fault_before_the_end_written() ->
     Dir = fresh_home(),
@@ -810,7 +817,7 @@ fault_before_the_end_written() ->
 %% red before it, the fault on the prompt's line and a blank line after
 %% it; it does not cover `:quit` in line mode, which ends the same way
 end_fault_on_a_line_of_its_own_test_() ->
-    {timeout, waits(3), fun end_fault_on_a_line_of_its_own/0}.
+    {timeout, ern_nodes_tests:waits(3), fun end_fault_on_a_line_of_its_own/0}.
 
 end_fault_on_a_line_of_its_own() ->
     Home = fresh_home(),
@@ -848,11 +855,76 @@ end_fault_on_a_line_of_its_own() ->
     {Out, _} = ern_nodes_tests:said(Dir),
     ?assert(lists:suffix("> > \ninput 1:1 faulted: late\n    input 1:1\n", Out)).
 
+%% report §11.2: in line mode a fault reported while the session waits for
+%% a line is the session's before the line runs, so that `:faults` on that
+%% line lists it, its line said first. The input spawns a process that
+%% faults when the test sends it a byte and one that watches it, which
+%% tells the test once the Down has come, the fault's report to the
+%% session started before it (delivered_down/3); the test then types
+%% `:faults`. A regression test, written after the fix: `:faults` said that
+%% no process had faulted, and the fault's line came after it, the session
+%% taking the report only before the next prompt. It does not cover a
+%% report still on its way as the line comes, which the next line takes.
+%% Report §11.2, Appendix E.21: `:faults` stamps the fault with the time it
+%% was met, the report's, at or before the moment the test learned of its
+%% Down, though the line that takes it comes later. A regression test of
+%% the release review's E3 (2026-10-25): the stamp was the time the
+%% session took the report, in line mode the moment the next line came
+faults_while_reading_listed_test_() ->
+    {timeout, ern_nodes_tests:waits(3), fun faults_while_reading_listed/0}.
+
+faults_while_reading_listed() ->
+    Home = fresh_home(),
+    Dir = filename:join(Home, "shell"),
+    Listen = [binary, {active, false}, {ip, loopback}],
+    {ok, Faulting} = gen_tcp:listen(0, Listen),
+    {ok, Watching} = gen_tcp:listen(0, Listen),
+    {ok, FaultingPort} = inet:port(Faulting),
+    {ok, WatchingPort} = inet:port(Watching),
+    Ms = ern_nodes_tests:wait_ms_text(),
+    Input = ["{ let p : Address(Int) = spawn(fn() = match Tcp.connect(\"127.0.0.1\", ",
+             integer_to_list(FaultingPort), ", ", Ms, ") {",
+             " Right(socket) -> { let _ = Tcp.read(socket, ", Ms, "); fault(\"late\") }",
+             " | Left(error) -> fault(Io.show(error)) });",
+             " let _ = spawn(fn() = {",
+             " monitor(Process.fromAddress(p), fn(d : Down) = d);",
+             " match Tcp.connect(\"127.0.0.1\", ", integer_to_list(WatchingPort), ", ", Ms, ") {",
+             " Right(socket) -> { receive { _ -> Unit };",
+             " let _ = Tcp.write(socket, String.toUtf8(\"down\"), ", Ms, "); Unit }",
+             " | Left(error) -> fault(Io.show(error)) } });",
+             " Unit }\n"],
+    {Shell, _} = ern_nodes_tests:launched(Dir, ["HOME=", Home, " ",
+                                                filename:absname("../bin/ern"), " shell"]),
+    true = port_command(Shell, Input),
+    WaitMs = ern_nodes_tests:wait_ms(),
+    {ok, Fault} = gen_tcp:accept(Faulting, WaitMs),
+    {ok, Watch} = gen_tcp:accept(Watching, WaitMs),
+    %% the input has run, printing nothing, and the shell waits for a line
+    %% at its next prompt
+    ern_nodes_tests:prints(Dir, "> ", 2, WaitMs),
+    ok = gen_tcp:send(Fault, <<"go">>),
+    {ok, <<"down">>} = gen_tcp:recv(Watch, 4, WaitMs),
+    Learned = erlang:system_time(millisecond),
+    %% the line comes once the clock has passed the millisecond the test
+    %% learned of the Down in, so that a stamp taken as the line comes is
+    %% later than it: a wait for the clock, which nothing else shows
+    timer:sleep(max(0, Learned + 1 - erlang:system_time(millisecond))),
+    true = port_command(Shell, ":faults\n"),
+    %% the prompt after `:faults`'s answer
+    ern_nodes_tests:prints(Dir, "> ", 3, WaitMs),
+    port_close(Shell),
+    {Out, _} = ern_nodes_tests:said(Dir),
+    ?assertEqual(nomatch, string:find(Out, "no process has faulted")),
+    {match, [Stamp]} = re:run(Out, "> > input 1:1 faulted: late\n    input 1:1\n"
+                                   "([-0-9T:.]+Z) input 1:1 faulted: late\n> ",
+                              [{capture, all_but_first, list}]),
+    ?assert(calendar:rfc3339_to_system_time(Stamp, [{unit, millisecond}]) =< Learned).
+
 %% report §3.10, §9.6, §11.2: the prelude's `compare` prints with its
 %% requirement, and applies at the prompt as in a module. Written with the
-%% rule (feedback 159)
+%% rule (the log's *One Name for Every Order*)
 compare_at_the_prompt_test_() ->
-    {timeout, waits(1), fun compare_at_the_prompt/0}.
+    {timeout, ern_nodes_tests:waits(1), fun compare_at_the_prompt/0}.
 
 compare_at_the_prompt() ->
     Dir = fresh_home(),
@@ -866,10 +938,11 @@ compare_at_the_prompt() ->
 %% `:processes` lists, the processes the session's inputs started, and
 %% none of the shell's own, its chain, its evaluators and the input that
 %% asks among them. Written with the inputs spawned as roots of their own
-%% (the full review's B11), when it listed `Shell.main`; it does not cover a
-%% process a load's evaluation started, which program_test lists
+%% (the log's *The Review's Decisions*), when it listed `Shell.main`; it
+%% does not cover a process a load's evaluation started, which program_test
+%% lists
 process_live_at_the_prompt_test_() ->
-    {timeout, waits(1), fun process_live_at_the_prompt/0}.
+    {timeout, ern_nodes_tests:waits(1), fun process_live_at_the_prompt/0}.
 
 process_live_at_the_prompt() ->
     Dir = fresh_home(),
@@ -889,7 +962,7 @@ process_live_at_the_prompt() ->
 %% input shows its result. A regression test, written after the code: the
 %% shell wrote the fault's line, its site `Test.faults`, before the result
 expected_fault_not_reported_test_() ->
-    {timeout, waits(1), fun expected_fault_not_reported/0}.
+    {timeout, ern_nodes_tests:waits(1), fun expected_fault_not_reported/0}.
 
 expected_fault_not_reported() ->
     Dir = fresh_home(),
@@ -1034,10 +1107,10 @@ fault_while_typing() ->
 %% spawned after a fixed 300 ms, which waited for nothing the input does
 %% not already show, and the 300 ms went; and each session's bound on a
 %% failure was 10 seconds, which a shell started under load outlasted
-%% before its first prompt, and is one wait (wait_seconds/0), both written
-%% 2026-10-11
+%% before its first prompt, and is one wait (ern_nodes_tests:waits/1),
+%% both written 2026-10-11
 reader_and_screen_ends_test_() ->
-    {timeout, waits(2), fun reader_and_screen_ends/0}.
+    {timeout, ern_nodes_tests:waits(2), fun reader_and_screen_ends/0}.
 
 reader_and_screen_ends() ->
     Stop = "foreign fn stop(process : Process, reason : Foreign.Term) : Bool ="
@@ -1060,7 +1133,7 @@ reader_and_screen_ends() ->
                                     {expect, "processes : "},
                                     {send, hex(Ending("Shell.readKeys"))},
                                     {expect, "stopped reading the keyboard"}],
-                                   wait_seconds(), " --size 30x120"),
+                                   ern_nodes_tests:waits(1), " --size 30x120"),
     ?assertMatch({_, _}, binary:match(ReaderEnded, <<"Shell.readKeys">>)),
     {70, ScreenEnded} = ern_pty:run(alone("../bin/ern shell"),
                                     [{expect, "> "},
@@ -1070,7 +1143,7 @@ reader_and_screen_ends() ->
                                      {expect, "processes : "},
                                      {send, hex(Ending("Shell.main:"))},
                                      {expect, "screen ended"}],
-                                    wait_seconds(), " --size 30x120"),
+                                    ern_nodes_tests:waits(1), " --size 30x120"),
     ?assertMatch({_, _}, binary:match(ScreenEnded, <<"fault: the shell's screen ended">>)).
 
 %% report §11.2, §9.3: the pure parts of the shell test themselves, the
@@ -3144,7 +3217,7 @@ load_path_cycle() ->
 %% finds its module there; a shell with no file, whose load path the
 %% options alone give, as a file's is given by ern_cli_tests' libs_dir
 libs_dir_in_the_shell_test_() ->
-    {timeout, waits(2), fun libs_dir_in_the_shell/0}.
+    {timeout, ern_nodes_tests:waits(2), fun libs_dir_in_the_shell/0}.
 
 libs_dir_in_the_shell() ->
     Dir = scratch("ern_libs_dir_"),
@@ -3166,7 +3239,7 @@ libs_dir_in_the_shell() ->
 %% the shell itself does not use, loads it with no `--load-path`. Written
 %% after the code, so a regression test
 libraries_in_the_shell_test_() ->
-    {timeout, waits(1), fun libraries_in_the_shell/0}.
+    {timeout, ern_nodes_tests:waits(1), fun libraries_in_the_shell/0}.
 
 libraries_in_the_shell() ->
     Dir = scratch("ern_libraries_"),
@@ -3199,9 +3272,9 @@ commands_mirror_test() ->
 %% function having faulted on the message it waits for, answers with the
 %% fault rather than waiting for a `Done` that never comes; a restart is
 %% reported as one, and the end after it; `:faults` keeps both, each line
-%% its time first as `ern run` stamps a line (the full review's B-C8,
-%% written with the time); a binding `:load` evaluates is reported by
-%% `:load` alone. A regression test for
+%% its time first as `ern run` stamps a line (the log's *The Review's
+%% Decisions*, written with the time); a binding `:load` evaluates is
+%% reported by `:load` alone. A regression test for
 %% the move off the front end's watcher; it does not cover a process
 %% `:reload` ends. The input that spawns the restarting process waits for
 %% its end, so that `:faults` comes after both faults: sent at once, it
@@ -3249,7 +3322,7 @@ fault_subscriber() ->
 %% the code: the input's fault came with its cause alone. It does not cover
 %% a binding a `:load` evaluates, whose refusal names its cause alone
 input_fault_trace_test_() ->
-    {timeout, waits(1), fun input_fault_trace/0}.
+    {timeout, ern_nodes_tests:waits(1), fun input_fault_trace/0}.
 
 input_fault_trace() ->
     InputFile = scratch_file("ern_input_fault_trace_"),
@@ -3266,7 +3339,7 @@ input_fault_trace() ->
 %% into the line as it came. It does not cover the line a node writes of
 %% such a fault, which is the runtime's
 site_escaped_test_() ->
-    {timeout, waits(1), fun site_escaped/0}.
+    {timeout, ern_nodes_tests:waits(1), fun site_escaped/0}.
 
 site_escaped() ->
     InputFile = scratch_file("ern_site_escaped_"),
@@ -3288,7 +3361,7 @@ site_escaped() ->
 %% are shown and not used; the region's rows at a terminal are
 %% `Shell.Region`'s tests'
 set_rows_test_() ->
-    {timeout, waits(1), fun set_rows/0}.
+    {timeout, ern_nodes_tests:waits(1), fun set_rows/0}.
 
 set_rows() ->
     InputFile = scratch_file("ern_set_rows_"),
@@ -3305,7 +3378,7 @@ set_rows() ->
 %% own); it does not cover such a file beside a module's source, which is
 %% passed over for the source.
 held_another_test_() ->
-    {timeout, waits(2), fun held_another/0}.
+    {timeout, ern_nodes_tests:waits(2), fun held_another/0}.
 
 held_another() ->
     Dir = scratch("ern_held_another_"),
@@ -3327,13 +3400,15 @@ held_another() ->
     ?assertEqual(nomatch, binary:match(Output, <<"double">>)).
 
 %% report §11.2, §11.4, §4.5: `:doc` of a member of a module's type shows
-%% its declaration as the module's page shows it, its parameters named, as
-%% it shows a module's function. A regression test, written after the
-%% code: the member's parameters were sought in the compiled module of
+%% it as the module's page shows it, in the form a program writes, its
+%% parameters named. A regression test, written after the code: the
+%% member's parameters were sought in the compiled module of
 %% `Shape.Point`, which is none, and its declaration was shown by its type
-%% alone. It does not cover `Shift-Tab`, which reads the same parameters
+%% alone; and of the release review's E4 (2026-10-25), the member was shown
+%% as a call of its qualified name, which the language refuses. It does not
+%% cover `Shift-Tab`, which reads the same page
 member_doc_test_() ->
-    {timeout, waits(1), fun member_doc/0}.
+    {timeout, ern_nodes_tests:waits(1), fun member_doc/0}.
 
 member_doc() ->
     Dir = scratch("ern_member_doc_"),
@@ -3345,8 +3420,8 @@ member_doc() ->
     InputFile = filename:join(Dir, "session.in"),
     ok = file:write_file(InputFile, ":load Shape\n:doc Shape.Point.compare\n"),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
-    ?assertMatch({_, _}, binary:match(Output, <<"    Shape.Point.compare(left : Shape.Point,"
-                                                " right : Shape.Point) : Ordering\n\n"
+    ?assertMatch({_, _}, binary:match(Output, <<"> Shape.Point.compare\n\n"
+                                                "    compare(left, right) : Ordering\n\n"
                                                 "Orders two points by x.">>)).
 
 %% report §11.2: what a `let` at the prompt binds is documented by its name
@@ -3356,7 +3431,7 @@ member_doc() ->
 %% `kill(address : Int) : Int`. It does not cover `Shift-Tab`, which reads
 %% the same names
 shadowing_let_documented_test_() ->
-    {timeout, waits(1), fun shadowing_let_documented/0}.
+    {timeout, ern_nodes_tests:waits(1), fun shadowing_let_documented/0}.
 
 shadowing_let_documented() ->
     InputFile = scratch_file("ern_shadowing_let_"),
@@ -3371,7 +3446,7 @@ shadowing_let_documented() ->
 %% the code: the help proposed `:load Settings puts it in scope`, the
 %% command that had just failed
 refused_load_help_test_() ->
-    {timeout, waits(1), fun refused_load_help/0}.
+    {timeout, ern_nodes_tests:waits(1), fun refused_load_help/0}.
 
 refused_load_help() ->
     Dir = scratch("ern_refused_load_help_"),
@@ -3407,7 +3482,10 @@ shown_bytes() ->
 %% report §9, §11.2: `:doc` finds a prelude name's documentation, a
 %% function, a type, and a value, and still finds an operation
 %% in its type's module. A regression test: the prelude had none, and `:doc
-%% monitor` said "no documentation"
+%% monitor` said "no documentation". Report §11.4: a member's page shows it
+%% in the form a program writes, under its qualified name; a regression
+%% test of the release review's E4 (2026-10-25), the page showed a call of
+%% `Int.compare`, which the language refuses
 prelude_doc_test_() ->
     {timeout, 60, fun prelude_doc/0}.
 
@@ -3420,7 +3498,9 @@ prelude_doc() ->
     ?assertMatch({_, _},
                  binary:match(Output, <<"type Down = Down(process : Process, reason : Reason">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> restarting\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"> Int.compare\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> Int.compare\n\n"
+                                                "    compare(left, right) : Ordering\n">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"Int.compare(">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"no documentation">>)).
 
 %% report §11.2, §11.5: an input that is one name has its type printed as
@@ -4040,7 +4120,7 @@ reload_keeps_unchanged_values() ->
 %% after the fault is without one. Written after the code, so a regression
 %% test
 reload_keeps_ground_values_test_() ->
-    {timeout, waits(1), fun reload_keeps_ground_values/0}.
+    {timeout, ern_nodes_tests:waits(1), fun reload_keeps_ground_values/0}.
 
 reload_keeps_ground_values() ->
     Dir = scratch("ern_reload_ground_"),
@@ -4912,7 +4992,7 @@ browse_effect_parameter() ->
         Session = with_loaded(Dir, [<<"Hooks">>]),
         {'Right', Lines} = ern_shell:browse(Session, <<"Hooks">>),
         %% report §11.5: the type as the session writes it
-        ?assert(lists:member(<<"Hooks.drop : (Hooks.H(e)) -> Unit">>, Lines), Lines)
+        ?assert(lists:member(<<"Hooks.drop(h : Hooks.H(e)) : Unit">>, Lines), Lines)
     after
         forget_session()
     end.
@@ -5038,20 +5118,6 @@ no_home() ->
                    20),
     ?assertMatch({_, _}, binary:match(Relative, <<"the history is not kept, since HOME is no"
                                                   " absolute path">>)).
-
-%% A test's limit in seconds: its Count steps, a run of `ern`, a terminal
-%% session or a build, each given the harness's time for one wait, as the
-%% integration tests count theirs (ern_integration_tests:waits/1), so that
-%% a terminal session, bounded by one wait of its own (wait_seconds/0), is
-%% told by that bound where the steps before it have not used theirs.
-waits(Count) ->
-    Count * wait_seconds().
-
-%% The harness's time for one wait in seconds, ern_nodes_tests:wait_ms/0,
-%% which bounds a terminal session here as it bounds a step of the nodes
-%% tests.
-wait_seconds() ->
-    ern_nodes_tests:wait_ms() div 1000.
 
 %% A terminal session with a home of its own, so that a test neither
 %% reads nor writes the person's startup files or history (report §11.2).

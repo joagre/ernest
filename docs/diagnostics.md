@@ -346,7 +346,7 @@ fn Coin.1() -> Int = 1
 
 ```console
 $ ern build example.ern
-example.ern:3:9: expected an operator, `compare` or `negate` after `.` instead of integer 1
+example.ern:3:9: expected `+`, `-`, `*`, `/`, `%`, `<>`, `compare` or `negate` after `.` instead of integer 1
 2 | 
 3 | fn Coin.1() -> Int = 1
   |         ^
@@ -379,7 +379,7 @@ fn Stack.push(s : Stack, n : Int) : Stack = s
 
 ```console
 $ ern build example.ern
-example.ern:3:10: `push` cannot be a member of Stack: a member is an operator, `compare` or `negate`
+example.ern:3:10: `push` cannot be a member of Stack: a member is `+`, `-`, `*`, `/`, `%`, `<>`, `compare` or `negate`
 2 | 
 3 | fn Stack.push(s : Stack, n : Int) : Stack = s
   |          ^^^^
@@ -433,6 +433,20 @@ example.ern:2:28: `Int.+` names a member, which an expression reaches through `+
 1 | fn total(list : List(Int)) : Int =
 2 |     List.foldLeft(list, 0, Int.+)
   |                            ^^^^^
+  | = help: write `x + y`, or where a function is wanted a lambda, `fn(x, y) = x + y`
+```
+
+### An operator after `.` on an expression that is no name (§4.5)
+
+```ernest-rejected
+fn f(x : Int) : Int = f(x).+
+```
+
+```console
+$ ern build example.ern
+example.ern:1:23: `+` after `.` names a member, which an expression reaches through `+`
+1 | fn f(x : Int) : Int = f(x).+
+  |                       ^^^^^^
   | = help: write `x + y`, or where a function is wanted a lambda, `fn(x, y) = x + y`
 ```
 
@@ -554,7 +568,7 @@ $ ern build example.ern
 example.ern:1:11: a type in parentheses takes no equality mark
 1 | fn f(x : (a=)) : Int = 1
   |           ^^
-  | = help: write a; the mark is written in a foreign function's parameters alone
+  | = help: write `a`; the mark is written in a foreign function's parameters alone
 ```
 
 ### A qualified type that ends in a lowercase name (§3)
@@ -1107,7 +1121,52 @@ $ ern build example.ern
 example.ern:1:13: constructor String is named as the type String
 1 | type Word = String
   |             ^^^^^^
-  | = help: there are no type aliases; a type that holds a String is written type Word = Word(String)
+  | = help: there are no type aliases; a type that holds a String is written `type Word = Word(String)`
+```
+
+### A constructor named as the prelude's type (§3.1, §2.3)
+
+```ernest-rejected
+type Command = Set(key : String, value : String) | Clear
+```
+
+```console
+$ ern build example.ern
+example.ern:1:16: constructor Set is named as the type Set
+1 | type Command = Set(key : String, value : String) | Clear
+  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  | = help: rename the constructor; Set is the prelude's type
+```
+
+### A constructor named as another type of the module (§3.1)
+
+```ernest-rejected
+type Size = Small | Large
+
+type Shape = Size(Int) | Empty
+```
+
+```console
+$ ern build example.ern
+example.ern:3:14: constructor Size is named as the type Size
+2 | 
+3 | type Shape = Size(Int) | Empty
+  |              ^^^^^^^^^
+  | = help: rename the constructor; Size is a type this module declares
+```
+
+### A constructor named as a type of the session (§3.1, §11.2)
+
+```console
+$ ern shell
+Ernest 0.4.0. :help for the commands, :quit to leave.
+> type Size = Small | Large
+type Size
+> type Shape = Size(Int) | Empty
+input 2:1:14: constructor Size is named as the type Size
+1 | type Shape = Size(Int) | Empty
+  |              ^^^^^^^^^
+  | = help: rename the constructor; Size is a type the session declares
 ```
 
 ### A field named twice in a constructor (§3.5)
@@ -1226,7 +1285,7 @@ $ ern build example.ern
 example.ern:1:16: the equality mark is written in a foreign function's parameters alone
 1 | fn f(xs : List(a=)) : Int = 1
   |                ^^
-  | = help: write a; a has equality where a body compares its values with ==
+  | = help: write `a`; `a` has equality where a body compares its values with `==`
 ```
 
 ### A foreign function's equality mark written twice (§4.7)
@@ -1551,7 +1610,7 @@ $ ern build example.ern
 example.ern:1:17: Prelude.Io.println: Prelude takes one name the prelude declares, as `Prelude.Some`
 1 | fn f() : Unit = Prelude.Io.println("x")
   |                 ^^^^^^^^^^^^^^^^^^
-  | = help: nothing here hides it; write Io.println
+  | = help: nothing here hides it; write `Io.println`
 ```
 
 ### A constructor nothing declares (§4.2)
@@ -1602,7 +1661,7 @@ $ ern build example.ern
 example.ern:1:26: Prelude.Some is written only where the module hides the prelude's Some
 1 | fn f() : Optional(Int) = Prelude.Some(1)
   |                          ^^^^^^^^^^^^
-  | = help: nothing here hides it; write Some
+  | = help: nothing here hides it; write `Some`
 ```
 
 ### `Prelude.` before a constructor the prelude lacks (§4.2)
@@ -2048,6 +2107,20 @@ example.ern:1:24: k receives nothing, and `receiving m` names no parameter's mai
   | = help: write k's type without `receiving`
 ```
 
+### `receiving m` on a lambda that receives nothing (§4.5)
+
+```ernest-rejected
+let f = fn() : Int receiving m = 5
+```
+
+```console
+$ ern build example.ern
+example.ern:1:30: the lambda receives nothing, and `receiving m` names no parameter's mailbox type
+1 | let f = fn() : Int receiving m = 5
+  |                              ^
+  | = help: write the lambda's type without `receiving`
+```
+
 ### A module's own name written qualified where nothing hides it (§4.2)
 
 ```ernest-rejected
@@ -2062,7 +2135,7 @@ example.ern:3:51: Example.helper is written only where a binding hides helper
 2 | 
 3 | export fn main() : Unit = Io.println(Int.toString(Example.helper()))
   |                                                   ^^^^^^^^^^^^^^
-  | = help: nothing here hides it; write helper
+  | = help: nothing here hides it; write `helper`
 ```
 
 ### A module's own constructor written qualified (§4.2)
@@ -2079,7 +2152,7 @@ example.ern:3:16: Example.Box is the module's own Box, which no binding hides
 2 | 
 3 | fn f() : Box = Example.Box(1)
   |                ^^^^^^^^^^^
-  | = help: write Box
+  | = help: write `Box`
 ```
 
 ### A fill that lacks a field (§5.6)
@@ -2150,6 +2223,24 @@ example.ern:4:21: fromList needs a.compare, and the record's type leaves the var
 3 | fn f() : Int = {
 4 |     let ops = Ops(..OrderedSet);
   |                     ^^^^^^^^^^
+```
+
+### A fill that needs a requirement the declaration does not declare (§5.6, §4.9)
+
+```ernest-rejected
+type Ops(s, a) = Ops(fromList : (List(a)) -> s)
+
+fn ordered() : Ops(OrderedSet.Set(a), a) =
+    Ops(..OrderedSet)
+```
+
+```console
+$ ern build example.ern
+example.ern:4:11: fromList needs a.compare, which ordered does not declare
+3 | fn ordered() : Ops(OrderedSet.Set(a), a) =
+4 |     Ops(..OrderedSet)
+  |           ^^^^^^^^^^
+  | = help: add `needs a.compare` to ordered's signature
 ```
 
 ### A path where a construction gives a field (§5.6)
@@ -2369,6 +2460,40 @@ $ ern build example.ern
 example.ern:1:35: `+` is not defined on Bool
 1 | fn f(a : Bool, b : Bool) : Bool = a + b
   |                                   ^^^^^
+```
+
+### An ordering operator on a type without compare (§3.10, §4.8)
+
+```ernest-rejected
+type Score = Score(Int)
+
+fn lower() : Bool =
+    Score(1) < Score(2)
+```
+
+```console
+$ ern build example.ern
+example.ern:4:5: `<` needs Score.compare, and Score has no compare
+3 | fn lower() : Bool =
+4 |     Score(1) < Score(2)
+  |     ^^^^^^^^^^^^^^^^^^^
+  | = help: give Score a compare, `derives compare` on its declaration or `fn Score.compare`
+```
+
+### An ordering operator on Bool (§3.10, §4.8)
+
+```ernest-rejected
+fn less() : Bool =
+    true < false
+```
+
+```console
+$ ern build example.ern
+example.ern:2:5: `<` needs Bool.compare, and Bool has no compare
+1 | fn less() : Bool =
+2 |     true < false
+  |     ^^^^^^^^^^^^
+  | = help: hold it in a type of your own that declares `compare`
 ```
 
 ### Operands of two types (§4.8)
@@ -2634,7 +2759,43 @@ example.ern:2:21: fromList needs Map(Int, Int).compare, and Map(Int, Int) has no
 1 | fn f(counts : Map(Int, Int)) : Int =
 2 |     OrderedSet.size(OrderedSet.fromList([counts]))
   |                     ^^^^^^^^^^^^^^^^^^^
-  | = help: Map(Int, Int) has no ordering; hold it in a type of your own that declares `compare`
+  | = help: hold it in a type of your own that declares `compare`
+```
+
+### `compare` on a foreign type without one (§3.10, §4.9)
+
+```ernest-rejected
+foreign type Handle
+
+foreign fn make() : Handle =
+    "erlang:make_ref/0"
+
+fn order() : Ordering =
+    compare(make(), make())
+```
+
+```console
+$ ern build example.ern
+example.ern:7:5: compare needs Handle.compare, and Handle has no compare
+6 | fn order() : Ordering =
+7 |     compare(make(), make())
+  |     ^^^^^^^
+  | = help: declare `fn Handle.compare`
+```
+
+### A function type without the member (§4.9)
+
+```ernest-rejected
+fn sorted() : List((Int) -> Int) =
+    List.sort([fn(x : Int) = x])
+```
+
+```console
+$ ern build example.ern
+example.ern:2:5: sort needs the compare of (Int) -> Int, and (Int) -> Int has no compare
+1 | fn sorted() : List((Int) -> Int) =
+2 |     List.sort([fn(x : Int) = x])
+  |     ^^^^^^^^^
 ```
 
 ### A member of another result type (§4.9)
@@ -2670,7 +2831,7 @@ fn sum(list : List(a)) : a needs a.zero, a.+ =
 
 ```console
 $ ern build example.ern
-example.ern:1:34: zero is not a member: a requirement names compare, negate, an operator or show
+example.ern:1:34: `zero` is not a member: a requirement names `+`, `-`, `*`, `/`, `%`, `<>`, `compare`, `negate` or `show`
 1 | fn sum(list : List(a)) : a needs a.zero, a.+ =
   |                                  ^^^^^^
 ```
@@ -2716,21 +2877,6 @@ $ ern build example.ern
 example.ern:1:35: e is an effect variable, and a requirement names a type variable in a value position
 1 | fn f(x : a) : a receiving e needs e.compare =
   |                                   ^^^^^^^^^
-```
-
-### A binding named as a type variable of the signature (§4.9)
-
-```ernest-rejected
-fn f(a : a) : a needs a.compare =
-    a
-```
-
-```console
-$ ern build example.ern
-example.ern:1:6: `a` names a type variable of the signature, and a declaration with a requirement binds no name that is one of its type variables
-1 | fn f(a : a) : a needs a.compare =
-  |      ^
-  | = help: rename the binding
 ```
 
 ### A lambda with a requirement (§4.9)
@@ -3936,6 +4082,40 @@ example.ern:6:17: g needs a mailbox, and f receives nothing
   | = help: give f its mailbox type, `receiving String`
 ```
 
+### A call of a parameter whose mailbox the caller chooses, from a function that receives nothing (§4.5, §6.1)
+
+```ernest-rejected
+fn g(f : () -> Unit receiving e) : Unit =
+    f()
+```
+
+```console
+$ ern build example.ern
+example.ern:2:5: f needs a mailbox, and g receives nothing
+1 | fn g(f : () -> Unit receiving e) : Unit =
+  |                                    ---- `: Unit` without `receiving` declares that g receives nothing
+2 |     f()
+  |     ^^^
+  | = help: give g its mailbox type, `receiving e`
+```
+
+### A call of a parameter whose mailbox the caller chooses, from a function of another mailbox (§4.5, §6.1)
+
+```ernest-rejected
+fn h(f : () -> Unit receiving e) : Unit receiving m =
+    f()
+```
+
+```console
+$ ern build example.ern
+example.ern:2:5: f needs mailbox e, and the mailbox here is m
+1 | fn h(f : () -> Unit receiving e) : Unit receiving m =
+  |                                                   - h is declared `receiving m` here
+2 |     f()
+  |     ^^^
+  | = help: give h its mailbox type, `receiving e`
+```
+
 ### A function that waits where one that receives nothing is expected (§3.9, §6.1)
 
 ```ernest-rejected
@@ -4031,6 +4211,40 @@ example.ern:2:5: f is declared with mailbox Never and cannot receive
 2 |     receive {
   |     ^^^^^^^^^
   | = help: only an `after` clause is allowed; give f another mailbox type with `receiving`
+```
+
+### `receive` in a spawned function whose mailbox nothing fixes (§6.8, §6.2)
+
+```ernest-rejected
+let p = spawn(fn() = receive {
+    x -> Unit
+})
+```
+
+```console
+$ ern build example.ern
+example.ern:1:22: a spawned function runs with mailbox Never and cannot receive
+1 | let p = spawn(fn() = receive {
+  |                      ^^^^^^^^^
+  | = help: the wait can never end, since nothing has the type Never; give the mailbox the messages' type, in a pattern or with `receiving`
+```
+
+### `receive` in an entry point whose mailbox nothing fixes (§6.8, §6.2)
+
+```ernest-rejected
+export fn main() =
+    receive {
+        x -> Unit
+    }
+```
+
+```console
+$ ern build example.ern
+example.ern:2:5: main runs with mailbox Never and cannot receive
+1 | export fn main() =
+2 |     receive {
+  |     ^^^^^^^^^
+  | = help: the wait can never end, since nothing has the type Never; give the mailbox the messages' type, in a pattern or with `receiving`
 ```
 
 ### `receive` in a top-level initializer (§4.6, §6.8)
@@ -4479,7 +4693,7 @@ example.ern:10:31: Code.running lists the processes that run a declaration, and 
  9 |     let f = loop;
 10 |     List.forEach(Code.running(f), fn(process) = send(process, Stop))
    |                               ^
-   | = help: name loop itself, `Code.running(loop)` (report §3.11)
+   | = help: name a top-level `fn` of this program whose result type is `Unit`
 ```
 
 ### `Code.running` of a lambda (§3.11)
@@ -4495,7 +4709,7 @@ example.ern:2:28: Code.running lists the processes that run a declaration, and a
 1 | fn listed() : Int =
 2 |     List.size(Code.running(fn() = Unit))
   |                            ^^^^^^^^^^^
-  | = help: declare the function with `fn` at the top level and name it (report §3.11)
+  | = help: declare the function with `fn` at the top level and name it
 ```
 
 ### `Code.running` of a top-level `let` (§3.11)
@@ -4513,7 +4727,7 @@ example.ern:4:28: Code.running lists the processes that run a declaration, and l
 3 | fn listed() : Int =
 4 |     List.size(Code.running(loop))
   |                            ^^^^
-  | = help: declare loop with `fn` and name it, `Code.running(loop)` (report §3.11)
+  | = help: declare loop with `fn` and name it, `Code.running(loop)`
 ```
 
 ### `Code.running` of a foreign declaration (§3.11)
@@ -4531,7 +4745,7 @@ example.ern:4:28: Code.running lists the processes that run a declaration, and w
 3 | fn listed() : Int =
 4 |     List.size(Code.running(waits))
   |                            ^^^^^
-  | = help: declare a top-level `fn` that calls waits, and name it (report §3.11)
+  | = help: declare a top-level `fn` that calls waits, and name it
 ```
 
 ### `Code.running` of the prelude's function (§3.11)
@@ -4547,7 +4761,7 @@ example.ern:2:28: Code.running lists the processes that run a declaration, and s
 1 | fn listed() : Int =
 2 |     List.size(Code.running(spawn))
   |                            ^^^^^
-  | = help: name a top-level `fn` of this program whose result type is `Unit` (report §3.11)
+  | = help: name a top-level `fn` of this program whose result type is `Unit`
 ```
 
 ### `Code.running` of a function whose result type is not `Unit` (§3.11)
@@ -4568,7 +4782,7 @@ example.ern:7:28: Code.running lists the processes that run total, whose result 
 6 | fn listed() : Int =
 7 |     List.size(Code.running(total))
   |                            ^^^^^
-  | = help: name the function the processes run, a top-level `fn` whose result type is `Unit` (report §3.11)
+  | = help: name the function the processes run, a top-level `fn` whose result type is `Unit`
 ```
 
 ### `Code.running` of a function whose mailbox type holds a type variable (§3.11)
@@ -4589,5 +4803,5 @@ example.ern:7:28: Code.running lists the processes that run hold, whose mailbox 
 6 | fn listed() : Int =
 7 |     List.size(Code.running(hold))
   |                            ^^^^
-  | = help: give hold its mailbox type, `fn hold(...) : Unit receiving Msg = ...`: every process listed has it (report §3.11)
+  | = help: give hold its mailbox type, `fn hold(...) : Unit receiving Msg = ...`: every process listed has it
 ```

@@ -64,11 +64,28 @@ line_length_test() ->
 
 %% docs/development.md, `make bench`: the programs part's parser,
 %% test/fixtures/bench/parser.ern, is examples/repl.ern's lexer, parser and
-%% evaluator, from `fn tokenize` on, its comments aside, so that the bench
-%% measures the example. A regression test, written after the copy, which
-%% nothing held to the example
+%% evaluator, from `fn tokenize` on, its comments aside, and each of its
+%% types is the example's, so that the bench measures the example. A
+%% regression test, written after the copy, which nothing held to the
+%% example, and its types to nothing until the release review before 0.5.0
 parser_fixture_test() ->
-    ?assertEqual(code_from("examples/repl.ern"), code_from("test/fixtures/bench/parser.ern")).
+    ?assertEqual(code_from("examples/repl.ern"), code_from("test/fixtures/bench/parser.ern")),
+    Copied = types("test/fixtures/bench/parser.ern"),
+    ?assertNotEqual([], Copied),
+    ?assertEqual([], Copied -- types("examples/repl.ern")).
+
+%% An Ernest module's type declarations, each its lines from the one that
+%% begins `type`, a line that begins with a space continuing it.
+types(Path) ->
+    declarations(string:split(binary_to_list(ern_repository:read(Path)), "\n", all)).
+
+declarations(["type " ++ _ = Line | Rest]) ->
+    {Continued, Next} = lists:splitwith(fun(Text) -> lists:prefix(" ", Text) end, Rest),
+    [[Line | Continued] | declarations(Next)];
+declarations([_ | Rest]) ->
+    declarations(Rest);
+declarations([]) ->
+    [].
 
 %% An Ernest module's lines from `fn tokenize` on, each without its comment
 %% and the blanks before it, a line that holds nothing else left out.
