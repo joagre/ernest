@@ -5,7 +5,7 @@
 %% being history and not checked; the contents lists, the tour's blocks,
 %% the paths the documents and the toolchain's comments name, the release's
 %% pages, the third parties' licenses, the glossary, the fault causes, the
-%% log's index, the runtime's tables and frames as its design note, §8.7 and
+%% log's index, the runtime's tables and frames as its design note, §12.6 and
 %% the map name them, why.md's claims and the README's, the reviews' counts
 %% of their readers, the shell's modules and the loads are each current; and
 %% the lists docs/development.md's *Lists in two places* names are kept by
@@ -27,8 +27,8 @@
 -define(BEGIN, <<"<!-- contents -->">>).
 -define(END, <<"<!-- /contents -->">>).
 
-%% Each frame of the runtime's own (report §8.7) by its body's tag, with the
-%% words the runtime's design note and §8.7's *What passes* name it by, a
+%% Each frame of the runtime's own (report §12.6) by its body's tag, with the
+%% words the runtime's design note and §12.6's *What passes* name it by, a
 %% `kill`'s backticks aside.
 -define(FRAMES, [{adapted, "a message to an adapted address"}, {spawn, "a spawn"},
                  {answer, "its answer"}, {compute, "a compute"}, {find, "a find"},
@@ -589,10 +589,11 @@ glossary_test() ->
     ?assertEqual([], [Entry || Entry <- Entries,
                                re:run(Entry, "§[0-9]|Appendix [A-G]") =:= nomatch]).
 
-%% report §7.4: a cause of a fault quoted in sections
-%% 0 to 11 outside §7.4 is one §7.4 lists, since §7.4 holds the causes
+%% report §7.4, §12.3: a cause of a fault quoted in sections 0 to 12
+%% outside §7.4 and §12.3 is one they list, since §7.4 holds the
+%% language's causes and §12.3 those the runtime raises at its boundaries
 %% (§7.3); a library function's own section holds its faults (Appendix E.0
-%% shape rule 4). In §7.4's texts `...`, `m:f/n` and a placeholder of one
+%% shape rule 4). In their texts `...`, `m:f/n` and a placeholder of one
 %% letter stand for any text.
 fault_causes_test() ->
     Language = ern_repository:read("report/language.md"),
@@ -601,8 +602,10 @@ fault_causes_test() ->
     [Chapters, _] = binary:split(After, <<"\n## Appendix A">>),
     [Toolchain, _] = binary:split(ern_repository:read("report/toolchain.md"),
                                   <<"\n## Appendix C">>),
-    Body = <<Chapters/binary, Toolchain/binary>>,
-    Templates = [template(Cause) || Cause <- causes(Own)],
+    [Runtime, FromRaised] = binary:split(Toolchain, <<"### 12.3 The causes the runtime raises">>),
+    [Raised, Termination] = binary:split(FromRaised, <<"\n### 12.4 ">>),
+    Body = <<Chapters/binary, Runtime/binary, Termination/binary>>,
+    Templates = [template(Cause) || Cause <- causes(Own) ++ causes(Raised)],
     ?assert(length(Templates) > 20),
     ?assertEqual([], [Cause || Cause <- causes(Before) ++ causes(Body),
                                not lists:any(fun(Template) ->
@@ -643,8 +646,8 @@ runtime_tables_test() ->
     ?assertEqual([], [Row || {Row, []} <- lists:zip(Rows, Named)]),
     ?assertEqual(lists:sort(ern_rt:tables()), lists:sort(lists:append(Named))).
 
-%% docs/design/runtime.md, report §8.7: the frames the runtime's code reads
-%% of a peer are seventeen, and the note's list and §8.7's *What passes*, each
+%% docs/design/runtime.md, report §12.6: the frames the runtime's code reads
+%% of a peer are seventeen, and the note's list and §12.6's *What passes*, each
 %% of which says so, name every one in the words ?FRAMES gives it. A
 %% regression test, written after the note; a frame a list adds in words of
 %% its own is found only by the count the list states.
@@ -652,7 +655,7 @@ runtime_frames_test() ->
     Read = lists:usort([Tag || File <- ?FRAME_READERS, Tag <- frames_read(File)]),
     ?assertEqual(lists:sort([Tag || {Tag, _} <- ?FRAMES]), Read),
     ?assertEqual(17, length(Read)),
-    ?assertEqual([], [{File, Tag} || File <- ["docs/design/runtime.md", "report/language.md"],
+    ?assertEqual([], [{File, Tag} || File <- ["docs/design/runtime.md", "report/toolchain.md"],
                                      Sentence <- [frames_sentence(File)],
                                      {Tag, Words} <- ?FRAMES,
                                      binary:match(Sentence, list_to_binary(Words)) =:= nomatch]).

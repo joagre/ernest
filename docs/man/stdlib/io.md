@@ -171,7 +171,7 @@ The next line of standard input, without its line feed, or `None` at the end
 of the input. A carriage return before the line feed is dropped too, and a
 last line without a line feed is a line. Standard input is read as UTF-8. A
 program reads lines or subscribes to keys with `Terminal`, not both (report
-§8.2).
+§12.1).
 
 ### Errors
 
@@ -199,7 +199,7 @@ Io.read() : Optional(Bytes)
 
 What has arrived on standard input, at least one byte, or `None` at the end
 of the input. Lines and bytes are read from one stream, so a read takes up
-where the line before it stopped (report §8.2).
+where the line before it stopped (report §12.1).
 
 ### Errors
 

@@ -1,4 +1,4 @@
-%% Report §8.2, Appendix E.16: the process behind Terminal's reference. It
+%% Report §8.2, §12.1, Appendix E.16: the process behind Terminal's reference. It
 %% answers Subscribe with Left(NotATerminal) where standard input is not a
 %% terminal, claiming nothing, and otherwise by remembering the address;
 %% it sends every key pressed to each subscriber as a Terminal.Event,
@@ -9,7 +9,7 @@
 %% The terminal is put in the mode the keys need when the first subscriber
 %% arrives, since keys and lines are the same terminal and a program does
 %% one or the other, and restore/0 puts it back when the program ends
-%% (§8.6).
+%% (§12.1).
 %%
 %% The mode is stty's raw mode on a port that inherits the terminal, with
 %% opost put back, without which a line feed would no longer return the
@@ -38,15 +38,15 @@
 %% reversed and a tail that may still grow into its end.
 -type pending() :: [char()] | {paste, [char()], [char()]}.
 
-%% Report §8.2: how long a paste may take to arrive whole.
+%% Report §12.1: how long a paste may take to arrive whole.
 -define(PASTE_PAUSE, 200).
 
-%% Report §8.2: Escape is delivered once no escape sequence can still
+%% Report §12.1: Escape is delivered once no escape sequence can still
 %% follow it. A terminal sends a sequence in one burst, so a pause this
 %% long after an escape means the key itself.
 -define(ESCAPE_PAUSE, 50).
 
-%% Report §8.2: bracketed paste. The terminal is asked for it while a
+%% Report §12.1: bracketed paste. The terminal is asked for it while a
 %% program is subscribed, and wraps pasted text in these.
 -define(PASTE_ON, "\e[?2004h").
 -define(PASTE_OFF, "\e[?2004l").
@@ -61,7 +61,7 @@ loop(Open, true) ->
 loop(_, false) ->
     refusing().
 
-%% Report §8.2: where standard input is not a terminal, a subscription is
+%% Report §12.1: where standard input is not a terminal, a subscription is
 %% refused and claims nothing.
 refusing() ->
     receive
@@ -85,7 +85,7 @@ loop(Subscribers, Reader, Pending, Size) ->
                 subscription(Address, Reply, Subscribers, Reader, Size),
             loop(Subscribers1, Reader1, Pending, Size1);
         {'DOWN', _, process, Pid, _} ->
-            %% report §8.2: a subscription ends when its process dies
+            %% report §12.1: a subscription ends when its process dies
             loop(unsubscribe(Pid, Subscribers, Reader), Reader, Pending, Size);
         {new_run, Pid, Ref} ->
             %% report §6.9: and when it restarts, with the keys on their way
@@ -104,7 +104,7 @@ loop(Subscribers, Reader, Pending, Size) ->
         resized ->
             loop(Subscribers, Reader, Pending, resized(Subscribers, Size))
     after Pause ->
-        %% report §8.2: a paste may take longer to arrive than an escape
+        %% report §12.1: a paste may take longer to arrive than an escape
         %% sequence, and one whose end has not come ends when no more of it
         %% arrives, what came of it being the paste
         deliver(flush(Pending), Subscribers),
@@ -112,9 +112,9 @@ loop(Subscribers, Reader, Pending, Size) ->
     end.
 
 %% A subscription asked for: refused where the shell holds the terminal
-%% (report §11.2) or reads it as lines (§8.2), and otherwise granted once
+%% (report §11.2) or reads it as lines (§12.1), and otherwise granted once
 %% the mode is set, before the caller goes on, so that nothing it types
-%% then is echoed (§8.2). The subscribers, the reader and the size then.
+%% then is echoed (§12.1). The subscribers, the reader and the size then.
 subscription(Address, Reply, Subscribers, Reader, Size) ->
     case held_by_another(Address) of
         true ->
@@ -133,7 +133,7 @@ subscription(Address, Reply, Subscribers, Reader, Size) ->
             end
     end.
 
-%% Report §8.2: a size that has changed is news to every subscriber.
+%% Report §12.1: a size that has changed is news to every subscriber.
 resized(Subscribers, Size) ->
     case size_now() of
         Size ->
@@ -166,7 +166,7 @@ deliver([], _) ->
 deliver(Events, Subscribers) ->
     lists:foreach(fun({_, Courier, _}) -> Courier ! {events, Events} end, Subscribers).
 
-%% Report §8.2: one subscriber's keys, in order, its wrap applied here, so
+%% Report §12.1: one subscriber's keys, in order, its wrap applied here, so
 %% that a wrap that does not finish delays that subscriber's keys and no
 %% other's; a fault in the wrap is the subscriber's (§6.5), and so is what
 %% the wrap opens, spawns or asks of the runtime, since the courier acts for
@@ -181,7 +181,7 @@ courier(Address) ->
             courier(Address)
     end.
 
-%% Report §8.2: a process holds one subscription, the latest, keyed by the
+%% Report §12.1: a process holds one subscription, the latest, keyed by the
 %% process behind its address and watched so that it ends with it. Report
 %% §8.6: the keys are a source while someone would receive them, counted
 %% once while any subscription holds: for the first by start_reader/1, and
@@ -226,7 +226,7 @@ running({unstarted, _}) -> false;
 running(closed) -> false;
 running(_) -> true.
 
-%% Report §8.2, Appendix E.16: Size(rows, columns), or none where standard
+%% Report §12.1, Appendix E.16: Size(rows, columns), or none where standard
 %% output is not a terminal or the terminal has no rows or no columns. The
 %% host answers the size of `user`'s terminal where standard input alone
 %% is one, so standard output is asked first.
@@ -277,7 +277,7 @@ start_reader(Reader) ->
     %% running, or `closed` at the end of input, which no reader reopens
     {ok, Reader}.
 
-%% Report §8.2: each key as it is pressed and no echo. The mode is set by
+%% Report §12.1: each key as it is pressed and no echo. The mode is set by
 %% stty on the terminal itself, since the runtime reads standard input
 %% through its own port and the host's io server must not take it back.
 %% Raw mode also stops the terminal turning a line feed into a carriage
@@ -285,10 +285,10 @@ start_reader(Reader) ->
 %% a column at a time, so `opost` goes back. A paste is asked to be
 %% bracketed, so that pasted text is one `Pasted` and not the keys of its
 %% characters; a terminal that does not know the request ignores it.
-%% Report §8.2: while the terminal is claimed for keys, its interrupt is
+%% Report §12.1: while the terminal is claimed for keys, its interrupt is
 %% delivered to every subscriber as `Interrupt`, so raw mode's `-isig`
 %% stays, for a program's subscribers as for the shell.
-%% Report §8.6: the terminal's settings are kept first, so that the end
+%% Report §12.1: the terminal's settings are kept first, so that the end
 %% gives back the ones the program found; where they cannot be read, the
 %% mode is left as it is, since it could not be given back.
 raw_mode() ->
@@ -307,7 +307,7 @@ held_by_another(Address) ->
         Holder -> ern_rt:process_of(Address) =/= Holder
     end.
 
-%% Report §8.6: the terminal is the one the program found.
+%% Report §12.1: the terminal is the one the program found.
 -spec restore() -> ok.
 restore() ->
     _ = gen_event:delete_handler(erl_signal_server, ern_tty_signal, stop),
@@ -321,7 +321,7 @@ restore() ->
             ok
     end.
 
-%% Report §8.2: the terminal's own mode, written past the sinks a program's
+%% Report §12.1: the terminal's own mode, written past the sinks a program's
 %% output is bound to, since it is the terminal that is being spoken to.
 write(Text) ->
     case terminal() of
@@ -399,7 +399,7 @@ is_terminal(Stream) ->
     catch _:_ -> false
     end.
 
-%% Report §8.2: the keys are UTF-8, whatever the host's locale; a
+%% Report §12.1: the keys are UTF-8, whatever the host's locale; a
 %% character may arrive in two reads, and bytes that are not UTF-8 end the
 %% program. The reader traps exits, so that its input's failure is the end
 %% of the keys, and the terminal's process ending is its own end.
@@ -449,19 +449,19 @@ more(Pending, Chars) ->
 %% Report Appendix E.16: Event = Key(Char) | ArrowUp | ArrowDown | ArrowLeft
 %% | ArrowRight | Escape | Interrupt | Pasted(String) | Resized(Size), one
 %% list of what the terminal sent; a key of one character is Key of it,
-%% Enter's carriage return among them (report §8.2). An escape sequence
+%% Enter's carriage return among them (report §12.1). An escape sequence
 %% that is none of those is the Escape key and the characters after it,
-%% which is how Meta and Shift-Tab reach a program (§8.2).
+%% which is how Meta and Shift-Tab reach a program (§12.1).
 -spec decode([char()]) -> {[term()], pending()}.
 decode(Chars) ->
     decode(Chars, []).
 
-%% Report §8.2: what is left when nothing followed it. An escape alone is
+%% Report §12.1: what is left when nothing followed it. An escape alone is
 %% the Escape key, and a sequence that never grew into an arrow is the
 %% Escape key and the characters after it.
 -spec flush(pending()) -> [term()].
 flush({paste, Text, Tail}) ->
-    %% report §8.2: a paste whose end did not come, what it held back as
+    %% report §12.1: a paste whose end did not come, what it held back as
     %% the start of an end being its text too
     Pasted = lists:reverse(Text, [line_feed(Char) || Char <- Tail]),
     [{'Pasted', unicode:characters_to_binary(Pasted)}];
@@ -477,13 +477,13 @@ flush(Chars) ->
 
 decode([], Acc) ->
     {lists:reverse(Acc), []};
-%% report §8.2: a paste is one event, and its line endings are line feeds
+%% report §12.1: a paste is one event, and its line endings are line feeds
 decode(?PASTE_BEGIN ++ Rest, Acc) ->
     case pasted(Rest, []) of
         {ok, Text, After} -> decode(After, [{'Pasted', Text} | Acc]);
         {more, Text, Tail} -> {lists:reverse(Acc), {paste, Text, Tail}}
     end;
-%% report §8.2: the end of a paste that had already ended is nothing
+%% report §12.1: the end of a paste that had already ended is nothing
 decode(?PASTE_END ++ Rest, Acc) ->
     decode(Rest, Acc);
 decode([$\e, $[, $A | Rest], Acc) -> decode(Rest, ['ArrowUp' | Acc]);

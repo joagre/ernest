@@ -1,4 +1,4 @@
-%% The terminal path of report §8.2, through the pseudo-terminal harness
+%% The terminal path of report §12.1, through the pseudo-terminal harness
 %% `ern_pty.py`: keys as they are pressed, nothing echoed, `Escape`
 %% delivered once no sequence can follow it, and line mode with echo
 %% restored when the program ends. Erlang cannot open a pseudo-terminal, so
@@ -9,7 +9,7 @@
 
 -define(CLEAR, <<"\e[2J\e[H">>).
 
-%% report §8.2, Appendix E.16: every key pressed reaches the subscriber, a character
+%% report §12.1, Appendix E.16: every key pressed reaches the subscriber, a character
 %% as itself, an arrow whole rather than as Escape and two characters, and
 %% an Escape that stands alone as the key; nothing is echoed. The terminal
 %% answers its size, and a window that changes arrives as `Resized`. A
@@ -31,7 +31,7 @@ keys() ->
                        {resize, "30x100"},
                        {expect, "resized"},
                        %% a paste, its two lines separated as a terminal
-                       %% sends them, between the brackets §8.2 asks for
+                       %% sends them, between the brackets §12.1 asks for
                        {send, "1b5b3230307e61" ++ "0d" ++ "621b5b3230317e"},
                        {expect, "pasted"},
                        {send, "1b"}]),
@@ -45,7 +45,7 @@ keys() ->
     %% an arrow is not split: no Escape arrived before the one that was sent
     ?assertEqual(1, ern_pty:count(Screen, <<"escape">>)).
 
-%% report §8.2: a paste whose end the terminal does not send ends when no
+%% report §12.1: a paste whose end the terminal does not send ends when no
 %% more of it arrives, and the keys after it are keys; an end that comes
 %% later is nothing, which a key after it, shown, marks. A regression test:
 %% the paste took in every key after it
@@ -68,7 +68,7 @@ unended_paste() ->
                   <<"escape">>],
                  lines(Screen)).
 
-%% report §8.2, Appendix E.16: where standard input is not a terminal a
+%% report §12.1, Appendix E.16: where standard input is not a terminal a
 %% subscription is refused, and the program goes on to say so; where
 %% standard output is not one, the size is `Left(NotATerminal)`, a
 %% regression test of the rule of 2026-10-01, before which it was `None`
@@ -80,7 +80,7 @@ not_a_terminal() ->
     ?assertEqual({0, <<"no terminal, no size\n">>},
                  ern_pty:sh("echo x | ../bin/ern run build/terminal/probe.erc")).
 
-%% report §8.2, Appendix E.16: with standard input a terminal, the size is
+%% report §12.1, Appendix E.16: with standard input a terminal, the size is
 %% `Left(NotATerminal)` where standard output is a pipe, and where the
 %% terminal has no rows or no columns, though keys are read in both. A
 %% regression test: the host answered the terminal's size through a pipe,
@@ -108,10 +108,10 @@ unstamped_at_a_terminal() ->
     ?assertMatch({match, _}, re:run(Screen, "^Faulty\\.main faulted: division by zero",
                                     [multiline])).
 
-%% report §8.2: a key is read as UTF-8 whatever the host's locale, and the
+%% report §12.1: a key is read as UTF-8 whatever the host's locale, and the
 %% terminal's interrupt arrives as `Interrupt` to a program that reads
 %% keys. A regression test: the interrupt's signal was turned back on for
-%% all but the shell, and ended such a program, where §8.2 delivers it
+%% all but the shell, and ended such a program, where §12.1 delivers it
 utf8_key_interrupt_test_() ->
     ern_nodes_tests:counted_test({waits, 5}, fun utf8_key_interrupt/0).
 
@@ -127,7 +127,7 @@ utf8_key_interrupt() ->
     ?assertMatch({_, _}, binary:match(Screen, <<"char ", 16#e9/utf8>>)),
     ?assertEqual(0, Status).
 
-%% report §8.2: the runtime restores line mode with echo when the program
+%% report §12.1: the runtime restores line mode with echo when the program
 %% ends, so the terminal is the one the program found
 terminal_restored_test_() ->
     ern_nodes_tests:counted_test({waits, 3}, fun terminal_restored/0).
@@ -143,7 +143,7 @@ terminal_restored() ->
     ?assertEqual(nomatch, re:run(Screen, "(^|[ \t])-echo([ \t;\r\n]|$)", [{capture, none}])),
     ?assert(ern_pty:count(Screen, <<"speed">>) >= 2).
 
-%% report §8.6: the terminal's settings a program found are the ones it
+%% report §12.1: the terminal's settings a program found are the ones it
 %% leaves, not stty's defaults. A regression test: the end ran `stty sane`,
 %% which turned off the user's `tostop` among others. The
 %% program's output goes through a pipe, since the host puts back the
@@ -158,7 +158,7 @@ settings_kept() ->
     ?assertMatch({match, _}, re:run(Screen, "(^|[ \t])tostop([ \t;\r\n]|$)")),
     ?assertEqual(nomatch, re:run(Screen, "-tostop", [{capture, none}])).
 
-%% report §8.2, Appendix E.16: the game is played by the arrows, `Escape`
+%% report §12.1, Appendix E.16: the game is played by the arrows, `Escape`
 %% leaves, and the board's rows each start at the left, which full raw mode
 %% would have broken
 snake_test_() ->
@@ -192,7 +192,7 @@ snake() ->
                                                  end, Heads),
     ?assert(lists:any(fun({Column, _}) -> Column < Turned end, After)).
 
-%% report §8.2: C-c, which the terminal delivers as `Interrupt` while a
+%% report §12.1: C-c, which the terminal delivers as `Interrupt` while a
 %% subscriber claims it, leaves the game as `Escape` does. A regression
 %% test: the game ignored it
 snake_interrupt_test_() ->
@@ -223,7 +223,7 @@ pty(Command, Steps) ->
 lines(Screen) ->
     [Line || Line <- binary:split(modeless(Screen), <<"\r\n">>, [global]), Line =/= <<>>].
 
-%% Report §8.2: what the runtime says to the terminal itself, the
+%% Report §12.1: what the runtime says to the terminal itself, the
 %% bracketed-paste mode, which a terminal takes and shows nothing of.
 modeless(Screen) ->
     re:replace(Screen, "\e\\[\\?[0-9]+[hl]", "", [global, {return, binary}]).

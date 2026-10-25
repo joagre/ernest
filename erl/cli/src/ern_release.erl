@@ -1,4 +1,4 @@
-%% Report §8.7, §11: the toolchain's version text, which `ern --version`
+%% Report §12.5, §11: the toolchain's version text, which `ern --version`
 %% and the shell's start line print, and which marks a build of `ern` that
 %% is no release: VERSION's text in a release, and VERSION's text and the
 %% mark `-dev` in every other build. The repository's build compiles this
@@ -19,7 +19,7 @@
 version_text() ->
     ?VERSION ++ ?MARK.
 
-%% Report §8.7: what the build stands on, which the floor names:
+%% Report §12.5: what the build stands on, which the floor names:
 %% development for a build that is no release, whose version text is
 %% VERSION's marked, and for a release the three whole numbers of VERSION.
 -spec release() -> development | {non_neg_integer(), non_neg_integer(), non_neg_integer()}.

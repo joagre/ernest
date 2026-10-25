@@ -8,7 +8,11 @@ What a program written in Ernest looks like: what a tool writes, what the report
 
 ## What the report asks of a library's names
 
-Appendix E.0 has four admission rules, which decide whether an operation is the standard library's, and ten *shape rules*, which give an operation its name and its arguments; shape rules 1 to 5, 7, 9 and 10 bind a library outside the standard library too: the *subject*, the value an operation acts on, comes first and its *callbacks*, the functions passed to it, last, so that `x |> f(a)` is `f(x, a)`; one verb per operation on each kind of type; a conversion named by the other type, `toInt`, `fromList`; a partial operation, one with no answer for some inputs, answering `Optional` and one with a cause `Either`; a function's type naming a mailbox only where the function's own process's mailbox is involved; an exported type listed as the functions are and named for what it is, never for its module; no `Bool` that chooses between two behaviors; and a name that is the word a reader who knows the operation predicts. Shape rule 6 says what a module's documentation holds, which `ern doc` writes as a page and the shell's `:doc` shows.
+Appendix E.0 has four admission rules, which decide whether an operation is the standard library's, and ten *shape rules*, which give an operation its name and its arguments.
+
+Shape rules 1 to 5, 7, 9 and 10 bind a library outside the standard library too: the *subject*, the value an operation acts on, comes first and its *callbacks*, the functions passed to it, last, so that `x |> f(a)` is `f(x, a)`; one verb per operation on each kind of type; a conversion named by the other type, `toInt`, `fromList`; a partial operation, one with no answer for some inputs, answering `Optional` and one with a cause `Either`; a function's type naming a mailbox only where the function's own process's mailbox is involved; an exported type listed as the functions are and named for what it is, never for its module; no `Bool` that chooses between two behaviors; and a name that is the word a reader who knows the operation predicts.
+
+Shape rule 6 says what a module's documentation holds, which `ern doc` writes as a page and the shell's `:doc` shows.
 
 ## What the standard library does
 

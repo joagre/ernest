@@ -1,4 +1,4 @@
-%% A node's configuration directory (report §8.3, §8.7, §11.3, Appendix C):
+%% A node's configuration directory (report §8.3, §12.5, §11.3, Appendix C):
 %% what `ern config` makes, what a node checks and reads of it as it
 %% starts, its `ernest.pid`, and the host's measures it starts.
 -module(ern_node_tests).
@@ -83,7 +83,7 @@ create_test() ->
     ?assertEqual(#'Validity'{notBefore = {utcTime, "700101000000Z"},
                              notAfter = {generalTime, "99991231235959Z"}},
                  Tbs#'OTPTBSCertificate'.validity),
-    %% report §8.7: naming as its one alternative name the host its key
+    %% report §12.5: naming as its one alternative name the host its key
     %% gives
     [{_, SpkiDer, _}] = public_key:pem_decode(Public),
     ?assertEqual([#'Extension'{extnID = ?'id-ce-subjectAltName', critical = false,
@@ -100,7 +100,7 @@ create_test() ->
     ?assertMatch({configuration, _, {{0, 0, 0, 0}, 8654}, _, [], #{}, #{}, run_queue, 5000},
                  ern_node:read(Dir)).
 
-%% report §8.7, Appendix C: what ernest.conf may say, read whole: a
+%% report §8.7, §12.5, Appendix C: what ernest.conf may say, read whole: a
 %% listener of IPv6, peers with an address, a name, or none, services
 %% naming them in the order a find asks them, the host's measures, the
 %% node's utilization, the run queue where the entry is absent, and the
@@ -140,7 +140,7 @@ read_test() ->
     with(Dir, #{<<"utilization">> => <<"run-queue">>, <<"utilization-interval">> => 1}),
     ?assertMatch({configuration, _, _, _, _, _, _, run_queue, 1}, ern_node:read(Dir)).
 
-%% report §8.7, Appendix C: what ernest.conf may not say, each refused when
+%% report §12.5, Appendix C: what ernest.conf may not say, each refused when
 %% the file is read, naming the file and why
 read_refusals_test() ->
     Dir = made(),
@@ -233,7 +233,7 @@ read_refusals_test() ->
     ?assertEqual(filename:join(Dir, "ernest.conf") ++ ": is not JSON",
                  refusal(fun() -> ern_node:read(Dir) end)).
 
-%% report §8.7: a peer's name is not resolved when the configuration is
+%% report §12.5: a peer's name is not resolved when the configuration is
 %% read: a name that resolves to nothing, and one that resolves only to the
 %% other family, are kept for the dial, which resolves them and checks the
 %% family. A regression test: the reader resolved each name, so that a
@@ -261,7 +261,7 @@ name_not_resolved_test() ->
         ok = inet_db:del_host({0, 0, 0, 0, 0, 0, 0, 1})
     end.
 
-%% report §8.7: the node's key is private-key.pem's, and a certificate.pem
+%% report §12.5: the node's key is private-key.pem's, and a certificate.pem
 %% that certifies another key, or that names another host than its key
 %% gives, is refused with the file and the rule. A regression test: a
 %% certificate of the node's key named no host, which every peer then
@@ -280,7 +280,7 @@ certificate_refusals_test() ->
     ok = file:write_file(Certificate, Own),
     ?assertMatch({accepted, _}, refusal(fun() -> ern_node:read(Dir) end)).
 
-%% report §11.3, §8.7: `ern config --peer-dir` reads the peer's certificate as
+%% report §11.3, §12.5: `ern config --peer-dir` reads the peer's certificate as
 %% a node reads its own, and one that names another host than its key
 %% gives is refused, naming the peer's certificate; nothing is written
 peer_certificate_test() ->
@@ -322,7 +322,7 @@ named(Dir, Host) ->
                                         extnValue = [{dNSName, Host}]}]},
     public_key:pem_encode([{'Certificate', public_key:pkix_sign(Tbs, Key), not_encrypted}]).
 
-%% report §8.7: a public key in PEM whose body is no key the host's decoder
+%% report §12.5: a public key in PEM whose body is no key the host's decoder
 %% reads, a peer's or the node's own, is refused with the file and the
 %% rule. A regression test: the decoder's failure escaped the check, and
 %% `ern` failed with an internal error at the start, and the signal handler
@@ -345,7 +345,7 @@ undecodable_key_test() ->
     conf(Dir, json:encode(#{<<"public-key">> => Own})),
     ?assertMatch({accepted, _}, refusal(fun() -> ern_node:read(Dir) end)).
 
-%% report §8.7: a whole number of ernest.conf too large for the host to
+%% report §12.5: a whole number of ernest.conf too large for the host to
 %% hold, a numeral of more than a million digits, is refused with the file
 %% and the rule. A regression test: the host's failure to read it was taken
 %% as a file that is not JSON
@@ -359,7 +359,7 @@ large_number_test() ->
                  " to read",
                  refusal(fun() -> ern_node:read(Dir) end)).
 
-%% report §8.7: a configuration directory the host cannot read as one,
+%% report §12.5: a configuration directory the host cannot read as one,
 %% a path through a file, is refused naming the path and the host's
 %% reason. A regression test: `ern_build:refused/2` was not exported, so
 %% this path made `ern` fail with an internal error. Not covered: a
@@ -371,7 +371,7 @@ unreadable_directory_test() ->
     ?assertNotMatch({accepted, _}, Message),
     ?assertNotEqual(nomatch, string:find(Message, "not a directory")).
 
-%% report §8.7: a node refuses a configuration directory, or a file of it
+%% report §12.5: a node refuses a configuration directory, or a file of it
 %% that it reads, that anyone but its owner may write, its group as much as
 %% the world (the full review's S3), as the shell's startup files are
 %% refused, and a key any but its owner may read
@@ -411,7 +411,7 @@ permissions_test() ->
                  ++ " makes a configuration directory",
                  refusal(fun() -> ern_node:read(Dir) end)).
 
-%% report §8.7: a node writes its process number to ernest.pid as it
+%% report §12.5: a node writes its process number to ernest.pid as it
 %% starts, holds the file locked and removes it at its end; a file a living
 %% node holds refuses the start, and one no node holds is overwritten,
 %% whatever number it names, a living process's among them; a file another
@@ -440,7 +440,7 @@ pid_test() ->
     ok = ern_node:stop(Dir),
     ?assertEqual({ok, <<"1\n">>}, file:read_file(Pid)).
 
-%% report §11.2, §8.7: `ern reload` and `ern stop` signal only the node that
+%% report §11.2, §12.5: `ern reload` and `ern stop` signal only the node that
 %% holds ernest.pid, and fail where there is no file or no node holds it,
 %% a living process the file names among the ways, which is sent nothing.
 %% A regression test, written after the code (finding E4): the file's
@@ -466,7 +466,7 @@ signaled_test() ->
     ?assertEqual(<<"alive">>, receive {Waiting, {data, Echoed}} -> Echoed end),
     port_close(Waiting).
 
-%% report §8.7: the host's measures `measures` names start with the node,
+%% report §12.5: the host's measures `measures` names start with the node,
 %% and none where the section is absent; they stop at the node's end, each
 %% program the host runs for them ended before the host ends, a
 %% regression: the host ended them as it ended, and one said so on the
@@ -514,7 +514,7 @@ measure_programs() ->
     [Port || Port <- erlang:ports(), {name, Name} <- [erlang:port_info(Port, name)],
              string:find(Name, Programs) =/= nomatch].
 
-%% report §8.7: a reload's measures take their parameters from the new file
+%% report §12.5: a reload's measures take their parameters from the new file
 %% and the host's defaults alone, a parameter the file before it gave and
 %% the new one leaves out back at the host's default. A regression test:
 %% the earlier file's parameters stayed, the application never unloaded

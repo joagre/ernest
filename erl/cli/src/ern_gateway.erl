@@ -1,4 +1,4 @@
-%% Report §8.7: a node's gateway, the one registered process that takes
+%% Report §12.6: a node's gateway, the one registered process that takes
 %% every frame of the runtime's from every peer, from the node's start, so
 %% that the frame which opens a connection finds it; each frame is handed to
 %% a worker for the sender's node, one across a loss of that node's
@@ -57,12 +57,12 @@
 
 -define(NAME, ern_gateway).
 
-%% Report §6.5, §8.7: the process the worker for a peer keeps for an
+%% Report §6.5, §12.6: the process the worker for a peer keeps for an
 %% adapted address the peer sends to (ern_rt:kept/1), the worker's monitor
 %% of it, and how many messages it has been handed and has not applied.
 -record(kept, {pid, monitor_ref, handed}).
 
-%% Report §8.7: the state of the worker for a peer: the peer's node, the
+%% Report §12.6: the state of the worker for a peer: the peer's node, the
 %% gateway that hands it the peer's frames and losses, a #kept{} for each
 %% adapted address the peer has sent to while messages to it wait, by the
 %% address, each kept process's address by its pid, how many of the
@@ -89,7 +89,7 @@ start() ->
                     end),
     receive {Gateway, started} -> ok end.
 
-%% Report §8.7: a reload's measure of how busy the node is and the interval
+%% Report §12.5: a reload's measure of how busy the node is and the interval
 %% of its tellings, which the gateway takes from the configuration the
 %% reload listed: the measure holds from the next ask, and the interval
 %% from the next telling, the first set now where the node lists peers and
@@ -99,7 +99,7 @@ start() ->
 reloaded() ->
     asked(reloaded).
 
-%% Report §8.7: a node that ends tells its peers so (ern_carrier:depart/0)
+%% Report §8.7, §12.6: a node that ends tells its peers so (ern_carrier:depart/0)
 %% once its gateway tells none of them how busy it is any more, so that a
 %% telling that comes after a peer's word that it ends says the peer goes
 %% on. Where the gateway has not started, there is none to stop.
@@ -140,14 +140,14 @@ gateway(Workers, Ended, Measured, Deadline, Departed) ->
                                                     is_reference(Reply) ->
             noted(fun() -> ern_rt:drop_note(Reply) end),
             gateway(Workers, Ended, Measured, Deadline, Departed);
-        %% report §8.7: a compute's frame is its call's first note, recorded
+        %% report §12.6: a compute's frame is its call's first note, recorded
         %% here before the worker for its peer starts its process
         {ern_frame, From, {compute, Alias, _, _, _}} = Frame
           when is_pid(From), node(From) =/= node(), is_reference(Alias),
                node(Alias) =:= node(From) ->
             noted(fun() -> ern_rt:note_compute(From, Alias) end),
             gateway(hand(node(From), Frame, Workers), Ended, Measured, Deadline, Departed);
-        %% report §8.7, §11.2: how busy the node is, answered through the
+        %% report §12.6, §11.2: how busy the node is, answered through the
         %% asker's alias as a find is answered, `Unreachable` between two
         %% launches of `ern test` over a directory, in one host
         {ern_frame, From, {utilization, Alias}}
@@ -170,7 +170,7 @@ gateway(Workers, Ended, Measured, Deadline, Departed) ->
                is_integer(Interval), Interval >= 1 ->
             ok = ern_peer:hold_utilization(node(From), Utilization, Interval),
             gateway(Workers, maps:remove(node(From), Ended), Measured, Deadline, Departed);
-        %% report §8.7: a peer that ends says so before its connection
+        %% report §12.6: a peer that ends says so before its connection
         %% closes, so that its end is said as an end and not as a loss
         {ern_frame, From, node_ends} when is_pid(From), node(From) =/= node() ->
             gateway(Workers, Ended#{node(From) => true}, Measured, Deadline, Departed);
@@ -197,7 +197,7 @@ gateway(Workers, Ended, Measured, Deadline, Departed) ->
             end;
         {deadline, _} ->
             gateway(Workers, Ended, Measured, Deadline, Departed);
-        %% report §8.7: the exchange's four, handed on as they come
+        %% report §12.7: the exchange's four, handed on as they come
         {ern_frame, From, Body} = Frame
           when is_pid(From), node(From) =/= node(), is_tuple(Body), tuple_size(Body) > 0,
                element(1, Body) =:= reach_request orelse element(1, Body) =:= reach
@@ -300,7 +300,7 @@ utilization(Measured) ->
         Set -> {Set, Measured}
     end.
 
-%% Report §8.7: the node's measure of how busy it is, as its configuration
+%% Report §12.8: the node's measure of how busy it is, as its configuration
 %% says, from the one it had: `run_queue`, which keeps nothing, or
 %% `{schedulers, Last}`, the schedulers' time when the node last read it,
 %% at an ask or a telling, or took the entry, for which the host keeps the
@@ -318,13 +318,13 @@ measured(run_queue, {schedulers, _}) ->
 measured(run_queue, run_queue) ->
     run_queue.
 
-%% Report §8.7: how busy the node is by its measure, on one scale, 1.0
+%% Report §12.8: how busy the node is by its measure, on one scale, 1.0
 %% every scheduler busy, and what the measure keeps for the next reading.
 %% The run queue is the
 %% host's total_active_tasks, the processes running or ready to run, which
 %% reads each queue's count without stopping the schedulers, where
 %% `statistics(run_queue)` takes them all at one instant by holding every
-%% queue, a wait the report's measure does not make (§8.7, "no window and
+%% queue, a wait the report's measure does not make (§12.8, "no window and
 %% no wait"); this process, running as it reads, is left out, and the count
 %% is over the schedulers online, the ones that run processes. The
 %% schedulers' time is the fraction of it spent running processes since the
@@ -348,7 +348,7 @@ wall_time() ->
                         Acc
                 end, {0, 0}, erlang:statistics(scheduler_wall_time)).
 
-%% Report §8.7: a change of a connection, said where it is one the node
+%% Report §12.5: a change of a connection, said where it is one the node
 %% says.
 said(Event) ->
     case ern_carrier:said(Event) of
@@ -361,7 +361,7 @@ said(Event) ->
 noted(Write) ->
     try Write() catch error:badarg -> ok end.
 
-%% Report §8.7: a frame or a loss of Node's handed to the node's worker,
+%% Report §12.6: a frame or a loss of Node's handed to the node's worker,
 %% one started where it has none, and counted, so that the worker ends only
 %% once it has taken every message it was handed (idled/1).
 hand(Node, Message, Workers) ->
@@ -377,7 +377,7 @@ started(Node) ->
     Gateway = self(),
     spawn(fun() -> work(Node, Gateway) end).
 
-%% Report §8.7: the worker for the peer of Node, which Gateway starts for
+%% Report §12.6: the worker for the peer of Node, which Gateway starts for
 %% each peer a frame or a loss comes from, and its tests alone: the peer's
 %% frames, read in the order they came, a spawn or a compute of a function
 %% this node lacks handed to the exchange, which asks the peer for its
@@ -449,7 +449,7 @@ forgotten(Pid, #worker{kept = Kept, addresses = Addresses} = State) ->
     {Address, Addresses1} = maps:take(Pid, Addresses),
     State#worker{kept = maps:remove(Address, Kept), addresses = Addresses1}.
 
-%% Report §6.5, §8.7: a message to an adapted address handed to the process
+%% Report §6.5, §12.6: a message to an adapted address handed to the process
 %% kept for the address, after every message handed to it before, and
 %% counted; where none is kept, to one started now, which the worker
 %% monitors; and to none where no run is in progress, the message dropped
@@ -472,7 +472,7 @@ handed(Address, Message, Kept, Addresses) ->
             end
     end.
 
-%% Report §6.5, §8.7: a message the process kept for its address has
+%% Report §6.5, §12.6: a message the process kept for its address has
 %% applied, counted off; once none handed is left to apply, the process is
 %% told to stop and forgotten, so that it ends having applied every message it was handed,
 %% and the next message to the address starts another.
@@ -489,7 +489,7 @@ applied(Pid, #worker{kept = Kept, addresses = Addresses} = State) ->
                                                        handed = Handed - 1}}}
     end.
 
-%% Report §8.7: what a frame's reading tells the node to say and do, here
+%% Report §12.5, §12.6: what a frame's reading tells the node to say and do, here
 %% and in the exchange: a spawn or a compute this node did not start, which
 %% it says, naming what it lacked, the site in the caller's words; or a
 %% frame it cannot read, a frame whose reading fails among them, which ends

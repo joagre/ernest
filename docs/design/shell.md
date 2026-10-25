@@ -18,7 +18,7 @@ The shell runs as three processes, the session, the reader and the screen. Each 
 
 **The session** is the entry process (§8.1), `Shell.main`, and runs no user code. Its `State` holds the front end's `Session`, the settings, whether it colors, its own processes, the fault reports `:faults` lists, and what names an input: the count of what was entered at the prompt, the serial of the last input run, and the file and line of a startup input while one runs.
 
-**The reader** owns the keys at a terminal. It records itself as the terminal's holder before it subscribes, so that the keys are its alone and the interrupt reaches it as a key (§11.2 *The shell*, §8.2 *Interrupt*). Each event goes through `Shell.Editor.edit`, and the reader sends the screen the line to show and the session what was entered. It draws nothing, and it stays live while an input runs.
+**The reader** owns the keys at a terminal. It records itself as the terminal's holder before it subscribes, so that the keys are its alone and the interrupt reaches it as a key (§11.2 *The shell*, §12.1 *Interrupt*). Each event goes through `Shell.Editor.edit`, and the reader sends the screen the line to show and the session what was entered. It draws nothing, and it stays live while an input runs.
 
 **The screen** is the only process that writes to the terminal. It holds a `Shell.Region.Region` and writes the bytes the region answers. It writes through the foreign `write` rather than `Io.print`, since the sinks are bound to the screen and its own bytes would come back to it. In line mode it writes what it is sent as it comes.
 
@@ -44,7 +44,7 @@ The runner, `ern_cli`, loads the file and its dependencies and runs their initia
 
 `main` is ordered by what each step needs from the one before:
 
-1. Where the terminal answers a size, it spawns the reader and waits until the reader's subscription is granted or refused. A granted subscription means the terminal no longer echoes (§8.2 *Keys*), so nothing typed at an earlier prompt is echoed and read as a line.
+1. Where the terminal answers a size, it spawns the reader and waits until the reader's subscription is granted or refused. A granted subscription means the terminal no longer echoes (§12.1 *Keys*), so nothing typed at an earlier prompt is echoed and read as a line.
 2. It spawns the screen, binds the sinks to it, and says the greeting.
 3. It subscribes to `Process.faults`, and only then spawns the file's entry point, so that a fault in the entry point is reported.
 4. It checks and reads the startup files as it finds them, and only then makes the person's directory its owner's alone, so that a directory found open to others is seen as found.
@@ -76,7 +76,7 @@ The front end's values reach the shell as handles of three foreign types, `Sessi
 
 `check` is told where the input came from: the count of what was entered at the prompt, or a startup file's line and the column the input begins in.
 
-`spawnInput` takes an address, `adapted(self(), Done)`, and not the wrap E.0 shape rule 8 gives a function that delivers later. Foreign code may pass a function value back but not call it (§8.4), so the shell wraps at its end and the front end only sends (the log's *Checkpoint 0, in Line Mode*).
+`spawnInput` takes an address, `adapted(self(), Done)`, and not the wrap E.0 shape rule 8 gives a function that delivers later. Foreign code may pass a function value back but not call it (§12.2), so the shell wraps at its end and the front end only sends (the log's *Checkpoint 0, in Line Mode*).
 
 What any program reads, the shell reads as one: `NO_COLOR`, and `HOME` for the history, with `Os.environment`, and what runs and what faulted through `Process` (E.21).
 
@@ -177,7 +177,7 @@ The size is asked for at start and at each resize, which the reader passes on, s
 
 ## Output
 
-The runner binds standard output and standard error to `ern_shell:to_screen`, so a program's bytes pass through the runtime's sinks (§8.2) and reach the screen as `Wrote`. Until the screen is named, they go to standard output. A character cut across two writes waits for its end in the writing sink's process.
+The runner binds standard output and standard error to `ern_shell:to_screen`, so a program's bytes pass through the runtime's sinks (§12.1) and reach the screen as `Wrote`. Until the screen is named, they go to standard output. A character cut across two writes waits for its end in the writing sink's process.
 
 Once the program's end has waited for its subscribers (§8.6), the runtime drains the screen as a prompt does, so that what a subscriber wrote after the session ended is written before the screen ends with the program.
 
@@ -189,7 +189,7 @@ The screen then holds where output goes, and appends each `Wrote` there instead 
 
 `Shell.Editor` is a pure function from the state being edited and a `Terminal.Event` to an `Edit`, which tells the reader what to do. It writes nothing and knows no names: the reader completes and documents, and puts the line back. The state, `Editing`, is abstract (§4.4), so the editor alone keeps the cursor inside the line and a search inside the history. Its one kill outlives the line.
 
-**Sequences.** §8.2 delivers a sequence it does not name as `Escape` and its characters. So `Escape` and a key is that key's Meta binding, and `Escape [ Z` is `Shift-Tab`. The reader keeps its record of the key before while a sequence is begun, so that `Shift-Tab` twice is two presses and not six keys.
+**Sequences.** §12.1 delivers a sequence it does not name as `Escape` and its characters. So `Escape` and a key is that key's Meta binding, and `Escape [ Z` is `Shift-Tab`. The reader keeps its record of the key before while a sequence is begun, so that `Shift-Tab` twice is two presses and not six keys.
 
 **History.** The walk at 0 is the line being typed, kept while the walk is away from it. A search shows Readline's search prompt with its match in place of the line.
 

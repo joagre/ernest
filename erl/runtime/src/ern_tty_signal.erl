@@ -1,4 +1,4 @@
-%% Report §8.2: a resize is news to the terminal's subscribers. The host
+%% Report §12.1: a resize is news to the terminal's subscribers. The host
 %% delivers SIGWINCH to OTP's signal server, which calls this handler; it
 %% forwards the signal to the terminal's process as a message and runs no
 %% loop of its own, as OTP's prim_tty_sighandler does (docs/style.md).

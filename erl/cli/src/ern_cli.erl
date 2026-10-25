@@ -1,6 +1,6 @@
 %% The toolchain of report §11: one command, ern, whose first word is its
 %% job, build and doc (§11.1, §11.4), format (§11.6), run, test and shell
-%% (§11.2), config (§11.3), and reload and stop (§11.2, §8.7). The launcher
+%% (§11.2), config (§11.3), and reload and stop (§11.2, §12.5). The launcher
 %% bin/ern is thin; everything is here so that the tests can call it.
 %% `ern/1,2` returns the exit status, which the launcher's entry point ends
 %% the host with.
@@ -67,7 +67,7 @@ start() ->
                                [string:trim(Text, trailing)]),
                      70
              end,
-    %% report §8.7, §11.2: the lines a node's gateway or its checks said
+    %% report §12.5, §11.2: the lines a node's gateway or its checks said
     %% since its last launch's end are written before the job ends
     ok = ern_rt:wait_for_later(),
     case ern_signals:ended() of
@@ -77,7 +77,7 @@ start() ->
     ok = ern_out:finish(ErrorDevice),
     halt(Status).
 
-%% Report §8.7: the launcher's first start of the host, where its arguments
+%% Report §12.5: the launcher's first start of the host, where its arguments
 %% hold `--config-dir`, since the host takes a node's carrier only as it
 %% boots. The command line is parsed as its job parses it, and the flags a
 %% node's host boots with are written to standard output as shell words on
@@ -210,7 +210,7 @@ usage(Device) ->
 %% with status 0; a usage error prints the message and the job's usage on
 %% ErrorDevice, any other error one line, both with status 1.
 job(Job, Spec, Positional, Args, Work, ErrorDevice) ->
-    %% report §8.7, §11.2: the job's own standard error, where a line of the
+    %% report §12.5, §11.2: the job's own standard error, where a line of the
     %% toolchain's own goes while no launch's takes it (error_line/1)
     persistent_term:put({?MODULE, error_device}, ErrorDevice),
     Name = "ern " ++ Job,
@@ -1086,7 +1086,7 @@ report_tree([]) ->
 report_tree(Statuses) ->
     lists:max(Statuses).
 
-%% Report §8.7, §11.2: hangup sent to the node that holds the directory's
+%% Report §12.5, §11.2: hangup sent to the node that holds the directory's
 %% `ernest.pid`, which reads its configuration again; the directory is read
 %% first as the node reads it at a reload, so that one the node would
 %% refuse is refused here, with the node's refusal, and not signaled. The
@@ -1099,7 +1099,7 @@ reload(Options, [], _ErrorDevice) ->
 reload(_Options, _Rest, _ErrorDevice) ->
     usage_fail("reload takes no argument").
 
-%% Report §8.6, §8.7, §11.2: termination sent to the node that holds the
+%% Report §8.6, §12.5, §11.2: termination sent to the node that holds the
 %% directory's `ernest.pid`, which ends in order; the status says that the
 %% node has ended, which the job waits for on the node's lock, with no time
 %% of its own.
@@ -1200,7 +1200,7 @@ shell(Options, Rest, ErrorDevice) ->
 is_node(Options) ->
     proplists:is_defined(config_dir, Options).
 
-%% Report §8.3, §8.7, §11.2: a run given `--config-dir` is a node: its
+%% Report §8.3, §8.7, §12.5, §11.2: a run given `--config-dir` is a node: its
 %% directory checked and read before anything of it runs, its carrier
 %% started once the bindings have their values, which the run's options
 %% carry (ern_rt:run_main/3), and its `ernest.pid` removed at its end,
@@ -1226,7 +1226,7 @@ as_node(Options, LoadPath, Say, Run) ->
 as_node(Options, LoadPath, Say, Holds, Run) ->
     case proplists:get_value(config_dir, Options) of
         undefined ->
-            %% report §8.7, §11.2: the launcher's first start runs no
+            %% report §12.5, §11.2: the launcher's first start runs no
             %% program, which would read the standard input the second's
             %% is given and make its effects twice
             persistent_term:get({?MODULE, flags}, false) andalso throw({node_flags, []}),
@@ -1284,7 +1284,7 @@ no_main_file(run) ->
 %% the spawn site and the cause; after the cause, where a call carried the
 %% fault from its callee, the callee's site (§6.6), where a compute carried
 %% it from a peer, the peer's name (§8.7), and for a process a peer
-%% spawned, the peer, named as a node's line names it (§8.7), since the
+%% spawned, the peer, named as a node's line names it (§12.5), since the
 %% site is the spawner's; and beneath it the fault's trace (§7.3,
 %% indented_trace/1). It goes through standard error's
 %% process, so that it keeps its place among what the program wrote there,
@@ -1296,7 +1296,7 @@ no_main_file(run) ->
 %% journal, each line begins with the moment the fault was met, the
 %% report's `time`, in UTC as RFC 3339 writes it. A fault of a process
 %% Test.faults started never comes here, the runtime telling no one of it
-%% (Appendix E.24, ern_rt:expected/1). Report §8.6: beneath a deadlock's
+%% (Appendix E.24, ern_rt:expected/1). Report §12.4: beneath a deadlock's
 %% trace, the processes it left waiting (left_waiting/1).
 report_fault({'FaultReport', Process, Site, Cause, Restarted, Trace, _, Callee, From, Time},
              Peer, Stamped) ->
@@ -1327,7 +1327,7 @@ carried(Callee, From) ->
          'None' -> []
      end].
 
-%% Report §8.6, §11.2: the lines of the processes a deadlock left waiting
+%% Report §12.4, §11.2: the lines of the processes a deadlock left waiting
 %% beside the process it faulted, indented as a trace's frames are, beneath
 %% the trace; none for any other fault.
 left_waiting(Process) ->
@@ -1341,7 +1341,7 @@ indented_trace(Trace) ->
     [["    ", ern_show:controls(Frame, line), "\n"]
      || Frame <- binary:split(Trace, <<"\n">>, [global, trim_all])].
 
-%% Report §11.2, §8.7: what a line on standard error begins with, a fault's
+%% Report §11.2, §12.5: what a line on standard error begins with, a fault's
 %% or a node's: its time, in UTC as RFC 3339 writes it, where the lines are
 %% stamped, and nothing where they are not; the time now, or a fault's,
 %% the moment it was met (Appendix E.21).
@@ -1356,7 +1356,7 @@ stamp(false, _) ->
 
 %% The options of a launch that reports its faults. From the command line the
 %% program writes to the process's own standard output and standard error,
-%% through ports that learn when a stream has gone (report §8.2), and a
+%% through ports that learn when a stream has gone (report §12.1), and a
 %% fault line, and the runtime's line of the end's wait (§8.6), carries
 %% its time where standard error is neither a terminal nor a journal
 %% (§11.2); in a test, standard error is the test's device.
@@ -1375,7 +1375,7 @@ reporting_options(RunOptions, ErrorDevice) ->
                         stderr => fun(Bytes) -> file:write(ErrorDevice, Bytes) end}
     end.
 
-%% Report §11.2, §8.7: whether a line on standard error begins with its
+%% Report §11.2, §12.5: whether a line on standard error begins with its
 %% time: where the program writes to the process's own standard error, and
 %% that is neither a terminal nor a journal.
 -spec is_stamped() -> boolean().
@@ -1394,7 +1394,7 @@ is_journal() ->
         _ -> false
     end.
 
-%% Report §8.7, §11.2: a line of the toolchain's own written on the job's
+%% Report §12.5, §11.2: a line of the toolchain's own written on the job's
 %% own standard error, the device the job writes its own lines on, where no
 %% launch's standard error process takes it (ern_rt:say/2): before a node's
 %% first launch, between two and after its last.
@@ -1500,7 +1500,7 @@ config_startup(Options) ->
         ConfigDir -> filename:join(ConfigDir, "startup")
     end.
 
-%% Report §8.6: the host's termination and hangup end the program as the
+%% Report §8.6, §12.4: the host's termination and hangup end the program as the
 %% end of its entry process does, and the runtime prints nothing of its own
 %% about them (ern_signals).
 quiet_signals() ->
@@ -1520,7 +1520,7 @@ quiet_signals() ->
 %% on the job's standard error, since the launch has ended.
 report_outcome(_ErrorDevice, _Site, ok) -> 0;
 report_outcome(_ErrorDevice, _Site, {exit, Status}) -> Status;
-%% report §8.2, §11.2: a stream that can no longer be written, as a shell
+%% report §12.1, §11.2: a stream that can no longer be written, as a shell
 %% reports a broken pipe
 report_outcome(_ErrorDevice, _Site, {gone, _Stream}) -> 128 + 13;
 report_outcome(ErrorDevice, Site, killed) ->
@@ -1566,7 +1566,7 @@ init_fun(Loaded) ->
 
 %% Report §11.2: each of the host's limits on what a runtime loads that the
 %% loads so far have brought to four fifths, said once, as a node's line is
-%% (§8.7): at a run's start, once its units are loaded, and at each load of
+%% (§12.5): at a run's start, once its units are loaded, and at each load of
 %% the shell's.
 -spec say_limits() -> ok.
 say_limits() ->
@@ -1784,7 +1784,7 @@ run_test({'Case', Name, Run}, Running, Frames) ->
 %% Report §11.2: a case's line, its name written as a cause is, its
 %% controls escaped, then what it came to, and beneath the line of a case
 %% that faulted its trace, and beneath a deadlock's the processes it left
-%% waiting (§8.6).
+%% waiting (§12.4).
 case_line(Name, Outcome, Trace) ->
     iolist_to_binary([ern_show:controls(Name, line), ": ", Outcome, "\n", indented_trace(Trace)]).
 

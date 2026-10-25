@@ -1,4 +1,4 @@
-%% Report §8.7: no port-mapper daemon. A node finds a peer's address in its
+%% Report §12.5: no port-mapper daemon. A node finds a peer's address in its
 %% configuration and nowhere else, so this module answers the host in the
 %% daemon's place, where `-epmd_module ern_epmd` names it (ern_carrier's
 %% boot flags): a peer's address by the host of its name on the carrier, its
@@ -26,7 +26,7 @@ start_link() ->
 register_node(Name, Port) ->
     register_node(Name, Port, inet).
 
-%% Report §8.7: the number of this start, drawn, which marks every address
+%% Report §8.7, §12.5: the number of this start, drawn, which marks every address
 %% of the start; and the address and the port the listener bound, which
 %% the node says once at every start, the port the host's where `listen`
 %% let the host pick it, an IPv6 address in brackets as `listen` writes
@@ -55,7 +55,7 @@ port_please(_Name, Host, _Timeout) ->
         _ -> noport
     end.
 
-%% Report §8.7: a peer's address, by the host of its name on the carrier:
+%% Report §12.5: a peer's address, by the host of its name on the carrier:
 %% an address, or a name the host resolves at each dial in the node's
 %% family; none for a peer listed without one, or for a node listed by no
 %% peer, which is never dialed. A name that resolves only to the other
@@ -81,7 +81,7 @@ address_please(_Name, Host, Family) ->
             {error, nxdomain}
     end.
 
-%% Report §8.7: where a peer's name resolves only to the other family, the
+%% Report §12.5: where a peer's name resolves only to the other family, the
 %% node says so; a name that resolves to neither is a dial refused.
 other_family(Name, Named, Family) ->
     Other = case Family of inet -> inet6; inet6 -> inet end,
@@ -95,7 +95,7 @@ other_family(Name, Named, Family) ->
             ok
     end.
 
-%% Report §8.7: this node's listener's port, 0 for one the host picks.
+%% Report §12.5: this node's listener's port, 0 for one the host picks.
 -spec listen_port_please(term(), term()) -> {ok, inet:port_number()}.
 listen_port_please(_Name, _Host) ->
     case ern_carrier:configuration() of

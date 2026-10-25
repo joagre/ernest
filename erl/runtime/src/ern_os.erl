@@ -19,7 +19,7 @@
 %% whose functions the look reads on top of the process's stack as the
 %% host's work. user/0 reads the user `ern` runs as from a port in a
 %% process that is no program's: the job's, as a node starts or `ern
-%% config` reads a directory, and the carrier's at a reload (§8.7).
+%% config` reads a directory, and the carrier's at a reload (§12.5).
 -receives({foreign_wait, [host_read/1, variables/2]}).
 -receives({own_process, [serve/1, signal/2, locked/2, node_signaled/3, ended/1, starting/2,
                          running/4, exited/2, over/2, user/0]}).
@@ -93,7 +93,7 @@ helper_failed() ->
 helper() ->
     filename:join([filename:dirname(code:which(?MODULE)), "..", "priv", "ern_exec"]).
 
-%% Report §8.7: the signal Number sent by the helper to the operating
+%% Report §12.5: the signal Number sent by the helper to the operating
 %% system's process of the process number given, which the host has no
 %% word for: `sent`, `none` where no such process lives, or `others` where
 %% it lives and is another user's; the signal 0 sends nothing, and asks
@@ -109,7 +109,7 @@ signal(Number, ProcessNumber) ->
         {Port, {exit_status, 2}} -> others
     end.
 
-%% Report §8.7: a node's `ernest.pid` locked by the helper for the node's
+%% Report §12.5: a node's `ernest.pid` locked by the helper for the node's
 %% life, which writes ProcessNumber into it as its whole content. The
 %% calling process owns the helper's port, which the host closes with the
 %% node however it ends, and the lock goes then, and not before. `locked`,
@@ -127,7 +127,7 @@ locked(PidFile, ProcessNumber) ->
         {Helper, {exit_status, _}} -> {failed, helper_failed_text()}
     end.
 
-%% Report §8.7, §11.2: the signal Number sent by the helper to the node that
+%% Report §12.5, §11.2: the signal Number sent by the helper to the node that
 %% holds the lock on PidFile, the process the file names, and where Wait is
 %% true, the node's end waited for, on its lock, which the host lets go
 %% when the node ends: `sent`; `no_file`; `no_node` where no node holds the
@@ -457,7 +457,7 @@ host_read(Helper) ->
         {Helper, {exit_status, _}} -> host_failed()
     end.
 
-%% Report §8.7: the user `ern` runs as, which the host has no word for, as
+%% Report §12.5: the user `ern` runs as, which the host has no word for, as
 %% the helper run with `user` writes it back, and nothing else: a node
 %% checks its directory by it as it starts and at each reload. The helper's
 %% failure faults, as host/0's does.
@@ -491,7 +491,7 @@ umask() ->
 
 %% Report Appendix E.23, §8.5: the helper failed as the host was read,
 %% which ends the program before `main` runs, or as the user was read for
-%% a node (user/0, §8.7).
+%% a node (user/0, §12.5).
 -spec host_failed() -> no_return().
 host_failed() ->
     {fault, Cause} = helper_failed(),

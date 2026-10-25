@@ -4,7 +4,7 @@
 %% (docs/design/install.md): every .beam and .erc under the
 %% directory given, stripped in place of every chunk the host does not load
 %% with, but for Ernest's ErnI, the interface, and ErnC, the canonical
-%% forms a node ships to a peer that lacks a definition (report §8.7),
+%% forms a node ships to a peer that lacks a definition (report §12.7),
 %% and the host's EEP 48 Docs, which its tools read. The host's development
 %% tools, cover, xref and dialyzer, read what goes, and they run in the
 %% checkout.

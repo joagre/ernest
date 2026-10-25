@@ -1,4 +1,4 @@
-%% Report §8.7, The exchange: a node's exchange, the one registered process
+%% Report §12.7, The exchange: a node's exchange, the one registered process
 %% by which a spawn or a compute carries to a peer the definitions of its
 %% function's reach the peer lacks, its four frames passing through the
 %% gateways (ern_gateway), which hand them here as they come. It plays both
@@ -32,7 +32,7 @@
 %% the module a foreign declaration names, or the function in it, or a
 %% binding's value, before any code crosses, and otherwise the identities
 %% it lacks, a definition it holds in no unit that exports its function
-%% among them (§8.7, §11.1), since no other unit's code can call it
+%% among them (§12.7, §11.1), since no other unit's code can call it
 %% (ern_code:linkable/1); verifies each code frame against the hashes it
 %% names as it arrives, its forms with their source's lines against the
 %% forms, and its foreign declarations against those the forms call, and
@@ -83,7 +83,7 @@
 %% its types shadow, as text, by which a type prints in a cause as the
 %% module writes it (§11.5); and Calls the foreign declarations its form
 %% calls, in the order of their names, each a #foreign_function{} as a
-%% reach's is, but for its scheme, none, the form writing it (§8.7).
+%% reach's is, but for its scheme, none, the form writing it (§12.7).
 -module(ern_exchange).
 
 -export([start/0, handed/1, lacking/3, lost/1]).
@@ -97,12 +97,12 @@
 
 -define(NAME, ern_exchange).
 
-%% Report §8.7: what a spawn fails with when the spawner's node no longer
+%% Report §12.7: what a spawn fails with when the spawner's node no longer
 %% holds what the peer asked it for, the function at the request for the
 %% reach or a definition at the lacks.
 -define(NO_LONGER_HELD, <<"the spawner's node no longer holds the function's reach">>).
 
-%% Report §8.7: why the node did not start a spawn whose time ran out before
+%% Report §12.7: why the node did not start a spawn whose time ran out before
 %% the reach of its function arrived.
 -define(TIMED_OUT, <<"its time ran out before the function's reach arrived">>).
 
@@ -142,13 +142,13 @@ start() ->
 handed(Frame) ->
     told(Frame).
 
-%% Report §8.7: a spawn or a compute frame whose function, by Identity,
+%% Report §12.7: a spawn or a compute frame whose function, by Identity,
 %% this node lacks, as the gateway's worker read it.
 -spec lacking(pid(), tuple(), ern_peer:identity()) -> ok.
 lacking(From, Body, Identity) ->
     told({lacking, From, Body, Identity}).
 
-%% Report §8.7: a loss, told once the gateway's worker has handed on every
+%% Report §12.7: a loss, told once the gateway's worker has handed on every
 %% frame that came before it.
 -spec lost(node()) -> ok.
 lost(Node) ->
@@ -186,7 +186,7 @@ loop(State) ->
 %% The node a spawn was asked of
 %%
 
-%% Report §8.7: a spawn or a compute this node lacks the function of joins
+%% Report §12.7: a spawn or a compute this node lacks the function of joins
 %% the exchange that asks for its identity, whose time it lengthens to its
 %% own where its own ends later, or asks the spawner's node for the reach;
 %% its time is the milliseconds its spawner waits, from its frame's coming,
@@ -216,7 +216,7 @@ ask(Identity, [{From, _} | _] = Waiting, Deadline,
                                                         deadline = Deadline}},
                 asked = Asked#{Identity => Ref}}.
 
-%% Report §8.7: an exchange whose time has run out, every spawner that
+%% Report §12.7: an exchange whose time has run out, every spawner that
 %% waits on it having given up at its own, `Timeout` its answer, dropped
 %% with its forms, each spawn said as one the node did not start and left
 %% unanswered, so that no answer of this node's comes before a spawner's
@@ -243,7 +243,7 @@ armed(Ref, Deadline) ->
     _ = erlang:send_after(ern_rt:remaining(Deadline), self(), {deadline, Ref}),
     ok.
 
-%% Report §8.7: a frame of the exchange's, each field of it checked, or
+%% Report §12.7: a frame of the exchange's, each field of it checked, or
 %% unreadable. A reach or a code frame of an exchange this node no longer
 %% holds is late, its spawns answered or dropped with a loss, and is
 %% passed over; one from another node than the exchange asked, or one that
@@ -306,7 +306,7 @@ exchange(From, Ref, #state{exchanges = Exchanges}) ->
         #{} -> late
     end.
 
-%% Report §8.7: a code frame's members, each a #definition{} named by the
+%% Report §12.7: a code frame's members, each a #definition{} named by the
 %% name the frame gave it, with its form and its form with the lines of
 %% its source, which must be the form the bytes hold once its source is
 %% taken out, a group's by its hash and its member's position; and beside
@@ -350,12 +350,12 @@ kind({function, _, _, _}) -> function;
 kind({binding, _, _}) -> binding;
 kind({type, _, _, _, _, _}) -> type.
 
-%% Report §8.7: the reach read: `NotLoaded` for every spawn that waits
+%% Report §12.7: the reach read: `NotLoaded` for every spawn that waits
 %% where this node lacks the module a foreign declaration names, or the
 %% function in it, or a binding's value, before any code crosses;
 %% otherwise the identities it lacks asked for, or, where it lacks none,
 %% the reach received at once. An identity it holds in no unit that
-%% exports its function is lacked (§8.7, §11.1), since a unit made of what
+%% exports its function is lacked (§12.7, §11.1), since a unit made of what
 %% arrives could not call it (ern_code:linkable/1).
 reached(Ref, #exchange{reach = {Identities, Bindings, Foreigns}, node = Node} = Exchange, State) ->
     case ern_peer:reach_lacked(Bindings, Foreigns) of
@@ -374,7 +374,7 @@ reached(Ref, #exchange{reach = {Identities, Bindings, Foreigns}, node = Node} = 
             ended(Ref, State)
     end.
 
-%% Report §8.7: a code frame verified, held apart with the others; the reach
+%% Report §12.7: a code frame verified, held apart with the others; the reach
 %% received once every lacked identity has arrived.
 arrived(Ref, #exchange{lacked = Lacked, arrived = Arrived} = Exchange, Members, State) ->
     Exchange1 = Exchange#exchange{lacked = maps:without([Hash || {#definition{hash = Hash}, _}
@@ -385,7 +385,7 @@ arrived(Ref, #exchange{lacked = Lacked, arrived = Arrived} = Exchange, Members, 
         _ -> kept(Ref, Exchange1, State)
     end.
 
-%% Report §8.7: the reach complete and verified, received, one unit loaded
+%% Report §12.7: the reach complete and verified, received, one unit loaded
 %% whole before any of it runs, and every spawn and compute that waits read
 %% again as the gateway's worker reads it, which starts it; where the node
 %% could not take the reach, each answered `Other` with its reason, which
@@ -402,7 +402,7 @@ completed(Ref, #exchange{identity = Identity, waiting = Waiting, arrived = Arriv
     end,
     ended(Ref, State1).
 
-%% Report §8.7, §11.2: the definitions that arrived, dependencies first,
+%% Report §12.7, §11.2: the definitions that arrived, dependencies first,
 %% with the foreign declarations their code frames say they call, and the
 %% spawned function's reach, its bindings and its foreign declarations,
 %% made one unit under the pool's next name and loaded (ern_arrival);
@@ -429,7 +429,7 @@ key({function, Hash}) -> {hash, Hash};
 key({lambda, Hash, Position}) -> {lambda, Hash, Position};
 key({foreign, Names}) -> {foreign, Names}.
 
-%% Report §8.7: a spawn or a compute that waited, read again now its reach
+%% Report §12.7: a spawn or a compute that waited, read again now its reach
 %% is loaded, and what its reading tells the node said, as the gateway's
 %% worker says it; one whose function the unit did not bring after all is
 %% answered `Other`, saying so.
@@ -445,7 +445,7 @@ started({From, Body}) ->
             ok = ern_gateway:outcome(node(From), Read)
     end.
 
-%% Report §8.7: the spawner's node no longer holds what it was asked for:
+%% Report §12.7: the spawner's node no longer holds what it was asked for:
 %% the spawns it asked for answered so, and those of any other node that
 %% waited on the exchange asking their own nodes anew.
 no_longer_held(Ref, #exchange{node = Node, identity = Identity, waiting = Waiting,
@@ -461,7 +461,7 @@ answered(Waiting, Error, Lacked) ->
                                                                           Lacked))
                   end, Waiting).
 
-%% Report §8.7: a loss of Node, or a faulty frame from it, whose connection
+%% Report §12.7: a loss of Node, or a faulty frame from it, whose connection
 %% then ends: each exchange asked of it dropped with its forms, its spawns
 %% of other nodes asking their own anew within the time the exchange had,
 %% and every spawn of Node's dropped, none waiting on it any more.
@@ -493,14 +493,14 @@ ended(Ref, #state{exchanges = Exchanges, asked = Asked} = State) ->
 %% The spawner's node
 %%
 
-%% Report §8.7: the reach of the function Identity names: the hashes of
+%% Report §12.7: the reach of the function Identity names: the hashes of
 %% the definitions it reaches, from the definition it is or is in, code and
 %% types, the bindings its reach names, and its foreign declarations with
 %% their modules, functions and declared types; a foreign function's its
 %% declaration alone; or none where this node no longer holds it. A
 %% binding is no identity of a reach, its value being its node's, but the
 %% one a lambda is written in, whose form crosses for the lambda's code as
-%% a function a lambda is written in crosses (§8.7, §11.1), its value still
+%% a function a lambda is written in crosses (§12.7, §11.1), its value still
 %% the node's; a binding that is a member of a group crosses with it.
 reach_answer(Ref, Identity) ->
     case reach(Identity) of
@@ -517,7 +517,7 @@ reach({lambda, Hash, Position}) ->
 reach({foreign, Names} = Key) ->
     case ern_code:spawnable(Key) of
         none ->
-            %% report §8.7: one this node holds only as a declaration whose
+            %% report §12.7: one this node holds only as a declaration whose
             %% call a unit an exchange made linked to a fault crosses as
             %% that declaration, the peer finding what it lacks itself
             case ern_code:declared(Names) of
@@ -664,7 +664,7 @@ declared(Holder, Name, Read) ->
             {none, Read1}
     end.
 
-%% Report §8.7, Appendix H: a code frame for each definition Hashes names,
+%% Report §12.7, Appendix H: a code frame for each definition Hashes names,
 %% a group's members in one, dependencies first; none where this node holds
 %% one of them nowhere.
 code_frames(Hashes) ->
@@ -719,7 +719,7 @@ first_needed(Key, Groups, ByHash, {Order, Seen}) ->
                                   end, {Order, Seen#{Key => true}}, Needed),
     {[Key | Order1], Seen1}.
 
-%% Report Appendix H, §8.7: a definition alone, or a group's members in
+%% Report Appendix H, §12.7: a definition alone, or a group's members in
 %% order, as a code frame carries it: the hashes, the bytes they are taken
 %% of, and each member's name, its form with the lines of its source, what
 %% prints a type in a cause as its module writes it, and the foreign
@@ -758,7 +758,7 @@ code_frame(Members, Forms, Calls) ->
              ern_canonical:bytes(ern_canonical:hashed(Forms)), term_to_binary(Sources)}
     end.
 
-%% Report §8.7: the foreign declarations a definition's form calls, in the
+%% Report §12.7: the foreign declarations a definition's form calls, in the
 %% order of their names, each as a reach's is found (implementations/3),
 %% with no scheme, the form writing it; none where one of them is found
 %% nowhere.
@@ -825,7 +825,7 @@ recorded(Unit, Read) ->
 forms(Members) ->
     [Form || #definition{form = Form} <- Members].
 
-%% Report §8.7: the qualified names of the foreign declarations a form
+%% Report §12.7: the qualified names of the foreign declarations a form
 %% calls, as text, each once, in order, as a code frame names them.
 called_names(Form) ->
     lists:usort([ern_namespace:text_segments(QualifiedName)

@@ -218,7 +218,7 @@ unit(Other) -> Other.
 
 text({'Path', Bytes}) -> Bytes.
 
-%% Report Appendix E.17, §8.2: a name that is not UTF-8 is no Path, so the
+%% Report Appendix E.17, §12.1: a name that is not UTF-8 is no Path, so the
 %% list answers NotUtf8 with the first such, in the order of their bytes.
 named_entries(Dir, Names) ->
     case [Bytes || Bytes <- Names, not is_utf8(Bytes)] of

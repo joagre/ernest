@@ -172,8 +172,8 @@ service_monitor_told_before_the_new_run_test() ->
 %% a request sent on it could be emptied with the old run's mailbox or its
 %% call ended with the old run's (the log's *A Restart Empties Before It
 %% Tells*). It does not cover a
-%% service monitor of another node's process, which no restart reaches
-%% (§8.7)
+%% service monitor of another node's process, which a restart tells by a
+%% frame (§8.7, §12.6), held by ern_nodes_tests' restart_told_test_
 restarted_watcher_reaches_the_new_run_test() ->
     {ok, Output} = ern_emitter_tests:run(
         "type HolderMsg = Crash | Count(Reply(Int))\n"

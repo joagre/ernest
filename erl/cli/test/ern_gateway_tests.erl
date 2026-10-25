@@ -1,4 +1,4 @@
-%% Report §6.5, §8.7: a node's gateway's worker for a peer, as the gateway
+%% Report §6.5, §12.6: a node's gateway's worker for a peer, as the gateway
 %% starts it, the test standing in for the gateway, which hands the worker
 %% each of the peer's frames and losses and answers its ask to end, and for
 %% the peer, whose frames are messages to an adapted address this node
@@ -13,7 +13,7 @@
 %% The peer whose frames the worker reads, a node no host holds.
 -define(PEER, 'peer@nowhere.ernest').
 
-%% report §6.5, §6.4, §8.7: a peer's messages to one adapted address are
+%% report §6.5, §6.4, §12.6: a peer's messages to one adapted address are
 %% applied in the order their frames came, in one process the worker keeps
 %% for the address, which a message handed while another waits keeps, so
 %% that a function that waits holds the messages after it; once none waits
@@ -207,7 +207,7 @@ wait(Tag) ->
 quiet() ->
     #{stdout => fun(_) -> ok end, stderr => fun(_) -> ok end}.
 
-%% report §8.7, §2.5: the line a node says of a spawn it did not start
+%% report §12.5, §2.5: the line a node says of a spawn it did not start
 %% writes the site, a peer's text, with its control characters as escapes,
 %% so that a site with a line feed forges no line of the node's. A
 %% regression test (S4), written after the code: the site went in raw

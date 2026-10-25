@@ -1,5 +1,5 @@
 %% The printer of Appendix E.1, by a type's descriptor and, where there is
-%% none, by the runtime's representation (report §8.4).
+%% none, by the runtime's representation (report §12.2).
 -module(ern_show_tests).
 
 -include_lib("eunit/include/eunit.hrl").

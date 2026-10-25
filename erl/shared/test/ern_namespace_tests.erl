@@ -60,7 +60,7 @@ text_test() ->
     ?assertEqual("Net.Http.get", ern_namespace:text(['Net', 'Http', get])),
     ?assertEqual("", ern_namespace:text([])).
 
-%% report §7.4, §8.4, Appendix E.21: a function of the host's as the host
+%% report §12.3, §8.4, Appendix E.21: a function of the host's as the host
 %% writes it, quoted where the host quotes an atom, in a cause and in a
 %% trace alike, and a fun the host holds no code for without its name. A
 %% regression test, written after the code: a cause wrote `erlang:div/2`

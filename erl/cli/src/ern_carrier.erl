@@ -1,4 +1,4 @@
-%% Report §8.7: a node's carrier, Erlang's own distribution over TLS with
+%% Report §12.5: a node's carrier, Erlang's own distribution over TLS with
 %% what hurts in it turned off. The flags the host boots with, which the
 %% launcher asks for before it starts the host (boot_flags/2); the node's
 %% name on the carrier, a constant at its key's digest (name/1, host/1);
@@ -18,7 +18,7 @@
 -include_lib("public_key/include/public_key.hrl").
 -include("ern_node.hrl").
 
-%% Report §8.7: the protocol's version, in the cookie, so that two nodes of
+%% Report §12.5: the protocol's version, in the cookie, so that two nodes of
 %% different protocols never connect: 4 since MVP 3.95, whose two frames
 %% tell a restart to the nodes that monitor the restarting process and
 %% answer that their watchers have been told (§6.9).
@@ -29,7 +29,7 @@
 %% the configuration's (ern_epmd).
 -define(NAME, "ernest").
 
-%% Report §8.7, §7: the detector's time, a tick every quarter of it, and a
+%% Report §8.7, §12.6, §7: the detector's time, a tick every quarter of it, and a
 %% dial nothing answers given up after 7 seconds; what may wait to be sent
 %% to a peer before a sender waits, in kilobytes; each the same on every
 %% node, and none set in `ernest.conf`.
@@ -37,7 +37,7 @@
 -define(SETUP_TIME, "7").
 -define(BUFFER, "1024").
 
-%% Report §8.7: the key under which the process that dials a peer holds the
+%% Report §12.5: the key under which the process that dials a peer holds the
 %% host it dials (dialing/1).
 -define(DIALED, {?MODULE, dialed}).
 
@@ -45,7 +45,7 @@
 %% The host's boot
 %%
 
-%% Report §8.7: the flags a node's host boots with, since the host takes its
+%% Report §12.5: the flags a node's host boots with, since the host takes its
 %% carrier only as it boots: TLS 1.3 with the node's certificate and key on
 %% each side and the rule as the verification, over the listener's family
 %% of addresses; no port-mapper daemon, a module of the runtime's answering
@@ -69,7 +69,7 @@ boot_flags(#configuration{config_dir = ConfigDir, listen = Listen}) ->
             "+zdbbl", ?BUFFER, "-setcookie", cookie()]
         ++ interface(Listen).
 
-%% Report §8.7: the TLS options of one side: the node's own certificate as
+%% Report §12.5: the TLS options of one side: the node's own certificate as
 %% the one the host trusts, so that a peer's is checked by the rule alone,
 %% which is told the side it checks for.
 tls(Side, Certificate, Key) ->
@@ -84,13 +84,13 @@ interface({Address, _}) ->
     ["-kernel", "inet_dist_use_interface", lists:flatten(io_lib:format("~w", [Address]))];
 interface(none) -> [].
 
-%% Report §8.7: a node's name on the carrier, a constant at the host its
+%% Report §12.5: a node's name on the carrier, a constant at the host its
 %% public key gives, holding no network address.
 -spec name(binary()) -> atom().
 name(PublicKey) ->
     list_to_atom(?NAME ++ "@" ++ host(PublicKey)).
 
-%% Report §8.7: the host a public key gives, the SHA-256 digest of the key
+%% Report §12.5: the host a public key gives, the SHA-256 digest of the key
 %% as two labels of 32 hexadecimal digits, since a label of a host's name
 %% holds at most 63 characters (RFC 1035). Its certificate names it, the
 %% dialler's TLS sends it as the server's name (SNI), and the host's check
@@ -103,14 +103,14 @@ host(PublicKey) ->
 digest(PublicKey) ->
     binary_to_list(binary:encode_hex(crypto:hash(sha256, PublicKey), lowercase)).
 
-%% Report §8.7: the cookie, the digest of the floor this build of `ern`
+%% Report §12.5: the cookie, the digest of the floor this build of `ern`
 %% stands on (cookie/2), which ern_release gives, taken as the node's host
 %% first starts (boot_flags/1).
 -spec cookie() -> string().
 cookie() ->
     cookie(ern_release:release(), fun code_digest/0).
 
-%% Report §8.7, Appendix H: the cookie of a build that stands on Release:
+%% Report §12.5, Appendix H: the cookie of a build that stands on Release:
 %% for a release, the digest of the protocol's version, the form's version,
 %% `ern`'s major and minor, which stand for the runtime's functions and the
 %% standard library, a patch adding nothing, and OTP's major release, within
@@ -132,7 +132,7 @@ cookie(Release, CodeDigest) ->
     binary_to_list(binary:encode_hex(crypto:hash(sha256, term_to_binary(Floor, [deterministic])),
                                      lowercase)).
 
-%% Report §8.7: the digest of a development build's own code: each module
+%% Report §12.5: the digest of a development build's own code: each module
 %% of the toolchain's, its applications', the standard library's, the
 %% shell's and the two libraries the shell is compiled against, every
 %% module compiled from an application's tests aside, by the digest of its
@@ -165,7 +165,7 @@ is_test(File) ->
 %% The node's start
 %%
 
-%% Report §8.7: the carrier started once the bindings have their values,
+%% Report §8.7, §12.5: the carrier started once the bindings have their values,
 %% in the entry process, the node's peers listed (list/1): the host's own
 %% reports of its nodes turned off, the gateway, which watches the node's
 %% connections, and the host's distribution under the node's name,
@@ -190,7 +190,7 @@ start(#configuration{public_key = PublicKey, listen = Listen}) ->
                                            not_started(Listen, Reason)]))
     end.
 
-%% Report §8.7: why the carrier did not start: its listen address in use,
+%% Report §12.3: why the carrier did not start: its listen address in use,
 %% which the host's reason does not name, the host saying it only in a
 %% report of its own (filter/2), and which a listen on the address, made
 %% once the host has failed, finds, so that a start that succeeds pays
@@ -209,14 +209,14 @@ not_started({Address, Port} = Listen, Reason) when Port =/= 0 ->
 not_started(_, Reason) ->
     io_lib:format("~0p", [Reason]).
 
-%% Report §8.7: a listen address as `listen` writes it, an IPv6 address in
+%% Report §12.5: a listen address as `listen` writes it, an IPv6 address in
 %% brackets.
 listen_text({{_, _, _, _} = Address, Port}) ->
     [inet:ntoa(Address), ":", integer_to_list(Port)];
 listen_text({Address, Port}) ->
     ["[", inet:ntoa(Address), "]:", integer_to_list(Port)].
 
-%% Report §8.7: the configuration the node runs by, and its peer table,
+%% Report §12.5: the configuration the node runs by, and its peer table,
 %% which the rule, the port map and the lines read, each peer by the host
 %% its key gives, listed as the node starts, before its initializers run.
 -spec list(#configuration{}) -> ok.
@@ -248,7 +248,7 @@ is_node() ->
 %% The node's reload and end
 %%
 
-%% Report §8.7: hangup is a reload: `ernest.conf` read and checked again as
+%% Report §12.5: hangup is a reload: `ernest.conf` read and checked again as
 %% at the start, the node's own key and `listen` unchanged, or the file
 %% refused and the configuration kept; then the names the host allows gain
 %% the new peers', the peer table the rule and the dial read, the services,
@@ -301,7 +301,7 @@ changed(#configuration{config_dir = ConfigDir, public_key = Key, listen = Listen
                #peer{name = NewName, public_key = Same2} <- NewPeers,
                Same =:= Same2, Name =/= NewName].
 
-%% Report §8.7: a node stops in order, so that every Down already on its
+%% Report §8.7, §12.6: a node stops in order, so that every Down already on its
 %% way crosses before its connections close, and tells each peer still
 %% connected that it ends, which the peer's gateway reads before the
 %% connection's end: the runtime's end has waited for the deaths its peers
@@ -321,7 +321,7 @@ depart() ->
                       _ = lists:member(Node, nodes(connected)) andalso net_adm:ping(Node)
                   end, nodes(connected)).
 
-%% Report §8.7: the host takes a peer's connection only under a name it
+%% Report §12.5: the host takes a peer's connection only under a name it
 %% allows whose host the peer's certificate names (inet_tls_dist), and
 %% dials only a name it allows; the node allows each listed peer's name at
 %% its start and at each reload, and the rule a key's before it accepts the
@@ -342,7 +342,7 @@ peer(Host) ->
 %% The rule
 %%
 
-%% Report §8.7: the rule that accepts a peer whose public key this node
+%% Report §12.5: the rule that accepts a peer whose public key this node
 %% lists, and no other, and only under the name that key gives: its
 %% certificate names the host its key gives, and no other, which the host
 %% binds to the name the peer gives in the handshake (allow/1). A
@@ -397,7 +397,7 @@ answered(client, #peer{name = Name, public_key = Key}) ->
             {fail, not_dialed}
     end.
 
-%% Report §8.7: the host the process that dials a peer dials, recorded in
+%% Report §12.5: the host the process that dials a peer dials, recorded in
 %% its dictionary as the port map answers the peer's address
 %% (ern_epmd:address_please/3), where it stays for the connection's life,
 %% the process's: so that the rule binds the certificate that answers the
@@ -437,7 +437,7 @@ listed(Certificate) ->
         none -> {unlisted, digest(Key)}
     end.
 
-%% Report §8.7: whether a certificate names the host its own key gives, and
+%% Report §12.5: whether a certificate names the host its own key gives, and
 %% no other, as the one DNS name of its subject's alternative names, which
 %% `ern config` writes.
 -spec names_own_host(#'OTPCertificate'{}) -> boolean().
@@ -463,7 +463,7 @@ certificate_key(Certificate) ->
 %% What a node says
 %%
 
-%% Report §8.7: a line on the node's standard error, through standard
+%% Report §12.5: a line on the node's standard error, through standard
 %% error's process as a fault's line goes, and written as `ern run` writes
 %% one, its time first where standard error is neither a terminal nor a
 %% journal (§11.2), from the node's start, a reload during its initializers
@@ -474,7 +474,7 @@ certificate_key(Certificate) ->
 say(Text) ->
     ern_rt:say(line(Text), fun ern_cli:error_line/1).
 
-%% Report §8.7: a line on the node's standard error as say/1 writes it, said
+%% Report §12.5: a line on the node's standard error as say/1 writes it, said
 %% for a process that must not wait for standard error to take it: the
 %% gateway and its workers, which route every frame, the check of a
 %% certificate, inside the host's TLS, the port map's dial and the host's
@@ -502,7 +502,7 @@ host_named(Host) ->
         none -> ["the node ", controls([Char || Char <- Host, Char =/= $.])]
     end.
 
-%% Report §8.7: the line a change of a connection is said by, which the
+%% Report §12.5: the line a change of a connection is said by, which the
 %% gateway watches, or none: a peer connected; a peer ended, whose
 %% connection closed after the peer told this node it ends; a peer lost,
 %% and whether it fell silent, which the detector found, or closed; and a
@@ -525,12 +525,12 @@ said({nodedown, Node, Info}) ->
 said(_) ->
     none.
 
-%% Report §8.7: the host's own reports of its nodes are turned off, but the
+%% Report §12.5: the host's own reports of its nodes are turned off, but the
 %% handshake's refusal of a peer for its floor, by the cookie, and of a
 %% name its key does not give, which the node says in its own words. Its
 %% reports of a distribution that could not start, the crash of
 %% `net_kernel` and the start error of `net_sup`, are among them: the
-%% carrier's fault says it (§7.4).
+%% carrier's fault says it (§12.3).
 -spec filter(logger:log_event(), term()) -> logger:filter_return().
 filter(#{msg := {report, #{label := {error_logger, _}, format := Format, args := Args}}}, _) ->
     host_message(Format, Args);
@@ -578,7 +578,7 @@ host_message(Format, Args) when is_list(Format) ->
 host_message(_, _) ->
     ignore.
 
-%% Report §8.7, §11.2: a name a node gave in its handshake, which a line
+%% Report §12.5, §11.2: a name a node gave in its handshake, which a line
 %% writes with each control character escaped, as a cause's are.
 controls(Name) ->
     ern_show:controls(unicode:characters_to_binary(Name), line).

@@ -4,7 +4,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
-%% report Appendix E.16, §8.2: a character, Enter's carriage return or line
+%% report Appendix E.16, §12.1: a character, Enter's carriage return or line
 %% feed among them, the arrows, and Escape
 decode_test() ->
     ?assertEqual({[{'Key', $a}, {'Key', $b}], []}, ern_tty:decode("ab")),
@@ -28,7 +28,7 @@ partial_sequence_test() ->
     ?assertEqual({['Escape', {'Key', $[}, {'Key', $5}, {'Key', $~}], []},
                  ern_tty:decode("\e[5~")).
 
-%% report §8.2: Escape is delivered once no escape sequence can still
+%% report §12.1: Escape is delivered once no escape sequence can still
 %% follow it, so what waits is flushed when the pause passes
 flush_test() ->
     ?assertEqual(['Escape'], ern_tty:flush("\e")),
@@ -37,7 +37,7 @@ flush_test() ->
     %% a sequence that did arrive whole is decoded, not flushed
     ?assertEqual({['ArrowUp'], []}, ern_tty:decode("\e[A")).
 
-%% report §8.2, Appendix E.16: the terminal's process delivers each key as an
+%% report §12.1, Appendix E.16: the terminal's process delivers each key as an
 %% `Event`, a lone Escape after the pause and an arrow at once; ern_rt:send
 %% needs a run, so this one has one
 escape_pause_test() ->
@@ -45,7 +45,7 @@ escape_pause_test() ->
     ok = ern_rt:run_main(
            fun() ->
                Tty = ern_rt:system_process(terminal),
-               %% report §8.2: the subscription is answered once the mode is set
+               %% report §12.1: the subscription is answered once the mode is set
                subscribe(Tty),
                %% as the reader sends them: the arrow whole, the escape alone
                Tty ! {chars, "\e[A"},
@@ -56,7 +56,7 @@ escape_pause_test() ->
     ?assertEqual('ArrowUp', wait(k1)),
     ?assertEqual('Escape', wait(k2)).
 
-%% report §8.2: a process holds one subscription, and a second replaces
+%% report §12.1: a process holds one subscription, and a second replaces
 %% the first, its wrap from then on. A regression test: each call added the
 %% address again, and every key arrived once for each.
 second_subscription_test() ->
@@ -96,7 +96,7 @@ wrap_acts_for_its_subscriber_test() ->
            end, <<"main">>, #{stdout => fun(_) -> ok end, keys => fun silent/0}),
     ?assertEqual({true, true}, wait(current)).
 
-%% report §8.2, §8.6: a subscription ends when its process dies, so the
+%% report §12.1, §8.6: a subscription ends when its process dies, so the
 %% keys stop being a source that can deliver, and a program left waiting
 %% on nothing is found deadlocked. A regression test: a dead subscriber
 %% stayed in the list, and the program waited for ever.
@@ -120,7 +120,7 @@ dead_subscriber() ->
 wait(Tag) ->
     receive {Tag, Value} -> Value after 0 -> timeout end.
 
-%% report §8.2: the keys are UTF-8 whatever the host's locale, a
+%% report §12.1: the keys are UTF-8 whatever the host's locale, a
 %% character cut across two reads is one key, and keys that are not UTF-8
 %% end the program with its entry process's fault
 utf8_keys_test() ->
@@ -138,7 +138,7 @@ utf8_keys_test() ->
                                  end, <<"main">>,
                                  #{stdout => fun(_) -> ok end, keys => fun() -> <<"a", 255>> end})).
 
-%% report §8.2, Appendix E.16: where standard input is not a terminal a
+%% report §12.1, Appendix E.16: where standard input is not a terminal a
 %% subscription is refused with Left(NotATerminal) and claims nothing, so
 %% a line can still be read, and the size is still asked of the output
 not_a_terminal_test() ->
@@ -157,7 +157,7 @@ not_a_terminal_test() ->
     ?assertEqual({'Left', 'NotATerminal'}, wait(answer)),
     ?assertEqual({'Some', <<"line">>}, wait(line)).
 
-%% report §8.6, §8.2: at the end of input no key can come, so a program
+%% report §8.6, §12.1: at the end of input no key can come, so a program
 %% that waits only for keys is in a deadlock and faults. A regression test:
 %% the subscription went on counting as a source, and the program waited
 %% for ever. It ran a program with its standard input closed until such an
@@ -170,7 +170,7 @@ keys_at_end_of_input_test() ->
                                  end, <<"main">>,
                                  #{stdout => fun(_) -> ok end, keys => fun() -> eof end})).
 
-%% report §8.2: the terminal applies each subscriber's wrap itself, in
+%% report §12.1: the terminal applies each subscriber's wrap itself, in
 %% order, so a wrap that does not finish delays that subscriber's keys and
 %% no other's
 couriers_test() ->
@@ -201,7 +201,7 @@ couriers_test() ->
            end, <<"main">>, #{stdout => fun(_) -> ok end, keys => fun silent/0}),
     ?assertEqual([{'Key', $a}, {'Key', $b}], wait(keys)).
 
-%% report §6.9, §8.2: a restart ends the process's subscription to the
+%% report §6.9, §12.1: a restart ends the process's subscription to the
 %% terminal, so a key typed in the new run does not reach it. A regression
 %% test: the subscription stood, and the key arrived
 restart_ends_subscription_test() ->
@@ -234,7 +234,7 @@ restart_ends_subscription_test() ->
     ?assertEqual({'Some', {'Right', 'Unit'}}, wait(subscribed)),
     ?assertEqual(none, wait(got)).
 
-%% report §6.9, §8.2: a subscription ends with its process, and so does a
+%% report §6.9, §12.1: a subscription ends with its process, and so does a
 %% call its wrap makes in the courier, the call's records dropped as its
 %% own end of the call drops them: the callee's row goes. A regression
 %% test, written after the code (the log's *The Sitting on §8.6's
@@ -285,7 +285,7 @@ unsubscribe_ends_a_wraps_call_test() ->
 silent() ->
     receive after infinity -> eof end.
 
-%% Report §8.2: `Subscribe` carries a reply, answered once the terminal is
+%% Report §12.1: `Subscribe` carries a reply, answered once the terminal is
 %% in the mode the keys need.
 subscribe(Tty) ->
     Self = ern_rt:self(),
@@ -295,7 +295,7 @@ subscribe(Tty, Wrap) ->
     Address = ern_rt:adapted(ern_rt:self(), Wrap),
     ern_rt:call(Tty, fun(Reply) -> {'Subscribe', Address, Reply} end, 5000).
 
-%% report §8.2, Appendix E.16: a paste is one event and not the keys of its
+%% report §12.1, Appendix E.16: a paste is one event and not the keys of its
 %% characters, its line endings are line feeds whichever the terminal
 %% sends, and what has arrived of a paste waits for the end the terminal
 %% puts after it, however small the pieces the reader hands over
@@ -316,7 +316,7 @@ paste_test() ->
                  ern_tty:more(Pending, "1~x")),
     ?assertEqual([{'Pasted', <<"h\ni\e[20">>}], ern_tty:flush(Pending)).
 
-%% report §8.2: a paste whose end does not come ends when no more of it
+%% report §12.1: a paste whose end does not come ends when no more of it
 %% arrives, what came of it being the paste, and an end that comes after it
 %% is nothing, a piece of it waiting as the whole of it would. A regression
 %% test: the paste waited for its end for good, and took in every key after

@@ -21,8 +21,8 @@ CLAUDE.md          the working rules
 Makefile           the build and the tests' targets
 LICENSE, THIRD_PARTY_LICENSES  the license, and the third-party code's
 ACKNOWLEDGMENTS.md the people Ernest stands on
-report/            the report (normative), in three files: language.md, §0 to §10 and
-                   Appendices A, B and F; toolchain.md, §11 and Appendices C and H;
+report/            the report (normative), in three files: language.md, §0 to §9 and
+                   Appendices A, B and F; toolchain.md, §10 to §12 and Appendices C and H;
                    library.md, Appendices D, E and G
 guide/             the guides: language.md, the language guide; deployment.md,
                    Running Ernest, the operator's; style.md, the rules a program

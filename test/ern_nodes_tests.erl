@@ -50,7 +50,7 @@
 %% Report §8.7: the host gives up a dial that nothing answers after 7
 %% seconds.
 -define(DIAL_MS, 7000).
-%% Report §8.7: the detector finds a silent peer at most 75 seconds after
+%% Report §12.6: the detector finds a silent peer at most 75 seconds after
 %% its last traffic.
 -define(DETECTOR_MS, 75000).
 
@@ -480,7 +480,7 @@ bare_started(Dir, LoadPath) ->
     Wait.
 
 %% The port a node whose `listen` names port 0 bound, once it says so
-%% (report §8.7): the one line a bare node, which runs nothing of its own,
+%% (report §12.5): the one line a bare node, which runs nothing of its own,
 %% writes as it starts to listen.
 -spec bound_port(file:filename()) -> inet:port_number().
 bound_port(Dir) ->
@@ -738,7 +738,7 @@ fewer_steps_than_counted_test() ->
 one_step() ->
     step(first).
 
-%% report §8.7: two nodes that list each other connect over TLS with a
+%% report §12.5, §12.6: two nodes that list each other connect over TLS with a
 %% certificate on each side, by the first operation that needs it, and each
 %% says so naming the other; a node whose program ends tells the other,
 %% which says it ended and not that it was lost; and the host's own reports
@@ -770,7 +770,7 @@ connect(Base) ->
     %% a node's ernest.pid is there while it runs and gone at its end
     ?assertNot(filelib:is_file(filename:join(B, "ernest.pid"))).
 
-%% report §8.7: a node accepts a peer whose public key its configuration
+%% report §8.7, §12.5: a node accepts a peer whose public key its configuration
 %% lists, and no other: the dialer is told nothing but that it could not
 %% connect, and the node that refused says so, naming the key's digest
 unlisted_test_() ->
@@ -799,7 +799,7 @@ unlisted(Base) ->
     %% the line as the deployment guide quotes it
     ern_deployment_tests:cataloged(ErrB, "7", "no peer has its key", [{"b", digest(A)}]).
 
-%% report §8.7: a node accepts a connection from a peer whose key it lists
+%% report §8.7, §12.5: a node accepts a connection from a peer whose key it lists
 %% only under the name that key gives it: a host that holds the key of the
 %% peer b and names itself otherwise is refused, and so is one that
 %% presents b's key in a certificate naming the host of c's, another peer
@@ -848,7 +848,7 @@ bound(Base) ->
     ern_deployment_tests:cataloged(ErrA, "7", "gives another name", []),
     ern_deployment_tests:cataloged(ErrA, "7", "certificate names another host", [{"b", "b"}]).
 
-%% report §8.7: a node it dials must answer under the name it dialed: the
+%% report §12.5: a node it dials must answer under the name it dialed: the
 %% address a lists for the peer b is the port of c, another peer it lists,
 %% which answers under its own name, and the dial fails, neither node
 %% connected; a refuses c's key for the dial of b and says so
@@ -875,7 +875,7 @@ answered(Base) ->
     ?assertEqual(nomatch, string:find(ErrA, "connected")),
     ?assertEqual(nomatch, string:find(ErrC, "connected")).
 
-%% report §8.7: a node it dials must answer under the name it dialed, and a
+%% report §12.5: a node it dials must answer under the name it dialed, and a
 %% key is taken only under the name that key gives it: the address a lists
 %% for the peer b is held by a bare `erl` with the key of c, another peer a
 %% lists, which names itself b, and the dial fails as a refused one does,
@@ -905,7 +905,7 @@ answered_by_another_key(Base) ->
     ern_deployment_tests:cataloged(ErrA, "7", "answered the dial", [{"c", "c"}, {"b", "b"}]),
     ?assertEqual(nomatch, string:find(ErrA, "connected")).
 
-%% report §8.7: a node that ends tells each connected peer so, and then its
+%% report §8.7, §12.6: a node that ends tells each connected peer so, and then its
 %% connections close, telling none how busy it is after its word: a holder
 %% of b's key, a bare `erl`, that says it ends and then tells a how busy it
 %% is, its connection lasting, has not ended, and a says it was lost when
@@ -998,7 +998,7 @@ listening(Holder, Acc) ->
             ok
     end.
 
-%% report §8.7: two nodes of different builds connect, the cookie being
+%% report §12.5: two nodes of different builds connect, the cookie being
 %% the floor's digest and holding nothing of the build. A regression test
 %% of MVP 3.0's fingerprint, which refused them
 other_build_test_() ->
@@ -1026,7 +1026,7 @@ other_build(Base) ->
     has(ErrB, "the peer a connected"),
     ?assertEqual(nomatch, string:find(ErrB, "refused")).
 
-%% report §8.7: a node that stands on another floor fails the handshake with
+%% report §12.5: a node that stands on another floor fails the handshake with
 %% nothing sent, its cookie another's, and the node that refused it says so
 %% in its own words; here a bare `erl` that holds a listed peer's key and
 %% names itself as that key gives, with another cookie
@@ -1093,7 +1093,7 @@ replaced(Base) ->
     %% the line as the deployment guide quotes it
     ern_deployment_tests:cataloged(ErrB, "7", "was replaced by another", [{"b", "a"}]).
 
-%% report §8.7: a node says the address and the port it listens on, once
+%% report §12.5: a node says the address and the port it listens on, once
 %% at every start: one whose `listen` names port 0 the port the host picks,
 %% and one whose `listen` names a port that port, which a peer waits on
 %% before it dials (the log's *The Review's Decisions*, written with the
@@ -1130,7 +1130,7 @@ listening(Base) ->
     ?assertEqual(1, length(string:split(ErrB, "listening on", all)) - 1),
     ?assertEqual(nomatch, string:find(ErrA, "listening")).
 
-%% report §8.7: a frame the gateway cannot read is faulty, and the node ends
+%% report §12.6: a frame the gateway cannot read is faulty, and the node ends
 %% the connection, saying so; the sender's node is told of the loss; a
 %% message that names no peer's process names no connection, and is
 %% dropped, which the node says
@@ -1160,7 +1160,7 @@ faulty_frame(Base) ->
     %% the line as the deployment guide quotes it
     ern_deployment_tests:cataloged(ErrA, "7", "it closed", [{"b", "b"}]).
 
-%% report §8.7: a spawn frame whose site is not UTF-8 is a frame the node
+%% report §12.6: a spawn frame whose site is not UTF-8 is a frame the node
 %% cannot read, though the node holds the function it names: the node ends
 %% the connection, saying so, and the sender's node is told of the loss. A
 %% regression test, written after the fix: the site was read only where the
@@ -1330,7 +1330,7 @@ reload_in_example(Base) ->
     has(Out, "Slow.typed example 1: passed"),
     ?assertEqual(nomatch, string:find(Err, "refused")).
 
-%% report §8.7: a node runs over its listener's family of addresses, IPv6
+%% report §12.5: a node runs over its listener's family of addresses, IPv6
 %% where `listen` names an address of it, its peers' addresses of the same
 ipv6_test_() ->
     nodes_test({waits, 7}, fun ipv6/1).
@@ -1366,7 +1366,7 @@ ipv6(Base) ->
     has(OutA, "connect: true"),
     has(ErrB, "the peer a connected").
 
-%% report §8.6, §8.7, Appendix E.23: a node whose program ends by `Os.exit`
+%% report §8.6, §12.5, Appendix E.23: a node whose program ends by `Os.exit`
 %% exits with its status, and its ernest.pid, there while it runs, is gone
 os_exit_test_() ->
     nodes_test({waits, 3}, fun os_exit/1).
@@ -1389,7 +1389,7 @@ os_exit(Base) ->
     has(Out, "Right(4)"),
     ?assertNot(filelib:is_file(filename:join(A, "ernest.pid"))).
 
-%% report §8.7, §11.2: a node whose `ernest.conf` is refused is refused with
+%% report §12.5, §11.2: a node whose `ernest.conf` is refused is refused with
 %% the file and the rule, as the launcher's second start says it, the first
 %% having given the host no flags: peers that are no array, and a
 %% `utilization` that names neither measure. A regression test: the refusal
@@ -1410,7 +1410,7 @@ refused_configuration(Base) ->
     has(Measured, "ern run: " ++ filename:join(A, "ernest.conf") ++ ": utilization is \"cpu\","
                   " which is neither \"run-queue\" nor \"schedulers\"").
 
-%% report §8.7, §11.2: a node refused once its start has begun, by a module
+%% report §12.5, §11.2: a node refused once its start has begun, by a module
 %% on its load path the program never uses whose dependency the path lacks,
 %% removes the ernest.pid it wrote, as it does however it ends. A
 %% regression test: the file was left naming the process that had ended
@@ -1433,8 +1433,8 @@ refused_after_start(Base) ->
     ?assertEqual(nomatch, string:find(Said, "ran")),
     ?assertNot(filelib:is_file(filename:join(A, "ernest.pid"))).
 
-%% report §7.4, §8.7: a node whose carrier cannot start, its port taken,
-%% ends before `main` runs, its entry process faulting with the cause §7.4
+%% report §12.3, §8.7: a node whose carrier cannot start, its port taken,
+%% ends before `main` runs, its entry process faulting with the cause §12.3
 %% states, which names the listen address in use, under the entry point's
 %% site, and with nothing of the host's reports on its standard output. A
 %% regression test of the principles review (the log's *The Principles
@@ -1951,7 +1951,7 @@ compute_on_peer(Base) ->
                          {StoreOut, "the store's subscriber: division by zero"},
                          {StoreOut, "the store's subscriber: foreign function"}]].
 
-%% report §8.7, Appendix E.27, Appendix C: how busy a peer is, on one
+%% report §8.7, §12.5, §12.8, Appendix E.27, Appendix C: how busy a peer is, on one
 %% scale: a name that is no peer's NotListed; the store's schedulers' time,
 %% as its configuration names it at its start, a fraction from 0.0 to 1.0
 %% at each ask, the host keeping the schedulers' time there from the start;
@@ -1998,7 +1998,7 @@ utilization_of_peer(Base) ->
     has(StoreErr, "ernest.conf: utilization is \"cpu\", which is neither \"run-queue\" nor"
                   " \"schedulers\"").
 
-%% report §8.7, §6.5, §6.9, §8.4, §3.11: a correct program's messages make
+%% report §8.7, §6.5, §6.9, §12.2, §3.11: a correct program's messages make
 %% no new atom on the node that receives them, a value of many shapes and
 %% one of 8 MB among them; an address is as good on a third node, which
 %% took it from the store and sends to it; an address of a node not listed
@@ -2067,7 +2067,7 @@ across(Base) ->
     has(ThirdOut, "sent through the third node"),
     ?assertEqual(nomatch, string:find(ThirdOut, "the echo got")).
 
-%% report §8.7, §6.6, §6.9: a call to a process of another node leaves a
+%% report §8.7, §12.6, §6.6, §6.9: a call to a process of another node leaves a
 %% note on that node while it waits, which goes however the call ends: a
 %% request that faults its callee ends the call at once, through a restart
 %% that reads the note, and a callForever faults with the callee's cause;
@@ -2211,13 +2211,13 @@ refused_reload(Dir, Refusal) ->
     "ern reload: " ++ ern_build:shown(filename:join(Dir, "ernest.conf")) ++ ": " ++ Refusal
         ++ "\n".
 
-%% Report §8.7: a node sent hangup by the process its ernest.pid names, as
+%% Report §12.5: a node sent hangup by the process its ernest.pid names, as
 %% `kill -HUP` sends it, which reads no configuration before the node does.
 hungup(Dir) ->
     [] = os:cmd("kill -HUP " ++ pid(Dir)),
     ok.
 
-%% report §8.6, §8.7, §11.2: `ern stop` sends the node its directory names
+%% report §8.6, §8.7, §12.5, §11.2: `ern stop` sends the node its directory names
 %% termination, saying only that it was delivered; the node stops in order,
 %% so that a monitor made on its process before gives ProgramEnd, and one
 %% made once it has stopped gives Unreachable; the node ends by the signal
@@ -2245,7 +2245,7 @@ stop_in_order(Base) ->
     ?assertEqual(1, Status),
     has(Said, "ernest.pid: no such file: no node runs from the directory").
 
-%% report §8.7, §11.2: a node holds ernest.pid locked for its life, which
+%% report §12.5, §11.2: a node holds ernest.pid locked for its life, which
 %% the host ends with it however it ends: a node killed leaves the file, and
 %% the next start from the directory takes it, saying nothing of a refusal,
 %% the file holding the new node's number; a running node refuses a second
@@ -2290,7 +2290,7 @@ pid_lock(Base) ->
     ?assertEqual(<<"alive">>, output(Living)),
     port_close(Living).
 
-%% report §11.2, §8.6, §8.7: `ern stop` returns once the node has ended,
+%% report §11.2, §8.6, §12.5: `ern stop` returns once the node has ended,
 %% which it waits for on the lock the node holds on ernest.pid, with status
 %% 0: a node whose end waits for a subscriber is still running, its file
 %% there, until the subscriber answers, and the job returns with the node
@@ -2352,7 +2352,7 @@ export fn main() : Unit receiving Msg = {
     {_, ErrAgain} = said(A),
     has(ErrAgain, "the end was cut short, 1 subscriber unanswered: Stopping.main").
 
-%% report §8.7, §11.2: `ern reload` sends the node hangup, which reads
+%% report §12.5, §11.2: `ern reload` sends the node hangup, which reads
 %% ernest.conf again: a peer removed has its connection ended and is
 %% refused after, a peer listed again under another name is accepted, a
 %% peer renamed keeps its connection, and a file that changes `listen` is
@@ -2775,7 +2775,7 @@ exchanged(Base) ->
     {ok, _} = compile:file(Host, [{outdir, SenderDir}]),
     {filename:join(SenderDir, "sender.erc"), filename:join(ReceiverDir, "receiver.erc")}.
 
-%% report §8.7, §6.6, §7.4, §6.9, §11.2, Appendix E.27: a spawn or a
+%% report §8.7, §12.7, §6.6, §12.3, §6.9, §11.2, Appendix E.27: a spawn or a
 %% compute of a function the receiver lacks runs the exchange: the receiver
 %% asks the sender for the reach, the sender answers it from its build's
 %% forms and sends what the receiver lacks as code frames, and the
@@ -3159,7 +3159,7 @@ constant_crosses(Base) ->
                                 "tags: Right([#(\"a\", 1), #(\"b\", -2)])",
                                 "computed: Left(NotLoaded)"]].
 
-%% report §8.7, §11.2, §7.4, §11.8: a bare node whose `ernest.conf` has no
+%% report §8.7, §11.2, §12.3, §11.8: a bare node whose `ernest.conf` has no
 %% `listen` is refused at its start, as the launcher's second start says
 %% it, and writes no ernest.pid; and one whose carrier cannot start, its
 %% port taken, ends with its entry process's fault under the site `bare
@@ -3279,7 +3279,7 @@ verbose_node_start(Base) ->
                  [lists:last(string:split(Line, " from "))
                   || Line <- string:split(Libraries, "\n", all), Line =/= <<>>]).
 
-%% report §8.7, §8.4, Appendix E.27: a lambda crosses as the definition
+%% report §8.7, §12.7, §8.4, Appendix E.27: a lambda crosses as the definition
 %% that encloses it, and what that definition names beyond the lambda's
 %% reach and the bare node lacks is linked there to a fault that names it:
 %% a lambda written beside a program binding and a foreign function over a
@@ -3300,7 +3300,7 @@ beyond_reach_test_() ->
 beyond_reach(Base) ->
     Root = filename:join(Base, "probe"),
     ok = filelib:ensure_path(Root),
-    Source = "// Report §8.7: lambdas spawned on a bare node from definitions that name\n"
+    Source = "// Report §12.7: lambdas spawned on a bare node from definitions that name\n"
              "// what the bare node lacks and the lambdas do not.\n"
              "\n"
              %% computed, since a constant has its value wherever its code is (§11.1)
@@ -3367,7 +3367,7 @@ beyond_reach(Base) ->
     [?assertEqual(nomatch, string:find(ErrB, Part))
      || Part <- ["could not take", "this node does not have"]].
 
-%% report §8.7, §11.2, §8.4: a node ships onward as its own what it
+%% report §12.7, §11.2, §8.4: a node ships onward as its own what it
 %% received, a definition linked to a fault for a foreign function it
 %% lacks among it: a lambda spawned on the bare node b, which lacks the
 %% module of a foreign function its enclosing definition reaches, spawns
@@ -3389,7 +3389,7 @@ relay(Base) ->
     Root = filename:join(Base, "relay"),
     HostDir = filename:join(Base, "relayhost"),
     [ok = filelib:ensure_path(Dir) || Dir <- [Root, HostDir]],
-    Source = "// Report §8.7: code relayed from a bare node to two more.\n"
+    Source = "// Report §12.7: code relayed from a bare node to two more.\n"
              "\n"
              "type Note = Relayed\n"
              "\n"
@@ -3544,7 +3544,7 @@ fix_from_shell(Base) ->
 %% answers the program's `.erc` and source.
 lost_build(Root) ->
     ok = filelib:ensure_path(Root),
-    Source = "// Report §8.7: a function spawned onto a bare node, the first time with a\n"
+    Source = "// Report §12.7: a function spawned onto a bare node, the first time with a\n"
              "// time its exchange outlasts.\n"
              "\n"
              "foreign fn parsed(text : String) : Int = \"erlang:binary_to_integer/1\"\n"
@@ -3594,7 +3594,7 @@ lost_build(Root) ->
 %% is given, answers the request for its reach with that hash and the
 %% other's, and sends the other's code frame, read from the file it is
 %% given, or a frame its bytes do not match; its gateway is its own
-%% process, which the node sends its frames to (report §8.7), and each of
+%% process, which the node sends its frames to (report §12.6), and each of
 %% its spawns waits the milliseconds its command line gives, the harness's
 %% time for one wait. Each step it sees, a line.
 spawner() ->
@@ -3671,7 +3671,7 @@ caught_up(Node) ->
     receive {ern_frame, _, {reach, Ref, none}} -> ok end.
 ">>.
 
-%% report §8.7: the exchange on a bare node, with a spawner of the test's
+%% report §12.7: the exchange on a bare node, with a spawner of the test's
 %% own that plays the spawner's node's part: a reach answered as one the
 %% spawner's node no longer holds answers the spawn `Other`, which the
 %% node says, and a code frame of that exchange, which has ended, is
@@ -4669,7 +4669,7 @@ placed(Base) ->
     stop(Store, WaitStore),
     {Out, _} = said(Desk),
     {StoreOut, StoreErr} = said(Store),
-    %% report §8.7: the host's own reports are not written; a regression:
+    %% report §12.5: the host's own reports are not written; a regression:
     %% the program the host runs for the cpu measure said, as the host
     %% ended, that the host had closed
     ?assertEqual(nomatch, string:find(StoreErr, "Erlang has closed")),
@@ -4826,7 +4826,7 @@ pick(Base) ->
 %% service against the second build, whose process faults at the first
 %% message, the fault reported as every fault is. A regression test,
 %% written after the code; it does not cover a reload, whose end a program
-%% cannot see (§8.7: the signal carries nothing back)
+%% cannot see (§12.5: the signal carries nothing back)
 program_test_() ->
     nodes_test({waits, 30}, fun pair_program/1).
 
@@ -4930,7 +4930,7 @@ pid(Dir) ->
     {ok, Text} = file:read_file(filename:join(Dir, "ernest.pid")),
     string:trim(binary_to_list(Text)).
 
-%% report §8.7, the proposal's sections 4, 7 and 8: a peer stopped stands
+%% report §8.7, §12.6, the proposal's sections 4, 7 and 8: a peer stopped stands
 %% for a silent one. Before the silence ten thousand messages arrive, none
 %% lost and none twice; the detector gives the peer up within 45 to 75
 %% seconds of its last word, the monitor on its process giving one Down,

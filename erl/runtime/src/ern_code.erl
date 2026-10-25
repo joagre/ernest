@@ -22,7 +22,7 @@
 %% Report §11.2: the canonical forms of a unit's definitions are kept
 %% beside its code, with their names, the lines of their source and the
 %% unit's foreign declarations (#recorded{}), which the exchange ships
-%% onward (§8.7, forms/1), in a row of the unit's own here, taken with its
+%% onward (§12.7, forms/1), in a row of the unit's own here, taken with its
 %% other rows, so that the forms live as long as the code they describe:
 %% a unit no file holds, a load's or an input's of the shell, or an
 %% exchange's, has them written as it loads (loaded/3); a unit the build
@@ -215,7 +215,7 @@ fill(Unit, Md5, Beam, Recorded) ->
             summed(Beam)
     end.
 
-%% Report §8.7, §11.2: each foreign declaration a unit no file holds
+%% Report §12.7, §11.2: each foreign declaration a unit no file holds
 %% records, by its qualified name as text, which declared/1,2 read: an
 %% arrival's every one, those it linked to a fault among them, which no
 %% other row names (ern_arrival).
@@ -228,11 +228,11 @@ declared_rows(Unit, #recorded{foreign = Foreign}) ->
 %% A unit's rows for one of its declarations: a definition by its identity,
 %% a binding's form by its hash too, which holders/1 finds where a lambda
 %% written in the binding is spawned on a peer and the binding crosses for
-%% its code (§8.7), a ground binding's value by the binding's identity
+%% its code (§12.7), a ground binding's value by the binding's identity
 %% (§11.1), a lambda or a local function a spawn on a peer starts by its
 %% identity, and a foreign declaration, which has no identity, by its
 %% qualified name (Appendix H) as text, as a peer's frame and an
-%% exchange's unit name it, whatever atoms the node has (§8.7).
+%% exchange's unit name it, whatever atoms the node has (§12.7).
 rows(Unit, _, {function, Hash, Function, Arity, Reach}) ->
     [{{hash, Hash}, Unit, {function, Function, Arity, Reach}}];
 rows(Unit, _, {lambda, Hash, Position, Function, Arity, Reach}) ->
@@ -310,7 +310,7 @@ holders(Key) ->
 %% A build's unit exports the functions its module exports, and an
 %% exchange's every function it holds (§11.1), so a definition a unit
 %% holds unexported is no definition another unit's code can call: a
-%% peer's exchange counts it lacked and receives it (§8.7).
+%% peer's exchange counts it lacked and receives it (§12.7).
 -spec linkable(binary()) -> {type, module()} | {function, module(), atom(), arity(), reach()}
                                 | none.
 linkable(Hash) ->
@@ -441,7 +441,7 @@ called([Unit | Units], Called) ->
 %% Report §8.7: the first of a reach's bindings, each by its identity,
 %% without its value in the run in progress in every unit that holds it,
 %% or none: what a peer that lacks a function asks of the bindings its
-%% reach names before any of its code crosses (§8.7, The exchange), where
+%% reach names before any of its code crosses (§12.7, The exchange), where
 %% no unit of this node runs the function yet. Report §4.6: a constant has
 %% its value wherever its form is, which a unit lists with its value
 %% (ground/1), evaluated nowhere.
@@ -565,7 +565,7 @@ lookup(Key) ->
 %% shell's input and its program, and a library's function the toolchain
 %% calls, `Markdown`'s for `ern doc`; a unit of the toolchain's own is
 %% loaded as it is first asked for (ensure_loaded/1). A unit an exchange
-%% made names its definitions by their names as text (§8.7), which no
+%% made names its definitions by their names as text (§12.7), which no
 %% caller names: a peer's spawn finds its function by its identity
 %% (spawnable/1).
 -spec function(module(), [atom()]) -> {atom(), arity()} | none.
@@ -604,7 +604,7 @@ held_function(_) -> [].
 %% lifted to a function of its own, '$3.2', the entry a spawn on a peer
 %% starts one by, '$3.2.entry', and a fun the host compiles one to,
 %% `-'$3'/1-fun-0-`, alike. A unit an exchange made names each by the name its
-%% code frame gave it, as text, the sender's, `Counter.worker` (§8.7). None
+%% code frame gave it, as text, the sender's, `Counter.worker` (§12.7). None
 %% for any other function and for a module that is no unit, which keep the
 %% host's names.
 -spec function_text(module(), atom(), pos_integer() | none) -> string() | none.

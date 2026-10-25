@@ -4,7 +4,7 @@
 %% stream's reader has gone. Where one has, the job ends at once and says
 %% nothing, with the status 141 that shells give a process a closed pipe
 %% ended. `ern run` and `ern test` write through the runtime, which learns
-%% the same of its own streams (report §8.2); `ern shell` writes here where
+%% the same of its own streams (report §12.1); `ern shell` writes here where
 %% its output is no terminal, and takes the bytes a program writes as they
 %% are.
 -module(ern_out).

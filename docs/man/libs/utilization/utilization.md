@@ -8,7 +8,7 @@ the host's services watch.
 
 A program reads its own node's numbers here; how busy a peer is, it asks
 with `Peer.utilization`, which each node answers as its own `ernest.conf`
-measures it (report §8.7, Appendix E.27).
+measures it (report §12.8, Appendix E.27).
 
 The library stands on every job's load path, so a program names it with
 no option (report Appendix G).
@@ -16,7 +16,7 @@ no option (report Appendix G).
 **The host's services.** `cpu`, `memory` and `disk` read the host's
 services `cpu_sup`, `memsup` and `disksup`, which a node starts where its
 `ernest.conf` names `cpu`, `memory` and `disk` under `measures` (report
-§8.7). Where the service does not run, as in a program that is no node,
+§12.5). Where the service does not run, as in a program that is no node,
 each answers `None`. `runQueue` and `schedulers` read the runtime itself,
 and answer in any program.
 
@@ -46,7 +46,7 @@ The processes ready to run and waiting for a scheduler, over all of the
 node's schedulers, as the host counts them at the call. The running ones
 are left out, where the node's own `"run-queue"` measure, which
 `Peer.utilization` answers by default, counts them too and leaves out the
-one measuring (report §8.7).
+one measuring (report §12.8).
 
 ### Examples
 

@@ -212,7 +212,7 @@ since(File) ->
                                             Tags)],
     ?assertEqual([], Wrong).
 
-%% docs/release_review.md, step 5, report §8.7, Appendix H: a patch release
+%% docs/release_review.md, step 5, report §12.5, Appendix H: a patch release
 %% adds nothing and stands on its minor's floor: where VERSION names a
 %% release no tag holds yet, a patch of the last tag's minor, the library's
 %% listings, the form's version and the protocol's version are the last

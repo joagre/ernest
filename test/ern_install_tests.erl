@@ -127,7 +127,7 @@ install() ->
     _ = ern_integration_tests:succeed(Ern ++ " build --build-root " ++ Base ++ "/work/examples .",
                                       [{cd, Examples}]),
     ?assertEqual(compiled(Examples), installed(Base ++ "/work/examples")),
-    %% report §8.7: an installation of the repository's build is no release,
+    %% report §12.5: an installation of the repository's build is no release,
     %% which its version text marks
     ?assertEqual({0, <<"ern ", Version/binary, "-dev\n">>}, in_work(Base, Ern ++ " --version")),
     ok = file:write_file(Base ++ "/work/hi.ern", runs_echo()),
@@ -226,7 +226,7 @@ version() ->
 %% Emacs README stay its own: a regression test, as install/0's is. The logo
 %% the README shows stands beside it in the archive, as under the prefix.
 %% The installed `ern` is a release, whose version text is VERSION's alone,
-%% as the repository's build is not (report §8.7): a regression test,
+%% as the repository's build is not (report §12.5): a regression test,
 %% written after the code (the log's *MVP 3.1 Read*). The archive holds no
 %% module compiled from an application's tests, as the installation does
 %% not.
@@ -261,7 +261,7 @@ release() ->
     ?assert(links_to(Documents ++ "guide/language.md",
                      "/blob/" ++ Tag ++ "/docs/module_doc_template.md")),
     Ern = Base ++ "/p/bin/ern",
-    %% report §8.7: a release's version text is VERSION's alone
+    %% report §12.5: a release's version text is VERSION's alone
     ?assertEqual({0, <<"ern ", (string:trim(Version))/binary, "\n">>},
                  ern_integration_tests:sh(Ern ++ " --version", [{cd, Base ++ "/work"}])),
     ok = file:write_file(Base ++ "/work/hi.ern", runs_echo()),
@@ -361,7 +361,7 @@ runs_echo() ->
     "  | Left(e) -> Io.println(Io.show(e))\n"
     "}\n".
 
-%% Report §8.7: the compiled Ernest modules under a directory that lack
+%% Report §12.7: the compiled Ernest modules under a directory that lack
 %% their canonical forms, ErnC, which a node ships to a peer that lacks a
 %% definition and which the strip must keep. A regression test, written
 %% after the strip dropped them (2026-10-17).

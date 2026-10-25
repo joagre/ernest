@@ -14,7 +14,7 @@
 %% woven in, which the hash leaves out (ern_canonical:stripped/1), each
 %% node's line and column and, in the build, the name of each local the
 %% source binds, `{Line, Column, Name}`, the names left out, `none`, in the
-%% `.erc` and a code frame (report §11.1, §8.7), or none where nothing
+%% `.erc` and a code frame (report §11.1, §12.7), or none where nothing
 %% gives the source; name: the name the definition's code shows, its spawn
 %% sites and a fault's trace, as a list of its segments as text, where it
 %% is not its qualified name: a declaration of a shell's session, `f`, an
@@ -22,11 +22,11 @@
 %% (§6.9, §11.2), or none; printing: what prints a type in a cause as its
 %% module writes it (§11.5), {Namespace, Shadows}, the namespace its forms
 %% write the module's types under and the prelude names its types shadow,
-%% each a list of names as text, in the `.erc` and a code frame (§8.7), or
+%% each a list of names as text, in the `.erc` and a code frame (§12.7), or
 %% none where the unit's own printing holds, as in the build
 
 -record(recorded, {definitions = [], foreign = [], binding_order = []}).
-%% What a unit's compiled form records beside its code (report §11.1, §8.7,
+%% What a unit's compiled form records beside its code (report §11.1, §12.7,
 %% §11.2), which the code table keeps for a unit no file holds and an
 %% exchange and the shell's load of a compiled form read: its definitions,
 %% each with its source's lines, its name and its printing; its foreign
@@ -37,7 +37,7 @@
 %% module's, and the host's module and function atoms, but in a unit an
 %% exchange made, which records every declaration its reach and its code
 %% frames carried, text for one the node holds no atom of, the call linked
-%% to a fault (§8.7); and its top-level bindings' qualified names in the
+%% to a fault (§12.7); and its top-level bindings' qualified names in the
 %% order §8.5 evaluates them
 
 -endif.

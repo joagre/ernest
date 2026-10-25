@@ -1,4 +1,4 @@
-%% Report §4.7, §8.4, §7.4: the foreign boundary. A foreign function is
+%% Report §4.7, §8.4, §12.3: the foreign boundary. A foreign function is
 %% called in place, in the code the compiler writes, inside a catch whose
 %% exception raised/6 turns into a fault; its return is checked against the
 %% declared type on first observation, as an answer foreign code gives is
@@ -18,7 +18,7 @@
 %% function's: {'fun', Arity, R, Cause, Make, Exposer}, R describing its
 %% result and Make wrapping a function value, given R closed over the
 %% recursive types around it, so that each call's result is checked against
-%% R, faulting with Cause (report §7.4), and Exposer wrapping one that
+%% R, faulting with Cause (report §12.3), and Exposer wrapping one that
 %% crosses into foreign code, wherever it stands in what crosses, so that
 %% each argument it is called with is checked (§8.4). A cause of either
 %% names the function, which is known only here: the two parts of Cause and
@@ -47,7 +47,7 @@
                     | {con, [{atom(), [descriptor()]} | {atom(), [descriptor()], [atom()]}]}
                     | {mu, pos_integer(), descriptor()} | {abstract, descriptor()}.
 
-%% Report §7.4: an exception foreign function HostModule:HostFunction/Arity
+%% Report §12.3: an exception foreign function HostModule:HostFunction/Arity
 %% raised, a fault of the calling process that names the implementation,
 %% its trace a failure's, which keeps the runtime's frames where the raise
 %% was met in the runtime's own code (Appendix E.21); an Ernest fault
@@ -69,7 +69,7 @@ raised(HostModule, HostFunction, Arity, Class, Error, Stack) ->
                                   Class, Error])),
                  ern_rt:failure_trace(Stack)).
 
-%% Report §7.4: an exception a function value foreign code gave raised
+%% Report §12.3: an exception a function value foreign code gave raised
 %% where the program called it, as a foreign function's (raised/6), named
 %% as the host names the function.
 -spec raised(fun(), error | exit | throw, term(), list()) -> no_return().
@@ -77,7 +77,7 @@ raised(Function, Class, Error, Stack) ->
     {Module, Name, Arity} = named_by_host(Function),
     raised(Module, Name, Arity, Class, Error, Stack).
 
-%% Report §7.4: an exception a function of the program's raised where
+%% Report §12.3: an exception a function of the program's raised where
 %% foreign code called it is the fault it would be anywhere, raised again
 %% as that fault, so that it passes through the foreign function as
 %% itself; a restart asked for there stays one (§6.9).
@@ -94,7 +94,7 @@ called_raised(Class, Error, Stack) ->
 expose(Descriptor, Value) ->
     expose(Descriptor, Value, #{}).
 
-%% The value, or the fault Cause (report §7.4), where the descriptor holds
+%% The value, or the fault Cause (report §12.3), where the descriptor holds
 %% no function, no address, no Reply and no float, so that the checked
 %% value is the value itself.
 -spec check(descriptor(), term(), binary()) -> term().
@@ -104,7 +104,7 @@ check(Descriptor, Value, Cause) ->
         false -> ern_rt:fault(Cause)
     end.
 
-%% The value as the program holds it, or the fault Cause (report §7.4).
+%% The value as the program holds it, or the fault Cause (report §12.3).
 -spec value(descriptor(), term(), binary()) -> term().
 value(Descriptor, Value, Cause) ->
     case conformed(Descriptor, Value, #{}) of
@@ -112,7 +112,7 @@ value(Descriptor, Value, Cause) ->
         error -> ern_rt:fault(Cause)
     end.
 
-%% Report §7.4, §8.4: the result of Function, a function value foreign
+%% Report §12.3, §8.4: the result of Function, a function value foreign
 %% code gave, as the program holds it, or the fault Cause, which names the
 %% function as the host does: a result declared the prelude's Unit that is
 %% the host's `ok` is `Unit`, at its top alone, as a foreign function's
@@ -141,7 +141,7 @@ argument(Descriptor, Value, Function, Cause, Bound) ->
 named({Before, After}, Name) ->
     unicode:characters_to_binary([Before, Name, After]).
 
-%% Report §7.4: a function value as the host names it, `lists:duplicate/2`,
+%% Report §12.3: a function value as the host names it, `lists:duplicate/2`,
 %% as a foreign function's cause names it.
 host_name(Function) ->
     {Module, Name, Arity} = named_by_host(Function),
@@ -166,7 +166,7 @@ named_by_host(Function) ->
         [erlang:fun_info(Function, Item) || Item <- [module, name, arity]],
     {Module, Name, Arity}.
 
-%% Report §3.1, §7.4, §8.4: Value as the program holds it, armed, where it is
+%% Report §3.1, §12.3, §8.4: Value as the program holds it, armed, where it is
 %% one Descriptor describes inside the mu bindings Bound. A float matches
 %% only where it is no negative zero, which the language has not, so a value
 %% that holds one fails the first match; it is made again with 0.0 for each
@@ -183,7 +183,7 @@ conformed(Descriptor, Value, Bound) ->
             end
     end.
 
-%% Report §7.4, §8.4: a checked value from foreign code as the program
+%% Report §12.3, §8.4: a checked value from foreign code as the program
 %% holds it: every function value in it wrapped so that its result is
 %% checked at each call, and every address in it that names no process of
 %% the program, and every Reply, held as foreign.
@@ -225,7 +225,7 @@ arm({mu, Id, Descriptor}, Value, Bound) -> arm(Descriptor, Value, Bound#{Id => D
 arm({ref, Id}, Value, Bound) -> arm(maps:get(Id, Bound), Value, Bound);
 arm(_, Value, _) -> Value.
 
-%% Report §7.4: a result's descriptor as the wrapper checks it at each call,
+%% Report §12.3: a result's descriptor as the wrapper checks it at each call,
 %% where no mu around it binds its refs any more: each ref free in it is its
 %% mu again, which binds the refs inside it.
 closed({ref, Id} = Descriptor, Bound) ->
@@ -359,7 +359,7 @@ pairwise_match([Descriptor | Descriptors], [Value | Values], Bound) ->
     matches(Descriptor, Value, Bound) andalso pairwise_match(Descriptors, Values, Bound).
 
 %% Every element of a list checked against ElementDescriptor, the list proper
-%% (report §8.4: a List is a list); an improper one does not match. A list
+%% (report §12.2: a List is a list); an improper one does not match. A list
 %% of values a parameter's type variable names is only walked.
 elements_match(_, [], _) -> true;
 elements_match(ElementDescriptor, [_ | Items], Bound)

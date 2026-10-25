@@ -52,14 +52,14 @@ machine(#machine_node{machine = Machine}) -> Machine.
 -spec config_dir(machine_node()) -> string().
 config_dir(#machine_node{config_dir = ConfigDir}) -> ConfigDir.
 
-%% Report §8.7: the node's name on the carrier, which the host's counts of
+%% Report §12.5: the node's name on the carrier, which the host's counts of
 %% its connections name it by.
 -spec carrier_name(machine_node()) -> string().
 carrier_name(#machine_node{public_key = PublicKey}) ->
     [{_, Der, _}] = public_key:pem_decode(PublicKey),
     atom_to_list(ern_carrier:name(Der)).
 
-%% Report §8.7: the `network-address` a peer dials the node at, its
+%% Report §12.5: the `network-address` a peer dials the node at, its
 %% machine's host and its port.
 -spec address(machine_node(), non_neg_integer()) -> binary().
 address(#machine_node{machine = Machine}, Port) ->
@@ -68,7 +68,7 @@ address(#machine_node{machine = Machine}, Port) ->
 listening(Machine, Port) ->
     list_to_binary(ern_machine:interface(Machine) ++ ":" ++ integer_to_list(Port)).
 
-%% Report §8.7, Appendix C: the node lists each of Peers, a peer node with
+%% Report §12.5, Appendix C: the node lists each of Peers, a peer node with
 %% the address it is dialed at, or none where this node never dials it.
 -spec listed(machine_node(), [{machine_node(), none | binary()}]) -> ok.
 listed(Node, Peers) ->
@@ -120,14 +120,14 @@ started(#machine_node{machine = Machine, config_dir = ConfigDir}, Words) ->
                                         " run --config-dir ", ern_machine:quoted(ConfigDir),
                                         [[" ", ern_machine:quoted(Word)] || Word <- Words]])).
 
-%% Report §8.7: the port a node whose `listen` names port 0 bound, once it
+%% Report §12.5: the port a node whose `listen` names port 0 bound, once it
 %% says so.
 -spec port_bound(pid()) -> non_neg_integer().
 port_bound(Reader) ->
     [Port] = ern_machine:seen(Reader, "listening on [^ ]*:([0-9]+)"),
     list_to_integer(Port).
 
-%% Report §8.7, §11.2: a node sent hangup reads `ernest.conf` again, and
+%% Report §12.5, §11.2: a node sent hangup reads `ernest.conf` again, and
 %% says so.
 -spec reloaded(machine_node(), pid()) -> ok.
 reloaded(Node, Reader) ->

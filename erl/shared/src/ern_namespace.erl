@@ -114,10 +114,10 @@ host_name_text(What, Name) ->
     lists:flatten(io_lib:format("~s is ~B characters long, and the host's names are at most ~B",
                                 [What, length(Name), host_name_limit()])).
 
-%% Report §4.7, §7.4, Appendix E.21: a function of the host's as the host
+%% Report §4.7, §12.3, Appendix E.21: a function of the host's as the host
 %% writes it, each atom quoted where the host quotes it, `erlang:abs/1`,
 %% `erlang:'div'/2`, `ern@main:'-main/0-fun-0-'/1`, by which a cause of
-%% §7.4 names a foreign function, a declared one or a function value
+%% §12.3 names a foreign function, a declared one or a function value
 %% foreign code gave, and a trace a frame of the host's. A fun whose code
 %% the host no longer holds has no name, `[]`, which the text leaves out.
 -spec host_function_text(atom(), atom() | [], arity()) -> string().
@@ -133,7 +133,7 @@ component_or_lowered(Segment) ->
     end.
 
 %% Report §4.2: a namespace or a qualified name as the source writes it,
-%% its segments joined by `.`, `Net.Http.get`. Report §8.7: a definition
+%% its segments joined by `.`, `Net.Http.get`. Report §12.7: a definition
 %% that arrived from a peer is named by its segments as text, which make
 %% no atom on the node, and is written the same way.
 -spec text([atom() | binary() | string()]) -> string().
@@ -156,7 +156,7 @@ site_text(QualifiedName, none) ->
 site_text(QualifiedName, Line) ->
     unicode:characters_to_binary([text(QualifiedName), $:, integer_to_list(Line)]).
 
-%% Report §8.7: a qualified name as a peer's frame writes it, each segment
+%% Report §12.6: a qualified name as a peer's frame writes it, each segment
 %% as text, which makes no atom where a peer sends it (text_segment/1).
 -spec text_segments([atom() | binary()]) -> [binary()].
 text_segments(QualifiedName) ->

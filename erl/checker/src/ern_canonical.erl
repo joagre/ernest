@@ -20,7 +20,7 @@
 %% module (declared_type/4). The chunk records beside each form the lines
 %% of its source and its name, the locals' names left out, so that a
 %% definition shipped onward or loaded from its compiled form is compiled
-%% with them (recorded_source/1, §8.7, §11.1); and each reach a unit's
+%% with them (recorded_source/1, §12.7, §11.1); and each reach a unit's
 %% `'$code'/0` lists, computed from its forms (unit_reaches/2).
 %%
 %% A form is made in two steps. The walk writes each definition with a
@@ -400,7 +400,7 @@ session_source([Head | Tail], Offset) ->
 session_source(Term, _) ->
     Term.
 
-%% Report §11.1, §8.7: a sourced form as the `.erc` records it and a code
+%% Report §11.1, §12.7: a sourced form as the `.erc` records it and a code
 %% frame carries it: the lines of its source, an input's as its session
 %% counts them (session_source/2), and the locals' names left out, so that
 %% a node that reads it makes no atom of a name.
@@ -567,7 +567,7 @@ functions(#definition{qualified_name = QualifiedName, hash = Hash, form = Form},
      || {Span, {{_, Position}, Function}} <- lists:zip(Spans, Found)].
 
 %%
-%% A code frame, report §8.7 and Appendix H
+%% A code frame, report §12.7 and Appendix H
 %%
 
 %% Report §4.9, Appendix H: the arity a foreign declaration's function is
@@ -598,7 +598,7 @@ referenced(Terms) when is_list(Terms) ->
 referenced(_) ->
     [].
 
-%% Report §8.7, Appendix H: the forms a code frame's bytes hold, where the
+%% Report §12.7, Appendix H: the forms a code frame's bytes hold, where the
 %% bytes are those a definition alone that Hashes names is hashed as, or
 %% those of the group whose members Hashes names in order; error
 %% otherwise. The bytes are decoded only once their hash is the one named,
@@ -619,7 +619,7 @@ verified([_, _ | _] = Hashes, Bytes) when is_binary(Bytes) ->
 verified(_, _) ->
     error.
 
-%% Report Appendix E.28, §8.7, Appendix H: whether every definition a
+%% Report Appendix E.28, §12.7, Appendix H: whether every definition a
 %% compiled form records is its hash, as a code frame's is verified: a
 %% definition alone the hash of its form, and the members of a group,
 %% in their positions, the hashes of the group's forms.

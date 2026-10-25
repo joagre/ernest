@@ -57,7 +57,7 @@
 %% the losses.
 -define(UTILIZATIONS, ern_utilizations).
 
-%% Report §8.7: the function a spawn frame or a compute frame names, as the
+%% Report §12.6: the function a spawn frame or a compute frame names, as the
 %% compiler writes it (ern_emitter's spawned/2): a declaration by its hash,
 %% a foreign one by its qualified name as text, a lambda or a local fn by
 %% its definition's hash, its position and its captures, and `restarting`
@@ -66,7 +66,7 @@
                  | {lambda, binary(), pos_integer(), [term()]}
                  | {restarting, term(), spawned()}.
 
-%% Report §8.7: the identity of a function a spawn or a compute names, as
+%% Report §12.7: the identity of a function a spawn or a compute names, as
 %% the exchange asks for its reach: a declaration's hash, a lambda's or a
 %% local fn's definition's hash and its position, or a foreign function's
 %% qualified name as text, which has no hash and crosses as its
@@ -383,7 +383,7 @@ drawn(Usable) ->
             {picked, FirstNode, FirstName}
     end.
 
-%% Report §8.7: how busy the peer named is, the Float its gateway answers
+%% Report §8.7, §12.6: how busy the peer named is, the Float its gateway answers
 %% through an alias, as a find's is answered, within the time;
 %% `Unreachable` where its gateway cannot be reached.
 -spec utilization(binary(), integer()) -> {'Right', float()} | {'Left', atom()}.
@@ -464,7 +464,7 @@ drop_utilization(Node) ->
 %% The gateway's work
 %%
 
-%% Report §8.7: a frame a peer sent, read by the gateway's worker for that
+%% Report §12.6: a frame a peer sent, read by the gateway's worker for that
 %% peer, each field of it checked: a find answered at once; a spawn started
 %% through this node's runtime, or `NotLoaded`, with what this node lacked,
 %% which the gateway says; a compute so too, its process answering its
@@ -499,7 +499,7 @@ frame(_From, {find, Name, Hash, Alias})
              end,
     Alias ! {Alias, Answer},
     ok;
-%% report §8.7: a spawn's site is the spawner's words, read as UTF-8 here,
+%% report §12.6: a spawn's site is the spawner's words, read as UTF-8 here,
 %% once, as the frame arrives: a site that is not is a frame no compiler
 %% writes, which this node cannot read
 frame(From, {spawn, Ref, Spawned, Site, Monitored, Ms})
@@ -517,7 +517,7 @@ frame(From, {spawn, Ref, Spawned, Site, Monitored, Ms})
                         {ern_frame, erlang:self(), {answer, Ref, Answer}}),
             Read
     end;
-%% report §8.7: a compute's site, read as a spawn's is
+%% report §12.6: a compute's site, read as a spawn's is
 frame(From, {compute, Alias, Spawned, Site, Ms})
   when is_reference(Alias), node(Alias) =:= node(From), is_binary(Site), is_integer(Ms) ->
     case ern_fs:is_utf8(Site) andalso process_function(Spawned) of
@@ -542,7 +542,7 @@ frame(From, {answer, Ref, {spawned, Pid} = Answer})
 frame(From, {answer, Ref, {failed, Error} = Answer})
   when is_reference(Ref), Error =:= 'NotLoaded' orelse Error =:= 'Unreachable' ->
     answered(From, Ref, Answer);
-%% report §8.7: a peer's reason, its words, read as UTF-8 as a site is
+%% report §12.6: a peer's reason, its words, read as UTF-8 as a site is
 frame(From, {answer, Ref, {failed, {'Other', Text}} = Answer})
   when is_reference(Ref), is_binary(Text) ->
     case ern_fs:is_utf8(Text) of
@@ -570,7 +570,7 @@ frame(From, {restarted, Alias}) when is_reference(Alias), node(Alias) =:= node(F
     ern_rt:peer_restarted(From, fun() ->
                                     erlang:send({ern_gateway, node(From)}, Answer, [noconnect])
                                 end);
-%% report §8.7, *A restart*: a peer's answer that its watchers have been
+%% report §12.6, *A restart's frames*: a peer's answer that its watchers have been
 %% told of a restart here, handed to the restarting process through its
 %% alias, which takes one answer (watchers_told/1), as `{watchers_told,
 %% Alias}`, a shape no call's wait takes, so that an alias a peer names
@@ -581,7 +581,7 @@ frame(_From, {watchers_told, Alias}) when is_reference(Alias), node(Alias) =:= n
 frame(_From, _Body) ->
     unreadable.
 
-%% Report §8.7, *A restart*: the restart's ask of Node, which
+%% Report §12.6, *A restart's frames*: the restart's ask of Node, which
 %% watchers_told/1 waits on: the frame `restarted` to the node's gateway,
 %% from the restarting process, carrying an alias of the process's that the
 %% answer comes back through, which takes one answer; the gateway watched,
@@ -598,7 +598,7 @@ restart_told(Node) ->
     erlang:send(Gateway, {ern_frame, erlang:self(), {restarted, Alias}}),
     {Alias, MonitorRef}.
 
-%% Report §8.7, *A restart*: the restart's wait on one node's answer that
+%% Report §8.7, *A restart*, §12.6: the restart's wait on one node's answer that
 %% its watchers have been told, which this node's gateway hands to the
 %% alias (frame/2), or on the end of the watch on that node's gateway, a
 %% loss or the node's end; "the answer comes through an alias of the
@@ -664,14 +664,14 @@ computed_here({found, Function, Unit, {Bindings, Foreigns}}, Alias, From, Site) 
             not_loaded(compute, Site, Lacked)
     end.
 
-%% Report §8.7, §11.2: `NotLoaded`, and what the gateway says of the spawn
+%% Report §8.7, §12.5, §11.2: `NotLoaded`, and what the gateway says of the spawn
 %% or the compute, the site the caller's words as they came, read as UTF-8
 %% as the frame arrived (frame/2), and written as they are, as a fault's
 %% line and the end's lines write a site.
 not_loaded(Kind, Site, Lacked) ->
     {{failed, 'NotLoaded'}, {not_loaded, Kind, Site, Lacked}}.
 
-%% Report §8.7: a spawn or a compute frame, read by frame/2 and handed to
+%% Report §8.7, §12.5: a spawn or a compute frame, read by frame/2 and handed to
 %% the exchange, that this node starts no process for, answered with Error,
 %% `NotLoaded` or `Other(text)`, as frame/2 answers one; and what the node
 %% says of it, Lacked being what it lacked or why it did not start it.
@@ -685,7 +685,7 @@ failed(_From, {compute, Alias, _Spawned, _Site, _Ms} = Body, Error, Lacked) ->
     ern_rt:computed(Alias, Error),
     unstarted(Body, Lacked).
 
-%% Report §8.7: what the node says of a spawn or a compute frame, read by
+%% Report §12.5: what the node says of a spawn or a compute frame, read by
 %% frame/2, that it starts no process for, Lacked being what it lacked or
 %% why it did not start it, answered or not.
 -spec unstarted(tuple(), iodata()) -> {not_loaded, spawn | compute, binary(), iodata()}.
@@ -694,7 +694,7 @@ unstarted({spawn, _Ref, _Spawned, Site, _Monitored, _Ms}, Lacked) ->
 unstarted({compute, _Alias, _Spawned, Site, _Ms}, Lacked) ->
     {not_loaded, compute, Site, Lacked}.
 
-%% Report §8.7: the milliseconds the sender of a spawn or a compute frame,
+%% Report §12.6: the milliseconds the sender of a spawn or a compute frame,
 %% read by frame/2, waits for its answer, which the frame carries.
 -spec ms(tuple()) -> integer().
 ms({spawn, _Ref, _Spawned, _Site, _Monitored, Ms}) ->
@@ -702,7 +702,7 @@ ms({spawn, _Ref, _Spawned, _Site, _Monitored, Ms}) ->
 ms({compute, _Alias, _Spawned, _Site, Ms}) ->
     Ms.
 
-%% Report §8.7: what this node lacks of a reach a peer gave, before any of
+%% Report §12.7: what this node lacks of a reach a peer gave, before any of
 %% its code crosses, or none: the first foreign declaration whose module is
 %% not here, or whose function is not in it, each a #foreign_function{}
 %% whose names, its module and its function are text, then the first
@@ -724,7 +724,7 @@ reach_lacked(Bindings, Foreigns) ->
             end
     end.
 
-%% Report §8.7: what this node lacks of a foreign declaration's
+%% Report §12.7: what this node lacks of a foreign declaration's
 %% implementation, its module or the function in it at the declaration's
 %% arity, or none; the module is loaded first where it is on the code
 %% path, as the declaring module's call would load it, so that its name
@@ -831,7 +831,7 @@ existing_atoms(Names) ->
     catch error:badarg -> none
     end.
 
-%% Report §8.7: the first foreign declaration of a reach whose module is not
+%% Report §12.7: the first foreign declaration of a reach whose module is not
 %% on this node, as what this node lacked, or none: each found in the units
 %% the code of Unit, which runs the function, calls (ern_code:called/1),
 %% one whose call a unit an exchange made linked to a fault, the node
@@ -871,7 +871,7 @@ lacked_module(Called, QualifiedName) ->
             end
     end.
 
-%% Report §8.7: what this node lacks of a declaration whose call a unit an
+%% Report §12.7: what this node lacks of a declaration whose call a unit an
 %% exchange made linked to a fault, as a spawn whose reach named it before
 %% the code arrived is told; and where the module and the function have
 %% come since, that they were not here when the code arrived, which the

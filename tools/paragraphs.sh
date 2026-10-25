@@ -3,16 +3,20 @@
 # a list item among them, for its writer to read again for a turn it may
 # hide (CLAUDE.md, *Writing*): path, line, words and the paragraph's first
 # words. A list, not a limit: a paragraph that holds one thing stays whole.
+# Given a number, the paragraphs past that many words instead: `150` is the
+# ceiling a test holds every document to (docs/style.md, *Every language*),
+# since a block past it no reader takes in whole.
 # A list item is a paragraph of its own, which ends at the next item, at a
 # blank line or where its indentation ends. A heading, a table row or an
 # HTML line is no prose, after an item as anywhere. The log, the proposals
 # and the generated pages are left out.
 cd "$(dirname "$0")/.." || exit 1
+ceiling=${1:-100}
 git ls-files -- '*.md' ':!docs/log.md' ':!docs/proposals/' ':!docs/man/' |
 while read -r file; do
-    awk -v file="$file" '
+    awk -v file="$file" -v ceiling="$ceiling" '
         function flush() {
-            if (!skip && words > 100)
+            if (!skip && words > ceiling)
                 printf "%s:%d: %d words  %s\n", file, start, words, substr(first, 1, 60)
             words = 0; item = 0
         }

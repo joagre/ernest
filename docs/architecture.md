@@ -48,9 +48,9 @@ The modules of `cli`:
 
 Every job but the shell writes its text through `ern_out`, ports on descriptors 1 and 2 in place of the host's `user` (§11). The shell keeps `user`, which is its terminal, and `ern_tty:is_terminal/1` asks `user` whether a stream is a terminal.
 
-`ern_signals` takes `SIGTERM` and `SIGHUP` from OTP's default handler. During a run it ends the run through `ern_rt:signal/1` (§8.6); on a node hangup asks `ern_carrier:reload/0` (§8.7); otherwise it ends `ern` at once, `die/2` sending the signal again (§11.2).
+`ern_signals` takes `SIGTERM` and `SIGHUP` from OTP's default handler. During a run it ends the run through `ern_rt:signal/1` (§8.6); on a node hangup asks `ern_carrier:reload/0` (§12.5); otherwise it ends `ern` at once, `die/2` sending the signal again (§11.2).
 
-`erl/app.mk` passes `VERSION` to `erlc` as a macro, with `DEVELOPMENT` beside it, by which `ern_release:version_text/0` carries `-dev`. The release archive recompiles `ern_release` without it (`tools/install.sh`). `ern_carrier:cookie/2` reads the mark: a development build's floor is the digest of its own code (§8.7).
+`erl/app.mk` passes `VERSION` to `erlc` as a macro, with `DEVELOPMENT` beside it, by which `ern_release:version_text/0` carries `-dev`. The release archive recompiles `ern_release` without it (`tools/install.sh`). `ern_carrier:cookie/2` reads the mark: a development build's floor is the digest of its own code (§12.5).
 
 The Emacs mode calls the toolchain only as `ern format -` ([`design/emacs_mode.md`](design/emacs_mode.md)).
 
@@ -112,7 +112,7 @@ Three makers give the emitter a `#unit{}`:
 
 All three compile through `ern_compile:compiled/2`.
 
-`ern_emitter:unit/1` builds Erlang forms with `erl_syntax` in one traversal of each form, threading `#emit_context{}`. `prepared/2` first marks the references within a group and each lambda's and local fn's position (Appendix H). A value's representation is §8.4's ABI.
+`ern_emitter:unit/1` builds Erlang forms with `erl_syntax` in one traversal of each form, threading `#emit_context{}`. `prepared/2` first marks the references within a group and each lambda's and local fn's position (Appendix H). A value's representation is §12.2's ABI.
 
 A unit's functions are named by position (§11.1), as `ern_emitter`'s header comment gives them: `'$N'` (`function_name/1`), `'$N.P'` for a lifted local fn, `'$N.P.entry'` for an entry, `'$type_K'` for a descriptor, and `'$lacked_K'` for a lacked function. The functions the runtime calls keep their names: `'$init'/0`, `'$deps'/0`, `'$tests'/0`, `'$spawned'/2` and `'$code'/0`. The interface's `positions` say where a dependent calls each.
 
@@ -127,12 +127,12 @@ Each construct's function says how it is written:
 - a selected field (§3.5, §8.4);
 - a clause's alternatives, `alternatives/3` (§5.9);
 - a top-level `let`, a getter over `persistent_term` that `'$init'/0` fills (§8.5, §11.1); one whose initializer is a ground term, `ground/2`, is read as its value, `term_form/1`, in its module and, through the interface's `terms` and a `#linked{}`'s `term`, in a dependent, and `'$init'/0` gives it its value before any initializer runs (§11.1);
-- a spawn on a peer, `spawned/2`, its captures, `captures/1`, and a service's hash, `service_hash/1` (§8.7);
+- a spawn on a peer, `spawned/2`, its captures, `captures/1`, and a service's hash, `service_hash/1` (§8.7, §12.6);
 - a spawn's site, `site_name/2`, written by `ern_namespace:site_text/2` as a frame of a trace is (§6.9, E.21);
 - a fault the code meets, `thrown_fault/1`, the host's throw where it is met, so that the trace holds the function that met it (§7.3);
 - a requirement's members, `supply_form/2` and `enclosing_members/3` (§4.9);
 - a `Float` operation, `float_operation/4`, the host's own operation with no `try`, whose fault the runtime reads, and a float segment's variable, `variable_form/1` (§3.1, §7.4);
-- a type's descriptor, `describe/4`, a function type's maker, `built_descriptor/1`, and the printing of a check's cause, `printed/2` and `printing/2` (§8.4, §11.5);
+- a type's descriptor, `describe/4`, a function type's maker, `built_descriptor/1`, and the printing of a check's cause, `printed/2` and `printing/2` (§12.3, §11.5);
 - whether the unit builds a function value, `function_value/2` (§11.2).
 
 `'$code'/0` lists what the unit holds, which the code table reads. `compile/5` alone writes it, so the golden files and `--emit-erl` have none. `ern_emitter:source/1` is `--emit-erl`, each function under a comment that names it.
@@ -151,7 +151,7 @@ Each chunk is read through `ern_chunk`. A name a shell session declares is writt
 
 ## The runtime
 
-`ern_rt` is what compiled code calls for processes, and the runner. Its header comment gives a value's representation (§8.4), the shapes of an address and a reply (§6.5, §6.6), and the answers a call takes. The shape the runtime keeps its promises by, what it keeps and where, the look, a launch, a call, a kill, the boundary and the frames, is [`design/runtime.md`](design/runtime.md)'s; this section is the map of its modules and functions.
+`ern_rt` is what compiled code calls for processes, and the runner. Its header comment gives a value's representation (§12.2), the shapes of an address and a reply (§6.5, §6.6), and the answers a call takes. The shape the runtime keeps its promises by, what it keeps and where, the look, a launch, a call, a kill, the boundary and the frames, is [`design/runtime.md`](design/runtime.md)'s; this section is the map of its modules and functions.
 
 ### The tables
 
@@ -164,7 +164,7 @@ Each chunk is read through `ern_chunk`. A name a shell session declares is writt
 | `ern_held` | `ern_rt` | `{{source, Holder}, Count}` and `{{opened, Pid}}` | the sources, and the processes a system module opened (§8.6) |
 | `ern_deliveries` | `ern_rt` | `{{Recipient, Starter, Pid}}`, ordered | the deliveries in flight (§6.9) |
 | `ern_checkers` | `ern_rt` | `{{checker, Key}, Checker}` and `{{behind, Checker}, Pid, Address, Key}` | the checkers (§8.4) |
-| `ern_launch` | `ern_rt` | `#launch{}`, keyed `launch`; `{reading, Kind}`, `{entry_process, Pid}`, `{deadlock_victim, Pid}`, `{ending, Runner, Launch}`, `{wait_over}`, `{utilization, Utilization}` | the launch in progress, and a row for each of a few facts of its run (§8.2, §8.6, §8.7) |
+| `ern_launch` | `ern_rt` | `#launch{}`, keyed `launch`; `{reading, Kind}`, `{entry_process, Pid}`, `{deadlock_victim, Pid}`, `{ending, Runner, Launch}`, `{wait_over}`, `{utilization, Utilization}` | the launch in progress, and a row for each of a few facts of its run (§8.6, §8.7, §12.1) |
 | `ern_offers` | `ern_rt` | `{{Name, Hash}, Address, Process}`, ordered | the node's offers (§8.7) |
 | `ern_offered` | `ern_rt` | `{Process, Service}`, a bag | each process's own services (§8.7) |
 | `ern_initialized` | `ern_rt` | `{ErlangModule}` | the modules whose initializers have run (§8.7) |
@@ -187,7 +187,7 @@ Each chunk is read through `ern_chunk`. A name a shell session declares is writt
 | `stdout`, `stderr`, `stdin`, `fs`, `terminal`, `tcp`, `os`, `clock` | the runner (`started_system/1`) | `persistent_term`, `{ern_rt, Name}`, read by `system_process/1` | the system processes (§8.2, *The system processes*) |
 | a delivery | the reaper, the clock or an end's teller (`counted_link/2`, `wrapped/3`) | a link to its starter | applies a wrap and delivers the message (§6.5, §6.9) |
 | an end's teller | the runner (`told/3`) | the reaper (`reaper_held/2`) | tells one subscriber of `Os.termination` (§8.6, E.23) |
-| a kept process | a gateway's worker (`kept/1`) | the reaper (`reaper_held/2`) | applies an adapted address's function to a peer's messages (§6.5, §8.7) |
+| a kept process | a gateway's worker (`kept/1`) | the reaper (`reaper_held/2`) | applies an adapted address's function to a peer's messages (§6.5, §12.6) |
 | a checker | `ern_rt:checker_for/3` | `ern_checkers` | checks each message foreign code sends (§8.4) |
 | a courier | the terminal | a link to the terminal | applies one subscriber's wrap to its keys (E.16) |
 | a request's worker | `fs` | | does one `Fs` request (E.17) |
@@ -204,13 +204,13 @@ The gateway and the exchange are the only registered processes. A delivery, a co
 
 ### Processes, calls and restarts
 
-- A spawn goes through the reaper, which writes the process's `ern_processes` row; `run/1` wraps every process body, so that an exception is a fault (§7.4). `met/3` makes the fault, a `#fault{}` (`ern_rt.hrl`), and every place a host error becomes one goes through it; `ended_with/2` writes it into the process's row and gives the host's term of the end (§8.4): the host's `badarith` is `division by zero` where its frame holds the integer operands of `div` or `rem`, and `float arithmetic error` where it holds floats or where the host raised in the program's own frame from its float registers (`arithmetic_cause/1`, §3.1).
-- `send/2` applies an adapted address's functions (`adapted_way/2`), and a message to an address made on another node goes to that node's gateway (§6.5, §8.7).
+- A spawn goes through the reaper, which writes the process's `ern_processes` row; `run/1` wraps every process body, so that an exception is a fault (§7.4). `met/3` makes the fault, a `#fault{}` (`ern_rt.hrl`), and every place a host error becomes one goes through it; `ended_with/2` writes it into the process's row and gives the host's term of the end (§12.2): the host's `badarith` is `division by zero` where its frame holds the integer operands of `div` or `rem`, and `float arithmetic error` where it holds floats or where the host raised in the program's own frame from its float registers (`arithmetic_cause/1`, §3.1).
+- `send/2` applies an adapted address's functions (`adapted_way/2`), and a message to an address made on another node goes to that node's gateway (§6.5, §12.6).
 - A call (§6.6) is `call/3,4` and `call_forever/2,3`; a compute (§8.7) is `compute/3`, its process on the peer running `computing/2`.
 - `restarting/2` runs a restarting function; `fresh_run/0`, `restarted/1` and `tell_service_monitors/0` begin a new run (§6.9). `ask_restart/1`, `start_cause/0` and `spawn_order/1` are `Supervisor`'s shims (E.22).
 - A time is a deadline on the monotonic clock, `deadline/1` and `remaining/1` (§6.3). The clock holds the alarms, setting those at a time again when the host's time offset changes (`set_again/1`, E.15).
-- A caller keeps its call under its `CALL` key, its callee and the reply, put before the request is sent and erased once the call's records are dropped (`pending/2`, `uncalled/0`); the callee's row is written for a callee of the node, and a note to its gateway for one of another node (§6.6, §8.7).
-- Every end the runtime gives a process from outside it but the program's end goes through `killed/2`: a process of its own suspends the victim, reads its `CALL` key, drops the call's records and ends it, a source while it works, so that two processes killing each other cannot each suspend the other. A `kill` of a process of another node is a frame to that node's gateway, which carries it out so (§6.9, §8.7).
+- A caller keeps its call under its `CALL` key, its callee and the reply, put before the request is sent and erased once the call's records are dropped (`pending/2`, `uncalled/0`); the callee's row is written for a callee of the node, and a note to its gateway for one of another node (§6.6, §8.7, §12.6).
+- Every end the runtime gives a process from outside it but the program's end goes through `killed/2`: a process of its own suspends the victim, reads its `CALL` key, drops the call's records and ends it, a source while it works, so that two processes killing each other cannot each suspend the other. A `kill` of a process of another node is a frame to that node's gateway, which carries it out so (§6.9, §12.6).
 - `Process.status` reads `ern_processes`, the host's status and the process's `CALL` key (E.21).
 
 ### The reaper
@@ -234,12 +234,12 @@ A reference tags each launch, held with its runner, its reaper, its standard err
 
 ### The system processes
 
-- `stdout` and `stderr` write through a function or a port on a descriptor, `{fd, N}`, which learns when the stream has gone (§8.2). `stdin` is a port on descriptor 0, opened for each request. All three are `ern_rt`'s, and so is the clock.
+- `stdout` and `stderr` write through a function or a port on a descriptor, `{fd, N}`, which learns when the stream has gone (§12.1). `stdin` is a port on descriptor 0, opened for each request. All three are `ern_rt`'s, and so is the clock.
 - `ern_fs`, `ern_tty` and `ern_tcp` are the processes behind `Fs`, `Terminal` and `Tcp` (E.17, E.16, E.18), each speaking its module's message types.
 - The terminal reads keys through standard input in `stty`'s raw mode. `ern_tty_signal`, added to OTP's signal server at the first subscription, sends it each `SIGWINCH`.
 - A socket is a process over its `gen_tcp` port, alive until `Tcp.close`. One whose bytes the far end has not taken hands its host socket to a closer, `lingering/4`.
 - `ern_os` (E.23) answers `Start` with the program's process, which owns a port of `ern_exec` (`erl/runtime/c_src/ern_exec.c`). Run with no program, the helper answers `ern_os:host/0`, for `Os.user` and `Os.environment`.
-- `ern_exec` also holds a node's lock on `ernest.pid`, its `lock` mode, and signals the node that holds one, its `node` mode (§8.7, §11.2).
+- `ern_exec` also holds a node's lock on `ernest.pid`, its `lock` mode, and signals the node that holds one, its `node` mode (§12.5, §11.2).
 
 ### A node
 
@@ -249,7 +249,7 @@ The modules of a node (§8.7) are `ern_node`, `ern_carrier`, `ern_epmd` and `ern
 - `ern_carrier` is the carrier: the host's boot flags (`boot_flags/1`), the node's name (`name/1`, `host/1`), the cookie (`cookie/0`), the rule that accepts a peer (`verify/3`), the start (`start/1`), a reload (`reload/0`), the end in order (`depart/0`), and the lines a node says (`say/1`, and `say_later/1` for a process that must not wait on standard error, which `ern_rt:say_later/2` says through a process of its own).
 - `ern_epmd` answers the host in the port mapper's place, from the configuration.
 - `ern_gateway` takes every frame of the runtime's from every peer and hands each to a worker for that peer, which `ern_peer:frame/2` reads. Its header comment lists the frames.
-- The gateway records a call's notes in `ern_notes` itself (§8.7). It answers a utilization, tells each connected peer its own every `utilization-interval`, and holds each peer's telling in `ern_utilizations`.
+- The gateway records a call's notes in `ern_notes` itself (§8.7, §12.6). It answers a utilization, tells each connected peer its own every `utilization-interval`, and holds each peer's telling in `ern_utilizations`.
 - A gateway's worker keeps a process for each adapted address a peer sends to (`ern_rt:kept/1`), and hands a spawn or a compute of a function the node lacks to the exchange.
 - `ern_peer` is `Peer`'s shims (E.27): `offer/2`, `find/2`, `spawn/3`, `compute/2`, `utilization/2` and `pick/0`, with the work its frames give the gateway.
 
@@ -270,10 +270,10 @@ Its keys are `{hash, Hash}` for a function or a type, `{lambda, Hash, Position}`
 
 ### The exchange and arrivals
 
-- The exchange (§8.7) is `ern_exchange`, registered on each node from its start, which keeps its exchanges in its own state and no table. It plays both parts, the spawner's node and the node asked, which its header comment gives.
+- The exchange (§12.7) is `ern_exchange`, registered on each node from its start, which keeps its exchanges in its own state and no table. It plays both parts, the spawner's node and the node asked, which its header comment gives.
 - Its frames are `reach_request`, `reach`, `lacks` and `code_frame`, passed to it by the gateway as they come. `ern_canonical:verified/2` verifies a code frame's forms.
 - `ern_peer:reach_lacked/2` and `ern_peer:foreign_lacked/1` find what a reach needs that the node lacks; `ern_peer:failed/4` gives every refusal, said through `ern_gateway:outcome/2`.
-- An arrival (§8.7, §11.2) is `ern_arrival:received/5`: a reach's definitions made one `#unit{}`, compiled by `ern_compile:compiled/2`, loaded off the code path, and put in the code table with what it records.
+- An arrival (§12.7, §11.2) is `ern_arrival:received/5`: a reach's definitions made one `#unit{}`, compiled by `ern_compile:compiled/2`, loaded off the code path, and put in the code table with what it records.
 - An arrival is named from the pool, `ern$N` (`ern_arrival:name/1`). What it names that the node lacks is linked to a lacked function, `'$lacked_K'` (`lacked/2`).
 
 ### The standard library
@@ -286,7 +286,7 @@ Appendix E is one Erlang module per namespace, `ern@list` and so on, compiled by
 - `ern_char` reads E.6's predicates from the host's `unicode_util` tables. A `Set` is `{set, S}`, `S` a version 2 `sets:set`.
 - `ern_io:show/2` and `ern_io:debug/2` write through `ern_show`, which reads a value by its type's descriptor (`ern_descriptor`, E.1); the shell prints through `ern_show` with a depth and a length.
 - `ern_bits` makes the checks of §5.11 and §7.4 that the host's bit syntax does not.
-- The foreign boundary is `ern_boundary` (§8.4): `expose/2,3`, `raised/6`, `check/3` and `value/3`, with `conformed/3` beneath them (§3.1). A function value's wrappers call `result/4`, `argument/5` and `raised/4`, whose causes name the function, which the descriptor leaves for them to write in (§7.4).
+- The foreign boundary is `ern_boundary` (§8.4): `expose/2,3`, `raised/6`, `check/3` and `value/3`, with `conformed/3` beneath them (§3.1). A function value's wrappers call `result/4`, `argument/5` and `raised/4`, whose causes name the function, which the descriptor leaves for them to write in (§12.3).
 
 The tests that hold the library to its names: `erl/runtime/test/ern_stdlib_tests.erl` calls each module by the ABI, each function found through `ern_named`. `primitives_test`, in `erl/checker/test/ern_prelude_tests.erl`, holds each module's `foreign fn`s equal to its section's primitives. `prelude_targets_test`, in `erl/emitter/test/ern_emitter_tests.erl`, and `stdlib_targets_test`, in `erl/runtime/test/ern_doc_tests.erl`, hold each name at the position its interface gives it.
 
@@ -308,11 +308,13 @@ A library under `src/libs/` stands on the host as the standard library does. The
 - **`ern run`** (§11.2): `program/2` loads the `.erc` and its dependencies (`loaded_unit/3`, `no_cycle/2`) and calls `run_main`. `reporting_options/2` gives the run `report_fault/3` as its `faults`.
 - With `--config-dir` and no `.erc`, `ern run` starts a bare node (`as_node/4`, `run_bare/2`, §8.7).
 - **`ern shell`** loads a file and names its entry point (`shell_entry/2`); `ern_cli:shell/3` starts the shell (*The shell*).
-- **`ern test`** is `run_tests/6`: the module's tests in one launch (`cases_launch/6`), each in a monitored process of its own, which `ern_rt:deadlock_victim/1` names to the reaper (§11.2); then each of its doc examples in a launch of its own (`run_examples/4`, `example_launch/3`), which initializes the modules the example uses, and whose end before the example returns is the example's line alone, the reporter knowing the entry process's fault by `ern_rt:entry_process/0`. `ern_examples:cases/4` compiles the examples before the run, each in a module of its own, a private declaration's and an abstract type's constructor's inside its module's source in a unit of its own, and checks each against the modules it names too, which `ern_build:compiled_dependencies/1` finds on the load path as a build finds those a source names, and which the run's load loads with those they use; `in_directory/3` makes an example's empty directory, the host's working directory while its launch runs; and `unload/1` takes their units out after the last.
+- **`ern test`** is `run_tests/6`: the module's tests in one launch (`cases_launch/6`), each in a monitored process of its own, which `ern_rt:deadlock_victim/1` names to the reaper (§11.2); then each of its doc examples in a launch of its own (`run_examples/4`, `example_launch/3`), which initializes the modules the example uses, and whose end before the example returns is the example's line alone, the reporter knowing the entry process's fault by `ern_rt:entry_process/0`.
+
+  `ern_examples:cases/4` compiles the examples before the run, each in a module of its own, a private declaration's and an abstract type's constructor's inside its module's source in a unit of its own, and checks each against the modules it names too, which `ern_build:compiled_dependencies/1` finds on the load path as a build finds those a source names, and which the run's load loads with those they use; `in_directory/3` makes an example's empty directory, the host's working directory while its launch runs; and `unload/1` takes their units out after the last.
 - **`ern format`** is `ern_format:format/1`, printed by `ern_pretty` in 100 columns; `ern_format:markdown/1` lays out a CommonMark text's Ernest blocks (§11.6).
 - **`ern doc`** renders a page with `ern_page:page/1` from the two chunks (§11.4). `doc_dir/3` writes a directory's pages that are `outdated/2`; `--man` renders through `libs/markdown`'s `roff` in a started runtime (`in_runtime/2`). `ern(1)` is `tools/manual.ern`'s, which `make manual` runs over §11.
 - **`ern config`** writes Appendix C's file and an Ed25519 key pair (`ern_node:create/2`, §11.3), and with `--peer-dir` lists in the file a node of this machine, read from its own directory (`ern_node:add_peer/2`).
-- **`ern reload`** and **`ern stop`** signal the node that holds their directory's `ernest.pid`, through the helper's `node` mode (`ern_node:signaled/2`, `ern_node:stopped/1`, §8.7).
+- **`ern reload`** and **`ern stop`** signal the node that holds their directory's `ernest.pid`, through the helper's `node` mode (`ern_node:signaled/2`, `ern_node:stopped/1`, §12.5).
 
 ### The shell
 
@@ -354,7 +356,7 @@ The shell is an Ernest program over `Terminal`: `src/shell/shell.ern` and its mo
 
 - **Nodes**: `test/ern_nodes_tests.erl` runs real nodes on one machine, each an `ern run --config-dir` of its own, its streams read by a watcher registered under the node's directory. Its programs are under `test/fixtures/peers/`, beside `ern_peers_host.erl`, and `harness.ern` there holds the time each of their waits is given, the harness's `wait_ms/0`, which a test holds equal.
 - **Deployment**: `test/ern_deployment_tests.erl` runs the deployment guide through the same harness, its consoles, its section 8, and each line its sections 7 and 4.3 quote (`catalog_test`).
-- **The shell**: `test/ern_shell_tests.erl` runs sessions in line mode and under the pseudo-terminal, and `test/ern_terminal_tests.erl` drives §8.2's keys, the terminal's restoration and `snake`. Both reach the harness, `test/ern_pty.py`, through `test/ern_pty.erl`.
+- **The shell**: `test/ern_shell_tests.erl` runs sessions in line mode and under the pseudo-terminal, and `test/ern_terminal_tests.erl` drives §12.1's keys, the terminal's restoration and `snake`. Both reach the harness, `test/ern_pty.py`, through `test/ern_pty.erl`.
 - **Waits**: no test sleeps to wait for something; a wait that is a time bounds an absence, with its reason beside it (CLAUDE.md, *No fixed sleep*). `erl/runtime/test/ern_waits.erl` holds the waits the tests share, each read from what the host reports.
 - **Steps**: a test that states its steps, of nodes, the shell, the terminal or the integration, runs through `ern_nodes_tests:nodes_test/2` or `counted_test/2`, which keep its count of steps in its process's dictionary; each wait of the harness's, in `ern_nodes_tests`, `ern_deployment_tests`, `ern_integration_tests`, `ern_pty` and `ern_machine`, takes a step as it runs (`ern_nodes_tests:step/1`), and a test fails past its count or short of it.
 - A module compiled from an application's `test/`, a wait's helper among them, ships with no installation and is outside a development build's code digest (`tools/install.sh`, `ern_carrier:is_test/1`).

@@ -13,7 +13,7 @@ foreign code is given an argument of the value's type (report §3.8, §8.4).
 `atom` makes an Erlang atom, for an Erlang function that takes one:
 `Foreign.atom("utf8")`. An Erlang function that answers `{ok, V}` or
 `{error, R}` needs an Erlang helper that rewrites the answer to `Either`'s
-encoding, `{'Right', V}` or `{'Left', R}` (report §8.4).
+encoding, `{'Right', V}` or `{'Left', R}` (report §12.2).
 
 A program that calls no foreign code never meets a `Term`.
 
@@ -169,7 +169,7 @@ of the names a shim needs, never of text a program receives.
 ### Errors
 
 Faults where `text` is longer than 255 characters, which no atom holds, as a
-foreign function's raise does (report §7.4): `foreign function
+foreign function's raise does (report §12.3): `foreign function
 erlang:binary_to_atom/1 raised error:system_limit`.
 
 ### Examples

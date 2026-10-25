@@ -5,7 +5,7 @@
 %% reads no typed tree and no checker's environment: what the code depends
 %% on is in the forms, and where they reference another unit, in the link
 %% (ern_compile makes both for a build and for the shell's loads). Values
-%% follow report §8.4.
+%% follow report §12.2.
 %%
 %% Report §11.1: a unit's functions are named by their position in it, so
 %% that a unit adds one atom to the host, its own name. Its definitions
@@ -224,7 +224,7 @@ ground_values(Positions, #emit_context{own = #own{forms = Forms}} = Context) ->
                           {_, {binding, _, Body}} <- [sourced(Form)],
                           {term, Term} <- [ground(Body, Context)]}.
 
-%% Report §8.7: the functions of an exchange's unit that a reference its
+%% Report §12.7: the functions of an exchange's unit that a reference its
 %% forms make beyond the spawned function's reach is linked to, where this
 %% node lacks what it names, a binding's value or a foreign function's
 %% module or function: each faults naming it, whatever it is given, and no
@@ -565,7 +565,7 @@ foreign_body(Source, {HostModule, HostFunction}, {ParamTypes, ResultType}, Args,
     HostText = ern_namespace:host_function_text(HostModule, HostFunction, Arity),
     foreign_return(Source, Try, ParamTypes, ResultType, HostText, Context2).
 
-%% Report §4.7, §7.4: the foreign call, an exception it raises turned into
+%% Report §4.7, §12.3: the foreign call, an exception it raises turned into
 %% a fault. Report §8.6: the call writes nothing for the deadlock look,
 %% which reads a process waiting inside foreign code from the host's
 %% function on top of its stack, and one inside a function foreign code
@@ -583,7 +583,7 @@ foreign_call(Source, Call, HostModule, HostFunction, Arity, Context) ->
     {erl_syntax:try_expr([at(Source, Call)], [Handler]), Context1}.
 
 %% Report §8.4: the foreign call's return checked, its cause naming the
-%% host's function as HostText writes it (§7.4). The standard library's is the
+%% host's function as HostText writes it (§12.3). The standard library's is the
 %% runtime's own, and not checked; a type variable of the result that no
 %% parameter names stands for no value the function could have been given,
 %% so it matches none, and the return faults where it holds one.
@@ -635,7 +635,7 @@ init_function(#unit{binding_order = Order},
     Clause = erl_syntax:clause([], none, Given ++ lists:append(Stores) ++ [erl_syntax:atom(ok)]),
     {[erl_syntax:function(erl_syntax:atom('$init'), [Clause])], Context1}.
 
-%% Report §8.7, §11.1: the bindings the unit holds and does not evaluate,
+%% Report §12.7, §11.1: the bindings the unit holds and does not evaluate,
 %% each a binding an exchange's unit holds for a lambda written in it that
 %% a spawn on a peer starts, whose value is its node's: each initializer
 %% compiled as '$init'/0 compiles one, for the entries of its lambdas and
@@ -690,7 +690,7 @@ nameable(QualifiedName) ->
 
 %% Report §11.1: what the unit exports: the functions its module exports,
 %% every function an exchange's unit holds, and every binding's getter, so
-%% that a received definition (§8.7) reads a binding of its module where
+%% that a received definition (§12.7) reads a binding of its module where
 %% the node holds it with its value; a binding never crosses.
 exports(Placed, ForeignPlaced, #emit_context{unit = #unit{exported = Exported},
                                                  own = #own{forms = Forms}}) ->
@@ -1415,7 +1415,7 @@ callee(_, {var, {named, ['Io', Name]}, [Shown]}, _, [Argument], Context)
 callee(_, {var, {named, ['Foreign', term]}, [{shown, Crossing}]}, _, [Argument], Context) ->
     {[ArgumentForm], Context1} = exprs([Argument], Context),
     exposed({Crossing, ArgumentForm}, Context1);
-%% Report §8.7, Appendix E.27: Peer.service makes its service with its
+%% Report §8.7, §12.6, Appendix E.27: Peer.service makes its service with its
 %% message type's hash, of the type the checker supplied; Peer.spawn,
 %% Peer.spawnMonitored, Peer.computeAt and Peer.compute send the function's
 %% identity and captures in place of the function, and the spawn's or the
@@ -1772,7 +1772,7 @@ holds_function(_) -> false.
 %% code: an input typed again then compiles to the code it did before, and
 %% the host keeps an entry for each lambda of each version it loads
 %% (docs/memory.md). A form without its source names the declaration
-%% alone. Report §8.7: a definition of an exchange's unit by the name the
+%% alone. Report §12.7: a definition of an exchange's unit by the name the
 %% code frame gave it, its lines the sender's. A fault's trace writes a
 %% frame of the unit's code by the same name and line (ern_code:function_text/3).
 site(Source, #emit_context{unit = #unit{site_namespace = SiteNamespace,
@@ -1790,7 +1790,7 @@ site(Source, #emit_context{unit = #unit{site_namespace = SiteNamespace,
 
 %% Report §6.9, §11.2: the name a unit's spawn sites write its declaration
 %% Declaration by, which its `.erc` records beside the declaration's form
-%% so that a peer it is shipped to writes them alike (§8.7): the
+%% so that a peer it is shipped to writes them alike (§12.7): the
 %% qualified name under the unit's site namespace, a reload's version's
 %% `Counter$2.worker`; in the session, a declaration by its own name, and
 %% an input's expression, whose name the shell gives as the spawn runs,
@@ -1983,7 +1983,7 @@ as_never(Variables, Types) when is_list(Types) ->
     [as_never(Variables, Element) || Element <- Types];
 as_never(_, Type) -> Type.
 
-%% Report §11.5, §8.7: the type state a definition's types print under in
+%% Report §11.5, §12.7: the type state a definition's types print under in
 %% a check's cause, as its module writes them: the unit's link's, or, for
 %% a definition that gives its module's own, one that arrived or was read
 %% from a compiled form, its module's namespace and the prelude names its
@@ -2020,7 +2020,7 @@ printed(Type, #emit_context{printing = Printing, restrictions = Restrictions} = 
 %%
 
 %% Form's value, a foreign function's return, checked against Type, a
-%% mismatch faulting with Cause (report §7.4, §8.4). A word's check is
+%% mismatch faulting with Cause (report §12.3, §8.4). A word's check is
 %% written in place, its fault raised at Source (§7.3, Appendix E.21), and
 %% the prelude's Unit's takes the host's `ok`, which the host's functions
 %% answer for nothing, at the return's top alone; a value that holds no
@@ -2122,7 +2122,7 @@ descriptor_form(Descriptor, Context) ->
 %% carries the maker of its checked wrapper, a fun of its arity that calls
 %% the function as a foreign function is called, an exception it raises a
 %% fault that names it, and checks each result as a foreign function's
-%% return is checked (report §7.4), which only generated code can spell for
+%% return is checked (report §12.3), which only generated code can spell for
 %% every arity; ern_boundary applies it to a function value foreign code
 %% gives, and to the result's descriptor closed over the recursive types
 %% around it. Each cause names the function, which the boundary writes in.
@@ -2157,7 +2157,7 @@ built_descriptor(Elements) when is_list(Elements) ->
 built_descriptor(Other) ->
     term_form(Other).
 
-%% Report §7.4: the program's Function where foreign code calls it, an
+%% Report §12.3: the program's Function where foreign code calls it, an
 %% exception it raises the fault it would be anywhere (called_raised/3).
 %% Report §8.6, §8.4: the process is inside foreign code while Function
 %% runs, which its stack cannot show where foreign code called it in tail
@@ -2174,12 +2174,12 @@ called(Function, Arguments) ->
 check_text(Prefix, Type, Context) ->
     string_binary(cause(Prefix, Type, Context)).
 
-%% Report §7.4, §8.4: a check's cause, its Prefix and the type as §11.5
+%% Report §12.3, §8.4: a check's cause, its Prefix and the type as §11.5
 %% prints it, which the boundary faults with.
 cause(Prefix, Type, Context) ->
     unicode:characters_to_binary(Prefix ++ printed(Type, Context)).
 
-%% Report §7.4: the cause of a foreign function's return that does not
+%% Report §12.3: the cause of a foreign function's return that does not
 %% match Type, the function's name to be written between its two parts:
 %% the emitter writes a foreign fn's in (named_cause/2), and the boundary a
 %% function value's that foreign code gave.
@@ -2232,7 +2232,7 @@ described(none, _, _, _) -> any;
 described({tuple, Elements}, Seen, Scope, Context) ->
     {tuple, all_described(Elements, Seen, Scope, Context)};
 described({arrow, Params, _, Result}, Seen, Scope, Context) ->
-    %% report §7.4: a function value from foreign code has its result
+    %% report §12.3: a function value from foreign code has its result
     %% checked at each call, against the result's descriptor; report §8.4:
     %% one that crosses into foreign code has each argument checked, against
     %% its parameter's; each cause names the function, which the boundary
@@ -2247,7 +2247,7 @@ described({applied, {named, ['Bool']}, []}, _, _, _) -> bool;
 described({applied, {named, ['Char']}, []}, _, _, _) -> char;
 described({applied, {named, ['String']}, []}, _, _, _) -> string;
 described({applied, {named, ['Bytes']}, []}, _, _, _) -> bytes;
-%% report §7.4, §8.4: the prelude's Unit, a word of its own, which the
+%% report §12.2, §8.4: the prelude's Unit, a word of its own, which the
 %% prelude's name references, so that a return declared it takes the
 %% host's `ok` at its top, where a program's own type named Unit, which
 %% its hash references, does not
@@ -2329,7 +2329,7 @@ refers(Parts, Id) when is_list(Parts) -> lists:any(fun(Inner) -> refers(Inner, I
 refers(_, _) -> false.
 
 %%
-%% Constructors, report §8.4
+%% Constructors, report §12.2
 %%
 
 %% A constructor a form writes, its type's reference and its position among
@@ -2338,7 +2338,7 @@ constructor_at({constructor, Reference, Position}, Context) ->
     {_, {_, Constructors}} = declared_type(Reference, Context),
     lists:nth(Position, Constructors).
 
-%% Report §3.5, §8.4: a selected field. A named constructor is its tag and
+%% Report §3.5, §12.2: a selected field. A named constructor is its tag and
 %% its fields in declared order, so the field is one element of the tuple
 %% where every constructor has it at one place, and a case on the tag where
 %% the places differ.

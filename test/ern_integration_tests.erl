@@ -83,7 +83,7 @@ tally() ->
                     " fixtures/input/two_lines.txt")),
     ?assertEqual({2, <<"usage: tally file...\n">>}, sh("../bin/ern run build/tally.erc")).
 
-%% report §8.2, E.16: without a terminal snake has no keys, so it says so
+%% report §12.1, E.16: without a terminal snake has no keys, so it says so
 %% and ends with status 1 before it draws. A regression test: it drew a
 %% frame and ended with status 0
 snake_without_terminal_test_() ->
@@ -126,7 +126,7 @@ services() ->
     {0, Output} = sh("../bin/ern run build/services.erc < fixtures/input/services.in"),
     ?assertEqual(expected("services"), untraced(unstamped(lines(Output)))).
 
-%% report §3.10, §4.9, §6.5, §6.6, §6.9, §8.6, §11.2, Appendix E.24: the
+%% report §3.10, §4.9, §6.5, §6.6, §6.9, §8.6, §12.4, §11.2, Appendix E.24: the
 %% lease broker as its first comment runs it, each run printing the lines
 %% its console block shows there, in any order, since several processes
 %% print: four clients, a restarted client's lease taken back and lent to
@@ -251,7 +251,7 @@ file_sync() ->
              end,
     {Status, Output} = run_for(Dir, "../../../bin/ern run ../../build/file_sync.erc", Synced,
                                "TERM"),
-    %% report §8.6, §11.2: the signal ends the program as returning from main
+    %% report §8.6, §12.4, §11.2: the signal ends the program as returning from main
     %% does, so what was written is there and the runtime says nothing of its
     %% own, and the status is 128 plus the signal's number
     ?assertEqual(143, Status),
@@ -432,7 +432,7 @@ has_printed(Dir, Line) ->
         {error, enoent} -> false
     end.
 
-%% report §8.6, §11.2: the host's hangup ends a program as its termination
+%% report §8.6, §12.4, §11.2: the host's hangup ends a program as its termination
 %% does, printing nothing, with status 128 plus the signal's number. A
 %% regression test: the hangup was ignored, and the program ran on. The
 %% hangup is sent once the program has said it runs, as signal_end's are.
@@ -493,7 +493,7 @@ out_of_memory() ->
     ?assertEqual(nomatch, binary:match(Output, <<"main was told">>)),
     ?assertNot(filelib:is_regular(Dir ++ "/erl_crash.dump")).
 
-%% report §8.6, §11.2: the host's interrupt ends a running program at once,
+%% report §8.6, §12.4, §11.2: the host's interrupt ends a running program at once,
 %% printing nothing of its own, with status 128 plus the signal's number.
 %% The run is started from here rather than by a shell, which would start
 %% it with the interrupt ignored, and interrupted once the program says that
@@ -657,7 +657,7 @@ directories(Path) ->
     {ok, Names} = file:list_dir(Path),
     lists:sort([Name || Name <- Names, filelib:is_dir(filename:join(Path, Name))]).
 
-%% report Appendix G.1, §7.4: a table replaces a key's entry, a removal of
+%% report Appendix G.1, §12.3: a table replaces a key's entry, a removal of
 %% a key that is not there does nothing, `clear` leaves the table, and an
 %% operation on a table that has ended faults as a foreign function that
 %% raises does, but `size`, which faults with its own cause. A regression
@@ -702,7 +702,7 @@ ets() ->
     ?assert(lists:member(<<"Sized.main faulted: the table has ended">>,
                          unstamped(binary:split(Sized, <<"\n">>, [global, trim])))).
 
-%% report §8.2, §7.4, Appendix E.1: standard input is UTF-8 whatever the
+%% report §12.1, §12.3, Appendix E.1: standard input is UTF-8 whatever the
 %% host's locale, a line without its line feed or the carriage return
 %% before it, a last line without a line feed; a line that is not UTF-8
 %% faults; lines and bytes are one stream, and bytes go out as they are.
@@ -987,7 +987,7 @@ launcher_names_a_missing_iconv_test() ->
     ?assertMatch({0, <<"ern ", _/binary>>}, Ern("--version")),
     ok = file:del_dir_r(Bin).
 
-%% report §8.2, §8.6, §11.2: a run whose standard output has lost its
+%% report §12.1, §8.6, §11.2: a run whose standard output has lost its
 %% reader ends at once, with status 141, as a shell reports a broken pipe,
 %% and the host says nothing of its own. A regression test, written after
 %% the code: the run went on to its end and then hung, and the host printed
@@ -1052,7 +1052,7 @@ stream_lost_at_end() ->
                 end || {Name, _, Redirect} <- Programs, _ <- [1, 2, 3]],
     ?assertEqual([{Name, <<"141\n">>} || {Name, _, _} <- Programs, _ <- [1, 2, 3]], Statuses).
 
-%% report §8.2, §8.6, §11.8: the end of a program waits until its stream's
+%% report §12.1, §8.6, §11.8: the end of a program waits until its stream's
 %% port has written what the program wrote, its reader taking a byte at a
 %% time, slower than the program writes, so that the port still holds most
 %% of it as the program returns: all of it is read and the run's status is
@@ -1116,7 +1116,7 @@ job_output_drained() ->
     {0, <<>>} = sh("sh -c '" ++ Run ++ "count=70000 of=/dev/null status=none'"),
     ?assertEqual({ok, <<"141\n">>}, file:read_file(Dir ++ "/status")).
 
-%% report §8.2: a program writing faster than its reader reads is held to
+%% report §12.1: a program writing faster than its reader reads is held to
 %% the reader's pace, so what it has written and the reader has not taken
 %% is not held in the node. A regression test, written after the code: two
 %% million lines to a pipe read late held about 650 MB, where the node

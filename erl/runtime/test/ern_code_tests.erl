@@ -483,7 +483,7 @@ said_once_test() ->
     ets:delete(ern_code, {said, module_names}),
     ets:delete(ern_code, {said, exports}).
 
-%% Appendix E.21, §7.4: a trace leaves out a frame of the runtime's
+%% Appendix E.21, §7.4, §12.3: a trace leaves out a frame of the runtime's
 %% wherever it stands, one of a unit that names no definition of the
 %% program's among them, a helper the compiler writes into the unit, the
 %% boundary's wrapper here; a failure's trace keeps it, as the host writes

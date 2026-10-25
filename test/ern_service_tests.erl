@@ -9,7 +9,7 @@
 %% `make test-full`, which a host without a service manager runs too. A stop is
 %% asked for only once the program has said that it started: one that
 %% comes in the host's first fraction of a second is the host's limit
-%% (§8.6).
+%% (§12.4).
 -module(ern_service_tests).
 
 -include_lib("eunit/include/eunit.hrl").

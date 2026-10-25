@@ -9,7 +9,7 @@
 %% no unit's and so are made from the typed tree and the environment; and
 %% what the unit records of its definitions as "ErnC", their forms with the
 %% lines of their source and their names, its foreign declarations with
-%% theirs and its bindings' order (§8.7, §11.1). It gives too the interface
+%% theirs and its bindings' order (§12.7, §11.1). It gives too the interface
 %% with the ground terms that the build writes before it emits the module
 %% (interface/5), the link of a unit made from forms alone, by name and
 %% through interfaces (link/5, named/2), and the host's compile of any unit
@@ -45,7 +45,7 @@ compile(Namespace, Declarations, Interface, Env) ->
 %% version, is the namespace its spawn sites name its declarations under,
 %% `Counter$2` (§11.2), and is not kept; `input_name`, which the shell gives
 %% an input, is the name its expression's sites write, `input 3`, which the
-%% forms' chunk records beside the expression's form (§8.7), and is not
+%% forms' chunk records beside the expression's form (§12.7), and is not
 %% kept; `canonical`, the module's canonical forms where the build made
 %% them already (ern_build), is not kept either. The chunk records beside
 %% the build's facts whether the module builds a function value,
@@ -120,7 +120,7 @@ with_terms(#interface{lets = Lets} = Interface, Canonical, Unit) ->
 
 %% Report §11.2, §11.1: a compiled module made a unit of the name Unit from
 %% what its compiled form records, by the back end as an exchange's unit is
-%% made (§8.7): its definitions' forms with the lines of their source, its
+%% made (§12.7): its definitions' forms with the lines of their source, its
 %% foreign declarations with theirs and its bindings' order, beside what
 %% its interface names, its exports and the modules it depends on; linked
 %% through the interfaces Interfaces, of the modules its code names, over
@@ -179,7 +179,7 @@ recorded_foreign(#foreign_function{qualified_name = QualifiedName} = Declaration
 %% Report §11.1: a unit's abstract forms compiled by the host, with its
 %% chunks, or the host's errors. A build's errors are a defect of the
 %% toolchain (compile/5); a unit made from forms that arrived answers them
-%% as the peer's reason (ern_arrival, §8.7).
+%% as the peer's reason (ern_arrival, §12.7).
 -spec compiled([erl_parse:abstract_form()], [{binary(), binary()}]) ->
           {ok, atom(), binary()} | {error, term()}.
 compiled(Forms, Chunks) ->
@@ -305,7 +305,7 @@ session_lined(Definitions, ForeignFunctions, Offset) ->
 session_line({Line, Column, none}, Offset) ->
     {Line + Offset, Column, none}.
 
-%% Report §11.1, §8.7: what the unit's `.erc` records beside its code, by
+%% Report §11.1, §12.7: what the unit's `.erc` records beside its code, by
 %% which a definition is shipped onward and a compiled module loaded beside
 %% another unit of its name is made a unit of its own (§11.2): each
 %% definition with the lines of its source, an input's as its session
@@ -335,7 +335,7 @@ recorded(#unit{namespace = Namespace, definitions = Definitions, foreign_functio
                                 <- Foreign],
               binding_order = BindingOrder}.
 
-%% Report §11.5, §8.7: what prints a type of the unit's in a cause as its
+%% Report §11.5, §12.7: what prints a type of the unit's in a cause as its
 %% module writes it, as text, which a code frame carries: the namespace its
 %% forms write the module's types under, a session's one where an input's
 %% types are its (Appendix H), and the prelude names its types shadow.

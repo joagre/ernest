@@ -194,7 +194,7 @@ uninstall() {
 # it carries instead with the Makefile of tools/release, the README it
 # installs with the logo that README shows, and this script, packed as
 # ern-VERSION. Its version text is VERSION's alone, which marks it a
-# release (report §8.7): ern_release is compiled again into it without the
+# release (report §12.5): ern_release is compiled again into it without the
 # repository's DEVELOPMENT, and stripped as the stage strips it.
 release() {
     dir=$1

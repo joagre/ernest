@@ -19,7 +19,7 @@ debug(Value) -> debug(Value, any).
 -spec debug(term(), ern_descriptor:descriptor()) -> term().
 debug(Value, Descriptor) ->
     Line = <<(show(Value, Descriptor))/binary, "\n">>,
-    %% report §8.2, Appendix E.1: to standard error, as Io.OutMsg's
+    %% report §12.1, Appendix E.1: to standard error, as Io.OutMsg's
     %% Write(bytes, reply), answered once written; report §8.6: a call to a
     %% system process, which the look takes for one in progress
     %% (ern_rt:calling_the_system/2)

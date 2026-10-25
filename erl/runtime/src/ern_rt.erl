@@ -1,7 +1,7 @@
 %% The Ernest runtime, report sections 6, 7, 8, and 10, for one node. What
 %% generated code calls, and the runner.
 %%
-%% Values follow the ABI of report §8.4: Unit is 'Unit', a nullary constructor
+%% Values follow the ABI of report §12.2: Unit is 'Unit', a nullary constructor
 %% is its quoted name, Some(v) is {'Some', V}, Down(process, reason, site) is
 %% {'Down', Pid, Reason, Site} in declared field order.
 %%
@@ -9,7 +9,7 @@
 %% address seen through a function (report §6.5), which send/2 applies in
 %% the sender where Maker, the process that made it, is of the sender's
 %% node, and otherwise the process Maker's node keeps for the address and
-%% the sending node applies (kept/1, §8.7), Launch being the reference of
+%% the sending node applies (kept/1, §12.6), Launch being the reference of
 %% the launch that made it, or
 %% {foreign, Pid, Descriptor, Bound} for an address foreign code gave
 %% (report §8.4), whose messages cross into foreign code. A Reply(a) is
@@ -19,7 +19,7 @@
 %% Reply.process answers (reply_process/1). The answer goes to the alias:
 %% Ernest answers {Alias, answered, Value}, or, on the node that keeps a
 %% remote call's note, {Alias, unnoted, Value}, which says the note is gone
-%% (§8.7); foreign code {Alias, Value}, so that a call checks the second
+%% (§12.6); foreign code {Alias, Value}, so that a call checks the second
 %% only, as §8.4 says; a Reply foreign code gave back is {foreign_reply,
 %% Reply, Descriptor, Bound}, answered in the second form with the answer
 %% exposed. Beside an answer, a call's wait takes {Alias, restarted, How}
@@ -118,7 +118,7 @@
 %% it, a process_info at its ask (ask_restart/1), so that no row is written
 %% for a reader that asks seldom (restartable/0).
 -define(START, '$ern_start').
-%% Report §8.7, §11.2: the registered name of the process that says the
+%% Report §12.5, §11.2: the registered name of the process that says the
 %% lines given it to say later, in order (say_later/2).
 -define(SAY_LATER, ern_say_later).
 -define(PROCESSES, ern_processes).
@@ -152,7 +152,7 @@
 %% report §8.4: each checker, {{checker, Key}, Checker}, and what it
 %% stands in front of, {{behind, Checker}, Pid, Address, Key}
 -define(CHECKERS, ern_checkers).
-%% report §8.2, §8.6: the launch, #launch{}, the way the terminal is read,
+%% report §12.1, §8.6: the launch, #launch{}, the way the terminal is read,
 %% {reading, Kind}, the entry process, {entry_process, Pid}, the process a
 %% deadlock faults, {deadlock_victim, Pid}, while the end looks for its
 %% subscribers and waits for them, the runner that tells them, {ending,
@@ -170,7 +170,7 @@
 %% report §8.7: the modules whose initializers have run, {ErlangModule},
 %% whose bindings a spawn from a peer asks for
 -define(INITIALIZED, ern_initialized).
-%% Report §8.7: the notes of calls from other nodes on this node's
+%% Report §8.7, §12.6: the notes of calls from other nodes on this node's
 %% processes, {{CallerNode, Reply}, Callee, Caller}, by the caller's node,
 %% so that a loss drops a peer's together; each beside its row of CALLEES,
 %% which a restart reads. A compute's note, its frame, is {{CallerNode,
@@ -264,7 +264,7 @@
 %% which the runner's messages carry; its reaper, none until it is started;
 %% its standard error process while it takes the toolchain's own lines,
 %% none before it starts and once the end has written the program's output
-%% (say/2, §8.7); and what the options give the run, among it the
+%% (say/2, §12.5); and what the options give the run, among it the
 %% function a shell's launch gives that answers the processes of its own
 %% beside its chain, which Process.live() leaves out (processes/0). A row
 %% and not a
@@ -341,7 +341,7 @@ sent(dropped) ->
 %% report §6.5: a process the runtime started, on this node or another,
 %% takes the fault at its next wait, its trace and its moment the fault's;
 %% a process of this node it did not start, which has no row, is ended by
-%% it, with the host's term of a fault's end (§8.4)
+%% it, with the host's term of a fault's end (§12.2)
 sent({fault, Pid, #fault{cause = Cause, trace = Trace} = Fault}) when node(Pid) =:= node() ->
     case ets_lookup(?PROCESSES, Pid) of
         [_] -> Pid ! {'$ern_fault', {ern, Fault}};
@@ -349,7 +349,7 @@ sent({fault, Pid, #fault{cause = Cause, trace = Trace} = Fault}) when node(Pid) 
     end;
 sent({fault, Pid, Fault}) ->
     Pid ! {'$ern_fault', {ern, Fault}};
-%% report §6.5, §8.7: a message to an adapted address made on another node
+%% report §6.5, §12.6: a message to an adapted address made on another node
 %% is carried, unconverted, to that node's gateway, where the process kept
 %% for the address and this node applies the function (kept/1)
 sent({{adapted, _, _, Maker, _} = Address, Message}) ->
@@ -361,7 +361,7 @@ sent({{foreign, Pid, Descriptor, Bound}, Message}) ->
 sent({Pid, Message}) ->
     Pid ! Message.
 
-%% Report §6.5, §8.7: the process this node keeps for an adapted address it
+%% Report §6.5, §12.6: the process this node keeps for an adapted address it
 %% made and a peer that sends to it, started by the gateway's worker for
 %% the peer, the caller, as a message to the address arrives
 %% (ern_gateway:work/2), so that a function that calls, or never finishes,
@@ -527,7 +527,7 @@ is_never_given(Pid) when is_pid(Pid) ->
 is_never_given(_) ->
     false.
 
-%% Report §6.9, §8.7: whether the runtime started or adopted a process of
+%% Report §6.9, §12.6: whether the runtime started or adopted a process of
 %% this node, one with a row, which a peer's kill frame alone reaches
 %% (ern_peer:frame/2); a process of the runtime's own, a foreign one and
 %% one that has ended have none.
@@ -711,7 +711,7 @@ call_forever(Address, Request, Check) ->
                      {Reply, restarted, How} ->
                          closed(),
                          {restarted, How};
-                     %% report §8.2: a system process faults the caller it
+                     %% report §12.1: a system process faults the caller it
                      %% answers
                      {Reply, fault, SystemCause} -> {fault, SystemCause};
                      {'DOWN', Reply, process, _, CalleeExitReason} ->
@@ -796,7 +796,7 @@ end_with_program() ->
 %% that whatever row or note the call has, a kill finds by it (killed/2);
 %% then the callee's row, by which a restart of a callee of this node ends
 %% the call, and by which the reaper finds the call of a caller the host
-%% ends (left_call/1); and report §8.7: for a process of another node, a
+%% ends (left_call/1); and report §12.6: for a process of another node, a
 %% note to its gateway, which that node keeps beside its own row of the
 %% callee, sent before the request so that it arrives first.
 watched(Address) ->
@@ -839,7 +839,7 @@ uncalled() ->
             erlang:erase(?CALL)
     end.
 
-%% Report §6.6, §8.7: the records of Caller's call, Call its CALL key,
+%% Report §6.6, §12.6: the records of Caller's call, Call its CALL key,
 %% dropped: the callee's row; and where its callee is of another node,
 %% whose note no answer there, restart or end has let go, the second note
 %% tells that node the call is over, and so it tells the peer a compute
@@ -855,7 +855,7 @@ uncalled(Caller, {Callee, Reply}) ->
         Gateway -> erlang:send(Gateway, {ern_frame, Caller, {call_over, Reply}})
     end.
 
-%% Report §6.6, §6.9, §8.7: the call of a process the host ended while it
+%% Report §6.6, §6.9, §12.6: the call of a process the host ended while it
 %% waited, killed by foreign code or by the end of a process it was linked
 %% to, which ran no `after` and keeps its CALL key no longer: its rows,
 %% found among every pending call's, a read that such an end alone pays,
@@ -881,7 +881,7 @@ gateway_of({ern_gateway, _} = Gateway) -> Gateway;
 gateway_of(Callee) when node(Callee) =:= node() -> none;
 gateway_of(Callee) -> {ern_gateway, node(Callee)}.
 
-%% Report §8.7, §6.6: a compute on a peer, whose wait is a call's: the
+%% Report §8.7, §12.6, §6.6: a compute on a peer, whose wait is a call's: the
 %% caller's CALL key and its row, its callee the peer's gateway, so that
 %% the call's second note follows where its time runs out, where it is
 %% asked to restart, where it is killed while it waits (killed/2), and
@@ -991,7 +991,7 @@ over(Alias) ->
     erlang:unalias(Alias),
     uncalled().
 
-%% Report §8.7: the calling process's call over where its callee's node has
+%% Report §12.6: the calling process's call over where its callee's node has
 %% already let its note go: by an answer given there, by the restart it
 %% told, or by the callee's end or the connection's, so that no second note
 %% follows; the callee's row, which a callee's end leaves to its callers,
@@ -1021,7 +1021,7 @@ answer({foreign_reply, {Alias, _}, Descriptor, Bound}, Value) ->
 answer({Alias, _}, Value) when node(Alias) =:= node() ->
     Alias ! {Alias, answered, Value},
     ?UNIT;
-%% report §8.7: a reply of a call from another node, whose note this node may
+%% report §12.6: a reply of a call from another node, whose note this node may
 %% keep: an answer given here lets it go, and tells the caller so
 answer({Alias, _}, Value) ->
     case dropped_note(Alias) of
@@ -1030,7 +1030,7 @@ answer({Alias, _}, Value) ->
     end,
     ?UNIT.
 
-%% Report §8.2, §7.4: a system process faults the caller it answers.
+%% Report §12.1, §7.4: a system process faults the caller it answers.
 -spec refuse(reply(), binary()) -> 'Unit'.
 refuse({foreign_reply, Reply, _, _}, Cause) ->
     refuse(Reply, Cause);
@@ -1040,12 +1040,12 @@ refuse({Alias, _}, Cause) ->
 
 %% Report §6.6, §9.5: the prelude's Reply.process, the caller's process
 %% the reply carries beside its alias, or the one foreign code put in a
-%% reply it made (§8.4).
+%% reply it made (§12.2).
 -spec reply_process(reply()) -> pid().
 reply_process({foreign_reply, {_, Pid}, _, _}) -> Pid;
 reply_process({_, Pid}) -> Pid.
 
-%% Report §8.4: whether a term has a Reply's shape, an alias and a process.
+%% Report §12.2: whether a term has a Reply's shape, an alias and a process.
 -spec is_reply(term()) -> boolean().
 is_reply({Alias, Pid}) -> is_reference(Alias) andalso is_pid(Pid);
 is_reply(_) -> false.
@@ -1092,7 +1092,7 @@ demonitor(Process) ->
     launch_reaper() ! {demonitor, process_of(Process), current(), erlang:self(), Ref},
     receive {Ref, demonitored} -> ?UNIT end.
 
-%% Report §6.9, §8.7: the prelude's kill, which a peer's frame asks of this
+%% Report §6.9, §8.7, §12.6: the prelude's kill, which a peer's frame asks of this
 %% node too (ern_peer:frame/2). A process of this node is ended by
 %% killed/2; one of another node by its own node, asked by a frame to that
 %% node's gateway, which is sent as a send is and vanishes where the node
@@ -1106,7 +1106,7 @@ demonitor(Process) ->
 kill(Address) ->
     %% report §8.2: no program can name a system process, whose reference is
     %% private to its module, so an address a program gives here is a
-    %% program's; report §8.7: a peer's frame is carried out only for a
+    %% program's; report §12.6: a peer's frame is carried out only for a
     %% process the runtime started (ern_peer:frame/2)
     case process_of(Address) of
         Pid when node(Pid) =:= node() ->
@@ -1207,7 +1207,7 @@ reason(Other) -> {'Fault', format("~p", [Other])}.
 %% process's row, and tells each process that monitors another how it
 %% ended. Report §6.9: of a process that has ended it keeps nothing, so a
 %% monitor made after the end answers Unknown, and the deliveries to it
-%% end with it (abandoned/1). Report §6.5, §6.9, §8.6, §8.7: it holds the
+%% end with it (abandoned/1). Report §6.5, §6.9, §8.6, §12.6: it holds the
 %% runtime's own processes, each delivery it starts, each process kept for
 %% an adapted address (kept/1) and each of the end's tellers (tell_all/3),
 %% linked to it, so that each ends with the run as the reaper is stopped
@@ -1697,7 +1697,7 @@ deadlock() ->
             Runner ! {deadlock, Launch}
     end.
 
-%% Report §8.6, §11.2: the processes a deadlock leaves waiting but the one
+%% Report §12.4, §11.2: the processes a deadlock leaves waiting but the one
 %% it faults, whose trace says where it waits, and the entry process,
 %% which under `ern test` is the toolchain's own and runs the tests, the
 %% one faulted being a test's: a line for each group with
@@ -1720,7 +1720,7 @@ left_waiting_lines(Victim) ->
                          maps:keys(Counted)),
     [left_waiting_line(maps:get(Group, Counted), Site, Frame) || {Site, Frame} = Group <- Ordered].
 
-%% Report §8.6: a group of a site and a frame as the lines are ordered by
+%% Report §12.4: a group of a site and a frame as the lines are ordered by
 %% it, each by its name, whose bytes are in the order of its code points,
 %% and then by its line as a number; one without a line, and no frame,
 %% first.
@@ -1762,7 +1762,7 @@ left_waiting_line(Count, Site, Frame) ->
          end,
     ern_show:controls(iolist_to_binary([Waits, In]), line).
 
-%% Report §8.6, §11.2: the lines of the processes the deadlock that faulted
+%% Report §12.4, §11.2: the lines of the processes the deadlock that faulted
 %% Pid left waiting, taken, which its report writes beneath its trace; none
 %% for any other fault.
 -spec left_waiting(pid()) -> [binary()].
@@ -2693,7 +2693,7 @@ run(Function) ->
             exit(ended_with(erlang:self(), Fault))
     end.
 
-%% Report §8.4, §11.2: the host's term of the end of Pid, which met Fault,
+%% Report §12.2, §11.2: the host's term of the end of Pid, which met Fault,
 %% its cause and its trace, and the fault whole in Pid's row, which the
 %% reaper reports (died/6); a row gone with the program's end holds
 %% nothing.
@@ -2777,12 +2777,12 @@ fault(Cause) ->
     throw({ern, fault, Cause}).
 
 %% A fault with the trace of where it was met beside its cause, a foreign
-%% function's raise (§7.4).
+%% function's raise (§12.3).
 -spec fault(binary(), binary()) -> no_return().
 fault(Cause, Trace) ->
     throw({ern, #fault{cause = Cause, trace = Trace}}).
 
-%% Report §7.3, §8.6, §8.2: a fault the runtime gives a process from
+%% Report §7.3, §8.6, §12.1: a fault the runtime gives a process from
 %% outside it, a deadlock, or the end a system process asks for, the
 %% process's end, its trace the process's stack where the runtime finds it
 %% waiting (killed/2).
@@ -2804,7 +2804,7 @@ trace(Stack) ->
     traced([Entry || {ErlangModule, _, _, _} = Entry <- Stack, not is_map_key(ErlangModule, Own),
                      not is_helper_frame(Entry)]).
 
-%% Appendix E.21, report §7.4: the trace of a fault whose cause names a
+%% Appendix E.21, report §7.4, §12.3: the trace of a fault whose cause names a
 %% host error, a failure in the runtime or a foreign function's raise,
 %% which keeps the runtime's frames above the program's outermost frame,
 %% where the host error was met in the runtime's own code.
@@ -2840,7 +2840,7 @@ is_program_frame(_) ->
 is_helper_frame({ErlangModule, _, _, _} = Entry) ->
     erlang:function_exported(ErlangModule, '$code', 0) andalso not is_program_frame(Entry).
 
-%% Report §8.7, §11.2: a frame's line, its name written with each control
+%% Report §12.7, §11.2: a frame's line, its name written with each control
 %% character as its escape, since a unit an exchange made names its
 %% definitions by a peer's text, which may hold any (ern_code:function_text/3),
 %% and a line feed in one would forge a frame.
@@ -2863,7 +2863,7 @@ arity(Arguments) -> Arguments.
 system_process(Name) ->
     persistent_term:get({?MODULE, Name}).
 
-%% Report §8.2: stdout and stderr each write what they receive, as bytes,
+%% Report §12.1: stdout and stderr each write what they receive, as bytes,
 %% through the function a run was given, or to a file descriptor through a
 %% port of their own, which says when the stream can no longer be written:
 %% the program then ends (§8.6), and the stream's process with it. A
@@ -2955,11 +2955,11 @@ dropping() ->
         _ -> dropping()
     end.
 
-%% Report §8.2: keys and lines are the same terminal, so a program does one
+%% Report §12.1: keys and lines are the same terminal, so a program does one
 %% or the other; doing both ends the program with a fault, as Deadlock ends
 %% it, since neither side can answer for the other.
 %% Report §11.2: the terminal is the shell's, and the process that reads it
-%% for the shell is recorded as its holder; §8.2's case then faults anything
+%% for the shell is recorded as its holder; §12.1's case then faults anything
 %% else that asks for keys. The shell claims it before it runs any input.
 -spec hold_terminal(address()) -> 'Unit'.
 hold_terminal(Address) ->
@@ -2970,7 +2970,7 @@ hold_terminal(Address) ->
 terminal_holder() ->
     persistent_term:get({?MODULE, holder}, undefined).
 
-%% Report §7.4, §11.2: the cause of a process that asks for the terminal
+%% Report §12.3, §11.2: the cause of a process that asks for the terminal
 %% while a shell holds it, a subscriber or a reader of lines alike.
 -spec shell_holds() -> binary().
 shell_holds() ->
@@ -2990,7 +2990,7 @@ line_guard(Address) ->
             end
     end.
 
-%% Report §8.2: which way the terminal is being read, keys or lines; a
+%% Report §12.1: which way the terminal is being read, keys or lines; a
 %% program does one or the other, and the second to ask faults, with the
 %% cause returned here. The first to ask claims it in one step, so two that
 %% ask at once are one claim.
@@ -3008,14 +3008,14 @@ own_terminal(Kind) ->
             end
     end.
 
-%% Report §7.3, §8.2: a system process ends the program with a fault of
+%% Report §7.3, §12.1: a system process ends the program with a fault of
 %% the entry process, the runner's to report.
 end_with_fault(Cause) ->
     {Runner, Launch} = launch_runner(),
     Runner ! {fault, Launch, Cause},
     ok.
 
-%% Report §8.2: standard input, read as UTF-8 whatever the host's locale,
+%% Report §12.1: standard input, read as UTF-8 whatever the host's locale,
 %% as lines and as bytes from one stream, each request taking up where the
 %% one before it stopped. Open is the input (open_input/0, or fed/1 in a
 %% test), opened for a request and closed once it is answered, so that no
@@ -3028,7 +3028,7 @@ stdin_loop(Open) ->
 
 stdin_loop(Open, Buffer) ->
     receive
-        %% report §8.2: a claim the terminal refuses faults the process that
+        %% report §12.1: a claim the terminal refuses faults the process that
         %% asked, and nothing is read for it
         {'ReadLine', Reply} ->
             case own_terminal(lines) of
@@ -3045,7 +3045,7 @@ stdin_loop(Open, Buffer) ->
             stdin_loop(Open, Buffer)
     end.
 
-%% Report §8.2: the next line answered, a source while it is read, and
+%% Report §12.1: the next line answered, a source while it is read, and
 %% what is left after it.
 read_line(Reply, Open, Buffer) ->
     source_begin(),
@@ -3058,7 +3058,7 @@ read_line(Reply, Open, Buffer) ->
     source_end(),
     Rest.
 
-%% Report §8.2: the bytes that have arrived answered, a source while they
+%% Report §12.1: the bytes that have arrived answered, a source while they
 %% are read; none is left.
 read_bytes(Reply, Open, Buffer) ->
     source_begin(),
@@ -3086,7 +3086,7 @@ line(Open, Buffer, Offset) ->
             end
     end.
 
-%% Report §8.2: a line that a line feed ended, without one carriage return
+%% Report §12.1: a line that a line feed ended, without one carriage return
 %% before the line feed; a last line keeps its own.
 without_return(Line) ->
     case Line of
@@ -3094,7 +3094,7 @@ without_return(Line) ->
         _ -> Line
     end.
 
-%% Report §8.2, §7.4: the line, or the fault of the process that asked,
+%% Report §12.1, §12.3: the line, or the fault of the process that asked,
 %% when it is not UTF-8.
 answer_line(Reply, Text) ->
     case unicode:characters_to_binary(Text, utf8, utf8) of
@@ -3102,7 +3102,7 @@ answer_line(Reply, Text) ->
         _ -> refuse(Reply, not_utf8())
     end.
 
-%% Report §8.2: what has arrived, at least one byte, or None at the end.
+%% Report §12.1: what has arrived, at least one byte, or None at the end.
 bytes(Reply, {data, Bytes}) -> answer(Reply, {'Some', Bytes});
 bytes(Reply, eof) -> answer(Reply, 'None');
 bytes(_, {error, Error}) -> unreadable(Error).
@@ -3116,13 +3116,13 @@ unreadable() ->
 not_utf8() ->
     <<"the standard input is not UTF-8">>.
 
-%% Report §8.2, §7.4: keys that are not UTF-8 end the program with the
+%% Report §12.1, §7.4: keys that are not UTF-8 end the program with the
 %% fault of its entry process, since no process asked for them.
 -spec input_not_utf8() -> ok.
 input_not_utf8() ->
     end_with_fault(not_utf8()).
 
-%% Report §8.2, §11.8: whether a fault's cause is one of standard input's,
+%% Report §12.3, §11.8: whether a fault's cause is one of standard input's,
 %% which ends a shell as it ends a run, by its input and not by a defect.
 -spec by_input(binary()) -> boolean().
 by_input(Cause) ->
@@ -3372,7 +3372,7 @@ wait({time, At}, ReadTime) -> min(?SLICE, max(0, At - ReadTime())).
 %% the node of the peer whose spawn started the process, or none (report
 %% §11.2, §8.7); stdout, stderr => fun((binary()) -> any()), or {fd, N} to write
 %% to the file descriptor through a port, which learns when the stream has
-%% gone (§8.2); stdin => fun(() -> eof | {error, term()} |
+%% gone (§12.1); stdin => fun(() -> eof | {error, term()} |
 %% unicode:chardata()), called for each read, and keys => the same for the
 %% terminal's keys, for tests (fed/1); time => fun(() -> integer()), the
 %% clock the Clock process reads in place of the host's, for tests; node =>
@@ -3384,7 +3384,7 @@ wait({time, At}, ReadTime) -> min(?SLICE, max(0, At - ReadTime())).
 %% (say/2, report §11.2); flush => fun(() -> any()), the shell's,
 %% run once the end's wait is over and stdout and stderr have taken what
 %% was sent them, which writes what they passed on to its screen
-%% (passed_on/2, §8.6). Report §8.2: the standard streams carry bytes for
+%% (passed_on/2, §8.6). Report §12.1: the standard streams carry bytes for
 %% the run, whatever the host's locale.
 -spec run_main(fun(() -> term()), binary(), map()) -> outcome().
 run_main(EntryPoint, Site, Options) ->
@@ -3682,7 +3682,7 @@ passed_on(System, #{flush := Flush}) ->
 passed_on(_System, _Options) ->
     ok.
 
-%% Report §8.2, §8.7, §11.2: a line of the toolchain's own on standard
+%% Report §12.1, §12.5, §11.2: a line of the toolchain's own on standard
 %% error, Line, its line feed ending it. While a launch's standard error
 %% process runs, from its start until its launch's end has written the
 %% program's output (end_program/4), the line is written by it, as a
@@ -3717,7 +3717,7 @@ say(Line, Outside) ->
     end,
     ok.
 
-%% Report §8.7, §11.2: a line of the toolchain's own said by a process
+%% Report §12.5, §11.2: a line of the toolchain's own said by a process
 %% that must not wait for standard error to take it, one of the runtime's
 %% own that routes frames or checks a peer, the gateway, the check of a
 %% certificate and the port map, or one of the host's: the line goes, in
@@ -3752,7 +3752,7 @@ said_later() ->
     end,
     said_later().
 
-%% Report §8.7, §11.2: every line given say_later/2 before the call said,
+%% Report §12.5, §11.2: every line given say_later/2 before the call said,
 %% or none to wait for where no such line was ever given.
 -spec wait_for_later() -> ok.
 wait_for_later() ->
@@ -3857,7 +3857,7 @@ entry_outcome(EntryPoint, Site, Options, Launch) ->
                 ets:insert(?LAUNCH, {entry_process, erlang:self()}),
                 run_inits(Stdlib),
                 Init(),
-                %% report §8.7, §7.4: a node listens once its bindings
+                %% report §8.7, §12.3: a node listens once its bindings
                 %% have their values, a carrier that cannot start faulting
                 %% the entry process, under its own site (§6.9)
                 initializing(Site),
@@ -3874,7 +3874,7 @@ entry_outcome(EntryPoint, Site, Options, Launch) ->
             Outcome
     end.
 
-%% The entry process's end, and its site then. Report §8.6, §8.2: a
+%% The entry process's end, and its site then. Report §8.6, §12.1: a
 %% deadlock, and a fault the runtime finds in a system process's work, fault
 %% the entry process, whose end then comes as any process's does, reported
 %% as every fault is (§11.2).
@@ -3937,7 +3937,7 @@ input(Key, Options) ->
         error -> fun open_input/0
     end.
 
-%% Report §8.2: standard output and standard error are written as the
+%% Report §12.1: standard output and standard error are written as the
 %% bytes a program sends, UTF-8 text among them, so the host's streams take
 %% bytes as they are while the program's streams run, from their start
 %% until what was sent them is written; what they took before is put back
@@ -4373,7 +4373,7 @@ restarted(How) ->
 
 %% Report §8.6: every local process ends with ProgramEnd, the sinks' output
 %% is flushed, the system processes and the reaper are stopped, and the
-%% terminal goes back as the program found it (§8.2). The answer is the
+%% terminal goes back as the program found it (§12.1). The answer is the
 %% streams that could not be flushed, standard output's first.
 end_program(Launch, Reaper, System, Encodings) ->
     Ref = make_ref(),
@@ -4389,7 +4389,7 @@ end_program(Launch, Reaper, System, Encodings) ->
     erlang:demonitor(MonitorRef, [flush]),
     Gone = [Name || Name <- [stdout, stderr],
                     sink_flushed(proplists:get_value(Name, System)) =:= gone],
-    %% report §8.2, §8.7, §11.2: the program's output written, and the
+    %% report §12.1, §12.5, §11.2: the program's output written, and the
     %% lines said later during the launch (say_later/2), the host's streams
     %% take text again, and a line of the toolchain's own said from here on
     %% goes to the job's own standard error (say/2); the streams are
@@ -4632,7 +4632,7 @@ unoffered(Pid) ->
                       ets:select_delete(?OFFERS, [{{Service, '_', Pid}, [], [true]}])
                   end, ets:take(?OFFERED, Pid)).
 
-%% Report §8.7: a call's note, which the gateway records as it comes: the
+%% Report §12.6: a call's note, which the gateway records as it comes: the
 %% caller of another node waits on a process of this one, with the reply,
 %% beside its row of CALLEES, which a restart reads. A callee that has
 %% already ended takes none, since its end, which drops its notes, came
@@ -4648,7 +4648,7 @@ note_call(Callee, Caller, Reply) ->
     end,
     ok.
 
-%% Report §8.7: the second note, that the call is over; a compute's
+%% Report §8.7, §12.6: the second note, that the call is over; a compute's
 %% process is killed by it where it still runs.
 -spec drop_note(reference()) -> ok.
 drop_note(Reply) ->
@@ -4663,7 +4663,7 @@ drop_note(Reply) ->
     end,
     ok.
 
-%% Report §8.7: a compute's frame, which the gateway records as it comes,
+%% Report §12.6: a compute's frame, which the gateway records as it comes,
 %% in the order the call's notes came, as the call's first note: the caller
 %% of another node waits with the alias, and the process that runs the
 %% function is not yet started (is_noted/2).

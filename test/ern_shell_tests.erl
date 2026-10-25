@@ -1400,7 +1400,7 @@ abandoned_line_kept() ->
     ?assertEqual(1, ern_pty:count(Screen, <<"41 : Int">>)),
     ?assertEqual([<<"40 + 1">>], history_lines(filename:join([Home, ".ernest", "history"]))).
 
-%% report §11.2, §8.2: a paste goes into the line at the cursor and its
+%% report §11.2, §12.1: a paste goes into the line at the cursor and its
 %% line feeds add lines, so a pasted two-line input is one input and runs
 %% when `Enter` is pressed after it
 paste_test_() ->
@@ -2010,7 +2010,7 @@ load_unreadable() ->
     ?assertMatch({_, _}, binary:match(Output, <<"closed.ern: permission denied">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>)).
 
-%% report §11.8, §8.2: a line of standard input that is not UTF-8 faults
+%% report §11.8, §12.1: a line of standard input that is not UTF-8 faults
 %% the shell, which reads it, and the shell ends with status 1, as a run
 %% does whose entry process faults, saying so as its end. A regression
 %% test of the status, the shell's own faults now being failures of ern,
@@ -2578,8 +2578,8 @@ later_member() ->
     ?assertMatch({_, _}, binary:match(Output, <<"`+` is not defined on Coin">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"not a type declared">>)).
 
-%% report §11.2, §7.4: the terminal is the shell's, so an input that reads a
-%% line faults with the cause §7.4 gives and the shell goes on. A
+%% report §11.2, §12.3: the terminal is the shell's, so an input that reads a
+%% line faults with the cause §12.3 gives and the shell goes on. A
 %% regression test: in line mode the input took the shell's next line, and
 %% at a terminal it ended the program, shell and all
 input_reads_line_test_() ->
@@ -3460,7 +3460,7 @@ refused_load_help() ->
     ?assertEqual(nomatch, binary:match(Output, <<"puts it in scope">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> 3 : Int\n">>)).
 
-%% report §11.2, §8.2: the shell shows each byte a program writes that is
+%% report §11.2, §12.1: the shell shows each byte a program writes that is
 %% not UTF-8 as U+FFFD, a character cut across two writes whole, and text
 %% as UTF-8 whatever the host's locale
 shown_bytes_test_() ->
@@ -5085,7 +5085,7 @@ terminal() ->
     ?assertMatch({_, _}, binary:match(Screen, <<"Killed">>)),
     ?assertMatch({_, _}, binary:match(Screen, <<"2 : Int">>)).
 
-%% report §11.2, §8.7: the start line names the toolchain's version text,
+%% report §11.2, §12.5: the start line names the toolchain's version text,
 %% the one `VERSION` holds, with the mark of a build that is no release
 %% after it, as the repository's is, and a session at a terminal without
 %% `HOME`, or with one

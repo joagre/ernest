@@ -22,7 +22,7 @@
 %% (ern_canonical:source()); a definition without one is made from its
 %% form alone, its code without lines and its spawn sites without one; a
 %% definition of an exchange's unit is named by its name as text, which
-%% its sites and a fault's trace show (§8.7, §11.2);
+%% its sites and a fault's trace show (§12.7, §11.2);
 %% foreign_functions: the module's #foreign_function{}s, in the order it
 %% declares them, which have no form (Appendix H);
 %% exported: the qualified names of the functions it exports (§11.1), its
@@ -48,7 +48,7 @@
 %% what the node lacks, {Function, Arity, Text}, to which the link takes a
 %% reference beyond the spawned function's reach, a binding without its
 %% value here or a foreign function whose module or function is not here,
-%% which no process reaches (§8.7).
+%% which no process reaches (§12.7).
 
 -record(foreign_function, {qualified_name, scheme, host_module, host_function, export = false,
                            source = none, printing = none}).
@@ -58,7 +58,7 @@
 %% function (§11.1); source, where it is declared,
 %% {Line, Column, none}, or none; printing, what prints a type in its
 %% check's cause as its module writes it (§11.5), {Namespace, Shadows} as
-%% text, where it is not the unit's, a declaration that arrived (§8.7).
+%% text, where it is not the unit's, a declaration that arrived (§12.7).
 
 -record(link, {functions = #{}, types = #{}, printing}).
 %% The link of a unit (report §8.7, §11.1): where each reference its forms

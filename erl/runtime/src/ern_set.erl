@@ -1,6 +1,6 @@
 %% The primitives of Set (report Appendix E.4, E.0 rule 1): Erlang's
 %% version 2 sets, a map underneath, tagged {set, S} so that a Set and a
-%% Map are told apart at runtime (report §8.4). Each is a function of the
+%% Map are told apart at runtime (report §12.2). Each is a function of the
 %% `sets` module, the tag taken off and put back; the rest of Set is Ernest
 %% over them.
 -module(ern_set).

@@ -346,7 +346,7 @@ reports: faulted: deadlock
 
 A module worth keeping gets a test: `ern build .` compiles both modules, and `ern test` runs every `Test.Case` the program declares (the guide's §7.1). The planted test waits for a `Reported` that no process sends, and the runtime ends it with a fault where your test framework would wait for its timeout, the trace naming the line of the last call before the wait, since a wait leaves no frame of its own (report Appendix E.21): that is the fifth claim of *Why Ernest*, a program in which every process waits for a message none can send is a deadlock, found.
 
-Beneath the trace come the processes left waiting, a line for each spawn site and the frame its processes wait in (report §8.6): the planted test's counter, and the first test's, which outlived its test.
+Beneath the trace come the processes left waiting, a line for each spawn site and the frame its processes wait in (report §12.4): the planted test's counter, and the first test's, which outlived its test.
 
 The fix, a `Report` call in place of the `receive`, is chapter 6's. The test's type, `Test.Case(TestMsg)`, is the mailbox in the type once more: its `run` receives, so its type says what; the first test's `Test.Case(m)` leaves it open, since its `run` receives nothing.
 

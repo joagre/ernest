@@ -1,4 +1,4 @@
-%% Report §8.6: the host's termination and hangup end the program as the
+%% Report §8.6, §12.4: the host's termination and hangup end the program as the
 %% end of its entry process does, and the runtime prints nothing of its own
 %% about them; report §8.7: for a node, hangup is a reload. A callback
 %% module of OTP's erl_signal_server, in place of its default handler, which
@@ -106,7 +106,7 @@ end_run(Signal) ->
 handle_call(_, State) ->
     {ok, ok, State}.
 
-%% Report §8.7: a reload runs in the host's signal server, which traps
+%% Report §12.5: a reload runs in the host's signal server, which traps
 %% exits, so that the end of each port the reload opens, the runtime's
 %% helper's (ern_os), comes here as a message; it is taken and nothing is
 %% said, since the host's reports of its own are not written. Nothing else

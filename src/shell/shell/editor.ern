@@ -1,7 +1,7 @@
 /// The shell's line editor (report §11.2), designed in
 /// docs/design/shell.md: a pure function from what is being edited and an
 /// event to what the reader must do next. GNU Readline's Emacs bindings;
-/// `Escape` and the key after it are `Meta` and that key (§8.2).
+/// `Escape` and the key after it are `Meta` and that key (§12.1).
 ///
 /// Pure, and tested on its own: the tests at the foot of this file are
 /// what `ern test` runs (Appendix E.24, §11.2). The reader holds an `Editing`
@@ -24,7 +24,7 @@ export abstract type Editing =
             saved : String,
             search : Optional(Search))
 
-// Report §8.2: a sequence the terminal sends that `Terminal.Event` does
+// Report §12.1: a sequence the terminal sends that `Terminal.Event` does
 // not name (Appendix E.16) arrives as `Escape` and the characters after
 // it, so the editor reads one: `Escape` begins a Meta key, and `Escape [`
 // and `Escape O` begin the rest of a sequence, of which `Escape [ Z` is
@@ -103,7 +103,7 @@ export fn cursor(state : Editing) : Int =
     state.cursor
 
 /// Whether the keys so far have begun a sequence the next key ends
-/// (report §8.2).
+/// (report §12.1).
 export fn isMidSequence(state : Editing) : Bool =
     match state {
         Editing(pending = Plain) -> false
@@ -243,7 +243,7 @@ fn meta(state : Editing, event : Terminal.Event) : Edit = {
         // is typed
         Terminal.Key('\r') or Terminal.Key('\n') ->
             Edited(newline(state))
-      // report §8.2: `Escape [` and `Escape O` begin a sequence
+      // report §12.1: `Escape [` and `Escape O` begin a sequence
       // `Terminal.Event` does not name (Appendix E.16), of which `Escape [
       // Z` is `Shift-Tab`
       | Terminal.Key('[') ->
@@ -840,7 +840,7 @@ let notKept =
 fn keys(text : String) : List(Terminal.Event) =
     List.map(String.toList(text), Terminal.Key)
 
-// A control key as the terminal sends it: `C-a` is 1 (§8.2).
+// A control key as the terminal sends it: `C-a` is 1 (§12.1).
 fn ctrl(letter : Char) : Terminal.Event =
     match Char.fromCodePoint(Char.toCodePoint(letter) - 96) {
         Some(control) -> Terminal.Key(control)

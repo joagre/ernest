@@ -1,6 +1,6 @@
 %% Report Appendix E.1: a value as Ernest writes it, by the descriptor of
 %% its type (ern_boundary); where the type is a variable, the descriptor is
-%% `any` and the value is read by its runtime representation (§8.4).
+%% `any` and the value is read by its runtime representation (§12.2).
 %%
 %% Report §11.2: the shell prints to a depth and a length and shows what it
 %% cut as `...`; `Io.debug` prints the value whole, which is show/2, the
@@ -136,7 +136,7 @@ represented({adapted, Function, _, _, _} = Address, _) when is_function(Function
     address(Address);
 represented(Tuple, Limits) when is_tuple(Tuple), tuple_size(Tuple) > 0,
                                 is_atom(element(1, Tuple)) ->
-    %% report §8.4: a constructor's atom is its source spelling, capitalized;
+    %% report §12.2: a constructor's atom is its source spelling, capitalized;
     %% any other first atom, `true` among them, begins a tuple
     [Tag | Fields] = tuple_to_list(Tuple),
     case atom_to_list(Tag) of

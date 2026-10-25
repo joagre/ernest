@@ -9,7 +9,7 @@
 %% as in a timed receive while it waits, a key in its dictionary, so that
 %% the look finds no deadlock (§6.3, §8.6; ern_emitter's waiting/4). A
 %% message to a system process, `Io.print`, is a call the process answers
-%% once the stream has taken the bytes (§8.2). A launch, ern_rt:run_main/3,
+%% once the stream has taken the bytes (§12.1). A launch, ern_rt:run_main/3,
 %% makes the run's tables, its terms, the reaper and the system processes,
 %% runs the library's initializers and then main in the entry process, and
 %% at the end stops them all (§8.5, §8.6, §11.2).
@@ -322,7 +322,7 @@ host_echoed_forever(Echo, N) ->
 %% A message to a system process
 %%
 
-%% Report §8.2: Io.print of an empty string, a call standard output
+%% Report §12.1: Io.print of an empty string, a call standard output
 %% answers once it has taken the bytes, here dropped (ern_costs:launched/1),
 %% beside the host's bare send to a process and its call of a process that
 %% takes the bytes and answers, as gen:do_call/4 makes one.

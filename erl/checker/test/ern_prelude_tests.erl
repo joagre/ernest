@@ -14,7 +14,7 @@
 %% report §9.4 to §9.7, Appendix E: every signature the report prints is a
 %% value of the tables with the same type text, and nothing else is
 values_test() ->
-    Lines = code_lines(section("## 9. Prelude", "## 10. ")) ++
+    Lines = code_lines(section("## 9. Prelude", "## Appendix A. ")) ++
         code_lines(section("## Appendix E.", "## Appendix G")),
     Report = lists:sort(lists:append([signature(Line) || Line <- Lines])),
     %% a module written in Ernest gives its signatures by its interface; the

@@ -1,4 +1,4 @@
-%% Report §8.3, §8.7, §11.3, Appendix C: a node's configuration directory,
+%% Report §8.3, §8.7, §12.5, §11.3, Appendix C: a node's configuration directory,
 %% the one owner of its shape. `ern config` makes it, a key, a certificate
 %% the node signs itself and `ernest.conf`, and lists in it a peer of this
 %% machine read from the peer's own directory; a node started with it checks
@@ -29,10 +29,10 @@
 -define(LISTEN, "0.0.0.0:8654").
 
 %% The certificate's subject, the same for every node, since a peer is known
-%% by its key and the host its key gives (report §8.7).
+%% by its key and the host its key gives (report §12.5).
 -define(NAME, <<"ernest">>).
 
-%% Report §8.7, Appendix E.27: what `ernest.conf` may say.
+%% Report §12.5, Appendix E.27: what `ernest.conf` may say.
 -define(FIELDS, [<<"listen">>, <<"public-key">>, <<"peers">>, <<"services">>, <<"measures">>,
                  <<"utilization">>, <<"utilization-interval">>]).
 -define(PEER_FIELDS, [<<"name">>, <<"public-key">>, <<"network-address">>]).
@@ -74,7 +74,7 @@ create(Given, Listen) ->
         exists -> ern_build:fail(ConfigDir ++ " exists");
         {error, Why} -> ern_build:fail(ConfigDir ++ ": " ++ Why)
     end,
-    %% report §8.7: an ed25519 key, which serves in the handshake under the
+    %% report §12.5: an ed25519 key, which serves in the handshake under the
     %% rule (the log's *The Node's Directory*)
     Key = public_key:generate_key({namedCurve, ed25519}),
     Public = pem([{'SubjectPublicKeyInfo', public_der(Key), not_encrypted}]),
@@ -120,7 +120,7 @@ point_der(PublicPoint) ->
                              algorithm = #'AlgorithmIdentifier'{algorithm = ?'id-Ed25519'},
                              subjectPublicKey = PublicPoint}).
 
-%% Report §8.7: a certificate the node signs itself, its subject a constant,
+%% Report §12.5: a certificate the node signs itself, its subject a constant,
 %% naming as its one alternative name the host its key gives, which binds
 %% the key to the node's name on the carrier, and its validity the longest
 %% RFC 5280 writes, from 1970 to the end of 9999, since a certificate's dates
@@ -192,7 +192,7 @@ add_peer(ConfigDir, PeerDir) ->
                        fun ordered/3, #{indent => 2}),
     ern_build:write_whole(file(ConfigDir, conf), Json).
 
-%% Report §11.3, §8.7: the key a peer's certificate certifies, and its
+%% Report §11.3, §12.5: the key a peer's certificate certifies, and its
 %% `listen`: its directory, `ernest.conf` and certificate read as a node
 %% reads its own, the certificate naming the host its key gives.
 peer_read(PeerDir) ->
@@ -225,7 +225,7 @@ local_address(_PeerDir, {Address, Port}) ->
 %% A node's start and end
 %%
 
-%% Report §8.7: a node starts from its configuration directory: the
+%% Report §12.5: a node starts from its configuration directory: the
 %% directory and its files checked, `ernest.conf` read whole, the process
 %% number written to `ernest.pid`, and the host's measures the file names
 %% started. Answers what `ernest.conf` says.
@@ -244,7 +244,7 @@ start(ConfigDir, Configuration) ->
     end,
     Configuration.
 
-%% Report §8.7: a node stops the host's measures at its end, and removes
+%% Report §12.5: a node stops the host's measures at its end, and removes
 %% `ernest.pid`, where the file is still its own; its lock on the file goes
 %% when the host ends with it (pid_written/1).
 -spec stop(file:filename()) -> ok.
@@ -265,7 +265,7 @@ file(ConfigDir, key) -> filename:join(ConfigDir, ?KEY);
 file(ConfigDir, certificate) -> filename:join(ConfigDir, ?CERTIFICATE);
 file(ConfigDir, pid) -> filename:join(ConfigDir, ?PID_FILE).
 
-%% Report §8.7: the directory checked and `ernest.conf` read: the
+%% Report §12.5: the directory checked and `ernest.conf` read: the
 %% directory, and each file a node reads in it, its user's own or the
 %% superuser's and written by none but its owner, as the shell's startup
 %% files are (§11.2), and the key read by none but its
@@ -329,7 +329,7 @@ kind(regular) -> "regular file".
 %% Each file is read through ern_build:read/1, which refuses one that cannot
 %% be read with its name and the host's reason; what does not decode is
 %% refused with the file and the rule, the host's decoder's failure among
-%% it, and nothing of it escapes as a failure of `ern` (report §8.7).
+%% it, and nothing of it escapes as a failure of `ern` (report §12.5).
 private_key(ConfigDir) ->
     Pem = ern_build:read(file(ConfigDir, key)),
     Decoded = try [public_key:pem_entry_decode(Entry) || Entry <- public_key:pem_decode(Pem)]
@@ -375,7 +375,7 @@ certified_key(#'OTPCertificate'{tbsCertificate = Tbs}) ->
         Tbs#'OTPTBSCertificate'.subjectPublicKeyInfo,
     point_der(Point).
 
-%% Report §8.7: `ernest.pid` holds this node's process number from its
+%% Report §12.5: `ernest.pid` holds this node's process number from its
 %% start, and the node holds it locked for its life, through the runtime's
 %% helper, whose port this process owns until the host ends with the node,
 %% however it ends; a file a living node holds refuses the start, naming the
@@ -397,7 +397,7 @@ pid_written(ConfigDir) ->
             fail(ConfigDir, ?PID_FILE, Text)
     end.
 
-%% Report §8.7: a reload's measures: the host's services stopped and those
+%% Report §12.5: a reload's measures: the host's services stopped and those
 %% the new file names started, where the file changed them; where they do
 %% not start, those that ran are started again and the reload is refused,
 %% whatever stopped them.
@@ -413,7 +413,7 @@ measures_changed(ConfigDir, Measures, NewMeasures) ->
         erlang:raise(Class, Reason, Trace)
     end.
 
-%% Report §8.7: the host's measures stopped, each program the host runs for
+%% Report §12.5: the host's measures stopped, each program the host runs for
 %% them ended in order, so that none says, as its port closes when the host
 %% ends, that the host has closed; and the application unloaded, so that the
 %% measures started next take their parameters from the host's defaults and
@@ -431,7 +431,7 @@ measures_stopped() ->
     _ = application:unload(os_mon),
     ok.
 
-%% Report §8.7, §11.2: the signal sent to the node that runs from the
+%% Report §12.5, §11.2: the signal sent to the node that runs from the
 %% directory, the one that holds its `ernest.pid`, the process the file
 %% names; where there is no file, no node holds it, or its process has
 %% ended or is another user's, the job fails, saying so, and nothing is
@@ -459,7 +459,7 @@ node_signaled(ConfigDir, Number, Wait) ->
         {failed, Text} -> fail(ConfigDir, ?PID_FILE, Text)
     end.
 
-%% Report §8.7: the host's measures `measures` names, started with their
+%% Report §12.5: the host's measures `measures` names, started with their
 %% parameters, and none where the section is absent. The host's memory
 %% measure counts its interval in minutes, which the file's milliseconds
 %% were held to when it was read.
@@ -492,7 +492,7 @@ measures_started(ConfigDir, Measures) ->
 %% ernest.conf
 %%
 
-%% Report §8.7, Appendix C: `ernest.conf` read whole: JSON, an object whose
+%% Report §12.5, Appendix C: `ernest.conf` read whole: JSON, an object whose
 %% every field is known, and none twice in one object, and each whole
 %% number one the host can hold.
 configuration(ConfigDir) ->
@@ -536,7 +536,7 @@ decoded(ConfigDir) ->
 
 %% A whole number of the file, as the host reads its numeral; one too long
 %% for the host to hold, which the host would raise for, is refused with the
-%% file and the rule (report §8.7).
+%% file and the rule (report §12.5).
 integer(ConfigDir, Numeral) ->
     try binary_to_integer(Numeral)
     catch
@@ -558,7 +558,7 @@ object(ConfigDir, What, {object, Pairs}, Known) ->
 object(ConfigDir, What, _, _) ->
     fail(ConfigDir, ?CONF, What ++ " is not a JSON object").
 
-%% Report §8.7: `listen`, an address of one interface, or `0.0.0.0` or `::`
+%% Report §12.5: `listen`, an address of one interface, or `0.0.0.0` or `::`
 %% for all, and a port, 0 for one the host picks.
 listen(ConfigDir, Text) when is_binary(Text) ->
     case listener(Text) of
@@ -610,14 +610,14 @@ endpoint(Text) ->
             error
     end.
 
-%% Report §8.7: a node runs over its listener's family of addresses, or
+%% Report §12.5: a node runs over its listener's family of addresses, or
 %% IPv4 where it has no listener; the carrier boots over it.
 -spec family(none | {inet:ip_address(), inet:port_number()}) -> inet | inet6.
 family(none) -> inet;
 family({Address, _}) when tuple_size(Address) =:= 4 -> inet;
 family({_, _}) -> inet6.
 
-%% Report §8.7: each peer a name, a public key and an address, the address
+%% Report §12.5: each peer a name, a public key and an address, the address
 %% left out where the peer is never dialed, of the family of the node's
 %% listener, Listen; names and keys each once.
 peers(ConfigDir, List, Listen) when is_list(List) ->
@@ -654,7 +654,7 @@ peer(ConfigDir, Item, Listen) ->
               end,
     #peer{name = Name, public_key = Key, address = Address}.
 
-%% Report §8.7: a peer's address, `host:port`, the host an address of the
+%% Report §12.5: a peer's address, `host:port`, the host an address of the
 %% node's family or a name, which is not resolved here: the host resolves
 %% it at each dial, where its family is checked (ern_epmd), so that reading
 %% the file waits on no resolver.
@@ -693,7 +693,7 @@ same_family(ConfigDir, Shown, Text, PeerFamily, Listen) ->
     end.
 
 %% A public key in PEM: the DER of its SubjectPublicKeyInfo, which the
-%% host's decoder reads; one it cannot read is no public key (report §8.7).
+%% host's decoder reads; one it cannot read is no public key (report §12.5).
 public_key_der(ConfigDir, Shown, Pem) when is_binary(Pem) ->
     Decoded = try
                   [{Entry, public_key:pem_entry_decode(Entry)}
@@ -734,7 +734,7 @@ services(ConfigDir, Item, Peers) ->
                     Acc#{Name => Listed}
                 end, #{}, Pairs).
 
-%% Report §8.7: `measures`, `cpu`, `memory` and `disk`, each with the host's
+%% Report §12.5: `measures`, `cpu`, `memory` and `disk`, each with the host's
 %% parameters by their meaning: `check-interval` in milliseconds, a whole
 %% number of minutes for memory, whose host measure counts minutes, and
 %% `almost-full` a fraction from 0 to 1.
@@ -770,7 +770,7 @@ fraction(ConfigDir, Shown, Full) ->
         orelse fail(ConfigDir, ?CONF, Shown ++ "'s almost-full is not a fraction from 0 to 1"),
     Full.
 
-%% Report §8.7: `utilization`, how the node measures how busy it is for its
+%% Report §12.8: `utilization`, how the node measures how busy it is for its
 %% peers, `run-queue`, the default where the entry is absent, or
 %% `schedulers`.
 utilization(_ConfigDir, <<"run-queue">>) ->

@@ -1,5 +1,5 @@
 %% A node's configuration, as its directory's `ernest.conf` says it (report
-%% §8.7, Appendix C), which ern_node reads and ern_carrier starts the node's
+%% §12.5, Appendix C), which ern_node reads and ern_carrier starts the node's
 %% carrier from.
 
 %% listen: none or {Address, Port}, the listener's interface and port;

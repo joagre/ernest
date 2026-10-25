@@ -219,7 +219,7 @@ HELLO
 WORLD
 ```
 
-Standard input is read as UTF-8, and a line that is not faults the process that read it. Input that is not text is read as bytes: `Io.read()` answers `Some(bytes)` with what has arrived, and `Io.write(bytes)` writes bytes to standard output as they are. Lines and bytes come from one stream, so a program can read a line and then the bytes after it. A program reads lines or single keys, not both: `Terminal.subscribe` gives keys as they are pressed, or answers `Left(Io.NotATerminal)` where standard input is not a terminal, so that the program can read lines instead (report §8.2).
+Standard input is read as UTF-8, and a line that is not faults the process that read it. Input that is not text is read as bytes: `Io.read()` answers `Some(bytes)` with what has arrived, and `Io.write(bytes)` writes bytes to standard output as they are. Lines and bytes come from one stream, so a program can read a line and then the bytes after it. A program reads lines or single keys, not both: `Terminal.subscribe` gives keys as they are pressed, or answers `Left(Io.NotATerminal)` where standard input is not a terminal, so that the program can read lines instead (report §12.1).
 
 ### 1.4 A taste of the rest
 
@@ -1124,7 +1124,7 @@ $ ern run counter.erc
 count is 8
 ```
 
-When `main` returns, or its process ends in any other way, the program ends: every process on the node ends with the reason `ProgramEnd`, one of the reasons a `Down` carries (§5.2), which is not a fault, and output still on its way is written first. A program stopped from outside by a termination signal ends the same way, and so does one that is no node at a hangup signal, which a node takes as a reload (§9.2); the terminal's interrupt ends it at once, and output still on its way may be lost, unless the program reads the terminal's keys, which then deliver the interrupt as a key (report §8.2, §8.6).
+When `main` returns, or its process ends in any other way, the program ends: every process on the node ends with the reason `ProgramEnd`, one of the reasons a `Down` carries (§5.2), which is not a fault, and output still on its way is written first. A program stopped from outside by a termination signal ends the same way, and so does one that is no node at a hangup signal, which a node takes as a reload (§9.2); the terminal's interrupt ends it at once, and output still on its way may be lost, unless the program reads the terminal's keys, which then deliver the interrupt as a key (report §8.6, report §12.1, report §12.4).
 
 The count is 8 because messages from one sender arrive in the order sent: both `Inc`s come before the `Get`. Were the counter too slow, `main` would print `counter did not answer`.
 
@@ -1314,7 +1314,7 @@ fn pong() : Unit receiving PongMsg =
 
 `main` starts pong with `spawnMonitored`, which §5.2 explains, so that a `PongDone` arrives when pong ends, and waits for it. Had `main` returned at once, the program would have ended before the two had played, since returning from `main` ends every process (§4.5).
 
-The output is `ping 3`, `pong 3`, `ping 2`, and so on, alternating. Messages from one sender arrive in the order sent, so ping's requests reach pong in order. `Io.println` returns once standard output has taken the line (report §8.2), and ping prints before it calls pong, pong before it answers, so each line is written before the next can be. Two processes whose writes nothing orders, two workers printing as they go, interleave in an order no rule fixes.
+The output is `ping 3`, `pong 3`, `ping 2`, and so on, alternating. Messages from one sender arrive in the order sent, so ping's requests reach pong in order. `Io.println` returns once standard output has taken the line (report §12.1), and ping prints before it calls pong, pong before it answers, so each line is written before the next can be. Two processes whose writes nothing orders, two workers printing as they go, interleave in an order no rule fixes.
 
 ### 5.2 `monitor` and `Down`
 
@@ -1408,7 +1408,7 @@ When every process waits in a `receive` or a `callForever` that nothing can ever
 
 A delivery that foreign code arranges for after its call has returned, from a timer or a process of the host's, is one the runtime does not see coming, so `ern run` and `ern test` fault a program that waits for it alone with `deadlock` (§8.3).
 
-The fault's trace is the entry process's. A waiting frame names the line of the last call before the wait, since a wait leaves no frame of its own (report Appendix E.21): in a function that spawns and then waits in a `receive`, the frame names the `spawn`'s line. Beneath the trace the report lists the other processes left waiting, a line for each spawn site and the frame they wait in, with their count, as [`examples/lease_broker.ern`](../examples/lease_broker.ern) run with the argument `deadlock` writes of its three clients: `3 processes of LeaseBroker.started:349 wait in LeaseBroker.holding:367` (report §8.6).
+The fault's trace is the entry process's. A waiting frame names the line of the last call before the wait, since a wait leaves no frame of its own (report Appendix E.21): in a function that spawns and then waits in a `receive`, the frame names the `spawn`'s line. Beneath the trace the report lists the other processes left waiting, a line for each spawn site and the frame they wait in, with their count, as [`examples/lease_broker.ern`](../examples/lease_broker.ern) run with the argument `deadlock` writes of its three clients: `3 processes of LeaseBroker.started:349 wait in LeaseBroker.holding:367` (report §12.4).
 
 A node detects no deadlock, so a program started with `--config-dir` goes on waiting where every process waits, and a wait on another node's process, which only a node can make, is never found to be one (report §8.6). Nor does a shell detect one while it holds the terminal (report §11.2).
 
@@ -2438,7 +2438,7 @@ A *node* is a program started with `--config-dir`, and its *peers* are the nodes
 
 A peer has a name, which the program uses, a public key and a network address. A peer on the same machine is added by `ern config --peer-dir`, which reads all three from the peer's directory; one on another machine by editing the file, with the key `ern config` printed on the peer's machine (report §11.3). Under `services`, each service's name lists the peers that may offer it, in the order a *find* asks them (report §8.7, Appendix C). A peer offers a service by holding a process under its name for peers to find, and a find is the lookup of a service by its name (§8.2).
 
-Two nodes connect when the first operation needs it, over TLS, each accepting the other by its listed key alone, and only where both stand on one *floor*, one minor release of `ern`, any patch, on one major release of OTP, the Erlang release Ernest runs on; their builds may differ (§8.2). What a node says on its standard error is report §8.7's, and `ern reload` and `ern stop` are §9.2's; this chapter teaches what a program writes.
+Two nodes connect when the first operation needs it, over TLS, each accepting the other by its listed key alone, and only where both stand on one *floor*, one minor release of `ern`, any patch, on one major release of OTP, the Erlang release Ernest runs on; their builds may differ (§8.2). What a node says on its standard error is report §12.5's, and `ern reload` and `ern stop` are §9.2's; this chapter teaches what a program writes.
 
 Every example here runs on a program that is no node too: without a configuration a program has no peers, and `Peer.find`, `Peer.spawn` and `Peer.compute` answer `Left(Io.NotListed)`.
 
@@ -2829,7 +2829,7 @@ The address found is used as any other: `send`, `Address.call`, `monitor` and `k
 
 `monitorService` reaches it too: a service monitor on a process of another node is told of each of its restarts, by the runtime's own frames, before anything the new run sends, and of its end and of a loss as `monitor` is (report §6.9, §8.7). [`examples/lease_broker.ern`](../examples/lease_broker.ern) runs its broker and its clients on two nodes so.
 
-**A loss.** A connection breaks or a peer falls silent; a node that ends in order is no loss, a monitor on its processes gives `ProgramEnd`, and a `callForever` on one of them faults with `callee ended with its program`. A peer that fell silent is given up in 45 to 75 seconds, and one whose connection closed is given up at once (report §8.7).
+**A loss.** A connection breaks or a peer falls silent; a node that ends in order is no loss, a monitor on its processes gives `ProgramEnd`, and a `callForever` on one of them faults with `callee ended with its program`. A peer that fell silent is given up in 45 to 75 seconds, and one whose connection closed is given up at once (report §8.7, report §12.6).
 
 Each node then ends what it held with the other and nothing else: every monitor on the peer's processes gives one `Down` with the reason `Unreachable` and an empty `site`, every call waiting on one of them answers `None`, and a `callForever` faults with `callee is unreachable`; what waited to be sent is dropped, and a later `send` dials again, and vanishes only where the dial fails. No other process of your own dies of it.
 
@@ -2889,7 +2889,7 @@ The foreign side promises the declared types. A return value of the wrong shape 
 
 A `foreign fn` declared `receiving M` may deliver into the calling process's mailbox, and is trusted to deliver values of `M` alone; one declared without `receiving` is trusted neither to receive from that mailbox nor to deliver into it; and nothing checks either promise (report §4.7).
 
-In the other direction, an Ernest process's end is an Erlang exit reason, `normal`, `{ern, fault, Cause, Trace}` for every fault, its cause and its trace as text, `{ern, killed}` and `{ern, program_end}` among them, which Erlang code that monitors it reads; report §8.4 lists them all.
+In the other direction, an Ernest process's end is an Erlang exit reason, `normal`, `{ern, fault, Cause, Trace}` for every fault, its cause and its trace as text, `{ern, killed}` and `{ern, program_end}` among them, which Erlang code that monitors it reads; report §12.2 lists them all.
 
 A value foreign code made and Ernest does not inspect has the foreign type `Foreign.Term`; `Foreign.toInt` and the rest of Appendix E.12 read it, and `Foreign.atom(name)` is how an Erlang atom, the host's symbol, a name that is its own value, is passed (report §3.8, Appendix E.12).
 
@@ -2950,7 +2950,7 @@ foreign fn rawLookup(table : Table(k, v), key : k) : List(#(k, v)) =
 
 `rawLookup` is the module's own, and callers use `Ets.get`.
 
-Erlang's `{ok, V}` and `{error, R}` are not an Ernest `Either`, whose values are `{'Right', V}` and `{'Left', R}` (report §8.4).
+Erlang's `{ok, V}` and `{error, R}` are not an Ernest `Either`, whose values are `{'Right', V}` and `{'Left', R}` (report §12.2).
 
 A small Erlang helper returns the Ernest shape, with an integer for `Int` and a UTF-8 binary for `String`:
 
@@ -3221,7 +3221,9 @@ A name completed alone is shown under the line with its type, and a second `Tab`
 
 `Shift-Tab` shows the declaration, the first sentence, and the version of the name at the cursor, `String.trim(text : String) : String` and what it does, and pressed again its documentation. Inside a call, on no documented name, it shows the callee's signature with the parameter at the cursor marked, and inside a constructor its fields.
 
-**Loading and reloading.** `:load Words` puts the module `Words` in scope: it compiles `words.ern` under the source root, or takes a compiled form beside it or on the load path where one is as new as the source, and says which, `Words, compiled from words.ern` or `Words, from words.erc`. Nothing is loaded by being named, since a load evaluates the module's bindings, which may start processes; a name not in scope is answered with the `:load` that would put it there. `:reload` compiles and loads again each loaded module whose source has changed, and with it each loaded module that uses one or whose code references a definition the change changes; where one of them does not compile, `:reload` loads none of them. A declaration of the session's that references what changed is compiled again too, and one that no longer compiles leaves scope while the reload goes on (report §11.2).
+**Loading and reloading.** `:load Words` puts the module `Words` in scope: it compiles `words.ern` under the source root, or takes a compiled form beside it or on the load path where one is as new as the source, and says which, `Words, compiled from words.ern` or `Words, from words.erc`. Nothing is loaded by being named, since a load evaluates the module's bindings, which may start processes; a name not in scope is answered with the `:load` that would put it there.
+
+`:reload` compiles and loads again each loaded module whose source has changed, and with it each loaded module that uses one or whose code references a definition the change changes; where one of them does not compile, `:reload` loads none of them. A declaration of the session's that references what changed is compiled again too, and one that no longer compiles leaves scope while the reload goes on (report §11.2).
 
 Both evaluate a module's top-level bindings, so a service it declares starts, and after a reload a service of the new version runs beside the old. One that offers a service, as §8.2's counter does, finds the service held by the old one, and waits on the old one's end to take it.
 
@@ -3252,7 +3254,7 @@ Ernest runs on the Erlang runtime, and a program in it is processes that send me
 - `Address.call` is `gen_server:call` with a timeout, which answers `None` for a timeout and for the callee's end alike, and `Address.callForever` is the call without one, whose fault carries the callee's cause, or how else the callee ended (§4.4).
 - The shell's `:load` is `c()` and `l()` as needed, compiling where the source is newer and loading the compiled form where it is not; nothing loads by being named, since loading a module runs its top-level bindings, which Erlang's modules have none of.
 - Integers are exact and unbounded. On `Int`, `/` is Erlang's `div` and `%` is `rem`.
-- A `foreign fn` calls an Erlang function directly, `"ets:lookup/2"`, and the values cross as report §8.4 lists: a constructor is a tagged tuple or an atom, and a `String` is a UTF-8 binary.
+- A `foreign fn` calls an Erlang function directly, `"ets:lookup/2"`, and the values cross as report §12.2 lists: a constructor is a tagged tuple or an atom, and a `String` is a UTF-8 binary.
 
 **What differs.**
 
@@ -3310,7 +3312,7 @@ Several of these tell the compiler nothing it could not work out for itself. Wha
 
 (c) The type gains `Reset(Reply(Int))`, and `count` the clause `Reset(reply) -> { answer(reply, total); count(0) }`. Without the clause the program still compiles. A `receive` takes the messages its clauses match and leaves the others in the mailbox (§4.3), so the `Reset` waits there for a clause that never comes: its caller's `Address.call` answers `None` at its deadline, and the counter goes on serving `Inc` and `Get`. A `match` must cover its type; a `receive` need not, and a protocol's new request is the programmer's to give a clause.
 
-**§5.7.** (a) No. As written, pong prints before it answers, and `Io.println` returns once standard output has taken the line (report §8.2), so ping, which waits for the answer, cannot print its next line first. With the print below the `answer`, ping is free to print `ping 2` while pong has still to print `pong 3`. The two are two senders to standard output, and nothing orders them: the call did, and it has returned.
+**§5.7.** (a) No. As written, pong prints before it answers, and `Io.println` returns once standard output has taken the line (report §12.1), so ping, which waits for the answer, cannot print its next line first. With the print below the `answer`, ping is free to print `ping 2` while pong has still to print `pong 3`. The two are two senders to standard output, and nothing orders them: the call did, and it has returned.
 
 (b) `job 1: 1` or `job 1: the worker died`. The result comes from the worker and the `Down` from the runtime, two senders, so either may be received first (§5.1). Where the `Down` comes first, the wait answers `None` though the worker did its work, and the result arrives afterwards, for the next wait to pass over. The clause tells the two ends apart by the `Down`'s reason. A run seldom shows the second line, but the order is not promised, so the clause stays.
 

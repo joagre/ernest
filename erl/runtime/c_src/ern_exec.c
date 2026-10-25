@@ -3,7 +3,7 @@
  * the host's ports cannot: the program's standard error apart from its
  * output, the end of its input while its output is still read, and a kill
  * of the program with its process group; and a node's lock on its
- * ernest.pid, and a signal to the node that holds one (report §8.7). It is
+ * ernest.pid, and a signal to the node that holds one (report §12.5). It is
  * C99 over POSIX.1-2008 alone, so that any POSIX host builds it; Ernest
  * runs on Linux and macOS.
  *
@@ -47,7 +47,7 @@
  *
  * With the argument `user`, the helper writes the 'u' frame alone, which a
  * node's check of its directory reads, as it starts and at each reload
- * (report §8.7).
+ * (report §12.5).
  *
  * With the arguments `signal`, a signal's number and a process number, the
  * helper sends that process the signal and exits 0 where it was sent, 1
@@ -57,7 +57,7 @@
  * program (report §11.2), which the host has no word for.
  *
  * With the arguments `lock`, a path and a process number, the helper is a
- * node's hold on its ernest.pid (report §8.7), which the host has no word
+ * node's hold on its ernest.pid (report §12.5), which the host has no word
  * for: it opens the file, made where it is not there, and takes the node's
  * lock on it without waiting. Where another holds that lock, it writes an
  * 'h' frame, the number the file holds, and exits. Where it took the lock,

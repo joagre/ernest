@@ -1635,7 +1635,7 @@ deadlock_test() ->
     ?assertMatch({match, _}, re:run(iolist_to_binary(?capturedOutput),
                                     "^Main.main faulted: deadlock\n")).
 
-%% report §8.6, §11.2: a deadlock's report lists, beneath the trace, the
+%% report §12.4, §11.2: a deadlock's report lists, beneath the trace, the
 %% processes it left waiting but the one it faults, a line for each group
 %% of one spawn site and one waiting frame, with their count, in the order
 %% of the sites, the frame the first of the program's in the process's
@@ -1691,7 +1691,7 @@ deadlock_lists_the_waiting_test() ->
                                [dotall, {capture, [1], binary}]),
     ?assertEqual(Waiting, Tested).
 
-%% report §8.6: a deadlock's lines are ordered by their sites' lines as
+%% report §12.4: a deadlock's lines are ordered by their sites' lines as
 %% numbers, a spawn on line 9 before one on line 10, whose order as text is
 %% the reverse. A regression test: the lines were ordered as text
 deadlock_lines_by_number_test() ->
@@ -2350,7 +2350,7 @@ doc_example_kept_directory_test() ->
         ok = file:del_dir_r(Temporary)
     end.
 
-%% report §8.7, §11.2: a line a node says while no launch is in progress,
+%% report §12.5, §11.2: a line a node says while no launch is in progress,
 %% between two launches of `ern test` over a directory, before the first
 %% and after the last, is written on the job's own standard error, the
 %% device the job was given, and one said in a launch goes through the
@@ -3139,7 +3139,7 @@ double_dash_test() ->
     ?assertEqual(2, ern_cli:ern(["run", "--", Dir ++ "/build/args.erc", "--", "--main"])),
     ?assertEqual(<<"[\"--\", \"--main\"]\n">>, iolist_to_binary(?capturedOutput)).
 
-%% report §8.7, §11.2: a `--config-dir` after `ern run`'s file is the
+%% report §12.5, §11.2: a `--config-dir` after `ern run`'s file is the
 %% program's word, so the launcher's first start, which answers the flags
 %% a node's host boots with, runs no program: parsed as that start parses
 %% it, the job is no node and answers none, the program not run; and
@@ -3168,7 +3168,7 @@ program_config_dir_test() ->
                  os:cmd("printf 'secret\\n' | ../../../bin/ern run " ++ Erc ++ " --config-dir "
                         ++ Dir)).
 
-%% bin/ern, report §8.7, §11.2: the launcher passes over the value of each
+%% bin/ern, report §12.5, §11.2: the launcher passes over the value of each
 %% option of `ern run` that takes one as it looks for `--config-dir` among
 %% the job's own words, so its list is held equal to the options the job's
 %% usage gives a value, `--config-dir` aside. Written with the list
@@ -3925,7 +3925,7 @@ worker_faults_test() ->
                  lists:sort(binary:split(untraced(?capturedOutput), <<"\n">>,
                                          [global, trim]))).
 
-%% report §11.2, §7.3, §7.4: beneath a foreign function's raise the fault
+%% report §11.2, §7.3, §12.3: beneath a foreign function's raise the fault
 %% line has its trace, as every fault's has, naming first the function
 %% that raised, as the host names it. A regression test: the stack was
 %% dropped, and a failure of the runtime named no module and no line.
@@ -3941,7 +3941,7 @@ fault_stack_test() ->
                  First),
     ?assertEqual(<<"    erlang:element/2">>, Second).
 
-%% report §7.4, §11.2, Appendix E.21: a foreign function's return that does
+%% report §12.3, §11.2, Appendix E.21: a foreign function's return that does
 %% not match its declared type faults with a cause that names the host's
 %% function as a raise's cause does, and the trace is as for any fault the
 %% runtime raises: the function has returned when its return is checked,
@@ -4601,7 +4601,7 @@ mvp_refusals_listed_test() ->
                               =:= nomatch],
     ?assertEqual([], Missing).
 
-%% report §11, §8.7: --version prints the version text, the top-level
+%% report §11, §12.5: --version prints the version text, the top-level
 %% VERSION file's content, and in the repository's build, which is no
 %% release, the mark after it; the release archive's is VERSION's alone,
 %% which ern_install_tests' release test holds
@@ -5076,7 +5076,7 @@ misplaced_module_test() ->
     ?assertEqual(1, ern_cli:ern(["run", Dir ++ "/build/http.erc"])),
     ?assertEqual(1, ern_cli:ern(["run", Dir ++ "/build/nothing.erc"])).
 
-%% report §8.7, §11.2: a run given `--config-dir` is a node, whose host the
+%% report §12.5, §11.2: a run given `--config-dir` is a node, whose host the
 %% launcher boots with the carrier's flags; a host booted otherwise, as a
 %% test runs `ern` within its own, is refused, and so is a directory whose
 %% `ernest.conf` is refused, before anything runs. A run as a node is
@@ -5173,7 +5173,7 @@ bare_node_refusals_test() ->
                                                     " for a bare node\n">>))),
     ?assertNot(filelib:is_file(filename:join(Dir, "ernest.pid"))).
 
-%% report §11.2, §8.7: `ern reload` and `ern stop` require --config-dir,
+%% report §11.2, §12.5: `ern reload` and `ern stop` require --config-dir,
 %% and fail where its ernest.pid is not there or no node holds it, a file
 %% that names a process that has ended among them, saying so; their
 %% synopsis shows the option they require; `ern reload` refuses a
@@ -5310,7 +5310,7 @@ config_peer_keeps_fields_test() ->
                           ", \"peers\": [{\"public-key\": ", json:encode(KeyB),
                           ", \"name\": \"b\"}], \"services\": {\"counter\": [\"b\"]},"
                           " \"listen\": \"127.0.0.1:8654\", \"measures\": {\"cpu\": {}}}"]),
-    %% report §8.7: written by none but its owner, whatever the umask
+    %% report §12.5: written by none but its owner, whatever the umask
     ok = file:change_mode(Elsewhere, 8#644),
     Conf = filename:join(A, "ernest.conf"),
     ok = file:delete(Conf),
@@ -5393,7 +5393,7 @@ config_peer_directories_test() ->
                  | [Peer ++ ": no configuration directory, which --peer-dir names"
                     || Peer <- [Missing, Uncertified, Plain]]]].
 
-%% report §11.3, §8.7: the peer's directory, its `ernest.conf` and its
+%% report §11.3, §12.5: the peer's directory, its `ernest.conf` and its
 %% certificate are read as a node reads its own: a file anyone may write,
 %% a file that is not JSON and a certificate that is none are refused,
 %% each naming the peer's file, and nothing is written

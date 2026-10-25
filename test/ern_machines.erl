@@ -119,7 +119,7 @@ closed(Machines) ->
 %% check
 %%
 
-%% Report §8.7: a node of a development build connects only to a node of
+%% Report §12.5: a node of a development build connects only to a node of
 %% the same build, its floor the digest of its code. Each machine's commit,
 %% version text, OTP release and floor, read side by side, and said; a
 %% machine that is not built, whose clone holds a change no commit does,
@@ -143,7 +143,7 @@ checked(Machines) ->
     Other =:= []
         orelse ern_machine:fail(
                  io_lib:format("~s stand~s on another floor than ~s, and no node there would"
-                               " connect to one here (report §8.7); test/machines/nodes.sh"
+                               " connect to one here (report §12.5); test/machines/nodes.sh"
                                " pull pulls and builds each clone at origin's main",
                                [lists:join(" and ", [ern_machine:name(Machine)
                                                      || {Machine, _} <- Other]),
@@ -255,7 +255,7 @@ pulled(Machines) ->
 %% A bare node on each machine, listening on the port `ern config` writes,
 %% each listing every other with the address it is dialed at, and a
 %% shell's directory on this machine, which lists them all and which each
-%% lists without an address, since a shell only dials (report §8.7, §11.2);
+%% lists without an address, since a shell only dials (report §12.5, §11.2);
 %% each node started apart from this run, with its two streams in a file
 %% beside its directory, as the deployment guide's section 1.5 keeps a
 %% node running without a service manager, and waited for until its port
@@ -328,7 +328,7 @@ stopped(Machines) ->
           end
       end, Machines).
 
-%% Report §8.7, §11.2: for each machine, whether a node holds its
+%% Report §12.5, §11.2: for each machine, whether a node holds its
 %% `ernest.pid`, asked as `ern stop` asks with the signal 0, which sends
 %% nothing, and the last line it wrote.
 status(Machines) ->

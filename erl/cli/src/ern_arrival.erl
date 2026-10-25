@@ -1,4 +1,4 @@
-%% Report §8.7, The exchange, §11.1, §11.2: the unit the definitions of one
+%% Report §12.7, The exchange, §11.1, §11.2: the unit the definitions of one
 %% exchange make on the node they arrive at, made by the build's back end
 %% from the same forms as a build's (ern_emitter:unit/1), compiled by the
 %% host and loaded whole before any of it runs. A node has no checker's
@@ -62,7 +62,7 @@
 %% {Reference, Arity, Kind, Identity, Text}, the last first.
 -record(linking, {functions = #{}, others = #{}, types = [], lacking = []}).
 
-%% Report §8.7: the definitions Arrived, each of one code frame, verified,
+%% Report §12.7: the definitions Arrived, each of one code frame, verified,
 %% dependencies first, with Declared, the foreign declarations their code
 %% frames say they call, each a #foreign_function{} whose name, module and
 %% function are text and whose scheme is none, the forms writing it; and
@@ -90,7 +90,7 @@ received(Unit, Arrived, Declared, Reach, Env) ->
                     io_lib:format("~p:~P", [Class, Reason, 6])])
     end.
 
-%% Report §8.7, §11.2: the first name of the pool, from Next, the host
+%% Report §12.7, §11.2: the first name of the pool, from Next, the host
 %% holds no unit of, and the count the next arrival takes from once this
 %% one is loaded. A unit is held for the node's life, so the count only
 %% grows; a name the host holds a unit of is passed over, since an
@@ -131,7 +131,7 @@ compiled(#unit{name = Unit} = Made, Recorded) ->
     end.
 
 %%
-%% The unit, report §8.7 and §11.1
+%% The unit, report §12.7 and §11.1
 %%
 
 made(Unit, Arrived, Declared, {Bindings, Foreigns}, Env) ->
@@ -162,7 +162,7 @@ made(Unit, Arrived, Declared, {Bindings, Foreigns}, Env) ->
             end
     end.
 
-%% Report Appendix H, §8.7: each binding that crossed as a member of its
+%% Report Appendix H, §8.7, §12.7: each binding that crossed as a member of its
 %% group, by its group and its position, as the reference that names it by
 %% its identity, its qualified name with its hash, which the node holds
 %% with its value, so its atoms are here.
@@ -202,7 +202,7 @@ in_group([Head | Tail], Group, ByPosition) ->
 in_group(Term, _, _) ->
     Term.
 
-%% Report §8.7, §8.4, §11.2: each foreign function the definitions that
+%% Report §12.7, §8.4, §11.2: each foreign function the definitions that
 %% arrived call that the reach does not declare, from the declaration its
 %% code frame carries, its scheme the one the forms write: a function of
 %% the unit's own, as a declaration of the reach is, where the host's
@@ -254,7 +254,7 @@ held(Name) ->
 definition_forms(Compiled) ->
     [Form || #definition{form = Form} <- Compiled].
 
-%% Report §8.7, §8.4: a foreign declaration of the reach as a function of
+%% Report §12.7, §8.4: a foreign declaration of the reach as a function of
 %% the unit's, by its qualified name as the forms that call it write it,
 %% where its atoms are here, and else as text, its scheme the declared
 %% type the check holds the host's return to, printed in its cause as its
@@ -272,10 +272,10 @@ foreign_function(#foreign_function{qualified_name = Name, host_module = HostModu
                              export = true}.
 
 %%
-%% The link, report §8.7 and §11.1
+%% The link, report §12.7 and §11.1
 %%
 
-%% Report §8.7, §11.1: where each reference the unit's forms make outside
+%% Report §12.7, §11.1: where each reference the unit's forms make outside
 %% it is, as the code table and the prelude's environment know it; and the
 %% reach of each definition of another unit its forms reference by hash,
 %% which its own reaches take in. What the forms name beyond the spawned
@@ -295,7 +295,7 @@ linked(Unit, Compiled, ForeignFunctions, Reach, Env) ->
         ++ [Scheme || #foreign_function{scheme = Scheme} <- ForeignFunctions],
     External = [Reference || Reference <- ern_compile:references(Forms),
                              not own(Reference, Hashes, Foreign)],
-    %% report §4.6, §8.7: a binding that arrived is read where the node
+    %% report §4.6, §12.7: a binding that arrived is read where the node
     %% holds it, but a constant the node holds nowhere, whose value its form
     %% gives here, read where its definition stands in the unit, which is
     %% known once the types its form names are linked
@@ -334,7 +334,7 @@ linked(Unit, Compiled, ForeignFunctions, Reach, Env) ->
         throw:{unlinked, Text} -> reason(Text)
     end.
 
-%% Report §8.7: each reference the unit lacks, {Reference, Arity, Kind,
+%% Report §12.7: each reference the unit lacks, {Reference, Arity, Kind,
 %% Identity, Text}, linked to a function of the unit's own, `'$lacked_K'`,
 %% that faults with the text; and those functions.
 lacked(Unit, Lacking) ->

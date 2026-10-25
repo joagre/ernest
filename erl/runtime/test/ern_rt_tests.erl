@@ -8,7 +8,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include("ern_rt.hrl").
 
-%% report §8.2: the terminal is read as lines or as keys; a claim the same
+%% report §12.1: the terminal is read as lines or as keys; a claim the same
 %% way stands, and one the other way is refused with the cause
 own_terminal_test() ->
     ets:new(ern_launch, [named_table, public, set]),
@@ -16,7 +16,7 @@ own_terminal_test() ->
     ets:delete(ern_launch),
     ?assertEqual([ok, ok, {taken, <<"the terminal is already read as keys">>}], Owned).
 
-%% report §8.2: readers of the terminal asking at once, some for lines and
+%% report §12.1: readers of the terminal asking at once, some for lines and
 %% some for keys, are one reading and refusals. A regression test: the
 %% check and the claim were two steps, and both sides could pass the
 %% check. The claims are made here against the table a run would have. A
@@ -38,7 +38,7 @@ own_terminal_race_test() ->
     Cause = <<"the terminal is already read as ", (atom_to_binary(Winner))/binary>>,
     ?assertEqual([], [Result || {_, Result} <- Owned, Result =/= ok, Result =/= {taken, Cause}]).
 
-%% report §8.2, §7.3: a read of the standard input that fails is a failure
+%% report §12.1, §7.3: a read of the standard input that fails is a failure
 %% of the runtime, which ends the program with a fault that names it, and an
 %% empty line is the empty string. A regression test: each crashed the
 %% process behind Io's stdin, and the caller waited for ever
@@ -55,7 +55,7 @@ stdin_failure_test() ->
                                      Quiet#{stdin => fun() -> "\n" end})),
     ?assertEqual({'Some', <<>>}, wait(line)).
 
-%% report §8.2, §7.4: lines and bytes are one stream, each request taking
+%% report §12.1, §12.3: lines and bytes are one stream, each request taking
 %% up where the one before it stopped; a line loses its line feed and one
 %% carriage return before it, and a last line needs none; a line that is
 %% not UTF-8 faults the process that asked, and the next line is read. The
@@ -88,7 +88,7 @@ stdin_stream_test() ->
     ?assertMatch({'Down', _, {'Fault', <<"the standard input is not UTF-8">>}, _}, wait(down)),
     ?assertEqual([{'Some', <<"next">>}, 'None', 'None'], wait(after_fault)).
 
-%% report §8.2: one carriage return before a line feed is dropped, and a
+%% report §12.1: one carriage return before a line feed is dropped, and a
 %% last line without a line feed keeps its own. A regression test: the last
 %% line lost it too
 stdin_last_line_test() ->
@@ -1162,7 +1162,7 @@ clock_now_reads_the_host() ->
     Now = wait(now),
     ?assert(is_integer(Now) andalso abs(Now - erlang:system_time(millisecond)) < 1000).
 
-%% report §8.4: a process's end is a host term, since foreign code may
+%% report §12.2: a process's end is a host term, since foreign code may
 %% observe it: normal, {ern, fault, Text, Trace} for every fault, a cause of
 %% §7.4 and a failure of the runtime alike (§7.3), {ern, killed},
 %% {ern, program_end}; a socket's {ern, closed} is ern_tcp_tests'. The
@@ -1266,7 +1266,7 @@ sources_test() ->
     Key = fun() -> ern_waits:looked(2), "x" end,
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
-                           %% report §8.2: the subscription is answered once the mode is set
+                           %% report §12.1: the subscription is answered once the mode is set
                            subscribe(ern_rt:system_process(terminal)),
                            receive _ -> ok end
                        end, <<"main">>, #{stdout => fun(_) -> ok end, keys => Key})),
@@ -1682,7 +1682,7 @@ delivery_ends_its_call_test() ->
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual([], wait(calls)).
 
-%% report §6.6, §6.9, §8.7: a caller killed while it waits in a call
+%% report §6.6, §6.9, §12.6: a caller killed while it waits in a call
 %% leaves no record of the call: the callee's row goes before the caller's
 %% Down is told, whether the prelude's kill ends it or a peer's frame does,
 %% which this node carries out as its own kill (ern_peer:frame/2), and the
@@ -1806,7 +1806,7 @@ system_call_is_no_deadlock_test() ->
                                                fun(Reply) -> {'Write', <<"x">>, Reply} end)
                        end, <<"main">>, #{stdout => Write})).
 
-%% report §8.7, §6.9: a kill of a process of another node is a frame to
+%% report §8.7, §12.6, §6.9: a kill of a process of another node is a frame to
 %% that node's gateway, which vanishes as a send does where the node cannot
 %% be reached: here a node no connection names, from a program that is no
 %% node. A regression test, written after the code
@@ -2434,7 +2434,7 @@ waiting() ->
         never -> ok
     end.
 
-%% Report §8.2: `Subscribe` carries a reply, answered once the terminal is
+%% Report §12.1: `Subscribe` carries a reply, answered once the terminal is
 %% in the mode the keys need.
 subscribe(Tty) ->
     Self = ern_rt:self(),
@@ -2670,7 +2670,7 @@ host_ended_caller_test() ->
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual({1, []}, wait(rows)).
 
-%% report §8.2, §8.7, §11.2: a line of the toolchain's own is written by
+%% report §12.1, §12.5, §11.2: a line of the toolchain's own is written by
 %% the launch's standard error process, which answers once it has taken
 %% it, and a line that finds the process stopped, as the end stops it, is
 %% written outside. A regression test, written after the code: a line sent

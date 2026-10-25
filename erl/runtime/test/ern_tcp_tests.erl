@@ -57,7 +57,7 @@ accept_timeout_test() ->
     ?assertEqual({'Left', 'Timeout'}, wait(first)),
     ?assertEqual('Right', wait(second)).
 
-%% report §8.4, Appendix E.18: a listener the program closed exits
+%% report §12.2, Appendix E.18: a listener the program closed exits
 %% `{ern, closed}`, the host term foreign code sees, which a monitor reads
 %% as `Returned`. A regression test of the report's list, written after
 %% the code

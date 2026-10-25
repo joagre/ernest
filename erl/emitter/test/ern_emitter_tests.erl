@@ -91,7 +91,7 @@ outcome(Text) ->
 %% The cause of a run that faulted.
 cause_of({fault, Cause, _}) -> Cause.
 
-%% Report §7.4: the cause of a return of the foreign function Named that
+%% Report §12.3: the cause of a return of the foreign function Named that
 %% does not match Type.
 return_cause(Named, Type) ->
     iolist_to_binary(["the return of foreign function ", Named, " does not match ", Type]).
@@ -233,11 +233,11 @@ standard_shim_callback_deadlock() ->
            "    }, [1])))\n",
     ?assertMatch({{fault, <<"deadlock">>, _}, _}, run(['M'], Text, #{standard => true})).
 
-%% report §8.1, §8.4, Appendix B
+%% report §8.1, §12.2, Appendix B
 hello_golden_test() ->
     ?assertEqual(target_forms("hello.erl"), example_forms("hello")).
 
-%% report §6.2, §6.3, §6.6, §8.4, Appendix B
+%% report §6.2, §6.3, §6.6, §12.2, Appendix B
 counter_golden_test() ->
     ?assertEqual(target_forms("counter.erl"), example_forms("counter")).
 
@@ -362,7 +362,7 @@ write_golden() ->
 %% which hold no line and no local's name, is the code made from them with
 %% the source woven in but for its lines, its variables' names and its
 %% spawn sites' lines, and the host compiles it. A form that lacked what
-%% the emitter reads would fail here, as a definition that arrives (§8.7)
+%% the emitter reads would fail here, as a definition that arrives (§12.7)
 %% would. Written after the code
 units_from_forms_alone_test_() ->
     {timeout, 600, fun units_from_forms_alone/0}.
@@ -556,7 +556,7 @@ raise_has_line_test() ->
     ?assertEqual(return_cause("erlang:get/1", "Int"), WordCause),
     ?assertEqual([<<"Words.wrong:1">>, <<"Words.main:3">>], frames(WordTrace)).
 
-%% report §11.1, §8.7, §11.5: the `.erc` records beside each definition's
+%% report §11.1, §12.7, §11.5: the `.erc` records beside each definition's
 %% form the lines of its source, the locals' names left out, its name where
 %% its sites write another, and what prints a type in a cause as its module
 %% writes it, and the module's bindings' order: read back,
@@ -733,7 +733,7 @@ trace_leaves_the_runtime_out_test() ->
                               " Died);\n"
                               "    receive { Died(_) -> Unit };\n" ++ Called)).
 
-%% Appendix E.21, report §7.4: a fault whose cause names a host error
+%% Appendix E.21, report §7.4, §12.3: a fault whose cause names a host error
 %% keeps the runtime's frames above the program's outermost frame. A
 %% foreign function whose host code is the runtime's own, given what it
 %% cannot take, raises inside it, by the path every library function's
@@ -1942,7 +1942,7 @@ float_chain_emitted_test() ->
 %% runtime reads is the same wherever the process is: a restarting run's,
 %% reported as it restarts and at its last fault with the operation's
 %% line, a run `Test.faults` judges, and the program's function foreign
-%% code calls, which the foreign function passes on as itself (§8.4). A
+%% code calls, which the foreign function passes on as itself (§12.3). A
 %% regression test, written after the code (the log's *The Float chain*)
 float_fault_everywhere_test() ->
     Self = self(),
@@ -2136,7 +2136,7 @@ let_order_declared_test() ->
         "export fn main() : Unit = Io.println(Int.toString(a + c + d))\n"),
     ?assertEqual(<<"a\nb\nc\nd\n8\n">>, Output).
 
-%% report §4.7, §8.4: a foreign fn calls its implementation with the
+%% report §4.7, §8.4, §12.2: a foreign fn calls its implementation with the
 %% arguments as the ABI maps them, and a foreign type's values pass through
 %% unchecked
 foreign_fn_test() ->
@@ -2174,7 +2174,7 @@ foreign_sibling_types_test() ->
         "}\n"),
     ?assertEqual(<<"#(Some(1), None)\n">>, Output).
 
-%% report §4.7, §7.4, §8.4: a return of another shape faults on first
+%% report §4.7, §12.3, §8.4: a return of another shape faults on first
 %% observation, naming the declared type; a nested breach is found; an
 %% exception is a fault naming the implementation; an Ernest fault raised
 %% inside foreign code passes through as itself
@@ -2220,7 +2220,7 @@ adapted_address_round_trip_test() ->
                        "}\n"),
     ?assertEqual(<<"7\n">>, Output).
 
-%% report §7.4, §8.4: a fault of the program's own function where foreign
+%% report §12.3, §8.4: a fault of the program's own function where foreign
 %% code calls it passes through as the fault it would be anywhere, with no
 %% foreign function named. A regression test: it took the foreign
 %% function's cause, `foreign function lists:foreach/2 raised
@@ -2235,7 +2235,7 @@ callback_fault_passes_through_test() ->
                            " [2, 0])\n"),
     ?assertMatch({{fault, <<"division by zero">>, _}, <<"5\n">>}, {Result, Output}).
 
-%% report §6.9, §8.4: a restart asked for while foreign code calls the
+%% report §6.9, §12.3: a restart asked for while foreign code calls the
 %% program's function is a restart, the cause of the new start `Asked`. A
 %% regression test: it was a fault of the foreign function, and the process
 %% restarted after a fault. The restart is taken at the callback's wait at
@@ -2304,7 +2304,7 @@ foreign_exact_equality_test() ->
                        "}\n"),
     ?assertEqual(<<"true\nfalse\ntrue\n">>, Output).
 
-%% report §7.4, §8.4: a List is a proper list, so an improper one a foreign
+%% report §12.2, §12.3, §8.4: a List is a proper list, so an improper one a foreign
 %% function returns faults naming the declared type, whether its elements
 %% are checked or a parameter's type variable names them, that variable
 %% printed with its restriction (§4.7, §11.5). A regression test:
@@ -2320,7 +2320,7 @@ foreign_improper_list_test() ->
                        ++ Main ++ "Io.println(Int.toString(List.size(improper(1))))\n"),
     ?assertEqual(return_cause("ern_emitter_tests:improper/1", "List(a)"), cause_of(Result2)).
 
-%% report §7.4: a function value foreign code returns is checked when it is
+%% report §12.3: a function value foreign code returns is checked when it is
 %% called, its result against its declared result type, in the caller, and
 %% one that keeps to it runs. A regression test: such a function's result
 %% was never checked, so an ill-typed one reached Ernest code unchecked.
@@ -2342,7 +2342,7 @@ foreign_function_value_test() ->
                                            " ern_emitter_tests:'-funs/0-fun-[0-9]+-'/1"
                                            " does not match Int$")).
 
-%% report §7.4, §8.4: a foreign function's return declared `Unit` that is
+%% report §12.2, §8.4: a foreign function's return declared `Unit` that is
 %% the host's `ok`, as `lists:foreach/2` answers, is `Unit`, the type's one
 %% value and no other term. A regression test, written after the code; it
 %% does not cover the standard library's foreign functions, which are not
@@ -2357,7 +2357,7 @@ foreign_ok_is_unit_test() ->
         "}\n"),
     ?assertEqual(<<"1\n2\nUnit\ntrue\n">>, Output).
 
-%% report §7.4, §8.4: a function value foreign code gave, whose result is
+%% report §12.2, §8.4: a function value foreign code gave, whose result is
 %% declared `Unit`, answers the host's `ok` as `Unit` at a call, the type's
 %% one value. A regression test, written after the code; it does not cover
 %% a function value inside another value foreign code gave, whose wrapper
@@ -2374,7 +2374,7 @@ function_value_ok_is_unit_test() ->
             "}\n"),
     ?assertEqual(<<"1\nUnit\ntrue\n">>, Output).
 
-%% report §7.4, §8.4: nothing else takes `ok`: a return declared `Unit`
+%% report §12.2, §8.4: nothing else takes `ok`: a return declared `Unit`
 %% that is another atom faults, and so do an `ok` inside a list and inside
 %% a tuple a return holds, an `ok` inside a list a function value foreign
 %% code gave answers at a call, and an `ok` a foreign function or a
@@ -2470,7 +2470,7 @@ receive_guard_reads_top_level_test() ->
         "}\n"),
     ?assertEqual(<<"#(20, 30)\n">>, Output).
 
-%% report §8.4, §7.4: an address given to foreign code is a proxy that
+%% report §8.4, §12.3: an address given to foreign code is a proxy that
 %% checks each message on delivery, a bad one faulting the target even
 %% when no clause would bind it; a good one arrives, also from inside a
 %% list; a reply is checked by the call that observes it
@@ -2681,7 +2681,7 @@ hello_junk() ->
     spawn(fun() -> receive {'Hello', Address} -> Address ! {'Go', <<"x">>} end end).
 hello_good() ->
     spawn(fun() -> receive {'Hello', Address} -> Address ! {'Go', 1} end end).
-%% report §8.4: foreign code given a Reply answers it as the ABI says
+%% report §12.2: foreign code given a Reply answers it as the ABI says
 relay_junk({Alias, _}) -> Alias ! {Alias, <<"x">>}, 'Unit'.
 relay_good({Alias, _}) -> Alias ! {Alias, 5}, 'Unit'.
 %% report §8.4: a Reply handed back as it was given, its type declared anew
@@ -3057,7 +3057,7 @@ todo_is_unknown_test() ->
     ?assertMatch({error, [#diagnostic{message = "unknown name todo"} | _]},
                  ern_typecheck:check_string(['M'], "fn later() : Int = todo(\"x\")\n")).
 
-%% report §5.6, §8.4: named fields in canonical order, and update from a
+%% report §5.6, §12.2: named fields in canonical order, and update from a
 %% base value
 constructors_test() ->
     {ok, Output} = run(
@@ -3076,7 +3076,7 @@ constructors_test() ->
         "}\n"),
     ?assertEqual(<<"5,2\ndot\n1\n">>, Output).
 
-%% report §3.5, §8.4: a selected field, one element of the tuple where every
+%% report §3.5, §12.2: a selected field, one element of the tuple where every
 %% constructor holds it at one place and a case on the tag where the places
 %% differ, its operand evaluated once
 field_selection_test() ->
@@ -3390,7 +3390,7 @@ wrap_asks_for_its_recipient_test() ->
         "}\n"),
     ?assertEqual(<<"Killed\nFault(\"seen\")\n">>, Output).
 
-%% report §8.4, §7.4: a function value inside a recursive type that comes
+%% report §8.4, §12.3: a function value inside a recursive type that comes
 %% back from foreign code has its result checked against the type at each
 %% call, the recursive type's own among them. A regression test: the check
 %% met the type's reference back to itself with nothing to look it up in,
@@ -3406,7 +3406,7 @@ recursive_function_value_test() ->
         "}\n")).
 
 %% Appendix E.12: a text longer than 255 characters makes no atom, and
-%% `Foreign.atom` faults as a foreign function that raises does (report §7.4)
+%% `Foreign.atom` faults as a foreign function that raises does (report §12.3)
 foreign_atom_too_long_test() ->
     {Result, _} = run("export fn main() : Unit = {\n"
                       "    let _ = Foreign.atom(String.padStart(\"\", 256, \"a\"));\n"
@@ -3454,7 +3454,7 @@ work_makes_no_atoms() ->
     ok = file:del_dir_r(Dir),
     ?assertEqual(<<"0\n">>, Output).
 
-%% report §8.4, §7.4: a type variable of a foreign function's result that no
+%% report §8.4, §12.3: a type variable of a foreign function's result that no
 %% parameter names matches no value, so a return that holds one faults, and
 %% an empty list of it passes, as does a value of a foreign type over it,
 %% which the check does not look into; a function given to foreign code has
@@ -3479,7 +3479,7 @@ foreign_casts_and_callbacks_test() ->
                  ResultOf("foreign fn each(f : (Int) -> Int, xs : List(String)) : List(Int) =\n"
                           "    \"lists:map/2\"\n", "each(fn(n) = n + 1, [\"x\"])")).
 
-%% report §7.4, §8.4: a cause names the function. An argument foreign code
+%% report §12.3, §8.4: a cause names the function. An argument foreign code
 %% calls a function of the program's with that does not match names the
 %% function as a caller writes it, `Main.handler`, another module's,
 %% `Int.toString`, and a top-level `let` bound to a lambda, `Main.bound`;
@@ -3693,7 +3693,7 @@ foreign_from_crosses_as_an_argument_test() ->
                  run("export fn main() : Unit =\n"
                      "    Io.println(Io.show(Foreign.toInt(Foreign.term(42))))\n")).
 
-%% report §8.2: a write to standard output returns once the stream has taken
+%% report §12.1: a write to standard output returns once the stream has taken
 %% it, so a program writing to a slow stream goes at its pace: after each
 %% write the stream has taken it and every write before it, which the
 %% stream counts and the program reads

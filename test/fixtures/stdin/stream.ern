@@ -1,7 +1,7 @@
 //
 // A line of standard input, then its bytes as they are, then how many there
 // were, for ern_integration_tests: lines and bytes are one stream (report
-// §8.2).
+// §12.1).
 //
 
 export fn main() : Unit = {

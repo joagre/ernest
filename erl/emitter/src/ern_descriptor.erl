@@ -35,7 +35,7 @@
                     | {con, [{atom(), [descriptor()]} | {atom(), [descriptor()], [atom()]}]}
                     | {mu, pos_integer(), descriptor()} | {abstract, descriptor()}.
 
-%% Report §7.4, §8.4: the cause a function value's check faults with, the
+%% Report §12.3, §8.4: the cause a function value's check faults with, the
 %% text before the function's name and the text after it, which the
 %% boundary writes the name between.
 -type named_cause() :: {binary(), binary()}.

@@ -1,6 +1,6 @@
 %% `make bench`'s fourth part (test/ern_code_costs.erl): what a node shows
 %% of its own work while the measuring program spawns code onto it, read
-%% where the host shows it. The exchange's steps (report §8.7), from the
+%% where the host shows it. The exchange's steps (report §12.7), from the
 %% host's call trace of the node's exchange process, each call with its
 %% time, and the two steps of the spawner's node with their returns; the
 %% host's four counts, as the runtime reads them (ern_code:counts/0, report
@@ -121,12 +121,12 @@ counts() ->
     iolist_to_binary(lists:join(" ", [io_lib:format("~s ~B", [Table, Entries])
                                       || {Table, Entries, _} <- ern_code:counts()])).
 
-%% Report §8.7: a window opened on what crosses each connection of the
+%% Report §12.6: a window opened on what crosses each connection of the
 %% node, by a process of the probe's own that reads the host's counts of
 %% each connection's packets and the gateway's and the exchange's
 %% reductions at its start and at its end, and holds them until
 %% windowed/0. The window is four of the host's tick intervals, a quarter
-%% of its tick time each (§8.7's 15 seconds), so that an idle connection
+%% of its tick time each (§12.6's 15 seconds), so that an idle connection
 %% shows its ticks: a rate measured over a time, which nothing but the time
 %% can show.
 -spec window() -> 'Unit'.

@@ -39,7 +39,7 @@ local() ->
              interface = "127.0.0.1"}.
 
 %% A machine of test/machines/machines.txt, whose nodes listen on every
-%% interface, since its peers dial it from other machines (report §8.7).
+%% interface, since its peers dial it from other machines (report §12.5).
 -spec machine(string(), string(), local | string(), none | string()) -> machine().
 machine(Name, Host, Clone, Directory) ->
     #machine{name = Name, host = Host, clone = Clone, directory = Directory,
@@ -51,7 +51,7 @@ name(#machine{name = Name}) -> Name.
 -spec host(machine()) -> string().
 host(#machine{host = Host}) -> Host.
 
-%% Report §8.7: the address a node's `listen` binds on the machine.
+%% Report §12.5: the address a node's `listen` binds on the machine.
 -spec interface(machine()) -> string().
 interface(#machine{interface = Interface}) -> Interface.
 

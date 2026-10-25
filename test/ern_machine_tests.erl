@@ -40,7 +40,7 @@ load_average_test() ->
     ?assert(is_float(list_to_float(LoadAverage))),
     ?assert(list_to_integer(Processors) > 0).
 
-%% report §11.3, §8.7, §11.2, Appendix C: two nodes' directories made with
+%% report §11.3, §12.5, §11.2, Appendix C: two nodes' directories made with
 %% `ern config` on a machine, each listening on a port the host picks; one
 %% lists the other without an address and the other lists it with the
 %% machine's host and the port it bound, which answers; one stopped by `ern

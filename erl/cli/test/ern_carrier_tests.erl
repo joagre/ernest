@@ -1,4 +1,4 @@
-%% A node's carrier (report §8.7): its name on the carrier, the floor's
+%% A node's carrier (report §12.5): its name on the carrier, the floor's
 %% cookie, the flags its host boots with, the rule that accepts a peer
 %% by its key, and the lines it says. Real nodes on one machine are
 %% test/ern_nodes_tests.erl's.
@@ -29,7 +29,7 @@ certificate(#configuration{config_dir = Dir}) ->
 digest(Key) ->
     binary_to_list(binary:encode_hex(crypto:hash(sha256, Key), lowercase)).
 
-%% report §8.7: a node's name on the carrier is a constant at the host its
+%% report §12.5: a node's name on the carrier is a constant at the host its
 %% key gives, the key's SHA-256 digest as two labels of 32 hexadecimal
 %% digits, holding no network address; its certificate names that host and
 %% no other, as the host's check of a name reads it
@@ -44,7 +44,7 @@ name_test() ->
     Other = (configured())#configuration.public_key,
     ?assertNot(public_key:pkix_verify_hostname(Certificate, [{dns_id, ern_carrier:host(Other)}])).
 
-%% report §8.7, Appendix H: the cookie is the digest of the floor: for a
+%% report §12.5, Appendix H: the cookie is the digest of the floor: for a
 %% release, the protocol's version, 4 since MVP 3.95, the form's version, 2
 %% since MVP 3.27, `ern`'s major and minor and OTP's major release, so that
 %% two patch levels of one minor stand on one floor and two minors do not;
@@ -73,7 +73,7 @@ cookie_test() ->
     ?assertEqual(Digest(<<1>>), ern_carrier:cookie(development, Code(<<1>>))),
     ?assertNotEqual(ern_carrier:cookie(development, Code(<<1>>)),
                     ern_carrier:cookie(development, Code(<<2>>))),
-    %% report §8.7: a release's version is three whole numbers, each part
+    %% report §12.5: a release's version is three whole numbers, each part
     %% its digits alone, which ern_release reads, the carrier parsing
     %% nothing; one of another shape is refused plainly, naming it. A
     %% regression test, written after the fix (the release review before
@@ -99,7 +99,7 @@ cookie_test() ->
     Configuration = configured(),
     ?assert(contains(ern_carrier:boot_flags(Configuration), ["-setcookie", Cookie])).
 
-%% report §8.7: a node's host boots with TLS 1.3 over the listener's family
+%% report §12.5, §12.6: a node's host boots with TLS 1.3 over the listener's family
 %% of addresses, the node's certificate and key on each side, the rule as
 %% the verification, no port-mapper daemon, no mesh, the detector's times,
 %% the buffer, and the floor's digest as the cookie; the listener's
@@ -136,7 +136,7 @@ boot_flags_test() ->
 contains(List, Part) ->
     lists:prefix(Part, List) orelse (List =/= [] andalso contains(tl(List), Part)).
 
-%% report §8.7: the rule accepts a node whose key the configuration lists,
+%% report §12.5: the rule accepts a node whose key the configuration lists,
 %% and refuses any other, the node's own among them
 listed_test() ->
     Own = configured(),
@@ -155,7 +155,7 @@ listed_test() ->
     ?assertEqual({valid, server},
                  ern_carrier:verify(certificate(Peer), {bad_cert, selfsigned_peer}, server)).
 
-%% report §8.7: a node it dials must answer under the name it dialed: on
+%% report §12.5: a node it dials must answer under the name it dialed: on
 %% the client's side the rule takes a listed key only where it gives the
 %% host the process that dialed recorded as it asked the peer's address,
 %% the process the connection's own monitors, and refuses another listed
@@ -208,7 +208,7 @@ dialed_test() ->
     ?assertEqual({said, <<"the peer store was refused: the dial it answered is not known\n">>},
                  receive {said, _} = Line -> Line end).
 
-%% report §8.7: the lines a node says of its connections: a peer connected,
+%% report §12.5: the lines a node says of its connections: a peer connected,
 %% by its name, or by its key's digest where it is not listed; a peer lost,
 %% fallen silent or closed; a peer ended, having told this node it ends; a
 %% living connection replaced by another from the same node; nothing for the
@@ -234,7 +234,7 @@ said_test() ->
                  Said({nodedown, Store, [{nodedown_reason, wait_pending}]})),
     ?assertEqual(none, ern_carrier:said({nodeup, node(), []})).
 
-%% report §8.7, §11.2: a name a connecting node gave in a handshake the
+%% report §12.5, §11.2: a name a connecting node gave in a handshake the
 %% host refused is said with its control characters escaped, as a cause's
 %% are: the name its key does not give, and on another floor the host of
 %% its name, where no peer is listed by it. A regression test: the lines
@@ -259,7 +259,7 @@ handshake_name_escaped_test() ->
                    " release or build of ern or another major release of OTP\n">>,
                  iolist_to_binary(?capturedOutput)).
 
-%% report §8.7: a reload whose reading fails with anything but a refusal,
+%% report §12.5: a reload whose reading fails with anything but a refusal,
 %% as a failure of the runtime's helper would, is refused, the node saying
 %% so with the host's reason, and the configuration stays; the signal
 %% handler, which runs it, goes on taking signals. A regression test: such
@@ -305,7 +305,7 @@ forged(#configuration{config_dir = Dir}, Host) ->
                                         extnValue = [{dNSName, Host}]}]},
     public_key:pkix_decode_cert(public_key:pkix_sign(Tbs, Key), otp).
 
-%% report §8.7: a certificate that names another host than its key gives is
+%% report §12.5: a certificate that names another host than its key gives is
 %% refused, though its key is listed, and the node says so; the rule's
 %% refusals are said once a run's standard error is there
 other_host_test() ->
@@ -329,7 +329,7 @@ other_host_test() ->
                           " its key gives\n">>},
                  receive {said, _} = Line -> Line end).
 
-%% report §8.7: a peer's name is resolved at each dial, where its family is
+%% report §12.5: a peer's name is resolved at each dial, where its family is
 %% checked: a name that resolves only to the other family fails the dial
 %% as a refused one does, and the node says why; an address is given as it
 %% stands. A regression test, written after the code that moved the check

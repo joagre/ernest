@@ -153,7 +153,7 @@ processors(Machine) ->
     {_, Processors} = ern_machine:load_average(Machine),
     list_to_integer(Processors).
 
-%% Report §8.7, Appendix C: the `utilization` written in every node's
+%% Report §12.8, Appendix C: the `utilization` written in every node's
 %% `ernest.conf`, or none, where the key is left out and the node measures
 %% by the configuration's default, the run queue.
 measure("") ->

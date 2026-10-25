@@ -120,7 +120,7 @@ runbook(Base) ->
 %% Section 1, one node
 %%
 
-%% guide/deployment.md, sections 1.1 and 1.3; report §8.7, §11.2, §11.3:
+%% guide/deployment.md, sections 1.1 and 1.3; report §12.5, §11.2, §11.3:
 %% `ern config` makes the directory, its owner's alone, its key readable by
 %% its owner alone, a certificate and an `ernest.conf` that listens on
 %% 0.0.0.0:8654 and lists no peer and no service, and prints the key as the
@@ -298,7 +298,7 @@ upgrade(Base) ->
 %% The lines a node writes, sections 7 and 4.3
 %%
 
-%% guide/deployment.md, section 7; report §8.7: a peer silent past the
+%% guide/deployment.md, section 7; report §12.5, §12.6: a peer silent past the
 %% detector's intervals, here stopped by the host's signal, is lost, and
 %% the node says it fell silent. The one test here that waits as long as
 %% the detector does, about a minute. Its limit is the sum of its seven
@@ -332,7 +332,7 @@ fell_silent(Base) ->
     {_, ErrA} = ern_nodes_tests:said(A),
     cataloged(ErrA, "7", "fell silent", [{"b", "b"}]).
 
-%% guide/deployment.md, sections 4.3 and 7, and 1.2; report §8.7: a bare
+%% guide/deployment.md, sections 4.3 and 7, and 1.2; report §12.5, §12.7: a bare
 %% node whose `listen` names port 0 says the port it bound; and code that
 %% arrives which it cannot take, a definition that references one no node
 %% holds, sent by a peer of the test's own that plays the spawner's part
@@ -389,7 +389,7 @@ refused_code(Base) ->
 %% is given, answers the request for its reach with that function alone,
 %% sends its code frame where the node lacks it, and prints the spawn's
 %% answer; its gateway is its own process, to which the node sends its
-%% frames (report §8.7), and its spawn waits the milliseconds its command
+%% frames (report §12.6), and its spawn waits the milliseconds its command
 %% line gives, the harness's time for one wait.
 taker() ->
     <<"
@@ -664,7 +664,7 @@ mapped(Words, Paths) ->
                                       string:replace(Acc, Guide, Harness, all)
                               end, Words, Paths)).
 
-%% Report §8.7: once the node of Dir listens at Port of the loopback
+%% Report §12.5: once the node of Dir listens at Port of the loopback
 %% interface, which it says once at every start; the harness's time for
 %% one wait bounds a failure. A regression test (the log's *The Review's
 %% Decisions*): a node with a fixed port said nothing, and the tests dialed

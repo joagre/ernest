@@ -10,7 +10,7 @@
 -include_lib("checker/include/ern_canonical.hrl").
 -include_lib("runtime/include/ern_rt.hrl").
 
-%% Report §8.7: the milliseconds a spawn's or a compute's frame says its
+%% Report §12.6: the milliseconds a spawn's or a compute's frame says its
 %% sender waits, here a stand-in's; eunit's time for one test, which no
 %% test here outlasts.
 -define(MS, 5000).
@@ -229,7 +229,7 @@ set_utilization_test() ->
     %% no launch in progress: none set, the node telling its measure
     ?assertEqual(none, ern_rt:program_utilization()).
 
-%% report §8.7: a frame whose fields are not those of its kind is one the
+%% report §12.6: a frame whose fields are not those of its kind is one the
 %% gateway cannot read: an answer that names no spawn's outcome, or a
 %% process of another node than the peer's, a find whose name is no text,
 %% a message to an adapted address another node made, and a telling whose
@@ -491,7 +491,7 @@ failed_spawn_ends_no_call_test() ->
         "export fn waits() : Int receiving Int = receive { n -> n }\n"
         "export fn greet() : String = greeting\n").
 
-%% report §8.7, §11.2, Appendix E.21: a compute from a peer, its frame noted
+%% report §8.7, §12.6, §11.2, Appendix E.21: a compute from a peer, its frame noted
 %% as the gateway notes it, runs the function in a process of its own, as a
 %% spawn would start it, and answers through the caller's alias: the
 %% value; a fault in it, its cause and its trace, which this node reports
@@ -634,7 +634,7 @@ computed_restarting_test() ->
         unloaded(Unit)
     end.
 
-%% report §8.7, §6.6, §11.2: a compute's caller waits as a call's caller
+%% report §8.7, §12.6, §6.6, §11.2: a compute's caller waits as a call's caller
 %% does, on one host its peer's gateway a process that records each frame:
 %% the frame names the caller's alias, through which the value, a failure,
 %% a fault with the trace and the callee's site that crossed, which faults
@@ -726,7 +726,7 @@ compute_caller_test() ->
     %% the moment the caller met the fault, not the peer's
     ?assert(Time > 0).
 
-%% report §8.7, §6.9: a peer's kill frame, the fifteenth frame, ends a
+%% report §12.6, §6.9: a peer's kill frame, the fifteenth frame, ends a
 %% process of this node as this node's own kill does: a caller waiting in
 %% a compute on a peer is killed and its call's second note follows, as a
 %% caller killed here sends it (compute_caller_test); a kill of a process
@@ -773,7 +773,7 @@ kill_frame_test() ->
     ?assertEqual({killed, {ok, true, {ern, killed}, ok, unreadable}},
                  receive {killed, _} = Got -> Got end).
 
-%% report §8.7, §6.9: a peer's kill frame reaches only a process the
+%% report §12.6, §6.9: a peer's kill frame reaches only a process the
 %% runtime started: one naming the reaper, a system process or a foreign
 %% process of this node does nothing, and the frame is still one this node
 %% reads, as one naming a process that has ended since is. The frames are
@@ -803,7 +803,7 @@ kill_frame_reaches_only_the_runtimes_test() ->
     ?assertEqual({killed, {[ok, ok, ok], ok, {ern, killed}, [alive, alive, alive]}},
                  receive {killed, _} = Got -> Got end).
 
-%% report §8.7, §6.6: a caller the host ends while it waits in a compute,
+%% report §8.7, §12.6, §6.6: a caller the host ends while it waits in a compute,
 %% killed by foreign code, runs no `after`, and the reaper sends the call's
 %% second note as it learns of the end, so that the peer kills the
 %% compute's process. Here a gateway of this host's stands in for the
@@ -884,7 +884,7 @@ group_binding_test() ->
         unloaded(Unit)
     end.
 
-%% report §8.7, §11.1: a spawn on a peer names a lambda or a local fn by
+%% report §12.6, §11.1: a spawn on a peer names a lambda or a local fn by
 %% its identity with the values it captured, in the order its body first
 %% names them, whatever order they were bound in: the frame the compiled
 %% spawn sends, read from the module's forms, each capture known by the
@@ -1012,7 +1012,7 @@ held_service_test() ->
     ?assertEqual({'Right', 'Unit'}, Taken),
     ?assertEqual({found, Newcomer}, Found).
 
-%% report §8.7, §6.6: a call's note on a process the runtime did not start,
+%% report §12.6, §6.6: a call's note on a process the runtime did not start,
 %% a foreign one whose address of an unbound type crossed, goes with its
 %% row of the callees when that process ends without answering. A
 %% regression test: the reaper did not watch such a callee, so its notes
@@ -1034,7 +1034,7 @@ foreign_callee_test() ->
     ?assertMatch({noted, [_], [_]}, receive {noted, _, _} = Noted -> Noted end),
     ?assertEqual({ended, [], []}, receive {ended, _, _} = Ended -> Ended end).
 
-%% report §6.9, §8.7, §10: "that node delivers `Restarted` through the wraps of
+%% report §6.9, §8.7, §10: "Each node told delivers `Restarted` through the wraps of
 %% the service monitors it holds and answers once every delivery has
 %% ended, at once where it holds none": a peer's frame that its process
 %% restarted is told to each service monitor this node's run holds of that
@@ -1087,7 +1087,7 @@ restarted_frame_test() ->
     ?assertEqual({ok, held, true, {'Down', Restarting, 'Restarted', <<>>}, true, ok, true, none},
                  {Read, Early, Answered, Told, AtOnce, HandedOn, Handed, Plain}).
 
-%% report §8.7, *A restart*: "The answer comes through an alias of the
+%% report §8.7, *A restart*, §12.6: "The answer comes through an alias of the
 %% restarting process's, which takes one answer and is let go when the
 %% wait ends, so nothing of the wait reaches the new run", and the node's
 %% end ends the wait: the restart's ask of a node whose gateway then ends

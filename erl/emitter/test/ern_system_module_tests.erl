@@ -5,10 +5,10 @@
 -include_lib("eunit/include/eunit.hrl").
 
 %%
-%% Report §8.2: the terminal, read as lines or as keys.
+%% Report §12.1: the terminal, read as lines or as keys.
 %%
 
-%% report §8.2: keys and lines are the same terminal, so the process that
+%% report §12.1: keys and lines are the same terminal, so the process that
 %% claims it the other way faults, naming the side that holds it
 terminal_is_lines_or_keys_test() ->
     {Result1, _} = ern_emitter_tests:run_at_terminal(
@@ -20,7 +20,7 @@ terminal_is_lines_or_keys_test() ->
         "}\n"),
     ?assertMatch({fault, <<"the terminal is already read as lines">>, _}, Result1).
 
-%% report §8.2, §7.4: a claim of the terminal the other way faults the
+%% report §12.1, §7.4: a claim of the terminal the other way faults the
 %% process that makes it, and the first claim stands: a worker that
 %% subscribes after main read a line faults, and main reads on. A
 %% regression test: the entry process faulted, whoever asked
@@ -358,7 +358,7 @@ fs_path_with_nul_test() ->
         "    Io.println(Io.show(Fs.read(Path(\"a\\u{0}b\"), 1000)))\n"),
     ?assertEqual(<<"Left(Invalid)\n">>, Output).
 
-%% Appendix E.17, §8.2: a name in a directory that is not UTF-8 makes
+%% Appendix E.17, §12.1: a name in a directory that is not UTF-8 makes
 %% Fs.list answer NotUtf8 with its bytes; a regression test for the host's
 %% warning printed in its place, and of the rule of 2026-10-01, before which
 %% the name was left out
@@ -503,7 +503,7 @@ tcp_write_answers_closed_test() ->
     ?assertEqual(<<"#(Right(Unit), Left(Closed), Left(Closed))\n">>, Output).
 
 %%
-%% Report §8.2, Appendix E.18, E.23: a write returns once its stream has
+%% Report §12.1, Appendix E.18, E.23: a write returns once its stream has
 %% taken the bytes, and waits while the stream is behind. Regression
 %% tests, written after the code: each write returned at once, and what the
 %% reader had not taken was held in the node.

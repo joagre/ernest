@@ -3,7 +3,7 @@
 %% of String is Ernest over them, so every search matches whole graphemes.
 %% One stands on a host function whose answer no Ernest value is,
 %% `binary_to_integer/2`'s raise.
-%% A String is a UTF-8 binary (report §8.4), so toUtf8 is the value itself
+%% A String is a UTF-8 binary (report §12.2), so toUtf8 is the value itself
 %% and comparison is Erlang's on binaries, which is by code point.
 -module(ern_string).
 

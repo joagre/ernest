@@ -303,7 +303,7 @@ How busy the peer of that name is, answered within `ms` milliseconds: a
 work waiting. The peer measures it as its `ernest.conf`'s `utilization`
 says: by default the processes running or ready to run, over its
 schedulers, or the fraction of its schedulers' time spent running
-processes since it last read it, which never passes 1.0 (report §8.7);
+processes since it last read it, which never passes 1.0 (report §12.8);
 or, where the peer's program set one with `setUtilization`, that number.
 A utilization asks the peer now, where `utilizations` answers what the
 peers last told; it meets `NotListed`, `Unreachable` and `Timeout`.

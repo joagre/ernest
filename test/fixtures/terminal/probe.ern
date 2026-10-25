@@ -1,5 +1,5 @@
 //
-// What a terminal delivers, for the terminal tests (report §8.2, Appendix E.16).
+// What a terminal delivers, for the terminal tests (report §12.1, Appendix E.16).
 // Each event is printed as it arrives; Escape ends the program.
 //
 

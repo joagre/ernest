@@ -567,8 +567,9 @@ values() ->
       process that keeps something for it, a lock it was granted, lets that
       go at `Restarted`. A process that has already ended is reported at once, with
       the reason `Unknown`, and each restart gives one message (report §6.9).
-      A service monitor of a process of another node is told of its end
-      alone, not of its restarts (report §8.7).
+      A service monitor of a process of another node is told of its restarts
+      too, by the runtime's own frames, and of its end and of a loss as a
+      monitor is (report §6.9, §8.7).
 
       ### Examples
 

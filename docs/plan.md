@@ -20,7 +20,9 @@ restart told across nodes, the harness counting a test's steps, the round's meth
 and the release review, seven readers and the machines, its 66 lines made in two rounds the same
 evening. No promise of stability is made: from 0.5.0 on a change to the language, the standard
 library or the libraries is driven by a need met in use and recorded as `docs/language_feedback.md`
-records one. Next is the report pared to the language, MVP 3.96; then the attached shell, ehttpd,
+records one.
+
+Next is the report pared to the language, MVP 3.96; then the attached shell, ehttpd,
 the website, the shell's second round and the back end (the log's *The Road to 1.0, Ordered*). A finished milestone is a row
 of the table below, its reasons in the log entries the row names.
 
@@ -86,22 +88,10 @@ Pascal had no modules, and the Modula-2 and Oberon reports hold the language alo
 modules documented apart with an authority of their own. Why it is worth its cost, asked again on
 2026-10-25, is the log's *The Report Pared After 0.6.0*.
 
-1. **The report pared.** `language.md` keeps what decides what a program means, §0 to §7, §8's
-   rules, §9 and Appendix A; what says how the runtime does it or what a module does moves, each to
-   its owner, `toolchain.md` for the runtime's promises and `library.md` for the modules: §8.7's
-   machinery beyond a page, the floor, the keys, the frames, the exchange, the reach and the
-   utilization measure; §8.2's system modules, one sentence staying, that a process the runtime
-   starts has an owner and a message type foreign code holds; §8.4's ABI table, the host binding,
-   `foreign fn` staying as the door; §7.4's catalog of fault texts; §10's costs, which §0's
-   principle 5 then points at; and §8.6's mechanism, its rule staying. The moved mechanism is a new
-   chapter at the end of `toolchain.md`, chapter 12, the runtime, a section for each mass, and §10 moves
-   whole and keeps its number, since a chapter is one file's or another's; no section is renumbered.
-   The paring is the session's work; an agent then redirects every citation of a moved paragraph,
-   in the Erlang, the tests, the Ernest and the documents, from a table of moved paragraph to new
-   number, the citations of a rule standing, and `make sections` demands each new section's test.
-   With it CLAUDE.md's authority rule and `report/README.md` say what each file holds, and
-   `docs/soundness.md` cites chapter 12 where it cited §8.4 and §8.7. After 0.6.0, so that the release
-   reads the report as it is.
+1. **The report pared**, done 2026-10-25 (the log's *The Report Pared, Built*): chapter 12, the
+   runtime, at the end of `toolchain.md` in eight sections, §10 moved whole before §11, each place of
+   `language.md` keeping its rules and one sentence that points at the moved mechanism, every
+   citation of a moved paragraph redirected and every section cited by a test.
 2. **The build's cost per function measured.** Found 2026-10-25 by the harness's audit: `ern build` of
    a module of 7000 functions takes 27 s, about 4 ms a function and growing about linearly, where
    `ern format` of the same module takes 1.1 s once the parser's name span stopped counting every
@@ -114,7 +104,9 @@ modules documented apart with an authority of their own. Why it is worth its cos
    review's last full run: `nested_group_restarts_in_place_test`, red once under the parallel
    phase's load and green quiet, printed `[Restarted, Restarted] 0 1`, the second child answering
    `Peek` with its old run's count after its service monitor had been told `Restarted`, which §6.9
-   says reaches the watcher before anything the new run takes. The shape of the fix: the race
+   says reaches the watcher before anything the new run takes.
+
+   The shape of the fix: the race
    placed in a test of the runtime's, by the order the nested group restarts its children in and
    the moment each child's mailbox is emptied against the group's report, then the rule or the
    code corrected; recorded in the log as it was found (*The Release Review Before 0.6.0*).
@@ -122,9 +114,29 @@ modules documented apart with an authority of their own. Why it is worth its cos
    release review's N-L1 to N-L5 of 2026-10-25: a request of named fields needing a lambda at every
    call and a one-field constructor being no function, a test unable to wait until a `Down` is
    handled, text built by `<>` chains, a planned fault printing in a test's output, and one field of
-   a record in a map changed by three operations. Each decided on the principles and recorded as the
+   a record in a map changed by three operations.
+
+   Each decided on the principles and recorded as the
    file says, a report change, a library function or a line in the log; 165 and 167 were dropped
    before as 146 and interpolation, and are read again only for what the newcomer added.
+5. **The second cut, §8.7 to E.27.** Decided with the user on 2026-10-26, for a session of its own,
+   on how the report reads: §8.7 serves two readers at once, one asking what the language
+   guarantees across nodes and one asking what `Peer.spawn` does, and the second finds E.27 pointing
+   back into §8.7.
+
+   The cut is a reading first: each paragraph of §8.7 asked whether it states a rule of the
+   language, what crosses into a spawned function, that it runs only once the peer holds its reach,
+   that a compute's fault is the caller's, or a function's contract, what it answers, within what
+   time, with which `Io.Error` and when; only the contracts move, about a thousand words, under
+   E.27 as they stand, every sentence kept as item 1 kept its, which the diff shows; where E.27
+   already restates one in a line of its own, that line goes, so that each fact stands once and
+   none is lost.
+
+   §8.7 keeps the rules, a node's identity, definitions and their hashes, what
+   passes, a loss, addresses, a restart, messages and calls, and points at E.27 for each function.
+   Then the citations of the moved paragraphs, as item 1 redirected its, and `make sections`.
+   Principle 1: a reader who
+   knows the rest of Ernest predicts a function's contract in its module's section.
 
 ## MVP 4.0 (a shell attached to a running node), about a week
 
@@ -134,7 +146,9 @@ every look is a compute wrapped by hand, and nothing of the node's own is at the
 shell runs each input on the node, over MVP 3.0's peers and MVP 3.2's shipping of code, so that a
 binding read is the node's, a process listed is the node's and a function called runs there without
 the wrapping; its `:processes` lists the node's processes, and its `:load` and `:reload` load and
-reload code on the node, as `erl -remsh` attaches to an Erlang node. Whether the shell's design, `docs/design/shell.md`, assumes it runs
+reload code on the node, as `erl -remsh` attaches to an Erlang node.
+
+Whether the shell's design, `docs/design/shell.md`, assumes it runs
 on the node whose code it evaluates is the proposal's first question, read against the note before
 anything is built. Nothing of it is in 0.6.0.
 
@@ -174,10 +188,13 @@ user on 2026-10-10 (the log's *ehttpd and the Website*): the base of Ernest's ow
 4.2, and the first program built against an installed Ernest by a build of its own, which the
 examples cannot be. Its plan lives in its repository; this one records what it asks of the
 language and the libraries, and each is written as it asks, the libraries below among them.
+
 What it will evidently ask for, named here for the milestone's size and decided one by one
 when the need comes: HTTP's message format, `libs/http`; WebSocket, RFC 6455, for the website's
 terminal, a library over `libs/http` and `Tcp`; base64; TLS on a socket; and what of `Tcp` a
-server needs beyond what E.18 gives. What it lacks is added where it belongs and never worked around in
+server needs beyond what E.18 gives.
+
+What it lacks is added where it belongs and never worked around in
 Erlang or behind a `foreign fn`: a function the standard library lacks enters by E.0's admission
 rules, our need the occasion and the rules deciding the function; a format or a protocol is a
 library's; what the prelude or the language lacks goes to `language_feedback.md` first, as any
@@ -237,15 +254,21 @@ its characteristics, and the README's three ways in, the tour, the guide and the
 the reader it is for; and a live shell, a terminal in the visitor's browser, a JavaScript terminal
 such as xterm.js, connected by WebSocket to `ern shell` behind a pseudo-terminal on the server. The
 shell runs on the server, since no full BEAM runs in a browser, and the shell drives a terminal
-through `Terminal` and so runs behind one unchanged. Its sandbox is decided, on 2026-10-10 and again
+through `Terminal` and so runs behind one unchanged.
+
+Its sandbox is decided, on 2026-10-10 and again
 on 2026-10-13: the operating system's and not the language's, one isolated container per visitor,
 with limits on time, memory, processes and network, running the plain shell behind a
-pseudo-terminal, nothing kept when the visitor leaves, and `:clear` the container started again. One
+pseudo-terminal, nothing kept when the visitor leaves, and `:clear` the container started again.
+
+One
 node for every visitor with sandboxed sessions attached to it was weighed on 2026-10-13 and set
 aside (`docs/proposals/shell/attached.md`): a language-level sandbox is buildable but never the one wall,
 since a visitor who exhausts the machine's memory ends every session on the node, and the container
 costs little and needs nothing of the language; the attached shell, MVP 4.0, is the operator's
-alone. The site's pages are written in Markdown and rendered by `libs/markdown`. The site's
+alone.
+
+The site's pages are written in Markdown and rendered by `libs/markdown`. The site's
 generator is a program of its own beside `tools/manual.ern`, written in Ernest against the library's
 tree, `Block` and `Inline`, with an `html` function of one clause per constructor and the site's
 template and per-function layout around it, built from the doc chunk's parts as the manual is; the
@@ -296,10 +319,14 @@ to 1.0, Ordered*): a second back end beside the emitter's Erlang abstract format
 BEAM's own instructions, its generic opcodes (`genop.tab`, format 0, additions only, OTP 29's
 record instructions among them), with Ernest's proven types written as the loader's typed
 registers, so that the JIT emits code without the run-time type tests the Erlang compiler must
-keep. It changes no rule of the language, and it makes the soundness argument load-bearing for
+keep.
+
+It changes no rule of the language, and it makes the soundness argument load-bearing for
 the VM's memory safety: a value from outside, a peer's message, foreign code's return, is fully
 checked before its register is typed, which §8.4's checks and the argument's section 7 must
-then be read as carrying. Conditions before it is built: the language held still, as 1.0 will say, OTP
+then be read as carrying.
+
+Conditions before it is built: the language held still, as 1.0 will say, OTP
 pinned for the long term, and `make bench`'s numbers for what the type tests cost today, which
 decide whether it is worth its cost. A first, safe step to measure against: a type guard at each
 function's entry, from which the Erlang compiler's own inference types the body. Its design is a

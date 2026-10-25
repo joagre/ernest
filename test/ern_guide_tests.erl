@@ -463,7 +463,7 @@ lines(Text) -> binary:split(Text, <<"\n">>, [global]).
 session_end(Output) ->
     trim(string:trim(trim(released(Output)), trailing, ">")).
 
-%% Report §11.2, §8.7: the shell's start line as a release prints it. The
+%% Report §11.2, §12.5: the shell's start line as a release prints it. The
 %% repository's build is no release, and its version text carries the mark
 %% (ern_release), which a document's session, shown to a release's reader,
 %% does not.

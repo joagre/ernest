@@ -1,7 +1,7 @@
 %% `make bench-pick`'s probe (test/ern_pick_costs.erl): what a node shows
 %% of itself while the measuring program places work on its peers, read
 %% where the host shows it: the node's name on the carrier, by which a
-%% compute's answer says where it ran (report §8.7); and a sample of the
+%% compute's answer says where it ran (report §12.5); and a sample of the
 %% host's counts, the packets each connection of the node has carried, the
 %% time the node's schedulers have been busy, and the processor time of the
 %% machine it runs on, where the machine has a /proc/stat. Each function
@@ -12,7 +12,7 @@
 
 -export([here/0, sampled/0]).
 
-%% Report §8.7: the node's name on the carrier.
+%% Report §12.5: the node's name on the carrier.
 -spec here() -> binary().
 here() ->
     atom_to_binary(node()).

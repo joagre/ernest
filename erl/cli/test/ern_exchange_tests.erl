@@ -1,4 +1,4 @@
-%% Report §8.7, The exchange: a node's exchange, both its parts, in one
+%% Report §12.7, The exchange: a node's exchange, both its parts, in one
 %% host, the test standing in for the gateway, which the exchange sends
 %% every frame to, and for the peer, whose frames it sends the exchange as
 %% a gateway hands them on. Each runs in a program, whose standard error
@@ -10,7 +10,7 @@
 -include_lib("checker/include/ern_canonical.hrl").
 -include_lib("emitter/include/ern_unit.hrl").
 
-%% Report §8.7: the milliseconds a spawn's or a compute's frame says its
+%% Report §12.7: the milliseconds a spawn's or a compute's frame says its
 %% spawner waits, by which the exchange gives up a reach that does not
 %% arrive: eunit's time for one test, which no test here outlasts, so that
 %% no exchange's time runs out but where a test gives it none.
@@ -31,7 +31,7 @@
         "export fn later(n : Int) : Either(Io.Error, Address(Never)) =\n"
         "    Peer.spawn(\"p\", fn() = { let _ = isOdd(n); Unit }, 100)\n").
 
-%% report §8.7, Appendix H: the spawner's node answers a request for a
+%% report §12.7, Appendix H: the spawner's node answers a request for a
 %% function's reach, a function's and a lambda's, from the code table and
 %% the forms the unit's `.erc` holds: the hashes of the definitions it
 %% reaches from the definition it is or is in, code and types, a group's
@@ -117,21 +117,21 @@ reach_test() ->
                                   || {_, Source, _, _} <- Sourced]),
              ?assertEqual([], [Name || {_, Source, _, _} <- Sourced,
                                        Name <- local_names(Source)]),
-             %% report §8.7, §11.5: what prints a type as the module writes it
+             %% report §12.7, §11.5: what prints a type as the module writes it
              ?assertEqual([{[<<"Exreach">>], []}], lists:usort([P || {_, _, P, _} <- Sourced])),
-             %% report §8.7: none of them calls a foreign function
+             %% report §12.7: none of them calls a foreign function
              ?assertEqual([[]], lists:usort([Calls || {_, _, _, Calls} <- Sourced]))
          end || {code_frame, _, Hashes, Bytes, Sources} <- [Group | Frames]],
         [{code_frame, _, _, _, WorkSources}] =
             [Frame || {code_frame, _, [Of], _, _} = Frame <- Frames, Of =:= Hash(work)],
-        %% report §8.7: the definition's name as text and its source's lines
+        %% report §12.7: the definition's name as text and its source's lines
         [{WorkName, {'$at', {WorkLine, _, none}, _}, _, _}] = binary_to_term(WorkSources),
         ?assertEqual({[<<"Exreach">>, <<"work">>], 9}, {WorkName, WorkLine}),
         [{'$at', {OddLine, _, none}, _}] =
             [Source || {[<<"Exreach">>, <<"isOdd">>], Source, _, _}
                            <- binary_to_term(element(5, Group))],
         ?assertEqual(7, OddLine),
-        %% report §8.7: a definition that calls a foreign function carries
+        %% report §12.7: a definition that calls a foreign function carries
         %% its declaration's host module and function beside its form, and
         %% where it is written
         ?assertMatch([{[<<"Exreach">>, <<"timed">>], _, {[<<"Exreach">>], []},
@@ -159,7 +159,7 @@ reach_test() ->
 
 -define(FAULTY, "export fn held() : Int = 40 + 3\n").
 
-%% report §8.7, §11.2: the node a spawn was asked of, lacking its function,
+%% report §12.7, §11.2: the node a spawn was asked of, lacking its function,
 %% asks the spawner's node for the reach once, though two spawns and a
 %% compute wait on it, which share the exchange; answers the identities it
 %% lacks, not the one it holds; verifies each code frame and holds it
@@ -247,7 +247,7 @@ received_whole_test() ->
         "    Exheld.held() + Exbound.base\n"
         "}\n").
 
-%% report §8.7, §11.1, §8.4: the unit a reach makes links what its forms
+%% report §12.7, §11.1, §8.4: the unit a reach makes links what its forms
 %% reference outside it through the code table: a function of a unit the
 %% node holds, by its hash, to that unit's function; a binding, by its
 %% identity, to the unit that holds it with its value, and whose
@@ -345,7 +345,7 @@ received_linked_test() ->
         "    Peer.computeAt(\"p\", fn() = 6 * 7, 100)\n"
         "}\n").
 
-%% report §8.7, §8.4, §11.2: a lambda crosses as the definition that
+%% report §12.7, §8.4, §11.2: a lambda crosses as the definition that
 %% encloses it, and what that definition names beyond the lambda's reach
 %% the node links so that the unit loads: a foreign function its code frame
 %% declares whose module is here, to a function of the unit's own through
@@ -456,7 +456,7 @@ received_beyond_reach_test() ->
         "fn heavy(n : Int) : Int = n * n\n"
         "export let job = fn() = Peer.computeAt(\"p\", fn() = heavy(4), 100)\n").
 
-%% report §8.7, §11.1, Appendix H: a lambda written in a top-level binding,
+%% report §8.7, §12.7, §11.1, Appendix H: a lambda written in a top-level binding,
 %% as every `Test.Case` is one, is spawned on a peer and computed there as
 %% one written in a function is: its identity is the binding's hash and
 %% its position, and the binding's form crosses for the lambda's code, its
@@ -545,7 +545,7 @@ bound_hash(Beam) ->
     [Hash] = held_identities(Beam),
     Hash.
 
-%% report §8.7: a reach the node cannot take, a form that references a
+%% report §12.7: a reach the node cannot take, a form that references a
 %% definition the node holds nowhere and that did not arrive, is answered
 %% Other with the node's reason in a line, which the node says, and nothing
 %% of it is in the code table
@@ -584,7 +584,7 @@ unlinked_reach_test() ->
     ?assertEqual([<<"the node nohost's spawn at M.f:1 was not loaded: ", Text/binary, "\n">>],
                  Said()).
 
-%% report §8.7, §11.2: the pool names a unit an exchange makes `ern$` and a
+%% report §12.7, §11.2: the pool names a unit an exchange makes `ern$` and a
 %% count, the first the host holds no unit of from the count given, and the
 %% count after it, a name the host holds a unit of passed over
 pool_test() ->
@@ -598,7 +598,7 @@ pool_test() ->
     true = code:delete(First),
     true = code:soft_purge(First).
 
-%% report §8.7: where the node lacks the module a foreign declaration of the
+%% report §12.7: where the node lacks the module a foreign declaration of the
 %% reach calls, or the function in it, or the value of a binding it names,
 %% the spawn is answered NotLoaded before any code crosses, no lacks
 %% asked, and the node says what it lacked, the names the peer's text,
@@ -648,7 +648,7 @@ not_loaded_from_reach_test() ->
     [?assertError(badarg, binary_to_existing_atom(Name))
      || Name <- [<<"Exabsent">>, <<"ern_exchange_tests_unsorted">>]].
 
-%% report §8.7: a frame the exchange cannot read is faulty, and the node
+%% report §12.7: a frame the exchange cannot read is faulty, and the node
 %% ends the peer's connection and says so: a code frame whose bytes are not
 %% those the hash it names is taken of, one that names a hash that was not
 %% lacked, one whose form with its source's lines is not its form once
@@ -747,7 +747,7 @@ faulty_frame_test() ->
                  Said()),
     ?assertError(badarg, binary_to_existing_atom(<<"ern_unknown1">>)).
 
-%% report §8.7: a loss drops the exchanges asked of the lost peer, with
+%% report §12.7: a loss drops the exchanges asked of the lost peer, with
 %% their forms: a spawn of another node's that waited on one asks its own
 %% node anew, and the spawns the lost peer asked for go, none waiting on
 %% them now; an exchange that lost every spawn waiting on it goes too, and a
@@ -778,7 +778,7 @@ loss_test() ->
     ?assertEqual({lost, [], []}, receive {lost, _, _} = Got -> Got end),
     ?assertEqual([], Said()).
 
-%% report §8.7: a spawner's node that no longer holds what it is asked for,
+%% report §12.7: a spawner's node that no longer holds what it is asked for,
 %% the shell having let go of an input whose spawn gave up, answers a reach
 %% of none, at the request for the reach and at the lacks alike, and the
 %% spawn it asked for is answered Other, which the node says. The lacks'
@@ -818,7 +818,7 @@ no_longer_held_test() ->
     Line = <<"the node nohost's spawn at M.f:1 was not loaded: ", Text/binary, "\n">>,
     ?assertEqual([Line, Line], Said()).
 
-%% report §8.7: the exchange runs within the spawn's time: one whose spawner
+%% report §12.7: the exchange runs within the spawn's time: one whose spawner
 %% waits nothing is dropped with its forms once its time has run out, its
 %% spawn said and left unanswered, its spawner answering itself, and a
 %% reach of it that comes later is passed over; a spawn that joins an

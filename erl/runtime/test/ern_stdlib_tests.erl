@@ -133,7 +133,7 @@ minimum_and_maximum_by_test() ->
     ?assertEqual({'Some', 1}, List(minimumBy)([3, 1, 2], Seen, Compare)),
     ?assertEqual([3, 1, 2], lists:reverse(get(keyed))).
 
-%% report §8.4: foreign code receives a Map as a map from each key's term to
+%% report §12.2: foreign code receives a Map as a map from each key's term to
 %% its value's term, and a Set as {set, S}, S a version 2 set, which is a map
 %% from each element to []. A regression test, written after the report
 %% gave the terms
@@ -767,7 +767,7 @@ io_test() ->
     ?assertEqual([<<"a">>, <<"b\n">>], collect(out, [])),
     ?assertEqual([<<"c">>, <<"d\n">>, <<"42\n">>], collect(err, [])).
 
-%% report Appendix E.1, §8.2: readLine gives the next line without its line
+%% report Appendix E.1, §12.1: readLine gives the next line without its line
 %% feed, and None at end of input
 io_read_line_test() ->
     Self = self(),
@@ -1215,7 +1215,7 @@ tcp_ends_with_program_test() ->
     ?assertEqual(ok, ern_rt:run_main(Second, <<"second">>, #{})),
     ?assertEqual(['Right'], collect(listened, [])).
 
-%% report Appendix E.12, §3.8, §8.4
+%% report Appendix E.12, §3.8, §8.4, §12.2
 foreign_test() ->
     Foreign = ern_named:functions('ern@foreign'),
     ?assertEqual(42, Foreign(term)(42)),

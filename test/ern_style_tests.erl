@@ -120,6 +120,18 @@ no_tab_test() ->
     ?assertEqual([], [{File, Number} || File <- Files, {Number, Line} <- numbered(File),
                                         lists:member($\t, Line)]).
 
+%% docs/style.md, CLAUDE.md *Writing*: a paragraph of a tracked document
+%% is at most 150 words, a list item among them, since a block past it no
+%% reader takes in whole; the listing is tools/paragraphs.sh's, which
+%% `make paragraphs` runs at a hundred for the writer to read and this
+%% test at the ceiling. The log, the proposals and the generated pages are
+%% left out, as the script leaves them. A regression test, written after
+%% the release review before 0.6.0 found Appendix A's lexical-decision
+%% paragraph at 399 words, listed at every run and read by no one
+paragraph_ceiling_test() ->
+    Listed = string:lexemes(os:cmd("sh " ++ ?ROOT ++ "/tools/paragraphs.sh 150"), "\n"),
+    ?assertEqual([], Listed).
+
 %% docs/style.md: the spelling is American English, in every tracked file
 %% of text but a proposal, the licenses and a borrowed file. A word is
 %% matched whole, whatever its case, and a name is read as the words it

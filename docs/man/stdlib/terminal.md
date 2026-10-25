@@ -20,7 +20,7 @@ instead.
 **Pastes, resizes and Ctrl-C.** A paste arrives as one `Pasted` with its
 text, and a change of the window's size as `Resized`. While a program is
 subscribed, the interrupt, Ctrl-C, arrives as `Interrupt` and does not end
-the program (report §8.2).
+the program (report §12.1).
 
 ## Examples
 
@@ -70,7 +70,7 @@ type Event =
 ```
 
 What the terminal sends its subscriber: a key, an arrow, `Escape`, the
-interrupt, a paste, or a new size (report §8.2).
+interrupt, a paste, or a new size (report §12.1).
 
 A key the terminal sends as one character is `Key` of it, a control
 character among them: Enter is `Key('\r')`, or `Key('\n')` where the
@@ -98,7 +98,7 @@ Terminal.subscribe(wrap : (Event) -> m) : Either(Io.Error, Unit) receiving m
 Sends the caller every key pressed from now on, and every change of the
 window's size, each as `wrap(event)` in its mailbox. It answers once the
 terminal is in the mode the keys need, so that nothing typed after it
-returns is echoed (report §8.2).
+returns is echoed (report §12.1).
 
 Where standard input is not a terminal it answers `Left(NotATerminal)` and
 claims nothing, so that the program can read lines instead.

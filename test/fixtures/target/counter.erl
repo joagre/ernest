@@ -1,7 +1,7 @@
 %% Target: what ern build produces for examples/counter.ern. Hand-written first,
 %% run against ern_rt, then the golden test for the emitter.
 %%
-%% Values follow the ABI of report §8.4. The type
+%% Values follow the ABI of report §12.2. The type
 %%
 %%   type CounterMsg =
 %%       Inc(Int)

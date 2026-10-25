@@ -37,7 +37,7 @@ to_bytes(_) -> 'None'.
 to_bool(Value) when is_boolean(Value) -> {'Some', Value};
 to_bool(_) -> 'None'.
 
-%% report §8.4, Appendix E.12: a List is a proper list, so an improper one
+%% report §12.2, Appendix E.12: a List is a proper list, so an improper one
 %% is none; the guard's length fails on one
 -spec to_list(term()) -> {'Some', [term()]} | 'None'.
 to_list(Value) when is_list(Value), length(Value) >= 0 -> {'Some', Value};

@@ -1,6 +1,6 @@
 //
 // The size of each read of standard input, for ern_integration_tests: a
-// read answers what has arrived, at least one byte (report §8.2).
+// read answers what has arrived, at least one byte (report §12.1).
 //
 
 export fn main() : Unit =

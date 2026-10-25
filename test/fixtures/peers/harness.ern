@@ -14,7 +14,7 @@ export fn waitMs() : Int =
 export fn dialMs() : Int =
     7000
 
-// Report §8.7: the milliseconds after the last traffic within which the
+// Report §12.6: the milliseconds after the last traffic within which the
 // detector finds a silent peer.
 export fn detectorMs() : Int =
     75000

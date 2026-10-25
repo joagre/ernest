@@ -1,6 +1,6 @@
 //
 // Each line of standard input, in brackets, with its length in characters,
-// for ern_integration_tests (report §8.2).
+// for ern_integration_tests (report §12.1).
 //
 
 export fn main() : Unit =

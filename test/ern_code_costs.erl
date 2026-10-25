@@ -2,7 +2,7 @@
 %% nodes of this machine (plan MVP 3.2 item 7): what a spawn and a compute
 %% cost whose code crosses to a peer that lacks it, a bare node's first
 %% among them, with what that first does in a fresh host, and the share of
-%% each of the exchange's steps on both nodes (report §8.7, §10); what a
+%% each of the exchange's steps on both nodes (report §12.7, §10); what a
 %% fix's callers cost, crossed with it to a node of the old build; what an
 %% arrival, a `Code.load` and a development day's spawns add to the host's
 %% four counts, against their limits (§11.2); what a utilization costs, and
@@ -242,7 +242,7 @@ costs() ->
      "            timedSaid(scenario, \"held_\" <> label, fn() = crossed(size, variant))\n"
      "        }))\n"
      "\n"
-     "// Report §8.7, §11.2: the exchange's steps on both nodes, and the host's\n"
+     "// Report §12.7, §11.2: the exchange's steps on both nodes, and the host's\n"
      "// counts on the peer, around each spawn of what the peer lacks; the\n"
      "// probe's own functions cross first, and their steps are dropped.\n"
      "fn probed(scenario : String,\n"
@@ -355,7 +355,7 @@ costs() ->
      "    said([scenario, label, Int.toString(Clock.monotonicMicros() - started)])\n"
      "}\n"
      "\n"
-     "// Report §8.7: three nodes connected each to the other two, q1 dialing\n"
+     "// Report §8.7, §12.6: three nodes connected each to the other two, q1 dialing\n"
      "// q2, left idle over a window each opens, this node's last, so that the\n"
      "// computes that open the others' fall outside its own; then what crossed\n"
      "// each connection, read once every window has closed.\n"
@@ -702,7 +702,7 @@ crossing_table(Lines) ->
             end, ?SIZES)
       end, ["spawn", "compute"]).
 
-%% Report §8.7: what a bare node's first arrival does that no later one
+%% Report §12.7: what a bare node's first arrival does that no later one
 %% does, each in a host of its own started as `ern run` starts one: the
 %% prelude's environment built, which the exchange keeps for the node's
 %% life, and the host's compiler run once, its modules loaded, beside a
@@ -727,7 +727,7 @@ cold_table(Machine) ->
     row("the host's compiler, its first run", [Cold || [_, Cold, _] <- Runs]),
     row("  its second", [Warm || [_, _, Warm] <- Runs]).
 
-%% Report §8.7: the share of each of the exchange's steps in a spawn whose
+%% Report §12.7: the share of each of the exchange's steps in a spawn whose
 %% reach crosses, from the steps the probe saw on both nodes.
 steps_table(Lines, New) ->
     heading("the exchange's steps in a spawn that crosses", "µs"),
@@ -922,7 +922,7 @@ pick_table(Lines) ->
                              {"utilizations", "Peer.utilizations, eight peers' read"},
                              {"pick", "the pick alone, the utilizations read and the draw"}]].
 
-%% Report §8.7: the packets each connection of three nodes carried idle,
+%% Report §8.7, §12.6: the packets each connection of three nodes carried idle,
 %% each way, as the host counts them, the tellings every interval and the
 %% host's ticks where nothing else went, and the gateway's and the exchange's
 %% work meanwhile; each connection read at a node whose window held no

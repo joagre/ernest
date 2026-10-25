@@ -810,7 +810,7 @@ kind_of_namespace([Segment]) ->
 %% its definitions kept beside its code in the table, their canonical
 %% forms with their names and their source's lines, so that a spawn on a
 %% peer that lacks one of them ships it, as the build's ship theirs from
-%% its `.erc` (§8.7, §11.2); they go with the unit's rows when it is
+%% its `.erc` (§12.7, §11.2); they go with the unit's rows when it is
 %% deleted (unload/1).
 unit_loaded(Unit, Beam) ->
     {ok, Recorded} = ern_canonical:read(Beam),

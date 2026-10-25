@@ -299,7 +299,7 @@ read(Program, Ms) ->
 write(Program, Bytes, Ms) ->
     ern_rt:call_forever(Program, fun(Reply) -> {'Write', Bytes, Ms, Reply} end).
 
-%% The answer the runtime's process gives, in Ernest's form (report §8.4).
+%% The answer the runtime's process gives, in Ernest's form (report §12.2).
 answer(Reply) ->
     ern_rt:timed(),
     receive
@@ -318,7 +318,7 @@ sleep(Ms) ->
 wait(Tag) ->
     receive {Tag, Value} -> Value after 5000 -> timeout end.
 
-%% report §8.7: the helper sends a process a signal and says how it went,
+%% report §12.5: the helper sends a process a signal and says how it went,
 %% the signal 0 asking whether the process lives: this host's process
 %% lives, a process number nothing holds names none, and the first process
 %% lives and is the superuser's, which a test run as another user is not
@@ -334,7 +334,7 @@ signal_test() ->
         _ -> ?assertEqual(others, ern_os:signal(0, 1))
     end.
 
-%% report §8.7: the user `ern` runs as, read alone, which a node's check of
+%% report §12.5: the user `ern` runs as, read alone, which a node's check of
 %% its directory reads: the user host/0 reads, and the owner of a file this
 %% host makes. A regression test: the node read the whole of what the host
 %% says of a program, its environment among it, for the user alone

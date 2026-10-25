@@ -213,7 +213,7 @@ export fn main() : Unit receiving ShellMsg = {
 }
 
 // Report §11.2: where standard output has a size the reader asks for the
-// keys, and a refusal says that standard input is not a terminal (§8.2):
+// keys, and a refusal says that standard input is not a terminal (§12.1):
 // the keys, or none.
 fn readKeys(shell : Address(ShellMsg)) : Optional(Keys) receiving ShellMsg =
     match Terminal.size() {
@@ -1332,7 +1332,7 @@ fn showing(shell : Address(ShellMsg),
     send(screen, shownInput(edited));
     // a key that only begins a sequence, `Escape` and the `[` after
     // it, leaves the last key as it was: `Shift-Tab` twice is two
-    // presses, not six keys (report §8.2)
+    // presses, not six keys (report §12.1)
     readLoop(shell,
              screen,
              Reading(..reading,

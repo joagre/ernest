@@ -682,7 +682,7 @@ printing(#type_state{namespace = Namespace, session_types = SessionTypes, shadow
     #type_state{namespace = Namespace, session_types = SessionTypes, shadows = Shadows,
                 input_names = InputNames, effect_params = EffectParams}.
 
-%% Report §11.5, §8.7: the module a type prints from, its namespace, and the
+%% Report §11.5, §12.7: the module a type prints from, its namespace, and the
 %% prelude names its types shadow, which print qualified, by which a code
 %% frame carries how a definition's module writes a type (set_scope/5).
 -spec printed_scope(type_state()) -> {qualified_name(), [atom()]}.

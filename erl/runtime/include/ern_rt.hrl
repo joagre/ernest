@@ -19,7 +19,7 @@
 %% `Test.faults` started, which no job reports and no subscriber is told
 %% of (ern_rt:expected/1, Appendix E.24); fault: the #fault{} it ended
 %% with, written as it ends (ern_rt:ended_with/2), which the reaper reports
-%% beside the host's term of its end (§8.4); `carried` for a compute's
+%% beside the host's term of its end (§12.2); `carried` for a compute's
 %% process whose fault went to its caller, which no one here is told of
 %% (§8.7); or none.
 

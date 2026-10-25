@@ -82,7 +82,7 @@ chapter_1(Base) ->
                     "  |                                      ^^^^^^^^^^^^^^^^"]}])).
 
 %% tour/README.md's chapter 7, the line it tells and does not show; report
-%% §4.7, §7.4, §8.4: `erlang:system_info/1` declared to answer a String,
+%% §4.7, §12.3, §8.4: `erlang:system_info/1` declared to answer a String,
 %% which it does not, faults its caller as the answer arrives, the cause
 %% naming the function and the type. The declaration is typed at a shell
 %% that is no node and the call made there, where the tour's would be
@@ -337,7 +337,7 @@ fault(#tour{shell = Shell} = Tour) ->
 %% type, chapter 4's ended counter among them; the counter on foo is
 %% refused the new protocol, with the help naming the previous version;
 %% it is killed, and a counter of the new type counts per key (report
-%% §3.6, §4.4, §4.9, §8.6, §11.1, §11.2, §11.5, Appendix E.24).
+%% §3.6, §4.4, §4.9, §8.6, §12.4, §11.1, §11.2, §11.5, Appendix E.24).
 per_key(#tour{base = Base, shell = Shell} = Tour) ->
     ?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "build .")),
     ?assertEqual({1, "counts per key: passed\nreports: faulted: deadlock\n    Counter.reports:70\n"
@@ -495,7 +495,7 @@ copied(Chapter, Base) ->
      || Source <- Sources],
     ok.
 
-%% Report §11.2, §8.7: a shell started in the reader's directory, `ern
+%% Report §11.2, §12.5: a shell started in the reader's directory, `ern
 %% shell` with Options, its HOME a directory of its own so that no
 %% person's startup file runs; once it has printed its start line, as this
 %% build writes it, and its first prompt, after the lines its node says as

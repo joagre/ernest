@@ -160,7 +160,9 @@ match Peer.spawn("foo", fn() = count(0), 5000) {
 
 `Peer.spawn` waits at most 5000 milliseconds for the peer, and answers `Left` with the reason where it cannot reach it. The tour's chapter 2 runs this spawn, on a bare node started for it, and shows what each terminal printed.
 
-A computation need not name a node at all. `Peer.compute(f, ms)` runs `f` on the less busy of two peers drawn at random from those that have told the node how busy they are, carrying its code there as the spawn does, and answers the value within `ms` milliseconds, or `Left` with the reason. A peer tells the node as it connects, and a connection opens when an operation reaches for the peer or the peer dials in, so where no peer has told it yet the compute answers `Left(Io.Unreachable)` (report §8.7). The draw spreads work among three peers or more with no central choice; with two peers it takes both each time, so a burst goes whole to the one that last reported itself less busy. A fault in `f` is the caller's, with `f`'s cause, and the line the caller's node writes of it names the peer `f` ran on, `, on the peer foo`:
+A computation need not name a node at all. `Peer.compute(f, ms)` runs `f` on the less busy of two peers drawn at random from those that have told the node how busy they are, carrying its code there as the spawn does, and answers the value within `ms` milliseconds, or `Left` with the reason. A peer tells the node as it connects, and a connection opens when an operation reaches for the peer or the peer dials in, so where no peer has told it yet the compute answers `Left(Io.Unreachable)` (report §8.7).
+
+The draw spreads work among three peers or more with no central choice; with two peers it takes both each time, so a burst goes whole to the one that last reported itself less busy. A fault in `f` is the caller's, with `f`'s cause, and the line the caller's node writes of it names the peer `f` ran on, `, on the peer foo`:
 
 ```ernest-fragment
 match Peer.compute(fn() = render(scene, row), 5000) {
@@ -194,7 +196,7 @@ A node is Ernest started from a configuration directory, with a program or with 
 
 A listed peer is trusted whole. One that may spawn on a node may run anything on it, so the list of peers is the whole of the trust.
 
-The connection is one, opened at the first operation towards the peer and kept. A peer that closes is found lost at once, and one that falls silent after 45 to 75 seconds, as the host's distribution finds a silence; the next operation towards it dials again. A node that only dials, a laptop behind a router, lists no `listen` (report §8.7, Appendix C).
+The connection is one, opened at the first operation towards the peer and kept. A peer that closes is found lost at once, and one that falls silent after 45 to 75 seconds, as the host's distribution finds a silence; the next operation towards it dials again. A node that only dials, a laptop behind a router, lists no `listen` (report §8.7, §12.5, Appendix C).
 
 A peer that goes out of reach is the monitor's `Down` with the reason `Unreachable` to whoever monitors a process on it, which says nothing of whether the process lives. A program is written for that case as for any other end.
 
@@ -334,7 +336,7 @@ Dead.main faulted: deadlock
 
 The trace names line 7, the `spawn`, and not the `receive` below it: a wait leaves no frame of its own, so a waiting process's frame names the last call before the wait (report Appendix E.21).
 
-Beneath the trace the fault lists the processes left waiting, a line for each spawn site and the frame its processes wait in: here the worker, spawned on line 7, waiting in `work` (report §8.6).
+Beneath the trace the fault lists the processes left waiting, a line for each spawn site and the frame its processes wait in: here the worker, spawned on line 7, waiting in `work` (report §12.4).
 
 The fault names the deadlock and the processes it left waiting. On Erlang a bare `receive` waits forever, and a `gen_server:call` gives up after five seconds with an exit that names the timeout and not the cause; a programmer learns of the deadlock from that, a dashboard or a user.
 

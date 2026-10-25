@@ -54,7 +54,7 @@
 // for a second. Every lease is lent and every process waits, so nothing can
 // go on, and the runtime ends the program with a deadlock. Beneath its
 // trace the report lists the processes left waiting, a line for each spawn
-// site and the frame its processes wait in, with their count (report §8.6,
+// site and the frame its processes wait in, with their count (report §12.4,
 // §11.2):
 //
 //     $ ern run lease_broker.erc deadlock
@@ -85,7 +85,7 @@
 // As two nodes, make a and b with ern config, b listening on
 // 127.0.0.1:8655, list each other, and give a the service "leases" on b
 // (guide §8.1, guide §8.2). Start b in one terminal: it offers the broker
-// as the service, and says where it listens as it begins to (report §8.7).
+// as the service, and says where it listens as it begins to (report §12.5).
 // Then start a in another: it finds the broker, two clients of its own
 // borrow from it, and bob fails. Once a has ended, b's terminal shows
 //
