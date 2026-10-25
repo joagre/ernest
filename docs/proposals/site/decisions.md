@@ -221,7 +221,7 @@ The site's files as served.
   `docs/man/` is itself generated. A contents page and the 404 page name none.
 - A page's sidebar lists its anchored headings, two levels deep.
 - The sources stay Markdown: the report, the guide, `docs/man/`, and the tour's
-  document under `tour/`, named when MVP 3.3 writes it. A source's opening logo
+  document, `tour/README.md` (written 2026-10-24). A source's opening logo
   and its contents block are dropped; the site has its own.
 - A chapter of the guide or the tour is a second-level heading.
   Previous and next follow their order; the report's pages run language,
@@ -306,23 +306,24 @@ The site's files as served.
 - Why is `guide/why.md`, written 2026-10-15 as the README's list of four with a
   program for each, and the questions are `guide/faq.md`; the guide tests run
   their examples. Features, the inventory, was dropped the same day: what it
-  would list is the README's four, the guide's contents and the manual pages'
+  would list is the README's claims, the guide's contents and the manual pages'
   index, and a fourth list would drift from them.
 - A section of Why states the rule, names its price before its gain, shows a
   program and the compiler's line about it, compiled before it is quoted, and
   points to the guide and the report. No sentence describes another language;
   no superiority claim; no sentence answers an objection the text did not
   raise.
-- Why's four pieces are `guide/why.md`'s list, found after its line "What
-  Ernest adds is where the parts meet:" as the documents test finds it, in its
-  order: the mailbox in the function's type, a service a binding of such an
-  address among it; code known by its hash, any number of versions and code
-  moving with a spawn among it; a distribution built for a WAN; and little
-  else. Checked replies and purity in the type were pieces until 2026-10-15,
-  when MVP 3.26 was decided; the list is written, with a program for each,
-  and the site renders it as it stands.
+- Why's pieces are `guide/why.md`'s claims, found after its line "What
+  Ernest adds is where the parts meet:" as the documents test `claims_test`
+  finds them and holds them equal to the README's, in their order: the mailbox
+  in the function's type; code known by its hash; a distribution built for a
+  WAN; abstract types and requirements; a deadlock is found; and little else.
+  Six since 2026-10-24, four until then; checked replies and purity in the type
+  were pieces until 2026-10-15, when MVP 3.26 was decided. The list is written,
+  four claims with a program, one with its configuration file and one with the
+  report, and the site renders it as it stands (changed 2026-10-25).
 - The walk through one real program is the tour itself, which grows one
-  program through every chapter (the plan's MVP 3.3).
+  program through every chapter (`tour/README.md`, written 2026-10-24).
 - No comparison page: `guide/faq.md`, at `/faq/`, answers "it looks like Gleam" and
   "where are the supervisors", and the guide's §10 answers the Erlang programmer.
 - A root `CONTRIBUTING.md`, written before the site goes live. Not a site page.

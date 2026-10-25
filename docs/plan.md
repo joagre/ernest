@@ -122,10 +122,10 @@ in the order to do them, the word 0.5.0 ships decided before §8.7's text moves.
    kind of fact at its fourth entry gets a document (CLAUDE.md, *A new owner*):
    `full_review.md`'s *How it runs* states it whole, and `release_review.md` points at it for a
    release's smaller round.
-6. **The site proposal's sitting.** Its three lines the repository has left behind, MVP 3.3
-   "writes" the tour, a list of four claims, and a test that does not exist, change at a sitting
-   with the user, to the tour written and the six claims `claims_test` holds, dated as its
-   `decisions.md` dates a change (the full review's D23, decided 2026-10-24).
+6. **The site proposal's sitting**, done 2026-10-25: its three stale lines, MVP 3.3 "writes" the
+   tour, a list of four claims, and a test that did not exist, now say the tour is written and
+   name the six claims `claims_test` holds, dated in its `decisions.md` (the full review's D23,
+   the log's *The Review's Decisions*).
 7. **The first fault's cost.** A session's first fault costs the host seven to nine milliseconds
    of loading modules, thirty under load (the log's *The Shell's End Writes What It Was Told*),
    which lost a shell test its line until the test waited for the fault. Measured against what a

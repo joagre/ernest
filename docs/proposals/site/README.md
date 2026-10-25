@@ -29,5 +29,5 @@ What the prototype still lacks:
 - The templates hold the first design, which `decisions.md` has moved past in
   the header's stoat, the favicon, the footer's rooms, the homepage's order and
   the shell's controls; the fragments for a list's items do not exist yet.
-- The tour, whose document MVP 3.3 writes; until then the prototype has no
-  tour pages.
+- The tour's pages: its document, `tour/README.md`, is written (2026-10-24), and the
+  prototype does not render it yet.
