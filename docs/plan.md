@@ -90,12 +90,14 @@ in the order to do them, the word 0.5.0 ships decided before §8.7's text moves.
    Back*): the clone, the machines and the readers weighed against what they found,
    `release_review.md` amended, the round's reader among it, and dialyzer in the full run held as
    item 11.
-2. **The service monitor across nodes, decided.** A service monitor on a process of another node
-   is told of no restart (§6.9, §8.7), so one `monitorService` call means one thing for a process
-   on the caller's node and another for a peer's, and nothing at the call shows which. Discussed
-   with the user: either a restart is told across nodes, with a frame of its own, or
-   `monitorService` on another node's process is refused, so that the one call means one thing
-   (feedback 161, from the lease broker example; the log's *What the Feedback Left, 2026-10-24*).
+2. **A restart told across nodes**, decided with the user on 2026-10-25 (the log's *A Restart Told
+   Across Nodes*), §6.9 and §8.7 stating it from that day; built by 2026-10-31 by an agent: two
+   frames, the restarting process's node telling each node whose process holds a service monitor on
+   it, read from the host's list of who monitors the process, and that node's answer once every
+   delivery has ended, which the restart waits for; a loss ending the wait; the protocol's version
+   moving; the nodes' and the runtime's notes and the frames test following; and the decision's
+   two-node program, a restarting worker on one node faulted by its watcher on another, as the
+   regression test (feedback 161, from the lease broker example).
 3. **The report pared to the language.** Decided with the user on 2026-10-24, from the full review's
    E.18 reading and the question what a Wirth report holds: the Pascal report defined files because
    Pascal had no modules, and the Modula-2 and Oberon reports hold the language alone, the library's
@@ -150,10 +152,9 @@ in the order to do them, the word 0.5.0 ships decided before §8.7's text moves.
    and gives no ordering, which *A Member Has One Face* built and no test holds; written by
    2026-10-31.
 10. **The release that closes the milestone**, so that MVP 4.0 starts from a tag: run as
-   `release_review.md` says, whole, since the machines are what make a tag solid. 0.5.1 where item
-   2 leaves §8.7's protocol as it stands, the first release whose nodes connect to the previous
-   release's, two patch levels on one floor (report §8.7); 0.6.0 where it adds a frame, since the
-   protocol's version then moves and the two releases must not mix.
+   `release_review.md` says, whole, since the machines are what make a tag solid. 0.6.0, since item
+   2 adds two frames and the protocol's version moves, so that its nodes and 0.5.0's do not mix
+   (report §8.7).
 11. **Dialyzer in the full run**, a decision for the user from item 1 (the log's *The Release
    Review Read Back*): the five warnings the review found all came in the week since dialyzer last
    ran, and `make dialyzer` costs 27 s against a full run of about nine minutes. Recommended:

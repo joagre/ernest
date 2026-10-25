@@ -660,7 +660,7 @@ body_tag(_) -> [].
 
 %% The sentence of a document that lists the frames, its backticks dropped.
 frames_sentence(File) ->
-    [_, Rest] = binary:split(ern_repository:read(File), <<"Fifteen frames are the runtime's own">>),
+    [_, Rest] = binary:split(ern_repository:read(File), <<"frames are the runtime's own">>),
     [Sentence | _] = binary:split(Rest, <<". ">>),
     binary:replace(Sentence, <<"`">>, <<>>, [global]).
 
