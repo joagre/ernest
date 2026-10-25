@@ -14,15 +14,14 @@ and a feature declined in a dated entry of the log; nothing stands between.
 
 ## Where we are
 
-**MVP 3.9 is done**, and Ernest 0.5.0 is released, the tag `v0.5.0` of 2026-10-25 (the log's *The
-Release Review Before 0.5.0*): the nodes' and the code's design notes, the proposals built by then
-swept, the full review of 2026-10-24 and its 218 findings worked the same day, the member regime
-and what the lease broker found, and the release review, nine readers and the machines, its 191
-lines made in two rounds. It is the last milestone of the road planned on 2026-10-13, and no promise
-of stability is made: from 0.5.0 on a change to the language, the standard library or the libraries
-is driven by a need met in use and recorded as `docs/language_feedback.md` records one. MVP 3.95,
-what the review and 0.5.0 left, is under way, its first item done 2026-10-25; then the report pared to the language, the attached shell, ehttpd, the website, the shell's
-second round and the back end (the log's *The Road to 1.0, Ordered*). A finished milestone is a row
+**MVP 3.95 is done**, and Ernest 0.6.0 is released, the tag `v0.6.0` of 2026-10-25 (the log's *The
+Release Review Before 0.6.0*): what the review and 0.5.0 left, the release review read back, a
+restart told across nodes, the harness counting a test's steps, the round's method with an owner,
+and the release review, seven readers and the machines, its 66 lines made in two rounds the same
+evening. No promise of stability is made: from 0.5.0 on a change to the language, the standard
+library or the libraries is driven by a need met in use and recorded as `docs/language_feedback.md`
+records one. Next is the report pared to the language, MVP 3.96; then the attached shell, ehttpd,
+the website, the shell's second round and the back end (the log's *The Road to 1.0, Ordered*). A finished milestone is a row
 of the table below, its reasons in the log entries the row names.
 
 ---
@@ -69,7 +68,7 @@ of the table below, its reasons in the log entries the row names.
 | The full review's findings before 0.5.0 | the 218 lines of the review run over `1329d1d2`: 159 `fix` made in ten batches by area and an integration pass, 52 `decide` taken one at a time, 9 dropped; the service monitor and `demonitor` added to the language, `Reply.process` and `compare` over tuples, lists, `Optional` and `Either` to the library, each with its page and its test | 2026-10-24 | | *The Review's Fixes, First Round*, *The Runtime's Note States No Why*, *The Review's Decisions*; `findings.md` as it stood at `08997105` |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program, the counter, grown through eight chapters from a process with a typed mailbox, through the same counter on a peer that holds none of its code, to its move to new code there, where the deployment guide takes over; with it a README for `report/` and for `guide/`, the README's three ways in, the guide's taste of the rest, and the path read by a fresh reader and the two skeptics | 2026-10-24 | | *The Tour*, *The Tour, Shorter*, *What the Outline Asked*, *The Skeptics' Read*, *What the Skeptics Found*, *The Tour's Programs, Built*, *The Tour Written*; the outline, `docs/proposals/tour/` as it stood at `688ffa03` |
 | MVP 3.9 | the review, and Ernest 0.5.0: the nodes' and the code's design notes, the proposals built by then swept, the full review and its findings, the process-only mark narrowed and a wrap's `self` its recipient's, what the lease broker found, the release review and Ernest 0.5.0, a release with no promise of stability | 2026-10-25 | tag `v0.5.0` | *MVP 3.9 Weighed*, *The Nodes' and the Code's Notes*, *The Design Notes Leave the Proposals*, *The Full Review Before 0.5.0*, *The Review's Fixes, First Round*, *The Review's Decisions*, *The Process-Only Mark Marks a Wait*, *A Wrap's `self` Is Its Recipient's*, *Two Nodes Tests Take the Fault's Line*, *One Name for Every Order*, *The Shell's End Writes What It Was Told*, *A Restart Empties Before It Tells*, *A Member Has One Face*, *The Release Review Before 0.5.0*; `findings.md` as it stood at `105fb3fc` |
-| MVP 3.95 | what the review and 0.5.0 left: the release review read back, the service monitor across nodes decided, the harness counting a test's steps, the review round's method with an owner, the site proposal's sitting, the first fault's cost measured, and a release, 0.5.1 or 0.6.0 as the service monitor's decision leaves the protocol | made 2026-10-24; the first milestone after 0.5.0 | | below |
+| MVP 3.95 | what the review and 0.5.0 left: the release review read back, a restart told across nodes by the runtime's own frames, the harness counting a test's steps, the review round's method with an owner, the site proposal's sitting, the first fault's cost measured, the member regime's missing test, the teller's late delivery closed, dialyzer in the full run, and Ernest 0.6.0, the protocol's version moved | 2026-10-25 | tag `v0.6.0` | *The Release Review Read Back*, *A Restart Told Across Nodes*, *A Restart Told Across Nodes, Built*, *The Report's Readers Read the Diff*, *The Teller's Late Delivery*, *The Teller's Late Delivery, Built*, *The Harness Counts a Test's Steps*, *The First Fault's Cost*, *The Review's Decisions*, *A Member Has One Face*, *The Report Pared After 0.6.0*, *The Release Review Before 0.6.0*; `findings.md` as it stood at `c6eab569` |
 | MVP 3.96 | the report pared to the language: `language.md` holds what decides what a program means, the runtime's mechanism a chapter of its own at the end of `toolchain.md`, chapter 12, and §10 moved whole with its number; every citation of a moved paragraph redirected | made 2026-10-25 from MVP 3.95's item 3; after 0.6.0 | | below |
 | MVP 4.0 | a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches | made 2026-10-13 from MVP 4.3's item 4 | | below |
 | MVP 4.1 | ehttpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | | | below |
@@ -79,63 +78,9 @@ of the table below, its reasons in the log entries the row names.
 
 ---
 
-## MVP 3.95 (what the review and 0.5.0 left), about a week
-
-The days after the tag, before the attached shell: what the release itself teaches, two
-discussions the full review left, what it decided for after the release, and a release of its own,
-in the order to do them, the word 0.5.0 ships decided before §8.7's text moves.
-
-1. **The release review read back**, done 2026-10-25 (the log's *The Release Review Read
-   Back*): the clone, the machines and the readers weighed against what they found,
-   `release_review.md` amended, the round's reader among it, and dialyzer in the full run held as
-   item 11.
-2. **A restart told across nodes**, done 2026-10-25 (the log's *A Restart Told Across Nodes* and
-   *A Restart Told Across Nodes, Built*): two frames, each node whose process monitors the
-   restarting one told, as the host lists its monitors, and its answer waited for, a loss ending
-   the wait (report §8.7, §10); the protocol's version 4; the store and the desk's program the
-   regression test.
-3. **The report pared to the language**, MVP 3.96's, after 0.6.0, so that the release reads the
-   report as it is (the log's *The Report Pared After 0.6.0*).
-4. **The harness counts a test's steps**, done 2026-10-25 (the log's *The Harness Counts a Test's
-   Steps*): each wait of the harness's takes a step, a test failing past its count and short of it;
-   the shell's, the terminal's and the integration tests run through the counter, the terminal's
-   sessions bounded a wait at a time, `ern_machine`'s waits bounded, and the audit's counts set,
-   none varying between runs.
-5. **The review round's method gets an owner**, done 2026-10-25: `full_review.md`'s *How it runs*
-   states the round after the readers, agents by file ownership compiling in scratch with no `make`,
-   a second round for the decisions, the session integrating and reading back, and `git status`
-   compared before and after, and `release_review.md` points at it for a release's smaller round
-   (the log's *The Full Review Before 0.5.0* and *The Release Review Before 0.5.0*).
-6. **The site proposal's sitting**, done 2026-10-25: its three stale lines, MVP 3.3 "writes" the
-   tour, a list of four claims, and a test that did not exist, now say the tour is written and
-   name the six claims `claims_test` holds, dated in its `decisions.md` (the full review's D23,
-   the log's *The Review's Decisions*).
-7. **The first fault's cost**, done 2026-10-25: measured, `ern_peer` about 2.8 ms and `ern_show` about
-   1.7 ms loaded cold at a program's first fault, `ern_peer` alone in the shell; the plain form stays
-   and the number is the log's (*The First Fault's Cost*).
-8. **A monitor asked by an old run's delivery after the restart's `new_run`**, done 2026-10-25
-   (the log's *A Restart Told Across Nodes, Built*): the clock and the terminal take a restart
-   before the reaper; item 12 closed the teller's late delivery.
-9. **The member regime's missing test**, done 2026-10-25: the checker's
-   `module_level_compare_gives_no_ordering_test`, from before the prelude's `compare`, sharpened to
-   hold that a module's own bare `fn compare` hides the prelude's whatever its type and gives the
-   type no ordering, citing §4.2's *Unqualified lookup* (the log's *A Member Has One Face*).
-10. **The release that closes the milestone**, so that MVP 4.0 starts from a tag: run as
-   `release_review.md` says, whole, since the machines are what make a tag solid. 0.6.0, since item
-   2 adds two frames and the protocol's version moves, so that its nodes and 0.5.0's do not mix
-   (report §8.7).
-11. **Dialyzer in the full run**, done 2026-10-25 (the log's *The Release Review Read Back*):
-   `make test-full` runs `make dialyzer`, 27 s, so that a warning is met at its item's commit, and
-   the release review's machines are five; the fresh clone builds the PLT once, a cost the next
-   review measures.
-12. **The teller's late delivery**, done 2026-10-25 (the log's *The Teller's Late Delivery* and *The
-   Teller's Late Delivery, Built*): a teller's delivery reads its subscription's row before it
-   delivers and delivers nothing to a run a restart has left (report §6.9, §8.6); the race placed by
-   `teller_after_the_restart_test`.
-
 ## MVP 3.96 (the report pared to the language), after 0.6.0, about three days
 
-Made on 2026-10-25 from MVP 3.95's item 3, decided with the user on 2026-10-24 from the full review's
+Made on 2026-10-25, left to after 0.6.0 so that the release read the report as it was, decided with the user on 2026-10-24 from the full review's
 E.18 reading and the question what a Wirth report holds: the Pascal report defined files because
 Pascal had no modules, and the Modula-2 and Oberon reports hold the language alone, the library's
 modules documented apart with an authority of their own. Why it is worth its cost, asked again on
@@ -157,7 +102,7 @@ modules documented apart with an authority of their own. Why it is worth its cos
    With it CLAUDE.md's authority rule and `report/README.md` say what each file holds, and
    `docs/soundness.md` cites chapter 12 where it cited §8.4 and §8.7. After 0.6.0, so that the release
    reads the report as it is.
-2. **The build's cost per function measured.** Found 2026-10-25 by MVP 3.95's item 4: `ern build` of
+2. **The build's cost per function measured.** Found 2026-10-25 by the harness's audit: `ern build` of
    a module of 7000 functions takes 27 s, about 4 ms a function and growing about linearly, where
    `ern format` of the same module takes 1.1 s once the parser's name span stopped counting every
    remaining token (the log's *The Harness Counts a Test's Steps*). Measured against what the
@@ -165,6 +110,21 @@ modules documented apart with an authority of their own. Why it is worth its cos
    asks; fixed at its cause where one phase carries the cost, else the number recorded in the log
    and the item closed. After 0.6.0, since no program of that size is written and the release's
    bench holds the sizes programs have.
+3. **A nested group's child answering a peek from its old run.** Found 2026-10-25 by the release
+   review's last full run: `nested_group_restarts_in_place_test`, red once under the parallel
+   phase's load and green quiet, printed `[Restarted, Restarted] 0 1`, the second child answering
+   `Peek` with its old run's count after its service monitor had been told `Restarted`, which §6.9
+   says reaches the watcher before anything the new run takes. The shape of the fix: the race
+   placed in a test of the runtime's, by the order the nested group restarts its children in and
+   the moment each child's mailbox is emptied against the group's report, then the rule or the
+   code corrected; recorded in the log as it was found (*The Release Review Before 0.6.0*).
+4. **What the newcomer's feedback left.** Entries 165 to 169 of `docs/language_feedback.md`, the
+   release review's N-L1 to N-L5 of 2026-10-25: a request of named fields needing a lambda at every
+   call and a one-field constructor being no function, a test unable to wait until a `Down` is
+   handled, text built by `<>` chains, a planned fault printing in a test's output, and one field of
+   a record in a map changed by three operations. Each decided on the principles and recorded as the
+   file says, a report change, a library function or a line in the log; 165 and 167 were dropped
+   before as 146 and interpolation, and are read again only for what the newcomer added.
 
 ## MVP 4.0 (a shell attached to a running node), about a week
 
@@ -176,9 +136,7 @@ binding read is the node's, a process listed is the node's and a function called
 the wrapping; its `:processes` lists the node's processes, and its `:load` and `:reload` load and
 reload code on the node, as `erl -remsh` attaches to an Erlang node. Whether the shell's design, `docs/design/shell.md`, assumes it runs
 on the node whose code it evaluates is the proposal's first question, read against the note before
-anything is built. Nothing of
-it goes into 0.5.0, whose notes say what the shell does not yet do and that this milestone brings
-it.
+anything is built. Nothing of it is in 0.6.0.
 
 1. **The design**, discussed with the user first in `docs/proposals/shell/attached.md` (begun
    2026-10-13): `ern shell --attach dir` to the node of a directory on this machine and `ern shell

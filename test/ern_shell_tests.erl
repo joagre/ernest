@@ -2889,7 +2889,10 @@ reload_reaches_session_declarations() ->
 %% version's number, as its unit is named, so that `:processes` and the
 %% end's lines tell two versions' processes apart; the first version's
 %% site is the module's. A regression test, written after the fix (the
-%% log's *MVP 3.1 Read*): the two shared one site
+%% log's *MVP 3.1 Read*): the two shared one site. Each version's service
+%% is called before the end, since a spawned process subscribes after its
+%% spawn returns and the end counts the subscribers it finds (the release
+%% review before 0.6.0 found the second not yet subscribed under load).
 reload_version_sites_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun reload_version_sites/0).
 
@@ -2906,9 +2909,10 @@ reload_version_sites() ->
               end,
     ok = file:write_file(filename:join(Dir, "counter.ern"), Counter(1)),
     InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, [":load Counter\n",
+    Asked = "Address.call(Counter.service, fn(reply) = Counter.Get(reply = reply), 1000)\n",
+    ok = file:write_file(InputFile, [":load Counter\n", Asked,
                                      write_source(Dir, "counter.ern", Counter(2)),
-                                     ":reload\n:processes\n:quit\n"]),
+                                     ":reload\n:processes\n", Asked, ":quit\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
     [printed(Output, Line) || Line <- [<<"> Counter$2.service:5\nCounter.service:5\n">>,
                                        <<"the end waits for 2 subscribers: Counter.service:5,"
