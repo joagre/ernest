@@ -21,7 +21,7 @@ and what the lease broker found, and the release review, nine readers and the ma
 lines made in two rounds. It is the last milestone of the road planned on 2026-10-13, and no promise
 of stability is made: from 0.5.0 on a change to the language, the standard library or the libraries
 is driven by a need met in use and recorded as `docs/language_feedback.md` records one. MVP 3.95,
-what the review and 0.5.0 left, is under way, its first item done 2026-10-25; then the attached shell, ehttpd, the website, the shell's
+what the review and 0.5.0 left, is under way, its first item done 2026-10-25; then the report pared to the language, the attached shell, ehttpd, the website, the shell's
 second round and the back end (the log's *The Road to 1.0, Ordered*). A finished milestone is a row
 of the table below, its reasons in the log entries the row names.
 
@@ -69,14 +69,13 @@ of the table below, its reasons in the log entries the row names.
 | The full review's findings before 0.5.0 | the 218 lines of the review run over `1329d1d2`: 159 `fix` made in ten batches by area and an integration pass, 52 `decide` taken one at a time, 9 dropped; the service monitor and `demonitor` added to the language, `Reply.process` and `compare` over tuples, lists, `Optional` and `Either` to the library, each with its page and its test | 2026-10-24 | | *The Review's Fixes, First Round*, *The Runtime's Note States No Why*, *The Review's Decisions*; `findings.md` as it stood at `08997105` |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program, the counter, grown through eight chapters from a process with a typed mailbox, through the same counter on a peer that holds none of its code, to its move to new code there, where the deployment guide takes over; with it a README for `report/` and for `guide/`, the README's three ways in, the guide's taste of the rest, and the path read by a fresh reader and the two skeptics | 2026-10-24 | | *The Tour*, *The Tour, Shorter*, *What the Outline Asked*, *The Skeptics' Read*, *What the Skeptics Found*, *The Tour's Programs, Built*, *The Tour Written*; the outline, `docs/proposals/tour/` as it stood at `688ffa03` |
 | MVP 3.9 | the review, and Ernest 0.5.0: the nodes' and the code's design notes, the proposals built by then swept, the full review and its findings, the process-only mark narrowed and a wrap's `self` its recipient's, what the lease broker found, the release review and Ernest 0.5.0, a release with no promise of stability | 2026-10-25 | tag `v0.5.0` | *MVP 3.9 Weighed*, *The Nodes' and the Code's Notes*, *The Design Notes Leave the Proposals*, *The Full Review Before 0.5.0*, *The Review's Fixes, First Round*, *The Review's Decisions*, *The Process-Only Mark Marks a Wait*, *A Wrap's `self` Is Its Recipient's*, *Two Nodes Tests Take the Fault's Line*, *One Name for Every Order*, *The Shell's End Writes What It Was Told*, *A Restart Empties Before It Tells*, *A Member Has One Face*, *The Release Review Before 0.5.0*; `findings.md` as it stood at `105fb3fc` |
-| MVP 3.95 | what the review and 0.5.0 left: the release review read back, the service monitor across nodes decided, the report pared to the language, the harness counting a test's steps, the review round's method with an owner, the site proposal's sitting, the first fault's cost measured, and a release, 0.5.1 or 0.6.0 as the service monitor's decision leaves the protocol | made 2026-10-24; the first milestone after 0.5.0 | | below |
+| MVP 3.95 | what the review and 0.5.0 left: the release review read back, the service monitor across nodes decided, the harness counting a test's steps, the review round's method with an owner, the site proposal's sitting, the first fault's cost measured, and a release, 0.5.1 or 0.6.0 as the service monitor's decision leaves the protocol | made 2026-10-24; the first milestone after 0.5.0 | | below |
+| MVP 3.96 | the report pared to the language: `language.md` holds what decides what a program means, the runtime's mechanism a chapter of its own at the end of `toolchain.md`, chapter 12, and §10 moved whole with its number; every citation of a moved paragraph redirected | made 2026-10-25 from MVP 3.95's item 3; after 0.6.0 | | below |
 | MVP 4.0 | a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches | made 2026-10-13 from MVP 4.3's item 4 | | below |
 | MVP 4.1 | ehttpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | | | below |
 | MVP 4.2 | the website, served by ehttpd: what Ernest is, its characteristics, the three doors, and a live shell in the browser | | | below |
 | MVP 4.3 | the shell's second round | | | below |
 | MVP 4.4 | after 0.5.0: a back end to BEAM's own instructions, Ernest's types as the loader's typed registers | a proposal first | | below |
-
----
 
 ---
 
@@ -98,21 +97,8 @@ in the order to do them, the word 0.5.0 ships decided before §8.7's text moves.
    moving; the nodes' and the runtime's notes and the frames test following; and the decision's
    two-node program, a restarting worker on one node faulted by its watcher on another, as the
    regression test (feedback 161, from the lease broker example).
-3. **The report pared to the language.** Decided with the user on 2026-10-24, from the full review's
-   E.18 reading and the question what a Wirth report holds: the Pascal report defined files because
-   Pascal had no modules, and the Modula-2 and Oberon reports hold the language alone, the library's
-   modules documented apart with an authority of their own. `language.md` keeps what decides what a
-   program means, §0 to §7, §8's rules, §9 and Appendix A; what says how the runtime does it or what
-   a module does moves, each to its owner, `toolchain.md` for the runtime's promises and
-   `library.md` for the modules: §8.7's machinery beyond a page, the floor, the keys, the frames,
-   the exchange, the reach and the utilization measure; §8.2's system modules, one sentence staying,
-   that a process the runtime starts has an owner and a message type foreign code holds; §8.4's ABI
-   table, the host binding, `foreign fn` staying as the door; §7.4's catalog of fault texts; §10's
-   costs, which §0's principle 5 then points at; and §8.6's mechanism, its rule staying. With it
-   CLAUDE.md's authority rule makes the three documents each binding for its own, `report/README.md`
-   says so, and `docs/soundness.md` cites the toolchain's document where it cited §8.4 and §8.7.
-   Written after 0.5.0, so that the release reads the report as it is; the log's entry argues it
-   then.
+3. **The report pared to the language**, MVP 3.96's, after 0.6.0, so that the release reads the
+   report as it is (the log's *The Report Pared After 0.6.0*).
 4. **The harness counts a test's steps.** Decided with the user on 2026-10-24 from the full review's
    C6-C8 and C6-C10b: about sixty nodes tests give a bare `{waits, N}` nothing checks, the machine
    tests' own waits have no bound, and the shell's tests bound themselves two ways, seven in counted
@@ -162,6 +148,31 @@ in the order to do them, the word 0.5.0 ships decided before §8.7's text moves.
    `make test-full` runs `make dialyzer`, 27 s, so that a warning is met at its item's commit, and
    the release review's machines are five; the fresh clone builds the PLT once, a cost the next
    review measures.
+
+## MVP 3.96 (the report pared to the language), after 0.6.0, about three days
+
+Made on 2026-10-25 from MVP 3.95's item 3, decided with the user on 2026-10-24 from the full review's
+E.18 reading and the question what a Wirth report holds: the Pascal report defined files because
+Pascal had no modules, and the Modula-2 and Oberon reports hold the language alone, the library's
+modules documented apart with an authority of their own. Why it is worth its cost, asked again on
+2026-10-25, is the log's *The Report Pared After 0.6.0*.
+
+1. **The report pared.** `language.md` keeps what decides what a program means, §0 to §7, §8's
+   rules, §9 and Appendix A; what says how the runtime does it or what a module does moves, each to
+   its owner, `toolchain.md` for the runtime's promises and `library.md` for the modules: §8.7's
+   machinery beyond a page, the floor, the keys, the frames, the exchange, the reach and the
+   utilization measure; §8.2's system modules, one sentence staying, that a process the runtime
+   starts has an owner and a message type foreign code holds; §8.4's ABI table, the host binding,
+   `foreign fn` staying as the door; §7.4's catalog of fault texts; §10's costs, which §0's
+   principle 5 then points at; and §8.6's mechanism, its rule staying. The moved mechanism is a new
+   chapter at the end of `toolchain.md`, chapter 12, the runtime, a section for each mass, and §10 moves
+   whole and keeps its number, since a chapter is one file's or another's; no section is renumbered.
+   The paring is the session's work; an agent then redirects every citation of a moved paragraph,
+   in the Erlang, the tests, the Ernest and the documents, from a table of moved paragraph to new
+   number, the citations of a rule standing, and `make sections` demands each new section's test.
+   With it CLAUDE.md's authority rule and `report/README.md` say what each file holds, and
+   `docs/soundness.md` cites chapter 12 where it cited §8.4 and §8.7. After 0.6.0, so that the release
+   reads the report as it is.
 
 ## MVP 4.0 (a shell attached to a running node), about a week
 
