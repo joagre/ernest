@@ -129,7 +129,7 @@ in the order to do them, the word 0.5.0 ships decided before §8.7's text moves.
    and the number is the log's (*The First Fault's Cost*).
 8. **A monitor asked by an old run's delivery after the restart's `new_run`**, done 2026-10-25
    (the log's *A Restart Told Across Nodes, Built*): the clock and the terminal take a restart
-   before the reaper. A teller's late delivery remains, as the item said; item 12 closes it.
+   before the reaper; item 12 closed the teller's late delivery.
 9. **The member regime's missing test**, done 2026-10-25: the checker's
    `module_level_compare_gives_no_ordering_test`, from before the prelude's `compare`, sharpened to
    hold that a module's own bare `fn compare` hides the prelude's whatever its type and gives the
@@ -142,15 +142,10 @@ in the order to do them, the word 0.5.0 ships decided before §8.7's text moves.
    `make test-full` runs `make dialyzer`, 27 s, so that a warning is met at its item's commit, and
    the release review's machines are five; the fresh clone builds the PLT once, a cost the next
    review measures.
-12. **The teller's late delivery**, decided with the user on 2026-10-25 (the log's *The Teller's Late
-   Delivery*): a delivery an end's teller starts after the reaper has answered a restart reaches the
-   new run, and a monitor its wrap asks for stands there, against §6.9's rule that the new run begins
-   with nothing of the old; the same class of hole as item 8, which 0.6.0 does not ship. The delivery
-   reads its subscription's row for the end's telling after it has written its own row and before it
-   delivers, and delivers nothing to a run the end has not told; the argument that the reaper's order
-   makes the check exact goes to the log with the build, and the runtime's note's restart steps say
-   so. Built by an agent with item 4, by 2026-10-31; a test where one can be placed, else the reason
-   in the log.
+12. **The teller's late delivery**, done 2026-10-25 (the log's *The Teller's Late Delivery* and *The
+   Teller's Late Delivery, Built*): a teller's delivery reads its subscription's row before it
+   delivers and delivers nothing to a run a restart has left (report §6.9, §8.6); the race placed by
+   `teller_after_the_restart_test`.
 
 ## MVP 3.96 (the report pared to the language), after 0.6.0, about three days
 

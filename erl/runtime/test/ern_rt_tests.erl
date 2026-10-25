@@ -940,8 +940,8 @@ service_monitor_canceled_test() ->
 %% messages being its own, and under the old order this test passes too,
 %% the reaper ending the delivery as it took the restart. It does not cover
 %% the terminal's delivery, which takes the restart beside the clock, nor a
-%% delivery of an end's teller, which no restart asks and whose monitor
-%% still stands (the runtime's note's *A call, a restart, a kill*)
+%% delivery of an end's teller, which no restart asks and which
+%% teller_after_the_restart_test covers
 monitor_asked_as_restart_waits_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -2194,6 +2194,82 @@ spinning_wrap_ends_with_its_subscriber_test() ->
     ?assertEqual(ok, Outcome),
     ?assertEqual([<<"the end waits for 1 subscriber: Main.subscriber:2">>,
                   <<"the subscriber Main.subscriber:2 ended without answering">>], said()).
+
+%% report §6.9, §8.6, §11.2: a restart cancels the subscription to the
+%% program's end "with what is on its way to it", so the end's telling,
+%% whose delivery begins once the reaper has taken the subscriber's restart,
+%% delivers nothing to the new run, the wrap never applied, and the end
+%% goes on without an answer, the runtime saying that the subscriber
+%% restarted without answering. The race is placed: the reaper is held
+%% suspended while the subscriber's restart asks it to take the run and
+%% the termination is told, so that the teller's ask for its monitor of
+%% the subscriber, which it makes before it starts its delivery, comes
+%% after the restart's in the reaper's mailbox, and the delivery's row is
+%% written after the reaper has read the deliveries to the subscriber.
+%% Written with the fix (MVP 3.95's item 12): under the old code the
+%% delivery applied the wrap in the new run, which held the reply and did
+%% not answer, and the end waited for it until the test's timeout. Whether
+%% the teller's word comes from its delivery or from the restart's end of
+%% the calls waiting on the subscriber is the host's scheduling, and the
+%% test holds either; a
+%% delivery the reaper's read finds is the old order's, which
+%% monitor_asked_as_restart_waits_test covers for the clock
+teller_after_the_restart_test() ->
+    Self = self(),
+    Holder = spawn(fun() -> held_restart(Self) end),
+    Outcome = ern_rt:run_main(
+                fun() ->
+                    Zero = zero(),
+                    Run = fun() ->
+                              case get(runs) of
+                                  undefined ->
+                                      put(runs, 1),
+                                      Wrap = fun(Reply) -> Self ! applied, {told, Reply} end,
+                                      ern_rt:termination(ern_rt:adapted(ern_rt:self(), Wrap)),
+                                      Holder ! {subscribed, erlang:self()},
+                                      receive crash -> 1 div Zero end;
+                                  1 ->
+                                      receive never -> ok end
+                              end
+                          end,
+                    _ = ern_rt:spawn(ern_rt:restarting('Unlimited', Run), <<"Main.main:4">>),
+                    receive never -> ok end
+                end, <<"main">>, #{stdout => fun(_) -> ok end, faults => fun(_, _) -> ok end,
+                                   say => fun(Line) -> Self ! {said, iolist_to_binary(Line)} end}),
+    ?assertEqual({signal, sigterm}, Outcome),
+    receive {delivery_ended, Holder} -> ok end,
+    ?assertEqual(none, receive applied -> applied after 0 -> none end),
+    ?assertEqual([<<"the end waits for 1 subscriber: Main.main:4">>,
+                  <<"the subscriber Main.main:4 restarted without answering">>], said()).
+
+%% The subscriber's restart taken by the reaper before the end's teller
+%% asks it for anything, in teller_after_the_restart_test, Runner being
+%% the test's process, which runs the program: the reaper suspended, the
+%% subscriber faulted until its restart has asked the reaper, the
+%% termination told, and the reaper resumed once the teller has started;
+%% then the teller's delivery waited for to its end.
+held_restart(Runner) ->
+    Subscriber = receive {subscribed, Pid} -> Pid end,
+    Reaper = ern_rt:launch_reaper(),
+    erlang:suspend_process(Reaper),
+    erlang:trace(Subscriber, true, [send]),
+    Subscriber ! crash,
+    receive {trace, Subscriber, send, {new_run, _, _}, Reaper} -> ok end,
+    erlang:trace(Subscriber, false, [send]),
+    erlang:trace(Runner, true, [procs]),
+    ok = ern_rt:signal(sigterm),
+    Teller = spawned_by(Runner),
+    erlang:trace(Runner, false, [procs]),
+    erlang:trace(Teller, true, [procs]),
+    erlang:resume_process(Reaper),
+    Delivery = spawned_by(Teller),
+    MonitorRef = erlang:monitor(process, Delivery),
+    receive {'DOWN', MonitorRef, process, Delivery, _} -> ok end,
+    Runner ! {delivery_ended, erlang:self()}.
+
+%% The next process Parent spawns, which a trace of its processes shows.
+spawned_by(Parent) ->
+    receive {trace, Parent, spawn, Child, _} -> Child end.
 
 %% The lines the end said, in the order it said them.
 said() ->

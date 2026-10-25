@@ -136,8 +136,9 @@
 -define(FAULTS, ern_faults).
 %% Appendix E.23: each subscription to the program's end, {Subscriber,
 %% Address, Told}, by the subscriber, the latest of each, which the end
-%% reads; Told says whether the end has told the subscriber's run, and goes
-%% with the row at a restart (report §6.9)
+%% reads; Told is false until the end tells the subscriber's run, and then
+%% the reference of that telling, which the telling's delivery reads
+%% (told_run/4), and goes with the row at a restart (report §6.9)
 -define(TERMINATING, ern_terminating).
 %% report §8.6: what a system process, a listener, a socket or a running
 %% program holds that can still deliver, {{source, Holder}, Count}, and the
@@ -1410,8 +1411,9 @@ monitored(Pid, Caller, From, Monitor, Ref, Reaper) ->
 %% as Caller's, which Caller's restart cancels: the clock and the terminal
 %% take a restart, ending their deliveries to the process, before the
 %% reaper takes it (fresh_run/0), so that no delivery of theirs asks for a
-%% monitor once the reaper has taken it; a delivery an end's teller starts
-%% after that may, and its monitor stands into the new run.
+%% monitor once the reaper has taken it; and a delivery an end's teller
+%% starts after that applies no wrap, the subscription it was to tell
+%% having gone with the restart (told_run/4).
 monitor_asked(Pid, Caller, Caller, Monitor, Reaper) ->
     monitor_stood(Pid, Caller, Monitor, Reaper);
 monitor_asked(Pid, Caller, From, Monitor, Reaper) ->
@@ -1517,10 +1519,13 @@ demonitored(Pid, Caller, From, Ref, #reaper{monitors = Monitors, monitoring = Mo
 %% Report §6.9: a restarted process's monitors and its subscriptions to
 %% faults and to the program's end are canceled, with what is on its way
 %% to it; the monitors of it stand, since a restart is not a death. The
-%% process is answered, and once it has emptied its mailbox and ended the
-%% calls waiting on it, it asks for its service monitors to be told
-%% (tell_service_monitors/0). A subscription to the end its new run makes
-%% is a new one, which the end tells if it waits (told/3).
+%% subscriptions go before the deliveries to the process are read, so that
+%% a delivery of the end's telling this read does not find finds its
+%% subscription gone (told_run/4). The process is answered, and once it has
+%% emptied its mailbox and ended the calls waiting on it, it asks for its
+%% service monitors to be told (tell_service_monitors/0). A subscription to
+%% the end its new run makes is a new one, which the end tells if it waits
+%% (told/3).
 new_run(Pid, Ref, Reaper) ->
     ets:delete(?FAULTS, Pid),
     ets:delete(?TERMINATING, Pid),
@@ -2149,8 +2154,9 @@ faults(Address) ->
 %% program's end, Address being the caller seen through its wrap. A process
 %% holds one subscription, the latest, which ends when it dies or restarts
 %% (died/6, new_run/3); a later one in the same run takes the place of the
-%% first and keeps whether the end has told the run. One made while the end
-%% waits is told at once: the runner that waits is told of it, and tells it.
+%% first and keeps the end's telling of the run, where the end has told it.
+%% One made while the end waits is told at once: the runner that waits is
+%% told of it, and tells it.
 -spec termination(address()) -> 'Unit'.
 termination(Address) ->
     Subscriber = process_of(Address),
@@ -3412,7 +3418,7 @@ told(Outcome, Launch, Say) ->
                 _ -> told(Outcome, Launch, Say)
             end;
         Untold ->
-            Sites = [Site || {_, _, _, Site} <- Untold],
+            Sites = [Site || {_, _, Site} <- Untold],
             Say(["the end waits for ", counted(Sites), ": ", lists:join(", ", Sites)]),
             waited(Outcome, Launch, Say, tell_all(Launch, Untold, #{}), terminations(Outcome))
     end.
@@ -3488,19 +3494,23 @@ subscription(Subscriber) ->
 
 %% The subscribers of Subscriptions not told yet: each live process the
 %% runtime started whose run the end has not told and that is not waited
-%% for, with its spawn order, its address and its spawn site, in the order
-%% the processes were spawned.
+%% for, with its spawn order and its spawn site, in the order the processes
+%% were spawned.
 untold(Subscriptions, Waiting) ->
-    lists:sort([{Order, Subscriber, Address, Site}
-                || {Subscriber, Address, false} <- Subscriptions,
+    lists:sort([{Order, Subscriber, Site}
+                || {Subscriber, _, false} <- Subscriptions,
                    not is_map_key(Subscriber, Waiting),
                    [#process_row{site = Site, spawn_order = Order}]
                        <- [ets_lookup(?PROCESSES, Subscriber)]]).
 
-%% Each of them told, by a teller of its own, and its run marked told, so
-%% that no later read tells it again. A row gone since the read, by its
-%% process's end or restart, is told all the same, the teller's call ending
-%% as any call to that process would. Report §6.9, §8.6: a teller has the
+%% Each of them told, by a teller of its own, and its run marked told by
+%% the telling's reference, so that no later read tells it again and the
+%% telling's delivery reads whether the run it tells is the subscriber's
+%% still (told_run/4). A row gone since the read, by its process's end or
+%% restart, has a teller all the same, whose delivery delivers nothing, so
+%% that the end hears of the end or the restart as of any subscriber's; a
+%% row the subscriber's new run has written since is the one marked, and
+%% that run is told. Report §6.9, §8.6: a teller has the
 %% subscriber's wrap applied by a delivery of its own (tell/4), and the
 %% reaper holds it as it holds a delivery (reaper_held/2), so that its end
 %% ends nothing else and it ends with the program; the runner monitors it,
@@ -3508,10 +3518,11 @@ untold(Subscriptions, Waiting) ->
 tell_all(Launch, Untold, Waiting) ->
     Runner = erlang:self(),
     Reaper = launch_reaper(),
-    lists:foldl(fun({Order, Subscriber, Address, Site}, Acc) ->
-                    _ = ets:update_element(?TERMINATING, Subscriber, {3, true}),
+    lists:foldl(fun({Order, Subscriber, Site}, Acc) ->
+                    Told = make_ref(),
+                    _ = ets:update_element(?TERMINATING, Subscriber, {3, Told}),
                     Teller = reaper_held(Reaper, fun() ->
-                                                     tell(Runner, Launch, Subscriber, Address)
+                                                     tell(Runner, Launch, Subscriber, Told)
                                                  end),
                     MonitorRef = erlang:monitor(process, Teller,
                                                 [{tag, {teller, Launch, Subscriber}}]),
@@ -3522,7 +3533,7 @@ tell_all(Launch, Untold, Waiting) ->
 %% Report §11.2: subscribers told once the wait has been said, each said
 %% as it is told.
 tell_late(Launch, Say, Untold, Waiting) ->
-    lists:foreach(fun({_, _, _, Site}) -> Say(["the end waits for ", Site, " too"]) end, Untold),
+    lists:foreach(fun({_, _, Site}) -> Say(["the end waits for ", Site, " too"]) end, Untold),
     tell_all(Launch, Untold, Waiting).
 
 %% Report §11.2: how many subscribers the sites name.
@@ -3531,12 +3542,14 @@ counted(Sites) -> [integer_to_list(length(Sites)), " subscribers"].
 
 %% Report §8.6: a subscriber told, `wrap(reply)` delivered to it as a
 %% monitor's Down is, the reply's process the teller, which waits on it
-%% (§6.6), by a delivery of its own that the teller starts and
-%% holds (counted_link/2), a fault in the wrap the subscriber's (§6.5); the
-%% call noted first, since the wrap's own calls are the delivery's. The
-%% answer is waited for as a caller waits for its callee's, which the
-%% subscriber's end or its restart ends (§6.6, §6.9), and either ends the
-%% delivery (abandoned/1), one whose wrap does not finish among them.
+%% (§6.6), by a delivery of its own that the teller starts and holds
+%% (counted_link/2), which delivers where the run Told marks is the
+%% subscriber's still (told_run/4), a fault in the wrap the
+%% subscriber's (§6.5); the call noted first, since the wrap's own calls
+%% are the delivery's. The answer is waited for as a caller waits for its
+%% callee's, which the subscriber's end or its restart ends (§6.6, §6.9),
+%% and either ends the delivery (abandoned/1), one whose wrap does not
+%% finish among them, or the delivery finds the run left.
 %% Report §11.2: its end is learned by the runtime's monitor, whose Down the
 %% reaper gives once it has reported the subscriber's fault, so that the
 %% fault's line comes before the line that it ended without answering; a
@@ -3547,8 +3560,8 @@ counted(Sites) -> [integer_to_list(length(Sites)), " subscribers"].
 %% ends, and its monitor goes with it, as the reaper that holds it sees it
 %% end (held_ended/3), so that a subscriber that restarts at each telling
 %% is told by a teller each time.
-tell(Runner, Launch, Subscriber, Address) ->
-    {Callee, Reply} = watched(Address),
+tell(Runner, Launch, Subscriber, Told) ->
+    {Callee, Reply} = watched(Subscriber),
     Ended = make_ref(),
     monitor(Subscriber, fun(_Down) -> Ended end),
     pending(Callee, Reply),
@@ -3556,7 +3569,7 @@ tell(Runner, Launch, Subscriber, Address) ->
     %% deliveries' (undelivered/2)
     erlang:process_flag(trap_exit, true),
     Teller = erlang:self(),
-    Delivery = counted_link(Address, fun() -> deliver(Address, {Reply, Teller}) end),
+    Delivery = counted_link(Subscriber, fun() -> told_run(Subscriber, Told, Reply, Teller) end),
     How = told_how(Reply, Ended, Delivery),
     settled(Reply),
     case How of
@@ -3566,13 +3579,15 @@ tell(Runner, Launch, Subscriber, Address) ->
 
 %% How the subscriber was told, or none where its delivery was killed
 %% before it arrived. A delivery that ended as it delivered, or that the
-%% subscriber's end or restart ended, is followed by the word. The
-%% reaper's end, which ends the run, ends the teller.
+%% subscriber's end or restart ended, is followed by the word, and one that
+%% found the run it was to tell left by a restart gives it (told_run/4).
+%% The reaper's end, which ends the run, ends the teller.
 told_how(Reply, Ended, Delivery) ->
     receive
         {Reply, answered, _} -> <<"answered">>;
         {Reply, _} -> <<"answered">>;
         {Reply, restarted, _} -> <<"restarted without answering">>;
+        {left_run, Reply} -> <<"restarted without answering">>;
         Ended -> <<"ended without answering">>;
         {'EXIT', Delivery, ExitReason} ->
             case undelivered(Delivery, ExitReason) of
@@ -3581,6 +3596,36 @@ told_how(Reply, Ended, Delivery) ->
             end;
         {'EXIT', _Reaper, ExitReason} ->
             exit(ExitReason)
+    end.
+
+%% Report §6.9, §8.6: the end's telling delivered by the teller's delivery,
+%% `wrap(reply)` through the address of the subscriber's subscription, the
+%% latest of its run (Appendix E.23), where the subscription's row holds
+%% Told still, the run the end told being the subscriber's; and nothing
+%% delivered where the row holds another telling or none, the run told
+%% having been left, since a restart cancels the subscription "with what is
+%% on its way to it" (§6.9). Where the subscriber lives the row went by a
+%% restart, its end taking it only once the process has died (died/6), and
+%% the teller is told, since a restart that read its callers before the
+%% teller's call was noted tells it nothing (restarted/1); where it has
+%% died, the teller's monitor tells it (tell/4).
+%%
+%% The check is exact by the order the reaper takes a restart in
+%% (new_run/3): it deletes the subscription's row, then reads the
+%% deliveries to the process and ends each, then answers. This delivery's
+%% row is written before it is let go (counted_link/3), so before this
+%% read. Either the reaper's read came after the delivery's row was
+%% written, and the delivery had ended or ends with the old run, what it
+%% placed in the mailbox the restart empties and what it asked for
+%% canceled or refused (monitor_asked/5); or the row was written after
+%% that read began, so after the subscription's row went, and this read
+%% finds no row or one the new run wrote, which holds false or a later
+%% telling. A row that holds Told here is one no restart has deleted
+%% yet, and the restart that deletes it then finds this delivery's row.
+told_run(Subscriber, Told, Reply, Teller) ->
+    case subscription(Subscriber) of
+        [{_, Address, Told}] -> deliver(Address, {Reply, Teller});
+        _ -> erlang:is_process_alive(Subscriber) andalso (Teller ! {left_run, Reply})
     end.
 
 %% Where an Os.exit or a second termination cuts the wait short: the
@@ -4150,10 +4195,10 @@ restarts(F, Allowed, Times, Level) ->
 %% once each of them has answered, so that a monitor a delivery of the
 %% clock's or the terminal's asked for is canceled with the process's own,
 %% or never made where the delivery had ended (monitor_asked/5); each is
-%% monitored, so that one that has died holds up no restart. A delivery an
-%% end's teller starts once the reaper has answered reaches the new run,
-%% and what it asks for stands there, since no teller is asked at a
-%% restart (tell/4).
+%% monitored, so that one that has died holds up no restart. No end's
+%% teller is asked: a delivery a teller starts once the reaper has answered
+%% finds the subscription it was to tell gone, and delivers nothing to the
+%% new run (told_run/4).
 fresh_run() ->
     %% report §8.6: an answer on its way from a system process is no
     %% message the look sees in flight, and a delivery waited for is a
