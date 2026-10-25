@@ -10,7 +10,7 @@ What a release runs to be ready, and nothing else. Between releases a change run
    - `make sections`, which names a section of the report no test cites, and names only a section of a milestone not yet built, which that milestone's item names;
    - and `make bench`, three runs with the machine idle, the median of each row's ratio to Erlang's no worse than the rows the log last recorded, which the log's entry for this review then holds; then, over the release's commit, `make bench-release`, which keeps the last of its three as the release's run, the second reference every later run is compared with.
 3. **The readers** of [`full_review.md`](full_review.md), run as it runs them, with its briefs:
-   - **The report:** P, the principles, and K, the cold reader, each on its model (*The models*).
+   - **The report:** P, the principles, and K, the cold reader, each on its model (*The models*); over the report's diff since the last release where a review read the report whole within it, and over the whole report otherwise, as [`full_review.md`](full_review.md) reads an area a release review read whole (the log's *The Report's Readers Read the Diff*).
    - **A newcomer:** N, with a program no earlier newcomer wrote.
    - **The skeptics:** L and M, the Erlang and the Gleam programmer, over `README.md`, `guide/why.md`, the tour and `guide/faq.md`, and the guide's chapters that changed since the last release.
    - **The code:** C, E and S as one reader, over what changed in `erl/`, `src/stdlib/`, `src/shell/` and `src/libs/` since the last release, or since the last full review where that is later.
