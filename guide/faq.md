@@ -4,11 +4,11 @@ The questions a reader of [*Programming in Ernest*](language.md) brings, each an
 
 **It looks like Gleam. What differs?**
 
-The types are the same family, Hindley-Milner as ML has it, which Gleam made ordinary on the Erlang runtime, and made well, in semantics and in syntax. Ernest owes Gleam its look: `fn`, the pipe `|>`, the update `Con(..x, f = v)` and foreign declarations as the one door to Erlang follow it, its line comment was taken outright, and every other form of Gleam's was weighed against the design principles of report §0 and left out where it only gave a shorter way to write what the language already says (the guide's §11).
-
-In Ernest the process is the language, where Gleam's typed messaging is a library over the runtime's processes, well made too. What differs is how far the types reach: a function that receives names its mailbox's type, a `receive` reads only the mailbox of its own process, the one that type names, and `spawn`, `monitor` and `Address.call` are the prelude's, what every module sees without naming a module, so the compiler sees all of them (the guide's §4).
+The process is the language, where Gleam's typed messaging is a library over the runtime's processes, well made too. What differs is how far the types reach: a function that receives names its mailbox's type, a `receive` reads only the mailbox of its own process, the one that type names, and `spawn`, `monitor` and `Address.call` are the prelude's, what every module sees without naming a module, so the compiler sees all of them (the guide's §4).
 
 Being the language buys what a library cannot: the function's type says which mailbox it runs in, so `spawn` types the address from the function and refuses the function for a mailbox of another type, where a `Subject` is a value a process makes and hands out.
+
+What is the same is the types, Hindley-Milner as ML has it, which Gleam made ordinary on the Erlang runtime, and made well, in semantics and in syntax, and the look, which Ernest owes Gleam: `fn`, the pipe `|>`, the update `Con(..x, f = v)` and foreign declarations as the one door to Erlang follow it, its line comment was taken outright, and every other form of Gleam's was weighed against the design principles of report §0 and left out where it only gave a shorter way to write what the language already says (the guide's §11).
 
 Nodes are the language too: a node lists its peers by their public keys, a spawn on a peer sends it the definitions it lacks, each known by a hash of its content, and a module keeps every version it has had (the guide's §8, report §8.7, report §11.2). A function generic in a type names what it needs of that type, `needs a.compare` (the guide's §7.3).
 

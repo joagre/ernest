@@ -2,9 +2,7 @@
 
 The argument for the design, in six claims, four of them with a program, one with its configuration file and one with the report. [*Programming in Ernest*](language.md), the guide, teaches the language; this document says why it is as it is.
 
-Ernest is a small functional language for concurrent programs, on the Erlang runtime. A program is functions, whose types the compiler infers, and processes that talk through typed mailboxes. `ern` is its one command, which builds, runs and tests a program and opens its shell.
-
-Its parts come from elsewhere: Erlang's processes, the types of ML, which Gleam made ordinary on that runtime, and Unison's small core and its code known by the hash of its definition.
+Ernest is a small functional language for concurrent programs, on the Erlang runtime. A process receives messages of one type, which the compiler checks every send against, and a process started on another node brings its code along: nothing is installed there first. `ern` is its one command, which builds, runs and tests a program and opens its shell.
 
 What Ernest adds is where the parts meet:
 
@@ -14,6 +12,8 @@ What Ernest adds is where the parts meet:
 - **Abstract types and requirements.** A type declared abstract keeps its constructor to its own module, so the representation can change and no caller knows. A generic function names the operations it needs of its type, and the compiler supplies that type's own at each call. Nothing is declared an instance of anything: a type's members are declared in its own module, a requirement is written and never inferred, and the members are a closed set no program adds to, which is what sets a requirement apart from a class.
 - **A deadlock is found.** A program in which every process waits for a message none can send ends with a fault and a trace, where the host would wait forever. The runtime owns every source of a message, a typed mailbox, a process it spawned, a timer or a socket, which it counts, but for a delivery foreign code arranges for after its call has returned, so it can decide that nothing can deliver, under `ern run` and `ern test`; a node, which its peers can reach, detects none, and nor does the shell while it holds the terminal. Finding one costs a running program almost nothing.
 - **Little else.** Functions and processes are the whole language, with one way to do each thing. A report of three files defines all of it. Five principles decide what goes in, and the first is that nothing surprises a reader who knows the rest.
+
+Its parts come from elsewhere: Erlang's processes, the types of ML, which Gleam made ordinary on that runtime, and Unison's small core and its code known by the hash of its definition.
 
 Ernest is for programs written in it from the start. An Ernest program is not an OTP application, and its own code is Ernest: what ships with Erlang/OTP, and any library of the host's, a package from hex among them, is reached through declarations that give it Ernest types, which a program may write for itself. What an OTP programmer finds in place of each part, the supervisor, the release and `sys` among them, is the guide's §10 and [the questions](faq.md).
 

@@ -34,7 +34,7 @@ Beside the guide: [Why Ernest](why.md), the argument for the design, and [Freque
 
 ## 0. What the compiler refuses
 
-Ernest is a functional language for concurrent programs, built on two ideas. A function computes a value from its arguments, and the compiler infers its type. A process runs a function and receives messages of one type in its mailbox, and processes are how a program acts on the world. A function that receives says so in its type, and runs only in a process whose mailbox takes what it receives. Every other rule says how the two appear in each other's code.
+A process receives messages of one type, which the compiler checks every send against, and a process started on another node brings its code along: nothing is installed there first. Ernest is a functional language for concurrent programs, built on two ideas. A function computes a value from its arguments, and the compiler infers its type. A process runs a function and receives messages of one type in its mailbox, and processes are how a program acts on the world. A function that receives says so in its type, and runs only in a process whose mailbox takes what it receives. Every other rule says how the two appear in each other's code.
 
 The rules let the compiler find, before the program runs, the mistakes concurrent programs are prone to. Two follow, each as a program and what `ern build`, the compiler, says about it.
 
