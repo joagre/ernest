@@ -14,19 +14,16 @@ and a feature declined in a dated entry of the log; nothing stands between.
 
 ## Where we are
 
-**MVP 3.2 is done**, and Ernest 0.4.0 is released, the tag `v0.4.0` of 2026-10-18 (the log's *The
-Release Review Before 0.4.0*). Its items 1 to 10 were code crossing with a spawn, the bare node,
-`Code`, the pick, the deployment guide and the repository laid out again, and its item 11 the
-release. MVP 3.26, two subtractions from the type system, is done (2026-10-16), and so are the
-tools' five speed changes and the programs tests' defects.
-MVP 3.27, the measurements across machines, is done (2026-10-21), and so are MVP 3.28, what stood
-before the tour, and MVP 3.29, the bookkeeping behind §8.6 and the foreign call (2026-10-22). MVP 3.295,
-what the language measurement found, is done the same day. MVP 3.296, what the tour's outline asked, is done (2026-10-23), and MVP 3.3, the tour, is done
-(2026-10-24): `tour/` holds the document and its eight programs, read by a fresh reader and the two
-skeptics. The road to 0.5.0 is MVP 3.9 the review; MVP 3.95, what the review and
-0.5.0 left, then the attached shell, ehttpd,
-the website, the shell's second round and the back end follow 0.5.0 (the log's *The Road to 1.0, Ordered*, its end set at 0.5.0 on 2026-10-13). A
-finished milestone is a row of the table below, its reasons in the log entries the row names.
+**MVP 3.9 is done**, and Ernest 0.5.0 is released, the tag `v0.5.0` of 2026-10-25 (the log's *The
+Release Review Before 0.5.0*): the nodes' and the code's design notes, the proposals built by then
+swept, the full review of 2026-10-24 and its 218 findings worked the same day, the member regime
+and what the lease broker found, and the release review, nine readers and the machines, its 191
+lines made in two rounds. It is the last milestone of the road planned on 2026-10-13, and no promise
+of stability is made: from 0.5.0 on a change to the language, the standard library or the libraries
+is driven by a need met in use and recorded as `docs/language_feedback.md` records one. MVP 3.95,
+what the review and 0.5.0 left, is next; then the attached shell, ehttpd, the website, the shell's
+second round and the back end (the log's *The Road to 1.0, Ordered*). A finished milestone is a row
+of the table below, its reasons in the log entries the row names.
 
 ---
 
@@ -71,7 +68,7 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 3.296 | what the tour's outline asked: a restart runs the function it was given, stated in §6.9 and the deployment guide, with the guide's sentence that a binding is its node's own; `ern config --listen` and `--peer-dir dir`; the Erlang and the Gleam programmer reading `why.md` and `faq.md`, and every guide read for a word used before it is said; two messages the tour's spike found wanting; and the runtime's own frames out of a designed fault's trace | 2026-10-23 | | *What the Outline Asked*, *Two Nodes on One Machine, Built*, *The Skeptics' Read*, *What the Skeptics Found*, *The Hash's Parents*, *Two Messages, and the Runtime's Frames Weighed Again*; `findings.md` as it stood at `fd5b361c` |
 | The full review's findings before 0.5.0 | the 218 lines of the review run over `1329d1d2`: 159 `fix` made in ten batches by area and an integration pass, 52 `decide` taken one at a time, 9 dropped; the service monitor and `demonitor` added to the language, `Reply.process` and `compare` over tuples, lists, `Optional` and `Either` to the library, each with its page and its test | 2026-10-24 | | *The Review's Fixes, First Round*, *The Runtime's Note States No Why*, *The Review's Decisions*; `findings.md` as it stood at `08997105` |
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program, the counter, grown through eight chapters from a process with a typed mailbox, through the same counter on a peer that holds none of its code, to its move to new code there, where the deployment guide takes over; with it a README for `report/` and for `guide/`, the README's three ways in, the guide's taste of the rest, and the path read by a fresh reader and the two skeptics | 2026-10-24 | | *The Tour*, *The Tour, Shorter*, *What the Outline Asked*, *The Skeptics' Read*, *What the Skeptics Found*, *The Tour's Programs, Built*, *The Tour Written*; the outline, `docs/proposals/tour/` as it stood at `688ffa03` |
-| MVP 3.9 | the review, and Ernest 0.5.0: the full review, the numbering decided once, a release with no promise of stability | | | below |
+| MVP 3.9 | the review, and Ernest 0.5.0: the nodes' and the code's design notes, the proposals built by then swept, the full review and its findings, the process-only mark narrowed and a wrap's `self` its recipient's, what the lease broker found, the release review and Ernest 0.5.0, a release with no promise of stability | 2026-10-25 | tag `v0.5.0` | *MVP 3.9 Weighed*, *The Nodes' and the Code's Notes*, *The Design Notes Leave the Proposals*, *The Full Review Before 0.5.0*, *The Review's Fixes, First Round*, *The Review's Decisions*, *The Process-Only Mark Marks a Wait*, *A Wrap's `self` Is Its Recipient's*, *Two Nodes Tests Take the Fault's Line*, *One Name for Every Order*, *The Shell's End Writes What It Was Told*, *A Restart Empties Before It Tells*, *A Member Has One Face*, *The Release Review Before 0.5.0*; `findings.md` as it stood at `105fb3fc` |
 | MVP 3.95 | what the review and 0.5.0 left: the release review read back, the service monitor across nodes decided, the report pared to the language, the harness counting a test's steps, the review round's method with an owner, the site proposal's sitting, the first fault's cost measured, and a release, 0.5.1 or 0.6.0 as the service monitor's decision leaves the protocol | made 2026-10-24; the first milestone after 0.5.0 | | below |
 | MVP 4.0 | a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches | made 2026-10-13 from MVP 4.3's item 4 | | below |
 | MVP 4.1 | ehttpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | | | below |
@@ -80,152 +77,6 @@ finished milestone is a row of the table below, its reasons in the log entries t
 | MVP 4.4 | after 0.5.0: a back end to BEAM's own instructions, Ernest's types as the loader's typed registers | a proposal first | | below |
 
 ---
-
-## MVP 3.9 (the review, and Ernest 0.5.0)
-
-The last milestone of the planned road, decided with the user on 2026-10-13: it ends in a release,
-Ernest 0.5.0, and not in 1.0. Ernest has no users yet and its author has no more of the language in
-mind, so nothing is frozen and no promise of stability is made; from 0.5.0 on, a change to the
-language, the standard library or the libraries is driven by a need met in use, the author's or
-another's, and recorded as `docs/language_feedback.md` records one, and 1.0 is the release that
-follows enough use to know what holds still. What the review needs was argued in MVP 2.99c and the
-log's *The First Release Is for Others*. Two of its items were taken early and are done: `make test` split
-into the light run and the full run, and the documents made lighter, both on 2026-10-13 (the log's *The
-Light Run and the Full Run*, *Lighter Documents*). Weighed again with the user on 2026-10-23 (the log's
-*MVP 3.9 Weighed*): the numbering is kept for good, the new machine's first day is MVP 4.0's so that
-no release waits for hardware, and the design note is bounded by its altitude before it is written.
-
-- **The nodes' design note**, done 2026-10-24 as two notes, [`design/nodes.md`](design/nodes.md) and
-  [`design/code.md`](design/code.md), one component each (the log's *The Nodes' and the Code's
-  Notes*). The proposals under `docs/proposals/nodes_and_code/`, the carrier, the gateway, the
-  exchange, the code table and the processes kept for addresses as built, rewritten as design notes
-  under `docs/` beside the shell's, the measurements across machines having settled their figures
-  (the log's *The Numbers Across Machines*). A note's bound is its altitude, what a reader must
-  know to change the component without breaking a promise, and no count of words.
-
-  The paragraphs of §8.7 that stated the runtime's machinery a program never sees, the gateway's
-  workers and the notes' bookkeeping, moved into the notes with their Appendix F entries, and §8.7
-  keeps what a program meets, as the release review before 0.4.0 found (the log's *The Release
-  Review Before 0.4.0*, KP26); the frames list stays, since E.27's errors name what a frame can
-  fail at.
-
-  A proposal that redesigned a rule of the language and built no component, kill darlings, the
-  balancer's suggestion and the placement push, becomes no note, its outcome being the report's
-  (decided with the user on 2026-10-17).
-- **The full review**, when the user says so: every reader over the whole of its area
-  ([`full_review.md`](full_review.md)), the principles reader among them, so that no principles
-  review runs beside it (decided 2026-10-13), and its findings worked as a row of their own in the
-  table of milestones, as 0.3.0's were, so that the review's run and the days of working its
-  findings are told apart.
-
-  Run 2026-10-24 over `1329d1d2` (the log's *The Full Review Before 0.5.0*): twenty readers, P on
-  the most advanced model and the rest on the one below, the report, the newcomer's path and the
-  code read where they changed since `fb2324e8` and every other area whole. Its 218 lines were
-  worked the same day, a row of the table above; what they left for after 0.5.0 stands as items
-  below.
-- **The proposals built by then go**, decided 2026-10-16 (the log's *The Design Notes Leave the
-  Proposals*), done 2026-10-24 (the log's *The Nodes' Reasons, Kept*, *What Other Systems Taught the
-  Nodes*, *The Placement Proposals Swept*, *The Operations and Kill Darlings Proposals Swept*): the
-  five directories went in one commit, each row that cited one naming it as it stood at `42a51d22`;
-  the operations programs and the code-update experiments went with their tests, since the guide's
-  blocks and `examples/upgrade/` show what they showed and six of the experiments no longer compiled.
-
-  The attached shell's, the site's and `ernest_host/` stay after 0.5.0, the first two going as
-  their milestones close and `ernest_host/` when the user ends it; the last to go takes `docs/README.md`'s line,
-  `docs/development.md`'s layout and CLAUDE.md's *Proposals* and *Handouts and scratch* paragraphs
-  with it.
-
-- **The process-only mark marks a wait alone**, done 2026-10-24 (the log's *The Process-Only
-  Mark Marks a Wait*), a defect found by the sweep on 2026-10-24: §3.9
-  names one process-only case, a `receive` that fixes no type, and the checker marks a second, a
-  `self()` whose address the function's type never shows, `fn f() = kill(self())` printing
-  `receiving e+` and E.22's `child` `receiving m+`. The checker is narrowed to the report's rule,
-  E.22's listing follows, and the soundness argument's §6.3 stands; decided with the user
-  2026-10-24.
-
-- **`self` and `monitor` in a process that acts for another**, done 2026-10-24 (the log's *A
-  Wrap's `self` Is Its Recipient's*), a defect the narrowing made reachable: a wrap or an adapted
-  address's function may call a helper that calls `self()` or `monitor` without showing the
-  address, and in the runtime's delivery process `self()` answered that process, so `kill(self())`
-  in a wrap lost the `Down` silently and a `monitor` in one registered the wrong process, against
-  §6.9.
-
-  Decided with the user 2026-10-24, both as recommended by principle 1: `self()` and
-  `monitor` in a process acting for another answer and register for the recipient, stated in §6.5
-  and §6.9; and `: T` stands over a body whose effect variable stays free, not process-only and in
-  no value position of the signature, stated in §4.5, so that the type the shell prints can be
-  written.
-
-- **Two nodes tests race**, found 2026-10-24, done 2026-10-24 (the log's *Two Nodes Tests Take
-  the Fault's Line*): `shell_peer_fault` and `shell_compute` each sent an input after a
-  peer-spawned fault and waited for the fault's line, which the shell writes before its next
-  prompt (§11.2), so under load the fault reached the shell after that input, and the run failed
-  in most runs of `make test-nodes` beside other work; the tests now type an input that prints
-  nothing and wait for its prompt until the line is there, within one wait.
-- **A monitor asked by an old run's delivery after the restart's `new_run`**, a gap the review's
-  fixes left on 2026-10-24 (the full review's C4-C5b): a clock delivery that asks for a monitor
-  after the reaper has taken the restart and returns before the clock takes it leaves that monitor
-  standing into the new run, against §6.9; `fresh_run/0`'s comment names the race. Closing it means
-  asking the clock and the terminal before the reaper, and a teller's late delivery would remain;
-  decided and built with the review's remaining decisions, by 2026-10-31.
-- **The service monitor**, `monitorService(p, wrap)`, decided with the user on 2026-10-24 from the
-  full review's N21: a restart in place keeps the address and the `Process` and tells no monitor
-  (§6.9), so a process that holds state for the restarted one, a lock's guard, a broker's
-  subscriber list, was never told, where the runtime cancels its own registrations for the process
-  at the restart; a service monitor is a monitor that also delivers a `Down` with the reason
-  `Restarted` at each restart and stands until the death, by principle 3. §6.9, §9.3 and §9.5 state
-  it, with Appendix F; the prelude, the runtime's reaper at a restart and the tests follow, the
-  guide's §6.5 teaches it, and E.22's `Supervisor` and every exhaustive `match` on `Reason` gain
-  the arm. Built before the release.
-- **The code the review's decisions change**, built as one round once the decisions were taken,
-  done 2026-10-24 (the log's *The Review's Decisions*, its last paragraph): §4.6's one rule for an effect variable left in a binding that is not generalized,
-  none wherever it stands in no value position and is not process-only, a process-only one an
-  error (P2, K13, C2-C4), the checker's `never_in_no_value_position` following and its tests;
-  `compare` on a tuple and a list where every component type has one, and `Optional`'s and
-  `Either`'s where their elements have, as §3.10 and §9.3 state since 2026-10-24 and the log's
-  *Operations Records* decided on 2026-09-29 (N25), the checker resolving it as a derived
-  `compare` and the prelude's two modules declaring theirs, with the guide's `byCount` rewritten;
-  the deadlock's report listing the waiting processes grouped by spawn site and waiting frame with
-  their count, from the stacks the look already holds, under `ern run`, `ern test` and the shell
-  (§8.6, §11.2; N5), nothing added to any operation's path and nothing of who waits for whom;
-  group write refused on a configuration directory, its `ernest.conf` and `certificate.pem` and on a
-  startup file, as world write is, and `ern config` writing the two files 0644 (§8.7, §11.2, §11.3;
-  S3), in `ern_node:owned/4`, `create/2` and the shell's startup check, with their tests; a callee's
-  fault carried to its caller naming the callee's site in its cause, `, the fault of the callee X:n`
-  (§6.6, §7.4; B-C3), in the runtime's end of a call, with its test and the guide's consoles that
-  show one; `--short-errors` dropped from `ern build`, `ern doc` and `ern format`, their option
-  parsing and tests (§11, §11.7; T30); the kept process's messages renamed `Handed` in the code
-  and `docs/style.md`'s glossary, and `ern_spawns`' `Waiting` field named for what it holds, so
-  that `Waiting` names a module waiting on another alone (D-W); the tour's chapter 7 sieve cut to
-  the shortest work that still takes long enough to place, the tour's test following (M28), the
-  guide's four long sections left whole; `Clock.toString`, the RFC 3339 text of an epoch time as
-  the runtime's lines write it, a shim of the host's (E.15; feedback 158), and each `:faults` line
-  carrying its time (§11.2; B-C8); the service monitor's `Restarted` placed before anything the new
-  run sends, the restarting process waiting after its emptying until each service monitor's wrap has
-  placed its message (§6.9), in the reaper's `new_run` and the restarting process, with its test;
-  the shell spawning each input as a root of its own and its launch leaving the shell's chain and
-  the evaluators out of `Process.live()`, so that it lists what `:processes` lists (§11.2; B11); a
-  node saying `listening on host:port` once at every start, as it said it for port 0 alone (§8.7;
-  G-B), the nodes tests waiting on the line where they dialed until a dial succeeded; a reach that
-  names a constant passing, the peer's check and the arrival making its value from its form (§4.6,
-  §8.7; K14), with K's `nodes/main.ern` as the test; a process `Test.faults` starts marked in its
-  row by a runtime function of the library's own, the reaper neither reporting its fault nor
-  delivering it to a `Process.faults` subscriber, and the text matches in `ern_cli` and the shell
-  gone (E.21, E.24; E23).
-  Added the same day: `Reply.process`, the caller's `Process` from a reply, one word carried beside
-  the alias (§6.6, §9.5; N22), and `demonitor(p)`, ending every monitor the caller holds on `p`,
-  a `Down` already delivered staying (§6.9, §9.5; N23), with their pages and tests.
-- **What writing the lease broker found**, done 2026-10-24: the prelude's `compare`, the function form
-  of `<` (the log's *One Name for Every Order*); the shell writing before it ends every fault reported
-  to it (*The Shell's End Writes What It Was Told*); the restart's order of §6.9 (*A Restart Empties
-  Before It Tells*); and a member with one face, named in a declaration and a requirement alone and
-  reached through its operator or `compare`, `List.sort(list)` under `needs a.compare` with
-  `List.sortBy(list, key)`, and `Bool.not` gone (*A Member Has One Face*), each built the same day
-  with its tests, the guide, the tour and the examples following.
-- **The release, Ernest 0.5.0**, as `release_review.md` says, its notes saying what changed since
-  0.4.0 and that a release may still refuse a program the previous release accepted, as every
-  release before 1.0 may (the log's *A Release Carries No History*); no section of the report states
-  a promise, since none is made.
 
 ---
 
@@ -287,10 +138,16 @@ in the order to do them, the word 0.5.0 ships decided before §8.7's text moves.
    which lost a shell test its line until the test waited for the fault. Measured against what a
    fault's report does; the modules loaded at the launch where that costs less than the number says,
    else the number recorded in the log and the item closed (CLAUDE.md, *The tools are fast*).
-8. **The member regime's missing test.** A module's own bare `fn compare` shadows the prelude's
+8. **A monitor asked by an old run's delivery after the restart's `new_run`**, a gap the review's
+   fixes left on 2026-10-24 (the full review's C4-C5b): a clock delivery that asks for a monitor
+   after the reaper has taken the restart and returns before the clock takes it leaves that monitor
+   standing into the new run, against §6.9; `fresh_run/0`'s comment names the race. Closing it means
+   asking the clock and the terminal before the reaper, and a teller's late delivery would remain;
+   decided and built with the review's remaining decisions, by 2026-10-31.
+9. **The member regime's missing test.** A module's own bare `fn compare` shadows the prelude's
    and gives no ordering, which *A Member Has One Face* built and no test holds; written by
    2026-10-31.
-9. **The release that closes the milestone**, so that MVP 4.0 starts from a tag: run as
+10. **The release that closes the milestone**, so that MVP 4.0 starts from a tag: run as
    `release_review.md` says, whole, since the machines are what make a tag solid. 0.5.1 where item
    2 leaves §8.7's protocol as it stands, the first release whose nodes connect to the previous
    release's, two patch levels on one floor (report §8.7); 0.6.0 where it adds a frame, since the

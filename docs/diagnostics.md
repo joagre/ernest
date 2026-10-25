@@ -286,7 +286,7 @@ example.ern:1:27: a doc comment `///` stands on a line of its own; a note after 
 
 ```console
 $ ern shell
-Ernest 0.4.0. :help for the commands, :quit to leave.
+Ernest 0.5.0. :help for the commands, :quit to leave.
 > 1 )
 input 1:1:3: expected end of input instead of `)`
 1 | 1 )
@@ -1159,7 +1159,7 @@ example.ern:3:14: constructor Size is named as the type Size
 
 ```console
 $ ern shell
-Ernest 0.4.0. :help for the commands, :quit to leave.
+Ernest 0.5.0. :help for the commands, :quit to leave.
 > type Size = Small | Large
 type Size
 > type Shape = Size(Int) | Empty
@@ -1732,7 +1732,7 @@ example.ern:1:24: Random.Seed is the constructor of an abstract type and is not 
 
 ```console
 $ ern shell
-Ernest 0.4.0. :help for the commands, :quit to leave.
+Ernest 0.5.0. :help for the commands, :quit to leave.
 > export abstract type Box = Box(Int)
 abstract type Box
 > Box(1)
@@ -2945,7 +2945,7 @@ example.ern:2:5: the type a is not known whole here, and Foreign.term gives fore
 
 ```console
 $ ern shell
-Ernest 0.4.0. :help for the commands, :quit to leave.
+Ernest 0.5.0. :help for the commands, :quit to leave.
 > OrderedSet.fromList
 input 1:1:1: fromList needs a.compare, at a type variable no requirement can name
 1 | OrderedSet.fromList
@@ -2957,7 +2957,7 @@ input 1:1:1: fromList needs a.compare, at a type variable no requirement can nam
 
 ```console
 $ ern shell
-Ernest 0.4.0. :help for the commands, :quit to leave.
+Ernest 0.5.0. :help for the commands, :quit to leave.
 > Fs.write(Path("counter.ern"), String.toUtf8("export type Msg = Inc(Int)\n"), 1000)
 Right(Unit) : Either(Io.Error, Unit)
 > :load Counter

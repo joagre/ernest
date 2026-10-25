@@ -37,7 +37,7 @@ In the directory that holds it:
 
 ```console
 $ ern shell
-Ernest 0.4.0. :help for the commands, :quit to leave.
+Ernest 0.5.0. :help for the commands, :quit to leave.
 > :load Counter
 Counter, compiled from counter.ern
 > let counter = spawn(fn() = Counter.count(0))
@@ -113,7 +113,7 @@ In a second terminal `ern run --config-dir foo`, in a third `ern run --config-di
 ```console
 $ ern shell --config-dir a
 listening on 0.0.0.0:8654
-Ernest 0.4.0. :help for the commands, :quit to leave.
+Ernest 0.5.0. :help for the commands, :quit to leave.
 > :load Counter
 Counter, compiled from counter.ern
 > let counter = spawn(fn() = Counter.count(0))

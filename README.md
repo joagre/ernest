@@ -92,7 +92,7 @@ The counter above is the first claim at work, and the rest of the argument is [W
 
 ## Where it stands
 
-It is young. Programs run on one node and across nodes, and 0.4.0, the first release with nodes, is the latest release. Where the project stands is "Where we are" in the [plan](docs/plan.md), and what the toolchain does not do yet is a table in [`docs/development.md`](docs/development.md). Until 1.0 a release may refuse a program the previous release accepted, as the plan says; each release's notes, on the [releases page](https://github.com/joagre/ernest/releases), say where to read what changed.
+It is young. Programs run on one node and across nodes, and 0.5.0, the release after the whole of Ernest was read once more, is the latest release. Where the project stands is "Where we are" in the [plan](docs/plan.md), and what the toolchain does not do yet is a table in [`docs/development.md`](docs/development.md). Until 1.0 a release may refuse a program the previous release accepted, as the plan says; each release's notes, on the [releases page](https://github.com/joagre/ernest/releases), say where to read what changed.
 
 ## Installing
 

@@ -1,4 +1,4 @@
-Ernest 0.4.0-dev. :help for the commands, :quit to leave.
+Ernest 0.5.0-dev. :help for the commands, :quit to leave.
 > 3 : Int
 > "hi!" : String
 > [1, 4, 9] : List(Int)
