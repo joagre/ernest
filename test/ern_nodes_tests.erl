@@ -1676,8 +1676,9 @@ fn serving() : Unit receiving Newcomer =
 fn held() : Unit receiving Unit = receive { _ -> held() }
 "/utf8>>),
     ok = file:write_file(filename:join(Root, "client.ern"), [<<"
-// Report §8.7: the client finds the server's service, calls it and kills
-// it, and once the test says the service is taken finds it again.
+// Report §8.7, Appendix E.27: the client finds the server's service, calls
+// it and kills it, and once the test says the service is taken finds it
+// again.
 
 export fn main() : Unit =
     match Peer.find(Server.service, waitMs()) {
@@ -2677,7 +2678,7 @@ exchanged(Base) ->
              "export fn counts() : Unit = { let _ = miscounted(); Unit }\n"
              "\n"
              "export foreign fn absent() : Unit = \"lists:ern_absent_function/0\"\n",
-    Sender = "// Report §8.7, §6.6: spawns and a compute of functions the receiver\n"
+    Sender = "// Report §8.7, §6.6, Appendix E.27: spawns and a compute of functions the receiver\n"
              "// lacks, and calls whose replies a failed spawn captured, each answer a line.\n"
              "\n"
              "type Ask = Ask(Reply(Either(Io.Error, Int)))\n"
@@ -2979,7 +2980,7 @@ bare_build(Base) ->
              "\n"
              "fn answer() : Int = 6 * 7\n"
              "\n"
-             "// Report §8.7: until the node holds the bare node's utilization, read\n"
+             "// Report Appendix E.27: until the node holds the bare node's utilization, read\n"
              "// again at each of its intervals, at which alone the table changes.\n"
              "fn heard(bare : String, interval : Int) : Unit receiving m =\n"
              "    if List.any(Peer.utilizations(), fn(#(peer, _, _)) = peer == bare) then\n"
@@ -4684,9 +4685,9 @@ placed(Base) ->
 pick_build(Base) ->
     Dir = filename:join(Base, "pick"),
     ok = filelib:ensure_path(Dir),
-    Source = "// Report §8.7: the spawner, which lists p1 and p2, computes on the one\n"
-             "// it picks by the utilizations they told it; p1 and p2, which list it,\n"
-             "// wait;\n"
+    Source = "// Report §8.7, Appendix E.27: the spawner, which lists p1 and p2,\n"
+             "// computes on the one it picks by the utilizations they told it; p1 and\n"
+             "// p2, which list it, wait;\n"
              "// and a node that lists no peer picks none.\n"
              "\n"
              "export fn main() : Unit receiving Unit =\n"
@@ -4726,7 +4727,7 @@ pick_build(Base) ->
              "    Io.println(\"computed alone: \" <> Io.show(Peer.compute(ran, waitMs())))\n"
              "}\n"
              "\n"
-             "// Report §8.7: until the node holds the utilization given of the peer\n"
+             "// Report Appendix E.27: until the node holds the utilization given of the peer\n"
              "// named, read again every interval, the time between the peer's\n"
              "// tellings, at which alone the table changes.\n"
              "fn heard(name : String, utilization : Float, interval : Int) :"

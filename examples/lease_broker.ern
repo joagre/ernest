@@ -393,8 +393,8 @@ fn holding(broker : Address(BrokerMsg),
 // Two nodes
 //
 
-// Node b's entry point, run with --main: the broker offered as the
-// service, and the node kept while the broker lives (report §8.7).
+// Node b's entry point, run with --main: the broker offered as the service,
+// and the node kept while the broker lives (report §8.7, Appendix E.27).
 export fn serve() : Unit receiving MainMsg = {
     match Peer.offer(service, broker) {
         Right(Unit) -> Io.println("offered")

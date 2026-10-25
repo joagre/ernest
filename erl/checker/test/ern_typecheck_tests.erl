@@ -631,7 +631,7 @@ service_test() ->
                  peer_refusal("export let service : Peer.Service(Address(Tcp.SocketMsg)) ="
                               " Peer.service(\"s\")\n")).
 
-%% report §8.7, Appendix E.27: an offer is accepted only where the service
+%% report Appendix E.27: an offer is accepted only where the service
 %% and the address have one message type, and answers the service's holder
 %% or Unit
 offer_test() ->

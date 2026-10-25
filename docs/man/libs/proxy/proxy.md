@@ -32,7 +32,7 @@ with the process that called `start`.
 message through it may pass one sent to the service directly, and it
 keeps nothing of a message it could not deliver. A program that is to
 monitor the service itself holds the address `Peer.find` gives (report
-§8.7).
+§8.7, Appendix E.27).
 
 ## Examples
 

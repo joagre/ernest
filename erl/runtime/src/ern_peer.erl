@@ -48,9 +48,9 @@
 %% the spawn went to.
 -define(SPAWNS, ern_spawns).
 
-%% Report §8.7: the utilization each peer last told this node, {Node,
-%% Utilization, At, Interval}, At the host's monotonic milliseconds when
-%% its telling came and Interval the milliseconds between the peer's
+%% Report Appendix E.27: the utilization each peer last told this node,
+%% {Node, Utilization, At, Interval}, At the host's monotonic milliseconds
+%% when its telling came and Interval the milliseconds between the peer's
 %% tellings, which the telling carries, by the peer's name on the carrier,
 %% which its key gives, so that a peer renamed by a reload keeps its
 %% utilization; written by the gateway alone, which hears the tellings and
@@ -128,21 +128,21 @@ service(_Name) ->
 service(Name, Hash) ->
     {'Service', Name, Hash}.
 
-%% Report §8.7: an offer under the service's name and its type's hash, for
-%% as long as its process lives, a process of this node: `Right(Unit)`
-%% where it took the service, and `Left(Holder)` where a living process
-%% holds it.
+%% Report Appendix E.27: an offer under the service's name and its type's
+%% hash, for as long as its process lives, a process of this node:
+%% `Right(Unit)` where it took the service, and `Left(Holder)` where a
+%% living process holds it.
 -spec offer({'Service', binary(), binary()}, ern_rt:address()) ->
           {'Right', 'Unit'} | {'Left', pid()}.
 offer({'Service', Name, Hash}, Address) ->
     ern_rt:offer({Name, Hash}, Address).
 
-%% Report §8.7: the first address offered under the service's name at its
-%% type's hash by a peer `services` lists for it, asked in order, each given
-%% the time left; a peer that cannot be reached, offers nothing under the
-%% name, or offers it at a type of another hash is passed over, the last
-%% such failure answered where no peer offers it, and `Timeout` where the
-%% time runs out.
+%% Report Appendix E.27: the first address offered under the service's name
+%% at its type's hash by a peer `services` lists for it, asked in order,
+%% each given the time left; a peer that cannot be reached, offers nothing
+%% under the name, or offers it at a type of another hash is passed over,
+%% the last such failure answered where no peer offers it, and `Timeout`
+%% where the time runs out.
 -spec find({'Service', binary(), binary()}, integer()) ->
           {'Right', term()} | {'Left', atom()}.
 find({'Service', Name, Hash}, Ms) ->
@@ -207,10 +207,10 @@ alias_answer(Alias, MonitorRef, Deadline) ->
         end
     end.
 
-%% Report §8.7: a process started on the peer named, running the function
-%% the frame names, its address answered, or a failure, within the time;
-%% spawn/3 and spawn_monitored/4 are the declarations', which the compiler
-%% calls with the function's identity and captures in place of the
+%% Report §8.7, Appendix E.27: a process started on the peer named, running
+%% the function the frame names, its address answered, or a failure, within
+%% the time; spawn/3 and spawn_monitored/4 are the declarations', which the
+%% compiler calls with the function's identity and captures in place of the
 %% function (ern_emitter's spawned/2), and the spawn's site after them.
 -spec spawn(binary(), fun(), integer()) -> no_return().
 spawn(_Name, _Function, _Ms) ->
@@ -290,13 +290,13 @@ started({spawned, Pid}, Ref, Wrap) ->
 started({failed, Error}, _Ref, _Wrap) ->
     {'Left', Error}.
 
-%% Report §8.7: a function run on a peer the node picks by the utilizations
-%% it holds (pick/0), as compute_at/4 runs it on the peer named once the
-%% pick is made; `NotListed` where no peer is listed, and `Unreachable`
-%% where none has a utilization to use. compute/2 is the declaration's, which the
-%% compiler calls with the function's identity and captures in place of
-%% the function (ern_emitter's spawned/2) and the compute's site after
-%% them.
+%% Report §8.7, Appendix E.27: a function run on a peer the node picks by
+%% the utilizations it holds (pick/0), as compute_at/4 runs it on the peer
+%% named once the pick is made; `NotListed` where no peer is listed, and
+%% `Unreachable` where none has a utilization to use. compute/2 is the
+%% declaration's, which the compiler calls with the function's identity and
+%% captures in place of the function (ern_emitter's spawned/2) and the
+%% compute's site after them.
 -spec compute(fun(), integer()) -> no_return().
 compute(_Function, _Ms) ->
     erlang:error(compute_without_site).
@@ -308,10 +308,10 @@ compute(Spawned, Ms, Site) ->
         Error -> {'Left', Error}
     end.
 
-%% Report §8.7: a function run on the peer named, in a process started
-%% there as a spawn starts one, its value answered within the time, or a
-%% failure, and a fault in it the caller's; compute_at/3 is the
-%% declaration's, which the compiler calls as it calls compute/2's.
+%% Report §8.7, Appendix E.27: a function run on the peer named, in a
+%% process started there as a spawn starts one, its value answered within
+%% the time, or a failure, and a fault in it the caller's; compute_at/3 is
+%% the declaration's, which the compiler calls as it calls compute/2's.
 -spec compute_at(binary(), fun(), integer()) -> no_return().
 compute_at(_Name, _Function, _Ms) ->
     erlang:error(compute_without_site).
@@ -336,17 +336,17 @@ computed(Node, Name, Spawned, Ms, Site) ->
     ern_rt:compute(Node, fun(Alias) -> {compute, Alias, Spawned, Site, Ms} end,
                    ern_rt:deadline(Ms), {Name, Site}).
 
-%% Report §8.7: the peer a compute that names none runs on, the one
-%% picked: of the peers whose utilization this node may use, each heard
-%% from within two of its own intervals, which its telling carried, so that
-%% a peer that tells seldom is as usable as one that tells often, two drawn
-%% at random, by the host's generator, and the less busy taken, the first
-%% drawn of two equally busy, and one taken as it is; `NotListed` where no
-%% peer is listed, and `Unreachable` where none has a utilization to use,
-%% in an initializer among them, before the node holds any. The peer is
-%% answered by its name on the carrier and the name the configuration
-%% lists it under as it was picked, which a compute's carried fault names.
-%% A read of the peers' rows and a draw, and no frame (§10).
+%% Report Appendix E.27: the peer a compute that names none runs on, the one
+%% picked: of the peers whose utilization this node may use, each heard from
+%% within two of its own intervals, which its telling carried, so that a
+%% peer that tells seldom is as usable as one that tells often, two drawn at
+%% random, by the host's generator, and the less busy taken, the first drawn
+%% of two equally busy, and one taken as it is; `NotListed` where no peer is
+%% listed, and `Unreachable` where none has a utilization to use, in an
+%% initializer among them, before the node holds any. The peer is answered
+%% by its name on the carrier and the name the configuration lists it under
+%% as it was picked, which a compute's carried fault names. A read of the
+%% peers' rows and a draw, and no frame (§10).
 -spec pick() -> {picked, node(), binary()} | 'NotListed' | 'Unreachable'.
 pick() ->
     case peers() of
@@ -360,8 +360,8 @@ pick() ->
                                     Now - At =< 2 * Interval]))
     end.
 
-%% Report §8.7: two of the usable peers drawn at random, one after the
-%% other, and the second taken where it is less busy than the first, the
+%% Report Appendix E.27: two of the usable peers drawn at random, one after
+%% the other, and the second taken where it is less busy than the first, the
 %% first otherwise, so that of two equally busy the first drawn is taken,
 %% either of the two as the draw falls.
 drawn({}) ->
@@ -383,9 +383,9 @@ drawn(Usable) ->
             {picked, FirstNode, FirstName}
     end.
 
-%% Report §8.7, §12.6: how busy the peer named is, the Float its gateway answers
-%% through an alias, as a find's is answered, within the time;
-%% `Unreachable` where its gateway cannot be reached.
+%% Report §12.6, Appendix E.27: how busy the peer named is, the Float its
+%% gateway answers through an alias, as a find's is answered, within the
+%% time; `Unreachable` where its gateway cannot be reached.
 -spec utilization(binary(), integer()) -> {'Right', float()} | {'Left', atom()}.
 utilization(Name, Ms) ->
     case node_of(Name) of
@@ -411,11 +411,10 @@ utilization(Name, Ms) ->
 peers() ->
     persistent_term:get({?MODULE, names}, []).
 
-%% Report §8.7, Appendix E.27: the utilizations this node holds, each
-%% listed peer's name, its utilization and the milliseconds since its
-%% telling came, in the configuration's order; a peer not heard from is
-%% left out, and a utilization too old for a pick to use is answered as it
-%% is, with its age.
+%% Report Appendix E.27: the utilizations this node holds, each listed
+%% peer's name, its utilization and the milliseconds since its telling came,
+%% in the configuration's order; a peer not heard from is left out, and a
+%% utilization too old for a pick to use is answered as it is, with its age.
 -spec utilizations() -> [{binary(), float(), integer()}].
 utilizations() ->
     Now = erlang:monotonic_time(millisecond),
@@ -433,7 +432,7 @@ held(Node) ->
         error:badarg -> []
     end.
 
-%% Report §8.7, Appendix E.27, §7.4: the utilization this node tells its
+%% Report Appendix E.27, §7.4, §12.8: the utilization this node tells its
 %% peers and answers them from now on, set by its program, on the node's
 %% scale, 1.0 every scheduler busy and above it work waiting, at or above
 %% 0.0; one below faults the caller.
@@ -444,9 +443,9 @@ set_utilization(Utilization) when Utilization >= 0.0 ->
 set_utilization(_Utilization) ->
     ern_rt:fault(<<"a utilization is 0.0 or above">>).
 
-%% Report §8.7: a peer's telling, held by the gateway as it comes, its
-%% utilization, the moment it came and the peer's interval, in place of the
-%% one before.
+%% Report Appendix E.27: a peer's telling, held by the gateway as it comes,
+%% its utilization, the moment it came and the peer's interval, in place of
+%% the one before.
 -spec hold_utilization(node(), float(), pos_integer()) -> ok.
 hold_utilization(Node, Utilization, Interval) ->
     Row = {Node, Utilization, erlang:monotonic_time(millisecond), Interval},
@@ -643,13 +642,13 @@ spawned_here({found, Function, Unit, {Bindings, Foreigns}}, Ref, From, Monitored
             not_loaded(spawn, Site, Lacked)
     end.
 
-%% Report §8.7: a process a peer's compute starts here as a spawn's is
-%% started, where this node would start it for a spawn, which runs the
-%% function and answers the caller itself; else `NotLoaded` and what this
-%% node lacked, or `Unreachable` where no run is in progress to start it,
-%% or where the compute's note has gone before its process could start,
-%% its caller no longer waiting, or never was written, the compute having
-%% come between two runs (ern_rt:asked_of_run/1).
+%% Report §8.7, Appendix E.27: a process a peer's compute starts here as a
+%% spawn's is started, where this node would start it for a spawn, which
+%% runs the function and answers the caller itself; else `NotLoaded` and
+%% what this node lacked, or `Unreachable` where no run is in progress to
+%% start it, or where the compute's note has gone before its process could
+%% start, its caller no longer waiting, or never was written, the compute
+%% having come between two runs (ern_rt:asked_of_run/1).
 computed_here({found, Function, Unit, {Bindings, Foreigns}}, Alias, From, Site) ->
     case absent_module(Unit, Foreigns) of
         none ->
@@ -921,8 +920,8 @@ lost(Node, Order) ->
                   end, ets:select(?SPAWNS, [{{{Node, '_'}, '_', '$1'}, [{'<', '$1', Order}],
                                              ['$_']}])).
 
-%% Report §8.7: a process the spawner no longer waits for is ended as its
-%% answer arrives.
+%% Report Appendix E.27: a process the spawner no longer waits for is ended
+%% as its answer arrives.
 ended({spawned, Pid}) -> ern_rt:kill(Pid);
 ended({failed, _}) -> ok.
 

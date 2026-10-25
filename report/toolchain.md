@@ -617,9 +617,9 @@ The exchange runs within the spawn's time, as the dial does, and two spawns that
 
 ### 12.8 The utilization measure
 
-How a node measures how busy it is, which `Peer.utilization` answers and a telling carries (§8.7).
+How a node measures how busy it is, which `Peer.utilization` answers and a telling carries (Appendix E.27).
 
-`utilization` says how the node measures how busy it is, which `Peer.utilization` answers its peers (§8.7), on one scale: 1.0 is every scheduler busy, below it room, above it work waiting. `"run-queue"`, the default where the entry is absent, measures it as the processes running or ready to run, the measuring process left out, over the number of schedulers, which the host counts with no window and no wait; `"schedulers"` as the fraction of the schedulers' time spent running processes since the node last read it, at an ask or a telling, or, at the first reading, since the node took the entry, at its start or at a reload, which never passes 1.0.
+`utilization` says how the node measures how busy it is, which `Peer.utilization` answers its peers (Appendix E.27), on one scale: 1.0 is every scheduler busy, below it room, above it work waiting. `"run-queue"`, the default where the entry is absent, measures it as the processes running or ready to run, the measuring process left out, over the number of schedulers, which the host counts with no window and no wait; `"schedulers"` as the fraction of the schedulers' time spent running processes since the node last read it, at an ask or a telling, or, at the first reading, since the node took the entry, at its start or at a reload, which never passes 1.0.
 
 ## Appendix C. Configuration
 

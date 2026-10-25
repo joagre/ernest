@@ -2521,7 +2521,7 @@ Where the process ends on the peer before it answers, killed or with the peer's 
 
 The compiler must see what the function captures, so the function a compute or a spawn on a peer runs is written where it can see it: a declaration's name, or, in the same definition, a lambda written at the compute or bound by a `let`, a local `fn`, or `restarting` applied to one of these. A function that came as a value, a parameter or a message, is refused (report §3.11).
 
-The function runs on the peer once the peer holds it and what it reaches, which cross where the peer lacks them, and only where every top-level binding the function reaches has its value on the peer and every module a foreign declaration it reaches calls is there; otherwise the compute answers `Left(Io.NotLoaded)`, and the peer says on its standard error what it lacked. A binding the function does not reach keeps it from no peer, whatever its module holds (report §8.7).
+The function runs on the peer once the peer holds it and what it reaches, which cross where the peer lacks them, and only where every top-level binding the function reaches has its value on the peer and every module a foreign declaration it reaches calls is there; otherwise the compute answers `Left(Io.NotLoaded)`, and the peer says on its standard error what it lacked. A binding the function does not reach keeps it from no peer, whatever its module holds (report §8.7, Appendix E.27).
 
 So a value a spawned function needs from where it was written is a parameter, a local it captures, or a constant: a binding whose initializer is a constant, `let limit = 10` or `let empty = Stack([])`, has its value wherever its code is (§2.2), and any other binding is the node's own. The standard library's bindings have their values on every node, since every node holds the library from its start, so `Map.empty` is a `let`, where a program's own value that names it, `let index = Map.empty`, is a function when it is spawned with on a bare node, `index()`.
 
@@ -2541,7 +2541,7 @@ fn heavy(n : Int) : Int =
     n * n
 ```
 
-The node picks by what its peers tell it. A node that lists peers tells each one it is connected to how busy it is every `utilization-interval` milliseconds its `ernest.conf` names, 5000 where it names none, and holds the last utilization each peer told it with the moment it came (report §8.7, Appendix C). How busy is on one scale: 1.0 is every scheduler busy, below it room and above it work waiting. A scheduler is a thread of the host that runs processes. The node measures as its `"utilization"` entry says, and by its run queue where it says nothing, the processes running or ready to run with the one measuring left out.
+The node picks by what its peers tell it. A node that lists peers tells each one it is connected to how busy it is every `utilization-interval` milliseconds its `ernest.conf` names, 5000 where it names none, and holds the last utilization each peer told it with the moment it came (report Appendix C, Appendix E.27). How busy is on one scale: 1.0 is every scheduler busy, below it room and above it work waiting. A scheduler is a thread of the host that runs processes. The node measures as its `"utilization"` entry says, and by its run queue where it says nothing, the processes running or ready to run with the one measuring left out.
 
 `Peer.compute` draws two of the peers whose utilizations the node may use, at random, and takes the less busy, the first drawn where the two are equal. A *telling* is the message that carries a peer's utilization, and names the peer's interval. A utilization older than two of its peer's intervals is not used, and a peer's loss drops its utilization.
 
@@ -2613,7 +2613,7 @@ $ ern run gathered.erc
 
 The pieces arrive in the order their computes end, so each carries its number, and `main` sorts them. A helper whose compute faulted sends no piece: its number is missing from the list, and `ern run` reports the fault, as it reports every fault (§6.3).
 
-In a burst the draw of two matters. Every piece reads the utilizations told before the burst began, so `least.ern`'s rule would send them all to one peer, where `Peer.compute` draws two peers at random for each piece and spreads them among three peers or more (report §8.7). With two peers the draw takes both each time, so a burst within one telling goes to the one less busy at it.
+In a burst the draw of two matters. Every piece reads the utilizations told before the burst began, so `least.ern`'s rule would send them all to one peer, where `Peer.compute` draws two peers at random for each piece and spreads them among three peers or more (report Appendix E.27). With two peers the draw takes both each time, so a burst within one telling goes to the one less busy at it.
 
 A program that knows how busy it is better than its node's measure does, by a queue's depth or work it has promised, says so with `Peer.setUtilization`, a number at or above 0.0 on the same scale: from then on its node tells its peers that number, and answers it to a `Peer.utilization`, until the program sets it again or its run ends. A number below 0.0 faults the caller (report Appendix E.27).
 

@@ -164,13 +164,13 @@ Each chunk is read through `ern_chunk`. A name a shell session declares is writt
 | `ern_held` | `ern_rt` | `{{source, Holder}, Count}` and `{{opened, Pid}}` | the sources, and the processes a system module opened (§8.6) |
 | `ern_deliveries` | `ern_rt` | `{{Recipient, Starter, Pid}}`, ordered | the deliveries in flight (§6.9) |
 | `ern_checkers` | `ern_rt` | `{{checker, Key}, Checker}` and `{{behind, Checker}, Pid, Address, Key}` | the checkers (§8.4) |
-| `ern_launch` | `ern_rt` | `#launch{}`, keyed `launch`; `{reading, Kind}`, `{entry_process, Pid}`, `{deadlock_victim, Pid}`, `{ending, Runner, Launch}`, `{wait_over}`, `{utilization, Utilization}` | the launch in progress, and a row for each of a few facts of its run (§8.6, §8.7, §12.1) |
-| `ern_offers` | `ern_rt` | `{{Name, Hash}, Address, Process}`, ordered | the node's offers (§8.7) |
-| `ern_offered` | `ern_rt` | `{Process, Service}`, a bag | each process's own services (§8.7) |
+| `ern_launch` | `ern_rt` | `#launch{}`, keyed `launch`; `{reading, Kind}`, `{entry_process, Pid}`, `{deadlock_victim, Pid}`, `{ending, Runner, Launch}`, `{wait_over}`, `{utilization, Utilization}` | the launch in progress, and a row for each of a few facts of its run (§8.6, §12.1, E.27) |
+| `ern_offers` | `ern_rt` | `{{Name, Hash}, Address, Process}`, ordered | the node's offers (E.27) |
+| `ern_offered` | `ern_rt` | `{Process, Service}`, a bag | each process's own services (E.27) |
 | `ern_initialized` | `ern_rt` | `{ErlangModule}` | the modules whose initializers have run (§8.7) |
 | `ern_notes` | `ern_rt` | `{{CallerNode, Reply}, Callee, Caller}`, ordered | the notes of calls from other nodes, a compute's among them (§8.7) |
-| `ern_spawns` | `ern_peer`, held by the gateway | `{{Node, Ref}, Waiting, Order}`, ordered | the spawns on a peer that wait for an answer (§8.7) |
-| `ern_utilizations` | `ern_peer`, held by the gateway | `{Node, Utilization, At, Interval}` | each peer's last telling (§8.7) |
+| `ern_spawns` | `ern_peer`, held by the gateway | `{{Node, Ref}, Waiting, Order}`, ordered | the spawns on a peer that wait for an answer (E.27) |
+| `ern_utilizations` | `ern_peer`, held by the gateway | `{Node, Utilization, At, Interval}` | each peer's last telling (E.27) |
 | `ern_code` | `ern_code`, held by the code table's holder | a bag, its keys under *The code table* | the code table (§8.7) |
 | `ern_code_sums` | `ern_code`, beside it | a row for each count | the sums of the host's counts (§11.2) |
 | `ern_shell` | `ern_shell`, held by the runner | `{Key, Value}` | the session as it stands, and what its inputs and loads leave (§11.2) |

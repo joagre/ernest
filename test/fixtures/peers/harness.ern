@@ -1,9 +1,9 @@
 // The times these programs wait by, each the number
 // test/ern_nodes_tests.erl holds, which a test holds equal to it.
 
-// Report §8.7: the milliseconds each find, spawn, compute, call and
-// utilization of these programs waits, and each read and write of a file:
-// the time test/ern_nodes_tests.erl gives one step of a test's, its
+// Report §8.7, Appendix E.27: the milliseconds each find, spawn, compute,
+// call and utilization of these programs waits, and each read and write of
+// a file: the time test/ern_nodes_tests.erl gives one step of a test's, its
 // wait_ms/0, which an answer later than it has failed, whichever says so
 // first, the answer's time or the test.
 export fn waitMs() : Int =

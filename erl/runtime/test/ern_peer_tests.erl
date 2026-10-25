@@ -15,9 +15,9 @@
 %% test here outlasts.
 -define(MS, 5000).
 
-%% report §8.7: a spawn's answer goes to the process that waits for it, and
-%% one that comes after the spawner stopped waiting ends the process it
-%% names
+%% report Appendix E.27: a spawn's answer goes to the process that waits for
+%% it, and one that comes after the spawner stopped waiting ends the process
+%% it names
 answer_test() ->
     ok = ern_peer:tables(),
     try
@@ -36,12 +36,12 @@ answer_test() ->
         untabled()
     end.
 
-%% report §8.7: the answer for a spawner that died while it waited ends the
-%% process it names, and its row goes; a peer's loss lets go of every row
-%% of that peer, its living waiter answered Unreachable and a dead one's row
-%% gone, and of no other peer's. A regression test: the answer went to the
-%% dead spawner, the process on the peer running on unowned, and a row whose
-%% answer never came was kept for good
+%% report §8.7, Appendix E.27: the answer for a spawner that died while it
+%% waited ends the process it names, and its row goes; a peer's loss lets go
+%% of every row of that peer, its living waiter answered Unreachable and a
+%% dead one's row gone, and of no other peer's. A regression test: the
+%% answer went to the dead spawner, the process on the peer running on
+%% unowned, and a row whose answer never came was kept for good
 dead_spawner_test() ->
     ok = ern_peer:tables(),
     try
@@ -127,7 +127,7 @@ told(Node, Utilization, Age, Interval) ->
 picks(Count) ->
     lists:usort([Node || _ <- lists:seq(1, Count), {picked, Node, _} <- [ern_peer:pick()]]).
 
-%% report §8.7, Appendix E.27: a node that lists no peer holds no
+%% report Appendix E.27: a node that lists no peer holds no
 %% utilization and picks none, `NotListed`; one whose peers it has not
 %% heard from holds none and picks none, `Unreachable`; a telling held is
 %% answered by `utilizations`, the peer's name, its utilization and its
@@ -152,20 +152,20 @@ utilizations_test() ->
                 ?assertEqual('Unreachable', ern_peer:pick())
             end).
 
-%% report §8.7: the pick's rules over the utilizations a node holds, the
-%% configuration's order a, b, c, d, e: a single usable peer is taken as it
-%% is, however busy; a utilization older than two of its teller's intervals
-%% is not used, and `utilizations` answers it as it is, with its age, while
-%% one as old from a peer that tells seldom enough is used; of two peers
-%% the less busy is taken at every draw, and of two equally busy the first
-%% drawn, so that each is taken across draws; the draw among more than two
-%% stays within the usable ones, never takes the busiest, which is no less
-%% busy than any it is drawn with, and takes each other one, two being
-%% drawn at random; and of five equally busy each is taken, the last in the
-%% configuration's order among them. A regression test, written after the
-%% code; the first drawn's two assertions before its change of 2026-10-20,
-%% which they failed. That the draw is uniform is the host's generator's,
-%% and is not measured
+%% report Appendix E.27: the pick's rules over the utilizations a node
+%% holds, the configuration's order a, b, c, d, e: a single usable peer is
+%% taken as it is, however busy; a utilization older than two of its
+%% teller's intervals is not used, and `utilizations` answers it as it is,
+%% with its age, while one as old from a peer that tells seldom enough is
+%% used; of two peers the less busy is taken at every draw, and of two
+%% equally busy the first drawn, so that each is taken across draws; the
+%% draw among more than two stays within the usable ones, never takes the
+%% busiest, which is no less busy than any it is drawn with, and takes each
+%% other one, two being drawn at random; and of five equally busy each is
+%% taken, the last in the configuration's order among them. A regression
+%% test, written after the code; the first drawn's two assertions before its
+%% change of 2026-10-20, which they failed. That the draw is uniform is the
+%% host's generator's, and is not measured
 pick_test() ->
     [A, B, C, D, E] = Nodes = ['a@node.ernest', 'b@node.ernest', 'c@node.ernest',
                                'd@node.ernest', 'e@node.ernest'],
@@ -203,7 +203,7 @@ pick_test() ->
                 ?assertEqual(Nodes, picks(300))
             end).
 
-%% report §8.7, Appendix E.27, §7.4: `Peer.setUtilization` sets the
+%% report Appendix E.27, §7.4: `Peer.setUtilization` sets the
 %% utilization the node tells and answers, at or above 0.0, 1.0 and work
 %% waiting above it among them, a later one in its place; a number below
 %% 0.0 faults the caller and sets nothing. The launch's table, which a
@@ -419,17 +419,17 @@ spawn_by_identity_test() ->
         "  | Ended(_) -> answering(peer)\n"
         "}\n").
 
-%% report §6.6, §8.7: a reply a function spawned on a peer captured crosses
-%% as any value does, and the spawner keeps its copy, so a spawn that fails
-%% ends no call: the caller waits as on any reply no process has answered.
-%% `Address.call` answers None at its deadline, `Address.callForever` waits
-%% while the spawner lives and ends as its death ends it, and a spawner
-%% that answers through its copy gives the caller the failure; a reply
-%% captured alone and one inside a captured value, through Peer.spawn and
-%% Peer.spawnMonitored. Here the spawn names no peer, NotListed, in a
-%% program that is no node. A regression test, written after the code; a
-%% spawn that fails on a node, and an answer from
-%% another node, are the nodes' (test/ern_nodes_tests.erl)
+%% report §6.6, §8.7, Appendix E.27: a reply a function spawned on a peer
+%% captured crosses as any value does, and the spawner keeps its copy, so a
+%% spawn that fails ends no call: the caller waits as on any reply no
+%% process has answered. `Address.call` answers None at its deadline,
+%% `Address.callForever` waits while the spawner lives and ends as its death
+%% ends it, and a spawner that answers through its copy gives the caller the
+%% failure; a reply captured alone and one inside a captured value, through
+%% Peer.spawn and Peer.spawnMonitored. Here the spawn names no peer,
+%% NotListed, in a program that is no node. A regression test, written after
+%% the code; a spawn that fails on a node, and an answer from another node,
+%% are the nodes' (test/ern_nodes_tests.erl)
 failed_spawn_ends_no_call_test() ->
     Unit = 'ern@peerheld',
     _ = loaded(['Peerheld'], ?HELD),
@@ -491,19 +491,20 @@ failed_spawn_ends_no_call_test() ->
         "export fn waits() : Int receiving Int = receive { n -> n }\n"
         "export fn greet() : String = greeting\n").
 
-%% report §8.7, §12.6, §11.2, Appendix E.21: a compute from a peer, its frame noted
-%% as the gateway notes it, runs the function in a process of its own, as a
-%% spawn would start it, and answers through the caller's alias: the
-%% value; a fault in it, its cause and its trace, which this node reports
-%% nothing of; NotLoaded where a binding its reach names has no value here,
-%% with what this node lacked, which the gateway says of the compute; and a
-%% process that ends before it answers its Reason. The call's second note
-%% kills the process where it still runs, which then tells no one, and one
-%% that came before the process could start leaves it never run, the
-%% compute answered Unreachable, which its caller, no longer waiting, drops.
-%% A regression test, written after the code; Appendix E.21: the trace that
-%% crosses names the definition's frame by its name and its line, a
-%% regression test written after the code, where a division's was empty
+%% report §8.7, §12.6, §11.2, Appendix E.21, E.27: a compute from a peer,
+%% its frame noted as the gateway notes it, runs the function in a process
+%% of its own, as a spawn would start it, and answers through the caller's
+%% alias: the value; a fault in it, its cause and its trace, which this node
+%% reports nothing of; NotLoaded where a binding its reach names has no
+%% value here, with what this node lacked, which the gateway says of the
+%% compute; and a process that ends before it answers its Reason. The call's
+%% second note kills the process where it still runs, which then tells no
+%% one, and one that came before the process could start leaves it never
+%% run, the compute answered Unreachable, which its caller, no longer
+%% waiting, drops. A regression test, written after the code; Appendix E.21:
+%% the trace that crosses names the definition's frame by its name and its
+%% line, a regression test written after the code, where a division's was
+%% empty
 computed_here_test() ->
     Unit = 'ern@peercomputed',
     Hashes = loaded(['Peercomputed'], ?COMPUTED),
@@ -634,20 +635,20 @@ computed_restarting_test() ->
         unloaded(Unit)
     end.
 
-%% report §8.7, §12.6, §6.6, §11.2: a compute's caller waits as a call's caller
-%% does, on one host its peer's gateway a process that records each frame:
-%% the frame names the caller's alias, through which the value, a failure,
-%% a fault with the trace and the callee's site that crossed, which faults
-%% the caller with the cause unchanged, its trace ending in the compute's
-%% site, and whose report names the callee and the peer beside the cause,
-%% and the Reason of a process that ended before it answered come, each
-%% letting the caller's CALL key go with no second note; where the time
-%% runs out, or the caller is killed while it waits, the second note
-%% follows; and where the gateway is gone the wait ends Unreachable, the
-%% key gone with each. A fault that is not text answers `Other`, the
-%% caller faulting with nothing that is not. A regression test, written
-%% after the code, and again for the carried fault's peer and site and the
-%% answer that is not text, and again for the peer beside the cause
+%% report §8.7, §12.6, §6.6, §11.2, Appendix E.27: a compute's caller waits
+%% as a call's caller does, on one host its peer's gateway a process that
+%% records each frame: the frame names the caller's alias, through which the
+%% value, a failure, a fault with the trace and the callee's site that
+%% crossed, which faults the caller with the cause unchanged, its trace
+%% ending in the compute's site, and whose report names the callee and the
+%% peer beside the cause, and the Reason of a process that ended before it
+%% answered come, each letting the caller's CALL key go with no second note;
+%% where the time runs out, or the caller is killed while it waits, the
+%% second note follows; and where the gateway is gone the wait ends
+%% Unreachable, the key gone with each. A fault that is not text answers
+%% `Other`, the caller faulting with nothing that is not. A regression test,
+%% written after the code, and again for the carried fault's peer and site
+%% and the answer that is not text, and again for the peer beside the cause
 compute_caller_test() ->
     Self = self(),
     Frame = fun(Alias) -> {compute, Alias, {function, <<0:256>>}, <<"M.f:1">>, ?MS} end,
@@ -803,12 +804,12 @@ kill_frame_reaches_only_the_runtimes_test() ->
     ?assertEqual({killed, {[ok, ok, ok], ok, {ern, killed}, [alive, alive, alive]}},
                  receive {killed, _} = Got -> Got end).
 
-%% report §8.7, §12.6, §6.6: a caller the host ends while it waits in a compute,
-%% killed by foreign code, runs no `after`, and the reaper sends the call's
-%% second note as it learns of the end, so that the peer kills the
-%% compute's process. Here a gateway of this host's stands in for the
-%% peer's. A regression test, written after the code: the second note was
-%% sent for a caller the runtime killed alone
+%% report §8.7, §12.6, §6.6, Appendix E.27: a caller the host ends while it
+%% waits in a compute, killed by foreign code, runs no `after`, and the
+%% reaper sends the call's second note as it learns of the end, so that the
+%% peer kills the compute's process. Here a gateway of this host's stands in
+%% for the peer's. A regression test, written after the code: the second
+%% note was sent for a caller the runtime killed alone
 host_ended_compute_test() ->
     Self = self(),
     Frame = fun(Alias) -> {compute, Alias, {function, <<0:256>>}, <<"M.f:1">>, ?MS} end,
@@ -962,10 +963,10 @@ supervisor_on_another_node_test() ->
     Child = (ern_named:function('ern@supervisor', child))(Elsewhere, fun() -> 'Unit' end),
     ?assertThrow({ern, fault, <<"a child runs on its supervisor's node">>}, Child()).
 
-%% report §8.7: an offer lasts as long as its process lives, a process the
-%% runtime did not start among them, a foreign one, whose rows go with it.
-%% A regression test: such a process's offer outlived it, the reaper
-%% watching only the processes the runtime started or opened
+%% report Appendix E.27: an offer lasts as long as its process lives, a
+%% process the runtime did not start among them, a foreign one, whose rows
+%% go with it. A regression test: such a process's offer outlived it, the
+%% reaper watching only the processes the runtime started or opened
 foreign_offer_test() ->
     Self = self(),
     Main = fun() ->
@@ -982,7 +983,7 @@ foreign_offer_test() ->
     ?assertMatch({offered, {found, _}}, receive {offered, _} = Offered -> Offered end),
     ?assertEqual({ended, 'NotOffered'}, receive {ended, _} = Ended -> Ended end).
 
-%% report §8.7, Appendix E.27: an offer answers Right(Unit) where it took
+%% report Appendix E.27: an offer answers Right(Unit) where it took
 %% the service, and Left(holder) where a living process's address is
 %% offered as it, the holder's Process, the same whoever offers; the caller
 %% monitors the holder, which is killed, and at its Down offers again and

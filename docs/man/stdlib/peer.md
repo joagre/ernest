@@ -25,14 +25,14 @@ is every `utilization-interval` of its `ernest.conf`, and holds what each
 told it: `compute` draws two of them and takes the less busy, and
 `utilizations` answers the table, over which a program writes a rule of
 its own. A program that knows how busy it is better than its node's
-measure says so with `setUtilization` (report §8.7).
+measure says so with `setUtilization` (report §8.7, Appendix E.27).
 
 A find, a spawn, a compute and a utilization wait for the peer at most the
 milliseconds they are given, the opening of a connection among them, and
 answer what they found or an `Io.Error`, which the program matches on. The
 runtime's own first steps of a dial come beside that time, and end at the
 latest where a dial that nothing answers is given up, so an answer may come
-later than it by them (report §8.7).
+later than it by them (report Appendix E.27).
 
 None faults for what the network or a peer does, and a compute faults only
 for a fault in the function it runs. A program that is no node has no peers,
@@ -344,7 +344,7 @@ telling came, in the configuration's order. Each peer tells it every
 since its connection opened is left out, and so is one whose connection
 was lost. A utilization older than two of its peer's intervals, which
 `compute` does not use, is answered as it is, with its age, so that a
-rule of the program's own sees what the node sees (report §8.7).
+rule of the program's own sees what the node sees (report Appendix E.27).
 
 ### Examples
 
@@ -366,13 +366,13 @@ Peer.setUtilization(utilization : Float) : Unit
 ```
 
 Sets the utilization this node tells its peers, and answers them when
-they ask, from now on and until it is set again or the program's run
-ends, in place of the measure its `ernest.conf`'s `utilization` names,
-which the node tells before the first and between two runs. `utilization`
-is on the node's scale, at or above 0.0: 0.0 idle, 1.0 every scheduler
-busy, and above it work waiting; what it counts, a queue's depth or work
-promised, is the program's. The next telling carries it (report §8.7). In
-a program that is no node it is accepted, and no peer is told it.
+they ask, from now on and until it is set again or the program's run ends,
+in place of the measure its `ernest.conf`'s `utilization` names, which the
+node tells before the first and between two runs. `utilization` is on the
+node's scale, at or above 0.0: 0.0 idle, 1.0 every scheduler busy, and above
+it work waiting; what it counts, a queue's depth or work promised, is the
+program's. The next telling carries it (report Appendix E.27). In a program
+that is no node it is accepted, and no peer is told it.
 
 ### Errors
 

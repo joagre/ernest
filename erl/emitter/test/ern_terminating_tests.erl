@@ -55,13 +55,13 @@ told_at_the_entry_process_end_test() ->
     ?assertMatch({_, _}, binary:match(Output, <<"kept 5\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"the subscriber M.main:13 answered\n">>)).
 
-%% report §8.6, §8.7, §6.6: a subscriber that handed its reply to a
-%% function spawned on a peer keeps its copy, so where the spawn fails it
-%% answers the end itself, and the end ends with its answer, which the
-%% runtime says as any answer. Here the spawn fails with NotListed, in a
-%% program that is no node. A regression test, written after the code
-%% (MVP 3.26's item 2a); a subscriber that does not answer holds the end
-%% while it lives, as any does, which no test here waits on
+%% report §8.6, §8.7, §6.6, Appendix E.27: a subscriber that handed its
+%% reply to a function spawned on a peer keeps its copy, so where the spawn
+%% fails it answers the end itself, and the end ends with its answer, which
+%% the runtime says as any answer. Here the spawn fails with NotListed, in a
+%% program that is no node. A regression test, written after the code (MVP
+%% 3.26's item 2a); a subscriber that does not answer holds the end while it
+%% lives, as any does, which no test here waits on
 subscriber_whose_spawn_failed_test() ->
     {Result, Output} = kept("{ match Peer.spawn(\"nobody\", fn() = answer(reply, Unit), 1000) {"
                             " Left(_) -> { Io.println(\"spawn failed\"); answer(reply, Unit) }"

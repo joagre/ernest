@@ -783,9 +783,10 @@ utilization(ConfigDir, Text) when is_binary(Text) ->
 utilization(ConfigDir, _) ->
     fail(ConfigDir, ?CONF, "utilization is neither \"run-queue\" nor \"schedulers\"").
 
-%% Report §8.7, Appendix C: `utilization-interval`, the milliseconds between
-%% the node's tellings of how busy it is to its peers, 5000 where the entry
-%% is absent; a count of milliseconds, as `check-interval` is.
+%% Report Appendix C, Appendix E.27: `utilization-interval`, the
+%% milliseconds between the node's tellings of how busy it is to its peers,
+%% 5000 where the entry is absent; a count of milliseconds, as
+%% `check-interval` is.
 utilization_interval(_ConfigDir, Ms) when is_integer(Ms), Ms > 0 ->
     Ms;
 utilization_interval(ConfigDir, _) ->

@@ -20,7 +20,7 @@ type CounterMsg = Add(Int) | Get(reply : Reply(Int))
 
 // The counter's service, as b offers it to its peers. A service carries the hash of its
 // message type, so a find on a peer that offers "counter" at another type answers
-// Left(OtherType); and a lost connection drops what was in flight (report §8.7).
+// Left(OtherType); and a lost connection drops what was in flight (report §8.7, Appendix E.27).
 let service : Peer.Service(CounterMsg) = Peer.service("counter")
 
 // Node a's entry point: the counter found on b, and called across the nodes.

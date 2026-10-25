@@ -193,7 +193,7 @@ A service carries a hash of its message type, the type of the messages its proce
 
 ### 3.2 How busy a node is
 
-A node measures how busy it is on one scale: 1.0 is every scheduler busy, below it room and above it work waiting (report §8.7, *A utilization*). A scheduler is one of the host's threads that run processes, one for each core as a rule. `utilization` in `ernest.conf` says how: `"run-queue"`, the default, divides the processes running or ready by the number of schedulers, an instant reading and not an average; `"schedulers"` gives the fraction of the schedulers' time spent running since the number was last read, which never passes 1.0 and smooths a spiky load.
+A node measures how busy it is on one scale: 1.0 is every scheduler busy, below it room and above it work waiting (report §12.8). A scheduler is one of the host's threads that run processes, one for each core as a rule. `utilization` in `ernest.conf` says how: `"run-queue"`, the default, divides the processes running or ready by the number of schedulers, an instant reading and not an average; `"schedulers"` gives the fraction of the schedulers' time spent running since the number was last read, which never passes 1.0 and smooths a spiky load.
 
 A program may set the number itself, when it knows its load better than the host does; then this entry is the default it starts from.
 

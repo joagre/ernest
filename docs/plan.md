@@ -119,28 +119,10 @@ modules documented apart with an authority of their own. Why it is worth its cos
    Each decided on the principles and recorded as the
    file says, a report change, a library function or a line in the log; 165 and 167 were dropped
    before as 146 and interpolation, and are read again only for what the newcomer added.
-5. **The second cut, §8.7 to E.27.** Decided with the user on 2026-10-26, for a session of its own
-   and the milestone's next, before items 2 to 4, since the report is the language's heart, on how
-   the report reads: §8.7 serves two readers at once, one asking what the language
-   guarantees across nodes and one asking what `Peer.spawn` does, and the second finds E.27 pointing
-   back into §8.7.
-
-   The cut is a reading first: each paragraph of §8.7 asked whether it states a rule of the
-   language, what crosses into a spawned function, that it runs only once the peer holds its reach,
-   that a compute's fault is the caller's, or a function's contract, what it answers, within what
-   time, with which `Io.Error` and when; only the contracts move, about a thousand words, under
-   E.27 as they stand, every sentence kept as item 1 kept its, which the diff shows; where E.27
-   already restates one in a line of its own, that line goes, so that each fact stands once and
-   none is lost.
-
-   §8.7 keeps the rules, a node's identity, definitions and their hashes, what
-   passes, a loss, addresses, a restart, messages and calls, and points at E.27 for each function.
-   What stays is read as Wirth would read it, each sentence asked whether it is stated once and
-   whether it is a rule or a reason: a fact stated twice keeps one place and a citation, a reason goes
-   to the log, which holds it already, and no fact is lost.
-   Then the citations of the moved paragraphs, as item 1 redirected its, and `make sections`.
-   Principle 1: a reader who
-   knows the rest of Ernest predicts a function's contract in its module's section.
+5. **The second cut, §8.7 to E.27**, done 2026-10-26 (the log's *The Second Cut, §8.7 to E.27*): nine
+   paragraphs of contracts, what a spawn, a compute, a utilization, an offer and a find answer and
+   when, under E.27 as they stood, three restatements gone, §8.7 at 2,886 words of rules, each
+   once, pointing at E.27 at each place; the citations redirected and every section cited.
 
 ## MVP 4.0 (a shell attached to a running node), about a week
 

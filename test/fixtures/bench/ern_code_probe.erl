@@ -172,9 +172,9 @@ sample() ->
                                        <- [erlang:process_info(whereis(Name), reductions)]],
     {Packets, Reductions}.
 
-%% Report §8.7: the microseconds Count picks of a compute that names no peer
-%% take on this node, each a read of the utilizations its peers told it and
-%% a draw, and no frame.
+%% Report Appendix E.27: the microseconds Count picks of a compute that
+%% names no peer take on this node, each a read of the utilizations its
+%% peers told it and a draw, and no frame.
 -spec picks(integer()) -> integer().
 picks(Count) ->
     {Micros, ok} = timer:tc(fun() -> picked(Count) end),

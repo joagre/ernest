@@ -9,8 +9,8 @@
 %% a compute on a peer the node picks by the utilizations its peers told it
 %% beside one on a peer named, the pick alone and the read of the
 %% utilizations, and what
-%% connected nodes exchange idle, the tellings among it (§8.7, plan MVP
-%% 3.2 item 8); and the sizes of the
+%% connected nodes exchange idle, the tellings among it (§8.7, Appendix
+%% E.27, plan MVP 3.2 item 8); and the sizes of the
 %% standard library's `.erc` files and of a code frame, and what reading a
 %% module's forms costs (§11.1). Every number is a median of seven runs or
 %% more, with their range.
@@ -317,7 +317,7 @@ costs() ->
      "\n"
      "fn one() : Int = 1\n"
      "\n"
-     "// Report §8.7: rounds of a utilization, of a compute on a peer the node\n"
+     "// Report §8.7, Appendix E.27: rounds of a utilization, of a compute on a peer the node\n"
      "// picks by the utilizations its peers told it, of one on the peer named,\n"
      "// of the utilizations read, and of the pick alone, the read and the\n"
      "// draw, each peer holding `one` first, so that no compute carries code.\n"
@@ -910,9 +910,9 @@ counted([Table, Entries | Rest]) ->
 counted([]) ->
     [].
 
-%% Report §8.7: a utilization, a compute on a peer picked and one on a peer
-%% named, the utilizations read and the pick alone, each a round's
-%% microseconds.
+%% Report §8.7, Appendix E.27: a utilization, a compute on a peer picked and
+%% one on a peer named, the utilizations read and the pick alone, each a
+%% round's microseconds.
 pick_table(Lines) ->
     heading("a utilization and a compute, between nodes", "µs"),
     [row(Name, [list_to_integer(Micros) / ?ROUNDS || {_, [Micros]} <- lines(Scenario, Lines)])
@@ -922,11 +922,12 @@ pick_table(Lines) ->
                              {"utilizations", "Peer.utilizations, eight peers' read"},
                              {"pick", "the pick alone, the utilizations read and the draw"}]].
 
-%% Report §8.7, §12.6: the packets each connection of three nodes carried idle,
-%% each way, as the host counts them, the tellings every interval and the
-%% host's ticks where nothing else went, and the gateway's and the exchange's
-%% work meanwhile; each connection read at a node whose window held no
-%% compute of the measuring program's: a's to q1 and to q2, and q1's to q2.
+%% Report §8.7, §12.6, Appendix E.27: the packets each connection of three
+%% nodes carried idle, each way, as the host counts them, the tellings every
+%% interval and the host's ticks where nothing else went, and the gateway's
+%% and the exchange's work meanwhile; each connection read at a node whose
+%% window held no compute of the measuring program's: a's to q1 and to q2,
+%% and q1's to q2.
 idle_table(Lines, OnCarrier) ->
     Idle = lines("idle", Lines),
     [Window] = [list_to_integer(Ms) || {"a", ["window", Ms]} <- Idle],

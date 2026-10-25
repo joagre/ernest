@@ -1,6 +1,7 @@
-// Report §8.7, Appendix G.4: the readings the host's services give on a
-// node, which its measures run, and the wait for a peer's telling; a module
-// with no binding, so that its spawns run on any peer that has the build.
+// Report §8.7, Appendix E.27, G.4: the readings the host's services give on
+// a node, which its measures run, and the wait for a peer's telling; a
+// module with no binding, so that its spawns run on any peer that has the
+// build.
 
 // Whether each of the host's services, cpu, memory and disk, answers a
 // reading on the peer, which writes it to its standard output.
@@ -18,10 +19,10 @@ fn answers(reading : Optional(Float)) : Bool =
       | None -> false
     }
 
-// Report §8.7: until the node holds a utilization of the peer named, the
-// utilizations read again every interval, the time between the peer's
-// tellings, at which alone the table changes; a wait no message can show,
-// since a telling is the runtime's frame and no program's.
+// Report Appendix E.27: until the node holds a utilization of the peer
+// named, the utilizations read again every interval, the time between the
+// peer's tellings, at which alone the table changes; a wait no message can
+// show, since a telling is the runtime's frame and no program's.
 export fn heard(name : String, interval : Int) : Unit receiving m =
     if List.any(Peer.utilizations(), fn(#(peer, _, _)) = peer == name) then
         Unit

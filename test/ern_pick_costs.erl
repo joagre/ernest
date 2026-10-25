@@ -5,10 +5,10 @@
 %% as fast as the node can, then a steady stream, one every fifty
 %% milliseconds for a minute; how they fall over the peers under
 %% `Peer.compute`'s pick, two drawn at random and the less busy taken
-%% (report §8.7), and under the least busy of them all, a rule of the
-%% program's own over `Peer.utilizations()` (the guide's §8.1); and beside
-%% them, the packets each of the measuring node's connections carried a
-%% second, the time each node's schedulers were busy, and the time each
+%% (report Appendix E.27), and under the least busy of them all, a rule of
+%% the program's own over `Peer.utilizations()` (the guide's §8.1); and
+%% beside them, the packets each of the measuring node's connections carried
+%% a second, the time each node's schedulers were busy, and the time each
 %% machine's processors were idle, over the stream and at rest.
 %%
 %% The measuring program is test/fixtures/bench/pick.ern, its probe
@@ -45,8 +45,8 @@
 %% runs on each machine.
 -define(CALIBRATION_STEPS, 1000000).
 -define(CALIBRATION_RUNS, 5).
-%% Report §8.7, Appendix C: `utilization-interval`'s default, and the
-%% intervals of the knee the experiment looked for.
+%% Report Appendix C, Appendix E.27: `utilization-interval`'s default, and
+%% the intervals of the knee the experiment looked for.
 -define(INTERVAL, 5000).
 -define(KNEE, [1000, 500]).
 %% Each rule's bursts and streams at an arrangement's first interval;

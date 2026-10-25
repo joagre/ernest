@@ -507,7 +507,7 @@ Right(8) : Either(Io.Error, Int)
 
 The host's own code, Erlang's libraries and whatever else runs on the runtime, is *foreign code* to a program, reached through a `foreign fn` that declares the Ernest type of a host function; `erlang:system_info/1` takes an atom, so the question is passed as one (the guide's §8.3). The declaration promised an `Int` of the host, and the runtime checked the answer against it as it arrived; declared `: String`, the same call faults its caller at the crossing, `the return of foreign function erlang:system_info/1 does not match String`, naming the function and the type.
 
-That is the first claim of *Why Ernest* at its boundary: the type is checked, not trusted, and a wrong value from the host is a fault where it crosses, not a crash later in code that believed it. The shell connected to `bar` as the first compute on it needed to, and `bar`'s terminal says `the peer a connected`. With these two computes both peers are connected, and each has told the shell how busy it is, as a peer does as it connects, so the computes below that name no node have utilizations to draw by (report §8.7).
+That is the first claim of *Why Ernest* at its boundary: the type is checked, not trusted, and a wrong value from the host is a fault where it crosses, not a crash later in code that believed it. The shell connected to `bar` as the first compute on it needed to, and `bar`'s terminal says `the peer a connected`. With these two computes both peers are connected, and each has told the shell how busy it is, as a peer does as it connects, so the computes below that name no node have utilizations to draw by (report Appendix E.27).
 
 Then the work, three times, naming no node:
 

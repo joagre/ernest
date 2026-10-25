@@ -159,12 +159,12 @@ gateway(Workers, Ended, Measured, Deadline, Departed) ->
                                   end,
             Alias ! {Alias, Answer},
             gateway(Workers, Ended, Measured1, Deadline, Departed);
-        %% report §8.7: a peer's telling of how busy it is and of its
-        %% interval, held as it comes; a node that ends tells each peer so
-        %% and then its connections close, telling none how busy it is
-        %% after its word (departing/0), so that a peer that tells after it
-        %% said it ends has not ended, and its word is dropped: the
-        %% connection's end that comes later is said as a loss
+        %% report §8.7, Appendix E.27: a peer's telling of how busy it is
+        %% and of its interval, held as it comes; a node that ends tells
+        %% each peer so and then its connections close, telling none how
+        %% busy it is after its word (departing/0), so that a peer that
+        %% tells after it said it ends has not ended, and its word is
+        %% dropped: the connection's end that comes later is said as a loss
         {ern_frame, From, {telling, Utilization, Interval}}
           when is_pid(From), node(From) =/= node(), is_float(Utilization), Utilization >= 0.0,
                is_integer(Interval), Interval >= 1 ->
@@ -185,10 +185,11 @@ gateway(Workers, Ended, Measured, Deadline, Departed) ->
             Measured1 = measured(Utilization, Measured),
             From ! {MonitorRef, reloaded},
             gateway(Workers, Ended, Measured1, armed(Deadline, Departed), Departed);
-        %% report §8.7: every interval, each connected peer told how busy
-        %% the node is, until the node ends; the host's timer takes a slice
-        %% of a long interval at a time, and is set again until the moment
-        %% comes, and one set before the node ended comes to nothing
+        %% report §8.7, Appendix E.27: every interval, each connected peer
+        %% told how busy the node is, until the node ends; the host's timer
+        %% takes a slice of a long interval at a time, and is set again
+        %% until the moment comes, and one set before the node ended comes
+        %% to nothing
         {deadline, Deadline} when not Departed ->
             case ern_rt:remaining(Deadline) of
                 0 -> gateway(Workers, Ended, told(connected_peers(), Measured),
@@ -233,9 +234,9 @@ gateway(Workers, Ended, Measured, Deadline, Departed) ->
                 #{} ->
                     gateway(Workers, Ended, Measured, Deadline, Departed)
             end;
-        %% report §8.7: a peer that connects is told at once, so that it
-        %% holds this node's utilization before an interval has passed, but
-        %% where the node ends
+        %% report §8.7, Appendix E.27: a peer that connects is told at once,
+        %% so that it holds this node's utilization before an interval has
+        %% passed, but where the node ends
         {nodeup, Node, _} = Event ->
             said(Event),
             Told = told([Node || is_peer(Node), not Departed], Measured),
@@ -246,10 +247,10 @@ gateway(Workers, Ended, Measured, Deadline, Departed) ->
             gateway(Workers, Ended, Measured, Deadline, Departed)
     end.
 
-%% Report §8.7: the moment of the next telling, Deadline where one is set,
-%% none once the node has ended, and else one `utilization-interval` from
-%% now where the node lists peers, or none where it lists none and tells
-%% no one.
+%% Report §8.7, Appendix E.27: the moment of the next telling, Deadline
+%% where one is set, none once the node has ended, and else one
+%% `utilization-interval` from now where the node lists peers, or none where
+%% it lists none and tells no one.
 armed(_Deadline, true) ->
     none;
 armed(none, false) ->
@@ -269,19 +270,19 @@ sliced(Deadline) ->
     _ = erlang:send_after(ern_rt:remaining(Deadline), self(), {deadline, Deadline}),
     Deadline.
 
-%% Report §8.7: the peers listed whose connection stands, which a telling
-%% goes to; a telling opens no connection.
+%% Report §8.7, Appendix E.27: the peers listed whose connection stands,
+%% which a telling goes to; a telling opens no connection.
 connected_peers() ->
     [Node || Node <- nodes(connected), is_peer(Node)].
 
 is_peer(Node) ->
     ern_peer:name(Node) =/= 'None'.
 
-%% Report §8.7: each of Nodes told how busy the node is, the number an ask
-%% answers (utilization/1), with the interval of its tellings, by which the
-%% peer ages it, over its connection and without opening one; and what the
-%% measure keeps for the next reading; nothing read where there is no one
-%% to tell.
+%% Report Appendix E.27: each of Nodes told how busy the node is, the number
+%% an ask answers (utilization/1), with the interval of its tellings, by
+%% which the peer ages it, over its connection and without opening one; and
+%% what the measure keeps for the next reading; nothing read where there is
+%% no one to tell.
 told([], Measured) ->
     Measured;
 told(Nodes, Measured) ->
@@ -291,9 +292,9 @@ told(Nodes, Measured) ->
     lists:foreach(fun(Node) -> _ = erlang:send({?NAME, Node}, Telling, [noconnect]) end, Nodes),
     Measured1.
 
-%% Report §8.7: how busy the node is, as it tells and answers its peers: the
-%% utilization its program set with `Peer.setUtilization`, which keeps the
-%% measure as it was, and else its measure.
+%% Report Appendix E.27: how busy the node is, as it tells and answers its
+%% peers: the utilization its program set with `Peer.setUtilization`, which
+%% keeps the measure as it was, and else its measure.
 utilization(Measured) ->
     case ern_rt:program_utilization() of
         none -> measure(Measured);

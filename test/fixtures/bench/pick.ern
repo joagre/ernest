@@ -240,10 +240,10 @@ fn ruleName(rule : Rule) : String =
       | At(peer) -> peer
     }
 
-// Report §8.7: until every peer has told this node how busy it is since
-// the moment `since`, so that a burst or a stream starts on tellings made
-// once the last one's work had ended; the utilizations read again when the
-// first peer still to tell is due, an interval after its last telling,
+// Report Appendix E.27: until every peer has told this node how busy it is
+// since the moment `since`, so that a burst or a stream starts on tellings
+// made once the last one's work had ended; the utilizations read again when
+// the first peer still to tell is due, an interval after its last telling,
 // since a telling is the runtime's frame and no program's, and the table
 // changes at a telling alone.
 fn settled(setup : Setup, since : Int) : Unit receiving PickMsg = {

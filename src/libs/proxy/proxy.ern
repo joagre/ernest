@@ -28,7 +28,7 @@
 /// message through it may pass one sent to the service directly, and it
 /// keeps nothing of a message it could not deliver. A program that is to
 /// monitor the service itself holds the address `Peer.find` gives (report
-/// §8.7).
+/// §8.7, Appendix E.27).
 ///
 /// ## Examples
 ///
@@ -149,11 +149,11 @@ fn without(target : #(Address(m), Bool), ended : Process) : #(Address(m), Bool) 
 
 //
 // The tests (report §9.3), run by `ern test` as every library's are, in a
-// program that is no node, where a find answers `NotListed` (report §8.7):
-// what a proxy does while its service is away. Its finding the
-// service, and finding it again after the service's node restarts, are the
-// real nodes' (test/ern_nodes_tests.erl). Regression tests, written after
-// the code.
+// program that is no node, where a find answers `NotListed` (report
+// Appendix E.27): what a proxy does while its service is away. Its finding
+// the service, and finding it again after the service's node restarts, are
+// the real nodes' (test/ern_nodes_tests.erl). Regression tests, written
+// after the code.
 //
 
 // A service's protocol, which carries a reply.

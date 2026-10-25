@@ -1,7 +1,7 @@
-// Report §8.7: the desk, which finds the store's services, spawns and
-// computes on it, watches a restart there, asks how busy it is and
-// computes on the peer it picks, printing what each answers; the test ends
-// the store where it says so.
+// Report §8.7, Appendix E.27: the desk, which finds the store's services,
+// spawns and computes on it, watches a restart there, asks how busy it is
+// and computes on the peer it picks, printing what each answers; the test
+// ends the store where it says so.
 // Each wait is given the test's time for one step (Harness.waitMs), but
 // where a line says otherwise.
 
@@ -683,15 +683,15 @@ fn pinged(left : Int, ping : (Address(Int)) -> Unit receiving Int) : Unit receiv
 foreign fn pings(process : Process, count : Int) : Float =
     "ern_peers_host:pings/2"
 
-// Report §8.7: computes on the store: the value back; a name that is no
-// peer's; a function whose binding has no value there; a fault in the
-// function, the caller's, which this node reports once, the stack that
-// crossed with it beneath, and the store not at all; a process killed
-// before it answers; one whose caller ends while it waits, one whose
-// caller the function kills from the store, which this node carries out as
-// its own kill, and one whose time runs out, each killed on the store,
-// whose watcher says so; and, last, one that ends with the store's
-// program, once the test has stopped the store.
+// Report §8.7, Appendix E.27: computes on the store: the value back; a name
+// that is no peer's; a function whose binding has no value there; a fault
+// in the function, the caller's, which this node reports once, the stack
+// that crossed with it beneath, and the store not at all; a process killed
+// before it answers; one whose caller ends while it waits, one whose caller
+// the function kills from the store, which this node carries out as its own
+// kill, and one whose time runs out, each killed on the store, whose
+// watcher says so; and, last, one that ends with the store's program, once
+// the test has stopped the store.
 fn computes() : Unit receiving Msg = {
     Process.faults(Reported);
     Io.println("value: " <> Io.show(Peer.computeAt("store", fn() = 6 * 7, Harness.waitMs())));
