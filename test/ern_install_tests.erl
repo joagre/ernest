@@ -291,9 +291,14 @@ tracked() ->
 %% The guide's links to a file of examples/ or editors/, each read from the
 %% checkout's guide, are in the installed guide as the checkout's writes
 %% them and name a file installed; and no link of the installed guide's
-%% leads to either in the repository.
+%% leads to either in the repository. The checkout's guide is the
+%% documents git tracks there, so that an editor's files beside them, a
+%% lock that names no file among them, are not read: a regression test,
+%% written on 2026-10-25, when an editor's lock of guide/language.md
+%% failed the reading.
 kept_links(Documents) ->
-    Kept = [{Guide, Target} || Guide <- filelib:wildcard("guide/*.md", ".."),
+    Kept = [{Guide, Target} || Guide <- tracked(), filename:dirname(Guide) =:= "guide",
+                               filename:extension(Guide) =:= ".md",
                                Target <- link_targets("../" ++ Guide),
                                lists:prefix("../examples/", Target)
                                    orelse lists:prefix("../editors/", Target)],
