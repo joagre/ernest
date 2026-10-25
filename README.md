@@ -10,26 +10,31 @@
 
 *The Importance of Being Ernest, a Trivial Comedy for Serious People*
 
-Ernest is a small functional language for concurrent programs, on the Erlang runtime. A program is functions, whose types the compiler infers, and processes that talk through typed mailboxes.
+Ernest is a small functional language for concurrent programs, on the Erlang runtime. A process receives messages of one type, which the compiler checks every send against, and a process started on another node brings its code along: nothing is installed there first.
 
-A counter is a process that holds a number. Its mailbox type, `CounterMsg`, is in the type of `count`, the loop the process runs. `counter` is the program's counter, started under `restarting` so that a fault in `count` starts it again with its address kept, three times within 5000 milliseconds at most. `main` sends it two increments and asks for the total: `Address.call` makes a reply, `Get` builds the request around it, and the call waits 1000 milliseconds at most for the answer:
+`foo` is a node started with no program, `ern run --config-dir foo` in a terminal of its own, and it holds nothing of the counter's. The shell is a node too, and the two are two directories each listing the other by key and address, which [the tour](tour/README.md)'s chapter 2 makes in seven commands. `Peer.spawn` starts `count` on `foo`, its code crossing with the spawn, and the shell counts on it from here:
+
+```console
+$ ern shell --config-dir a
+listening on 0.0.0.0:8654
+Ernest 0.5.0. :help for the commands, :quit to leave.
+> :load Counter
+Counter, compiled from counter.ern
+> let far = match Peer.spawn("foo", fn() = Counter.count(0), 5000) { Right(address) -> address | Left(error) -> fault(Io.show(error)) }
+the peer foo connected
+far : Address(Counter.CounterMsg)
+> send(far, Counter.Inc(5))
+> send(far, Counter.Inc(3))
+> Address.call(far, Counter.Get, 1000)
+Some(8) : Optional(Int)
+```
+
+`counter.ern` is the whole of the counter. Its mailbox type, `CounterMsg`, is in the type of `count`, the loop the process runs, so that every message sent to its address is checked against it: `Inc` is sent, and `Get` is a call, `Address.call` making the reply, `Get` building the request around it, and the call waiting 1000 milliseconds at most for the answer:
 
 ```ernest
 export type CounterMsg = Inc(Int) | Get(Reply(Int))
 
-export let counter : Address(CounterMsg) =
-    spawn(restarting(RestartLimit(restarts = 3, within = 5000), fn() = count(0)))
-
-export fn main() : Unit = {
-    send(counter, Inc(5));
-    send(counter, Inc(3));
-    match Address.call(counter, Get, 1000) {
-        Some(total) -> Io.println("count is " <> Int.toString(total))
-      | None -> Io.println("counter did not answer")
-    }
-}
-
-fn count(total : Int) : Unit receiving CounterMsg =
+export fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) ->
             count(total + amount)
@@ -38,11 +43,6 @@ fn count(total : Int) : Unit receiving CounterMsg =
             count(total)
         }
     }
-```
-
-```console
-$ ern run counter.erc
-count is 8
 ```
 
 A function that receives runs only in a process whose mailbox takes what it receives, so `count` called by a `main` whose mailbox takes another type is refused before the program runs:
@@ -90,7 +90,7 @@ Three ways in, each for a reader:
 - **[The guide](guide/language.md)**, *Programming in Ernest*, for the programmer learning the language, who has used a functional language: every rule taught where a program first needs it, with the report's section named. An afternoon to read; [`guide/README.md`](guide/README.md) says what stands beside it, for whom and how long.
 - **[The report](report/README.md)**, for whoever builds or checks a toolchain or writes a library against the exact rules: the definition, three files, which everything else defers to.
 
-The counter above is the first claim at work, and the rest of the argument is [Why Ernest](guide/why.md).
+The counter above is the first three claims at work, and the rest of the argument is [Why Ernest](guide/why.md).
 
 ## Where it stands
 

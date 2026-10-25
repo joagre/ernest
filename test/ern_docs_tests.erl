@@ -177,6 +177,18 @@ among(_, []) -> false;
 among([Paragraph | Shown], [Paragraph | Rest]) -> among(Shown, Rest);
 among(Shown, [_ | Rest]) -> among(Shown, Rest).
 
+%% README.md, tour/2/counter.ern: the README's counter, its one `ernest`
+%% block, is the module the tour's chapter 2 spawns on a bare node, byte
+%% for byte, so that the front page shows what the tour's test runs. A
+%% regression test, written after the README's block; it does not cover the
+%% README's console, the transcript of the spawn, which no test runs.
+readme_counter_is_the_tours_test() ->
+    Lines = binary:split(ern_repository:read("README.md"), <<"\n">>, [global]),
+    {_, [_ | Rest]} = lists:splitwith(fun(Line) -> Line =/= <<"```ernest">> end, Lines),
+    {Code, _} = lists:splitwith(fun(Line) -> not fence(Line) end, Rest),
+    ?assertEqual(string:chomp(ern_repository:read("tour/2/counter.ern")),
+                 iolist_to_binary(lists:join(<<"\n">>, Code))).
+
 %% report/, guide/language.md, docs/development.md "Building": a document's
 %% contents list is its top-level sections, its headings of level two, each
 %% linked to its heading, which `make contents` writes
