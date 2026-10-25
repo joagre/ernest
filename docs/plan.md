@@ -21,7 +21,7 @@ and what the lease broker found, and the release review, nine readers and the ma
 lines made in two rounds. It is the last milestone of the road planned on 2026-10-13, and no promise
 of stability is made: from 0.5.0 on a change to the language, the standard library or the libraries
 is driven by a need met in use and recorded as `docs/language_feedback.md` records one. MVP 3.95,
-what the review and 0.5.0 left, is next; then the attached shell, ehttpd, the website, the shell's
+what the review and 0.5.0 left, is under way, its first item done 2026-10-25; then the attached shell, ehttpd, the website, the shell's
 second round and the back end (the log's *The Road to 1.0, Ordered*). A finished milestone is a row
 of the table below, its reasons in the log entries the row names.
 
@@ -86,9 +86,10 @@ The days after the tag, before the attached shell: what the release itself teach
 discussions the full review left, what it decided for after the release, and a release of its own,
 in the order to do them, the word 0.5.0 ships decided before §8.7's text moves.
 
-1. **The release review read back.** What 0.5.0's fresh clone, six machines and readers cost
-   against what they found, and `release_review.md` amended where the release taught something, as
-   each release has left it a lesson.
+1. **The release review read back**, done 2026-10-25 (the log's *The Release Review Read
+   Back*): the clone, the machines and the readers weighed against what they found,
+   `release_review.md` amended, the round's reader among it, and dialyzer in the full run held as
+   item 11.
 2. **The service monitor across nodes, decided.** A service monitor on a process of another node
    is told of no restart (§6.9, §8.7), so one `monitorService` call means one thing for a process
    on the caller's node and another for a peer's, and nothing at the call shows which. Discussed
@@ -124,9 +125,10 @@ in the order to do them, the word 0.5.0 ships decided before §8.7's text moves.
    Review Before 0.5.0*; `full_review.md`'s *How it runs* has one of its facts, that a reader
    returns its list as text, and lacks the rest: fix agents by file ownership, compiling in
    scratch with no `make` of their own, a second round for the decisions, the session integrating
-   and reading back, `git status` compared before and after a round, and the two lessons the
+   and reading back, and `git status` compared before and after a round; the two lessons the
    release review's entry records, the log searched and the program run before a decision is
-   argued. A kind of fact at its fourth entry gets a document (CLAUDE.md, *A new owner*):
+   argued, are CLAUDE.md's *Before code* since 2026-10-25, which `release_review.md` points at. A
+   kind of fact at its fourth entry gets a document (CLAUDE.md, *A new owner*):
    `full_review.md`'s *How it runs* states it whole, and `release_review.md` points at it for a
    release's smaller round.
 6. **The site proposal's sitting.** Its three lines the repository has left behind, MVP 3.3
@@ -152,6 +154,12 @@ in the order to do them, the word 0.5.0 ships decided before §8.7's text moves.
    2 leaves §8.7's protocol as it stands, the first release whose nodes connect to the previous
    release's, two patch levels on one floor (report §8.7); 0.6.0 where it adds a frame, since the
    protocol's version then moves and the two releases must not mix.
+11. **Dialyzer in the full run**, a decision for the user from item 1 (the log's *The Release
+   Review Read Back*): the five warnings the review found all came in the week since dialyzer last
+   ran, and `make dialyzer` costs 27 s against a full run of about nine minutes. Recommended:
+   `make test-full` runs it, so that a warning is met at its item's commit, the fresh clone then
+   building the PLT once, a cost the next review measures; else dropped, the release review keeping
+   it as it stands.
 
 ## MVP 4.0 (a shell attached to a running node), about a week
 

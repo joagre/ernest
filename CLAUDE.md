@@ -22,7 +22,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 | the code and its tests | what is built |
 | [`docs/architecture.md`](docs/architecture.md) | how the code is arranged |
 | [`guide/style.md`](guide/style.md) | what a program written in Ernest looks like: what the tools decide, what the standard library does with names, and the names every program shares |
-| [`docs/style.md`](docs/style.md) | the repository's own code's form and naming, its Erlang's and its C's, and the toolchain's glossary |
+| [`docs/style.md`](docs/style.md) | the repository's own code's form and naming, its Erlang's, its C's and its own Ernest's, and the toolchain's glossary |
 | [`README.md`](README.md) | what Ernest is and where to begin |
 | [`report/README.md`](report/README.md) | what the report's three files hold and how the report is read |
 | [`guide/README.md`](guide/README.md) | what each guide is, for whom, and how long |
@@ -31,7 +31,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 | [`ACKNOWLEDGMENTS.md`](ACKNOWLEDGMENTS.md) | the people Ernest stands on, by name alone |
 | [`docs/development.md`](docs/development.md) | the layout, the commands, and what the toolchain does not do yet |
 | [`docs/README.md`](docs/README.md) | what each document under `docs/` is |
-| `docs/design/shell.md`, `docs/design/install.md`, [`docs/design/emacs_mode.md`](docs/design/emacs_mode.md), [`docs/design/runtime.md`](docs/design/runtime.md), [`docs/design/nodes.md`](docs/design/nodes.md), [`docs/design/code.md`](docs/design/code.md) | each its component's design; a design note changes when its component does. The runtime's states what the runtime keeps and where, the look, a launch, a call, a kill, the boundary and the frames, as they stand, citing the report and naming the log entry that argues each; it states no why |
+| [`docs/design/shell.md`](docs/design/shell.md), [`docs/design/install.md`](docs/design/install.md), [`docs/design/emacs_mode.md`](docs/design/emacs_mode.md), [`docs/design/runtime.md`](docs/design/runtime.md), [`docs/design/nodes.md`](docs/design/nodes.md), [`docs/design/code.md`](docs/design/code.md) | each its component's design as it stands, citing the report and naming the log entry that argues each, stating no why; a design note changes when its component does |
 | [`src/shell/README.md`](src/shell/README.md) | how the shell's code reads |
 | [`editors/emacs/README.md`](editors/emacs/README.md) | how to install the Emacs mode, and what it leaves to the reader's configuration |
 | [`docs/module_doc_template.md`](docs/module_doc_template.md) | the worked example of a documented module, held equal to `ern doc`'s output by a test |
@@ -64,7 +64,7 @@ Meanwhile it does not change but in its form, a paragraph broken where it turns 
 
 **Where a sentence goes.** Decide the owner before you write. What will be built and when goes in the plan; why goes in the log; a paragraph that does both is split at that line. A decision the user must see goes in the plan, in one sentence, with the report section that states it and the log entry that argues it, since the user reads the plan and not the log. A finished milestone in the plan is a row of its table of milestones, naming the log entries that argue it.
 
-**A step forward sweeps what it leaves behind.** A sentence, a file or a directory that a step makes redundant, a done item's paragraph, a built proposal, a decided finding, a citation of what went, goes in the step's own commit, never left for a review to find.
+**A step forward sweeps what it leaves behind.** A sentence, a file or a directory that a step makes redundant, a done item's paragraph, which one line naming its log entry replaces until the milestone's row takes it, a built proposal, a decided finding, a citation of what went, goes in the step's own commit, never left for a review to find.
 
 ## The repository
 
@@ -86,8 +86,8 @@ Meanwhile it does not change but in its form, a paragraph broken where it turns 
 
   A session opened to discuss alone writes nothing until the user asks. Then each write to the plan or the log is named in one line before it is made, a "go" covers the piece just discussed and not the topic, and where more rounds are coming the writes are gathered into one commit at the pause.
 - **Where a step looks wrong, say so once, hard**: the verdict, the principle that decides, the argument. If the user insists, build it whole, and the log entry records the decision with the argument against it. The code carries no trace of the dissent.
-- **A finding is argued only after the log and the program.** A finding or a `decide` line is argued only after the log has been searched for the decision it may sharpen, and after the program that shows it has been run in the session; a verdict recommended on a reader's probe alone says so.
-- **Leave no decision pending.** A question a step raises is decided in the same turn, with its argument, and recorded in the plan and the log. One that needs the user is discussed at once and stands in the plan meanwhile as a named decision in a named milestone, never as "open". An undiagnosed defect is planned the same way, with a date and the shape of its fix.
+- **A finding is argued only after the log and the program.** The log is searched for the decision a finding or a `decide` line may sharpen, and the program that shows it is run in the session; a verdict recommended on a reader's probe alone says so.
+- **Leave no decision pending.** A question a step raises is decided in the same turn, with its argument, and recorded in the plan and the log. One that needs the user is discussed at once and stands in the plan meanwhile as a named decision in a named milestone, never as "open".
 
 ## Design
 
@@ -121,7 +121,7 @@ Meanwhile it does not change but in its form, a paragraph broken where it turns 
 ## Defects and gaps
 
 - **No warts.** Never leave an approximation, a silent deviation from the report, or an unstated semantic choice in the code.
-- **Fix a known defect when found.** A gap too large to fix now goes in the plan with a date, never in a comment. A refusal made for a later MVP's sake names that MVP in its error text, and `docs/development.md`'s table lists it, which a test checks.
+- **Fix a known defect when found.** A gap too large to fix now, or a defect not yet diagnosed, goes in the plan with a date and the shape of its fix, never in a comment. A refusal made for a later MVP's sake names that MVP in its error text, and `docs/development.md`'s table lists it, which a test checks.
 - **Memory that no collection reclaims is a defect, fixed at its cause**, in the runtime, the toolchain, the shell and Ernest code alike. Never fix it by capping a list, a table or a cache. Add a cache only with an argument for what it holds and when it lets go. How memory is checked is [`docs/memory.md`](docs/memory.md)'s.
 - **Nothing routes around a defect or a gap**, in the standard library, the shell, `examples/`, the guide, the report's examples or the tests. Code that meets a toolchain bug, a missing function, module or feature, or a command that cannot show something does not work around it or hide it by choosing another example. Stop and say so: the gap goes to the report, Appendix E or the plan first, and what needed it says that it waits.
 - **A published specification or a general-purpose engine is a library's work**: a pattern language, a data format, a protocol, dates and times. Where Ernest code finds itself writing one, stop; the need goes to [`docs/language_feedback.md`](docs/language_feedback.md), and whether a library is written is decided with the user first. Splitting, trimming and sorting stay in the program.
@@ -134,7 +134,7 @@ Meanwhile it does not change but in its form, a paragraph broken where it turns 
 - **A test written after the code is a regression test.** Say so, and name what it does not cover. What has found defects here is the terminal harness, a read-back of the code, an independent reader, and the user, not a test that passed on its first run.
 - **`make test`, the light run, runs before every commit; `make test-full`, every area, before the commit that closes a plan item and before a release.** A commit of documents alone runs `make test-docs`. While working, the area a change touches runs its own target; `docs/development.md`'s *Building* names them.
 - **Edits to a proposal under discussion are committed at a pause**, at the end of a topic and not after each verdict: one `make test-docs`, which reads every tracked document, a proposal's among them, then one commit by their paths, pushed then. Code, the Makefile and other documents are tested as always.
-- **Readers run before a release, and when the user asks**, as [`docs/release_review.md`](docs/release_review.md) says; the full review's readers read every area whole, when [`docs/full_review.md`](docs/full_review.md) says; the findings of any review or read are sorted as that document's *The findings* says, the `fix` lines made at once, and the rest decided as *Before code* says: a design question on its own, the smaller decisions as one numbered list with recommendations.
+- **Readers run before a release, and when the user asks**, as [`docs/release_review.md`](docs/release_review.md) says; the full review's readers read every area whole, when [`docs/full_review.md`](docs/full_review.md) says; the findings of any review or read are sorted as that document's *The findings* says, the `fix` lines made at once, and the rest decided as *Before code* says.
 
 ## Writing
 
@@ -168,13 +168,13 @@ Meanwhile it does not change but in its form, a paragraph broken where it turns 
 5. Every report section the item built cited by a test, and a test written after the code called a regression test (*Tests*).
 6. A new name in the glossary, and a new term in Appendix F (*Style*).
 7. The result read back, and every surprise decided (*Done*).
-8. `make test-full` green; the conformance section written; every known gap in the plan; the same commit removes every sentence elsewhere that says the item still waits, in `docs/development.md`'s table, the plan's tables, or an example's header; then a commit that names its paths (*Tests*, *Done*, *The repository*).
+8. `make test-full` green; the conformance section written; the same commit removes every sentence elsewhere that says the item still waits, in `docs/development.md`'s table, the plan's tables, or an example's header; then a commit that names its paths (*Tests*, *Done*, *The repository*).
 9. The report to the user, ending with *Report conformance*, then a stop until the user's word; a push only on that word (*Done*).
 10. Where the item was its milestone's last, the same commit sweeps the plan: the milestone's section goes, its row names its proposal and the log entries that argue it, and every sentence of a later milestone that cited the section's items cites the log instead (*Where a sentence goes*).
 
 ## Style
 
-[`guide/style.md`](guide/style.md) holds the rules an Ernest program is written by, and [`docs/style.md`](docs/style.md) the repository's own for its Erlang and C; both are imported here.
+The two style documents of the owner table, [`guide/style.md`](guide/style.md) for a program's Ernest and [`docs/style.md`](docs/style.md) for the repository's own code, are imported here.
 
 **The glossary is living.** A name that comes to recur across modules, or a concept the code names in two places, goes into the glossary in the commit that writes it, `guide/style.md`'s for an Ernest name and `docs/style.md`'s for the toolchain's, in the report's word where the report names the concept. Appendix F is living the same way: a report edit that introduces a term adds its line in that edit. Use a name the glossary holds as it stands. Where the code and the glossary differ, correct the wrong one in the same commit; a new word that departs from the report's goes to the user first.
 

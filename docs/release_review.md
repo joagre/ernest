@@ -2,14 +2,14 @@
 
 What a release runs to be ready, and nothing else. Between releases a change runs `make test-full` before the commit that closes its plan item (CLAUDE.md, *Tests*). The plan says when a review runs; each finding is fixed, planned, or dropped, and the commit messages say which. A full review, every reader over the whole of its area, runs seldom, as [`full_review.md`](full_review.md) says.
 
-1. **A fresh clone builds and passes:** `git clone`, then `make` and `make test-full`, in a directory of its own. `make test-full` installs into a scratch prefix and from the release archive, and runs from there (`installation_test_`, [`design/install.md`](design/install.md)).
-2. **Six machines:**
+1. **A fresh clone builds and passes:** `git clone`, then `make` and `make test-full`, in a directory of its own, on a machine running nothing else, before the readers start. `make test-full` installs into a scratch prefix and from the release archive, and runs from there (`installation_test_`, [`design/install.md`](design/install.md)).
+2. **Six machines**, over the commit the review starts on; once the findings are made, `make dialyzer`, `make sections` and `make bench` run again over the release's commit, `make load` where the round changed the runtime and `make sanitize` where it changed the helper:
    - `make dialyzer`;
    - `make sanitize`, the helper in C under Clang's analyzer and the sanitizers;
    - `make load`, the loads of [`memory.md`](memory.md);
    - `make service`, a program started, stopped and started again by the host's service manager, whose launchd checks, written for macOS in MVP 2.99b's item 10, run on the first Mac at hand and until then the release's notes say they have not;
    - `make sections`, which names a section of the report no test cites, and names only a section of a milestone not yet built, which that milestone's item names;
-   - and `make bench`, three runs with the machine idle, the median of each row's ratio to Erlang's no worse than the rows the log last recorded, which the log's entry for this review then holds; then `make bench-release`, which keeps the last of the three as the release's run, the second reference every later run is compared with.
+   - and `make bench`, three runs with the machine idle, the median of each row's ratio to Erlang's no worse than the rows the log last recorded, which the log's entry for this review then holds; then, over the release's commit, `make bench-release`, which keeps the last of its three as the release's run, the second reference every later run is compared with.
 3. **The readers** of [`full_review.md`](full_review.md), run as it runs them, with its briefs:
    - **The report:** P, the principles, and K, the cold reader, each on its model (*The models*).
    - **A newcomer:** N, with a program no earlier newcomer wrote.
@@ -17,7 +17,8 @@ What a release runs to be ready, and nothing else. Between releases a change run
    - **The code:** C, E and S as one reader, over what changed in `erl/`, `src/stdlib/`, `src/shell/` and `src/libs/` since the last release, or since the last full review where that is later.
    - **The guide:** U, when a rule of the report changed since the last release, over the sections of the guide that teach what changed.
    - **The argument:** the report's reader, when a rule [`soundness.md`](soundness.md) covers changed since the last release, over the argument's paragraphs for those rules beside the report's sections: every step that does not follow from the rule it cites.
-4. **The findings:** a defect is fixed, or planned in a milestone; clarity is fixed where it is cheap, and otherwise dropped; the lines are sorted as [`full_review.md`](full_review.md)'s *The findings* says.
+   - **The round:** K, once the findings are made, over the report's diff from the commit the review started on to the release's commit, the lines the review's own rounds wrote and no reader has read (the log's *The Release Review Read Back*).
+4. **The findings:** a defect is fixed, or planned in a milestone; clarity is fixed where it is cheap, and otherwise dropped; the lines are sorted as [`full_review.md`](full_review.md)'s *The findings* says. A `decide` line is argued as CLAUDE.md's *Before code* says, after the log is searched for the decision it may sharpen and the program that shows it is run.
 
    A name a reader lists is decided after the word is searched across the report, the code and the shell, never from its module alone. Where it means something else anywhere in Ernest, the two meanings are weighed on §0's principles, a word carrying two where a reader who knows Ernest first keeps them apart, and the log names the principle that decided and the other meaning the verdict weighed.
 5. **The release:**
@@ -34,4 +35,4 @@ What a release runs to be ready, and nothing else. Between releases a change run
    - what the review did not run;
    - and the newcomer's program.
 
-**The models.** Two models serve a review, the most advanced there is and the one below it, as [`full_review.md`](full_review.md)'s *The models* says. The machines need none. The principles reader runs on the most advanced, since it judges rules against §0; the cold reader, the skeptics, the newcomer, the code's reader and the guide's run on the one below. Of the findings, a design question or a sentence of the report takes the most advanced, and a named fix and the release itself the one below.
+**The models.** Two models serve a review, the most advanced there is and the one below it, as [`full_review.md`](full_review.md)'s *The models* says. The machines need none. The principles reader runs on the most advanced, since it judges rules against §0; the cold reader, the skeptics, the newcomer, the code's reader, the guide's and the round's run on the one below. Of the findings, a design question or a sentence of the report takes the most advanced, and a named fix and the release itself the one below.
