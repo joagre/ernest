@@ -346,7 +346,8 @@ program(A, Copied, Words) ->
                                                               "pick.erc")),
                              [[" ", ern_machine:quoted(Word)] || Word <- Words],
                              " 2> ", ern_machine:quoted(Errors)]),
-    case ern_machine:run(Machine, Command) of
+    %% the measuring program's run, which lasts as long as its work does
+    case ern_machine:run(Machine, Command, infinity) of
         {0, Said} ->
             [string:lexemes(Line, " ") || Line <- string:lexemes(Said, "\n")];
         {Status, Said} ->

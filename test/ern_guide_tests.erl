@@ -207,12 +207,12 @@ work_on_a_peer(Base) ->
 %% the store's lines against the desk's, which two terminals do not order,
 %% nor that the store's counter has offered the service when the desk, a
 %% host started once the store listens, asks for it, which nothing the
-%% store says shows. Its limit is the sum of its thirteen waits, each
+%% store says shows. Its limit is the sum of its twelve waits, each
 %% bounded by the harness's time for one wait: the build, four `ern config`
 %% jobs, the store's listening, two runs, the desk's end on the store, the
 %% stop, the store's end and what it said
 services_across_nodes_test_() ->
-    ern_nodes_tests:nodes_test({waits, 13}, fun services_across_nodes/1).
+    ern_nodes_tests:nodes_test({waits, 12}, fun services_across_nodes/1).
 
 services_across_nodes(Base) ->
     built(Base, tree_of("store.ern")),
@@ -255,7 +255,7 @@ tree_of(File) ->
 %% Files written under Base and built there, Base their source root.
 built(Base, Files) ->
     [ok = write(filename:join(Base, Name), Code) || {Name, Code} <- Files],
-    ?assertEqual(0, ern_cli:ern(["build", Base], group_leader())).
+    ?assertEqual(0, ern_nodes_tests:built([Base])).
 
 %% The commands of each console under the guide's heading that begins with
 %% Heading whose first command starts a node, `$ ern run --config-dir`.

@@ -16,7 +16,7 @@
 %% paste arrives as one `Pasted` with its line endings as line feeds, not
 %% as the keys of its characters.
 keys_test_() ->
-    {timeout, 60, fun keys/0}.
+    ern_nodes_tests:counted_test({waits, 8}, fun keys/0).
 
 keys() ->
     ok = build("fixtures/terminal/probe.ern", "fixtures/terminal"),
@@ -34,8 +34,7 @@ keys() ->
                        %% sends them, between the brackets §8.2 asks for
                        {send, "1b5b3230307e61" ++ "0d" ++ "621b5b3230317e"},
                        {expect, "pasted"},
-                       {send, "1b"}],       % Escape, alone
-                      15),
+                       {send, "1b"}]),
     Lines = lines(Screen),
     %% report Appendix E.16: the size the program was given, its keys, and the new
     %% size when the window changed; nothing was echoed, since an echoed key
@@ -51,7 +50,7 @@ keys() ->
 %% later is nothing, which a key after it, shown, marks. A regression test:
 %% the paste took in every key after it
 unended_paste_test_() ->
-    {timeout, 60, fun unended_paste/0}.
+    ern_nodes_tests:counted_test({waits, 6}, fun unended_paste/0).
 
 unended_paste() ->
     ok = build("fixtures/terminal/probe.ern", "fixtures/terminal"),
@@ -64,8 +63,7 @@ unended_paste() ->
                        {send, "1b5b3230317e"},        % the paste's end, too late
                        {send, "79"},                  % y
                        {expect, "char y"},
-                       {send, "1b"}],
-                      15),
+                       {send, "1b"}]),
     ?assertEqual([<<"ready 24x80">>, <<"pasted hi">>, <<"char x">>, <<"char y">>,
                   <<"escape">>],
                  lines(Screen)).
@@ -75,7 +73,7 @@ unended_paste() ->
 %% standard output is not one, the size is `Left(NotATerminal)`, a
 %% regression test of the rule of 2026-10-01, before which it was `None`
 not_a_terminal_test_() ->
-    {timeout, 60, fun not_a_terminal/0}.
+    ern_nodes_tests:counted_test({waits, 2}, fun not_a_terminal/0).
 
 not_a_terminal() ->
     ok = build("fixtures/terminal/probe.ern", "fixtures/terminal"),
@@ -88,26 +86,25 @@ not_a_terminal() ->
 %% regression test: the host answered the terminal's size through a pipe,
 %% so the shell painted its region into it
 no_size_test_() ->
-    {timeout, 60, fun no_size/0}.
+    ern_nodes_tests:counted_test({waits, 7}, fun no_size/0).
 
 no_size() ->
     ok = build("fixtures/terminal/probe.ern", "fixtures/terminal"),
     Steps = [{expect, "ready"}, {send, "1b"}, {expect, "escape"}],
-    {0, Piped} = pty("../bin/ern run build/terminal/probe.erc | cat", Steps, 30),
+    {0, Piped} = pty("../bin/ern run build/terminal/probe.erc | cat", Steps),
     ?assertEqual([<<"ready no size">>, <<"escape">>], lines(Piped)),
-    {0, Sizeless} = ern_pty:run("../bin/ern run build/terminal/probe.erc", Steps, 30,
-                                " --size 0x0"),
+    {0, Sizeless} = ern_pty:run("../bin/ern run build/terminal/probe.erc", Steps, " --size 0x0"),
     ?assertEqual([<<"ready no size">>, <<"escape">>], lines(Sizeless)).
 
 %% report §11.2: at a terminal a fault line is as the reader watches it
 %% happen, without the time it begins with in a file. Written with the code.
 unstamped_at_a_terminal_test_() ->
-    {timeout, 60, fun unstamped_at_a_terminal/0}.
+    ern_nodes_tests:counted_test({waits, 3}, fun unstamped_at_a_terminal/0).
 
 unstamped_at_a_terminal() ->
     ok = build("fixtures/terminal/faulty.ern", "fixtures/terminal"),
     {1, Screen} = pty("../bin/ern run build/terminal/faulty.erc",
-                      [{expect, "division by zero"}], 30),
+                      [{expect, "division by zero"}]),
     ?assertMatch({match, _}, re:run(Screen, "^Faulty\\.main faulted: division by zero",
                                     [multiline])).
 
@@ -116,7 +113,7 @@ unstamped_at_a_terminal() ->
 %% keys. A regression test: the interrupt's signal was turned back on for
 %% all but the shell, and ended such a program, where §8.2 delivers it
 utf8_key_interrupt_test_() ->
-    {timeout, 60, fun utf8_key_interrupt/0}.
+    ern_nodes_tests:counted_test({waits, 5}, fun utf8_key_interrupt/0).
 
 utf8_key_interrupt() ->
     ok = build("fixtures/terminal/probe.ern", "fixtures/terminal"),
@@ -126,20 +123,19 @@ utf8_key_interrupt() ->
                             {expect, "char"},
                             {send, "03"},       % the interrupt
                             {expect, "interrupt"},
-                            {send, "1b"}],      % Escape ends the probe
-                           15),
+                            {send, "1b"}]),
     ?assertMatch({_, _}, binary:match(Screen, <<"char ", 16#e9/utf8>>)),
     ?assertEqual(0, Status).
 
 %% report §8.2: the runtime restores line mode with echo when the program
 %% ends, so the terminal is the one the program found
 terminal_restored_test_() ->
-    {timeout, 60, fun terminal_restored/0}.
+    ern_nodes_tests:counted_test({waits, 3}, fun terminal_restored/0).
 
 terminal_restored() ->
     ok = build("fixtures/terminal/probe.ern", "fixtures/terminal"),
     {_, Screen} = pty("stty -a; ../bin/ern run build/terminal/probe.erc; stty -a",
-                      [{expect, "ready"}, {send, "1b"}], 15),
+                      [{expect, "ready"}, {send, "1b"}]),
     %% the terminal is described before and after, and is never left without
     %% echo; `-echoe` and its like are not `-echo`
     ?assert(ern_pty:count(
@@ -153,12 +149,12 @@ terminal_restored() ->
 %% program's output goes through a pipe, since the host puts back the
 %% terminal it found as it halts where its own output is the terminal
 settings_kept_test_() ->
-    {timeout, 60, fun settings_kept/0}.
+    ern_nodes_tests:counted_test({waits, 3}, fun settings_kept/0).
 
 settings_kept() ->
     ok = build("fixtures/terminal/probe.ern", "fixtures/terminal"),
     {_, Screen} = pty("stty tostop; ../bin/ern run build/terminal/probe.erc | cat; stty -a",
-                      [{expect, "ready"}, {send, "1b"}], 15),
+                      [{expect, "ready"}, {send, "1b"}]),
     ?assertMatch({match, _}, re:run(Screen, "(^|[ \t])tostop([ \t;\r\n]|$)")),
     ?assertEqual(nomatch, re:run(Screen, "-tostop", [{capture, none}])).
 
@@ -166,7 +162,7 @@ settings_kept() ->
 %% leaves, and the board's rows each start at the left, which full raw mode
 %% would have broken
 snake_test_() ->
-    {timeout, 60, fun snake/0}.
+    ern_nodes_tests:counted_test({waits, 5}, fun snake/0).
 
 snake() ->
     ok = build("../examples/snake.ern", "../examples"),
@@ -180,8 +176,7 @@ snake() ->
                        {expect, "tick 15 "},
                        {send, "1b5b44"},    % ArrowLeft
                        {expect, "tick 30 "},
-                       {send, "1b"}],       % Escape
-                      15),
+                       {send, "1b"}]),
     %% the frames that show the board, however many the game drew between
     %% the keys: under the host's modified timing, fewer
     Boards = [Frame || Frame <- binary:split(Screen, ?CLEAR, [global]),
@@ -201,13 +196,12 @@ snake() ->
 %% subscriber claims it, leaves the game as `Escape` does. A regression
 %% test: the game ignored it
 snake_interrupt_test_() ->
-    {timeout, 60, fun snake_interrupt/0}.
+    ern_nodes_tests:counted_test({waits, 3}, fun snake_interrupt/0).
 
 snake_interrupt() ->
     ok = build("../examples/snake.ern", "../examples"),
     {0, _} = pty("../bin/ern run build/examples/snake.erc",
-                 [{expect, "tick "}, {send, "03"}],
-                 15).
+                 [{expect, "tick "}, {send, "03"}]).
 
 %% The head's column and row in a frame.
 head(Frame) ->
@@ -223,8 +217,8 @@ build(Source, SourceRoot) ->
     ok.
 
 %% A command with a terminal of its own: {exit status, the screen}.
-pty(Command, Steps, Seconds) ->
-    ern_pty:run(Command, Steps, Seconds, "").
+pty(Command, Steps) ->
+    ern_pty:run(Command, Steps, "").
 
 lines(Screen) ->
     [Line || Line <- binary:split(modeless(Screen), <<"\r\n">>, [global]), Line =/= <<>>].

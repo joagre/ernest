@@ -12,7 +12,9 @@ tested no other way.
 COMMAND runs under /bin/sh.  FILE holds one step a line, and they run in
 order; a file rather than arguments, since a step's text holds whatever a
 program prints, `>` among it, and no shell should read that.  A blank
-line and a line beginning with # are skipped.
+line and a line beginning with # are skipped.  Each wait, an expect's and
+the wait for the program's end after the last step, is bounded by S
+seconds of its own, so that a wait that fails is told by its own bound.
 
     expect:TEXT   wait until TEXT appears on the screen, after whatever
                   the previous expect matched; a color sequence, ESC [ ... m,
@@ -207,6 +209,8 @@ def run(command, steps, timeout, size):
     resize(int(rows), int(columns))
     screen = Screen(fd, wake)
     left = list(steps)
+    # the bound of the wait in progress, which an expect met renews for
+    # the next, or for the wait for the end
     deadline = time.monotonic() + timeout
     while left and time.monotonic() < deadline and not screen.eof:
         kind, arg = left[0]
@@ -219,6 +223,7 @@ def run(command, steps, timeout, size):
         elif kind == "expect":
             if screen.find(arg):
                 left.pop(0)
+                deadline = time.monotonic() + timeout
             else:
                 screen.read(deadline - time.monotonic())
         else:

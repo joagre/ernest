@@ -22,7 +22,7 @@
 %% name that is not a module's and one it cannot find, each on a line of its
 %% own, and answering a standard library module as in scope already
 session_test_() ->
-    {timeout, 60, fun session/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun session/0).
 
 session() ->
     {0, Output} = ern_pty:sh("../bin/ern shell < fixtures/session/basic.in"),
@@ -33,7 +33,7 @@ session() ->
 %% declaration, whatever the `let` binds. A regression test: `:type let _ =
 %% 1`, which declares no name, was answered as an expression
 type_refuses_a_let_test_() ->
-    {timeout, 60, fun type_refuses_a_let/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun type_refuses_a_let/0).
 
 type_refuses_a_let() ->
     Dir = fresh_home(),
@@ -50,7 +50,7 @@ type_refuses_a_let() ->
 %% as its declaration does, and a built-in type with no keyword. A
 %% regression test: a foreign type was written `type`
 foreign_type_listed_test_() ->
-    {timeout, 60, fun foreign_type_listed/0}.
+    ern_nodes_tests:counted_test({waits, 8}, fun foreign_type_listed/0).
 
 foreign_type_listed() ->
     Dir = fresh_home(),
@@ -76,7 +76,7 @@ foreign_type_listed() ->
                  {expect, "type Int"},
                  {send, "03"},
                  {send, "04"}],
-                30, " --size 60x90"),
+                " --size 60x90"),
     ?assertEqual(nomatch, binary:match(Bytes, <<"foreign type Int">>)).
 
 %% report §11.2, §2.3: inside a call of a function whose name begins with
@@ -84,7 +84,7 @@ foreign_type_listed() ->
 %% constructor's name. A regression test: the callee was taken for a
 %% constructor, and nothing was shown
 underscore_signature_test_() ->
-    {timeout, 60, fun underscore_signature/0}.
+    ern_nodes_tests:counted_test({waits, 4}, fun underscore_signature/0).
 
 underscore_signature() ->
     Bytes = pty(alone("../bin/ern shell"),
@@ -95,7 +95,7 @@ underscore_signature() ->
                  {expect, "_twice(n : Int) : Int"},
                  {send, "03"},
                  {send, "04"}],
-                30, " --size 60x90"),
+                " --size 60x90"),
     ?assertMatch({_, _}, binary:match(Bytes, <<"_twice(n : Int) : Int">>)).
 
 %% report §11.2, Appendix E.0 shape rule 6: the brief of a declaration without a
@@ -107,7 +107,7 @@ underscore_signature() ->
 %% for the words, and the page pressed again had the module's version
 %% appended
 brief_module_version_test_() ->
-    {timeout, 90, fun brief_module_version/0}.
+    ern_nodes_tests:counted_test({waits, 6}, fun brief_module_version/0).
 
 brief_module_version() ->
     Dir = scratch("ern_brief_version_"),
@@ -134,7 +134,7 @@ brief_module_version() ->
                  {expect, "    Shape.quoted() : Int"},
                  {send, "03"},
                  {send, "04"}],
-                30, " --size 60x90"),
+                " --size 60x90"),
     ?assertMatch({_, _}, binary:match(Bytes, <<"Orders points by their x.\r\nSince 0.4.0.">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"in its text.\r\nSince 0.4.0.">>)),
     [_, Page] = binary:split(Bytes, <<"    Shape.quoted() : Int">>),
@@ -146,7 +146,7 @@ brief_module_version() ->
 %% written. A regression test: `:doc Fs.stat` printed the page's `Entry`
 %% where `:type Fs.stat` printed `Fs.Entry`
 doc_types_as_the_shell_prints_test_() ->
-    {timeout, 60, fun doc_types_as_the_shell_prints/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun doc_types_as_the_shell_prints/0).
 
 doc_types_as_the_shell_prints() ->
     Dir = fresh_home(),
@@ -165,7 +165,7 @@ doc_types_as_the_shell_prints() ->
 %% answered, and `let declarations = 5` put the input's module into
 %% `:bindings`
 let_of_a_tag_name_test_() ->
-    {timeout, 60, fun let_of_a_tag_name/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun let_of_a_tag_name/0).
 
 let_of_a_tag_name() ->
     Dir = fresh_home(),
@@ -184,7 +184,7 @@ let_of_a_tag_name() ->
 %% a type name was read as a lambda, and the prompt showed the expression
 %% parser's `expected (`
 member_declaration_error_test_() ->
-    {timeout, 60, fun member_declaration_error/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun member_declaration_error/0).
 
 member_declaration_error() ->
     InputFile = scratch_file("ern_member_"),
@@ -200,7 +200,7 @@ member_declaration_error() ->
 %% the prompt alike, without ending the session; `:processes` lists what is
 %% live and leaves the shell's own out, and `:faults` what has faulted
 program_test_() ->
-    {timeout, 60, fun program/0}.
+    ern_nodes_tests:counted_test({waits, 10}, fun program/0).
 
 %% The session waits on the events it asserts, not on the clock (the log's
 %% *A Test Waits for the Screen*): the program's own fault is awaited on the
@@ -230,7 +230,7 @@ program() ->
                      {expect, "Counter.main faulted: division by zero"},
                      {expect, "input 5:1 faulted: division by zero"},
                      {send, "04"}],
-                    30, "60x100"),
+                    "60x100"),
     %% what the program printed reached the screen
     ?assertMatch({_, _}, binary:match(Screen, <<"worker here">>)),
     %% the program's entry point and a process spawned at the prompt, each
@@ -248,7 +248,7 @@ program() ->
 %% and an input that fails is reported with the file and the line it came
 %% from, and the session goes on
 startup_test_() ->
-    {timeout, 60, fun startup/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun startup/0).
 
 startup() ->
     Home = scratch("ern_home_"),
@@ -289,7 +289,7 @@ startup() ->
 %% bare, and `:type`'s excerpt now places its argument after the command;
 %% the startup file is a node's, whose `:load` is any shell's
 startup_failures_named_test_() ->
-    {timeout, 60, fun startup_failures_named/0}.
+    ern_nodes_tests:counted_test({waits, 2}, fun startup_failures_named/0).
 
 startup_failures_named() ->
     ConfigDir = filename:join(fresh_home(), ".ernest"),
@@ -318,7 +318,7 @@ startup_failures_named() ->
 %% the working directory. A regression test: `:reload` said only that no
 %% source had changed, and the file was named by its absolute path
 reload_sources_named_test_() ->
-    {timeout, 60, fun reload_sources_named/0}.
+    ern_nodes_tests:counted_test({waits, 3}, fun reload_sources_named/0).
 
 reload_sources_named() ->
     Dir = fresh_home(),
@@ -343,7 +343,7 @@ reload_sources_named() ->
 %% environment would give it. A regression test: ERL_AFLAGS could run code
 %% with -eval before any job
 host_flags_cleared_test_() ->
-    {timeout, 60, fun host_flags_cleared/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun host_flags_cleared/0).
 
 host_flags_cleared() ->
     {0, Output} = ern_pty:sh(
@@ -362,7 +362,7 @@ host_flags_cleared() ->
 %% user's is not covered, since a test cannot make one. Written after the
 %% code
 startup_of_anothers_test_() ->
-    {timeout, 60, fun startup_of_anothers/0}.
+    ern_nodes_tests:counted_test({waits, 4}, fun startup_of_anothers/0).
 
 startup_of_anothers() ->
     Refused = fun(Change) ->
@@ -390,7 +390,7 @@ startup_of_anothers() ->
 %% alone. A regression test: the history's mode came first, so a startup
 %% file in a directory anyone could write was run at a terminal
 startup_checked_as_found_test_() ->
-    {timeout, 60, fun startup_checked_as_found/0}.
+    ern_nodes_tests:counted_test({waits, 3}, fun startup_checked_as_found/0).
 
 startup_checked_as_found() ->
     Home = fresh_home(),
@@ -399,7 +399,7 @@ startup_checked_as_found() ->
     ok = file:write_file(filename:join(Dir, "startup"), "Io.println(\"planted\")\n"),
     ok = file:change_mode(Dir, 8#777),
     Bytes = pty("HOME=" ++ Home ++ " ../bin/ern shell",
-                [{expect, "and is not run"}, {expect, "> "}, {send, "04"}], 30),
+                [{expect, "and is not run"}, {expect, "> "}, {send, "04"}]),
     ?assertEqual(nomatch, binary:match(Bytes, <<"planted">>)),
     {ok, #file_info{mode = Mode}} = file:read_file_info(Dir),
     ?assertEqual(8#700, Mode band 8#777).
@@ -408,7 +408,7 @@ startup_checked_as_found() ->
 %% no history, since each would be under wherever the shell was started. A
 %% regression test: `HOME=.` ran a startup file the working directory held
 relative_home_test_() ->
-    {timeout, 60, fun relative_home/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun relative_home/0).
 
 relative_home() ->
     Dir = fresh_home(),
@@ -427,7 +427,7 @@ relative_home() ->
 %% test: no module Prelude was in scope, and the namespace's name was
 %% documented
 prelude_shown_test_() ->
-    {timeout, 60, fun prelude_shown/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun prelude_shown/0).
 
 prelude_shown() ->
     Dir = fresh_home(),
@@ -465,7 +465,7 @@ prelude_shown() ->
 %% review before 0.4.0 found `:browse Address` answering that no module
 %% Address is in scope, where `:doc Address` answered)
 browse_address_test_() ->
-    {timeout, ern_nodes_tests:waits(1), fun browse_address/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun browse_address/0).
 
 browse_address() ->
     Dir = fresh_home(),
@@ -483,7 +483,7 @@ browse_address() ->
 %% the shell, and the binding is named with its line. A regression test:
 %% the shell printed a bare `fault:`
 faulting_binding_named_test_() ->
-    {timeout, 60, fun faulting_binding_named/0}.
+    ern_nodes_tests:counted_test({waits, 4}, fun faulting_binding_named/0).
 
 faulting_binding_named() ->
     Dir = fresh_home(),
@@ -509,7 +509,7 @@ faulting_binding_named() ->
 %% anywhere. A regression test, written after the code (the log's *The
 %% Float chain*)
 float_fault_at_prompt_test_() ->
-    {timeout, ern_nodes_tests:waits(3), fun float_fault_at_prompt/0}.
+    ern_nodes_tests:counted_test({waits, 3}, fun float_fault_at_prompt/0).
 
 float_fault_at_prompt() ->
     Dir = fresh_home(),
@@ -538,7 +538,7 @@ float_fault_at_prompt() ->
 %% after the code, each source was named from the source root,
 %% `geo/shape.ern`, which names nothing from the working directory
 load_and_reload_dependents_test_() ->
-    {timeout, 60, fun load_and_reload_dependents/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun load_and_reload_dependents/0).
 
 load_and_reload_dependents() ->
     Dir = fresh_home(),
@@ -576,7 +576,7 @@ load_and_reload_dependents() ->
 %% does not list beside the module's functions. A regression test, written
 %% after the code: the checker took every such name for a member
 shared_namespace_test_() ->
-    {timeout, ern_nodes_tests:waits(2), fun shared_namespace/0}.
+    ern_nodes_tests:counted_test({waits, 5}, fun shared_namespace/0).
 
 shared_namespace() ->
     SourceRoot = scratch("ern_root_"),
@@ -616,7 +616,7 @@ shared_namespace() ->
                  {expect, "Main.Stack.push :"},
                  {send, "03"},
                  {send, "04"}],
-                ern_nodes_tests:waits(1), " --size 30x100"),
+                " --size 30x100"),
     ?assertEqual(nomatch, binary:match(Bytes, <<"Main.Stack.compare">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"Main.Stack.push : (Main.Stack, Int)">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"Main.Stack.size : (Main.Stack) -> Int">>)).
@@ -625,7 +625,7 @@ shared_namespace() ->
 %% the next line, as any input does. A regression test: `let #(a, b) =` ran
 %% alone, with the parser's error, and its next line as an input of its own
 pattern_let_continues_test_() ->
-    {timeout, 60, fun pattern_let_continues/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun pattern_let_continues/0).
 
 pattern_let_continues() ->
     Dir = fresh_home(),
@@ -640,7 +640,7 @@ pattern_let_continues() ->
 %% the line it begins on. A regression test: a line was an input, so code
 %% in `ern format`'s layout could not be piped in
 line_mode_continues_test_() ->
-    {timeout, 60, fun line_mode_continues/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun line_mode_continues/0).
 
 line_mode_continues() ->
     Dir = fresh_home(),
@@ -664,11 +664,11 @@ line_mode_continues() ->
 %% regression test: the host answered the terminal's size, and the shell
 %% painted its region into the pipe
 piped_output_is_line_mode_test_() ->
-    {timeout, 60, fun piped_output_is_line_mode/0}.
+    ern_nodes_tests:counted_test({waits, 3}, fun piped_output_is_line_mode/0).
 
 piped_output_is_line_mode() ->
     Screen = raw(alone("../bin/ern shell | cat"),
-                 [{expect, "> "}, {send, hex("1\r")}, {expect, "1 : Int"}, {send, "04"}], 30),
+                 [{expect, "> "}, {send, hex("1\r")}, {expect, "1 : Int"}, {send, "04"}]),
     ?assertEqual(nomatch, binary:match(Screen, <<"\e[">>)).
 
 %% report §11.2, §11.4: `:doc` documents what the session can name, the
@@ -676,7 +676,7 @@ piped_output_is_line_mode() ->
 %% A regression test: `:doc Markdown` showed the page of a module the
 %% session cannot call
 doc_of_what_the_session_names_test_() ->
-    {timeout, 60, fun doc_of_what_the_session_names/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun doc_of_what_the_session_names/0).
 
 doc_of_what_the_session_names() ->
     Dir = fresh_home(),
@@ -691,7 +691,7 @@ doc_of_what_the_session_names() ->
 %% argument. A regression test: an unfinished block comment in a command's
 %% argument made the shell take the next line into the command
 command_is_one_line_test_() ->
-    {timeout, 60, fun command_is_one_line/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun command_is_one_line/0).
 
 command_is_one_line() ->
     Dir = fresh_home(),
@@ -706,7 +706,7 @@ command_is_one_line() ->
 %% goes to standard output with the rest; one that cannot start exits with
 %% status 1. A regression test, written as the report came to say so
 line_mode_status_and_streams_test_() ->
-    {timeout, 60, fun line_mode_status_and_streams/0}.
+    ern_nodes_tests:counted_test({waits, 3}, fun line_mode_status_and_streams/0).
 
 line_mode_status_and_streams() ->
     Dir = fresh_home(),
@@ -731,7 +731,7 @@ line_mode_status_and_streams() ->
 %% and started in `$HOME` the person's file ran twice; it does not cover two
 %% paths that reach one file through a link
 startup_of_the_working_directory_test_() ->
-    {timeout, 60, fun startup_of_the_working_directory/0}.
+    ern_nodes_tests:counted_test({waits, 3}, fun startup_of_the_working_directory/0).
 
 startup_of_the_working_directory() ->
     Ern = filename:absname("../bin/ern"),
@@ -769,7 +769,7 @@ startup_of_the_working_directory() ->
 %% process that had not yet met its fault at the end ended with the
 %% program, and the line was missing in some runs under load
 fault_line_escaped_test_() ->
-    {timeout, 60, fun fault_line_escaped/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun fault_line_escaped/0).
 
 fault_line_escaped() ->
     Dir = fresh_home(),
@@ -792,7 +792,7 @@ fault_line_escaped() ->
 %% written before the last prompt or by the end, which depends on when the
 %% report arrives, and end_fault_on_a_line_of_its_own holds the end's
 fault_before_the_end_written_test_() ->
-    {timeout, ern_nodes_tests:waits(1), fun fault_before_the_end_written/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun fault_before_the_end_written/0).
 
 fault_before_the_end_written() ->
     Dir = fresh_home(),
@@ -817,7 +817,7 @@ fault_before_the_end_written() ->
 %% red before it, the fault on the prompt's line and a blank line after
 %% it; it does not cover `:quit` in line mode, which ends the same way
 end_fault_on_a_line_of_its_own_test_() ->
-    {timeout, ern_nodes_tests:waits(3), fun end_fault_on_a_line_of_its_own/0}.
+    ern_nodes_tests:counted_test({waits, 5}, fun end_fault_on_a_line_of_its_own/0).
 
 end_fault_on_a_line_of_its_own() ->
     Home = fresh_home(),
@@ -842,14 +842,13 @@ end_fault_on_a_line_of_its_own() ->
     {Shell, _} = ern_nodes_tests:launched(Dir, ["HOME=", Home, " ",
                                                 filename:absname("../bin/ern"), " shell"]),
     true = port_command(Shell, Input),
-    WaitMs = ern_nodes_tests:wait_ms(),
-    {ok, Fault} = gen_tcp:accept(Faulting, WaitMs),
-    {ok, Watch} = gen_tcp:accept(Watching, WaitMs),
+    Fault = ern_nodes_tests:accepted(Faulting),
+    Watch = ern_nodes_tests:accepted(Watching),
     %% the input has run, printing nothing, and the shell waits for a line
     %% at its next prompt
-    ern_nodes_tests:prints(Dir, "> ", 2, WaitMs),
+    ern_nodes_tests:prints(Dir, "> ", 2, ern_nodes_tests:wait_ms()),
     ok = gen_tcp:send(Fault, <<"go">>),
-    {ok, <<"down">>} = gen_tcp:recv(Watch, 4, WaitMs),
+    {ok, <<"down">>} = ern_nodes_tests:received(Watch, 4),
     %% the end of the input
     port_close(Shell),
     {Out, _} = ern_nodes_tests:said(Dir),
@@ -871,7 +870,7 @@ end_fault_on_a_line_of_its_own() ->
 %% the release review's E3 (2026-10-25): the stamp was the time the
 %% session took the report, in line mode the moment the next line came
 faults_while_reading_listed_test_() ->
-    {timeout, ern_nodes_tests:waits(3), fun faults_while_reading_listed/0}.
+    ern_nodes_tests:counted_test({waits, 6}, fun faults_while_reading_listed/0).
 
 faults_while_reading_listed() ->
     Home = fresh_home(),
@@ -896,14 +895,13 @@ faults_while_reading_listed() ->
     {Shell, _} = ern_nodes_tests:launched(Dir, ["HOME=", Home, " ",
                                                 filename:absname("../bin/ern"), " shell"]),
     true = port_command(Shell, Input),
-    WaitMs = ern_nodes_tests:wait_ms(),
-    {ok, Fault} = gen_tcp:accept(Faulting, WaitMs),
-    {ok, Watch} = gen_tcp:accept(Watching, WaitMs),
+    Fault = ern_nodes_tests:accepted(Faulting),
+    Watch = ern_nodes_tests:accepted(Watching),
     %% the input has run, printing nothing, and the shell waits for a line
     %% at its next prompt
-    ern_nodes_tests:prints(Dir, "> ", 2, WaitMs),
+    ern_nodes_tests:prints(Dir, "> ", 2, ern_nodes_tests:wait_ms()),
     ok = gen_tcp:send(Fault, <<"go">>),
-    {ok, <<"down">>} = gen_tcp:recv(Watch, 4, WaitMs),
+    {ok, <<"down">>} = ern_nodes_tests:received(Watch, 4),
     Learned = erlang:system_time(millisecond),
     %% the line comes once the clock has passed the millisecond the test
     %% learned of the Down in, so that a stamp taken as the line comes is
@@ -911,7 +909,7 @@ faults_while_reading_listed() ->
     timer:sleep(max(0, Learned + 1 - erlang:system_time(millisecond))),
     true = port_command(Shell, ":faults\n"),
     %% the prompt after `:faults`'s answer
-    ern_nodes_tests:prints(Dir, "> ", 3, WaitMs),
+    ern_nodes_tests:prints(Dir, "> ", 3, ern_nodes_tests:wait_ms()),
     port_close(Shell),
     {Out, _} = ern_nodes_tests:said(Dir),
     ?assertEqual(nomatch, string:find(Out, "no process has faulted")),
@@ -924,7 +922,7 @@ faults_while_reading_listed() ->
 %% requirement, and applies at the prompt as in a module. Written with the
 %% rule (the log's *One Name for Every Order*)
 compare_at_the_prompt_test_() ->
-    {timeout, ern_nodes_tests:waits(1), fun compare_at_the_prompt/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun compare_at_the_prompt/0).
 
 compare_at_the_prompt() ->
     Dir = fresh_home(),
@@ -942,7 +940,7 @@ compare_at_the_prompt() ->
 %% does not cover a process a load's evaluation started, which program_test
 %% lists
 process_live_at_the_prompt_test_() ->
-    {timeout, ern_nodes_tests:waits(1), fun process_live_at_the_prompt/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun process_live_at_the_prompt/0).
 
 process_live_at_the_prompt() ->
     Dir = fresh_home(),
@@ -962,7 +960,7 @@ process_live_at_the_prompt() ->
 %% input shows its result. A regression test, written after the code: the
 %% shell wrote the fault's line, its site `Test.faults`, before the result
 expected_fault_not_reported_test_() ->
-    {timeout, ern_nodes_tests:waits(1), fun expected_fault_not_reported/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun expected_fault_not_reported/0).
 
 expected_fault_not_reported() ->
     Dir = fresh_home(),
@@ -980,22 +978,22 @@ expected_fault_not_reported() ->
 %% the file took the host's default mode, and others could read what was
 %% typed; and the directory was closed only after a read that succeeded
 history_is_private_test_() ->
-    {timeout, 60, fun history_is_private/0}.
+    ern_nodes_tests:counted_test({waits, 7}, fun history_is_private/0).
 
 history_is_private() ->
     Home = fresh_home(),
     Dir = filename:join(Home, ".ernest"),
     _ = pty("HOME=" ++ Home ++ " ../bin/ern shell",
-            [{expect, "> "}, {send, hex("1 + 1\r")}, {expect, "2 : Int"}, {send, "04"}], 20),
+            [{expect, "> "}, {send, hex("1 + 1\r")}, {expect, "2 : Int"}, {send, "04"}]),
     {ok, #file_info{mode = Made}} = file:read_file_info(Dir),
     ?assertEqual(0, Made band 8#077),
     ok = file:change_mode(Dir, 8#755),
-    _ = pty("HOME=" ++ Home ++ " ../bin/ern shell", [{expect, "> "}, {send, "04"}], 20),
+    _ = pty("HOME=" ++ Home ++ " ../bin/ern shell", [{expect, "> "}, {send, "04"}]),
     {ok, #file_info{mode = Read}} = file:read_file_info(Dir),
     ?assertEqual(0, Read band 8#077),
     ok = file:change_mode(Dir, 8#755),
     ok = file:change_mode(filename:join(Dir, "history"), 8#000),
-    _ = pty("HOME=" ++ Home ++ " ../bin/ern shell", [{expect, "> "}, {send, "04"}], 20),
+    _ = pty("HOME=" ++ Home ++ " ../bin/ern shell", [{expect, "> "}, {send, "04"}]),
     {ok, #file_info{mode = Unreadable}} = file:read_file_info(Dir),
     ?assertEqual(0, Unreadable band 8#077).
 
@@ -1006,7 +1004,7 @@ history_is_private() ->
 %% what was typed went wherever it led; a file of
 %% another user's is not covered, since a test cannot make one
 history_kept_in_place_test_() ->
-    {timeout, 60, fun history_kept_in_place/0}.
+    ern_nodes_tests:counted_test({waits, 6}, fun history_kept_in_place/0).
 
 history_kept_in_place() ->
     Unkept = fun(Plant, Said) ->
@@ -1017,7 +1015,7 @@ history_kept_in_place() ->
                  ok = Plant(Home, History),
                  Bytes = pty("HOME=" ++ Home ++ " ../bin/ern shell",
                              [{expect, "> "}, {send, hex("1 + 1\r")}, {expect, "2 : Int"},
-                              {send, "04"}], 20),
+                              {send, "04"}]),
                  ?assertMatch({_, _},
                               binary:match(Bytes, iolist_to_binary(["the history is not kept,"
                                                                     " since ", History, Said]))),
@@ -1038,7 +1036,7 @@ history_kept_in_place() ->
 %% never mixed into the line being typed, and the transcript reads in the
 %% order the lines were written
 live_region_test_() ->
-    {timeout, 60, fun live_region/0}.
+    ern_nodes_tests:counted_test({waits, 5}, fun live_region/0).
 
 live_region() ->
     Print = "spawn(fn() = List.forEach(List.range(1, 12),"
@@ -1052,7 +1050,7 @@ live_region() ->
                      {send, hex("2 + 2\r")},
                      {expect, "4 : Int"},
                      {send, "04"}],
-                    20, "30x60"),
+                    "30x60"),
     Lines = [Line || Line <- binary:split(Screen, <<"\n">>, [global]), Line =/= <<>>],
     Text = iolist_to_binary(Lines),
     %% every line the program wrote reached the terminal, and in order
@@ -1071,7 +1069,7 @@ live_region() ->
 %% The process faults once `cat` has read a named pipe to its end, which
 %% the test opens once the line shows
 fault_while_typing_test_() ->
-    {timeout, 60, fun fault_while_typing/0}.
+    ern_nodes_tests:counted_test({waits, 7}, fun fault_while_typing/0).
 
 fault_while_typing() ->
     Pipe = scratch_name("ern_typing_"),
@@ -1090,7 +1088,7 @@ fault_while_typing() ->
                      {send, hex("\r")},
                      {expect, "unknown name abc"},
                      {send, "04"}],
-                    20, "30x80"),
+                    "30x80"),
     Lines = binary:split(Screen, <<"\n">>, [global]),
     ?assert(lists:member(<<"> abc">>, Lines)),
     [Fault] = [Line || Line <- Lines, binary:match(Line, <<"division by zero">>) =/= nomatch],
@@ -1107,10 +1105,10 @@ fault_while_typing() ->
 %% spawned after a fixed 300 ms, which waited for nothing the input does
 %% not already show, and the 300 ms went; and each session's bound on a
 %% failure was 10 seconds, which a shell started under load outlasted
-%% before its first prompt, and is one wait (ern_nodes_tests:waits/1),
-%% both written 2026-10-11
+%% before its first prompt, and each of its waits is one wait's now
+%% (ern_pty:run/3), both written 2026-10-11
 reader_and_screen_ends_test_() ->
-    {timeout, ern_nodes_tests:waits(2), fun reader_and_screen_ends/0}.
+    ern_nodes_tests:counted_test({waits, 10}, fun reader_and_screen_ends/0).
 
 reader_and_screen_ends() ->
     Stop = "foreign fn stop(process : Process, reason : Foreign.Term) : Bool ="
@@ -1133,7 +1131,7 @@ reader_and_screen_ends() ->
                                     {expect, "processes : "},
                                     {send, hex(Ending("Shell.readKeys"))},
                                     {expect, "stopped reading the keyboard"}],
-                                   ern_nodes_tests:waits(1), " --size 30x120"),
+                                   " --size 30x120"),
     ?assertMatch({_, _}, binary:match(ReaderEnded, <<"Shell.readKeys">>)),
     {70, ScreenEnded} = ern_pty:run(alone("../bin/ern shell"),
                                     [{expect, "> "},
@@ -1143,7 +1141,7 @@ reader_and_screen_ends() ->
                                      {expect, "processes : "},
                                      {send, hex(Ending("Shell.main:"))},
                                      {expect, "screen ended"}],
-                                    ern_nodes_tests:waits(1), " --size 30x120"),
+                                    " --size 30x120"),
     ?assertMatch({_, _}, binary:match(ScreenEnded, <<"fault: the shell's screen ended">>)).
 
 %% report §11.2, §9.3: the pure parts of the shell test themselves, the
@@ -1153,7 +1151,7 @@ reader_and_screen_ends() ->
 %% shell is built into, so that a module's tests run from the day it is
 %% written
 editor_test_() ->
-    {timeout, 60, fun editor/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun editor/0).
 
 editor() ->
     %% the shell renders documentation with libs/markdown and styles it with
@@ -1175,7 +1173,7 @@ editor() ->
 %% and `C-e` go to the ends of the line, and what is typed goes in at the
 %% cursor rather than at the end
 editing_test_() ->
-    {timeout, 60, fun editing/0}.
+    ern_nodes_tests:counted_test({waits, 7}, fun editing/0).
 
 editing() ->
     Screen = pty(alone("../bin/ern shell"),
@@ -1191,8 +1189,7 @@ editing() ->
                   {expect, "40 + 2"},
                   {send, hex([5]) ++ hex(" + 0\r")},    % C-e, then the rest
                   {expect, "42 : Int"},
-                  {send, "04"}],
-                 20),
+                  {send, "04"}]),
     ?assertMatch({_, _}, binary:match(Screen, <<"3 : Int">>)),
     ?assertMatch({_, _}, binary:match(Screen, <<"42 : Int">>)),
     %% the word was killed rather than the line: `1 + ` stayed
@@ -1202,7 +1199,7 @@ editing() ->
 %% typed; what was committed before it is the terminal's scrollback and
 %% not on the screen any more
 clear_test_() ->
-    {timeout, 60, fun clear/0}.
+    ern_nodes_tests:counted_test({waits, 6}, fun clear/0).
 
 clear() ->
     Screen = screen(alone("../bin/ern shell"),
@@ -1216,7 +1213,7 @@ clear() ->
                      {send, hex("\r")},
                      {expect, "14 : Int"},
                      {send, "04"}],
-                    20, "10x40"),
+                    "10x40"),
     %% the line being typed survived the clear and ran
     ?assertMatch({_, _}, binary:match(Screen, <<"14 : Int">>)),
     %% what was on the screen before it is gone
@@ -1227,7 +1224,7 @@ clear() ->
 %% and searches them with `C-r`; a blank input and one repeated are not
 %% kept, and a session whose input is not a terminal leaves the file alone
 history_test_() ->
-    {timeout, 90, fun history/0}.
+    ern_nodes_tests:counted_test({waits, 12}, fun history/0).
 
 history() ->
     Home = fresh_home(),
@@ -1242,8 +1239,7 @@ history() ->
              {send, hex("\r")},
              {send, hex("33 + 33\r")},
              {expect, "66 : Int"},
-             {send, "04"}],
-            20),
+             {send, "04"}]),
     ?assertEqual([<<"11 + 11">>, <<"33 + 33">>], history_lines(File)),
     %% the session after it: the arrow recalls the last input, and `C-r`
     %% searches back for an older one
@@ -1258,8 +1254,7 @@ history() ->
                   {expect, "11 + 11"},
                   {send, hex("\r")},
                   {expect, "22 : Int"},
-                  {send, "04"}],
-                 20),
+                  {send, "04"}]),
     ?assertMatch({_, _}, binary:match(Screen, <<"reverse-i-search">>)),
     %% what the second session took is appended, and the input it repeated
     %% is not
@@ -1275,7 +1270,7 @@ history() ->
 %% trim. A regression test: every session wrote `history.new`, two at once
 %% into one file
 history_trimmed_beside_test_() ->
-    {timeout, 60, fun history_trimmed_beside/0}.
+    ern_nodes_tests:counted_test({waits, 2}, fun history_trimmed_beside/0).
 
 history_trimmed_beside() ->
     Home = fresh_home(),
@@ -1288,8 +1283,7 @@ history_trimmed_beside() ->
     Left = filename:join(Dir, "history.new1"),
     ok = file:write_file(Left, <<"a session's own\n">>),
     _ = pty("HOME=" ++ Home ++ " ../bin/ern shell",
-            [{expect, "> "}, {send, "04"}],
-            20),
+            [{expect, "> "}, {send, "04"}]),
     Lines = history_lines(File),
     ?assertEqual({1000, <<"6">>, <<"1005">>}, {length(Lines), hd(Lines), lists:last(Lines)}),
     ?assertEqual({ok, <<"a session's own\n">>}, file:read_file(Left)),
@@ -1303,7 +1297,7 @@ history_trimmed_beside() ->
 %% the session goes on without one. A regression test: a second report came
 %% at the first input, as the session tried to write it
 history_unreadable_test_() ->
-    {timeout, 60, fun history_unreadable/0}.
+    ern_nodes_tests:counted_test({waits, 4}, fun history_unreadable/0).
 
 history_unreadable() ->
     Home = fresh_home(),
@@ -1317,8 +1311,7 @@ history_unreadable() ->
                   {expect, "2 : Int"},
                   {send, hex("2 + 2\r")},
                   {expect, "4 : Int"},
-                  {send, "04"}],
-                 20),
+                  {send, "04"}]),
     ok = file:change_mode(File, 8#600),
     ?assertEqual(1, ern_pty:count(Screen, <<"the history is not kept">>)),
     ?assertMatch({_, _},
@@ -1337,7 +1330,7 @@ history_lines(File) ->
 %% there is nothing to complete, and a multi-line input comes back from
 %% the history whole
 multiline_test_() ->
-    {timeout, 90, fun multiline/0}.
+    ern_nodes_tests:counted_test({waits, 10}, fun multiline/0).
 
 multiline() ->
     Home = fresh_home(),
@@ -1365,9 +1358,7 @@ multiline() ->
                      %% waiting out the harness's timeout
                      {send, "03"},
                      {send, "04"}],
-                    %% wide enough for the hint, which the harness's screen
-                    %% clips at its edge where a terminal would wrap it
-                    30, "30x60"),
+                    "30x60"),
     Lines = [Line || Line <- binary:split(Screen, <<"\n">>, [global]), Line =/= <<>>],
     Text = iolist_to_binary(Lines),
     %% the hint is above the region and the prompt it was typed under stays
@@ -1390,7 +1381,7 @@ multiline() ->
 %% history, where `C-p` recalls it. A regression test of what the shell
 %% did and the report came to say
 abandoned_line_kept_test_() ->
-    {timeout, 90, fun abandoned_line_kept/0}.
+    ern_nodes_tests:counted_test({waits, 5}, fun abandoned_line_kept/0).
 
 abandoned_line_kept() ->
     Home = fresh_home(),
@@ -1404,7 +1395,7 @@ abandoned_line_kept() ->
                      {send, hex("\r")},
                      {expect, "41 : Int"},
                      {send, "04"}],
-                    30, "30x46"),
+                    "30x46"),
     ?assertMatch({_, _}, binary:match(Screen, <<"41 : Int">>)),
     ?assertEqual(1, ern_pty:count(Screen, <<"41 : Int">>)),
     ?assertEqual([<<"40 + 1">>], history_lines(filename:join([Home, ".ernest", "history"]))).
@@ -1413,7 +1404,7 @@ abandoned_line_kept() ->
 %% line feeds add lines, so a pasted two-line input is one input and runs
 %% when `Enter` is pressed after it
 paste_test_() ->
-    {timeout, 90, fun paste/0}.
+    ern_nodes_tests:counted_test({waits, 5}, fun paste/0).
 
 paste() ->
     Screen = screen(alone("../bin/ern shell"),
@@ -1425,7 +1416,7 @@ paste() ->
                      {expect, "3 : Int"},
                      {expect, "> "},
                      {send, "04"}],
-                    30, "12x40"),
+                    "12x40"),
     Lines = [Line || Line <- binary:split(Screen, <<"\n">>, [global]), Line =/= <<>>],
     Text = iolist_to_binary(Lines),
     %% the paste took a row for its second line rather than running the first
@@ -1439,7 +1430,7 @@ paste() ->
 %% that the cursor is placed by the columns the row takes and not by the
 %% characters in it; what is committed keeps the tab the person typed
 tabs_test_() ->
-    {timeout, 90, fun tabs/0}.
+    ern_nodes_tests:counted_test({waits, 4}, fun tabs/0).
 
 tabs() ->
     Screen = pty(alone("../bin/ern shell"),
@@ -1449,8 +1440,7 @@ tabs() ->
                   {expect, "a     b"},
                   {send, "03"},                       % abandon the line
                   {expect, "> "},
-                  {send, "04"}],
-                 30),
+                  {send, "04"}]),
     %% "> " is two columns and "a" a third, so the tab paints five spaces
     ?assertMatch({_, _}, binary:match(Screen, <<"> a     b">>)),
     %% the line that joined the transcript holds the tab itself
@@ -1461,7 +1451,7 @@ tabs() ->
 %% second `Tab` lists the candidates with their types under the line
 %% being typed, until the next key; a completed name runs like any other
 completion_test_() ->
-    {timeout, 90, fun completion/0}.
+    ern_nodes_tests:counted_test({waits, 14}, fun completion/0).
 
 completion() ->
     Steps = [{expect, "> "},
@@ -1476,7 +1466,7 @@ completion() ->
              {send, "03"},                            % the next key
              {expect, "> "},
              {send, "04"}],
-    Screen = screen(alone("../bin/ern shell"), Steps, 30, "16x74"),
+    Screen = screen(alone("../bin/ern shell"), Steps, "16x74"),
     Lines = [Line || Line <- binary:split(Screen, <<"\n">>, [global]), Line =/= <<>>],
     Text = iolist_to_binary(Lines),
     %% the completed name ran
@@ -1487,7 +1477,7 @@ completion() ->
     %% without it
     ?assertEqual(nomatch, binary:match(Text, <<"List.filterMap :">>)),
     %% it was painted under the line, the candidates with their types
-    Bytes = pty(alone("../bin/ern shell"), Steps, 30, " --size 16x74"),
+    Bytes = pty(alone("../bin/ern shell"), Steps, " --size 16x74"),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> List.filter\r\nList.filter : (List(a)">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nList.filterMap : (List(a)">>)).
 
@@ -1495,7 +1485,7 @@ completion() ->
 %% selector, and `.` completes to no field of it; the session goes on. A
 %% regression test: the completion crashed the shell
 field_of_two_types_test_() ->
-    {timeout, 90, fun field_of_two_types/0}.
+    ern_nodes_tests:counted_test({waits, 7}, fun field_of_two_types/0).
 
 field_of_two_types() ->
     Steps = [{expect, "> "},
@@ -1510,7 +1500,7 @@ field_of_two_types() ->
              {expect, "42 : Int"},
              {expect, "> "},
              {send, "04"}],
-    Bytes = pty(alone("../bin/ern shell"), Steps, 30, " --size 16x74"),
+    Bytes = pty(alone("../bin/ern shell"), Steps, " --size 16x74"),
     ?assertMatch({_, _}, binary:match(Bytes, <<"t.n">>)),
     ?assertEqual(nomatch, binary:match(Bytes, <<"t.x">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"42 : Int">>)).
@@ -1520,7 +1510,7 @@ field_of_two_types() ->
 %% with their types. A regression test: a field was not completed; it does
 %% not cover a module's exported value
 field_completion_test_() ->
-    {timeout, 90, fun field_completion/0}.
+    ern_nodes_tests:counted_test({waits, 9}, fun field_completion/0).
 
 field_completion() ->
     Steps = [{expect, "> "},
@@ -1539,7 +1529,7 @@ field_completion() ->
              {send, "03"},
              {expect, "> "},
              {send, "04"}],
-    Bytes = pty(alone("../bin/ern shell"), Steps, 30, " --size 16x74"),
+    Bytes = pty(alone("../bin/ern shell"), Steps, " --size 16x74"),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\"a\" : String">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"q.p.count : Int">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"q.p.name : String">>)).
@@ -1547,7 +1537,7 @@ field_completion() ->
 %% report §5.6, §11.2: after the `.` of a path in a record update, `Tab`
 %% lists the fields of the type the path has reached; written after the code
 path_completion_test_() ->
-    {timeout, 60, fun path_completion/0}.
+    ern_nodes_tests:counted_test({waits, 7}, fun path_completion/0).
 
 path_completion() ->
     Steps = [{expect, "> "},
@@ -1562,7 +1552,7 @@ path_completion() ->
              {send, "03"},
              {expect, "> "},
              {send, "04"}],
-    Bytes = pty(alone("../bin/ern shell"), Steps, 30, " --size 16x74"),
+    Bytes = pty(alone("../bin/ern shell"), Steps, " --size 16x74"),
     ?assertMatch({_, _}, binary:match(Bytes, <<"indexed : Int">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"hits : Int">>)).
 
@@ -1572,7 +1562,7 @@ path_completion() ->
 %% the first `Tab` after one did nothing that could be seen. What does
 %% not fit the screen is counted on the last row
 listing_at_once_test_() ->
-    {timeout, 60, fun listing_at_once/0}.
+    ern_nodes_tests:counted_test({waits, 3}, fun listing_at_once/0).
 
 listing_at_once() ->
     Bytes = pty(alone("../bin/ern shell"),
@@ -1581,7 +1571,7 @@ listing_at_once() ->
                  {expect, " more"},
                  {send, "03"},
                  {send, "04"}],
-                30, " --size 8x80"),
+                " --size 8x80"),
     %% under the line, cut to the eight rows with the count last
     ?assertMatch({_, _}, binary:match(Bytes, <<"> :\r\n:bindings ">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nand 7 more">>)).
@@ -1595,7 +1585,7 @@ listing_at_once() ->
 %% text only the answer holds, never for what the input echoes, which is
 %% how the first test of these keys raced its own output
 shift_tab_test_() ->
-    {timeout, 90, fun shift_tab/0}.
+    ern_nodes_tests:counted_test({waits, 8}, fun shift_tab/0).
 
 shift_tab() ->
     ShiftTab = "1b5b5a",
@@ -1620,7 +1610,7 @@ shift_tab() ->
                  {expect, ":processes      the live processes"},
                  {send, "03"},
                  {send, "04"}],
-                30, " --size 60x90"),
+                " --size 60x90"),
     %% the brief under the line: the declaration, the sentence, the version
     ?assertMatch({_, _}, binary:match(Bytes, <<"> List.map\r\nList.map(list : List(a),"
                                                " f : (a) -> b receiving e) :"
@@ -1643,7 +1633,7 @@ shift_tab() ->
 %% directory, `KvParser.` from `kv_parser/`. A regression test: the
 %% shell lowered the segment to `kvparser/` and listed nothing
 load_completion_of_two_words_test_() ->
-    {timeout, 60, fun load_completion_of_two_words/0}.
+    ern_nodes_tests:counted_test({waits, 3}, fun load_completion_of_two_words/0).
 
 load_completion_of_two_words() ->
     SourceRoot = scratch("ern_root_"),
@@ -1656,7 +1646,7 @@ load_completion_of_two_words() ->
                  {expect, "KvParser.Lexer"},
                  {send, "03"},
                  {send, "04"}],
-                30, " --size 30x80"),
+                " --size 30x80"),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> :load KvParser.Lexer">>)).
 
 %% report §11.2: a command that takes an argument, completed whole, is
@@ -1679,7 +1669,7 @@ load_completion_of_two_words() ->
 %% prompt came after the keys of the next line and its listing, written
 %% 2026-10-11
 command_argument_test_() ->
-    {timeout, 60, fun command_argument/0}.
+    ern_nodes_tests:counted_test({waits, 16}, fun command_argument/0).
 
 command_argument() ->
     SourceRoot = scratch("ern_root_"),
@@ -1732,7 +1722,7 @@ command_argument() ->
                  {expect, "> :output x"},
                  {send, "03"},
                  {send, "04"}],
-                30, " --size 30x80"),
+                " --size 30x80"),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> :bindings\r\n:bindings       what the session"
                                                " declares, with their types">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> :browse \r\n:browse Module  the exports">>)),
@@ -1753,7 +1743,7 @@ command_argument() ->
 %% bold, a function's before its parameters and a type's after its keyword.
 %% The brief's half is a regression test: it bolded up to the first ` : `
 shift_tab_color_test_() ->
-    {timeout, 60, fun shift_tab_color/0}.
+    ern_nodes_tests:counted_test({waits, 11}, fun shift_tab_color/0).
 
 shift_tab_color() ->
     Raw = raw(alone("../bin/ern shell"),
@@ -1789,8 +1779,7 @@ shift_tab_color() ->
                {send, hex("Down") ++ "1b5b5a"},
                {expect, "Since"},
                {send, "03"},
-               {send, "04"}],
-              30),
+               {send, "04"}]),
     ?assertMatch({_, _},
                  binary:match(Raw, <<"list : List(a), \e[36mf : (a) -> b receiving e\e[39m)">>)),
     %% the first argument marked after `let` and `:type`, the second in the
@@ -1813,7 +1802,7 @@ shift_tab_color() ->
 %% constructor first. The screen holds the whole list, the session's
 %% name last, which a row fewer than the names would cut short
 tab_mid_row_test_() ->
-    {timeout, 60, fun tab_mid_row/0}.
+    ern_nodes_tests:counted_test({waits, 5}, fun tab_mid_row/0).
 
 tab_mid_row() ->
     Bytes = pty(alone("../bin/ern shell"),
@@ -1825,7 +1814,7 @@ tab_mid_row() ->
                  {send, hex("[1], fn(n) = n)\r")},
                  {expect, "[1] : List(Int)"},
                  {send, "04"}],
-                30, " --size 50x80"),
+                " --size 50x80"),
     ?assertEqual(nomatch, binary:match(Bytes, <<"List.map(    ">>)),
     ?assertEqual(nomatch, binary:match(Bytes, <<"ArrowDown">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"module Bool\r\nmodule Bytes\r\n">>)),
@@ -1838,7 +1827,7 @@ tab_mid_row() ->
 %% by a read of the front end: the session's constructors were read under a
 %% key it does not have, and left out
 session_constructors_listed_test_() ->
-    {timeout, 60, fun session_constructors_listed/0}.
+    ern_nodes_tests:counted_test({waits, 4}, fun session_constructors_listed/0).
 
 session_constructors_listed() ->
     Bytes = pty(alone("../bin/ern shell"),
@@ -1852,7 +1841,7 @@ session_constructors_listed() ->
                  {expect, "module Bool"},
                  {send, "03"},
                  {send, "04"}],
-                30, " --size 40x80"),
+                " --size 40x80"),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nHeads : Coin">>)).
 
 %% report §11.2: after `:forget`, what completes is a name the session
@@ -1862,7 +1851,7 @@ session_constructors_listed() ->
 %% it, and the second painting counted the listing twice, one run in four
 %% under load.
 forget_completion_test_() ->
-    {timeout, 60, fun forget_completion/0}.
+    ern_nodes_tests:counted_test({waits, 5}, fun forget_completion/0).
 
 forget_completion() ->
     Bytes = pty(alone("../bin/ern shell"),
@@ -1874,14 +1863,14 @@ forget_completion() ->
                  {expect, "bra"},
                  {send, "03"},
                  {send, "04"}],
-                30, " --size 60x100"),
+                " --size 60x100"),
     ?assertEqual(2, ern_pty:count(Bytes, <<"zebra : Int">>)).
 
 %% report §11.2, §5.6: a constructor's fields complete with their types in
 %% an expression and in a pattern alike. A regression test for a finding
 %% of the shell's review: a pattern was offered no fields
 completion_fields_test_() ->
-    {timeout, 60, fun completion_fields/0}.
+    ern_nodes_tests:counted_test({waits, 7}, fun completion_fields/0).
 
 completion_fields() ->
     pty(alone("../bin/ern shell"),
@@ -1900,13 +1889,13 @@ completion_fields() ->
          {expect, "Point(x = a, yval"},
          {send, "03"},
          {send, "04"}],
-        30, " --size 60x100").
+        " --size 60x100").
 
 %% report §11.2: a constructor that alone completes what is typed is
 %% listed with its type, as a value is. A regression test for a finding of
 %% the shell's review: it was listed bare
 completion_lone_constructor_test_() ->
-    {timeout, 60, fun completion_lone_constructor/0}.
+    ern_nodes_tests:counted_test({waits, 3}, fun completion_lone_constructor/0).
 
 completion_lone_constructor() ->
     pty(alone("../bin/ern shell"),
@@ -1915,12 +1904,12 @@ completion_lone_constructor() ->
          {expect, "Some : (a) -> Optional(a)"},
          {send, "03"},
          {send, "04"}],
-        30, " --size 60x100").
+        " --size 60x100").
 
 %% report §11.2: a name `:forget` removed no longer completes. A regression
 %% test for a finding of the shell's review: it was offered after
 completion_after_forget_test_() ->
-    {timeout, 60, fun completion_after_forget/0}.
+    ern_nodes_tests:counted_test({waits, 7}, fun completion_after_forget/0).
 
 completion_after_forget() ->
     Bytes = pty(alone("../bin/ern shell"),
@@ -1941,13 +1930,13 @@ completion_after_forget() ->
                  {expect, "zz!"},
                  {send, "03"},
                  {send, "04"}],
-                30, " --size 60x100"),
+                " --size 60x100"),
     ?assertEqual(1, ern_pty:count(Bytes, <<"zz : Int">>)).
 
 %% report §11.2: an input's module, which no program names, is not
 %% offered. A regression test for a finding of the shell's review
 completion_no_input_module_test_() ->
-    {timeout, 60, fun completion_no_input_module/0}.
+    ern_nodes_tests:counted_test({waits, 5}, fun completion_no_input_module/0).
 
 completion_no_input_module() ->
     Bytes = pty(alone("../bin/ern shell"),
@@ -1959,13 +1948,13 @@ completion_no_input_module() ->
                  {expect, "1 + Int"},
                  {send, "03"},
                  {send, "04"}],
-                30, " --size 60x100"),
+                " --size 60x100"),
     ?assertEqual(nomatch, binary:match(Bytes, <<"Input">>)).
 
 %% report §11.2, §4.8: an operator member, used infix, is not offered after
 %% its module's name. A regression test for a finding of the shell's review
 completion_no_operator_test_() ->
-    {timeout, 60, fun completion_no_operator/0}.
+    ern_nodes_tests:counted_test({waits, 3}, fun completion_no_operator/0).
 
 completion_no_operator() ->
     Bytes = pty(alone("../bin/ern shell"),
@@ -1974,7 +1963,7 @@ completion_no_operator() ->
                  {expect, "String.toUpper"},
                  {send, "03"},
                  {send, "04"}],
-                30, " --size 60x100"),
+                " --size 60x100"),
     ?assertEqual(nomatch, binary:match(Bytes, <<"String.<>">>)).
 
 %% report §11.2: a line wider than the screen wraps onto the rows below it
@@ -1982,7 +1971,7 @@ completion_no_operator() ->
 %% finding of the shell's review, where the line was cut at the edge and the
 %% cursor stood still
 wide_input_test_() ->
-    {timeout, 60, fun wide_input/0}.
+    ern_nodes_tests:counted_test({waits, 4}, fun wide_input/0).
 
 wide_input() ->
     Screen = screen(alone("../bin/ern shell"),
@@ -1993,7 +1982,7 @@ wide_input() ->
                      {expect, "789\"X"},
                      {send, "03"},
                      {send, "04"}],
-                    30, "12x40"),
+                    "12x40"),
     Lines = [Line || Line <- binary:split(Screen, <<"\n">>, [global]), Line =/= <<>>],
     ?assert(lists:member(<<"> let longname = \"abcdefghijklmnopqrstuv">>, Lines)).
 
@@ -2003,7 +1992,7 @@ wide_input() ->
 %% raised out of the front end, and the shell ended with it; the release
 %% review found the same of the last two
 load_unreadable_test_() ->
-    {timeout, 60, fun load_unreadable/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun load_unreadable/0).
 
 load_unreadable() ->
     Dir = scratch("ern_bad_"),
@@ -2028,7 +2017,7 @@ load_unreadable() ->
 %% and of the line, which was an input's `fault:`: that a fault by a defect
 %% exits with status 70 is not covered, since no input gives the shell one
 input_fault_status_test_() ->
-    {timeout, 60, fun input_fault_status/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun input_fault_status/0).
 
 input_fault_status() ->
     {1, Output} = ern_pty:sh("printf \"1 + 1\\n\\377\\n2 + 2\\n\" | ../bin/ern shell"),
@@ -2043,7 +2032,7 @@ input_fault_status() ->
 %% apart from diagnostics by the shape of a list, and, since the release
 %% review, of the refusal's text, which quoted the file's bytes
 load_unreadable_dependency_test_() ->
-    {timeout, 60, fun load_unreadable_dependency/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun load_unreadable_dependency/0).
 
 load_unreadable_dependency() ->
     Dir = scratch("ern_dep_"),
@@ -2061,7 +2050,7 @@ load_unreadable_dependency() ->
 %% regression test: it gave the build's advice, "compile Dep first", with
 %% an absolute path, which does not apply in the shell
 load_failed_dependency_test_() ->
-    {timeout, 60, fun load_failed_dependency/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun load_failed_dependency/0).
 
 load_failed_dependency() ->
     Dir = scratch("ern_dep_"),
@@ -2092,7 +2081,7 @@ load_failed_dependency() ->
 %% It does not cover a message checked at such an address, which the
 %% integration tests' exposed program does
 private_mailbox_type_test_() ->
-    {timeout, 60, fun private_mailbox_type/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun private_mailbox_type/0).
 
 private_mailbox_type() ->
     Dir = scratch("ern_private_mailbox_"),
@@ -2119,7 +2108,7 @@ private_mailbox_type() ->
 %% `let module_info` faulted inside the shell, and a later input calling
 %% `record_info` reached the host's function.
 host_reserved_names_test_() ->
-    {timeout, 60, fun host_reserved_names/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun host_reserved_names/0).
 
 host_reserved_names() ->
     InputFile = scratch_file("ern_reserved_"),
@@ -2139,7 +2128,7 @@ host_reserved_names() ->
 %% rest of the session, and then each holder of `it` beside it; the bound
 %% allows a few modules the session loads on its own.
 input_module_unloaded_test_() ->
-    {timeout, 60, fun input_module_unloaded/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun input_module_unloaded/0).
 
 input_module_unloaded() ->
     InputFile = scratch_file("ern_unload_"),
@@ -2168,7 +2157,7 @@ input_module_unloaded() ->
 %% bound allows the few the session makes on its own, about thirty, and an
 %% input that took a new number breaks it.
 input_numbers_reused_test_() ->
-    {timeout, 120, fun input_numbers_reused/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun input_numbers_reused/0).
 
 input_numbers_reused() ->
     InputFile = scratch_file("ern_atoms_"),
@@ -2189,7 +2178,7 @@ input_numbers_reused() ->
 %% its answer was in, the value it answered holding no function of it, and
 %% the server's call faulted with the host's `undef`
 lambda_sent_kept_test_() ->
-    {timeout, 60, fun lambda_sent_kept/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun lambda_sent_kept/0).
 
 lambda_sent_kept() ->
     InputFile = scratch_file("ern_lambda_sent_"),
@@ -2217,7 +2206,7 @@ lambda_sent_kept() ->
 %% named them, the host's check of running code missing the function the
 %% process held, and its call faulted with `undef`
 redeclared_function_kept_test_() ->
-    {timeout, 60, fun redeclared_function_kept/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun redeclared_function_kept/0).
 
 redeclared_function_kept() ->
     InputFile = scratch_file("ern_redeclared_kept_"),
@@ -2246,7 +2235,7 @@ redeclared_function_kept() ->
 %% and the host keeps an entry for every such function of every version of
 %% a module it loads, 176 bytes each for as long as the node lives.
 expressions_leave_no_code_test_() ->
-    {timeout, 120, fun expressions_leave_no_code/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun expressions_leave_no_code/0).
 
 expressions_leave_no_code() ->
     InputFile = scratch_file("ern_code_"),
@@ -2267,7 +2256,7 @@ expressions_leave_no_code() ->
 %% constructors to the input that declares it, each input being a module
 %% of its own. A regression test, written after the report said so
 abstract_at_the_prompt_test_() ->
-    {timeout, 60, fun abstract_at_the_prompt/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun abstract_at_the_prompt/0).
 
 abstract_at_the_prompt() ->
     InputFile = scratch_file("ern_abstract_"),
@@ -2287,7 +2276,7 @@ abstract_at_the_prompt() ->
 %% are the warm-up, in which the reading of the memory, typed again, takes
 %% a version for each number it lands on
 expressions_again_leave_no_code_test_() ->
-    {timeout, 120, fun expressions_again_leave_no_code/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun expressions_again_leave_no_code/0).
 
 expressions_again_leave_no_code() ->
     InputFile = scratch_file("ern_again_"),
@@ -2309,7 +2298,7 @@ expressions_again_leave_no_code() ->
 %% nothing reached it, which an input that declares no longer is (the
 %% log's *MVP 3.1 Read*).
 declarations_kept_while_reached_test_() ->
-    {timeout, 120, fun declarations_kept_while_reached/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun declarations_kept_while_reached/0).
 
 declarations_kept_while_reached() ->
     InputFile = scratch_file("ern_reached_"),
@@ -2343,7 +2332,7 @@ declarations_kept_while_reached() ->
 %% inputs checked from the startup files. A regression test: the type
 %% printed under its module's own name, a slot that counts neither
 shadowed_type_by_input_test_() ->
-    {timeout, 60, fun shadowed_type_by_input/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun shadowed_type_by_input/0).
 
 shadowed_type_by_input() ->
     Home = scratch("ern_home_"),
@@ -2362,7 +2351,7 @@ shadowed_type_by_input() ->
 %% though a later input took its module's slot. A regression test, written
 %% after the fix: `:type` printed the slot, `$Input1.T`
 shadowed_type_by_type_test_() ->
-    {timeout, 60, fun shadowed_type_by_type/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun shadowed_type_by_type/0).
 
 shadowed_type_by_type() ->
     InputFile = scratch_file("ern_type_shadowed_"),
@@ -2378,7 +2367,7 @@ shadowed_type_by_type() ->
 %% let the earlier input's module go, and the checker failed on the
 %% constructor's next use
 shadowed_constructor_kept_test_() ->
-    {timeout, 60, fun shadowed_constructor_kept/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun shadowed_constructor_kept/0).
 
 shadowed_constructor_kept() ->
     Dir = fresh_home(),
@@ -2394,7 +2383,7 @@ shadowed_constructor_kept() ->
 %% color following the code path and not the meaning; the release review
 %% found `:load` of a standard library module answered as a success
 refusal_color_test_() ->
-    {timeout, 60, fun refusal_color/0}.
+    ern_nodes_tests:counted_test({waits, 8}, fun refusal_color/0).
 
 refusal_color() ->
     Raw = raw(alone("../bin/ern shell"),
@@ -2411,8 +2400,7 @@ refusal_color() ->
                {expect, "in scope from the start"},
                {send, hex(":bindings\r")},
                {expect, "declares nothing yet"},
-               {send, "04"}],
-              30),
+               {send, "04"}]),
     Red = fun(Text) -> binary:match(Raw, <<"\e[31m", Text/binary>>) =/= nomatch end,
     ?assert(Red(<<"no command :sreload">>)),
     ?assert(Red(<<":set depth takes a number">>)),
@@ -2426,7 +2414,7 @@ refusal_color() ->
 %% constructor its fields, and everywhere else the values,
 %% constructors and modules in scope
 slot_test_() ->
-    {timeout, 90, fun slot/0}.
+    ern_nodes_tests:counted_test({waits, 8}, fun slot/0).
 
 slot() ->
     Screen = screen(alone("../bin/ern shell"),
@@ -2447,7 +2435,7 @@ slot() ->
                      {expect, "z : Zebra"},
                      {expect, "> "},
                      {send, "04"}],
-                    30, "16x70"),
+                    "16x70"),
     Lines = [Line || Line <- binary:split(Screen, <<"\n">>, [global]), Line =/= <<>>],
     Text = iolist_to_binary(Lines),
     %% the input the completions built ran and bound
@@ -2489,7 +2477,7 @@ opening_test() ->
 %% report §11.2: the cursor stands on the `(` a typed `)` closes, and
 %% then returns to the end of the line
 bracket_shown_test_() ->
-    {timeout, 60, fun bracket_shown/0}.
+    ern_nodes_tests:counted_test({waits, 4}, fun bracket_shown/0).
 
 bracket_shown() ->
     Bytes = pty(alone("../bin/ern shell"),
@@ -2500,7 +2488,7 @@ bracket_shown() ->
                  {expect, "\e[6C"},
                  {send, "03"},
                  {send, "04"}],
-                30, " --size 24x80"),
+                " --size 24x80"),
     %% the prompt and `f` are three columns, so the `(` is the fourth
     {Shown, _} = binary:match(Bytes, <<"> f(x)\r\e[3C">>),
     {Back, _} = binary:match(Bytes, <<"> f(x)\r\e[6C">>),
@@ -2512,7 +2500,7 @@ bracket_shown() ->
 %% the annotation that would settle it, rather than entering the session
 %% and breaking every input after it
 open_binding_test_() ->
-    {timeout, 60, fun open_binding/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun open_binding/0).
 
 open_binding() ->
     InputFile = scratch_file("ern_open_"),
@@ -2539,7 +2527,7 @@ open_binding() ->
 %% and a send to its address is refused. A regression test, written after
 %% the code; a `Peer.spawn` at the prompt is node_shell_test's
 unfixed_mailbox_at_the_prompt_test_() ->
-    {timeout, 60, fun unfixed_mailbox_at_the_prompt/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun unfixed_mailbox_at_the_prompt/0).
 
 unfixed_mailbox_at_the_prompt() ->
     InputFile = scratch_file("ern_unfixed_"),
@@ -2554,7 +2542,7 @@ unfixed_mailbox_at_the_prompt() ->
 %% block's `let` is. A regression test: it was told of a declared return
 %% type, since the annotation was the input's result
 annotated_let_test_() ->
-    {timeout, 60, fun annotated_let/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun annotated_let/0).
 
 annotated_let() ->
     InputFile = scratch_file("ern_let_"),
@@ -2571,7 +2559,7 @@ annotated_let() ->
 %% members. Written with the change, and it does not cover an abstract type,
 %% whose constructor stays its own input's (§4.4)
 later_member_test_() ->
-    {timeout, 60, fun later_member/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun later_member/0).
 
 later_member() ->
     InputFile = scratch_file("ern_member_"),
@@ -2595,7 +2583,7 @@ later_member() ->
 %% regression test: in line mode the input took the shell's next line, and
 %% at a terminal it ended the program, shell and all
 input_reads_line_test_() ->
-    {timeout, 60, fun input_reads_line/0}.
+    ern_nodes_tests:counted_test({waits, 5}, fun input_reads_line/0).
 
 input_reads_line() ->
     InputFile = scratch_file("ern_read_"),
@@ -2611,8 +2599,7 @@ input_reads_line() ->
                   {expect, "shell holds the terminal"},
                   {send, hex("1 + 1\r")},
                   {expect, "2 : Int"},
-                  {send, "04"}],
-                 20),
+                  {send, "04"}]),
     ?assertMatch({_, _}, binary:match(Screen, <<"2 : Int">>)),
     ?assertEqual(nomatch, binary:match(Screen, <<"already read as">>)).
 
@@ -2621,7 +2608,7 @@ input_reads_line() ->
 %% the code, 2026-10-16: the shell refused both while a reply was an
 %% obligation; it does not cover a reply that reaches the prompt unanswered
 reply_input_test_() ->
-    {timeout, 60, fun reply_input/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun reply_input/0).
 
 reply_input() ->
     InputFile = scratch_file("ern_reply_"),
@@ -2641,7 +2628,7 @@ reply_input() ->
 %% refused, having no block to end. A regression test: the prompt took a
 %% name alone, as a top-level `let` does
 pattern_let_test_() ->
-    {timeout, 60, fun pattern_let/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun pattern_let/0).
 
 pattern_let() ->
     InputFile = scratch_file("ern_plet_"),
@@ -2672,7 +2659,7 @@ pattern_let() ->
 %% the first input's timed wait was a deadlock, and the scheme printed
 %% through the later input's substitution
 effect_variable_test_() ->
-    {timeout, 60, fun effect_variable/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun effect_variable/0).
 
 effect_variable() ->
     InputFile = scratch_file("ern_eff_"),
@@ -2695,7 +2682,7 @@ effect_variable() ->
 %% function may declare. A regression test: column 1
 %% alone was underlined, and the help showed a list
 unsettled_binding_test_() ->
-    {timeout, 60, fun unsettled_binding/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun unsettled_binding/0).
 
 unsettled_binding() ->
     InputFile = scratch_file("ern_unsettled_"),
@@ -2712,7 +2699,7 @@ unsettled_binding() ->
 %% is not, so an open variable in its type is refused. A regression test of
 %% the rule of 2026-10-01: the shell refused the lambda as undetermined
 lambda_let_test_() ->
-    {timeout, 60, fun lambda_let/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun lambda_let/0).
 
 lambda_let() ->
     InputFile = scratch_file("ern_lam_"),
@@ -2733,7 +2720,7 @@ lambda_let() ->
 %% nothing is spawned, so a library module is put in scope to be tried. A
 %% regression test: the shell refused a module without `main`
 library_file_test_() ->
-    {timeout, 60, fun library_file/0}.
+    ern_nodes_tests:counted_test({waits, 2}, fun library_file/0).
 
 library_file() ->
     Dir = scratch("ern_lib_"),
@@ -2752,7 +2739,7 @@ library_file() ->
 %% after it nor the shell; its environment is the host's. A regression
 %% test, written after the code.
 shell_os_test_() ->
-    {timeout, 60, fun shell_os/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun shell_os/0).
 
 shell_os() ->
     Dir = scratch("ern_os_"),
@@ -2771,7 +2758,7 @@ shell_os() ->
 %% `main` that takes no arguments. A `let main` is not covered here, as
 %% ern_cli_tests covers its refusal.
 non_entry_main_test_() ->
-    {timeout, 60, fun non_entry_main/0}.
+    ern_nodes_tests:counted_test({waits, 3}, fun non_entry_main/0).
 
 non_entry_main() ->
     Dir = scratch("ern_main_"),
@@ -2799,7 +2786,7 @@ non_entry_main() ->
 %% of `it`, which the session kept for ever; the memory it saves is
 %% measured by hand (the log's *The Closing of Step 10*), not here
 holders_freed_test_() ->
-    {timeout, 60, fun holders_freed/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun holders_freed/0).
 
 holders_freed() ->
     InputFile = scratch_file("ern_holders_"),
@@ -2818,7 +2805,7 @@ holders_freed() ->
 %% the first version's process with `its code was unloaded`; and the sites,
 %% written after the fix (the log's *MVP 3.1 Read*): the three shared one site
 reload_keeps_previous_versions_test_() ->
-    {timeout, 60, fun reload_keeps_previous_versions/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun reload_keeps_previous_versions/0).
 
 reload_keeps_previous_versions() ->
     Dir = scratch("ern_reload_versions_"),
@@ -2856,7 +2843,7 @@ reload_keeps_previous_versions() ->
 %% after the fix (the log's *MVP 3.1 Read*): the session's declarations kept calling the
 %% previous version, and the reload said nothing of them
 reload_reaches_session_declarations_test_() ->
-    {timeout, 60, fun reload_reaches_session_declarations/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun reload_reaches_session_declarations/0).
 
 reload_reaches_session_declarations() ->
     Dir = scratch("ern_reload_declarations_"),
@@ -2904,7 +2891,7 @@ reload_reaches_session_declarations() ->
 %% site is the module's. A regression test, written after the fix (the
 %% log's *MVP 3.1 Read*): the two shared one site
 reload_version_sites_test_() ->
-    {timeout, 60, fun reload_version_sites/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun reload_version_sites/0).
 
 reload_version_sites() ->
     Dir = scratch("ern_reload_sites_"),
@@ -2923,11 +2910,16 @@ reload_version_sites() ->
                                      write_source(Dir, "counter.ern", Counter(2)),
                                      ":reload\n:processes\n:quit\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
-    ?assertMatch({_, _}, binary:match(Output, <<"> Counter$2.service:5\nCounter.service:5\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"the end waits for 2 subscribers:"
-                                                " Counter.service:5, Counter$2.service:5\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"the subscriber Counter.service:5 answered\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"the subscriber Counter$2.service:5 answered\n">>)).
+    [printed(Output, Line) || Line <- [<<"> Counter$2.service:5\nCounter.service:5\n">>,
+                                       <<"the end waits for 2 subscribers: Counter.service:5,"
+                                         " Counter$2.service:5\n">>,
+                                       <<"the subscriber Counter.service:5 answered\n">>,
+                                       <<"the subscriber Counter$2.service:5 answered\n">>]].
+
+%% Whether the session's Output holds Line: a failure carries Output whole,
+%% so that a red that comes under the full run's load alone is diagnosed.
+printed(Output, Line) ->
+    binary:match(Output, Line) =/= nomatch orelse erlang:error({not_printed, Line, Output}).
 
 %% report §11.2, §8.7: a type in the session is its hash, so a binding made
 %% before a reload that changed `Counter.Msg` keeps the type it was checked
@@ -2946,7 +2938,7 @@ reload_version_sites() ->
 %% new version written after the fix (the log's *MVP 3.1 Read*), where it stayed over the
 %% previous version and refused the new version's address
 reload_keeps_the_type_checked_under_test_() ->
-    {timeout, 60, fun reload_keeps_the_type_checked_under/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun reload_keeps_the_type_checked_under/0).
 
 reload_keeps_the_type_checked_under() ->
     Dir = scratch("ern_reload_types_"),
@@ -3011,7 +3003,7 @@ reload_keeps_the_type_checked_under() ->
 %% error about `C$1.Msg` names `C$1.Msg` and not `C$1.M`. A regression test,
 %% written after the fix: the help found the type by a part of its name
 previous_type_named_whole_test_() ->
-    {timeout, 60, fun previous_type_named_whole/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun previous_type_named_whole/0).
 
 previous_type_named_whole() ->
     Dir = scratch("ern_previous_whole_"),
@@ -3035,7 +3027,7 @@ previous_type_named_whole() ->
 %% names them under `went`. A regression test, written after the fix: a
 %% type that went was said to have changed
 previous_type_went_test_() ->
-    {timeout, 60, fun previous_type_went/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun previous_type_went/0).
 
 previous_type_went() ->
     Dir = scratch("ern_previous_went_"),
@@ -3066,7 +3058,7 @@ previous_type_went() ->
 %% *MVP 3.1 Read*): the binding kept `Counter$1.Msg`, and the send was refused with a
 %% help that had become false
 reload_brings_a_type_back_test_() ->
-    {timeout, 60, fun reload_brings_a_type_back/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun reload_brings_a_type_back/0).
 
 reload_brings_a_type_back() ->
     Dir = scratch("ern_reload_back_"),
@@ -3118,7 +3110,7 @@ reload_brings_a_type_back() ->
 %% the input that declared it. A regression test, written after the fix
 %% (the log's *MVP 3.1 Read*): each input's type was another, by its input's namespace
 type_declared_again_test_() ->
-    {timeout, 60, fun type_declared_again/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun type_declared_again/0).
 
 type_declared_again() ->
     InputFile = scratch_file("ern_type_again_"),
@@ -3148,7 +3140,7 @@ type_declared_again() ->
 %% every reload in a session that used a library named the library's
 %% source as missing
 reload_names_no_library_test_() ->
-    {timeout, 60, fun reload_names_no_library/0}.
+    ern_nodes_tests:counted_test({waits, 2}, fun reload_names_no_library/0).
 
 reload_names_no_library() ->
     Dir = scratch("ern_reload_library_"),
@@ -3183,7 +3175,7 @@ reload_names_no_library() ->
 %% against a form of A that does not use it, since `ern build` refuses the
 %% cycle where it reads A's that does
 load_path_cycle_test_() ->
-    {timeout, 60, fun load_path_cycle/0}.
+    ern_nodes_tests:counted_test({waits, 5}, fun load_path_cycle/0).
 
 load_path_cycle() ->
     Dir = scratch("ern_load_path_cycle_"),
@@ -3217,7 +3209,7 @@ load_path_cycle() ->
 %% finds its module there; a shell with no file, whose load path the
 %% options alone give, as a file's is given by ern_cli_tests' libs_dir
 libs_dir_in_the_shell_test_() ->
-    {timeout, ern_nodes_tests:waits(2), fun libs_dir_in_the_shell/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun libs_dir_in_the_shell/0).
 
 libs_dir_in_the_shell() ->
     Dir = scratch("ern_libs_dir_"),
@@ -3239,7 +3231,7 @@ libs_dir_in_the_shell() ->
 %% the shell itself does not use, loads it with no `--load-path`. Written
 %% after the code, so a regression test
 libraries_in_the_shell_test_() ->
-    {timeout, ern_nodes_tests:waits(1), fun libraries_in_the_shell/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun libraries_in_the_shell/0).
 
 libraries_in_the_shell() ->
     Dir = scratch("ern_libraries_"),
@@ -3280,7 +3272,7 @@ commands_mirror_test() ->
 %% its end, so that `:faults` comes after both faults: sent at once, it
 %% came first under the host's modified timing
 fault_subscriber_test_() ->
-    {timeout, 60, fun fault_subscriber/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun fault_subscriber/0).
 
 fault_subscriber() ->
     Dir = scratch("ern_fault_subscriber_"),
@@ -3322,7 +3314,7 @@ fault_subscriber() ->
 %% the code: the input's fault came with its cause alone. It does not cover
 %% a binding a `:load` evaluates, whose refusal names its cause alone
 input_fault_trace_test_() ->
-    {timeout, ern_nodes_tests:waits(1), fun input_fault_trace/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun input_fault_trace/0).
 
 input_fault_trace() ->
     InputFile = scratch_file("ern_input_fault_trace_"),
@@ -3339,7 +3331,7 @@ input_fault_trace() ->
 %% into the line as it came. It does not cover the line a node writes of
 %% such a fault, which is the runtime's
 site_escaped_test_() ->
-    {timeout, ern_nodes_tests:waits(1), fun site_escaped/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun site_escaped/0).
 
 site_escaped() ->
     InputFile = scratch_file("ern_site_escaped_"),
@@ -3361,7 +3353,7 @@ site_escaped() ->
 %% are shown and not used; the region's rows at a terminal are
 %% `Shell.Region`'s tests'
 set_rows_test_() ->
-    {timeout, ern_nodes_tests:waits(1), fun set_rows/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun set_rows/0).
 
 set_rows() ->
     InputFile = scratch_file("ern_set_rows_"),
@@ -3378,7 +3370,7 @@ set_rows() ->
 %% own); it does not cover such a file beside a module's source, which is
 %% passed over for the source.
 held_another_test_() ->
-    {timeout, ern_nodes_tests:waits(2), fun held_another/0}.
+    ern_nodes_tests:counted_test({waits, 2}, fun held_another/0).
 
 held_another() ->
     Dir = scratch("ern_held_another_"),
@@ -3408,7 +3400,7 @@ held_another() ->
 %% as a call of its qualified name, which the language refuses. It does not
 %% cover `Shift-Tab`, which reads the same page
 member_doc_test_() ->
-    {timeout, ern_nodes_tests:waits(1), fun member_doc/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun member_doc/0).
 
 member_doc() ->
     Dir = scratch("ern_member_doc_"),
@@ -3431,7 +3423,7 @@ member_doc() ->
 %% `kill(address : Int) : Int`. It does not cover `Shift-Tab`, which reads
 %% the same names
 shadowing_let_documented_test_() ->
-    {timeout, ern_nodes_tests:waits(1), fun shadowing_let_documented/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun shadowing_let_documented/0).
 
 shadowing_let_documented() ->
     InputFile = scratch_file("ern_shadowing_let_"),
@@ -3446,7 +3438,7 @@ shadowing_let_documented() ->
 %% the code: the help proposed `:load Settings puts it in scope`, the
 %% command that had just failed
 refused_load_help_test_() ->
-    {timeout, ern_nodes_tests:waits(1), fun refused_load_help/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun refused_load_help/0).
 
 refused_load_help() ->
     Dir = scratch("ern_refused_load_help_"),
@@ -3468,7 +3460,7 @@ refused_load_help() ->
 %% not UTF-8 as U+FFFD, a character cut across two writes whole, and text
 %% as UTF-8 whatever the host's locale
 shown_bytes_test_() ->
-    {timeout, 60, fun shown_bytes/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun shown_bytes/0).
 
 shown_bytes() ->
     InputFile = scratch_file("ern_bytes_"),
@@ -3487,7 +3479,7 @@ shown_bytes() ->
 %% test of the release review's E4 (2026-10-25), the page showed a call of
 %% `Int.compare`, which the language refuses
 prelude_doc_test_() ->
-    {timeout, 60, fun prelude_doc/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun prelude_doc/0).
 
 prelude_doc() ->
     InputFile = scratch_file("ern_pdoc_"),
@@ -3509,7 +3501,7 @@ prelude_doc() ->
 %% A regression test: `:type Io.readLine` printed `with e` where `:browse Io`
 %% printed `with m`
 one_name_type_test_() ->
-    {timeout, 60, fun one_name_type/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun one_name_type/0).
 
 one_name_type() ->
     InputFile = scratch_file("ern_name_"),
@@ -3534,7 +3526,7 @@ one_name_type() ->
 %% declaration was headed `Input1.sz`, and `:doc` found nothing in a
 %% module `:load` had compiled, which is loaded from memory
 doc_every_name_test_() ->
-    {timeout, 60, fun doc_every_name/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun doc_every_name/0).
 
 doc_every_name() ->
     SourceRoot = scratch("ern_docroot_"),
@@ -3580,7 +3572,7 @@ doc_every_name() ->
 %% the session shows only for a shadowed type, and `main()` after `fn main` called the
 %% wrapper, which was named `main`, forever
 session_names_test_() ->
-    {timeout, 60, fun session_names/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun session_names/0).
 
 session_names() ->
     InputFile = scratch_file("ern_names_"),
@@ -3602,7 +3594,7 @@ session_names() ->
 %% whole name, `ern@list@filter`, which the host keeps for ever. Written
 %% after the code; an input that is run makes its names, as it must
 typing_makes_no_names_test_() ->
-    {timeout, 60, fun typing_makes_no_names/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun typing_makes_no_names/0).
 
 %% In a host of its own, since the count of names is the host's, and other
 %% tests make names beside this one.
@@ -3638,7 +3630,7 @@ typing_makes_no_names() ->
 %% opened, and the refusal named no device; a command given a name of no
 %% module answers as before
 output_to_a_pipe_test_() ->
-    {timeout, 60, fun output_to_a_pipe/0}.
+    ern_nodes_tests:counted_test({waits, 2}, fun output_to_a_pipe/0).
 
 output_to_a_pipe() ->
     Home = fresh_home(),
@@ -3665,7 +3657,7 @@ output_to_a_pipe() ->
 %% of no module there, or of one loaded, is answered without one. A
 %% regression test: the answer said the name was unknown and no more
 load_help_test_() ->
-    {timeout, 60, fun load_help/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun load_help/0).
 
 load_help() ->
     Dir = scratch("ern_load_help_"),
@@ -3693,7 +3685,7 @@ load_help() ->
 %% that another shell node finds it, are the real nodes'
 %% (test/ern_nodes_tests.erl, shell_node and shell_service)
 node_shell_test_() ->
-    {timeout, 60, fun node_shell/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun node_shell/0).
 
 node_shell() ->
     Dir = scratch("ern_node_shell_"),
@@ -3736,7 +3728,7 @@ node_shell() ->
 %% which named the live region, a terminal's alone; it covers no terminal,
 %% since a test has none
 output_to_a_file_test_() ->
-    {timeout, 60, fun output_to_a_file/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun output_to_a_file/0).
 
 output_to_a_file() ->
     Home = fresh_home(),
@@ -3769,7 +3761,7 @@ output_to_a_file() ->
 %% report §11.2, Appendix E.17: the file `:output` names holds what was
 %% written there, the text of each write in order
 output_appends_test_() ->
-    {timeout, 60, fun output_appends/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun output_appends/0).
 
 output_appends() ->
     Home = fresh_home(),
@@ -3823,7 +3815,7 @@ signature() ->
 %% input out of its mailbox while it awaited the first, and dropped it, so
 %% the second was echoed and never answered
 typing_ahead_test_() ->
-    {timeout, 60, fun typing_ahead/0}.
+    ern_nodes_tests:counted_test({waits, 4}, fun typing_ahead/0).
 
 typing_ahead() ->
     Screen = screen(alone("../bin/ern shell"),
@@ -3833,7 +3825,7 @@ typing_ahead() ->
                      {expect, "1 : Int"},
                      {expect, "4 : Int"},
                      {send, "04"}],
-                    30, "20x60"),
+                    "20x60"),
     Lines = [Line || Line <- binary:split(Screen, <<"\n">>, [global]), Line =/= <<>>],
     Answers = [Line || Line <- Lines, Line =:= <<"1 : Int">> orelse Line =:= <<"4 : Int">>],
     ?assertEqual([<<"1 : Int">>, <<"4 : Int">>], Answers).
@@ -3847,7 +3839,7 @@ typing_ahead() ->
 %% the purging reload, which until MVP 3.1 named what held the previous
 %% version and ended it at the next
 reload_test_() ->
-    {timeout, 60, fun reload/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun reload/0).
 
 reload() ->
     Dir = scratch("ern_reload_"),
@@ -3885,7 +3877,7 @@ reload() ->
 %% regression test: the reload was refused, "compile Helper first", and
 %% nothing was reloaded
 reload_new_dependency_test_() ->
-    {timeout, 60, fun reload_new_dependency/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun reload_new_dependency/0).
 
 reload_new_dependency() ->
     Dir = scratch("ern_reload_dependency_"),
@@ -3913,7 +3905,7 @@ reload_new_dependency() ->
 %% (ern_rt:own_modules/0), exists before the counting begins. A regression
 %% test: a failed load's were kept for the life of the node
 stored_values_go_test_() ->
-    {timeout, 60, fun stored_values_go/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun stored_values_go/0).
 
 stored_values_go() ->
     Dir = scratch("ern_stored_values_"),
@@ -3950,7 +3942,7 @@ stored_values_go() ->
 %% written after the code: the refusal deleted and purged the unit, and the
 %% holder faulted at the call
 refused_load_keeps_its_unit_test_() ->
-    {timeout, 60, fun refused_load_keeps_its_unit/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun refused_load_keeps_its_unit/0).
 
 refused_load_keeps_its_unit() ->
     Dir = scratch("ern_refused_unit_"),
@@ -4002,7 +3994,7 @@ refused_load_keeps_its_unit() ->
 %% module was compiled to call the library under its Erlang name before
 %% the library was placed, which ran the kept unit's code and faulted again
 refused_load_links_a_replaced_library_test_() ->
-    {timeout, 60, fun refused_load_links_a_replaced_library/0}.
+    ern_nodes_tests:counted_test({waits, 3}, fun refused_load_links_a_replaced_library/0).
 
 refused_load_links_a_replaced_library() ->
     Dir = scratch("ern_replaced_library_"),
@@ -4043,7 +4035,7 @@ refused_load_links_a_replaced_library() ->
 %% host's `badfun` once the version was purged, and until MVP 3.1 the
 %% reload that purged a version forgot them
 reload_bindings_test_() ->
-    {timeout, 60, fun reload_bindings/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun reload_bindings/0).
 
 reload_bindings() ->
     Dir = scratch("ern_reload_bindings_"),
@@ -4083,7 +4075,7 @@ reload_bindings() ->
 %% interfaces. The binding is named by its site in the new version, which
 %% carries the version's number (the log's *MVP 3.1 Read*)
 reload_keeps_unchanged_values_test_() ->
-    {timeout, 60, fun reload_keeps_unchanged_values/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun reload_keeps_unchanged_values/0).
 
 reload_keeps_unchanged_values() ->
     Dir = scratch("ern_reload_values_"),
@@ -4120,7 +4112,7 @@ reload_keeps_unchanged_values() ->
 %% after the fault is without one. Written after the code, so a regression
 %% test
 reload_keeps_ground_values_test_() ->
-    {timeout, ern_nodes_tests:waits(1), fun reload_keeps_ground_values/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun reload_keeps_ground_values/0).
 
 reload_keeps_ground_values() ->
     Dir = scratch("ern_reload_ground_"),
@@ -4156,7 +4148,7 @@ reload_keeps_ground_values() ->
 %% regression test, written after the fix: the module was named in place of
 %% the binding, and the kill called a fault
 killed_binding_test_() ->
-    {timeout, 60, fun killed_binding/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun killed_binding/0).
 
 killed_binding() ->
     Dir = scratch("ern_killed_binding_"),
@@ -4180,7 +4172,7 @@ killed_binding() ->
 %% entry 91): the process ended once the bindings had their values, and
 %% the listener with it, before the first input
 load_keeps_what_bindings_open_test_() ->
-    {timeout, 60, fun load_keeps_what_bindings_open/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun load_keeps_what_bindings_open/0).
 
 load_keeps_what_bindings_open() ->
     Dir = scratch("ern_load_open_"),
@@ -4226,7 +4218,7 @@ load_keeps_what_bindings_open() ->
 %% process ended with
 %% `its code was unloaded`, a fault the report no longer has
 refused_load_kills_test_() ->
-    {timeout, 60, fun refused_load_kills/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun refused_load_kills/0).
 
 refused_load_kills() ->
     Dir = scratch("ern_refused_load_"),
@@ -4263,7 +4255,7 @@ refused_load_kills() ->
 %% not find it, so it ran on unnamed after its function's module was
 %% purged, and faulted with the host's `badfun` once it called it
 refused_load_kills_holder_test_() ->
-    {timeout, 60, fun refused_load_kills_holder/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun refused_load_kills_holder/0).
 
 refused_load_kills_holder() ->
     Dir = scratch("ern_refused_holder_"),
@@ -4315,7 +4307,7 @@ refused_load_kills_holder() ->
 %% function, and the reload that purged its version left it to fail at its
 %% next call
 held_function_keeps_its_version_test_() ->
-    {timeout, 60, fun held_function_keeps_its_version/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun held_function_keeps_its_version/0).
 
 held_function_keeps_its_version() ->
     Dir = scratch("ern_held_function_"),
@@ -4352,7 +4344,7 @@ held_function_keeps_its_version() ->
 %% module that came to use it keeps its previous version. Written after
 %% the code (the log's *The Shell's Reload by Hash, Built*)
 reload_refused_by_a_new_module_test_() ->
-    {timeout, 60, fun reload_refused_by_a_new_module/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun reload_refused_by_a_new_module/0).
 
 reload_refused_by_a_new_module() ->
     Dir = scratch("ern_reload_new_fault_"),
@@ -4377,7 +4369,7 @@ reload_refused_by_a_new_module() ->
 %% code is the node's own unit. Written after the code, 2026-10-12, which
 %% lifted the refusal the shell's reload by hash had made of the first
 compiled_beside_another_test_() ->
-    {timeout, 60, fun compiled_beside_another/0}.
+    ern_nodes_tests:counted_test({waits, 3}, fun compiled_beside_another/0).
 
 compiled_beside_another() ->
     Dir = scratch("ern_compiled_beside_"),
@@ -4427,7 +4419,7 @@ compiled_beside_another() ->
 %% the shell's own, is made a unit of its own from its forms, as on a node.
 %% Written after the code, 2026-10-12, which lifted the refusal
 compiled_beside_the_shells_own_test_() ->
-    {timeout, 60, fun compiled_beside_the_shells_own/0}.
+    ern_nodes_tests:counted_test({waits, 2}, fun compiled_beside_the_shells_own/0).
 
 compiled_beside_the_shells_own() ->
     Dir = scratch("ern_beside_own_"),
@@ -4453,7 +4445,7 @@ compiled_beside_the_shells_own() ->
 %% the code (the log's *The Shell's Reload by Hash, Built*); the taken
 %% form's half on 2026-10-16, after the code, a regression test
 node_takes_its_build_unit_test_() ->
-    {timeout, 60, fun node_takes_its_build_unit/0}.
+    ern_nodes_tests:counted_test({waits, 2}, fun node_takes_its_build_unit/0).
 
 node_takes_its_build_unit() ->
     Dir = scratch("ern_build_unit_"),
@@ -4493,7 +4485,7 @@ node_takes_its_build_unit() ->
 %% other source, written 2026-10-16, after the code: the sentence first
 %% written would have loaded the deployed greet.erc
 load_takes_no_form_of_another_source_test_() ->
-    {timeout, 60, fun load_takes_no_form_of_another_source/0}.
+    ern_nodes_tests:counted_test({waits, 3}, fun load_takes_no_form_of_another_source/0).
 
 load_takes_no_form_of_another_source() ->
     Dir = scratch("ern_load_other_source_"),
@@ -4532,7 +4524,7 @@ load_takes_no_form_of_another_source() ->
 %% regression test for the reloaded module, written 2026-10-16, after the
 %% code
 load_takes_no_form_calling_a_reloaded_module_test_() ->
-    {timeout, 60, fun load_takes_no_form_calling_a_reloaded_module/0}.
+    ern_nodes_tests:counted_test({waits, 2}, fun load_takes_no_form_calling_a_reloaded_module/0).
 
 load_takes_no_form_calling_a_reloaded_module() ->
     Dir = scratch("ern_load_reloaded_"),
@@ -4566,7 +4558,7 @@ load_takes_no_form_calling_a_reloaded_module() ->
 %% file was deleted. It does not cover a compiled form with no source,
 %% which `:load` loads as `ern run` does
 load_takes_no_form_of_another_build_test_() ->
-    {timeout, 60, fun load_takes_no_form_of_another_build/0}.
+    ern_nodes_tests:counted_test({waits, 2}, fun load_takes_no_form_of_another_build/0).
 
 load_takes_no_form_of_another_build() ->
     Dir = scratch("ern_load_other_build_"),
@@ -4602,7 +4594,7 @@ load_takes_no_form_of_another_build() ->
 %% before `ern` ends. Written after the code (the log's *Termination Told,
 %% Built*)
 shell_told_of_the_end_test_() ->
-    {timeout, 60, fun shell_told_of_the_end/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun shell_told_of_the_end/0).
 
 shell_told_of_the_end() ->
     InputFile = scratch_file("ern_told_"),
@@ -4647,7 +4639,7 @@ write_source(Dir, File, Source) ->
 %% again while the session kept their previous interfaces, so the session
 %% ran code its checker had not seen
 reload_all_or_nothing_test_() ->
-    {timeout, 60, fun reload_all_or_nothing/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun reload_all_or_nothing/0).
 
 reload_all_or_nothing() ->
     Dir = scratch("ern_reload_all_"),
@@ -4686,7 +4678,7 @@ answer(Value) ->
 %% faulted with `error:badarg` when it was used; and the line said that
 %% every binding after the fault kept its value
 load_evaluates_bindings_test_() ->
-    {timeout, 60, fun load_evaluates_bindings/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun load_evaluates_bindings/0).
 
 load_evaluates_bindings() ->
     Dir = scratch("ern_load_bindings_"),
@@ -4774,7 +4766,7 @@ shown(Dir, File) ->
 %% module over itself, and a third purged the version a process ran and
 %% killed the process, which nothing reported
 load_loaded_test_() ->
-    {timeout, 60, fun load_loaded/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun load_loaded/0).
 
 load_loaded() ->
     Dir = scratch("ern_load_twice_"),
@@ -4793,7 +4785,7 @@ load_loaded() ->
 %% B is compiled on the load path, since a module `:load` loaded cannot yet
 %% be another's dependency (MVP 2.98)
 reload_in_dependency_order_test_() ->
-    {timeout, 60, fun reload_in_dependency_order/0}.
+    ern_nodes_tests:counted_test({waits, 2}, fun reload_in_dependency_order/0).
 
 reload_in_dependency_order() ->
     Dir = scratch("ern_reload_order_"),
@@ -4819,7 +4811,7 @@ reload_in_dependency_order() ->
 %% on. A regression test: the first ended the shell with a badarg, the
 %% second with a badmatch, each with status 70
 load_compiled_test_() ->
-    {timeout, 60, fun load_compiled/0}.
+    ern_nodes_tests:counted_test({waits, 2}, fun load_compiled/0).
 
 load_compiled() ->
     Dir = scratch("ern_load_compiled_"),
@@ -4847,7 +4839,7 @@ load_compiled() ->
 %% module, the processes its bindings started among it. A regression test:
 %% such a process ran on in the code that was not loaded
 failed_load_leaves_nothing_test_() ->
-    {timeout, 60, fun failed_load_leaves_nothing/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun failed_load_leaves_nothing/0).
 
 failed_load_leaves_nothing() ->
     Dir = scratch("ern_failed_load_"),
@@ -4868,7 +4860,7 @@ failed_load_leaves_nothing() ->
 %% `Input1`, and `:load Input1` put a module in its place, taking the
 %% session's `f` with it
 input_namespace_test_() ->
-    {timeout, 60, fun input_namespace/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun input_namespace/0).
 
 input_namespace() ->
     Dir = scratch("ern_inputs_"),
@@ -4888,7 +4880,7 @@ input_namespace() ->
 %% compiler the shell calls read the dependencies' interfaces from the
 %% first root alone, and did not look on the load path for a dependency
 load_path_dependency_test_() ->
-    {timeout, 60, fun load_path_dependency/0}.
+    ern_nodes_tests:counted_test({waits, 2}, fun load_path_dependency/0).
 
 load_path_dependency() ->
     Dir = scratch("ern_load_deps_"),
@@ -4918,7 +4910,7 @@ load_path_dependency() ->
 %% holds, and loads nothing. A regression test: `:load` took such a module
 %% and it faulted where the two differed
 load_refuses_stale_compiled_test_() ->
-    {timeout, 60, fun load_refuses_stale_compiled/0}.
+    ern_nodes_tests:counted_test({waits, 3}, fun load_refuses_stale_compiled/0).
 
 load_refuses_stale_compiled() ->
     Dir = scratch("ern_load_stale_"),
@@ -5060,7 +5052,7 @@ forget_session() ->
 %% takes Backspace and C-d, and reads the interrupt as a key, which kills a
 %% running input and leaves the session standing
 terminal_test_() ->
-    {timeout, 60, fun terminal/0}.
+    ern_nodes_tests:counted_test({waits, 7}, fun terminal/0).
 
 terminal() ->
     %% it says when it is running, so the interrupt is sent then and not
@@ -5081,8 +5073,7 @@ terminal() ->
                   {expect, "Killed"},
                   {send, hex("1 + 1\r")},
                   {expect, "2 : Int"},
-                  {send, "04"}],                        % C-d on an empty line
-                 20),
+                  {send, "04"}]),
     ?assertMatch({_, _}, binary:match(Screen, <<"3 : Int">>)),
     %% the interrupt reached the shell as a key: the session was not ended,
     %% answered the next input, and ended at `C-d` with status 0, which
@@ -5099,7 +5090,7 @@ terminal() ->
 %% by hand, a missing home was passed over in silence, and then an unset
 %% one was called no absolute path
 no_home_test_() ->
-    {timeout, 60, fun no_home/0}.
+    ern_nodes_tests:counted_test({waits, 5}, fun no_home/0).
 
 no_home() ->
     {ok, Version} = file:read_file("../VERSION"),
@@ -5107,15 +5098,13 @@ no_home() ->
                  [{expect, "HOME is not set"},
                   {send, hex("1 + 1\r")},
                   {expect, "2 : Int"},
-                  {send, "04"}],
-                 20),
+                  {send, "04"}]),
     ?assertMatch({_, _}, binary:match(Screen, <<"Ernest ", (string:trim(Version))/binary,
                                                 "-dev.">>)),
     ?assertEqual(1, length(binary:matches(Screen, <<"the history is not kept">>))),
     Relative = pty("HOME=relative ../bin/ern shell",
                    [{expect, "HOME is no absolute path"},
-                    {send, "04"}],
-                   20),
+                    {send, "04"}]),
     ?assertMatch({_, _}, binary:match(Relative, <<"the history is not kept, since HOME is no"
                                                   " absolute path">>)).
 
@@ -5140,29 +5129,29 @@ startup_file(File, Text) ->
 hex(Text) ->
     lists:flatten([io_lib:format("~2.16.0b", [Char]) || Char <- Text]).
 
-pty(Command, Steps, Seconds) ->
-    pty(Command, Steps, Seconds, "").
+pty(Command, Steps) ->
+    pty(Command, Steps, "").
 
 %% The screen as a reader sees it, rather than every write: a shell that
 %% paints its panes writes a line many times over.
-screen(Command, Steps, Seconds, Size) ->
-    pty(Command, Steps, Seconds, " --screen --size " ++ Size).
+screen(Command, Steps, Size) ->
+    pty(Command, Steps, " --screen --size " ++ Size).
 
 %% What the terminal was sent, as a reader sees it: the sequences that only
-%% color the text are left out. `raw/3` keeps them, for a test of the
+%% color the text are left out. `raw/2` keeps them, for a test of the
 %% color itself.
-pty(Command, Steps, Seconds, Extra) ->
-    re:replace(raw(Command, Steps, Seconds, Extra), "\e\\[[0-9;]*m", "",
+pty(Command, Steps, Extra) ->
+    re:replace(raw(Command, Steps, Extra), "\e\\[[0-9;]*m", "",
                [global, {return, binary}]).
 
-raw(Command, Steps, Seconds) ->
-    raw(Command, Steps, Seconds, "").
+raw(Command, Steps) ->
+    raw(Command, Steps, "").
 
 %% Report §11.2: every terminal session ends as its test ends it, by
 %% `C-d` or a command, with status 0, so a shell that no longer ends, which
 %% the harness kills, fails its test.
-raw(Command, Steps, Seconds, Extra) ->
-    {Status, Data} = ern_pty:run(Command, Steps, Seconds, Extra),
+raw(Command, Steps, Extra) ->
+    {Status, Data} = ern_pty:run(Command, Steps, Extra),
     ?assertEqual(0, Status),
     Data.
 

@@ -1569,10 +1569,15 @@ line(Token) ->
     Line.
 
 %% Report §11.5: the span from Position to the end of the last token
-%% Tokens gave before Rest, so an error covers a qualified name whole.
+%% Tokens gave before Rest, so an error covers a qualified name whole. Rest
+%% is a tail of Tokens, which the walk reaches after the tokens taken, so
+%% that a span costs what its name holds and not the module's rest.
 span_through({Line, Column, _, PreviousEnd}, Tokens, Rest) ->
-    {_, _, End, _} = position(lists:nth(length(Tokens) - length(Rest), Tokens)),
+    {_, _, End, _} = position(last_before(Tokens, Rest)),
     {Line, Column, End, PreviousEnd}.
+
+last_before([Token | Rest], Rest) -> Token;
+last_before([_ | Tokens], Rest) -> last_before(Tokens, Rest).
 
 %% Report §11.5: a node's span, from the node's first token to the end of
 %% the token before the rest, which every token carries.

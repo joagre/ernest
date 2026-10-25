@@ -239,8 +239,9 @@ pulled(Machines) ->
                fun(Machine) ->
                    Clone = ern_machine:quoted(ern_machine:clone(Machine)),
                    Started = erlang:monotonic_time(millisecond),
+                   %% a clone's pull and build, which runs as long as its make does
                    _ = ern_machine:ran(Machine, "git -C " ++ Clone ++ " pull --ff-only && make -C "
-                                                ++ Clone),
+                                                ++ Clone, infinity),
                    {Machine, erlang:monotonic_time(millisecond) - Started}
                end, remote(Machines)),
     [io:format("~s: pulled and built in ~.1f s~n", [ern_machine:name(Machine), Ms / 1000])

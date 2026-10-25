@@ -17,10 +17,11 @@
 -include_lib("public_key/include/public_key.hrl").
 -include_lib("checker/include/ern_canonical.hrl").
 
--export([nodes_test/2, waits/1, free_port/0, made/3, address/1, edit/2, configuration/1, lists/2,
-         peer/3, name/1, program/1, wait_ms_text/0, client/0, client/8, key_files/1, start/3,
-         bare_started/2, bound_port/1, launched/2, says/2, says/3, prints/2, prints/4, stop/2,
-         written/2, said/1, wait_ms/0, detector_ms/0, has/2]).
+-export([nodes_test/2, counted_test/2, step/1, step/2, free_port/0, made/3, address/1, edit/2,
+         configuration/1, lists/2, peer/3, name/1, program/1, built/1, wait_ms_text/0, client/0,
+         client/8, key_files/1, start/3, bare_started/2, bound_port/1, launched/2, says/2, says/3,
+         prints/2, prints/4, stop/2, written/2, said/1, wait_ms/0, detector_ms/0, has/2,
+         connected/2, accepted/1, received/2]).
 
 %% What waits for a node's end: its status, or `timeout` where it has not
 %% ended within the harness's time for one wait.
@@ -30,17 +31,22 @@
 %% Report §11.2: what a shell prints of a spawn on a peer that started, the
 %% process's address the screen writes before it.
 -define(SPAWNED, ") : Either(Io.Error, Address(Never))").
-%% The milliseconds that bound one step of a test's, in which it waits for
-%% a node's line, its end, what it said or a bare `erl`'s run, builds a
-%% program, or runs a command to its end; a step that waits a time the
-%% report states beside them, a dial's or the detector's, is given that
-%% time too. It is the unit every bound of these tests counts in: a test's
-%% limit is its steps' sum (nodes_test/2), and each find, spawn, compute,
-%% call and utilization of a program a test runs is given it
-%% (wait_ms_declaration/0, test/fixtures/peers/harness.ern), since an
-%% answer later than it has failed its step, whichever says so first, the
-%% answer's time or the test.
+%% The milliseconds that bound one step of a test's: each wait the harness
+%% runs, for a node's line, its end, what it said, a bare `erl`'s run or a
+%% command's to its end, a build, or an input typed at a shell, the
+%% harness's own functions counting each as they run it (step/1); a step
+%% that waits a time the report states beside them, a dial's or the
+%% detector's, is given that time too. It is the unit every bound of these
+%% tests counts in: a test's limit is its steps' sum (nodes_test/2), and
+%% each find, spawn, compute, call and utilization of a program a test runs
+%% is given it (wait_ms_declaration/0, test/fixtures/peers/harness.ern),
+%% since an answer later than it has failed its step, whichever says so
+%% first, the answer's time or the test. A build runs in the test's own
+%% process, bounded by the test's limit alone.
 -define(WAIT_MS, 30000).
+%% The key of the test process's dictionary that holds the steps of the
+%% test it runs, {Count, Taken} (counted/2).
+-define(STEPS, '$ern_steps').
 %% Report §8.7: the host gives up a dial that nothing answers after 7
 %% seconds.
 -define(DIAL_MS, 7000).
@@ -62,7 +68,8 @@ tmp() ->
 %% Its time is the sum of its steps' bounds, Count steps each bounded by
 %% the harness's time for one wait (waits/1) and the Beyond milliseconds
 %% of the report's times its steps wait beside them, so that a step that
-%% fails is told by its own bound before the test's runs out.
+%% fails is told by its own bound before the test's runs out; and its
+%% steps are counted as it takes them, Count of them (counted/2).
 -spec nodes_test({waits, pos_integer()} | {waits, pos_integer(), non_neg_integer()},
                  fun((file:filename()) -> term())) ->
           {setup, fun(() -> file:filename()), fun((file:filename()) -> ok),
@@ -73,15 +80,65 @@ nodes_test({waits, Count, Beyond}, Test) ->
     {name, Name} = erlang:fun_info(Test, name),
     {setup, fun tmp/0, fun killed/1,
      fun(Base) ->
-         {timeout, waits(Count) + Beyond div 1000, {atom_to_list(Name), fun() -> Test(Base) end}}
+         {timeout, waits(Count) + Beyond div 1000,
+          {atom_to_list(Name), fun() -> counted(Count, fun() -> Test(Base) end) end}}
      end}.
 
+%% A test of the harness's steps that starts no node here, an integration
+%% test's, the shell's or the terminal's: its time and its count as a
+%% nodes test's.
+-spec counted_test({waits, pos_integer()}, fun(() -> term())) ->
+          {timeout, pos_integer(), {string(), fun(() -> ok)}}.
+counted_test({waits, Count}, Test) ->
+    {module, Module} = erlang:fun_info(Test, module),
+    {name, Name} = erlang:fun_info(Test, name),
+    {timeout, waits(Count),
+     {lists:concat([Module, ":", Name]), fun() -> counted(Count, Test) end}}.
+
 %% A test's limit in seconds, as EUnit's `timeout` takes it: its Count
-%% steps, each bounded by the harness's time for one wait, here and in the
-%% integration tests alike.
--spec waits(pos_integer()) -> pos_integer().
+%% steps, each bounded by the harness's time for one wait. EUnit's limit is
+%% the fallback for a wait that holds up the harness itself, a build's
+%% among them.
 waits(Count) ->
     Count * ?WAIT_MS div 1000.
+
+%% Test run with its steps counted, Count of them, each a wait of the
+%% harness's (step/1): a step past Count fails the test at once, naming the
+%% step, and a test that ends having taken fewer fails, naming both
+%% numbers, so that a test's count is its steps' and its limit their sum.
+counted(Count, Test) ->
+    put(?STEPS, {Count, 0}),
+    try
+        _ = Test(),
+        {Count, Taken} = get(?STEPS),
+        Taken =:= Count orelse erlang:error({fewer_steps_than_counted, Taken, Count}),
+        ok
+    after
+        erase(?STEPS)
+    end.
+
+%% One step of the test the calling process runs taken, What naming it, or
+%% Steps of them for a wait the harness cannot see the steps of, a run that
+%% gives each of its own waits the harness's time for one wait, a script's
+%% or `ern test`'s, whose test gives that number to the harness's function
+%% that waits for it. The harness's own functions take the steps as they
+%% wait. A process that runs no counted test, a tool's or a test's of
+%% another area, counts nothing.
+-spec step(term()) -> ok.
+step(What) ->
+    step(What, 1).
+
+-spec step(term(), pos_integer()) -> ok.
+step(What, Steps) ->
+    case get(?STEPS) of
+        undefined ->
+            ok;
+        {Count, Taken} when Taken + Steps > Count ->
+            erlang:error({steps_past_the_count, Count, What});
+        {Count, Taken} ->
+            put(?STEPS, {Count, Taken + Steps}),
+            ok
+    end.
 
 %% Report §8.6, a node detecting no deadlock: each node whose ernest.pid is
 %% still in a directory under Base killed, a stopped one among them. A test
@@ -237,8 +294,16 @@ site(Node, Hash) ->
     {ok, _} = compile:file(filename:join(Root, "ern_nodes_frame.erl"), [{outdir, Root}]),
     ok = file:write_file(filename:join(Root, "ern_nodes_client.erl"), client()),
     {ok, _} = compile:file(filename:join(Root, "ern_nodes_client.erl"), [{outdir, Root}]),
-    0 = ern_cli:ern(["build", Root], group_leader()),
+    0 = built([Root]),
     filename:join(Root, "node.erc").
+
+%% Report §11.1: `ern build` with the words Words after it, run in the
+%% test's own process as the command line runs it, and its status: one
+%% step. A host module a test compiles with the host's compiler is no step.
+-spec built([string()]) -> integer().
+built(Words) ->
+    step({built, Words}),
+    ern_cli:ern(["build" | Words], group_leader()).
 
 %% The function a program the test writes gives each of its finds, spawns,
 %% computes, calls and utilizations, the harness's time for one wait, as
@@ -332,7 +397,7 @@ client(Root, Name, {Certificate, Key}, Cookie, Port, Target, Flags, Module) ->
         ++ Flags ++ ["-s", Module, "main"],
     Client = open_port({spawn_executable, os:find_executable("erl")},
                        [{args, Arguments}, exit_status, binary, stderr_to_stdout]),
-    {Client, fun() -> collected(Client, ?WAIT_MS) end}.
+    {Client, fun() -> collected(Client, 1) end}.
 
 %% The files of a node's key in its configuration directory, its
 %% certificate and its private key.
@@ -430,8 +495,9 @@ launched(Dir, Words) ->
     {Port, fun() -> ended(Port, ?WAIT_MS) end}.
 
 %% The status a node started through Port ended with, or `timeout` where it
-%% has not ended within Ms.
+%% has not ended within Ms: one step.
 ended(Port, Ms) ->
+    step({ended, Port}),
     receive {Port, {exit_status, Status}} -> Status after Ms -> timeout end.
 
 %% The pipe a stream is written to, and its reader, which writes what comes
@@ -531,7 +597,12 @@ prints(Dir, Part, Ms) ->
 prints(Dir, Part, Count, Ms) ->
     seen(Dir, out, Part, Count, Ms).
 
+%% One step, the wait for a line.
 seen(Dir, Stream, Part, Count, Ms) ->
+    step({seen, Dir, Stream, Part}),
+    waited(Dir, Stream, Part, Count, Ms).
+
+waited(Dir, Stream, Part, Count, Ms) ->
     Bytes = unicode:characters_to_binary(Part),
     watcher_name(Dir) ! {waiting, Stream, Bytes, Count, self()},
     receive
@@ -560,17 +631,18 @@ terminated(Dir) ->
 %% test saw what the process printed before it faulted. An input that
 %% prints nothing is typed and the prompt it brings waited for, then
 %% standard output read for Part, until it holds Part or the harness's
-%% time for one wait is out; each round waits on its prompt and none on a
-%% time. A prompt is counted as the shell's `> `, which what the inputs
-%% here print holds nowhere else.
+%% time for one wait is out, one step; each round waits on its prompt and
+%% none on a time. A prompt is counted as the shell's `> `, which what the
+%% inputs here print holds nowhere else.
 fault_line(Input, Dir, Part) ->
+    step({fault_line, Dir, Part}),
     fault_line(Input, Dir, Part, erlang:monotonic_time(millisecond) + ?WAIT_MS).
 
 fault_line(Input, Dir, Part, Deadline) ->
     Prompts = length(string:split(written(Dir, out), "> ", all)) - 1,
     true = port_command(Input, "Unit\n"),
     Left = Deadline - erlang:monotonic_time(millisecond),
-    prints(Dir, "> ", Prompts + 1, max(Left, 1)),
+    waited(Dir, out, "> ", Prompts + 1, max(Left, 1)),
     case string:find(written(Dir, out), Part) of
         nomatch when Left > 0 -> fault_line(Input, Dir, Part, Deadline);
         nomatch -> erlang:error({not_said, Dir, Part});
@@ -583,9 +655,11 @@ written(Dir, Stream) ->
     watcher_name(Dir) ! {written, Stream, self()},
     receive {written, Stream, Text} -> binary_to_list(Text) end.
 
-%% What a node that has ended wrote, once both its streams have ended.
+%% What a node that has ended wrote, once both its streams have ended: one
+%% step.
 -spec said(file:filename()) -> {string(), string()}.
 said(Dir) ->
+    step({said, Dir}),
     watcher_name(Dir) ! {said, self()},
     receive
         {said, Out, Err} -> {binary_to_list(Out), binary_to_list(Err)}
@@ -610,13 +684,36 @@ detector_ms() ->
 has(Text, Part) ->
     ?assertNotEqual(nomatch, string:find(Text, Part)).
 
+%% A connection to what listens at Port of the loopback interface, in
+%% binary and passive mode, with Options beside: one step.
+-spec connected(inet:port_number(), [gen_tcp:connect_option()]) -> gen_tcp:socket().
+connected(Port, Options) ->
+    step({connected, Port}),
+    {ok, Socket} = gen_tcp:connect({127, 0, 0, 1}, Port, [binary, {active, false} | Options],
+                                   ?WAIT_MS),
+    Socket.
+
+%% A connection a listener of the test's takes: one step.
+-spec accepted(gen_tcp:socket()) -> gen_tcp:socket().
+accepted(Listener) ->
+    step({accepted, Listener}),
+    {ok, Socket} = gen_tcp:accept(Listener, ?WAIT_MS),
+    Socket.
+
+%% What comes next over a passive socket, Length bytes, or what has come
+%% where Length is 0: one step.
+-spec received(gen_tcp:socket(), non_neg_integer()) -> {ok, binary()} | {error, term()}.
+received(Socket, Length) ->
+    step({received, Socket}),
+    gen_tcp:recv(Socket, Length, ?WAIT_MS).
+
 %% report §8.7: two nodes that list each other connect over TLS with a
 %% certificate on each side, by the first operation that needs it, and each
 %% says so naming the other; a node whose program ends tells the other,
 %% which says it ended and not that it was lost; and the host's own reports
 %% of its nodes are not written
 connect_test_() ->
-    nodes_test({waits, 9}, fun connect/1).
+    nodes_test({waits, 7}, fun connect/1).
 
 connect(Base) ->
     {PortA, PortB} = {free_port(), free_port()},
@@ -646,7 +743,7 @@ connect(Base) ->
 %% lists, and no other: the dialer is told nothing but that it could not
 %% connect, and the node that refused says so, naming the key's digest
 unlisted_test_() ->
-    nodes_test({waits, 9}, fun unlisted/1).
+    nodes_test({waits, 7}, fun unlisted/1).
 
 unlisted(Base) ->
     {PortA, PortB} = {free_port(), free_port()},
@@ -681,7 +778,7 @@ unlisted(Base) ->
 %% a listed key connected under a name of its choosing, which a reload that
 %% removed the peer did not end, and over which a call still ran
 bound_test_() ->
-    nodes_test({waits, 14}, fun bound/1).
+    nodes_test({waits, 12}, fun bound/1).
 
 bound(Base) ->
     PortA = free_port(),
@@ -725,7 +822,7 @@ bound(Base) ->
 %% which answers under its own name, and the dial fails, neither node
 %% connected; a refuses c's key for the dial of b and says so
 answered_test_() ->
-    nodes_test({waits, 8}, fun answered/1).
+    nodes_test({waits, 6}, fun answered/1).
 
 answered(Base) ->
     PortC = free_port(),
@@ -755,7 +852,7 @@ answered(Base) ->
 %% before its fix, it failed: a took the holder of c's key for b, the
 %% certificate bound to no host dialed
 answered_by_another_key_test_() ->
-    nodes_test({waits, 8}, fun answered_by_another_key/1).
+    nodes_test({waits, 5}, fun answered_by_another_key/1).
 
 answered_by_another_key(Base) ->
     PortB = free_port(),
@@ -787,7 +884,7 @@ answered_by_another_key(Base) ->
 %% ends and stays connected telling nothing, whose word stands until its
 %% connection's end
 told_after_its_end_test_() ->
-    nodes_test({waits, 9}, fun told_after_its_end/1).
+    nodes_test({waits, 6}, fun told_after_its_end/1).
 
 told_after_its_end(Base) ->
     PortA = free_port(),
@@ -853,8 +950,9 @@ main() ->
             "-s", "ern_nodes_answering", "main"],
     Holder = open_port({spawn_executable, os:find_executable("erl")},
                        [{args, Arguments}, exit_status, binary, stderr_to_stdout]),
+    step({listening, Name}),
     listening(Holder, <<>>),
-    {Holder, fun() -> collected(Holder, ?WAIT_MS) end}.
+    {Holder, fun() -> collected(Holder, 1) end}.
 
 listening(Holder, Acc) ->
     case binary:match(Acc, <<"listening">>) of
@@ -873,7 +971,7 @@ listening(Holder, Acc) ->
 %% the floor's digest and holding nothing of the build. A regression test
 %% of MVP 3.0's fingerprint, which refused them
 other_build_test_() ->
-    nodes_test({waits, 11}, fun other_build/1).
+    nodes_test({waits, 7}, fun other_build/1).
 
 other_build(Base) ->
     {PortA, PortB} = {free_port(), free_port()},
@@ -902,7 +1000,7 @@ other_build(Base) ->
 %% in its own words; here a bare `erl` that holds a listed peer's key and
 %% names itself as that key gives, with another cookie
 other_floor_test_() ->
-    nodes_test({waits, 8}, fun other_floor/1).
+    nodes_test({waits, 6}, fun other_floor/1).
 
 other_floor(Base) ->
     PortA = free_port(),
@@ -927,13 +1025,14 @@ other_floor(Base) ->
 %% report §8.7, limit 14 of the proposal: two nodes started from copies of
 %% one directory are one node to their peers; the second's dial ends the
 %% first's connection, which the peer says each time. Its limit is the sum
-%% of its ten steps, its program's three builds, a line of b's, of a's and
-%% of b's again, three nodes' ends and what b said, each bounded by the
+%% of its eight steps, its program's build, a line of b's, of a's and of
+%% b's again, three nodes' ends and what b said, each bounded by the
 %% harness's time for one wait: written on 2026-10-16, after its limit of
 %% 60 s, a number of its own, ran out under the full run's load on
-%% 2026-10-13, and its builds counted on 2026-10-21
+%% 2026-10-13, its builds counted on 2026-10-21, and its host modules'
+%% compiles, which are no step, left out on 2026-10-25
 replaced_test_() ->
-    nodes_test({waits, 10}, fun replaced/1).
+    nodes_test({waits, 8}, fun replaced/1).
 
 replaced(Base) ->
     {PortA, PortB} = {free_port(), free_port()},
@@ -970,7 +1069,7 @@ replaced(Base) ->
 %% line); a node without `listen` does not listen, says nothing of it, and
 %% dials
 listening_test_() ->
-    nodes_test({waits, 12}, fun listening/1).
+    nodes_test({waits, 10}, fun listening/1).
 
 listening(Base) ->
     PortB = free_port(),
@@ -1005,7 +1104,7 @@ listening(Base) ->
 %% message that names no peer's process names no connection, and is
 %% dropped, which the node says
 faulty_frame_test_() ->
-    nodes_test({waits, 10}, fun faulty_frame/1).
+    nodes_test({waits, 8}, fun faulty_frame/1).
 
 faulty_frame(Base) ->
     {PortA, PortB} = {free_port(), free_port()},
@@ -1037,7 +1136,7 @@ faulty_frame(Base) ->
 %% node lacked the function, and a node that held it started the process
 %% under the site as it came
 unreadable_site_test_() ->
-    nodes_test({waits, 9}, fun unreadable_site/1).
+    nodes_test({waits, 7}, fun unreadable_site/1).
 
 unreadable_site(Base) ->
     {PortA, PortB} = {free_port(), free_port()},
@@ -1079,7 +1178,7 @@ missing_module(Base) ->
      || {File, Text} <- [{"main.ern", "export fn main() : Unit = Io.println(\"ran\")\n"},
                          {"user.ern", "export fn twice(n : Int) : Int = Extra.double(n)\n"},
                          {"extra.ern", "export fn double(n : Int) : Int = n * 2\n"}]],
-    0 = ern_cli:ern(["build", "--build-root", Build, Source], group_leader()),
+    0 = built(["--build-root", Build, Source]),
     ok = file:delete(filename:join(Build, "extra.erc")),
     Main = filename:join(Build, "main.erc"),
     Run = fun(Words) -> finished([?ERN, " run ", Words, " 2>&1"]) end,
@@ -1108,7 +1207,7 @@ misplaced_module(Base) ->
                          "export fn main() : Unit = Io.println(\"ran\")\n"),
     ok = file:write_file(filename:join(Source, "extra.ern"),
                          "export fn double(n : Int) : Int = n * 2\n"),
-    0 = ern_cli:ern(["build", "--build-root", Build, Source], group_leader()),
+    0 = built(["--build-root", Build, Source]),
     Moved = filename:join(Build, "moved.erc"),
     ok = file:rename(filename:join(Build, "extra.erc"), Moved),
     Main = filename:join(Build, "main.erc"),
@@ -1129,7 +1228,7 @@ misplaced_module(Base) ->
 %% holding another module); it does not cover a file's own name, which
 %% the program's own load refuses the same way.
 misshapen_load_path_test_() ->
-    nodes_test({waits, 4}, fun misshapen_load_path/1).
+    nodes_test({waits, 3}, fun misshapen_load_path/1).
 
 misshapen_load_path(Base) ->
     Lone = made(Base, "lone", none),
@@ -1140,7 +1239,7 @@ misshapen_load_path(Base) ->
     ok = file:write_file(filename:join([Source, "net", "http.ern"]),
                          "export fn double(n : Int) : Int = n * 2\n"),
     Build = filename:join(Base, "build"),
-    0 = ern_cli:ern(["build", "--build-root", Build, Source], group_leader()),
+    0 = built(["--build-root", Build, Source]),
     Main = filename:join(Build, "main.erc"),
     Http = filename:join([Build, "net", "http.erc"]),
     Upper = filename:join([Base, "upper", "Net", "http.erc"]),
@@ -1173,7 +1272,7 @@ misshapen_load_path(Base) ->
 %% reading the example's directory); it does not cover a test's case,
 %% which runs where the job started.
 reload_in_example_test_() ->
-    nodes_test({waits, 5}, fun reload_in_example/1).
+    nodes_test({waits, 6}, fun reload_in_example/1).
 
 reload_in_example(Base) ->
     Node = made(Base, "node", none),
@@ -1188,8 +1287,7 @@ reload_in_example(Base) ->
                           "/// // => Some(\"go\")\n"
                           "/// ```\n"
                           "export fn typed() : Optional(String) = Io.readLine()\n"]),
-    0 = ern_cli:ern(["build", "--build-root", filename:join(Base, "build"), Source],
-                    group_leader()),
+    0 = built(["--build-root", filename:join(Base, "build"), Source]),
     {Input, Wait} = launched(Node, ["cd ", Base, " && ", ?ERN,
                                     " test --config-dir node build/slow.erc"]),
     prints(Node, "waiting"),
@@ -1204,7 +1302,7 @@ reload_in_example(Base) ->
 %% report §8.7: a node runs over its listener's family of addresses, IPv6
 %% where `listen` names an address of it, its peers' addresses of the same
 ipv6_test_() ->
-    nodes_test({waits, 9}, fun ipv6/1).
+    nodes_test({waits, 7}, fun ipv6/1).
 
 ipv6(Base) ->
     Free = fun() ->
@@ -1254,7 +1352,7 @@ os_exit(Base) ->
                           "                                  fn(entries) = List.size(entries))));\n"
                           "    Os.exit(3)\n"
                           "}\n"]),
-    0 = ern_cli:ern(["build", Root], group_leader()),
+    0 = built([Root]),
     ?assertEqual(3, (start(A, filename:join(Root, "exits.erc"), []))()),
     {Out, _} = said(A),
     has(Out, "Right(4)"),
@@ -1267,7 +1365,7 @@ os_exit(Base) ->
 %% said the host had not been started as a node; the utilization's was
 %% written after the code
 refused_configuration_test_() ->
-    nodes_test({waits, 5}, fun refused_configuration/1).
+    nodes_test({waits, 3}, fun refused_configuration/1).
 
 refused_configuration(Base) ->
     A = made(Base, "a", none),
@@ -1296,7 +1394,7 @@ refused_after_start(Base) ->
                          "export fn main() : Unit = Io.println(\"ran\")\n"),
     ok = file:write_file(filename:join(Root, "uses.ern"), "export fn f() : Int = Used.g()\n"),
     ok = file:write_file(filename:join(Root, "used.ern"), "export fn g() : Int = 1\n"),
-    0 = ern_cli:ern(["build", Root], group_leader()),
+    0 = built([Root]),
     ok = file:delete(filename:join(Root, "used.erc")),
     {1, Said} = finished(?ERN ++ " run --config-dir " ++ A ++ " " ++ filename:join(Root, "prog.erc")
                          ++ " 2>&1"),
@@ -1323,7 +1421,7 @@ carrier_not_started(Base) ->
     ok = filelib:ensure_path(Root),
     ok = file:write_file(filename:join(Root, "prog.ern"),
                          "export fn main() : Unit = Io.println(\"ran\")\n"),
-    0 = ern_cli:ern(["build", Root], group_leader()),
+    0 = built([Root]),
     Program = filename:join(Root, "prog.erc"),
     Out = filename:join(Base, "out"),
     {1, Said} = finished(?ERN ++ " run --config-dir " ++ A ++ " " ++ Program ++ " 2>&1 >" ++ Out),
@@ -1342,7 +1440,7 @@ carrier_not_started(Base) ->
 %% node (the log's *The Carrier*), the one wait here a time, since an
 %% absence shows itself by nothing else
 no_deadlock_test_() ->
-    nodes_test({waits, 8}, fun no_deadlock/1).
+    nodes_test({waits, 6}, fun no_deadlock/1).
 
 no_deadlock(Base) ->
     A = made(Base, "a", none),
@@ -1353,7 +1451,7 @@ no_deadlock(Base) ->
                          "    Io.println(\"waiting\");\n"
                          "    receive { n -> Unit }\n"
                          "}\n"),
-    0 = ern_cli:ern(["build", Root], group_leader()),
+    0 = built([Root]),
     Program = filename:join(Root, "waits.erc"),
     {Micros, {1, Plain}} = timer:tc(fun() -> finished(?ERN ++ " run " ++ Program ++ " 2>&1") end),
     has(Plain, "deadlock"),
@@ -1378,7 +1476,7 @@ no_deadlock(Base) ->
 %% on the load path, so that every node runs one build.
 peers(Base) ->
     Root = filename:join(Base, "build"),
-    0 = ern_cli:ern(["build", "--build-root", Root, "fixtures/peers"], group_leader()),
+    0 = built(["--build-root", Root, "fixtures/peers"]),
     {ok, _} = compile:file("fixtures/peers/ern_peers_host.erl", [{outdir, Root}]),
     {filename:join(Root, "store.erc"), filename:join(Root, "desk.erc")}.
 
@@ -1448,7 +1546,7 @@ desk_site(Definition, Part) ->
 %% node killed outright, which tells its peers nothing, is said as lost,
 %% its connection closed
 find_test_() ->
-    nodes_test({waits, 8}, fun find/1).
+    nodes_test({waits, 7}, fun find/1).
 
 find(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
@@ -1568,7 +1666,7 @@ export fn main() : Unit =
 fn asked(service : Address(Server.Msg)) : String =
     Io.show(Address.call(service, fn(reply) = Server.Which(reply), waitMs()))
 "/utf8>>, wait_ms_declaration()]),
-    0 = ern_cli:ern(["build", Root], group_leader()),
+    0 = built([Root]),
     PortServer = free_port(),
     Server = made(Base, "server", PortServer),
     Client = made(Base, "client", none),
@@ -1708,7 +1806,7 @@ fn divided() : Unit = {
 // Until the node is stopped: a node waiting for ever is no deadlock.
 fn held() : Unit receiving Unit = receive { _ -> held() }
 "/utf8>>, wait_ms_declaration()]),
-    0 = ern_cli:ern(["build", Root], group_leader()),
+    0 = built([Root]),
     PortB = free_port(),
     A = made(Base, "a", none),
     B = made(Base, "b", PortB),
@@ -1729,7 +1827,7 @@ fn held() : Unit receiving Unit = receive { _ -> held() }
 %% and a spawn given a time past the longest wait the host takes at once
 %% wait, a regression: each failed with the host's error
 spawn_test_() ->
-    nodes_test({waits, 8}, fun spawn_on_peer/1).
+    nodes_test({waits, 7}, fun spawn_on_peer/1).
 
 spawn_on_peer(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
@@ -1777,7 +1875,7 @@ spawn_on_peer(Base) ->
 %% the store's gateway reads first, nor a loss while the caller waits, which
 %% reconnect_test_'s is
 compute_test_() ->
-    nodes_test({waits, 11}, fun compute_on_peer/1).
+    nodes_test({waits, 10}, fun compute_on_peer/1).
 
 compute_on_peer(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
@@ -1834,7 +1932,7 @@ compute_on_peer(Base) ->
 %% schedulers, and not the schedulers' time, is read from the code, since an
 %% idle node answers 0.0 or more under both
 utilization_test_() ->
-    nodes_test({waits, 16}, fun utilization_of_peer/1).
+    nodes_test({waits, 14}, fun utilization_of_peer/1).
 
 utilization_of_peer(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
@@ -1891,7 +1989,7 @@ utilization_of_peer(Base) ->
 %% pieces with other senders' messages between them, a send that waits at
 %% a full buffer, and a silence, which the detector finds in a minute
 across_test_() ->
-    nodes_test({waits, 14, ?DIAL_MS}, fun across/1).
+    nodes_test({waits, 12, ?DIAL_MS}, fun across/1).
 
 across(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
@@ -1948,7 +2046,7 @@ across(Base) ->
 %% the note is the race the note's order is there for, which a run may or
 %% may not meet; and a sender waiting at a full buffer is not covered
 calls_test_() ->
-    nodes_test({waits, 6}, fun calls/1).
+    nodes_test({waits, 5}, fun calls/1).
 
 calls(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
@@ -2016,7 +2114,7 @@ restart_told(Base) ->
 %% node runs the loss, which the loss ends as §8.7 says and no test can
 %% place there
 reconnect_test_() ->
-    nodes_test({waits, 11}, fun reconnect/1).
+    nodes_test({waits, 10}, fun reconnect/1).
 
 reconnect(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
@@ -2057,7 +2155,7 @@ reconnect(Base) ->
 %% erl/runtime/test/ern_rt_tests.erl's, and the order of one address's
 %% messages and the worker's count erl/cli/test/ern_gateway_tests.erl's
 adapted_calls_test_() ->
-    nodes_test({waits, 6}, fun adapted_calls/1).
+    nodes_test({waits, 5}, fun adapted_calls/1).
 
 adapted_calls(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
@@ -2094,7 +2192,7 @@ hungup(Dir) ->
 %% and its ernest.pid goes. A regression test, written after the code; it
 %% does not cover a peer that falls silent while the node stops
 stop_test_() ->
-    nodes_test({waits, 9}, fun stop_in_order/1).
+    nodes_test({waits, 8}, fun stop_in_order/1).
 
 stop_in_order(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
@@ -2125,7 +2223,7 @@ stop_in_order(Base) ->
 %% code (the log's *MVP 3.1 Read*): a start was refused by a file whose
 %% number a living process held, and the jobs signaled that process
 pid_lock_test_() ->
-    nodes_test({waits, 12}, fun pid_lock/1).
+    nodes_test({waits, 10}, fun pid_lock/1).
 
 pid_lock(Base) ->
     A = made(Base, "a", none),
@@ -2157,8 +2255,7 @@ pid_lock(Base) ->
          has(Said, "ernest.pid: no node holds it: no node runs from the directory")
      end || Job <- ["stop", "reload"]],
     true = port_command(Living, <<"alive">>),
-    Echo = receive {Living, {data, Echoed}} -> Echoed after ?WAIT_MS -> none end,
-    ?assertEqual(<<"alive">>, Echo),
+    ?assertEqual(<<"alive">>, output(Living)),
     port_close(Living).
 
 %% report §11.2, §8.6, §8.7: `ern stop` returns once the node has ended,
@@ -2196,15 +2293,13 @@ export fn main() : Unit receiving Msg = {
     }
 }
 "/utf8>>),
-    0 = ern_cli:ern(["build", Root], group_leader()),
+    0 = built([Root]),
     Program = filename:join(Root, "stopping.erc"),
-    Self = self(),
-    Stopping = fun() -> spawn_link(fun() -> Self ! {stopped, signaled("stop", A)} end) end,
-    %% what a stop said once it has returned
-    Stopped = fun() -> receive {stopped, Said} -> Said after ?WAIT_MS -> running end end,
+    %% a stop begun, and what waits for what it said once it has returned
+    Stopping = fun() -> begun(?ERN ++ " stop --config-dir " ++ A ++ " 2>&1") end,
     {Port, Wait} = started(A, Program, []),
     prints(A, "subscribed"),
-    _ = Stopping(),
+    Stopped = Stopping(),
     prints(A, "told"),
     ?assert(filelib:is_file(PidFile)),
     true = port_command(Port, "go\n"),
@@ -2216,10 +2311,10 @@ export fn main() : Unit receiving Msg = {
     %% the next start, and two stops
     {_Port, WaitAgain} = started(A, Program, []),
     prints(A, "subscribed"),
-    _ = Stopping(),
+    First = Stopping(),
     prints(A, "told"),
-    _ = Stopping(),
-    [?assertMatch({0, _}, Stopped()) || _ <- [first, second]],
+    Second = Stopping(),
+    [?assertMatch({0, _}, Stop()) || Stop <- [First, Second]],
     ?assertNot(filelib:is_file(PidFile)),
     ?assertEqual(143, WaitAgain()),
     {_, ErrAgain} = said(A),
@@ -2239,7 +2334,7 @@ export fn main() : Unit receiving Msg = {
 %% host warned on standard output at each reload of a message the handler
 %% did not take
 reload_test_() ->
-    nodes_test({waits, 21}, fun reload/1).
+    nodes_test({waits, 20}, fun reload/1).
 
 reload(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
@@ -2430,7 +2525,7 @@ twins(Dir, Changed) ->
     [ok = file:write_file(filename:join(Dir, File), unicode:characters_to_binary(Text))
      || {File, Text} <- [{"twin.ern", Twin}, {"aside.ern", Aside}, {"server.ern", Server},
                          {"asker.ern", [Asker, wait_ms_declaration()]}]],
-    0 = ern_cli:ern(["build", Dir], group_leader()),
+    0 = built([Dir]),
     Changed orelse begin
                        ok = file:write_file(filename:join(Dir, "ern_twins_host.erl"),
                                             <<"-module(ern_twins_host).\n"
@@ -2456,7 +2551,7 @@ twins(Dir, Changed) ->
 %% with what they captured, and `restarting(limit, f)` spawns. Written with
 %% the code, after it: a regression test
 two_builds_test_() ->
-    nodes_test({waits, 9}, fun two_builds/1).
+    nodes_test({waits, 8}, fun two_builds/1).
 
 two_builds(Base) ->
     {AskerProgram, _} = twins(filename:join(Base, "first"), false),
@@ -2641,7 +2736,7 @@ exchanged(Base) ->
     [ok = file:write_file(filename:join(Dir, File), unicode:characters_to_binary(Text))
      || {Dir, File, Text} <- [{SenderDir, "lacked.ern", Lacked}, {SenderDir, "sender.ern", Sender},
                               {ReceiverDir, "receiver.ern", Receiver}]],
-    [0 = ern_cli:ern(["build", Dir], group_leader()) || Dir <- [SenderDir, ReceiverDir]],
+    [0 = built([Dir]) || Dir <- [SenderDir, ReceiverDir]],
     Host = filename:join(SenderDir, "ern_sender_host.erl"),
     ok = file:write_file(Host, <<"-module(ern_sender_host).\n-export([only/0]).\n"
                                  "only() -> 'Unit'.\n">>),
@@ -2673,15 +2768,16 @@ exchanged(Base) ->
 %% that no code frame moves before NotLoaded is ern_exchange_tests', since
 %% no line marks it here. Each spawn, compute
 %% and call of the sender waits as long as the test waits for the sender,
-%% and the test's limit is the sum of its nineteen steps, the two builds
-%% and the host module's, a line of the receiver's, the sender's end, ten
-%% lines and one more of the receiver's, its end and what each node said,
-%% each bounded by the harness's time for one wait: written on 2026-10-16,
-%% after a spawn's 5000 ms, a number of its own, ran out under the full
-%% run's load on 2026-10-13 and its answer's line was missing, and its
-%% builds counted on 2026-10-21
+%% and the test's limit is the sum of its eighteen steps, the two builds,
+%% a line of the receiver's, the sender's end, ten lines and one more of
+%% the receiver's, its end and what each node said, each bounded by the
+%% harness's time for one wait: written on 2026-10-16, after a spawn's
+%% 5000 ms, a number of its own, ran out under the full run's load on
+%% 2026-10-13 and its answer's line was missing, its builds counted on
+%% 2026-10-21, and its host module's compile, which is no step, left out
+%% on 2026-10-25
 exchange_test_() ->
-    nodes_test({waits, 19}, fun exchange/1).
+    nodes_test({waits, 18}, fun exchange/1).
 
 exchange(Base) ->
     {SenderProgram, ReceiverProgram} = exchanged(Base),
@@ -2895,8 +2991,8 @@ bare_build(Base) ->
     [ok = file:write_file(filename:join(Dir, File), unicode:characters_to_binary(Text))
      || {Dir, File, Text} <- [{SharedDir, "shared.ern", Shared},
                               {ProgramDir, "bare.ern", [Source, wait_ms_declaration()]}]],
-    0 = ern_cli:ern(["build", SharedDir], group_leader()),
-    0 = ern_cli:ern(["build", "--load-path", SharedDir, ProgramDir], group_leader()),
+    0 = built([SharedDir]),
+    0 = built(["--load-path", SharedDir, ProgramDir]),
     {SharedDir, filename:join(ProgramDir, "bare.erc"), Source}.
 
 %% The number of the first line of Text that holds Part.
@@ -2992,7 +3088,7 @@ bare_node(Base) ->
 %% full review's, written with the rule (the log's *The Review's
 %% Decisions*)
 constant_crosses_test_() ->
-    nodes_test({waits, 6}, fun constant_crosses/1).
+    nodes_test({waits, 7}, fun constant_crosses/1).
 
 constant_crosses(Base) ->
     ProgramDir = filename:join(Base, "program"),
@@ -3014,7 +3110,7 @@ constant_crosses(Base) ->
             "    Io.println(\"computed: \" <> Io.show(read))\n"
             "}\n",
             wait_ms_declaration()]),
-    0 = ern_cli:ern(["build", ProgramDir], group_leader()),
+    0 = built([ProgramDir]),
     A = made(Base, "a", none),
     B = made(Base, "b", 0),
     lists(B, [{"a", A, none}]),
@@ -3112,7 +3208,7 @@ export fn main() : Unit receiving Msg =
             Unit
     }
 ">>, wait_ms_declaration()]),
-    0 = ern_cli:ern(["build", Root], group_leader()),
+    0 = built([Root]),
     filename:join(Root, "spawner.erc").
 
 %% report §11.2, §8.7: `ern run --verbose` of a node names each module the
@@ -3123,7 +3219,7 @@ export fn main() : Unit receiving Msg =
 %% launcher's first start, which writes what the job says to nothing,
 %% raised at such a line, and the node was given no flags
 verbose_node_start_test_() ->
-    nodes_test({waits, 1}, fun verbose_node_start/1).
+    nodes_test({waits, 2}, fun verbose_node_start/1).
 
 verbose_node_start(Base) ->
     E = made(Base, "e", none),
@@ -3133,7 +3229,7 @@ verbose_node_start(Base) ->
      || {File, Source} <- [{"main.ern", "export fn main() : Unit = Io.println(Store.label)\n"},
                            {"store.ern", "export let label : String = \"ran\"\n"},
                            {"shelf/box.ern", "export fn size() : Int = 3\n"}]],
-    0 = ern_cli:ern(["build", Root], group_leader()),
+    0 = built([Root]),
     Main = filename:join(Root, "main.erc"),
     Err = E ++ ".err",
     ?assertEqual({0, "ran\n"},
@@ -3165,7 +3261,7 @@ verbose_node_start(Base) ->
 %% ern_exchange_tests' not_loaded_from_reach_test covers before code
 %% crosses
 beyond_reach_test_() ->
-    nodes_test({waits, 11}, fun beyond_reach/1).
+    nodes_test({waits, 10}, fun beyond_reach/1).
 
 beyond_reach(Base) ->
     Root = filename:join(Base, "probe"),
@@ -3214,7 +3310,7 @@ beyond_reach(Base) ->
     ok = file:write_file(Host, <<"-module(ern_probe_host).\n-export([only/0]).\n"
                                  "only() -> 'Unit'.\n">>),
     {ok, _} = compile:file(Host, [{outdir, Root}]),
-    0 = ern_cli:ern(["build", Root], group_leader()),
+    0 = built([Root]),
     A = made(Base, "a", none),
     B = made(Base, "b", 0),
     lists(B, [{"a", A, none}]),
@@ -3253,7 +3349,7 @@ beyond_reach(Base) ->
 %% foreign function spawned by its name, which it answers none as it holds
 %% nothing it could run
 relay_test_() ->
-    nodes_test({waits, 18}, fun relay/1).
+    nodes_test({waits, 17}, fun relay/1).
 
 relay(Base) ->
     Root = filename:join(Base, "relay"),
@@ -3303,7 +3399,7 @@ relay(Base) ->
     ok = file:write_file(Host, <<"-module(ern_relay_host).\n-export([only/0]).\n"
                                  "only() -> 'Unit'.\n">>),
     {ok, _} = compile:file(Host, [{outdir, HostDir}]),
-    0 = ern_cli:ern(["build", Root], group_leader()),
+    0 = built([Root]),
     A = made(Base, "a", none),
     [B, C1, C2] = [made(Base, Name, 0) || Name <- ["b", "c1", "c2"]],
     [lists(C, [{"a", A, none}, {"b", B, none}]) || C <- [C1, C2]],
@@ -3383,7 +3479,7 @@ fix_from_shell(Base) ->
                          unicode:characters_to_binary(
                            Fix("// The fix, which raises, so that its trace shows each frame.\n"
                                "fn leaf(x : Int) : Int = parsed(\"fixed\") + x\n"))),
-    0 = ern_cli:ern(["build", Root], group_leader()),
+    0 = built([Root]),
     PortB = free_port(),
     B = made(Base, "b", PortB),
     Desk = made(Base, "desk", none),
@@ -3455,7 +3551,7 @@ lost_build(Root) ->
     ok = file:write_file(filename:join(Root, "ern_nodes_spawner.erl"), spawner()),
     [{ok, _} = compile:file(filename:join(Root, File), [{outdir, Root}])
      || File <- ["ern_nodes_client.erl", "ern_nodes_spawner.erl"]],
-    0 = ern_cli:ern(["build", Root], group_leader()),
+    0 = built([Root]),
     {filename:join(Root, "lost.erc"), Source}.
 
 %% A spawner of the test's own, run in a bare `erl` that holds a peer's key,
@@ -3560,7 +3656,7 @@ caught_up(Node) ->
 %% exchange's state after a loss is ern_exchange_tests' loss_test's, and
 %% the late spawn's process, killed as its answer arrives, is not observed
 broken_exchange_test_() ->
-    nodes_test({waits, 11}, fun broken_exchange/1).
+    nodes_test({waits, 9}, fun broken_exchange/1).
 
 broken_exchange(Base) ->
     Root = filename:join(Base, "build"),
@@ -3728,7 +3824,7 @@ shell_binding_spawned(Base) ->
 %% on the worker, whose check's cause names it as the session writes it,
 %% bare (§11.5). A regression test, written after the code
 shell_compute_test_() ->
-    nodes_test({waits, 10}, fun shell_compute/1).
+    nodes_test({waits, 9}, fun shell_compute/1).
 
 shell_compute(Base) ->
     Root = filename:join(Base, "src"),
@@ -3828,7 +3924,7 @@ shell_offered_adapted(Base) ->
 %% until the line comes (fault_line/3). A local fault's report, which names
 %% no peer, is ern_rt_tests' fault_reports_test's
 shell_peer_fault_test_() ->
-    nodes_test({waits, 7}, fun shell_peer_fault/1).
+    nodes_test({waits, 6}, fun shell_peer_fault/1).
 
 shell_peer_fault(Base) ->
     Root = filename:join(Base, "src"),
@@ -3894,7 +3990,7 @@ shell_node(Base) ->
                          "\n"
                          "fn held() : Unit receiving m = receive { _ -> held() }\n"
                          ++ wait_ms_declaration()),
-    0 = ern_cli:ern(["build", Root], group_leader()),
+    0 = built([Root]),
     PortStore = free_port(),
     Store = made(Base, "store", PortStore),
     Desk = made(Base, "desk", none),
@@ -3989,7 +4085,7 @@ shell_node_versions(Base) ->
                          "    Io.println(name <> \": \" <> answer);\n"
                          "    spawning()\n"
                          "}\n" ++ wait_ms_declaration()),
-    0 = ern_cli:ern(["build", Root], group_leader()),
+    0 = built([Root]),
     Changed = fun(Text) ->
                   ok = file:write_file(filename:join(Source, "greet.ern"),
                                        Greet(["\nexport fn other() : Unit ="
@@ -4084,7 +4180,7 @@ shell_node_reach(Base) ->
                          "        }\n"
                          "      | None -> Unit\n"
                          "    }\n" ++ wait_ms_declaration()),
-    0 = ern_cli:ern(["build", Root], group_leader()),
+    0 = built([Root]),
     Other = "\nexport fn other() : Unit = Io.println(\"other\")\n",
     ok = file:write_file(filename:join(Source, "greet.ern"), [Greet, Other]),
     ok = file:write_file(filename:join(Source, "caller.ern"), Caller),
@@ -4173,7 +4269,7 @@ refused_build_load(Base) ->
                          "        }\n"
                          "      | None -> Unit\n"
                          "    }\n" ++ wait_ms_declaration()),
-    0 = ern_cli:ern(["build", Root], group_leader()),
+    0 = built([Root]),
     ok = file:write_file(filename:join(Source, "bad.ern"),
                          "export let greeted : Unit = Greet.hello()\n"
                          "\n"
@@ -4295,7 +4391,7 @@ adapted_fault(Base) ->
                          "        }\n"
                          "      | None -> Unit\n"
                          "    }\n" ++ wait_ms_declaration()),
-    0 = ern_cli:ern(["build", Root], group_leader()),
+    0 = built([Root]),
     Program = filename:join(Root, "adapted.erc"),
     PortMaker = free_port(),
     Maker = made(Base, "maker", PortMaker),
@@ -4326,7 +4422,7 @@ adapted_fault(Base) ->
 
 %% The directory test/fixtures/peers/'s programs are built in (peers/1), the
 %% counter's keeper, its asker and the proxy's client among them.
-built(Base) ->
+peers_built(Base) ->
     {Program, _} = peers(Base),
     filename:dirname(Program).
 
@@ -4336,10 +4432,10 @@ built(Base) ->
 %% the subscriber has answered, by the signal, and says the answer. Written
 %% after the code (MVP 3.1's item 8)
 end_told_on_a_node_test_() ->
-    nodes_test({waits, 9}, fun end_told_on_a_node/1).
+    nodes_test({waits, 8}, fun end_told_on_a_node/1).
 
 end_told_on_a_node(Base) ->
-    Root = built(Base),
+    Root = peers_built(Base),
     PortStore = free_port(),
     Store = made(Base, "store", PortStore),
     Desk = made(Base, "desk", none),
@@ -4365,10 +4461,10 @@ end_told_on_a_node(Base) ->
 %% subscriber that does not answer, which the node says. Written after the
 %% code (MVP 3.1's item 8), the line after that
 second_termination_test_() ->
-    nodes_test({waits, 6}, fun second_termination/1).
+    nodes_test({waits, 5}, fun second_termination/1).
 
 second_termination(Base) ->
-    Root = built(Base),
+    Root = peers_built(Base),
     Store = made(Base, "store", none),
     WaitStore = start(Store, filename:join(Root, "keeper.erc"), ["hold"]),
     prints(Store, "offered"),
@@ -4389,10 +4485,10 @@ second_termination(Base) ->
 %% after the code (MVP 3.1's item 8), the add a regression test written
 %% after that
 proxy_finds_again_test_() ->
-    nodes_test({waits, 14}, fun proxy_finds_again/1).
+    nodes_test({waits, 13}, fun proxy_finds_again/1).
 
 proxy_finds_again(Base) ->
-    Root = built(Base),
+    Root = peers_built(Base),
     {PortStore, PortOther} = {free_port(), free_port()},
     Store = made(Base, "store", PortStore),
     Other = made(Base, "other", PortOther),
@@ -4432,8 +4528,8 @@ typed_channels_test_() ->
 
 typed_channels(Base) ->
     BuildRoot = filename:join(Base, "build"),
-    0 = ern_cli:ern(["build", "--source-root", "../examples", "--build-root", BuildRoot,
-                     "../examples/typed_channels_nodes.ern"], group_leader()),
+    0 = built(["--source-root", "../examples", "--build-root", BuildRoot,
+               "../examples/typed_channels_nodes.ern"]),
     Program = filename:join(BuildRoot, "typed_channels_nodes.erc"),
     PortB = free_port(),
     ConfigDirA = made(Base, "a", none),
@@ -4466,12 +4562,12 @@ typed_channels(Base) ->
 %% with the example; a loss, which the comment says a service monitor is
 %% told of, is across/1's
 lease_broker_test_() ->
-    nodes_test({waits, 6}, fun lease_broker/1).
+    nodes_test({waits, 9}, fun lease_broker/1).
 
 lease_broker(Base) ->
     BuildRoot = filename:join(Base, "build"),
-    0 = ern_cli:ern(["build", "--source-root", "../examples", "--build-root", BuildRoot,
-                     "../examples/lease_broker.ern"], group_leader()),
+    0 = built(["--source-root", "../examples", "--build-root", BuildRoot,
+               "../examples/lease_broker.ern"]),
     Program = filename:join(BuildRoot, "lease_broker.erc"),
     A = made(Base, "a", none),
     B = made(Base, "b", 0),
@@ -4518,7 +4614,7 @@ lease_broker(Base) ->
 %% interval, so that the telling's coming within one interval is held by no
 %% time here
 placed_test_() ->
-    nodes_test({waits, 8}, fun placed/1).
+    nodes_test({waits, 7}, fun placed/1).
 
 placed(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
@@ -4621,7 +4717,7 @@ pick_build(Base) ->
              "    }\n",
     ok = file:write_file(filename:join(Dir, "pick.ern"),
                          unicode:characters_to_binary([Source, wait_ms_declaration()])),
-    0 = ern_cli:ern(["build", Dir], group_leader()),
+    0 = built([Dir]),
     filename:join(Dir, "pick.erc").
 
 %% report §8.7, Appendix E.27, C: three nodes telling each other every
@@ -4698,7 +4794,7 @@ pick(Base) ->
 %% written after the code; it does not cover a reload, whose end a program
 %% cannot see (§8.7: the signal carries nothing back)
 program_test_() ->
-    nodes_test({waits, 31}, fun pair_program/1).
+    nodes_test({waits, 30}, fun pair_program/1).
 
 pair_program(Base) ->
     _ = peers(Base),
@@ -4724,7 +4820,7 @@ pair_program(Base) ->
     %% one written before it, its stop and its end; a find and a call in the
     %% first, a find in the second, and in the third two calls through the
     %% proxy and the wait for the proxy's end
-    {Status, Output} = collected(Port, 28 * ?WAIT_MS),
+    {Status, Output} = collected(Port, 28),
     ?assertEqual({0, nomatch}, {Status, binary:match(Output, <<"failed">>)}),
     has(binary_to_list(Output), "a second node made, started with Os, found, called and stopped:"
                                 " passed"),
@@ -4748,8 +4844,8 @@ second_build(Base) ->
     ok = filelib:ensure_path(Root),
     ok = file:write_file(filename:join(Root, "pair.ern"), Changed),
     {ok, _} = file:copy("fixtures/peers/harness.ern", filename:join(Root, "harness.ern")),
-    0 = ern_cli:ern(["build", "--source-root", Root, "--build-root",
-                     filename:join(Base, "second-build"), Root], group_leader()).
+    0 = built(["--source-root", Root, "--build-root", filename:join(Base, "second-build"),
+               Root]).
 
 %% A command run by /bin/sh to its end, as a person runs it: its status,
 %% and what it wrote on its standard output, its standard error among it
@@ -4758,14 +4854,30 @@ second_build(Base) ->
 %% `ps` or `mkfifo` is run by os:cmd, since it returns once its one call to
 %% the system has, and waits on nothing a test runs.
 finished(Command) ->
+    (begun(Command))().
+
+%% The same command started, and what waits for its end and answers what
+%% finished/1 answers: one step.
+begun(Command) ->
     Port = open_port({spawn_executable, "/bin/sh"},
                      [{args, ["-c", lists:flatten(Command)]}, exit_status, binary]),
-    {Status, Said} = collected(Port, ?WAIT_MS),
-    {Status, binary_to_list(Said)}.
+    fun() ->
+        {Status, Said} = collected(Port, 1),
+        {Status, binary_to_list(Said)}
+    end.
 
-%% A port's output to its end, and its exit status, within Ms.
-collected(Port, Ms) ->
-    collected(Port, <<>>, erlang:monotonic_time(millisecond) + Ms).
+%% What a port the test opened writes next, or none where it writes nothing
+%% within the harness's time for one wait: one step.
+output(Port) ->
+    step({output, Port}),
+    receive {Port, {data, Data}} -> Data after ?WAIT_MS -> none end.
+
+%% A port's output to its end, and its exit status, within Steps steps,
+%% each given the harness's time for one wait: one, or a run's own steps,
+%% which the harness cannot see.
+collected(Port, Steps) ->
+    step({collected, Port}, Steps),
+    collected(Port, <<>>, erlang:monotonic_time(millisecond) + Steps * ?WAIT_MS).
 
 collected(Port, Acc, Deadline) ->
     receive
@@ -4791,7 +4903,7 @@ pid(Dir) ->
 %% here that is a time is the detector's own, which the test reads and
 %% does not choose
 silence_test_() ->
-    nodes_test({waits, 9, ?DETECTOR_MS}, fun silence/1).
+    nodes_test({waits, 8, ?DETECTOR_MS}, fun silence/1).
 
 silence(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
@@ -4940,13 +5052,13 @@ listened(Dir) ->
 %% silence test holds of a loss holds; the proxy healed, the address reaches
 %% its process again. A regression test, written after the code
 parted_one_way_test_() ->
-    nodes_test({waits, 9, ?DETECTOR_MS}, fun(Base) -> parted(Base, true, false, "closed") end).
+    nodes_test({waits, 8, ?DETECTOR_MS}, fun(Base) -> parted(Base, true, false, "closed") end).
 
 %% report §8.7, the proposal's sections 4 and 8: the same, the proxy
 %% dropping what passes both ways, so that each node gives the other up by
 %% its own detector. A regression test, written after the code
 parted_both_ways_test_() ->
-    nodes_test({waits, 9, ?DETECTOR_MS},
+    nodes_test({waits, 8, ?DETECTOR_MS},
                fun(Base) -> parted(Base, true, true, "fell silent") end).
 
 parted(Base, ToStore, FromStore, DeskSays) ->
@@ -4982,7 +5094,7 @@ parted(Base, ToStore, FromStore, DeskSays) ->
 %% Timeout, though its time is longer. A regression test, written after the
 %% code
 dial_test_() ->
-    nodes_test({waits, 4, ?DIAL_MS}, fun dial/1).
+    nodes_test({waits, 3, ?DIAL_MS}, fun dial/1).
 
 dial(Base) ->
     {_, DeskProgram} = peers(Base),
@@ -5143,8 +5255,8 @@ upgraded_builds(Base) ->
     [ok = file:write_file(filename:join(Dir, File), unicode:characters_to_binary(Text))
      || {Dir, File, Text} <- [{One, "counter.ern", Count}, {Two, "counter.ern", Count ++ Count2},
                               {Two, "tool.ern", [Tool, wait_ms_declaration()]}]],
-    0 = ern_cli:ern(["build", One], group_leader()),
-    0 = ern_cli:ern(["build", Two], group_leader()),
+    0 = built([One]),
+    0 = built([Two]),
     {filename:join(One, "counter.erc"), filename:join(Two, "counter.erc"),
      filename:join(Two, "tool.erc")}.
 

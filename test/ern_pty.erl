@@ -4,7 +4,7 @@
 %% without one, and a count of what a screen shows.
 -module(ern_pty).
 
--export([run/4, run_dir/0, sh/1, count/2]).
+-export([run/3, run_dir/0, sh/1, count/2]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -12,16 +12,22 @@
 %% {exit status, what the program wrote}, the status `timeout` where it did
 %% not end. The steps are the harness's, `{expect, Text}` before a
 %% `{send, Hex}` so that a program slower under load is waited for rather
-%% than raced; a step the harness could not meet fails the test. The
-%% command is one word to the shell that starts the harness, since its own
-%% `;` and `|` belong to the shell inside the terminal; it may hold no
-%% single quote.
--spec run(string(), [tuple()], pos_integer(), string()) -> {integer() | timeout, binary()}.
-run(Command, Steps, Seconds, Extra) ->
+%% than raced; a step the harness could not meet fails the test. Each wait
+%% the harness runs, an expect's and the program's end, is a step of the
+%% test's (ern_nodes_tests:step/2), bounded by the time for one wait
+%% (ern_nodes_tests:wait_ms/0), so that the session's bound is its steps'
+%% sum, and a step that fails is told by its own bound before the test's
+%% runs out. The command is one word to the shell that starts the harness,
+%% since its own `;` and `|` belong to the shell inside the terminal; it may
+%% hold no single quote.
+-spec run(string(), [tuple()], string()) -> {integer() | timeout, binary()}.
+run(Command, Steps, Extra) ->
     nomatch = binary:match(unicode:characters_to_binary(Command), <<"'">>),
     File = steps_file(Steps),
-    {0, Output} = sh("./ern_pty.py --timeout " ++ integer_to_list(Seconds) ++ " --steps " ++ File
-                     ++ Extra ++ " -- '" ++ Command ++ "'"),
+    ern_nodes_tests:step({terminal, Command}, length([Text || {expect, Text} <- Steps]) + 1),
+    Seconds = ern_nodes_tests:wait_ms() div 1000,
+    {0, Output} = ran("./ern_pty.py --timeout " ++ integer_to_list(Seconds) ++ " --steps " ++ File
+                      ++ Extra ++ " -- '" ++ Command ++ "'"),
     Lines = [Line || Line <- binary:split(Output, <<"\n">>, [global]), Line =/= <<>>],
     ?assertEqual([], [Line || <<"unmet ", _/binary>> = Line <- Lines]),
     [<<"status ", Status/binary>>] = [Line || <<"status ", _/binary>> = Line <- Lines],
@@ -53,10 +59,15 @@ status(<<"timeout">>) -> timeout;
 status(Text) -> binary_to_integer(Text).
 
 %% A command run by the host's shell: its exit status and what it wrote to
-%% its output and its standard error. The command is the shell's argument
-%% as it stands, a variable's setting before it among what it may hold.
+%% its output and its standard error, a step of the test's, a session whose
+%% inputs a file gives among them. The command is the shell's argument as
+%% it stands, a variable's setting before it among what it may hold.
 -spec sh(string()) -> {non_neg_integer(), binary()}.
 sh(Command) ->
+    ern_nodes_tests:step({command, Command}),
+    ran(Command).
+
+ran(Command) ->
     Shell = open_port({spawn_executable, "/bin/sh"},
                       [{args, ["-c", Command]}, exit_status, stderr_to_stdout, binary]),
     collect(Shell, []).

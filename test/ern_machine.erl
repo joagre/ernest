@@ -6,12 +6,16 @@
 %% through one ssh connection held for the run, since an ssh connection's
 %% own handshake costs 0.5 to 1.5 seconds to the user's machines, and a
 %% session over a held one about 25 ms. test/machines/machines.txt lists
-%% the machines (docs/development.md).
+%% the machines (docs/development.md). Each wait here is bounded by the
+%% harness's time for one wait (ern_nodes_tests:wait_ms/0) and is one step
+%% of the test that runs it (ern_nodes_tests:step/1), but a command given a
+%% bound of its own, `infinity` for one that runs as long as its work does,
+%% a clone's build or a measuring program's run.
 -module(ern_machine).
 
 -export([local/0, machine/4, name/1, host/1, interface/1, is_local/1, clone/1, ern/1,
-         directory/1, directory/2, open/2, opened/1, closed/1, run/2, ran/2, load_average/1,
-         copied/3, launched/2, seen/2, ended/1, answering/3, quoted/1, fail/1]).
+         directory/1, directory/2, open/2, opened/1, closed/1, run/2, run/3, ran/2, ran/3,
+         load_average/1, copied/3, launched/2, seen/2, ended/1, answering/3, quoted/1, fail/1]).
 
 %% A machine: its name, the host ssh and scp take and its peers dial, the
 %% clone of the repository there, `local` for this machine's checkout, the
@@ -106,18 +110,23 @@ open(#machine{name = Name, host = Host} = Machine, SocketDir) ->
 opened(#machine{ssh = none} = Machine) ->
     Machine;
 opened(#machine{ssh = {Port, _}} = Machine) ->
-    connected(Machine, Port, <<>>).
+    ern_nodes_tests:step({opened, Machine#machine.name}),
+    connected(Machine, Port, <<>>, deadline(ern_nodes_tests:wait_ms())).
 
-connected(Machine, Port, Said) ->
+connected(Machine, Port, Said, Deadline) ->
     case binary:match(Said, <<"connected\n">>) of
         nomatch ->
             receive
                 {Port, {data, Bytes}} ->
-                    connected(Machine, Port, <<Said/binary, Bytes/binary>>);
+                    connected(Machine, Port, <<Said/binary, Bytes/binary>>, Deadline);
                 {Port, {exit_status, Status}} ->
                     fail(io_lib:format("~s, ~s, cannot be reached: ssh ended with status ~B: ~ts",
                                        [Machine#machine.name, Machine#machine.host, Status,
                                         string:trim(Said)]))
+            after left(Deadline) ->
+                fail(io_lib:format("~s, ~s, cannot be reached: ssh did not connect within"
+                                   " ~B ms: ~ts", [Machine#machine.name, Machine#machine.host,
+                                                   ern_nodes_tests:wait_ms(), string:trim(Said)]))
             end;
         _ ->
             Machine
@@ -127,27 +136,45 @@ connected(Machine, Port, Said) ->
 -spec closed(machine()) -> ok.
 closed(#machine{ssh = none}) ->
     ok;
-closed(#machine{host = Host, ssh = {Port, Socket}}) ->
-    _ = command(os:find_executable("ssh"), ["-o", "ControlPath=" ++ Socket, "-O", "exit", Host]),
-    receive {Port, {exit_status, _}} -> ok end.
+closed(#machine{name = Name, host = Host, ssh = {Port, Socket}} = Machine) ->
+    _ = command(Machine, os:find_executable("ssh"),
+                ["-o", "ControlPath=" ++ Socket, "-O", "exit", Host], ern_nodes_tests:wait_ms()),
+    ern_nodes_tests:step({closed, Name}),
+    receive
+        {Port, {exit_status, _}} -> ok
+    after ern_nodes_tests:wait_ms() ->
+        fail(io_lib:format("the ssh connection to ~s did not end within ~B ms",
+                           [Name, ern_nodes_tests:wait_ms()]))
+    end.
 
 %%
 %% Commands
 %%
 
 %% The command run on the machine by its shell: its exit status, and what
-%% it wrote to its standard output and its standard error together.
+%% it wrote to its standard output and its standard error together; one
+%% that has not ended within its bound fails the run, naming the machine
+%% and the command, and its port is closed.
 -spec run(machine(), string()) -> {non_neg_integer(), string()}.
-run(#machine{clone = local}, Command) ->
-    command("/bin/sh", ["-c", Command]);
 run(Machine, Command) ->
-    command(os:find_executable("ssh"), ssh(Machine) ++ ["-n", Machine#machine.host, Command]).
+    run(Machine, Command, ern_nodes_tests:wait_ms()).
+
+-spec run(machine(), string(), timeout()) -> {non_neg_integer(), string()}.
+run(#machine{clone = local} = Machine, Command, Ms) ->
+    command(Machine, "/bin/sh", ["-c", Command], Ms);
+run(Machine, Command, Ms) ->
+    command(Machine, os:find_executable("ssh"),
+            ssh(Machine) ++ ["-n", Machine#machine.host, Command], Ms).
 
 %% What the command wrote, where it ended with status 0; otherwise the run
 %% fails, naming the machine, the command and what it wrote.
 -spec ran(machine(), string()) -> string().
 ran(Machine, Command) ->
-    case run(Machine, Command) of
+    ran(Machine, Command, ern_nodes_tests:wait_ms()).
+
+-spec ran(machine(), string(), timeout()) -> string().
+ran(Machine, Command, Ms) ->
+    case run(Machine, Command, Ms) of
         {0, Output} ->
             Output;
         {Status, Output} ->
@@ -175,8 +202,9 @@ copied(#machine{name = Name, host = Host} = Machine, Dir, Base) ->
     _ = ran(Machine, "mkdir -p " ++ quoted(Target)),
     Files = [filename:join(Dir, File) || File <- filelib:wildcard("*", Dir),
                                          filelib:is_regular(filename:join(Dir, File))],
-    case command(os:find_executable("scp"), ssh(Machine) ++ ["-q" | Files]
-                                                ++ [Host ++ ":" ++ Target ++ "/"]) of
+    case command(Machine, os:find_executable("scp"),
+                 ssh(Machine) ++ ["-q" | Files] ++ [Host ++ ":" ++ Target ++ "/"],
+                 ern_nodes_tests:wait_ms()) of
         {0, _} -> Target;
         {Status, Output} ->
             fail(io_lib:format("the files of ~s could not be copied to ~s: scp ended with"
@@ -186,16 +214,30 @@ copied(#machine{name = Name, host = Host} = Machine, Dir, Base) ->
 ssh(#machine{ssh = {_, Socket}}) ->
     ["-o", "BatchMode=yes", "-o", "ControlMaster=no", "-o", "ControlPath=" ++ Socket].
 
-command(Executable, Args) ->
+%% Executable run on this machine with Args, for the machine named: its
+%% status and what it wrote, within Ms; one step.
+command(#machine{name = Name}, Executable, Args, Ms) ->
+    ern_nodes_tests:step({command, Name, Args}),
     Port = open_port({spawn_executable, Executable},
                      [{args, Args}, binary, exit_status, stderr_to_stdout]),
-    collected(Port, []).
+    collected(Port, [], deadline(Ms), {Name, lists:join(" ", Args), Ms}).
 
-collected(Port, Said) ->
+collected(Port, Said, Deadline, {Name, Command, Ms} = Run) ->
     receive
-        {Port, {data, Bytes}} -> collected(Port, [Said, Bytes]);
+        {Port, {data, Bytes}} -> collected(Port, [Said, Bytes], Deadline, Run);
         {Port, {exit_status, Status}} -> {Status, unicode:characters_to_list(Said)}
+    after left(Deadline) ->
+        port_close(Port),
+        fail(io_lib:format("on ~s, `~ts` did not end within ~B ms: ~ts",
+                           [Name, Command, Ms, string:trim(unicode:characters_to_list(Said))]))
     end.
+
+%% The moment a wait of Ms ends, and what is left of a wait until it.
+deadline(infinity) -> infinity;
+deadline(Ms) -> erlang:monotonic_time(millisecond) + Ms.
+
+left(infinity) -> infinity;
+left(Deadline) -> max(Deadline - erlang:monotonic_time(millisecond), 0).
 
 %%
 %% A command that runs on
@@ -224,9 +266,13 @@ launched(Machine, Command) ->
     receive {Reader, opened} -> Reader end.
 
 %% The reader keeps what the command said, and who waits for a pattern in
-%% it or for its end.
+%% it or for its end, and tells what it has said to one that has waited
+%% too long.
 read(Port, Said, Waiting, Launch) ->
     receive
+        {said, From} ->
+            From ! {self(), said, Said, Launch},
+            read(Port, Said, Waiting, Launch);
         {Port, {data, Bytes}} ->
             Said1 = <<Said/binary, Bytes/binary>>,
             read(Port, Said1, [Wait || Wait <- Waiting, not told(Said1, Wait)], Launch);
@@ -253,14 +299,17 @@ told(Said, {Pattern, From}) ->
 gone(Status, Said, Launch) ->
     receive
         {waiting, _, From} -> From ! {self(), ended, Status, Said, Launch};
-        {ended, From} -> From ! {self(), ended, Status, Said, Launch}
+        {ended, From} -> From ! {self(), ended, Status, Said, Launch};
+        {said, From} -> From ! {self(), said, Said, Launch}
     end,
     gone(Status, Said, Launch).
 
 %% Until the command's output matches Pattern; answers what it captured,
-%% or fails with what the command said where it ended first.
+%% or fails with what the command said where it ended first, or where it
+%% has not said it within the harness's time for one wait: one step.
 -spec seen(pid(), string()) -> [string()].
 seen(Reader, Pattern) ->
+    ern_nodes_tests:step({seen, Pattern}),
     Reader ! {waiting, Pattern, self()},
     receive
         {Reader, seen, Captured} ->
@@ -268,13 +317,33 @@ seen(Reader, Pattern) ->
         {Reader, ended, Status, Said, {Name, Command}} ->
             fail(io_lib:format("on ~s, `~ts` ended with status ~B before it said ~s: ~ts",
                                [Name, Command, Status, Pattern, string:trim(Said)]))
+    after ern_nodes_tests:wait_ms() ->
+        unended(Reader, "said " ++ Pattern)
     end.
 
-%% Once the command has ended: its exit status and all it said.
+%% Once the command has ended: its exit status and all it said, or a
+%% failure where it has not ended within the harness's time for one wait:
+%% one step.
 -spec ended(pid()) -> {non_neg_integer(), binary()}.
 ended(Reader) ->
+    ern_nodes_tests:step({ended, Reader}),
     Reader ! {ended, self()},
-    receive {Reader, ended, Status, Said, _} -> {Status, Said} end.
+    receive
+        {Reader, ended, Status, Said, _} -> {Status, Said}
+    after ern_nodes_tests:wait_ms() ->
+        unended(Reader, "ended")
+    end.
+
+%% The failure of a wait on what the reader's command did not do in time,
+%% with what it has said.
+unended(Reader, What) ->
+    Reader ! {said, self()},
+    receive
+        {Reader, said, Said, {Name, Command}} ->
+            fail(io_lib:format("on ~s, `~ts` has not ~s within ~B ms: ~ts",
+                               [Name, Command, What, ern_nodes_tests:wait_ms(),
+                                string:trim(Said)]))
+    end.
 
 %% Report §8.7: once the port Port of Host answers, asked from here: a node
 %% listens only once its initializers have their values, and one started
@@ -286,13 +355,18 @@ ended(Reader) ->
 %% it is seen within that time again, and the asks grow with the logarithm
 %% of that time, not with the time, as asks without a pause would, which
 %% keep a core busy while the node starts. At each refusal Refused is
-%% called, which fails where the node has ended.
+%% called, which fails where the node has ended; a port that has not
+%% answered within the harness's time for one wait fails the run. One step.
 -spec answering(string(), inet:port_number(), fun(() -> ok)) -> ok.
 answering(Host, Port, Refused) ->
+    ern_nodes_tests:step({answering, Host, Port}),
     answering(Host, Port, Refused, erlang:monotonic_time(millisecond)).
 
 answering(Host, Port, Refused, Asked) ->
     Now = erlang:monotonic_time(millisecond),
+    Now - Asked =< ern_nodes_tests:wait_ms()
+        orelse fail(io_lib:format("~s:~B did not answer within ~B ms",
+                                  [Host, Port, ern_nodes_tests:wait_ms()])),
     case gen_tcp:connect(Host, Port, []) of
         {ok, Socket} ->
             gen_tcp:close(Socket);

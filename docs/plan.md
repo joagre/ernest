@@ -96,25 +96,11 @@ in the order to do them, the word 0.5.0 ships decided before §8.7's text moves.
    regression test.
 3. **The report pared to the language**, MVP 3.96's, after 0.6.0, so that the release reads the
    report as it is (the log's *The Report Pared After 0.6.0*).
-4. **The harness counts a test's steps.** Decided with the user on 2026-10-24 from the full review's
-   C6-C8 and C6-C10b: about sixty nodes tests give a bare `{waits, N}` nothing checks, the machine
-   tests' own waits have no bound, and the shell's tests bound themselves two ways, seven in counted
-   steps and the rest by chosen numbers, where a test whose one step is a long terminal session ties
-   eunit's timeout with the harness's. The harness counts a test's steps as they happen and fails
-   past the count it was given, refusing a bare number; `ern_machine`'s waits take `wait_ms()`
-   bounds; and the shell's tests convert under one rule, a session's bound being its steps' sum as
-   any test's is. With it `reload_version_sites`, red once in the full run of 2026-10-25 on the
-   end's line of two subscribers, which six runs by hand and the shell's tests alone did not repeat
-   and whose output the assertion did not keep, carries the shell's output in its failure, so that
-   the next red is diagnosed. The repository's own, costing no program anything; the log's *The
-   Review's Fixes, First Round* and the findings' lines. Its shape, decided 2026-10-25: a step is
-   each bounded wait the harness runs, a `says`, a `prints`, a node's end, a `said`, a job or one
-   typed input of a shell session, counted in the harness's own wait functions and nowhere else;
-   the count is exact, a test failing past it and at its end short of it; EUnit's timeout stays as
-   the fallback, set from the same count; the first run with the counter is the audit of the sixty
-   numbers, each wrong one read against its comment's list, and a test whose waits vary between
-   runs comes back for a decision rather than loosening the rule. Built by an agent after item 2's
-   build, since both edit the nodes tests, by 2026-10-31.
+4. **The harness counts a test's steps**, done 2026-10-25 (the log's *The Harness Counts a Test's
+   Steps*): each wait of the harness's takes a step, a test failing past its count and short of it;
+   the shell's, the terminal's and the integration tests run through the counter, the terminal's
+   sessions bounded a wait at a time, `ern_machine`'s waits bounded, and the audit's counts set,
+   none varying between runs.
 5. **The review round's method gets an owner**, done 2026-10-25: `full_review.md`'s *How it runs*
    states the round after the readers, agents by file ownership compiling in scratch with no `make`,
    a second round for the decisions, the session integrating and reading back, and `git status`

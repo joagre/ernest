@@ -301,12 +301,12 @@ upgrade(Base) ->
 %% guide/deployment.md, section 7; report §8.7: a peer silent past the
 %% detector's intervals, here stopped by the host's signal, is lost, and
 %% the node says it fell silent. The one test here that waits as long as
-%% the detector does, about a minute. Its limit is the sum of its nine
+%% the detector does, about a minute. Its limit is the sum of its seven
 %% waits, each bounded by the harness's time for one wait, and the
 %% detector's time beside the one that waits for it: the test program's
-%% three builds, three lines, two nodes' ends and what a said
+%% build, three lines, two nodes' ends and what a said
 fell_silent_test_() ->
-    ern_nodes_tests:nodes_test({waits, 9, ern_nodes_tests:detector_ms()}, fun fell_silent/1).
+    ern_nodes_tests:nodes_test({waits, 7, ern_nodes_tests:detector_ms()}, fun fell_silent/1).
 
 fell_silent(Base) ->
     PortB = ern_nodes_tests:free_port(),
@@ -339,11 +339,11 @@ fell_silent(Base) ->
 %% of the exchange, is not loaded, the spawn answered Other and the node
 %% saying why, naming the peer and the site. It does not cover a count of
 %% the host's passed, the other reason the guide names. Its limit is the
-%% sum of its seven waits, each bounded by the harness's time for one wait:
-%% two host modules compiled, two lines, the peer's run, the node's end and
-%% what it said
+%% sum of its five waits, each bounded by the harness's time for one wait:
+%% two lines, the peer's run, the node's end and what it said; the two host
+%% modules it compiles are no step
 refused_code_test_() ->
-    ern_nodes_tests:nodes_test({waits, 7}, fun refused_code/1).
+    ern_nodes_tests:nodes_test({waits, 5}, fun refused_code/1).
 
 refused_code(Base) ->
     Root = filename:join(Base, "build"),
@@ -426,7 +426,7 @@ sent(Node, Body) ->
 %% its way there, which would take hours. Its limit is its one wait, the
 %% host's run, bounded by the harness's time for one wait
 four_fifths_test_() ->
-    {timeout, ern_nodes_tests:wait_ms() div 1000, fun four_fifths/0}.
+    ern_nodes_tests:counted_test({waits, 1}, fun four_fifths/0).
 
 four_fifths() ->
     Counts = "[{module_names, 52429, 65536}, {exports, 1, 524288}, {lambdas, 1, 524288},"
@@ -436,7 +436,7 @@ four_fifths() ->
                        ++ ["-eval", "io:put_chars([[Line, $\\n] || Line <- ern_code:nearing("
                                     ++ Counts ++ ")]), halt()."]},
                       exit_status, binary]),
-    {0, Said} = collected(Host, <<>>),
+    {0, Said} = collected(Host),
     ?assertEqual(<<"the host has used 52429 of its 65536 module names, which it never gives"
                    " back\n">>, Said),
     cataloged(binary_to_list(Said), "7", "never gives back", [{"N", "52429"}, {"M", "65536"}]).
@@ -626,22 +626,29 @@ node(Base, Words) ->
     {Dir, Wait}.
 
 %% A job run from Base by its words after `ern`, as a person runs it: its
-%% status, its standard output and its standard error. The harness's time
-%% for one wait bounds a failure, as it bounds a node's end.
+%% status, its standard output and its standard error. One step of the
+%% harness's, its time for one wait bounding a failure, as it bounds a
+%% node's end.
 -spec job(file:filename(), string()) -> {integer(), string(), string()}.
 job(Base, Words) ->
     Err = filename:join(Base, "job.err"),
     Command = lists:flatten(["cd ", Base, " && ", ?ERN, " ", Words, " 2> ", Err]),
     Job = open_port({spawn_executable, "/bin/sh"}, [{args, ["-c", Command]}, exit_status, binary]),
-    {Status, Out} = collected(Job, <<>>),
+    {Status, Out} = collected(Job),
     {ok, Said} = file:read_file(Err),
     {Status, binary_to_list(Out), binary_to_list(Said)}.
 
-collected(Port, Acc) ->
+%% What the command the port runs wrote, to its end, and its status: one
+%% step, within the harness's time for one wait.
+collected(Port) ->
+    ern_nodes_tests:step({collected, Port}),
+    collected(Port, <<>>, erlang:monotonic_time(millisecond) + ern_nodes_tests:wait_ms()).
+
+collected(Port, Acc, Deadline) ->
     receive
-        {Port, {data, Bytes}} -> collected(Port, <<Acc/binary, Bytes/binary>>);
+        {Port, {data, Bytes}} -> collected(Port, <<Acc/binary, Bytes/binary>>, Deadline);
         {Port, {exit_status, Status}} -> {Status, Acc}
-    after ern_nodes_tests:wait_ms() ->
+    after max(Deadline - erlang:monotonic_time(millisecond), 0) ->
         erlang:error({still_running, Port, Acc})
     end.
 
