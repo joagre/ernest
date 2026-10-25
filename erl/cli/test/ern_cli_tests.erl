@@ -1019,7 +1019,7 @@ parse_error_test() ->
     ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir])),
     Output = iolist_to_binary(?capturedOutput),
     ?assertEqual(<<(list_to_binary(File))/binary, ":2:1: expected an expression instead of"
-                   " end of input\n1 | export fn f() : Int = \n2 | \n  | ^\n\n">>,
+                   " end of input\n1 | export fn f() : Int = \n2 |\n  | ^\n\n">>,
                  Output).
 
 %% report Appendix D, §11.1, §11.2, §4.7: the foreign library Appendix D

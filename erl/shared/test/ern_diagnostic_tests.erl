@@ -106,6 +106,17 @@ format_plain_test() ->
                  ern_diagnostic:format("f", "x = 1\n",
                                        #diagnostic{span = {1, 3, {1, 3}}, message = "m"})).
 
+%% report §11.5: an empty source line shown in the gutter ends at its bar,
+%% with no space after it. A regression test: the line ended in a space,
+%% which an editor strips from a document that shows the diagnostic
+format_empty_line_test() ->
+    Diagnostic = #diagnostic{span = {3, 1, {3, 2}}, message = "m"},
+    ?assertEqual("f:3:1: m\n"
+                 "2 |\n"
+                 "3 | x\n"
+                 "  | ^\n",
+                 lists:flatten(ern_diagnostic:format("f", "a\n\nx\n", Diagnostic))).
+
 %% report §11.5: a token position becomes its span
 span_test() ->
     ?assertEqual({1, 2, {1, 5}}, ern_diagnostic:span({1, 2, {1, 5}, {1, 1}})),

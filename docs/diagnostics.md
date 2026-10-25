@@ -304,7 +304,7 @@ type Coin = Coin(Int)
 ```console
 $ ern build example.ern
 example.ern:3:1: expected a declaration (export, type, abstract, fn, let, foreign) instead of integer 1
-2 | 
+2 |
 3 | 1
   | ^
 ```
@@ -347,7 +347,7 @@ fn Coin.1() -> Int = 1
 ```console
 $ ern build example.ern
 example.ern:3:9: expected `+`, `-`, `*`, `/`, `%`, `<>`, `compare` or `negate` after `.` instead of integer 1
-2 | 
+2 |
 3 | fn Coin.1() -> Int = 1
   |         ^
 ```
@@ -363,7 +363,7 @@ fn Coin() : Int = 1
 ```console
 $ ern build example.ern
 example.ern:3:4: expected a name instead of type name `Coin`
-2 | 
+2 |
 3 | fn Coin() : Int = 1
   |    ^^^^
   | = help: a function's name begins with a lowercase letter
@@ -380,7 +380,7 @@ fn Stack.push(s : Stack, n : Int) : Stack = s
 ```console
 $ ern build example.ern
 example.ern:3:10: `push` cannot be a member of Stack: a member is `+`, `-`, `*`, `/`, `%`, `<>`, `compare` or `negate`
-2 | 
+2 |
 3 | fn Stack.push(s : Stack, n : Int) : Stack = s
   |          ^^^^
   | = help: a type's other operations are functions of its module: write `fn push`
@@ -397,7 +397,7 @@ let Stack.empty = Stack([])
 ```console
 $ ern build example.ern
 example.ern:3:5: a `let` declares no member of Stack
-2 | 
+2 |
 3 | let Stack.empty = Stack([])
   |     ^^^^^
   | = help: a type's values are named in its module, as its functions are: write `let empty`
@@ -414,7 +414,7 @@ let Money.+ = 1
 ```console
 $ ern build example.ern
 example.ern:3:5: a `let` declares no member of Money
-2 | 
+2 |
 3 | let Money.+ = 1
   |     ^^^^^
   | = help: a member is declared with `fn`: write `fn Money.+(...)`
@@ -913,7 +913,7 @@ fn f(x : Optional(Int)) : Int =
 $ ern build example.ern
 example.ern:4:1: expected a pattern instead of end of input
 3 |         Some(
-4 | 
+4 |
   | ^
 ```
 
@@ -1149,7 +1149,7 @@ type Shape = Size(Int) | Empty
 ```console
 $ ern build example.ern
 example.ern:3:14: constructor Size is named as the type Size
-2 | 
+2 |
 3 | type Shape = Size(Int) | Empty
   |              ^^^^^^^^^
   | = help: rename the constructor; Size is a type this module declares
@@ -1394,7 +1394,7 @@ fn Money.+(a : Money, b : Int) : Money = a
 ```console
 $ ern build example.ern
 example.ern:3:23: Money.+ must have the type (Money, Money) -> Money, not (Money, Int) -> Money
-2 | 
+2 |
 3 | fn Money.+(a : Money, b : Int) : Money = a
   |                       ^^^^^^^
   | = help: a member named by an operator takes two values of its type and receives nothing
@@ -1414,7 +1414,7 @@ let inbox = spawn(fn() = hold(None))
 ```console
 $ ern build example.ern
 example.ern:6:1: the type of inbox, Address(Optional(a)), is not determined, and a top-level `let` whose initializer is no value is not generalized where its type holds an address
-5 | 
+5 |
 6 | let inbox = spawn(fn() = hold(None))
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   | = help: annotate it, `let inbox : Address(Optional(...)) = ...`
@@ -1642,7 +1642,7 @@ fn reason() : Reason =
 ```console
 $ ern build example.ern
 example.ern:4:5: the body does not have the declared result type: expected Reason, found (Int) -> Outcome
-2 | 
+2 |
 3 | fn reason() : Reason =
   |               ------ result type Reason declared here
 4 |     Unknown
@@ -1766,7 +1766,7 @@ export fn f() : Box = Box(1)
 ```console
 $ ern build example.ern
 example.ern:3:8: f is exported and its type names Box, which this module keeps private
-2 | 
+2 |
 3 | export fn f() : Box = Box(1)
   |        ^^^^^^^^^^^^^^^^^^^^^
   | = help: export Box, or export it as `export abstract type Box` so that its constructors stay private
@@ -1849,7 +1849,7 @@ fn f(p : Point) : Int = p.y
 ```console
 $ ern build example.ern
 example.ern:3:27: Point has no field y
-2 | 
+2 |
 3 | fn f(p : Point) : Int = p.y
   |                           ^
 ```
@@ -1865,7 +1865,7 @@ fn f(s : Shape) : Int = s.r
 ```console
 $ ern build example.ern
 example.ern:3:27: not every constructor of Shape has the field r: Dot has none
-2 | 
+2 |
 3 | fn f(s : Shape) : Int = s.r
   |                           ^
 ```
@@ -1881,7 +1881,7 @@ fn f(s : Shape) : Int = s.r
 ```console
 $ ern build example.ern
 example.ern:3:27: Shape has no field r of one type: r is Int in Circle and Float in Square
-2 | 
+2 |
 3 | fn f(s : Shape) : Int = s.r
   |                           ^
 ```
@@ -1988,7 +1988,7 @@ fn f() : Point = Point(1)
 ```console
 $ ern build example.ern
 example.ern:3:18: Point has named fields; write Point(x = value)
-2 | 
+2 |
 3 | fn f() : Point = Point(1)
   |                  ^^^^^^^^
 ```
@@ -2004,7 +2004,7 @@ fn f() : Point = Point(x = 1, x = 2)
 ```console
 $ ern build example.ern
 example.ern:3:31: field x is given twice
-2 | 
+2 |
 3 | fn f() : Point = Point(x = 1, x = 2)
   |                        ----- first given here
   |                               ^^^^^
@@ -2021,7 +2021,7 @@ fn f() : Point = Point(x = 1, y = 2)
 ```console
 $ ern build example.ern
 example.ern:3:31: Point has no field y
-2 | 
+2 |
 3 | fn f() : Point = Point(x = 1, y = 2)
   |                               ^^^^^
 ```
@@ -2037,7 +2037,7 @@ fn f() : Point = Point(x = 1)
 ```console
 $ ern build example.ern
 example.ern:3:18: missing field y
-2 | 
+2 |
 3 | fn f() : Point = Point(x = 1)
   |                  ^^^^^^^^^^^^
 ```
@@ -2053,7 +2053,7 @@ fn f() : Point = Point(x = "one")
 ```console
 $ ern build example.ern
 example.ern:3:28: field x: expected Int, found String
-2 | 
+2 |
 3 | fn f() : Point = Point(x = "one")
   |                  ----- Point declares x : Int
   |                            ^^^^^
@@ -2070,7 +2070,7 @@ fn f() : Point = Point(..5, x = 1)
 ```console
 $ ern build example.ern
 example.ern:3:26: the base of `..` must have the constructor's type: expected Point, found Int
-2 | 
+2 |
 3 | fn f() : Point = Point(..5, x = 1)
   |                  ----- a constructor of Point
   |                          ^
@@ -2087,7 +2087,7 @@ fn f(s : Shape) : Shape = Circle(..s, r = 1)
 ```console
 $ ern build example.ern
 example.ern:3:27: `..` is allowed only on a type with one constructor, and Shape has 2
-2 | 
+2 |
 3 | fn f(s : Shape) : Shape = Circle(..s, r = 1)
   |                           ^^^^^^^^^^^^^^^^^^
   | = help: give every field of Circle
@@ -2132,7 +2132,7 @@ export fn main() : Unit = Io.println(Int.toString(Example.helper()))
 ```console
 $ ern build example.ern
 example.ern:3:51: Example.helper is written only where a binding hides helper
-2 | 
+2 |
 3 | export fn main() : Unit = Io.println(Int.toString(Example.helper()))
   |                                                   ^^^^^^^^^^^^^^
   | = help: nothing here hides it; write `helper`
@@ -2149,7 +2149,7 @@ fn f() : Box = Example.Box(1)
 ```console
 $ ern build example.ern
 example.ern:3:16: Example.Box is the module's own Box, which no binding hides
-2 | 
+2 |
 3 | fn f() : Box = Example.Box(1)
   |                ^^^^^^^^^^^
   | = help: write `Box`
@@ -2166,7 +2166,7 @@ let hashed : Ops(Set(Int), Int) = Ops(..Set)
 ```console
 $ ern build example.ern
 example.ern:3:41: Ops(..Set) lacks min: Set has no min
-2 | 
+2 |
 3 | let hashed : Ops(Set(Int), Int) = Ops(..Set)
   |                                         ^^^
 ```
@@ -2182,7 +2182,7 @@ let hashed : Ops(Set(Int), Int) = Ops(..Prelude.Set)
 ```console
 $ ern build example.ern
 example.ern:3:41: `Prelude.Set` names no namespace: `Prelude.` reaches one of the prelude's names
-2 | 
+2 |
 3 | let hashed : Ops(Set(Int), Int) = Ops(..Prelude.Set)
   |                                         ^^^^^^^^^^^
   | = help: write the namespace after `..` as it is, `..Set`
@@ -2199,7 +2199,7 @@ let hashed : Ops(Set(Int)) = Ops(..Set)
 ```console
 $ ern build example.ern
 example.ern:3:36: Ops(..Set) fills size with Set.size: expected (Set(Int)) -> Bool, found (Set(a=)) -> Int
-2 | 
+2 |
 3 | let hashed : Ops(Set(Int)) = Ops(..Set)
   |                              --- Ops declares size : (s) -> Bool
   |                                    ^^^
@@ -2296,7 +2296,7 @@ let hashed : Ops(Set(Int)) = Ops(..Set, size.x = 1)
 ```console
 $ ern build example.ern
 example.ern:3:41: `size.x` is a path, which updates a value, and `..Set` names a namespace
-2 | 
+2 |
 3 | let hashed : Ops(Set(Int)) = Ops(..Set, size.x = 1)
   |                                         ^^^^^^^^^^
 ```
@@ -2523,7 +2523,7 @@ fn f(v : Vec(String)) : Vec(String) = v + v
 ```console
 $ ern build example.ern
 example.ern:5:39: Vec.+ does not fit two operands of Vec(String): expected (Vec(String), Vec(String)) -> a, found (Vec(Int), Vec(Int)) -> Vec(Int)
-2 | 
+2 |
 3 | fn Vec.+(a : Vec(Int), b : Vec(Int)) : Vec(Int) = a
   | ----------------------------------------------- Vec.+ : (Vec(Int), Vec(Int)) -> Vec(Int)
 ...
@@ -2543,7 +2543,7 @@ fn Money.compare(a : Money, b : Money) : Int = if a < b then 1 else 2
 ```console
 $ ern build example.ern
 example.ern:3:42: Money.compare must have the type (Money, Money) -> Ordering, not (Money, Money) -> Int
-2 | 
+2 |
 3 | fn Money.compare(a : Money, b : Money) : Int = if a < b then 1 else 2
   |                                          ^^^
   | = help: compare takes two values of its type, returns an Ordering, and receives nothing
@@ -2627,7 +2627,7 @@ fn f() : Bool = same(fn() = 1, fn() = 1)
 ```console
 $ ern build example.ern
 example.ern:3:22: () -> Int, a function type, does not support equality, which same requires of its first argument
-2 | 
+2 |
 3 | fn f() : Bool = same(fn() = 1, fn() = 1)
   |                 ---- same : (a=, a=) -> Bool
   |                      ^^^^^^^^
@@ -2644,7 +2644,7 @@ fn f() : Bool = equalizer()(fn() = 1, fn() = 1)
 ```console
 $ ern build example.ern
 example.ern:3:17: () -> Int, a function type, does not support equality, which equalizer requires: equalizer : () -> (a=, a=) -> Bool
-2 | 
+2 |
 3 | fn f() : Bool = equalizer()(fn() = 1, fn() = 1)
   |                 ^^^^^^^^^
 ```
@@ -3037,7 +3037,7 @@ fn f() : Int = g(1, 2)
 ```console
 $ ern build example.ern
 example.ern:3:16: g takes 1 argument, not 2
-2 | 
+2 |
 3 | fn f() : Int = g(1, 2)
   |                ^^^^^^^
 ```
@@ -3085,7 +3085,7 @@ fn f() : Int = g("one")
 ```console
 $ ern build example.ern
 example.ern:3:18: the argument does not fit g: expected Int, found String
-2 | 
+2 |
 3 | fn f() : Int = g("one")
   |                - g : (Int) -> Int
   |                  ^^^^^
@@ -4055,7 +4055,7 @@ fn f() : Unit receiving Int = g()
 ```console
 $ ern build example.ern
 example.ern:6:31: g needs mailbox String, and the mailbox here is Int
-5 | 
+5 |
 6 | fn f() : Unit receiving Int = g()
   |                         --- f is declared `receiving Int` here
   |                               ^^^
@@ -4075,7 +4075,7 @@ fn f() : Unit = g()
 ```console
 $ ern build example.ern
 example.ern:6:17: g needs a mailbox, and f receives nothing
-5 | 
+5 |
 6 | fn f() : Unit = g()
   |          ---- `: Unit` without `receiving` declares that f receives nothing
   |                 ^^^
@@ -4132,7 +4132,7 @@ fn main() : Unit receiving Never = apply(pause, 10)
 ```console
 $ ern build example.ern
 example.ern:8:42: the argument does not fit apply: a function that receives where one that receives nothing is needed
-7 | 
+7 |
 8 | fn main() : Unit receiving Never = apply(pause, 10)
   |                                    ----- apply : ((Int) -> Unit, Int) -> Unit
   |                                          ^^^^^
@@ -4168,7 +4168,7 @@ fn watch(p : Process) : Unit = monitor(p, Died)
 ```console
 $ ern build example.ern
 example.ern:3:32: monitor needs a mailbox, and watch receives nothing
-2 | 
+2 |
 3 | fn watch(p : Process) : Unit = monitor(p, Died)
   |                         ---- `: Unit` without `receiving` declares that watch receives nothing
   |                                ^^^^^^^^^^^^^^^^
@@ -4388,7 +4388,7 @@ let service : Peer.Service(Msg) = Peer.service("jobs")
 ```console
 $ ern build example.ern
 example.ern:3:35: Peer.service names a service at Msg, which is bound to its node, since it holds a function
-2 | 
+2 |
 3 | let service : Peer.Service(Msg) = Peer.service("jobs")
   |                                   ^^^^^^^^^^^^
   | = help: keep a function out of Msg; send a value that crosses, which the process acts on (report §3.11)

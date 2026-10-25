@@ -67,9 +67,15 @@ marks([{{Line, Column, End}, Mark, Label} | Rest], Lines, Width, LastPrinted) ->
 
 source_line(LineNumber, Lines, Width) ->
     case LineNumber =< length(Lines) of
-        true -> [io_lib:format("~*B | ", [Width, LineNumber]), lists:nth(LineNumber, Lines), "\n"];
+        true ->
+            [io_lib:format("~*B |", [Width, LineNumber]), text(lists:nth(LineNumber, Lines)), "\n"];
         false -> []
     end.
+
+%% A source line behind its gutter's bar; an empty line leaves no space
+%% behind it, so that no line of a diagnostic ends in a space.
+text([]) -> [];
+text(Line) -> [" ", Line].
 
 gutter(Width) -> [lists:duplicate(Width, $\s), " | "].
 

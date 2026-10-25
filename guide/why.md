@@ -77,7 +77,7 @@ fn count(total : Int) : Unit receiving CounterMsg =
 ```console
 $ ern build other.ern
 other.ern:6:5: count needs mailbox CounterMsg, and the mailbox here is OtherMsg
-4 | 
+4 |
 5 | export fn main() : Unit receiving OtherMsg =
   |                                   -------- main is declared `receiving OtherMsg` here
 6 |     count(0)
