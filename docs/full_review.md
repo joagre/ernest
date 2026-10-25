@@ -19,6 +19,15 @@ It does not run while the findings of the last one are open.
 - Each reader hands in a numbered list, most serious first. A finding gives its place, a file and line or a section; a short quote; what is wrong; a program or a command that shows it, where there is one; and a one-line fix. Defects stand apart from matters of clarity. Where a reader writes Ernest, the places the language made the work harder stand apart from both.
 - A reader hands its list back as text, which the review's own session saves, since the harness refuses a report file written by a subagent.
 
+Once the lists are in, the round:
+
+- The findings are sorted as *The findings* says, and the `fix` lines are made at once by agents on the model below, each owning its files and no other's, the report's, the checker's, the runtime's among them.
+- No agent runs `make`. Each compiles what it changed into a scratch directory of its own and tests there.
+- What crosses between agents, a cause text, a frame's form, a glossary word, goes through the session as sentences, the report's sentence first.
+- The `decide` lines are a second round: the no-brainers taken by the session's judgment and recorded as decided, the rest with the user one at a time, the argument before the verdict, after the log is searched and the program run, as CLAUDE.md's *Before code* says; then built by agents as the `fix` lines were.
+- The session integrates: it builds the tree, runs `make test-full`, closes the seams between the agents' files, and reads every diff back before the commit.
+- `git status --short` is compared before and after a round, since an agent may delete an untracked file.
+
 ## The readers
 
 A reader's letter names its findings: C12 is the code reader's twelfth. The lists of a reader's parts are numbered through, as one list.

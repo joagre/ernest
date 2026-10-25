@@ -118,17 +118,11 @@ in the order to do them, the word 0.5.0 ships decided before §8.7's text moves.
    numbers, each wrong one read against its comment's list, and a test whose waits vary between
    runs comes back for a decision rather than loosening the rule. Built by an agent after item 2's
    build, since both edit the nodes tests, by 2026-10-31.
-5. **The review round's method gets an owner.** The log describes it in four entries, *The Full
-   Review Run*, *The Review's Fixes, First Round*, *The Full Review Before 0.5.0* and *The Release
-   Review Before 0.5.0*; `full_review.md`'s *How it runs* has one of its facts, that a reader
-   returns its list as text, and lacks the rest: fix agents by file ownership, compiling in
-   scratch with no `make` of their own, a second round for the decisions, the session integrating
-   and reading back, and `git status` compared before and after a round; the two lessons the
-   release review's entry records, the log searched and the program run before a decision is
-   argued, are CLAUDE.md's *Before code* since 2026-10-25, which `release_review.md` points at. A
-   kind of fact at its fourth entry gets a document (CLAUDE.md, *A new owner*):
-   `full_review.md`'s *How it runs* states it whole, and `release_review.md` points at it for a
-   release's smaller round.
+5. **The review round's method gets an owner**, done 2026-10-25: `full_review.md`'s *How it runs*
+   states the round after the readers, agents by file ownership compiling in scratch with no `make`,
+   a second round for the decisions, the session integrating and reading back, and `git status`
+   compared before and after, and `release_review.md` points at it for a release's smaller round
+   (the log's *The Full Review Before 0.5.0* and *The Release Review Before 0.5.0*).
 6. **The site proposal's sitting**, done 2026-10-25: its three stale lines, MVP 3.3 "writes" the
    tour, a list of four claims, and a test that did not exist, now say the tour is written and
    name the six claims `claims_test` holds, dated in its `decisions.md` (the full review's D23,
