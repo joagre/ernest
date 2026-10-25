@@ -124,11 +124,9 @@ in the order to do them, the word 0.5.0 ships decided before §8.7's text moves.
    tour, a list of four claims, and a test that did not exist, now say the tour is written and
    name the six claims `claims_test` holds, dated in its `decisions.md` (the full review's D23,
    the log's *The Review's Decisions*).
-7. **The first fault's cost.** A session's first fault costs the host seven to nine milliseconds
-   of loading modules, thirty under load (the log's *The Shell's End Writes What It Was Told*),
-   which lost a shell test its line until the test waited for the fault. Measured against what a
-   fault's report does; the modules loaded at the launch where that costs less than the number says,
-   else the number recorded in the log and the item closed (CLAUDE.md, *The tools are fast*).
+7. **The first fault's cost**, done 2026-10-25: measured, `ern_peer` about 2.8 ms and `ern_show` about
+   1.7 ms loaded cold at a program's first fault, `ern_peer` alone in the shell; the plain form stays
+   and the number is the log's (*The First Fault's Cost*).
 8. **A monitor asked by an old run's delivery after the restart's `new_run`**, done 2026-10-25
    (the log's *A Restart Told Across Nodes, Built*): the clock and the terminal take a restart
    before the reaper. A teller's late delivery remains, as the item said; whether the delivery
