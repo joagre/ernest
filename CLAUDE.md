@@ -86,6 +86,7 @@ Meanwhile it does not change but in its form, a paragraph broken where it turns 
 
   A session opened to discuss alone writes nothing until the user asks. Then each write to the plan or the log is named in one line before it is made, a "go" covers the piece just discussed and not the topic, and where more rounds are coming the writes are gathered into one commit at the pause.
 - **Where a step looks wrong, say so once, hard**: the verdict, the principle that decides, the argument. If the user insists, build it whole, and the log entry records the decision with the argument against it. The code carries no trace of the dissent.
+- **A finding is argued only after the log and the program.** A finding or a `decide` line is argued only after the log has been searched for the decision it may sharpen, and after the program that shows it has been run in the session; a verdict recommended on a reader's probe alone says so.
 - **Leave no decision pending.** A question a step raises is decided in the same turn, with its argument, and recorded in the plan and the log. One that needs the user is discussed at once and stands in the plan meanwhile as a named decision in a named milestone, never as "open". An undiagnosed defect is planned the same way, with a date and the shape of its fix.
 
 ## Design
