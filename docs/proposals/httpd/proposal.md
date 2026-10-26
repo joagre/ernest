@@ -146,7 +146,7 @@ A guess at `ernest-httpd`'s modules by the jobs above, each with one job as the 
 - **`Static`**: a request to a response, the path resolved under the root and `..` refused, the index file, the table of content types, `Last-Modified` and 304.
 - **`Shell`**: one WebSocket connection, the handshake through `libs/websocket`, attached to its session, bytes both ways and a resize passed on, and its detach at its close.
 - **`Sessions`**: the session processes by cookie, each owning its command under `Os.startTerminal` with its timers, and the counts of shells running and of each visitor's starts.
-- **`AccessLog`**: the process that writes each line of Common Log Format to standard output through `libs/time`, so that lines from many connections never interleave.
+- **`AccessLog`**: the process that writes the lines of Common Log Format through `libs/time` to the configured file, by its path and in batches, so that lines from many connections never interleave.
 
 Five of them are processes for the program's life or a connection's, the listener, a connection, a shell and the two that hold state; `Static` and `Config` are functions over their file reads, where the tests begin.
 
@@ -170,17 +170,18 @@ One JSON file, read through `libs/json`, named on the command line:
 - the WebSocket's path, its allowed origins and the command that runs a visitor's shell, and the shell's numbers: the most at once, the starts per visitor, the idle time with its warning, and the total time;
 - the canonical host and the redirect hosts;
 - the caps on open connections, in all and per remote address, and the deadline of a write;
-- the headers sent on every response.
+- the headers sent on every response;
+- the access log's path.
 
 A file that breaks a rule is refused at the start, the message naming the field.
 
 ## The log
 
-The log is written to standard output, which the journal keeps and rotates, and to no file of the server's (decided 2026-10-27). Every request is a line of Common Log Format, `host - - [10/Oct/2026:13:55:36 +0000] "GET / HTTP/1.1" 200 2326`, written in UTC, so that logs of two machines agree and the library needs no time zone. A WebSocket's line is written when it closes, its status 101 and its byte count the frames' payloads.
+The log is a file the configuration names (decided 2026-10-27, superseding standard output the same day). `AccessLog` writes by the path and holds no file open: each write is `Fs.append`, which opens, appends and closes, so that logrotate's ordinary rotation, a rename and a new file, needs no signal and no reload, the next append opening the new file by its name, and no line is lost. It appends in batches, every line waiting in its mailbox in one append, so that a busy server opens the file once for many lines and the cost per line falls as the load rises; what has arrived decides the batch, and no timer. Every request is a line of Common Log Format, `host - - [10/Oct/2026:13:55:36 +0000] "GET / HTTP/1.1" 200 2326`, written in UTC, so that logs of two machines agree and the library needs no time zone. A WebSocket's line is written when it closes, its status 101 and its byte count the frames' payloads.
 
 ## Under systemd
 
-`ernest-httpd` runs in the foreground, under a unit of `Type=exec`. It writes its access log to standard output and what goes wrong to standard error, both of which the journal keeps and rotates. It exits with a status that is not 0 when it fails, so that `Restart=on-failure` restarts it. `SIGTERM` stops it in order through `Os.termination`: the listener closes, the requests under way are answered, and the WebSockets are closed with 1001. It binds 80 and 443 through `AmbientCapabilities=CAP_NET_BIND_SERVICE`, as no root.
+`ernest-httpd` runs in the foreground, under a unit of `Type=exec`. It writes its access log to the configured file, which logrotate rotates with no `postrotate`, and what goes wrong to standard error, which the journal keeps. It exits with a status that is not 0 when it fails, so that `Restart=on-failure` restarts it. `SIGTERM` stops it in order through `Os.termination`: the listener closes, the requests under way are answered, and the WebSockets are closed with 1001. It binds 80 and 443 through `AmbientCapabilities=CAP_NET_BIND_SERVICE`, as no root.
 
 A change of configuration is a restart. A static site restarts in about a second, and reloading would mean running the server as a node, since `SIGHUP` is a reload only for a node (§8.6). `Type=notify` would need a Unix datagram socket, which Ernest lacks, and `Type=exec` serves.
 
@@ -209,10 +210,11 @@ The site's content, MVP 4.2, runs beside any of it, since its generator needs no
 - The repository is `ernest-httpd` (2026-10-26).
 - No container pool and no manager: a process per shell owns its command under a terminal, one counting process limits them, and the container is the command's (2026-10-26).
 - A canonical host and its redirect hosts, port 80 a redirect listener serving the ACME challenge, one certificate for all four names, a renewal a restart (2026-10-27).
-- The limits, each configurable: a cap on connections in all and per address by counting `Down`s, a deadline on every write, the configured headers on every response, and no rate limit; the log to standard output; a directory's slash and its missing index (2026-10-27).
+- The limits, each configurable: a cap on connections in all and per address by counting `Down`s, a deadline on every write, the configured headers on every response, and no rate limit; a directory's slash and its missing index (2026-10-27).
 - `libs/crypto` is `sha1` and `randomBytes`; the session's cookie random and `Secure`, `HttpOnly`, `SameSite=Strict`; `connectTls`'s `verify` a constructor (2026-10-27).
 - A session outlives a connection: a session process per cookie owns the shell, connections attach and detach, a second tab's attach detaches the first (2026-10-27).
 - The socket's protocol: binary frames the terminal's bytes, text frames JSON for a resize, Stop and the warning, and close codes 4001 to 4004 for why a session ended (2026-10-27).
+- The access log a configured file, appended by its path in batches of what is waiting, so that logrotate needs no signal (2026-10-27).
 - The running server tested by a client in Ernest, `libs/http` gaining a request's rendering and a response's head read (2026-10-27).
 - The order of work: the report, the runtime, the libraries, a release, then `ernest-httpd` and its deployment (2026-10-27).
 - Files under a root no one else writes: a path holding `..` refused, and no check of links, so the plan's `Fs.readUnder` waits for a root others can write (2026-10-26).
