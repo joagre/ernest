@@ -248,17 +248,10 @@ The site's files as served.
 
 ## The live shell, 2026-10-13
 
+- The server side of the shell, the pseudo-terminal, the container per visitor and its image, the session's timeouts, a second tab's takeover and the pool, is the server's, in `../httpd/proposal.md`'s *The live shell's server side* (moved there 2026-10-26).
 - xterm.js, its stylesheet, a fit addon and a session client, self-hosted. A
   WebSocket at `/shell/session` to a pseudo-terminal running `ern shell`
   unchanged; the server behind it is MVP 4.2's first decision.
-- The pseudo-terminal is the server's, through Ernest: `Os` gains a start
-  under a pseudo-terminal of a given size, and a resize, entering E.23 by
-  the admission rules over the runtime's helper's `forkpty` and
-  `TIOCSWINSZ`. The server runs `podman run -it --rm` on it, so that podman
-  gives the container a terminal of its own and forwards each resize the
-  fit addon sends; nothing of ours is in the image. The terminal tests'
-  `test/ern_pty.py` is the same need, met in Python for want of it
-  (decided 2026-10-26, from `../httpd/proposal.md`).
 - xterm.js keeps a scrollback, a scrollbar, the wheel and Shift+PageUp, in
   the browser alone, so a session scrolls back as an xterm on Linux does;
   the shell writes above its live region on the ordinary screen, and a
@@ -266,26 +259,7 @@ The site's files as served.
   2026-10-26).
 - Five states, each announced once: connecting, running, disconnected, expired
   and unavailable.
-- Stop ends the session and its container. Restart is a deliberate act and
-  ends the old ones.
-- One operating-system container per visitor, shared by every page: allocated
-  when the shell first opens, reused after.
-- The image holds `ern`, the standard library, `src/libs/`, the examples and a
-  scratch directory, and nothing secret, since a `foreign fn` reads the image
-  and the environment. No network but loopback, so that the guide's `Tcp`
-  examples, which talk to themselves, run. The scratch directory is a
-  size-capped tmpfs, counted into the visitor's memory, so that a program
-  that writes without end ends its own session and no other. The language
-  is whole in the container: no module is forbidden, since nothing done
-  through `Fs`, `Os`, `Tcp` or a `foreign fn` leaves the container, and a
-  shell with fewer modules would be a second mode of the language that the
-  guide's examples would not run in (decided 2026-10-13).
-- A session ends after five minutes without input at the prompt, a program
-  running without input among them, after a five-second warning that a key
-  press answers, or after 30 minutes in all.
-- A second tab takes the session over, and the first says so.
-- A fixed number of containers; when all are taken, the shell is unavailable.
-  Starts per visitor are limited. The numbers come with the host.
+- Stop ends the session, and Restart is a deliberate act that ends the old one; what they end, the container, is the server's (`../httpd/proposal.md`).
 - The shell page carries a privacy line: no accounts, one cookie, the layout
   kept in the browser, what the server logs, nothing kept.
 - The shell panel is `base.html`'s, so every page has it, side by side or

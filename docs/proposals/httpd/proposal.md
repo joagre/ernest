@@ -6,6 +6,15 @@ A starting point, written 2026-10-26 from the first discussion. It states what t
 
 ehttpd serves one site, ernest-lang.org: static pages generated from Markdown (MVP 4.2), and one WebSocket per visitor that connects xterm.js in the browser to a shell on the server. It implements what that needs of HTTP/1.1 and nothing more. It is a program written in Ernest, in a repository of its own, built against an installed Ernest; `examples/web_server.ern` is its smallest ancestor, whose hand-written parser `libs/http` replaces.
 
+## From the plan's MVP 4.1
+
+What the plan's MVP 4.1 states of ehttpd, held here as the proposal's own, the plan's section to become a line pointing here once the proposal is decided (2026-10-26):
+
+- ehttpd is a program in a repository of its own, decided with the user on 2026-10-10 (the log's *ehttpd and the Website*), the first program built against an installed Ernest by a build of its own, which the examples cannot be. Its own plan lives in its repository.
+- What it lacks is added where it belongs and never worked around in Erlang or behind a `foreign fn`: a function the standard library lacks enters by E.0's admission rules, our need the occasion and the rules deciding; a format or a protocol is a library's; what the prelude or the language lacks goes to `language_feedback.md` first and is discussed before any code goes around it.
+- Each library it asks for is an Ernest source root under `src/libs/<name>/`, whose build ends every job's load path, with `src/stdlib/`'s test discipline, documented to `docs/module_doc_template.md` with its executed examples as its first user, and a section in Appendix G.
+- The plan's separate `libs/tls` is replaced by TLS in `Tcp` (below). The plan's other named libraries, `libs/regex`, `libs/uri`, `libs/zlib`, the `Fs` functions and `Udp`, are not ehttpd's and stay in the plan.
+
 ## HTTP/1.1
 
 RFC 9110 states HTTP's semantics and RFC 9112 its HTTP/1.1 message syntax.
@@ -42,6 +51,19 @@ RFC 6455, for xterm.js.
 **What it leaves out.** Extensions, `permessage-deflate` among them, and subprotocols, which xterm.js's attach addon does not ask for.
 
 Behind the socket stands a shell in a container per visitor (`../site/decisions.md`). The pseudo-terminal is the server's: `Os` gains a start under a pseudo-terminal of a given size, and a resize, which the runtime's helper gives by the host's `forkpty` and `TIOCSWINSZ`, and ehttpd runs `podman run -it --rm` on it, podman giving the container its own terminal and forwarding each resize. The socket's frames carry the terminal's bytes both ways and a resize from xterm.js's fit addon.
+
+## The live shell's server side
+
+Moved here from the site's decisions on 2026-10-26, where the page's side of the shell stays (`../site/decisions.md`, *The live shell*); the pseudo-terminal is the WebSocket's other end, above.
+
+- One operating-system container per visitor, shared by every page: allocated when the shell first opens, reused after.
+- The image holds `ern`, the standard library, `src/libs/`, the examples and a scratch directory, and nothing secret, since a `foreign fn` reads the image and the environment. No network but loopback, so that the guide's `Tcp` examples, which talk to themselves, run. The scratch directory is a size-capped tmpfs, counted into the visitor's memory, so that a program that writes without end ends its own session and no other. The language is whole in the container: no module is forbidden, since nothing done through `Fs`, `Os`, `Tcp` or a `foreign fn` leaves the container, and a shell with fewer modules would be a second mode of the language that the guide's examples would not run in (decided 2026-10-13).
+- A session ends after five minutes without input at the prompt, a program running without input among them, after a five-second warning that a key press answers, or after 30 minutes in all.
+- A second tab takes the session over, and the first says so.
+- A fixed number of containers; when all are taken, the shell is unavailable. Starts per visitor are limited. The numbers come with the host.
+- Stop and Restart are the page's buttons; what they end, the visitor's container, is the server's.
+
+The pool, a fixed number of containers handed one to a visitor, is the server's to keep or a manager's beside it, the first question for this section.
 
 ## TLS
 
