@@ -123,7 +123,7 @@ A guess at `ernest-httpd`'s modules by the jobs above, each with one job as the 
 - **`Sessions`**: the counting process, holding the shells running, each visitor's starts and the cookie that names a session.
 - **`AccessLog`**: the process that owns the log file and writes each line of Common Log Format through `libs/time`, so that lines from many connections never interleave.
 
-Four of them are processes for the program's life or a connection's, the listener, a connection, a shell and the two that hold state; `Static` and `Config` are functions over their file reads, where the tests begin.
+Five of them are processes for the program's life or a connection's, the listener, a connection, a shell and the two that hold state; `Static` and `Config` are functions over their file reads, where the tests begin.
 
 ## Configuration
 
