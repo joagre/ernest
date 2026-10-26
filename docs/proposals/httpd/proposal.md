@@ -45,7 +45,7 @@ Behind the socket stands a shell in a container per visitor (`../site/decisions.
 
 ## TLS
 
-The site is served over HTTPS, and ehttpd terminates TLS itself. `Tcp` gains two functions that open a socket over TLS, `Tcp.listenTls(host, port, certificate, key)` and `Tcp.connectTls(host, port, verify, ms)`, and answers the same socket address as a plain one, so that reading, writing, accepting and closing are one set of functions for both (E.18, principle 2). They are two functions and not a `Bool`, by E.0 shape rule 9. The host's `ssl` does the work, whose functions mirror `gen_tcp`'s, so the runtime's socket process holds either kind; a program that is no node starts `ssl` at its first TLS call, and a node has it already for its carrier. A failed handshake answers an `Io.Error` that says so, its constructor decided when it is written. The certificate and key are files, renewed by certbot outside the server, which a restart reads again.
+The site is served over HTTPS, and ehttpd terminates TLS itself. `Tcp` gains two functions that open a socket over TLS, `Tcp.listenTls(host, port, certificate, key)` and `Tcp.connectTls(host, port, verify, ms)`, and answers the same socket address as a plain one, so that reading, writing, accepting and closing are one set of functions for both (E.18, principle 2). They are two functions and not a `Bool`, by E.0 shape rule 9. The host's `ssl` does the work, whose functions mirror `gen_tcp`'s, so the runtime's socket process holds either kind; a program that is no node starts `ssl` at its first TLS call, and a node has it already for its carrier. `Tcp.accept` answers the socket once the TCP connection is accepted, and the handshake runs in the socket's own process, as the host splits `ssl:transport_accept` from `ssl:handshake`, so that a slow client holds no accept loop; the first `read` or `write` waits for it, and a failed handshake answers there as `Other(text)`, the words `ssl` gives, since no program acts on it otherwise than on another failed connection. The certificate and key are files, renewed by certbot outside the server, which a restart reads again.
 
 This replaces the plan's separate `libs/tls`, which named the choice to be made when it was written.
 
@@ -66,10 +66,11 @@ Names and shapes by E.0's shape rules, each a draft for the discussion and none 
   - `Http.parseHead(bytes) : Either(Http.Error, Head)`, `Head` either `Incomplete` or the request with the bytes after it, a shim over `decode_packet` driven a line at a time.
   - `Http.header(request, name) : Optional(String)`, by name in any case.
   - `Http.render(response) : Bytes` and `Http.reason(status) : String`.
-  - `Http.Error`: a bad request line, a bad header, a line or the headers too long.
+  - `Http.Error`, named by what the server answers: `Malformed`, 400, `TargetTooLong`, 414, and `HeadersTooLarge`, 431. A version other than 1.0 or 1.1 parses, and the server answers it 505.
 - **`libs/websocket`**, a library of its own and not the server's, since a client wants it too.
   - `WebSocket.accept(key) : String`.
-  - `WebSocket.decode(bytes) : Either(WebSocket.Error, Decoded)`, a frame or `Incomplete`.
+  - `WebSocket.decode(bytes, role, limit) : Either(WebSocket.Error, Decoded)`, a frame or `Incomplete`; `role`, `FromClient` or `FromServer` by shape rule 9, decides which masking it refuses.
+  - `WebSocket.Error`, named by the close code: `ProtocolError`, 1002, `TooBig`, 1009, and `NotUtf8`, 1007.
   - `WebSocket.encode(frame) : Bytes`, a `Frame` one of text, binary, continuation, ping, pong and close.
 - **`libs/crypto`**: `Crypto.sha1(bytes)`, `sha256(bytes)`, `hmac(key, bytes)` and `randomBytes(count)`, each a shim over `crypto`.
 - **`libs/base64`**: `Base64.encode(bytes) : String` and `decode(text) : Optional(Bytes)`.
@@ -110,4 +111,5 @@ A change of configuration is a restart. A static site restarts in about a second
 - `libs/time` for the dates, a library and not the standard library's, `Clock` unchanged (2026-10-26).
 - A change of configuration is a restart (2026-10-26).
 - The pseudo-terminal on the server through a new start in `Os`, podman inside it (2026-10-26).
+- The errors: a failed handshake is `Other(text)`, run in the socket's process after `accept`; `Http.Error` and `WebSocket.Error` named by the status and the close code they answer (2026-10-26).
 - Files under a root no one else writes: a path holding `..` refused, and no check of links, so the plan's `Fs.readUnder` waits for a root others can write (2026-10-26).
