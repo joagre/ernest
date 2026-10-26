@@ -251,7 +251,7 @@ The site's files as served.
 - The server side of the shell, the pseudo-terminal, the container per visitor and its image, the session's timeouts, a second tab's takeover and the pool, is the server's, in `../httpd/proposal.md`'s *The live shell's server side* (moved there 2026-10-26).
 - xterm.js, its stylesheet, a fit addon and a session client, self-hosted. A
   WebSocket at `/shell/session` to a pseudo-terminal running `ern shell`
-  unchanged; the server behind it is MVP 4.2's first decision.
+  unchanged; the server behind it is ehttpd's (`../httpd/proposal.md`).
 - xterm.js keeps a scrollback, a scrollbar, the wheel and Shift+PageUp, in
   the browser alone, so a session scrolls back as an xterm on Linux does;
   the shell writes above its live region on the ordinary screen, and a
