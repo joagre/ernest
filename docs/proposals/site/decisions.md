@@ -251,6 +251,19 @@ The site's files as served.
 - xterm.js, its stylesheet, a fit addon and a session client, self-hosted. A
   WebSocket at `/shell/session` to a pseudo-terminal running `ern shell`
   unchanged; the server behind it is MVP 4.2's first decision.
+- The pseudo-terminal is the server's, through Ernest: `Os` gains a start
+  under a pseudo-terminal of a given size, and a resize, entering E.23 by
+  the admission rules over the runtime's helper's `forkpty` and
+  `TIOCSWINSZ`. The server runs `podman run -it --rm` on it, so that podman
+  gives the container a terminal of its own and forwards each resize the
+  fit addon sends; nothing of ours is in the image. The terminal tests'
+  `test/ern_pty.py` is the same need, met in Python for want of it
+  (decided 2026-10-26, from `../httpd/proposal.md`).
+- xterm.js keeps a scrollback, a scrollbar, the wheel and Shift+PageUp, in
+  the browser alone, so a session scrolls back as an xterm on Linux does;
+  the shell writes above its live region on the ordinary screen, and a
+  program on the alternate screen has none while it runs (decided
+  2026-10-26).
 - Five states, each announced once: connecting, running, disconnected, expired
   and unavailable.
 - Stop ends the session and its container. Restart is a deliberate act and

@@ -41,7 +41,7 @@ RFC 6455, for xterm.js.
 
 **What it leaves out.** Extensions, `permessage-deflate` among them, and subprotocols, which xterm.js's attach addon does not ask for.
 
-What stands behind the socket, a shell in a container per visitor behind a pseudo-terminal, is MVP 4.2's. `Os.start` gives pipes and no pseudo-terminal, which is the next gap after this proposal's.
+Behind the socket stands a shell in a container per visitor (`../site/decisions.md`). The pseudo-terminal is the server's: `Os` gains a start under a pseudo-terminal of a given size, and a resize, which the runtime's helper gives by the host's `forkpty` and `TIOCSWINSZ`, and ehttpd runs `podman run -it --rm` on it, podman giving the container its own terminal and forwarding each resize. The socket's frames carry the terminal's bytes both ways and a resize from xterm.js's fit addon.
 
 ## TLS
 
@@ -85,4 +85,5 @@ A change of configuration is a restart. A static site restarts in about a second
 - TLS in `Tcp`, by two functions answering the same socket (2026-10-26).
 - `libs/time` for the dates, `Clock` unchanged (2026-10-26).
 - A change of configuration is a restart (2026-10-26).
+- The pseudo-terminal on the server through a new start in `Os`, podman inside it (2026-10-26).
 - Files under a root no one else writes: a path holding `..` refused, and no check of links, so the plan's `Fs.readUnder` waits for a root others can write (2026-10-26).
