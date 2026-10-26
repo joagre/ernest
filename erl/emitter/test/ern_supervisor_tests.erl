@@ -205,12 +205,13 @@ kill_stops_in_reverse_order_test() ->
     ?assertEqual(<<"c b a\n">>, Output).
 
 %% Appendix E.22, §6.9: a supervisor that is a child restarts in place past
-%% its limit, its children restarted with it, their addresses kept. Each
-%% child is peeked once a service monitor has told of its restart, which
-%% comes before anything its new run takes, so the call reaches the new run
-%% and waits for it; peeked once the group's fault was reported, a child
-%% the group had yet to restart answered from its old run, one run in sixty
-%% beside other work
+%% its limit, its children restarted with it, their addresses kept. A
+%% service monitor is told of each restart before anything the new run
+%% takes, and `a` restarts twice, after its fault and as the nested group
+%% asks, `b` once, as it asks; no rule orders `a`'s second restart against
+%% `b`'s. So each child is peeked once the three are told, and the call
+%% reaches its new run. Peeked once two were told, both could be `a`'s,
+%% and `b` answered from its old run, or its restart ended the call
 nested_group_restarts_in_place_test() ->
     {ok, Output} = ern_emitter_tests:run(
         "type Msg = Ask(reply : Reply(Int)) | Peek(reply : Reply(Int)) | Boom\n"
@@ -231,14 +232,14 @@ nested_group_restarts_in_place_test() ->
         "    monitorService(Process.fromAddress(a), fn(d) = d);\n"
         "    monitorService(Process.fromAddress(b), fn(d) = d);\n"
         "    send(a, Boom);\n"
-        "    // each child's restart, which the nested group asks at its own\n"
-        "    let restarts = [heard(), heard()];\n"
+        "    // a's restart after its fault, and each child's as the group asks\n"
+        "    let restarts = [heard(), heard(), heard()];\n"
         "    Io.println(Io.show(restarts) <> \" \" <> Int.toString(peek(a)) <> \" \""
         " <> Int.toString(peek(b)))\n"
         "}\n"
         "fn heard() : Reason receiving Down = receive { Down(reason = reason) -> reason }\n"
         "fn peek(c : Address(Msg)) : Int = Address.callForever(c, fn(r) = Peek(reply = r))\n"),
-    ?assertEqual(<<"[Restarted, Restarted] 0 0\n">>, Output).
+    ?assertEqual(<<"[Restarted, Restarted, Restarted] 0 0\n">>, Output).
 
 %% Appendix E.22: a supervisor restarted in place counts its limit afresh,
 %% and a fault it counted before the restart does not expire from the new

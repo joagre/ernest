@@ -97,16 +97,10 @@ modules documented apart with an authority of their own. Why it is worth its cos
    map or the host's graph, and the rest is the host's own compile, linear at half a millisecond a
    function; `ern build` of 7,000 functions takes 5.4 s quiet, the harness's 27 s having been its
    parallel load.
-3. **A nested group's child answering a peek from its old run.** Found 2026-10-25 by the release
-   review's last full run: `nested_group_restarts_in_place_test`, red once under the parallel
-   phase's load and green quiet, printed `[Restarted, Restarted] 0 1`, the second child answering
-   `Peek` with its old run's count after its service monitor had been told `Restarted`, which §6.9
-   says reaches the watcher before anything the new run takes.
-
-   The shape of the fix: the race
-   placed in a test of the runtime's, by the order the nested group restarts its children in and
-   the moment each child's mailbox is emptied against the group's report, then the rule or the
-   code corrected; recorded in the log as it was found (*The Release Review Before 0.6.0*).
+3. **A nested group's child answering a peek from its old run**, done 2026-10-26 (the log's *The
+   Nested Group's Third Restart*): the test's own race, two `Restarted` heard for three restarts,
+   `a`'s at its fault and each child's as the nested group asks; the test hears three, red 0 of 600
+   runs under load where it was red 13, and the runtime's order holds.
 4. **What the newcomer's feedback left**, done 2026-10-26 (the log's *What the Newcomer's Feedback
    Left*): 165, 167, 168 and 169 dropped, by principles 2, 3 and 5, the guide gaining the
    request-building function and `Map.update`'s present-entry line; 166 decided as item 8.
