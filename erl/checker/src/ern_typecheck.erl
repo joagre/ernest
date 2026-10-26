@@ -63,8 +63,8 @@
 %%
 %% groups: qualified name => the dependency group not yet checked that
 %% declares it, checked on first demand (a reference, or an operator
-%% resolving to it); typed: the groups checked so far; diagnostics: their
-%% errors
+%% resolving to it); typed: the declarations of the groups checked so
+%% far, the latest first; diagnostics: their errors
 %% let_order: the module's top-level lets in the order §8.5 evaluates
 %% them, which the emitter reads
 %% generalizing: whether the lambda about to be inferred is a binding's
@@ -1307,10 +1307,17 @@ check_values(Declarations, Env1) ->
                                       || Group <- Groups, Declaration <- Group]),
     Env3 = lists:foldl(fun run_group/2,
                        Env2#env{groups = UncheckedGroups, typed = [], diagnostics = []}, Groups),
-    Graph = reference_graph(Env3#env.typed, Env3),
-    Diagnostics = let_cycles(Env3#env.typed, Graph) ++ Env3#env.diagnostics,
-    %% restore declaration order for the typed output
-    Typed = [replace_typed(Declaration, Env3#env.typed) || Declaration <- Declarations],
+    %% the groups in the order they ran, which run_group/2 holds the latest
+    %% first
+    Checked = lists:reverse(Env3#env.typed),
+    Graph = reference_graph(Checked, Env3),
+    Diagnostics = let_cycles(Checked, Graph) ++ Env3#env.diagnostics,
+    %% restore declaration order for the typed output, a key naming one
+    %% declaration (declared_twice/1)
+    ByKey = maps:from_list([{declaration_key(Declaration), Declaration}
+                            || Declaration <- Checked]),
+    Typed = [maps:get(declaration_key(Declaration), ByKey, Declaration)
+             || Declaration <- Declarations],
     Order = case Diagnostics of
                 [] ->
                     initialization_order([Declaration || Declaration <- Typed,
@@ -1345,19 +1352,19 @@ run_group(Group, #env{groups = UncheckedGroups} = Env) ->
         true ->
             Env1 = Env#env{groups = maps:without(Keys, UncheckedGroups)},
             try check_group(Group, Env1) of
-                {Typed, Env2} -> Env2#env{typed = Env2#env.typed ++ Typed}
+                {Typed, Env2} -> Env2#env{typed = lists:reverse(Typed, Env2#env.typed)}
             catch
                 throw:{type_error, Span, Message} ->
                     Failed = placeholder_group(Group, Env1),
-                    Failed#env{typed = Failed#env.typed ++ Group,
+                    Failed#env{typed = lists:reverse(Group, Failed#env.typed),
                                diagnostics = [diagnostic(Span, Message) | Failed#env.diagnostics]};
                 throw:{type_error, #diagnostic{} = Diagnostic} ->
                     Failed = placeholder_group(Group, Env1),
-                    Failed#env{typed = Failed#env.typed ++ Group,
+                    Failed#env{typed = lists:reverse(Group, Failed#env.typed),
                                diagnostics = [Diagnostic | Failed#env.diagnostics]};
                 throw:{type_errors, Diagnostics} ->
                     Failed = placeholder_group(Group, Env1),
-                    Failed#env{typed = Failed#env.typed ++ Group,
+                    Failed#env{typed = lists:reverse(Group, Failed#env.typed),
                                diagnostics = Diagnostics ++ Failed#env.diagnostics}
             end
     end.
@@ -1393,14 +1400,6 @@ is_value_declaration(#fn_declaration{}) -> true;
 is_value_declaration(#let_declaration{}) -> true;
 is_value_declaration(#foreign_fn_declaration{}) -> true;
 is_value_declaration(_) -> false.
-
-replace_typed(Declaration, Typed) ->
-    Key = declaration_key(Declaration),
-    case [TypedDeclaration || TypedDeclaration <- Typed,
-                              declaration_key(TypedDeclaration) =:= Key] of
-        [TypedDeclaration | _] -> TypedDeclaration;
-        [] -> Declaration
-    end.
 
 %% Where a declaration's name stands, a member's `Color.negate` whole.
 name_span(#fn_declaration{name_span = NameSpan}) -> NameSpan;
@@ -1473,7 +1472,7 @@ dependency_groups(Values, Env) ->
                             Used =/= Component]
            end,
     {_, Ordered} = lists:foldl(fun(Key, Acc) -> after_uses(maps:get(Key, ComponentOf), Uses, Acc)
-                               end, {[], []}, Keys),
+                               end, {#{}, []}, Keys),
     ByKey = maps:from_list([{declaration_key(Declaration), Declaration} || Declaration <- Values]),
     [[maps:get(Key, ByKey) || Key <- Component] || Component <- lists:reverse(Ordered)].
 
@@ -1489,18 +1488,14 @@ strong_components(Keys, References) ->
     Components.
 
 %% A component placed, the latest first, after the components it uses, each
-%% in the order Uses gives them, unless it is placed already.
-after_uses(Component, Uses, {Placed, Ordered} = Acc) ->
-    case lists:member(Component, Placed) of
-        true ->
-            Acc;
-        false ->
-            {Placed1, Ordered1} = lists:foldl(fun(Used, UsedAcc) ->
-                                                  after_uses(Used, Uses, UsedAcc)
-                                              end, {[Component | Placed], Ordered},
-                                              Uses(Component)),
-            {Placed1, [Component | Ordered1]}
-    end.
+%% in the order Uses gives them, unless it is placed already, which Placed,
+%% a map of the components placed, answers in one lookup.
+after_uses(Component, _Uses, {Placed, _} = Acc) when is_map_key(Component, Placed) ->
+    Acc;
+after_uses(Component, Uses, {Placed, Ordered}) ->
+    {Placed1, Ordered1} = lists:foldl(fun(Used, UsedAcc) -> after_uses(Used, Uses, UsedAcc) end,
+                                      {Placed#{Component => placed}, Ordered}, Uses(Component)),
+    {Placed1, [Component | Ordered1]}.
 
 %% Local value keys a declaration's body refers to: by name, and through
 %% an operator whose operand type is known, the member it resolves to
@@ -2060,29 +2055,68 @@ let_cycles(Declarations, Graph) ->
     %% in source order, a node's span being its first field (ern_ast:span/1)
     Lets = lists:keysort(2, [Declaration || #let_declaration{} = Declaration <- Declarations]),
     Fns = [declaration_key(Declaration) || #fn_declaration{} = Declaration <- Declarations],
+    %% a let is searched for its cycle only where it is on one, which the
+    %% graph's cyclic components say once for every let
+    OnCycle = maps:from_list([{Key, on_cycle}
+                              || Component <- digraph_utils:cyclic_strong_components(Graph),
+                                 Key <- Component]),
     {Diagnostics, _} = lists:foldl(fun(Declaration, {Acc, Seen}) ->
                                        let_cycle(Declaration, Graph, Fns, Acc, Seen)
-                                   end, {[], []}, Lets),
+                                   end, {[], []},
+                                   [Declaration || Declaration <- Lets,
+                                                   is_map_key(declaration_key(Declaration),
+                                                              OnCycle)]),
     lists:reverse(Diagnostics).
 
 %% Report §8.5: the lets of Declarations, which are in declaration order, each
 %% after every let its initializer reaches and otherwise as declared.
 initialization_order(Declarations, Graph) ->
     Lets = [declaration_key(Declaration) || #let_declaration{} = Declaration <- Declarations],
-    Needs = maps:from_list([{Key, [Reached
-                                   || Reached <- digraph_utils:reachable_neighbours([Key], Graph),
-                                      Reached =/= Key, lists:member(Reached, Lets)]}
-                            || Key <- Lets]),
-    in_order(Lets, Needs, []).
+    Place = maps:from_list([{Key, Number} || {Number, Key} <- lists:enumerate(Lets)]),
+    Needs = #{Key => needs(digraph:out_neighbours(Graph, Key), Graph, Place, #{Key => seen}, [])
+              || Key <- Lets},
+    NeededBy = lists:foldl(fun({Key, Needed}, Acc) ->
+                               maps:update_with(Needed, fun(By) -> [Key | By] end, [Key], Acc)
+                           end, #{},
+                           [{Key, Needed} || Key := LetNeeds <- Needs, Needed <- LetNeeds]),
+    Unplaced = #{Key => length(Needed) || Key := Needed <- Needs},
+    Ready = gb_sets:from_list([{maps:get(Key, Place), Key}
+                               || Key := Count <- Unplaced, Count =:= 0]),
+    in_order(Ready, Unplaced, NeededBy, Place, []).
+
+%% The lets an initializer reaches from Vertices through functions alone, a
+%% let met ending its path. A let after these is after every let it
+%% reaches, since each of these is after the lets it reaches in turn.
+needs([], _, _, _, Acc) ->
+    Acc;
+needs([Vertex | Rest], Graph, Place, Seen, Acc) when is_map_key(Vertex, Seen) ->
+    needs(Rest, Graph, Place, Seen, Acc);
+needs([Vertex | Rest], Graph, Place, Seen, Acc) when is_map_key(Vertex, Place) ->
+    needs(Rest, Graph, Place, Seen#{Vertex => seen}, [Vertex | Acc]);
+needs([Vertex | Rest], Graph, Place, Seen, Acc) ->
+    needs(digraph:out_neighbours(Graph, Vertex) ++ Rest, Graph, Place, Seen#{Vertex => seen}, Acc).
 
 %% Each let once every let it needs is placed, the first declared of those
-%% that can go next first.
-in_order([], _, Placed) ->
-    lists:reverse(Placed);
-in_order(Lets, Needs, Placed) ->
-    IsPlaced = fun(Needed) -> lists:member(Needed, Placed) end,
-    [Next | _] = [Key || Key <- Lets, lists:all(IsPlaced, maps:get(Key, Needs))],
-    in_order(Lets -- [Next], Needs, [Next | Placed]).
+%% that can go next first: Ready holds the lets that can go next by their
+%% place in the source, and Unplaced how many of each let's needs are not
+%% placed yet, which each let placed lowers for the lets that need it.
+in_order(Ready, Unplaced, NeededBy, Place, Placed) ->
+    case gb_sets:is_empty(Ready) of
+        true ->
+            lists:reverse(Placed);
+        false ->
+            {{_, Next}, Ready1} = gb_sets:take_smallest(Ready),
+            Lowered = fun(Key, {ReadyAcc, UnplacedAcc}) ->
+                          case maps:get(Key, UnplacedAcc) - 1 of
+                              0 -> {gb_sets:add({maps:get(Key, Place), Key}, ReadyAcc),
+                                    UnplacedAcc#{Key := 0}};
+                              Count -> {ReadyAcc, UnplacedAcc#{Key := Count}}
+                          end
+                      end,
+            {Ready2, Unplaced1} = lists:foldl(Lowered, {Ready1, Unplaced},
+                                              maps:get(Next, NeededBy, [])),
+            in_order(Ready2, Unplaced1, NeededBy, Place, [Next | Placed])
+    end.
 
 %% The module's references, from each declaration to those it names.
 reference_graph(Declarations, Env) ->
@@ -2092,7 +2126,7 @@ reference_graph(Declarations, Env) ->
     lists:foreach(fun(Declaration) ->
                       [digraph:add_edge(Graph, declaration_key(Declaration), Reference)
                        || Reference <- references(Declaration, Env),
-                          lists:member(Reference, Keys)]
+                          digraph:vertex(Graph, Reference) =/= false]
                   end, Declarations),
     Graph.
 

@@ -228,3 +228,43 @@ OTP 29.1, erts 17.1, os_mon 2.12, on Linux x86_64.
 **Additional context**
 
 The line comes from the port program, not from the emulator, so no logger filter removes it. A program that stops `os_mon` can avoid it only by finishing a collection first, `memsup:get_system_memory_data/0` among the ways, which costs a collection at every stop.
+
+## 6. `erl_lint`'s check of unused functions costs the square of the module
+
+Not filed. Found on 2026-10-26; the log's *The Build's Cost per Function*.
+
+**Title:** erl_lint: check_unused_functions is quadratic in the number of unused functions
+
+**Describe the bug**
+
+A module of N functions that are not exported and not called compiles in time that grows with N squared: `check_unused_functions` in `erl_lint.erl` (stdlib 8.1, line 1772) costs unused × functions. With `+nowarn_unused_function` the same module compiles in linear time.
+
+**To Reproduce**
+
+A module of N functions none of which is exported or called:
+
+```
+$ python3 -c "n=8000; print('-module(unused_%d).' % n); print('-export([main/0]).'); print('main() -> ok.')
+for i in range(n): print('f%d(X) -> X + %d.' % (i, i))" > unused_8000.erl
+```
+
+```
+$ time erlc unused_2000.erl    # 2.3 s
+$ time erlc unused_4000.erl    # 9.1 s
+$ time erlc unused_8000.erl    # 41.2 s
+$ time erlc unused_16000.erl   # 198.7 s
+$ time erlc +nowarn_unused_function unused_8000.erl    # 0.8 s
+```
+
+**Expected behavior**
+
+The check costs what the module's size costs: 8,000 functions in well under a second, as with the warning off.
+
+**Affected versions**
+
+OTP 29, erts 17.1, stdlib 8.1, on Linux x86_64.
+
+**Additional context**
+
+Found by measuring a compiler that emits Erlang, whose test module of 7,000 unexported functions compiles through the host in 3.3 s where the warning is off; a module that is linted with the warning on pays the square.
+

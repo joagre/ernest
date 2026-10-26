@@ -92,14 +92,11 @@ modules documented apart with an authority of their own. Why it is worth its cos
    runtime, at the end of `toolchain.md` in eight sections, §10 moved whole before §11, each place of
    `language.md` keeping its rules and one sentence that points at the moved mechanism, every
    citation of a moved paragraph redirected and every section cited by a test.
-2. **The build's cost per function measured.** Found 2026-10-25 by the harness's audit: `ern build` of
-   a module of 7000 functions takes 27 s, about 4 ms a function and growing about linearly, where
-   `ern format` of the same module takes 1.1 s once the parser's name span stopped counting every
-   remaining token (the log's *The Harness Counts a Test's Steps*). Measured against what the
-   checker and the emitter do for one function, by the phase, as CLAUDE.md's *The tools are fast*
-   asks; fixed at its cause where one phase carries the cost, else the number recorded in the log
-   and the item closed. After 0.6.0, since no program of that size is written and the release's
-   bench holds the sizes programs have.
+2. **The build's cost per function measured**, done 2026-10-26 (the log's *The Build's Cost per
+   Function*): the check grew with the module's square in five places that scanned lists, each now a
+   map or the host's graph, and the rest is the host's own compile, linear at half a millisecond a
+   function; `ern build` of 7,000 functions takes 5.4 s quiet, the harness's 27 s having been its
+   parallel load.
 3. **A nested group's child answering a peek from its old run.** Found 2026-10-25 by the release
    review's last full run: `nested_group_restarts_in_place_test`, red once under the parallel
    phase's load and green quiet, printed `[Restarted, Restarted] 0 1`, the second child answering
@@ -128,6 +125,13 @@ modules documented apart with an authority of their own. Why it is worth its cos
    `tools/comments.sh`'s listing; the 166 blocks past it split at their turns, and the nine headers
    past 300 words read against the design notes they restated, each keeping what a reader of the
    module needs and pointing at its note.
+7. **Chained top-level lets in the host's compile.** Found 2026-10-26 by item 2: the emitter writes
+   every top-level `let`'s initializer into one function, `'$init'/0`, and where each initializer
+   calls the one before it the host's type pass on that one function grows faster than linearly,
+   1.5 s at 400 lets, 7.6 s at 1,000 and 73 s at 2,000, where 2,000 lets that need nothing of each
+   other take 1.0 s. No program written has a hundred; the shape of the fix is the emitter's, an
+   initializer a function of its own, which the plain form may already be, decided with the user
+   when a program meets it or before 1.0.
 
 ## MVP 4.0 (a shell attached to a running node), about a week
 

@@ -432,22 +432,25 @@ link(Namespace, FormNamespace, #{definitions := Definitions, links := Links,
 %% What the module's own definitions and foreign functions are named by in
 %% its forms: each definition by its hash, a binding by its identity, each
 %% by its name as the standard library's own forms name it, and a foreign
-%% function by its qualified name as a form writes it.
+%% function by its qualified name as a form writes it; each a map's keys,
+%% which a reference is looked up among once.
 own_references(Definitions, ForeignFunctions, Namespace, FormNamespace) ->
     FormName = fun(QualifiedName) ->
                        FormNamespace ++ lists:nthtail(length(Namespace), QualifiedName)
                end,
-    #{hashes => [Hash || #definition{hash = Hash} <- Definitions],
-      names => [QualifiedName || #definition{qualified_name = QualifiedName} <- Definitions]
-          ++ ForeignFunctions,
-      form_names => [FormName(QualifiedName)
-                     || #definition{qualified_name = QualifiedName} <- Definitions]
-          ++ [FormName(QualifiedName) || QualifiedName <- ForeignFunctions]}.
+    #{hashes => maps:from_keys([Hash || #definition{hash = Hash} <- Definitions], own),
+      names => maps:from_keys([QualifiedName || #definition{qualified_name = QualifiedName}
+                                                    <- Definitions] ++ ForeignFunctions, own),
+      form_names => maps:from_keys([FormName(QualifiedName)
+                                    || #definition{qualified_name = QualifiedName}
+                                           <- Definitions]
+                                   ++ [FormName(QualifiedName)
+                                       || QualifiedName <- ForeignFunctions], own)}.
 
-is_own({hash, Hash}, #{hashes := Hashes}) -> lists:member(Hash, Hashes);
-is_own({binding, QualifiedName, _}, #{form_names := Names}) -> lists:member(QualifiedName, Names);
-is_own({named, QualifiedName}, #{names := Names}) -> lists:member(QualifiedName, Names);
-is_own({foreign, QualifiedName, _}, #{form_names := Names}) -> lists:member(QualifiedName, Names).
+is_own({hash, Hash}, #{hashes := Hashes}) -> is_map_key(Hash, Hashes);
+is_own({binding, QualifiedName, _}, #{form_names := Names}) -> is_map_key(QualifiedName, Names);
+is_own({named, QualifiedName}, #{names := Names}) -> is_map_key(QualifiedName, Names);
+is_own({foreign, QualifiedName, _}, #{form_names := Names}) -> is_map_key(QualifiedName, Names).
 
 %% Report §11.1, Appendix H: every reference to a declaration forms make,
 %% and the `<>` of a prelude type the runtime's own operation at that type
