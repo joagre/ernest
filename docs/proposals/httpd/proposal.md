@@ -50,7 +50,7 @@ RFC 6455, for xterm.js.
 
 **What it leaves out.** Extensions, `permessage-deflate` among them, and subprotocols, which xterm.js's attach addon does not ask for.
 
-Behind the socket stands a shell in a container per visitor (`../site/decisions.md`). The pseudo-terminal is the server's: `Os` gains a start under a pseudo-terminal of a given size, and a resize, which the runtime's helper gives by the host's `forkpty` and `TIOCSWINSZ`, and `ernest-httpd` runs `podman run -it --rm` on it, podman giving the container its own terminal and forwarding each resize. The socket's frames carry the terminal's bytes both ways and a resize from xterm.js's fit addon.
+Behind the socket stands a shell in a container per visitor (`../site/decisions.md`). The pseudo-terminal is the server's: `Os` gains a start under a pseudo-terminal of a given size, and a resize, which the runtime's helper gives by the host's `forkpty` and `TIOCSWINSZ`, and `ernest-httpd` runs `podman run -it --rm` on it, podman giving the container its own terminal and forwarding each resize. The socket carries the terminal's bytes both ways, and a few messages beside them, a resize from xterm.js's fit addon among them (*The live shell's server side*).
 
 ## The live shell's server side
 
@@ -64,6 +64,12 @@ Moved here from the site's decisions on 2026-10-26, where the page's side of the
 - Stop and Restart are the page's buttons; what they end, the visitor's container, is the server's.
 
 There is no pool and no manager (decided 2026-10-26). A session outlives a connection (decided 2026-10-27), since moving to another page closes the WebSocket and the site's decisions keep a visitor's shell across pages: `Sessions` holds a session process for each cookie, which starts its command under a terminal and owns it, and which ends, killing the program with it, at its timeout's alarm or at Stop. A connection attaches to its session and detaches when it closes, the idle time running while none is attached; a second tab is a second attach, which detaches the first and tells it so. The server knows terminals and not containers: its configuration says that a WebSocket path runs a command under a terminal for each connection, at most so many at once, with an idle and a total time, and the container is the command's, `podman run -it --rm` with its flags and its image. `Sessions` counts the shells running and each visitor's starts. A session's cookie is drawn from `Crypto.randomBytes`, so it cannot be guessed as the web-server example's can, and is sent `Secure`, `HttpOnly` and `SameSite=Strict`. So `ernest-httpd` stays a general server, a static site and web terminals, and nothing of ernest-lang.org's sandbox is in its code. Pre-started containers are decided only if a container's start is measured slow.
+
+**What the page and the server say** over the one WebSocket (decided 2026-10-27):
+
+- **Binary frames are the terminal's bytes**, both ways and nothing else, reaching xterm.js and the pseudo-terminal untouched.
+- **Text frames are small JSON messages**, read and written through `libs/json`. From the page, `{"resize": [rows, columns]}` and `{"stop": true}`; from the server, `{"warning": 5}`. A key the visitor presses is terminal input and resets the idle time, so the warning needs no answer of its own.
+- **The close code says why a session ended**, from RFC 6455's range for applications: 4001 expired, 4002 taken over by another tab, 4003 unavailable where no shell is free, and 4004 stopped. A close without one of them, or a lost connection, is *disconnected*. Restart is the page's Stop and a new connection, which starts a new session.
 
 ## TLS
 
@@ -206,6 +212,7 @@ The site's content, MVP 4.2, runs beside any of it, since its generator needs no
 - The limits, each configurable: a cap on connections in all and per address by counting `Down`s, a deadline on every write, the configured headers on every response, and no rate limit; the log to standard output; a directory's slash and its missing index (2026-10-27).
 - `libs/crypto` is `sha1` and `randomBytes`; the session's cookie random and `Secure`, `HttpOnly`, `SameSite=Strict`; `connectTls`'s `verify` a constructor (2026-10-27).
 - A session outlives a connection: a session process per cookie owns the shell, connections attach and detach, a second tab's attach detaches the first (2026-10-27).
+- The socket's protocol: binary frames the terminal's bytes, text frames JSON for a resize, Stop and the warning, and close codes 4001 to 4004 for why a session ended (2026-10-27).
 - The running server tested by a client in Ernest, `libs/http` gaining a request's rendering and a response's head read (2026-10-27).
 - The order of work: the report, the runtime, the libraries, a release, then `ernest-httpd` and its deployment (2026-10-27).
 - Files under a root no one else writes: a path holding `..` refused, and no check of links, so the plan's `Fs.readUnder` waits for a root others can write (2026-10-26).
