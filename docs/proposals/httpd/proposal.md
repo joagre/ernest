@@ -178,6 +178,19 @@ ehttpd runs in the foreground, under a unit of `Type=exec`. It writes its access
 
 A change of configuration is a restart. A static site restarts in about a second, and reloading would mean running ehttpd as a node, since `SIGHUP` is a reload only for a node (§8.6). `Type=notify` would need a Unix datagram socket, which Ernest lacks, and `Type=exec` serves.
 
+## The order of work
+
+Decided 2026-10-27, for the plan once the proposal is ready.
+
+1. **The report first**, in Ernest's repository: `Tcp.listenTls` and `connectTls` in E.18, `Os.startTerminal` and `Os.resize` in E.23 through E.0's admission rules, and a section in Appendix G for each of the five libraries.
+2. **The runtime's two additions**: TLS in `Tcp`'s socket process, its handshake after `accept`, and the C helper's `forkpty` and resize behind `Os`, the only changes to the standard library and the riskiest work, before anything stands on them.
+3. **The five libraries**: `base64` and `crypto`, which `websocket` needs; `time`; `http` with its client half; then `websocket`.
+4. **A release of Ernest**, 0.7.0, since `ernest-httpd` is built against an installed Ernest and cannot stand on a checkout.
+5. **`ernest-httpd`**, in its own repository: `Config` and `Static` as pure functions; `Listener`, `Connection` and `AccessLog`, serving the site over plain HTTP; TLS, the redirect listener and the hosts; `Shell` and `Sessions` last, since they stand on the rest.
+6. **The deployment**: the systemd unit, certbot's certificate for the four names, the podman image, and the smoke test against the deployed site.
+
+The site's content, MVP 4.2, runs beside any of it, since its generator needs nothing of the server. The terminal tests dropping `ern_pty.py` for `Os.startTerminal` is an item of its own after step 2.
+
 ## Decided so far
 
 - TLS in `Tcp`, by two functions answering the same socket (2026-10-26).
@@ -192,4 +205,5 @@ A change of configuration is a restart. A static site restarts in about a second
 - A canonical host and its redirect hosts, port 80 a redirect listener serving the ACME challenge, one certificate for all four names, a renewal a restart (2026-10-27).
 - The limits, each configurable: a cap on connections in all and per address by counting `Down`s, a deadline on every write, the configured headers on every response, and no rate limit; the log to standard output; a directory's slash and its missing index (2026-10-27).
 - The running server tested by a client in Ernest, `libs/http` gaining a request's rendering and a response's head read (2026-10-27).
+- The order of work: the report, the runtime, the libraries, a release, then `ernest-httpd` and its deployment (2026-10-27).
 - Files under a root no one else writes: a path holding `..` refused, and no check of links, so the plan's `Fs.readUnder` waits for a root others can write (2026-10-26).
