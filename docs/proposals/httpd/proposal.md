@@ -1,10 +1,10 @@
-# ehttpd, the server for ernest-lang.org
+# ernest-httpd, the server for ernest-lang.org
 
 A starting point, written 2026-10-26 from the first discussion. It states what the server does and what it leaves out; the reasons are given where a choice was made, and stay here until the proposal is decided.
 
 ## What it is for
 
-ehttpd serves one site, ernest-lang.org: static pages generated from Markdown (MVP 4.2), and one WebSocket per visitor that connects xterm.js in the browser to a shell on the server. It implements what that needs of HTTP/1.1 and nothing more. It is a program written in Ernest, in a repository of its own, built against an installed Ernest; `examples/web_server.ern` is its smallest ancestor, whose hand-written parser `libs/http` replaces.
+ehttpd serves one site, ernest-lang.org: static pages generated from Markdown (MVP 4.2), and one WebSocket per visitor that connects xterm.js in the browser to a shell on the server. It implements what that needs of HTTP/1.1 and nothing more. It is a program written in Ernest, in a repository of its own, `ernest-httpd` (decided 2026-10-26), built against an installed Ernest; `examples/web_server.ern` is its smallest ancestor, whose hand-written parser `libs/http` replaces.
 
 ## From the plan's MVP 4.1
 
@@ -63,7 +63,7 @@ Moved here from the site's decisions on 2026-10-26, where the page's side of the
 - A fixed number of containers; when all are taken, the shell is unavailable. Starts per visitor are limited. The numbers come with the host.
 - Stop and Restart are the page's buttons; what they end, the visitor's container, is the server's.
 
-The pool, a fixed number of containers handed one to a visitor, is the server's to keep or a manager's beside it, the first question for this section.
+There is no pool and no manager (decided 2026-10-26). Each visitor's shell is a WebSocket connection, a process, which starts its command under a terminal and owns it, and which ends, killing the program with it, when the connection closes, a timeout's alarm comes or Stop is pressed. The server knows terminals and not containers: its configuration says that a WebSocket path runs a command under a terminal for each connection, at most so many at once, with an idle and a total time, and the container is the command's, `podman run -it --rm` with its flags and its image. One small process counts the shells running and each visitor's starts, and holds the cookie that names a session, so that a second tab takes it over. So `ernest-httpd` stays a general server, a static site and web terminals, and nothing of ernest-lang.org's sandbox is in its code. Pre-started containers are decided only if a container's start is measured slow.
 
 ## TLS
 
@@ -143,4 +143,6 @@ A change of configuration is a restart. A static site restarts in about a second
 - The errors: a failed handshake is `Other(text)`, run in the socket's process after `accept`; `Http.Error` and `WebSocket.Error` named by the status and the close code they answer (2026-10-26).
 - `Http.readHead` in the library beside the parser, bounding the whole head (2026-10-26).
 - `Os.startTerminal`'s contract: one address with `start`, one stream out, `resize` answering `NotATerminal` on pipes, `closeInput` a hangup, no `TERM` of the runtime's (2026-10-26).
+- The repository is `ernest-httpd` (2026-10-26).
+- No container pool and no manager: a process per shell owns its command under a terminal, one counting process limits them, and the container is the command's (2026-10-26).
 - Files under a root no one else writes: a path holding `..` refused, and no check of links, so the plan's `Fs.readUnder` waits for a root others can write (2026-10-26).

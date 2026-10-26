@@ -1,4 +1,4 @@
-# ehttpd
+# ernest-httpd
 
 What each file here is, and which is current. All of it is under discussion, as CLAUDE.md says of a proposal: nothing flows from it into the plan, the log or the report until the proposal is decided.
 
