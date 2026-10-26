@@ -54,7 +54,31 @@ This replaces the plan's separate `libs/tls`, which named the choice to be made 
 - **`libs/http`**: a shim over `erlang:decode_packet/3` with `http_bin`, which reads a request line and one header at a time and answers `more` where the bytes end. Ernest closes the difference, a header's name as a string where the host gives some as atoms, and the host's limits on a line stated; rendering a response is Ernest. No server loop.
 - **`libs/time`**: a shim over the host's `calendar`, a moment of `Clock` written in Common Log Format's form and in RFC 9110's, `Sun, 06 Nov 1994 08:49:37 GMT`, and that form read back for `If-Modified-Since`. Dates are a library's (E.0 rule 2), so `Clock` stays as it is: `Clock.toString` was admitted as the one text form the runtime's own lines write, and nothing more of a calendar enters it.
 - **`libs/crypto`**: SHA-1 for the WebSocket's handshake, a shim over `crypto:hash/2`, beside what the plan names for it.
+- **`libs/websocket`**: the handshake's key and the frames, decoded and encoded, which the server and a client share.
 - **`libs/base64`**: a shim over `base64`.
+
+## The functions, a first cut
+
+Names and shapes by E.0's shape rules, each a draft for the discussion and none decided.
+
+- **`libs/http`.**
+  - `Request`, a method, a target, a version and headers, and `Response`, a status, headers and a body as `Bytes`.
+  - `Http.parseHead(bytes) : Either(Http.Error, Head)`, `Head` either `Incomplete` or the request with the bytes after it, a shim over `decode_packet` driven a line at a time.
+  - `Http.header(request, name) : Optional(String)`, by name in any case.
+  - `Http.render(response) : Bytes` and `Http.reason(status) : String`.
+  - `Http.Error`: a bad request line, a bad header, a line or the headers too long.
+- **`libs/websocket`**, a library of its own and not the server's, since a client wants it too.
+  - `WebSocket.accept(key) : String`.
+  - `WebSocket.decode(bytes) : Either(WebSocket.Error, Decoded)`, a frame or `Incomplete`.
+  - `WebSocket.encode(frame) : Bytes`, a `Frame` one of text, binary, continuation, ping, pong and close.
+- **`libs/crypto`**: `Crypto.sha1(bytes)`, `sha256(bytes)`, `hmac(key, bytes)` and `randomBytes(count)`, each a shim over `crypto`.
+- **`libs/base64`**: `Base64.encode(bytes) : String` and `decode(text) : Optional(Bytes)`.
+- **`libs/time`**, a library and not the standard library's, by E.0's rule for a module over a published specification or a policy and E.15's sentence that nothing of dates but `Clock.toString` is the standard library's (decided 2026-10-26).
+  - `Time.httpDate(time) : String` and `Time.fromHttpDate(text) : Optional(Int)`, over a `Clock` time.
+  - `Time.commonLog(time) : String`.
+  - `Time.civil(time) : Civil`, its year, month, day, hour, minute and second in UTC, from which a program writes any other form.
+- **`Tcp`**: `listenTls` and `connectTls`, as decided.
+- **`Os`**: `startTerminal(program, arguments, rows, columns, ms)`, answering a program as `start` does, and `resize(program, rows, columns)`.
 
 ## Configuration
 
@@ -83,7 +107,7 @@ A change of configuration is a restart. A static site restarts in about a second
 ## Decided so far
 
 - TLS in `Tcp`, by two functions answering the same socket (2026-10-26).
-- `libs/time` for the dates, `Clock` unchanged (2026-10-26).
+- `libs/time` for the dates, a library and not the standard library's, `Clock` unchanged (2026-10-26).
 - A change of configuration is a restart (2026-10-26).
 - The pseudo-terminal on the server through a new start in `Os`, podman inside it (2026-10-26).
 - Files under a root no one else writes: a path holding `..` refused, and no check of links, so the plan's `Fs.readUnder` waits for a root others can write (2026-10-26).
