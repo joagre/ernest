@@ -27,7 +27,7 @@ RFC 9110 states HTTP's semantics and RFC 9112 its HTTP/1.1 message syntax.
 - Persistent connections by default, `Connection: close` honored, and requests answered in the order they came, which a loop that reads one request at a time gives.
 - Every response with `Content-Length`, `Date` and a `Content-Type` from a small table of extensions, which the configuration may extend.
 - `Last-Modified` from the file, and `If-Modified-Since` answered with 304.
-- A directory answered by its `index.html`, a path that names no file by 404, and a path holding `..` refused with 400.
+- A directory answered by its `index.html`; one asked for without its trailing slash answers 301 to the path with it, so that its page's relative links resolve; one without `index.html` answers 404, with no listing. A path that names no file answers 404, and a path holding `..` is refused with 400.
 - The errors a log's reader needs: 400, 404, 405, 408 on a request that comes too slowly, 413, 414 and 431 past the limits, 500, 501 on a transfer coding it does not know, and 505 on another version.
 
 **What it leaves out.**
@@ -70,6 +70,15 @@ There is no pool and no manager (decided 2026-10-26). Each visitor's shell is a 
 The site is served over HTTPS, and ehttpd terminates TLS itself. `Tcp` gains two functions that open a socket over TLS, `Tcp.listenTls(host, port, certificate, key)` and `Tcp.connectTls(host, port, verify, ms)`, and answers the same socket address as a plain one, so that reading, writing, accepting and closing are one set of functions for both (E.18, principle 2). They are two functions and not a `Bool`, by E.0 shape rule 9. The host's `ssl` does the work, whose functions mirror `gen_tcp`'s, so the runtime's socket process holds either kind; a program that is no node starts `ssl` at its first TLS call, and a node has it already for its carrier. `Tcp.accept` answers the socket once the TCP connection is accepted, and the handshake runs in the socket's own process, as the host splits `ssl:transport_accept` from `ssl:handshake`, so that a slow client holds no accept loop; the first `read` or `write` waits for it, and a failed handshake answers there as `Other(text)`, the words `ssl` gives, since no program acts on it otherwise than on another failed connection. The certificate and key are files, renewed by certbot outside the server, which a restart reads again.
 
 This replaces the plan's separate `libs/tls`, which named the choice to be made when it was written.
+
+## Limits against a crowd
+
+Decided 2026-10-27, each number the configuration's.
+
+- **Open connections** have a cap, and a smaller one per remote address. The listener monitors each connection it spawns and counts their `Down`s, and stops accepting at the cap, so that the excess waits in the kernel's backlog and costs the server nothing; it answers no 503, which would spend work on the clients there are too many of.
+- **Every write has a deadline**, `Tcp.write`'s milliseconds, so that a client that asks and never reads loses its connection.
+- **Headers on every response**, a list of names and values in the configuration, the same for every response: `Strict-Transport-Security`, `X-Content-Type-Options: nosniff` and a `Content-Security-Policy` that allows what xterm.js needs. The server has no headers of its own opinion.
+- **No rate limit on requests.** A static file is cheap, the shells have their caps and start limits, and a flood past these is the network's to stop.
 
 ## Hosts, port 80 and the certificate
 
@@ -144,17 +153,19 @@ One JSON file, read through `libs/json`, named on the command line:
 - the limits, on a request line, on the headers and on a WebSocket message;
 - extensions added to the table of content types;
 - the WebSocket's path, its allowed origins and the command that runs a visitor's shell;
-- where the access log is written.
+- the canonical host and the redirect hosts, and the ACME challenge's directory;
+- the caps on open connections, in all and per remote address, and the deadline of a write;
+- the headers sent on every response.
 
 A file that breaks a rule is refused at the start, the message naming the field.
 
 ## The log
 
-Every request is a line of Common Log Format, `host - - [10/Oct/2026:13:55:36 +0000] "GET / HTTP/1.1" 200 2326`, written in UTC, so that logs of two machines agree and the library needs no time zone. A WebSocket's line is written when it closes, its status 101 and its byte count the frames' payloads.
+The log is written to standard output, which the journal keeps and rotates, and to no file of the server's (decided 2026-10-27). Every request is a line of Common Log Format, `host - - [10/Oct/2026:13:55:36 +0000] "GET / HTTP/1.1" 200 2326`, written in UTC, so that logs of two machines agree and the library needs no time zone. A WebSocket's line is written when it closes, its status 101 and its byte count the frames' payloads.
 
 ## Under systemd
 
-ehttpd runs in the foreground, under a unit of `Type=exec`. It writes its access log to the configured file or to standard output, and what goes wrong to standard error, which the journal keeps. It exits with a status that is not 0 when it fails, so that `Restart=on-failure` restarts it. `SIGTERM` stops it in order through `Os.termination`: the listener closes, the requests under way are answered, and the WebSockets are closed with 1001. It binds 80 and 443 through `AmbientCapabilities=CAP_NET_BIND_SERVICE`, as no root.
+ehttpd runs in the foreground, under a unit of `Type=exec`. It writes its access log to standard output and what goes wrong to standard error, both of which the journal keeps and rotates. It exits with a status that is not 0 when it fails, so that `Restart=on-failure` restarts it. `SIGTERM` stops it in order through `Os.termination`: the listener closes, the requests under way are answered, and the WebSockets are closed with 1001. It binds 80 and 443 through `AmbientCapabilities=CAP_NET_BIND_SERVICE`, as no root.
 
 A change of configuration is a restart. A static site restarts in about a second, and reloading would mean running ehttpd as a node, since `SIGHUP` is a reload only for a node (§8.6). `Type=notify` would need a Unix datagram socket, which Ernest lacks, and `Type=exec` serves.
 
@@ -170,4 +181,5 @@ A change of configuration is a restart. A static site restarts in about a second
 - The repository is `ernest-httpd` (2026-10-26).
 - No container pool and no manager: a process per shell owns its command under a terminal, one counting process limits them, and the container is the command's (2026-10-26).
 - A canonical host and its redirect hosts, port 80 a redirect listener serving the ACME challenge, one certificate for all four names, a renewal a restart (2026-10-27).
+- The limits, each configurable: a cap on connections in all and per address by counting `Down`s, a deadline on every write, the configured headers on every response, and no rate limit; the log to standard output; a directory's slash and its missing index (2026-10-27).
 - Files under a root no one else writes: a path holding `..` refused, and no check of links, so the plan's `Fs.readUnder` waits for a root others can write (2026-10-26).
