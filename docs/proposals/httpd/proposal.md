@@ -80,7 +80,13 @@ Names and shapes by E.0's shape rules, each a draft for the discussion and none 
   - `Time.commonLog(time) : String`.
   - `Time.civil(time) : Civil`, its year, month, day, hour, minute and second in UTC, from which a program writes any other form.
 - **`Tcp`**: `listenTls` and `connectTls`, as decided.
-- **`Os`**: `startTerminal(program, arguments, rows, columns, ms)`, answering a program as `start` does, and `resize(program, rows, columns)`.
+- **`Os`**, its contract decided on 2026-10-26:
+  - `Os.startTerminal(command, size) : Either(Io.Error, Address(ProgramMsg))`, the `Command` `start` takes and the address it answers, so that `read`, `write`, `kill`, `monitor` and `give` serve both (principle 2); `size` is `Terminal`'s type for a terminal's rows and columns.
+  - One stream out: a pseudo-terminal merges standard output and standard error, so `read` answers `Stdout(bytes)` alone, then `Exited(status)`, which the page states.
+  - `Os.resize(program, size) : Either(Io.Error, Unit)`: the host sets the terminal's size and the program's foreground process is told, as a resized xterm tells its shell; on a program `start` started it answers `Left(NotATerminal)`.
+  - `closeInput` hangs the terminal up, the program sent the hangup a closed xterm sends, stated on the page.
+  - The terminal starts in the operating system's ordinary mode, echoing and by lines, and the runtime sets no `TERM`: the command's environment does.
+  - The runtime's C helper does the work by the host's `forkpty` and the size's `ioctl` (E.0 rule 1), on Linux and macOS. The terminal tests' `ern_pty.py` could then go, a later item's work.
 
 ## Configuration
 
@@ -114,4 +120,5 @@ A change of configuration is a restart. A static site restarts in about a second
 - The pseudo-terminal on the server through a new start in `Os`, podman inside it (2026-10-26).
 - The errors: a failed handshake is `Other(text)`, run in the socket's process after `accept`; `Http.Error` and `WebSocket.Error` named by the status and the close code they answer (2026-10-26).
 - `Http.readHead` in the library beside the parser, bounding the whole head (2026-10-26).
+- `Os.startTerminal`'s contract: one address with `start`, one stream out, `resize` answering `NotATerminal` on pipes, `closeInput` a hangup, no `TERM` of the runtime's (2026-10-26).
 - Files under a root no one else writes: a path holding `..` refused, and no check of links, so the plan's `Fs.readUnder` waits for a root others can write (2026-10-26).
