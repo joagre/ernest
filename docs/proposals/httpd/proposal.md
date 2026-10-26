@@ -60,10 +60,10 @@ Moved here from the site's decisions on 2026-10-26, where the page's side of the
 - The image holds `ern`, the standard library, `src/libs/`, the examples and a scratch directory, and nothing secret, since a `foreign fn` reads the image and the environment. No network but loopback, so that the guide's `Tcp` examples, which talk to themselves, run. The scratch directory is a size-capped tmpfs, counted into the visitor's memory, so that a program that writes without end ends its own session and no other. The language is whole in the container: no module is forbidden, since nothing done through `Fs`, `Os`, `Tcp` or a `foreign fn` leaves the container, and a shell with fewer modules would be a second mode of the language that the guide's examples would not run in (decided 2026-10-13).
 - A session ends after five minutes without input at the prompt, a program running without input among them, after a five-second warning that a key press answers, or after 30 minutes in all.
 - A second tab takes the session over, and the first says so.
-- A fixed number of containers; when all are taken, the shell is unavailable. Starts per visitor are limited. The numbers come with the host.
+- A fixed number of containers; when all are taken, the shell is unavailable. A visitor's starts are limited to a count within milliseconds, `RestartLimit`'s shape, the visitor being the remote address and not the cookie, which a visitor resets by clearing it (decided 2026-10-27). The numbers come with the host.
 - Stop and Restart are the page's buttons; what they end, the visitor's container, is the server's.
 
-There is no pool and no manager (decided 2026-10-26). A session outlives a connection (decided 2026-10-27), since moving to another page closes the WebSocket and the site's decisions keep a visitor's shell across pages: `Sessions` holds a session process for each cookie, which starts its command under a terminal and owns it, and which ends, killing the program with it, at its timeout's alarm or at Stop. A connection attaches to its session and detaches when it closes, the idle time running while none is attached; a second tab is a second attach, which detaches the first and tells it so. The server knows terminals and not containers: its configuration says that a WebSocket path runs a command under a terminal for each connection, at most so many at once, with an idle and a total time, and the container is the command's, `podman run -it --rm` with its flags and its image. `Sessions` counts the shells running and each visitor's starts. A session's cookie is drawn from `Crypto.randomBytes`, so it cannot be guessed as the web-server example's can, and is sent `Secure`, `HttpOnly` and `SameSite=Strict`. So `ernest-httpd` stays a general server, a static site and web terminals, and nothing of ernest-lang.org's sandbox is in its code. Pre-started containers are decided only if a container's start is measured slow.
+There is no pool and no manager (decided 2026-10-26). A session outlives a connection (decided 2026-10-27), since moving to another page closes the WebSocket and the site's decisions keep a visitor's shell across pages: `Sessions` holds a session process for each cookie, which starts its command under a terminal and owns it, and which ends, killing the program with it, at its timeout's alarm or at Stop. A session starts its command at the page's first resize and not at the connection, so that the shell starts at the panel's size and not a guessed one (decided 2026-10-27). A connection attaches to its session and detaches when it closes, the idle time running while none is attached; a second tab is a second attach, which detaches the first and tells it so. The server knows terminals and not containers: its configuration says that a WebSocket path runs a command under a terminal for each connection, at most so many at once, with an idle and a total time, and the container is the command's, `podman run -it --rm` with its flags and its image. `Sessions` counts the shells running and each visitor's starts. A session's cookie is drawn from `Crypto.randomBytes`, so it cannot be guessed as the web-server example's can, and is sent `Secure`, `HttpOnly` and `SameSite=Strict`. So `ernest-httpd` stays a general server, a static site and web terminals, and nothing of ernest-lang.org's sandbox is in its code. Pre-started containers are decided only if a container's start is measured slow.
 
 **What the page and the server say** over the one WebSocket (decided 2026-10-27):
 
@@ -175,6 +175,52 @@ One JSON file, read through `libs/json`, named on the command line:
 
 A file that breaks a rule is refused at the start, the message naming the field.
 
+An exhaustive example, in `ernest.conf`'s style, its keys in kebab case and its times in milliseconds (2026-10-27):
+
+```json
+{
+  "listeners": [
+    { "kind": "tls", "address": "0.0.0.0", "port": 443,
+      "certificate": "/etc/letsencrypt/live/ernest-lang.org/fullchain.pem",
+      "key": "/etc/letsencrypt/live/ernest-lang.org/privkey.pem" },
+    { "kind": "tls", "address": "::", "port": 443,
+      "certificate": "/etc/letsencrypt/live/ernest-lang.org/fullchain.pem",
+      "key": "/etc/letsencrypt/live/ernest-lang.org/privkey.pem" },
+    { "kind": "redirect", "address": "0.0.0.0", "port": 80,
+      "acme-challenge": "/srv/ernest-httpd/acme" },
+    { "kind": "redirect", "address": "::", "port": 80,
+      "acme-challenge": "/srv/ernest-httpd/acme" }
+  ],
+  "root": "/srv/ernest-lang.org/site",
+  "canonical-host": "ernest-lang.org",
+  "redirect-hosts": ["www.ernest-lang.org", "ernest-lang.se", "www.ernest-lang.se"],
+  "timeouts": { "head": 10000, "idle": 60000, "write": 30000 },
+  "limits": {
+    "request-line": 8192, "headers": 16384,
+    "connections": 1024, "connections-per-address": 32
+  },
+  "content-types": { ".wasm": "application/wasm" },
+  "headers": {
+    "Strict-Transport-Security": "max-age=31536000",
+    "X-Content-Type-Options": "nosniff",
+    "Content-Security-Policy": "default-src 'self'; connect-src 'self' wss://ernest-lang.org"
+  },
+  "access-log": "/var/log/ernest-httpd/access.log",
+  "shell": {
+    "path": "/shell/session",
+    "origins": ["https://ernest-lang.org"],
+    "command": ["podman", "run", "-it", "--rm", "--network", "none",
+                "--memory", "256m", "--pids-limit", "128", "ernest-shell"],
+    "most-at-once": 20,
+    "starts": { "count": 10, "within": 3600000 },
+    "idle": 300000, "warning": 5000, "total": 1800000,
+    "message-limit": 65536
+  }
+}
+```
+
+Each address family has listeners of its own, `0.0.0.0` and `::`, so that nothing depends on the kernel's dual stack. The podman flags are the site's, an example of the command's and no rule of the server's.
+
 ## The log
 
 The log is a file the configuration names (decided 2026-10-27, superseding standard output the same day). `AccessLog` writes by the path and holds no file open: each write is `Fs.append`, which opens, appends and closes, so that logrotate's ordinary rotation, a rename and a new file, needs no signal and no reload, the next append opening the new file by its name, and no line is lost. It appends in batches, every line waiting in its mailbox in one append, so that a busy server opens the file once for many lines and the cost per line falls as the load rises; what has arrived decides the batch, and no timer. Every request is a line of Common Log Format, `host - - [10/Oct/2026:13:55:36 +0000] "GET / HTTP/1.1" 200 2326`, written in UTC, so that logs of two machines agree and the library needs no time zone. A WebSocket's line is written when it closes, its status 101 and its byte count the frames' payloads.
@@ -215,6 +261,7 @@ The site's content, MVP 4.2, runs beside any of it, since its generator needs no
 - A session outlives a connection: a session process per cookie owns the shell, connections attach and detach, a second tab's attach detaches the first (2026-10-27).
 - The socket's protocol: binary frames the terminal's bytes, text frames JSON for a resize, Stop and the warning, and close codes 4001 to 4004 for why a session ended (2026-10-27).
 - The access log a configured file, appended by its path in batches of what is waiting, so that logrotate needs no signal (2026-10-27).
+- The configuration's exhaustive example; starts limited to a count within milliseconds by remote address; a session started at the page's first resize; a listener per address family (2026-10-27).
 - The running server tested by a client in Ernest, `libs/http` gaining a request's rendering and a response's head read (2026-10-27).
 - The order of work: the report, the runtime, the libraries, a release, then `ernest-httpd` and its deployment (2026-10-27).
 - Files under a root no one else writes: a path holding `..` refused, and no check of links, so the plan's `Fs.readUnder` waits for a root others can write (2026-10-26).
