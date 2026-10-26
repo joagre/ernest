@@ -64,6 +64,7 @@ Names and shapes by E.0's shape rules, each a draft for the discussion and none 
 - **`libs/http`.**
   - `Request`, a method, a target, a version and headers, and `Response`, a status, headers and a body as `Bytes`.
   - `Http.parseHead(bytes) : Either(Http.Error, Head)`, `Head` either `Incomplete` or the request with the bytes after it, a shim over `decode_packet` driven a line at a time.
+  - `Http.readHead(socket, carried, limits, ms) : Either(Http.ReadError, #(Request, Bytes))`, written over `parseHead`: `carried` the bytes left after the last request, so a pipelined one is kept, and `ms` bounding the whole head and not each read, so a client that sends a byte a second meets 408. `Http.ReadError` is `Head(Http.Error)` or `Socket(Io.Error)`. It reads one head and returns; accepting, dispatching, keeping a connection and logging are the server's.
   - `Http.header(request, name) : Optional(String)`, by name in any case.
   - `Http.render(response) : Bytes` and `Http.reason(status) : String`.
   - `Http.Error`, named by what the server answers: `Malformed`, 400, `TargetTooLong`, 414, and `HeadersTooLarge`, 431. A version other than 1.0 or 1.1 parses, and the server answers it 505.
@@ -112,4 +113,5 @@ A change of configuration is a restart. A static site restarts in about a second
 - A change of configuration is a restart (2026-10-26).
 - The pseudo-terminal on the server through a new start in `Os`, podman inside it (2026-10-26).
 - The errors: a failed handshake is `Other(text)`, run in the socket's process after `accept`; `Http.Error` and `WebSocket.Error` named by the status and the close code they answer (2026-10-26).
+- `Http.readHead` in the library beside the parser, bounding the whole head (2026-10-26).
 - Files under a root no one else writes: a path holding `..` refused, and no check of links, so the plan's `Fs.readUnder` waits for a root others can write (2026-10-26).
