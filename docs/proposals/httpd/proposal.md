@@ -107,6 +107,7 @@ Names and shapes by E.0's shape rules, each a draft for the discussion and none 
   - `Http.readHead(socket, carried, limits, ms) : Either(Http.ReadError, #(Request, Bytes))`, written over `parseHead`: `carried` the bytes left after the last request, so a pipelined one is kept, and `ms` bounding the whole head and not each read, so a client that sends a byte a second meets 408. `Http.ReadError` is `Head(Http.Error)` or `Socket(Io.Error)`. It reads one head and returns; accepting, dispatching, keeping a connection and logging are the server's.
   - `Http.header(request, name) : Optional(String)`, by name in any case.
   - `Http.render(response) : Bytes` and `Http.reason(status) : String`.
+  - For a client, the tests' first: a request rendered, and a response's head read from a socket as `readHead` reads a request's.
   - `Http.Error`, named by what the server answers: `Malformed`, 400, `TargetTooLong`, 414, and `HeadersTooLarge`, 431. A version other than 1.0 or 1.1 parses, and the server answers it 505.
 - **`libs/websocket`**, a library of its own and not the server's, since a client wants it too.
   - `WebSocket.accept(key) : String`.
@@ -142,6 +143,14 @@ A guess at `ernest-httpd`'s modules by the jobs above, each with one job as the 
 - **`AccessLog`**: the process that owns the log file and writes each line of Common Log Format through `libs/time`, so that lines from many connections never interleave.
 
 Five of them are processes for the program's life or a connection's, the listener, a connection, a shell and the two that hold state; `Static` and `Config` are functions over their file reads, where the tests begin.
+
+## How it is tested
+
+Decided 2026-10-27.
+
+- **The libraries**, in Ernest's repository, with the standard library's discipline: doc examples and `Test.Case`s run by `ern test`. `Http.parseHead` and `WebSocket.decode` are pure, bytes in and values out, the RFCs' own examples among them, RFC 6455's handshake key and its accept value first.
+- **`Static` and `Config`**, as functions over a scratch directory: a path to its response, a bad file to its refusal.
+- **The running server**, started on port 0 and talked to by a client in Ernest: `libs/http` gains a request rendered and a response's head read, `readHead`'s twin, and `libs/websocket`'s `FromServer` role is used from the other side, the same code a user's client would want. No test is written in Python, which would be the gap `ern_pty.py` meets. `curl` stays as one smoke test, run by hand against the deployed site.
 
 ## Configuration
 
@@ -182,4 +191,5 @@ A change of configuration is a restart. A static site restarts in about a second
 - No container pool and no manager: a process per shell owns its command under a terminal, one counting process limits them, and the container is the command's (2026-10-26).
 - A canonical host and its redirect hosts, port 80 a redirect listener serving the ACME challenge, one certificate for all four names, a renewal a restart (2026-10-27).
 - The limits, each configurable: a cap on connections in all and per address by counting `Down`s, a deadline on every write, the configured headers on every response, and no rate limit; the log to standard output; a directory's slash and its missing index (2026-10-27).
+- The running server tested by a client in Ernest, `libs/http` gaining a request's rendering and a response's head read (2026-10-27).
 - Files under a root no one else writes: a path holding `..` refused, and no check of links, so the plan's `Fs.readUnder` waits for a root others can write (2026-10-26).
