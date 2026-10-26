@@ -4,7 +4,7 @@ A starting point, written 2026-10-26 from the first discussion. It states what t
 
 ## What it is for
 
-`ernest-httpd` serves one site, ernest-lang.org: static pages generated from Markdown (MVP 4.2), and one WebSocket per visitor that connects xterm.js in the browser to a shell on the server. It implements what that needs of HTTP/1.1 and nothing more. It is a program written in Ernest, in a repository of its own, `ernest-httpd` (decided 2026-10-26), built against an installed Ernest; `examples/web_server.ern` is its smallest ancestor, whose hand-written parser `libs/http` replaces.
+`ernest-httpd` serves one site, ernest-lang.org: static pages generated from Markdown (MVP 4.2), and one WebSocket per visitor that connects xterm.js in the browser to a shell on the server. It implements what that needs of HTTP/1.1 and nothing more. It is a program written in Ernest, in a repository of its own, `ernest-httpd` (decided 2026-10-26), under Ernest's own license (decided 2026-10-27), built against an installed Ernest; `examples/web_server.ern` is its smallest ancestor, whose hand-written parser `libs/http` replaces.
 
 ## From the plan's MVP 4.1
 
@@ -28,6 +28,11 @@ RFC 9110 states HTTP's semantics and RFC 9112 its HTTP/1.1 message syntax.
 - Every response with `Content-Length`, `Date` and a `Content-Type` from a small table of extensions, which the configuration may extend, text types with `; charset=utf-8`.
 - `Last-Modified` from the file, and `If-Modified-Since` answered with 304.
 - A directory answered by its `index.html`; one asked for without its trailing slash answers 301 to the path with it, so that its page's relative links resolve; one without `index.html` answers 404, with no listing. A path that names no file answers 404, and a path holding `..` is refused with 400.
+- The path is percent-decoded first, then normalized, then checked for `..`, so that `/%2e%2e/` is refused as `/../` is; an encoded slash, `%2F`, answers 400, since no name on the site holds one; the query is ignored (decided 2026-10-27).
+- A name beginning with `.` answers 404, `/.well-known/` on the redirect listener aside, so that nothing like a `.git` or an editor's backup is ever served (decided 2026-10-27).
+- An error answers a short body of plain text, and a 404 the root's `404.html` where it exists, with the status 404 (decided 2026-10-27).
+- No `Cache-Control`: `Last-Modified` and 304 make a revisit a cheap check, and headers by path wait for a measured need (decided 2026-10-27).
+- The content types built in are `html`, `css`, `js`, `json`, `svg`, `png`, `ico`, `woff2`, `txt` and `wasm`, the configuration adding the rest (decided 2026-10-27).
 - The errors a log's reader needs: 400, 404, 405, 408 on a request that comes too slowly, 413 on a request with a body, 414 and 431 past the limits, 421 on a host it does not serve, 500, and 505 on another version.
 
 **What it leaves out.**
@@ -63,7 +68,7 @@ Moved here from the site's decisions on 2026-10-26, where the page's side of the
 - A fixed number of containers; when all are taken, the shell is unavailable. A visitor's starts are limited to a count within milliseconds, `RestartLimit`'s shape, the visitor being the remote address and not the cookie, which a visitor resets by clearing it (decided 2026-10-27). The numbers come with the host.
 - Stop and Restart are the page's buttons; what they end, the visitor's container, is the server's.
 
-There is no pool and no manager (decided 2026-10-26). A session outlives a connection (decided 2026-10-27), since moving to another page closes the WebSocket and the site's decisions keep a visitor's shell across pages: `Sessions` holds a session process for each cookie, which starts its command under a terminal and owns it, and which ends, killing the program with it, at its timeout's alarm or at Stop. A session starts its command at the page's first resize and not at the connection, so that the shell starts at the panel's size and not a guessed one (decided 2026-10-27). A connection attaches to its session and detaches when it closes, the idle time running while none is attached; a second tab is a second attach, which detaches the first and tells it so. The server knows terminals and not containers: its configuration says that a WebSocket path runs a command under a terminal for each connection, at most so many at once, with an idle and a total time, and the container is the command's, `podman run -it --rm` with its flags and its image. `Sessions` counts the shells running and each visitor's starts. A session's cookie is drawn from `Crypto.randomBytes`, so it cannot be guessed as the web-server example's can, and is sent `Secure`, `HttpOnly` and `SameSite=Strict`. So `ernest-httpd` stays a general server, a static site and web terminals, and nothing of ernest-lang.org's sandbox is in its code. Pre-started containers are decided only if a container's start is measured slow.
+There is no pool and no manager (decided 2026-10-26). A session outlives a connection (decided 2026-10-27), since moving to another page closes the WebSocket and the site's decisions keep a visitor's shell across pages: `Sessions` holds a session process for each cookie, which starts its command under a terminal and owns it, and which ends, killing the program with it, at its timeout's alarm or at Stop. A session starts its command at the page's first resize and not at the connection, so that the shell starts at the panel's size and not a guessed one (decided 2026-10-27). A connection attaches to its session and detaches when it closes, the idle time running while none is attached; a second tab is a second attach, which detaches the first and tells it so. The server knows terminals and not containers: its configuration says that a WebSocket path runs a command under a terminal for each connection, at most so many at once, with an idle and a total time, and the container is the command's, `podman run -it --rm` with its flags and its image. `Sessions` counts the shells running and each visitor's starts. A session's cookie is set on the WebSocket's 101 response where the request carried none, so that the static pages set no cookie and the privacy line can say that the shell alone does (decided 2026-10-27). It is drawn from `Crypto.randomBytes`, so it cannot be guessed as the web-server example's can, and is sent `Secure`, `HttpOnly` and `SameSite=Strict`. So `ernest-httpd` stays a general server, a static site and web terminals, and nothing of ernest-lang.org's sandbox is in its code. Pre-started containers are decided only if a container's start is measured slow.
 
 **What the page and the server say** over the one WebSocket (decided 2026-10-27):
 
@@ -229,6 +234,8 @@ The log is a file the configuration names (decided 2026-10-27, superseding stand
 
 `ernest-httpd` runs in the foreground, under a unit of `Type=exec`. It writes its access log to the configured file, which logrotate rotates with no `postrotate`, and what goes wrong to standard error, which the journal keeps. It exits with a status that is not 0 when it fails, so that `Restart=on-failure` restarts it. `SIGTERM` stops it in order through `Os.termination`: the listener closes, the requests under way are answered, and the WebSockets are closed with 1001. It binds 80 and 443 through `AmbientCapabilities=CAP_NET_BIND_SERVICE`, as no root.
 
+It is run as `ern run ernest-httpd.erc /etc/ernest-httpd/config.json`, the configuration's path its one argument, which the unit's `ExecStart` says, and the unit's `TimeoutStopSec` stands above the write deadline, so that an orderly stop ends before systemd kills it (decided 2026-10-27).
+
 A change of configuration is a restart. A static site restarts in about a second, and reloading would mean running the server as a node, since `SIGHUP` is a reload only for a node (§8.6). `Type=notify` would need a Unix datagram socket, which Ernest lacks, and `Type=exec` serves.
 
 ## The order of work
@@ -262,6 +269,7 @@ The site's content, MVP 4.2, runs beside any of it, since its generator needs no
 - The socket's protocol: binary frames the terminal's bytes, text frames JSON for a resize, Stop and the warning, and close codes 4001 to 4004 for why a session ended (2026-10-27).
 - The access log a configured file, appended by its path in batches of what is waiting, so that logrotate needs no signal (2026-10-27).
 - The configuration's exhaustive example; starts limited to a count within milliseconds by remote address; a session started at the page's first resize; a listener per address family (2026-10-27).
+- The path decoded before its check and `%2F` refused, dot files 404, error bodies plain with the root's `404.html`, no `Cache-Control`, the cookie set on the 101, how it is run with `TimeoutStopSec`, the built-in content types, Ernest's license (2026-10-27).
 - The running server tested by a client in Ernest, `libs/http` gaining a request's rendering and a response's head read (2026-10-27).
 - The order of work: the report, the runtime, the libraries, a release, then `ernest-httpd` and its deployment (2026-10-27).
 - Files under a root no one else writes: a path holding `..` refused, and no check of links, so the plan's `Fs.readUnder` waits for a root others can write (2026-10-26).
