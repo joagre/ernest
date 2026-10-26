@@ -23,8 +23,8 @@ RFC 9110 states HTTP's semantics and RFC 9112 its HTTP/1.1 message syntax.
 
 - The methods `GET` and `HEAD`. Any other method answers 405 with `Allow: GET, HEAD`.
 - A request target in origin form, and one in absolute form taken by its path, which RFC 9112 asks a server to accept.
-- `Host`, required: a request without it answers 400.
-- Persistent connections by default, `Connection: close` honored, and requests answered in the order they came, which a loop that reads one request at a time gives.
+- `Host`, required of HTTP/1.1: a 1.1 request without it answers 400, and a 1.0 request without it, which HTTP/1.0 allows, is served as the canonical host (decided 2026-10-27).
+- Persistent connections by default for HTTP/1.1, and for 1.0 only where it sent `Connection: keep-alive`, as RFC 9112 has it (decided 2026-10-27); `Connection: close` honored, and requests answered in the order they came, which a loop that reads one request at a time gives.
 - Every response with `Content-Length`, `Date` and a `Content-Type` from a small table of extensions, which the configuration may extend, text types with `; charset=utf-8`.
 - `Last-Modified` from the file, and `If-Modified-Since` answered with 304.
 - A directory answered by its `index.html`; one asked for without its trailing slash answers 301 to the path with it, so that its page's relative links resolve; one without `index.html` answers 404, with no listing. A path that names no file answers 404, and a path holding `..` is refused with 400.
@@ -299,6 +299,7 @@ The site's content, MVP 4.2, runs beside any of it, since its generator needs no
 - The configuration's exhaustive example; starts limited to a count within milliseconds by remote address; a session started at the page's first resize; a listener per address family (2026-10-27).
 - The path decoded before its check and `%2F` refused, dot files 404, error bodies plain with the root's `404.html`, no `Cache-Control`, the cookie set on the 101, how it is run with `TimeoutStopSec`, the built-in content types, Ernest's license (2026-10-27).
 - The security section: log lines escaped, `Location` from an accepted target, ambiguous requests refused, error bodies bare, fragments counted as they come, a detached session not read, TLS 1.2 and 1.3, the key's mode checked, rootless podman locked down, and the unit's hardening without `NoNewPrivileges` (2026-10-27).
+- HTTP/1.0: a request without `Host` served as the canonical host, its connection closed after the response unless it asked to keep it (2026-10-27).
 - The running server tested by a client in Ernest, `libs/http` gaining a request's rendering and a response's head read (2026-10-27).
 - The order of work: the report, the runtime, the libraries, an installation from the checkout, `ernest-httpd` and its deployment, then a release when the site is served (2026-10-27).
 - Files under a root no one else writes: a path holding `..` refused, and no check of links, so the plan's `Fs.readUnder` waits for a root others can write (2026-10-26).
