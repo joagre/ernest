@@ -434,7 +434,7 @@ Map.fromList([#("a", 2), #("b", 2)]) : Map(String, Int)
 Set.fromList([1, 2, 3]) : Set(Int)
 ```
 
-`Map.update` sees the entry as an `Optional`, present or not, and stores what the function returns: the counting idiom in one call.
+`Map.update` sees the entry as an `Optional`, present or not, and stores what the function returns: the counting idiom in one call. A present entry is changed the same way and an absent one left absent: `Map.update(map, key, fn(found) = Optional.map(found, f))`.
 
 Map keys and set elements need equality. `==` is defined on every type except one that contains a function, an address or a reply, the `Reply` an answer goes back on (§4.2). On a value of a foreign type, `Foreign.Term` (§8.3) among them, it is the runtime's exact equality (report §3.10). A map keyed by addresses is a type error at its first operation, since an address has no equality; key it by the process behind each address instead (§5.5). The compiler infers which type variables need equality, and a printed type marks them (§2.9).
 
@@ -917,7 +917,7 @@ Ernest 0.6.0. :help for the commands, :quit to leave.
 Address.call : (Address(m), (Reply(a)) -> m, Int) -> Optional(a)
 ```
 
-`Address.call(counter, Get, 1000)` makes a fresh `Reply`, gives it to the function that builds the request, here `Get`, a positional constructor and so a function (§2.3), sends the request to `counter`, and waits up to 1000 ms. A request that carries more than its reply, or whose reply is a named field, is built by a lambda: `fn(reply) = Add(amount = 5, reply = reply)`.
+`Address.call(counter, Get, 1000)` makes a fresh `Reply`, gives it to the function that builds the request, here `Get`, a positional constructor and so a function (§2.3), sends the request to `counter`, and waits up to 1000 ms. A request that carries more than its reply, or whose reply is a named field, is built by a lambda: `fn(reply) = Add(amount = 5, reply = reply)`. A request called from many places is built by a function of its own, `fn add(amount) = fn(reply) = Add(amount = amount, reply = reply)`, and each call is `Address.call(counter, add(5), 1000)`.
 
 The call returns `Some(v)` for an answer and `None` for none. `None` does not cancel the work: the recipient may still be computing, so a request that changes state and is sent again may change it twice. An answer that comes late is dropped and never reaches the caller's mailbox, so `Address.call` works whatever that mailbox's type is (report §6.6).
 

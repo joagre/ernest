@@ -107,15 +107,9 @@ modules documented apart with an authority of their own. Why it is worth its cos
    placed in a test of the runtime's, by the order the nested group restarts its children in and
    the moment each child's mailbox is emptied against the group's report, then the rule or the
    code corrected; recorded in the log as it was found (*The Release Review Before 0.6.0*).
-4. **What the newcomer's feedback left.** Entries 165 to 169 of `docs/language_feedback.md`, the
-   release review's N-L1 to N-L5 of 2026-10-25: a request of named fields needing a lambda at every
-   call and a one-field constructor being no function, a test unable to wait until a `Down` is
-   handled, text built by `<>` chains, a planned fault printing in a test's output, and one field of
-   a record in a map changed by three operations.
-
-   Each decided on the principles and recorded as the
-   file says, a report change, a library function or a line in the log; 165 and 167 were dropped
-   before as 146 and interpolation, and are read again only for what the newcomer added.
+4. **What the newcomer's feedback left**, done 2026-10-26 (the log's *What the Newcomer's Feedback
+   Left*): 165, 167, 168 and 169 dropped, by principles 2, 3 and 5, the guide gaining the
+   request-building function and `Map.update`'s present-entry line; 166 decided as item 8.
 5. **The second cut, §8.7 to E.27**, done 2026-10-26 (the log's *The Second Cut, §8.7 to E.27*): nine
    paragraphs of contracts, what a spawn, a compute, a utilization, an offer and a find answer and
    when, under E.27 as they stood, three restatements gone, §8.7 at 2,886 words of rules, each
@@ -132,6 +126,13 @@ modules documented apart with an authority of their own. Why it is worth its cos
    other take 1.0 s. No program written has a hundred; the shape of the fix is the emitter's, an
    initializer a function of its own, which the plain form may already be, decided with the user
    when a program meets it or before 1.0.
+8. **`Test.until`.** Decided with the user on 2026-10-26 from feedback 166 (the log's *What the
+   Newcomer's Feedback Left*): a test that waits for a server to show the effect of a `Down` the
+   runtime delivered has no order to wait on, since a `Down` has none with a message another process
+   sends after the death, and the newcomer slept a chosen number. `Test.until(test, ms)` runs
+   `test()` again until it passes or the milliseconds end, answering the last outcome: a bounded
+   wait on what the test means, Ernest closing around the host (E.0 rule 1), its page and its test
+   with it, and the guide's §5.2 saying the order is not given and this is how a test waits for it.
 
 ## MVP 4.0 (a shell attached to a running node), about a week
 
