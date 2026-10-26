@@ -110,6 +110,21 @@ Names and shapes by E.0's shape rules, each a draft for the discussion and none 
   - The terminal starts in the operating system's ordinary mode, echoing and by lines, and the runtime sets no `TERM`: the command's environment does.
   - The runtime's C helper does the work by the host's `forkpty` and the size's `ioctl` (E.0 rule 1), on Linux and macOS. The terminal tests' `ern_pty.py` could then go, a later item's work.
 
+## The program's modules, a first sketch
+
+A guess at `ernest-httpd`'s modules by the jobs above, each with one job as the style guide asks (2026-10-27); none decided.
+
+- **`Main`**: reads the arguments, loads the configuration, starts the rest, and stops in order at `Os.termination`, closing the listeners, finishing the requests under way and closing the shells with 1001.
+- **`Config`**: the JSON read through `libs/json` into one record, and every rule it checks, so that a bad file is refused at the start with its field named.
+- **`Listener`**: one per listen address, plain or TLS, accepting and spawning a connection for each socket, and nothing else.
+- **`Connection`**: a socket's life, reading heads through `Http.readHead` with the bytes carried over, keeping the connection or closing it, the idle deadline, and handing each request to `Static` or, at an upgrade on the shell's path, to `Shell`.
+- **`Static`**: a request to a response, the path resolved under the root and `..` refused, the index file, the table of content types, `Last-Modified` and 304.
+- **`Shell`**: one WebSocket session, the handshake through `libs/websocket`, the command started by `Os.startTerminal`, bytes both ways, a resize to `Os.resize`, and its end by a close, an alarm or Stop.
+- **`Sessions`**: the counting process, holding the shells running, each visitor's starts and the cookie that names a session.
+- **`AccessLog`**: the process that owns the log file and writes each line of Common Log Format through `libs/time`, so that lines from many connections never interleave.
+
+Four of them are processes for the program's life or a connection's, the listener, a connection, a shell and the two that hold state; `Static` and `Config` are functions over their file reads, where the tests begin.
+
 ## Configuration
 
 One JSON file, read through `libs/json`, named on the command line:
