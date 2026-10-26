@@ -245,9 +245,10 @@ Decided 2026-10-27, for the plan once the proposal is ready.
 1. **The report first**, in Ernest's repository: `Tcp.listenTls` and `connectTls` in E.18, `Os.startTerminal` and `Os.resize` in E.23 through E.0's admission rules, and a section in Appendix G for each of the five libraries.
 2. **The runtime's two additions**: TLS in `Tcp`'s socket process, its handshake after `accept`, and the C helper's `forkpty` and resize behind `Os`, the only changes to the standard library and the riskiest work, before anything stands on them.
 3. **The five libraries**: `base64` and `crypto`, which `websocket` needs; `time`; `http` with its client half; then `websocket`.
-4. **A release of Ernest**, 0.7.0, since `ernest-httpd` is built against an installed Ernest and cannot stand on a checkout.
+4. **An installation from the checkout**, `make install` into a prefix, which `ernest-httpd` builds against, since it is built against an installed Ernest and never against the source tree; a gap the server finds in a library is fixed in the checkout and installed again, with no release between (decided 2026-10-27, in place of a release at this step).
 5. **`ernest-httpd`**, in its own repository: `Config` and `Static` as pure functions; `Listener`, `Connection` and `AccessLog`, serving the site over plain HTTP; TLS, the redirect listener and the hosts; `Shell` and `Sessions` last, since they stand on the rest.
 6. **The deployment**: the systemd unit, certbot's certificate for the four names, the podman image, and the smoke test against the deployed site.
+7. **A release of Ernest**, 0.7.0, when the server first serves the site, carrying the libraries after their first real user has shaped them.
 
 The site's content, MVP 4.2, runs beside any of it, since its generator needs nothing of the server. The terminal tests dropping `ern_pty.py` for `Os.startTerminal` is an item of its own after step 2.
 
@@ -271,5 +272,5 @@ The site's content, MVP 4.2, runs beside any of it, since its generator needs no
 - The configuration's exhaustive example; starts limited to a count within milliseconds by remote address; a session started at the page's first resize; a listener per address family (2026-10-27).
 - The path decoded before its check and `%2F` refused, dot files 404, error bodies plain with the root's `404.html`, no `Cache-Control`, the cookie set on the 101, how it is run with `TimeoutStopSec`, the built-in content types, Ernest's license (2026-10-27).
 - The running server tested by a client in Ernest, `libs/http` gaining a request's rendering and a response's head read (2026-10-27).
-- The order of work: the report, the runtime, the libraries, a release, then `ernest-httpd` and its deployment (2026-10-27).
+- The order of work: the report, the runtime, the libraries, an installation from the checkout, `ernest-httpd` and its deployment, then a release when the site is served (2026-10-27).
 - Files under a root no one else writes: a path holding `..` refused, and no check of links, so the plan's `Fs.readUnder` waits for a root others can write (2026-10-26).
