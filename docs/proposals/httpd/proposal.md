@@ -91,6 +91,32 @@ Decided 2026-10-27, each number the configuration's.
 - **Headers on every response**, a list of names and values in the configuration, the same for every response: `Strict-Transport-Security`, `X-Content-Type-Options: nosniff` and a `Content-Security-Policy` that allows what xterm.js needs, `wss:` for the shell's socket among it. The server has no headers of its own opinion.
 - **No rate limit on requests.** A static file is cheap, the shells have their caps and start limits, and a flood past these is the network's to stop.
 
+## Security
+
+Decided 2026-10-27, beside what the sections above decide of the path, the hosts, the limits, the socket's origin and the cookie.
+
+**What the server writes from a client's bytes.**
+
+- A line of the access log escapes `"`, `\` and every byte outside printable ASCII as `\xHH`, as Apache's does, so that no request forges a line.
+- A redirect's `Location` is built from the canonical host and a target the parser accepted, and a target holding a control byte answers 400, so that no client splits a response.
+- Two `Host` headers, or a header folded over two lines, answer 400; with bodies refused, request smuggling has nothing else to work with.
+- A 500's body is its plain line alone; the fault and its trace go to standard error and never to the client.
+
+**The WebSocket.**
+
+- A message's fragments count toward its limit as they arrive, and a control frame past RFC 6455's 125 bytes is a protocol error.
+- A detached session stops reading its terminal, so that its program blocks on output as on a full terminal and nothing is buffered without bound while no tab is attached; reading resumes at the next attach.
+
+**TLS and keys.**
+
+- TLS 1.2 and 1.3 alone, with the host's default ciphers.
+- The private key is readable by the server's user alone, which `Config` checks at the start, as a node checks its own key.
+
+**The host.**
+
+- Rootless podman under a dedicated unprivileged user, the container `--read-only`, `--cap-drop=ALL` and `--security-opt=no-new-privileges`; `--network none` keeps loopback, as the site's decisions ask.
+- The unit takes `ProtectSystem=strict`, `PrivateTmp` and `ReadWritePaths` narrowed to the log's directory, and leaves out `NoNewPrivileges=yes`, which breaks rootless podman's setuid `newuidmap`, saying so in a comment.
+
 ## Hosts, port 80 and the certificate
 
 Decided 2026-10-27.
@@ -215,6 +241,7 @@ An exhaustive example, in `ernest.conf`'s style, its keys in kebab case and its 
     "path": "/shell/session",
     "origins": ["https://ernest-lang.org"],
     "command": ["podman", "run", "-it", "--rm", "--network", "none",
+                "--read-only", "--cap-drop=ALL", "--security-opt=no-new-privileges",
                 "--memory", "256m", "--pids-limit", "128", "ernest-shell"],
     "most-at-once": 20,
     "starts": { "count": 10, "within": 3600000 },
@@ -271,6 +298,7 @@ The site's content, MVP 4.2, runs beside any of it, since its generator needs no
 - The access log a configured file, appended by its path in batches of what is waiting, so that logrotate needs no signal (2026-10-27).
 - The configuration's exhaustive example; starts limited to a count within milliseconds by remote address; a session started at the page's first resize; a listener per address family (2026-10-27).
 - The path decoded before its check and `%2F` refused, dot files 404, error bodies plain with the root's `404.html`, no `Cache-Control`, the cookie set on the 101, how it is run with `TimeoutStopSec`, the built-in content types, Ernest's license (2026-10-27).
+- The security section: log lines escaped, `Location` from an accepted target, ambiguous requests refused, error bodies bare, fragments counted as they come, a detached session not read, TLS 1.2 and 1.3, the key's mode checked, rootless podman locked down, and the unit's hardening without `NoNewPrivileges` (2026-10-27).
 - The running server tested by a client in Ernest, `libs/http` gaining a request's rendering and a response's head read (2026-10-27).
 - The order of work: the report, the runtime, the libraries, an installation from the checkout, `ernest-httpd` and its deployment, then a release when the site is served (2026-10-27).
 - Files under a root no one else writes: a path holding `..` refused, and no check of links, so the plan's `Fs.readUnder` waits for a root others can write (2026-10-26).
