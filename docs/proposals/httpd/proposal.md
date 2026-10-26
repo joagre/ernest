@@ -71,6 +71,15 @@ The site is served over HTTPS, and ehttpd terminates TLS itself. `Tcp` gains two
 
 This replaces the plan's separate `libs/tls`, which named the choice to be made when it was written.
 
+## Hosts, port 80 and the certificate
+
+Decided 2026-10-27.
+
+- **The hosts.** The configuration names a `canonical-host`, `ernest-lang.org`, and its `redirect-hosts`, `www.ernest-lang.org`, `ernest-lang.se` and `www.ernest-lang.se`. On HTTPS a request to a redirect host answers 301 to `https://` and the canonical host with the same target. A host that is neither answers 421. A redirect is built from the configured host alone and never from the one a request sent, so that a forged `Host` cannot make the server a redirector to anywhere.
+- **Port 80** is a listener of a third kind beside plain and TLS, `redirect`. A request under `/.well-known/acme-challenge/` is served from a configured directory, for any of the hosts, so that certbot's `--webroot` mode renews without the server stopping and without the port. Every other request answers 301 to `https://` and the canonical host with the same target. With `Strict-Transport-Security` sent on HTTPS, a browser that has visited once does not use port 80 again.
+- **One certificate** names all four hosts, which Let's Encrypt issues as one file and one key, so the server chooses no certificate by name. The `.se` names must be in it, since a browser that tries HTTPS first checks the certificate before it sees a redirect.
+- **A renewal is a restart.** Certbot's deploy hook, which runs only when the certificate was renewed, about once in 60 days, restarts the server; the live shells end, their pages showing *disconnected*. A reload without restarting would need `Tcp` to give an accepted socket new certificates, machinery in the standard library for one event in two months, decided only if a site's shells must not drop.
+
 ## The libraries it asks for
 
 - **`libs/http`**: a shim over `erlang:decode_packet/3` with `http_bin`, which reads a request line and one header at a time and answers `more` where the bytes end. Ernest closes the difference, a header's name as a string where the host gives some as atoms, and the host's limits on a line stated; rendering a response is Ernest. No server loop.
@@ -160,4 +169,5 @@ A change of configuration is a restart. A static site restarts in about a second
 - `Os.startTerminal`'s contract: one address with `start`, one stream out, `resize` answering `NotATerminal` on pipes, `closeInput` a hangup, no `TERM` of the runtime's (2026-10-26).
 - The repository is `ernest-httpd` (2026-10-26).
 - No container pool and no manager: a process per shell owns its command under a terminal, one counting process limits them, and the container is the command's (2026-10-26).
+- A canonical host and its redirect hosts, port 80 a redirect listener serving the ACME challenge, one certificate for all four names, a renewal a restart (2026-10-27).
 - Files under a root no one else writes: a path holding `..` refused, and no check of links, so the plan's `Fs.readUnder` waits for a root others can write (2026-10-26).
