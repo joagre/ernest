@@ -4,16 +4,16 @@ A starting point, written 2026-10-26 from the first discussion. It states what t
 
 ## What it is for
 
-ehttpd serves one site, ernest-lang.org: static pages generated from Markdown (MVP 4.2), and one WebSocket per visitor that connects xterm.js in the browser to a shell on the server. It implements what that needs of HTTP/1.1 and nothing more. It is a program written in Ernest, in a repository of its own, `ernest-httpd` (decided 2026-10-26), built against an installed Ernest; `examples/web_server.ern` is its smallest ancestor, whose hand-written parser `libs/http` replaces.
+`ernest-httpd` serves one site, ernest-lang.org: static pages generated from Markdown (MVP 4.2), and one WebSocket per visitor that connects xterm.js in the browser to a shell on the server. It implements what that needs of HTTP/1.1 and nothing more. It is a program written in Ernest, in a repository of its own, `ernest-httpd` (decided 2026-10-26), built against an installed Ernest; `examples/web_server.ern` is its smallest ancestor, whose hand-written parser `libs/http` replaces.
 
 ## From the plan's MVP 4.1
 
-What the plan's MVP 4.1 states of ehttpd, held here as the proposal's own, the plan's section to become a line pointing here once the proposal is decided (2026-10-26):
+What the plan's MVP 4.1 states of the server, held here as the proposal's own, the plan's section to become a line pointing here once the proposal is decided (2026-10-26):
 
-- ehttpd is a program in a repository of its own, decided with the user on 2026-10-10 (the log's *ehttpd and the Website*), the first program built against an installed Ernest by a build of its own, which the examples cannot be. Its own plan lives in its repository.
+- The server is a program in a repository of its own, decided with the user on 2026-10-10 (the log's *ehttpd and the Website*), the first program built against an installed Ernest by a build of its own, which the examples cannot be. Its own plan lives in its repository.
 - What it lacks is added where it belongs and never worked around in Erlang or behind a `foreign fn`: a function the standard library lacks enters by E.0's admission rules, our need the occasion and the rules deciding; a format or a protocol is a library's; what the prelude or the language lacks goes to `language_feedback.md` first and is discussed before any code goes around it.
 - Each library it asks for is an Ernest source root under `src/libs/<name>/`, whose build ends every job's load path, with `src/stdlib/`'s test discipline, documented to `docs/module_doc_template.md` with its executed examples as its first user, and a section in Appendix G.
-- The plan's separate `libs/tls` is replaced by TLS in `Tcp` (below). The plan's other named libraries, `libs/regex`, `libs/uri`, `libs/zlib`, the `Fs` functions and `Udp`, are not ehttpd's and stay in the plan.
+- The plan's separate `libs/tls` is replaced by TLS in `Tcp` (below). The plan's other named libraries, `libs/regex`, `libs/uri`, `libs/zlib`, the `Fs` functions and `Udp`, are not the server's and stay in the plan.
 
 ## HTTP/1.1
 
@@ -25,14 +25,14 @@ RFC 9110 states HTTP's semantics and RFC 9112 its HTTP/1.1 message syntax.
 - A request target in origin form, and one in absolute form taken by its path, which RFC 9112 asks a server to accept.
 - `Host`, required: a request without it answers 400.
 - Persistent connections by default, `Connection: close` honored, and requests answered in the order they came, which a loop that reads one request at a time gives.
-- Every response with `Content-Length`, `Date` and a `Content-Type` from a small table of extensions, which the configuration may extend.
+- Every response with `Content-Length`, `Date` and a `Content-Type` from a small table of extensions, which the configuration may extend, text types with `; charset=utf-8`.
 - `Last-Modified` from the file, and `If-Modified-Since` answered with 304.
 - A directory answered by its `index.html`; one asked for without its trailing slash answers 301 to the path with it, so that its page's relative links resolve; one without `index.html` answers 404, with no listing. A path that names no file answers 404, and a path holding `..` is refused with 400.
-- The errors a log's reader needs: 400, 404, 405, 408 on a request that comes too slowly, 413, 414 and 431 past the limits, 500, 501 on a transfer coding it does not know, and 505 on another version.
+- The errors a log's reader needs: 400, 404, 405, 408 on a request that comes too slowly, 413 on a request with a body, 414 and 431 past the limits, 421 on a host it does not serve, 500, and 505 on another version.
 
 **What it leaves out.**
 
-- A request body. A request that carries one, by `Content-Length` or `Transfer-Encoding`, is refused and its connection closed, since nothing on the site takes input over HTTP. That leaves out chunked request decoding and `Expect: 100-continue` too.
+- A request body. A request that carries one, by `Content-Length` or `Transfer-Encoding`, answers 413 and its connection is closed, since nothing on the site takes input over HTTP. That leaves out chunked request decoding and `Expect: 100-continue` too.
 - Chunked responses, since every file has a size.
 - Ranges, compression, `ETag`, content negotiation, trailers and HTTP/2.
 
@@ -50,7 +50,7 @@ RFC 6455, for xterm.js.
 
 **What it leaves out.** Extensions, `permessage-deflate` among them, and subprotocols, which xterm.js's attach addon does not ask for.
 
-Behind the socket stands a shell in a container per visitor (`../site/decisions.md`). The pseudo-terminal is the server's: `Os` gains a start under a pseudo-terminal of a given size, and a resize, which the runtime's helper gives by the host's `forkpty` and `TIOCSWINSZ`, and ehttpd runs `podman run -it --rm` on it, podman giving the container its own terminal and forwarding each resize. The socket's frames carry the terminal's bytes both ways and a resize from xterm.js's fit addon.
+Behind the socket stands a shell in a container per visitor (`../site/decisions.md`). The pseudo-terminal is the server's: `Os` gains a start under a pseudo-terminal of a given size, and a resize, which the runtime's helper gives by the host's `forkpty` and `TIOCSWINSZ`, and `ernest-httpd` runs `podman run -it --rm` on it, podman giving the container its own terminal and forwarding each resize. The socket's frames carry the terminal's bytes both ways and a resize from xterm.js's fit addon.
 
 ## The live shell's server side
 
@@ -63,11 +63,11 @@ Moved here from the site's decisions on 2026-10-26, where the page's side of the
 - A fixed number of containers; when all are taken, the shell is unavailable. Starts per visitor are limited. The numbers come with the host.
 - Stop and Restart are the page's buttons; what they end, the visitor's container, is the server's.
 
-There is no pool and no manager (decided 2026-10-26). Each visitor's shell is a WebSocket connection, a process, which starts its command under a terminal and owns it, and which ends, killing the program with it, when the connection closes, a timeout's alarm comes or Stop is pressed. The server knows terminals and not containers: its configuration says that a WebSocket path runs a command under a terminal for each connection, at most so many at once, with an idle and a total time, and the container is the command's, `podman run -it --rm` with its flags and its image. One small process counts the shells running and each visitor's starts, and holds the cookie that names a session, so that a second tab takes it over. So `ernest-httpd` stays a general server, a static site and web terminals, and nothing of ernest-lang.org's sandbox is in its code. Pre-started containers are decided only if a container's start is measured slow.
+There is no pool and no manager (decided 2026-10-26). A session outlives a connection (decided 2026-10-27), since moving to another page closes the WebSocket and the site's decisions keep a visitor's shell across pages: `Sessions` holds a session process for each cookie, which starts its command under a terminal and owns it, and which ends, killing the program with it, at its timeout's alarm or at Stop. A connection attaches to its session and detaches when it closes, the idle time running while none is attached; a second tab is a second attach, which detaches the first and tells it so. The server knows terminals and not containers: its configuration says that a WebSocket path runs a command under a terminal for each connection, at most so many at once, with an idle and a total time, and the container is the command's, `podman run -it --rm` with its flags and its image. `Sessions` counts the shells running and each visitor's starts. A session's cookie is drawn from `Crypto.randomBytes`, so it cannot be guessed as the web-server example's can, and is sent `Secure`, `HttpOnly` and `SameSite=Strict`. So `ernest-httpd` stays a general server, a static site and web terminals, and nothing of ernest-lang.org's sandbox is in its code. Pre-started containers are decided only if a container's start is measured slow.
 
 ## TLS
 
-The site is served over HTTPS, and ehttpd terminates TLS itself. `Tcp` gains two functions that open a socket over TLS, `Tcp.listenTls(host, port, certificate, key)` and `Tcp.connectTls(host, port, verify, ms)`, and answers the same socket address as a plain one, so that reading, writing, accepting and closing are one set of functions for both (E.18, principle 2). They are two functions and not a `Bool`, by E.0 shape rule 9. The host's `ssl` does the work, whose functions mirror `gen_tcp`'s, so the runtime's socket process holds either kind; a program that is no node starts `ssl` at its first TLS call, and a node has it already for its carrier. `Tcp.accept` answers the socket once the TCP connection is accepted, and the handshake runs in the socket's own process, as the host splits `ssl:transport_accept` from `ssl:handshake`, so that a slow client holds no accept loop; the first `read` or `write` waits for it, and a failed handshake answers there as `Other(text)`, the words `ssl` gives, since no program acts on it otherwise than on another failed connection. The certificate and key are files, renewed by certbot outside the server, which a restart reads again.
+The site is served over HTTPS, and `ernest-httpd` terminates TLS itself. `Tcp` gains two functions that open a socket over TLS, `Tcp.listenTls(host, port, certificate, key)` and `Tcp.connectTls(host, port, verify, ms)`, and answers the same socket address as a plain one, so that reading, writing, accepting and closing are one set of functions for both (E.18, principle 2). They are two functions and not a `Bool`, by E.0 shape rule 9. The host's `ssl` does the work, whose functions mirror `gen_tcp`'s, so the runtime's socket process holds either kind; a program that is no node starts `ssl` at its first TLS call, and a node has it already for its carrier. `Tcp.accept` answers the socket once the TCP connection is accepted, and the handshake runs in the socket's own process, as the host splits `ssl:transport_accept` from `ssl:handshake`, so that a slow client holds no accept loop; the first `read` or `write` waits for it, and a failed handshake answers there as `Other(text)`, the words `ssl` gives, since no program acts on it otherwise than on another failed connection. The certificate and key are files, renewed by certbot outside the server, which a restart reads again.
 
 This replaces the plan's separate `libs/tls`, which named the choice to be made when it was written.
 
@@ -77,7 +77,7 @@ Decided 2026-10-27, each number the configuration's.
 
 - **Open connections** have a cap, and a smaller one per remote address. The listener monitors each connection it spawns and counts their `Down`s, and stops accepting at the cap, so that the excess waits in the kernel's backlog and costs the server nothing; it answers no 503, which would spend work on the clients there are too many of.
 - **Every write has a deadline**, `Tcp.write`'s milliseconds, so that a client that asks and never reads loses its connection.
-- **Headers on every response**, a list of names and values in the configuration, the same for every response: `Strict-Transport-Security`, `X-Content-Type-Options: nosniff` and a `Content-Security-Policy` that allows what xterm.js needs. The server has no headers of its own opinion.
+- **Headers on every response**, a list of names and values in the configuration, the same for every response: `Strict-Transport-Security`, `X-Content-Type-Options: nosniff` and a `Content-Security-Policy` that allows what xterm.js needs, `wss:` for the shell's socket among it. The server has no headers of its own opinion.
 - **No rate limit on requests.** A static file is cheap, the shells have their caps and start limits, and a flood past these is the network's to stop.
 
 ## Hosts, port 80 and the certificate
@@ -93,7 +93,7 @@ Decided 2026-10-27.
 
 - **`libs/http`**: a shim over `erlang:decode_packet/3` with `http_bin`, which reads a request line and one header at a time and answers `more` where the bytes end. Ernest closes the difference, a header's name as a string where the host gives some as atoms, and the host's limits on a line stated; rendering a response is Ernest. No server loop.
 - **`libs/time`**: a shim over the host's `calendar`, a moment of `Clock` written in Common Log Format's form and in RFC 9110's, `Sun, 06 Nov 1994 08:49:37 GMT`, and that form read back for `If-Modified-Since`. Dates are a library's (E.0 rule 2), so `Clock` stays as it is: `Clock.toString` was admitted as the one text form the runtime's own lines write, and nothing more of a calendar enters it.
-- **`libs/crypto`**: SHA-1 for the WebSocket's handshake, a shim over `crypto:hash/2`, beside what the plan names for it.
+- **`libs/crypto`**: SHA-1 for the WebSocket's handshake and random bytes for a session's cookie, shims over `crypto`.
 - **`libs/websocket`**: the handshake's key and the frames, decoded and encoded, which the server and a client share.
 - **`libs/base64`**: a shim over `base64`.
 
@@ -114,13 +114,13 @@ Names and shapes by E.0's shape rules, each a draft for the discussion and none 
   - `WebSocket.decode(bytes, role, limit) : Either(WebSocket.Error, Decoded)`, a frame or `Incomplete`; `role`, `FromClient` or `FromServer` by shape rule 9, decides which masking it refuses.
   - `WebSocket.Error`, named by the close code: `ProtocolError`, 1002, `TooBig`, 1009, and `NotUtf8`, 1007.
   - `WebSocket.encode(frame) : Bytes`, a `Frame` one of text, binary, continuation, ping, pong and close.
-- **`libs/crypto`**: `Crypto.sha1(bytes)`, `sha256(bytes)`, `hmac(key, bytes)` and `randomBytes(count)`, each a shim over `crypto`.
+- **`libs/crypto`**: `Crypto.sha1(bytes)` for the handshake and `randomBytes(count)` for the session's cookie, each a shim over `crypto`, and nothing more until something asks (decided 2026-10-27).
 - **`libs/base64`**: `Base64.encode(bytes) : String` and `decode(text) : Optional(Bytes)`.
 - **`libs/time`**, a library and not the standard library's, by E.0's rule for a module over a published specification or a policy and E.15's sentence that nothing of dates but `Clock.toString` is the standard library's (decided 2026-10-26).
   - `Time.httpDate(time) : String` and `Time.fromHttpDate(text) : Optional(Int)`, over a `Clock` time.
   - `Time.commonLog(time) : String`.
   - `Time.civil(time) : Civil`, its year, month, day, hour, minute and second in UTC, from which a program writes any other form.
-- **`Tcp`**: `listenTls` and `connectTls`, as decided.
+- **`Tcp`**: `listenTls` and `connectTls`, as decided; `connectTls`'s `verify` is `Verified(caFile)` or `Unverified`, a constructor and not a `Bool` by shape rule 9 (decided 2026-10-27).
 - **`Os`**, its contract decided on 2026-10-26:
   - `Os.startTerminal(command, size) : Either(Io.Error, Address(ProgramMsg))`, the `Command` `start` takes and the address it answers, so that `read`, `write`, `kill`, `monitor` and `give` serve both (principle 2); `size` is `Terminal`'s type for a terminal's rows and columns.
   - One stream out: a pseudo-terminal merges standard output and standard error, so `read` answers `Stdout(bytes)` alone, then `Exited(status)`, which the page states.
@@ -138,9 +138,9 @@ A guess at `ernest-httpd`'s modules by the jobs above, each with one job as the 
 - **`Listener`**: one per listen address, plain or TLS, accepting and spawning a connection for each socket, and nothing else.
 - **`Connection`**: a socket's life, reading heads through `Http.readHead` with the bytes carried over, keeping the connection or closing it, the idle deadline, and handing each request to `Static` or, at an upgrade on the shell's path, to `Shell`.
 - **`Static`**: a request to a response, the path resolved under the root and `..` refused, the index file, the table of content types, `Last-Modified` and 304.
-- **`Shell`**: one WebSocket session, the handshake through `libs/websocket`, the command started by `Os.startTerminal`, bytes both ways, a resize to `Os.resize`, and its end by a close, an alarm or Stop.
-- **`Sessions`**: the counting process, holding the shells running, each visitor's starts and the cookie that names a session.
-- **`AccessLog`**: the process that owns the log file and writes each line of Common Log Format through `libs/time`, so that lines from many connections never interleave.
+- **`Shell`**: one WebSocket connection, the handshake through `libs/websocket`, attached to its session, bytes both ways and a resize passed on, and its detach at its close.
+- **`Sessions`**: the session processes by cookie, each owning its command under `Os.startTerminal` with its timers, and the counts of shells running and of each visitor's starts.
+- **`AccessLog`**: the process that writes each line of Common Log Format to standard output through `libs/time`, so that lines from many connections never interleave.
 
 Five of them are processes for the program's life or a connection's, the listener, a connection, a shell and the two that hold state; `Static` and `Config` are functions over their file reads, where the tests begin.
 
@@ -156,13 +156,13 @@ Decided 2026-10-27.
 
 One JSON file, read through `libs/json`, named on the command line:
 
-- the listen address and port, and the TLS certificate's and key's paths;
+- the listeners, each an address, a port and a kind, `tls` with the certificate's and key's paths, `redirect` with the ACME challenge's directory, or `plain`, for development;
 - the root the files are served from;
 - the timeouts, for a request's head and for an idle connection;
 - the limits, on a request line, on the headers and on a WebSocket message;
 - extensions added to the table of content types;
-- the WebSocket's path, its allowed origins and the command that runs a visitor's shell;
-- the canonical host and the redirect hosts, and the ACME challenge's directory;
+- the WebSocket's path, its allowed origins and the command that runs a visitor's shell, and the shell's numbers: the most at once, the starts per visitor, the idle time with its warning, and the total time;
+- the canonical host and the redirect hosts;
 - the caps on open connections, in all and per remote address, and the deadline of a write;
 - the headers sent on every response.
 
@@ -174,9 +174,9 @@ The log is written to standard output, which the journal keeps and rotates, and 
 
 ## Under systemd
 
-ehttpd runs in the foreground, under a unit of `Type=exec`. It writes its access log to standard output and what goes wrong to standard error, both of which the journal keeps and rotates. It exits with a status that is not 0 when it fails, so that `Restart=on-failure` restarts it. `SIGTERM` stops it in order through `Os.termination`: the listener closes, the requests under way are answered, and the WebSockets are closed with 1001. It binds 80 and 443 through `AmbientCapabilities=CAP_NET_BIND_SERVICE`, as no root.
+`ernest-httpd` runs in the foreground, under a unit of `Type=exec`. It writes its access log to standard output and what goes wrong to standard error, both of which the journal keeps and rotates. It exits with a status that is not 0 when it fails, so that `Restart=on-failure` restarts it. `SIGTERM` stops it in order through `Os.termination`: the listener closes, the requests under way are answered, and the WebSockets are closed with 1001. It binds 80 and 443 through `AmbientCapabilities=CAP_NET_BIND_SERVICE`, as no root.
 
-A change of configuration is a restart. A static site restarts in about a second, and reloading would mean running ehttpd as a node, since `SIGHUP` is a reload only for a node (§8.6). `Type=notify` would need a Unix datagram socket, which Ernest lacks, and `Type=exec` serves.
+A change of configuration is a restart. A static site restarts in about a second, and reloading would mean running the server as a node, since `SIGHUP` is a reload only for a node (§8.6). `Type=notify` would need a Unix datagram socket, which Ernest lacks, and `Type=exec` serves.
 
 ## The order of work
 
@@ -204,6 +204,8 @@ The site's content, MVP 4.2, runs beside any of it, since its generator needs no
 - No container pool and no manager: a process per shell owns its command under a terminal, one counting process limits them, and the container is the command's (2026-10-26).
 - A canonical host and its redirect hosts, port 80 a redirect listener serving the ACME challenge, one certificate for all four names, a renewal a restart (2026-10-27).
 - The limits, each configurable: a cap on connections in all and per address by counting `Down`s, a deadline on every write, the configured headers on every response, and no rate limit; the log to standard output; a directory's slash and its missing index (2026-10-27).
+- `libs/crypto` is `sha1` and `randomBytes`; the session's cookie random and `Secure`, `HttpOnly`, `SameSite=Strict`; `connectTls`'s `verify` a constructor (2026-10-27).
+- A session outlives a connection: a session process per cookie owns the shell, connections attach and detach, a second tab's attach detaches the first (2026-10-27).
 - The running server tested by a client in Ernest, `libs/http` gaining a request's rendering and a response's head read (2026-10-27).
 - The order of work: the report, the runtime, the libraries, a release, then `ernest-httpd` and its deployment (2026-10-27).
 - Files under a root no one else writes: a path holding `..` refused, and no check of links, so the plan's `Fs.readUnder` waits for a root others can write (2026-10-26).
