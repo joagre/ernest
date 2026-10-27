@@ -184,15 +184,6 @@ anything is built. Nothing of it is in 0.6.0.
    runs the plain shell in a container per visitor (MVP 4.2).
 2. **The build**, about a week, with the nodes tests over a shell attached to a bare node and to a
    program's node, the guide's section 6 run by them, and the release that follows.
-3. **The first day of the new machine**, a 12-core AMD with 64 GB expected in November 2026, done
-   when the machine is there, before or after the milestone's own items, and waited for by no
-   release (moved out of MVP 3.9 on 2026-10-23, the log's *MVP 3.9 Weighed*): its line in
-   `test/machines/machines.txt` beside bee and xena; one `make bench` before any code changes, kept
-   as the release's reference with `make bench-release`, since every number in the log is the old
-   laptop's and the first run there is a reference and not a move; and the bench's rows of eight
-   processes at once gain a row at the host's scheduler count, so that scaling shows as a line and
-   not a point, which `test/ern_foreign_costs.erl` and `test/ern_call_costs.erl` take from
-   `erlang:system_info(schedulers)`.
 
 ## MVP 4.1 (ehttpd, and the libraries it wants)
 
