@@ -74,6 +74,14 @@ Moved here from the site's decisions on 2026-10-26, where the page's side of the
 
 There is no pool and no manager (decided 2026-10-26).
 
+Measured on 2026-10-13, when the container per visitor was decided (moved here from `../shell/attached.md` on 2026-10-27), on an eight-core machine: a bare `erl` with nothing loaded is 71 MB, a bare Ernest node listening 87 MB, and a program's run 72 MB at its peak and 0.6 seconds from start to exit. So a visitor's shell is a BEAM of about 90 MB that starts in under a second. On the web machine of two cores and 2 GB, the system and the site's own node take about 300 MB, which leaves ten or twelve shells at a cap of 128 MB each. Memory is the first and cheapest thing to add if the site ever wants more.
+
+What other systems do, read the same day:
+
+- **The Go and Rust playgrounds** run each submission in a fresh sandbox with time, memory and output limits and no network, and keep nothing; a container or a VM per run.
+- **Try Elixir, Try OCaml and Jupyter's kernels** run one process per visitor behind a web terminal, each with its own limits; one runtime per user, not one for all.
+- No system known then runs strangers' sessions on one shared runtime without a process-level wall; those that share one runtime trust their users.
+
 A session outlives a connection (decided 2026-10-27), since moving to another page closes the WebSocket and the site's decisions keep a visitor's shell across pages: `Sessions` holds a session process for each cookie, which starts its command under a terminal and owns it, and which ends, killing the program with it, at its lifetime's alarm or at Stop.
 
 A session starts its command at the page's first resize and not at the connection, so that the shell starts at the panel's size and not a guessed one (decided 2026-10-27). A connection attaches to its session and detaches when it closes, the lifetime running whether one is attached or not; a second tab is a second attach, which detaches the first and tells it so.

@@ -1,14 +1,14 @@
 # A shell attached to a running node
 
-Begun 2026-10-13 for MVP 4.0. Decided with the user the same day: a shell attaches to a node by a listed name and never by an address; the attached shell is the operator's, trusted as a peer is; and the website runs the plain shell in a container per visitor, so no sandbox of the language's is built. `docs/design/shell.md` is the shell as built; this page is what attaching adds to it, and what the web machine runs instead.
+Begun 2026-10-13 for MVP 4.0. Decided with the user the same day: a shell attaches to a node by a listed name and never by an address; the attached shell is the operator's, trusted as a peer is; and no sandbox of the language's is built. `docs/design/shell.md` is the shell as built; this page is what attaching adds to it.
 
 ## 1. Two uses
 
 An operator attaches a shell to a node to look inside it and to change it: read a binding, list its processes, load a fix. That is attaching, section 2.
 
-A visitor of the website runs a shell in the browser to try the language. That is not attaching: a visitor is a stranger, and a stranger's shell is kept apart by the operating system, section 3, which costs the language nothing.
+A visitor of the website runs a shell in the browser to try the language. That is not attaching: a visitor is a stranger, and a stranger's shell is kept apart by the operating system, which costs the language nothing; it is the web server's, `../httpd/proposal.md`.
 
-One node shared by every visitor, each in a sandboxed session attached to it, was weighed on 2026-10-13 and set aside. A sandbox the node enforced itself could be good and never the one wall: a visitor who exhausted the machine's memory would end every session with his own. The container is proven and cheap.
+One node shared by every visitor, each in a sandboxed session attached to it, was weighed on 2026-10-13 and set aside. A sandbox the node enforced itself could be good and never the one wall: a visitor who exhausted the machine's memory would end every session with their own.
 
 ## 2. Attaching
 
@@ -22,24 +22,13 @@ An attached session is a session of the shell's on the node. Its evaluation proc
 
 Sessions are many on one node, where today one node is one session. Operators attach to one node at once, and a type declared at the prompt is the session's, `$Session.T` (Appendix H), so two sessions declaring one name must not meet: a session has a namespace of its own, `$Session3.T`, and the code table keeps each session's units apart and lets them go when the session ends.
 
-## 3. The web machine: a container per visitor
-
-The website's shell is today's `ern shell`, unchanged, behind a pseudo-terminal in a container of its own for each visitor. The web server starts it as the browser's connection opens and throws it away as it closes; `:clear`, where the site offers one, is the container started again.
-
-The container is the operating system's wall, bubblewrap, firejail or a `systemd-run` scope with cgroup limits, a few megabytes each, and not a container daemon, which would idle at a hundred. The limits are the container's: memory, a cap that ends the one visitor who passes it; CPU, one scheduler for the shell's BEAM and a quota of a fraction of a core, so that a visitor's tight loop cannot take the server; no network; an idle time of a few minutes; and a cap on sessions at once, with a plain line past it.
-
-Measured on 2026-10-13, on an eight-core machine: a bare `erl` with nothing loaded is 71 MB, a bare Ernest node listening 87 MB, and a program's run 72 MB at its peak and 0.6 seconds from start to exit. So a visitor's shell is a BEAM of about 90 MB that starts in under a second. On the web machine of two cores and 2 GB, the system and the site's own node take about 300 MB, which leaves ten or twelve shells at a cap of 128 MB each. Ten sessions at once is the cap to set, and memory is the first and cheapest thing to add if the site ever wants more.
-
-## 4. What other systems do
+## 3. What other systems do
 
 - **Erlang's `erl -remsh`** attaches a shell to a running node over the distribution, authenticated by the cookie; everything the node can do the shell can do, which is the operator's case and the shape of section 2.
-- **The Go and Rust playgrounds** run each submission in a fresh sandbox with time, memory and output limits and no network, and keep nothing; a container or a VM per run, which is section 3's shape.
-- **Try Elixir, Try OCaml and Jupyter's kernels** run one process per visitor behind a web terminal, each with its own limits; one runtime per user, not one for all.
 - **Elixir's Livebook** attaches a notebook to a running node and evaluates cells there, the operator's case, with no sandbox.
 
-No system known to me runs strangers' sessions on one shared runtime without a process-level wall; those that share one runtime trust their users.
 
-## 5. Open, for MVP 4.0's design
+## 4. Open, for MVP 4.0's design
 
 1. **Where inputs compile**, on the shell's side and shipped as code crosses, or on the node.
 2. **A session's process on the node**: its root, what it is to `Process.live`, and what the session shows when the node is lost.
