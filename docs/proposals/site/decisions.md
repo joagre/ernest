@@ -259,9 +259,9 @@ The site's files as served.
   2026-10-26).
 - Five states, each announced once: connecting, running, disconnected, expired
   and unavailable.
-- A session's warning is a banner with Extend, a minute before its end;
-  Extend gives it five minutes more, and the banner is no dialog, so a
-  visitor typing goes on typing (decided 2026-10-27; the lifetime is
+- A session's warning is a banner with Extend, after four minutes with
+  no key pressed; a key or Extend gives it five minutes more, and the
+  banner is no dialog (decided 2026-10-27; the lifetime is
   `../httpd/proposal.md`'s).
 - Stop ends the session, and Restart is a deliberate act that ends the old one; what they end, the container, is the server's (`../httpd/proposal.md`).
 - The shell page carries a privacy line: no accounts, one cookie, the layout
