@@ -128,7 +128,11 @@ Ernest 0.6.0. :help for the commands, :quit to leave.
 Counter, compiled from counter.ern
 > let counter = spawn(fn() = Counter.count(0))
 counter : Address(Counter.CounterMsg)
-> let far = match Peer.spawn("foo", fn() = Counter.count(0), 5000) { Right(address) -> address | Left(error) -> fault(Io.show(error)) }
+Enter runs a finished input, M-Enter adds a line.
+> let far = match Peer.spawn("foo", fn() = Counter.count(0), 5000) {
+...     Right(address) -> address
+...   | Left(error) -> fault(Io.show(error))
+... }
 the peer foo connected
 far : Address(Counter.CounterMsg)
 > send(far, Counter.Inc(5))
@@ -448,7 +452,10 @@ input 29:1:19: Peer.spawn starts a process whose mailbox type Counter.CounterMsg
 > kill(counter)
 > let counter = Counter.start()
 counter : Address(Counter.ClientMsg)
-> let far = match Peer.computeAt("foo", fn() = Counter.start(), 5000) { Right(address) -> address | Left(error) -> fault(Io.show(error)) }
+> let far = match Peer.computeAt("foo", fn() = Counter.start(), 5000) {
+...     Right(address) -> address
+...   | Left(error) -> fault(Io.show(error))
+... }
 far : Address(Counter.ClientMsg)
 > Counter.apply(counter, "inc apples 2")
 "ok" : String
