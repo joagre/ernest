@@ -145,6 +145,12 @@ modules documented apart with an authority of their own. Why it is worth its cos
     how a trace shows an inlined function; and how a function's hash covers what it inlined. A special
     case for the two shifts is refused, as CLAUDE.md refuses a special case for speed.
 
+    The first question is whether it is generic or a micro-optimization: the mixer was built to
+    stress these calls, so it proves nothing. The discussion starts from the bench's programs, the
+    parser, the ray tracer and the counter, measuring what their calls of small library functions
+    across units cost. Where they barely notice, the item is dropped, the mixer's 2.6 recorded in the
+    log as the plain form's cost.
+
 ## MVP 4.0 (a shell attached to a running node), about a week
 
 Made on 2026-10-13 from MVP 4.3's item 4 when the deployment
