@@ -415,8 +415,8 @@ input(Text, Read) ->
             {ok, it, Expr};
         {error, Diagnostic} ->
             case ern_parser:parse_string(Text, Read) of
-                {ok, [#let_declaration{name = Name, body = Body, annotation = Annotation}]} ->
-                    {ok, let_binds(Name, Body), annotated(Name, Body, Annotation)};
+                {ok, [#let_declaration{name = Name, body = Body} = Declaration]} ->
+                    {ok, let_binds(Name, Body), named_let(Declaration)};
                 {ok, Declarations} -> declarations(Declarations);
                 {error, DeclarationDiagnostic} ->
                     case pattern_let(Text, Read) of
@@ -519,13 +519,11 @@ exported(Declaration) ->
 let_binds(Name, #e_lambda{}) -> {lambda, Name};
 let_binds(Name, _) -> {name, Name}.
 
-%% Report §11.2: a `let` at the prompt may carry an annotation, which the
-%% checker holds its value to as it holds a `let` in a block's: the input
-%% is `{ let x : T = e; x }`.
-annotated(_Name, Body, undefined) ->
-    Body;
-annotated(Name, Body, Annotation) ->
-    Span = ern_ast:span(Body),
+%% Report §11.2: a `let` at the prompt binds as a block's `let` does, so
+%% the input is `{ let x = e; x }`, or `{ let x : T = e; x }`, which the
+%% checker holds to its annotation; report §5: and an initializer that
+%% names x, where no earlier input bound it, depends on itself.
+named_let(#let_declaration{span = Span, name = Name, annotation = Annotation, body = Body}) ->
     #e_block{span = Span,
              statements = [#binding{span = Span, pattern = #p_var{span = Span, name = Name},
                                     annotation = Annotation, operator = '=', expr = Body},

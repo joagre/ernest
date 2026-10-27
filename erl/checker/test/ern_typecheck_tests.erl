@@ -2045,11 +2045,11 @@ blocks_test() ->
     ?assertEqual("unknown name k",
                  refusal("fn f(n : Int) = { fn g(x) = x * k; let k = 2; g(n) }")).
 
-%% report §4.5, §4.6: a binding does not see its own name, so a lambda bound
-%% by `let` does not call itself, and a local `fn` does. A regression test,
-%% written when §4.6 said so
+%% report §4.5, §4.6, §5: a binding does not see its own name, so a lambda
+%% bound by `let` does not call itself, its initializer depending on itself,
+%% and a local `fn` does. A regression test, written when §4.6 said so
 let_lambda_does_not_recur_test() ->
-    ?assertEqual("unknown name count",
+    ?assertEqual("the initializer of count depends on itself",
                  refusal("fn f() : Int = { let count = fn(n : Int) : Int ="
                          " if n == 0 then 0 else count(n - 1); count(3) }")),
     ?assertEqual(ok, ok("fn f() : Int = { fn count(n : Int) : Int ="
@@ -2516,6 +2516,27 @@ let_cycle_through_a_named_function_test() ->
     ?assertEqual(["the initializer of a depends on itself"], refusals("let a = fn() = a\n")),
     ?assertEqual(["the initializer of a depends on itself"],
                  refusals("let a : () -> Int = fn() : Int = a()\n")).
+
+%% report §5: a block's `let` whose initializer names a name its own
+%% pattern binds, with no earlier binding of the name in scope, depends on
+%% itself, reported as a top-level `let`'s is (§8.5), its whole `let` the
+%% span; one an earlier binding answers sees that binding. A regression
+%% test: the use was an unknown name; it does not cover a use inside a
+%% local `fn`'s body that names the `let`, nor a doc example's help
+block_let_depends_on_itself_test() ->
+    {error, [#diagnostic{message = Message, help = Help, span = Span}]} =
+        check("export fn main() : Unit = {\n    let c = fn() = c;\n    Unit\n}\n"),
+    ?assertEqual("the initializer of c depends on itself", Message),
+    ?assertEqual("a recursive function is declared with `fn c(...) = ...`", Help),
+    ?assertEqual({2, 5, {2, 21}}, Span),
+    ?assertEqual(["the initializer of a depends on itself"],
+                 refusals("fn f() = {\n    let #(a, b) = #(fn() = a, 1);\n    b\n}\n")),
+    ?assertEqual(["the initializer of g depends on itself"],
+                 refusals("fn f() : Optional(Int) = {\n    let g <- Some(fn() = g);\n"
+                          "    Some(1)\n}\n")),
+    ?assertEqual(["the initializer of h depends on itself"],
+                 refusals("fn f() = {\n    let h : () -> Int = fn() = h();\n    h()\n}\n")),
+    ?assertEqual(ok, ok("fn f() : Int = {\n    let x = 1;\n    let x = x + 1;\n    x\n}\n")).
 
 %% report §11.5: a declaration whose check failed is used at the type its
 %% signature states, so that no error at a use follows from its own. A

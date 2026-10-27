@@ -48,6 +48,31 @@ type_refuses_a_let() ->
                   " is not one">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>)).
 
+%% report §11.2, §5: a `let` at the prompt binds as a block's `let` does, so
+%% an initializer that names its own name, which no earlier input bound,
+%% depends on itself, the help naming the `fn` that recurs, with `=` and
+%% with `<-`; one an earlier input bound sees that binding. A regression
+%% test: the use was an unknown name; it does not cover a startup file's
+%% `let`, nor a name a reload forgot
+prompt_let_depends_on_itself_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun prompt_let_depends_on_itself/0).
+
+prompt_let_depends_on_itself() ->
+    Dir = fresh_home(),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, "let f = fn(n : Int) = f(n)\n"
+                                    "let g <- Some(fn() = g)\n"
+                                    "let x = 1\nlet x = x + 1\nx\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"input 1:1:1: the initializer of f depends on"
+                                                " itself\n1 | let f = fn(n : Int) = f(n)\n"
+                                                "  | ^^^^^^^^^^^^^^^^^^^^^^^^^^\n"
+                                                "  | = help: a recursive function is declared"
+                                                " with `fn f(...) = ...`">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"input 2:1:1: the initializer of g depends on"
+                                                " itself">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> x : Int\n> x : Int\n> 2 : Int\n">>)).
+
 %% report §11.2: `:bindings`, `:browse` and completion write a foreign type
 %% as its declaration does, and a built-in type with no keyword. A
 %% regression test: a foreign type was written `type`

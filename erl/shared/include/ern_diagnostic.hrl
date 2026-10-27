@@ -22,10 +22,10 @@
 %%   in scope, for the shell to name the `:load` that would put it there
 %%   (§11.2), and for the build to name a nearer source root
 %%   (ern_build:nearer_roots/4, §11.1); `undefined` for every other failure.
-%% unknown_name: an unqualified name that names nothing, for the shell to say
-%%   when a reload forgot it (§11.2), and for a doc example's help to write a
-%%   name its module exports qualified (ern_examples:qualifying/2); `undefined`
-%%   for every other failure.
+%% unknown_name: an unqualified name that names nothing, a block `let`'s own
+%%   name in its initializer among them (§5), for a doc example's help to
+%%   write a name its module exports qualified (ern_examples:qualifying/2);
+%%   `undefined` for every other failure.
 
 %% Where a constructor's field's name stands, kind `field`; or where its
 %% first argument would stand and could be a field's name or a value,

@@ -2156,7 +2156,6 @@ let_cycle(#let_declaration{span = Span, name = Name, body = Body} = Declaration,
                 false ->
                     {Diagnostics, Seen};
                 Cycle ->
-                    LetName = atom_to_list(Name),
                     %% the cycle is [Key, ..., Key], or [Key] where the let
                     %% names itself; what stands between, in the cycle's
                     %% order, and the last of it reads the let
@@ -2164,20 +2163,25 @@ let_cycle(#let_declaration{span = Span, name = Name, body = Body} = Declaration,
                                   [_] -> [];
                                   [_ | After] -> lists:droplast(After)
                               end,
-                    Through = case Between of
-                                  [] -> "";
-                                  _ ->
-                                      Names = [local_name(MemberOf, ValueName)
-                                               || {MemberOf, ValueName} <- Between],
-                                      ", through " ++ lists:join(", ", Names)
-                              end,
-                    Message = lists:flatten(["the initializer of ", LetName, " depends on itself",
-                                             Through]),
-                    Help = cycle_help(LetName, Body, Between, Fns),
-                    {[(diagnostic(Span, Message))#diagnostic{help = Help} | Diagnostics],
+                    {[depends_on_itself(Span, Name, Body, Between, Fns) | Diagnostics],
                      Cycle ++ Seen}
             end
     end.
+
+%% Report §8.5, §5: a `let` whose initializer depends on itself, at the
+%% top level through the definitions Between, and in a block directly
+%% (self_dependent/2), its whole `let` the span.
+depends_on_itself(Span, Name, Body, Between, Fns) ->
+    LetName = atom_to_list(Name),
+    Through = case Between of
+                  [] -> "";
+                  _ ->
+                      Names = [local_name(MemberOf, ValueName)
+                               || {MemberOf, ValueName} <- Between],
+                      ", through " ++ lists:join(", ", Names)
+              end,
+    Message = lists:flatten(["the initializer of ", LetName, " depends on itself", Through]),
+    (diagnostic(Span, Message))#diagnostic{help = cycle_help(LetName, Body, Between, Fns)}.
 
 %% Report §11.5: a lambda on a cycle is a recursive function, which is a
 %% `fn` whatever else the cycle holds; a value that a function reads, the
@@ -5955,7 +5959,7 @@ infer_statements([#binding{span = BindingSpan, pattern = Pattern, annotation = A
                  Span, Expect, Env, Local, Acc) ->
     %% report §5.5: e : Either(err, a) binds p : a; the rest is Either(err, _).
     %% Which sum type is decided at the end of the definition (solve_deferred).
-    {TypedExpr, ExprType, Env1} = infer(Expr, Env),
+    {TypedExpr, ExprType, Env1} = initializer(Binding, fun() -> infer(Expr, Env) end),
     {TypedPattern, PatternType, Bindings, Env2} = check_pattern(Pattern, Env1),
     irrefutable(Pattern, Env2) orelse fail(BindingSpan, "a `let` pattern must be irrefutable", [],
                                            "use `match` for a pattern that can fail"),
@@ -6043,10 +6047,14 @@ let_binding(#binding{span = BindingSpan, pattern = Pattern, annotation = Annotat
                  _ -> none
              end,
     {TypedExpr, ExprType, Inferred} =
-        case Annotation of
-            undefined -> infer(Expr, Scoped#env{binder = Binder});
-            _ -> annotated_value(BindingSpan, Annotation, Expr, Generalize, Scoped)
-        end,
+        initializer(Binding,
+                    fun() ->
+                        case Annotation of
+                            undefined -> infer(Expr, Scoped#env{binder = Binder});
+                            _ -> annotated_value(BindingSpan, Annotation, Expr, Generalize,
+                                                 Scoped)
+                        end
+                    end),
     Env1 = Inferred#env{binder = Env#env.binder},
     {TypedPattern, PatternType, Bindings, Env2} = check_pattern(Pattern, Env1),
     irrefutable(Pattern, Env2) orelse fail(BindingSpan, "a `let` pattern must be irrefutable", [],
@@ -6073,6 +6081,38 @@ let_binding(#binding{span = BindingSpan, pattern = Pattern, annotation = Annotat
                    bind_locals(Bindings, Env3)
            end,
     {Binding#binding{pattern = TypedPattern, expr = TypedExpr}, Env4}.
+
+%% Report §5, §8.5: a block binding's initializer, Infer checking it. A
+%% name its own pattern binds is not in scope in it, so a use of one that
+%% no earlier binding of the name answers is the initializer depending on
+%% itself, reported as a top-level `let`'s is; the diagnostic keeps the
+%% unknown name, which a doc example's help reads.
+initializer(Binding, Infer) ->
+    try
+        Infer()
+    catch
+        throw:{type_error, #diagnostic{}} = Thrown -> self_dependent(Thrown, Binding);
+        throw:{type_errors, _} = Thrown -> self_dependent(Thrown, Binding)
+    end.
+
+self_dependent(Thrown, #binding{span = Span, pattern = Pattern, expr = Expr}) ->
+    Own = [Name || {Name, _} <- ern_ast:pattern_bindings(Pattern)],
+    Rewrite = fun(#diagnostic{unknown_name = Name} = Diagnostic, {Kept, Seen}) ->
+                      case {lists:member(Name, Own), lists:member(Name, Seen)} of
+                          {false, _} ->
+                              {[Diagnostic | Kept], Seen};
+                          {true, true} ->
+                              {Kept, Seen};
+                          {true, false} ->
+                              Itself = depends_on_itself(Span, Name, Expr, [], []),
+                              {[Itself#diagnostic{unknown_name = Name} | Kept], [Name | Seen]}
+                      end
+              end,
+    case lists:foldl(Rewrite, {[], []}, diagnostics(Thrown)) of
+        {_, []} -> throw(Thrown);
+        {[One], _} -> throw({type_error, One});
+        {Kept, _} -> throw({type_errors, lists:reverse(Kept)})
+    end.
 
 %% Report §3.9: a block binding's value against its annotation. The
 %% definition's annotation variables are in scope and rigid; a name new
