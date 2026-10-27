@@ -27,8 +27,8 @@ The site's files as served.
     /guide/<n>.html                 chapter n
     /deployment/                    guide/deployment.md
     /report/                        contents of the three files
-    /report/language.html           §0 to §10, Appendices A, B and F
-    /report/toolchain.html          §11, Appendices C and H
+    /report/language.html           §0 to §9, Appendices A, B and F
+    /report/toolchain.html          §10 to §12, Appendices C and H
     /report/library.html            Appendices D, E and G
     /man/                           contents
     /man/stdlib/                    contents
@@ -198,19 +198,24 @@ The site's files as served.
   Ernest. It reads the repository, writes static files, and ends.
 - In the repository, `site/` holds `templates/` and `docroot/`; in the
   prototype they stand in `docs/proposals/site/`.
-- Every page is generated from what the repository owns. Two templates and
-  two pages of their own, decided 2026-10-13: `page.html`, a Markdown document
+- Every page is generated from what the repository owns: two templates and
+  two pages of their own, decided 2026-10-13, all four standing on
+  `base.html` with its header and footer.
+
+  `page.html` is a Markdown document
   with a sidebar of its headings and a footer naming its source, for every
   chapter of the tour, the guide and the report, every `/man/` page, Why,
   the questions, the deployment guide, Install, Releases, whose notes the generator
   joins newest first into one document, and the 404 page with its fixed body;
   what differs between them, a previous and a next, and what the footer names,
-  is data the generator passes, and a slot without it is empty. `toc.html`, a
-  contents page: a book's or a directory's opening and its list of links, for
+  is data the generator passes, and a slot without it is empty.
+
+  `toc.html` is a contents page: a book's or a directory's opening and its list of links, for
   `/tour/`, `/guide/`, `/report/`, `/man/`, `/man/stdlib/`, `/man/libs/` and
   `/man/libs/<name>/`. `home.html` is the homepage and `shell.html` the
-  full-page shell; each is one page, not a template. All four stand on
-  `base.html` with its header and footer. A template is named for what it is;
+  full-page shell; each is one page, not a template.
+
+  A template is named for what it is;
   what it is written as is the docroot's: a directory's page is its
   `index.html`, the homepage's, a contents page's, Why's and the shell's
   alike, and a chapter is its number, `/guide/3.html`.
@@ -338,7 +343,8 @@ The site's files as served.
   finds them and holds them equal to the README's, in their order: the mailbox
   in the function's type; code known by its hash; a distribution built for a
   WAN; abstract types and requirements; a deadlock is found; and little else.
-  Six since 2026-10-24, four until then; checked replies and purity in the type
+
+  The claims have been six since 2026-10-24, four until then; checked replies and purity in the type
   were pieces until 2026-10-15, when MVP 3.26 was decided. The list is written,
   four claims with a program, one with its configuration file and one with the
   report, and the site renders it as it stands (changed 2026-10-25).
