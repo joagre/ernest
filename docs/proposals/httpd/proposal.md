@@ -145,8 +145,8 @@ Decided 2026-10-27.
 ## The libraries it asks for
 
 - **`libs/http`**: a shim over `erlang:decode_packet/3` with `http_bin`, which reads a request line and one header at a time and answers `more` where the bytes end. Ernest closes the difference, a header's name as a string where the host gives some as atoms, and the host's limits on a line stated; rendering a response is Ernest. No server loop.
-- **`libs/time`**: a shim over the host's `calendar`, a moment of `Clock` written in Common Log Format's form and in RFC 9110's, `Sun, 06 Nov 1994 08:49:37 GMT`, and that form read back for `If-Modified-Since`. Dates are a library's (E.0 rule 2), so `Clock` stays as it is: `Clock.toString` was admitted as the one text form the runtime's own lines write, and nothing more of a calendar enters it.
-- **`libs/crypto`**: SHA-1 for the WebSocket's handshake and random bytes for a session's cookie, shims over `crypto`.
+- **`libs/time`**: the calendar alone, a shim over the host's `calendar`: a moment of `Clock` as its civil date and time in UTC, and back. A format is its owner's, written over it: RFC 9110's date is `libs/http`'s and the Common Log Format's is the server's (decided 2026-10-27). Dates are a library's (E.0 rule 2), so `Clock` stays as it is: `Clock.toString` was admitted as the one text form the runtime's own lines write, and nothing more of a calendar enters it.
+- **`libs/crypto`**: a SHA-1 digest and strong random bytes, shims over `crypto`.
 - **`libs/websocket`**: the handshake's key and the frames, decoded and encoded, which the server and a client share.
 - **`libs/base64`**: a shim over `base64`.
 
@@ -161,18 +161,17 @@ Names and shapes by E.0's shape rules, each a draft for the discussion and none 
   - `Http.header(request, name) : Optional(String)`, by name in any case.
   - `Http.render(response) : Bytes` and `Http.reason(status) : String`.
   - For a client, the tests' first: a request rendered, and a response's head read from a socket as `readHead` reads a request's.
-  - `Http.Error`, named by what the server answers: `Malformed`, 400, `TargetTooLong`, 414, and `HeadersTooLarge`, 431. A version other than 1.0 or 1.1 parses, and the server answers it 505.
+  - `Http.Error`, saying what is wrong and no status: `Malformed`, `TargetTooLong` and `HeadersTooLarge`. Which status each answers is the server's, 400, 414 and 431 in `Connection`, since a client meets the same errors and answers none (decided 2026-10-27). A version other than 1.0 or 1.1 parses, and the server answers it 505.
+  - `Http.date(time) : String` and `Http.parseDate(text) : Optional(Int)`, RFC 9110's form, `Sun, 06 Nov 1994 08:49:37 GMT`, written over `Time.civil` with the English names of days and months the RFC fixes, for `Date`, `Last-Modified` and `If-Modified-Since` (decided 2026-10-27).
 - **`libs/websocket`**, a library of its own and not the server's, since a client wants it too.
   - `WebSocket.accept(key) : String`.
   - `WebSocket.decode(bytes, role, limit) : Either(WebSocket.Error, Decoded)`, a frame or `Incomplete`; `role`, `FromClient` or `FromServer` by shape rule 9, decides which masking it refuses.
-  - `WebSocket.Error`, named by the close code: `ProtocolError`, 1002, `TooBig`, 1009, and `NotUtf8`, 1007.
+  - `WebSocket.Error`: `ProtocolError`, `TooBig` and `NotUtf8`, and `WebSocket.closeCode(error)`, 1002, 1009 and 1007, which RFC 6455 itself assigns, so the mapping is the protocol's and the library's.
   - `WebSocket.encode(frame) : Bytes`, a `Frame` one of text, binary, continuation, ping, pong and close.
-- **`libs/crypto`**: `Crypto.sha1(bytes)` for the handshake and `randomBytes(count)` for the session's cookie, each a shim over `crypto`, and nothing more until something asks (decided 2026-10-27).
+- **`libs/crypto`**: `Crypto.sha1(bytes)`, a digest, and `Crypto.randomBytes(count)`, bytes from the host's strong random source, each a shim over `crypto`, and nothing more until something asks (decided 2026-10-27); the server uses the one for the WebSocket's handshake and the other for a session's cookie.
 - **`libs/base64`**: `Base64.encode(bytes) : String` and `decode(text) : Optional(Bytes)`.
 - **`libs/time`**, a library and not the standard library's, by E.0's rule for a module over a published specification or a policy and E.15's sentence that nothing of dates but `Clock.toString` is the standard library's (decided 2026-10-26).
-  - `Time.httpDate(time) : String` and `Time.fromHttpDate(text) : Optional(Int)`, over a `Clock` time.
-  - `Time.commonLog(time) : String`.
-  - `Time.civil(time) : Civil`, its year, month, day, hour, minute and second in UTC, from which a program writes any other form.
+  - `Time.civil(time) : Civil`, its year, month, day, hour, minute, second and weekday in UTC, and `Time.fromCivil(civil) : Optional(Int)`, `None` for a date the calendar has not, from which a program writes any form it owns.
 - **`Tcp`**: `listenTls` and `connectTls`, as decided; `connectTls`'s `verify` is `Verified(caFile)` or `Unverified`, a constructor and not a `Bool` by shape rule 9 (decided 2026-10-27).
 - **`Os`**, its contract decided on 2026-10-26:
   - `Os.startTerminal(command, size) : Either(Io.Error, Address(ProgramMsg))`, the `Command` `start` takes and the address it answers, so that `read`, `write`, `kill`, `monitor` and `give` serve both (principle 2); `size` is `Terminal`'s type for a terminal's rows and columns.
@@ -193,7 +192,7 @@ A guess at `ernest-httpd`'s modules by the jobs above, each with one job as the 
 - **`Static`**: a request to a response, the path resolved under the root and `..` refused, the index file, the table of content types, `Last-Modified` and 304.
 - **`Shell`**: one WebSocket connection, the handshake through `libs/websocket`, attached to its session, bytes both ways and a resize passed on, and its detach at its close.
 - **`Sessions`**: the session processes by cookie, each owning its command under `Os.startTerminal` with its timers, and the counts of shells running and of each visitor's starts.
-- **`AccessLog`**: the process that writes the lines of Common Log Format through `libs/time` to the configured file, by its path and in batches, so that lines from many connections never interleave.
+- **`AccessLog`**: the process that writes the lines of Common Log Format, their date its own over `Time.civil`, to the configured file, by its path and in batches, so that lines from many connections never interleave.
 
 Five of them are processes for the program's life or a connection's, the listener, a connection, a shell and the two that hold state; `Static` and `Config` are functions over their file reads, where the tests begin.
 
@@ -302,10 +301,10 @@ The site's content, MVP 4.2, runs beside any of it, since its generator needs no
 ## Decided so far
 
 - TLS in `Tcp`, by two functions answering the same socket (2026-10-26).
-- `libs/time` for the dates, a library and not the standard library's, `Clock` unchanged (2026-10-26).
+- `libs/time` for the dates, a library and not the standard library's, `Clock` unchanged (2026-10-26); the calendar alone, each format with its owner, RFC 9110's in `libs/http` and the log's in the server (2026-10-27).
 - A change of configuration is a restart (2026-10-26).
 - The pseudo-terminal on the server through a new start in `Os`, podman inside it (2026-10-26).
-- The errors: a failed handshake is `Other(text)`, run in the socket's process after `accept`; `Http.Error` and `WebSocket.Error` named by the status and the close code they answer (2026-10-26).
+- The errors: a failed handshake is `Other(text)`, run in the socket's process after `accept`; `Http.Error` saying what is wrong, the server mapping it to a status, and `WebSocket.Error` with the close code RFC 6455 assigns (2026-10-26, the statuses moved to the server 2026-10-27).
 - `Http.readHead` in the library beside the parser, bounding the whole head (2026-10-26).
 - `Os.startTerminal`'s contract: one address with `start`, one stream out, `resize` answering `NotATerminal` on pipes, `closeInput` a hangup, no `TERM` of the runtime's (2026-10-26).
 - The repository is `ernest-httpd` (2026-10-26).
