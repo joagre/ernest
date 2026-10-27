@@ -1,6 +1,6 @@
 # Ernest Report: The Standard Library
 
-Revision of 25 October 2026.
+Revision of 27 October 2026.
 
 This file holds the report's Appendices D, E and G. §0 to §10 and Appendices A, B and F are in [`language.md`](language.md), and §11 and Appendices C and H in [`toolchain.md`](toolchain.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
@@ -693,7 +693,9 @@ In a `FaultReport`, `restarted` is `true` where the process restarts after the f
 
 `trace` is the innermost twelve frames of the host's stack where the fault was met, at the moment it was (§7.3), the innermost first, a frame a line. It is empty for a process the host ended, which met no fault (§6.9). A run of identical frames is collapsed as the host gives it. A fault a system process gives the entry process, a standard input that cannot be read among them (§8.2), carries the entry process's stack as the fault finds it.
 
-A frame of the runtime's, or of a function the compiler adds to a unit beside its definitions', which is neither Ernest code nor the host's, is left out, and the twelve are counted without it, but for a fault whose cause names a host error, a failure in the runtime by the host's class and reason or a foreign function's raise (§7.4), which keeps the runtime's frames that stand between the program's innermost frame and the host's. The host leaves out the frame of a function whose call of another function of its module it proved cannot return, having compiled that call as the function's last. A process faulted as it waits in `Address.callForever` shows first the program's frame that called it, and a division by zero shows the host's `erlang:'div'/2` above the program's frame.
+A frame of the runtime's, or of a function the compiler adds to a unit beside its definitions', which is neither Ernest code nor the host's, is left out, and the twelve are counted without it, but for a fault whose cause names a host error, a failure in the runtime by the host's class and reason or a foreign function's raise (§7.4), which keeps the runtime's frames that stand between the program's innermost frame and the host's.
+
+The host leaves out the frame of a function whose call of another function of its module it proved cannot return, having compiled that call as the function's last. A process faulted as it waits in `Address.callForever` shows first the program's frame that called it, and a division by zero shows the host's `erlang:'div'/2` above the program's frame. A raise in a foreign function of the standard library's, called by its name, shows the host's function above the frame of the program's that called it, as a division by zero does, and no frame of the library's between them (§11.1).
 
 A frame of a process that waits in a `receive` names the line of the last call before the wait, as the host records a waiting process's stack. A frame of Ernest code is written as a spawn site is (§6.9), the name of the top-level declaration the code is written in and the frame's line, `Counter.worker:23`, for a lambda or a local function as for the declaration's own body; a frame of the host's, and a kept frame of the runtime's, is the function as the host writes it, an atom quoted where the host quotes one, then its line, `lists:nth/2:213`, without a line where the host has none.
 

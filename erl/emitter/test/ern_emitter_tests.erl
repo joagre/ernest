@@ -233,6 +233,187 @@ standard_shim_callback_deadlock() ->
            "    }, [1])))\n",
     ?assertMatch({{fault, <<"deadlock">>, _}, _}, run(['M'], Text, #{standard => true})).
 
+%% report §11.1: a call of a foreign function of the standard library's
+%% is a call of the host's function its declaration names, written and
+%% through a pipe, and one the host compiles to an instruction is that
+%% instruction, so that `Int.bitAnd` and its kin call nothing. A regression
+%% test, written after the code; it does not cover a call of the function
+%% taken as a value, which calls the declaration's own function.
+shim_call_is_the_host_function_test() ->
+    %% exported, so that the host's compiler knows nothing of its arguments
+    Text = "export fn mixed(x : Int, y : Int) : Int =\n"
+           "    Int.bitAnd(Int.bitXor(x, y), y |> Int.bitOr(3))\n"
+           "\n"
+           "export fn main() : Unit = Io.println(Int.toString(mixed(12, 10)))\n",
+    Code = function_code(Text, '$1'),
+    ?assertEqual([], external_calls(Code)),
+    ?assertEqual(['band', 'bor', 'bxor'],
+                 lists:usort([element(2, Instruction) || Instruction <- Code,
+                                                         element(1, Instruction) =:= gc_bif
+                                                             orelse element(1, Instruction)
+                                                                        =:= bif])),
+    ?assertEqual({ok, <<"2\n">>}, run(Text)).
+
+%% report §11.1: the interface of a module of the standard library holds
+%% the host's module and function of each exported foreign declaration, and
+%% a program's holds none, its foreign function called through its check
+%% (§8.4). A regression test, written after the code.
+interface_shims_test() ->
+    [#interface{shims = IntShims}] = [Interface
+                                      || #interface{namespace = ['Int']} = Interface
+                                             <- ern_prelude:stdlib_interfaces()],
+    ?assertEqual({erlang, 'band'}, maps:get(['Int', bitAnd], IntShims)),
+    ?assertNot(is_map_key(['Int', shiftedRight], IntShims)),
+    Text = "export foreign fn size(list : List(Int)) : Int =\n    \"erlang:length/1\"\n",
+    {ok, Typed, Interface, Env} = ern_typecheck:check_string(['M'], Text),
+    Canonical = ern_canonical:module(['M'], Typed, Env, false),
+    #interface{shims = Shims} = ern_compile:interface(['M'], Interface, Canonical, Env, #{}),
+    ?assertEqual(#{}, Shims).
+
+%% report §12.3, Appendix E.21, §11.1: a raise in a foreign function of the
+%% standard library's, called at the call site, faults with the cause that
+%% names the host's function, as it did through the declaration's function,
+%% and its trace shows the host's function above the frame of the program's
+%% that called it, at the call's line, with no frame of the library's; an
+%% argument's own fault, evaluated before the call, is no raise of the
+%% function. A regression test, written after the code; it does not cover
+%% a raise through the function taken as a value, whose frame the trace
+%% shows.
+shim_raise_test() ->
+    Raising = "fn atom(text : String) : Foreign.Term = {\n"
+              "    let made = Foreign.atom(text);\n"
+              "    made\n"
+              "}\n"
+              "\n"
+              "export fn main() : Unit = Io.println(Io.show(atom(String.repeat(\"a\", 300))))\n",
+    {{fault, Cause, Trace}, _} = run(Raising),
+    ?assertEqual(<<"foreign function erlang:binary_to_atom/1 raised error:system_limit">>, Cause),
+    ?assertEqual([<<"erlang:binary_to_atom/1">>, <<"M.atom:2">>, <<"M.main:6">>],
+                 binary:split(Trace, <<"\n">>, [global, trim])),
+    Argument = "fn zero() : Int = 0\n"
+               "\n"
+               "export fn main() : Unit =\n"
+               "    Io.println(Io.show(Foreign.atom(Int.toString(1 / zero()))))\n",
+    ?assertMatch({{fault, <<"division by zero">>, _}, _}, run(Argument)).
+
+%% report §11.1, §12.3: within a module of the standard library, a call of
+%% the module's own foreign function is the host's function too, and its
+%% raise faults naming it, the trace showing the host's function above the
+%% caller's frame; the private foreign function the module calls only so
+%% has no function of its own, and one it takes as a value keeps its own.
+%% A regression test, written after the code.
+standard_own_shim_test() ->
+    Text = "foreign fn octets(list : List(Int)) : Bytes =\n"
+           "    \"erlang:list_to_binary/1\"\n"
+           "\n"
+           "foreign fn listed(bytes : Bytes) : List(Int) =\n"
+           "    \"erlang:binary_to_list/1\"\n"
+           "\n"
+           "export fn main() : Unit = {\n"
+           "    let lists = List.map([<<1>>], listed);\n"
+           "    Io.println(Int.toString(Bytes.size(octets([1, 256]))))\n"
+           "}\n",
+    {ok, Typed, _, Env} = ern_typecheck:check_string(['M'], Text),
+    Functions = [Name || {function, _, Name, _, _}
+                             <- ern_compile:forms(['M'], Typed, Env, #{standard => true})],
+    %% main is '$1', the definitions first, and octets and listed '$2' and '$3'
+    ?assertEqual({false, true}, {lists:member('$2', Functions), lists:member('$3', Functions)}),
+    {{fault, Cause, Trace}, _} = run(['M'], Text, #{standard => true}),
+    ?assertEqual(<<"foreign function erlang:list_to_binary/1 raised error:badarg">>, Cause),
+    ?assertMatch([<<"erlang:list_to_binary/1">>, <<"M.main:9">>],
+                 binary:split(Trace, <<"\n">>, [global, trim])).
+
+%% report §3.10, §9.6, §11.1: compare at Int, Float, String and Char is the
+%% host's comparison, answering what each type's module's compare answers,
+%% its operands evaluated once and in order (§5.1), and calls no module. A
+%% regression test, written after the code; it does not cover compare taken
+%% as a value, a supply a function that needs it is given, which is still
+%% the type's module's function.
+host_compare_test() ->
+    Text = "fn said(text : String, value : a) : a = {\n"
+           "    Io.println(text);\n"
+           "    value\n"
+           "}\n"
+           "\n"
+           "export fn compared() : List(Ordering) =\n"
+           "    [compare(said(\"left\", 1), said(\"right\", 2)), compare(2, 2), compare(3, 2),\n"
+           "     compare(1.5, 2.5), compare(0.0, -0.0), compare(2.5, 1.5),\n"
+           "     compare(\"a\", \"b\"), compare(\"é\", \"é\"), compare(\"b\", \"a\"),\n"
+           "     compare('a', 'b'), compare('z', 'z'), compare('é', 'e')]\n"
+           "\n"
+           "export fn main() : Unit = Io.println(Io.show(compared()))\n",
+    ?assertEqual([], [Call || {Module, _, _} = Call <- external_calls(function_code(Text, '$2')),
+                              Module =/= 'ern@m']),
+    ?assertEqual({ok, <<"left\nright\n[Less, Equal, Greater, Less, Equal, Greater, Less, Equal, "
+                        "Greater, Less, Equal, Greater]\n">>},
+                 run(Text)).
+
+%% report §11.1: the host functions the emitter calls with no handler for
+%% their raise are each called by the standard library at the types its
+%% reason names alone, every declaration over one listed here with its
+%% parameters, so that one added over another type is read against the
+%% host's page before the table holds it. A regression test, written after
+%% the code.
+raiseless_declarations_test() ->
+    Raiseless = ern_emitter:raiseless(),
+    Declared = lists:sort(
+                 [{{HostModule, HostFunction, length(Params)}, ern_namespace:text(QualifiedName),
+                   [parameter_text(Param) || Param <- Params]}
+                  || Erc <- filelib:wildcard("../../../build/stdlib/*.erc"),
+                     {ok, Beam} <- [file:read_file(Erc)],
+                     {ok, #recorded{foreign = Foreign}} <- [ern_canonical:read(Beam)],
+                     #foreign_function{qualified_name = QualifiedName, host_module = HostModule,
+                                       host_function = HostFunction,
+                                       scheme = {scheme, _, {arrow, Params, _, _}, _}}
+                         <- Foreign,
+                     lists:member({HostModule, HostFunction, length(Params)}, Raiseless)]),
+    ?assertEqual([{{erlang, 'band', 2}, "Int.bitAnd", ["Int", "Int"]},
+                  {{erlang, binary_to_list, 1}, "Bytes.toList", ["Bytes"]},
+                  {{erlang, 'bor', 2}, "Int.bitOr", ["Int", "Int"]},
+                  {{erlang, 'bxor', 2}, "Int.bitXor", ["Int", "Int"]},
+                  {{erlang, byte_size, 1}, "Bytes.size", ["Bytes"]},
+                  {{erlang, ceil, 1}, "Float.ceil", ["Float"]},
+                  {{erlang, floor, 1}, "Float.floor", ["Float"]},
+                  {{erlang, integer_to_binary, 1}, "Int.toString", ["Int"]},
+                  {{erlang, iolist_to_binary, 1}, "Bytes.concatenated", ["List(Bytes)"]},
+                  {{erlang, iolist_to_binary, 1}, "String.concatenated", ["List(String)"]},
+                  {{erlang, length, 1}, "List.size", ["List(a)"]},
+                  {{erlang, map_size, 1}, "Map.size", ["Map(a, a)"]},
+                  {{erlang, trunc, 1}, "Float.truncate", ["Float"]}],
+                 Declared),
+    ?assertEqual(lists:usort(Raiseless), lists:usort([Host || {Host, _, _} <- Declared])).
+
+%% A declared parameter type as text, each type variable `a`.
+parameter_text({applied, {named, Name}, []}) ->
+    ern_namespace:text(Name);
+parameter_text({applied, {named, Name}, Args}) ->
+    lists:flatten([ern_namespace:text(Name), "(",
+                   lists:join(", ", [parameter_text(Arg) || Arg <- Args]), ")"]);
+parameter_text({variable, _}) ->
+    "a".
+
+%% The code of the function Function of the module M that Text compiles to,
+%% as the host's disassembler reads it.
+function_code(Text, Function) ->
+    {ok, Typed, _, Env} = ern_typecheck:check_string(['M'], Text),
+    {ok, _, Beam} = compile:noenv_forms(ern_compile:forms(['M'], Typed, Env), []),
+    {beam_file, _, _, _, _, Functions} = beam_disasm:file(Beam),
+    [Code] = [Code || {function, Name, _, _, Code} <- Functions, Name =:= Function],
+    Code.
+
+%% The host's functions a function's code calls, each {Module, Function,
+%% Arity}.
+external_calls(Code) ->
+    [{Module, Function, Arity} || Instruction <- Code,
+                                  {extfunc, Module, Function, Arity} <- tuple_parts(Instruction)].
+
+tuple_parts(Term) when is_tuple(Term) ->
+    [Term | lists:append([tuple_parts(Part) || Part <- tuple_to_list(Term)])];
+tuple_parts(Terms) when is_list(Terms) ->
+    lists:append([tuple_parts(Part) || Part <- Terms]);
+tuple_parts(_) ->
+    [].
+
 %% report §8.1, §12.2, Appendix B
 hello_golden_test() ->
     ?assertEqual(target_forms("hello.erl"), example_forms("hello")).

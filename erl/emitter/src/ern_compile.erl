@@ -543,7 +543,9 @@ types([Reference | References], Types, Named, {Namespace, FormNamespace, Env, _}
     end.
 
 %% A reference to another unit's function, binding or foreign function, as
-%% the link holds it; none for a name of the prelude's that is no value.
+%% the link holds it, a foreign function of the standard library's with
+%% the host's function its call calls (§11.1); none for a name of the
+%% prelude's that is no value.
 linked(Reference, Named, {_, _, Env, Units}) ->
     QualifiedName = named_by(Reference, Named),
     case ern_typecheck:global_scheme(QualifiedName, Env) of
@@ -563,7 +565,8 @@ linked(Reference, Named, {_, _, Env, Units}) ->
                    end,
             [#linked{unit = Unit, function = Function, arity = scheme_arity(Scheme, Kind),
                      kind = Kind, identity = identity(Reference, QualifiedName, Env),
-                     term = ern_typecheck:ground_term(QualifiedName, Env)}]
+                     term = ern_typecheck:ground_term(QualifiedName, Env),
+                     shim = ern_typecheck:shim(QualifiedName, Env)}]
     end.
 
 %% The arity of a declaration's function: a function's parameters and its

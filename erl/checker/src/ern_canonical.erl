@@ -64,7 +64,8 @@
                        references := [{[atom()], binary()}],
                        reaches := #{[atom()] => reach()},
                        functions := #{term() => {[atom()], pos_integer(), reach()}},
-                       services := #{term() => binary()}}.
+                       services := #{term() => binary()},
+                       shims := #{[atom()] => {module(), atom()}}}.
 
 %% Where a node of a sourced form was written, its line and column, and
 %% the name of the local it binds, a pattern's variable or a local
@@ -201,18 +202,38 @@ module(Namespace, Typed, Env, Standard, FormNamespace) ->
                                     || {QualifiedName, _, {_, Walked}} <- Opened])),
       services => maps:from_list([{Type, hash({ernest_type, ?FORM_VERSION, close(Form, Closing)})}
                                   || {_, _, {_, Walked}} <- Opened,
-                                     {Type, Form} <- Walked#walk.services])}.
+                                     {Type, Form} <- Walked#walk.services]),
+      shims => shims(Namespace, Typed, Standard)}.
+
+%% Report §11.1: the host's module and function each exported foreign
+%% declaration of a module of the standard library names, by which a
+%% dependent's code calls the host's function in place of the declaration's,
+%% the library's code being the floor's (§8.7); none for any other module,
+%% whose foreign function a call reaches through its check (§8.4).
+shims(_, _, false) ->
+    #{};
+shims(Namespace, Typed, true) ->
+    maps:from_list([{QualifiedName, {HostModule, HostFunction}}
+                    || #foreign_fn_declaration{export = true,
+                                               implementation = Implementation} = Declaration
+                           <- Typed,
+                       {QualifiedName, foreign} <- declared(Namespace, Declaration),
+                       {ok, {HostModule, HostFunction, _}}
+                           <- [ern_typecheck:foreign_implementation(Implementation)]]).
 
 %% Report §11.1: the interface with the hashes a dependent's forms name, the
 %% reaches of its functions that name a binding or a foreign declaration,
-%% which a dependent's reaches take in, and the position of each function
-%% in the unit, by which a dependent calls it.
+%% which a dependent's reaches take in, the position of each function in
+%% the unit, by which a dependent calls it, and the host's function of each
+%% exported foreign declaration of the standard library's, which a
+%% dependent's call of it calls.
 -spec interface(#interface{}, canonical()) -> #interface{}.
-interface(Interface, #{identities := Identities, reaches := Reaches, positions := Positions}) ->
+interface(Interface, #{identities := Identities, reaches := Reaches, positions := Positions,
+                       shims := Shims}) ->
     Interface#interface{identities = Identities,
                         reaches = maps:filter(fun(_, Reach) -> Reach =/= {[], []} end,
                                               Reaches),
-                        positions = Positions}.
+                        positions = Positions, shims = Shims}.
 
 %% Report §11.1: the position of each function in the module's unit: its
 %% definitions in the order of their forms, counted from 1, a type taking

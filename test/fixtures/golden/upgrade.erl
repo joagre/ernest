@@ -17,7 +17,7 @@
         of
         {'Some', Total_3} ->
             ern@io:'$8'(<<"before upgrade: ",
-                          (ern@int:'$24'(Total_3))/binary>>);
+                          (erlang:integer_to_binary(Total_3))/binary>>);
         'None' -> ern@io:'$8'(<<"timeout">>)
     end,
     ern_rt:send(Counter_1,
@@ -30,7 +30,7 @@
         of
         {'Some', Total_6} ->
             ern@io:'$8'(<<"after upgrade: ",
-                          (ern@int:'$24'(Total_6))/binary>>);
+                          (erlang:integer_to_binary(Total_6))/binary>>);
         'None' -> ern@io:'$8'(<<"timeout">>)
     end.
 

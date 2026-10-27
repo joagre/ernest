@@ -37,7 +37,7 @@
 %% and `let p <- e` becomes a case (report §5.5).
 -module(ern_emitter).
 
--export([unit/1, source/1, ground_terms/2, function_name/1, site_name/2]).
+-export([unit/1, source/1, ground_terms/2, function_name/1, raiseless/0, site_name/2]).
 
 -include_lib("checker/include/ern_canonical.hrl").
 -include_lib("emitter/include/ern_unit.hrl").
@@ -159,7 +159,8 @@ syntax(#unit{namespace = Namespace, name = ErlangModule, code = Code} = Unit) ->
     Context = context(Placed, ForeignPlaced, Unit),
     {DefinitionFunctions, Context1} = lists:mapfoldl(fun definition_functions/2, Context,
                                                      Placed),
-    {ForeignForms, Context2} = lists:mapfoldl(fun foreign_function/2, Context1, ForeignPlaced),
+    {AllForeignForms, Context2} = lists:mapfoldl(fun foreign_function/2, Context1,
+                                                 ForeignPlaced),
     {InitFunction, Context3} = init_function(Unit, carried(Placed, Unit, Context2)),
     TestsFunction = tests_function(Placed, Context3),
     DependenciesFunction = dependencies_function(Unit),
@@ -167,12 +168,14 @@ syntax(#unit{namespace = Namespace, name = ErlangModule, code = Code} = Unit) ->
     SpawnedFunction = spawned_function(Placed, ForeignPlaced, Entries, Context3),
     Lifted = lists:reverse(Context3#emit_context.lifted),
     LackedFunctions = lacked_functions(Unit),
-    Bodies = lists:append(DefinitionFunctions) ++ ForeignForms ++ InitFunction ++ TestsFunction
+    Others = lists:append(DefinitionFunctions) ++ InitFunction ++ TestsFunction
         ++ SpawnedFunction ++ Lifted,
+    {ForeignKept, ForeignForms} = foreign_kept(ForeignPlaced, AllForeignForms, Others, Unit),
+    Bodies = Others ++ ForeignForms,
     CodeFunction = case Code of
                        true ->
                            Calls = calls(Bodies, Unit),
-                           code_function(code(Placed, ForeignPlaced, Entries, Context3)
+                           code_function(code(Placed, ForeignKept, Entries, Context3)
                                          ++ [{Unit#unit.form_namespace,
                                               {sites, site_namespace(Unit)}},
                                              {Unit#unit.form_namespace,
@@ -181,7 +184,7 @@ syntax(#unit{namespace = Namespace, name = ErlangModule, code = Code} = Unit) ->
                        false ->
                            []
                    end,
-    Exports = exports(Placed, ForeignPlaced, Context3)
+    Exports = exports(Placed, ForeignKept, Context3)
         ++ [{'$init', 0} || InitFunction =/= []] ++ [{'$tests', 0} || TestsFunction =/= []]
         ++ [{'$deps', 0} || DependenciesFunction =/= []]
         ++ [{'$spawned', 2} || SpawnedFunction =/= []] ++ [{'$code', 0} || CodeFunction =/= []]
@@ -200,6 +203,40 @@ syntax(#unit{namespace = Namespace, name = ErlangModule, code = Code} = Unit) ->
     Functions = lists:append(DefinitionFunctions) ++ ForeignForms ++ InitFunction ++ TestsFunction
         ++ DependenciesFunction ++ SpawnedFunction ++ CodeFunction ++ Lifted ++ LackedFunctions,
     {Attrs ++ Functions, Context3#emit_context.builds_functions}.
+
+%% Report §11.1: the foreign functions the unit keeps, with their
+%% functions. A private one of the standard library's that the unit's code
+%% calls only by name, each call the host's function itself (shim_call/4),
+%% has none, and one its code takes as a value, or exported, keeps its own.
+foreign_kept(ForeignPlaced, ForeignForms, Others, #unit{standard = true}) ->
+    Named = lists:append([erl_syntax_lib:fold(fun local_function/2, [], Form)
+                          || Form <- Others]),
+    lists:unzip([Kept || {{Position, #foreign_function{export = Export}}, _} = Kept
+                             <- lists:zip(ForeignPlaced, ForeignForms),
+                         Export orelse lists:member(function_name(Position), Named)]);
+foreign_kept(ForeignPlaced, ForeignForms, _, _) ->
+    {ForeignPlaced, ForeignForms}.
+
+%% The name of a function of the unit a node calls or takes as a value.
+local_function(Node, Names) ->
+    case erl_syntax:type(Node) of
+        application ->
+            Operator = erl_syntax:application_operator(Node),
+            case erl_syntax:type(Operator) of
+                atom -> [erl_syntax:atom_value(Operator) | Names];
+                _ -> Names
+            end;
+        implicit_fun ->
+            Name = erl_syntax:implicit_fun_name(Node),
+            case erl_syntax:type(Name) of
+                arity_qualifier ->
+                    [erl_syntax:atom_value(erl_syntax:arity_qualifier_body(Name)) | Names];
+                _ ->
+                    Names
+            end;
+        _ ->
+            Names
+    end.
 
 %% Report §11.1: the unit's definitions by their positions, from 1 in the
 %% order of their forms, and its foreign functions by those after them.
@@ -561,10 +598,16 @@ foreign_function({Position, #foreign_function{qualified_name = QualifiedName,
 foreign_body(Source, {HostModule, HostFunction}, {ParamTypes, ResultType}, Args, Members,
              Context) ->
     {Exposed, Context1} = lists:mapfoldl(fun exposed/2, Context, lists:zip(ParamTypes, Args)),
-    Call = erl_syntax:application(erl_syntax:atom(HostModule), erl_syntax:atom(HostFunction),
-                                  Exposed ++ Members),
     Arity = length(Exposed ++ Members),
-    {Try, Context2} = foreign_call(Source, Call, HostModule, HostFunction, Arity, Context1),
+    {Try, Context2} =
+        case Context1 of
+            #emit_context{unit = #unit{standard = true}} ->
+                shim_call(Source, {HostModule, HostFunction}, Exposed ++ Members, Context1);
+            _ ->
+                Call = erl_syntax:application(erl_syntax:atom(HostModule),
+                                              erl_syntax:atom(HostFunction), Exposed ++ Members),
+                foreign_call(Source, Call, HostModule, HostFunction, Arity, Context1)
+        end,
     HostText = ern_namespace:host_function_text(HostModule, HostFunction, Arity),
     foreign_return(Source, Try, ParamTypes, ResultType, HostText, Context2).
 
@@ -584,6 +627,77 @@ foreign_call(Source, Call, HostModule, HostFunction, Arity, Context) ->
                                                             erl_syntax:variable(Trace))],
                                 none, [Raised]),
     {erl_syntax:try_expr([at(Source, Call)], [Handler]), Context1}.
+
+%% Report §11.1, §12.3: a call of a foreign function of the standard
+%% library's, the host's function its declaration names called with the
+%% arguments as they are, since the library's are the runtime's own
+%% (exposed/2), and its return unchecked (foreign_return/6): at the call
+%% site of any unit, and as the body of the declaration's own function,
+%% which a function value of it calls. A raise is turned into the fault
+%% that names the foreign function, but for a host function that cannot
+%% raise at the types the library declares it at (is_raiseless/1), which
+%% the host's compiler makes its instruction where it has one. An argument
+%% is evaluated before the handler is entered, so that its own fault is no
+%% raise of the function (§5.1, §7.4). Report §8.6: the call writes nothing
+%% for the deadlock look, as foreign_call/6 writes nothing.
+shim_call(Source, {HostModule, HostFunction}, Args, Context) ->
+    case is_raiseless({HostModule, HostFunction, length(Args)}) of
+        true ->
+            {at(Source, call_remote(HostModule, HostFunction, Args)), Context};
+        false ->
+            {Bindings, Evaluated, Context1} = evaluated_first(Args, Context),
+            Call = call_remote(HostModule, HostFunction, Evaluated),
+            {Try, Context2} = foreign_call(Source, Call, HostModule, HostFunction,
+                                           length(Args), Context1),
+            {with_bindings(Bindings, Try), Context2}
+    end.
+
+%% Each argument that is not a variable or a literal bound to a variable of
+%% its own, in order, and the arguments as the call then takes them.
+evaluated_first(Args, Context) ->
+    {Pairs, Context1} =
+        lists:mapfoldl(fun(Arg, Acc) ->
+                           case is_evaluated(Arg) of
+                               true ->
+                                   {{[], Arg}, Acc};
+                               false ->
+                                   {[Name], Acc1} = fresh_variables(1, "Argument", Acc),
+                                   Variable = erl_syntax:variable(Name),
+                                   {{[erl_syntax:match_expr(Variable, Arg)], Variable}, Acc1}
+                           end
+                       end, Context, Args),
+    {lists:append([Binding || {Binding, _} <- Pairs]), [Arg || {_, Arg} <- Pairs], Context1}.
+
+is_evaluated(Form) ->
+    lists:member(erl_syntax:type(Form), [variable, atom, integer, float, char, string, nil]).
+
+is_raiseless(HostFunction) ->
+    lists:member(HostFunction, raiseless()).
+
+%% Report §11.1: the host functions the standard library calls that raise
+%% nothing at the types its declarations give them, by the host's page of
+%% each, which `ern_emitter_tests` holds to every declaration over one;
+%% raising only where memory is exhausted, which ends the program (§10).
+-spec raiseless() -> [mfa()].
+raiseless() ->
+    %% Int.bitAnd, bitOr, bitXor: bitwise of two integers
+    [{erlang, 'band', 2}, {erlang, 'bor', 2}, {erlang, 'bxor', 2},
+     %% Bytes.size: the size of a binary
+     {erlang, byte_size, 1},
+     %% Map.size: the size of a map
+     {erlang, map_size, 1},
+     %% List.size: the length of a proper list, which every List is (§12.2)
+     {erlang, length, 1},
+     %% Float.truncate, floor, ceil: of a finite float (§3.1), an integer of
+     %% any size
+     {erlang, trunc, 1}, {erlang, floor, 1}, {erlang, ceil, 1},
+     %% Bytes.toList: the bytes of a binary
+     {erlang, binary_to_list, 1},
+     %% Int.toString: the decimal text of an integer
+     {erlang, integer_to_binary, 1},
+     %% Bytes' and String's concatenated: a list of binaries, which is an
+     %% iolist
+     {erlang, iolist_to_binary, 1}].
 
 %% Report §8.4: the foreign call's return checked, its cause naming the
 %% host's function as HostText writes it (§12.3). The standard library's is the
@@ -927,14 +1041,14 @@ expr_form({block, Statements}, _, Context) ->
     {erl_syntax:block_expr(Forms),
      Context1#emit_context{variables = Context#emit_context.variables,
                            locals = Context#emit_context.locals}};
-expr_form({piped_call, Callee, [Expr | Rest]}, _, Context) ->
-    %% report §5.1: in `x |> e`, x is evaluated before a callee that is
-    %% evaluated at all, and the other arguments after it
-    {[ExprForm, CalleeForm | RestForms], Context1} = exprs([Expr, Callee | Rest], Context),
-    {[PipedName], Context2} = fresh_variables(1, "Piped", Context1),
-    Piped = erl_syntax:variable(PipedName),
-    Application = erl_syntax:application(CalleeForm, [Piped | RestForms]),
-    {erl_syntax:block_expr([erl_syntax:match_expr(Piped, ExprForm), Application]), Context2};
+expr_form({piped_call, Callee, Args}, Source, Context) ->
+    %% report §11.1: a pipe into a foreign function of the standard
+    %% library's calls the host's function as a call written so does, the
+    %% callee a name, which is not evaluated (§5.1)
+    case is_shim_callee(Callee, Context) of
+        true -> call(Source, Callee, Args, Context);
+        false -> piped(Callee, Args, Context)
+    end;
 expr_form({call, Callee, Args}, Source, Context) ->
     call(Source, Callee, Args, Context);
 expr_form({'not', Expr}, _, Context) ->
@@ -978,6 +1092,26 @@ expr_form({'receive', Written, After}, _, Context) ->
     {Clauses, {Reads, Context1}} = lists:mapfoldl(fun read_before/2, {[], Context}, Written),
     {Bindings, Receive, Context2} = receive_form(Clauses, After, Context1),
     {with_bindings(Reads ++ Bindings, Receive), Context2}.
+
+%% Report §5.1: in `x |> e`, x is evaluated before a callee that is
+%% evaluated at all, and the other arguments after it.
+piped(Callee, [Expr | Rest], Context) ->
+    {[ExprForm, CalleeForm | RestForms], Context1} = exprs([Expr, Callee | Rest], Context),
+    {[PipedName], Context2} = fresh_variables(1, "Piped", Context1),
+    Piped = erl_syntax:variable(PipedName),
+    Application = erl_syntax:application(CalleeForm, [Piped | RestForms]),
+    {erl_syntax:block_expr([erl_syntax:match_expr(Piped, ExprForm), Application]), Context2}.
+
+%% Report §11.1: whether a callee is a name of a foreign function of the
+%% standard library's, which shim/2 gives the host's function of.
+is_shim_callee(Callee, Context) ->
+    case sourced(Callee) of
+        {_, {var, Reference, _}} when element(1, Reference) =/= local,
+                                      element(1, Reference) =/= read ->
+            shim(Reference, Context) =/= none;
+        _ ->
+            false
+    end.
 
 %% Report §4.8, §4.9, §5.1: an operator. One resolved to a member a
 %% requirement names, a member whose own requirement is supplied, or a
@@ -1443,7 +1577,7 @@ callee(_, {var, {named, ['Code', running]}, _}, _, [Named], Context) ->
 callee(Source, {var, {named, QualifiedName} = Reference, []} = Node, _, Args, Context) ->
     case is_own(Reference, Context) orelse not is_primitive(QualifiedName) of
         true ->
-            declared_call(Reference, [], Args, Context);
+            declared_call(Source, Reference, [], Args, Context);
         false ->
             %% report §4.2: the prelude's, `Prelude.x` among them
             {ArgForms, Context1} = exprs(Args, Context),
@@ -1457,8 +1591,9 @@ callee(Source, {var, {named, ['Address', _] = QualifiedName}, [], _} = Node, _, 
 callee(_, {var, {named, [compare]}, [Supply]}, _, Args, Context) ->
     {ArgForms, Context1} = exprs(Args, Context),
     member_applied(Supply, ArgForms, Context1);
-callee(_, {var, Reference, Supplies}, _, Args, Context) when element(1, Reference) =/= read ->
-    declared_call(Reference, Supplies, Args, Context);
+callee(Source, {var, Reference, Supplies}, _, Args, Context)
+  when element(1, Reference) =/= read ->
+    declared_call(Source, Reference, Supplies, Args, Context);
 callee(_, _, Callee, Args, Context) ->
     {CalleeForm, Context1} = expr(Callee, Context),
     {ArgForms, Context2} = exprs(Args, Context1),
@@ -1466,23 +1601,52 @@ callee(_, _, Callee, Args, Context) ->
 
 %% Report §4.6: a call of a declaration, a `let` through what its getter
 %% answers and a `fn` the call itself, a requirement's members after the
-%% arguments written.
-declared_call(Reference, Supplies, Args, Context) ->
+%% arguments written; report §11.1: a foreign function of the standard
+%% library's the host's function it names, called at Source.
+declared_call(Source, Reference, Supplies, Args, Context) ->
     {WrittenForms, Context1} = exprs(Args, Context),
     {SupplyForms, Context2} = supply_forms(Supplies, Context1),
     ArgForms = WrittenForms ++ SupplyForms,
-    Form = case placed(Reference, Context) of
-               {own, Position, value, _} ->
-                   Get = erl_syntax:application(erl_syntax:atom(function_name(Position)), []),
-                   erl_syntax:application(Get, ArgForms);
-               {own, Position, function, _} ->
-                   erl_syntax:application(erl_syntax:atom(function_name(Position)), ArgForms);
-               {Unit, Function, value, _} ->
-                   erl_syntax:application(call_remote(Unit, Function, []), ArgForms);
-               {Unit, Function, function, _} ->
-                   call_remote(Unit, Function, ArgForms)
-           end,
-    {Form, Context2}.
+    case shim(Reference, Context2) of
+        none -> {placed_call(Reference, ArgForms, Context2), Context2};
+        Host -> shim_call(Source, Host, ArgForms, Context2)
+    end.
+
+placed_call(Reference, ArgForms, Context) ->
+    case placed(Reference, Context) of
+        {own, Position, value, _} ->
+            Get = erl_syntax:application(erl_syntax:atom(function_name(Position)), []),
+            erl_syntax:application(Get, ArgForms);
+        {own, Position, function, _} ->
+            erl_syntax:application(erl_syntax:atom(function_name(Position)), ArgForms);
+        {Unit, Function, value, _} ->
+            erl_syntax:application(call_remote(Unit, Function, []), ArgForms);
+        {Unit, Function, function, _} ->
+            call_remote(Unit, Function, ArgForms)
+    end.
+
+%% Report §11.1: the host's function a reference to a foreign function of
+%% the standard library's names, {HostModule, HostFunction}: the unit's own
+%% where the unit is the library's, and another unit's as its interface
+%% gives it to the link; none for any other reference.
+shim(Reference, #emit_context{own = #own{forms = Forms, foreign = Foreign},
+                              unit = #unit{standard = Standard,
+                                           link = #link{functions = Functions}}} = Context) ->
+    case own_position(Reference, Context) of
+        {ok, Position} when is_map_key(Position, Forms) ->
+            none;
+        {ok, Position} when Standard ->
+            {_, #foreign_function{host_module = HostModule, host_function = HostFunction}} =
+                lists:keyfind(Position, 1, maps:values(Foreign)),
+            {HostModule, HostFunction};
+        {ok, _} ->
+            none;
+        error ->
+            case Functions of
+                #{Reference := #linked{shim = Shim}} -> Shim;
+                _ -> none
+            end
+    end.
 
 io_value(Name, Shown, Context) ->
     {[Value], Context1} = fresh_variables(1, "Argument", Context),
@@ -1882,12 +2046,37 @@ negate(_, Form) -> erl_syntax:prefix_expr(erl_syntax:operator('-'), Form).
 member_applied({required, {variable, Number}, Member}, Args, Context) ->
     Function = erl_syntax:variable(member_variable(Number, Member, Context)),
     {erl_syntax:application(Function, Args), Context};
+member_applied({known, {named, [TypeName, compare]}, []}, [Left, Right], Context)
+  when TypeName =:= 'Int'; TypeName =:= 'Float'; TypeName =:= 'String'; TypeName =:= 'Char' ->
+    host_compare({tcon, [TypeName], []}, Left, Right, Context);
 member_applied({known, Reference, Supplies}, Args, Context) ->
     {SupplyForms, Context1} = supply_forms(Supplies, Context),
     {member_call(Reference, Args ++ SupplyForms, Context1), Context1};
 member_applied({tuple, _} = Supply, Args, Context) ->
     {Compare, Context1} = supply_form(Supply, Context),
     {erl_syntax:application(Compare, Args), Context1}.
+
+%% Report §3.10, §9.6, §11.1: compare at a prelude type the host orders,
+%% Int, Float, String or Char, called: the host's comparison of the two
+%% operands, each evaluated once and in order (§5.1), answering what the
+%% type's module's compare answers, which is written with the same `<` and
+%% `>` (binop/5).
+host_compare(Type, Left, Right, Context) ->
+    {[LeftName, RightName], Context1} = fresh_variables(2, "Operand", Context),
+    [LeftVariable, RightVariable] = [erl_syntax:variable(Name) || Name <- [LeftName, RightName]],
+    Answer = fun(Operator, Then, Else) ->
+                     erl_syntax:case_expr(binop(Operator, Type, LeftVariable, RightVariable,
+                                                Context1),
+                                          [erl_syntax:clause([erl_syntax:atom(true)], none,
+                                                             [Then]),
+                                           erl_syntax:clause([erl_syntax:atom(false)], none,
+                                                             [Else])])
+             end,
+    Ordered = Answer('<', erl_syntax:atom('Less'),
+                     Answer('>', erl_syntax:atom('Greater'), erl_syntax:atom('Equal'))),
+    {erl_syntax:block_expr([erl_syntax:match_expr(LeftVariable, Left),
+                            erl_syntax:match_expr(RightVariable, Right), Ordered]),
+     Context1}.
 
 %% Report §3.10: an ordering is its compare against Less or Greater; any
 %% other operator is the member's own result.

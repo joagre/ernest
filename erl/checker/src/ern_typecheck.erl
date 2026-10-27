@@ -23,11 +23,12 @@
 -export([check/3, check/4, check_string/2, type_state/1, scope_state/2, set_type_state/2,
          prelude_names/1, prelude_values/1, prelude_constructor/2, prelude_constructors/1,
          prelude_env/0, with_interfaces/2, lookup_type/2, identity/2, position/2, reach/2,
-         ground_term/2, global_scheme/2, is_provided/2, described_type/2, let_order/1,
-         settled/2, foreign_implementation/1, fields/2, declared_scheme/3, is_running_never/2,
-         declaration_type/2, is_top_let/2, is_foreign/2, declaration_scheme/2,
-         declared_fields/3, is_member_name/3, prelude_one_text/2, session_member/3,
-         lookup_constructor/4, constructor_info/2, is_value/2, resolve_type/2, node_type/1]).
+         ground_term/2, shim/2, global_scheme/2, is_provided/2, described_type/2,
+         let_order/1, settled/2, foreign_implementation/1, fields/2, declared_scheme/3,
+         is_running_never/2, declaration_type/2, is_top_let/2, is_foreign/2,
+         declaration_scheme/2, declared_fields/3, is_member_name/3, prelude_one_text/2,
+         session_member/3, lookup_constructor/4, constructor_info/2, is_value/2, resolve_type/2,
+         node_type/1]).
 
 -export_type([env/0, session_scope/0]).
 
@@ -95,8 +96,8 @@
               groups = #{}, typed = [], diagnostics = [], let_order = [],
               generalizing = false, provided = [], inferring = [], requirement = [], failed = [],
               signature = [], definition, private_types = #{}, identities = #{},
-              reaches = #{}, positions = #{}, terms = #{}, foreign = #{}, declaring = #{},
-              uses = #{}, binder = none, definition_type}).
+              reaches = #{}, positions = #{}, terms = #{}, shims = #{}, foreign = #{},
+              declaring = #{}, uses = #{}, binder = none, definition_type}).
 %% definition_type: the type of the definition whose uses post_checks/3
 %% supplies, once it is inferred, whose variables are those a signature
 %% could name, which a requirement's error reads (open_help/3)
@@ -132,6 +133,10 @@
 %% is a ground term, by qualified name, which their interfaces hold and a
 %% dependent's code holds where it reads it (ground_term/2, report §11.1);
 %% the checker reads none
+%% shims: the host's module and function each exported foreign declaration
+%% of the standard library's names, by qualified name, which their
+%% interfaces hold and a dependent's call of it calls (shim/2,
+%% report §11.1); the checker reads none
 %%
 %% uses: the uses of each definition under inference, by its placeholder's
 %% variable, newest first, each with whether its result type was still
@@ -687,7 +692,8 @@ with_interfaces(Interfaces, Env) ->
 add_interface(Interface, #env{types = Types, globals = Globals} = Env) ->
     #interface{namespace = Namespace, types = InterfaceTypes, values = Values, lets = Lets,
                private_types = PrivateTypes, identities = Identities, reaches = Reaches,
-               positions = Positions, terms = Terms} = without_shadowed(Interface, Env),
+               positions = Positions, terms = Terms,
+               shims = Shims} = without_shadowed(Interface, Env),
     Constructors = maps:fold(fun(_, #type_info{constructors = TypeConstructors}, Acc) ->
                                  add_constructors(TypeConstructors, Acc)
                              end, Env#env.constructors, InterfaceTypes),
@@ -705,6 +711,7 @@ add_interface(Interface, #env{types = Types, globals = Globals} = Env) ->
             %% since the interface carries neither where it is empty
             terms = maps:merge(maps:without(maps:keys(Values), Env#env.terms), Terms),
             reaches = maps:merge(maps:without(maps:keys(Values), Env#env.reaches), Reaches),
+            shims = maps:merge(maps:without(maps:keys(Values), Env#env.shims), Shims),
             declaring = maps:merge(Env#env.declaring,
                                    maps:from_keys(maps:keys(Values), Namespace))}.
 
@@ -716,7 +723,7 @@ add_interface(Interface, #env{types = Types, globals = Globals} = Env) ->
 %% member's place, whichever interface comes first.
 without_shadowed(#interface{namespace = Namespace, values = Values, lets = Lets,
                             identities = Identities, reaches = Reaches,
-                            positions = Positions, terms = Terms} = Interface,
+                            positions = Positions, terms = Terms, shims = Shims} = Interface,
                  #env{declaring = Declaring}) ->
     Parent = lists:droplast(Namespace),
     Shadowed = [QualifiedName || QualifiedName := _ <- Values,
@@ -725,7 +732,8 @@ without_shadowed(#interface{namespace = Namespace, values = Values, lets = Lets,
                         identities = maps:without(Shadowed, Identities),
                         reaches = maps:without(Shadowed, Reaches),
                         positions = maps:without(Shadowed, Positions),
-                        terms = maps:without(Shadowed, Terms)}.
+                        terms = maps:without(Shadowed, Terms),
+                        shims = maps:without(Shadowed, Shims)}.
 
 add_type(#env{types = Types, constructors = Known} = Env,
          #type_info{qualified_name = QualifiedName, constructors = Constructors} = TypeInfo) ->
@@ -901,6 +909,13 @@ ground_term(QualifiedName, #env{terms = Terms}) ->
         #{QualifiedName := Term} -> {term, Term};
         _ -> none
     end.
+
+%% Report §11.1: the host's module and function a foreign declaration of
+%% the standard library's names, which its interface holds, or none for
+%% any other value.
+-spec shim([atom()], env()) -> {module(), atom()} | none.
+shim(QualifiedName, #env{shims = Shims}) ->
+    maps:get(QualifiedName, Shims, none).
 
 %% A value's scheme by its qualified name, of a module given or the
 %% prelude, or undefined.

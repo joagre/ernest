@@ -131,6 +131,7 @@ Each construct's function says how it is written:
 - a spawn's site, `site_name/2`, written by `ern_namespace:site_text/2` as a frame of a trace is (§6.9, E.21);
 - a fault the code meets, `thrown_fault/1`, the host's throw where it is met, so that the trace holds the function that met it (§7.3);
 - a requirement's members, `supply_form/2` and `enclosing_members/3` (§4.9);
+- a call of a foreign function of the standard library's, `shim_call/4`, the host's function its declaration names, which the interface's `shims` and a `#linked{}`'s `shim` give a dependent, inside the `try` that names it but for a host function `raiseless/0` lists, a private one the library's unit calls only so having no function of its own (`foreign_kept/4`), and `compare` at a prelude type, `host_compare/4` (§11.1, §12.3);
 - a `Float` operation, `float_operation/4`, the host's own operation with no `try`, whose fault the runtime reads, and a float segment's variable, `variable_form/1` (§3.1, §7.4);
 - a type's descriptor, `describe/4`, a function type's maker, `built_descriptor/1`, and the printing of a check's cause, `printed/2` and `printing/2` (§12.3, §11.5);
 - whether the unit builds a function value, `function_value/2` (§11.2).

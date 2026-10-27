@@ -25,12 +25,14 @@
 %% go through ern_rt (plan 2.4). spawn gets a third argument naming the
 %% spawn site for Down (report §6.9). Int arithmetic is emitted inline;
 %% String.<> is binary concatenation; stdlib calls go to the namespace's
-%% module, 'ern@int' for Int, to the function at its position there, so
-%% this target changes where the library's positions do. A call gives the
-%% runtime what an answer from foreign code is checked by, the reply's
-%% descriptor and the fault's text, and a message from a foreign process is
-%% checked by the proxy that delivered it, so a receive checks nothing
-%% (report §8.4).
+%% module, 'ern@io' for Io, to the function at its position there, so
+%% this target changes where the library's positions do, but for a foreign
+%% function of the library's, which is the host's function its declaration
+%% names, Int.toString's erlang:integer_to_binary/1 (report §11.1). A call
+%% gives the runtime what an answer from foreign code is checked by, the
+%% reply's descriptor and the fault's text, and a message from a foreign
+%% process is checked by the proxy that delivered it, so a receive checks
+%% nothing (report §8.4).
 %%
 %% The compiler also adds the module's interface as the BEAM chunk "ErnI".
 
@@ -57,7 +59,7 @@
     case ern_rt:call(Counter, fun(Reply) -> {'Get', Reply} end, 1000,
                      {int, <<"reply does not match Int">>}) of
         {'Some', Total} ->
-            'ern@io':'$8'(<<"count is ", ('ern@int':'$24'(Total))/binary>>);
+            'ern@io':'$8'(<<"count is ", (erlang:integer_to_binary(Total))/binary>>);
         'None' ->
             'ern@io':'$8'(<<"counter is not answering">>)
     end.

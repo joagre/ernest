@@ -15,7 +15,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-10-27.** [The Emitter's Calls Against the Host's](#the-emitters-calls-against-the-hosts-2026-10-27); [The BEAM Opcode Experiment](#the-beam-opcode-experiment-2026-10-27).
+**2026-10-27.** [The Emitter's Calls Against the Host's, Built](#the-emitters-calls-against-the-hosts-built-2026-10-27); [The Emitter's Calls Against the Host's](#the-emitters-calls-against-the-hosts-2026-10-27); [The BEAM Opcode Experiment](#the-beam-opcode-experiment-2026-10-27).
 
 **2026-10-26.** [The Nested Group's Third Restart](#the-nested-groups-third-restart-2026-10-26); [What the Newcomer's Feedback Left](#what-the-newcomers-feedback-left-2026-10-26); [A Regex Literal Weighed](#a-regex-literal-weighed-2026-10-26); [The Build's Cost per Function](#the-builds-cost-per-function-2026-10-26); [The Comments' Paragraphs](#the-comments-paragraphs-2026-10-26); [The Second Cut, §8.7 to E.27](#the-second-cut-87-to-e27-2026-10-26).
 
@@ -9522,6 +9522,28 @@ MVP 3.9's last item began on the user's word on 2026-10-24 over `0e37caeb`, as `
 The host's own times are down a fifth on most rows, the loop alone 7.5 against 9.3, so the machine is faster than it was and the ratio is what is compared. Two rows are better, `String.size` and the spawn, the spawn by the review's rounds since 0.4.0 (*The Rows That Grew*). Nine rows are within a tenth of their last ratio, the noise the reviews before 0.3.1 and 0.4.0 took for the machine's own, and two are a little past it, `List.map` 1.62 against 1.5 and the call 1.71 against 1.6, each by a hundredth or two beyond a tenth, with no change to either operation's path since 0.4.0; the release ships with the rows as they stand, which the user decides at the tag. Of the rows the bench gained since 0.4.0's table: `spawnMonitored` 11.1 and a monitor of an ended process 27.2, against 10.2 and 25.6 on 2026-10-20, within their spread; `restarting` entered and returning 356 ns against 553 then. The language's rows against the host (*The Language Against the Host*): the dot product 1.28 against 1.65 and the ray tracer 1.61 against 1.95, both better since the operators' tuple patterns, a record update 1.73 against 1.50, `Map.put` 1.32 against 1.18, `List.map` 1.42 against 1.57, the parser 1.28 and the counter 1.30 as they were.
 
 **The newcomer's program** is `kvd`, a key-value server over TCP that keeps its values in a log file, 732 lines in four modules: a session per connection with a reader process, a tracker and a store under a `OneForOne` group, `Clock.alarm` for keys that lapse and a compaction every thirty seconds, `Os.termination` compacting the log at the end, nine tests and three doc examples. It ran, a `CRASH` restarted by the group and the values read again by the second run; it is published beside the archive with its driver script.
+
+## The Emitter's Calls Against the Host's, Built, 2026-10-27
+
+MVP 3.96's item 9, built by an agent on Opus 5.5 to the shape the entry below decided.
+
+**What a call is now.** A call of a standard library shim, written or through a pipe, is the host's function at the call site, inside the `try` that names the foreign function, and the declaration's own function stays for a function value of it. The interface of a standard library module holds each exported foreign declaration's host module and function, its `shims`, which the link carries to the call site. An arrival links the library's names through the same environment, so a definition compiled on a peer calls the same host function. `compare` at `Int`, `Float`, `String` and `Char` is the host's comparison, written with the `<` and `>` the type modules' own `compare` uses. A program's foreign functions and a library's are untouched.
+
+**The table.** Twelve host functions are called with no `try`, since none raises at the types the library declares it at: `band`, `bor`, `bxor`, `byte_size`, `map_size`, `length`, `trunc`, `floor`, `ceil`, `binary_to_list`, `integer_to_binary/1` and `iolist_to_binary/1`. A test holds the table to every declaration over one, so a declaration added at another type fails it. `bsr`, `list_to_binary`, `binary_to_atom` and `integer_to_binary/2` raise on values their types allow and keep the `try`.
+
+**Two things the build found.** A `try` around the call took in its arguments, so a fault met evaluating one, a `Float` overflow in `Float.toString(x * y)`, was reported as the shim's raise; `float_fault_test` found it. An argument that is not a variable or a literal is now bound before the `try`.
+
+A private foreign function of the library that its own unit calls only by name became a function nothing calls, which Dialyzer named in `make test-full`; the unit now leaves it out, and keeps one its code takes as a value.
+
+The trace of a raise in a shim lost the library's frame, `Foreign.atom:143`, and shows the host's function above the frame of the program's that called it, at the call's line, a frame the `try` keeps even where the call was the caller's last. E.21 now says so. The deadlock look reads the top frame, which is the host's function whether the wrapper or the call site called it, so it reads what it read.
+
+**The interface's format** goes from 10 to 11, since the interface's tuple gained a field: an older `.erc` reads as another compiler's and is built again, as §11.1 says. The floor does not change. The library's code agrees by it already, and a development build's digest changes with its code.
+
+**Measured**, the old toolchain and the new built side by side and run in turn, the median of eleven. The mixer takes 749 to 751 ms against 1,278 to 1,284, and the Erlang mixer 293 on the same machine. The tree, which calls no shim, takes 864 to 873 against 872 to 876. A loop of five million takes 40 ms of `Bytes.size` against 64, and 17 of `compare` at `Int` against 48; `String.size` takes 1,433 against 1,430, the work being `string:length`'s.
+
+In `make bench`, the language part's derived compare goes from 1.51 to 1.04 times Erlang and `compare` at `Int` from 0.99 to 0.62; the core part's `Bytes.size` from 1.28 to 1.00, `compare` at `Int` from 1.18 to 1.03 and at `String` from 0.95 to 0.29. `Map.get` stays at 2.0, an Ernest function of the library over its shim, called across units.
+
+**What stays.** The mixer is still 2.6 times Erlang, since `Int.shiftLeft` and `Int.shiftRight` are Ernest functions of `Int` over a shim, `max(count, 0)` closing the difference for a count below zero, and a call of one crosses units, which the decision keeps as a call, OTP inlining none across modules either.
 
 ## The Emitter's Calls Against the Host's, 2026-10-27
 

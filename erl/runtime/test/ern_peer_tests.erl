@@ -1276,12 +1276,12 @@ crashes() ->
 %% own; a message that comes after the failure starts one. In a run that is
 %% no node a find answers NotListed at once, so the host holds the proxy's
 %% process still while the two come, as a find under way holds it, and its
-%% finds and its sends are read by tracing it; each unit's function by its
-%% number (report §11.1)
+%% finds and its sends are read by tracing it, a find as a call of the
+%% host's function `Peer.find` names, which a call of it calls (report
+%% §11.1)
 proxy_one_find_test() ->
     Proxy = library("proxy"),
     Start = ern_named:function(Proxy, start),
-    {Find, 2} = ern_code:function('ern@peer', ['Peer', find]),
     Self = self(),
     Main = fun() ->
                ern_rt:init_modules([Proxy]),
@@ -1289,17 +1289,17 @@ proxy_one_find_test() ->
                {adapted, _, Forwarder, _, _} = Address = Start(Service, 1000),
                %% the first find made, the process waits for a message
                ok = ern_waits:until(Forwarder, fun() -> holds(Proxy, Forwarder) end),
-               1 = erlang:trace_pattern({'ern@peer', Find, 2}, true, [local]),
+               1 = erlang:trace_pattern({ern_peer, find, 2}, true, [local]),
                erlang:trace(Forwarder, true, [call, send]),
                true = erlang:suspend_process(Forwarder),
                ern_rt:send(Address, 1),
                ern_rt:send(Address, 2),
                true = erlang:resume_process(Forwarder),
-               During = traced(Forwarder, Find, 2),
+               During = traced(Forwarder, 2),
                ern_rt:send(Address, 3),
-               After = traced(Forwarder, Find, 3),
+               After = traced(Forwarder, 3),
                erlang:trace(Forwarder, false, [call, send]),
-               erlang:trace_pattern({'ern@peer', Find, 2}, false, [local]),
+               erlang:trace_pattern({ern_peer, find, 2}, false, [local]),
                Self ! {traced, During, After}
            end,
     Quiet = #{stdout => fun(_) -> ok end, stderr => fun(_) -> ok end},
@@ -1325,16 +1325,17 @@ holds(Proxy, Forwarder) ->
     erlang:process_info(Forwarder, [status, current_function])
         =:= [{status, waiting}, {current_function, {Proxy, Held, 4}}].
 
-%% What the traced process did, a find, a call of Peer.find's function
-%% Find, or a message sent and to whom, up to the message Last sent.
-traced(Pid, Find, Last) ->
+%% What the traced process did, a find, a call of the host's function
+%% Peer.find names, or a message sent and to whom, up to the message Last
+%% sent.
+traced(Pid, Last) ->
     receive
-        {trace, Pid, call, {'ern@peer', Find, _}} ->
-            [find | traced(Pid, Find, Last)];
+        {trace, Pid, call, {ern_peer, find, _}} ->
+            [find | traced(Pid, Last)];
         {trace, Pid, Sent, Message, To} when Sent =:= send;
                                             Sent =:= send_to_non_existing_process ->
             case Message of
                 Last -> [{sent, Message, To}];
-                _ -> [{sent, Message, To} | traced(Pid, Find, Last)]
+                _ -> [{sent, Message, To} | traced(Pid, Last)]
             end
     end.

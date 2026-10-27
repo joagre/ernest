@@ -28,8 +28,9 @@
                     erlang:throw({ern,
                                   fault,
                                   <<Key_2/binary, ": cannot take ",
-                                    (ern@int:'$24'(-By_3))/binary, " of ",
-                                    (ern@int:'$24'(Held_5))/binary>>});
+                                    (erlang:integer_to_binary(-By_3))/binary,
+                                    " of ",
+                                    (erlang:integer_to_binary(Held_5))/binary>>});
                 false ->
                     ern_rt:answer(Reply_4, Held_5 + By_3),
                     '$7'(ern@map:'$4'(Stock_1, Key_2, Held_5 + By_3))
@@ -97,7 +98,7 @@
                 of
                 {'Some', Held_26} ->
                     ern@io:'$8'(<<Key_24/binary, ": ",
-                                  (ern@int:'$24'(Held_26))/binary>>);
+                                  (erlang:integer_to_binary(Held_26))/binary>>);
                 'None' -> ern@io:'$8'(<<Line_19/binary, ": no answer">>)
             end;
         'Audit' ->
@@ -120,10 +121,10 @@
                           fun (Reply_33) -> {'NextId', Reply_33} end),
             ern_rt:send('$10'(),
                         {'Record',
-                         <<"#", (ern@int:'$24'(Id_34))/binary, " ",
+                         <<"#", (erlang:integer_to_binary(Id_34))/binary, " ",
                            Line_30/binary>>}),
             ern@io:'$8'(<<Key_28/binary, ": ",
-                          (ern@int:'$24'(Held_32))/binary>>);
+                          (erlang:integer_to_binary(Held_32))/binary>>);
         'None' -> ern@io:'$8'(<<Line_30/binary, ": no answer">>)
     end.
 
@@ -150,7 +151,16 @@
 
 %% Services.counted
 '$17'(Text_46) ->
-    case ern@list:'$15'(ern@string:'$43'(Text_46),
+    case ern@list:'$15'(try ern_string:to_list(Text_46)
+                        catch
+                            Class_47:Error_48:Trace_49 ->
+                                ern_boundary:raised(ern_string,
+                                                    to_list,
+                                                    1,
+                                                    Class_47,
+                                                    Error_48,
+                                                    Trace_49)
+                        end,
                         fun ern@char:'$1'/1)
         of
         true -> ern@string:'$25'(Text_46);
@@ -158,14 +168,24 @@
     end.
 
 %% Services.inStock
-'$18'(Stock_47, Key_48) ->
-    ern@optional:'$4'(ern@map:'$18'(Stock_47, Key_48), 0).
+'$18'(Stock_50, Key_51) ->
+    ern@optional:'$4'(try ern_map:get(Stock_50, Key_51)
+                      catch
+                          Class_52:Error_53:Trace_54 ->
+                              ern_boundary:raised(ern_map,
+                                                  get,
+                                                  2,
+                                                  Class_52,
+                                                  Error_53,
+                                                  Trace_54)
+                      end,
+                      0).
 
 %% Services.audited
-'$19'(Entries_49) ->
-    case ern@list:'$3'(Entries_49) of
+'$19'(Entries_55) ->
+    case ern@list:'$3'(Entries_55) of
         true -> <<"none">>;
-        false -> ern@string:'$24'(Entries_49, <<", ">>)
+        false -> ern@string:'$24'(Entries_55, <<", ">>)
     end.
 
 '$init'() ->

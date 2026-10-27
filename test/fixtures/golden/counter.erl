@@ -17,7 +17,7 @@
         of
         {'Some', Total_3} ->
             ern@io:'$8'(<<"count is ",
-                          (ern@int:'$24'(Total_3))/binary>>);
+                          (erlang:integer_to_binary(Total_3))/binary>>);
         'None' -> ern@io:'$8'(<<"counter is not answering">>)
     end.
 

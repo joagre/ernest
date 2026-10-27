@@ -26,7 +26,7 @@
         true -> ern_rt:send(Opponent_4, 'Stop');
         false ->
             ern@io:'$8'(<<"ping ",
-                          (ern@int:'$24'(Round_5))/binary>>),
+                          (erlang:integer_to_binary(Round_5))/binary>>),
             case ern_rt:call(Opponent_4,
                              fun (Reply_6) -> {'Ping', Round_5, Reply_6} end,
                              5000,
@@ -46,7 +46,7 @@
         {'$ern_fault', Fault_9} -> erlang:throw(Fault_9);
         {'Ping', Round_7, Reply_8} ->
             ern@io:'$8'(<<"pong ",
-                          (ern@int:'$24'(Round_7))/binary>>),
+                          (erlang:integer_to_binary(Round_7))/binary>>),
             ern_rt:answer(Reply_8, Round_7),
             '$5'();
         'Stop' -> 'Unit'

@@ -11,11 +11,12 @@
     ern@io:'$8'('$4'(7)),
     ern@io:'$8'('$5'({'Some', {'Snapshot', <<"a">>, 2}})),
     ern@io:'$8'('$5'('None')),
-    ern@io:'$8'(ern@int:'$24'('$7'(3))),
-    ern@io:'$8'(ern@int:'$24'(ern@list:'$42'('$9'([1,
-                                                   2,
-                                                   3])))),
-    ern@io:'$8'(ern@int:'$24'('$8'({'Square', 4}))).
+    ern@io:'$8'(erlang:integer_to_binary('$7'(3))),
+    ern@io:'$8'(erlang:integer_to_binary(erlang:length('$9'([1,
+                                                             2,
+                                                             3])))),
+    ern@io:'$8'(erlang:integer_to_binary('$8'({'Square',
+                                               4}))).
 
 %% Patterns.sign
 '$4'(Number_1) ->
@@ -30,7 +31,7 @@
     case Found_2 of
         {'Some', Snapshot_4 = {'Snapshot', Directory_3, _}} ->
             <<Directory_3/binary, " ",
-              (ern@int:'$24'('$6'(Snapshot_4)))/binary>>;
+              (erlang:integer_to_binary('$6'(Snapshot_4)))/binary>>;
         'None' -> <<"nothing">>
     end.
 

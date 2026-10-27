@@ -15,7 +15,7 @@
     case '$5'(Stack_1) of
         {'Some', {Top_2, _}} ->
             ern@io:'$8'(<<"top is ",
-                          (ern@int:'$24'(Top_2))/binary>>);
+                          (erlang:integer_to_binary(Top_2))/binary>>);
         'None' -> ern@io:'$8'(<<"empty">>)
     end.
 

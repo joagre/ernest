@@ -127,30 +127,12 @@ modules documented apart with an authority of their own. Why it is worth its cos
    `test()` again until it passes or the milliseconds end, answering the last outcome: a bounded
    wait on what the test means, Ernest closing around the host (E.0 rule 1), its page and its test
    with it, and the guide's §5.2 saying the order is not given and this is how a test waits for it.
-9. **What the emitter writes against what OTP writes.** Found 2026-10-27 by the experiment for MVP
-   4.4 and analyzed the same day (the log's *The BEAM Opcode Experiment* and *The Emitter's Calls
-   Against the Host's*; `docs/proposals/beam_op_codes/`): Ernest runs a loop of bitwise arithmetic
-   four times slower than Erlang, against CLAUDE.md's rule that a shim exactly a host function runs
-   at the host's speed. A call of a standard library shim pays a remote call into its wrapper and
-   the wrapper's `try`, where Erlang pays the host's function alone; the remote call is two thirds
-   of the cost.
-
-   The shape of the fix, by class:
-
-   - **A shim over a BIF the host compiles to an instruction**, the 17 over `erlang`, `band` and
-     `byte_size` among them: the BIF called at the call site, which the host's compiler makes its
-     instruction.
-   - **A shim over any other host function**, the other 129: the host function called at the call
-     site, the wrapper skipped.
-   - **`compare` at a prelude type** written as the host's comparison, where today it calls the
-     type module's `compare` across units; a small Ernest function of the library called across
-     units otherwise stays a call, OTP inlining none across modules either.
-
-   A call site keeps the wrapper's `try`, so that a raise is §12.3's fault naming the foreign
-   function as it is today, but for an emitter's table of BIFs that cannot raise on their declared
-   types, `band` of two `Int`s among them; the interface gains each standard library foreign
-   declaration's host function, which a dependent's call site needs. The bench's language rows are
-   measured before and after, and the experiment's tables run again.
+9. **What the emitter writes against what OTP writes**, done 2026-10-27 (the log's *The Emitter's
+   Calls Against the Host's, Built*): a call of a standard library shim is the host's function at
+   the call site inside its `try`, none for twelve host functions that cannot raise at their
+   declared types, the interface carrying each shim's host function; `compare` at a prelude type
+   the host's comparison; the mixer 1.7 times faster, still 2.6 times Erlang through `Int`'s
+   shifts, which stay calls.
 
 ## MVP 4.0 (a shell attached to a running node), about a week
 

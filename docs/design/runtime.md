@@ -71,7 +71,7 @@ A fault's trace is the host's stack as it stood, twelve of the program's and the
 
 ## The boundary
 
-What crosses between foreign code and the program is checked where it enters the program: a foreign function's return, a reply foreign code gives, a message to an address exposed to foreign code through a checker process, and each argument foreign code calls an Ernest function with (§8.4, §12.3). The standard library and the system processes are the runtime's own and are not checked. A function given to foreign code runs inside a wrapper that marks the process and turns a raise into the fault §12.3 names; a function value foreign code gives is a foreign function, named as the host names it. The foreign call itself is the host's call inside one `try`, and writes nothing.
+What crosses between foreign code and the program is checked where it enters the program: a foreign function's return, a reply foreign code gives, a message to an address exposed to foreign code through a checker process, and each argument foreign code calls an Ernest function with (§8.4, §12.3). The standard library and the system processes are the runtime's own and are not checked. A function given to foreign code runs inside a wrapper that marks the process and turns a raise into the fault §12.3 names; a function value foreign code gives is a foreign function, named as the host names it. The foreign call itself is the host's call inside one `try`, and writes nothing; a call of the standard library's foreign function is that call at the call site, the declaration's own function left out (§11.1; the log's *The Emitter's Calls Against the Host's*).
 
 ## Nodes
 

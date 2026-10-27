@@ -12,7 +12,7 @@
 -include_lib("checker/include/ern_types.hrl").
 
 -define(CHUNK, <<"ErnI">>).
--define(FORMAT, 10).
+-define(FORMAT, 11).
 
 -type chunk() :: #{format := pos_integer(), interface := #interface{}, source_hash := binary(),
                    deps := [{[atom()], binary()}], references => [{[atom()], binary()}],
@@ -38,7 +38,7 @@ read(Beam) ->
             %% data alone, since a `.erc` may come from anywhere (ern_chunk)
             try ern_chunk:term(Chunk) of
                 {ok, #{format := ?FORMAT,
-                       interface := {interface, _, _, _, _, _, _, _, _, _} = Written} = Read} ->
+                       interface := {interface, _, _, _, _, _, _, _, _, _, _} = Written} = Read} ->
                     {ok, Read#{interface => interface(Written)}};
                 _ ->
                     {error, "the interface chunk is of another compiler version"}
@@ -59,12 +59,13 @@ written(Interface) ->
     interface(canonical(Interface, keep)).
 
 interface({interface, Namespace, Types, Values, Lets, PrivateTypes, Identities, Reaches,
-           Positions, Terms}) ->
+           Positions, Terms, Shims}) ->
     #interface{namespace = Namespace, types = maps:from_list(Types),
                values = maps:from_list(Values), lets = Lets,
                private_types = maps:from_list(PrivateTypes),
                identities = maps:from_list(Identities), reaches = maps:from_list(Reaches),
-               positions = maps:from_list(Positions), terms = maps:from_list(Terms)}.
+               positions = maps:from_list(Positions), terms = maps:from_list(Terms),
+               shims = maps:from_list(Shims)}.
 
 %% The hash a dependent records, which leaves the definitions' hashes out,
 %% and their reaches, which follow from them: a change to a dependency's
@@ -73,8 +74,10 @@ interface({interface, Namespace, Types, Values, Lets, PrivateTypes, Identities, 
 %% It holds the number of each value a dependent may name, since a
 %% dependent's code calls the function of that number, and the numbers of
 %% the module's private functions, which no dependent calls, it leaves out;
-%% and the value of each binding compiled to its value, which a
-%% dependent's code holds (§11.1).
+%% the value of each binding compiled to its value, which a dependent's
+%% code holds (§11.1); and the host's function each exported foreign
+%% declaration of the standard library's names, which a dependent's code
+%% calls (§11.1).
 -spec hash(#interface{}) -> binary().
 hash(#interface{values = Values, positions = Positions} = Interface) ->
     Bodiless = Interface#interface{identities = #{}, reaches = #{},
@@ -87,7 +90,7 @@ hash(#interface{values = Values, positions = Positions} = Interface) ->
 %% annotation changes no dependent.
 canonical(#interface{namespace = Namespace, types = Types, values = Values, lets = Lets,
                      private_types = PrivateTypes, identities = Identities, reaches = Reaches,
-                     positions = Positions, terms = Terms},
+                     positions = Positions, terms = Terms, shims = Shims},
           VariableNames) ->
     {interface, Namespace,
      lists:sort([{QualifiedName, canonical_type(TypeInfo, VariableNames)}
@@ -103,7 +106,8 @@ canonical(#interface{namespace = Namespace, types = Types, values = Values, lets
      lists:sort(maps:to_list(Identities)),
      lists:sort(maps:to_list(Reaches)),
      lists:sort(maps:to_list(Positions)),
-     lists:sort(maps:to_list(Terms))}.
+     lists:sort(maps:to_list(Terms)),
+     lists:sort(maps:to_list(Shims))}.
 
 %% A type's parameters numbered by place, and its constructors' schemes
 %% over the same numbers; the names its declaration writes are left out of
