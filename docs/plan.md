@@ -127,6 +127,20 @@ modules documented apart with an authority of their own. Why it is worth its cos
    `test()` again until it passes or the milliseconds end, answering the last outcome: a bounded
    wait on what the test means, Ernest closing around the host (E.0 rule 1), its page and its test
    with it, and the guide's §5.2 saying the order is not given and this is how a test waits for it.
+9. **What the emitter writes against what OTP writes.** Found 2026-10-27 by the experiment for MVP
+   4.4 (the log's *The BEAM Opcode Experiment*; `docs/proposals/beam_op_codes/`): Ernest runs a
+   loop of bitwise arithmetic four times slower than Erlang, since the emitter compiles a call of
+   `Int.bitAnd`, `bitOr` and `bitXor`, `foreign fn` shims over `erlang:band/2` and its kin, as a
+   call into the `Int` unit, where Erlang's compiler makes one instruction, against CLAUDE.md's
+   rule that a shim exactly a host function runs at the host's speed.
+
+   The shape of the fix: a call of a standard library shim whose implementation is a BIF the host
+   compiles inline, an operator or a guard BIF, is emitted as a call of that BIF at the call site,
+   so that the host's compiler makes its instruction; the shifts' Ernest wrappers then follow the
+   same way. With it, a survey of the bench's programs, each function's assembly from the emitter
+   against OTP's for the same Erlang, for every other place the emitter writes a call where the
+   host writes an instruction, each fixed at its cause in the plain form, and the bench's language
+   rows measured before and after.
 
 ## MVP 4.0 (a shell attached to a running node), about a week
 
