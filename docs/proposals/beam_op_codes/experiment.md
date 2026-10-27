@@ -10,6 +10,14 @@ Two questions decide the back end's shape.
 
 **Who should save a register across a call?** BEAM's convention is the caller's: every `x` register is dead after a call, so a function keeps what it needs across one in its stack frame, the `y` registers, and moves it back after. The alternative is the callee's, common on real processors: a function preserves the registers it does not use, so a caller keeps its values in registers across calls to leaves that never touch them.
 
+## No untyped fast opcodes
+
+A `.beam` file names only BEAM's generic instructions, the compiler's opcode table. The fast instructions that do no type test, `i_increment` and its kind, are the loader's and the JIT's own, chosen as they load a module, and no file can name them.
+
+The generic table still holds `m_plus`, `m_minus`, `m_times`, `int_band`, `int_bsl` and their kin, the arithmetic of the oldest BEAM before `gc_bif` replaced it. They are names alone: OTP 29's `beam_opcodes:opcode(m_plus, 4)` is commented out, so `beam_asm` cannot encode one, `experiment/obsolete_m_plus.S` failing with `badarg`, and the emulator's loader refuses an obsolete instruction. They were checked besides, each taking a failure label as `gc_bif` does.
+
+So the one way a module asks for the fast track is the type chunk: a typed register, `{tr, Register, Type}`, on an operand, from which the JIT emits the operation with no test. *Typed* in the tables below is that fast track. MVP 4.4's back end cannot choose fast instructions, only prove types, and its value is what its checker proves beyond OTP's inference.
+
 ## How
 
 Each program was written in Erlang, compiled by OTP 29's compiler, and its assembly taken with `erlc -S`. Two variants were written by hand from that assembly:
