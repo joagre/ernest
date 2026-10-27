@@ -128,11 +128,7 @@ Ernest 0.6.0. :help for the commands, :quit to leave.
 Counter, compiled from counter.ern
 > let counter = spawn(fn() = Counter.count(0))
 counter : Address(Counter.CounterMsg)
-Enter runs a finished input, M-Enter adds a line.
-> let far = match Peer.spawn("foo", fn() = Counter.count(0), 5000) {
-...     Right(address) -> address
-...   | Left(error) -> fault(Io.show(error))
-... }
+> let far <- Peer.spawn("foo", fn() = Counter.count(0), 5000)
 the peer foo connected
 far : Address(Counter.CounterMsg)
 > send(far, Counter.Inc(5))
@@ -146,7 +142,7 @@ A node is a program, or a shell, started with a configuration directory, and `er
 
 A node accepts a connection from a listed key alone, and nothing else is set up: two nodes are two configuration files each naming the other, with no cluster to join and no shared secret, the third claim of *Why Ernest* (the deployment guide's §2). `foo` and `bar` are *bare nodes*, started with no program: they hold nothing of the counter's and wait for work.
 
-`Peer.spawn` starts `count` on `foo` and answers `Right(address)`, or `Left(error)` with the reason it could not, an `Either`; the `match` takes the address and ends the input's process on anything else, `fault` with the error written as text, the shortest way to a `Right` at a prompt (the guide's §2.7). The shell connected to `foo` as the spawn needed it, and `count` crossed with the spawn, since `foo` had no code of it. The counter there is then the counter of chapter 1: the same `send`, the same call, the same answer. That is the second claim of *Why Ernest*: a process started on another node brings its code along, and nothing was installed first.
+`Peer.spawn` starts `count` on `foo` and answers `Right(address)`, or `Left(error)` with the reason it could not, an `Either`; `let far <-` binds the address inside a `Right`, as `<-` does in a block, and on a `Left` binds nothing and shows the reason, `Left(NotListed)` where no peer is named `foo` (the guide's §2.7). The shell connected to `foo` as the spawn needed it, and `count` crossed with the spawn, since `foo` had no code of it. The counter there is then the counter of chapter 1: the same `send`, the same call, the same answer. That is the second claim of *Why Ernest*: a process started on another node brings its code along, and nothing was installed first.
 
 Chapter 1's counter ended with its shell; this shell runs to the end of the tour. A shell started with `--config-dir` is a node like any other (the guide's §9.2 and §8.1). A node started with a program reads every compiled module under the program's directory at its start, where `ern run` without a configuration reads only those the program uses, so an `.erc` there built from another source root keeps the node from starting (the deployment guide's §5.1).
 
@@ -452,10 +448,7 @@ input 29:1:19: Peer.spawn starts a process whose mailbox type Counter.CounterMsg
 > kill(counter)
 > let counter = Counter.start()
 counter : Address(Counter.ClientMsg)
-> let far = match Peer.computeAt("foo", fn() = Counter.start(), 5000) {
-...     Right(address) -> address
-...   | Left(error) -> fault(Io.show(error))
-... }
+> let far <- Peer.computeAt("foo", fn() = Counter.start(), 5000)
 far : Address(Counter.ClientMsg)
 > Counter.apply(counter, "inc apples 2")
 "ok" : String

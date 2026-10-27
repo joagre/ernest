@@ -2633,9 +2633,8 @@ reply_input() ->
 
 %% report §11.2, §5.4: a `let` at the prompt is a block `let`, so its
 %% pattern binds each name it holds, in the order written, `let _ = e`
-%% binds none, a refutable pattern is refused as in a block, and `<-` is
-%% refused, having no block to end. A regression test: the prompt took a
-%% name alone, as a top-level `let` does
+%% binds none, and a refutable pattern is refused as in a block. A
+%% regression test: the prompt took a name alone, as a top-level `let` does
 pattern_let_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun pattern_let/0).
 
@@ -2648,7 +2647,6 @@ pattern_let() ->
                                     "g\n"
                                     "let _ = 5\n"
                                     "let Some(y) = Some(1)\n"
-                                    "let x <- Some(1)\n"
                                     "let #(e, f) = #([], [])\n"),
     {0, Output} = ern_pty:sh("../bin/ern shell < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"> a : Int\nb : String\n> 2 : Int\n">>)),
@@ -2656,8 +2654,63 @@ pattern_let() ->
     %% `let _ = 5` prints nothing and binds nothing
     ?assertMatch({_, _}, binary:match(Output, <<"36 : Int\n> > ">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"a `let` pattern must be irrefutable">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"a `let` with `<-` at the prompt has no block">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"the types of e, f are not determined">>)).
+
+%% report §11.2, §5.5: a `let` with `<-` at the prompt takes its value apart
+%% as in a block, the session standing for the block's rest: a `Some` or a
+%% `Right` binds what it holds, a tuple pattern each of its names and `_`
+%% none; a `None` or a `Left` binds nothing and is shown as an expression's
+%% value with its type, `it` and an earlier binding of the name unchanged.
+%% A value of another type is refused with the checker's own error, a
+%% refutable pattern as a block refuses it, and a binding whose type the
+%% input does not settle as a `let`'s is, with the annotation's help
+%% written with `<-`.
+%%
+%% A regression test written after the code; it does not cover the shell
+%% at a terminal, which shows a result as line mode does, nor a `Left`
+%% that a spawn on a peer answers, which the tour's chapter 2 meets only
+%% as a `Right`
+arrow_let_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun arrow_let/0).
+
+arrow_let() ->
+    InputFile = scratch_file("ern_arrow_"),
+    ok = file:write_file(InputFile, "let x <- Some(1)\n"
+                                    "x + 1\n"
+                                    "let y <- Right(\"two\")\n"
+                                    "y\n"
+                                    "42\n"
+                                    "let z : Int <- None\n"
+                                    "it\n"
+                                    "let x : Int <- Left(\"no\")\n"
+                                    "it\n"
+                                    "x\n"
+                                    "let #(a, b) <- Some(#(1, \"b\"))\n"
+                                    "b\n"
+                                    "let _ <- Some(3)\n"
+                                    "let q <- 5\n"
+                                    "let Some(s) <- Some(Some(1))\n"
+                                    "let r <- Some([])\n"
+                                    "let p <- Some(spawn(fn() = receive { after 1 -> Unit }))\n"
+                                    "z\n"),
+    {0, Output} = ern_pty:sh("../bin/ern shell < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"> x : Int\n> 2 : Int\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> y : String\n> \"two\" : String\n">>)),
+    %% nothing bound on None or Left: `it` stays 42, and x stays 1
+    ?assertMatch({_, _}, binary:match(Output, <<"> 42 : Int\n> None : Optional(Int)\n"
+                                                "> 42 : Int\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> Left(\"no\") : Either(String, Int)\n"
+                                                "> 42 : Int\n> 1 : Int\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> a : Int\nb : String\n> \"b\" : String\n">>)),
+    %% `let _ <- Some(3)` binds none and prints nothing
+    ?assertMatch({_, _}, binary:match(Output, <<"\"b\" : String\n> > ">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"`<-` needs an Either or an Optional, not Int">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"a `let` pattern must be irrefutable">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"the type of r is not determined by this input;"
+                                                " it is List(a)">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"annotate the binding,"
+                                                " `let p : Address(T) <- ...`">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"unknown name z">>)).
 
 %% report §11.2, §3.9, §4.6, §8.6: a `let` at the prompt is a block `let`, so
 %% a lambda it binds is generalized, its effect variable with it, and runs,

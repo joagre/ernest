@@ -28,8 +28,6 @@
 -define(STAMP, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z ").
 %% What `Counter.apply` answers to an inc, whose send does not wait.
 -define(SENT, "\"ok\" : String").
-%% Report §11.2: the line a terminal shows above an input's second line.
--define(HINT, <<"Enter runs a finished input, M-Enter adds a line.">>).
 
 %% A shell the test types at, named by the directory its streams are
 %% written beside (ern_nodes_tests:launched/2): the port its inputs are
@@ -171,22 +169,17 @@ readme_console(Lines) ->
         {_, [_ | After]} -> readme_console(After)
     end.
 
-%% A console's inputs as session/2 types them: each `> ` line, with the
-%% `... ` lines that continue it, and the lines shown after it, a line a
-%% node says, `the peer foo connected`, among the unordered, since nothing
-%% orders it against the answer. The hint a terminal shows above an input's
-%% second line is left out, since line mode shows none (report §11.2).
+%% A console's inputs as session/2 types them: each `> ` line with the
+%% lines shown after it, a line a node says, `the peer foo connected`,
+%% among the unordered, since nothing orders it against the answer.
 inputs([]) ->
     [];
-inputs([<<"> ", First/binary>> | Rest]) ->
-    {More, Following} = lists:splitwith(fun(Line) -> binary:match(Line, <<"... ">>) =:= {0, 4} end,
-                                        Rest),
-    Input = lists:join(<<"\n">>, [First | [Line || <<"... ", Line/binary>> <- More]]),
+inputs([<<"> ", Input/binary>> | Rest]) ->
     {Shown, After} = lists:splitwith(fun(Line) -> binary:match(Line, <<"> ">>) =/= {0, 2} end,
-                                     [Line || Line <- Following, Line =/= ?HINT]),
+                                     Rest),
     IsSaid = fun(Line) -> binary:match(Line, <<"the peer ">>) =:= {0, 9} end,
     {Said, Answered} = lists:partition(IsSaid, Shown),
-    [{unicode:characters_to_list(Input), Answered, [[Line] || Line <- Said]} | inputs(After)].
+    [{binary_to_list(Input), Answered, [[Line] || Line <- Said]} | inputs(After)].
 
 %%
 %% Chapters 2 to 8, one session on three nodes
@@ -289,10 +282,7 @@ far(#tour{foo = Foo, shell = Shell} = Tour) ->
                     [{":load Counter", ["Counter, compiled from counter.ern"]},
                      {"let counter = spawn(fn() = Counter.count(0))",
                       ["counter : Address(Counter.CounterMsg)"]},
-                     {"let far = match Peer.spawn(\"foo\", fn() = Counter.count(0), 5000) {\n"
-                      "    Right(address) -> address\n"
-                      "  | Left(error) -> fault(Io.show(error))\n"
-                      "}",
+                     {"let far <- Peer.spawn(\"foo\", fn() = Counter.count(0), 5000)",
                       ["far : Address(Counter.CounterMsg)"],
                       [["the peer foo connected"]]},
                      {"send(far, Counter.Inc(5))", []},
@@ -403,10 +393,7 @@ door(#tour{shell = Shell} = Tour) ->
            " or spawn on this node (report §3.11)"]},
          {"kill(counter)", []},
          {"let counter = Counter.start()", ["counter : Address(Counter.ClientMsg)"]},
-         {"let far = match Peer.computeAt(\"foo\", fn() = Counter.start(), 5000) {\n"
-          "    Right(address) -> address\n"
-          "  | Left(error) -> fault(Io.show(error))\n"
-          "}",
+         {"let far <- Peer.computeAt(\"foo\", fn() = Counter.start(), 5000)",
           ["far : Address(Counter.ClientMsg)"]},
          {"Counter.apply(counter, \"inc apples 2\")", [?SENT]},
          {"Counter.apply(far, \"inc apples 3\")", [?SENT]},
@@ -545,8 +532,7 @@ session(Shell, Inputs) ->
 %% lines that nothing orders against its answer and its prompt, which hold
 %% no `> `; those of Unordered it has not printed it carries to the next.
 %% A line of Shown is a line, or {re, Pattern} for a line Pattern matches
-%% whole. An input of several lines is answered after a `... ` for each
-%% line past its first, on the line its answer begins.
+%% whole.
 typed({Input, Shown}, Shell) ->
     typed({Input, Shown, []}, Shell);
 typed({Input, Shown, Unordered},
@@ -556,7 +542,7 @@ typed({Input, Shown, Unordered},
     Prompts = count(Read, "> ") + 1
         + lists:sum([count(Line, "> ") || Line <- Shown, not is_tuple(Line)]),
     ern_nodes_tests:prints(Dir, "> ", Prompts, ern_nodes_tests:wait_ms()),
-    {Lines, Text} = since(Shell, 1, count(Input, "\n")),
+    {Lines, Text} = since(Shell, 1),
     Shell#shell{read = Text, carried = held(Lines, [Shown | Carried], Unordered)}.
 
 %% Report §11.2: an input that faults, typed once the input before it has
@@ -593,20 +579,12 @@ quit(#shell{dir = Dir, port = Port, wait = Wait, read = Read, carried = Carried}
 %% What the shell printed since the test last read it, a line each without
 %% a node's time, and its prompts, Prompts of them, taken out: each stands
 %% at the start of a line, and a line printed after it follows it there.
-%% Continued `... ` prompts begin what it printed, one for each line of
-%% the input past its first. Answers the lines and all the shell has
-%% printed.
-since(Shell, Prompts) ->
-    since(Shell, Prompts, 0).
-
-since(#shell{dir = Dir, read = Read}, Prompts, Continued) ->
+%% Answers the lines and all the shell has printed.
+since(#shell{dir = Dir, read = Read}, Prompts) ->
     Text = written(Dir),
     Size = byte_size(Read),
     ?assertEqual(Read, binary:part(Text, 0, Size)),
-    Continuations = binary:copy(<<"... ">>, Continued),
-    ?assertEqual(Continuations, binary:part(Text, Size, byte_size(Continuations))),
-    Start = Size + byte_size(Continuations),
-    Lines = binary:split(binary:part(Text, Start, byte_size(Text) - Start), <<"\n">>, [global]),
+    Lines = binary:split(binary:part(Text, Size, byte_size(Text) - Size), <<"\n">>, [global]),
     ?assertEqual(Prompts, length([Line || <<"> ", _/binary>> = Line <- Lines])),
     {[untimed(Line) || Line <- [unprompted(Line) || Line <- Lines], Line =/= <<>>], Text}.
 

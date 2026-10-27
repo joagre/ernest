@@ -223,7 +223,7 @@ Standard input is read as UTF-8, and a line that is not faults the process that 
 
 ### 1.4 A taste of the rest
 
-The tour's counter, `counter.ern`, whose type and loop are exported, run on a node started with none of its code. `foo` is a node started with a configuration directory and no program, and the shell is a node too, started with its own; `Peer.spawn` starts `count` on `foo`, which is sent the code it lacks, and answers `Right` with an address like any other, or `Left` with the reason it could not, which `fault` makes the input's cause (§2.7, §6.3). Started as a node, the shell says where it listens before its first line:
+The tour's counter, `counter.ern`, whose type and loop are exported, run on a node started with none of its code. `foo` is a node started with a configuration directory and no program, and the shell is a node too, started with its own; `Peer.spawn` starts `count` on `foo`, which is sent the code it lacks, and answers `Right` with an address like any other, or `Left` with the reason it could not; `let far <-` binds the address inside a `Right`, and shows a `Left` and binds nothing (§2.7). Started as a node, the shell says where it listens before its first line:
 
 ```console
 $ ern shell --config-dir a
@@ -231,11 +231,7 @@ listening on 0.0.0.0:8654
 Ernest 0.6.0. :help for the commands, :quit to leave.
 > :load Counter
 Counter, compiled from counter.ern
-Enter runs a finished input, M-Enter adds a line.
-> let far = match Peer.spawn("foo", fn() = Counter.count(0), 5000) {
-...     Right(address) -> address
-...   | Left(error) -> fault(Io.show(error))
-... }
+> let far <- Peer.spawn("foo", fn() = Counter.count(0), 5000)
 the peer foo connected
 far : Address(Counter.CounterMsg)
 > send(far, Counter.Inc(5))
@@ -567,6 +563,17 @@ fn positiveInt(text : String) : Either(String, Int) = {
 - `positiveInt("3")` → `Right(3)`.
 - `positiveInt("oops")` → `Left("not an integer")`: `String.toInt` returned `None`, which `Either.fromOptional` turned into a `Left`, and the chain stopped.
 - `positiveInt("0")` → `Left("not positive")`: the parse succeeded, and the `if` refused the value.
+
+At the prompt the session is the rest of the block: `let p <- e` binds what is inside a `Some` or a `Right`, and shows a `None` or a `Left` as an expression's value is shown, binding nothing and leaving `it` as it was (report §11.2):
+
+```console
+$ ern shell
+Ernest 0.6.0. :help for the commands, :quit to leave.
+> let n <- String.toInt("42")
+n : Int
+> let m <- String.toInt("forty-two")
+None : Optional(Int)
+```
 
 A block is an `Optional` chain or an `Either` chain, never both. To run a step that can fail over every element of a list, `List.tryMap(xs, f)` and `List.tryFold(xs, acc, f)` stop at the first `Left`.
 

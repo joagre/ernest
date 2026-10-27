@@ -572,15 +572,15 @@ fn sayFault(state : State, screen : Address(ScreenMsg), cause : String, trace : 
         Shell.Style.fault(placed(state, "fault: " <> cause) <> indentedTrace(trace), state.color))
 
 // Report §11.2: what an input declared, a line each in the order it was
-// written, or else its value with its type. A value of type `Unit` prints
-// nothing, and `it` is left as it was when the input did not settle its
-// type.
+// written, or else its value with its type, an expression's and a `let`
+// with `<-` that bound nothing. A value of type `Unit` prints nothing, and
+// `it` is left as it was when the input did not settle its type.
 fn printResult(state : State,
                screen : Address(ScreenMsg),
                checked : Checked,
                value : Value) : Unit =
-    match declared(checked) {
-        [] ->
+    match declared(checked, value) {
+        None ->
             if isUnit(checked) then
                 Unit
             else {
@@ -592,7 +592,7 @@ fn printResult(state : State,
                 else
                     Unit
             }
-      | lines ->
+      | Some(lines) ->
             printLines(screen, lines)
     }
 
@@ -1681,8 +1681,11 @@ foreign fn isUnit(checked : Checked) : Bool =
 foreign fn isExpression(checked : Checked) : Bool =
     "ern_shell:is_expression/1"
 
-foreign fn declared(checked : Checked) : List(String) =
-    "ern_shell:declared/1"
+// Report §11.2, §5.5: what the input declared, or none where its value is
+// shown instead: an expression's, and a `let` with `<-` whose value is a
+// `Left` or a `None`, which binds nothing.
+foreign fn declared(checked : Checked, value : Value) : Optional(List(String)) =
+    "ern_shell:declared/2"
 
 // Report §11.2: the value is printed, and `it` is left as it was when
 // this input did not settle its type.

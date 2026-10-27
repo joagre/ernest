@@ -69,7 +69,7 @@ The session blocks in `Io.readLine`, so a fault report waits in its mailbox. Eve
 The front end's values reach the shell as handles of three foreign types, `Session`, `Checked` and `Value`, so the shell cannot pass one kind where another is expected. The shell never looks inside them, and types reach it as text.
 
 - **The session**: `start`, `check`, `spawnInput`, `load`, `reload`, `forget` and `collect`, each answering the `Session` it made, `spawnInput` in its outcome. `check` answers §11.5's text instead for an input that does not check, and a `Checked` beside the `Session` for one that does.
-- **A result**: `typeText`, `isUnit`, `isExpression`, `declared`, `leavesItUnchanged` and `declaredType` read a `Checked` for what is printed and what `:type` and `it` do. `show` prints a `Value` to a depth and a length.
+- **A result**: `typeText`, `isUnit`, `isExpression`, `declared`, `leavesItUnchanged` and `declaredType` read a `Checked` for what is printed and what `:type` and `it` do; `declared` reads the input's `Value` too, since a `let` with `<-` binds by its value's side. `show` prints a `Value` to a depth and a length.
 - **The commands** that reach past the shell: `bindings`, `browse` and `doc`.
 - **The questions the reader and `Shell.Complete` ask**: `names`, `sessionNames`, `sessionTexts`, `sourceRoot`, `slot`, `needsMore`, `opening`, `fields`, `documentation`, `signature`, `segment` and `component`. None takes a `Session`; those that read the session read the front end's copy.
 - **The host's alone**: `version`, `configStartup`, `isSameFile`, `spawnProgram`, `write`, `setScreen` and `holdTerminal`.
@@ -93,6 +93,8 @@ Each input is compiled as a module of its own, `$Input<n>`, and loaded (the log'
 The number of an input or a holder the session has let go is given again, so an input's module costs no new atom (the log's *An Input's Number Is Given Again*). Its number is therefore no input's count, and a type a later input shadows prints under the count instead (§11.2 *Scope*).
 
 The text is read as an expression, whose value is `it`; failing that, as declarations; and failing that, as a `let` with a pattern, which becomes a block that answers the names it binds. An expression or a `let` becomes the body of `export fn '$input'()`, whose effect is left a variable, so that the input's process takes the input's own mailbox type (§8.1). No identifier is spelled `'$input'`, so it shadows no name the session declares, `main` among them (the log's *The Session's Names in Spawn Sites*).
+
+A `let` with `<-`, `let p <- e`, becomes `export fn '$input'('$rest') = { let p <- e; '$rest'(names) }`, the session standing for the block's rest (§11.2, §5.5; the log's *`<-` at the Prompt*). The block's sum type is the checker's, and the front end calls the entry with that type's value side, `Right` or `Some`, as the rest: the input answers the names under it, which the session binds, or the `Left` or the `None`, which binds nothing and prints with the type of `e`.
 
 An input's declarations are its module's own, each exported. An input that declares runs its module's initializers (§8.5) in its own process, and its value is `Unit`.
 

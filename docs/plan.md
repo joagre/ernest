@@ -136,6 +136,10 @@ modules documented apart with an authority of their own. Why it is worth its cos
 10. **The standard library's small functions at a call site**, dropped 2026-10-27 (the log's *Small
     Library Functions Stay Calls*): the bench's programs gain 0 to 5% from it, the mixer alone,
     built for these calls, much more, so the plain form stays and its cost is recorded.
+11. **`<-` at the prompt**, done 2026-10-27 (the log's *`<-` at the Prompt*): the shell takes
+    `let p <- e`, binding on `Right` or `Some` and showing a `Left` or a `None` as an expression's
+    value, as §11.2 states; the README's, the guide's and the tour's spawns on `foo` write
+    `let far <- Peer.spawn(...)` in place of a `match`.
 
 ## MVP 4.0 (a shell attached to a running node), about a week
 

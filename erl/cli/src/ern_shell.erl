@@ -16,7 +16,7 @@
          browse/2, doc/2,
          documentation/1, fields/1, signature/1, declared_type/2, load/2, own/0,
          reload/1, version/0, write/1, screen/1, to_screen/1, flush_screen/0,
-         leaves_it_unchanged/1, collect/1, input_site/2, is_expression/1, declared/1]).
+         leaves_it_unchanged/1, collect/1, input_site/2, is_expression/1, declared/2]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("checker/include/ern_types.hrl").
@@ -36,6 +36,11 @@
 %% `main` among them (report §11.2's scope), and the emitter knows a site
 %% inside it for the input's own.
 -define(ENTRY, '$input').
+
+%% The parameter the entry point of a `let` with `<-` takes, the block's
+%% rest the session stands for (report §11.2, §5.5), spelled as no Ernest
+%% identifier is.
+-define(REST, '$rest').
 
 %% Report Appendix H, §11.2: the session's one namespace, under which a
 %% form and a unit's '$code'/0 name what the session declares, a type, a
@@ -100,8 +105,12 @@
 -record(input_text, {text, origin, scope, printed_name}).
 %% binds: `{name, Name}` for the name a `let` binds, `{lambda, Name,
 %% Scheme}` for a `let` of a lambda, generalized, `{names, Names}` for the
-%% names a `let` with a pattern binds, `it` for an expression, or
-%% `declarations`; a name is tagged, so that no name stands for a tag.
+%% names a `let` with a pattern binds, `{arrow, Names, Type, Constructor}`
+%% for those a `let` with `<-` binds, of the type Type together, under its
+%% sum type's Constructor, `'Right'` or `'Some'`, `it` for an expression,
+%% or `declarations`; a name is tagged, so that no name stands for a tag.
+%% type: the value's, which is the value of `e` for a `let p <- e`, shown
+%% where it binds nothing.
 %% printed_name: the name the input's module prints with (input_names/0).
 %%
 %% A module a load or a reload brings: its namespace, the unit it is, its
@@ -348,8 +357,8 @@ checked_input(#session{last_input = LastInput} = Session, Origin, Input) ->
     PrintedName = printed_name(Origin),
     case input(Input) of
         {ok, Binds, Expr} ->
-            checked(check_module(Numbered, Namespace, InputOrigin, Input, input_entry(Expr),
-                                 Binds), PrintedName);
+            checked(check_module(Numbered, Namespace, InputOrigin, Input,
+                                 input_entry(Binds, Expr), Binds), PrintedName);
         {declarations, Declarations} ->
             checked(check_module(Numbered, Namespace, InputOrigin, Input, Declarations,
                                  declarations), PrintedName);
@@ -422,22 +431,30 @@ input(Text, Read) ->
 %% Report §11.2: a `let` whose pattern is not a name binds each name the
 %% pattern binds. It is the block `{ let p = e; #(names) }`, whose value
 %% holds the names in the order the pattern has them; `let _ = e` binds
-%% none, and `<-` is refused, since no block follows it for it to end.
+%% none. Report §5.5: a `let` with `<-` is the block `{ let p <- e;
+%% rest(#(names)) }`, the session standing for the block's rest: the entry
+%% point takes it as its parameter (input_entry/2), and the shell gives it
+%% the sum type's own constructor at run (value/2), so the block answers
+%% the names under `Right` or `Some`, or else the `Left` or the `None` that
+%% binds nothing.
 pattern_let(Text, Read) ->
     case ern_parser:parse_statement(Text, Read) of
-        {ok, #binding{operator = '<-', span = Span}} ->
-            {error, #diagnostic{span = ern_diagnostic:span(Span),
-                                message = "a `let` with `<-` at the prompt has no block to end",
-                                help = "write it in a block, `{ let x <- e; ... }`"}};
-        {ok, #binding{span = Span, pattern = Pattern} = Binding} ->
+        {ok, #binding{span = Span, pattern = Pattern, operator = Operator} = Binding} ->
             Names = [Name || {Name, _} <- ern_ast:pattern_bindings(Pattern)],
             Variables = [#e_var{span = Span, name = Name} || Name <- Names],
-            Last = case Variables of
-                       [] -> #e_constructor{span = Span, name = 'Unit'};
-                       [Variable] -> Variable;
-                       _ -> #e_tuple{span = Span, elements = Variables}
-                   end,
-            {ok, {names, Names}, #e_block{span = Span, statements = [Binding, Last]}};
+            Bound = case Variables of
+                        [] -> #e_constructor{span = Span, name = 'Unit'};
+                        [Variable] -> Variable;
+                        _ -> #e_tuple{span = Span, elements = Variables}
+                    end,
+            case Operator of
+                '=' ->
+                    {ok, {names, Names}, #e_block{span = Span, statements = [Binding, Bound]}};
+                '<-' ->
+                    Rest = #e_call{span = Span, callee = #e_var{span = Span, name = ?REST},
+                                   args = [Bound]},
+                    {ok, {arrow, Names}, #e_block{span = Span, statements = [Binding, Rest]}}
+            end;
         _ ->
             none
     end.
@@ -514,8 +531,15 @@ annotated(Name, Body, Annotation) ->
                                     annotation = Annotation, operator = '=', expr = Body},
                            #e_var{span = Span, name = Name}]}.
 
-%% `export fn '$input'() = <the input>`, the entry point of §8.1.
-input_entry(Expr) ->
+%% `export fn '$input'() = <the input>`, the entry point of §8.1; for a
+%% `let` with `<-`, `export fn '$input'('$rest') = <the input>`, the rest
+%% the session stands for (pattern_let/2).
+input_entry({arrow, _}, Expr) ->
+    Span = {1, 1, {1, 1}},
+    [#fn_declaration{span = Span, export = true, name = ?ENTRY,
+                     params = [#param{span = Span, pattern = #p_var{span = Span, name = ?REST}}],
+                     body = Expr}];
+input_entry(_Binds, Expr) ->
     [#fn_declaration{span = {1, 1, {1, 1}}, export = true, name = ?ENTRY, params = [],
                      body = Expr}].
 
@@ -580,7 +604,16 @@ settled_input_type(Type, _Binds, Env) -> ern_typecheck:settled(Type, Env).
 
 %% Report §4.6: the scheme a `let` of a lambda binds its name to, the
 %% input's entry point's own over its result, the variables it quantifies
-%% kept with their restrictions.
+%% kept with their restrictions. Report §5.5, §11.2: of a `let` with `<-`,
+%% the type of the names it binds, which its rest is called with, closed as
+%% any other binding's, and the constructor of its sum type's value side.
+generalized({arrow, Names}, Typed, Env) ->
+    #e_block{statements = [_, #e_call{args = [Bound]}]} = entry_body(Typed),
+    Constructor = case ern_typecheck:resolve_type(input_type(Typed, {arrow, Names}), Env) of
+                      {tcon, ['Either'], _} -> 'Right';
+                      {tcon, ['Optional'], _} -> 'Some'
+                  end,
+    {arrow, Names, ern_typecheck:settled(ern_typecheck:node_type(Bound), Env), Constructor};
 generalized({lambda, Name}, Typed, Env) ->
     [#scheme{quantified = Quantified} = Scheme] =
         [EntryScheme || #fn_declaration{name = ?ENTRY, scheme = EntryScheme} <- Typed],
@@ -614,7 +647,14 @@ undetermined(_Type, _Env, {names, []}, _Typed) ->
 undetermined(_Type, _Env, {lambda, _, _}, _Typed) ->
     %% its variables are its scheme's, quantified (report §4.6)
     none;
+undetermined(_Type, Env, {arrow, _, NamesType, _} = Binds, Typed) ->
+    %% report §5.5: what it binds is the value inside, whose type its names
+    %% have; the value of `e`, shown where it binds nothing, may stay open
+    unsettled(NamesType, Env, Binds, Typed);
 undetermined(Type, Env, Binds, Typed) ->
+    unsettled(Type, Env, Binds, Typed).
+
+unsettled(Type, Env, Binds, Typed) ->
     TypeState = ern_typecheck:type_state(Env),
     case ern_types:free_variables(ern_types:substitute(Type, TypeState), TypeState) of
         [] ->
@@ -633,17 +673,25 @@ undetermined(Type, Env, Binds, Typed) ->
 %% its annotation or by the mailbox type the spawned function declares;
 %% any other type by an annotation.
 undetermined_help({tcon, ['Address'], _}, {name, Name}) ->
-    "annotate the binding, `let " ++ atom_to_list(Name) ++ " : Address(T) = ...`, or give the"
-    " spawned function its mailbox type, `fn() : Unit receiving T = ...`";
+    address_help(Name, "=");
+undetermined_help({tcon, ['Address'], _}, {arrow, [Name], _, _}) ->
+    address_help(Name, "<-");
 undetermined_help(_, _) ->
     "bind it with an annotation that settles the variable, as in `let xs : List(Int) = []`, or"
     " declare a function with `fn`".
 
+address_help(Name, Operator) ->
+    "annotate the binding, `let " ++ atom_to_list(Name) ++ " : Address(T) " ++ Operator
+    ++ " ...`, or give the spawned function its mailbox type, `fn() : Unit receiving T = ...`".
+
+undetermined_text({arrow, Names, _, _}) ->
+    undetermined_text({names, Names});
 undetermined_text({names, [_, _ | _]}) ->
     "the types of ~s are not determined by this input; together they are ~ts";
 undetermined_text(_) ->
     "the type of ~s is not determined by this input; it is ~ts".
 
+bound_names({arrow, Names, _, _}) -> bound_names({names, Names});
 bound_names({names, Names}) -> lists:join(", ", [atom_to_list(Name) || Name <- Names]);
 bound_names({name, Name}) -> atom_to_list(Name).
 
@@ -659,6 +707,10 @@ input_span(_) -> {1, 1, {1, 2}}.
 %% declared, as an input of type Unit prints nothing.
 input_type(_Typed, declarations) ->
     ?UNIT;
+input_type(Typed, {arrow, _}) ->
+    %% report §5.5: the value of `e` in `let p <- e`
+    #e_block{statements = [#binding{expr = Expr} | _]} = entry_body(Typed),
+    ern_typecheck:node_type(Expr);
 input_type(Typed, _Binds) ->
     [Scheme] = [Scheme || #fn_declaration{name = ?ENTRY, scheme = Scheme} <- Typed],
     result_type(Scheme).
@@ -693,6 +745,12 @@ one_name(Typed) ->
         [#e_var{namespace = Namespace, name = Name}] -> {Namespace, Name};
         _ -> none
     end.
+
+%% The input's own expression, the body of the entry point of an input
+%% that does not declare.
+entry_body(Typed) ->
+    [Body] = [Body || #fn_declaration{name = ?ENTRY, body = Body} <- Typed],
+    Body.
 
 %% Report §11.2: the input runs in a process of its own; the outcome goes to
 %% `Address`, so the shell's reader stays live and the address is what an
@@ -843,6 +901,14 @@ unload(ErlangModule) ->
 %% §11.2).
 value(_ErlangModule, declarations) ->
     'Unit';
+value(ErlangModule, {arrow, _, _, Constructor}) ->
+    %% report §5.5, §11.2: the session stands for the block's rest, which
+    %% answers what the pattern bound under the sum type's value side; the
+    %% session binds the names it holds and prints them, never this value
+    %% (declared/2): the outcome's descriptor is the type of `e`, which
+    %% describes a `Left` or a `None` and not the names
+    {Entry, 1} = ern_code:function(ErlangModule, ?SESSION_NAMESPACE ++ [?ENTRY]),
+    ErlangModule:Entry(fun(Bound) -> {Constructor, Bound} end);
 value(ErlangModule, _Binds) ->
     %% report §11.1: the unit names its functions by their position, and its
     %% '$code'/0 names the input's entry under the session's namespace
@@ -1650,7 +1716,7 @@ fields(Before) ->
                 {ok, Binds, Expr} ?= input(Head, [no_new_names]),
                 {'Right', {_, #checked{type = Type, env = Env}}} ?=
                     check_module(kept_session(), ['$Fields'], {typed, <<"fields">>}, Head,
-                                 input_entry(Expr), Binds),
+                                 input_entry(Binds, Expr), Binds),
                 TypeState = ern_typecheck:type_state(Env),
                 [name('Value', [Head, ".", atom_to_list(Field)],
                       [Head, ".", atom_to_list(Field), " : ",
@@ -1714,7 +1780,7 @@ scheme_of(Session, Text) ->
 %% refused as one (§4.5).
 -spec declared_type(#session{}, binary()) -> {'Some', binary()} | 'None'.
 declared_type(Session, Input) ->
-    case declared(Session, Input) of
+    case one_name_declared(Session, Input) of
         {ok, Namespace, Name, Scheme, Env} ->
             case ern_typecheck:is_member_name(Namespace, Name, Env) of
                 true ->
@@ -1732,14 +1798,14 @@ declared_type(Session, Input) ->
 %% taken as a value, which a declaration with a requirement is not without
 %% a type for its variable (report §4.9).
 declared_scheme(Session, Text) ->
-    case declared(Session, Text) of
+    case one_name_declared(Session, Text) of
         {ok, _, _, Scheme, Env} -> {ok, Scheme, Env};
         none -> none
     end.
 
 %% The name of an input that is one name, its declared scheme, and the
 %% environment it is read in, or none.
-declared(#session{scope = Scope} = Session, Text) ->
+one_name_declared(#session{scope = Scope} = Session, Text) ->
     maybe
         {ok, it, #e_var{namespace = Namespace, name = Name}} ?= input(Text),
         %% report §11.2: a type a later input shadows prints under the input
@@ -3801,6 +3867,16 @@ bind(Session, it, Namespace, Value, Type, Env, Interface) ->
     end;
 bind(Session, {names, Names}, Namespace, Value, Type, Env, Interface) ->
     bound(Session, components(Names, Value, Type, Env), Env, entry_hash(Namespace, Interface));
+bind(Session, {arrow, Names, NamesType, Constructor}, Namespace, Value, _Type, Env,
+     Interface) ->
+    %% report §5.5, §11.2: a `Left` or a `None` binds nothing
+    case Value of
+        {Constructor, Bound} ->
+            bound(Session, components(Names, Bound, NamesType, Env), Env,
+                  entry_hash(Namespace, Interface));
+        _ ->
+            Session
+    end;
 bind(Session, {lambda, Name, Scheme}, Namespace, Value, _Type, Env, Interface) ->
     bound(Session, [{Name, Value, Scheme}], Env, entry_hash(Namespace, Interface));
 bind(Session, {name, Name}, Namespace, Value, Type, Env, Interface) ->
@@ -4134,18 +4210,40 @@ is_expression(#checked{binds = Binds}) ->
     Binds =:= it.
 
 %% Report §11.2: what an input declares, a line for each, in the order they
-%% were written. A value is its name and its type, a type its keyword and
-%% its name.
--spec declared(#checked{}) -> [binary()].
-declared(#checked{binds = it}) ->
-    [];
+%% were written, or none where the input shows its value instead: an
+%% expression, and a `let` with `<-` whose value is a `Left` or a `None`,
+%% which binds nothing (§5.5). A value is its name and its type, a type its
+%% keyword and its name.
+-spec declared(#checked{}, #value{}) -> {'Some', [binary()]} | 'None'.
+declared(#checked{binds = it}, _Value) ->
+    'None';
+declared(#checked{binds = {arrow, Names, NamesType, Constructor}, env = Env},
+         #value{term = Term}) ->
+    case Term of
+        {Constructor, _} -> {'Some', name_lines(Names, NamesType, Env)};
+        _ -> 'None'
+    end;
+declared(Checked, _Value) ->
+    {'Some', declared(Checked)}.
+
 declared(#checked{binds = declarations, namespace = Namespace, declarations = Declarations,
                   interface = Interface, env = Env}) ->
     [line(Declaration, Namespace, Interface, Env) || Declaration <- Declarations,
                                                      kind(Declaration) =/= other];
-declared(#checked{binds = {names, []}}) ->
-    [];
 declared(#checked{binds = {names, Names}, type = Type, env = Env}) ->
+    name_lines(Names, Type, Env);
+declared(#checked{binds = {lambda, Name, Scheme}, env = Env}) ->
+    TypeState = ern_typecheck:type_state(Env),
+    [unicode:characters_to_binary([atom_to_list(Name), " : ",
+                                   ern_types:format_scheme(Scheme, TypeState)])];
+declared(#checked{binds = {name, Name}} = Checked) ->
+    [<<(atom_to_binary(Name))/binary, " : ", (type_text(Checked))/binary>>].
+
+%% The names a pattern bound, each with its type: the whole of Type for
+%% one name, a component of its tuple for more, and none for none.
+name_lines([], _Type, _Env) ->
+    [];
+name_lines(Names, Type, Env) ->
     TypeState = ern_typecheck:type_state(Env),
     Types = case Names of
                 [_] ->
@@ -4156,13 +4254,7 @@ declared(#checked{binds = {names, Names}, type = Type, env = Env}) ->
             end,
     [unicode:characters_to_binary([atom_to_list(BoundName), " : ",
                                    ern_types:format(BoundType, TypeState)])
-     || {BoundName, BoundType} <- lists:zip(Names, Types)];
-declared(#checked{binds = {lambda, Name, Scheme}, env = Env}) ->
-    TypeState = ern_typecheck:type_state(Env),
-    [unicode:characters_to_binary([atom_to_list(Name), " : ",
-                                   ern_types:format_scheme(Scheme, TypeState)])];
-declared(#checked{binds = {name, Name}} = Checked) ->
-    [<<(atom_to_binary(Name))/binary, " : ", (type_text(Checked))/binary>>].
+     || {BoundName, BoundType} <- lists:zip(Names, Types)].
 
 kind(#type_declaration{}) -> <<"type">>;
 kind(#abstract_declaration{}) -> <<"abstract type">>;

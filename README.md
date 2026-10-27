@@ -20,11 +20,7 @@ listening on 0.0.0.0:8654
 Ernest 0.6.0. :help for the commands, :quit to leave.
 > :load Counter
 Counter, compiled from counter.ern
-Enter runs a finished input, M-Enter adds a line.
-> let far = match Peer.spawn("foo", fn() = Counter.count(0), 5000) {
-...     Right(address) -> address
-...   | Left(error) -> fault(Io.show(error))
-... }
+> let far <- Peer.spawn("foo", fn() = Counter.count(0), 5000)
 the peer foo connected
 far : Address(Counter.CounterMsg)
 > send(far, Counter.Inc(5))
