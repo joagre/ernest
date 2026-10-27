@@ -1,12 +1,14 @@
-# Typed registers, and who saves a register
+# What Ernest's types buy on BEAM, and who saves a register
 
 An experiment of 2026-10-27, for MVP 4.4: a back end that writes BEAM's own instructions, with the types Ernest's checker proves given to the JIT as typed registers.
 
 ## Why
 
-Two questions decide the back end's shape.
+Three questions decide the back end's shape.
 
-**What do typed registers buy?** BEAM's JIT has no unchecked arithmetic of its own. What it reads is the module's type chunk: an operand written `{tr, Register, Type}` with an integer range that fits a small integer lets it emit an addition without the tag test and the bignum fallback. OTP's compiler writes such a type only where its own inference proves it. Ernest's checker could prove more.
+**What do integer ranges buy?** BEAM's JIT has no unchecked arithmetic of its own. What it reads is the module's type chunk: an operand written `{tr, Register, Type}` with an integer range that fits a small integer lets it emit an addition without the tag test and the bignum fallback. OTP's compiler writes such a type only where its own inference proves it. Ernest's checker could prove more.
+
+**What does a value's shape buy?** An exported function's argument is anything to OTP, so its code tests a tuple, dispatches on its arity, tests its tag and keeps a fallback for a value no clause matches. Ernest's checker knows the argument's type whole, so its emitter could leave those tests out.
 
 **Who should save a register across a call?** BEAM's convention is the caller's: every `x` register is dead after a call, so a function keeps what it needs across one in its stack frame, the `y` registers, and moves it back after. The alternative is the callee's, common on real processors: a function preserves the registers it does not use, so a caller keeps its values in registers across calls to leaves that never touch them.
 
@@ -20,14 +22,16 @@ So the one way a module asks for the fast track is the type chunk: a typed regis
 
 ## How
 
-Each program was written in Erlang, compiled by OTP 29's compiler, and its assembly taken with `erlc -S`. Two variants were written by hand from that assembly:
+Each program was written in Erlang, compiled by OTP 29's compiler, and its assembly taken with `erlc -S`. For Ackermann and the mixer, two variants were written by hand from that assembly:
 
 - **Caller saves**: OTP's own code instruction for instruction, with typed registers added where OTP's inference left an operand untyped.
 - **Callee saves**: the same, with the functions that make calls rewritten so that the caller's values stay in `x` registers that no callee touches.
 
+For the expression tree, one variant was written with what Ernest's checker knows, below.
+
 The callee-save variant is refused by `beam_validator`, `{x,2},not_live`, since the validator holds BEAM's convention. `experiment/asm_novalidate.erl` assembles it by handing the consulted assembly to `beam_asm:module` directly, the step after validation. It is sound only because every value it keeps in an `x` register across a call is a small integer, an immediate that no garbage collection moves; a boxed value there would be a dangling pointer after the first collection.
 
-Each program was written in Ernest too, and timed inside itself by `Clock.monotonicMicros`. The BEAM variants were timed by `timer:tc`. Every number is the median of eleven runs on an x86_64 laptop, each benchmark run twice, the two rounds within a percent or two.
+Each program was written in Ernest too, and timed inside itself by `Clock.monotonicMicros`. The BEAM variants were timed by `timer:tc`. Every number is the median of eleven runs on an x86_64 laptop; each BEAM benchmark was run twice, the two rounds within a percent or two, and each Ernest program once.
 
 ## Ackermann
 
