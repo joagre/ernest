@@ -1,0 +1,40 @@
+// The expression-tree interpreter, timed eleven times at depth 22, each
+// run a thousand evaluations of the one tree.
+
+type Expr = Num(Int) | Add(left : Expr, right : Expr) | Mul(left : Expr, right : Expr) | Neg(Expr)
+
+fn eval(expr : Expr) : Int =
+    match expr {
+        Num(n) -> n
+      | Add(left = a, right = b) -> (eval(a) + eval(b)) % 16777216
+      | Mul(left = a, right = b) -> (eval(a) * eval(b)) % 16777216
+      | Neg(a) -> 16777215 - eval(a) % 16777216
+    }
+
+fn build(depth : Int, seed : Int) : Expr =
+    if depth == 0 then
+        Num(seed % 65536)
+    else {
+        let s1 = (seed * 75 + 74) % 65537;
+        let s2 = (s1 * 75 + 74) % 65537;
+        match s1 % 4 {
+            0 -> Neg(build(depth - 1, s2))
+          | 1 -> Mul(left = build(depth - 1, s1), right = build(depth - 1, s2))
+          | _ -> Add(left = build(depth - 1, s1), right = build(depth - 1, s2))
+        }
+    }
+
+fn evaluated(tree : Expr, times : Int, value : Int) : Int =
+    if times == 0 then value else evaluated(tree, times - 1, eval(tree))
+
+fn timed(tree : Expr, left : Int) : Unit =
+    if left > 0 then {
+        let start = Clock.monotonicMicros();
+        let value = evaluated(tree, 1000, 0);
+        let took = Clock.monotonicMicros() - start;
+        Io.println(Int.toString(value) <> " " <> Int.toString(took / 1000));
+        timed(tree, left - 1)
+    } else
+        Unit
+
+export fn main() : Unit = timed(build(22, 1), 11)

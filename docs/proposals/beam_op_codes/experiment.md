@@ -57,8 +57,22 @@ The register layout under callee-save follows what each leaf touches: `lcg` uses
 
 OTP's inference already types every masked value, so typing the one untyped operand, the counter, adds nothing. Callee-save is 2 to 4% faster, in the case built to favor it, with the spread between runs nearly as large.
 
+## The expression tree
+
+An interpreter for a tree of four constructors, `Num`, `Add`, `Mul` and `Neg`, its arithmetic masked by `rem` so that integers are not what is measured and Ernest's version uses no shim. `eval` is exported, as every call between Ernest's separately compiled units is, so OTP's inference knows nothing of its argument. The program is matching on constructors and reading their fields, which Ernest's checker knows whole. `experiment/tree.erl`, `tree_typed.S`, `tree_ern.ern`, `tree_bench.erl`.
+
+OTP's `eval` tests `is_tuple`, dispatches on the arity with `select_tuple_arity`, reads the fields, dispatches on the tag with `select_val` and keeps a `function_clause` fallback; it types `eval`'s result as `t_number`, since an exported function may answer a float. The variant with Ernest's knowledge reads the tag and dispatches once over the four, with `Num` as the fallback since the match is exhaustive, reads a clause's fields within it, and types the result `Int`. It is assembled past the validator, which cannot know that every argument is an `Expr`.
+
+| Version | A thousand evaluations of a depth-22 tree | Against Erlang |
+|---|---|---|
+| Erlang, OTP's compiler | 839 to 874 ms | 1.00 |
+| Ernest, today's emitter | 813 ms | 0.95 |
+| BEAM with Ernest's knowledge | 778 to 791 ms | 0.92 |
+
+Type knowledge pays outside integers too, about 8%, from the tests and the fallback it removes. It is less than integer ranges gave Ackermann, and broader: nearly every Ernest program matches on its own types, and this needs no range analysis, only what the checker already knows.
+
 ## The outcome
 
 - **Keep BEAM's convention, the caller's.** Callee-save buys at most a few percent where its case is strongest and loses where a frame is needed anyway, and it costs the validator, the soundness of the garbage collector for any boxed value and the debugger's reading of a frame.
-- **Typed registers are where the gain is**, a fifth on integer recursion, and only where OTP's own inference cannot prove a range and Ernest's checker could. MVP 4.4's back end is worth its cost to the degree such programs are Ernest's.
+- **Type knowledge is where the gain is**, in two kinds. Integer ranges bought a fifth on Ackermann, where OTP's inference proves none, though Ernest's checker proves no range of an arbitrary-precision `Int` today either, so that gain waits for a range analysis. A value's shape bought about 8% on the tree, from tests and a fallback the checker's knowledge removes, and it needs nothing the checker lacks. MVP 4.4's back end is worth its cost by the second kind first, broad and available, and by the first where ranges are proved.
 - **Today's emitter is four times slower than Erlang on the mixer**, a defect and not MVP 4.4's. `Int.bitAnd`, `bitOr` and `bitXor` are `foreign fn` shims over `erlang:band/2` and its kin, and the shifts Ernest functions over a helper, and the emitter compiles a call of each as a call into the `Int` unit, where Erlang's compiler makes one instruction. CLAUDE.md says a shim that is exactly a host function runs at the host's speed. MVP 3.96's item 9 fixes it, with a survey of what else the emitter writes as a call that the host writes as an instruction.
