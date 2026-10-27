@@ -280,6 +280,18 @@ The site's files as served.
   one Enter away. Any other is Pasted.
 - A Paste arrives as one input, as bracketed paste does. Nothing runs until
   Enter.
+- In a block that shows a shell session, each `> ` line has a Paste of its
+  own, which puts that input into the shell without its prompt, as one
+  input; a transcript is read input by input with what the shell answered,
+  so no button pastes them all. The guide's and the tour's transcripts are
+  tested as transcripts, so every input offered is one the tests have run
+  (decided 2026-10-27).
+- A Paste or a Load is the visitor asking for the shell: where no panel is
+  open, the click opens it, side by side or stacked by the window's width,
+  and starts the session where none runs, the input arriving once the
+  prompt does; a visitor who never noticed the shell meets it so. On a
+  phone, where no panel is offered, the click opens `/shell/` with the
+  input waiting there (decided 2026-10-27).
 - Everything is reachable by keyboard. Focus lands in the shell after a Paste.
   xterm.js's screen-reader mode is on.
 
