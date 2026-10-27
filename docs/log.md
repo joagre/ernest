@@ -9529,7 +9529,7 @@ An experiment for MVP 4.4, run with the user, written up in `docs/proposals/beam
 
 What it found for MVP 4.4 stays in the proposal until it is decided: typed registers bought a fifth on Ackermann, where OTP's inference proves no range, and nothing on the loop, where it proves them all; and the callee's saving bought at most a few percent, in the case built for it, against the validator, the collector's soundness and the debugger, so BEAM's convention is the one to keep.
 
-What it found outside MVP 4.4 is a defect of today's emitter, MVP 3.96's item 9: the loop runs four times slower in Ernest than in Erlang, 1,197 ms against 292 for ten million iterations, since a call of `Int.bitAnd` and its kin, `foreign fn` shims over `erlang:band/2`, is compiled as a call into the `Int` unit and not as the host's instruction, against CLAUDE.md's rule that such a shim runs at the host's speed. Ackermann, which uses only `+`, `-` and `==`, ran 10% faster in Ernest than in Erlang.
+What it found outside MVP 4.4 is a defect of today's emitter, MVP 3.96's item 9: the loop runs four times slower in Ernest than in Erlang, 1,197 ms against 292 for ten million iterations, since a call of `Int.bitAnd` and its kin, `foreign fn` shims over `erlang:band/2`, is compiled as a call into the `Int` unit and not as the host's instruction, against CLAUDE.md's rule that such a shim runs at the host's speed. Ackermann, which uses only `+`, `-` and `==`, ran 15% faster in Ernest than in Erlang, and the tree interpreter 10%, each pair timing itself the same way.
 
 ## The Nested Group's Third Restart, 2026-10-26
 
