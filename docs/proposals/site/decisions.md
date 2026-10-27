@@ -263,6 +263,13 @@ The site's files as served.
   no key pressed; a key or Extend gives it five minutes more, and the
   banner is no dialog (decided 2026-10-27; the lifetime is
   `../httpd/proposal.md`'s).
+- A session that expires closes its panel and gives the page back its
+  width, a short line saying for a moment that the shell ended after five
+  quiet minutes and that opening it starts a new one; the layout kept in
+  local storage is unchanged, so the next Paste or Open shell opens the
+  panel as the visitor last had it. A takeover and *unavailable* show in
+  the panel, where the visitor is present to read them (decided
+  2026-10-27).
 - Stop ends the session, and Restart is a deliberate act that ends the old one; what they end, the container, is the server's (`../httpd/proposal.md`).
 - The shell page carries a privacy line: no accounts, one cookie, the layout
   kept in the browser, what the server logs, nothing kept.
