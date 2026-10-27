@@ -1,5 +1,5 @@
 -module(mixer).
--export([run/1]).
+-export([run/1, main/0]).
 
 %% A loop carrying five values across four calls per iteration, three to
 %% leaves and one to a function that calls a leaf twice; every value a
@@ -25,3 +25,14 @@ rot(X, I) ->
 mix3(X, Y, Z) ->
     M = mix(X, Y),
     (mix(M, Z) + Z * 7) band 16#FFFFFF.
+
+%% Timed eleven times at ten million iterations, as mixer.ern times itself.
+main() -> timed(11).
+
+timed(0) -> ok;
+timed(Left) ->
+    Start = erlang:monotonic_time(microsecond),
+    Value = loop(10000000, 1, 2, 3, 0),
+    Took = erlang:monotonic_time(microsecond) - Start,
+    io:format("~p ~p~n", [Value, Took div 1000]),
+    timed(Left - 1).

@@ -31,47 +31,52 @@ For the expression tree, one variant was written with what Ernest's checker know
 
 The callee-save variant is refused by `beam_validator`, `{x,2},not_live`, since the validator holds BEAM's convention. `experiment/asm_novalidate.erl` assembles it by handing the consulted assembly to `beam_asm:module` directly, the step after validation. It is sound only because every value it keeps in an `x` register across a call is a small integer, an immediate that no garbage collection moves; a boxed value there would be a dangling pointer after the first collection.
 
-Each program was written in Ernest too, and timed inside itself by `Clock.monotonicMicros`. The BEAM variants were timed by `timer:tc`. Every number is the median of eleven runs on an x86_64 laptop; each BEAM benchmark was run twice, the two rounds within a percent or two, and each Ernest program once.
+Each program was written in Ernest too, `ack.ern` beside `ack.erl` and likewise for the others, and the two of a pair time themselves the same way, the same loop around the same work and the host's monotonic clock in microseconds, run alternately, twice each: so the Ernest rows compare with Erlang measured so. The BEAM variants were compared with Erlang under `timer:tc`, one harness for both. A table's ratios therefore compare rows of one harness. Every number is the median of eleven runs on an x86_64 laptop, the two rounds within a percent or two.
 
 ## Ackermann
 
-One function, `ack(m, n)`, recursing, one value alive across its inner call. `experiment/ack.erl`, `ack_caller.S`, `ack_callee.S`, `ack_ern.ern`, `ack_bench.erl`.
+One function, `ack(m, n)`, recursing, one value alive across its inner call. `experiment/ack.erl`, `ack.ern`, `ack_caller.S`, `ack_callee.S`, `ack_bench.erl`.
 
 | Version | A(3, 11) | Against Erlang |
 |---|---|---|
-| Erlang, OTP's compiler | 660 ms | 1.00 |
-| Ernest, today's emitter | 597 ms | 0.90 |
+| Erlang, OTP's compiler, under `timer:tc` | 660 ms | 1.00 |
 | BEAM, typed, caller saves | 524 ms | 0.79 |
 | BEAM, typed, callee saves | 562 ms | 0.85 |
+| Erlang, timing itself | 679 to 694 ms | 1.00 |
+| Ernest, today's emitter, timing itself | 580 to 591 ms | 0.85 |
 
-OTP's inference gives Ackermann's arguments no range, so every addition and subtraction carries its test. The typed caller-save variant, OTP's code with ranges asserted, is 21% faster: that is the JIT dropping the tests. Callee-save is slower here: both variants need a frame to hold the one value across the call, and callee-save adds a restore before its tail call. Ernest is 10% ahead of Erlang; why is not yet looked at.
+OTP's inference gives Ackermann's arguments no range, so every addition and subtraction carries its test. The typed caller-save variant, OTP's code with ranges asserted, is 21% faster: that is the JIT dropping the tests. Callee-save is slower here: both variants need a frame to hold the one value across the call, and callee-save adds a restore before its tail call. Ernest is 15% ahead of Erlang; why is not yet looked at.
 
 ## The mixer
 
-A loop carrying five values, a counter, three state words and an accumulator, across four calls an iteration: three to leaves, an LCG step, a mix by shift and xor and a rotate, and one to `mix3`, which calls `mix` twice. Every value is masked to 24 bits. `experiment/mixer.erl`, `mixer_caller.S`, `mixer_callee.S`, `mixer_ern.ern`, `mixer_bench.erl`.
+A loop carrying five values, a counter, three state words and an accumulator, across four calls an iteration: three to leaves, an LCG step, a mix by shift and xor and a rotate, and one to `mix3`, which calls `mix` twice. Every value is masked to 24 bits. `experiment/mixer.erl`, `mixer.ern`, `mixer_caller.S`, `mixer_callee.S`, `mixer_bench.erl`.
 
 The register layout under callee-save follows what each leaf touches: `lcg` uses `x0`, `mix` `x0` and `x1`, `rot` `x0` to `x2`. So `mix3` keeps its third argument in `x2` across both calls of `mix` and saves nothing, and the loop keeps its values in `x3` to `x8` with a frame that holds only the return address, where OTP's frame holds five values and moves them around every call.
 
 | Version | Ten million iterations | Against Erlang |
 |---|---|---|
-| Erlang, OTP's compiler | 292 ms | 1.00 |
+| Erlang, OTP's compiler, under `timer:tc` | 292 ms | 1.00 |
 | BEAM, typed, caller saves | 291 ms | 1.00 |
 | BEAM, typed, callee saves | 283 ms | 0.97 |
-| Ernest, today's emitter | 1,197 ms | 4.10 |
+| Erlang, timing itself | 295 to 296 ms | 1.00 |
+| Ernest, today's emitter, timing itself | 1,191 to 1,223 ms | 4.08 |
 
 OTP's inference already types every masked value, so typing the one untyped operand, the counter, adds nothing. Callee-save is 2 to 4% faster, in the case built to favor it, with the spread between runs nearly as large.
 
 ## The expression tree
 
-An interpreter for a tree of four constructors, `Num`, `Add`, `Mul` and `Neg`, its arithmetic masked by `rem` so that integers are not what is measured and Ernest's version uses no shim. `eval` is exported, as every call between Ernest's separately compiled units is, so OTP's inference knows nothing of its argument. The program is matching on constructors and reading their fields, which Ernest's checker knows whole. `experiment/tree.erl`, `tree_typed.S`, `tree_ern.ern`, `tree_bench.erl`.
+An interpreter for a tree of four constructors, `Num`, `Add`, `Mul` and `Neg`, its arithmetic masked by `rem` so that integers are not what is measured and Ernest's version uses no shim. `eval` is exported, as every call between Ernest's separately compiled units is, so OTP's inference knows nothing of its argument. The program is matching on constructors and reading their fields, which Ernest's checker knows whole. `experiment/tree.erl`, `tree.ern`, `tree_typed.S`, `tree_bench.erl`.
 
 OTP's `eval` tests `is_tuple`, dispatches on the arity with `select_tuple_arity`, reads the fields, dispatches on the tag with `select_val` and keeps a `function_clause` fallback; it types `eval`'s result as `t_number`, since an exported function may answer a float. The variant with Ernest's knowledge reads the tag and dispatches once over the four, with `Num` as the fallback since the match is exhaustive, reads a clause's fields within it, and types the result `Int`. It is assembled past the validator, which cannot know that every argument is an `Expr`.
 
 | Version | A thousand evaluations of a depth-22 tree | Against Erlang |
 |---|---|---|
-| Erlang, OTP's compiler | 839 to 874 ms | 1.00 |
-| Ernest, today's emitter | 813 ms | 0.95 |
+| Erlang, OTP's compiler, under `timer:tc` | 839 to 874 ms | 1.00 |
 | BEAM with Ernest's knowledge | 778 to 791 ms | 0.92 |
+| Erlang, timing itself | 957 to 961 ms | 1.00 |
+| Ernest, today's emitter, timing itself | 858 to 864 ms | 0.90 |
+
+The tree's Erlang is slower timing itself than under `timer:tc`, since its loop of evaluations is a recursive function where the benchmark's is a `lists:foldl`, which is why each comparison stays within one harness.
 
 Type knowledge pays outside integers too, about 8%, from the tests and the fallback it removes. It is less than integer ranges gave Ackermann, and broader: nearly every Ernest program matches on its own types, and this needs no range analysis, only what the checker already knows.
 

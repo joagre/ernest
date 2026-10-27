@@ -1,5 +1,5 @@
 -module(tree).
--export([eval/1, build/2]).
+-export([eval/1, build/2, main/0]).
 
 %% An interpreter for an expression tree of four constructors, the
 %% arithmetic masked to 24 bits so that integers are not what is measured.
@@ -19,3 +19,18 @@ build(D, Seed) ->
         1 -> {'Mul', build(D - 1, S1), build(D - 1, S2)};
         _ -> {'Add', build(D - 1, S1), build(D - 1, S2)}
     end.
+
+%% Timed eleven times, each run a thousand evaluations of one depth-22
+%% tree, as tree.ern times itself.
+main() -> timed(build(22, 1), 11).
+
+evaluated(_, 0, Value) -> Value;
+evaluated(Tree, Times, _) -> evaluated(Tree, Times - 1, eval(Tree)).
+
+timed(_, 0) -> ok;
+timed(Tree, Left) ->
+    Start = erlang:monotonic_time(microsecond),
+    Value = evaluated(Tree, 1000, 0),
+    Took = erlang:monotonic_time(microsecond) - Start,
+    io:format("~p ~p~n", [Value, Took div 1000]),
+    timed(Tree, Left - 1).
