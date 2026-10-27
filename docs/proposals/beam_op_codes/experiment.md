@@ -60,8 +60,9 @@ The register layout under callee-save follows what each leaf touches: `lcg` uses
 | BEAM, typed, callee saves | 283 ms | 0.97 |
 | Erlang, timing itself | 295 to 296 ms | 1.00 |
 | Ernest, today's emitter, timing itself | 1,191 to 1,223 ms | 4.08 |
+| Ernest after MVP 3.96's item 9, timing itself | 749 to 751 ms | 2.56 |
 
-OTP's inference already types every masked value, so typing the one untyped operand, the counter, adds nothing. Callee-save is 2 to 4% faster, in the case built to favor it, with the spread between runs nearly as large.
+OTP's inference already types every masked value, so typing the one untyped operand, the counter, adds nothing. Ernest's row after MVP 3.96's item 9, which calls a shim's host function at the call site, was measured beside an Erlang mixer of 293 ms on the same machine; what remains is the shifts, Ernest functions of `Int` called across units, MVP 3.96's item 10. Callee-save is 2 to 4% faster, in the case built to favor it, with the spread between runs nearly as large.
 
 ## The expression tree
 
@@ -84,4 +85,4 @@ Type knowledge pays outside integers too, about 8%, from the tests and the fallb
 
 - **Keep BEAM's convention, the caller's.** Callee-save buys at most a few percent where its case is strongest and loses where a frame is needed anyway, and it costs the validator, the soundness of the garbage collector for any boxed value and the debugger's reading of a frame.
 - **Type knowledge is where the gain is**, in two kinds. Integer ranges bought a fifth on Ackermann, where OTP's inference proves none, though Ernest's checker proves no range of an arbitrary-precision `Int` today either, so that gain waits for a range analysis. A value's shape bought about 8% on the tree, from tests and a fallback the checker's knowledge removes, and it needs nothing the checker lacks. MVP 4.4's back end is worth its cost by the second kind first, broad and available, and by the first where ranges are proved.
-- **Today's emitter is four times slower than Erlang on the mixer**, a defect and not MVP 4.4's. `Int.bitAnd`, `bitOr` and `bitXor` are `foreign fn` shims over `erlang:band/2` and its kin, and the shifts Ernest functions over a helper, and the emitter compiles a call of each as a call into the `Int` unit, where Erlang's compiler makes one instruction. CLAUDE.md says a shim that is exactly a host function runs at the host's speed. MVP 3.96's item 9 fixes it, with a survey of what else the emitter writes as a call that the host writes as an instruction.
+- **The emitter was four times slower than Erlang on the mixer**, a defect and not MVP 4.4's, 2.6 times since MVP 3.96's item 9. `Int.bitAnd`, `bitOr` and `bitXor` are `foreign fn` shims over `erlang:band/2` and its kin, and the shifts Ernest functions over a helper, and the emitter compiles a call of each as a call into the `Int` unit, where Erlang's compiler makes one instruction. CLAUDE.md says a shim that is exactly a host function runs at the host's speed. MVP 3.96's item 9 fixed the shims, and its item 10 decides whether the library's small Ernest functions, the shifts among them, are compiled at the call site too.
