@@ -133,23 +133,9 @@ modules documented apart with an authority of their own. Why it is worth its cos
    declared types, the interface carrying each shim's host function; `compare` at a prelude type
    the host's comparison; the mixer 1.7 times faster, still 2.6 times Erlang through `Int`'s
    shifts, which stay calls.
-10. **The standard library's small functions at a call site.** Found 2026-10-27 by item 9's build
-    (the log's *The Emitter's Calls Against the Host's, Built*): the mixer stays 2.6 times Erlang,
-    since `Int.shiftLeft` and `Int.shiftRight` are Ernest functions of `Int`, a shim with `max(count,
-    0)` closing the host's difference for a negative count, and a call of one crosses units; `Map.get`
-    stays 2.0 times the host the same way.
-
-    A design to decide with the user before it is built, discussed as a proposal: whether a call of a
-    small Ernest function of the standard library is compiled at the call site, as item 9 compiles a
-    shim, which the library's code agreeing by the floor makes sound; which functions count as small;
-    how a trace shows an inlined function; and how a function's hash covers what it inlined. A special
-    case for the two shifts is refused, as CLAUDE.md refuses a special case for speed.
-
-    The first question is whether it is generic or a micro-optimization: the mixer was built to
-    stress these calls, so it proves nothing. The discussion starts from the bench's programs, the
-    parser, the ray tracer and the counter, measuring what their calls of small library functions
-    across units cost. Where they barely notice, the item is dropped, the mixer's 2.6 recorded in the
-    log as the plain form's cost.
+10. **The standard library's small functions at a call site**, dropped 2026-10-27 (the log's *Small
+    Library Functions Stay Calls*): the bench's programs gain 0 to 5% from it, the mixer alone,
+    built for these calls, much more, so the plain form stays and its cost is recorded.
 
 ## MVP 4.0 (a shell attached to a running node), about a week
 
