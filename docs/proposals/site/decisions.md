@@ -270,6 +270,16 @@ The site's files as served.
   panel as the visitor last had it. A takeover and *unavailable* show in
   the panel, where the visitor is present to read them (decided
   2026-10-27).
+- The line is a slim notice at the window's bottom edge, whatever the
+  layout was, so that it covers nothing the visitor was reading: the
+  sentence, an icon that opens the shell and one that closes the notice.
+  It stays until the visitor clicks one of them or anywhere on the page,
+  no timer deciding when a person has read it, and is announced as a
+  polite live region (decided 2026-10-27).
+- Copy, Paste, Load and the shell's own controls are small icons, each
+  with a tooltip and an accessible name, `Paste into the shell`, so that
+  the layout stays plain and a screen reader says what each does (decided
+  2026-10-27).
 - Stop ends the session, and Restart is a deliberate act that ends the old one; what they end, the container, is the server's (`../httpd/proposal.md`).
 - The shell page carries a privacy line: no accounts, one cookie, the layout
   kept in the browser, what the server logs, nothing kept.
