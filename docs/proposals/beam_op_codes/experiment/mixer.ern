@@ -1,18 +1,21 @@
 // The mixer: a loop carrying five values across four calls an iteration,
-// timed eleven times at ten million iterations.
+// timed eleven times at ten million iterations; every value a small
+// non-negative integer, kept below 2^24 by `%`, with no bitwise operation.
 
-fn lcg(x : Int) : Int = Int.bitAnd(x * 1103515245 + 12345, 16777215)
+fn lcg(x : Int) : Int =
+    (x * 1103515245 + 12345) % 16777216
 
-fn mix(x : Int, y : Int) : Int = Int.bitAnd(Int.bitXor(x, Int.shiftLeft(y, 3)), 16777215)
+fn mix(x : Int, y : Int) : Int =
+    (x + y * 8) % 16777216
 
 fn rot(x : Int, i : Int) : Int = {
-    let s = Int.bitAnd(i, 7);
-    Int.bitAnd(Int.bitOr(Int.shiftLeft(x, s), Int.shiftRight(x, 24 - s)), 16777215)
+    let s = i % 8;
+    (x * (s + 1) + (24 - s)) % 16777216
 }
 
 fn mix3(x : Int, y : Int, z : Int) : Int = {
     let m = mix(x, y);
-    Int.bitAnd(mix(m, z) + z * 7, 16777215)
+    (mix(m, z) + z * 7) % 16777216
 }
 
 fn loop(i : Int, a : Int, b : Int, c : Int, acc : Int) : Int =
@@ -23,7 +26,7 @@ fn loop(i : Int, a : Int, b : Int, c : Int, acc : Int) : Int =
         let b1 = mix(b, a1);
         let c1 = rot(c, i);
         let d = mix3(a1, b1, c1);
-        loop(i - 1, a1, b1, c1, Int.bitAnd(acc + d, 16777215))
+        loop(i - 1, a1, b1, c1, (acc + d) % 16777216)
     }
 
 fn timed(left : Int) : Unit =
@@ -36,4 +39,5 @@ fn timed(left : Int) : Unit =
     } else
         Unit
 
-export fn main() : Unit = timed(11)
+export fn main() : Unit =
+    timed(11)

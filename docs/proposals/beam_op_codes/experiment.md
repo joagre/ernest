@@ -29,9 +29,9 @@ Each program was written in Erlang, compiled by OTP 29's compiler, and its assem
 
 For the expression tree, one variant was written with what Ernest's checker knows, below.
 
-The callee-save variant is refused by `beam_validator`, `{x,2},not_live`, since the validator holds BEAM's convention. `experiment/asm_novalidate.erl` assembles it by handing the consulted assembly to `beam_asm:module` directly, the step after validation. It is sound only because every value it keeps in an `x` register across a call is a small integer, an immediate that no garbage collection moves; a boxed value there would be a dangling pointer after the first collection.
+The callee-save variant is refused by `beam_validator`, Ackermann's with `{x,2},not_live` and the mixer's with `uninitialized_reg`, since the validator holds BEAM's convention. `experiment/asm_novalidate.erl` assembles it by handing the consulted assembly to `beam_asm:module` directly, the step after validation. It is not sound. A schedule-out keeps only a call's live `x` registers, so a value held beyond them is lost when another process runs on the scheduler: with one scheduler and a second busy process, the mixer's variant loops forever and Ackermann's crashes the emulator. The callee-save rows were measured with nothing else running, and every run gave the right value. A boxed value held so would be a dangling pointer after a collection besides.
 
-Each program was written in Ernest too, `ack.ern` beside `ack.erl` and likewise for the others, and the two of a pair time themselves the same way, the same loop around the same work and the host's monotonic clock in microseconds, run alternately, twice each: so the Ernest rows compare with Erlang measured so. The BEAM variants were compared with Erlang under `timer:tc`, one harness for both. A table's ratios therefore compare rows of one harness. Every number is the median of eleven runs on an x86_64 laptop, the two rounds within a percent or two.
+Each program was written in Ernest too, `ack.ern` beside `ack.erl` and likewise for the others, and the two of a pair time themselves the same way, the same loop around the same work and the host's monotonic clock in microseconds, run alternately, twice each: so the Ernest rows compare with Erlang measured so. The BEAM variants were compared with Erlang under `timer:tc`, one harness for both. A table's ratios therefore compare rows of one harness. Every number is the median of eleven runs on an x86_64 laptop, the two rounds within a percent or two, the mixer's within 5%.
 
 ## Ackermann
 
@@ -49,20 +49,27 @@ OTP's inference gives Ackermann's arguments no range, so every addition and subt
 
 ## The mixer
 
-A loop carrying five values, a counter, three state words and an accumulator, across four calls an iteration: three to leaves, an LCG step, a mix by shift and xor and a rotate, and one to `mix3`, which calls `mix` twice. Every value is masked to 24 bits. `experiment/mixer.erl`, `mixer.ern`, `mixer_caller.S`, `mixer_callee.S`, `mixer_bench.erl`.
+A loop carrying five values, a counter, three state words and an accumulator, across four calls an iteration: three to leaves, an LCG step, a mix, `(x + y * 8) rem 2^24`, and a stand-in for a rotate, `(x * (s + 1) + (24 - s)) rem 2^24` with `s` the counter's remainder by 8, and one to `mix3`, which calls `mix` twice. Every value is a non-negative integer kept below 2^24 by `rem`, Ernest's `%`, and no operation is bitwise, so that Ernest's version is its arithmetic operators alone. `experiment/mixer.erl`, `mixer.ern`, `mixer_caller.S`, `mixer_callee.S`, `mixer_unsigned.S`, `mixer_bench.erl`.
 
 The register layout under callee-save follows what each leaf touches: `lcg` uses `x0`, `mix` `x0` and `x1`, `rot` `x0` to `x2`. So `mix3` keeps its third argument in `x2` across both calls of `mix` and saves nothing, and the loop keeps its values in `x3` to `x8` with a frame that holds only the return address, where OTP's frame holds five values and moves them around every call.
 
 | Version | Ten million iterations | Against Erlang |
 |---|---|---|
-| Erlang, OTP's compiler, under `timer:tc` | 292 ms | 1.00 |
-| BEAM, typed, caller saves | 291 ms | 1.00 |
-| BEAM, typed, callee saves | 283 ms | 0.97 |
-| Erlang, timing itself | 295 to 296 ms | 1.00 |
-| Ernest, today's emitter, timing itself | 1,191 to 1,223 ms | 4.08 |
-| Ernest after MVP 3.96's item 9, timing itself | 749 to 751 ms | 2.56 |
+| Erlang, OTP's compiler, under `timer:tc` | 322 to 337 ms | 1.00 |
+| BEAM, typed, caller saves | 329 to 332 ms | 0.99 to 1.02 |
+| BEAM, typed, callee saves | 321 to 331 ms | 0.98 to 1.00 |
+| Erlang, timing itself | 319 to 330 ms | 1.00 |
+| Ernest, timing itself | 331 to 335 ms | 1.00 to 1.05 |
 
-OTP's inference already types every masked value, so typing the one untyped operand, the counter, adds nothing. Ernest's row after MVP 3.96's item 9, which calls a shim's host function at the call site, was measured beside an Erlang mixer of 293 ms on the same machine; what remains is the shifts, Ernest functions of `Int` called across units, which MVP 3.96's item 10 keeps as calls. Callee-save is 2 to 4% faster, in the case built to favor it, with the spread between runs nearly as large.
+Each ratio is a round's against the same round's Erlang.
+
+OTP's inference types every value but the counter. Its ranges are signed, though every value is non-negative, so the JIT compiles each `rem` by 2^24 as a signed remainder, not as the single mask it uses where a range starts at zero. Typing the counter adds nothing.
+
+With every range's lower bound set to zero, which the values allow, the caller-save variant, `mixer_unsigned.S`, takes 299 to 301 ms against 336 to 338 for Erlang and the caller-save variant in a round of its own, about 11% faster.
+
+Callee-save is 0 to 2% faster, in the case built to favor it, within a spread between rounds of up to 5%.
+
+Ernest compiles `%` to `rem` with no call, and its loop and leaves to Erlang's instructions, the counter's type aside. Its row is level with Erlang's within the spread, 0 to 5% slower in the two rounds.
 
 ## The expression tree
 
@@ -83,6 +90,5 @@ Type knowledge pays outside integers too, about 8%, from the tests and the fallb
 
 ## The outcome
 
-- **Keep BEAM's convention, the caller's.** Callee-save buys at most a few percent where its case is strongest and loses where a frame is needed anyway, and it costs the validator, the soundness of the garbage collector for any boxed value and the debugger's reading of a frame.
-- **Type knowledge is where the gain is**, in two kinds. Integer ranges bought a fifth on Ackermann, where OTP's inference proves none, though Ernest's checker proves no range of an arbitrary-precision `Int` today either, so that gain waits for a range analysis. A value's shape bought about 8% on the tree, from tests and a fallback the checker's knowledge removes, and it needs nothing the checker lacks. MVP 4.4's back end is worth its cost by the second kind first, broad and available, and by the first where ranges are proved.
-- **The emitter was four times slower than Erlang on the mixer**, a defect and not MVP 4.4's, 2.6 times since MVP 3.96's item 9. `Int.bitAnd`, `bitOr` and `bitXor` are `foreign fn` shims over `erlang:band/2` and its kin, and the shifts Ernest functions over a helper, and the emitter compiles a call of each as a call into the `Int` unit, where Erlang's compiler makes one instruction. CLAUDE.md says a shim that is exactly a host function runs at the host's speed. MVP 3.96's item 9 fixed the shims. Its item 10 weighed compiling the library's small Ernest functions, the shifts among them, at the call site too, and dropped it: the bench's programs gain 0 to 5%, an Erlang program pays the same across modules, and the mixer's 2.6 is the plain form's cost.
+- **Keep BEAM's convention, the caller's.** Callee-save buys at most a few percent where its case is strongest and loses where a frame is needed anyway. It is not sound on BEAM, since a schedule-out keeps only the live `x` registers, so it would need the emulator changed as well as the validator, and it costs the debugger's reading of a frame.
+- **Type knowledge is where the gain is**, in two kinds. Integer ranges bought a fifth on Ackermann, where OTP's inference proves none, and a tenth on the mixer, where it proves only signed ranges and a non-negative one turns each `rem` into a mask, though Ernest's checker proves no range of an arbitrary-precision `Int` today either, so that gain waits for a range analysis. A value's shape bought about 8% on the tree, from tests and a fallback the checker's knowledge removes, and it needs nothing the checker lacks. MVP 4.4's back end is worth its cost by the second kind first, broad and available, and by the first where ranges are proved.

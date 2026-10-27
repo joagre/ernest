@@ -7,8 +7,9 @@
 %% arguments, saving in its own frame what it overwrites and restoring it
 %% before it returns or tail-calls. So the caller keeps M - 1 in {x,2}
 %% across the inner call. The leaf and the second clause touch no x2 and
-%% save nothing. Sound only because every value held so is a small
-%% integer, which no garbage collection moves; beam_validator refuses it.
+%% save nothing. Unsound: a schedule-out keeps only the live x registers,
+%% so another process on the scheduler overwrites x2; beam_validator
+%% refuses it.
 {function, ack, 2, 2}.
   {label,1}.
     {func_info,{atom,ack_callee},{atom,ack},2}.
