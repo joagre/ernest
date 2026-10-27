@@ -128,19 +128,29 @@ modules documented apart with an authority of their own. Why it is worth its cos
    wait on what the test means, Ernest closing around the host (E.0 rule 1), its page and its test
    with it, and the guide's §5.2 saying the order is not given and this is how a test waits for it.
 9. **What the emitter writes against what OTP writes.** Found 2026-10-27 by the experiment for MVP
-   4.4 (the log's *The BEAM Opcode Experiment*; `docs/proposals/beam_op_codes/`): Ernest runs a
-   loop of bitwise arithmetic four times slower than Erlang, since the emitter compiles a call of
-   `Int.bitAnd`, `bitOr` and `bitXor`, `foreign fn` shims over `erlang:band/2` and its kin, as a
-   call into the `Int` unit, where Erlang's compiler makes one instruction, against CLAUDE.md's
-   rule that a shim exactly a host function runs at the host's speed.
+   4.4 and analyzed the same day (the log's *The BEAM Opcode Experiment* and *The Emitter's Calls
+   Against the Host's*; `docs/proposals/beam_op_codes/`): Ernest runs a loop of bitwise arithmetic
+   four times slower than Erlang, against CLAUDE.md's rule that a shim exactly a host function runs
+   at the host's speed. A call of a standard library shim pays a remote call into its wrapper and
+   the wrapper's `try`, where Erlang pays the host's function alone; the remote call is two thirds
+   of the cost.
 
-   The shape of the fix: a call of a standard library shim whose implementation is a BIF the host
-   compiles inline, an operator or a guard BIF, is emitted as a call of that BIF at the call site,
-   so that the host's compiler makes its instruction; the shifts' Ernest wrappers then follow the
-   same way. With it, a survey of the bench's programs, each function's assembly from the emitter
-   against OTP's for the same Erlang, for every other place the emitter writes a call where the
-   host writes an instruction, each fixed at its cause in the plain form, and the bench's language
-   rows measured before and after.
+   The shape of the fix, by class:
+
+   - **A shim over a BIF the host compiles to an instruction**, the 17 over `erlang`, `band` and
+     `byte_size` among them: the BIF called at the call site, which the host's compiler makes its
+     instruction.
+   - **A shim over any other host function**, the other 129: the host function called at the call
+     site, the wrapper skipped.
+   - **`compare` at a prelude type** written as the host's comparison, where today it calls the
+     type module's `compare` across units; a small Ernest function of the library called across
+     units otherwise stays a call, OTP inlining none across modules either.
+
+   A call site keeps the wrapper's `try`, so that a raise is §12.3's fault naming the foreign
+   function as it is today, but for an emitter's table of BIFs that cannot raise on their declared
+   types, `band` of two `Int`s among them; the interface gains each standard library foreign
+   declaration's host function, which a dependent's call site needs. The bench's language rows are
+   measured before and after, and the experiment's tables run again.
 
 ## MVP 4.0 (a shell attached to a running node), about a week
 
