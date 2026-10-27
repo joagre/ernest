@@ -39,7 +39,8 @@ RFC 9110 states HTTP's semantics and RFC 9112 its HTTP/1.1 message syntax.
 
 - A request body. A request that carries one, by `Content-Length` or `Transfer-Encoding`, answers 413 and its connection is closed, since nothing on the site takes input over HTTP. That leaves out chunked request decoding and `Expect: 100-continue` too.
 - Chunked responses, since every file has a size.
-- Ranges, compression, `ETag`, content negotiation, trailers and HTTP/2.
+- Ranges, `ETag`, content negotiation, trailers and HTTP/2.
+- Compression, until the site's pages are measured and a first visit is found slow (decided 2026-10-27). Its shape is known and changes nothing here: the site's generator writes `page.html.gz` beside `page.html` through the host's `zlib`, and the server sends the `.gz` file where `Accept-Encoding` names `gzip`, with `Content-Encoding: gzip` and `Vary: Accept-Encoding`, compressing nothing itself.
 
 ## WebSocket
 
@@ -300,6 +301,7 @@ The site's content, MVP 4.2, runs beside any of it, since its generator needs no
 - The path decoded before its check and `%2F` refused, dot files 404, error bodies plain with the root's `404.html`, no `Cache-Control`, the cookie set on the 101, how it is run with `TimeoutStopSec`, the built-in content types, Ernest's license (2026-10-27).
 - The security section: log lines escaped, `Location` from an accepted target, ambiguous requests refused, error bodies bare, fragments counted as they come, a detached session not read, TLS 1.2 and 1.3, the key's mode checked, rootless podman locked down, and the unit's hardening without `NoNewPrivileges` (2026-10-27).
 - HTTP/1.0: a request without `Host` served as the canonical host, its connection closed after the response unless it asked to keep it (2026-10-27).
+- No compression until measured; its shape precompressed files the generator writes and the server chooses between (2026-10-27).
 - The running server tested by a client in Ernest, `libs/http` gaining a request's rendering and a response's head read (2026-10-27).
 - The order of work: the report, the runtime, the libraries, an installation from the checkout, `ernest-httpd` and its deployment, then a release when the site is served (2026-10-27).
 - Files under a root no one else writes: a path holding `..` refused, and no check of links, so the plan's `Fs.readUnder` waits for a root others can write (2026-10-26).
