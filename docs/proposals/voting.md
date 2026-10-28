@@ -129,22 +129,20 @@ Voters do not need to understand the underlying mathematics; they gain trust by 
 
 While Estonia's internet voting model is pioneering, it contains architectural vectors that security experts criticize. Our municipality-distributed architecture introduces structural fixes to these exact vulnerabilities.
 
+```
 +-----------------------------------+---------------------------------------------------+
-
 | Estonian Vector / Vulnerability   | Distributed Structural Fix                        |
 +-----------------------------------+---------------------------------------------------+
-
 | Centralized Point of Trust:       | Decentralized Municipal Sharding: Tallies are     |
 | The final tally and verification  | split across distinct nodes. No single server     |
 | rely entirely on a central server.| holds the master decryption key or ledger control.|
 +-----------------------------------+---------------------------------------------------+
-
 | The In-Home Coercion Window:      | Physical Human Gatekeeping: Electronic tokens     |
 | An attacker can confiscate a      | can only be activated after a face-to-face        |
 | voter's digital ID credentials    | verification at a local municipality site,        |
 | for the entire voting week.       | preventing bulk identity theft.                   |
 +-----------------------------------+---------------------------------------------------+
-
 | Device Compromise (Malware):      | Hardware Separation & Sealed Terminals: Voting     |
 | Rogue malware on a consumer PC    | occurs on offline-capable local municipality      |
 | could manipulate the browser      | terminals with strict hardware enforcement,       |
+```
