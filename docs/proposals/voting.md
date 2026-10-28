@@ -1,24 +1,24 @@
-## DISTRIBUTED VOTING SPECIFICATION - PART 1: THE NODE NETWORK
+# DISTRIBUTED VOTING SPECIFICATION
 
-By shifting the voting infrastructure from a centralized state asset to a
-peer-to-peer network operated directly by local municipalities, we eliminate
-the single point of failure. Combining multi-party cryptography with explicit
-human quorums creates an election model where a fraudulent state cannot
-secretly manipulate the results.
+*Proposed architecture — cryptographic protocols, trust assumptions, operational procedures and security guarantees require formal specification, independent review and testing before deployment.*
+
+## PART 1: THE NODE NETWORK
+
+By distributing election infrastructure across independently operated municipal nodes, the system aims to reduce dependence on any single central authority. Combining multi-party cryptography, public verification and explicit human quorums creates an election model in which unauthorized manipulation should be detectable without relying solely on the honesty of the state.
+
+Decentralization does not, by itself, eliminate every single point of failure. Common software defects, compromised election parameters, coordinated attacks and network disruption remain possible. The design must identify and address these shared dependencies.
 
 ### MUNICIPAL NODES & BYZANTINE PEER AUDITING
 
-Instead of a singular central database, each municipality operates its own
-independent validation node. These nodes process local ballots and maintain
-a shared, distributed cryptographic ledger of the election.
+Instead of a single central database, each municipality operates an independent validation node. These nodes process local ballots and participate in maintaining a shared, cryptographically authenticated election record.
 
-```
+```text
 +------------------+               +------------------+
 |  Municipality A  |<------------->|  Municipality B  |
-|   [Node Alpha]   |  Continuous   |    [Node Beta]   |
-+--------^---------+  Peer Audits  +--------^---------+
+|   [Node Alpha]   |   Authenticated|   [Node Beta]   |
++--------^---------+   Peer Exchange+--------^---------+
          |                                  |
-   10-Key|Fusion                      10-Key|Fusion
+   Council|Approval                   Council|Approval
     +----+----+                        +----+----+
     |  Human  |                        |  Human  |
     | Council |                        | Council |
@@ -26,204 +26,415 @@ a shared, distributed cryptographic ledger of the election.
     +---------+                        +---------+
 ```
 
-* Continuous Neighbor Auditing:
-Nodes do not blindly accept data from other regions. The network uses peer-to-
-peer cryptographic heartbeats. Every node continuously requests zero-knowledge
-state-proofs from its neighbors, validating that no node's memory stack,
-operating system binaries, or local ledger entries have been retroactively
-altered.
+**Continuous Neighbor Auditing**
 
-* Neighbor-to-Neighbor Byzantine Auditing:
-Nodes communicate via a Modified Byzantine Fault Tolerance (BFT) protocol
-combined with Verifiable Delay Functions (VDF). Every 10 seconds, neighboring
-nodes exchange a state root hash. If a state-level actor attempts to
-manipulate the ledger entries on Node Alpha, the cryptographic hash tree
-(Merkle Mountain Range) breaks sync with Node Beta.
+Nodes do not blindly accept data from other municipalities. They exchange authenticated commitments to election records and verify the associated signatures, consistency proofs and protocol certificates.
 
-Because the consensus threshold requires a 100% match for ledger consistency,
-Node Beta instantly broadcasts a non-compliance alert, revoking Node Alpha's
-validation rights and altering the peer network topology automatically. A
-fraudulent state cannot quietly alter data on any single node without causing
-the entire system to halt. Ideally, a fraudulent state must take over at
-least 50% of all municipality nodes in order to rig an election (100% would be
-best achieved by the strict, non-fault-tolerant consensus mechanism halting
-on any single discrepancy).
+A cryptographic hash can demonstrate that two parties possess identical data or detect a change relative to a previously authenticated commitment. It cannot establish that a remote machine's memory, operating system or hardware is uncompromised. Such claims require separate attestation mechanisms and trust assumptions.
 
-## DISTRIBUTED VOTING SPECIFICATION - PART 2: THE COUNCIL OF 10
+**Neighbor-to-Neighbor Byzantine Auditing**
 
-Cryptographic mathematics can prove structural consistency, but public
-legitimacy requires human visibility. Every municipal node is physically and
-digitally locked by a local Election Council composed of 10 trusted,
-politically diverse, or randomly selected local citizens. Each municipality
-node must be owned by these 10 trusted humans, who all must agree that no
-tampering has occurred before they can propagate the voting result in their
-municipality. Humans are intentionally inserted in different parts of the
-voting process-not because it is strictly cryptographically necessary, but
-because of trust to the voters. Humans trust humans.
+Municipal nodes participate in a specified Byzantine fault-tolerant replication or publication protocol. Nodes exchange authenticated state commitments and verify that published election records extend the agreed history consistently.
+
+A Merkle tree or Merkle Mountain Range may provide efficient inclusion and consistency proofs. Conflicting authenticated histories must produce publicly verifiable evidence of equivocation.
+
+The consensus protocol must explicitly define its membership, fault threshold, finality rules, network assumptions and recovery procedures. Periodic hash exchanges, potentially every 10 seconds, may assist monitoring but do not themselves establish consensus.
+
+A detected inconsistency must trigger an alert and prevent the affected evidence from being accepted until the discrepancy is resolved. Automatic revocation of a node's authority requires a separately specified, authenticated decision procedure; disagreement alone is not sufficient evidence of malicious behavior.
+
+A strict unanimity requirement can prevent conflicting results from being finalized, but it also allows one unavailable or uncooperative participant to halt progress. The system must therefore distinguish safety from availability.
+
+No fixed percentage of compromised municipalities can be claimed sufficient or necessary to manipulate an election until the consensus and certification protocols have been selected and analyzed.
+
+**Independent Municipal Result Verification**
+
+Each municipality retains an authenticated copy of its certified election record and the corresponding cryptographic commitment.
+
+After nationwide aggregation, the municipality independently verifies that its exact certified contribution appears in the final published record. The network must also provide sufficient public evidence to verify the completeness of the municipal result set and the correctness of the national aggregation.
+
+The complete verification procedure is specified in Part 4.
+
+## PART 2: THE COUNCIL OF 10
+
+Cryptographic mathematics can establish properties of election data and computations, but public legitimacy also depends on transparent human oversight.
+
+Every municipality establishes an Election Council composed of 10 citizens selected through a publicly defined process intended to promote independence, political diversity and public confidence.
+
+The council supervises critical election operations, verifies the evidence presented for approval and certifies the municipality's final election record.
+
+The council's approval must be tied to precisely identified cryptographic data. Its members must be able to inspect the relevant evidence, rather than merely authorize an opaque operation.
+
+Human oversight is deliberately included because voters should not have to place their trust exclusively in software or central institutions. Human approval supplements cryptographic verification; it does not replace it.
 
 ### THRESHOLD CRYPTOGRAPHY (SHAMIR'S SECRET SHARING)
 
-The master private key required to boot the municipal node, decrypt the
-transmission channel, or sign the local results sheet does not exist as a
-single file. It is hidden using a polynomial equation of degree k-1, where k
-is the required human quorum (k = 10). A secret polynomial f(x) is constructed
-locally inside a secure hardware security module (HSM) during the initial
-keysigning ceremony:
+Shamir's Secret Sharing can distribute control of a secret among multiple council members.
+
+For a quorum of k members, a secret S can be represented as the constant term of a polynomial of degree k−1 over a finite field:
 
 `f(x) = a_0 + a_1*x + a_2*x^2 + ... + a_{k-1}*x^{k-1} (mod p)`
 
 Where:
 
-- `a_0 = S` (The secret private key).
-- `a_1 ... a_{k-1}` are random large integers acting as coefficients.
-- p is a large prime number (p > S).
+- `a_0 = S`, the protected secret.
+- `a_1 ... a_{k-1}` are independently generated random field elements.
+- `p` is the prime defining the field, with the secret represented as an element of that field.
 
-Each of the 10 council members is allocated a unique point on this curve:
-`(x_i, y_i)` where `y_i = f(x_i)`. The master key S remains completely non-existent
-in memory until all 10 shards are combined using Lagrange polynomial
-interpolation:
+Each council member receives a unique share `(x_i, y_i)`, where `y_i = f(x_i)`.
+
+Any k valid shares reconstruct the secret through Lagrange interpolation:
 
 `S = SUM_{i=1..k} [ y_i * PROD_{j != i} (x_j / (x_j - x_i)) ] (mod p)`
 
-```
-   [Secret Master Key S]
-             |
-    +--------┴--------+  (Shamir Key Splitting)
-    v                 v
-[Share 1]  ...   [Share 10]  ---> Distributed to 10 Trusted Humans
-```
+All arithmetic is performed in the finite field.
 
-* Unanimous 10-out-of-10 Consensus:
-To activate the node or advance the election process, all 10 council members
-must physically or digitally assemble and enter their respective key shards
-into a local hardware token. If even one member refuses to cooperate due to a
-suspected anomaly, the node remains locked, preventing unauthorized data
-injection or premature reporting by a rogue administrator.
-
-## DISTRIBUTED VOTING SPECIFICATION - PART 3: ANTI-FRAUD PIPELINE
-
-To maximize trust among the electorate, humans are intentionally positioned
-as gatekeepers and verifiers at every phase of the voting process.
-
-```
-  +---------------------------+
-  | Step 1: ID Verification   | &lt;--- Handled by Human Election Workers
-  +-------------┬-------------+
+```text
+       [Protected Secret S]
                 |
-                v
-  +---------------------------+
-  | Step 2: Digital Casting   | &lt;--- Voter verifies anonymous receipt hash
-  +-------------┬-------------+
+       Shamir Share Creation
                 |
-                v
-  +---------------------------+
-  | Step 3: Local Mix-Net     | &lt;--- Council of 10 fuse keys to shuffle votes
-  +-------------┬-------------+
-                |
-                v
-  +---------------------------+
-  | Step 4: Ledger Audit      | &lt;--- Public citizen groups run validation tools
-  +---------------------------+
+       +--------+--------+
+       |        |        |
+   [Share 1]   ...   [Share 10]
+       |                 |
+   Council Member 1   Council Member 10
 ```
 
-* Phase 1: Physical Check-In & Digital Token Issuance
-Before any electronic ballot can be cast, the voter must present a physical
-ID to human election workers at a municipal checkpoint. Once verified, the
-human worker issues a localized, single-use hardware token or cryptographic
-permission slip. This step ensures that a state-level bad actor cannot exploit
-data leaks or generate artificial identities to flood the municipal nodes with
-phantom votes.
+For a 10-out-of-10 scheme, all ten shares are required to reconstruct the secret.
 
-* Phase 2: The Monitored Digital Drop Box
-The voter fills out their ballot on a closed terminal, which encrypts the
-data locally. As the voter submits the ballot, a screen displays an anonymous
-tracking hash. The voter can see this hash drop onto the local screen, acting
-as a digital receipt. Human observers monitor the physical terminals to ensure
-no external devices are attached to the hardware.
+However, reconstructing a master private key on a municipal node creates a sensitive moment during which that key may be exposed. Wherever practical, the system should instead use independently reviewed threshold-signature and threshold-decryption protocols that perform the required operation without reconstructing the complete private key.
 
-The voter is provided with a digital receipt consisting of a cryptographic
-hash tracking code. This tracking code does not reveal your political choice
-(ensuring receipt-freeness, as a user should not be able to verify what he
-voted for to an outside observer). Instead, it allows you to cross-reference
-the public bulletin board to confirm your encrypted payload was successfully
-received by the system.
+Separate cryptographic keys and authorization procedures must be used for node administration, communication authentication, council certification and ballot decryption. A single master key must not control all these functions.
 
-* Phase 3: The Council-Sanctioned Local Shuffle & Mix-Net
-When the voting window closes, the 10 council members inspect the physical
-integrity of the node hardware. Once satisfied, they combine their key shards.
-The node then executes a local Mix-Net shuffle, scrambling the order of the
-votes and altering their outer encryption layers.
+**Unanimous 10-out-of-10 Council Approval**
 
-Votes are captured as ElGamal encrypted pairs `(c_1, c_2) = (g^r, m * h^r)`,
-where m is the vote message, g is the generator, r is a random blinding factor,
-and h is the public key. This allows the system to shuffle them dynamically by
-altering r without modifying the underlying intent m.
+Critical municipal certification decisions require the explicit approval of all 10 council members.
 
+Each approval must identify the exact election, municipality, record digest and operation being authorized. Approval must be authenticated and recorded in a publicly verifiable form.
+
+If any member refuses to approve, certification remains pending. This provides a deliberate human veto but introduces an availability risk: absence, loss of credentials or obstruction by one member can prevent completion.
+
+The system must define recovery, replacement, dispute and incident procedures in advance. These procedures must not permit an administrator to bypass the required authorization threshold.
+
+Unanimous council approval establishes collective authorization. It does not, by itself, prove that the underlying election data is correct.
+
+## PART 3: ANTI-FRAUD PIPELINE
+
+Human election workers, municipal councils and independent auditors participate at different stages of the voting process.
+
+```text
++---------------------------+
+| Step 1: ID Verification   | <-- Human Election Workers
++-------------+-------------+
+              |
+              v
++---------------------------+
+| Step 2: Digital Casting   | <-- Private Voter Verification
++-------------+-------------+
+              |
+              v
++---------------------------+
+| Step 3: Local Mix-Net     | <-- Verifiable Cryptographic Shuffle
++-------------+-------------+
+              |
+              v
++---------------------------+
+| Step 4: Ledger Audit      | <-- Independent Public Verification
++-------------+-------------+
+              |
+              v
++---------------------------+
+| Step 5: Local Certification| <-- Council of 10
++-------------+-------------+
+              |
+              v
+      National Verification
+             (Part 4)
 ```
-[Raw Ballots Pile] ---> [Mixer 1: Shuffle + Re-encrypt] ---> [Mixer 2: Shuffle]
-                             |                                    |
-                             +---> (Outputs ZKP Proof)            +---> (ZKP)
+
+**Phase 1: Physical Check-In & Digital Token Issuance**
+
+Before casting an electronic ballot, a voter presents acceptable identification to authorized election workers at a municipal polling location.
+
+After verifying eligibility and checking that the voter has not already received an incompatible voting entitlement, the election workers authorize a single-use voting credential.
+
+The authorization process must prevent unauthorized creation, duplication and reuse of voting entitlements. It must also preserve ballot secrecy by preventing the identity record from being linked to the voter's eventual choice.
+
+Human identity checks reduce some forms of remote impersonation and automated fraud. They do not establish that the underlying voter register is accurate or that election workers cannot collude.
+
+Independent reconciliation of eligibility records, issued credentials, accepted ballots and exceptional cases is therefore required.
+
+**Phase 2: The Monitored Digital Drop Box**
+
+The voter completes a ballot on a controlled municipal voting terminal. The ballot is encrypted before submission.
+
+The terminal provides a cryptographic receipt allowing the voter to check that the corresponding encrypted ballot appears in the public election record.
+
+The receipt must not reveal the selected candidate or provide transferable evidence of the voter's choice.
+
+Human observers supervise the polling environment and physical equipment without being able to observe individual votes.
+
+A receipt or tracking hash can support recorded-as-cast verification, but it does not by itself prove that the terminal encrypted the choice the voter intended. The protocol must separately specify how voters or independent auditors can detect incorrect ballot preparation.
+
+The system must also distinguish between a submitted ballot, an accepted ballot and a ballot included in the final tally.
+
+**Phase 3: The Council-Sanctioned Local Shuffle & Mix-Net**
+
+When the voting window closes, the municipality establishes its final accepted encrypted ballot set under the agreed closure procedure.
+
+The Council of 10 examines the required closure evidence and authorizes the transition to tally processing.
+
+The municipality then performs a verifiable cryptographic shuffle to break the association between ballot submission order and the ballots used for counting.
+
+One possible construction uses ElGamal encryption:
+
+`(c_1, c_2) = (g^r, m * h^r)`
+
+Where:
+
+- `m` represents the encoded vote.
+- `g` is a generator of the selected cryptographic group.
+- `r` is a randomly selected encryption exponent.
+- `h` is the election public key.
+
+A correctly implemented ElGamal re-encryption changes the ciphertext randomness without changing the underlying plaintext.
+
+```text
+[Accepted Encrypted Ballots]
+              |
+              v
+[Mixer 1: Shuffle + Re-encrypt]
+              |
+         Shuffle Proof
+              |
+              v
+[Mixer 2: Shuffle + Re-encrypt]
+              |
+         Shuffle Proof
+              |
+              v
+[Final Shuffled Ballot Set]
 ```
 
-To prove that the mixer did not discard any ballots or insert fraudulent
-ones, the node generates a Proof of a Shuffle (using the Bayer-Groth
-mechanism). This zero-knowledge proof verifies that the output set of
-ciphertexts is a valid permutation and re-encryption of the input set:
-`PROD_{i=1..N} (M_i) = PROD_{i=1..N} (M'_i)`
+Each mixer publishes a zero-knowledge proof demonstrating that its output is a valid permutation and re-encryption of its input.
 
-* Phase 4: Decentralized Public Auditing
-After the shuffled votes from all municipalities are published to the global
-ledger, the raw data, along with matching Zero-Knowledge Proofs (ZKPs), is
-made entirely public. Independent citizen groups, university labs, and
-opposition factions can download the data and run their own verification
-scripts. Voters do not need to understand the underlying mathematics; they
-gain trust by seeing that dozens of independent, user-created auditing tools
-all produce a matching green confirmation indicating that the mathematical
-ledger is pristine.
+A suitable, fully specified shuffle-proof system, such as a Bayer–Groth construction, may be used.
 
-### DECONSTRUCTING AND FIXING THE "ESTONIAN VULNERABILITIES"
+The proof must establish the required permutation and re-encryption relation over the complete ciphertext sets. Equality of products alone is not sufficient to prove a correct shuffle.
 
-While Estonia's internet voting model is pioneering, it contains architectural
-vectors that security experts criticize. Our municipality-distributed
-architecture introduces structural fixes to these exact vulnerabilities.
+The system must additionally verify that the original accepted ballot set is complete, that each ballot is valid, and that every eligible accepted ballot is counted exactly once.
 
-VECTOR: Centralized Point of Trust
-Estonia: The final tally and verification rely entirely on a central National
-Election Committee server.
-FIX: Decentralized Municipal Sharding-Tallies are split across distinct nodes.
-No single server holds the master decryption key or complete ledger control.
+The protocol must define how shuffled ballots are decrypted or otherwise tallied, together with publicly verifiable proofs of the correctness of that operation.
 
-VECTOR: The In-Home Coercion Window
-Estonia: An attacker can theoretically confiscate a voter's digital ID
-credentials (e.g., SIM card) for the entire duration of the voting week.
-FIX: Physical Human Gatekeeping-Electronic tokens can only be activated after
-a face-to-face biometric or physical ID verification at a local municipality
-site, making automated or distant bulk identity theft impossible.
+**Phase 4: Decentralized Public Auditing**
 
-VECTOR: Device Compromise (Malware)
-Estonia: Rogue malware on a consumer PC could manipulate the browser display,
-showing the user they voted for Option A while sending Option B to the server.
-FIX: Hardware Separation & Sealed Terminals-Voting occurs on offline-capable
-local municipality terminals with strict hardware enforcement, eliminating
-the insecurity of consumer laptops.
+The election system publishes the cryptographic evidence needed to verify ballot acceptance, shuffle correctness and tally computation.
 
-Advanced Coercion Resistance Architecture:
-To counter sophisticated coercion scenarios, our network integrates a physical
-override protocol:
+Independent citizen groups, universities, political parties and other auditors must be able to obtain the complete public election record and execute independent verification software.
 
-1. If an adversary threatens a voter or buys their vote, the voter can comply
-   during the digital token acquisition step.
-2. However, the system enforces a legal protocol where an In-Person Physical
-   Paper Ballot always takes absolute precedence over any digital ledger entry.
-3. If a citizen casts a digital ballot under duress, they can walk into their
-   local municipality polling station and drop a physical paper ballot into
-   a secure box.
-4. When the Council of 10 verifies the physical box, the local node
-   automatically flags the voter's digital cryptographic tracking hash as
-   "Superseded by Paper" and drops it from the digital Mix-Net pool before
-   the final global calculation.
+Publicly available evidence may include encrypted ballots, authenticated commitments, shuffle proofs, decryption or tally proofs, certification signatures and final results.
 
-Because the physical paper trail cannot be tracked or audited by the coercer
-after the voter enters the curtained booth, the absolute secrecy of the
-ballot is restored, rendering digital coercion economically and operationally
-useless.
+Private voter identities, secret credentials and other information capable of compromising ballot secrecy must not be published.
+
+Verification must fail when required evidence is missing, inconsistent or invalid. A successful cryptographic check establishes only the properties actually covered by the verified proofs and their stated assumptions.
+
+**Phase 5: Municipal Result Certification**
+
+After local processing and verification, the Council of 10 certifies the municipality's final election record.
+
+The certification binds the municipality's identity, election identifier, final accepted ballot-set commitment, relevant cryptographic proofs and certified contribution to the national tally.
+
+All 10 council members must approve the exact same canonical record.
+
+The municipality retains the certified record and publishes it through the distributed election network.
+
+National aggregation and the independent verification of municipal contributions are specified in Part 4.
+
+## PART 4: MUNICIPAL CERTIFICATION AND NATIONAL TALLY VERIFICATION
+
+The final nationwide election result must be independently verifiable by every municipality and by any member of the public.
+
+No municipality's certified contribution may be silently altered, omitted, duplicated or replaced during national aggregation.
+
+The verification mechanism must not require trusting a central tallying authority.
+
+### 4.1 MUNICIPAL RESULT CERTIFICATION
+
+Every municipality produces a canonical, cryptographically authenticated election record containing:
+
+1. The election identifier and municipality identifier.
+2. The final accepted encrypted ballot-set commitment.
+3. The number of accepted ballots and the applicable reconciliation evidence.
+4. The municipality's certified tally contribution, represented either as public totals or as cryptographically committed values.
+5. The cryptographic proofs necessary to verify that the contribution was correctly derived from the accepted ballots.
+6. The authenticated approvals of all 10 council members.
+
+The exact encoding and cryptographic profile must be specified before deployment.
+
+Council signatures authenticate approval of the record. The accompanying proofs establish its mathematically verifiable properties.
+
+Neither signatures nor cryptographic proofs establish the real-world accuracy of the voter register or the honesty of physical identity checks.
+
+### 4.2 CRYPTOGRAPHIC PROOF OF THE MUNICIPAL TALLY
+
+The municipality must provide sufficient evidence for an independent verifier to establish that its certified contribution corresponds exactly to its final accepted ballot set.
+
+Verification must establish that:
+
+- Every counted ballot belongs to the authenticated accepted set.
+- Every accepted ballot is represented exactly once, subject to explicitly defined and verifiable exclusion rules.
+- Every counted ballot satisfies the required ballot-validity conditions.
+- Every shuffle is a valid permutation and re-encryption.
+- Every decryption or tally operation is cryptographically justified.
+- The certified contribution corresponds to the verified computation.
+
+A mix-net proof alone is insufficient: it proves a relationship between encrypted input and output sets, not the correctness of the original ballot set or the final tally.
+
+The selected cryptographic protocol must define the complete verification chain.
+
+### 4.3 NATIONAL RESULT COMMITMENT
+
+The national election record contains the complete set of certified municipal contributions.
+
+Records must use a canonical encoding and deterministic ordering, with unique municipality identifiers and an authenticated election identifier.
+
+A Merkle tree may commit to the complete ordered set:
+
+```text
+ Certified A     Certified B     Certified C     Certified D
+     |               |               |               |
+     v               v               v               v
+   Hash A          Hash B          Hash C          Hash D
+     |               |               |               |
+     +-------+-------+               +-------+-------+
+             |                               |
+          Hash AB                         Hash CD
+             |                               |
+             +---------------+---------------+
+                             |
+                         Merkle Root
+                             |
+                             v
+                  National Election Record
+```
+
+The Merkle root binds the published national record to the exact municipal records included in the tree.
+
+Each municipality must be able to obtain an inclusion proof for its certified record.
+
+The complete canonical municipal record set must also be publicly available, or an equivalently complete and independently verifiable representation must be provided.
+
+A Merkle root alone does not prove that the national record contains every municipality or that the national tally is correct.
+
+### 4.4 INDEPENDENT MUNICIPAL VERIFICATION
+
+After publication of the national record, each municipality independently verifies:
+
+1. That the published election identifier is correct.
+2. That its exact certified record appears in the committed national dataset.
+3. That its record has not been modified or replaced.
+4. That the record's council approvals are valid.
+5. That the published national record is consistent with the authenticated final election publication.
+
+The municipality must not be required to trust the national tallying authority's assertion that these checks succeeded.
+
+The verification evidence must be reproducible by independent auditors.
+
+### 4.5 INDEPENDENT NATIONAL VERIFICATION
+
+Any independent verifier must be able to establish that:
+
+1. The national record contains exactly the expected municipalities, according to an authenticated and frozen municipality register.
+2. No municipality is omitted or duplicated.
+3. Every municipal certification is authentic and valid.
+4. Every municipal tally contribution is supported by the required cryptographic evidence.
+5. Every included contribution is bound to the published national commitment.
+6. The aggregation of all certified contributions produces the announced nationwide result.
+
+If municipal plaintext totals are published, the national result can be independently recomputed by summation:
+
+`NationalTotal(candidate) = SUM MunicipalTotal(municipality, candidate)`
+
+If municipal contributions remain encrypted or committed for privacy reasons, the protocol must provide an equivalent publicly verifiable aggregation proof.
+
+The design must explicitly address the risk that publishing results for very small voting populations could compromise ballot secrecy. Grouping small populations or using cryptographic aggregation without publishing individual municipal plaintext totals may be necessary.
+
+### 4.6 DISCREPANCIES AND CERTIFICATION FAILURE
+
+Any municipality or independent auditor must be able to report a discrepancy supported by publicly verifiable evidence.
+
+Examples include:
+
+- A missing municipality.
+- A duplicated municipal record.
+- A municipal record differing from its authenticated certification.
+- Invalid or missing council approvals.
+- Invalid ballot, shuffle, decryption or tally proofs.
+- An incorrect national aggregation.
+- Conflicting authenticated national election records.
+
+A missing required record or proof makes verification incomplete. Contradictory or invalid evidence makes the affected verification fail.
+
+The nationwide result must not be certified as verified while an unresolved discrepancy prevents the required checks from succeeding.
+
+Resolution procedures must be defined before the election. They must preserve the original evidence and must not permit unilateral replacement of a certified municipal result.
+
+**The fundamental requirement is that a national election result must be verifiable from authenticated municipal contributions and public cryptographic evidence, not from trust in the authority announcing the result.**
+
+## PART 5: COMPARISON WITH ESTONIA'S INTERNET VOTING SYSTEM
+
+Estonia's internet voting system provides an important reference for the design of verifiable electronic elections. The proposed municipality-distributed architecture makes different choices about institutional control, voting location and human oversight.
+
+These choices are intended to address particular threat scenarios. They do not establish that the proposed system is categorically more secure than Estonia's existing system.
+
+### VECTOR: CENTRALIZED POINT OF TRUST
+
+**Estonia:** Election administration, cryptographic key management and tallying depend on designated institutions and procedures. The system also employs cryptographic verification and operational controls; it should not be characterized as relying entirely on a single server.
+
+**PROPOSED DESIGN:** Municipalities operate independent nodes and certify their own contributions. The final result is derived from authenticated municipal records and publicly verifiable aggregation evidence.
+
+The objective is to reduce the power of any single administrative authority to alter the result undetected.
+
+### VECTOR: THE IN-HOME COERCION WINDOW
+
+**Estonia:** Remote internet voting introduces coercion and credential-misuse risks associated with voting outside a supervised environment. Estonia's system includes mechanisms intended to mitigate these risks, including revoting arrangements.
+
+**PROPOSED DESIGN:** Voting takes place at supervised municipal locations after in-person eligibility checks.
+
+This reduces exposure to some remote coercion and credential-theft scenarios, although it does not eliminate coercion, impersonation or dishonest election workers.
+
+### VECTOR: DEVICE COMPROMISE (MALWARE)
+
+**Estonia:** A compromised voter device can attempt to misrepresent the voter's choice or interfere with ballot submission. Verification mechanisms are intended to detect certain attacks.
+
+**PROPOSED DESIGN:** Voting occurs on controlled municipal terminals subject to physical supervision, software integrity procedures and independent auditing.
+
+Dedicated terminals reduce reliance on voters' personal computers, but they remain vulnerable to malicious software, compromised supply chains and insider attacks.
+
+The system therefore requires independently verifiable ballot preparation, acceptance and tally procedures.
+
+### ADVANCED COERCION RESISTANCE: PAPER BALLOT OVERRIDE
+
+The proposed design considers a physical paper-ballot override mechanism:
+
+1. A voter who has cast a digital ballot may subsequently cast a paper ballot at an authorized municipal polling station.
+2. Under the predetermined election rules, the valid paper ballot takes precedence over the earlier digital ballot.
+3. The system must prevent both ballots from being counted while preserving the secrecy of the voter's choice.
+4. Any exclusion of a superseded digital ballot must be authenticated, auditable and correctly reflected in the final accepted ballot set.
+5. The procedure must prevent the published election record from revealing the voter's political choice or providing a transferable proof of how the voter voted.
+
+A paper override may mitigate some coercion scenarios, but it does not guarantee coercion resistance. An adversary may monitor the voter, prevent subsequent voting or coerce the voter at the polling location.
+
+Furthermore, identifying and excluding an earlier digital ballot creates a potential link between voter identity and ballot activity. The protocol must define how this operation can be performed without exposing vote choices or undermining anonymity.
+
+This override mechanism remains a proposed extension requiring a complete cryptographic and operational design before it can be accepted as a security guarantee.
+
+---
+
+## DESIGN STATUS
+
+This specification defines the intended institutional structure and verification requirements. It does not yet constitute a complete or proven election protocol.
+
+The principal unresolved design decisions include the Byzantine consensus protocol and fault assumptions; the council's threshold-signing and authorization mechanisms; the exact ballot-validity, shuffle, decryption and tally proofs; the privacy-preserving representation of municipal contributions; the binding between voter eligibility and anonymous ballots; the paper-override mechanism; and the procedures for recovering from missing participants or conflicting certifications.
+
+These decisions must be resolved through a concrete protocol specification, adversarial analysis, independent review and testing before any claim of election-grade security is justified.
