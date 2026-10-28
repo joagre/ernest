@@ -74,12 +74,12 @@ keysigning ceremony:
 
 Where:
 
-- a_0 = S (The secret private key).
-- a_1 ... a_{k-1} are random large integers acting as coefficients.
+- `a_0 = S` (The secret private key).
+- `a_1 ... a_{k-1}` are random large integers acting as coefficients.
 - p is a large prime number (p > S).
 
 Each of the 10 council members is allocated a unique point on this curve:
-(x_i, y_i) where y_i = f(x_i). The master key S remains completely non-existent
+`(x_i, y_i)` where `y_i = f(x_i)`. The master key S remains completely non-existent
 in memory until all 10 shards are combined using Lagrange polynomial
 interpolation:
 
@@ -154,7 +154,7 @@ integrity of the node hardware. Once satisfied, they combine their key shards.
 The node then executes a local Mix-Net shuffle, scrambling the order of the
 votes and altering their outer encryption layers.
 
-Votes are captured as ElGamal encrypted pairs (c_1, c_2) = (g^r, m * h^r),
+Votes are captured as ElGamal encrypted pairs `(c_1, c_2) = (g^r, m * h^r)`,
 where m is the vote message, g is the generator, r is a random blinding factor,
 and h is the public key. This allows the system to shuffle them dynamically by
 altering r without modifying the underlying intent m.
