@@ -14,15 +14,12 @@ a shared, distributed cryptographic ledger of the election.
 
 ```
 +------------------+               +------------------+
-
 |  Municipality A  |<------------->|  Municipality B  |
 |   [Node Alpha]   |  Continuous   |    [Node Beta]   |
 +--------^---------+  Peer Audits  +--------^---------+
-
          |                                  |
    10-Key|Fusion                      10-Key|Fusion
     +----+----+                        +----+----+
-
     |  Human  |                        |  Human  |
     | Council |                        | Council |
     |  (10)   |                        |  (10)   |
@@ -164,7 +161,6 @@ altering r without modifying the underlying intent m.
 
 ```
 [Raw Ballots Pile] ---> [Mixer 1: Shuffle + Re-encrypt] ---> [Mixer 2: Shuffle]
-
                              |                                    |
                              +---> (Outputs ZKP Proof)            +---> (ZKP)
 ```
@@ -211,7 +207,7 @@ FIX: Hardware Separation & Sealed Terminals-Voting occurs on offline-capable
 local municipality terminals with strict hardware enforcement, eliminating
 the insecurity of consumer laptops.
 
-* Advanced Coercion Resistance Architecture:
+Advanced Coercion Resistance Architecture:
 To counter sophisticated coercion scenarios, our network integrates a physical
 override protocol:
 
