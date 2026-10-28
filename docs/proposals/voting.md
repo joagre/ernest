@@ -10,6 +10,7 @@ The architecture is divided into three core pillars: Distributed Peer Validation
 
 Instead of a singular central database, each municipality operates its own independent validation node. These nodes process local ballots and maintain a shared, distributed cryptographic ledger of the election.
 
+```
 +------------------+               +------------------+
 |  Municipality A  |<------------->|  Municipality B  |
 |   [Node Alpha]   |  Continuous   |    [Node Beta]   |
@@ -21,6 +22,7 @@ Instead of a singular central database, each municipality operates its own indep
     | Council |                        | Council |
     |  (10)   |                        |  (10)   |
     +---------+                        +---------+
+```
 
 *   Continuous Neighbor Auditing: Nodes do not blindly accept data from other regions. The network uses peer-to-peer cryptographic heartbeats. Every node continuously requests zero-knowledge state-proofs from its neighbors, validating that no node's memory stack, operating system binaries, or local ledger entries have been retroactively altered.
 *   The 100% Tamper Resistance Rule: The network can be governed by a strict, non-fault-tolerant consensus mechanism. If even a single node detects an unapproved modification or cryptographic invalidity in a neighboring node's data stream, the network instantly flags a consensus violation, pauses propagation, and triggers an open, public audit. A fraudulent state cannot quietly alter data on any single node without causing the entire system to halt.
@@ -40,6 +42,7 @@ Cryptographic mathematics can prove structural consistency, but public legitimac
 
 To maximize trust among the electorate, humans are intentionally positioned as gatekeepers and verifiers at every phase of the voting process.
 
+```
   +───────────────────────────+
   | Step 1: ID Verification   | <── Handled by Human Election Workers
   +─────────────┬─────────────+
@@ -58,6 +61,7 @@ To maximize trust among the electorate, humans are intentionally positioned as g
   +───────────────────────────+
   | Step 4: Ledger Audit      | <── Public citizen groups run validation tools
   +───────────────────────────+
+```
 
 #### Phase 1: Physical Check-In & Digital Token Issuance
 Before any electronic ballot can be cast, the voter must present a physical ID to human election workers at a municipal checkpoint. Once verified, the human worker issues a localized, single-use hardware token or cryptographic permission slip. This step ensures that a state-level bad actor cannot exploit data leaks or generate artificial identities to flood the municipal nodes with phantom votes.
