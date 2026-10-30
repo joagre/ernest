@@ -223,9 +223,9 @@ attached shell, MVP 4.0, is the operator's alone.
    tokens; `site/` at the repository's root holding
    `templates/` and `docroot/`; xterm.js and its fit addon vendored, with their row in
    `THIRD_PARTY_LICENSES`.
-3. **The documents the site lacks**: `releases/<version>.md`, which the release step writes
-   from the next release on, `docs/release_review.md` saying so, and the root `CONTRIBUTING.md`,
-   written before the site goes live.
+3. **The document the site lacks**: the root `CONTRIBUTING.md`, written before the site goes
+   live; the Releases page is `CHANGES.md`, which the release step writes from the next release
+   on (the log's *A Release Carries No History*, sharpened 2026-10-30).
 4. **The live shell's page side**, the session client in JavaScript over ernest-httpd's socket:
    the panel's size sent first and at each resize, the seven states, the panel on every page with
    its layout in local storage, Copy, Paste and Load on a code block, Load pasting the block as

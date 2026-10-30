@@ -39,7 +39,7 @@ The site's files as served.
     /man/libs/<name>/<module>.html
     /shell/                         the full-page shell
     /install/
-    /releases/                      releases/<version>.md, newest first
+    /releases/                      CHANGES.md
     /assets/css/                    site.css, xterm's stylesheet
     /assets/js/                     xterm.js, its fit addon, the session client
     /assets/<logo>                  the repository's logos, at their paths in assets/
@@ -112,9 +112,10 @@ The site's files as served.
 
 - Install is the README's *Installing* section, which holds the supported
   platforms, the installation, its verification and the first command.
-- Releases holds each release's notes as the release step writes them, newest
-  first, from `releases/<version>.md`. The notes list no changes; they say
-  where the changes are read.
+- Releases is `CHANGES.md` rendered as it stands, newest first, each
+  release's note as the release step writes it there and copies it to
+  GitHub, from the release after 0.6.0 on (changed 2026-10-30, from the
+  notes under `releases/<version>.md`, which the release step never wrote).
 - The shell page: the terminal takes most of the space, with the panel's
   controls above it, Start or Restart and Stop, and the warning banner with
   Extend when it comes (*The live shell*); no time remaining is shown, since
@@ -219,8 +220,8 @@ The site's files as served.
   `page.html` is a Markdown document
   with a sidebar of its headings and a footer naming its source, for every
   chapter of the tour, the guide and the report, every `/man/` page, Why,
-  the questions, the deployment guide, Install, Releases, whose notes the generator
-  joins newest first into one document, and the 404 page with its fixed body;
+  the questions, the deployment guide, Install, Releases, which is `CHANGES.md`,
+  and the 404 page with its fixed body;
   what differs between them, a previous and a next, and what the footer names,
   is data the generator passes, and a slot without it is empty.
 
@@ -236,7 +237,7 @@ The site's files as served.
 - A book's opening, its title and its paragraphs before its first chapter,
   heads its contents page.
 - A page's footer names the file it renders: `home.html` for the homepage, the
-  README for Install, a document's Markdown, a module's `.ern` for a `/man/` page, since
+  README for Install, `CHANGES.md` for Releases, a document's Markdown, a module's `.ern` for a `/man/` page, since
   `docs/man/` is itself generated. A contents page and the 404 page name none.
 - A page's sidebar lists its anchored headings, two levels deep.
 - The sources stay Markdown: the report, the guide, `docs/man/`, and the tour's

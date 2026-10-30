@@ -24,13 +24,14 @@ What a release runs to be ready, and nothing else. Between releases a change run
    - `VERSION` set to the release's version, and where the release is a patch, the library's listings, the form's version (Appendix H) and the protocol's version unchanged since the minor, which the tests hold, since two patch levels stand on one floor (report §8.7);
    - every module of `src/stdlib/` and `src/libs/` that appeared since the last release, and every exported declaration that did, ending its doc block with its own `since` (Appendix E.0 shape rule 6, whose shape and versions `make test` holds);
    - the pages `make man` writes into `docs/man/`, committed with the release;
-   - the notes, the tag, and the archive `make release` writes, `ern-VERSION.tar.gz`, published beside it.
+   - the release's section of `CHANGES.md`, first in the file, committed before the tag, which is the release's note: the release step copies it as the notes of the release on GitHub, so that the note is written once (the log's *A Release Carries No History*, sharpened 2026-10-30);
+   - the tag, and the archive `make release` writes, `ern-VERSION.tar.gz`, published beside it.
 
-   The notes list none of the changes (the log's *A Release Carries No History*). They say:
+   The section restates no change. It says:
    - what the release is, in words, with the plan's row for it linked and no milestone named, since a reader of the notes is a user and a milestone's name is the plan's;
    - what a program written for the previous release changes, which is the reader's next step and no history;
    - that until 1.0 a release may refuse a program the previous release accepted, as the plan says, and that the release's report is what holds;
-   - where what changed is read, the report's diff between the last release's tag and this one's, `git diff v0.2.0 v0.3.0 -- report/` for 0.3.0, and why, the log's entries since the last release;
+   - what changed, one line a change naming where it is read, the report section, the Appendix E entry or the log entry, and beneath them the report's diff between the last release's tag and this one's, `git diff v0.2.0 v0.3.0 -- report/` for 0.3.0, and why, the log's entries since the last release;
    - what the review did not run;
    - and the newcomer's program.
 

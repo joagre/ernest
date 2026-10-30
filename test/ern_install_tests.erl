@@ -72,7 +72,7 @@ parts({Base, Ms}) ->
 %%
 %% Another regression test is that every `.md` under report/, guide/ and
 %% tour/ is installed where it stands, and nothing else of the checkout's
-%% documents but the README's and ACKNOWLEDGMENTS.md, and that the link
+%% documents but the README's, ACKNOWLEDGMENTS.md and CHANGES.md, and that the link
 %% check reads each document at its depth from its own directory, the
 %% deployment guide's among them: written on 2026-10-16, after
 %% guide/deployment.md was found not installed, and the check found reading
@@ -121,7 +121,7 @@ install() ->
     {ok, Installed} = file:read_file(Documents ++ "README.md"),
     ?assertMatch({_, _}, binary:match(Installed, <<"</picture>\n\n# Ernest ", Version/binary,
                                                     "\n">>)),
-    ?assertEqual(lists:sort(["ACKNOWLEDGMENTS.md", "README.md"
+    ?assertEqual(lists:sort(["ACKNOWLEDGMENTS.md", "CHANGES.md", "README.md"
                              | [File || File <- tracked(), filename:extension(File) =:= ".md"]]),
                  lists:sort(filelib:wildcard("**/*.md", Documents))),
     ?assertEqual(tracked(), [File || File <- installed(Documents),

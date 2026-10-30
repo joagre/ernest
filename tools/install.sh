@@ -72,7 +72,7 @@ stage() {
     for f in build/stdlib/*.3ern build/libs/*/*.3ern; do
         shared "$f" "share/man/man3/$(basename "$f")"
     done
-    for f in LICENSE THIRD_PARTY_LICENSES ACKNOWLEDGMENTS.md \
+    for f in LICENSE THIRD_PARTY_LICENSES ACKNOWLEDGMENTS.md CHANGES.md \
              assets/ernest-combined-light.svg assets/ernest-combined-dark.svg; do
         shared "$f" "share/doc/ernest/$f"
     done

@@ -43,6 +43,7 @@ Beside them:
 - `share/doc/ernest/examples/` holds the programs the guide runs, and its `README.md` lists them by topic.
 - `man ern` is the toolchain's page and `man Ernest.List` a module's; the prelude, every module of the standard library and every library has one.
 - `share/emacs/site-lisp/ernest-mode.el` is the Emacs mode, and `share/doc/ernest/editors/emacs/README.md` says how to turn it on.
+- `share/doc/ernest/CHANGES.md` is what changed in each release, newest first, a line each naming where it is read.
 
 The repository, https://github.com/joagre/ernest, holds what an installation does not: the source of the toolchain and of the standard library, and the project's own documents.
 
