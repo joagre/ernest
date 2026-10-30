@@ -183,12 +183,14 @@ visitor running the plain shell, whose server side is the httpd proposal's; a sa
 language's was weighed and set aside on 2026-10-13 (`docs/proposals/shell/attached.md`), and the
 attached shell, MVP 4.0, is the operator's alone.
 
-1. **The look, by hand, before any generation**, decided 2026-10-30: the templates and the
-   mockup pages brought to the decisions in a browser, one page per kind, `page.html`,
+1. **The look, by hand, before any generation**, decided 2026-10-30, at least a day: the
+   templates and the mockup pages read against the decisions in a browser, each kind of page
+   for its look, its navigation, its icons and its feel, held consistent with every other kind, `page.html`,
    `toc.html`, `home.html` and `shell.html` on `base.html`, the fragments for a list's items,
    the stoat in the header, the favicon, the footer's rooms, the homepage's order and the
-   panel's controls, no inline script or style under the server's policy; the mockups written
-   over a fixture document in Lorem ipsum that carries every shape a page holds, prose,
+   panel's controls, no inline script or style under the server's policy.
+
+   The mockups are written over a fixture document in Lorem ipsum that carries every shape a page holds, prose,
    headings, a code block, a console transcript, a table, citations and a margin line, and one
    mockup over a real report section beside them, since Lorem never wraps a long title; `site/`
    at the repository's root holding `templates/` and `docroot/`; xterm.js and its fit addon
