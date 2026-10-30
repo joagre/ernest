@@ -288,9 +288,11 @@ Every request is a line of Common Log Format, `host - - [10/Oct/2026:13:55:36 +0
 
 `ernest-httpd` runs in the foreground, under a unit of `Type=exec`. It writes its access log to the configured file, which logrotate rotates with no `postrotate`, and what goes wrong to standard error, which the journal keeps. It exits with a status that is not 0 when it fails, so that `Restart=on-failure` restarts it. `SIGTERM` stops it in order through `Os.termination`: the listener closes, the requests under way are answered, and the WebSockets are closed with 1001. It binds 80 and 443 through `AmbientCapabilities=CAP_NET_BIND_SERVICE`, as no root.
 
-It is run as `ern run ernest-httpd.erc /etc/ernest-httpd/config.json`, the configuration's path its one argument, which the unit's `ExecStart` says, and the unit's `TimeoutStopSec` stands above the write deadline, so that an orderly stop ends before systemd kills it (decided 2026-10-27).
+It is run as a node, `ern run --config-dir /etc/ernest-httpd ernest-httpd.erc /etc/ernest-httpd/config.json`, the server's configuration's path its one argument, which the unit's `ExecStart` says, and the unit's `TimeoutStopSec` stands above the write deadline, so that an orderly stop ends before systemd kills it (decided 2026-10-27; a node since 2026-10-30).
 
-A change of configuration is a restart. A static site restarts in about a second, and reloading would mean running the server as a node, since `SIGHUP` is a reload only for a node (§8.6). `Type=notify` would need a Unix datagram socket, which Ernest lacks, and `Type=exec` serves.
+A node, so that the operator can attach a shell to it (`../shell/attached.md`), look inside it and load a fix, which the deployment guide's section 6 shows on it: its directory, made by `ern config`, listens on the loopback alone and lists no peer but the operator's shell key, which dials in; `ern config --peer-dir` lists the two directories in each other, and the node's hangup reads its peers again. The costs, decided with them: a key and `ernest.conf` beside `config.json`, a listener on the loopback, about 15 MB for the carrier by the measure of 2026-10-13, and no deadlock detection, since a node detects none (§8.6), which matters less for processes that wait on sockets.
+
+A change of `config.json` is a restart. A static site restarts in about a second; the hangup is the node's reload of `ernest.conf`, its peers (§8.7), and reads nothing of the server's own, which has one configuration read at its start. `Type=notify` would need a Unix datagram socket, which Ernest lacks, and `Type=exec` serves.
 
 ## The order of work
 
@@ -301,7 +303,7 @@ Decided 2026-10-27, for the plan once the proposal is ready.
 3. **The five libraries**: `base64` and `crypto`, which `websocket` needs; `time`; `http` with its client half; then `websocket`.
 4. **An installation from the checkout**, `make install` into a prefix, which exists (`docs/design/install.md`), and which `ernest-httpd` builds against, since it is built against an installed Ernest and never against the source tree; a gap the server finds in a library is fixed in the checkout and installed again, with no release between (decided 2026-10-27, in place of a release at this step).
 5. **`ernest-httpd`**, in its own repository: `Config` and `Static` as pure functions; `Listener`, `Connection` and `AccessLog`, serving the site over plain HTTP; TLS, the redirect listener and the hosts; `Shell` and `Sessions` last, since they stand on the rest.
-6. **The deployment**: the systemd unit, certbot's certificate for the four names, the podman image, and the smoke test against the deployed site.
+6. **The deployment**: the node's directory under `/etc/ernest-httpd` with the operator's shell listed, the systemd unit, certbot's certificate for the four names with the deploy hook that gives the server its key, the podman image, and the smoke test against the deployed site, an attached shell's `:processes` among it.
 7. **A release of Ernest**, 0.8.0, when the server first serves the site, carrying the libraries after their first real user has shaped them; 0.7.0 is the attached shell's, MVP 4.0's, which comes first on the road (decided 2026-10-30).
 
 The site's content, MVP 4.2, runs beside any of it, since its generator needs nothing of the server. The terminal tests dropping `ern_pty.py` for `Os.startTerminal` is an item of its own after step 2.
@@ -310,7 +312,7 @@ The site's content, MVP 4.2, runs beside any of it, since its generator needs no
 
 - TLS in `Tcp`, by two functions answering the same socket (2026-10-26).
 - `libs/time` for the dates, a library and not the standard library's, `Clock` unchanged (2026-10-26); the calendar alone, each format with its owner, RFC 9110's in `libs/http` and the log's in the server (2026-10-27).
-- A change of configuration is a restart (2026-10-26).
+- A change of configuration is a restart (2026-10-26); the server a node on the loopback, so that the operator attaches a shell to it, the hangup the node's reload of its peers (2026-10-30).
 - The pseudo-terminal on the server through a new start in `Os`, podman inside it (2026-10-26).
 - The errors: a failed handshake is `Other(text)`, run in the socket's process after `accept`; `Http.Error` saying what is wrong, the server mapping it to a status, and `WebSocket.Error` with the close code RFC 6455 assigns (2026-10-26, the statuses moved to the server 2026-10-27).
 - `Http.readHead` in the library beside the parser, bounding the whole head (2026-10-26).

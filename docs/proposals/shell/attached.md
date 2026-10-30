@@ -4,7 +4,7 @@ Begun 2026-10-13 for MVP 4.0. Decided with the user the same day: a shell attach
 
 ## 1. Two uses
 
-An operator attaches a shell to a node to look inside it and to change it: read a binding, list its processes, load a fix. That is attaching, sections 2 to 4.
+An operator attaches a shell to a node to look inside it and to change it: read a binding, list its processes, load a fix. That is attaching, sections 2 to 4. The first node in production an operator attaches to is ernest-httpd, which runs as a node on the loopback for that reason (`../httpd/proposal.md`, *Under systemd*), and the deployment guide's section 6 shows it there.
 
 A visitor of the website runs a shell in the browser to try the language. That is not attaching: a visitor is a stranger, and a stranger's shell is kept apart by the operating system, which costs the language nothing; it is the web server's, `../httpd/proposal.md`.
 
