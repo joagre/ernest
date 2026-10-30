@@ -46,9 +46,11 @@ One form of attaching, by a listed peer, since a node accepts a connection from 
 1. **The report first**, the proposal's section 6: §11.2's attached shell, `--attach name`, which
    takes no file, `:detach` in `:quit`'s place, sessions many on a node each with a number, what
    `:processes`, `:load`, `:reload`, `:output` and `:faults` are there, the operator's files read by
-   the operator's machine, and what the shell says and exits with at an attach that fails, at the
-   node's loss and at its end;
-   Appendix H's one session namespace becoming each session's, `$Session3`; §12.1's write to
+   the operator's machine, the process of an input that binds living while its binding is in
+   scope, and what the shell says and exits with at an attach that fails, at the node's loss
+   and at its end.
+
+   Then Appendix H's one session namespace becoming each session's, `$Session3`; §12.1's write to
    standard output or standard error routed by the writing process's root; Appendix E.21's
    `Process.live()` leaving out every session's own processes; §12.7's definition a peer lacks
    that a unit of the toolchain's own holds, loaded from its own tree as a load places one and
@@ -63,7 +65,13 @@ One form of attaching, by a listed peer, since a node accepts a connection from 
    `Flush`, reading a source for `:load` and `:reload` and listing the source root for its
    completion, appending the history and `:output`'s file, and reading each line in line mode.
 
-   On the node, the session's number, given once in a node's life, in every host name an input
+   On the node, the process of an input that binds living while its binding is in scope, as an
+   evaluator does, and ending when the session lets the binding go, so that a socket or a program
+   opened by a `let` at the prompt stays open, where today it dies with the input's process;
+   `:processes` naming the version a process runs and what it waits on, its activity beside its
+   site.
+
+   The session's number, given once in a node's life, in every host name an input
    makes, the names counted by the code table's sums, `:detach` leaving the evaluators, what
    they started and what inputs spawned to the node, the node's reload shared by every session,
    and the session's end at the local half's loss; at the local half, an attach that fails said
@@ -237,40 +245,18 @@ attached shell, MVP 4.0, is the operator's alone.
    copy of `build/site/` to the host, and the site live at ernest-lang.org with the smoke test
    against it.
 
-## MVP 4.3 (the shell's second round), about three weeks
+## MVP 4.3 (`:trace f`), about a week
 
-The shell's later work that its parts' merits take, decided with the user 2026-09-30 (the
-log's *The Shell's Second Round*), in this order. The first three need nothing of MVP 3.0 or
-3.1 and may be taken earlier where the user wants them.
+The shell's second round, decided with the user on 2026-09-30 (the log's *The Shell's Second
+Round*) and decided again on 2026-10-30 against the attached shell (the log's *The Shell's Second
+Round, Decided Again*): of its eight items one remains, three moved into MVP 4.0's shell, where
+the operator's prompt is, and four were dropped with their verdicts in the log.
 
-1. **Readline's remaining keys**, about a day: the kill ring with `M-y` cycling the earlier
-   kills, `C-t` and `M-t` transposing, and `M-u`, `M-l` and `M-c` for case, each a change to
-   `Shell.Editor`'s pure `edit`, with key-stream tests.
-2. **`:trace f`**, about two days: each call of `f` and each return printed, the values by
-   their types (§11.2).
-3. **Completion by type**, about one to two weeks: a `match`'s clauses, a mailbox's
-   constructors, the functions after `|>`, and an argument's bindings. It needs the checker to
-   check an unfinished input, designed first.
-4. **A shell attached to a running node**: MVP 4.0's since 2026-10-13.
-5. **Whether the session owns what its inputs open**, a decision with the user: a socket and a
-   running program an input opens end with the input's process, their owner (§11.2), and the session
-   could own them instead, so that they live until it ends, by a way the shell names an owner for
-   its inputs (`findings.md`'s C1-2 as it stood on 2026-09-30, placed here that day).
-
-   Half decided 2026-10-10 by feedback entry 91: what a `:load`'s binding opens is the evaluation
-   process's, which lives while the session runs (§11.2), so the decision left is the input's own
-   process alone, which MVP 3.1's read kept ending with the input (its W10).
-6. **A previous version at the prompt**, a decision with the user: whether a previous version's
-   constructors may be written at the prompt, `Counter$1.Inc`, and whether `:processes` names
-   the version a process runs (`language_feedback.md`'s entries 97 and 98 as they stood on 2026-10-10,
-   placed here that day by MVP 3.1's item 5).
-7. **The `live_region` test's one miss**, 2026-10-05 in a full `make test` under load (MVP
-   2.99d's item 11), passed again alone and under `make test-shell`, and not failed since: when
-   it fails again its step file in the run's directory says which expectation went unmet, and
-   the fix follows from it; diagnosed here where it recurs, and nowhere before.
-8. **`:processes` shows what each process waits on**, its activity beside its site, so that a hung
-   process is found without `List.map(Process.live(), Process.status)` (the full review's B-H3,
-   placed here 2026-10-24).
+1. **`:trace f`**, a proposal first: each call of `f` on the node and each return printed at the
+   operator's prompt, the values by their descriptors (§11.2), with a bound a busy node needs, as
+   Erlang's `recon_trace` has one; the runtime has no tracing hook today, so the design decides
+   how a function of a unit is traced by its position and what the bound is. Built after MVP 4.0,
+   on the node.
 
 ---
 
