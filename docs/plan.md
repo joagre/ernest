@@ -139,7 +139,9 @@ MVP 4.2).
    `Os`, on Linux and macOS.
 3. **The five libraries**, each a source root under `src/libs/` with the standard library's
    discipline and its page: `base64` and `crypto`, which `websocket` needs; `time`, the calendar
-   alone; `http` with its client half, whose first use beside the tests is a `fetch` example that
+   and `sleep`, which a program that paces itself by the clock asks for, an epx example's
+   `Time.sleep(1000)` the first (decided 2026-10-30), the wait written as any wait is, on what
+   it waits for (CLAUDE.md, *Design*); `http` with its client half, whose first use beside the tests is a `fetch` example that
    reads JSON over HTTPS with a verified certificate; then `websocket`, with a client's masked
    frames.
 4. **The release archive the server builds against**: ernest-httpd builds against Ernest
