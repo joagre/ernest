@@ -50,6 +50,7 @@ x
 :doc String.trim
 :zz
 :help	me
+:detach
 :b
 :f
 :t

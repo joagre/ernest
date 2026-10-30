@@ -43,18 +43,9 @@ carrier is the terminal's events and bytes and the operator's files.
 
 One form of attaching, by a listed peer, since a node accepts a connection from a peer it lists and no other (§12.5).
 
-1. **The report first**, the proposal's section 6: §11.2's attached shell, `--attach name`, which
-   takes no file, `:detach` in `:quit`'s place, sessions many on a node each with a number, what
-   `:processes`, `:load`, `:reload`, `:output` and `:faults` are there, the operator's files read by
-   the operator's machine, the process of an input that binds living while its binding is in
-   scope, and what the shell says and exits with at an attach that fails, at the node's loss
-   and at its end.
-
-   Then Appendix H's one session namespace becoming each session's, `$Session3`; §12.1's write to
-   standard output or standard error routed by the writing process's root; Appendix E.21's
-   `Process.live()` leaving out every session's own processes; §12.7's definition a peer lacks
-   that a unit of the toolchain's own holds, loaded from its own tree as a load places one and
-   asked for from no node. Nothing of §3 to §9 changes.
+1. **The report first**, done 2026-10-30 (the log's *The Attached Shell's Sentences*): §11.2's
+   *The attached shell*, §11.7, §11.8, §12.1, §12.7, Appendices E.21, E.23, F and H, and `:detach`
+   in the command table, refused in a shell attached to no node.
 2. **The runtime**: a write routed by its root, a session's to its screen and a root with no screen
    to the node's, by a row of the session's root and its screen that the standard streams read; the runtime's own processes a set every session adds its own to and takes them
    from; a lacked definition of the toolchain's own loaded from the node's tree at a spawn, its

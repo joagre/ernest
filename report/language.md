@@ -1,6 +1,6 @@
 # Ernest Report: The Language
 
-Revision of 25 October 2026.
+Revision of 30 October 2026.
 
 *Dedicated to the memory of Joe Armstrong, 1950–2019.*
 
@@ -1327,6 +1327,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **application** — a directory of the host's code named `name` or `name-version`, holding `ebin`, which `--libs-dir` puts on the load path. §11.2.
 - **arity** — the number of arguments a function takes; part of its type. §3.4.
 - **`as`** — `p as x`, a pattern that binds `x` to the whole value `p` matches. §5.10.
+- **attached shell** — a shell whose session runs on a listed peer, the shell's own node being its terminal and its files. §11.2.
 - **bare node** — a node started with no `.erc`, which holds no definition of a program's and runs what its peers spawn and compute on it. §8.7, §11.2.
 - **binding** — a `let` in a block, `let p = e` or `let p <- e`. §4.6, §5.5.
 - **bitstring** — a bit-level value or pattern `<<...>>` that produces or matches a `Bytes` value. §5.11.
@@ -1448,6 +1449,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **sequence** — a container with order and position, a list, whose vocabulary adds `reverse`, `take` and the rest. Appendix E.0.
 - **service** — a top-level binding that holds a process's address, §6.5; to the node's peers, a `Peer.Service(m)`, the service's name at its message type, under which its address is offered and found, §8.7, Appendix E.27.
 - **service monitor** — `monitorService(p, wrap)`; a monitor that also sends `wrap(d)` with the reason `Restarted` at each restart of `p`, and stands until `p` dies. §6.9, §9.5.
+- **session** — a shell's run on a node: its declarations, their scope and its inputs' processes; a node has many at once, each with a number. §11.2.
 - **shape rule** — one of the ten rules that give a function of the standard library its shape. Appendix E.0.
 - **shim** — a primitive written as a `foreign fn` over the host or as a request to a system process. Appendix E.0.
 - **source root** — the directory under which a file's path gives its namespace. §4.2, §11.1.

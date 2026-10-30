@@ -843,6 +843,9 @@ fn obey(state : State,
     match action {
         Shell.Command.Quit ->
             Leave
+      | Shell.Command.Detach ->
+            // Report §11.2: `:detach` is refused in a shell attached to no node.
+            refused(state, screen, "this shell is attached to no node; :quit leaves it")
       | Shell.Command.Help ->
             answered(state, screen, Shell.Command.help())
       | Shell.Command.Bindings ->

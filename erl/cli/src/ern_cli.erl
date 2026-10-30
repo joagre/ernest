@@ -411,7 +411,8 @@ metavariable(libs_dir) -> "dir";
 metavariable(config_dir) -> "dir";
 metavariable(listen) -> "address:port";
 metavariable(peer_dir) -> "dir";
-metavariable(main) -> "Qualified.name".
+metavariable(main) -> "Qualified.name";
+metavariable(attach) -> "name".
 
 %% An option that may be given more than once, which §11 marks `...`.
 repetition(load_path) -> "...";
@@ -954,7 +955,10 @@ shell_options() ->
      libs_dir_option(),
      {source_root, undefined, "source-root", string,
       "where the shell finds a module's source; default: the working directory"},
-     main_option("the function spawned beside the shell, from the file loaded"), help_option()].
+     main_option("the function spawned beside the shell, from the file loaded"),
+     {attach, undefined, "attach", string,
+      "the listed peer the shell attaches to, its inputs run on that node"},
+     help_option()].
 
 %% Report §11.2: `ern reload` and `ern stop` name the node by its
 %% directory, so --config-dir is theirs to require.
@@ -1148,6 +1152,10 @@ config(_Options, _Rest, _ErrorDevice) ->
 %% initializers (§8.5) before the shell starts.
 shell(Options, Rest, ErrorDevice) ->
     quiet_signals(),
+    %% report §11.2: the attached shell, which MVP 4.0 builds
+    not lists:keymember(attach, 1, Options)
+        orelse ern_build:fail("--attach: an attached shell arrives in MVP 4.0; "
+                              "until then a shell started beside the node computes on it"),
     %% report §11.7: the shell takes no --verbose, and says nothing of what
     %% it reads
     Say = fun(_) -> ok end,

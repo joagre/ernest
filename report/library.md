@@ -685,7 +685,7 @@ Bytes.fromHex : (String) -> Optional(Bytes) // two digits an octet, in either ca
 
 A `Process` is the identity of a process. It has equality and no ordering, exact as §3.10 says, and nothing can be sent to it; `monitor` takes one (§6.9). Across nodes a `Process` names its node.
 
-`status` is a snapshot of a live process, which may have changed when it is read. It answers `None` for a process that has ended (§6.9), for one on another node, and for one of the runtime's own, which applies a wrap or an adapted function (§6.5, §6.9). `live` answers the processes the runtime started that have not ended, the system processes excepted: those a program spawned, and a listener, a socket or a running program a system module opened (Appendix E.18, E.23).
+`status` is a snapshot of a live process, which may have changed when it is read. It answers `None` for a process that has ended (§6.9), for one on another node, and for one of the runtime's own, which applies a wrap or an adapted function (§6.5, §6.9). `live` answers the processes the runtime started that have not ended, the system processes excepted: those a program spawned, and a listener, a socket or a running program a system module opened (Appendix E.18, E.23); on a node a shell runs on or is attached to, each session's own processes are excepted too (§11.2).
 
 `faults(wrap)` delivers `wrap(report)` to the caller for every fault of every process the runtime started, the system processes', the runtime's own and those `Test.faults` started excepted (§6.9, E.24), as E.0 shape rule 8 says of a function that delivers later. A process holds one subscription to faults, beside one to the terminal (§8.2): a second call replaces the first, its wrap from then on, and a subscription ends when its process dies or restarts (§6.9). A subscription to faults is no source that can deliver under §8.6.
 
@@ -737,7 +737,7 @@ Over Os's system reference (§8.2). The primitives are `start`, which reaches Os
 
 `environment(name)` answers the value of the program's environment variable of that name, or `None` where the host has none. The program's environment is the one `ern` was started in (§11). It is read once, when the program starts, and a value is decoded when it is asked for: one that is not UTF-8 faults the caller with `Fault("the environment variable n is not UTF-8")`, `n` its name. A name that occurs twice keeps its first value.
 
-`exit(status)` ends the program as §8.6 ends it, with that status, and does not return; a status outside 0 to 255 faults the caller with `Fault("an exit status is from 0 to 255")`. In the shell and under `ern test` it faults the caller instead, a status `n` from 0 to 255 with `Fault("exited with status n")` (§11.2).
+`exit(status)` ends the program as §8.6 ends it, with that status, and does not return; a status outside 0 to 255 faults the caller with `Fault("an exit status is from 0 to 255")`. In the shell, in a process an attached session started (§11.2), and under `ern test` it faults the caller instead, a status `n` from 0 to 255 with `Fault("exited with status n")`.
 
 `start(command)` starts a program of the host and answers its address. A running program is a process, as a `Tcp` socket is: `kill` stops it and `monitor` watches it, and its site is `Os.start`. It is bound to its node, as a socket is (§3.11).
 

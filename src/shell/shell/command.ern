@@ -8,6 +8,7 @@
 export type Action =
     Bindings
   | Browse
+  | Detach
   | Doc
   | Faults
   | Forget
@@ -59,6 +60,11 @@ export let commands =
              placeholder = "Module",
              takes = Needs(what = "a module", completes = Modules),
              about = "the exports of Module with their types"),
+     Command(name = "detach",
+             action = Detach,
+             placeholder = "",
+             takes = Nothing,
+             about = "an attached shell left, its node running on"),
      Command(name = "doc",
              action = Doc,
              placeholder = "Name",

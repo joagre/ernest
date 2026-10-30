@@ -97,6 +97,7 @@ Examples
     // => "a"
 > no command :zz; :help lists them
 > no command :help\tme; :help lists them
+> this shell is attached to no node; :quit leaves it
 > :b is :bindings or :browse
 > :f is :faults or :forget
 > :type takes an expression
@@ -122,6 +123,7 @@ zero : () -> Int
 > Commands, which a prefix of the name selects where it begins no other:
   :bindings       what the session declares, with their types
   :browse Module  the exports of Module with their types
+  :detach         an attached shell left, its node running on
   :doc Name       the documentation of Name
   :faults         the faults reported since the session began
   :forget name    a name the session declared, forgotten, or every one for *
