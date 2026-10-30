@@ -97,11 +97,13 @@ name, which Ernest's parentheses make a call, the dot, and the marks other langu
 
 Discussed with the user when the milestone opens, after MVP 4.0's release, each with its
 recommendation then: whether the formatter writes the pun where the names agree, or the style
-guide alone asks for it; `language_feedback.md`'s 170, a program's process answering a call with
-an `Either(Io.Error, a)` whose caller folds `Address.call`'s `None` into `Left(Io.Timeout)` by
-hand, a shape the shell writes three times; and its 171, an `Optional` taken as a list of none or
-one, which has no function. The two lines were found by the read-back that found the pun's
-sites, and are read the same way, as forms the code repeats.
+guide alone asks for it; and every line of `language_feedback.md` open on that day, decided one
+at a time as CLAUDE.md's *Before code* says, a report change, a library function or a line of the
+log dropping it, so that the milestone closes with the file empty (decided 2026-10-31). Today's
+lines are 170, `Address.call`'s `None` folded into `Left(Io.Timeout)` by hand at three sites;
+171, an `Optional` taken as a list of none or one; and 172 and 173, a site named without its
+session at a node two sessions share. The first two were found by the read-back that found the
+pun's sites and are read the same way, as forms the code repeats.
 
 ---
 
