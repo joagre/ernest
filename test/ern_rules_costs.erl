@@ -31,10 +31,18 @@
 %% taken where its initializers begin and end, traced, and where main
 %% begins and returns, and a persistent term's update alone. A program's
 %% rows run its code compiled from source, as `ern build` compiles it, in a
-%% launch; the host's run outside one. Each row is the median of seven
-%% runs, in nanoseconds an iteration, the loop's own cost included, or in
-%% microseconds a launch, with their range, as ern_costs measures them. The
-%% part measures and asserts nothing, so it is not part of `make test-full`.
+%% launch; the host's run outside one.
+%%
+%% An input at the shell's prompt in line mode is measured last, beside the
+%% host's compile, load, delete and purge of a module of one function,
+%% which an input's unit stands on (report §11.2; the log's *A Line-Mode
+%% Input's Cost*): `1`, which binds `it`, whose holder is a module of its
+%% own, and `let _ = 1`, which binds nothing.
+%%
+%% Each row is the median of seven runs, in nanoseconds an iteration, the
+%% loop's own cost included, or in microseconds a launch or an input, with
+%% their range, as ern_costs measures them. The part measures and asserts
+%% nothing, so it is not part of `make test-full`.
 -module(ern_rules_costs).
 
 -export([main/1, literal/1, numbers/0]).
@@ -47,6 +55,8 @@
 -define(STARTS, 3).
 -define(UPDATES, 50).
 -define(RUNS, 7).
+%% The inputs a run of the shell's rows feeds a session.
+-define(INPUTS, 200).
 %% The time of a receive with an `after`, which no receive here reaches.
 -define(MS, 1000).
 %% A spawn site, as the compiler supplies one (report §6.9).
@@ -60,7 +70,7 @@ main([Directory]) ->
     Unit = ern_costs:compiled(?NAMESPACE, source()),
     Text = unicode:characters_to_binary(
              [binding_tables(Unit), receive_tables(Unit), system_table(Unit),
-              launch_tables()]),
+              launch_tables(), shell_table(filename:join(Directory, "shell"))]),
     io:format("~ts", [Text]),
     ok = file:write_file(filename:join(Directory, "rules.txt"), Text),
     halt(0).
@@ -469,3 +479,58 @@ launch() ->
     Micros = fun(From, To) -> erlang:convert_time_unit(To - From, native, nanosecond) / 1000 end,
     {Micros(Started, Ended), Micros(Started, Initializing), Micros(Initializing, Initialized),
      Micros(Initialized, Returned), Micros(Returned, Ended)}.
+
+%%
+%% A shell's input
+%%
+
+%% Report §11.2: an input in line mode, its work a unit compiled, loaded
+%% and run, beside the host's compile, load, delete and purge of a module
+%% of one function, in microseconds an input; the shell's files and its
+%% home under Directory, so that no person's startup file runs.
+shell_table(Directory) ->
+    ok = filelib:ensure_path(filename:join(Directory, "home")),
+    Files = [inputs(Directory, Name, Line) || {Name, Line} <- [{"none", none}, {"it", "1"},
+                                                               {"let", "let _ = 1"}]],
+    Runs = [run_shell(Directory, Files) || _ <- lists:seq(1, ?RUNS)],
+    Column = fun(Index) -> [element(Index, Run) || Run <- Runs] end,
+    [ern_costs:table("an input at the shell's prompt, us an input",
+                     [{"the host's compile, load, delete and purge of a module",
+                       Column(1)},
+                      {"an input of `1`, which binds `it`", Column(2)},
+                      {"an input of `let _ = 1`, which binds nothing", Column(3)}],
+                     ratio)].
+
+%% A file of ?INPUTS lines of Line, or of none.
+inputs(Directory, Name, Line) ->
+    File = filename:join(Directory, Name ++ ".in"),
+    ok = file:write_file(File, [[Line, "\n"] || Line =/= none, _ <- lists:seq(1, ?INPUTS)]),
+    File.
+
+%% One run of each row, the rows taking turns: the host's cycle of a module
+%% ?INPUTS times, and each session's time less that of one fed nothing,
+%% over its inputs.
+run_shell(Directory, [None, It, Let]) ->
+    Cycle = micros_each(?INPUTS, fun cycled/0),
+    Bare = session(Directory, None),
+    {Cycle, (session(Directory, It) - Bare) / ?INPUTS, (session(Directory, Let) - Bare) / ?INPUTS}.
+
+%% A session fed File, in microseconds.
+session(Directory, File) ->
+    Started = erlang:monotonic_time(nanosecond),
+    _ = os:cmd("HOME=" ++ filename:join(Directory, "home") ++ " ../bin/ern shell < " ++ File
+               ++ " > /dev/null"),
+    (erlang:monotonic_time(nanosecond) - Started) / 1000.
+
+%% The host's work for an input's unit: a module of one function compiled
+%% as the emitter's are, with debug information, loaded, deleted and
+%% purged, its name taken again by the next, as a session takes an input's.
+cycled() ->
+    Forms = [{attribute, 1, module, ern_rules_costs_input},
+             {attribute, 1, export, [{input, 0}]},
+             {function, 1, input, 0, [{clause, 1, [], [], [{integer, 1, 1}]}]}],
+    {ok, Module, Beam} = compile:noenv_forms(Forms, [return_errors, debug_info]),
+    {module, Module} = code:load_binary(Module, "ern_rules_costs_input", Beam),
+    true = code:delete(Module),
+    _ = code:purge(Module),
+    ok.

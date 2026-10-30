@@ -2322,7 +2322,8 @@ no_alias_test() ->
     ?assertMatch({error, [#diagnostic{message = "constructor Shape is named as the type Shape",
                                       help = "rename the constructor; Shape is a type the"
                                              " session declares"}]},
-                 ern_typecheck:check(['M'], Declarations, [Interface], Session)).
+                 ern_typecheck:check(['M'], Declarations, [Interface], Session,
+                                     ern_typecheck:prelude_env())).
 
 %% report §4.2, §5.4: a module declares each top-level name once, private or
 %% exported, and a block each local fn name once; two adjacent ones are the

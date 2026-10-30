@@ -72,7 +72,7 @@ Every node is a record of `erl/parser/include/ern_ast.hrl`, one per production o
 
 ## The type checker
 
-`ern_typecheck:check/3` takes a namespace, the declarations and the `#interface{}` records of the modules referred to, and returns `{ok, Typed, Interface, Env}` or `{error, [#diagnostic{}]}`; the shell calls `check/4`. In the module, `infer/2` gives an expression its type and `check_expr/5` checks one against an expected type, which gives a diagnostic §11.5's labels.
+`ern_typecheck:check/3` takes a namespace, the declarations and the `#interface{}` records of the modules referred to, and returns `{ok, Typed, Interface, Env}` or `{error, [#diagnostic{}]}`; the shell calls `check/5`, with its session's scope and the prelude's environment it holds. In the module, `infer/2` gives an expression its type and `check_expr/5` checks one against an expected type, which gives a diagnostic §11.5's labels.
 
 Types are the terms of `erl/checker/include/ern_types.hrl`. Each type variable has a `#type_variable{}`, with its level and its restrictions (§3.9), in the `#type_state{}`. `ern_types` owns that state: unification, generalization, instantiation, and the printer that diagnostics and `ern doc` share.
 
@@ -328,7 +328,7 @@ A library under `src/libs/` stands on the host as the standard library does. The
 
 The shell is an Ernest program over `Terminal`: `src/shell/shell.ern` and its modules under `src/shell/shell/`, compiled by `make` into `build/shell` against `libs/markdown` and `libs/ansi` in `build/libs`. [`src/shell/README.md`](../src/shell/README.md) guides a reader through the code, and [`design/shell.md`](design/shell.md) holds the design.
 
-`ern_shell` is the front end the shell reaches through `foreign fn`. It holds the session and checks an input with `ern_typecheck:check/4`, the input a module of its own (§11.2). A session's rows stand under the root of its processes (`kept/2`, `session_root/0`), and the node's modules, which every session's next input is checked against, are a row of the node's (`synced/1`, `published/1`, `node_load/2`).
+`ern_shell` is the front end the shell reaches through `foreign fn`. It holds the session and checks an input with `ern_typecheck:check/5`, the input a module of its own (§11.2). A session's rows stand under the root of its processes (`kept/2`, `session_root/0`), and the node's modules, which every session's next input is checked against, are a row of the node's (`synced/1`, `published/1`, `node_load/2`).
 
 - `:load` places each module after the modules it uses (`#placing{}`, `needed_placed/3`, `dependency_placed/3`, `in_dependency_order/1`). A module is compiled (`compile_unit/5`), taken from its current compiled form (`current_form/4`, `compiled_unit/5`, `install_one/2`), or taken as a unit the node holds of the same code.
 - `:reload` brings each version beside the previous one and compiles again what `ern build` would (`stale_users/3`). A changed type moves to the previous version's namespace, `Counter$1` (`versioned/3`, `returned/3`), whose interface `#session.previous` holds and whose unit `#session.units` names.

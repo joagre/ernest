@@ -88,7 +88,7 @@ The front end keeps the latest `Session` of its own, beside the one the session 
 
 The copy is a row of the front end's table, and so is everything else that changes as inputs run: the input numbers free to give again, the inputs not yet purged, what each session module needs, each input's names, the modules whose last `:load` was refused, with the refusal, the processes of the inputs that bound names, and the evaluators. A session's rows stand under the root of its processes, which the reader's questions find their session by; the node's rows are the next session's number, the node's modules, each input unit's name, which its spawn sites read while the unit lives, and what a detached session left. The table is held by a process of its own for the host's life, since sessions come and go on a node, and a plain shell's launch empties it.
 
-A persistent term replaced has the host scan every process, so only what is set once is one: what the runner loaded, and the screen of the shell's own node. What a binding's holder keeps is one too, so that a read does not copy it, the scan paid once as the holder goes (the log's *The Hardening Built*).
+A persistent term replaced has the host scan every process, so only what is set once is one: what the runner loaded, the screen of the shell's own node, and the prelude's environment, built at the host's first session and held for its life, since the toolchain's tree does not change under a running host. What a binding's holder keeps is one too, so that a read does not copy it, the scan paid once as the holder goes (the log's *The Hardening Built*). A spawn and a message copy no persistent term, and a row of the table copies all it holds, so the session's row holds no environment (the log's *A Line-Mode Input's Cost*).
 
 ### An input as a module
 
@@ -110,7 +110,7 @@ A name given to `:doc`, `:forget`, `:browse` or `:load` is made a name only wher
 
 ### The session's scope
 
-The checker takes the session as its fourth argument, `ern_typecheck:check/4`: three maps, of values, types and constructors, each from an unqualified name to the qualified name of the input that declared it. It is a scope of its own, looked in where §11.2 *Scope* puts it, and a later declaration of a name replaces its entry.
+The checker takes the session as its fourth argument, `ern_typecheck:check/5`: three maps, of values, types and constructors, each from an unqualified name to the qualified name of the input that declared it. It is a scope of its own, looked in where §11.2 *Scope* puts it, and a later declaration of a name replaces its entry. The fifth argument is the prelude's environment, built once (*The front end's copy*).
 
 A reference to a name the session declared is resolved to the input that declared it, so the emitter sees an ordinary reference to another module and knows nothing of a session (the log's *The Spike: How an Input Sees the Session*).
 

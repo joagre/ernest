@@ -204,8 +204,9 @@ make bench        what each of a few operations costs in Ernest beside the same 
                   shape, with one caller and one callee, eight pairs, and eight callers of
                   one callee, and each of the call's writes alone by one process and by
                   eight, in call.txt; then a top-level let's read, a receive with an after,
-                  a message to a system process and a bare launch with its pieces, each
-                  beside the host's, in rules.txt; then each construct the compiler writes
+                  a message to a system process, a bare launch with its pieces and an
+                  input at the shell's prompt in line mode, each beside the host's, in
+                  rules.txt; then each construct the compiler writes
                   code for, a match and one whose guards call functions, a record update, a
                   Float operation and an expression of five, an Int operation, a derived
                   compare, a requirement's member, a string's concatenation and slice, a

@@ -65,7 +65,7 @@
 -record(session, {number = 1, load_path = [], source_root = ".", last_input = 0,
                   interfaces = [],
                   scope = #{}, beams = #{}, source_hashes = #{}, source_expected = #{},
-                  last_holder = 0, prelude, units = #{}, versions = #{}, previous = [],
+                  last_holder = 0, units = #{}, versions = #{}, previous = [],
                   local, working_directory = ".", attached = false}).
 %% number: the session's number on its node, given once in the node's life,
 %% which its namespace and every host name its inputs make carry (report
@@ -92,11 +92,6 @@
 %% or `:reload` compiled, to its compiled module, its latest version's,
 %% which `:doc` reads the documentation of (report §11.2, §11.4) and a
 %% reload what its forms reference (recorded/2)
-%%
-%% prelude: the prelude's environment, the standard library's interfaces
-%% among it, built when the session starts and kept while it lives, since
-%% neither changes while it runs; the queries of completion, `:browse` and
-%% `:doc` read it rather than build it each time
 %%
 %% units: the unit each namespace runs as where it is not the module's
 %% Erlang name: a version a reload brought, `ern@counter$2`, of a module or
@@ -185,6 +180,26 @@ loaded(Loaded) ->
     table(),
     true = ets:delete_all_objects(?MODULE),
     ok.
+
+%% Report §11.2: the prelude's environment, the standard library's
+%% interfaces among it, which every input is checked against and
+%% completion, `:browse` and `:doc` read: built at the host's first
+%% session and held for the host's life, a persistent term set once, since
+%% the toolchain's tree does not change under a running host. No session
+%% carries it: a read, a spawn and a message do not copy a persistent term,
+%% and a row of the table, which would copy it at each input, holds the
+%% session alone (the log's *A Line-Mode Input's Cost*).
+prelude() ->
+    case persistent_term:get({?MODULE, prelude}, none) of
+        none ->
+            Prelude = ern_typecheck:prelude_env(),
+            %% two sessions that start at once build one environment, and
+            %% the second put of an equal term changes nothing
+            persistent_term:put({?MODULE, prelude}, Prelude),
+            Prelude;
+        Prelude ->
+            Prelude
+    end.
 
 %% Report §11.2: the front end's table, of the node's sessions, a row of it
 %% where what it holds changes as inputs run, since the host scans every
@@ -301,10 +316,12 @@ start(Local, Screen, SourceRoot, WorkingDirectory, Attached) ->
                    #loaded{load_path = Given} -> Given;
                    none -> ern_cli:load_path()
                end,
+    %% built as the host's first session starts, so that its first input
+    %% does not wait for it
+    prelude(),
     keep_session(synced(#session{number = Number, load_path = LoadPath,
                                  source_root = unicode:characters_to_list(SourceRoot),
-                                 prelude = ern_typecheck:prelude_env(), local = Local,
-                                 working_directory =
+                                 local = Local, working_directory =
                                      unicode:characters_to_list(WorkingDirectory),
                                  attached = Attached})).
 
@@ -805,7 +822,7 @@ input_entry(_Binds, Expr) ->
 check_module(#session{scope = Scope} = Session, Namespace, InputOrigin, Input, Declarations,
              Binds) ->
     case ern_typecheck:check(Namespace, Declarations, checked_interfaces(Session),
-                             Scope#{input_names => input_names()}) of
+                             Scope#{input_names => input_names()}, prelude()) of
         {ok, Typed, Interface, Env} ->
             Type = settled_input_type(input_type(Typed, Binds), Binds, Env),
             Binds1 = generalized(Binds, Typed, Env),
@@ -1365,9 +1382,9 @@ along_path(_, _, _) ->
     none.
 
 %% The one constructor of a type in scope, or none.
-one_constructor(QualifiedName, #session{interfaces = Interfaces, prelude = Prelude}) ->
+one_constructor(QualifiedName, #session{interfaces = Interfaces}) ->
     Found = [TypeInfo || #interface{types = #{QualifiedName := TypeInfo}} <- Interfaces]
-        ++ [TypeInfo || TypeInfo <- [ern_typecheck:lookup_type(QualifiedName, Prelude)],
+        ++ [TypeInfo || TypeInfo <- [ern_typecheck:lookup_type(QualifiedName, prelude())],
                         TypeInfo =/= undefined],
     case Found of
         [#type_info{constructors = [ConstructorInfo]} | _] -> {ok, ConstructorInfo};
@@ -1383,7 +1400,8 @@ one_constructor(QualifiedName, #session{interfaces = Interfaces, prelude = Prelu
 names() ->
     names(kept_session()).
 
-names(#session{interfaces = Interfaces, scope = Scope, prelude = Prelude} = Session) ->
+names(#session{interfaces = Interfaces, scope = Scope} = Session) ->
+    Prelude = prelude(),
     TypeState = session_type_state(Session),
     %% report §4.5: a member is no name an expression writes, the session's
     %% `T.f` and a prelude type's alike, and does not complete
@@ -1544,8 +1562,8 @@ scheme(QualifiedName, #session{interfaces = Interfaces}) ->
 
 %% The state a session name's type is printed under: the session's types
 %% print unqualified, as they do in an input (report §11.2).
-session_type_state(#session{scope = Scope, prelude = Prelude} = Session) ->
-    TypeState = ern_typecheck:scope_state(checked_interfaces(Session), Prelude),
+session_type_state(#session{scope = Scope} = Session) ->
+    TypeState = ern_typecheck:scope_state(checked_interfaces(Session), prelude()),
     ern_types:set_scope([], maps:values(maps:get(types, Scope, #{})), [], input_names(),
                         TypeState).
 
@@ -1606,7 +1624,8 @@ browse(Given, Text) ->
 
 %% Report §11.2, §9: the prelude's types and values, as `:browse` lists a
 %% module's, since `Prelude` names its namespace (§4.2).
-prelude_listing(#session{prelude = Env} = Session) ->
+prelude_listing(Session) ->
+    Env = prelude(),
     TypeState = ern_typecheck:type_state(Env),
     {Types, _} = ern_typecheck:prelude_names(Env),
     %% report §9.4: `Io.show` and `Io.debug` are the prelude's, typed by
@@ -1626,7 +1645,8 @@ prelude_listing(#session{prelude = Env} = Session) ->
 %% of the session's or the standard library's has, `Address.call` and
 %% `Address.callForever`, each with its type, as `:browse Prelude` lists
 %% them; none for any other namespace.
-prelude_namespace_listing(Namespace, #session{prelude = Env} = Session) ->
+prelude_namespace_listing(Namespace, Session) ->
+    Env = prelude(),
     Values = [Value || {QualifiedName, _} = Value <- ern_typecheck:prelude_values(Env),
                        lists:droplast(QualifiedName) =:= Namespace],
     value_lines(Values, #{}, prelude_parameters(Session, Values), ern_typecheck:type_state(Env)).
@@ -1718,8 +1738,7 @@ module_parameters(Session, Namespace) ->
 
 %% Report §11.5: each name and each type as the session writes it, the
 %% names qualified and another module's types too.
-browse(Text, Namespace, #session{interfaces = Interfaces, scope = Scope,
-                                 prelude = Prelude} = Session) ->
+browse(Text, Namespace, #session{interfaces = Interfaces, scope = Scope} = Session) ->
     InScope = Interfaces ++ ern_prelude:stdlib_interfaces(),
     case [Interface || #interface{namespace = Found} = Interface <- InScope, Found =:= Namespace] of
         [] ->
@@ -1733,7 +1752,7 @@ browse(Text, Namespace, #session{interfaces = Interfaces, scope = Scope,
         Found ->
             #interface{types = InterfaceTypes, values = InterfaceValues} = Last = lists:last(Found),
             ScopeState = ern_typecheck:scope_state(checked_interfaces(Session) ++ [Last],
-                                                   Prelude),
+                                                   prelude()),
             TypeState = ern_types:set_scope([], maps:values(maps:get(types, Scope, #{})), [],
                                             input_names(), ScopeState),
             Types = [unicode:characters_to_binary([type_keyword(TypeInfo), "type ",
@@ -2125,7 +2144,7 @@ one_name_declared(#session{scope = Scope} = Session, Text) ->
         %% report §11.2: a type a later input shadows prints under the input
         %% that declared it, as the input's own check prints it
         {ok, _, _, Env} ?= ern_typecheck:check(['$Signature'], [], checked_interfaces(Session),
-                                               Scope#{input_names => input_names()}),
+                                               Scope#{input_names => input_names()}, prelude()),
         {ok, Scheme} ?= ern_typecheck:declared_scheme(Namespace, Name, Env),
         {ok, Namespace, Name, Scheme, Env}
     else
@@ -2167,10 +2186,9 @@ field_index(Field, Names, Otherwise) ->
 
 %% A constructor by the name written: the session's, the prelude's, or a
 %% module's.
-named_constructor(#session{scope = Scope, interfaces = Interfaces, prelude = Prelude}, [],
-                  Name) ->
+named_constructor(#session{scope = Scope, interfaces = Interfaces}, [], Name) ->
     case maps:get(Name, maps:get(constructors, Scope, #{}), none) of
-        none -> ern_typecheck:prelude_constructor(Name, Prelude);
+        none -> ern_typecheck:prelude_constructor(Name, prelude());
         QualifiedName -> constructor_info(QualifiedName, Interfaces)
     end;
 named_constructor(#session{interfaces = Interfaces}, Namespace, Name) ->
@@ -2308,10 +2326,10 @@ first([Find | Rest]) ->
 %% Report §11.4: a constructor is documented in its type's section, so its
 %% documentation is its type's: a session constructor's the session's type,
 %% a module's its module's type, and an unqualified one the prelude's.
-constructor_doc(#session{scope = Scope, beams = Beams, prelude = Prelude} = Session, [Name]) ->
+constructor_doc(#session{scope = Scope, beams = Beams} = Session, [Name]) ->
     case maps:get(Name, maps:get(constructors, Scope, #{}), none) of
         none ->
-            case ern_typecheck:prelude_constructor(Name, Prelude) of
+            case ern_typecheck:prelude_constructor(Name, prelude()) of
                 {ok, #constructor_info{type_qualified_name = TypeQualifiedName}} ->
                     prelude_doc(TypeQualifiedName);
                 none -> none
@@ -3528,13 +3546,13 @@ install(Session, CompiledModules) ->
 install_one(#compiled{namespace = Namespace, unit = Unit, beam = Compiled, source_hash = Hash,
                       from_source = FromSource, made = Made},
             #session{interfaces = Interfaces, source_hashes = SourceHashes, beams = Beams,
-                     units = Units, source_expected = Expected, prelude = Prelude} = Session) ->
+                     units = Units, source_expected = Expected} = Session) ->
     %% report §11.2: a compiled module that is not loaded as it is made a
     %% unit from its forms, linked to the units the session holds of the
     %% modules it uses, which are installed before it
     Beam = case Made of
                forms ->
-                   {ok, Built} = ern_compile:from_compiled(Compiled, Unit, Interfaces, Prelude,
+                   {ok, Built} = ern_compile:from_compiled(Compiled, Unit, Interfaces, prelude(),
                                                           with_unit(Namespace, Unit, Units)),
                    Built;
                _ ->
@@ -3655,7 +3673,7 @@ compiled_again(Namespace, {Session, Changed, Lines, Previous}) ->
         kept({input_text, Namespace}, none),
     {declarations, Declarations} = input(Text),
     case ern_typecheck:check(Namespace, Declarations, checked_interfaces(Session),
-                             Scope#{input_names => input_names()}) of
+                             Scope#{input_names => input_names()}, prelude()) of
         {ok, Typed, Interface, Env} ->
             case fresh_unit(Namespace) of
                 {ok, Unit} ->

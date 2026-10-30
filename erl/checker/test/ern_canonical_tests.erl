@@ -428,7 +428,8 @@ session_namespace_test() ->
                                        values = #{X => #scheme{type = {tcon, ['Int'], []}}},
                                        lets = [X], identities = #{X => <<7:256>>}},
                     {ok, Typed, _, Env} = ern_typecheck:check(Namespace, Declarations, [Bound],
-                                                              #{values => #{x => X}}),
+                                                              #{values => #{x => X}},
+                                                              ern_typecheck:prelude_env()),
                     ern_canonical:module(Namespace, Typed, Env, false, Session)
                 end,
     #{definitions := First, services := FirstServices, reaches := FirstReaches} =

@@ -793,6 +793,38 @@ input_type_closed_as_a_top_level_let_test() ->
     Undetermined(<<"s">>, OfS),
     Undetermined(<<"t">>, OfT).
 
+%% report §11.2: an input is checked against the prelude's environment
+%% that the host built once, at its first session, and no session's record
+%% holds that environment, so a check reads none of the standard library's
+%% files and the record an input copies stays small. A regression test,
+%% written after the fix (the log's *A Line-Mode Input's Cost*): the check
+%% built the environment at every input, and the record held it, 52,592
+%% words. It does not cover what the record holds beside, the session's
+%% interfaces, which grow as the session declares (the plan's MVP 4.0, item
+%% 12)
+input_checked_against_the_prelude_built_once_test() ->
+    ern_shell:loaded(#loaded{}),
+    Self = self(),
+    Main = fun() ->
+               Session = ern_shell:start(undefined, self(), <<".">>, <<".">>, false),
+               Prelude = {ern_typecheck, prelude_env, 0},
+               1 = erlang:trace_pattern(Prelude, true, [call_count]),
+               Answers = [element(1, ern_shell:check(Session, {'Prompt', Count}, <<"1">>))
+                          || Count <- [1, 2, 3]],
+               {call_count, Built} = erlang:trace_info(Prelude, call_count),
+               1 = erlang:trace_pattern(Prelude, false, [call_count]),
+               Self ! {checked, Answers, Built, erts_debug:flat_size(Session)}
+           end,
+    try
+        ok = ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})
+    after
+        persistent_term:erase({ern_shell, loaded})
+    end,
+    {Answers, Built, Words} = receive {checked, A, B, W} -> {A, B, W} end,
+    ?assertEqual(['Right', 'Right', 'Right'], Answers),
+    ?assertEqual(0, Built),
+    ?assert(Words < 5000).
+
 %% report §11.1, §11.4: the build's sweep passes over a name under the
 %% build root that is not UTF-8, and the host says nothing of it. A
 %% regression test: the host printed its own WARNING REPORT during `ern

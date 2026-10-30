@@ -15,7 +15,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-10-30.** [The Attached Shell's Last Row](#the-attached-shells-last-row-2026-10-30); [The End's Lines Reach the Screen](#the-ends-lines-reach-the-screen-2026-10-30); [The Guides Over the Attached Shell](#the-guides-over-the-attached-shell-2026-10-30); [The Attached Shell, Built](#the-attached-shell-built-2026-10-30); [The Pun](#the-pun-2026-10-30); [The Session's Screen and the Toolchain's Units, Built](#the-sessions-screen-and-the-toolchains-units-built-2026-10-30); [The Attached Shell's Sentences](#the-attached-shells-sentences-2026-10-30); [The Shell's Second Round, Decided Again](#the-shells-second-round-decided-again-2026-10-30); [The Release's Note, Written Once](#the-releases-note-written-once-2026-10-30); [One Function per Initializer](#one-function-per-initializer-2026-10-30); [The Attached Shell's Cut](#the-attached-shells-cut-2026-10-30); [No Back End to BEAM's Own Instructions](#no-back-end-to-beams-own-instructions-2026-10-30); [`Test.until`, Built](#testuntil-built-2026-10-30).
+**2026-10-30.** [A Line-Mode Input's Cost](#a-line-mode-inputs-cost-2026-10-30); [The Attached Shell's Last Row](#the-attached-shells-last-row-2026-10-30); [The End's Lines Reach the Screen](#the-ends-lines-reach-the-screen-2026-10-30); [The Guides Over the Attached Shell](#the-guides-over-the-attached-shell-2026-10-30); [The Attached Shell, Built](#the-attached-shell-built-2026-10-30); [The Pun](#the-pun-2026-10-30); [The Session's Screen and the Toolchain's Units, Built](#the-sessions-screen-and-the-toolchains-units-built-2026-10-30); [The Attached Shell's Sentences](#the-attached-shells-sentences-2026-10-30); [The Shell's Second Round, Decided Again](#the-shells-second-round-decided-again-2026-10-30); [The Release's Note, Written Once](#the-releases-note-written-once-2026-10-30); [One Function per Initializer](#one-function-per-initializer-2026-10-30); [The Attached Shell's Cut](#the-attached-shells-cut-2026-10-30); [No Back End to BEAM's Own Instructions](#no-back-end-to-beams-own-instructions-2026-10-30); [`Test.until`, Built](#testuntil-built-2026-10-30).
 
 **2026-10-27.** [`<-` at the Prompt](#--at-the-prompt-2026-10-27); [The Shell Does Not Indent](#the-shell-does-not-indent-2026-10-27); [Small Library Functions Stay Calls](#small-library-functions-stay-calls-2026-10-27); [The Emitter's Calls Against the Host's, Built](#the-emitters-calls-against-the-hosts-built-2026-10-27); [The Emitter's Calls Against the Host's](#the-emitters-calls-against-the-hosts-2026-10-27); [The BEAM Opcode Experiment](#the-beam-opcode-experiment-2026-10-27).
 
@@ -9524,6 +9524,88 @@ MVP 3.9's last item began on the user's word on 2026-10-24 over `0e37caeb`, as `
 The host's own times are down a fifth on most rows, the loop alone 7.5 against 9.3, so the machine is faster than it was and the ratio is what is compared. Two rows are better, `String.size` and the spawn, the spawn by the review's rounds since 0.4.0 (*The Rows That Grew*). Nine rows are within a tenth of their last ratio, the noise the reviews before 0.3.1 and 0.4.0 took for the machine's own, and two are a little past it, `List.map` 1.62 against 1.5 and the call 1.71 against 1.6, each by a hundredth or two beyond a tenth, with no change to either operation's path since 0.4.0; the release ships with the rows as they stand, which the user decides at the tag. Of the rows the bench gained since 0.4.0's table: `spawnMonitored` 11.1 and a monitor of an ended process 27.2, against 10.2 and 25.6 on 2026-10-20, within their spread; `restarting` entered and returning 356 ns against 553 then. The language's rows against the host (*The Language Against the Host*): the dot product 1.28 against 1.65 and the ray tracer 1.61 against 1.95, both better since the operators' tuple patterns, a record update 1.73 against 1.50, `Map.put` 1.32 against 1.18, `List.map` 1.42 against 1.57, the parser 1.28 and the counter 1.30 as they were.
 
 **The newcomer's program** is `kvd`, a key-value server over TCP that keeps its values in a log file, 732 lines in four modules: a session per connection with a reader process, a tracker and a store under a `OneForOne` group, `Clock.alarm` for keys that lapse and a compaction every thirty seconds, `Os.termination` compacting the log at the end, nine tests and three doc examples. It ran, a `CRASH` restarted by the group and the values read again by the second run; it is published beside the archive with its driver script.
+
+## A Line-Mode Input's Cost, 2026-10-30
+
+MVP 4.0's item 7: a thousand inputs of `1` in line mode took 24.4 s, 24 ms an input, where an
+input's own work is one small unit compiled, loaded and run. They take 11.8 s now, 11.4 ms an
+input. Attached to a bare node on the same machine they took 25.2 s and take 16.2 s, the
+attach's second included.
+
+**How it was measured.** Copies of `ern_shell` and `ern_compile` built outside the tree marked
+each stage of an input, each mark adding the time since the one before to its pair of stages. A
+scratch module started before the runner took the marks from the 100th input to the 900th. The
+host's `call_time` and each process's reductions over the same inputs named the functions and the
+processes that did the work. In milliseconds an input, on one machine, each row rounded:
+
+| stage | before | after |
+|---|---|---|
+| the check | 5.0 | 0.2 |
+| the session copied at five places, the input's environment with it into the spawn | 7.3 | 0.2 |
+| the emit, the canonical forms and the chunks | 0.4 | 0.4 |
+| the host's compile of the input's unit | 1.3 | 1.5 |
+| its load, and its rows of the code table | 0.7 | 0.7 |
+| the holder of `it`, compiled and loaded | 2.3 | 1.9 |
+| the two units deleted | 1.7 | 1.3 |
+| the two units purged, and the value `it` held before erased | 4.2 | 4.8 |
+| the answer printed, the prompt drained, the next line read | 0.6 | 0.2 |
+| the rest | 0.4 | 0.3 |
+| an input | 23.7 | 11.6 |
+
+**The first cause.** `ern_typecheck:check/4` built the prelude's environment at every check:
+it read the standard library's 27 compiled modules and parsed the prelude's tables, 5 ms. The
+session held one, built at its start, which the check never used. `check/5` takes the
+environment it is given, and the shell gives it its own. The build's `check/3` still builds one
+for each module it checks, 0.05 s of the 1.76 s a build of the examples' 13 modules takes, which
+decides nothing.
+
+**The second cause.** The session's record held that environment, 51,786 of its 52,592 words.
+It crossed five places at each input: the table's row at the check, at the input's end and at
+the collection, the input's spawn, and the outcome, which reaches the session through the
+checker of the address the shell gave the front end (§8.4), one copy in and one out. The
+environment is now a persistent term of the front end's, `ern_shell:prelude/0`, built at the
+host's first session. A read, a spawn and a message do not copy a persistent term, and the
+input's environment, built over it, shares it the same way. The session's record is 805 words.
+
+**The term's argument.** It holds the prelude's environment, which the prelude's tables and the
+standard library's files fix, and the toolchain's tree does not change under a running host,
+the ground the toolchain's own units' index is kept on (`docs/design/code.md`). It never lets
+go: it is set once, about 52,000 words, where each session held one before. Two sessions
+that start at once put equal terms, and the host does nothing at the second put.
+
+**What remains is the host's.** Of the 11.6 ms, 10.0 are the host's work on the input's two
+units, its own and the holder of `it`: two compiles, two loads, two deletes, two purges and an
+erase. A purge reads the host's whole process table, in the code purger's check and in the
+literal area collector's, so its cost grows with the host's process limit and not with the
+processes alive. A unit loaded, deleted and purged takes 4.3 ms at the default limit of
+1,048,576, 0.76 ms at 1,024 and 169 ms at the largest, with 43 processes alive. `let _ = 1`, one
+unit and no holder, takes 5.9 ms an input, 19.9 ms before. The remaining 1.6 ms are Ernest's:
+the check, the emit, the code table, the spawn and the screen.
+
+**Two decisions it leaves**, the plan's items 11 and 12. An expression makes two units, and one
+unit holding the `it` it binds would take it to about `let _ = 1`'s cost; §11.2 *Inputs* lets an
+expression's code go once its answer is in, so the report would change first. And an input's
+cost grows with the session: after a thousand declarations of a function an input of `1` takes
+38 ms, since the session's record crosses the same five places with every interface it holds,
+109,275 words then, and the check adds every interface to the environment again, 1.5 ms for 27
+modules of the standard library's size. It is the prelude's cause again, in what the session
+declares and the node holds, and the attached shell meets it at a node whose program has many
+modules.
+
+**The attached shell.** On the node, the local half's hop, the prompt's drain and the line's
+read across the carrier, is 0.9 ms of an input. The rest is a plain shell's work, each of the
+host's steps slower on the node with the operator's host beside it on one machine; a node on a
+machine of its own was not measured.
+
+**The row.** `make bench`'s part `rules` gains an input at the shell's prompt, two hundred inputs
+of `1` and of `let _ = 1` a run, each beside the host's compile, load, delete and purge of a
+module of one function, 4.2 ms. Before the change `1` was 5.96 times that and `let _ = 1` 4.51;
+after, 2.94 and 1.59. The table adds about 45 seconds to the bench.
+
+**Left as they are.** The exchange keeps a prelude's environment of its own, built at a node's
+first arrival (`docs/memory.md`), so a node that is attached to and sent code holds two; each is
+one for the node's life. The host's schedulers spin as they wait, so the job's processor time is
+three times its wall time; it is the host's, and costs the input nothing.
 
 ## The Attached Shell's Last Row, 2026-10-30
 

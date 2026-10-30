@@ -246,8 +246,9 @@ service: measured
 # call: the pieces of a call with one caller, eight pairs and eight callers
 # of one callee, ern_call_costs, in build/bench/call.txt.
 # rules: the rows the cost rules ask for that no other part has, a
-# top-level let's read, a timed receive, a message to a system process and
-# a bare launch, ern_rules_costs, in build/bench/rules.txt.
+# top-level let's read, a timed receive, a message to a system process, a
+# bare launch and an input at the shell's prompt, ern_rules_costs, in
+# build/bench/rules.txt.
 # language: each construct the compiler writes code for beside the plain
 # Erlang for the same thing, ern_language_costs, in
 # build/bench/language.txt.

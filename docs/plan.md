@@ -56,11 +56,7 @@ One form of attaching, by a listed peer, since a node accepts a connection from 
    test over an attached session; then the release that follows, 0.7.0, by `docs/release_review.md`.
 6. **The shell's end loses its last lines**, fixed 2026-10-30 (the log's *The End's Lines Reach
    the Screen*).
-7. **A line-mode input costs 25 ms**, found 2026-10-30 as item 3 closed: a thousand inputs of
-   `1` take 24.5 s, on the code before the item as after it, where an input's work is one small
-   unit compiled, loaded and run. A slow tool is a defect (CLAUDE.md, *Design*). The shape of
-   its fix: measure where the input's time goes, the compile, the load, the front end's table and
-   the screen's round trip, as `make bench` measures, and fix it at its cause; before the release.
+7. **A line-mode input costs 25 ms**, halved 2026-10-30 (the log's *A Line-Mode Input's Cost*).
 8. **An attached shell's last line shares the prompt's row**, fixed 2026-10-30 (the log's *The
    Attached Shell's Last Row*).
 9. **An attached shell's own node tells no peer its utilization**, decided 2026-10-30 after item
@@ -73,6 +69,19 @@ One form of attaching, by a listed peer, since a node accepts a connection from 
     ended with the session, lost or written beside the shell's `the node b ended`: §11.2's *The
     attached shell* states it since that day, and the runtime makes it so in item 5's commit,
     beside item 9, with the terminal test asserting the row.
+11. **An expression makes two units**, its own and the holder of `it`, a decision for the user
+    found by item 7 (the log's *A Line-Mode Input's Cost*): the host's work on the two is 10.0
+    of an input's 11.6 ms, and one unit holding the `it` it binds, kept while `it` names it,
+    takes an input to about the 5.9 ms of `let _ = 1`. §11.2 *Inputs* lets an expression's code
+    go once its answer is in, so the report changes first. Recommended: one unit.
+12. **An input's cost grows with the session**, found by item 7: after a thousand declarations
+    an input of `1` takes 38 ms, since the session's record crosses five places at each input
+    with every interface it holds, and the check adds every interface to the prelude's
+    environment again. The shape of its fix: the input answers what it bound and the session
+    joins it, so that the record stays in its process and its row is written once an input;
+    and the environment over the session's interfaces kept between inputs and built again where
+    they change, a cache decided with the user by its argument. Before the release, since an
+    attached shell meets it at a node whose program has many modules.
 
 The attached shell is the operator's alone, trusted as a peer is, with no sandbox: the website runs
 the plain shell in a container per visitor (MVP 4.2).

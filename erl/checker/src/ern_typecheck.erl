@@ -20,7 +20,7 @@
 %% per definition; checking continues with the next.
 -module(ern_typecheck).
 
--export([check/3, check/4, check_string/2, type_state/1, scope_state/2, set_type_state/2,
+-export([check/3, check/5, check_string/2, type_state/1, scope_state/2, set_type_state/2,
          prelude_names/1, prelude_values/1, prelude_constructor/2, prelude_constructors/1,
          prelude_env/0, with_interfaces/2, lookup_type/2, identity/2, position/2, reach/2,
          ground_term/2, shim/2, global_scheme/2, is_provided/2, described_type/2,
@@ -236,18 +236,18 @@
 -spec check([atom()], [tuple()], [#interface{}]) ->
           {ok, [tuple()], #interface{}, env()} | {error, [ern_diagnostic:diagnostic()]}.
 check(Namespace, Parsed, Interfaces) ->
-    check(Namespace, Parsed, Interfaces, #{}).
+    check(Namespace, Parsed, Interfaces, #{}, prelude_env()).
 
 %% Report §11.2: the shell's session is a scope of its own, looked in after
 %% the input's own declarations and before the prelude. Its three maps take
 %% an unqualified name, as a module's own do, to the qualified name of the
-%% input that declared it.
--spec check([atom()], [tuple()], [#interface{}], session_scope()) ->
+%% input that declared it. The prelude's environment is given, prelude_env/0's
+%% as the shell builds it once for its host, and not built for each input.
+-spec check([atom()], [tuple()], [#interface{}], session_scope(), env()) ->
           {ok, [tuple()], #interface{}, env()} | {error, [ern_diagnostic:diagnostic()]}.
-check(Namespace, Parsed, Interfaces, SessionScope) ->
+check(Namespace, Parsed, Interfaces, SessionScope, Prelude) ->
     Declarations = builtin_operators(Namespace, Parsed),
-    Seeded = lists:foldl(fun add_interface/2, (prelude_env())#env{namespace = Namespace},
-                         Interfaces),
+    Seeded = lists:foldl(fun add_interface/2, Prelude#env{namespace = Namespace}, Interfaces),
     every_type_declared(Interfaces, Seeded),
     Env = Seeded#env{session_scope = SessionScope},
     try
