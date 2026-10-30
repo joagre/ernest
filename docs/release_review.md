@@ -1,6 +1,6 @@
 # The review before a release
 
-What a release runs to be ready, and nothing else. Between releases a change runs `make test-full` before the commit that closes its plan item (CLAUDE.md, *Tests*). The plan says when a review runs; each finding is fixed, planned, or dropped, and the commit messages say which. A full review, every reader over the whole of its area, runs seldom, as [`full_review.md`](full_review.md) says.
+What a release runs to be ready, and nothing else. Between releases an item that touched the runtime, the nodes or the emitter runs `make test-full` before its closing commit, and any other its area's target (CLAUDE.md, *Tests*). The plan says when a review runs; each finding is fixed, planned, or dropped, and the commit messages say which. A full review, every reader over the whole of its area, runs seldom, as [`full_review.md`](full_review.md) says.
 
 1. **A fresh clone builds and passes:** `git clone`, then `make` and `make test-full`, in a directory of its own, on a machine running nothing else, before the readers start. `make test-full` installs into a scratch prefix and from the release archive, and runs from there (`installation_test_`, [`design/install.md`](design/install.md)).
 2. **Five machines**, over the commit the review starts on; once the findings are made, `make sections` and `make bench` run again over the release's commit, `make load` where the round changed the runtime and `make sanitize` where it changed the helper; dialyzer runs in the clone's full run:

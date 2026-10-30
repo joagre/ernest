@@ -317,11 +317,10 @@ test-install: all test-manual
 	@$(MAKE) -C test install
 test-docs:
 	@$(MAKE) -C test docs
-	@sh tools/paragraphs.sh
 
 # The prose paragraphs past about a hundred words, for their writer to read
-# again (CLAUDE.md, *Writing*); test-docs lists them too, and fails on none.
-# The style tests hold both at 150. comments lists the comment blocks of the
+# again when asked (CLAUDE.md, *Writing*); the style tests hold both at
+# 150. comments lists the comment blocks of the
 # Erlang and the Ernest the same way (docs/style.md).
 paragraphs:
 	@sh tools/paragraphs.sh

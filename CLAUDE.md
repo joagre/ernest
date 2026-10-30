@@ -123,7 +123,7 @@ Meanwhile it changes only in its form, every decision, fact and number kept; a p
 
 - **Every report section has a test** whose comment cites it (`%% report §5.4`); `make sections` names a section without one, which is not implemented.
 - **A test written after the code is a regression test.** Say so, and name what it does not cover. What has found defects here is the terminal harness, a read-back of the code, an independent reader, and the user, not a test that passed on its first run.
-- **`make test`, the light run, runs before every commit; `make test-full`, every area, before the commit that closes a plan item and before a release.** A commit of documents alone runs `make test-docs`. While working, the area a change touches runs its own target; `docs/development.md`'s *Building* names them.
+- **`make test`, the light run, runs before every commit; `make test-full`, every area, before a release and before the commit that closes an item that touched the runtime, the nodes or the emitter.** Any other item closes on its area's target and `make test`, the check that fits the change. A commit of documents alone runs `make test-docs`. While working, the area a change touches runs its own target; `docs/development.md`'s *Building* names them.
 - **Edits to a proposal under discussion are committed at a pause**, at the end of a topic and not after each verdict: one `make test-docs`, which reads every tracked document, a proposal's among them, then one commit by their paths, pushed then. Code, the Makefile and other documents are tested as always.
 - **Readers run before a release, and when the user asks**, as [`docs/release_review.md`](docs/release_review.md) says; the full review's readers read every area whole, when [`docs/full_review.md`](docs/full_review.md) says; the findings of any review or read are sorted as that document's *The findings* says, the `fix` lines made at once, and the rest decided as *Before code* says.
 
@@ -147,7 +147,7 @@ Meanwhile it changes only in its form, every decision, fact and number kept; a p
 
 - **Read the result back before reporting it.** After a design change, read the resulting Ernest code as a reader who knows the rest of Ernest would, against the principles and E.0, which bind the standard library and the toolchain too, and say what surprised. Decide every surprise, not only say it: act on it in the same item or leave it with its reason, record it where its owner keeps it, and take one that needs the user to the user with a recommendation in the same report.
 - **Commit only after the checks pass**, on make's own exit status read in a call of its own, never chained after them with `;` and never on a pipe's, which a `grep` of the output would give. A deletion of tracked files is committed by path at once, or stays staged until the test has run. Push only when the user says so, a proposal's pause excepted (*Tests*).
-- **Every message that reports code work ends with a "Report conformance" section**: the sections applied; every place the report was silent and what was done, or "none"; every deliberate omission, with the MVP that lifts it and the error the code gives meanwhile. "Tests green" does not replace it.
+- **Every message that reports an item that touched the report, the plan or an error's text ends with a "Report conformance" section**: the sections applied; every place the report was silent and what was done, or "none"; every deliberate omission, with the MVP that lifts it and the error the code gives meanwhile. "Tests green" does not replace it. A report of any other item says in one line that the report was not touched.
 - **Stop after each plan item.** Finish it whole, report it, and wait: the user sees each item's design choices before the next builds on them.
 
 **Closing an item.** Each line names a rule above; none adds one.
@@ -159,7 +159,7 @@ Meanwhile it changes only in its form, every decision, fact and number kept; a p
 5. Every report section the item built cited by a test, and a test written after the code called a regression test (*Tests*).
 6. A new name in the glossary, and a new term in Appendix F (*Style*).
 7. The result read back, and every surprise decided (*Done*).
-8. `make test-full` green; the conformance section written; the same commit removes every sentence elsewhere that says the item still waits, in `docs/development.md`'s table, the plan's tables, or an example's header; then a commit that names its paths (*Tests*, *Done*, *The repository*).
+8. The check that fits the item green, `make test-full` where it touched the runtime, the nodes or the emitter; the conformance section written where it is due; the same commit removes every sentence elsewhere that says the item still waits, in `docs/development.md`'s table, the plan's tables, or an example's header; then a commit that names its paths (*Tests*, *Done*, *The repository*).
 9. The report to the user, ending with *Report conformance*, then a stop until the user's word; a push only on that word (*Done*).
 10. Where the item was its milestone's last, the same commit sweeps the plan: the milestone's section goes, its row names its proposal and the log entries that argue it, and every sentence of a later milestone that cited the section's items cites the log instead (*Where a sentence goes*).
 
