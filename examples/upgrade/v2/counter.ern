@@ -22,6 +22,10 @@
 //   `moved` and `ToolMsg` among it (report §8.7).
 // - A peer the tool could not start on is said with its failure, a value,
 //   and passed over.
+// - `moved` is exported, so that it runs at the prompt of a shell attached
+//   to a node of the first build, once `:reload` there has compiled this
+//   build on the node from its source (report §11.2; the deployment guide's
+//   §5.3).
 //
 // Alone it is no node: it moves a counter of its own, and has no peer. As
 // nodes, a counter of the first build runs on b, and the tool runs on a.
@@ -33,6 +37,12 @@
 //     ern build upgrade/v2
 //     ern run --config-dir a upgrade/v2/counter.erc
 //     ern stop --config-dir b
+//
+// Or move b's counter at b's own prompt, from a node ops that b lists
+// without an address (the deployment guide's §6), with `:reload` and then
+// `Counter.moved()` typed there:
+//
+//     ern shell --config-dir ops --attach b --source-root upgrade/v2
 //
 
 type CounterMsg =
@@ -86,7 +96,7 @@ fn count2(total : Int) : Unit receiving CounterMsg =
     }
 
 // Every process of this node that runs count sent its Upgrade, and how many there were.
-fn moved() : Int = {
+export fn moved() : Int = {
     let old = Code.running(count);
     List.forEach(old, fn(process) = send(process, Upgrade(migrate = fn(n) = n, next = count2)));
     List.size(old)

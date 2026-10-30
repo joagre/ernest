@@ -5,7 +5,8 @@
 %% copied in turn, `:load Counter` once and `:reload` at each chapter,
 %% beside the two bare nodes `foo` and `bar`, which chapter 2's commands
 %% make and the nodes' harness starts (ern_nodes_tests), with chapter 5's
-%% build and test run in that directory and chapter 8's stops.
+%% build and test run in that directory, and chapter 8's shell attached to
+%% `foo` and its stops.
 %%
 %% An input is typed once the shell has printed all that the one before it
 %% prints, and what it prints is held to the lines tour/README.md shows, each
@@ -37,9 +38,10 @@
 -record(shell, {dir, port, wait, read, carried = []}).
 
 %% The tour's working directory, the reader's own, which holds the program
-%% and the three configuration directories; the bare nodes' directories
-%% and what waits for each one's end; and the shell that is `a`.
--record(tour, {base, foo, bar, wait_foo, wait_bar, shell}).
+%% and the configuration directories; the bare nodes' directories and what
+%% waits for each one's end; the shell that is `a`; and chapter 8's shell
+%% attached to `foo`.
+-record(tour, {base, foo, bar, wait_foo, wait_bar, shell, attached}).
 
 %%
 %% Chapter 1, a shell that is no node
@@ -201,14 +203,16 @@ inputs([<<"> ", Input/binary>> | Rest]) ->
 %% the tour's closing line tells and does not show: `far` answers "ok" to
 %% an inc and "no answer" to a report.
 %%
-%% The test does not cover the four terminals as a reader sees them, a
+%% The test does not cover the five terminals as a reader sees them, a
 %% node's line's time, which bare node a compute that names none runs on,
-%% nor how long anything took. Its limit is the sum of its 81 waits, each
-%% bounded by the harness's time for one wait: eleven jobs, two ports that
-%% answer, the shell's start, 57 inputs, two nodes' first lines, two lines
-%% of a node's end, three ends and what three said.
+%% nor how long anything took. Its limit is the sum of its 95 waits, each
+%% bounded by the harness's time for one wait: fifteen jobs, two ports that
+%% answer, two shells' starts, 62 inputs, two nodes' first lines, two of
+%% foo's lines of the attach, two lines of a node's end, four ends and what
+%% four said. Chapter 8's attach was written with the guides over the
+%% attached shell, MVP 4.0's item 4.
 tour_test_() ->
-    ern_nodes_tests:nodes_test({waits, 81}, fun tour/1).
+    ern_nodes_tests:nodes_test({waits, 95}, fun tour/1).
 
 tour(Base) ->
     [PortA, PortFoo, PortBar] = [ern_nodes_tests:free_port() || _ <- [a, foo, bar]],
@@ -230,11 +234,16 @@ tour(Base) ->
     quit(Ended),
     {FooOut, FooErr} = ern_nodes_tests:said(Foo),
     {BarOut, BarErr} = ern_nodes_tests:said(Bar),
-    %% each said where it listens, its peer's connection and nothing else,
-    %% and each of chapter 7's three computes printed its line where it ran
-    [?assertEqual([<<"listening on ", (ern_nodes_tests:address(Port))/binary>>,
-                   <<"the peer a connected">>], stamped(Err))
-     || {Err, Port} <- [{FooErr, PortFoo}, {BarErr, PortBar}]],
+    %% each said where it listens and its peer's connection, foo the reload
+    %% that listed ops and ops's connection too, and nothing else but, on
+    %% foo, the end of ops, which comes as foo ends or not at all; and each
+    %% of chapter 7's three computes printed its line where it ran
+    ?assertEqual([<<"listening on ", (ern_nodes_tests:address(PortBar))/binary>>,
+                  <<"the peer a connected">>], stamped(BarErr)),
+    SaidFoo = [<<"listening on ", (ern_nodes_tests:address(PortFoo))/binary>>,
+               <<"the peer a connected">>, <<"ernest.conf was read again">>,
+               <<"the peer ops was added">>, <<"the peer ops connected">>],
+    ?assert(lists:member(stamped(FooErr), [SaidFoo, SaidFoo ++ [<<"the peer ops ended">>]])),
     ?assertEqual(lists:duplicate(3, <<"counting the primes below 200000">>),
                  untimed_lines(FooOut) ++ untimed_lines(BarOut)).
 
@@ -457,26 +466,62 @@ moved_here(#tour{shell = Shell} = Tour) ->
     ?assertEqual(First, Second),
     Tour#tour{shell = Moved}.
 
-%% A compute on foo of `move`, which foo never had, answers once `move` has
-%% sent foo's counter its `Upgrade`, which is then in the counter's mailbox
-%% before anything this node sends it; the counter passes a negative amount
-%% over and keeps its tally (report §6.4, §8.7, Appendix E.27, E.28).
-moved_there(#tour{shell = Shell} = Tour) ->
-    Tour#tour{shell = session(
-        Shell,
-        [{"Peer.computeAt(\"foo\", fn() = Counter.move(), 5000)",
-          ["Right(Unit) : Either(Io.Error, Unit)"]},
-         {"Counter.apply(far, \"inc apples -1\")", [?SENT]},
-         {"Counter.apply(far, \"report\")", ["\"apples: 3, pears: 1\" : String"]}])}.
+%% A shell attached to foo from ops, a directory made in the reader's
+%% directory as the tour makes it, its `listen` removed, listed in foo's
+%% file, which a reload reads, and listing foo, the shell's own node saying
+%% that foo connected before its start line. `:load Counter` sends the
+%% sources of Counter and Tally to foo, which compiles them; `Code.running`
+%% lists foo's counter, which chapter 6's compute started, on the old loop
+%% and none on the new, and `Counter.move()` at foo's prompt sends it its
+%% `Upgrade`, the lists then the other way round, the same address on each.
+%% The counter, which the shell that is `a` then calls, passes a negative
+%% amount over and keeps its tally (report §6.4, §8.7, §11.2, §11.3,
+%% Appendix E.28).
+moved_there(#tour{base = Base, foo = Foo, shell = Shell} = Tour) ->
+    Ops = filename:join(Base, "ops"),
+    created(Base, "config --config-dir ops"),
+    ern_nodes_tests:edit(Ops, fun(Conf) -> maps:remove(<<"listen">>, Conf) end),
+    [?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, Words))
+     || Words <- ["config --config-dir ops --peer-dir foo",
+                  "config --config-dir foo --peer-dir ops", "reload --config-dir foo"]],
+    ern_nodes_tests:says(Foo, "the peer ops was added"),
+    Attached = started(Base, Ops, " --config-dir ops --attach foo",
+                       [<<"the peer foo connected">>], ":detach"),
+    Running = "\\[<address [0-9]+>\\] : List\\(Address\\(Counter\\.CounterMsg\\)\\)",
+    Empty = "[] : List(Address(Counter.CounterMsg))",
+    #shell{read = Read} = Moved = session(
+        Attached,
+        [{":load Counter",
+          ["Tally, compiled from tally.ern", "Counter, compiled from counter.ern"]},
+         {"Code.running(Counter.count)", [{re, Running}]},
+         {"Code.running(Counter.count2)", [Empty]},
+         {"Counter.move()", []},
+         {"Code.running(Counter.count)", [Empty]},
+         {"Code.running(Counter.count2)", [{re, Running}]}]),
+    {match, [[First], [Second]]} = re:run(Read, Running, [global, {capture, first, binary}]),
+    ?assertEqual(First, Second),
+    ern_nodes_tests:says(Foo, "the peer ops connected"),
+    Tour#tour{attached = Moved,
+              shell = session(Shell,
+                              [{"Counter.apply(far, \"inc apples -1\")", [?SENT]},
+                               {"Counter.apply(far, \"report\")",
+                                ["\"apples: 3, pears: 1\" : String"]}])}.
 
-%% `ern stop --config-dir foo` ends foo by termination, with status 143,
-%% and the shell says that foo ended; `far` then answers "ok" to an inc,
-%% since a send does not wait, and "no answer" to a report; `ern stop
-%% --config-dir bar` ends bar, which the shell says too, since chapter 7
-%% connected to it (report §8.6, §8.7, §11.2, §11.3).
-stopped(#tour{base = Base, wait_foo = WaitFoo, wait_bar = WaitBar, shell = Shell} = Tour) ->
+%% `ern stop --config-dir foo` ends foo by termination, with status 143;
+%% the shell attached to foo ends with it, with status 0, saying on its
+%% standard error that foo ended, and the shell that is `a` says so too;
+%% `far` then answers "ok" to an inc, since a send does not wait, and "no
+%% answer" to a report; `ern stop --config-dir bar` ends bar, which the
+%% shell says too, since chapter 7 connected to it (report §8.6, §8.7,
+%% §11.2, §11.3, §11.8).
+stopped(#tour{base = Base, wait_foo = WaitFoo, wait_bar = WaitBar, shell = Shell,
+              attached = #shell{dir = Ops, wait = WaitAttached, read = Read}} = Tour) ->
     ?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "stop --config-dir foo")),
     ?assertEqual(143, WaitFoo()),
+    ?assertEqual(0, WaitAttached()),
+    {Out, Err} = ern_nodes_tests:said(Ops),
+    ?assertEqual(Read, binary:part(list_to_binary(Out), 0, byte_size(Read))),
+    ?assertEqual("the node foo ended\n", Err),
     Lost = session(unasked(Shell, ["the peer foo ended"]),
                    [{"Counter.apply(far, \"inc apples 1\")", [?SENT]},
                     {"Counter.apply(far, \"report\")", ["\"no answer\" : String"]}]),
@@ -500,12 +545,16 @@ copied(Chapter, Base) ->
 %% Report §11.2, §12.5: a shell started in the reader's directory, `ern
 %% shell` with Options, its HOME a directory of its own so that no
 %% person's startup file runs; once it has printed its start line, as this
-%% build writes it, and its first prompt, after the lines its node says as
-%% it starts, Said, each without its time.
+%% build writes it, `:detach` in `:quit`'s place for an attached shell,
+%% Leave, and its first prompt, after the lines its node says as it starts,
+%% Said, each without its time.
 started(Base, Dir, Options) ->
     started(Base, Dir, Options, []).
 
 started(Base, Dir, Options, Said) ->
+    started(Base, Dir, Options, Said, ":quit").
+
+started(Base, Dir, Options, Said, Leave) ->
     Home = Dir ++ ".home",
     ok = filelib:ensure_path(Home),
     {Port, Wait} = ern_nodes_tests:launched(Dir, ["cd ", Base, " && HOME=", Home, " ", ?ERN,
@@ -513,7 +562,7 @@ started(Base, Dir, Options, Said) ->
     ern_nodes_tests:prints(Dir, "> "),
     Started = written(Dir),
     Start = iolist_to_binary(["Ernest ", ern_release:version_text(),
-                              ". :help for the commands, :quit to leave.\n> "]),
+                              ". :help for the commands, ", Leave, " to leave.\n> "]),
     Before = byte_size(Started) - byte_size(Start),
     ?assertEqual({Said, Start}, {stamped(binary:part(Started, 0, Before)),
                                  binary:part(Started, Before, byte_size(Start))}),

@@ -3183,17 +3183,26 @@ total: Some(5)
 
 The state's type is in the message type, `next : (Int) -> Unit receiving CounterMsg`, and a process keeps its mailbox type for life, so no `Upgrade` gives a running server a state of another type. A server whose state takes a new type is a new process of the new build, started from the old one's state. The old one gives its state up in answer to a request of its own protocol, or writes it to a file the new one reads, as §8.2's store keeps its count. The clients are then given the new process's address, or find it again as a service (§8.2).
 
-On a peer, the tool cannot send the `Upgrade` from here, since a function value does not cross in a message (§8.4). It spawns on the peer a process that moves the peer's counters there, naming `count`, `count2` and `Upgrade` by their declarations; what the peer lacks, `count2` among it, crosses with the spawn (§8.1), so a fix reaches a node that never had it:
+On a peer, the move is made at the peer's own prompt, from a shell attached to it (§9.2). Its inputs run on the peer, and `:reload`, or `:load` for a module the peer does not hold, sends the new build's source there as text, which the peer compiles as its own (report §11.2). A function of the new build called at that prompt runs `Code.running` on the peer and sends each counter its `Upgrade` there, so no function value crosses in a message (§8.4). With a counter of [`examples/upgrade`](../examples/upgrade/)'s first build on the peer `b`, and `ops` the operator's node, which `b` lists, the second build's `moved` moves the counters of its node and answers how many:
 
-```ernest-fragment
-let _ = Peer.spawn(node, fn() = List.forEach(Code.running(count),
-                                            fn(process) = send(process, Upgrade(migrate = fn(n) = n, next = count2))),
-                   5000)
+```console
+$ ern shell --config-dir ops --attach b --source-root upgrade/v2
+the peer b connected
+Ernest 0.6.0. :help for the commands, :detach to leave.
+> :reload
+Counter, compiled again
+> Counter.moved()
+1 : Int
+> Counter.moved()
+0 : Int
+> :detach
 ```
+
+`b`'s build holds `Counter`, so `:reload` compiles the second build there as the module's next version, `count2` among it, which `b` never had. `count` is written alike in both builds, one hash, so `Code.running(count)` in `moved` lists the counter `b`'s build started.
 
 A type that carries `Upgrade` holds a function, so it is bound to its node (§8.4). A process reached from another node, a service or one spawned on a peer, is offered through an adapted address (§5.5) of a type without it, and its upgrade is sent on its own node.
 
-New code that is not in the program's build comes by `Code.load(path)`, which loads a compiled module and its *reach*, every definition its code names, directly or through others, on the running node and evaluates their bindings (report Appendix E.28). The example `examples/upgrade` is the whole of it, a counter's two builds, [`v1/counter.ern`](../examples/upgrade/v1/counter.ern) and [`v2/counter.ern`](../examples/upgrade/v2/counter.ern), and the second's tool moving the first's counters here and on every peer, and the deployment guide's §5.3 is the operator's side of the move.
+New code that is not in the program's build comes by `Code.load(path)`, which loads a compiled module and its *reach*, every definition its code names, directly or through others, on the running node and evaluates their bindings (report Appendix E.28). The example `examples/upgrade` is the whole of it, a counter's two builds, [`v1/counter.ern`](../examples/upgrade/v1/counter.ern) and [`v2/counter.ern`](../examples/upgrade/v2/counter.ern), the second's `moved` called at a node's prompt and its tool, which moves the first's counters here and spawns the move on every peer, and the deployment guide's §5.3 is the operator's side of the move.
 
 ## 9. Tools
 
@@ -3218,6 +3227,7 @@ One command, `ern`, whose first word is its job, and a mode for Emacs. `ern --he
 - `--libs-dir dir` adds the Erlang applications under `dir`, each one's `ebin`: one flag where a program's foreign functions call several of them (report §11.2).
 - `ern test module.erc` runs the module's tests, and `ern test dir` those of every module compiled under the directory; it exits with status 1 unless all passed (§7.1).
 - `ern shell`, with or without a file, starts the shell (§1.2). A file's `main`, or the function `--main` names, runs beside it; a file without either is loaded with nothing running. `--source-root dir` names where `:load` finds a module's source, and `--config-dir dir` the configuration directory.
+- `ern shell --config-dir dir --attach name` attaches the shell to the peer `name` that `dir` lists: the session runs on that node, every module of its build in scope, and `:load` and `:reload` send a module's source there as text; the terminal and the files stay with the node `dir` makes the shell, which `name` lists without an address. `:detach` leaves, and what the session started runs on (§8.9, report §11.2); the deployment guide's §6 is the operator's use of it.
 - `ern config --config-dir dir` makes the configuration a node with peers needs (§8) in the directory `dir`, listening where `--listen address:port` says; `ern config --config-dir dir --peer-dir other` lists the node of `other`, a directory of this machine, in `dir`'s (§8.1, report §11.3). `ern run --config-dir dir` runs the program as that node, and `ern reload --config-dir dir` and `ern stop --config-dir dir` have the running node read its configuration again, or end, `ern stop` returning once it has (report §11.2). `ern reload` reads the directory as the node would, and refuses a configuration the node would refuse, with status 1, before it signals.
 
 ### 9.3 The shell

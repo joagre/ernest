@@ -49,14 +49,7 @@ One form of attaching, by a listed peer, since a node accepts a connection from 
 2. **The runtime**, done 2026-10-30 (the log's *The Session's Screen and the Toolchain's Units,
    Built*).
 3. **The shell**, done 2026-10-30 (the log's *The Attached Shell, Built*).
-4. **The guides**: the deployment guide's sections 5.3 and 6 rewritten over the attached shell,
-   an attach made with the node's own release of `ern` among what section 6 says, and the
-   language guide's §8.9 upgrade becoming a `:load` of the new build at the node's prompt with
-   `Code.running` run there (asked by the user 2026-10-18). The line, decided 2026-10-30: a
-   compute stays where the text teaches a program's own operation, the language guide's §8.1 and
-   the tour's chapter 7 starting a counter on `foo`; an attached session replaces it wherever an
-   operator looks at a node or acts on it from a prompt, the tour's chapter 8 upgrading `foo`'s
-   counter by `:load` at its prompt among them, the chapters' programs unchanged.
+4. **The guides**, done 2026-10-30 (the log's *The Guides Over the Attached Shell*).
 5. **The tests and the release**: the nodes tests over a shell attached to a bare node and to a
    program's node, two sessions on one node, a `:load` shipped as text, a detach that leaves a
    service running, the node's loss and an attach that fails; the guide's section 6 run by them; the session golden
@@ -75,6 +68,21 @@ One form of attaching, by a listed peer, since a node accepts a connection from 
    unit compiled, loaded and run. A slow tool is a defect (CLAUDE.md, *Design*). The shape of
    its fix: measure where the input's time goes, the compile, the load, the front end's table and
    the screen's round trip, as `make bench` measures, and fix it at its cause; before the release.
+8. **An attached shell's last line shares the prompt's row**, found 2026-10-30 as item 4 ran
+   its sessions: where the node ends or is lost, the shell writes `the node b ended`, or `the
+   node b is lost`, after the `> ` the session's screen last drew, `> the node b ended`, at a
+   terminal and in line mode alike, where a detach leaves the cursor on a line of its own. The
+   shape of its fix: the local half takes the region away before the runner says the line, as
+   the screen's `finish` does at a detach (the shell's note, *Processes*), which
+   needs the local half to know the rows the region's last paint holds; before the release.
+9. **Whether an attached shell's own node is a pick of `Peer.compute`**, a decision found
+   2026-10-30 as item 4 ran its sessions: the shell's own node lists the node it attaches to and
+   tells it its utilization as it connects, as every node that lists peers does (Appendix E.27),
+   so a compute that names no node, on that node, may run on the operator's machine; at `b`'s
+   prompt `Peer.compute(fn() = Io.println("computed here"), 5000)` ran on `ops`. Recommended: an
+   attached shell's own node tells no peer its utilization, so that no such compute picks it,
+   and a spawn or a compute that names it stays a listed peer's, as §11.2 would say. Discussed
+   with the user before the release.
 
 The attached shell is the operator's alone, trusted as a peer is, with no sandbox: the website runs
 the plain shell in a container per visitor (MVP 4.2).

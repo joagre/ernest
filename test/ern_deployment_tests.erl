@@ -19,6 +19,9 @@
 
 -define(ERN, filename:absname("../bin/ern")).
 -define(GUIDE, "../guide/deployment.md").
+%% Report §11.2: the time before a line a node writes where its stream is
+%% no terminal, which the guide leaves out.
+-define(STAMP, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z ").
 %% The program the guide's sections 1.3, 5.3 and 8 build and run, its two
 %% builds, `v1` and `v2`, one module.
 -define(EXAMPLE, "../examples/upgrade").
@@ -32,29 +35,32 @@
 %% guide/deployment.md, section 8; report §8.7, §11.2, §11.3, §11.8: three
 %% directories made, each printing its key; the counters of the example's
 %% first build built and started on b and c, which say nothing until a peer
-%% connects; a shell beside them, from ops, whose compute lists b's
-%% processes, the counter's among them with its site in Counter.serve, b
-%% saying that ops connected; b reloaded with a peer added, which it says;
-%% the second build built and its tool run on a, which prints the lines the
-%% console shows, the peers' in the order they answer, each moved though it
-%% lacked the new loop, ends with status 0, and connects to b and c, each
-%% saying so and saying that a ended; and b and c stopped, each saying
-%% nothing of a wait, ending with status 143, and the shell saying that b
-%% ended.
+%% connects; a shell attached to b from ops, whose `:processes` lists the
+%% counter by its site, Counter.serve, as the session the guide shows, b
+%% saying that ops connected; and b reloaded with a peer added, which it
+%% says.
+%%
+%% Then the second build built and its tool run on a, which prints the
+%% lines the console shows, the peers' in the order they answer, each moved
+%% though it lacked the new loop, ends with status 0, and connects to b and
+%% c, each saying so and saying that a ended; and b and c stopped, each
+%% saying nothing of a wait, ending with status 143, and the attached shell
+%% ending with b, with status 0, saying that b ended.
 %%
 %% The guide's directories are relative, and the test runs the commands
 %% from the directory that holds them, the ports the harness's. It does not
-%% cover the counters' totals after the move, nor a shell's monitor at b's
-%% stop. Its limit is the sum of its twenty-eight waits, each bounded by
-%% the harness's time for one wait: ten jobs, two ports that answer, nine
-%% lines, four ends, the tool's, the two nodes' and the shell's, and what
-%% three nodes said.
+%% cover the counters' totals after the move. Its limit is the sum of its
+%% twenty-eight waits, each bounded by the harness's time for one wait: ten
+%% jobs, two ports that answer, six lines, the session's two prompts, four
+%% ends, the tool's, the two nodes' and the shell's, and what the tool, the
+%% two nodes and the shell said. The session is a regression test, attached
+%% with the guides over the attached shell, MVP 4.0's item 4.
 runbook_test_() ->
     ern_nodes_tests:nodes_test({waits, 28}, fun runbook/1).
 
 runbook(Base) ->
     [Directories, Started, Reloaded, Moved, Stopped] = consoles("## 8."),
-    [Inputs] = [[Input || "> " ++ Input <- Lines] || {"## 8." ++ _, "", Lines} <- blocks()],
+    [Session] = [Lines || {"## 8." ++ _, "", Lines} <- blocks()],
     ok = copied(Base),
     %% the shell's directory is made as the others are, which the step says
     %% and its console does not show
@@ -69,20 +75,9 @@ runbook(Base) ->
     ern_nodes_tests:lists(Ops, [{"b", B, PortB}, {"c", C, PortC}]),
     [{B, WaitB}, {C, WaitC}] = ran(Base, Started),
     [listens(Dir, Port) || {Dir, Port} <- [{B, PortB}, {C, PortC}]],
-    %% the check from a shell, its file none, since a file's main would run
-    Home = Ops ++ ".home",
-    ok = filelib:ensure_path(Home),
-    {Shell, WaitShell} = ern_nodes_tests:launched(Ops, ["cd ", Base, " && HOME=", Home, " ",
-                                                        ?ERN, " shell --config-dir ops"]),
-    true = port_command(Shell, [[Input, "\n"] || Input <- Inputs]),
-    ern_nodes_tests:prints(Ops, ") : Either(Io.Error, List(Process))"),
-    ern_nodes_tests:has(ern_nodes_tests:written(Ops, out), "Right([<process "),
+    %% the check from a shell attached to b, left attached
+    {attached, WaitShell} = attached(Base, Ops, Session),
     ern_nodes_tests:says(B, "the peer ops connected"),
-    %% the compute given the harness's time for one wait, the step it is of
-    true = port_command(Shell, ["Peer.computeAt(\"b\", fn() = List.map(Process.live(),"
-                                " Process.status), ",
-                                integer_to_list(ern_nodes_tests:wait_ms()), ")\n"]),
-    ern_nodes_tests:prints(Ops, "Some(Status(site = \"Counter.serve\""),
     %% a peer added to b's file, and the reload
     [] = ran(Base, [{"config --config-dir d", []}]),
     ern_nodes_tests:lists(B, [{"a", A, none}, {"ops", Ops, none},
@@ -100,9 +95,10 @@ runbook(Base) ->
     [] = ran(Base, Stopped),
     ?assertEqual(143, WaitB()),
     ?assertEqual(143, WaitC()),
-    ern_nodes_tests:prints(Ops, "the peer b ended"),
-    true = port_command(Shell, ":quit\n"),
+    %% report §11.2, §11.8: the attached shell ends with its node
     ?assertEqual(0, WaitShell()),
+    {_, ErrShell} = ern_nodes_tests:said(Ops),
+    ?assertEqual("the node b ended\n", ErrShell),
     {_, ErrB} = ern_nodes_tests:said(B),
     {_, ErrC} = ern_nodes_tests:said(C),
     [?assertEqual(nomatch, string:find(Err, "the end waits for")) || Err <- [ErrB, ErrC]],
@@ -265,31 +261,44 @@ statuses(Base) ->
 %% Section 5.3, a service moved to new code
 %%
 
-%% guide/deployment.md, section 5.3; report §6.10, §8.7, §11.1, Appendix
-%% E.28: a counter of the example's first build on b, as section 8 starts
-%% it, and the console's build of the second and its tool run on a, which
-%% prints the lines it shows, b's counter moved though b lacked the new
-%% loop; and the tool run again with a peer listed that nothing answers,
-%% which is a line with the failure. It does not cover a build loaded with
-%% `Code.load`. Its limit is the sum of its eight waits, each bounded by
-%% the harness's time for one wait: two builds, a port that answers, the
-%% ends of the tool's two runs and of b, and what the tool's two runs said
+%% guide/deployment.md, section 5.3; report §6.10, §8.7, §11.1, §11.2,
+%% Appendix E.28: a counter of the example's first build on b, as section 8
+%% starts it, and the session the section shows, a shell attached to b from
+%% ops with the second build's directory as its source root, whose
+%% `:reload` compiles the second build on b and whose `Counter.moved()`
+%% moves b's counter, which b's build started, then finds none; `:detach`
+%% ends the shell with status 0.
+%%
+%% Then section 8's tool, the second build built, run on a with a peer
+%% listed that nothing answers, which is a line with the failure. It does
+%% not cover a build loaded with `Code.load`. Its limit is the sum of its
+%% twelve waits, each bounded by the harness's time for one wait: two
+%% builds, a port that answers, the session's four prompts, the ends of the
+%% shell, of the tool and of b, and what the shell and the tool said. The
+%% session is a regression test, attached with the guides over the attached
+%% shell, MVP 4.0's item 4.
 upgrade_test_() ->
-    ern_nodes_tests:nodes_test({waits, 8}, fun upgrade/1).
+    ern_nodes_tests:nodes_test({waits, 12}, fun upgrade/1).
 
 upgrade(Base) ->
-    [[Build, {Tool, _} = Moved]] = consoles("### 5.3"),
+    [Session] = [Lines || {"### 5.3" ++ _, "", Lines} <- blocks()],
+    Section8 = lists:append(consoles("## 8.")),
+    [Built] = [Command || {"build upgrade/v2", _} = Command <- Section8],
+    [{Tool, _}] = [Command || {"run --config-dir a " ++ _, _} = Command <- Section8],
     ok = copied(Base),
     PortB = ern_nodes_tests:free_port(),
     A = ern_nodes_tests:made(Base, "a", none),
     B = ern_nodes_tests:made(Base, "b", PortB),
     C = ern_nodes_tests:made(Base, "c", none),
-    ern_nodes_tests:lists(A, [{"b", B, PortB}]),
-    ern_nodes_tests:lists(B, [{"a", A, none}]),
+    Ops = ern_nodes_tests:made(Base, "ops", none),
+    ern_nodes_tests:lists(Ops, [{"b", B, PortB}]),
+    ern_nodes_tests:lists(B, [{"a", A, none}, {"ops", Ops, none}]),
     ?assertEqual({0, "", ""}, job(Base, "build upgrade/v1")),
     {_, WaitB} = node(Base, "run --config-dir b --main Counter.serve upgrade/v1/counter.erc"),
     listens(B, PortB),
-    [] = ran(Base, [Build, Moved]),
+    detached = attached(Base, Ops, Session),
+    %% section 8's tool, with a peer that nothing answers
+    [] = ran(Base, [Built]),
     ern_nodes_tests:lists(A, [{"b", B, PortB}, {"c", C, ern_nodes_tests:free_port()}]),
     {_, Again} = node(Base, Tool),
     ?assertEqual(0, Again()),
@@ -627,6 +636,57 @@ node(Base, Words) ->
     Dir = filename:join(Base, Name),
     {_, Wait} = ern_nodes_tests:launched(Dir, ["cd ", Base, " && ", ?ERN, " ", Words]),
     {Dir, Wait}.
+
+%% Report §11.2 *The attached shell*: a session the guide shows, its first
+%% line the command that attaches, run from Base by the node of Ops in line
+%% mode, its HOME a directory of its own so that no person's startup file
+%% runs, each `> ` input typed once the prompt before it has come, one step
+%% a prompt.
+%%
+%% What the shell has printed is then held to the lines shown, as line mode
+%% prints them: a prompt with no input after it, since line mode echoes
+%% none, the start line this build's, and a line its node says without its
+%% time, which nothing orders against the start line. Where the last input
+%% is `:detach`, the shell has ended with status 0, having left the cursor
+%% on a line of its own and written nothing on standard error, and the
+%% answer is `detached`; otherwise it waits at its prompt, and the answer is
+%% `{attached, Wait}`, what waits for its end.
+attached(Base, Ops, ["$ ern " ++ Words | Lines]) ->
+    Home = Ops ++ ".home",
+    ok = filelib:ensure_path(Home),
+    {Shell, Wait} = ern_nodes_tests:launched(Ops, ["cd ", Base, " && HOME=", Home, " ", ?ERN,
+                                                   " ", Words]),
+    Inputs = [Input || "> " ++ Input <- Lines],
+    _ = lists:foldl(fun(Input, Prompts) ->
+                        ern_nodes_tests:prints(Ops, "> ", Prompts, ern_nodes_tests:wait_ms()),
+                        true = port_command(Shell, [Input, "\n"]),
+                        Prompts + 1
+                    end, 1, Inputs),
+    {Tail, Printed, Answer} =
+        case lists:last(Inputs) of
+            ":detach" ->
+                ?assertEqual(0, Wait()),
+                {Out, Err} = ern_nodes_tests:said(Ops),
+                ?assertEqual("", Err),
+                {"\n", Out, detached};
+            _ ->
+                ern_nodes_tests:prints(Ops, "> ", length(Inputs) + 1, ern_nodes_tests:wait_ms()),
+                {"> ", ern_nodes_tests:written(Ops, out), {attached, Wait}}
+        end,
+    Untimed = re:replace(Printed, ?STAMP, "", [global, multiline, {return, list}]),
+    {Said, Shown} = lists:partition(fun(Line) -> lists:prefix("the peer ", Line) end, Lines),
+    Unsaid = lists:foldl(fun(Line, Text) ->
+                             ?assertEqual(1, length(string:split(Text, Line ++ "\n", all)) - 1),
+                             string:replace(Text, Line ++ "\n", "", all)
+                         end, Untimed, Said),
+    Start = "Ernest " ++ ern_release:version_text() ++ ".",
+    Expected = [case Line of
+                    "> " ++ _ -> "> ";
+                    "Ernest " ++ Rest -> [Start, string:find(Rest, " "), "\n"];
+                    _ -> [Line, "\n"]
+                end || Line <- Shown] ++ [Tail],
+    ?assertEqual(lists:flatten(Expected), lists:flatten(Unsaid)),
+    Answer.
 
 %% A job run from Base by its words after `ern`, as a person runs it: its
 %% status, its standard output and its standard error. One step of the

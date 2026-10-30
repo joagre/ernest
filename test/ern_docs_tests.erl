@@ -457,14 +457,18 @@ loads_listed_test() ->
 
 %% report §11.2, docs/release_review.md: a shell's start line a tracked
 %% document shows, `Ernest 0.5.0. :help for the commands, :quit to leave.`,
-%% names the release VERSION holds, in every document but the log, which is
-%% history, and a proposal, so that a release that forgets one is told. The
-%% guide's and the catalog's sessions are held to it as they run
-%% (ern_guide_tests), and the README's by ern_tour_tests; the tour's two
-%% were held by nothing. A regression test, written after the tour
+%% or `:detach` in `:quit`'s place for an attached shell's, names the release
+%% VERSION holds, in every document but the log, which is history, and a
+%% proposal, so that a release that forgets one is told. The guide's and the
+%% catalog's sessions are held to it as they run (ern_guide_tests), and the
+%% README's by ern_tour_tests; the tour's two were held by nothing. A
+%% regression test, written after the tour; the attached shell's line was
+%% added with the guides over the attached shell, MVP 4.0's item 4
 start_lines_test() ->
     Version = string:trim(ern_repository:read("VERSION")),
-    Expected = <<"Ernest ", Version/binary, ". :help for the commands, :quit to leave.">>,
+    Expected = [<<"Ernest ", Version/binary, ". :help for the commands, :", Leave/binary,
+                  " to leave.">>
+                || Leave <- [<<"quit">>, <<"detach">>]],
     Files = [File || File <- string:lexemes(os:cmd("git -C " ++ ?ROOT ++ " ls-files '*.md'"), "\n"),
                      File =/= "docs/log.md", not lists:prefix("docs/proposals/", File)],
     Found = [{File, Line} || File <- Files,
@@ -472,7 +476,7 @@ start_lines_test() ->
                              binary:match(Line, <<"Ernest ">>) =:= {0, 7},
                              binary:match(Line, <<". :help for the commands">>) =/= nomatch],
     ?assert(length(lists:usort([File || {File, _} <- Found])) >= 3),
-    ?assertEqual([], [Each || {_, Line} = Each <- Found, Line =/= Expected]).
+    ?assertEqual([], [Each || {_, Line} = Each <- Found, not lists:member(Line, Expected)]).
 
 %% docs/release_review.md, step 5: docs/man/ holds the pages `make man`
 %% writes from main, so the release that changes VERSION writes them again;

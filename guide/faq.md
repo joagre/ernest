@@ -16,7 +16,7 @@ Ernest compiles to the Erlang runtime, OTP 29, and to nothing else. What Gleam h
 
 **Where are `gen_server` and the supervisors?**
 
-In the language, as what they were made of. A server is a `receive` loop that keeps its state in its arguments, and a request carries a `Reply`, which `Address.call` waits on with a deadline (the guide's §4.4). Of what `gen_server` adds to the loop: `code_change` is the message of the process's own type that carries the new loop (the guide's §4.6); `terminate`'s work is the runtime's, since what a process opened ends with it (the guide's §8.7), and what the other side hears is a monitor's `Down` with the reason (the guide's §5.2); and `sys`, its suspend, its state read from outside and its trace, has nothing in its place, a shell beside the node being the operator's window (the deployment guide's §6).
+In the language, as what they were made of. A server is a `receive` loop that keeps its state in its arguments, and a request carries a `Reply`, which `Address.call` waits on with a deadline (the guide's §4.4). Of what `gen_server` adds to the loop: `code_change` is the message of the process's own type that carries the new loop (the guide's §4.6); `terminate`'s work is the runtime's, since what a process opened ends with it (the guide's §8.7), and what the other side hears is a monitor's `Down` with the reason (the guide's §5.2); and `sys`, its suspend, its state read from outside and its trace, has nothing in its place, a shell attached to the node being the operator's window (the deployment guide's §6).
 
 A process that must come back runs its function under `restarting`, which runs the function again in the same process when it faults, so that the address holds; that is why there is no registry on a node: a service is a top-level binding that holds such an address, made when the program starts, in dependency order with every other binding (report §8.5), and good for its life (the guide's §6.5).
 
@@ -100,7 +100,7 @@ The `needs` is written, never inferred, and no type is declared an instance of a
 
 **Where are ETS, tracing, `observer`, back pressure and releases?**
 
-A table is the library `Ets`, the host's table with Ernest types on it, owned by the process that made it and read and written by every process of its node (report Appendix G.1). There is no tracing and no `observer`: a shell started beside a node is the operator's window, each look through it a compute on the node (the deployment guide's §6). A shell does not attach to a running node: its inputs run on its own node.
+A table is the library `Ets`, the host's table with Ernest types on it, owned by the process that made it and read and written by every process of its node (report Appendix G.1). There is no tracing and no `observer`: a shell attached to a node is the operator's window, its inputs running on the node and `:processes` listing what runs there, each process by its spawn site and what it does (the deployment guide's §6).
 
 In place of `global`, a service has one holder on each node that offers it, and a find answers the address offered by the first peer that offers it, in the order the configuration lists them (the guide's §8.2). In place of `pg`, a group of processes across nodes is the program's own, a process that keeps their addresses.
 

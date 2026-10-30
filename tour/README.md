@@ -12,9 +12,9 @@
 
 Ernest in an evening: one program, a counter, grown through eight chapters from a process with a typed mailbox to the same counter on a node started with none of its code, moved to new code there. It is for the programmer who has used a functional language and will read neither the report nor the guide first. Every rule the tour meets is the guide's, [*Programming in Ernest*](../guide/language.md), or the [deployment guide](../guide/deployment.md)'s where the operator's world is met, and the tour names the section, the report's where no guide states the rule; what the program has just done that your language cannot, the tour says where it happens, naming the claim of [*Why Ernest*](../guide/why.md) it meets.
 
-An hour to read, and about three to do along, with `ern` installed as the [README](../README.md) says and four terminals: your own, the shell's, and from chapter 2 one for each of two nodes. Each chapter is a change to the program, then what was typed and what was printed, then a few sentences.
+An hour to read, and about three to do along, with `ern` installed as the [README](../README.md) says and five terminals: your own, the shell's, from chapter 2 one for each of two nodes, and in chapter 8 one for a shell attached to a node. Each chapter is a change to the program, then what was typed and what was printed, then a few sentences.
 
-The directories `tour/1/` to `tour/8/` hold the program as it stands at the end of each chapter, each a program of its own, so a chapter's build and tests run from its directory alone. Work in a directory of your own, make the nodes' directories in it, copy a chapter's files into it as the chapter begins, and from chapter 2 on the shell you started runs to the end: the sessions of chapters 2 to 8 are one session, and a reader who starts at chapter 5 types chapters 2 to 4 first.
+The directories `tour/1/` to `tour/8/` hold the program as it stands at the end of each chapter, each a program of its own, so a chapter's build and tests run from its directory alone. Work in a directory of your own, make the nodes' directories in it, copy a chapter's files into it as the chapter begins, and from chapter 2 on the shell you started runs to the end: the sessions of chapters 2 to 8 are one session, chapter 8's attached shell beside it, and a reader who starts at chapter 5 types chapters 2 to 4 first.
 
 - [1. The counter](#1-the-counter): a process with a typed mailbox, and a wrong message and a wrong mailbox refused
 - [2. Two bare nodes](#2-two-bare-nodes): the same counter on a node that holds none of its code
@@ -23,7 +23,7 @@ The directories `tour/1/` to `tour/8/` hold the program as it stands at the end 
 - [5. Per key](#5-per-key): an abstract type with a requirement, a test, a deadlock found, and a protocol refused across versions
 - [6. The door](#6-the-door): the message by which new code will reach the counter
 - [7. Work anywhere](#7-work-anywhere): a host question checked at the crossing, and work placed on whichever node has room
-- [8. The fix](#8-the-fix): the counters moved to new code with their tallies kept, and a node's end
+- [8. The fix](#8-the-fix): the counters moved to new code with their tallies kept, `foo`'s from a shell attached to it, and a node's end
 
 ## 1. The counter
 
@@ -576,20 +576,50 @@ Counter, compiled again
 
 That is the second claim of *Why Ernest* at its peak: the same process, new code, its state kept, told by a message of its own type. `count` stays in the source unchanged, since it is how the counters still on it are found, until `Code.running(count)` is empty on every node and it may go; nothing a node has loaded is unloaded while it runs, so a node reloaded without end grows with its versions (the guide's §8.9, the deployment guide's §4.2).
 
-Then on `foo`, which never had `count2` or `move`:
+Then on `foo`, which never had `count2` or `move`, from a shell *attached* to it: its inputs run on `foo`, and the terminal and the files stay with the node it starts from, `ops`, which `foo` lists without an address, since the shell dials in (the deployment guide's §6). In your own terminal, with `listen` removed from `ops/ernest.conf` after the first command, since `ops` only dials, the one edit no command makes:
 
 ```console
-> Peer.computeAt("foo", fn() = Counter.move(), 5000)
-Right(Unit) : Either(Io.Error, Unit)
+$ ern config --config-dir ops
+-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEATN5sCXrynIquQLA6+WkGN5RrSe53fB6B1V7zAIIr7JI=
+-----END PUBLIC KEY-----
+$ ern config --config-dir ops --peer-dir foo
+$ ern config --config-dir foo --peer-dir ops
+$ ern reload --config-dir foo
+```
+
+`foo`'s terminal says `ernest.conf was read again` and `the peer ops was added`. Then, in a fifth terminal, in your directory:
+
+```console
+$ ern shell --config-dir ops --attach foo
+the peer foo connected
+Ernest 0.6.0. :help for the commands, :detach to leave.
+> :load Counter
+Tally, compiled from tally.ern
+Counter, compiled from counter.ern
+> Code.running(Counter.count)
+[<address 131>] : List(Address(Counter.CounterMsg))
+> Code.running(Counter.count2)
+[] : List(Address(Counter.CounterMsg))
+> Counter.move()
+> Code.running(Counter.count)
+[] : List(Address(Counter.CounterMsg))
+> Code.running(Counter.count2)
+[<address 131>] : List(Address(Counter.CounterMsg))
+```
+
+`ops` says `the peer foo connected` as the shell dials, and `foo` says `the peer ops connected`. `:load` read `counter.ern` and `tally.ern` from your directory and sent them to `foo` as text, and `foo` compiled them, as it compiles each input; nothing compiled crossed. The `count` that `foo` compiled from the source is the one that crossed with chapter 6's compute, one hash, so `Code.running` lists `foo`'s counter. `move` ran on `foo` and sent the counter the door's message there, so no function crossed in a message; a `send` on the counter's own node puts its message in the mailbox before it returns (the guide's §4.1), so the `Upgrade` was there before the input answered, and before anything `a` sends next. Back at the shell that is `a`:
+
+```console
 > Counter.apply(far, "inc apples -1")
 "ok" : String
 > Counter.apply(far, "report")
 "apples: 3, pears: 1" : String
 ```
 
-The compute carried the new loop and `move` to `foo` and ran `move` there, where `Code.running` finds `foo`'s counter and sends it the door's message, so no function crossed in a message. It answered once `move` had sent, and a `send` on the counter's own node puts its message in the mailbox before it returns (the guide's §4.1), so the `Upgrade` was there before anything of ours reached it. The counter on the node started with none of this program's code runs its new code, with the tally it has counted since chapter 6.
+The counter on the node started with none of this program's code runs its new code, with the tally it has counted since chapter 6.
 
-In your own terminal, `ern stop --config-dir foo`, and the shell says:
+In your own terminal, `ern stop --config-dir foo`. The attached shell ends with `foo`, where its session ran, saying `the node foo ended`, and exits with status 0; the shell that is `a` says:
 
 ```console
 the peer foo ended
@@ -599,6 +629,6 @@ the peer foo ended
 "no answer" : String
 ```
 
-`ern stop` ends a node in order, and the shell is told. `far` now names a process that ended with its node: the send answers `"ok"` and is dropped, and the request has no one to answer it, at once; a process that monitored the counter would have heard a `Down` with the reason `ProgramEnd`, and a peer started again is reached by a new spawn or compute, since its processes are gone with it (the deployment guide's §2.3). `ern stop --config-dir bar` ends the rest, and the shell says `the peer bar ended`. One command, and you have seen a node's whole life.
+`ern stop` ends a node in order, and each shell connected to it is told. `far` now names a process that ended with its node: the send answers `"ok"` and is dropped, and the request has no one to answer it, at once; a process that monitored the counter would have heard a `Down` with the reason `ProgramEnd`, and a peer started again is reached by a new spawn or compute, since its processes are gone with it (the deployment guide's §2.3). `ern stop --config-dir bar` ends the rest, and the shell says `the peer bar ended`. One command, and you have seen a node's whole life.
 
-The tour ends here, where the operator's work begins. The deployment guide's §8 runs this move across three nodes with `examples/upgrade/`, and the deployment guide's §5.3 is the operator's side of it; the guide's §9 names the tools, and the guide's §8.9 the rule the move rests on.
+The tour ends here, where the operator's work begins. The deployment guide's §8 runs this move across three nodes with `examples/upgrade/`, its §5.3 is the operator's side of it and its §6 the attached shell; the guide's §9 names the tools, and the guide's §8.9 the rule the move rests on.
