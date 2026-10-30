@@ -75,14 +75,11 @@ One form of attaching, by a listed peer, since a node accepts a connection from 
    shape of its fix: the local half takes the region away before the runner says the line, as
    the screen's `finish` does at a detach (the shell's note, *Processes*), which
    needs the local half to know the rows the region's last paint holds; before the release.
-9. **Whether an attached shell's own node is a pick of `Peer.compute`**, a decision found
-   2026-10-30 as item 4 ran its sessions: the shell's own node lists the node it attaches to and
-   tells it its utilization as it connects, as every node that lists peers does (Appendix E.27),
-   so a compute that names no node, on that node, may run on the operator's machine; at `b`'s
-   prompt `Peer.compute(fn() = Io.println("computed here"), 5000)` ran on `ops`. Recommended: an
-   attached shell's own node tells no peer its utilization, so that no such compute picks it,
-   and a spawn or a compute that names it stays a listed peer's, as §11.2 would say. Discussed
-   with the user before the release.
+9. **An attached shell's own node tells no peer its utilization**, decided 2026-10-30 after item
+   4's sessions showed a compute that names no node, typed at `b`'s prompt, running on the
+   operator's machine: §11.2's *The attached shell* and Appendix E.27 state it since that day,
+   and the runtime makes it so in item 5's commit, with a nodes test that a `Peer.compute` at
+   the node's prompt never lands on the shell's own node.
 
 The attached shell is the operator's alone, trusted as a peer is, with no sandbox: the website runs
 the plain shell in a container per visitor (MVP 4.2).
