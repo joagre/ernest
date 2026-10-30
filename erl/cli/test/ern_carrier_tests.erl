@@ -236,6 +236,37 @@ said_test() ->
                  Said({nodedown, Store, [{nodedown_reason, wait_pending}]})),
     ?assertEqual(none, ern_carrier:said({nodeup, node(), []})).
 
+%% report §11.2 *The attached shell*, Appendix E.27: an attached shell's own
+%% node tells no peer how busy it is, and says nothing of the end or the
+%% loss of the node its session runs on, while it says that node's
+%% connection and every change of another peer's. Written after the code,
+%% a regression test; the nodes tests hold the two on running nodes
+%% (ern_nodes_tests' attached_utilization, attached_terminal_ends).
+attached_said_test() ->
+    Own = configured(),
+    [Session, Peer] = [configured(), configured()],
+    ok = ern_carrier:list(Own#configuration{
+                            peers = [#peer{name = <<"node">>,
+                                           public_key = Session#configuration.public_key},
+                                     #peer{name = <<"store">>,
+                                           public_key = Peer#configuration.public_key}]}),
+    [Node, Store] = [ern_carrier:name(Key) || #configuration{public_key = Key} <- [Session, Peer]],
+    Said = fun(Event) -> iolist_to_binary(ern_carrier:said(Event)) end,
+    ?assert(ern_carrier:tells()),
+    try
+        ok = ern_carrier:attaching(<<"node">>),
+        ?assertNot(ern_carrier:tells()),
+        ?assertEqual(<<"the peer node connected">>, Said({nodeup, Node, []})),
+        ?assertEqual(none, ern_carrier:said({ended, Node})),
+        [?assertEqual(none, ern_carrier:said({nodedown, Node, [{nodedown_reason, Reason}]}))
+         || Reason <- [net_tick_timeout, connection_closed, wait_pending]],
+        ?assertEqual(<<"the peer store ended">>, Said({ended, Store})),
+        ?assertEqual(<<"the peer store was lost: it closed">>,
+                     Said({nodedown, Store, [{nodedown_reason, connection_closed}]}))
+    after
+        persistent_term:erase({ern_carrier, attached})
+    end.
+
 %% report §12.5, §11.2: a name a connecting node gave in a handshake the
 %% host refused is said with its control characters escaped, as a cause's
 %% are: the name its key does not give, and on another floor the host of

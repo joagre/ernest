@@ -12,8 +12,9 @@
 -module(ern_carrier).
 
 -export([boot_flags/1, name/1, host/1, cookie/0, cookie/2, start/1, list/1, booted/0,
-         configuration/0, is_node/0, reload/0, depart/0, peer/1, verify/3, dialing/1, listed/1,
-         names_own_host/1, say/1, say_later/1, named/1, said/1, filter/2]).
+         configuration/0, is_node/0, attaching/1, tells/0, reload/0, depart/0, peer/1, verify/3,
+         dialing/1, listed/1, names_own_host/1, say/1, say_later/1, named/1, said/1,
+         filter/2]).
 
 -include_lib("public_key/include/public_key.hrl").
 -include("ern_node.hrl").
@@ -243,6 +244,28 @@ configuration() ->
 -spec is_node() -> boolean().
 is_node() ->
     persistent_term:get({?MODULE, configuration}, none) =/= none.
+
+%% Report §11.2 *The attached shell*, Appendix E.27: the node is an attached
+%% shell's own, its session on the peer listed as Name, by that peer's name
+%% on the carrier, none where no peer is listed so: it tells no peer how
+%% busy it is, so that no compute that names no node runs on it (tells/0),
+%% and says nothing of the end or the loss of the node its session runs on,
+%% which the shell's own line says (said/1). Put once, by the shell's job,
+%% once the node's configuration is listed and before anything dials.
+-spec attaching(binary()) -> ok.
+attaching(Name) ->
+    #configuration{peers = Peers} = configuration(),
+    Node = case lists:keyfind(Name, #peer.name, Peers) of
+               #peer{public_key = Key} -> name(Key);
+               false -> none
+           end,
+    persistent_term:put({?MODULE, attached}, {attached, Node}).
+
+%% Report Appendix E.27: whether the node tells its peers how busy it is,
+%% as every node does but an attached shell's own (attaching/1).
+-spec tells() -> boolean().
+tells() ->
+    persistent_term:get({?MODULE, attached}, none) =:= none.
 
 %%
 %% The node's reload and end
@@ -511,22 +534,33 @@ host_named(Host) ->
 %% and whether it fell silent, which the detector found, or closed; and a
 %% living connection replaced by another from the same node, which the host
 %% ends with the reason `wait_pending`. The node's own start comes as a
-%% connection too, and is none.
+%% connection too, and is none, and so does the end of a connection to the
+%% node an attached shell's session runs on, which the shell's own line
+%% says (§11.2 *The attached shell*, attaching/1).
 -spec said(term()) -> iodata() | none.
 said({nodeup, Node, _}) when Node =:= node() ->
     none;
 said({nodeup, Node, _}) ->
     [named(Node), " connected"];
 said({ended, Node}) ->
-    [named(Node), " ended"];
+    ended_line(Node, [named(Node), " ended"]);
 said({nodedown, Node, Info}) ->
-    case proplists:get_value(nodedown_reason, Info) of
-        net_tick_timeout -> [named(Node), " was lost: it fell silent"];
-        wait_pending -> [named(Node), "'s connection was replaced by another from the same node"];
-        _ -> [named(Node), " was lost: it closed"]
-    end;
+    ended_line(Node, case proplists:get_value(nodedown_reason, Info) of
+                         net_tick_timeout -> [named(Node), " was lost: it fell silent"];
+                         wait_pending -> [named(Node), "'s connection was replaced by another"
+                                                       " from the same node"];
+                         _ -> [named(Node), " was lost: it closed"]
+                     end);
 said(_) ->
     none.
+
+%% The line of a connection's end, none for the node an attached shell's
+%% session runs on (attaching/1).
+ended_line(Node, Line) ->
+    case persistent_term:get({?MODULE, attached}, none) of
+        {attached, Node} -> none;
+        _ -> Line
+    end.
 
 %% Report §12.5: the host's own reports of its nodes are turned off, but the
 %% handshake's refusal of a peer for its floor, by the cookie, and of a

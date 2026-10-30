@@ -15,7 +15,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-10-30.** [A Line-Mode Input's Cost](#a-line-mode-inputs-cost-2026-10-30); [The Attached Shell's Last Row](#the-attached-shells-last-row-2026-10-30); [The End's Lines Reach the Screen](#the-ends-lines-reach-the-screen-2026-10-30); [The Guides Over the Attached Shell](#the-guides-over-the-attached-shell-2026-10-30); [The Attached Shell, Built](#the-attached-shell-built-2026-10-30); [The Pun](#the-pun-2026-10-30); [The Session's Screen and the Toolchain's Units, Built](#the-sessions-screen-and-the-toolchains-units-built-2026-10-30); [The Attached Shell's Sentences](#the-attached-shells-sentences-2026-10-30); [The Shell's Second Round, Decided Again](#the-shells-second-round-decided-again-2026-10-30); [The Release's Note, Written Once](#the-releases-note-written-once-2026-10-30); [One Function per Initializer](#one-function-per-initializer-2026-10-30); [The Attached Shell's Cut](#the-attached-shells-cut-2026-10-30); [No Back End to BEAM's Own Instructions](#no-back-end-to-beams-own-instructions-2026-10-30); [`Test.until`, Built](#testuntil-built-2026-10-30).
+**2026-10-30.** [The Attached Shell's Own Node, Quiet](#the-attached-shells-own-node-quiet-2026-10-30); [A Line-Mode Input's Cost](#a-line-mode-inputs-cost-2026-10-30); [The Attached Shell's Last Row](#the-attached-shells-last-row-2026-10-30); [The End's Lines Reach the Screen](#the-ends-lines-reach-the-screen-2026-10-30); [The Guides Over the Attached Shell](#the-guides-over-the-attached-shell-2026-10-30); [The Attached Shell, Built](#the-attached-shell-built-2026-10-30); [The Pun](#the-pun-2026-10-30); [The Session's Screen and the Toolchain's Units, Built](#the-sessions-screen-and-the-toolchains-units-built-2026-10-30); [The Attached Shell's Sentences](#the-attached-shells-sentences-2026-10-30); [The Shell's Second Round, Decided Again](#the-shells-second-round-decided-again-2026-10-30); [The Release's Note, Written Once](#the-releases-note-written-once-2026-10-30); [One Function per Initializer](#one-function-per-initializer-2026-10-30); [The Attached Shell's Cut](#the-attached-shells-cut-2026-10-30); [No Back End to BEAM's Own Instructions](#no-back-end-to-beams-own-instructions-2026-10-30); [`Test.until`, Built](#testuntil-built-2026-10-30).
 
 **2026-10-27.** [`<-` at the Prompt](#--at-the-prompt-2026-10-27); [The Shell Does Not Indent](#the-shell-does-not-indent-2026-10-27); [Small Library Functions Stay Calls](#small-library-functions-stay-calls-2026-10-27); [The Emitter's Calls Against the Host's, Built](#the-emitters-calls-against-the-hosts-built-2026-10-27); [The Emitter's Calls Against the Host's](#the-emitters-calls-against-the-hosts-2026-10-27); [The BEAM Opcode Experiment](#the-beam-opcode-experiment-2026-10-27).
 
@@ -9524,6 +9524,46 @@ MVP 3.9's last item began on the user's word on 2026-10-24 over `0e37caeb`, as `
 The host's own times are down a fifth on most rows, the loop alone 7.5 against 9.3, so the machine is faster than it was and the ratio is what is compared. Two rows are better, `String.size` and the spawn, the spawn by the review's rounds since 0.4.0 (*The Rows That Grew*). Nine rows are within a tenth of their last ratio, the noise the reviews before 0.3.1 and 0.4.0 took for the machine's own, and two are a little past it, `List.map` 1.62 against 1.5 and the call 1.71 against 1.6, each by a hundredth or two beyond a tenth, with no change to either operation's path since 0.4.0; the release ships with the rows as they stand, which the user decides at the tag. Of the rows the bench gained since 0.4.0's table: `spawnMonitored` 11.1 and a monitor of an ended process 27.2, against 10.2 and 25.6 on 2026-10-20, within their spread; `restarting` entered and returning 356 ns against 553 then. The language's rows against the host (*The Language Against the Host*): the dot product 1.28 against 1.65 and the ray tracer 1.61 against 1.95, both better since the operators' tuple patterns, a record update 1.73 against 1.50, `Map.put` 1.32 against 1.18, `List.map` 1.42 against 1.57, the parser 1.28 and the counter 1.30 as they were.
 
 **The newcomer's program** is `kvd`, a key-value server over TCP that keeps its values in a log file, 732 lines in four modules: a session per connection with a reader process, a tracker and a store under a `OneForOne` group, `Clock.alarm` for keys that lapse and a compaction every thirty seconds, `Os.termination` compacting the log at the end, nine tests and three doc examples. It ran, a `CRASH` restarted by the group and the values read again by the second run; it is published beside the archive with its driver script.
+
+## The Attached Shell's Own Node, Quiet, 2026-10-30
+
+MVP 4.0's items 9 and 10, decided and stated in §11.2's *The attached shell* and Appendix E.27
+the same day: an attached shell's own node tells no peer how busy it is, and says nothing of the
+end or the loss of the node its session runs on.
+
+**Item 9's cause.** The gateway told every listed peer that connected how busy the node is, the
+node the shell attaches to among them. So at that node's prompt `Peer.utilizations()` held the
+operator's node, and a `Peer.compute` that names no node could run there. The nodes test's
+session showed it before the fix: `[#("ops", 0.375, 635)]`, and `Right(["node"])` for a compute
+that named no node, `["node"]` being the operator's node's peers.
+
+**Item 10's cause.** The shell's own node said `the peer b ended` through the launch's standard
+error, whose sink is the session's screen, on `b`. That screen had ended with `b`. While the
+stream's process stood the line was sent to it and lost; once the launch's end had stopped the
+process, the line went to the job's own standard error, before or after the runner's `the node
+b ended`. Held to the line alone, the line-mode test was red in 1 run of 16 and the terminal test
+in 8 of 8.
+
+**The fix.** The shell's job puts the node its session attaches to, by that peer's name on the
+carrier, once the node's configuration is listed and before anything dials:
+`ern_carrier:attaching/1`, a persistent term set once in the job's life. The gateway arms no
+telling and tells no peer as it connects where the term is set (`ern_carrier:tells/0`). The
+carrier's line for that node's end answers none, ended, lost or replaced, since the session ends
+with the connection and the shell's line says it. `the peer b connected` stays, said before the
+screen is named, as the guides show it. An ask by name, `Peer.utilization("ops", ms)`, is still
+answered: E.27's telling is the frame the node sends unasked, and an ask is answered by every
+node. A spawn or a compute that names the operator's node runs there, as the test's
+`Peer.computeAt` shows.
+
+**Why a persistent term.** The node's `#configuration{}` would lose the fact at a reload, which
+replaces it. The term is read at each telling armed and each connection, set before the gateway
+starts, and never changed, the runtime note's rule for the host's persistent terms.
+
+**The tests.** `attached_utilization`, written before the fix and red on it. The end tests'
+assertions were made strict before the fix, red as above; after it the line-mode test passed 16
+runs of 16 and the terminal test 8 of 8. `ern_carrier_tests`' `attached_said`, a regression
+test of the carrier's two answers. The deployment runbook's `ended/3` held standard error to the
+line alone already, and met the race.
 
 ## A Line-Mode Input's Cost, 2026-10-30
 

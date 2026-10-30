@@ -3326,9 +3326,12 @@ attached_shell(Base) ->
 %% session runs on ends, the shell says `the node node ended` and exits
 %% with status 0, and where it is lost, `the node node is lost` and status
 %% 1; in line mode the prompt the screen last wrote is ended first, so that
-%% the line stands on a row of its own, as a detach leaves it. Written
-%% before the fix (the plan's MVP 4.0 item 8), which the line sharing the
-%% prompt's row failed.
+%% the line stands on a row of its own, as a detach leaves it. Standard
+%% error holds that line alone: the shell's own node says nothing of its
+%% session's node's end or loss. Written before the fixes (the plan's MVP
+%% 4.0 items 8 and 10), which the line sharing the prompt's row failed, and
+%% the shell's own node's `the peer node ended` before it, in one run of
+%% sixteen.
 attached_shell_ends_test_() ->
     nodes_test({waits, 10}, fun attached_shell_ends/1).
 
@@ -3346,9 +3349,38 @@ attached_shell_ends(Base) ->
           ?assertEqual(Status, WaitShell()),
           {Out, Err} = said(Ops),
           ?assertMatch({true, _}, {lists:suffix(":detach to leave.\n> \n", Out), Out}),
-          has(Err, Line)
+          ?assertEqual(Line, Err)
       end, [{"ended", fun stop/2, 0, "the node node ended\n"},
             {"lost", fun lost/2, 1, "the node node is lost\n"}]).
+
+%% report §11.2 *The attached shell*, Appendix E.27: the shell's own node
+%% tells no peer how busy it is, so at the prompt of the node it attaches
+%% to, which lists no other peer, `Peer.utilizations()` holds no row for it
+%% and a compute that names no node answers `Left(Unreachable)` and runs on
+%% it never; a compute that names it runs there, answering the shell's own
+%% node's peers. Written before the fix (the plan's MVP 4.0 item 9), which
+%% the row for `ops` and the compute that ran on it failed.
+attached_utilization_test_() ->
+    nodes_test({waits, 6}, fun attached_utilization/1).
+
+attached_utilization(Base) ->
+    Ops = made(Base, "ops", none),
+    Node = made(Base, "node", 0),
+    lists(Node, [{"ops", Ops, none}]),
+    {_, WaitNode} = launched(Node, [?ERN, " run --config-dir ", Node]),
+    lists(Ops, [{"node", Node, bound_port(Node)}]),
+    {Shell, WaitShell} = attached(Ops, "node", Base),
+    prints(Ops, ":detach to leave.\n> "),
+    Ms = wait_ms_text(),
+    true = port_command(Shell, ["Peer.computeAt(\"ops\", fn() = Peer.peers(), ", Ms, ")\n"]),
+    prints(Ops, "Right([\"node\"]) : Either(Io.Error, List(String))\n"),
+    true = port_command(Shell, ["Peer.utilizations()\n",
+                                "Peer.compute(fn() = Peer.peers(), ", Ms, ")\n", ":detach\n"]),
+    ?assertEqual(0, WaitShell()),
+    {Out, _} = said(Ops),
+    has(Out, "> [] : List(#(String, Float, Int))\n"),
+    has(Out, "> Left(Unreachable) : Either(Io.Error, List(String))\n"),
+    stop(Node, WaitNode).
 
 %% report §11.2 *The attached shell*, *Editing*, §11.8: the same at a
 %% terminal, through the pseudo-terminal's harness: the region is taken
@@ -3356,10 +3388,11 @@ attached_shell_ends(Base) ->
 %% with it, and the line stands on a row of its own under the prompt. The
 %% node's program ends its node once the test opens a named pipe it reads,
 %% by returning, or, told `lost`, by ending its own host outright, so that
-%% the end comes while the shell waits at its prompt. The shell's own
-%% node's line of its peer's end may stand between the two, or after them,
-%% or not at all, the plan's MVP 4.0 item 10, which the test does not
-%% cover. Written before the fix (the plan's MVP 4.0 item 8).
+%% the end comes while the shell waits at its prompt. No row holds the
+%% shell's own node's line of its peer's end or loss, which the shell's
+%% line says. Written before the fixes (the plan's MVP 4.0 items 8 and 10),
+%% the second red in eight runs of eight with `the peer node ended` on a
+%% row of the screen.
 attached_terminal_ends_test_() ->
     nodes_test({waits, 13}, fun attached_terminal_ends/1).
 
@@ -3397,6 +3430,9 @@ attached_terminal_ends(Base) ->
           ?assertMatch({[">" | _], _}, {Under, Rows}),
           ?assert(lists:member(Line, Under)),
           ?assertEqual([Line], [Row || Row <- Rows, string:find(Row, Line) =/= nomatch]),
+          ?assertEqual([], [Row || Row <- Rows, Said <- ["the peer node ended",
+                                                         "the peer node was lost"],
+                                   string:find(Row, Said) =/= nomatch]),
           ?assertEqual(nomatch, string:find(Screen, "abc"))
       end, [{"ended", 0, 0, "the node node ended"},
             {"lost", 137, 1, "the node node is lost"}]).

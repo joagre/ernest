@@ -59,21 +59,14 @@ One form of attaching, by a listed peer, since a node accepts a connection from 
 7. **A line-mode input costs 25 ms**, halved 2026-10-30 (the log's *A Line-Mode Input's Cost*).
 8. **An attached shell's last line shares the prompt's row**, fixed 2026-10-30 (the log's *The
    Attached Shell's Last Row*).
-9. **An attached shell's own node tells no peer its utilization**, decided 2026-10-30 after item
-   4's sessions showed a compute that names no node, typed at `b`'s prompt, running on the
-   operator's machine: §11.2's *The attached shell* and Appendix E.27 state it since that day,
-   and the runtime makes it so in item 5's commit, with a nodes test that a `Peer.compute` at
-   the node's prompt never lands on the shell's own node.
-10. **An attached shell's own node says nothing of its node's end or loss**, decided 2026-10-30
-    after item 8's test at a terminal showed §12.5's `the peer b ended` said on a screen that had
-    ended with the session, lost or written beside the shell's `the node b ended`: §11.2's *The
-    attached shell* states it since that day, and the runtime makes it so in item 5's commit,
-    beside item 9, with the terminal test asserting the row.
+9. **An attached shell's own node tells no peer its utilization**, built 2026-10-30 (the log's
+   *The Attached Shell's Own Node, Quiet*).
+10. **An attached shell's own node says nothing of its node's end or loss**, built 2026-10-30
+    (the log's *The Attached Shell's Own Node, Quiet*).
 11. **An expression makes one unit**, holding the `it` it binds and kept while `it` names it,
     decided 2026-10-30 from item 7's measure (the log's *A Line-Mode Input's Cost*): the host's
     work on two units was 10.0 of an input's 11.6 ms, and one takes an input to about `let _ =
-    1`'s 5.9. §11.2 *Inputs* states it since that day; built in item 5's commit with items 9, 10
-    and 12.
+    1`'s 5.9. §11.2 *Inputs* states it since that day; built before the release, with item 12.
 12. **An input's cost grows with the session**, found by item 7: after a thousand declarations
     an input of `1` takes 38 ms, since the session's record crosses five places at each input
     with every interface it holds, and the check adds every interface to the prelude's

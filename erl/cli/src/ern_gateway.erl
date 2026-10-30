@@ -20,7 +20,8 @@
 %% A utilization the gateway answers itself, or with the utilization the
 %% program set (ern_rt:program_utilization/0), and it tells each connected
 %% peer the same number every `utilization-interval` while the node lists
-%% peers, holding a peer's telling as it comes
+%% peers, but on an attached shell's own node, which tells none
+%% (ern_carrier:tells/0), holding a peer's telling as it comes
 %% (ern_peer:hold_utilization/3). It says each change of a connection
 %% (ern_carrier:said/1).
 %%
@@ -216,10 +217,10 @@ gateway(Workers, Ended, Measured, Deadline, Departed) ->
             end;
         %% report §8.7, Appendix E.27: a peer that connects is told at once,
         %% so that it holds this node's utilization before an interval has
-        %% passed, but where the node ends
+        %% passed, but where the node ends or tells no peer (§11.2)
         {nodeup, Node, _} = Event ->
             said(Event),
-            Told = told([Node || is_peer(Node), not Departed], Measured),
+            Told = told([Node || is_peer(Node), not Departed, ern_carrier:tells()], Measured),
             gateway(Workers, Ended, Told, Deadline, Departed);
         _ ->
             ern_carrier:say_later("a frame that names no peer's process came to the gateway,"
@@ -230,14 +231,14 @@ gateway(Workers, Ended, Measured, Deadline, Departed) ->
 %% Report §8.7, Appendix E.27: the moment of the next telling, Deadline
 %% where one is set, none once the node has ended, and else one
 %% `utilization-interval` from now where the node lists peers, or none where
-%% it lists none and tells no one.
+%% it lists none or is an attached shell's own (§11.2), and tells no one.
 armed(_Deadline, true) ->
     none;
 armed(none, false) ->
-    case ern_peer:peers() of
-        [] ->
+    case ern_peer:peers() =/= [] andalso ern_carrier:tells() of
+        false ->
             none;
-        _ ->
+        true ->
             #configuration{utilization_interval = Interval} = ern_carrier:configuration(),
             sliced(ern_rt:deadline(Interval))
     end;

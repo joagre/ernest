@@ -1217,6 +1217,11 @@ shell(Options, Rest, ErrorDevice) ->
     {Main, 0} = ern_code:function(ErlangModule, ['Shell', EntryName]),
     Outcome = as_node(Options, LoadPath, Say,
                       fun(Node) ->
+                          %% report §11.2, Appendix E.27: an attached shell's
+                          %% own node tells no peer how busy it is, and says
+                          %% nothing of its session's node's end or loss
+                          Attach =:= none
+                              orelse ern_carrier:attaching(unicode:characters_to_binary(Attach)),
                           ern_rt:run_main(fun() -> ErlangModule:Main() end, EntrySite,
                                           Node#{stdout => Sink, stderr => Sink, init => Init,
                                                 exit => fault,
