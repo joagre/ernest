@@ -2919,6 +2919,114 @@ test_faults_caller_ends_first_test() ->
     ?assertEqual(<<"first: faulted: deadlock\nsecond: passed\n">>,
                  untraced(?capturedOutput)).
 
+%% report Appendix E.24, §6.9: `Test.until` runs its test again until it
+%% passes, so that a test waits for what a server did with a `Down` the
+%% runtime delivered it, which has no order with the test's own call: the
+%% server answers its first count after its monitor is set and before the
+%% kill, and the next once it has seen the death. A regression test,
+%% written after the code; the same test without `until` failed each of
+%% twenty runs, the server answering before it had the `Down`. It does not
+%% cover a `Down` from another node
+test_until_waits_for_a_down_test() ->
+    Dir = tmp(),
+    File = write(Dir, "downs.ern",
+                 "type CounterMsg = Count(Reply(Int)) | Ended(Down)\n"
+                 "type Work = Work\n"
+                 "fn counting(count : Int) : Unit receiving CounterMsg =\n"
+                 "    receive {\n"
+                 "        Count(reply) -> {\n"
+                 "            answer(reply, count);\n"
+                 "            counting(count)\n"
+                 "        }\n"
+                 "      | Ended(_) -> counting(count + 1)\n"
+                 "    }\n"
+                 "let downs = Test.Case(name = \"downs\", run = fn() = {\n"
+                 "    let worker = spawn(fn() = receive { Work -> Unit });\n"
+                 "    let server = spawn(fn() = {\n"
+                 "        monitor(Process.fromAddress(worker), Ended);\n"
+                 "        counting(0)\n"
+                 "    });\n"
+                 "    let monitored = Address.call(server, Count, 1000);\n"
+                 "    kill(worker);\n"
+                 "    if monitored == Some(0) then\n"
+                 "        Test.until(fn() = Test.equal(Address.call(server, Count, 1000), "
+                 "Some(1)), 1000)\n"
+                 "    else\n"
+                 "        Test.Failed(\"the server did not answer\")\n"
+                 "})\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
+    {Errors, Status} = standard_error_of(["test", filename:join(Dir, "downs.erc")]),
+    ?assertEqual(0, Status),
+    ?assertEqual(<<"downs: passed\n">>, iolist_to_binary(?capturedOutput)),
+    ?assertEqual(<<>>, unicode:characters_to_binary(Errors)).
+
+%% report Appendix E.24, E.0 shape rule 8: a test `Test.until` runs that
+%% never passes answers its last `Failed`, which `ern test` reports as it
+%% reports the test's own, and not a timeout; the run lasts the
+%% milliseconds given, at least, and ends soon after them. A regression
+%% test, written after the code; it bounds the run's time and does not
+%% count the runs between, which the next test does where a test passes
+test_until_answers_the_last_failure_test() ->
+    Dir = tmp(),
+    Ms = 200,
+    File = write(Dir, "never.ern",
+                 "let never = Test.Case(name = \"never\", run = fn() =\n"
+                 "    Test.until(fn() = Test.equal(1 + 1, 3), " ++ integer_to_list(Ms) ++ "))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
+    Started = erlang:monotonic_time(millisecond),
+    ?assertEqual(1, ern_cli:ern(["test", filename:join(Dir, "never.erc")])),
+    Took = erlang:monotonic_time(millisecond) - Started,
+    ?assertEqual(<<"never: failed: expected 3, got 2\n">>, iolist_to_binary(?capturedOutput)),
+    ?assert(Took >= Ms),
+    %% Ten times the milliseconds the test gives: room for a loaded host
+    %% to start the run and end it, which a run that waits between its
+    %% tests or misses its deadline would pass by far.
+    ?assert(Took < 10 * Ms).
+
+%% report Appendix E.24: `Test.until` runs its test in the caller's
+%% process, once where the first run passes and again after each `Failed`
+%% until one passes, three runs for a test that passes on its third,
+%% counted by a server each run calls. A regression test, written after
+%% the code; it does not show that the runs follow at once, which the
+%% test before bounds
+test_until_runs_until_passed_test() ->
+    Dir = tmp(),
+    File = write(Dir, "runs.ern",
+                 "type CounterMsg = Count(Reply(Int)) | Next(Reply(Int))\n"
+                 "fn counting(count : Int) : Unit receiving CounterMsg =\n"
+                 "    receive {\n"
+                 "        Count(reply) -> {\n"
+                 "            answer(reply, count);\n"
+                 "            counting(count)\n"
+                 "        }\n"
+                 "      | Next(reply) -> {\n"
+                 "            answer(reply, count + 1);\n"
+                 "            counting(count + 1)\n"
+                 "        }\n"
+                 "    }\n"
+                 "let first = Test.Case(name = \"first\", run = fn() = {\n"
+                 "    let caller = Process.current();\n"
+                 "    let runs = spawn(fn() = counting(0));\n"
+                 "    match Test.until(fn() = {\n"
+                 "        let _ = Address.call(runs, Next, 1000);\n"
+                 "        Test.equal(Process.current(), caller)\n"
+                 "    }, 1000) {\n"
+                 "        Test.Passed -> Test.equal(Address.call(runs, Count, 1000), Some(1))\n"
+                 "      | failed -> failed\n"
+                 "    }\n"
+                 "})\n"
+                 "let third = Test.Case(name = \"third\", run = fn() = {\n"
+                 "    let runs = spawn(fn() = counting(0));\n"
+                 "    match Test.until(fn() = Test.equal(Address.call(runs, Next, 1000), "
+                 "Some(3)), 1000) {\n"
+                 "        Test.Passed -> Test.equal(Address.call(runs, Count, 1000), Some(3))\n"
+                 "      | failed -> failed\n"
+                 "    }\n"
+                 "})\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
+    ?assertEqual(0, ern_cli:ern(["test", filename:join(Dir, "runs.erc")])),
+    ?assertEqual(<<"first: passed\nthird: passed\n">>, iolist_to_binary(?capturedOutput)).
+
 %% report §11.2, Appendix E.24: no job reports a fault `Test.faults`
 %% expects: under `ern run` a `main` whose call of it passes prints
 %% `Passed` and writes nothing on standard error, as `ern test` writes

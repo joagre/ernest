@@ -1398,6 +1398,8 @@ Anything else is an earlier worker's death, and `waitFor` takes it and passes ov
 
 Where the `Down` comes first, `waitFor` reads its reason. A worker that `Returned` sent its result before it did, so the wait goes on until the result comes. Any other reason, a fault or a kill, ended the worker before it sent one, and the wait answers `None`. Where the result is the worker's answer to a call (§4.4), no such care is needed: a call's answer is never overtaken by the callee's end.
 
+A test that asks a server what it did with a `Down` has the same gap and nothing in it to wait on: the `Down` has no order with the test's own request, so the server may answer before it has seen the death. `Test.until(fn() = Test.equal(Address.call(server, Count, 1000), Some(1)), 1000)` runs the test again until it passes or the milliseconds end, and answers the last outcome (report Appendix E.24): the test waits for the effect it means, and the milliseconds only bound the wait.
+
 `Process.live()` lists the live processes, `Process.status(process)` tells where one was spawned, how many messages wait for it and whether it runs, and `Process.faults(wrap)` sends you every fault as it happens (report Appendix E.21). They are for seeing what runs, and a program is still written with the addresses it was given.
 
 A fault in one process does not affect another, apart from the cases §6.3 lists.
@@ -2066,7 +2068,7 @@ Checks.add example 1: passed
 
 It then runs the module's doc examples as cases (report §11.2). A doc example is an `ernest` block in a declaration's doc block, the `///` lines above it (below), and is named by the declaration, `Checks.add example 1`. One whose last line is `// => v`, alone on its line, passes where `Io.show` of its value is `v`; one without the line is reported `compiled` where it compiles. An exported declaration's example is compiled in a module of its own, as a caller's code is, so it writes the module's names as a caller writes them, `Checks.add(1, 2)`; a private declaration's is compiled inside the module, and writes them bare, as `add`'s does above.
 
-`Test.faults(run, cause)` tests that a call faults: `Test.Passed` where `run` faults with `cause`, and otherwise `Test.Failed` naming what came instead, `expected the fault division by zero, got a return`. `run` runs in a process of its own, whose fault no job reports, `ern test`, `ern run` or the shell, since the test's answer carries it (report Appendix E.24).
+`Test.faults(run, cause)` tests that a call faults: `Test.Passed` where `run` faults with `cause`, and otherwise `Test.Failed` naming what came instead, `expected the fault division by zero, got a return`. `run` runs in a process of its own, whose fault no job reports, `ern test`, `ern run` or the shell, since the test's answer carries it (report Appendix E.24). `Test.until(run, ms)` runs a test again until it passes or the milliseconds end, answering the last outcome, for an effect the test cannot otherwise wait on, what a server did with a `Down` (§5.2).
 
 A test's `run` is `() -> Test.Result receiving m`: it runs in a process whose mailbox type is `m`, as an entry point does (report §8.1), so it may spawn, send, call and receive. `addsTwo` receives nothing and leaves `m` open, and `ern test` runs it with `Never`; `answersBack` receives a `Reported`, so its type is `Test.Case(Reported)`, which nothing writes. A test left waiting with nothing to wake it is faulted with `deadlock` while the run goes on (report §11.2).
 

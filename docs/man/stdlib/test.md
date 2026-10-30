@@ -25,8 +25,10 @@ that faults or deadlocks is reported as `faulted` with the cause, counts as
 not passed, and the run goes on with the next (report Appendix E.24).
 
 Most tests compare a value with the one expected, which `equal` does, and
-`faults` tests that a call faults with the cause expected. A test that wants
-another text answers `Failed` with its own.
+`faults` tests that a call faults with the cause expected. `until` runs a
+test again until it passes or its milliseconds end, for an effect the test
+has nothing to wait on. A test that wants another text answers `Failed`
+with its own.
 
 ## Examples
 
@@ -128,6 +130,36 @@ Test.faults(fn() = 1 + 1, "division by zero")
 ```ernest
 Test.faults(fn() = 1.0 / 0.0, "division by zero")
 // => Failed("expected the fault division by zero, got the fault float arithmetic error")
+```
+
+## Test.until
+
+```ernest
+Test.until(run : () -> Result receiving m, ms : Int) : Result receiving m
+```
+
+*Since 0.7.0.*
+
+Runs `run` again until it answers `Passed` or `ms` milliseconds have passed
+since the call, and answers the last `Result`: `Passed`, or the last
+`Failed`, which says what the test saw, in place of a `Timeout` (report
+Appendix E.0 shape rule 8).
+
+`run` runs once at least, in the caller's process, and again at once after
+a `Failed`, with no wait between. It is how a test waits for an effect that
+has no order with what the test can wait on: what a server did with a
+`Down` the runtime delivered it (report §6.9).
+
+### Examples
+
+```ernest
+Test.until(fn() = Test.equal(1 + 1, 2), 1000)
+// => Passed
+```
+
+```ernest
+Test.until(fn() = Test.equal(1 + 1, 3), 10)
+// => Failed("expected 3, got 2")
 ```
 
 ---

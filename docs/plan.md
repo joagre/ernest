@@ -120,13 +120,10 @@ modules documented apart with an authority of their own. Why it is worth its cos
    other take 1.0 s. No program written has a hundred; the shape of the fix is the emitter's, an
    initializer a function of its own, which the plain form may already be, decided with the user
    when a program meets it or before 1.0.
-8. **`Test.until`.** Decided with the user on 2026-10-26 from feedback 166 (the log's *What the
-   Newcomer's Feedback Left*): a test that waits for a server to show the effect of a `Down` the
-   runtime delivered has no order to wait on, since a `Down` has none with a message another process
-   sends after the death, and the newcomer slept a chosen number. `Test.until(test, ms)` runs
-   `test()` again until it passes or the milliseconds end, answering the last outcome: a bounded
-   wait on what the test means, Ernest closing around the host (E.0 rule 1), its page and its test
-   with it, and the guide's §5.2 saying the order is not given and this is how a test waits for it.
+8. **`Test.until`**, done 2026-10-30 (the log's *`Test.until`, Built*), from feedback 166: a test
+   that waits for a server to show the effect of a `Down` has no order to wait on, and
+   `Test.until(run, ms)` runs the test again until it passes or the milliseconds end, answering the
+   last outcome, Ernest alone, with its page, its test and the guide's §5.2 sentence.
 9. **What the emitter writes against what OTP writes**, done 2026-10-27 (the log's *The Emitter's
    Calls Against the Host's, Built*): a call of a standard library shim is the host's function at
    the call site inside its `try`, none for twelve host functions that cannot raise at their

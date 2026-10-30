@@ -15,6 +15,8 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
+**2026-10-30.** [`Test.until`, Built](#testuntil-built-2026-10-30).
+
 **2026-10-27.** [`<-` at the Prompt](#--at-the-prompt-2026-10-27); [The Shell Does Not Indent](#the-shell-does-not-indent-2026-10-27); [Small Library Functions Stay Calls](#small-library-functions-stay-calls-2026-10-27); [The Emitter's Calls Against the Host's, Built](#the-emitters-calls-against-the-hosts-built-2026-10-27); [The Emitter's Calls Against the Host's](#the-emitters-calls-against-the-hosts-2026-10-27); [The BEAM Opcode Experiment](#the-beam-opcode-experiment-2026-10-27).
 
 **2026-10-26.** [The Nested Group's Third Restart](#the-nested-groups-third-restart-2026-10-26); [What the Newcomer's Feedback Left](#what-the-newcomers-feedback-left-2026-10-26); [A Regex Literal Weighed](#a-regex-literal-weighed-2026-10-26); [The Build's Cost per Function](#the-builds-cost-per-function-2026-10-26); [The Comments' Paragraphs](#the-comments-paragraphs-2026-10-26); [The Second Cut, §8.7 to E.27](#the-second-cut-87-to-e27-2026-10-26).
@@ -9522,6 +9524,18 @@ MVP 3.9's last item began on the user's word on 2026-10-24 over `0e37caeb`, as `
 The host's own times are down a fifth on most rows, the loop alone 7.5 against 9.3, so the machine is faster than it was and the ratio is what is compared. Two rows are better, `String.size` and the spawn, the spawn by the review's rounds since 0.4.0 (*The Rows That Grew*). Nine rows are within a tenth of their last ratio, the noise the reviews before 0.3.1 and 0.4.0 took for the machine's own, and two are a little past it, `List.map` 1.62 against 1.5 and the call 1.71 against 1.6, each by a hundredth or two beyond a tenth, with no change to either operation's path since 0.4.0; the release ships with the rows as they stand, which the user decides at the tag. Of the rows the bench gained since 0.4.0's table: `spawnMonitored` 11.1 and a monitor of an ended process 27.2, against 10.2 and 25.6 on 2026-10-20, within their spread; `restarting` entered and returning 356 ns against 553 then. The language's rows against the host (*The Language Against the Host*): the dot product 1.28 against 1.65 and the ray tracer 1.61 against 1.95, both better since the operators' tuple patterns, a record update 1.73 against 1.50, `Map.put` 1.32 against 1.18, `List.map` 1.42 against 1.57, the parser 1.28 and the counter 1.30 as they were.
 
 **The newcomer's program** is `kvd`, a key-value server over TCP that keeps its values in a log file, 732 lines in four modules: a session per connection with a reader process, a tracker and a store under a `OneForOne` group, `Clock.alarm` for keys that lapse and a compaction every thirty seconds, `Os.termination` compacting the log at the end, nine tests and three doc examples. It ran, a `CRASH` restarted by the group and the values read again by the second run; it is published beside the archive with its driver script.
+
+## `Test.until`, Built, 2026-10-30
+
+MVP 3.96's item 8, decided from feedback 166 (*What the Newcomer's Feedback Left*): `Test.until(run, ms)` runs a test again until it passes or the milliseconds end, and answers the last `Result`. Three shapes were decided as it was built.
+
+**The last `Result`, not `Left(Timeout)`.** E.0 shape rule 8 has a function that takes milliseconds answer `Left(Timeout)` when they pass. `until` answers the last run's `Result` instead, since a test's finding is its `Failed` text, `expected 3, got 2`, which a `Timeout` would hide; its milliseconds bound how often the test is run and no one request. Rule 8 names the exception, and E.24 states it.
+
+**No wait between runs.** Between a `Failed` and the next run, `until` waits for nothing: the test runs again at once. A pause would be a number no one can derive, since what the test waits for, the runtime's delivery of a `Down` and the recipient's handling of it, has no measure, and *No fixed sleep* refuses a chosen one. A test that calls a server is paced by the server's answers; one that reads a table alone spins for at most `ms`, in a test. The plain form is kept and its cost named here.
+
+**`run`, not `test`.** The callback has the type of a `Case`'s `run`, `() -> Result receiving m`, and takes its name; `test` is the glossary's predicate asked of each element, which this is not. It runs in the caller's process, so a fault in it is the caller's, as a direct call's; `faults` alone runs its call apart, since what it tests is the end.
+
+**Built** in Ernest alone, `until` over a helper that carries the deadline, with its page and three tests of `ern test`'s output. The test of a server counting the `Down`s it is told of, run without `until`, was red in each of twenty runs, the server answering before the death reached it; with it, green.
 
 ## `<-` at the Prompt, 2026-10-27
 

@@ -1,6 +1,6 @@
 # Ernest Report: The Standard Library
 
-Revision of 27 October 2026.
+Revision of 30 October 2026.
 
 This file holds the report's Appendices D, E and G. §0 to §10 and Appendices A, B and F are in [`language.md`](language.md), and §11 and Appendices C and H in [`toolchain.md`](toolchain.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
@@ -203,7 +203,7 @@ Ten *shape rules* give a function its shape. Shape rules 1 to 5, 7, 9 and 10 hol
 
      An example that cannot run where the page's examples run, because its value is of an abstract type, because it reads a file or a socket, or because it needs a mailbox of its own, has no `// =>` line and is only compiled. `ern test` runs a module's examples as cases, and reports one only compiled as `compiled` (§11.2).
 7. A type a module exports is listed in its section as its functions are, `abstract type Seed` in E.13, and is named for what it is within the module, never for the module.
-8. A function that waits takes the milliseconds as its last argument, after any callback, which bound that one request, and answers `Left(Timeout)` when they pass, unless the wait's failure ends the program or the runtime holds the answer, in which case it takes none: a file, a socket, a peer, and a program the runtime started are waited on with a time, and standard input, standard output, standard error and the terminal, whose failure ends the program (§8.2), without one.
+8. A function that waits takes the milliseconds as its last argument, after any callback, which bound that one request, and answers `Left(Timeout)` when they pass, unless the wait's failure ends the program or the runtime holds the answer, in which case it takes none: a file, a socket, a peer, and a program the runtime started are waited on with a time, and standard input, standard output, standard error and the terminal, whose failure ends the program (§8.2), without one. `Test.until`, whose milliseconds bound how often a test is run and no one request, answers the last run's `Result` (E.24).
 
    `Timeout` is `Io.Error`'s, and a function that answers it answers `Either(Io.Error, a)`. A call, whose one failure is no answer, answers `None` (§6.6).
 
@@ -780,11 +780,14 @@ A top-level `let` of type `Test.Case(m)` is a test, which `ern test` runs in a p
 
 `faults(run, cause)` answers `Passed` where `run()` faults with `cause`: it runs `run` in a process of its own, monitored (§6.9), and reads the process's end. `run` is the call `faults` tests, its subject, and comes first (E.0 shape rule 1). It waits for `run`'s end without a limit, as a direct call of `run` waits for the caller's own work (E.0 shape rule 8). Where the caller ends before `run`'s process does, that process is killed. Otherwise it answers `Failed` naming what came instead of the fault: another cause, `expected the fault division by zero, got the fault float arithmetic error`; a return, `got a return`; or the reason, `got Killed`. A process `faults` started is marked as the runtime starts it, and its fault reaches no job's report (§11.2) and no subscriber of `Process.faults` (E.21); the mark is the runtime's, set by no text of the process's site (§11.2).
 
+`until(run, ms)` runs `run` again until it answers `Passed` or `ms` milliseconds have passed since the call, and answers the last `Result`, not `Left(Timeout)` (E.0 shape rule 8), since the last `Failed` says what the test saw. It runs `run` once at least, in the caller's process, and again at once after a `Failed`, waiting for nothing between. It is how a test waits for an effect that has no order with what the test can wait on: a `Down` the runtime delivered and what its recipient did with it (§6.9).
+
 ```
 type Case(m) = Case(name : String, run : () -> Result receiving m)
 type Result = Passed | Failed(String)
 Test.equal : (a=, a=) -> Result needs a.show // the actual value first, then the expected one
 Test.faults : (() -> a receiving m, String) -> Result // the call first, then the cause it faults with
+Test.until : (() -> Result receiving m, Int) -> Result receiving m // the test first, run again until it passes or the milliseconds end; the last answer
 ```
 
 ### Appendix E.25. `ordered_set.ern` (namespace `OrderedSet`)
