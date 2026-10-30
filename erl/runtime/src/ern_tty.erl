@@ -302,11 +302,10 @@ raw_mode() ->
     end,
     write(?PASTE_ON).
 
+%% Report §11.2, §12.1: a subscriber the terminal is kept from, while a
+%% shell holds it or as a session's process (ern_rt:is_kept_from_terminal/1).
 held_by_another(Address) ->
-    case ern_rt:terminal_holder() of
-        undefined -> false;
-        Holder -> ern_rt:process_of(Address) =/= Holder
-    end.
+    ern_rt:is_kept_from_terminal(ern_rt:process_of(Address)).
 
 %% Report §12.1: the terminal is the one the program found.
 -spec restore() -> ok.

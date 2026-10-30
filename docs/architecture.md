@@ -172,13 +172,14 @@ Each chunk is read through `ern_chunk`. A name a shell session declares is writt
 | `ern_offered` | `ern_rt` | `{Process, Service}`, a bag | each process's own services (E.27) |
 | `ern_initialized` | `ern_rt` | `{ErlangModule}` | the modules whose initializers have run (§8.7) |
 | `ern_notes` | `ern_rt` | `{{CallerNode, Reply}, Callee, Caller}`, ordered | the notes of calls from other nodes, a compute's among them (§8.7) |
+| `ern_screens` | `ern_rt` | `{Root, Sink}` | each root of a session's on a node a shell is attached to, with the sink of its screen (§12.1, §11.2) |
 | `ern_spawns` | `ern_peer`, held by the gateway | `{{Node, Ref}, Waiting, Order}`, ordered | the spawns on a peer that wait for an answer (E.27) |
 | `ern_utilizations` | `ern_peer`, held by the gateway | `{Node, Utilization, At, Interval}` | each peer's last telling (E.27) |
 | `ern_code` | `ern_code`, held by the code table's holder | a bag, its keys under *The code table* | the code table (§8.7) |
 | `ern_code_sums` | `ern_code`, beside it | a row for each count | the sums of the host's counts (§11.2) |
 | `ern_shell` | `ern_shell`, held by the runner | `{Key, Value}` | the session as it stands, and what its inputs and loads leave (§11.2) |
 
-`run_main` makes `ern_rt`'s twelve (`tables/0`), each described where `ern_rt` defines it; `make load` counts their rows ([`memory.md`](memory.md)). `ern test`'s `run_tests/6` keeps the running test in a table of its own.
+`run_main` makes `ern_rt`'s thirteen (`tables/0`), each described where `ern_rt` defines it; `make load` counts their rows ([`memory.md`](memory.md)). `ern test`'s `run_tests/6` keeps the running test in a table of its own.
 
 ### The processes
 
@@ -202,6 +203,7 @@ Each chunk is read through `ern_chunk`. A name a shell session declares is writt
 | the gateway, registered `ern_gateway`, and a worker for each peer | `ern_carrier:start/1` | | takes the runtime's frames from the peers (*A node*) |
 | the exchange, registered `ern_exchange` | `ern_gateway:start/0` | | carries a reach's definitions between nodes (*The exchange and arrivals*) |
 | an evaluator | `ern_shell` (`evaluate/3`) | the session | evaluates a load's bindings, the root of what they start (§11.2) |
+| a loader of the toolchain's own units | the exchange (`own_loaded/3`) | the exchange's monitor | loads a unit of the toolchain's own a peer's spawn names from the node's tree and evaluates its bindings (§12.7) |
 
 The gateway and the exchange are the only registered processes. A delivery, a courier and a kept process act for their recipient through `ern_rt:acting_for/1`, an `#acting{}` in their dictionary (§6.5, §6.9).
 
@@ -238,6 +240,7 @@ A reference tags each launch, held with its runner, its reaper, its standard err
 ### The system processes
 
 - `stdout` and `stderr` write through a function or a port on a descriptor, `{fd, N}`, which learns when the stream has gone (§12.1). `stdin` is a port on descriptor 0, opened for each request. All three are `ern_rt`'s, and so is the clock.
+- A write by a process whose root has a row of `ern_screens` goes through that row's sink instead (`ern_rt:screen/2`, `drop_screen/1`, `screen_of/1`), and the same row keeps the process from `stdin` and the terminal (`is_kept_from_terminal/1`) and has its `Os.exit` fault it (`exit_program/1`, §12.1, §11.2). A session marks its own processes in their rows, which `processes/0` leaves out (`own/1`, `disown/1`, E.21).
 - `ern_fs`, `ern_tty` and `ern_tcp` are the processes behind `Fs`, `Terminal` and `Tcp` (E.17, E.16, E.18), each speaking its module's message types.
 - The terminal reads keys through standard input in `stty`'s raw mode. `ern_tty_signal`, added to OTP's signal server at the first subscription, sends it each `SIGWINCH`.
 - A socket is a process over its `gen_tcp` port, alive until `Tcp.close`. One whose bytes the far end has not taken hands its host socket to a closer, `lingering/4`.
@@ -260,7 +263,7 @@ The modules of a node (§8.7) are `ern_node`, `ern_carrier`, `ern_epmd` and `ern
 
 The code table (§8.7) is `ern_code`'s bag of that name, made at its first use by a process of its own (`ensure/0`). `load/3` loads a unit from its file, and `loaded/2` and `loaded/3` put a unit's rows as it loads, read from its `'$code'/0`; `unloaded/1` takes them.
 
-`ensure_loaded/1` loads a module where the host holds none of its name, as the host's `code:ensure_loaded/1` does: a unit of the toolchain's own from its `.erc`, which `own_file/1` finds by namespace in `build/stdlib`, `build/shell`, `build/libs/ansi` and `build/libs/markdown`, and any other module as the host loads it. The runtime's error handler, `ern_rt:undefined_function/3`, calls it at a first call, on every process the runtime starts and on the one each job runs in (`ern_cli:start/0`); `ern_code:function/2` calls it too.
+`ensure_loaded/1` loads a module where the host holds none of its name, as the host's `code:ensure_loaded/1` does: a unit of the toolchain's own from its `.erc`, which `own_file/1` finds by namespace in `build/stdlib` and the builds `own_builds/0` names, `build/shell`, `build/libs/ansi` and `build/libs/markdown`, and any other module as the host loads it. `own_unit/1` finds the unit of those builds that holds a definition by its hash, from an index read once in a host's life (§12.7). The runtime's error handler, `ern_rt:undefined_function/3`, calls it at a first call, on every process the runtime starts and on the one each job runs in (`ern_cli:start/0`); `ern_code:function/2` calls it too.
 
 Its keys are `{hash, Hash}` for a function or a type, `{lambda, Hash, Position}`, `{unit, Unit}`, `{binding, QualifiedName, Hash}`, `{constant, Hash}` for a constant's getter and value, `{foreign, QualifiedName}`, `{declared, QualifiedName}`, and `{forms, Unit}` for what a unit's compiled form records. The module's header comment gives each row.
 
@@ -269,12 +272,13 @@ Its keys are `{hash, Hash}` for a function or a type, `{lambda, Hash, Position}`
 - `is_free/1`, `is_held/2`, `fresh_unit/1`, `unit_beside/2` and `placement/4` name and place a unit for the shell's load and `Code.load`. `binding_keys/1` gives the values a refused load erases.
 - The host's limits (§11.2) are `counts/0`, the sums `ern_code_sums` keeps (`summed/1`), and `nearing/0`. `ern_cli:say_limits/0` says the lines at a run's start, at each arrival and `Code.load`, and at each load of the shell's.
 
-`Code.load` (E.28, §11.2) is `ern_code_load:load/1`, run in the calling process; its header comment gives its steps. It finds each module on the run's load path, `ern_cli:load_path/0`, places it through `ern_code:placement/4`, and makes a unit from forms through `ern_compile:from_compiled/5`. Its units load in one `code:atomic_load/1`, and their bindings are evaluated under a mark (`ern_rt:rooting/0`).
+`Code.load` (E.28, §11.2) is `ern_code_load:load/1`, run in the calling process; its header comment gives its steps. It finds each module on the run's load path, `ern_cli:load_path/0`, places it through `ern_code:placement/4`, and makes a unit from forms through `ern_compile:from_compiled/5`. Its units load in one `code:atomic_load/1`, and their bindings are evaluated under a mark (`ern_rt:rooting/0`). `ern_code_load:own/1` loads a unit of the toolchain's own and those it uses so, from the tree's builds, for a peer's spawn (§12.7).
 
 ### The exchange and arrivals
 
 - The exchange (§12.7) is `ern_exchange`, registered on each node from its start, which keeps its exchanges in its own state and no table. It plays both parts, the spawner's node and the node asked, which its header comment gives.
 - Its frames are `reach_request`, `reach`, `lacks` and `code_frame`, passed to it by the gateway as they come. `ern_canonical:verified/2` verifies a code frame's forms.
+- A spawn of a function the node lacks that a unit of the toolchain's own holds asks no node: the exchange loads the unit from the node's own tree in a process of its own and reads the spawn again (`own_loaded/3`, §12.7).
 - `ern_peer:reach_lacked/2` and `ern_peer:foreign_lacked/1` find what a reach needs that the node lacks; `ern_peer:failed/4` gives every refusal, said through `ern_gateway:outcome/2`.
 - An arrival (§12.7, §11.2) is `ern_arrival:received/5`: a reach's definitions made one `#unit{}`, compiled by `ern_compile:compiled/2`, loaded off the code path, and put in the code table with what it records.
 - An arrival is named from the pool, `ern$N` (`ern_arrival:name/1`). What it names that the node lacks is linked to a lacked function, `'$lacked_K'` (`lacked/2`).
@@ -328,7 +332,7 @@ The shell is an Ernest program over `Terminal`: `src/shell/shell.ern` and its mo
 - `:load` places each module after the modules it uses (`#placing{}`, `needed_placed/3`, `dependency_placed/3`, `in_dependency_order/1`). A module is compiled (`compile_unit/5`), taken from its current compiled form (`current_form/4`, `compiled_unit/5`, `install_one/2`), or taken as a unit the node holds of the same code.
 - `:reload` brings each version beside the previous one and compiles again what `ern build` would (`stale_users/3`). A changed type moves to the previous version's namespace, `Counter$1` (`versioned/3`, `returned/3`), whose interface `#session.previous` holds and whose unit `#session.units` names.
 - `:reload` compiles again each declaring input whose forms reference a changed hash (`reached_inputs/2`, `compiled_again/2`, `input_text/2`, `out_of_scope/3`). A version names its sites under its own namespace (`site_namespace/2`).
-- A load evaluates each module's bindings in an evaluator (`evaluate/3`). An input runs in a process that heads a spawn chain of its own, and so does the file's entry point (`ern_rt:spawn_root/2`), and the shell's launch gives the runtime `own/0`, the evaluators and the input that runs, which `Process.live()` leaves out beside the shell's own chain (§11.2). A refused load is undone by `withdraw/2`, and a module refused again makes no unit (`kept_or_fresh/5`).
+- A load evaluates each module's bindings in an evaluator (`evaluate/3`). An input runs in a process that heads a spawn chain of its own, and so does the file's entry point (`ern_rt:spawn_root/2`), and the session marks its own processes, itself, its screen, its reader, the evaluators and the input that runs, which `Process.live()` leaves out (`ern_rt:own/1`, §11.2). A refused load is undone by `withdraw/2`, and a module refused again makes no unit (`kept_or_fresh/5`).
 - A session's declarations are named under `$Session` (`?SESSION_NAMESPACE`, `redeclared/2`). An input that declares or builds a function value is kept; any other is deleted once its answer is in (`release/1`, `collected/1`).
 - `Shift-Tab` is `documentation/1` or `signature/1`, which prints through `ern_types:format_call/4`. `:doc` is `ern_page`'s `declaration/3`, `session_declaration/3` or `module_head/1`.
 

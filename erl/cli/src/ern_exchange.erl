@@ -15,7 +15,9 @@
 %%
 %% As the node a spawn or a compute was asked of, the exchange takes from
 %% the gateway's worker each one whose function the node lacks, and asks
-%% the spawner's node for the reach (§12.7, §11.1, ern_code:linkable/1). It
+%% the spawner's node for the reach (§12.7, §11.1, ern_code:linkable/1);
+%% one whose function a unit of the toolchain's own holds it loads from
+%% the node's own tree instead, asking no node (own_loaded/3). It
 %% verifies each code frame's forms with their source's lines against the
 %% forms, and its foreign declarations against those the forms call, makes
 %% the whole reach one unit (ern_arrival, §11.2), and reads each spawn and
@@ -73,7 +75,7 @@
 
 %% Report §8.6: each receive that can wait, by its kind (docs/style.md).
 -receives({answered_at_once, [start/0]}).
--receives({own_process, [loop/1]}).
+-receives({own_process, [loop/1, own_loaded/3]}).
 
 -define(NAME, ern_exchange).
 
@@ -170,8 +172,16 @@ loop(State) ->
 %% the exchange that asks for its identity, whose time it lengthens to its
 %% own where its own ends later, or asks the spawner's node for the reach;
 %% its time is the milliseconds its spawner waits, from its frame's coming,
-%% so that it never runs out before the spawner's own.
-asked(From, Body, Identity, #state{exchanges = Exchanges, asked = Asked} = State) ->
+%% so that it never runs out before the spawner's own. One whose function
+%% a unit of the toolchain's own holds in this node's tree asks no node
+%% (own_loaded/3).
+asked(From, Body, Identity, State) ->
+    case own_unit(Identity) of
+        none -> exchanged(From, Body, Identity, State);
+        Unit -> own_loaded(Unit, From, Body), State
+    end.
+
+exchanged(From, Body, Identity, #state{exchanges = Exchanges, asked = Asked} = State) ->
     Deadline = ern_rt:deadline(ern_peer:ms(Body)),
     case Asked of
         #{Identity := Ref} ->
@@ -181,6 +191,36 @@ asked(From, Body, Identity, #state{exchanges = Exchanges, asked = Asked} = State
             State#state{exchanges = Exchanges#{Ref := Joined}};
         _ ->
             ask(Identity, [{From, Body}], Deadline, State)
+    end.
+
+%% Report §12.7, *The toolchain's own units*: the unit of the toolchain's
+%% own in this node's tree that holds the definition an identity names, a
+%% function's or the one a lambda is written in, or none.
+own_unit({function, Hash}) -> ern_code:own_unit(Hash);
+own_unit({lambda, Hash, _}) -> ern_code:own_unit(Hash);
+own_unit({foreign, _}) -> none.
+
+%% Report §12.7, *The toolchain's own units*: a spawn or a compute of a
+%% function a unit of the toolchain's own holds, this node lacking it: the
+%% unit and those it uses loaded from the node's own tree and their
+%% bindings evaluated before the process starts, in a process of the
+%% runtime's own that the exchange waits for (ern_code_load:own/1), and
+%% the frame read again as the gateway's worker reads it, which starts it;
+%% or `NotLoaded`, the node saying what it lacked, a binding that faulted
+%% among it. The spawner's node is asked for nothing, and the work is
+%% bounded, the toolchain's own units being few and their bindings its
+%% tables and constants.
+own_loaded(Unit, From, Body) ->
+    {Loader, MonitorRef} = spawn_monitor(fun() -> exit({own, ern_code_load:own(Unit)}) end),
+    receive
+        {'DOWN', MonitorRef, process, Loader, {own, ok}} ->
+            started({From, Body});
+        {'DOWN', MonitorRef, process, Loader, {own, {lacked, Lacked}}} ->
+            answered([{From, Body}], 'NotLoaded', Lacked);
+        {'DOWN', MonitorRef, process, Loader, ExitReason} ->
+            Text = unicode:characters_to_binary(
+                     io_lib:format("its load from this node's tree failed, ~P", [ExitReason, 8])),
+            answered([{From, Body}], 'NotLoaded', Text)
     end.
 
 %% The request for a reach, of the node of the first of the spawns that

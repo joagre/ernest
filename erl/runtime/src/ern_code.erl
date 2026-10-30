@@ -46,14 +46,16 @@
 %% host: `ern test` over a directory runs many (§11.2).
 -module(ern_code).
 
--export([ensure_loaded/1, own_file/1, load/3, loaded/2, loaded/3, unloaded/1, spawnable/1,
-         holders/1, linkable/1, valued/1, ground/1, grounded/1, forms/1, called/1, absent_binding/1,
-         absent_binding/2, foreign/2, declared/1, declared/2, present/1, function/2,
+-export([ensure_loaded/1, own_file/1, own_builds/0, own_unit/1, load/3, loaded/2, loaded/3,
+         unloaded/1, spawnable/1, holders/1, linkable/1, valued/1, ground/1, grounded/1, forms/1,
+         called/1, absent_binding/1, absent_binding/2, foreign/2, declared/1, declared/2,
+         present/1, function/2,
          function_text/3, value_text/1, is_free/1, is_held/2, fresh_unit/1, unit_beside/2,
          placement/4, running/1, hashes/1, binding_keys/1, nearing/0, nearing/1, nearing/2, line/3,
          counts/0]).
 
 -include_lib("checker/include/ern_canonical.hrl").
+-include_lib("checker/include/ern_types.hrl").
 -include_lib("emitter/include/ern_unit.hrl").
 -include_lib("kernel/include/file.hrl").
 
@@ -128,15 +130,51 @@ own_file(Module) ->
     case atom_to_list(Module) of
         "ern@" ++ Path ->
             Relative = lists:flatten(string:replace(Path, "@", "/", all)) ++ ".erc",
-            Builds = [ern_tree:build(Build) || Build <- ["shell", "libs/ansi", "libs/markdown"]],
             Files = [filename:join(Root, Relative)
-                     || Root <- [ern_prelude:stdlib_directory() | Builds], Root =/= none],
+                     || Root <- [ern_prelude:stdlib_directory() | own_builds()], Root =/= none],
             case lists:search(fun is_regular/1, Files) of
                 {value, File} -> {ok, File};
                 false -> none
             end;
         _ ->
             none
+    end.
+
+%% Report §11.2, §12.7: the builds of the toolchain's own units beside the
+%% standard library's, under the tree's `build` (ern_tree:build/1): the
+%% shell's and those of the two libraries it is compiled against.
+-spec own_builds() -> [file:filename()].
+own_builds() ->
+    [ern_tree:build(Build) || Build <- ["shell", "libs/ansi", "libs/markdown"]].
+
+%% Report §12.7, *The toolchain's own units*: the unit of the toolchain's
+%% own whose `.erc` in this node's tree holds the definition of Hash, by
+%% its Erlang name, or none: a unit of the shell's or of the two libraries'
+%% it is compiled against (own_builds/0), the standard library's being
+%% held by every node from its start. The index is read from the builds'
+%% interfaces, each definition's hash by its name (#interface{}'s
+%% `identities`), at its first need, and kept for the host's life, since
+%% the tree does not change under a running node (the deployment guide's
+%% §5.1): some 600 hashes, read in about ten milliseconds.
+-spec own_unit(binary()) -> module() | none.
+own_unit(Hash) ->
+    maps:get(Hash, own_units(), none).
+
+own_units() ->
+    case persistent_term:get({?MODULE, own_units}, none) of
+        none ->
+            Units = maps:from_list(
+                      [{Hash, ern_namespace:erlang_module(Namespace)}
+                       || Root <- own_builds(), Relative <- filelib:wildcard("**/*.erc", Root),
+                          {ok, Beam} <- [file:read_file(filename:join(Root, Relative), [raw])],
+                          {ok, #{interface := #interface{namespace = Namespace,
+                                                         identities = Identities}}}
+                              <- [ern_interface:read(Beam)],
+                          Hash <- maps:values(Identities), is_binary(Hash)]),
+            persistent_term:put({?MODULE, own_units}, Units),
+            Units;
+        Units ->
+            Units
     end.
 
 %% Whether a file is there, asked raw.

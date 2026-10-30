@@ -161,12 +161,15 @@ export fn main() : Unit receiving ShellMsg = {
     setScreen(adapted(screen, Wrote));
     send(screen, Said("Ernest " <> version() <> ". :help for the commands, :quit to leave.\n"));
     // report §11.2: the session, the screen and the reader are the shell's
-    // own, whose faults are not news
+    // own, whose faults are not news, and which `Process.live()` leaves out
+    // (Appendix E.21)
     let readers = match keys {
         Some(Keys(reader = reader)) -> [Process.fromAddress(reader)]
       | None -> []
     };
-    let own = Set.fromList([Process.fromAddress(shell), Process.fromAddress(screen)] <> readers);
+    let ownProcesses = [Process.fromAddress(shell), Process.fromAddress(screen)] <> readers;
+    markOwn(ownProcesses);
+    let own = Set.fromList(ownProcesses);
     let state =
         State(session = start(),
               settings = defaults,
@@ -1733,6 +1736,11 @@ foreign fn setScreen(screen : Address(String)) : Unit =
 
 foreign fn holdTerminal(holder : Address(a)) : Unit =
     "ern_rt:hold_terminal/1"
+
+// Report §11.2, Appendix E.21: the session's own processes, which
+// `Process.live()` leaves out.
+foreign fn markOwn(processes : List(Process)) : Unit =
+    "ern_rt:own/1"
 
 // Report §11.2: waits until each delivery of the runtime's own on its way
 // to the session, a fault's report among them, has arrived, which the

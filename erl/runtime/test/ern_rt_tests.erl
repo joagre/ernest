@@ -138,6 +138,177 @@ process_status_test() ->
     ?assertEqual(true, wait(live)),
     ?assertEqual('None', wait(gone)).
 
+%% report §12.1, §11.2: on a node a shell is attached to, standard output
+%% and standard error write what a process of a session sends them to that
+%% session's screen, the row of its root, a process it started and one a
+%% load's evaluation in it started among them, and a process of the
+%% runtime's own that acts for one, a delivery and a kept process, writes
+%% as the one it acts for; what any other process sends, the entry
+%% process's and the session's once its row is dropped, goes to the node's
+%% own. Written before the code
+screen_routed_test() ->
+    Self = self(),
+    Sink = fun(Where) -> fun(Bytes) -> Self ! {Where, Bytes} end end,
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = erlang:self(),
+               Session = ern_rt:spawn_root(fun() -> session(Main) end, <<"S.session:1">>),
+               ern_rt:screen(Session, Sink(screen)),
+               ern_rt:send(Session, go),
+               written(stdout, <<"node\n">>),
+               receive {done, Session} -> ok end,
+               ern_rt:drop_screen(Session),
+               ern_rt:send(Session, again),
+               receive {done, Session} -> ok end
+           end, <<"main">>, #{stdout => Sink(out), stderr => Sink(err)}),
+    Screen = lists:sort(taken(screen)),
+    ?assertEqual(lists:sort([<<"session\n">>, <<"started\n">>, <<"started error\n">>,
+                             <<"evaluated\n">>, <<"delivered\n">>, <<"kept\n">>]), Screen),
+    ?assertEqual(lists:sort([<<"node\n">>, <<"detached\n">>]), lists:sort(taken(out))),
+    ?assertEqual([], taken(err)).
+
+%% The session of screen_routed_test: it writes, and starts a process that
+%% writes to both streams, one under a load's mark that writes, a
+%% delivery's wrap and a kept process's function that write, then, once
+%% its row is dropped, writes again.
+session(Main) ->
+    receive go -> ok end,
+    written(stdout, <<"session\n">>),
+    Started = fun() ->
+                  written(stdout, <<"started\n">>),
+                  written(stderr, <<"started error\n">>)
+              end,
+    ended(ern_rt:spawn_monitored(Started, fun(Down) -> {ended, Down} end, <<"S.started:2">>)),
+    {Mark, Root} = ern_rt:rooting(),
+    Evaluated = fun() -> written(stdout, <<"evaluated\n">>) end,
+    ended(ern_rt:spawn_monitored(Evaluated, fun(Down) -> {ended, Down} end, <<"S.load:3">>)),
+    ern_rt:rooted(Mark, Root),
+    Quick = ern_rt:spawn(fun() -> ok end, <<"S.quick:4">>),
+    ern_rt:monitor(Quick, fun(Down) -> written(stdout, <<"delivered\n">>), {ended, Down} end),
+    ended(Quick),
+    Session = erlang:self(),
+    Kept = ern_rt:kept(ern_rt:adapted(Session,
+                                      fun(N) -> written(stdout, <<"kept\n">>), {kept, N} end)),
+    Kept ! {apply, 1},
+    receive {kept, 1} -> ok end,
+    Kept ! stop,
+    Main ! {done, Session},
+    receive again -> ok end,
+    written(stdout, <<"detached\n">>),
+    Main ! {done, Session}.
+
+ended(_Process) ->
+    receive {ended, _} -> ok end.
+
+%% A write of Bytes to a standard stream, as Io.OutMsg's Write makes one.
+written(Stream, Bytes) ->
+    ern_rt:call_forever(ern_rt:system_process(Stream), fun(Reply) -> {'Write', Bytes, Reply} end).
+
+%% What a sink was given under Tag, every message of it so far.
+taken(Tag) ->
+    receive {Tag, Bytes} -> [Bytes | taken(Tag)] after 0 -> [] end.
+
+%% report §11.2, §12.1: on a node a shell is attached to, a process of a
+%% session that reads a line or bytes from standard input, or subscribes
+%% to the terminal, faults as it does in any shell, and any other process
+%% reads the node's own standard input. Written before the code
+screen_terminal_test() ->
+    Self = self(),
+    Line = fun() ->
+               ern_rt:call_forever(ern_rt:system_process(stdin),
+                                   fun(Reply) -> {'ReadLine', Reply} end)
+           end,
+    Bytes = fun() ->
+                ern_rt:call_forever(ern_rt:system_process(stdin), fun(Reply) -> {'Read', Reply} end)
+            end,
+    Subscribe = fun() ->
+                    Terminal = ern_rt:system_process(terminal),
+                    ern_rt:call_forever(Terminal, fun(Reply) ->
+                                                      {'Subscribe', erlang:self(), Reply}
+                                                  end)
+                end,
+    Tried = fun(Function) ->
+                fun() ->
+                    Self ! {tried, try Function() catch throw:{ern, fault, Cause} -> Cause end}
+                end
+            end,
+    Next = queued_input([<<"line\n">>], fun() -> eof end),
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = erlang:self(),
+               Session = ern_rt:spawn_root(
+                           fun() ->
+                               receive go -> ok end,
+                               [ended(ern_rt:spawn_monitored(Tried(Function),
+                                                             fun(Down) -> {ended, Down} end,
+                                                             <<"S.reader:2">>))
+                                || Function <- [Line, Bytes, Subscribe]],
+                               Main ! tried
+                           end, <<"S.session:1">>),
+               ern_rt:screen(Session, fun(_) -> ok end),
+               ern_rt:send(Session, go),
+               receive tried -> ok end,
+               Self ! {node, Line()}
+           end, <<"main">>, #{stdout => fun(_) -> ok end, stdin => Next,
+                              keys => fun() -> eof end}),
+    Holds = ern_rt:shell_holds(),
+    ?assertEqual([Holds, Holds, Holds], [wait(tried), wait(tried), wait(tried)]),
+    ?assertEqual({'Some', <<"line">>}, wait(node)).
+
+%% report §11.2, Appendix E.23: Os.exit faults a process a session started,
+%% directly or through one it started, as it faults one in any shell, and
+%% from any other process ends the node as `ern run` ends it. Written
+%% before the code
+screen_exit_test() ->
+    Self = self(),
+    Outcome = ern_rt:run_main(
+                fun() ->
+                    Main = erlang:self(),
+                    Exiting = fun() -> ern_rt:exit_program(3) end,
+                    Session = ern_rt:spawn_root(
+                                fun() ->
+                                    receive go -> ok end,
+                                    _ = ern_rt:spawn_monitored(Exiting,
+                                                               fun(Down) -> {exited, Down} end,
+                                                               <<"S.exiting:2">>),
+                                    receive {exited, Down} -> Main ! {exited, Down} end
+                                end, <<"S.session:1">>),
+                    ern_rt:screen(Session, fun(_) -> ok end),
+                    ern_rt:send(Session, go),
+                    receive {exited, Down} -> Self ! {exited, Down} end,
+                    ern_rt:exit_program(4)
+                end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertMatch({'Down', _, {'Fault', <<"exited with status 3">>}, <<"S.exiting:2">>},
+                 wait(exited)),
+    ?assertEqual({exit, 4}, Outcome).
+
+%% report Appendix E.21, §11.2: Process.live() leaves out a session's own
+%% processes, each marked so and unmarked again by the session, and lists
+%% what they start. Written before the code
+own_left_out_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = erlang:self(),
+               Own = ern_rt:spawn(fun() ->
+                                      receive go -> ok end,
+                                      Started = ern_rt:spawn(fun waiting/0, <<"S.started:2">>),
+                                      Main ! {started, Started},
+                                      waiting()
+                                  end, <<"S.own:1">>),
+               'Unit' = ern_rt:own([Own]),
+               ern_rt:send(Own, go),
+               Started = receive {started, Pid} -> Pid end,
+               Marked = lists:sort(ern_rt:processes()),
+               'Unit' = ern_rt:disown([Own]),
+               Unmarked = lists:sort(ern_rt:processes()),
+               Self ! {live, {Marked =:= lists:sort([Main, Started]),
+                              Unmarked =:= lists:sort([Main, Own, Started])}},
+               ern_rt:kill(Own),
+               ern_rt:kill(Started)
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({true, true}, wait(live)).
+
 %% report §8.6: a program's end ends every process the runtime started,
 %% one spawned as the program ends among them. A regression test: a spawn
 %% the reaper handled after the end had read its rows lived on, 176 of them

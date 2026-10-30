@@ -635,9 +635,11 @@ template(Cause) ->
 %% docs/design/runtime.md, report §8.6, §6.9, §8.7: the note's list of the
 %% shared rows names each table the runtime makes for a launch,
 %% `ern_rt:tables/0`, by its Erlang name beside what it holds, each row of
-%% the list naming one at least, and no table the runtime does not make. A
-%% regression test, written after the note; it does not read what a row
-%% says its table holds, nor a table of the gateway's or the code's.
+%% the list naming one at least, a table named in more than one where its
+%% rows hold more than one item says, and no table the runtime does not
+%% make. A regression test, written after the note; it does not read
+%% what a row says its table holds, nor a table of the gateway's or the
+%% code's.
 runtime_tables_test() ->
     Note = ern_repository:read("docs/design/runtime.md"),
     [_, Section] = binary:split(Note, <<"\n## What the runtime keeps, and where\n">>),
@@ -646,7 +648,7 @@ runtime_tables_test() ->
     Rows = binary:split(List, <<"\n- ">>, [global]),
     Named = [[list_to_atom(Name) || [Name] <- matches(Row, "`(ern_[a-z_]+)`")] || Row <- Rows],
     ?assertEqual([], [Row || {Row, []} <- lists:zip(Rows, Named)]),
-    ?assertEqual(lists:sort(ern_rt:tables()), lists:sort(lists:append(Named))).
+    ?assertEqual(lists:sort(ern_rt:tables()), lists:usort(lists:append(Named))).
 
 %% docs/design/runtime.md, report §12.6: the frames the runtime's code reads
 %% of a peer are seventeen, and the note's list and §12.6's *What passes*, each

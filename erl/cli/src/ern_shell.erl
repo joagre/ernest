@@ -14,7 +14,7 @@
          check/3, is_unit/1, type_text/1, run/4, show/3, bindings/1, slot/1, names/0,
          session_names/0, session_texts/0, source_root/0, segment/1, component/1, forget/2,
          browse/2, doc/2,
-         documentation/1, fields/1, signature/1, declared_type/2, load/2, own/0,
+         documentation/1, fields/1, signature/1, declared_type/2, load/2,
          reload/1, version/0, write/1, screen/1, to_screen/1, flush_screen/0,
          leaves_it_unchanged/1, collect/1, input_site/2, is_expression/1, declared/2]).
 
@@ -154,10 +154,8 @@
 %% session as it stands (keep_session/1), the holders' and the inputs'
 %% numbers free to give again (release/1, collected/1), what each session
 %% module needs (uses/0), each input's name (input_site/2), each declaring
-%% input's text, which a reload compiles it again from (input_text/2), the
-%% modules whose `:load` was refused (refusal_kept/2), and the processes
-%% of the shell's own beside its chain, those the loads evaluated bindings
-%% in and the last input's (own/0).
+%% input's text, which a reload compiles it again from (input_text/2), and
+%% the modules whose `:load` was refused (refusal_kept/2).
 %%
 %% A binding's value is §8.5's store, a persistent term, as a module's is,
 %% so that a later input reads it as it reads another module's value; its
@@ -783,9 +781,10 @@ run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interfac
                end,
     Kept = Binds =:= declarations orelse BuildsFunctions,
     Body = fun() ->
-               %% report §11.2: the shell's own while it runs, said before
-               %% anything of the input's runs (own/0)
-               keep(input, self()),
+               %% report §11.2, Appendix E.21: the session's own while it
+               %% runs, which Process.live() leaves out, marked before
+               %% anything of the input's runs
+               ern_rt:own([self()]),
                %% report §11.2: the input's own fault is its answer, caught
                %% here, so that its process does not end with a fault; its
                %% cause, its trace, a frame a line (Appendix E.21), and the
@@ -2524,20 +2523,12 @@ session_ended(SessionProcess) ->
     MonitorRef = erlang:monitor(process, SessionProcess),
     receive {'DOWN', MonitorRef, process, SessionProcess, _} -> ended end.
 
-%% Report §11.2: the processes a load or a reload evaluated bindings in,
-%% which live on while the session runs, among the shell's own, which
-%% Process.live() leaves out (own/0).
+%% Report §11.2, Appendix E.21: the processes a load or a reload evaluated
+%% bindings in, which live on while the session runs, among the session's
+%% own, which Process.live() leaves out.
 evaluating(Roots) ->
-    keep(evaluators, [Root || {Root, _} <- Roots] ++ kept(evaluators, [])),
+    'Unit' = ern_rt:own([Root || {Root, _} <- Roots]),
     ok.
-
-%% Report §11.2: the processes of the shell's own beside its chain, which
-%% Process.live() leaves out (ern_rt:processes/0): those the session's
-%% loads and reloads evaluated bindings in, which live while it runs, and
-%% the last input's, which runs while it asks, once an input has run.
--spec own() -> [pid()].
-own() ->
-    kept(evaluators, []) ++ [Input || Input <- [kept(input, none)], is_pid(Input)].
 
 %% Report §8.7: the units whose bindings a load evaluated, so that a peer's
 %% spawn finds their values, as it finds a run's.

@@ -6,7 +6,7 @@ A line here is a shape a reader must know to change the component without breaki
 
 ## The rule
 
-A definition is known by the hash of its canonical form, on every node and in every build, and a node holds every definition it has ever loaded for its life; code crosses between nodes as forms with a spawn or a compute and nowhere else, verified by hash where it arrives and loaded whole before any of it runs (§8.7, *Definitions and their hashes*, *The exchange*; Appendix H; the log's *The Nodes' Reasons, Kept*, *The Canonical Form, Built*). Nothing is evaluated because code arrived: a binding's value is its node's own, and a received definition reads it where the node holds it or is refused before it runs (the log's *The Module Peer*, *What the Outline Asked*).
+A definition is known by the hash of its canonical form, on every node and in every build, and a node holds every definition it has ever loaded for its life; code crosses between nodes as forms with a spawn or a compute and nowhere else, verified by hash where it arrives and loaded whole before any of it runs (§8.7, *Definitions and their hashes*, *The exchange*; Appendix H; the log's *The Nodes' Reasons, Kept*, *The Canonical Form, Built*). Nothing is evaluated because code arrived: a binding's value is its node's own, and a received definition reads it where the node holds it or is refused before it runs (the log's *The Module Peer*, *What the Outline Asked*). The toolchain's own units are the one thing a node evaluates because a peer asked, loaded from its own tree and never crossing (*The toolchain's own units*).
 
 A lookup is by hash and never by a name: two nodes that hold one hash hold one definition, whatever each build calls it, and two builds that differ in a definition hold two.
 
@@ -44,6 +44,14 @@ The peer answers with the identities it lacks, among them a definition it holds 
 
 The exchange runs within the spawn's time, two spawns that wait on one identity share one exchange, and a frame of an exchange that has ended is dropped; a peer that waited longer than the latest `ms` of the frames waiting on it drops the exchange, says the spawn was not loaded, and answers nothing, since the spawner's own wait has ended (§12.7).
 
+## The toolchain's own units
+
+A spawn or a compute whose function's identity the node lacks is looked for first among the toolchain's own units in the node's own tree, the shell's and the two libraries' it is compiled against, by an index from each definition's hash to its unit, read from the builds' interfaces at its first need, some 600 hashes in about ten milliseconds, and kept for the host's life, since the tree does not change under a running node (the deployment guide's §5.1; `ern_code:own_unit/1`). The lookup is by hash, so it finds a definition between two trees of one build and never between two builds (§12.7, *The toolchain's own units*).
+
+Where the index holds it, the exchange asks no node: its unit and the units it uses are read from the tree and placed as `Code.load` places a module, and their bindings without values evaluated as `Code.load` evaluates them, in a process of the runtime's own that the exchange waits for, in §8.5's order at `Never`, before the spawn is read again as the gateway's worker reads it, which starts it (`ern_code_load:own/1`). A binding that faults answers the spawn `NotLoaded`, the node naming the binding and its cause. The shell's whole reach takes about 0.27 seconds at a node's first attach, most of it reading and verifying its forms (the log's *The Session's Screen and the Toolchain's Units, Built*).
+
+Where the index lacks it, the exchange runs as *The exchange* says. A shell of another build of `ern` is lacked so, and `Shell.main`'s reach names bindings that are no constants, `Shell.colorAllowed` among them, so the peer answers `NotLoaded` for a binding without a value before any form crosses.
+
 ## Arrivals
 
 The definitions one exchange brings become one unit on the node they arrive at, an *arrival*, named from the node's pool, `ern$1`, `ern$2`, the first the host holds no unit of; it is made by the build's own back end from the same forms as a build's, so that a received definition is compiled as its build was, its frames and its foreign declarations' at the sender's lines, and compiled by the host and loaded whole before any process runs it (§12.7; the log's *The Report for Code with a Spawn*).
@@ -68,4 +76,6 @@ The code table keeps the sums the host counts (`ern_code_sums`) and reads them e
 
 ## What it does not do
 
-It sends no compiled code, only forms, so that a node compiles what it runs and a mismatch of hash is caught before anything is loaded. It unloads nothing while a node runs, so a version a process still runs is never taken from under it (§6.10, §11.2); the cost, a node that grows with its versions, is said and counted. It initializes nothing because a peer asked. It looks nothing up by name across nodes, and keeps no table of which node holds which definition: a node knows what it holds, asks for what it lacks, and the spawner's node answers from what it holds, so there is no store to keep consistent and no name to translate between builds (the log's *The Report Rewritten for MVP 3.1*).
+It sends no compiled code, only forms, so that a node compiles what it runs and a mismatch of hash is caught before anything is loaded. It unloads nothing while a node runs, so a version a process still runs is never taken from under it (§6.10, §11.2); the cost, a node that grows with its versions, is said and counted.
+
+It initializes nothing because a peer asked, but the toolchain's own units a spawn names, whose bindings are the toolchain's tables and constants, read from the node's own tree (*The toolchain's own units*). It looks nothing up by name across nodes, and keeps no table of which node holds which definition: a node knows what it holds, asks for what it lacks, and the spawner's node answers from what it holds, so there is no store to keep consistent and no name to translate between builds (the log's *The Report Rewritten for MVP 3.1*).

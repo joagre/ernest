@@ -241,7 +241,7 @@ Pages are rendered by `libs/markdown`, which the shell is built against, at the 
 
 `Shell.Command.commands` is the one table of commands: each command's name, its action, what it takes and what completes after it, and its help line. `commands_mirror_test`, in `test/ern_shell_tests.erl`, holds it equal to the list of §11.2 *Commands*. The session carries each action out, most through the foreign function of its name.
 
-The settings are an Ernest value in the session's state, not the front end's. `:processes` lists what `Process.live()` lists at the prompt, which the shell's launch has the runtime leave its own processes out of, its chain, the evaluators and the input that asks, and `:faults` reads the session's state, each fault with the time it was met, its report's `time` (Appendix E.21).
+The settings are an Ernest value in the session's state, not the front end's. `:processes` lists what `Process.live()` lists at the prompt, which leaves out the processes the session marks as its own, itself, its screen and its reader, the evaluators and the input that asks (`ern_rt:own/1`), and `:faults` reads the session's state, each fault with the time it was met, its report's `time` (Appendix E.21).
 
 ## Faults
 

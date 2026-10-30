@@ -1194,15 +1194,14 @@ shell(Options, Rest, ErrorDevice) ->
         end,
     %% report §11.2: the sinks are the screen's, which the shell names
     Sink = fun(Bytes) -> ern_shell:to_screen(Bytes) end,
-    %% report §11.2: Os.exit faults the process that calls it, and
-    %% Process.live() leaves the shell's own processes out
+    %% report §11.2: Os.exit faults the process that calls it
     %% report §11.1: the unit names its functions by their position
     {Main, 0} = ern_code:function(ErlangModule, ['Shell', main]),
     Outcome = as_node(Options, LoadPath, Say,
                       fun(Node) ->
                           ern_rt:run_main(fun() -> ErlangModule:Main() end, <<"Shell.main">>,
                                           Node#{stdout => Sink, stderr => Sink, init => Init,
-                                                exit => fault, own => fun ern_shell:own/0,
+                                                exit => fault,
                                                 flush => fun ern_shell:flush_screen/0})
                       end),
     report_shell_outcome(ErrorDevice, Outcome).

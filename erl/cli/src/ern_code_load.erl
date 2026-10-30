@@ -37,9 +37,14 @@
 %% fault as §8.5 reports it. The units the load brought stay loaded, out of
 %% reach, since a process running before the load may hold a function of
 %% one (§11.2); loaded again, unchanged, the module makes no unit.
+%%
+%% Report §12.7: a unit of the toolchain's own that a peer's spawn names is
+%% loaded the same way from the node's own tree, the modules it uses found
+%% in the tree's builds of the toolchain's own and not on the load path,
+%% in a process of the runtime's own (own/1).
 -module(ern_code_load).
 
--export([load/1]).
+-export([load/1, own/1]).
 
 -include_lib("checker/include/ern_types.hrl").
 -include_lib("checker/include/ern_canonical.hrl").
@@ -59,9 +64,30 @@
 -spec load({'Path', binary()}) -> {'Right', 'Unit'} | {'Left', term()}.
 load({'Path', Path}) ->
     try
-        evaluated(placed_and_loaded(Path))
+        evaluated(placed_and_loaded(Path, ern_cli:load_path()))
     catch
         throw:{refused, Error} -> {'Left', Error}
+    end.
+
+%% Report §12.7, *The toolchain's own units*: the toolchain's own unit
+%% Unit, which a peer's spawn names a definition of, from this node's own
+%% tree (ern_code:own_file/1), and the modules it uses, found in the
+%% tree's builds of the toolchain's own (ern_code:own_builds/0), each
+%% placed and loaded as a load places a module and their bindings that
+%% have no value on the node evaluated in the calling process, a process
+%% of the runtime's own, before any process runs the spawned function;
+%% nothing is asked of another node. ok, or what the node lacked, a
+%% binding's fault among it, which the node says beside `NotLoaded`.
+-spec own(module()) -> ok | {lacked, binary()}.
+own(Unit) ->
+    {ok, File} = ern_code:own_file(Unit),
+    try evaluated(placed_and_loaded(File, ern_code:own_builds())) of
+        {'Right', 'Unit'} -> ok
+    catch
+        throw:{refused, {'Other', Text}} -> {lacked, Text};
+        throw:{refused, Error} ->
+            {lacked, <<"the toolchain's own units in this node's tree could not be loaded: ",
+                       (ern_io:show(Error))/binary>>}
     end.
 
 %% Report §8.6: the load's reading of its files, its placing and its load
@@ -70,10 +96,10 @@ load({'Path', Path}) ->
 %% inside foreign code for the look meanwhile; the evaluation of the
 %% bindings after it is Ernest code, whose waits the look reads, a
 %% deadlock among them.
-placed_and_loaded(Path) ->
+placed_and_loaded(Path, LoadPath) ->
     ern_rt:entered_foreign(),
     try
-        Placed = placed(reach(Path)),
+        Placed = placed(reach(Path, LoadPath)),
         loaded(Placed),
         Placed
     after
@@ -97,12 +123,13 @@ cannot(#found{namespace = Namespace}, Reason) ->
 %%
 
 %% The module at Path and every module it uses, directly or through
-%% another, each once, those it uses before it.
-reach(Path) ->
+%% another, each once, those it uses before it, found under the module's
+%% root and then on Dirs.
+reach(Path, Dirs) ->
     File = ern_build:absolute(unicode:characters_to_list(Path)),
     #found{namespace = Namespace} = Module = found(File, any),
     Root = root(File, Namespace),
-    LoadPath = lists:uniq([Root | ern_cli:load_path()]),
+    LoadPath = lists:uniq([Root | Dirs]),
     {Order, _} = with_dependencies(Module, LoadPath, [Namespace], {[], #{Namespace => Module}}),
     Reach = lists:reverse(Order),
     lists:foreach(fun(Found) -> same_interfaces(Found, Reach) end, Reach),

@@ -70,6 +70,7 @@ Something may be kept as long as a program holds what it stands for: a socket un
 - An offer's rows in `ern_offers` and `ern_offered` go when its process ends, which the reaper sees for a process the runtime started or opened, and watches for in any other.
 - `ern_initialized` holds a row for each unit whose initializers a run or a load has run, which the build and the session's loads bound.
 - The utilization a program set is one row of `ern_launch`, each set in place of the last, for the launch's life.
+- A session's screen, a row of `ern_screens` for each root the session heads, is dropped by the session that wrote it, and goes with the launch's tables at the end; the mark that a process is a session's own is in its row, and goes with the process (report §12.1, §11.2).
 - The note of a call from another node, in `ern_notes` and `ern_callees`, goes at an answer given on this node, the callee's restart or end, the caller's second note, or the loss of the caller's node. The call sends the second note wherever it ends otherwise, its caller's end among them.
 
 ### The gateway and its peers (report §8.7)
@@ -94,6 +95,7 @@ Something may be kept as long as a program holds what it stands for: a socket un
 - As the spawner's node, `ern_exchange` keeps nothing between a peer's frames.
 - `ern_exchange` keeps the prelude's environment, built at its first arrival, and its pool's count for the node's life, since neither the prelude nor the standard library changes while it runs.
 - An arrival's unit and its row of forms are held for the node's life, as every unit is (report §11.2; the log's *The Report for Code with a Spawn*).
+- The index of the toolchain's own units, each definition's hash to its unit, some 600 of them, is read from the tree's builds at the first spawn whose function the node lacks and kept for the host's life, since the tree does not change under a running node; a unit of the toolchain's own a spawn loads is held for the node's life, as every unit is (report §12.7).
 - A node sent code without end holds each definition once, in the unit of the exchange that brought it, so it grows with the exchanges that bring it distinct definitions and the definitions they bring, not with its spawns or its time.
 - An arrival adds one module name and an atom, an export entry for each function it holds and four more, and a function entry for each lambda (measured 2026-10-12 by `make bench`).
 

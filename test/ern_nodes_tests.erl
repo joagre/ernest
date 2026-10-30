@@ -3176,6 +3176,67 @@ constant_crosses(Base) ->
                                 "tags: Right([#(\"a\", 1), #(\"b\", -2)])",
                                 "computed: Left(NotLoaded)"]].
 
+%% report §12.7, *The toolchain's own units*: a spawn and a compute of a
+%% function a unit of the toolchain's own holds, the shell's, on a bare
+%% node that lacks it, load its units from the bare node's own tree and
+%% evaluate their bindings before the process starts, asking the spawner
+%% for nothing: `Shell.History.keepOwn`, whose reach names
+%% `Shell.History.directory`, which is no constant and so would have no
+%% value had it crossed as forms, runs and returns, and
+%% `Shell.Command.help` answers its lines; and on a bare node whose
+%% `Shell.History.directory` faults, its environment's `HOME` not UTF-8, a
+%% spawn of `keepOwn` answers `NotLoaded`, the node saying the binding
+%% faulted. The spawner is a program built against the shell's builds.
+%% Written before the code
+own_units_test_() ->
+    nodes_test({waits, 12}, fun own_units/1).
+
+own_units(Base) ->
+    ProgramDir = filename:join(Base, "program"),
+    ok = filelib:ensure_path(ProgramDir),
+    ok = file:write_file(
+           filename:join(ProgramDir, "owned.ern"),
+           ["type Msg = Ended(Down)\n"
+            "export fn main() : Unit receiving Msg = {\n"
+            "    match Peer.spawnMonitored(\"b\", Shell.History.keepOwn, Ended, waitMs()) {\n"
+            "        Right(_) -> receive {\n"
+            "            Ended(down) -> Io.println(\"keepOwn: \" <> Io.show(down.reason))\n"
+            "        }\n"
+            "      | Left(failure) -> Io.println(\"keepOwn: \" <> Io.show(failure))\n"
+            "    };\n"
+            "    let help = Peer.computeAt(\"b\", Shell.Command.help, waitMs());\n"
+            "    Io.println(\"help: \" <> Io.show(help));\n"
+            "    let spawned = Peer.spawn(\"c\", Shell.History.keepOwn, waitMs());\n"
+            "    Io.println(\"faulted: \" <> Io.show(Either.map(spawned, fn(_) = Unit)))\n"
+            "}\n",
+            wait_ms_declaration()]),
+    Builds = [ern_tree:build(Build) || Build <- ["shell", "libs/ansi", "libs/markdown"]],
+    LoadPath = [[" --load-path ", Build] || Build <- Builds],
+    0 = built(lists:append([["--load-path", Build] || Build <- Builds]) ++ [ProgramDir]),
+    A = made(Base, "a", none),
+    B = made(Base, "b", 0),
+    C = made(Base, "c", 0),
+    lists(B, [{"a", A, none}]),
+    lists(C, [{"a", A, none}]),
+    WaitB = bare_started(B, []),
+    {_, WaitC} = launched(C, ["HOME=\"$(printf '\\377')\" ", ?ERN, " run --config-dir ", C]),
+    lists(A, [{"b", B, bound_port(B)}, {"c", C, bound_port(C)}]),
+    {_, WaitA} = launched(A, [?ERN, " run --config-dir ", A, LoadPath, " ",
+                              filename:join(ProgramDir, "owned.erc")]),
+    ?assertEqual(0, WaitA()),
+    says(C, "was not loaded: Shell.History.directory:"),
+    ?assertMatch({0, _}, signaled("stop", B)),
+    ?assertEqual(143, WaitB()),
+    ?assertMatch({0, _}, signaled("stop", C)),
+    ?assertEqual(143, WaitC()),
+    {Out, _} = said(A),
+    {_, ErrB} = said(B),
+    [has(Out, Line) || Line <- ["keepOwn: Returned", "help: Right([\"", ":bindings",
+                                "faulted: Left(NotLoaded)"]],
+    ?assertEqual(nomatch, string:find(ErrB, "was not loaded")),
+    {_, ErrC} = said(C),
+    has(ErrC, " faulted: the environment variable HOME is not UTF-8").
+
 %% report §8.7, §11.2, §12.3, §11.8: a bare node whose `ernest.conf` has no
 %% `listen` is refused at its start, as the launcher's second start says
 %% it, and writes no ernest.pid; and one whose carrier cannot start, its
