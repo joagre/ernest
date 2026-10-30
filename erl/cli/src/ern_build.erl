@@ -16,8 +16,8 @@
          compiled_dependencies/1, source_root/3, build_root/2, is_stdlib_root/1, stdlib_hash/0,
          dependency_interfaces/5, load_path/1, is_compiled_against/4, compiler_modules/0,
          compiler_build/0, sweep_pages/5, compile_source/5, compile_source/6, absolute/1,
-         relative/2, root_of/2, write_whole/2, write_output/2, write_output/3, read/1, make_dirs/1,
-         make_private_dir/1,
+         relative/2, root_of/2, write_whole/2, write_output/2, write_output/3, read/1,
+         read_through/2, source_read/1, is_source/1, make_dirs/1, make_private_dir/1,
          refused/2, fail/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
@@ -26,6 +26,10 @@
 -include_lib("shared/include/ern_diagnostic.hrl").
 -include_lib("kernel/include/file.hrl").
 -include("ern_build.hrl").
+
+%% Report §11.2: the key of the calling process's dictionary that holds the
+%% access to a shell's source root while its load works (read_through/2).
+-define(SOURCES, '$ern_sources').
 
 %% Report §11.1: the modules a path names compiled, each failure reported
 %% as the job named Job reports it; 0 where every module compiled, else 1.
@@ -358,10 +362,17 @@ report_errors(File, Diagnostics, ErrorDevice) ->
                   end, Diagnostics),
     1.
 
-%% A file named from the working directory where it lies under it.
+%% A file named from the working directory where it lies under it, the
+%% operator's for a shell's load (read_through/2).
 -spec shown(file:filename()) -> file:filename().
 shown(File) ->
-    {ok, Cwd} = file:get_cwd(),
+    Cwd = case get(?SOURCES) of
+              #{working_directory := Given} ->
+                  Given;
+              undefined ->
+                  {ok, Own} = file:get_cwd(),
+                  Own
+          end,
     case relative(File, Cwd) of
         outside -> absolute(File);
         Relative -> Relative
@@ -657,7 +668,7 @@ parse_module(Module, SourceRoot, DependencyRoots) ->
 %% source that cannot be read, which fails the module as parsed_module/4
 %% throws it.
 source_parsed(#build_module{file = File}) ->
-    try ern_parser:parse_string(read(File))
+    try ern_parser:parse_string(source_bytes(File))
     catch
         throw:{cli_error, _} = Refused -> Refused
     end.
@@ -745,7 +756,7 @@ type_members(Parent, Type, SourceRoot, DependencyRoots, Declared) ->
 
 %% The declarations a source holds; none when it is absent or does not parse.
 source_declarations(File) ->
-    case file:read_file(File) of
+    case source_read(File) of
         {ok, Bytes} ->
             case ern_parser:parse_string(Bytes) of
                 {ok, Declarations} -> {ok, Declarations};
@@ -821,7 +832,7 @@ dependencies(Declarations, SourceRoot, DependencyRoots, TypeMembers) ->
                false -> taken_namespaces()
            end,
     IsModule = fun(Relative) ->
-                   filelib:is_regular(filename:join(SourceRoot, Relative ++ ".ern"))
+                   is_source(filename:join(SourceRoot, Relative ++ ".ern"))
                        orelse is_compiled(Relative, DependencyRoots)
                end,
     named_modules(Declarations, Skip, IsModule, TypeMembers).
@@ -1222,7 +1233,7 @@ cycle_through([Namespace | _] = Path, User, Seen, SourceRoot, DependencyRoots) -
 %% where it has none there or it does not parse.
 source_uses(Namespace, SourceRoot, DependencyRoots) ->
     File = filename:join(SourceRoot, ern_namespace:module_path(Namespace) ++ ".ern"),
-    case filelib:is_regular(File) of
+    case is_source(File) of
         false ->
             [];
         true ->
@@ -1273,7 +1284,7 @@ recorded_uses(Namespace, DependencyRoots, SourceRoot, Say) ->
 %% source is returned, and false for a .erc that is not.
 gone(#{source_path := Recorded}, Dir, SourceRoot) ->
     Source = absolute(filename:join(Dir, unicode:characters_to_list(Recorded))),
-    case relative(Source, SourceRoot) =/= outside andalso not filelib:is_regular(Source) of
+    case relative(Source, SourceRoot) =/= outside andalso not is_source(Source) of
         true -> Source;
         false -> false
     end;
@@ -1580,7 +1591,7 @@ compile_source(File, SourceRoot, LoadPath, Interfaces, Units, SiteNamespace) ->
         DependencyHashes =
             lists:sort([{Dependency, ern_interface:hash(DependencyInterface)}
                         || {Dependency, DependencyInterface} <- DependencyInterfaces]),
-        Hash = crypto:hash(sha256, read(File)),
+        Hash = crypto:hash(sha256, source_bytes(File)),
         Given = [DependencyInterface || {_, DependencyInterface} <- DependencyInterfaces],
         case ern_typecheck:check(Namespace, Declarations, Given) of
             {ok, Typed, Interface, Env} ->
@@ -1730,6 +1741,50 @@ read(File) ->
         {error, Error} -> refused(File, Error)
     end.
 
+%% Report §11.2: the files of the source root a shell's load reads, which
+%% are its operator's: a shell's session reads them through its local half,
+%% on the shell's own node, which holds them, by the access the session
+%% gives for its load's work, Access reading a file and saying whether one
+%% is there, and naming a file from the operator's working directory; every
+%% other job reads its own disk.
+-spec read_through(#{read := fun((file:filename()) -> {ok, binary()} | {error, term()}),
+                is_regular := fun((file:filename()) -> boolean()),
+                working_directory := file:filename()}, fun(() -> Result)) -> Result.
+read_through(Access, Work) ->
+    Previous = put(?SOURCES, Access),
+    try
+        Work()
+    after
+        case Previous of
+            undefined -> erase(?SOURCES);
+            _ -> put(?SOURCES, Previous)
+        end
+    end.
+
+%% A source's bytes, or the reason it could not be read: a host's reason,
+%% or `{text, Text}`, the shell's own node's.
+-spec source_read(file:filename()) -> {ok, binary()} | {error, term()}.
+source_read(File) ->
+    case get(?SOURCES) of
+        #{read := Read} -> Read(File);
+        undefined -> file:read_file(File)
+    end.
+
+%% Whether a source is there, a regular file.
+-spec is_source(file:filename()) -> boolean().
+is_source(File) ->
+    case get(?SOURCES) of
+        #{is_regular := IsRegular} -> IsRegular(File);
+        undefined -> filelib:is_regular(File)
+    end.
+
+%% A source's bytes, or its refusal as read/1 refuses a file.
+source_bytes(File) ->
+    case source_read(File) of
+        {ok, Bytes} -> Bytes;
+        {error, Error} -> refused(File, Error)
+    end.
+
 %% Makes the directories a file is written under.
 -spec make_dirs(file:filename()) -> ok.
 make_dirs(File) ->
@@ -1769,6 +1824,8 @@ delete(File) ->
 %% Report §11.5: a file named from the working directory, and a name the
 %% host gives as bytes as its bytes.
 -spec refused(file:filename_all(), term()) -> no_return().
+refused(File, {text, Text}) ->
+    fail(shown(File) ++ ": " ++ Text);
 refused(File, Error) when is_list(File) ->
     fail(shown(File) ++ ": " ++ file:format_error(Error));
 refused(File, Error) ->

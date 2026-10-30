@@ -48,38 +48,11 @@ One form of attaching, by a listed peer, since a node accepts a connection from 
    in the command table, refused in a shell attached to no node.
 2. **The runtime**, done 2026-10-30 (the log's *The Session's Screen and the Toolchain's Units,
    Built*).
-3. **The shell**: the local half in Ernest, holding the terminal, reading the history, the startup
-   files and the environment, spawning the shell's entry on the node with its address and what it
-   read, forwarding the terminal's events, writing the bytes the screen sends and answering its
-   `Flush`, reading a source for `:load` and `:reload` and listing the source root for its
-   completion, appending the history and `:output`'s file, and reading each line in line mode.
-
-   On the node, the process of an input that binds living while its binding is in scope, as an
-   evaluator does, and ending when the session lets the binding go, so that a socket or a program
-   opened by a `let` at the prompt stays open, where today it dies with the input's process;
-   `:processes` naming the version a process runs and what it waits on, its activity beside its
-   site.
-
-   The session's number, given once in a node's life, in every host name an input
-   makes, the names counted by the code table's sums, `:detach` leaving the evaluators, what
-   they started and what inputs spawned to the node, the node's reload shared by every session,
-   and the session's end at the local half's loss; at the local half, an attach that fails said
-   as the job's refusal, `NotLoaded` naming another build of `ern` than this shell's.
-
-   The rows item 2 built, written by the session: a screen for each root it heads, an input's
-   dropped once nothing of its chain lives, the sink keeping a character cut across two writes by
-   screen, and its own processes marked; the entry spawned on the node a function whose mailbox
-   type crosses, since `Shell.main`'s holds the front end's `Session`, bound to its node (§3.11;
-   the log's *The Session's Screen and the Toolchain's Units, Built*).
-4. **The guides and the documents**: the deployment guide's sections 5.3 and 6 rewritten over the
-   attached shell, an attach made with the node's own release of `ern` among what section 6
-   says, the language guide's §8.9 upgrade becoming a `:load` of the new build at the node's
-   prompt with `Code.running` run there, `docs/development.md`'s row on attaching gone with
-   the gap (asked by the user 2026-10-18).
-
-   The design notes: `docs/design/shell.md` gaining the attached shell's
-   section, the cut and the local half, and `docs/design/code.md` each session's namespace and
-   its rule on unloading narrowed to a load's, an arrival's and a version's units.
+3. **The shell**, done 2026-10-30 (the log's *The Attached Shell, Built*).
+4. **The guides**: the deployment guide's sections 5.3 and 6 rewritten over the attached shell,
+   an attach made with the node's own release of `ern` among what section 6 says, and the
+   language guide's §8.9 upgrade becoming a `:load` of the new build at the node's prompt with
+   `Code.running` run there (asked by the user 2026-10-18).
 5. **The tests and the release**: the nodes tests over a shell attached to a bare node and to a
    program's node, two sessions on one node, a `:load` shipped as text, a detach that leaves a
    service running, the node's loss and an attach that fails; the guide's section 6 run by them; the session golden

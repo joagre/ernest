@@ -3237,6 +3237,116 @@ own_units(Base) ->
     {_, ErrC} = said(C),
     has(ErrC, " faulted: the environment variable HOME is not UTF-8").
 
+%% report §11.2 *The attached shell*, §12.1 *A session's screen*, §11.8: a
+%% shell attached in line mode to a node whose program reads lines, from a
+%% node of its own that the node lists without an address. An input runs on
+%% the node, and what it writes reaches the shell's own standard output,
+%% while what the node's program writes stays on the node's; `:quit` is
+%% refused and the greeting names `:detach`; `:load` compiles a module of
+%% the shell's source root, which the shell's own node reads; the process of
+%% a `let` lives while its name is in scope, and `:forget` ends it; and
+%% `:processes` lists the node's program and what an input spawned, each
+%% with its activity.
+%%
+%% `:detach` ends the shell with status 0 and leaves that process running on
+%% the node, which a second session lists. Written after the code, a
+%% regression test of the attach; MVP 4.0's item 5 holds the nodes tests
+%% over attached sessions whole.
+attached_shell_test_() ->
+    nodes_test({waits, 17}, fun attached_shell/1).
+
+attached_shell(Base) ->
+    Root = filename:join(Base, "program"),
+    Source = filename:join(Base, "src"),
+    [ok = filelib:ensure_path(Dir) || Dir <- [Root, Source]],
+    ok = file:write_file(filename:join(Root, "echo.ern"),
+                         ["// A node's program, which writes a line of its own for each line\n"
+                          "// it reads.\n"
+                          "export fn main() : Unit = {\n"
+                          "    Io.println(\"ready\");\n"
+                          "    echoed()\n"
+                          "}\n"
+                          "\n"
+                          "fn echoed() : Unit =\n"
+                          "    match Io.readLine() {\n"
+                          "        Some(line) -> {\n"
+                          "            Io.println(\"the node's own: \" <> line);\n"
+                          "            echoed()\n"
+                          "        }\n"
+                          "      | None -> Unit\n"
+                          "    }\n"]),
+    ok = file:write_file(filename:join(Source, "greet.ern"),
+                         "export fn hello() : Unit = Io.println(\"hello from the operator\")\n"),
+    0 = built([Root]),
+    PortNode = free_port(),
+    Node = made(Base, "node", PortNode),
+    Ops = made(Base, "ops", none),
+    lists(Node, [{"ops", Ops, none}]),
+    lists(Ops, [{"node", Node, PortNode}]),
+    {NodeInput, WaitNode} = started(Node, filename:join(Root, "echo.erc"), []),
+    prints(Node, "ready"),
+    {ShellInput, WaitShell} = attached(Ops, "node", Source),
+    prints(Ops, ". :help for the commands, :detach to leave."),
+    true = port_command(ShellInput, "Io.println(\"written at the prompt\")\n"),
+    prints(Ops, "written at the prompt"),
+    true = port_command(NodeInput, "go\n"),
+    prints(Node, "the node's own: go"),
+    true = port_command(ShellInput, ":quit\n"),
+    prints(Ops, "this shell is attached to a node; :detach leaves it"),
+    true = port_command(ShellInput, ":load Greet\nGreet.hello()\n"),
+    prints(Ops, "hello from the operator"),
+    true = port_command(ShellInput, ["let p = Process.current()\n", "let q = p\n",
+                                     "Optional.isSome(Process.status(q))\n"]),
+    prints(Ops, "true : Bool"),
+    true = port_command(ShellInput, [":forget p\n",
+                                     "{ monitor(q, fn(down) = down); receive { _ -> Unit } }\n",
+                                     "Optional.isSome(Process.status(q))\n"]),
+    prints(Ops, "false : Bool"),
+    true = port_command(ShellInput, ["let w : Address(Int) = spawn(fn() = receive { _ -> Unit })\n",
+                                     ":processes\n"]),
+    prints(Ops, "input 11:1 receiving"),
+    prints(Ops, "Echo.main "),
+    true = port_command(ShellInput, ":detach\n"),
+    ?assertEqual(0, WaitShell()),
+    {Out, _} = said(Ops),
+    has(Out, "Greet, compiled from " ++ ern_build:shown(filename:join(Source, "greet.ern"))),
+    ?assertEqual(nomatch, string:find(Out, "the node's own")),
+    ?assertEqual(nomatch, string:find(Out, "Shell.")),
+    %% report §11.2: what the session started stays the node's
+    {SecondInput, WaitSecond} = attached(Ops, "node", Source),
+    true = port_command(SecondInput, ":processes\n:detach\n"),
+    prints(Ops, "input 11:1 receiving"),
+    ?assertEqual(0, WaitSecond()),
+    stop(Node, WaitNode),
+    {NodeOut, _} = said(Node),
+    has(NodeOut, "the node's own: go"),
+    ?assertEqual(nomatch, string:find(NodeOut, "written at the prompt")).
+
+%% report §11.2 *The attached shell*, §11.8: an attach no node answers is
+%% the job's refusal, naming the spawn's `Io.Error`, with status 1. Written
+%% after the code, a regression test of the refusal
+attach_refused_test_() ->
+    nodes_test({waits, 2}, fun attach_refused/1).
+
+attach_refused(Base) ->
+    Absent = made(Base, "absent", none),
+    Ops = made(Base, "ops", none),
+    lists(Ops, [{"absent", Absent, free_port()}]),
+    {_, Wait} = attached(Ops, "absent", Base),
+    ?assertEqual(1, Wait()),
+    {Out, Err} = said(Ops),
+    ?assertEqual("", Out),
+    has(Err, "ern shell: the peer absent is unreachable").
+
+%% A shell attached from the node of Ops to its listed peer Name, in line
+%% mode, its source root SourceRoot and its HOME a directory of its own, so
+%% that no person's startup file runs.
+attached(Ops, Name, SourceRoot) ->
+    Home = Ops ++ ".home",
+    ok = filelib:ensure_path(Home),
+    launched(Ops, ["HOME=", Home, " ", ?ERN, " shell --config-dir ", Ops, " --attach ", Name,
+                   " --source-root ", SourceRoot]).
+
 %% report §8.7, §11.2, §12.3, §11.8: a bare node whose `ernest.conf` has no
 %% `listen` is refused at its start, as the launcher's second start says
 %% it, and writes no ernest.pid; and one whose carrier cannot start, its

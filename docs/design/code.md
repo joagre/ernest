@@ -18,7 +18,7 @@ The hash is the SHA-256 of the form in the host's external term format, determin
 
 A definition's reach is the definition with everything it references, transitively, which the `.erc` records with each function's bindings and foreign declarations, so that a node knows what a spawned function needs without reading its code (§11.1).
 
-A form is kept beside the code it compiled to, sourced, with the lines of its source and its names, and with what prints a type in a cause as its module writes it, in the unit's recorded chunk (`#recorded{}`); the exchange sends it, `Code.hashes` reads it, and a shell session's declarations have one under the session's namespace, `$Session`, so that a function typed at the prompt crosses as a build's does (§11.1, §11.2, Appendix E.28; `ern_canonical:read/1`).
+A form is kept beside the code it compiled to, sourced, with the lines of its source and its names, and with what prints a type in a cause as its module writes it, in the unit's recorded chunk (`#recorded{}`); the exchange sends it, `Code.hashes` reads it, and a shell session's declarations have one under the session's namespace, which carries its number on its node, `$Session3`, so that a function typed at the prompt crosses as a build's does and two sessions' declarations of one name are two (§11.1, §11.2, Appendix E.28; `ern_canonical:read/1`).
 
 ## The code table
 
@@ -34,7 +34,9 @@ A build unit's forms are read from its `.erc` at the first request for them, che
 
 A module a node comes to hold after its start, by `Code.load` or a shell's load, is placed as a unit the node already holds of the same code, as its compiled file loaded as it is, or as a unit made from its forms, in that order, each candidate tried where it was compiled by this build of `ern`, against the interfaces the node holds, and calls no module the node holds at a unit other than its own (§11.2, *Loading and reloading*; `ern_code:placement/4`).
 
-A shell's reload makes a version, a unit of its own, `ern@counter$2`, and the types it changed are the previous version's, printed under its namespace, `Counter$1.Msg`; a process keeps the version it was started on, and a peer that names a definition the session holds in two versions finds it in the latest whose bindings have their values (§6.10, §11.2; the log's *The Shell's Reload by Hash, Built*). A version's sites carry its number, `Counter$2.service:5`, so that a fault names the code that faulted. Nothing a node has loaded is unloaded while it runs, a refused load's unit among them, since a process may still run it and a peer may still name it by hash (§11.2, *What a node holds*).
+A shell's reload makes a version, a unit of its own, `ern@counter$2`, and the types it changed are the previous version's, printed under its namespace, `Counter$1.Msg`; a process keeps the version it was started on, and a peer that names a definition the session holds in two versions finds it in the latest whose bindings have their values (§6.10, §11.2; the log's *The Shell's Reload by Hash, Built*). A version's sites carry its number, `Counter$2.service:5`, so that a fault names the code that faulted.
+
+Nothing a load, an arrival or a version brought is unloaded while the node runs, a refused load's unit among them, since a process may still run it and a peer may still name it by hash (§11.2, *What a node holds*). A session's own units, an input's and a holder's, are the one exception: the session lets each go once nothing it holds reaches it, and an attached session at its end lets go every one no process runs or holds a function of, keeping one a process does, with what its code calls, until a later collection finds the process gone ([`shell.md`](shell.md)).
 
 ## The exchange
 
@@ -76,6 +78,6 @@ The code table keeps the sums the host counts (`ern_code_sums`) and reads them e
 
 ## What it does not do
 
-It sends no compiled code, only forms, so that a node compiles what it runs and a mismatch of hash is caught before anything is loaded. It unloads nothing while a node runs, so a version a process still runs is never taken from under it (§6.10, §11.2); the cost, a node that grows with its versions, is said and counted.
+It sends no compiled code, only forms, so that a node compiles what it runs and a mismatch of hash is caught before anything is loaded. It unloads no unit of a load, an arrival or a version while a node runs, so a version a process still runs is never taken from under it (§6.10, §11.2); the cost, a node that grows with its versions, is said and counted.
 
 It initializes nothing because a peer asked, but the toolchain's own units a spawn names, whose bindings are the toolchain's tables and constants, read from the node's own tree (*The toolchain's own units*). It looks nothing up by name across nodes, and keeps no table of which node holds which definition: a node knows what it holds, asks for what it lacks, and the spawner's node answers from what it holds, so there is no store to keep consistent and no name to translate between builds (the log's *The Report Rewritten for MVP 3.1*).

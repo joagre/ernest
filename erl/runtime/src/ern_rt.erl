@@ -46,7 +46,7 @@
          refuse/2, reply_process/1, is_reply/1, monitor/2, monitor_service/2, demonitor/1, kill/1,
          killed/2, reason/1, peer_restarted/2, left_waiting/1, wait_for_deliveries/0, started_by/1,
          kill_started/1, kill_all/1, rooting/0, rooted/2, processes/0, own/1, disown/1,
-         screen/2, drop_screen/1, status/1, faults/1, termination/1,
+         screen/2, drop_screen/1, root_of/1, status/1, faults/1, termination/1,
          expected/1, checker_for/3, checker_forget/2, source_begin/0, source_begin/1, source_end/0,
          opened/3, forget_opened/1, timed/0, untimed/0, deadline/1, remaining/1, now/0, monotonic/0,
          monotonic_micros/0, entered_foreign/0, left_foreign/0, undefined_function/3,
@@ -2176,8 +2176,8 @@ owned(Processes, Own) ->
 %% chain sends standard output or standard error goes through Sink, and
 %% that process is kept from the terminal and standard input and faulted
 %% by Os.exit as in any shell; the session writes one for each root it
-%% heads, itself, each input and each evaluator, and drops each as it
-%% detaches.
+%% heads, its own, which its inputs are chained to, and each evaluator's,
+%% and drops each as it detaches.
 -spec screen(pid(), fun((binary()) -> term())) -> 'Unit'.
 screen(Root, Sink) ->
     true = ets:insert(?SCREENS, {Root, Sink}),
@@ -2207,6 +2207,11 @@ screen_of(Pid) ->
             end
     end.
 
+%% Report §11.2, §6.9: the process at the head of Pid's spawn chain, a
+%% load's mark standing in for the root it was made under, or none for a
+%% process the runtime did not start: the shell's front end finds the
+%% session a process of it acts in by this.
+-spec root_of(pid()) -> pid() | none.
 root_of(Pid) ->
     try ets:lookup_element(?PROCESSES, Pid, #process_row.root, none) of
         {mark, _, Base} -> Base;

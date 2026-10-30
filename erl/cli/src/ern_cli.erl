@@ -1152,10 +1152,12 @@ config(_Options, _Rest, _ErrorDevice) ->
 %% initializers (§8.5) before the shell starts.
 shell(Options, Rest, ErrorDevice) ->
     quiet_signals(),
-    %% report §11.2: the attached shell, which MVP 4.0 builds
-    not lists:keymember(attach, 1, Options)
-        orelse ern_build:fail("--attach: an attached shell arrives in MVP 4.0; "
-                              "until then a shell started beside the node computes on it"),
+    %% report §11.2: an attached shell takes no file and no load path, which
+    %% are the node's, and attaches from a node of its own
+    case proplists:get_value(attach, Options) of
+        undefined -> ok;
+        _ -> attachable(Options, Rest)
+    end,
     %% report §11.7: the shell takes no --verbose, and says nothing of what
     %% it reads
     Say = fun(_) -> ok end,
@@ -1166,10 +1168,22 @@ shell(Options, Rest, ErrorDevice) ->
         {module, ErlangModule} -> ok;
         _ -> ern_build:fail("the shell is not built; run make")
     end,
+    Attach = proplists:get_value(attach, Options, none),
     %% report §8.5: the shell's own modules are initialized as a program's
     %% are, before those of the file it loads
     {Init, LoadPath} =
         case Rest of
+            [] when Attach =/= none ->
+                %% report §11.2: the shell's own node holds the terminal and
+                %% the operator's files, and its entry point is the local
+                %% half, which spawns the session on the peer
+                GivenLoadPath = ern_build:load_path(Options),
+                host_path(GivenLoadPath),
+                ern_shell:loaded(#loaded{load_path = GivenLoadPath,
+                                         source_root = ern_build:source_root(Options, ".", "."),
+                                         config_startup = config_startup(Options),
+                                         attach = Attach}),
+                {init_fun([ErlangModule]), GivenLoadPath};
             [] ->
                 %% report §11.2: --main names a function of the file
                 not lists:keymember(main, 1, Options) orelse usage_fail(no_main_file(shell)),
@@ -1196,15 +1210,47 @@ shell(Options, Rest, ErrorDevice) ->
     Sink = fun(Bytes) -> ern_shell:to_screen(Bytes) end,
     %% report §11.2: Os.exit faults the process that calls it
     %% report §11.1: the unit names its functions by their position
-    {Main, 0} = ern_code:function(ErlangModule, ['Shell', main]),
+    {EntryName, EntrySite} = case Attach of
+                                 none -> {main, <<"Shell.main">>};
+                                 _ -> {attach, <<"Shell.attach">>}
+                             end,
+    {Main, 0} = ern_code:function(ErlangModule, ['Shell', EntryName]),
     Outcome = as_node(Options, LoadPath, Say,
                       fun(Node) ->
-                          ern_rt:run_main(fun() -> ErlangModule:Main() end, <<"Shell.main">>,
+                          ern_rt:run_main(fun() -> ErlangModule:Main() end, EntrySite,
                                           Node#{stdout => Sink, stderr => Sink, init => Init,
                                                 exit => fault,
                                                 flush => fun ern_shell:flush_screen/0})
                       end),
-    report_shell_outcome(ErrorDevice, Outcome).
+    %% report §11.2, §11.8: an attached shell's end, its line and status,
+    %% which its local half gave
+    case ern_shell:ending() of
+        {Status, Line} ->
+            Line =:= <<>> orelse io:format(ErrorDevice, "~ts~n", [Line]),
+            Status;
+        none ->
+            report_shell_outcome(ErrorDevice, Outcome)
+    end.
+
+%% Report §11.2: `--attach` takes no file, `--main`, `--load-path` or
+%% `--libs-dir`, each refused naming it, and needs `--config-dir`.
+attachable(Options, Rest) ->
+    Rest =:= [] orelse usage_fail("a file is not given with --attach: the node's program runs"
+                                  " there, and :load loads a module"),
+    lists:foreach(fun({Option, Why}) ->
+                      not lists:keymember(Option, 1, Options)
+                          orelse usage_fail(["--", option_word(Option), " is not given with"
+                                             " --attach: ", Why])
+                  end, [{main, "the node's program runs there"},
+                        {load_path, "the load path is the node's"},
+                        {libs_dir, "the load path is the node's"}]),
+    is_node(Options)
+        orelse usage_fail("--attach needs --config-dir: the shell attaches from a node of its"
+                          " own").
+
+option_word(main) -> "main";
+option_word(load_path) -> "load-path";
+option_word(libs_dir) -> "libs-dir".
 
 %% Report §8.3: a run given `--config-dir` is a node.
 is_node(Options) ->

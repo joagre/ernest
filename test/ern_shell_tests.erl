@@ -983,7 +983,7 @@ process_live_at_the_prompt() ->
     ?assertMatch({_, _}, binary:match(Output, <<"> [] : List(Process)\n"
                                                 "> p : Address(Int)\n"
                                                 "> true : Bool\n"
-                                                "> input 2:1\n">>)).
+                                                "> input 2:1 receiving\n">>)).
 
 %% report §11.2, Appendix E.24: the shell reports as `ern run` does, so a
 %% fault `Test.faults` expects is no line and not among `:faults`; the
@@ -1161,17 +1161,17 @@ reader_and_screen_ends() ->
                                     {expect, "stop : "},
                                     {send, hex(Processes)},
                                     {expect, "processes : "},
-                                    {send, hex(Ending("Shell.readKeys"))},
+                                    {send, hex(Ending("Shell.keysRead"))},
                                     {expect, "stopped reading the keyboard"}],
                                    " --size 30x120"),
-    ?assertMatch({_, _}, binary:match(ReaderEnded, <<"Shell.readKeys">>)),
+    ?assertMatch({_, _}, binary:match(ReaderEnded, <<"Shell.keysRead">>)),
     {70, ScreenEnded} = ern_pty:run(alone("../bin/ern shell"),
                                     [{expect, "> "},
                                      {send, hex(Stop)},
                                      {expect, "stop : "},
                                      {send, hex(Processes)},
                                      {expect, "processes : "},
-                                     {send, hex(Ending("Shell.main:"))},
+                                     {send, hex(Ending("Shell.session:"))},
                                      {expect, "screen ended"}],
                                     " --size 30x120"),
     ?assertMatch({_, _}, binary:match(ScreenEnded, <<"fault: the shell's screen ended">>)).
@@ -2914,8 +2914,9 @@ reload_keeps_previous_versions() ->
                                      ":faults\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"> 1 : Int\n> 3 : Int\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"Counter$2.service:5\nCounter$3.service:5\n"
-                                                "Counter.service:5\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"Counter$2.service:5 receiving\n"
+                                                "Counter$3.service:5 receiving\n"
+                                                "Counter.service:5 receiving\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"no process has faulted">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"previous version is">>)).
 
@@ -3001,7 +3002,8 @@ reload_version_sites() ->
                                      write_source(Dir, "counter.ern", Counter(2)),
                                      ":reload\n:processes\n", Asked, ":quit\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
-    [printed(Output, Line) || Line <- [<<"> Counter$2.service:5\nCounter.service:5\n">>,
+    [printed(Output, Line) || Line <- [<<"> Counter$2.service:5 receiving\n"
+                                         "Counter.service:5 receiving\n">>,
                                        <<"the end waits for 2 subscribers: Counter.service:5,"
                                          " Counter$2.service:5\n">>,
                                        <<"the subscriber Counter.service:5 answered\n">>,
@@ -3678,7 +3680,7 @@ session_names() ->
                                      ":processes\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"> 1 : Int\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"input 5:1\nstart:1\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"input 5:1 receiving\nstart:1 receiving\n">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"Input">>)).
 
 %% report §11.2: text that is typed and not run makes no name the host
@@ -3964,7 +3966,7 @@ reload() ->
     ?assertMatch({_, _}, binary:match(Output, <<"Demo, compiled again\n> 2 : Int\n> 1 : Int">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"Demo, compiled again\n> 3 : Int\n> 1 : Int">>)),
     %% the process of the first version runs on
-    ?assertMatch({_, _}, binary:match(Output, <<"> input 4:1\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> input 4:1 receiving\n">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"previous version">>)).
 
 %% report §11.2: `:reload` of a module that has come to use one the session
@@ -4304,7 +4306,7 @@ load_keeps_what_bindings_open() ->
                           ":processes\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"Right(Some(\"hello\"))">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"Greeter.acceptor:21\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"Greeter.acceptor:21 calling\n">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"Shell.load">>)).
 
 %% report §11.2, §6.9: a `:load` whose binding faults loads nothing: the
@@ -4390,8 +4392,8 @@ refused_load_kills_holder() ->
     ?assertMatch({_, _}, binary:match(Output, <<"Bad.broken:5 faulted: division by zero; nothing"
                                                 " was loaded, and the process spawned at"
                                                 " Runner.start:19 was killed\n"
-                                                "> Runner.hub:7\n">>)),
-    ?assertEqual(2, ern_pty:count(Output, <<"> Runner.hub:7\n">>)),
+                                                "> Runner.hub:7 receiving\n">>)),
+    ?assertEqual(2, ern_pty:count(Output, <<"> Runner.hub:7 receiving\n">>)),
     [?assertEqual(nomatch, binary:match(Output, Text))
      || Text <- [<<"stepped">>, <<"badfun">>, <<"undef">>, <<"Runner.start:19 faulted">>]].
 
@@ -4872,7 +4874,7 @@ load_loaded() ->
                                      ":load Demo\n", ":load Demo\n", ":processes\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
     ?assertEqual(2, ern_pty:count(Output, <<"Demo is loaded already; :reload compiles it again">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"input 2:1\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"input 2:1 receiving\n">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"no process of the session's is running">>)).
 
 %% report §8.5, §11.2: `:reload` evaluates the changed modules' bindings in
@@ -5051,20 +5053,21 @@ fields_by_module() ->
     Texts = fun({'Fields', Names}) -> [Text || {'Name', Text, _, _} <- Names];
                (Other) -> Other
             end,
-    try
-        with_loaded(Dir, [<<"Circles">>, <<"Discs">>]),
-        ?assertEqual([<<"diameter">>, <<"hole">>], Texts(ern_shell:slot(<<"Discs.Round(">>))),
-        ?assertEqual([<<"radius">>], Texts(ern_shell:slot(<<"Circles.Round(">>))),
-        ?assertEqual([<<"diameter">>, <<"hole">>],
-                     Texts(ern_shell:slot(<<"Discs.Round(hole = true, ">>))),
-        ?assertEqual([<<"diameter">>, <<"hole">>],
-                     Texts(ern_shell:slot(<<"match s { Discs.Round(">>))),
-        ?assertEqual([<<"radius">>], Texts(ern_shell:slot(<<"match s { Circles.Round(">>))),
-        %% an unqualified `Round` is neither module's, and has no fields
-        ?assertEqual('Expression', ern_shell:slot(<<"Round(">>))
-    after
-        forget_session()
-    end.
+    with_loaded(Dir, [<<"Circles">>, <<"Discs">>],
+                fun(_) ->
+                    ?assertEqual([<<"diameter">>, <<"hole">>],
+                                 Texts(ern_shell:slot(<<"Discs.Round(">>))),
+                    ?assertEqual([<<"radius">>], Texts(ern_shell:slot(<<"Circles.Round(">>))),
+                    ?assertEqual([<<"diameter">>, <<"hole">>],
+                                 Texts(ern_shell:slot(<<"Discs.Round(hole = true, ">>))),
+                    ?assertEqual([<<"diameter">>, <<"hole">>],
+                                 Texts(ern_shell:slot(<<"match s { Discs.Round(">>))),
+                    ?assertEqual([<<"radius">>],
+                                 Texts(ern_shell:slot(<<"match s { Circles.Round(">>))),
+                    %% an unqualified `Round` is neither module's, and has
+                    %% no fields
+                    ?assertEqual('Expression', ern_shell:slot(<<"Round(">>))
+                end).
 
 %% report §11.2, §3.9: `:browse` prints a type whose parameter is no value
 %% position as the checker does, so a variable found only there is an
@@ -5076,14 +5079,13 @@ browse_effect_parameter() ->
     ok = file:write_file(filename:join(Dir, "hooks.ern"),
                          "export type H(e) = H(f : (Int) -> Unit receiving e)\n"
                          "export fn drop(h) = { let H(f = _) = h; Unit }\n"),
-    try
-        Session = with_loaded(Dir, [<<"Hooks">>]),
-        {'Right', Lines} = ern_shell:browse(Session, <<"Hooks">>),
-        %% report §11.5: the type as the session writes it
-        ?assert(lists:member(<<"Hooks.drop(h : Hooks.H(e)) : Unit">>, Lines), Lines)
-    after
-        forget_session()
-    end.
+    with_loaded(Dir, [<<"Hooks">>],
+                fun(Session) ->
+                    {'Right', Lines} = ern_shell:browse(Session, <<"Hooks">>),
+                    %% report §11.5: the type as the session writes it
+                    ?assert(lists:member(<<"Hooks.drop(h : Hooks.H(e)) : Unit">>, Lines),
+                            Lines)
+                end).
 
 %% report §11.2, §4.2: what a command is given that is not a name is
 %% refused as one, and the refusal names what was given; a name longer
@@ -5092,24 +5094,21 @@ browse_effect_parameter() ->
 %% raised the host's limit on a name out of the front end
 not_a_name() ->
     Long = list_to_binary(lists:duplicate(300, $a)),
-    try
-        ern_shell:loaded(#loaded{}),
-        Session = ern_shell:start(),
-        ?assertMatch({'Left', <<". is not a module name", _/binary>>},
-                     ern_shell:load(Session, <<".">>)),
-        ?assertMatch({'Left', <<". is not a module name", _/binary>>},
-                     ern_shell:browse(Session, <<".">>)),
-        ?assertMatch({'Left', _}, ern_shell:load(Session, <<"A", Long/binary>>)),
-        ?assertMatch({'Left', _}, ern_shell:browse(Session, <<"A", Long/binary>>)),
-        ?assertMatch({'Left', _}, ern_shell:forget(Session, Long)),
-        ?assertMatch({'Left', _}, ern_shell:doc(Session, Long)),
-        ?assertMatch({'Left', _}, ern_shell:doc(Session, <<".">>)),
-        ?assertEqual('None', ern_shell:documentation(<<".">>)),
-        ?assertEqual('None', ern_shell:documentation(Long)),
-        ?assertEqual('None', ern_shell:documentation(<<"List.", Long/binary>>))
-    after
-        forget_session()
-    end.
+    with_loaded(scratch("ern_not_a_name_"), [],
+                fun(Session) ->
+                    ?assertMatch({'Left', <<". is not a module name", _/binary>>},
+                                 ern_shell:load(Session, <<".">>)),
+                    ?assertMatch({'Left', <<". is not a module name", _/binary>>},
+                                 ern_shell:browse(Session, <<".">>)),
+                    ?assertMatch({'Left', _}, ern_shell:load(Session, <<"A", Long/binary>>)),
+                    ?assertMatch({'Left', _}, ern_shell:browse(Session, <<"A", Long/binary>>)),
+                    ?assertMatch({'Left', _}, ern_shell:forget(Session, Long)),
+                    ?assertMatch({'Left', _}, ern_shell:doc(Session, Long)),
+                    ?assertMatch({'Left', _}, ern_shell:doc(Session, <<".">>)),
+                    ?assertEqual('None', ern_shell:documentation(<<".">>)),
+                    ?assertEqual('None', ern_shell:documentation(Long)),
+                    ?assertEqual('None', ern_shell:documentation(<<"List.", Long/binary>>))
+                end).
 
 %% report §4.2, §11.2: `:load WordCount` finds `word_count.ern` under the
 %% source root, a name that is not words beginning with a capital is
@@ -5117,32 +5116,72 @@ not_a_name() ->
 load_words_segment() ->
     Dir = scratch("ern_words_"),
     ok = file:write_file(filename:join(Dir, "word_count.ern"), "export fn size() : Int = 2\n"),
+    with_loaded(Dir, [<<"WordCount">>],
+                fun(Session) ->
+                    ?assertMatch({'Left', <<"Word_Count is not a module name", _/binary>>},
+                                 ern_shell:load(Session, <<"Word_Count">>)),
+                    ?assertMatch({'Left', <<"wordCount is not a module name", _/binary>>},
+                                 ern_shell:load(Session, <<"wordCount">>)),
+                    ?assertEqual({'Some', <<"WordCount">>}, ern_shell:segment(<<"word_count">>))
+                end).
+
+%% Report §11.2: Work given a session begun with the modules of Dir loaded
+%% by `:load`, one after the other, kept where completion reads it, run as
+%% a plain shell runs its session, in a launch of the runtime's, beside a
+%% local half that reads the source root on this node, as the shell's does
+%% (src/shell/shell.ern's `localHalf`); the front end's state goes with it,
+%% so that a test leaves none behind for the next.
+with_loaded(Dir, Modules, Work) ->
+    ern_shell:loaded(#loaded{source_root = Dir}),
+    Self = self(),
+    Main = fun() ->
+               Local = ern_rt:spawn(fun local_files/0, <<"local half">>),
+               {ok, Cwd} = file:get_cwd(),
+               Started = ern_shell:start(Local, Local, ern_shell:given_source_root(),
+                                         list_to_binary(Cwd), false),
+               Session = lists:foldl(fun(Module, Session) ->
+                                         {'Right', {Session1, _}} = ern_shell:load(Session, Module),
+                                         Session1
+                                     end, Started, Modules),
+               Worked = try Work(Session) of
+                            _ -> ok
+                        catch
+                            Class:Reason:Stack -> {failed, Class, Reason, Stack}
+                        end,
+               Self ! {worked, Worked}
+           end,
     try
-        Session = with_loaded(Dir, [<<"WordCount">>]),
-        ?assertMatch({'Left', <<"Word_Count is not a module name", _/binary>>},
-                     ern_shell:load(Session, <<"Word_Count">>)),
-        ?assertMatch({'Left', <<"wordCount is not a module name", _/binary>>},
-                     ern_shell:load(Session, <<"wordCount">>)),
-        ?assertEqual({'Some', <<"WordCount">>}, ern_shell:segment(<<"word_count">>))
+        ok = ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})
     after
-        forget_session()
+        persistent_term:erase({ern_shell, loaded})
+    end,
+    receive
+        {worked, {failed, Class, Reason, Stack}} -> erlang:raise(Class, Reason, Stack);
+        {worked, ok} -> ok
     end.
 
-%% A session begun with the modules of Dir loaded by `:load`, one after
-%% the other, kept where completion reads it.
-with_loaded(Dir, Modules) ->
-    ern_shell:loaded(#loaded{source_root = Dir}),
-    lists:foldl(fun(Module, Session) ->
-                    {'Right', {Session1, _}} = ern_shell:load(Session, Module),
-                    Session1
-                end, ern_shell:start(), Modules).
-
-%% The front end keeps the session where completion reads it; a test that
-%% set it leaves none behind for the next.
-forget_session() ->
-    persistent_term:erase({ern_shell, loaded}),
-    ets:whereis(ern_shell) =/= undefined andalso ets:delete(ern_shell),
-    ok.
+%% The local half's answers for the files of the source root, as
+%% `Fs.read` and `Fs.stat` give them on this node.
+local_files() ->
+    receive
+        {'Read', {'Path', Path}, Reply} ->
+            ern_rt:answer(Reply, case file:read_file(Path) of
+                                     {ok, Bytes} -> {'Right', Bytes};
+                                     {error, _} -> {'Left', 'NotFound'}
+                                 end);
+        {'Stat', {'Path', Path}, Reply} ->
+            ern_rt:answer(Reply, case file:read_file_info(Path, [{time, posix}]) of
+                                     {ok, #file_info{type = regular, mtime = Modified}} ->
+                                         {'Right', {'Entry', {'Path', Path}, Modified * 1000, 0,
+                                                    'File', 0, 0}};
+                                     {ok, _} ->
+                                         {'Right', {'Entry', {'Path', Path}, 0, 0, 'Directory',
+                                                    0, 0}};
+                                     {error, _} ->
+                                         {'Left', 'NotFound'}
+                                 end)
+    end,
+    local_files().
 
 %% report §11.2: on a terminal the shell reads keys, paints what is typed,
 %% takes Backspace and C-d, and reads the interrupt as a key, which kills a

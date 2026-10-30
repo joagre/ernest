@@ -4,7 +4,8 @@
 /// The matching and the ranking are pure functions from what is typed and
 /// the names in scope. `completion` gathers the names: from the compiled interfaces and the
 /// session, which only the front end can read, and from the source root,
-/// through `Fs`.
+/// which the caller lists, the shell's own node holding the operator's
+/// files (report §11.2).
 
 /// What a name is: a value, a type, a constructor, a module, or a
 /// namespace that holds names without being a module, a directory of
@@ -46,8 +47,12 @@ export let nothing = Completion(word = "", candidates = [])
 /// what the command takes; anywhere else, what `slot` says may stand
 /// at the cursor, the parser being given the text before the word: with
 /// the word there it has been read already, and what may stand at the
-/// cursor is what may stand in its place.
-export fn completion(line : String, cursor : Int) : #(Completion, String) = {
+/// cursor is what may stand in its place. `entries` lists a directory of
+/// the source root, for `:load`.
+export fn completion(line : String,
+                     cursor : Int,
+                     entries : (Path) -> Either(Io.Error,
+                                                List(Fs.Entry))) : #(Completion, String) = {
     let typedWord = word(String.slice(line, 0, cursor));
     if String.startsWith(line, ":") && cursor <= Shell.Command.wordEnd(line) then {
         // the command's word as far as the cursor, as a name's is: what
@@ -55,7 +60,7 @@ export fn completion(line : String, cursor : Int) : #(Completion, String) = {
         let command = String.slice(line, 0, cursor);
         #(commandWord(command, line), command)
     } else if String.startsWith(line, ":") then
-        #(argument(line, cursor, typedWord), typedWord)
+        #(argument(line, cursor, typedWord, entries), typedWord)
     else {
         let before = String.slice(line, 0, cursor - String.size(typedWord));
         match #(slot(before), String.lastIndexOf(typedWord, ".")) {
@@ -123,7 +128,10 @@ fn withSpace(completion : Completion, takes : Bool) : Completion =
 // takes, and after another command nothing. An expression's names are
 // the parser's to choose, as at the start of a line; anything else is
 // one word, the argument's first.
-fn argument(line : String, cursor : Int, typedWord : String) : Completion = {
+fn argument(line : String,
+            cursor : Int,
+            typedWord : String,
+            entries : (Path) -> Either(Io.Error, List(Fs.Entry))) : Completion = {
     let end = Shell.Command.wordEnd(line);
     let wordIndex = cursor - String.size(typedWord);
     let before = String.slice(line, end, wordIndex);
@@ -134,7 +142,7 @@ fn argument(line : String, cursor : Int, typedWord : String) : Completion = {
       | Some(Shell.Command.SettingWords) ->
             match String.trim(before) {
                 "" -> {
-                    let names = argumentNames(Shell.Command.SettingWords, typedWord);
+                    let names = argumentNames(Shell.Command.SettingWords, typedWord, entries);
                     withSpace(complete(typedWord, names, Anything), cursor == String.size(line))
                 }
               | "timing" -> {
@@ -148,7 +156,9 @@ fn argument(line : String, cursor : Int, typedWord : String) : Completion = {
             }
       | Some(completes) ->
             if String.isEmpty(String.trim(before)) then
-                complete(typedWord, argumentNames(completes, typedWord), argumentSlot(completes))
+                complete(typedWord,
+                         argumentNames(completes, typedWord, entries),
+                         argumentSlot(completes))
             else
                 nothing
       | None ->
@@ -165,7 +175,9 @@ fn argumentSlot(completes : Shell.Command.Completes) : Slot =
       | _ -> Anything
     }
 
-fn argumentNames(completes : Shell.Command.Completes, typedWord : String) : List(Name) =
+fn argumentNames(completes : Shell.Command.Completes,
+                 typedWord : String,
+                 entries : (Path) -> Either(Io.Error, List(Fs.Entry))) : List(Name) =
     match completes {
         // a module is listed by its name alone, since every candidate here
         // is a module; the namespaces they are in, `Http` for
@@ -178,7 +190,7 @@ fn argumentNames(completes : Shell.Command.Completes, typedWord : String) : List
                     None
             }))
       | Shell.Command.SourceModules ->
-            sourceModules(typedWord)
+            sourceModules(typedWord, entries)
       | Shell.Command.Expressions ->
             namesFor(typedWord)
       | Shell.Command.Names ->
@@ -197,7 +209,8 @@ fn argumentNames(completes : Shell.Command.Completes, typedWord : String) : List
 // root a directory at a time: the one the typed word's finished segments
 // name, so that a large root is never walked whole. A directory is a
 // namespace and a `.ern` file a module, each named by §11.1's path shape.
-fn sourceModules(typedWord : String) : List(Name) = {
+fn sourceModules(typedWord : String,
+                 entries : (Path) -> Either(Io.Error, List(Fs.Entry))) : List(Name) = {
     let finished = List.dropLast(String.split(typedWord, "."), 1);
     // a finished segment that is no namespace's names no directory
     let directory =
@@ -209,7 +222,7 @@ fn sourceModules(typedWord : String) : List(Name) = {
                                                Optional.map(component(part),
                                                             fn(name) = path <> Path(name))));
     let prefix = String.join(List.map(finished, fn(part) = part <> "."), "");
-    match Optional.map(directory, fn(path) = Fs.list(path, listMs)) {
+    match Optional.map(directory, entries) {
         Some(Right(entries)) -> List.filterMap(entries, fn(entry) = sourceModule(prefix, entry))
       | _ -> []
     }
@@ -233,9 +246,6 @@ fn sourceModule(prefix : String, entry : Fs.Entry) : Optional(Name) =
                 })
             }
     }
-
-// How long `:load`'s listing of a directory of the source root may take.
-let listMs = 5000
 
 // Report §11.2: every name completion may reach, as the session stands.
 // Reading the compiled interfaces is the host's; the matching is
@@ -588,7 +598,7 @@ let applying =
 // cursor landed inside the word it had completed.
 let commandInWord =
     Test.Case(name = "a command's word completes as far as the cursor", run = fn() = {
-        let #(completed, typedWord) = completion(":browse", 3);
+        let #(completed, typedWord) = completion(":browse", 3, fn(_) = Right([]));
         Test.equal(applied(":browse", 3, typedWord, completed), #(":browse owse", 8))
     })
 

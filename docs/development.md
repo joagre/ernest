@@ -354,10 +354,6 @@ The shell's `:help` lists its commands; the language guide §9.3 teaches the she
 
 ## What the toolchain accepts
 
-The toolchain is the report, on one node and across nodes. Everything the report describes type-checks, and all that the table leaves out compiles and runs. Each row is what the toolchain refuses or does not yet do, with the milestone of the [plan](plan.md) that lifts it.
+The toolchain is the report, on one node and across nodes. Everything the report describes type-checks, compiles and runs: no construct waits for a later milestone today. Where one does, it stands here as a row of a table, what the toolchain refuses or does not yet do, with the milestone of the [plan](plan.md) that lifts it.
 
-| Construct | Until | What you see today |
-|---|---|---|
-| `ern shell` attached to a running node, its inputs run there and `:processes`, `:load` and `:reload` acting on the node | MVP 4.0 | `--attach: an attached shell arrives in MVP 4.0; until then a shell started beside the node computes on it`, each look a compute on it (the deployment guide's §6) |
-
-Every refusal the toolchain makes for a later milestone's sake names that milestone in its error text, and `mvp_refusals_listed_test` in `erl/cli/test/ern_cli_tests.erl` fails when such a text is missing from this table. Runtime behavior that stands in for a later milestone is listed by hand. `make sections` prints only a section of a milestone not yet built, which that milestone's plan item names.
+Every refusal the toolchain makes for a later milestone's sake names that milestone in its error text, and `mvp_refusals_listed_test` in `erl/cli/test/ern_cli_tests.erl` fails when such a text is missing from this section. Runtime behavior that stands in for a later milestone is listed by hand. `make sections` prints only a section of a milestone not yet built, which that milestone's plan item names.

@@ -150,7 +150,7 @@ A unit is the module's Erlang name, `ern@` and its path (§11.1), unless `compil
 | `ErnC` | `ern_canonical`: `module/4`, `closed/1`, `recorded_source/1`, `read/1` | `{FormVersion, #recorded{}}`, the records of `ern_canonical.hrl` (§8.7, Appendix H) |
 | `Docs` | `ern_docs`: `ern_docs:build/4`, `read/1`, `doc_key/1` | EEP 48's documentation, an entry per declaration §11.4 renders, an abstract type's constructors marked private, which a page leaves out, a member's signature its form (`member_form/4`) and its metadata its type and name, by which a page orders it, its `BeamLanguage` `ernest` |
 
-Each chunk is read through `ern_chunk`. A name a shell session declares is written under `$Session` in a form and in `'$code'/0` (`form_name/2` in `ern_canonical` and in `ern_emitter`; Appendix H, §11.2).
+Each chunk is read through `ern_chunk`. A name a shell session declares is written under its session's namespace, `$Session3`, in a form and in `'$code'/0` (`form_name/2` in `ern_canonical` and in `ern_emitter`; Appendix H, §11.2).
 
 ## The runtime
 
@@ -177,7 +177,7 @@ Each chunk is read through `ern_chunk`. A name a shell session declares is writt
 | `ern_utilizations` | `ern_peer`, held by the gateway | `{Node, Utilization, At, Interval}` | each peer's last telling (E.27) |
 | `ern_code` | `ern_code`, held by the code table's holder | a bag, its keys under *The code table* | the code table (§8.7) |
 | `ern_code_sums` | `ern_code`, beside it | a row for each count | the sums of the host's counts (§11.2) |
-| `ern_shell` | `ern_shell`, held by the runner | `{Key, Value}` | the session as it stands, and what its inputs and loads leave (§11.2) |
+| `ern_shell` | `ern_shell`, held by a holder of its own for the host's life | `{{Root, Key}, Value}`, and the node's `{Key, Value}` | each session's state under the root of its processes, and the node's: the next session's number, the modules the sessions loaded, each input unit's name, what a detached session left (§11.2) |
 
 `run_main` makes `ern_rt`'s thirteen (`tables/0`), each described where `ern_rt` defines it; `make load` counts their rows ([`memory.md`](memory.md)). `ern test`'s `run_tests/6` keeps the running test in a table of its own.
 
@@ -202,7 +202,8 @@ Each chunk is read through `ern_chunk`. A name a shell session declares is writt
 | the code table's holder | `ern_code`, at the table's first use | | holds `ern_code` and `ern_code_sums` for the host's life |
 | the gateway, registered `ern_gateway`, and a worker for each peer | `ern_carrier:start/1` | | takes the runtime's frames from the peers (*A node*) |
 | the exchange, registered `ern_exchange` | `ern_gateway:start/0` | | carries a reach's definitions between nodes (*The exchange and arrivals*) |
-| an evaluator | `ern_shell` (`evaluate/3`) | the session | evaluates a load's bindings, the root of what they start (§11.2) |
+| the shell's table's holder | `ern_shell`, at the table's first need (`table/0`) | | holds `ern_shell` for the host's life |
+| an evaluator | `ern_shell` (`evaluate/3`) | the session, and the node once the session detaches | evaluates a load's bindings, the root of what they start, its row of the session's screen its own (§11.2) |
 | a loader of the toolchain's own units | the exchange (`own_loaded/3`) | the exchange's monitor | loads a unit of the toolchain's own a peer's spawn names from the node's tree and evaluates its bindings (§12.7) |
 
 The gateway and the exchange are the only registered processes. A delivery, a courier and a kept process act for their recipient through `ern_rt:acting_for/1`, an `#acting{}` in their dictionary (§6.5, §6.9).
@@ -327,13 +328,14 @@ A library under `src/libs/` stands on the host as the standard library does. The
 
 The shell is an Ernest program over `Terminal`: `src/shell/shell.ern` and its modules under `src/shell/shell/`, compiled by `make` into `build/shell` against `libs/markdown` and `libs/ansi` in `build/libs`. [`src/shell/README.md`](../src/shell/README.md) guides a reader through the code, and [`design/shell.md`](design/shell.md) holds the design.
 
-`ern_shell` is the front end the shell reaches through `foreign fn`. It holds the session and checks an input with `ern_typecheck:check/4`, the input a module of its own (§11.2).
+`ern_shell` is the front end the shell reaches through `foreign fn`. It holds the session and checks an input with `ern_typecheck:check/4`, the input a module of its own (§11.2). A session's rows stand under the root of its processes (`kept/2`, `session_root/0`), and the node's modules, which every session's next input is checked against, are a row of the node's (`synced/1`, `published/1`, `node_load/2`).
 
 - `:load` places each module after the modules it uses (`#placing{}`, `needed_placed/3`, `dependency_placed/3`, `in_dependency_order/1`). A module is compiled (`compile_unit/5`), taken from its current compiled form (`current_form/4`, `compiled_unit/5`, `install_one/2`), or taken as a unit the node holds of the same code.
 - `:reload` brings each version beside the previous one and compiles again what `ern build` would (`stale_users/3`). A changed type moves to the previous version's namespace, `Counter$1` (`versioned/3`, `returned/3`), whose interface `#session.previous` holds and whose unit `#session.units` names.
 - `:reload` compiles again each declaring input whose forms reference a changed hash (`reached_inputs/2`, `compiled_again/2`, `input_text/2`, `out_of_scope/3`). A version names its sites under its own namespace (`site_namespace/2`).
-- A load evaluates each module's bindings in an evaluator (`evaluate/3`). An input runs in a process that heads a spawn chain of its own, and so does the file's entry point (`ern_rt:spawn_root/2`), and the session marks its own processes, itself, its screen, its reader, the evaluators and the input that runs, which `Process.live()` leaves out (`ern_rt:own/1`, §11.2). A refused load is undone by `withdraw/2`, and a module refused again makes no unit (`kept_or_fresh/5`).
-- A session's declarations are named under `$Session` (`?SESSION_NAMESPACE`, `redeclared/2`). An input that declares or builds a function value is kept; any other is deleted once its answer is in (`release/1`, `collected/1`).
+- A load evaluates each module's bindings in an evaluator (`evaluate/3`). An input runs in a process chained to the session, and the file's entry point in one that heads a spawn chain of its own (`ern_rt:spawn_root/2`); the session marks its own processes, itself, its local half, its screen, its reader, the evaluators and the input that runs, which `Process.live()` leaves out (`ern_rt:own/1`, §11.2). A refused load is undone by `withdraw/2`, and a module refused again makes no unit (`kept_or_fresh/5`).
+- A load reads the operator's sources through the session's local half, by the access the build reads in the load's extent (`source_access/1`, `ern_build:read_through/2`).
+- A session's declarations are named under its namespace, `$Session<s>`, and its inputs and holders are `$Input<s>_<n>` and `$Bindings<s>_<n>` (`session_namespace/1`, `input_namespace/2`, `redeclared/2`). An input that declares or builds a function value is kept; any other is deleted once its answer is in (`release/1`, `collected/1`). The process of an input that binds a name lives while the scope holds one (`binders/0`, `let_go/1`). An attached session's detach leaves what it started to the node and lets its units go as the purge allows (`detach/1`, `released/4`, `collect_detached/0`).
 - `Shift-Tab` is `documentation/1` or `signature/1`, which prints through `ern_types:format_call/4`. `:doc` is `ern_page`'s `declaration/3`, `session_declaration/3` or `module_head/1`.
 
 ## Tests

@@ -758,32 +758,40 @@ segment_test() ->
 %% module's top-level `let` closes it
 input_type_closed_as_a_top_level_let_test() ->
     ern_shell:loaded(#loaded{}),
+    Self = self(),
+    Pair = <<"List.partition([fn(x : Int) = x], fn(f) = true)">>,
+    Inputs = [<<"let p = ", Pair/binary>>, Pair,
+              <<"let k = Test.Case(name = \"k\", run = fn() = Test.equal(1, 1))">>,
+              <<"let s = List.partition([fn() = self()], fn(f) = true)">>,
+              <<"let t = List.partition([fn() = receive { after 1 -> Unit }], fn(f) = true)">>],
+    %% report §11.2: a session's front end runs in a launch, its own screen
+    %% the session's, and no local half, whose source root is none
+    Main = fun() ->
+               Session = ern_shell:start(undefined, self(), <<".">>, <<".">>, false),
+               Type = fun(Input) ->
+                              case ern_shell:check(Session, {'Prompt', 1}, Input) of
+                                  {'Right', {_, Checked}} -> ern_shell:type_text(Checked);
+                                  {'Left', Refused} -> Refused
+                              end
+                      end,
+               Self ! {types, [Type(Input) || Input <- Inputs]}
+           end,
     try
-        Session = ern_shell:start(),
-        Type = fun(Input) ->
-                       case ern_shell:check(Session, {'Prompt', 1}, Input) of
-                           {'Right', {_, Checked}} -> ern_shell:type_text(Checked);
-                           {'Left', Refused} -> Refused
-                       end
-               end,
-        Pair = <<"List.partition([fn(x : Int) = x], fn(f) = true)">>,
-        ?assertEqual(<<"#(List((Int) -> Int), List((Int) -> Int))">>,
-                     Type(<<"let p = ", Pair/binary>>)),
-        ?assertEqual(<<"#(List((Int) -> Int), List((Int) -> Int))">>, Type(Pair)),
-        ?assertEqual(<<"Test.Case(Never)">>,
-                     Type(<<"let k = Test.Case(name = \"k\", run = fn() = Test.equal(1, 1))">>)),
-        Undetermined = fun(Name, Input) ->
-                               Text = <<"the type of ", Name/binary,
-                                        " is not determined by this input">>,
-                               ?assertMatch({_, _}, binary:match(Type(Input), Text))
-                       end,
-        Undetermined(<<"s">>, <<"let s = List.partition([fn() = self()], fn(f) = true)">>),
-        Undetermined(<<"t">>, <<"let t = List.partition([fn() = receive { after 1 -> Unit }],"
-                                " fn(f) = true)">>)
+        ok = ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})
     after
-        persistent_term:erase({ern_shell, loaded}),
-        ets:delete(ern_shell)
-    end.
+        persistent_term:erase({ern_shell, loaded})
+    end,
+    [OfLet, OfPair, OfCase, OfS, OfT] = receive {types, Types} -> Types end,
+    ?assertEqual(<<"#(List((Int) -> Int), List((Int) -> Int))">>, OfLet),
+    ?assertEqual(<<"#(List((Int) -> Int), List((Int) -> Int))">>, OfPair),
+    ?assertEqual(<<"Test.Case(Never)">>, OfCase),
+    Undetermined = fun(Name, Text) ->
+                           Said = <<"the type of ", Name/binary,
+                                    " is not determined by this input">>,
+                           ?assertMatch({_, _}, binary:match(Text, Said))
+                   end,
+    Undetermined(<<"s">>, OfS),
+    Undetermined(<<"t">>, OfT).
 
 %% report §11.1, §11.4: the build's sweep passes over a name under the
 %% build root that is not UTF-8, and the host says nothing of it. A

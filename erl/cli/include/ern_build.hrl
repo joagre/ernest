@@ -11,11 +11,11 @@
 %% path, the source root a module's source is found under, the interfaces
 %% of the loaded modules each with its source's hash, the namespaces of
 %% those found under the file's own root, the program's, and not a
-%% library's, the #entry_point{} to spawn beside the prompt or none, and the
+%% library's, the #entry_point{} to spawn beside the prompt or none, the
 %% startup file of the configuration directory `--config-dir` names, or
-%% none.
+%% none, and the listed peer `--attach` names, or none.
 -record(loaded, {load_path = [], source_root = ".", interfaces = [], program = [],
-                 entry = none, config_startup = none}).
+                 entry = none, config_startup = none, attach = none}).
 
 %% A doc example as `ern test` runs it (report §11.2, ern_examples): its
 %% case, `{'Case', Name, Run}`, as a test's is, its run answering `'Passed'`,

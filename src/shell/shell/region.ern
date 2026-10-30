@@ -127,6 +127,11 @@ export fn taken(region : Region) : #(Region, String) =
 export fn resized(region : Region, size : Terminal.Size) : #(Region, String) =
     aged(Region(..region, size = size), [])
 
+/// Report §11.2: the columns of the terminal the region is painted on,
+/// which documentation is rendered to the width of.
+export fn columns(region : Region) : Int =
+    region.size.columns
+
 /// Report §11.2: `:set rows n` gives the tail n rows, and 0 takes the
 /// tail away, which interleaves what programs write with the transcript.
 export fn rowsSized(region : Region, rows : Int) : #(Region, String) =
@@ -475,6 +480,13 @@ fn split(text : String) : #(List(String), String) =
 // The tests (report Appendix E.24, §11.2), run by `ern test`, which `make test-shell` does.
 // The region is pure, so a test reads the bytes it would have written.
 //
+
+let columnsOfTheSize =
+    Test.Case(name = "the region's columns are its terminal's, a resize's among them",
+              run = fn() = {
+                  let #(region, _) = resized(typed("a", 1), Terminal.Size(rows = 24, columns = 50));
+                  Test.equal(columns(region), 50)
+              })
 
 let spansRows =
     Test.Case(name = "an input takes a row for each of its lines",
