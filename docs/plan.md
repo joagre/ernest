@@ -145,16 +145,12 @@ MVP 4.2).
    every gap it meets comes here as a line of `language_feedback.md`; a gap is fixed in the
    checkout and the archive made again, with no public release between. How the server's
    repository installs and uses it is its own.
-5. **ernest-httpd**, in its own repository: `Config` and `Static` as pure functions; `Listener`,
-   `Connection` and `AccessLog`, serving the site over plain HTTP; TLS, the redirect listener and
-   the hosts; `Shell` and `Sessions` last, since they stand on the rest.
-6. **The deployment**: the node's directory with the operator's shell listed, since the server
-   runs as a node on the loopback for the attached shell, the systemd unit, certbot's certificate
-   for the four names with the deploy hook that gives the server its key, the podman image, and
-   the smoke test against the deployed site, an attached shell's `:processes` among it.
-7. **A release of Ernest**, 0.8.0, when the server first serves the site, carrying the libraries
+5. **The server and its deployment**, by its own repository's plan, which waits for items 1 to 4
+   and the archive; what Ernest's side meets there, an attached shell at the server's node among
+   it, comes back as a line of `language_feedback.md`.
+6. **A release of Ernest**, 0.8.0, when the server first serves the site, carrying the libraries
    after their first real user has shaped them; 0.7.0 is the attached shell's.
-8. **The terminal tests over `Os.startTerminal`**, dropping `test/ern_pty.py`, an item of its own
+7. **The terminal tests over `Os.startTerminal`**, dropping `test/ern_pty.py`, an item of its own
    once item 2 stands.
 
 The site's content, MVP 4.2, runs beside any of it, since its generator needs nothing of the
