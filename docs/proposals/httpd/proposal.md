@@ -4,7 +4,7 @@ Begun 2026-10-26 as the server's whole proposal and split on 2026-10-30, when th
 
 ## What it is for
 
-`ernest-httpd` serves one site, ernest-lang.org: static pages generated from Markdown (MVP 4.2), and one WebSocket per visitor that connects xterm.js in the browser to a shell on the server. It is a program written in Ernest, in a repository of its own, `ernest-httpd` (decided 2026-10-26), under Ernest's own license (decided 2026-10-27), built against an installed Ernest; `examples/web_server.ern` is its smallest ancestor, whose hand-written parser `libs/http` replaces. What follows is what it needs of Ernest.
+`ernest-httpd` serves ernest-lang.org, static pages and one WebSocket per visitor to a shell on the server, and is written in Ernest against an installed Ernest; what it is and does is its own proposal's, https://github.com/joagre/ernest-httpd/blob/main/docs/proposals/basic/proposal.md, and what follows is what it needs of Ernest.
 
 ## From the plan's MVP 4.1
 
@@ -87,12 +87,12 @@ The site's content, MVP 4.2, runs beside any of it, since its generator needs no
 
 - TLS in `Tcp`, by two functions answering the same socket (2026-10-26).
 - `libs/time` for the dates, a library and not the standard library's, `Clock` unchanged (2026-10-26); the calendar alone, each format with its owner, RFC 9110's in `libs/http` and the log's in the server (2026-10-27).
-- The pseudo-terminal on the server through a new start in `Os`, podman inside it (2026-10-26).
+- The pseudo-terminal on the server through a new start in `Os` (2026-10-26).
 - The errors: a failed handshake is `Other(text)`, run in the socket's process after `accept`; `Http.Error` saying what is wrong, the server mapping it to a status, and `WebSocket.Error` with the close code RFC 6455 assigns (2026-10-26, the statuses moved to the server 2026-10-27).
 - `Http.readHead` in the library beside the parser, bounding the whole head (2026-10-26).
 - `Os.startTerminal`'s contract: one address with `start`, one stream out, `resize` answering `NotATerminal` on pipes, `closeInput` a hangup, no `TERM` of the runtime's (2026-10-26).
-- `libs/crypto` is `sha1` and `randomBytes`; the session's cookie random and `Secure`, `HttpOnly`, `SameSite=Strict`; `connectTls`'s `verify` a constructor (2026-10-27).
+- `libs/crypto` is `sha1` and `randomBytes`; `connectTls`'s `verify` a constructor (2026-10-27).
 - The running server tested by a client in Ernest, `libs/http` gaining a request's rendering and a response's head read (2026-10-27).
 - The order of work: the report, the runtime, the libraries, an installation from the checkout, `ernest-httpd` and its deployment, then a release when the site is served (2026-10-27).
 - Files under a root no one else writes: a path holding `..` refused, and no check of links, so the plan's `Fs.readUnder` waits for a root others can write (2026-10-26).
-- The read-back's findings: the server's release 0.8.0 after the attached shell's 0.7.0; `encodeMasked` for a client with the caller's key; the example's shells ten at 128 MB as measured; the deploy hook copying the certificate and key to the server's user, and the unit's `ReadWritePaths` taking podman's directories; `Decoded` carrying the bytes after the frame; a folded header refused by its value; `Content-Length: 0` no body; `HEAD`'s length from its headers; the idle and head deadlines on two reads; `listenTls`'s `Other(text)`; stale alarms ignored; the backlog the host's; `fetch.ern` kept (2026-10-30).
+- The read-back's findings of Ernest's half: the server's release 0.8.0 after the attached shell's 0.7.0; `encodeMasked` for a client with the caller's key; `Decoded` carrying the bytes after the frame; a folded header refused by its value; `HEAD`'s length from its headers; `listenTls`'s `Other(text)`; the backlog the host's; the `fetch` example kept (2026-10-30). The server's are its own page's.
