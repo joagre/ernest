@@ -313,7 +313,7 @@ A reload by another session moves a type this session's inputs named to its prev
 
 `:detach` ends the session, as `C-d` on an empty line and the end of input do: its own processes and an input that runs end, and what it started stays the node's, the evaluators of its loads, what they started and every process an input spawned, as `Code.load` leaves what it evaluated (Appendix E.28); from then on they write to the node's standard output and standard error, and an `Os.exit` of theirs ends the node. The session's units are let go as **Inputs** lets one go, but one a process still runs or holds a function of, which is kept while it does.
 
-The session and the shell's own node monitor each other (§6.9, §8.7). A connection lost ends the session as `:detach` ends it, and the shell says `the node foo is lost` on its standard error and exits with status 1; a node that ended, by `ern stop` or by its program's end (§8.6), ends the shell with `the node foo ended` and status 0. The shell's own node's end, or its loss, ends the session as `:detach` does.
+The session and the shell's own node monitor each other (§6.9, §8.7). A connection lost ends the session as `:detach` ends it, and the shell says `the node foo is lost` on its standard error and exits with status 1; a node that ended, by `ern stop` or by its program's end (§8.6), ends the shell with `the node foo ended` and status 0; the shell's own node says nothing of that node's end or loss (§12.5), since the shell's line says it. The shell's own node's end, or its loss, ends the session as `:detach` does.
 
 ### 11.3 Configuration setup
 

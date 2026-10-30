@@ -68,15 +68,11 @@ One form of attaching, by a listed peer, since a node accepts a connection from 
    operator's machine: §11.2's *The attached shell* and Appendix E.27 state it since that day,
    and the runtime makes it so in item 5's commit, with a nodes test that a `Peer.compute` at
    the node's prompt never lands on the shell's own node.
-10. **Whether an attached shell's own node says that its node ended**, a decision found
-    2026-10-30 as item 8's test ran at a terminal: §12.5 has every node say that a peer ended or
-    was lost, and the shell's own node says it on a screen that ended with the session, so `the
-    peer b ended` is lost, or written before or after the shell's `the node b ended`; it came in
-    most runs at a terminal and in none in line mode, where the deployment and tour tests hold
-    the shell's standard error to its own line. Recommended: the shell's own node says nothing
-    of the end or the loss of the node its session runs on, which the shell's line says, as the
-    guides show; §11.2's *The attached shell* would say so. Discussed with the user before the
-    release.
+10. **An attached shell's own node says nothing of its node's end or loss**, decided 2026-10-30
+    after item 8's test at a terminal showed §12.5's `the peer b ended` said on a screen that had
+    ended with the session, lost or written beside the shell's `the node b ended`: §11.2's *The
+    attached shell* states it since that day, and the runtime makes it so in item 5's commit,
+    beside item 9, with the terminal test asserting the row.
 
 The attached shell is the operator's alone, trusted as a peer is, with no sandbox: the website runs
 the plain shell in a container per visitor (MVP 4.2).
@@ -136,6 +132,11 @@ language lacks goes to `language_feedback.md` first, as any Ernest written here,
 before any code goes around it (decided with the user on 2026-10-10, with the site's generator,
 MVP 4.2).
 
+The work goes in three steps, decided 2026-10-30: items 1 to 3 here, closing with an archive;
+then the server's milestone 1 whole in its repository, item 4, which is that milestone and no
+item of this one; then items 5 and 6 here, the libraries reshaped by their first user. The
+server's CLAUDE.md carries the procedure its side follows.
+
 1. **The report first**: `Tcp.listenTls` and `Tcp.connectTls` in E.18, answering the same socket
    as a plain one, the handshake in the socket's process after `accept`, `listenTls`'s
    `Other(text)` for a certificate or key the host refuses, and the host's backlog stated;
@@ -151,18 +152,15 @@ MVP 4.2).
    it waits for (CLAUDE.md, *Design*); `http` with its client half, whose first use beside the tests is a `fetch` example that
    reads JSON over HTTPS with a verified certificate; then `websocket`, with a client's masked
    frames.
-4. **The release archive the server builds against**: ernest-httpd builds against Ernest
-   installed from `make release`'s archive and never against the source tree, as a user does, and
-   every gap it meets comes here as a line of `language_feedback.md`; a gap is fixed in the
-   checkout and the archive made again, with no public release between. How the server's
-   repository installs and uses it is its own.
-5. **The server and its deployment**, by its own repository's plan, which waits for items 1 to 4
-   and the archive; what Ernest's side meets there, an attached shell at the server's node among
-   it, comes back as a line of `language_feedback.md`.
+4. **The server, ernest-httpd's milestone 1 whole**, by its own repository's plan, written once
+   item 1's sentences stand and built once items 2 and 3 do, against Ernest installed from
+   `make release`'s archive and never a checkout; what it meets of Ernest's, an attached shell at
+   the server's node among it, comes here as a line of `language_feedback.md`, is fixed in the
+   checkout and the archive made again, with no public release between.
+5. **The terminal tests over `Os.startTerminal`**, dropping `test/ern_pty.py`, an item of its own
+   once item 2 stands.
 6. **A release of Ernest**, 0.8.0, when the server first serves the site, carrying the libraries
    after their first real user has shaped them; 0.7.0 is the attached shell's.
-7. **The terminal tests over `Os.startTerminal`**, dropping `test/ern_pty.py`, an item of its own
-   once item 2 stands.
 
 The site's content, MVP 4.2, runs beside any of it, since its generator needs nothing of the
 server.
