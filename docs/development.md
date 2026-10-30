@@ -205,14 +205,15 @@ make bench        what each of a few operations costs in Ernest beside the same 
                   one callee, and each of the call's writes alone by one process and by
                   eight, in call.txt; then a top-level let's read, a receive with an after,
                   a message to a system process, a bare launch with its pieces and an
-                  input at the shell's prompt in line mode, each beside the host's, in
-                  rules.txt; then each construct the compiler writes
-                  code for, a match and one whose guards call functions, a record update, a
-                  Float operation and an expression of five, an Int operation, a derived
-                  compare, a requirement's member, a string's concatenation and slice, a
-                  map's read and write, List.map, a send and a receive, Io.show, a function
-                  value's call and a lambda made, each beside the plain Erlang a programmer
-                  writes, the two measured together, in language.txt; then three programs
+                  input at the shell's prompt in line mode, at a session's start and after a
+                  thousand declarations, each beside the host's, in rules.txt; then each
+                  construct the compiler writes code for, a match and one whose guards call
+                  functions, a record update, a Float operation and an expression of five,
+                  an Int operation, a derived compare, a requirement's member, a string's
+                  concatenation and slice, a map's read and write, List.map, a send and a
+                  receive, Io.show, a function value's call and a lambda made, each beside
+                  the plain Erlang a programmer writes, the two measured together, in
+                  language.txt; then three programs
                   written twice, the ray tracer's pure half, examples/repl.ern's lexer,
                   parser and evaluator over a fixed input, and the guide's counter with its
                   callers, each Ernest program's time over its Erlang twin's, the twins
@@ -224,7 +225,7 @@ make bench        what each of a few operations costs in Ernest beside the same 
                   other's, a table with a ratio by its ratios and any other by its numbers,
                   the library's table left out; the memory is kept a table at a time, each
                   table moved to last/ as a run that writes it begins, so that a part's run
-                  below keeps and compares its own; about twelve minutes; not part of make
+                  below keeps and compares its own; about ten and a half minutes; not part of make
                   test-full. A row is for a number a later change could move, a promise of
                   CLAUDE.md's cost rules or a construct the emitter writes code for; a
                   number measured once to settle a design is the log's

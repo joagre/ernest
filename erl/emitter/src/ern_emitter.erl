@@ -39,7 +39,8 @@
 %% and `let p <- e` becomes a case (report §5.5).
 -module(ern_emitter).
 
--export([unit/1, source/1, ground_terms/2, function_name/1, raiseless/0, site_name/2]).
+-export([unit/1, source/1, ground_terms/2, function_name/1, held_position/1, raiseless/0,
+         site_name/2]).
 
 -include_lib("checker/include/ern_canonical.hrl").
 -include_lib("emitter/include/ern_unit.hrl").
@@ -145,6 +146,12 @@ ground_terms(Unit, QualifiedNames) ->
 function_name(Position) ->
     list_to_atom([$$ | integer_to_list(Position)]).
 
+%% Report §11.2: the position of the getter of the value an expression's
+%% unit holds, `it`, after its definitions and its foreign functions.
+-spec held_position(#unit{}) -> pos_integer().
+held_position(#unit{definitions = Definitions, foreign_functions = ForeignFunctions}) ->
+    length(Definitions) + length(ForeignFunctions) + 1.
+
 %% The function a local fn at Position in the definition at Definition is
 %% lifted to.
 lifted_name(Definition, Position) ->
@@ -174,6 +181,7 @@ syntax(#unit{namespace = Namespace, name = ErlangModule, code = Code} = Unit) ->
     SpawnedFunction = spawned_function(Placed, ForeignPlaced, Entries, Context3),
     Lifted = lists:reverse(Context3#emit_context.lifted),
     LackedFunctions = lacked_functions(Unit),
+    HeldFunction = held_function(Unit, Context3),
     Others = lists:append(DefinitionFunctions) ++ InitFunction ++ TestsFunction
         ++ SpawnedFunction ++ Lifted,
     {ForeignKept, ForeignForms} = foreign_kept(ForeignPlaced, AllForeignForms, Others, Unit),
@@ -182,6 +190,7 @@ syntax(#unit{namespace = Namespace, name = ErlangModule, code = Code} = Unit) ->
                        true ->
                            Calls = calls(Bodies, Unit),
                            code_function(code(Placed, ForeignKept, Entries, Context3)
+                                         ++ held_code(Placed, Unit)
                                          ++ [{Unit#unit.form_namespace,
                                               {sites, site_namespace(Unit)}},
                                              {Namespace, {calls, Calls}}]);
@@ -194,6 +203,7 @@ syntax(#unit{namespace = Namespace, name = ErlangModule, code = Code} = Unit) ->
         ++ [{'$tests', 0} || TestsFunction =/= []]
         ++ [{'$deps', 0} || DependenciesFunction =/= []]
         ++ [{'$spawned', 2} || SpawnedFunction =/= []] ++ [{'$code', 0} || CodeFunction =/= []]
+        ++ [{function_name(held_position(Unit)), 0} || HeldFunction =/= []]
         ++ [{Function, Arity} || {Function, Arity, _} <- Unit#unit.lacked],
     %% report §3.9: a function whose result is a type variable no parameter
     %% holds never returns, `fault` and `Os.exit` among them, so Dialyzer,
@@ -207,8 +217,34 @@ syntax(#unit{namespace = Namespace, name = ErlangModule, code = Code} = Unit) ->
                                                       erl_syntax:integer(Arity))
                                                     || {Function, Arity} <- Exports])])],
     Functions = lists:append(DefinitionFunctions) ++ ForeignForms ++ InitFunction ++ TestsFunction
-        ++ DependenciesFunction ++ SpawnedFunction ++ CodeFunction ++ Lifted ++ LackedFunctions,
+        ++ DependenciesFunction ++ SpawnedFunction ++ CodeFunction ++ Lifted ++ HeldFunction
+        ++ LackedFunctions,
     {Attrs ++ Functions, Context3#emit_context.builds_functions}.
+
+%% Report §11.2: the getter of the value an expression's unit holds, `it`,
+%% which the shell keeps under the getter's key once the input has its
+%% answer, as a holder keeps what a `let` binds, and by which a later input
+%% reads it; none for any other unit.
+held_function(#unit{held = none}, _Context) ->
+    [];
+held_function(#unit{held = {Name, _}} = Unit, Context) ->
+    Getter = function_name(held_position(Unit)),
+    Get = call_remote(persistent_term, get, [key(Context, Getter)]),
+    [with_comment(erl_syntax:function(erl_syntax:atom(Getter),
+                                      [erl_syntax:clause([], none, [Get])]),
+                  "the value the input holds, " ++ atom_to_list(Name))].
+
+%% Report §8.7, §11.2: the value an expression's unit holds, listed as a
+%% binding of the input's entry's hash under the session's namespace, as a
+%% holder lists what a `let` binds, so that the code table finds its key.
+held_code(_Placed, #unit{held = none}) ->
+    [];
+held_code(Placed, #unit{namespace = Namespace, name = ErlangModule,
+                        held = {Name, Definition}} = Unit) ->
+    [Hash] = [Hash || {_, #definition{qualified_name = QualifiedName, hash = Hash}} <- Placed,
+                      QualifiedName =:= Definition],
+    [{form_name(Namespace ++ [Name], Unit),
+      {binding, Hash, {ErlangModule, function_name(held_position(Unit))}}}].
 
 %% Report §11.1: the foreign functions the unit keeps, with their
 %% functions. A private one of the standard library's that the unit's code

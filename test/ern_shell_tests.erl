@@ -2155,8 +2155,9 @@ host_reserved_names() ->
     ?assertEqual(nomatch, binary:match(Output, <<"fault">>)).
 
 %% report §11.2: an input that declares nothing is done with its module once
-%% it has its answer: the module is unloaded, unless what the input bound
-%% holds one of its functions, and a process the input spawned keeps it
+%% it has its answer, an expression once a later expression binds `it`: the
+%% module is unloaded, unless what the input bound holds one of its
+%% functions, and a process the input spawned keeps it
 %% until that process ends, and a value holding one of its functions still
 %% calls it. A regression test: every input's module stayed loaded for the
 %% rest of the session, and then each holder of `it` beside it; the bound
@@ -2179,7 +2180,7 @@ input_module_unloaded() ->
         " receive { _ -> Unit } }\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
     [Before, After] = [Answer || Answer <- answers(Output, 1), Answer > 100],
-    %% an expression leaves neither its module nor a holder of `it` loaded
+    %% an expression leaves one module loaded, its own, which holds `it`
     ?assert(After - Before =< 5),
     ?assertMatch({_, _}, binary:match(Output, <<"> 42 : Int">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"late">>)).
@@ -2204,6 +2205,66 @@ input_numbers_reused() ->
     {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
     [Before, After] = answers(Output, 5),
     ?assert(After - Before =< 60).
+
+%% report §11.2 *Inputs*: an expression makes one unit, which holds the
+%% value `it` names, and the session lets it go once a later expression
+%% binds `it`. A function of the session lists its units, the declaring
+%% inputs that made it and, beside them, two: the unit of the expression
+%% before, which holds `it`, and the asking input's own. Asked again after
+%% three more expressions, two reading the `it` before them, it lists the same
+%% two numbers: the earlier units let go, their numbers given again, an
+%% expression's unit needing no unit its code read once its answer is in,
+%% and no holder of `it` stands among them. Written before the change (the
+%% plan's MVP 4.0 item 11), which a holder of `it` beside each expression's
+%% unit failed.
+expression_holds_it_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun expression_holds_it/0).
+
+expression_holds_it() ->
+    InputFile = scratch_file("ern_expression_unit_"),
+    Units = <<"[\"ern@$input1_1\", \"ern@$input1_2\", \"ern@$input1_3\", \"ern@$input1_4\","
+              " \"ern@$input1_5\", \"ern@$input1_6\"] : List(String)\n">>,
+    ok = file:write_file(InputFile, [
+        "foreign fn loaded() : List(Foreign.Term) = \"code:all_loaded/0\"\n",
+        "foreign fn element(index : Int, tuple : Foreign.Term) : Foreign.Term ="
+        " \"erlang:element/2\"\n",
+        "foreign fn atomText(atom : Foreign.Term) : String = \"erlang:atom_to_binary/1\"\n",
+        "fn units() : List(String) =\n"
+        "    List.sort(List.filter(List.map(loaded(), fn(module) = atomText(element(1, module))),\n"
+        "                          fn(name) = String.startsWith(name, \"ern@$\")))\n",
+        "1\n", "units()\n", "2\n", "it + 1\n", "it + 1\n", "units()\n"]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"> 1 : Int\n> ", Units/binary,
+                                                "> 2 : Int\n> 3 : Int\n> 4 : Int\n> ",
+                                                Units/binary>>)).
+
+%% report §11.2 *Inputs*: an input's cost does not grow with the session.
+%% One session times two hundred inputs of `1` at its start, then again
+%% after a thousand declarations, by the clock it reads at the prompt, and
+%% the second takes less than twice the first: an input's own work, its
+%% unit compiled, loaded, run and let go, is the same in both, and what may
+%% grow with the session is the collection's walk of its names and units,
+%% a fraction of that work; twice leaves room for a machine whose load
+%% changes between the halves. Written before the change (the plan's MVP
+%% 4.0 item 12), which took 3.5 times as long. The session's 1,400 inputs
+%% are two steps of the harness.
+input_cost_flat_test_() ->
+    ern_nodes_tests:counted_test({waits, 2}, fun input_cost_flat/0).
+
+input_cost_flat() ->
+    InputFile = scratch_file("ern_input_cost_"),
+    Ones = [["1\n"] || _ <- lists:seq(1, 200)],
+    ok = file:write_file(InputFile, [
+        "let fresh = Clock.monotonic()\n", Ones, "Clock.monotonic() - fresh\n",
+        [["fn f", integer_to_list(Index), "() : Int = ", integer_to_list(Index), "\n"]
+         || Index <- lists:seq(1, 1000)],
+        "let grown = Clock.monotonic()\n", Ones, "Clock.monotonic() - grown\n"]),
+    Command = alone("../bin/ern shell") ++ " < " ++ InputFile,
+    Shell = open_port({spawn_executable, "/bin/sh"},
+                      [{args, ["-c", Command]}, exit_status, stderr_to_stdout, binary]),
+    {0, Output} = ern_nodes_tests:collected(Shell, 2),
+    [Fresh, Grown] = [Ms || Ms <- answers(Output, 1), Ms > 1],
+    ?assert(Grown < 2 * Fresh).
 
 %% report §11.2: an input that builds a function value keeps its code while
 %% the session runs, the function may be held anywhere: here a lambda sent

@@ -50,9 +50,15 @@ compile(Namespace, Declarations, Interface, Env) ->
 %% is the name its expression's sites write, `input 3`, which the forms'
 %% chunk records beside the expression's form (§12.7), and is not kept;
 %% `canonical`, the module's canonical forms where the build made them
-%% already (ern_build), is not kept either. The chunk records beside the
-%% build's facts whether the module builds a function value,
-%% `builds_functions`, by which the shell keeps an input's code (§11.2).
+%% already (ern_build), is not kept either.
+%%
+%% `held`, which the shell gives an expression's input, the name of the
+%% value its unit holds, `it`, with the definition whose hash names it,
+%% gives the unit a getter of it after its definitions and foreign
+%% functions, whose position the interface holds (§11.2), and is not kept.
+%% The chunk records beside the build's facts whether the module builds a
+%% function value, `builds_functions`, by which the shell keeps an input's
+%% code (§11.2).
 %%
 %% The declarations are the checker's, so every rule a program can break
 %% has been checked: what the emitter cannot emit, or emits and the host
@@ -65,7 +71,7 @@ compile(Namespace, Declarations, Interface, Env) ->
                 session_offset => non_neg_integer(), form_namespace => [atom()],
                 standard => boolean(), units => #{[atom()] => atom()},
                 site_namespace => [atom()], input_name => binary(),
-                canonical => ern_canonical:canonical()}) ->
+                canonical => ern_canonical:canonical(), held => {atom(), [atom()]}}) ->
           {ok, atom(), binary()}.
 compile(Namespace, Declarations, Interface, Env, Build) ->
     %% report §8.7, §11.1, Appendix H: the canonical forms and their hashes,
@@ -77,9 +83,9 @@ compile(Namespace, Declarations, Interface, Env, Build) ->
     Unit = unit(Namespace, Declarations, Env, Canonical, Build#{code => true}),
     {Forms, BuildsFunctions} = ern_emitter:unit(Unit),
     Facts = (maps:without([source, session_offset, form_namespace, standard, units,
-                           site_namespace, code, canonical, input_name], Build))
+                           site_namespace, code, canonical, input_name, held], Build))
         #{references => References, builds_functions => BuildsFunctions},
-    Chunk = ern_interface:encode(Facts, with_terms(Interface, Canonical, Unit)),
+    Chunk = ern_interface:encode(Facts, held(with_terms(Interface, Canonical, Unit), Unit)),
     Docs = term_to_binary(ern_docs:build(Namespace, Declarations, Env,
                                          maps:get(source, Build, <<>>))),
     Chunks = [{ern_interface:chunk_name(), Chunk}, {ern_docs:chunk_name(), Docs},
@@ -121,6 +127,15 @@ with_terms(#interface{lets = []} = Interface, Canonical, _) ->
 with_terms(#interface{lets = Lets} = Interface, Canonical, Unit) ->
     (ern_canonical:interface(Interface, Canonical))#interface{
       terms = ern_emitter:ground_terms(Unit, Lets)}.
+
+%% Report §11.2: an expression's interface with the position of the getter
+%% of the value its unit holds, by which a later input reads it.
+held(Interface, #unit{held = none}) ->
+    Interface;
+held(#interface{positions = Positions} = Interface,
+     #unit{namespace = Namespace, held = {Name, _}} = Unit) ->
+    Interface#interface{positions = Positions#{Namespace ++ [Name] =>
+                                                   ern_emitter:held_position(Unit)}}.
 
 %% Report §11.2, §11.1: a compiled module made a unit of the name Unit from
 %% what its compiled form records, by the back end as an exchange's unit is
@@ -292,7 +307,7 @@ unit(Namespace, Declarations, Env, Canonical, Build) ->
           standard = maps:get(standard, Build, false), code = maps:get(code, Build, false),
           form_namespace = FormNamespace,
           site_namespace = maps:get(site_namespace, Build, Namespace),
-          session_input = SessionOffset =/= false}.
+          session_input = SessionOffset =/= false, held = maps:get(held, Build, none)}.
 
 %% Report §11.2: an input's definitions and foreign functions with the
 %% lines of their source Offset after those the build counted, as its

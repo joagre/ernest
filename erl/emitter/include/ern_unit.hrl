@@ -12,7 +12,7 @@
 -record(unit, {namespace, name, definitions = [], foreign_functions = [], exported = [],
                binding_order = [], dependencies = [], reaches = #{}, link, standard = false,
                code = false, form_namespace, site_namespace, session_input = false,
-               lacked = []}).
+               held = none, lacked = []}).
 %% namespace: the module's (report §4.2), [] for a unit of an exchange,
 %% whose definitions are of any module's; name: the unit's, its Erlang
 %% module (§11.1, §11.2);
@@ -44,6 +44,11 @@
 %% session_input: whether the unit is an input of a shell's session, whose
 %% sites name what it declares by its own name (§11.2), its definitions'
 %% lines counted as its session counts them (ern_compile);
+%% held: for an expression's input, {Name, Definition}, the name of the
+%% value its unit holds, `it`, and the qualified name of the definition
+%% whose hash names that value as a binding, the input's entry; the unit's
+%% getter of it stands after its definitions and its foreign functions
+%% (§11.2, ern_emitter:held_position/1), and none for any other unit;
 %% lacked: for a unit of an exchange, each function that faults naming
 %% what the node lacks, {Function, Arity, Text}, to which the link takes a
 %% reference beyond the spawned function's reach, a binding without its

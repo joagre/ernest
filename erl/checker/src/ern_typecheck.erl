@@ -22,7 +22,8 @@
 
 -export([check/3, check/5, check_string/2, type_state/1, scope_state/2, set_type_state/2,
          prelude_names/1, prelude_values/1, prelude_constructor/2, prelude_constructors/1,
-         prelude_env/0, with_interfaces/2, lookup_type/2, identity/2, position/2, reach/2,
+         prelude_env/0, seeded/2, without_interface/2, with_interfaces/2, lookup_type/2,
+         identity/2, position/2, reach/2,
          ground_term/2, shim/2, global_scheme/2, is_provided/2, described_type/2,
          let_order/1, settled/2, foreign_implementation/1, fields/2, declared_scheme/3,
          is_running_never/2, declaration_type/2, is_top_let/2, is_foreign/2,
@@ -247,8 +248,7 @@ check(Namespace, Parsed, Interfaces) ->
           {ok, [tuple()], #interface{}, env()} | {error, [ern_diagnostic:diagnostic()]}.
 check(Namespace, Parsed, Interfaces, SessionScope, Prelude) ->
     Declarations = builtin_operators(Namespace, Parsed),
-    Seeded = lists:foldl(fun add_interface/2, Prelude#env{namespace = Namespace}, Interfaces),
-    every_type_declared(Interfaces, Seeded),
+    Seeded = (seeded(Interfaces, Prelude))#env{namespace = Namespace},
     Env = Seeded#env{session_scope = SessionScope},
     try
         one_clause(Parsed),
@@ -637,6 +637,45 @@ prelude_scheme(Text, Env) ->
     Requirement = [{Id, Member} || {Variable, Member} <- Members,
                                    Id := Name <- Names, Name =:= Variable],
     {Scheme#scheme{requirement = Requirement}, Env1}.
+
+%% Report §11.1, §11.2: Env with Interfaces added, each one's names taking
+%% the place of what it held of that module, and every type they name
+%% declared among them (every_type_declared/2), as check/5 seeds the
+%% environment it checks a module in; the shell keeps one so seeded
+%% between a session's inputs, and gives it to check/5 with no interface.
+-spec seeded([#interface{}], env()) -> env().
+seeded(Interfaces, Env) ->
+    Seeded = lists:foldl(fun add_interface/2, Env, Interfaces),
+    every_type_declared(Interfaces, Seeded),
+    Seeded.
+
+%% Report §11.2: Env without what Interface added to it (add_interface/2),
+%% an interface whose namespace no other interface of Env shares, one of a
+%% shell session's own inputs and holders, so that its names, its types
+%% and its constructors are its alone: the session lets one go as no name
+%% reaches it any more.
+-spec without_interface(#interface{}, env()) -> env().
+without_interface(#interface{types = InterfaceTypes, values = Values, lets = Lets,
+                             private_types = PrivateTypes, identities = Identities,
+                             reaches = Reaches, positions = Positions, terms = Terms,
+                             shims = Shims},
+                  #env{types = Types, globals = Globals, constructors = Constructors} = Env) ->
+    Names = maps:keys(Values),
+    ConstructorNames = [QualifiedName || #type_info{constructors = TypeConstructors}
+                                             <- maps:values(InterfaceTypes),
+                                         #constructor_info{qualified_name = QualifiedName}
+                                             <- TypeConstructors],
+    Without = fun(Map, Field) -> maps:without(Names ++ maps:keys(Map), Field) end,
+    Env#env{types = maps:without(maps:keys(InterfaceTypes), Types),
+            globals = maps:without(Names, Globals),
+            constructors = maps:without(ConstructorNames, Constructors),
+            private_types = maps:without(maps:keys(PrivateTypes), Env#env.private_types),
+            identities = maps:without(maps:keys(Identities), Env#env.identities),
+            positions = maps:without(maps:keys(Positions), Env#env.positions),
+            lets = maps:without(Names ++ Lets, Env#env.lets),
+            terms = Without(Terms, Env#env.terms), reaches = Without(Reaches, Env#env.reaches),
+            shims = Without(Shims, Env#env.shims),
+            declaring = maps:without(Names, Env#env.declaring)}.
 
 %% Report §11.1: every type the interfaces given name, in a value's scheme
 %% or a constructor's, has a declaration among them or the prelude's, or is

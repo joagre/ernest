@@ -36,8 +36,10 @@
 %% An input at the shell's prompt in line mode is measured last, beside the
 %% host's compile, load, delete and purge of a module of one function,
 %% which an input's unit stands on (report §11.2; the log's *A Line-Mode
-%% Input's Cost*): `1`, which binds `it`, whose holder is a module of its
-%% own, and `let _ = 1`, which binds nothing.
+%% Input's Cost* and *An Expression's One Unit, and an Input's Cost Flat*):
+%% `1`, which binds `it`, which its own unit holds, `let _ = 1`, which binds
+%% nothing, and `1` after a thousand declarations of a function, whose cost
+%% does not grow with the session.
 %%
 %% Each row is the median of seven runs, in nanoseconds an iteration, the
 %% loop's own cost included, or in microseconds a launch or an input, with
@@ -55,8 +57,10 @@
 -define(STARTS, 3).
 -define(UPDATES, 50).
 -define(RUNS, 7).
-%% The inputs a run of the shell's rows feeds a session.
+%% The inputs a run of the shell's rows feeds a session, and the
+%% declarations a session holds before the inputs of the grown row.
 -define(INPUTS, 200).
+-define(DECLARATIONS, 1000).
 %% The time of a receive with an `after`, which no receive here reaches.
 -define(MS, 1000).
 %% A spawn site, as the compiler supplies one (report §6.9).
@@ -490,30 +494,39 @@ launch() ->
 %% home under Directory, so that no person's startup file runs.
 shell_table(Directory) ->
     ok = filelib:ensure_path(filename:join(Directory, "home")),
-    Files = [inputs(Directory, Name, Line) || {Name, Line} <- [{"none", none}, {"it", "1"},
-                                                               {"let", "let _ = 1"}]],
+    Declarations = [["fn f", integer_to_list(Index), "() : Int = ", integer_to_list(Index), "\n"]
+                    || Index <- lists:seq(1, ?DECLARATIONS)],
+    Files = [inputs(Directory, Name, Before, Line)
+             || {Name, Before, Line} <- [{"none", [], none}, {"it", [], "1"},
+                                         {"let", [], "let _ = 1"},
+                                         {"declared", Declarations, none},
+                                         {"grown", Declarations, "1"}]],
     Runs = [run_shell(Directory, Files) || _ <- lists:seq(1, ?RUNS)],
     Column = fun(Index) -> [element(Index, Run) || Run <- Runs] end,
     [ern_costs:table("an input at the shell's prompt, us an input",
                      [{"the host's compile, load, delete and purge of a module",
                        Column(1)},
                       {"an input of `1`, which binds `it`", Column(2)},
-                      {"an input of `let _ = 1`, which binds nothing", Column(3)}],
+                      {"an input of `let _ = 1`, which binds nothing", Column(3)},
+                      {"an input of `1` after a thousand declarations", Column(4)}],
                      ratio)].
 
-%% A file of ?INPUTS lines of Line, or of none.
-inputs(Directory, Name, Line) ->
+%% A file of the lines Before, then ?INPUTS lines of Line, or of none.
+inputs(Directory, Name, Before, Line) ->
     File = filename:join(Directory, Name ++ ".in"),
-    ok = file:write_file(File, [[Line, "\n"] || Line =/= none, _ <- lists:seq(1, ?INPUTS)]),
+    ok = file:write_file(File, [Before, [[Line, "\n"] || Line =/= none,
+                                                         _ <- lists:seq(1, ?INPUTS)]]),
     File.
 
 %% One run of each row, the rows taking turns: the host's cycle of a module
-%% ?INPUTS times, and each session's time less that of one fed nothing,
-%% over its inputs.
-run_shell(Directory, [None, It, Let]) ->
+%% ?INPUTS times, and each session's time less that of one fed what it was
+%% fed before its inputs, nothing or the declarations, over its inputs.
+run_shell(Directory, [None, It, Let, Declared, Grown]) ->
     Cycle = micros_each(?INPUTS, fun cycled/0),
     Bare = session(Directory, None),
-    {Cycle, (session(Directory, It) - Bare) / ?INPUTS, (session(Directory, Let) - Bare) / ?INPUTS}.
+    Held = session(Directory, Declared),
+    {Cycle, (session(Directory, It) - Bare) / ?INPUTS, (session(Directory, Let) - Bare) / ?INPUTS,
+     (session(Directory, Grown) - Held) / ?INPUTS}.
 
 %% A session fed File, in microseconds.
 session(Directory, File) ->

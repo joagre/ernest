@@ -63,19 +63,10 @@ One form of attaching, by a listed peer, since a node accepts a connection from 
    *The Attached Shell's Own Node, Quiet*).
 10. **An attached shell's own node says nothing of its node's end or loss**, built 2026-10-30
     (the log's *The Attached Shell's Own Node, Quiet*).
-11. **An expression makes one unit**, holding the `it` it binds and kept while `it` names it,
-    decided 2026-10-30 from item 7's measure (the log's *A Line-Mode Input's Cost*): the host's
-    work on two units was 10.0 of an input's 11.6 ms, and one takes an input to about `let _ =
-    1`'s 5.9. §11.2 *Inputs* states it since that day; built before the release, with item 12.
-12. **An input's cost grows with the session**, found by item 7: after a thousand declarations
-    an input of `1` takes 38 ms, since the session's record crosses five places at each input
-    with every interface it holds, and the check adds every interface to the prelude's
-    environment again. The shape of its fix: the input answers what it bound and the session
-    joins it, so that the record stays in its process and its row is written once an input;
-    and the environment over the session's interfaces kept between inputs and built again where
-    they change, a cache decided 2026-10-30 on its argument, what it holds being fixed by the
-    interfaces and let go when they change or the session ends. Before the release, in item
-    5's commit, since an attached shell meets it at a node whose program has many modules.
+11. **An expression makes one unit**, built 2026-10-30 (the log's *An Expression's One Unit, and
+    an Input's Cost Flat*).
+12. **An input's cost grows with the session**, fixed 2026-10-30 (the log's *An Expression's One
+    Unit, and an Input's Cost Flat*).
 
 The attached shell is the operator's alone, trusted as a peer is, with no sandbox: the website runs
 the plain shell in a container per visitor (MVP 4.2).

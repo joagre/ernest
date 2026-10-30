@@ -332,7 +332,7 @@ A session ends with its node: where `b` ends, by `ern stop` or by its program's 
 
 An attach that fails is refused with status 1 and a line that names why: `ern shell: the peer b is unreachable` where no session started within a dial's 7 seconds, and `ern shell: the peer b is not listed` where `ops` lists no `b`. A shell attaches with the node's own release of `ern`, since the session runs the toolchain's own code, which the node loads from its own installation (report §12.7): a node of another build on the shell's floor answers `ern shell: the node b runs another build of ern than this shell; attach with its release`, and one on another floor refuses the connection, as section 2.2 says.
 
-An attach takes about a second on one machine of eight cores, as a shell that is a node takes to start. Each input after it is a unit `b` compiles and loads, which the counts of section 4.2 count; `b` lets an input's code go once its answer is in, or at the session's end where the input declares, but the host never gives its counts back.
+An attach takes about a second on one machine of eight cores, as a shell that is a node takes to start. Each input after it is a unit `b` compiles and loads, which the counts of section 4.2 count; `b` lets an input's code go once its answer is in, an expression's once a later expression replaces `it`, or at the session's end where the input declares, but the host never gives its counts back.
 
 ## 7. What a node says, and what to do
 

@@ -18,12 +18,15 @@ foreign type Checked
 
 foreign type Value
 
-// What running an input came to: the session after it and its value, or
-// the cause of the fault that ended it, its trace, and the callee's site or
-// the peer's name where a call or a compute carried the cause, each with
-// the input's serial (report §11.2, §6.6, §6.9, §7.3, §8.7).
+foreign type Bound
+
+// What running an input came to: what it bound, which the session joins,
+// and its value, or the cause of the fault that ended it, its trace, and
+// the callee's site or the peer's name where a call or a compute carried
+// the cause, each with the input's serial (report §11.2, §6.6, §6.9, §7.3,
+// §8.7).
 type Outcome =
-    Ok(session : Session, serial : Int, value : Value)
+    Ok(bound : Bound, serial : Int, value : Value)
   | Faulted(cause : String,
             trace : String,
             callee : Optional(String),
@@ -671,15 +674,16 @@ fn await(state : State,
          printing : Bool) : Next receiving ShellMsg = {
     let current = state.serial;
     receive {
-        Done(Ok(session = session, serial = serial, value = value)) when serial == current -> {
+        Done(Ok(bound = bound, serial = serial, value = value)) when serial == current -> {
             if printing then {
                 printResult(state, screen, checked, value);
                 sayTime(screen, state.settings, started)
             } else
                 Unit;
-            // report §11.2: what nothing reaches is let go here, in the
-            // session's process, once the input has answered
-            Continue(State(..state, session = collect(session)))
+            // report §11.2: what the input bound joins the session, and what
+            // nothing reaches is let go, here, in the session's process,
+            // once the input has answered
+            Continue(State(..state, session = collect(state.session, bound)))
         }
       | Done(Faulted(cause = cause,
                      trace = trace,
@@ -2271,10 +2275,10 @@ foreign fn declared(checked : Checked, value : Value) : Optional(List(String)) =
 foreign fn leavesItUnchanged(checked : Checked) : Bool =
     "ern_shell:leaves_it_unchanged/1"
 
-// The session after an input has answered, with what nothing reaches any
-// more let go (report §11.2).
-foreign fn collect(session : Session) : Session =
-    "ern_shell:collect/1"
+// The session after an input has answered, with what it bound joined and
+// what nothing reaches any more let go (report §11.2).
+foreign fn collect(session : Session, bound : Bound) : Session =
+    "ern_shell:collect/2"
 
 foreign fn spawnInput(session : Session,
                       checked : Checked,

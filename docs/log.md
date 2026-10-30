@@ -15,7 +15,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-10-30.** [The Rest Stays First](#the-rest-stays-first-2026-10-30); [The Attached Shell's Own Node, Quiet](#the-attached-shells-own-node-quiet-2026-10-30); [A Line-Mode Input's Cost](#a-line-mode-inputs-cost-2026-10-30); [The Attached Shell's Last Row](#the-attached-shells-last-row-2026-10-30); [The End's Lines Reach the Screen](#the-ends-lines-reach-the-screen-2026-10-30); [The Guides Over the Attached Shell](#the-guides-over-the-attached-shell-2026-10-30); [The Attached Shell, Built](#the-attached-shell-built-2026-10-30); [The Pun](#the-pun-2026-10-30); [The Session's Screen and the Toolchain's Units, Built](#the-sessions-screen-and-the-toolchains-units-built-2026-10-30); [The Attached Shell's Sentences](#the-attached-shells-sentences-2026-10-30); [The Shell's Second Round, Decided Again](#the-shells-second-round-decided-again-2026-10-30); [The Release's Note, Written Once](#the-releases-note-written-once-2026-10-30); [One Function per Initializer](#one-function-per-initializer-2026-10-30); [The Attached Shell's Cut](#the-attached-shells-cut-2026-10-30); [No Back End to BEAM's Own Instructions](#no-back-end-to-beams-own-instructions-2026-10-30); [`Test.until`, Built](#testuntil-built-2026-10-30).
+**2026-10-30.** [An Expression's One Unit, and an Input's Cost Flat](#an-expressions-one-unit-and-an-inputs-cost-flat-2026-10-30); [The Rest Stays First](#the-rest-stays-first-2026-10-30); [The Attached Shell's Own Node, Quiet](#the-attached-shells-own-node-quiet-2026-10-30); [A Line-Mode Input's Cost](#a-line-mode-inputs-cost-2026-10-30); [The Attached Shell's Last Row](#the-attached-shells-last-row-2026-10-30); [The End's Lines Reach the Screen](#the-ends-lines-reach-the-screen-2026-10-30); [The Guides Over the Attached Shell](#the-guides-over-the-attached-shell-2026-10-30); [The Attached Shell, Built](#the-attached-shell-built-2026-10-30); [The Pun](#the-pun-2026-10-30); [The Session's Screen and the Toolchain's Units, Built](#the-sessions-screen-and-the-toolchains-units-built-2026-10-30); [The Attached Shell's Sentences](#the-attached-shells-sentences-2026-10-30); [The Shell's Second Round, Decided Again](#the-shells-second-round-decided-again-2026-10-30); [The Release's Note, Written Once](#the-releases-note-written-once-2026-10-30); [One Function per Initializer](#one-function-per-initializer-2026-10-30); [The Attached Shell's Cut](#the-attached-shells-cut-2026-10-30); [No Back End to BEAM's Own Instructions](#no-back-end-to-beams-own-instructions-2026-10-30); [`Test.until`, Built](#testuntil-built-2026-10-30).
 
 **2026-10-27.** [`<-` at the Prompt](#--at-the-prompt-2026-10-27); [The Shell Does Not Indent](#the-shell-does-not-indent-2026-10-27); [Small Library Functions Stay Calls](#small-library-functions-stay-calls-2026-10-27); [The Emitter's Calls Against the Host's, Built](#the-emitters-calls-against-the-hosts-built-2026-10-27); [The Emitter's Calls Against the Host's](#the-emitters-calls-against-the-hosts-2026-10-27); [The BEAM Opcode Experiment](#the-beam-opcode-experiment-2026-10-27).
 
@@ -9524,6 +9524,102 @@ MVP 3.9's last item began on the user's word on 2026-10-24 over `0e37caeb`, as `
 The host's own times are down a fifth on most rows, the loop alone 7.5 against 9.3, so the machine is faster than it was and the ratio is what is compared. Two rows are better, `String.size` and the spawn, the spawn by the review's rounds since 0.4.0 (*The Rows That Grew*). Nine rows are within a tenth of their last ratio, the noise the reviews before 0.3.1 and 0.4.0 took for the machine's own, and two are a little past it, `List.map` 1.62 against 1.5 and the call 1.71 against 1.6, each by a hundredth or two beyond a tenth, with no change to either operation's path since 0.4.0; the release ships with the rows as they stand, which the user decides at the tag. Of the rows the bench gained since 0.4.0's table: `spawnMonitored` 11.1 and a monitor of an ended process 27.2, against 10.2 and 25.6 on 2026-10-20, within their spread; `restarting` entered and returning 356 ns against 553 then. The language's rows against the host (*The Language Against the Host*): the dot product 1.28 against 1.65 and the ray tracer 1.61 against 1.95, both better since the operators' tuple patterns, a record update 1.73 against 1.50, `Map.put` 1.32 against 1.18, `List.map` 1.42 against 1.57, the parser 1.28 and the counter 1.30 as they were.
 
 **The newcomer's program** is `kvd`, a key-value server over TCP that keeps its values in a log file, 732 lines in four modules: a session per connection with a reader process, a tracker and a store under a `OneForOne` group, `Clock.alarm` for keys that lapse and a compaction every thirty seconds, `Os.termination` compacting the log at the end, nine tests and three doc examples. It ran, a `CRASH` restarted by the group and the values read again by the second run; it is published beside the archive with its driver script.
+
+## An Expression's One Unit, and an Input's Cost Flat, 2026-10-30
+
+MVP 4.0's items 11 and 12, decided the same day (*A Line-Mode Input's Cost*). A thousand inputs
+of `1` in line mode took 12.0 ms an input and take 6.0; `let _ = 1` took 7.9 and takes 5.8. After
+a thousand declarations `fn fN() : Int = 1` an input of `1` took 25.0 ms and takes 9.8, each the
+median of three sessions less a session's time without the inputs. One session that times two
+hundred inputs of `1` at its start and again after a thousand declarations `fn fN() : Int = N`,
+by the clock it reads at the prompt, took 13.5 and 46.9 ms an input in one run, 3.5 times, and
+takes 5.9 and 9.0, the median of three, 1.5 times; that session, 1,402 inputs, took 31.2 s and
+takes 7.4. On one machine of eight cores.
+
+**One unit.** An expression's unit holds the value `it` names. The emitter writes a getter of it
+after the unit's definitions and foreign functions where the build asks it (`ern_compile`'s
+`held`, `ern_emitter:held_position/1`), the interface gives its position, and the unit's
+`'$code'/0` lists it as a binding of the input's entry, as a holder lists one. The input's process
+puts the value under the getter's key once it has it. The session joins an interface of `it`
+under the input's namespace, so a later input reads `it` with the call it makes for any
+module's value. The unit is let go once a later expression binds `it` and no unit the session
+keeps reads it; one whose code builds a function value keeps its code, and its value goes. Of
+item 7's 10.0 ms of the host's work on two units, a holder's compile, load, delete and purge
+are gone.
+
+**What such a unit needs.** An expression's unit the session does not keep needs none of what its
+code called, which runs no more, and holds what a holder holds, the units whose types its
+interface names. Kept as the earlier holder of `it` was, `it + 1` typed again and again would
+have chained every expression's unit to the one before it, and the unit test asks for that case.
+
+**The record stays in its process.** Of the five places item 7 found the session's record
+crossing, the check writes no row now. The input's process is given its unit, its entry, the
+names it binds with their schemes and what its holder is named by, all made in the session's
+process, and not the session. It answers what it bound, an interface, which the session joins
+in its own process (`collect/2`), so the outcome and the checker in front of its address carry no
+session. The row is written once, after the join. The highest holder's number is a row the
+input's process takes, since it no longer answers a session.
+
+**The environment kept.** The session holds the checker's environment over its interfaces
+between inputs (`session_env/1`, `ern_typecheck:seeded/2`). An expression adds one interface and
+lets one go. Each is the session's own, under a namespace no other interface shares, so the
+change is the one taken out (`ern_typecheck:without_interface/2`) and the one added; a change to
+any other interface, a load's, a reload's or another session's, makes it again. The node's
+modules are read only where their version has moved (`synced/1`). The cache's argument: it holds
+what the interfaces fix and goes with them or with the session, and the row holds none.
+
+**The collection reads what it may let go.** Each unit is a row of its own. Two small rows hold
+the units that hold a value or that the session does not keep, and of them those a kept unit
+needs. A collection reads those alone, each reached by a name of its own in scope or needed by a
+kept unit, where it read every unit and every name of the scope; the binders go by the same
+reading. The printed names the checker is given are the declaring inputs', kept in the session.
+A unit is recorded before it is made, so that an interrupted input's own unit, where the session
+does not keep it, and a holder it began, are let go at the next collection; an interrupted
+input's unit stayed loaded for the session's life before, taken for a kept input's.
+
+**The stages after**, timed by `call_time` on the stages alone over two hundred inputs of `1`, in
+ms an input:
+
+| stage | at the start | after a thousand declarations |
+|---|---|---|
+| the session's row written | 0.01 | 1.08 |
+| the collection | 0.06 | 0.26 |
+| the check, the environment kept beside it | 0.23 | 0.33 |
+| the emit and the host's compile | 0.41 | 0.44 |
+| the rest, the host's load, purge and erase among it | 5.09 | 6.55 |
+| an input | 5.81 | 8.66 |
+
+**What still grows**, 2.9 ms of an input after a thousand declarations. The session's row,
+110,000 words then, copied into the table once, 1.1 ms. The host's scan of the session's
+process at each purge and each erase, which looks for the released code's literals in every
+process's heap, and its collections of that heap, both growing with the session's record and
+its environment. The host's code server, whose work at a load and a purge grows with the modules
+loaded. And three walks of the session's list of interfaces, its join, the environment's
+comparison and the collection's filter, a few microseconds each. Each is the session's size
+crossing the host's work once an input, and none is a copy of the session; they stay, measured.
+
+**The tests.** `ern_shell_tests`' `expression_holds_it`, written before the change and red on
+the holder of `it`: a function of the session lists its units, which after an expression are
+the declaring inputs, the expression's unit and the asking input's, and the same after three
+more, two reading the `it` before them. `input_cost_flat`, written before the change and red at
+3.5: one session's two hundred inputs after a thousand declarations take less than twice those
+at its start. Twice, since an input's own work is the same in both halves and what may grow is a
+fraction of it, and a machine's load may change between the halves. `make bench`'s part `rules`
+gains a row, an input of `1` after a thousand declarations, beside the host's cycle of a module,
+4.1 ms: `1` is 1.63 times it, where item 7 left 2.94, `let _ = 1` 1.56, and `1` after a thousand
+declarations 2.14. The shell's, the nodes', the deployment's and the tour's tests pass as they
+were, `:processes`, `:forget`, `:reload`'s version lines and the golden session among them, none
+of their output changed.
+
+**Found and left.** §11.2 *Inputs* lets an expression's unit go once a later expression binds
+`it`. A declaration the session keeps that reads that `it`, `fn g() : Int = it + 1`, keeps the
+unit while it may run, as it kept the holder of `it` before, so that `g()` after two more
+expressions still answers 2; the sentence names no such reader, a clause for the user's
+reading of the report. A `let` makes two units still, its own and its holder, as §11.2 *Inputs*
+states it; one unit would serve it as it serves an expression, and the plan does not hold it. The
+code table's unload reads every row under each of its unit's keys, so a definition a thousand
+units hold, a thousand functions of one body, costs an unload a read of a thousand rows; a
+program does not declare that, and it stays.
 
 ## The Attached Shell's Own Node, Quiet, 2026-10-30
 
