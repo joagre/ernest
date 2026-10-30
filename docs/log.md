@@ -15,7 +15,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-10-30.** [The Session's Screen and the Toolchain's Units, Built](#the-sessions-screen-and-the-toolchains-units-built-2026-10-30); [The Attached Shell's Sentences](#the-attached-shells-sentences-2026-10-30); [The Shell's Second Round, Decided Again](#the-shells-second-round-decided-again-2026-10-30); [The Release's Note, Written Once](#the-releases-note-written-once-2026-10-30); [One Function per Initializer](#one-function-per-initializer-2026-10-30); [The Attached Shell's Cut](#the-attached-shells-cut-2026-10-30); [No Back End to BEAM's Own Instructions](#no-back-end-to-beams-own-instructions-2026-10-30); [`Test.until`, Built](#testuntil-built-2026-10-30).
+**2026-10-30.** [The Dotted Field](#the-dotted-field-2026-10-30); [The Session's Screen and the Toolchain's Units, Built](#the-sessions-screen-and-the-toolchains-units-built-2026-10-30); [The Attached Shell's Sentences](#the-attached-shells-sentences-2026-10-30); [The Shell's Second Round, Decided Again](#the-shells-second-round-decided-again-2026-10-30); [The Release's Note, Written Once](#the-releases-note-written-once-2026-10-30); [One Function per Initializer](#one-function-per-initializer-2026-10-30); [The Attached Shell's Cut](#the-attached-shells-cut-2026-10-30); [No Back End to BEAM's Own Instructions](#no-back-end-to-beams-own-instructions-2026-10-30); [`Test.until`, Built](#testuntil-built-2026-10-30).
 
 **2026-10-27.** [`<-` at the Prompt](#--at-the-prompt-2026-10-27); [The Shell Does Not Indent](#the-shell-does-not-indent-2026-10-27); [Small Library Functions Stay Calls](#small-library-functions-stay-calls-2026-10-27); [The Emitter's Calls Against the Host's, Built](#the-emitters-calls-against-the-hosts-built-2026-10-27); [The Emitter's Calls Against the Host's](#the-emitters-calls-against-the-hosts-2026-10-27); [The BEAM Opcode Experiment](#the-beam-opcode-experiment-2026-10-27).
 
@@ -9524,6 +9524,50 @@ MVP 3.9's last item began on the user's word on 2026-10-24 over `0e37caeb`, as `
 The host's own times are down a fifth on most rows, the loop alone 7.5 against 9.3, so the machine is faster than it was and the ratio is what is compared. Two rows are better, `String.size` and the spawn, the spawn by the review's rounds since 0.4.0 (*The Rows That Grew*). Nine rows are within a tenth of their last ratio, the noise the reviews before 0.3.1 and 0.4.0 took for the machine's own, and two are a little past it, `List.map` 1.62 against 1.5 and the call 1.71 against 1.6, each by a hundredth or two beyond a tenth, with no change to either operation's path since 0.4.0; the release ships with the rows as they stand, which the user decides at the tag. Of the rows the bench gained since 0.4.0's table: `spawnMonitored` 11.1 and a monitor of an ended process 27.2, against 10.2 and 25.6 on 2026-10-20, within their spread; `restarting` entered and returning 356 ns against 553 then. The language's rows against the host (*The Language Against the Host*): the dot product 1.28 against 1.65 and the ray tracer 1.61 against 1.95, both better since the operators' tuple patterns, a record update 1.73 against 1.50, `Map.put` 1.32 against 1.18, `List.map` 1.42 against 1.57, the parser 1.28 and the counter 1.30 as they were.
 
 **The newcomer's program** is `kvd`, a key-value server over TCP that keeps its values in a log file, 732 lines in four modules: a session per connection with a reader process, a tracker and a store under a `OneForOne` group, `Clock.alarm` for keys that lapse and a compaction every thirty seconds, `Os.termination` compacting the log at the end, nine tests and three doc examples. It ran, a `CRASH` restarted by the group and the values read again by the second run; it is published beside the archive with its driver script.
+
+## The Dotted Field, 2026-10-30
+
+A field given or matched by the variable of its own name is written `Desk(local = local)`, and
+the repository's own Ernest writes that pair at 190 sites, half in patterns and half in
+constructions, 42 of them with three fields or more: `Desk(local = local, size = size, color =
+color, attached = attached)`. Whether the repeat could go was weighed on the principles. Decided: a
+*dotted field*, `.local`, stands for `local = local` in a construction and in a pattern,
+`Desk(.local, .size)`, mixing with the other forms, each field once; built after MVP 4.0 as the
+plan's *The dotted field*.
+
+**Two families, by the bracket.** Every language that puns a field bare gives its records a
+bracket of their own, so the bare name can be nothing but a field: OCaml's `{x; y}`, Haskell's
+`C {x, y}`, Standard ML's `{x, y}` in a pattern, Rust's `P { x, y }` beside its positional
+`P(x, y)`, Elm's, PureScript's, Lean's and JavaScript's. Every language that writes named fields in
+the call's parentheses, as Ernest does, has no shorthand, Erlang, F#, Scala, Kotlin and Swift among
+them, or marks the pun as a trailing label with its value left out: Gleam's `C(x:, y:)` since its
+1.4 and Ruby's `f(x:, y:)` since its 3.1. Python's PEP 736 proposed the trailing form with Python's
+own token, `f(x=)`, and its steering council rejected it in 2025 as costing more in reading than it
+saved. Haskell's `C {..}`, every field at once, is the form its style guides warn against.
+
+**The bare name and the trailing mark.** The bare name is the first family's and collides in
+Ernest: `Desk(local)` has the shape of `Some(x)` and of a call, the one-field string derives two
+ways in Appendix A with the declaration deciding, and `Append(path, bytes, reply)` reads as
+positional, which Ernest has no form for (principles 3 and 4). The trailing mark is the answer of
+Ernest's own family, but Ernest's label token is `=`, so its spelling is the one Python rejected:
+`local =` reads as a hole.
+
+**The other marks, and the dot.** `?local` is Erlang's macro to the reader of §0, `local?` asks a
+question where a pun asserts, and `~local` is OCaml's label with a token Ernest lacks; each of
+`?`, `@`, `&` and `~` is free and means nothing here, so any would be learned for this job alone
+(principle 5). `Desk(..)`, every field by its name, puts no name at the use site, which principle 3
+refuses as it refuses a fill from the scope. A bracket of records' own would change every
+constructor in every program. The dot is the one mark that already means "field" in Ernest,
+`desk.local`, and nothing in Ernest begins with one, no expression, no pattern, no float, so the
+parser reads it on its first token (principles 1 and 4).
+
+**Principle 2's sentence gains the scope.** A second spelling "that only shortens stays out", and
+the dotted field shortens; but the same sentence admits the fill, which pairs each field with the
+declaration of its name in one namespace, and the dotted field is that pairing one scope down,
+with the local of its name, as visible as the fill since every name stands at the use site. The
+sentence gains the scope beside the namespace rather than being overridden, and the style guide
+says a field whose variable bears its name is written dotted, so one site has one spelling. No
+language above writes the dot, so §5.6 states the departure, which §0 allows.
 
 ## The Session's Screen and the Toolchain's Units, Built, 2026-10-30
 
