@@ -225,33 +225,50 @@ until 2026-10-13, and `json` in MVP 3.0, and `proxy`, named `standing` until 202
 
 ## MVP 4.2 (the website)
 
-Ernest's website, served by ernest-httpd (MVP 4.1), decided with the user on 2026-10-10: what Ernest is,
-its characteristics, and the README's three ways in, the tour, the guide and the report (the log's *The Tour Written*), each with
-the reader it is for; and a live shell, a terminal in the visitor's browser, a JavaScript terminal
-such as xterm.js, connected by WebSocket to `ern shell` behind a pseudo-terminal on the server. The
-shell runs on the server, since no full BEAM runs in a browser, and the shell drives a terminal
-through `Terminal` and so runs behind one unchanged.
+Ernest's website, served by ernest-httpd (MVP 4.1), decided with the user on 2026-10-10 (the log's
+*ehttpd and the Website*): what Ernest is and its six claims, the three ways in, the tour, the
+guide and the report, each with the reader it is for (the log's *The Tour Written*), the
+library's pages, and a live shell, a terminal in the visitor's browser connected by WebSocket to
+`ern shell` behind a pseudo-terminal on the server, since no full BEAM runs in a browser.
 
-Its sandbox is decided, on 2026-10-10 and again
-on 2026-10-13: the operating system's and not the language's, one isolated container per visitor,
-with limits on time, memory, processes and network, running the plain shell behind a
-pseudo-terminal, nothing kept when the visitor leaves, and `:clear` the container started again.
+Its design is `docs/proposals/site/decisions.md`, begun 2026-10-13, read back on 2026-10-30 and
+ready the same day: the docroot, the anchors, the homepage, every page, the look, the links, the
+templates, the generation, the live shell's page side and the documents; the first design's
+templates and mockup stand beside it. Its sandbox is the operating system's, one container per
+visitor running the plain shell, whose server side is the httpd proposal's; a sandbox of the
+language's was weighed and set aside on 2026-10-13 (`docs/proposals/shell/attached.md`), and the
+attached shell, MVP 4.0, is the operator's alone.
 
-One
-node for every visitor with sandboxed sessions attached to it was weighed on 2026-10-13 and set
-aside (`docs/proposals/shell/attached.md`): a language-level sandbox is buildable but never the one wall,
-since a visitor who exhausts the machine's memory ends every session on the node, and the container
-costs little and needs nothing of the language; the attached shell, MVP 4.0, is the operator's
-alone.
+1. **The generator**, `tools/site.ern` beside `tools/manual.ern`, in Ernest over `libs/markdown`'s
+   tree, `Block` and `Inline`, an `html` function of one clause per constructor; the library
+   renders to its tree and to the terminal alone, and nothing of the site enters it (decided
+   2026-10-10), `roff` moving to `tools/manual.ern`, its one user, when something next touches the
+   library.
 
-The site's pages are written in Markdown and rendered by `libs/markdown`. The site's
-generator is a program of its own beside `tools/manual.ern`, written in Ernest against the library's
-tree, `Block` and `Inline`, with an `html` function of one clause per constructor and the site's
-template and per-function layout around it, built from the doc chunk's parts as the manual is; the
-library renders to its tree and to the terminal alone, and nothing of the site enters it (decided
-with the user on 2026-10-10). When something next touches the library, `roff` moves to
-`tools/manual.ern`, its one user, with its `Manual` record. The generator may come before the rest
-of the milestone whenever it is wanted.
+   It reads the repository and writes static files: the pages of the report, the guide,
+   the tour, Why, the questions, the deployment guide, the README's *Installing*, the release
+   notes and `docs/man/`'s Markdown; the contents pages; the anchors, the citations' links and a
+   report section's margin line; Ernest code colored by a `foreign` declaration over the
+   toolchain's lexer; each page's sidebar, title, description and footer. It may come before
+   the rest whenever it is wanted.
+2. **The templates and the docroot** brought to the decisions: `page.html`, `toc.html`,
+   `home.html` and `shell.html` on `base.html`, the fragments for a list's items, the stoat in
+   the header, the favicon, the footer's rooms, the homepage's order and the panel's controls, a
+   test holding each template to its tokens; `site/` at the repository's root holding
+   `templates/` and `docroot/`; xterm.js and its fit addon vendored, with their row in
+   `THIRD_PARTY_LICENSES`.
+3. **The documents the site lacks**: `releases/<version>.md`, which the release step writes
+   from the next release on, `docs/release_review.md` saying so, and the root `CONTRIBUTING.md`,
+   written before the site goes live.
+4. **The live shell's page side**, the session client in JavaScript over ernest-httpd's socket:
+   the seven states, the panel on every page with its layout in local storage, Copy, Paste and
+   Load on a code block, a transcript's Paste for each input, the warning banner with Extend,
+   the snackbar at a session's end, and everything reachable by keyboard with xterm.js's
+   screen-reader mode on.
+5. **The build and the deployment**: `make site` from a release's tag by `git archive`, the
+   toolchain built there and `make man` run, the check of every internal link and anchor, the
+   copy of `build/site/` to the host, and the site live at ernest-lang.org with the smoke test
+   against it.
 
 ## MVP 4.3 (the shell's second round), about three weeks
 
