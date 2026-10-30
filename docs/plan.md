@@ -156,41 +156,6 @@ MVP 4.2).
 The site's content, MVP 4.2, runs beside any of it, since its generator needs nothing of the
 server.
 
-**Libraries named and not the server's**, written when our work needs one, when someone asks for
-it, or when we want it, decided 2026-09-25 (the log's *Libraries As They Are Wanted*). Each is an
-Ernest source root under `src/libs/<name>/` whose build ends every job's load path, so that a
-program names none (§11.2), with `src/stdlib/`'s test discipline, documented in one pass to
-[`module_doc_template.md`](module_doc_template.md) with its executed examples as its first user,
-and a section in the appendix of libraries. Own repositories come later, when there is a package
-story.
-
-Written: `libs/ets`, `libs/markdown`, `libs/ansi`, `libs/utilization`, `libs/json` and
-`libs/proxy` (Appendix G; `libs/markdown` in the table of milestones, `utilization`, named `load`
-until 2026-10-13, and `json` in MVP 3.0, and `proxy`, named `standing` until 2026-10-10, in MVP
-3.1). Named so far:
-
-- **`libs/regex`**, a shim over `re`, a library and never syntax: `Regex.compile : (String) ->
-  Either(RegexError, Regex)`, `Regex` a foreign type (the log's *A Regex Literal Weighed*).
-- **`libs/uri`**, pure Ernest or a shim over `uri_string`; **`libs/zlib`**, a shim over `zlib`,
-  which the site's precompressed pages would want first.
-- **A listing by bytes in `Fs`**, decided when a program must manage a directory others
-  write by names it does not choose: `Fs.names` and `Fs.removeName`, through E.0's rules,
-  beside an `Fs.list` that stays whole or an error (§8.2; the log's *The Full Review's Questions,
-  One by One*, S17).
-- **A read and a write in `Fs` that refuse a link under a root**, decided when a program
-  serving files from a root others can write is written: `Fs.readUnder` and `Fs.writeUnder`,
-  through E.0 rule 1, walking by opened directories in the runtime's helper, started per call
-  or resident as that program's cost decides (E.17; the log's *The Full Review's Questions, One by
-  One*, S16). ernest-httpd serves a root no one else writes and waits for neither.
-- **A file made with a mode in `Fs`**, decided when a program must write a file only its owner
-  may read into a directory others may enter: a function beside `makeFile` that takes the mode,
-  through E.0 rule 1, opening with it in the runtime's helper (E.17; the log's *The Full Review's
-  Questions, One by One*, S9).
-- **`Udp`**, a system module of Appendix E beside `Tcp` and not a library, admitted by E.0
-  rule 1 and written as wanted too, with `Tcp`'s shapes: a socket an address, a read pulled
-  with a time, a datagram `Bytes` (the log's *`Clock.monotonic` Is In, and `Udp` Is
-  Placed*).
-
 ---
 
 ## MVP 4.2 (the website)
