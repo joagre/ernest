@@ -315,3 +315,52 @@ OTP 29, erts 17.1, compiler 10.0.5, on Linux x86_64.
 **Additional context**
 
 Found by a compiler that emits Erlang, whose module initialization calls one function for each top-level binding: 2,000 bindings took 11.3 s to build called locally and 4.05 s called by the module's name, which the compiler writes until this is fixed.
+
+## 8. A module's purge costs the process limit, not the processes alive
+
+Not filed, and a misfeature rather than a bug: nothing in OTP's documentation promises otherwise, and a fixed process table is the emulator's design. Found on 2026-10-30; the log's *A Line-Mode Input's Cost*.
+
+**Title:** code:purge/1 walks the whole process table, so its cost follows +P and not the number of live processes
+
+**Describe the misfeature**
+
+Purging a module costs time proportional to the emulator's process limit, `+P`, whatever the number of processes alive: the code purger's check of each process for the old code, and the literal area collector's, walk every slot of the process table. A program that loads, deletes and purges small modules often, a shell compiling each input to a module of its own, pays 5 ms a cycle at the default limit and 270 ms at the largest, with the same 43 processes alive.
+
+**To Reproduce**
+
+A module of one function, loaded from its binary, deleted and purged a hundred times, the cycle timed, at three process limits:
+
+```erlang
+-module(run).
+-export([main/0]).
+main() ->
+    {ok, Bin} = file:read_file("one.beam"),
+    Cycle = fun() -> {module, one} = code:load_binary(one, "one.beam", Bin),
+                     true = code:delete(one), false = code:purge(one) end,
+    Cycle(), Cycle(),
+    {T, _} = timer:tc(fun() -> [Cycle() || _ <- lists:seq(1, 100)] end),
+    io:format("~p processes allowed, ~p alive: ~.2f ms a cycle~n",
+              [erlang:system_info(process_limit), erlang:system_info(process_count), T / 100000]),
+    halt().
+```
+
+```
+$ erl +P 1024 -noshell -s run main
+1024 processes allowed, 43 alive: 0.92 ms a cycle
+$ erl +P 1048576 -noshell -s run main
+1048576 processes allowed, 43 alive: 5.47 ms a cycle
+$ erl +P 134217727 -noshell -s run main
+134217727 processes allowed, 43 alive: 274.27 ms a cycle
+```
+
+**Expected behavior**
+
+A purge costs what the processes alive cost, a fraction of a millisecond with 43 of them, at any limit.
+
+**Affected versions**
+
+OTP 29, erts 17.1, on Linux x86_64.
+
+**Additional context**
+
+Found by measuring a shell that compiles each input to a module of its own and purges it afterward, where the purge was a third of an input's cost; the shell's answer was to purge less.
