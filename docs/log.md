@@ -15,7 +15,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-10-30.** [The Guides Over the Attached Shell](#the-guides-over-the-attached-shell-2026-10-30); [The Attached Shell, Built](#the-attached-shell-built-2026-10-30); [The Pun](#the-pun-2026-10-30); [The Session's Screen and the Toolchain's Units, Built](#the-sessions-screen-and-the-toolchains-units-built-2026-10-30); [The Attached Shell's Sentences](#the-attached-shells-sentences-2026-10-30); [The Shell's Second Round, Decided Again](#the-shells-second-round-decided-again-2026-10-30); [The Release's Note, Written Once](#the-releases-note-written-once-2026-10-30); [One Function per Initializer](#one-function-per-initializer-2026-10-30); [The Attached Shell's Cut](#the-attached-shells-cut-2026-10-30); [No Back End to BEAM's Own Instructions](#no-back-end-to-beams-own-instructions-2026-10-30); [`Test.until`, Built](#testuntil-built-2026-10-30).
+**2026-10-30.** [The End's Lines Reach the Screen](#the-ends-lines-reach-the-screen-2026-10-30); [The Guides Over the Attached Shell](#the-guides-over-the-attached-shell-2026-10-30); [The Attached Shell, Built](#the-attached-shell-built-2026-10-30); [The Pun](#the-pun-2026-10-30); [The Session's Screen and the Toolchain's Units, Built](#the-sessions-screen-and-the-toolchains-units-built-2026-10-30); [The Attached Shell's Sentences](#the-attached-shells-sentences-2026-10-30); [The Shell's Second Round, Decided Again](#the-shells-second-round-decided-again-2026-10-30); [The Release's Note, Written Once](#the-releases-note-written-once-2026-10-30); [One Function per Initializer](#one-function-per-initializer-2026-10-30); [The Attached Shell's Cut](#the-attached-shells-cut-2026-10-30); [No Back End to BEAM's Own Instructions](#no-back-end-to-beams-own-instructions-2026-10-30); [`Test.until`, Built](#testuntil-built-2026-10-30).
 
 **2026-10-27.** [`<-` at the Prompt](#--at-the-prompt-2026-10-27); [The Shell Does Not Indent](#the-shell-does-not-indent-2026-10-27); [Small Library Functions Stay Calls](#small-library-functions-stay-calls-2026-10-27); [The Emitter's Calls Against the Host's, Built](#the-emitters-calls-against-the-hosts-built-2026-10-27); [The Emitter's Calls Against the Host's](#the-emitters-calls-against-the-hosts-2026-10-27); [The BEAM Opcode Experiment](#the-beam-opcode-experiment-2026-10-27).
 
@@ -9524,6 +9524,47 @@ MVP 3.9's last item began on the user's word on 2026-10-24 over `0e37caeb`, as `
 The host's own times are down a fifth on most rows, the loop alone 7.5 against 9.3, so the machine is faster than it was and the ratio is what is compared. Two rows are better, `String.size` and the spawn, the spawn by the review's rounds since 0.4.0 (*The Rows That Grew*). Nine rows are within a tenth of their last ratio, the noise the reviews before 0.3.1 and 0.4.0 took for the machine's own, and two are a little past it, `List.map` 1.62 against 1.5 and the call 1.71 against 1.6, each by a hundredth or two beyond a tenth, with no change to either operation's path since 0.4.0; the release ships with the rows as they stand, which the user decides at the tag. Of the rows the bench gained since 0.4.0's table: `spawnMonitored` 11.1 and a monitor of an ended process 27.2, against 10.2 and 25.6 on 2026-10-20, within their spread; `restarting` entered and returning 356 ns against 553 then. The language's rows against the host (*The Language Against the Host*): the dot product 1.28 against 1.65 and the ray tracer 1.61 against 1.95, both better since the operators' tuple patterns, a record update 1.73 against 1.50, `Map.put` 1.32 against 1.18, `List.map` 1.42 against 1.57, the parser 1.28 and the counter 1.30 as they were.
 
 **The newcomer's program** is `kvd`, a key-value server over TCP that keeps its values in a log file, 732 lines in four modules: a session per connection with a reader process, a tracker and a store under a `OneForOne` group, `Clock.alarm` for keys that lapse and a compaction every thirty seconds, `Os.termination` compacting the log at the end, nine tests and three doc examples. It ran, a `CRASH` restarted by the group and the values read again by the second run; it is published beside the archive with its driver script.
+
+## The End's Lines Reach the Screen, 2026-10-30
+
+MVP 4.0's item 6: a shell's end lost its last lines on standard error, in about one run of
+eighty of `reload_version_sites` under the harness and one of twenty-three in a loop of its
+session at load. Diagnosed and fixed in the shell's front end; the runtime is unchanged.
+
+**Who says the lines.** The end's lines, `the end waits for 2 subscribers` and each subscriber's
+`answered`, are the runner's, said through `ern_rt:say/2` to the launch's standard error process,
+which answers once its sink has taken the line. The process `wait_for_later/0` waits for takes no
+part: it carries the gateway's and the checks' lines alone. After the wait the runner drains the
+shell's screen, `ern_shell:flush_screen/0`, and the end then ends every process, the screen and
+the local half among them.
+
+**What took the line.** In a shell, standard error's sink is `ern_shell:to_screen/1`, which sent
+the bytes to the screen's address the local half had named, `adapted(screen, Wrote)`. That
+address had crossed into foreign code, so a check's process stood in front of it (§8.4). The
+sink's send ended once the bytes were in that process's mailbox, while the drain went to the
+screen's own process. Nothing orders two senders' messages, and the drain overtook bytes the
+check still held. The screen answered the drain, the end ended the check and the screen, and the
+line was never written. The session's own sinks, `sink/1`, went the same way, so a prompt could
+come before what an input printed; 4,800 inputs at load showed no such case.
+
+**The evidence.** A loop of the test's session, eight at once on eight cores, lost a line in 13
+runs of 300, twice. With the drain's answer recording what the check held, each of the 13 had a
+line reach the screen only after the drain, and in five the check still held two or three of the
+end's lines as the screen answered it. The EUnit test, 400 runs eight at once, failed 5 times,
+each a line not printed.
+
+**The fix.** The sinks send `Wrote(bytes)` to the screen's process by its host identity, as the
+drain sends `Flush`. The session and the local half give the front end the screen as a `Process`,
+whose host identity foreign code holds with the promise of its mailbox's type (§4.7, §8.4). A
+write's bytes are in the screen's mailbox once standard output or standard error has taken them,
+before any drain that follows the write. The check's process is gone from every write to a screen,
+and its hop with it.
+
+**Confirmed.** The loop, 300 runs in 1 min 41 s, lost no line, and the EUnit test, 400 runs in
+2 min 18 s, passed every one; at the old rates the chance of no loss was about two in a million
+and seven in a thousand. No test was added: one run of a hundred or fewer shows the defect, which
+no single run holds. `reload_version_sites` stays the regression test it was, and it does not
+cover the session's own sinks.
 
 ## The Guides Over the Attached Shell, 2026-10-30
 

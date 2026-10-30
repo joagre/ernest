@@ -54,15 +54,8 @@ One form of attaching, by a listed peer, since a node accepts a connection from 
    program's node, two sessions on one node, a `:load` shipped as text, a detach that leaves a
    service running, the node's loss and an attach that fails; the guide's section 6 run by them; the session golden
    test over an attached session; then the release that follows, 0.7.0, by `docs/release_review.md`.
-6. **The shell's end loses its last lines**, found 2026-10-30 while MVP 3.96's item 7 was
-   measured: `reload_version_sites` in `test/ern_shell_tests.erl` goes red in about three runs of
-   a hundred under the harness, quiet or loaded, on the code of 0.6.0 as on today's, the session
-   exiting with status 0 while the end's lines on standard error, `the end waits for 2
-   subscribers` or a subscriber's `answered`, end short, the last one or two never written. The
-   shape of its fix: find which process says the end's lines and what the job's exit waits for of
-   it (the runtime's note's *The process model*, `wait_for_later/0`), since a line of the
-   toolchain's own is to wait until standard error has taken it; diagnosed with the session's end,
-   which the detach rewrites, and before the release.
+6. **The shell's end loses its last lines**, fixed 2026-10-30 (the log's *The End's Lines Reach
+   the Screen*).
 7. **A line-mode input costs 25 ms**, found 2026-10-30 as item 3 closed: a thousand inputs of
    `1` take 24.5 s, on the code before the item as after it, where an input's work is one small
    unit compiled, loaded and run. A slow tool is a defect (CLAUDE.md, *Design*). The shape of

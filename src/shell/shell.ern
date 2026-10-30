@@ -88,7 +88,9 @@ type Next = Continue(State) | Leave
 // Report §11.2: the messages the screen takes. The shell's own text is
 // `Said`, from the session alone, and `Noted`, from the reader while an
 // input is typed and from the session for a fault said while a prompt is
-// pending; a running program's is `Wrote`, its bytes as they came.
+// pending; a running program's is `Wrote`, its bytes as they came, which
+// the front end's sinks send the screen's process, as its drain sends it
+// `Flush`, so that a drain finds what a sink was given before it.
 // `ShowInput` shows the line being typed with the rows under it, from the
 // reader, and from the session as it ends; the reader's `Entered` finishes
 // the line, and the session's `Taken` says it has taken an input, which may
@@ -162,9 +164,9 @@ type Desk =
 // Report §11.2: what the local half is told, on the shell's own node. Its
 // session sends `Attached` once it has its screen, a call, with the
 // session's process, the address the terminal's events go to at a
-// terminal, and its screen's, which what the shell's own node writes goes
-// to; the screen sends `Write` for the bytes it writes and `Drain`,
-// answered once they are written.
+// terminal, and its screen's process, which what the shell's own node
+// writes goes to; the screen sends `Write` for the bytes it writes and
+// `Drain`, answered once they are written.
 //
 // The reader sends `Remember` for an input the history appends; the
 // session sends `Append` for what `:output` appends, and in line mode
@@ -177,7 +179,7 @@ type Desk =
 type LocalMsg =
     Attached(session : Process,
              keys : Optional(Address(Terminal.Event)),
-             wrote : Address(Bytes),
+             screen : Process,
              reply : Reply(Unit))
   | Write(String)
   | Drain(reply : Reply(Unit))
@@ -275,8 +277,8 @@ fn session(desk : Desk) : Unit receiving ShellMsg = {
     });
     // report §11.2: a session that cannot be shown is no shell, so the
     // screen's end is the session's
-    monitor(Process.fromAddress(screen), ScreenDied);
-    let wrote = adapted(screen, Wrote);
+    let screenProcess = Process.fromAddress(screen);
+    monitor(screenProcess, ScreenDied);
     let reader = Optional.map(size, fn(given) = keysRead(shell, screen, desk, given));
     // report §11.2: the session, the screen and the reader are the shell's
     // own, whose faults are not news, and which `Process.live()` leaves out
@@ -286,11 +288,14 @@ fn session(desk : Desk) : Unit receiving ShellMsg = {
       | None -> []
     };
     let ownProcesses =
-        [Process.fromAddress(shell), Process.fromAddress(screen), Process.fromAddress(local)]
-            <> readers;
+        [Process.fromAddress(shell), screenProcess, Process.fromAddress(local)] <> readers;
     markOwn(ownProcesses);
     let state =
-        State(session = start(local, wrote, desk.sourceRoot, desk.workingDirectory, attached),
+        State(session = start(local,
+                              screenProcess,
+                              desk.sourceRoot,
+                              desk.workingDirectory,
+                              attached),
               settings = defaults,
               color = color,
               own = Set.fromList(ownProcesses),
@@ -309,7 +314,7 @@ fn session(desk : Desk) : Unit receiving ShellMsg = {
                      fn(reply) =
                          Attached(session = Process.fromAddress(shell),
                                   keys = Optional.map(reader, fn(given) = adapted(given, Key)),
-                                  wrote = wrote,
+                                  screen = screenProcess,
                                   reply = reply),
                      screenMs);
     let leaving = if attached then ":detach" else ":quit";
@@ -1983,13 +1988,13 @@ fn attaching(serving : Serving, attach : Optional(#(String, Int))) : Unit receiv
     match attach {
         None ->
             receive {
-                Attached(session = session, keys = keys, wrote = wrote, reply = reply) ->
-                    served(attachedTo(serving, session, keys, wrote, reply))
+                Attached(session = session, keys = keys, screen = screen, reply = reply) ->
+                    served(attachedTo(serving, session, keys, screen, reply))
             }
       | Some(#(name, deadline)) ->
             receive {
-                Attached(session = session, keys = keys, wrote = wrote, reply = reply) ->
-                    served(attachedTo(serving, session, keys, wrote, reply))
+                Attached(session = session, keys = keys, screen = screen, reply = reply) ->
+                    served(attachedTo(serving, session, keys, screen, reply))
               // report §11.2: the connection lost, or the node ended, before
               // the session started, which no connection gives
               | EntryEnded(down) ->
@@ -2009,9 +2014,9 @@ fn attaching(serving : Serving, attach : Optional(#(String, Int))) : Unit receiv
 fn attachedTo(serving : Serving,
               session : Process,
               keys : Optional(Address(Terminal.Event)),
-              wrote : Address(Bytes),
+              screen : Process,
               reply : Reply(Unit)) : Serving receiving LocalMsg = {
-    setScreen(wrote);
+    setScreen(screen);
     if Optional.isSome(serving.peer) then monitor(session, SessionEnded) else Unit;
     answer(reply, Unit);
     Serving(..serving, keys = keys)
@@ -2080,7 +2085,7 @@ fn served(serving : Serving) : Unit receiving LocalMsg =
                 Down(reason = Fault(cause)) -> fault(cause)
               | _ -> served(serving)
             }
-      | Attached(session = _, keys = _, wrote = _, reply = reply) -> {
+      | Attached(session = _, keys = _, screen = _, reply = reply) -> {
             answer(reply, Unit);
             served(serving)
         }
@@ -2128,10 +2133,11 @@ fn nextRead() : Unit receiving LinesMsg =
 
 // Report §11.2: the session on its node, given the node's next number: its
 // local half, which holds the terminal and the operator's files, the
-// screen what its processes write goes to, the operator's source root and
-// working directory, and whether it is attached from another node.
+// screen's process, which what its processes write goes to, the
+// operator's source root and working directory, and whether it is attached
+// from another node.
 foreign fn start(local : Address(LocalMsg),
-                 screen : Address(Bytes),
+                 screen : Process,
                  sourceRoot : String,
                  workingDirectory : String,
                  attached : Bool) : Session =
@@ -2273,7 +2279,7 @@ foreign fn version() : String =
 foreign fn write(text : String) : Unit =
     "ern_shell:write/1"
 
-foreign fn setScreen(screen : Address(Bytes)) : Unit =
+foreign fn setScreen(screen : Process) : Unit =
     "ern_shell:screen/1"
 
 foreign fn holdTerminal(holder : Address(a)) : Unit =

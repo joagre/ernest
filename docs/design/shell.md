@@ -205,6 +205,8 @@ The size is asked for at start and at each resize, which the reader passes on, s
 
 The session writes a row of its screen for the root of its processes (§12.1 *A session's screen*), so that what a process of its chain writes to standard output or standard error reaches the screen as `Wrote`, the bytes as they came, an input's and what an input starts among them; each evaluator writes a row of its own. The runner binds the shell's own node's standard output and standard error to `ern_shell:to_screen`, which the local half names the screen of, so that the node's own processes, a plain shell's program among them, write there too. Until the screen is named, they go to standard output.
 
+Every sink sends `Wrote` to the screen's process by its host identity, which the session and the local half give the front end as a `Process`, as a drain sends `Flush` (§4.7, §8.4). So what standard output or standard error has taken stands in the screen's mailbox before any drain that follows it, the end's among them (the log's *The End's Lines Reach the Screen*).
+
 The screen keeps a character cut across two writes until its end comes, one cut to a screen whichever stream wrote, and it goes with the screen.
 
 Once the program's end has waited for its subscribers (§8.6), the runtime drains the screen as a prompt does, so that what a subscriber wrote after a plain shell's session ended is written before the screen ends with the program; the local half writes it, living until the end.

@@ -284,13 +284,13 @@ session_namespace(#session{number = Number}) ->
 
 %% Report §11.2: a session of its node, given the node's next number: its
 %% local half's address, which holds the terminal and the operator's files;
-%% its screen's, which what its processes write to standard output and
-%% standard error goes to (§12.1); the operator's source root and working
-%% directory; and whether it is attached to the node from another. Its
-%% screen's row is written for the root of its processes, so that a
+%% its screen's process, which what its processes write to standard output
+%% and standard error goes to (§12.1); the operator's source root and
+%% working directory; and whether it is attached to the node from another.
+%% Its screen's row is written for the root of its processes, so that a
 %% process it starts, directly or through one it started, writes there, and
 %% its load path and modules are the node's.
--spec start(term(), term(), binary(), binary(), boolean()) -> #session{}.
+-spec start(term(), pid(), binary(), binary(), boolean()) -> #session{}.
 start(Local, Screen, SourceRoot, WorkingDirectory, Attached) ->
     table(),
     collect_detached(),
@@ -312,8 +312,19 @@ start(Local, Screen, SourceRoot, WorkingDirectory, Attached) ->
 %% output and standard error, sent to its screen as it comes, the bytes as
 %% they are: the screen keeps a character cut across two writes until its
 %% end comes (decoded/2).
+%%
+%% Report §4.7, §8.4: the bytes go to the screen's process by its host
+%% identity, `Wrote(bytes)`, as the drains' `Flush` goes, and not to an
+%% address of it, which the check's process in front of it would stand
+%% between: so a write's bytes are in the screen's mailbox once the stream
+%% has taken them, before any drain that follows the write, the end's
+%% among them (flush_screen/0).
 sink(Screen) ->
-    fun(Bytes) -> ern_rt:send(Screen, Bytes) end.
+    fun(Bytes) -> send_wrote(Screen, Bytes) end.
+
+send_wrote(Screen, Bytes) ->
+    Screen ! {'Wrote', Bytes},
+    ok.
 
 %% Report §11.2: the node's modules, which every session has in scope: at a
 %% node's first session, those the runner loaded for a plain shell, or the
@@ -4199,27 +4210,29 @@ write(Text) ->
 
 %% Report §11.2, §12.1: the runner binds the sinks of a shell's own node to
 %% the screen of the session its local half serves, which the local half
-%% names once the session has one, so that what the node's own processes
-%% write is shown there, a plain shell's program among them; what is
-%% written before then goes straight out.
--spec screen(term()) -> 'Unit'.
-screen(Address) ->
-    persistent_term:put({?MODULE, screen}, Address),
+%% names, by its process, once the session has one, so that what the node's
+%% own processes write is shown there, a plain shell's program among them,
+%% sent as the session's sinks send it (sink/1); what is written before
+%% then goes straight out.
+-spec screen(pid()) -> 'Unit'.
+screen(Screen) ->
+    persistent_term:put({?MODULE, screen}, Screen),
     'Unit'.
 
--spec to_screen(binary()) -> 'Unit' | ok | {error, term()}.
+-spec to_screen(binary()) -> ok | {error, term()}.
 to_screen(Bytes) ->
     case persistent_term:get({?MODULE, screen}, undefined) of
         undefined -> file:write(standard_io, Bytes);
-        Address -> ern_rt:send(Address, Bytes)
+        Screen -> send_wrote(Screen, Bytes)
     end.
 
 %% Report §8.6, §11.2: what the screen has been sent, written before the
 %% program ends, since a program the session ran may write while the end
-%% waits for its subscribers, after the session has ended; the screen
-%% answers Flush once it has written what came before it. The runner asks
-%% it, which is no program's process: it asks the screen's own process, not
-%% the address that wraps what programs write, and under a monitor, as
+%% waits for its subscribers, after the session has ended, and the end's
+%% own lines are said then; the screen answers Flush once it has written
+%% what came before it, which the sinks put in its mailbox as standard
+%% output and standard error took it (sink/1). The runner asks it, which is
+%% no program's process, by the screen's process, and under a monitor, as
 %% ern_rt:say/2 asks standard error's process, since a screen that has
 %% ended, with the program among the ways, has nothing left to write.
 -spec flush_screen() -> ok.
@@ -4228,9 +4241,8 @@ flush_screen() ->
         undefined ->
             ok;
         Screen ->
-            Process = ern_rt:process_of(Screen),
-            Reply = erlang:monitor(process, Process, [{alias, demonitor}]),
-            Process ! {'Flush', {Reply, erlang:self()}},
+            Reply = erlang:monitor(process, Screen, [{alias, demonitor}]),
+            Screen ! {'Flush', {Reply, erlang:self()}},
             receive
                 {Reply, answered, _} -> erlang:demonitor(Reply, [flush]), ok;
                 {'DOWN', Reply, process, _, _} -> ok
