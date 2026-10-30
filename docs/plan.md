@@ -22,7 +22,7 @@ the emitter's calls as the host's. Ernest 0.6.0 of 2026-10-25 is the last releas
 stability is made, and a change to the language, the standard library or the libraries is driven
 by a need met in use and recorded as `docs/language_feedback.md` records one.
 
-Next is the attached shell, MVP 4.0, and the dotted field after it; then ernest-httpd, the website
+Next is the attached shell, MVP 4.0, and the pun after it; then ernest-httpd, the website
 and the shell's second round (the log's *The Road to 1.0, Ordered*); the back end to BEAM's own instructions that closed the
 road is not built, decided 2026-10-30 (the log's *No Back End to BEAM's Own Instructions*). A
 finished milestone is a row of the table at the end, its reasons in the log entries the row names.
@@ -97,22 +97,23 @@ One form of attaching, by a listed peer, since a node accepts a connection from 
 The attached shell is the operator's alone, trusted as a peer is, with no sandbox: the website runs
 the plain shell in a container per visitor (MVP 4.2).
 
-## The dotted field (`Desk(.local)`), a day, after MVP 4.0
+## The pun (`Desk(=local)`), a day, after MVP 4.0
 
-A field given or matched by the variable of its own name is written once, `Desk(.local, .size)`
+A field given or matched by the variable of its own name is written once, `Desk(=local, =size)`
 for `Desk(local = local, size = size)`, in a construction and in a pattern alike, decided with the
-user on 2026-10-30 (the log's *The Dotted Field*): the repository's own Ernest writes the pair at
-190 sites. The dot is the mark because it is Ernest's own word for a field; the log weighs the bare
-name, which Ernest's parentheses make a call, and the marks other languages chose.
+user on 2026-10-30 (the log's *The Pun*): the repository's own Ernest writes the pair at 190
+sites. The mark is the pair's own `=` with the repeated name left out; the log weighs the bare
+name, which Ernest's parentheses make a call, the dot, and the marks other languages chose.
 
-1. **The report first**: Appendix A's `FieldSet` and `FieldPats` gain `"." ident`; one sentence
-   each in §5.6 and §5.10; principle 2's sentence on a second spelling admits the pair of a field
-   with the variable of its name beside its pair with a namespace's declaration; Appendix F's term.
-2. **The parser and the checker**, the emitter untouched, with a test citing each section; a dotted
-   field in a single-positional constructor, `Some(.x)`, is refused naming the form to write.
+1. **The report first**: Appendix A's `FieldSet` and `FieldPats` gain `"=" ident`; one sentence
+   each in §5.6 and §5.10 naming the *pun*; principle 2's sentence on a second spelling admits the
+   pair of a field with the variable of its name beside its pair with a namespace's declaration;
+   Appendix F's line.
+2. **The parser and the checker**, the emitter untouched, with a test citing each section; a pun
+   in a single-positional constructor, `Some(=x)`, is refused naming the form to write.
 3. **The sweep**: every site of the repository's Ernest, the guide's and the tour's blocks among
-   them, written with the dot where the names agree; `guide/style.md`'s rule that they are; and
-   whether `ern fmt` writes the dot, decided against the log's *What the Formatter Keeps*.
+   them, written as a pun where the names agree; `guide/style.md`'s rule that they are; and
+   whether `ern fmt` writes the pun, decided against the log's *What the Formatter Keeps*.
 
 ---
 
