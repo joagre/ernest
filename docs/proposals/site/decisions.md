@@ -271,7 +271,7 @@ The site's files as served.
 
 ## The live shell, 2026-10-13
 
-- The server side of the shell, the pseudo-terminal, the container per visitor and its image, the session's timeouts, a second tab's takeover and the pool, is the server's, in `../httpd/proposal.md`'s *The live shell's server side* (moved there 2026-10-26).
+- The server side of the shell, the pseudo-terminal, the container per visitor and its image, the session's timeouts and a second tab's takeover, is the server's, which has no pool,, in `../httpd/proposal.md`'s *The live shell's server side* (moved there 2026-10-26).
 - xterm.js, its stylesheet, a fit addon and a session client, self-hosted. A
   WebSocket at `/shell/session` to a pseudo-terminal running `ern shell`
   unchanged; the server behind it is ernest-httpd's (`../httpd/proposal.md`).
@@ -340,7 +340,12 @@ The site's files as served.
   input; a transcript is read input by input with what the shell answered,
   so no button pastes them all. The guide's and the tour's transcripts are
   tested as transcripts, so every input offered is one the tests have run
-  (decided 2026-10-27).
+  (decided 2026-10-27). A transcript of a session the container cannot hold,
+  one begun with `ern shell --config-dir`, a node's, or `--attach`, an
+  operator's (`../shell/attached.md`), which the nodes chapters, the tour and
+  the deployment guide show, has Copy alone, as an `ernest-shown` block has;
+  the generator reads it from the transcript's first line (decided
+  2026-10-30).
 - A Paste or a Load is the visitor asking for the shell: where no panel is
   open, the click opens it, side by side or stacked by the window's width,
   and starts the session where none runs, the input arriving once the
