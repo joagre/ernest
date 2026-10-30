@@ -22,7 +22,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 | the code and its tests | what is built |
 | [`docs/architecture.md`](docs/architecture.md) | how the code is arranged |
 | [`guide/style.md`](guide/style.md) | what a program written in Ernest looks like: what the tools decide, what the standard library does with names, and the names every program shares |
-| [`docs/style.md`](docs/style.md) | the repository's own code's form and naming, its Erlang's, its C's and its own Ernest's, and the toolchain's glossary |
+| [`docs/style.md`](docs/style.md) | the repository's own code's form and naming, its Erlang's, its C's and its own Ernest's, how a shim is written, and the toolchain's glossary |
 | [`README.md`](README.md) | what Ernest is and where to begin |
 | [`report/README.md`](report/README.md) | what the report's three files hold and how the report is read |
 | [`guide/README.md`](guide/README.md) | what each guide is, for whom, and how long |
@@ -106,20 +106,7 @@ Meanwhile it changes only in its form, every decision, fact and number kept; a p
 ## Shims
 
 - **The shell's, a tool's and a program's work is written in Ernest.** Where a piece of work could be Ernest or Erlang, it is Ernest. Where only a missing function or library keeps it out, discuss the gap with the user and fill it, then write the work in Ernest; never in Erlang or behind a `foreign fn` meanwhile. In that work `foreign` is only what the host alone can do, given the layers beneath it: the shell reads its history file in Ernest because `Fs` is beneath it.
-- **The standard library and the libraries stand on the host.** Where a host function does exactly an operation's work, the operation is its shim, so that Ernest runs at the host's speed wherever the host does the work.
-
-  Where one almost does, Ernest closes the difference around a shim that is the host function exactly; an Erlang adapter only where that Ernest measurably costs, with the numbers in the log, or where Ernest cannot close it: a raise it cannot foresee short of doing the host's work, or a host term no Ernest type describes. Where none does, the operation is Ernest. An operation that is the host's own operators applied once, `if int < 0 then -int else int`, already runs at the host's speed, and a shim would add a call.
-
-  E.0 rule 1 is the normative half of this rule; where the two differ, correct the report.
-- **Whether a type's representation is the runtime's is a decision of its own**, recorded in E.0 and the log. `Map` is Erlang's map and `String` a binary, so the operations that reach the representation are the host's.
-
-  An operation on a value the language owns, a list, a tuple or a bitstring, is a shim where a host function does exactly its work. Where one only almost does, the operation is Ernest alone, which reaches the value as the host does, unless that Ernest costs more than three times the host function or grows where it does not (E.0 rule 1).
-- **Write a shim with the upstream manual page open.** Carry its arguments, edge cases and the errors it returns and raises into the Ernest contract. A host function is exact only by its page: one whose page leaves unspecified what the contract states, the order it calls a callback in among it, is not exact, and Ernest closes the difference.
-
-  The page is a source of truth, never of wording: the prose is ours (E.0 shape rule 6), nothing is copied.
-
-  A host module whose documentation is hidden is used only where decided with the user: `unicode_util`'s tables behind `Char` (the log's *Char Reads the Host's Tables*).
-- **No regular expression answers a fixed question in the runtime.** A shim that asks one thing of each value, a category, a literal's form, tests it directly.
+- **How a shim is written** is [`docs/style.md`](docs/style.md)'s *Shims*: where an operation is the host's function and where Ernest closes the difference, a type's representation, the upstream page, and no regular expression for a fixed question.
 
 ## Defects and gaps
 
@@ -178,10 +165,7 @@ Meanwhile it changes only in its form, every decision, fact and number kept; a p
 
 ## Style
 
-The two style documents of the owner table, [`guide/style.md`](guide/style.md) for a program's Ernest and [`docs/style.md`](docs/style.md) for the repository's own code, are imported here.
+The two style documents of the owner table, [`guide/style.md`](guide/style.md) for a program's Ernest and [`docs/style.md`](docs/style.md) for the repository's own code, are read before their language is written, the first before Ernest and the second before Erlang or C, by a session and by an agent, whose brief says so; neither is imported here.
 
 **The glossary is living.** A name that comes to recur across modules, or a concept the code names in two places, goes into the glossary in the commit that writes it, `guide/style.md`'s for an Ernest name and `docs/style.md`'s for the toolchain's, in the report's word where the report names the concept. Appendix F is living the same way: a report edit that introduces a term adds its line in that edit. Use a name the glossary holds as it stands. Where the code and the glossary differ, correct the wrong one in the same commit; a new word that departs from the report's goes to the user first.
 
-@guide/style.md
-
-@docs/style.md

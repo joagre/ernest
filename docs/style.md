@@ -43,6 +43,25 @@ For every Ernest source and every Ernest block of the report and the guide. The 
 - **A comment cites the report section the code implements**, `// Report §8.4: ...`, as the Erlang's does.
 - **A name the report states changes only through the report**, and a new word that departs from the report's goes to the user first.
 
+### Shims
+
+How the standard library's and the libraries' operations stand on the host, which CLAUDE.md's *Shims* points at.
+
+- **The standard library and the libraries stand on the host.** Where a host function does exactly an operation's work, the operation is its shim, so that Ernest runs at the host's speed wherever the host does the work.
+
+  Where one almost does, Ernest closes the difference around a shim that is the host function exactly; an Erlang adapter only where that Ernest measurably costs, with the numbers in the log, or where Ernest cannot close it: a raise it cannot foresee short of doing the host's work, or a host term no Ernest type describes. Where none does, the operation is Ernest. An operation that is the host's own operators applied once, `if int < 0 then -int else int`, already runs at the host's speed, and a shim would add a call.
+
+  E.0 rule 1 is the normative half of this rule; where the two differ, correct the report.
+- **Whether a type's representation is the runtime's is a decision of its own**, recorded in E.0 and the log. `Map` is Erlang's map and `String` a binary, so the operations that reach the representation are the host's.
+
+  An operation on a value the language owns, a list, a tuple or a bitstring, is a shim where a host function does exactly its work. Where one only almost does, the operation is Ernest alone, which reaches the value as the host does, unless that Ernest costs more than three times the host function or grows where it does not (E.0 rule 1).
+- **Write a shim with the upstream manual page open.** Carry its arguments, edge cases and the errors it returns and raises into the Ernest contract. A host function is exact only by its page: one whose page leaves unspecified what the contract states, the order it calls a callback in among it, is not exact, and Ernest closes the difference.
+
+  The page is a source of truth, never of wording: the prose is ours (E.0 shape rule 6), nothing is copied.
+
+  A host module whose documentation is hidden is used only where decided with the user: `unicode_util`'s tables behind `Char` (the log's *Char Reads the Host's Tables*).
+- **No regular expression answers a fixed question in the runtime.** A shim that asks one thing of each value, a category, a literal's form, tests it directly.
+
 ## Glossary
 
 The names that recur across the toolchain's modules, one for each concept, in every module; the names of a program's are [`guide/style.md`](../guide/style.md)'s. A word is spelled as each language spells a name: `Descriptor` an Erlang variable, `descriptor` an Erlang function or field, an Ernest binding or parameter. The report is the authority: a concept it names takes its name. It grows as the code does, as CLAUDE.md says. A name not here is the writer's, under the rules above.
