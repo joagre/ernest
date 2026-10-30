@@ -165,8 +165,9 @@ type Desk =
 // session sends `Attached` once it has its screen, a call, with the
 // session's process, the address the terminal's events go to at a
 // terminal, and its screen's process, which what the shell's own node
-// writes goes to; the screen sends `Write` for the bytes it writes and
-// `Drain`, answered once they are written.
+// writes goes to; the screen sends `Write` for the bytes it writes, with
+// the bytes that end what it drew where they leave it, and `Drain`,
+// answered once they are written.
 //
 // The reader sends `Remember` for an input the history appends; the
 // session sends `Append` for what `:output` appends, and in line mode
@@ -181,7 +182,7 @@ type LocalMsg =
              keys : Optional(Address(Terminal.Event)),
              screen : Process,
              reply : Reply(Unit))
-  | Write(String)
+  | Write(text : String, ending : String)
   | Drain(reply : Reply(Unit))
   | Remember(input : String, reply : Reply(Either(Io.Error, Unit)))
   | Append(path : Path, bytes : Bytes, reply : Reply(Either(Io.Error, Unit)))
@@ -205,11 +206,13 @@ type Attachment = Beside(Address(ShellMsg)) | Attaching(String)
 
 // What the local half serves its session with: the address the terminal's
 // events go to, none in line mode, the reader of lines, none at a
-// terminal, and the peer it attached to, none in a plain shell.
+// terminal, the peer it attached to, none in a plain shell, and the bytes
+// that end what the screen drew where its last write left it.
 type Serving =
     Serving(keys : Optional(Address(Terminal.Event)),
             lines : Optional(Address(LinesMsg)),
-            peer : Optional(String))
+            peer : Optional(String),
+            ending : String)
 
 // Report §11.2: a value is printed to a depth and a length, and 0 is
 // neither. The defaults print what a prompt is used for whole and stop a
@@ -1233,7 +1236,8 @@ fn screenLoop(region : Shell.Region.Region, showing : Showing) : Unit receiving 
                             screenLoop(region, showing1)
                       | Left(why) -> {
                             let #(region1, said) = Shell.Region.said(region, why);
-                            send(showing.local, Write(said));
+                            send(showing.local,
+                                 Write(text = said, ending = Shell.Region.ending(region1)));
                             painted(Shell.Region.wrote(region1, text),
                                     Showing(..showing1, destination = None))
                         }
@@ -1270,11 +1274,12 @@ fn screenLoop(region : Shell.Region.Region, showing : Showing) : Unit receiving 
         }
     }
 
-// What the region answered written, by the local half, and the screen goes
-// on with the region it became.
+// What the region answered written, by the local half, with what ends the
+// region where it stands, and the screen goes on with the region it
+// became.
 fn painted(drawn : #(Shell.Region.Region, String), showing : Showing) : Unit receiving ScreenMsg = {
     let #(region, bytes) = drawn;
-    send(showing.local, Write(bytes));
+    send(showing.local, Write(text = bytes, ending = Shell.Region.ending(region)));
     screenLoop(region, showing)
 }
 
@@ -1290,14 +1295,14 @@ fn drained(local : Address(LocalMsg)) : Unit = {
 fn plainLoop(showing : Showing) : Unit receiving ScreenMsg = {
     let showing1 = receive {
         Said(text) -> {
-            send(showing.local, Write(text));
+            lineWritten(showing.local, text);
             showing
         }
       | Wrote(bytes) -> {
             let #(text, cut) = decoded(showing.cut, bytes);
             match showing.destination {
                 None -> {
-                    send(showing.local, Write(text));
+                    lineWritten(showing.local, text);
                     Showing(..showing, cut = cut)
                 }
               | Some(path) ->
@@ -1305,14 +1310,14 @@ fn plainLoop(showing : Showing) : Unit receiving ScreenMsg = {
                         Right(_) ->
                             Showing(..showing, cut = cut)
                       | Left(why) -> {
-                            send(showing.local, Write(why <> text));
+                            lineWritten(showing.local, why <> text);
                             Showing(..showing, destination = None, cut = cut)
                         }
                     }
             }
         }
       | Noted(text) -> {
-            send(showing.local, Write(text <> "\n"));
+            lineWritten(showing.local, text <> "\n");
             showing
         }
       | Redirect(destination) ->
@@ -1347,6 +1352,16 @@ fn plainLoop(showing : Showing) : Unit receiving ScreenMsg = {
     };
     plainLoop(showing1)
 }
+
+// Report §11.2: text written in line mode, by the local half, with what
+// ends it where it leaves the line: a line feed after a line it leaves
+// unended, a prompt among them, and nothing after one it ends. Nothing is
+// sent of no text, which leaves the line as it was.
+fn lineWritten(local : Address(LocalMsg), text : String) : Unit =
+    if String.isEmpty(text) then
+        Unit
+    else
+        send(local, Write(text = text, ending = if String.endsWith(text, "\n") then "" else "\n"))
 
 // Report §11.2: what a program wrote, appended where `:output` sent it, on
 // the shell's own node; where that fails, why, and what programs write goes
@@ -1916,13 +1931,13 @@ fn localHalf(attachment : Attachment) : Unit receiving LocalMsg = {
     match attachment {
         Beside(session) -> {
             send(session, Begun(desk));
-            attaching(Serving(keys = None, lines = lines, peer = None), None)
+            attaching(Serving(keys = None, lines = lines, peer = None, ending = ""), None)
         }
       | Attaching(name) -> {
             let deadline = Clock.monotonic() + dialMs;
             match Peer.spawnMonitored(name, fn() = attached(desk), EntryEnded, dialMs) {
                 Right(_) ->
-                    attaching(Serving(keys = None, lines = lines, peer = Some(name)),
+                    attaching(Serving(keys = None, lines = lines, peer = Some(name), ending = ""),
                               Some(#(name, deadline)))
               | Left(error) ->
                     endWith(1, refusal(name, error))
@@ -2033,9 +2048,9 @@ fn served(serving : Serving) : Unit receiving LocalMsg =
             };
             served(serving)
         }
-      | Write(text) -> {
+      | Write(text = text, ending = ending) -> {
             write(text);
-            served(serving)
+            served(Serving(..serving, ending = ending))
         }
       | Drain(reply = reply) -> {
             answer(reply, Unit);
@@ -2071,7 +2086,7 @@ fn served(serving : Serving) : Unit receiving LocalMsg =
       // report §11.2: the session is monitored where it is attached alone
       | SessionEnded(down) ->
             match serving.peer {
-                Some(name) -> sessionEnded(name, down)
+                Some(name) -> sessionEnded(name, down, serving.ending)
               | None -> served(serving)
             }
       // the root of the session's chain, which ends with the session, whose
@@ -2092,21 +2107,31 @@ fn served(serving : Serving) : Unit receiving LocalMsg =
     }
 
 // Report §11.2, §11.8: an attached session's end, and the shell's with it:
-// a detach says nothing and exits with status 0, a node that ended says so
-// and exits with status 0, and a node lost says so and exits with status
-// 1; any other end of the session is a failure of the shell's own.
-fn sessionEnded(name : String, down : Down) : Unit =
+// a detach says nothing and exits with status 0. A detach has taken its
+// region away; any other end leaves the screen as it last drew, so the
+// local half ends it first, `ending` the bytes the screen sent for that,
+// and the line the runner says stands on a row of its own.
+fn sessionEnded(name : String, down : Down, ending : String) : Unit =
     match down.reason {
         Returned ->
             endWith(0, "")
-      | ProgramEnd ->
-            endWith(0, "the node " <> name <> " ended")
-      | Unreachable ->
-            endWith(1, "the node " <> name <> " is lost")
-      | Fault(cause) ->
-            endWith(70, "fault: the session on the node " <> name <> ": " <> cause)
-      | other ->
-            endWith(70, "fault: the session on the node " <> name <> " ended: " <> Io.show(other))
+      | reason -> {
+            write(ending);
+            let #(status, line) = nodeEnd(name, reason);
+            endWith(status, line)
+        }
+    }
+
+// Report §11.2, §11.8: the status and the line of a session's end other
+// than a detach: a node that ended says so and exits with status 0, and a
+// node lost says so and exits with status 1; any other end is a failure of
+// the shell's own.
+fn nodeEnd(name : String, reason : Reason) : #(Int, String) =
+    match reason {
+        ProgramEnd -> #(0, "the node " <> name <> " ended")
+      | Unreachable -> #(1, "the node " <> name <> " is lost")
+      | Fault(cause) -> #(70, "fault: the session on the node " <> name <> ": " <> cause)
+      | other -> #(70, "fault: the session on the node " <> name <> " ended: " <> Io.show(other))
     }
 
 // Report §11.2: in line mode, the reader of lines on the shell's own node,

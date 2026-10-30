@@ -509,7 +509,9 @@ moved_there(#tour{base = Base, foo = Foo, shell = Shell} = Tour) ->
 
 %% `ern stop --config-dir foo` ends foo by termination, with status 143;
 %% the shell attached to foo ends with it, with status 0, saying on its
-%% standard error that foo ended, and the shell that is `a` says so too;
+%% standard error that foo ended, under its last prompt, as the chapter's
+%% block shows it (ern_deployment_tests:ended/3), and the shell that is `a`
+%% says so too;
 %% `far` then answers "ok" to an inc, since a send does not wait, and "no
 %% answer" to a report; `ern stop --config-dir bar` ends bar, which the
 %% shell says too, since chapter 7 connected to it (report §8.6, §8.7,
@@ -521,7 +523,7 @@ stopped(#tour{base = Base, wait_foo = WaitFoo, wait_bar = WaitBar, shell = Shell
     ?assertEqual(0, WaitAttached()),
     {Out, Err} = ern_nodes_tests:said(Ops),
     ?assertEqual(Read, binary:part(list_to_binary(Out), 0, byte_size(Read))),
-    ?assertEqual("the node foo ended\n", Err),
+    ern_deployment_tests:ended(["> ", "the node foo ended"], {Out, Err}, "the node foo ended"),
     Lost = session(unasked(Shell, ["the peer foo ended"]),
                    [{"Counter.apply(far, \"inc apples 1\")", [?SENT]},
                     {"Counter.apply(far, \"report\")", ["\"no answer\" : String"]}]),

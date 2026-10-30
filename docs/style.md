@@ -202,5 +202,6 @@ The names are [`guide/style.md`](../guide/style.md)'s, with the spellings its gl
 - **cursor**: the place in the line being typed, in `Shell`, `Shell.Editor`, `Shell.Region` and `Shell.Complete`. Not `at`.
 - **serial**: the number the shell gives an input, which its outcome carries, in `Shell` and in its front end, `ern_shell`'s `Serial`. Not `run`, `n`.
 - **color**: whether the shell colors what it says, a `Markdown.Output`, in `Shell` and `Shell.Style`.
+- **ending**: the bytes that end what the screen drew where its last write left it, which an attached shell's local half writes at its node's end, in `Shell` and `Shell.Region`: the region's `ending`, and the field of `Write` and of `Serving`. Not `finish`, which is the session's end with its screen.
 - **rows**: the rows the live region's tail is given, which `:set rows n` sets, in `Shell` and `Shell.Region`: the setting, the region's field, `SetRows` and `rowsSized`. Not `height`, `outputRows`.
 - **typedWord**: the word typed before the cursor, which completion completes, in `Shell` and `Shell.Complete`.

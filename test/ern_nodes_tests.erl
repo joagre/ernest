@@ -3322,6 +3322,120 @@ attached_shell(Base) ->
     has(NodeOut, "the node's own: go"),
     ?assertEqual(nomatch, string:find(NodeOut, "written at the prompt")).
 
+%% report §11.2 *The attached shell*, §11.8: where the node an attached
+%% session runs on ends, the shell says `the node node ended` and exits
+%% with status 0, and where it is lost, `the node node is lost` and status
+%% 1; in line mode the prompt the screen last wrote is ended first, so that
+%% the line stands on a row of its own, as a detach leaves it. Written
+%% before the fix (the plan's MVP 4.0 item 8), which the line sharing the
+%% prompt's row failed.
+attached_shell_ends_test_() ->
+    nodes_test({waits, 10}, fun attached_shell_ends/1).
+
+attached_shell_ends(Base) ->
+    Ops = made(Base, "ops", none),
+    lists:foreach(
+      fun({Name, End, Status, Line}) ->
+          Node = made(Base, Name, 0),
+          lists(Node, [{"ops", Ops, none}]),
+          {_, WaitNode} = launched(Node, [?ERN, " run --config-dir ", Node]),
+          lists(Ops, [{"node", Node, bound_port(Node)}]),
+          {_, WaitShell} = attached(Ops, "node", Base),
+          prints(Ops, ":detach to leave.\n> "),
+          End(Node, WaitNode),
+          ?assertEqual(Status, WaitShell()),
+          {Out, Err} = said(Ops),
+          ?assertMatch({true, _}, {lists:suffix(":detach to leave.\n> \n", Out), Out}),
+          has(Err, Line)
+      end, [{"ended", fun stop/2, 0, "the node node ended\n"},
+            {"lost", fun lost/2, 1, "the node node is lost\n"}]).
+
+%% report §11.2 *The attached shell*, *Editing*, §11.8: the same at a
+%% terminal, through the pseudo-terminal's harness: the region is taken
+%% away where the screen last painted it, what was typed after the prompt
+%% with it, and the line stands on a row of its own under the prompt. The
+%% node's program ends its node once the test opens a named pipe it reads,
+%% by returning, or, told `lost`, by ending its own host outright, so that
+%% the end comes while the shell waits at its prompt. The shell's own
+%% node's line of its peer's end may stand between the two, or after them,
+%% or not at all, the plan's MVP 4.0 item 10, which the test does not
+%% cover. Written before the fix (the plan's MVP 4.0 item 8).
+attached_terminal_ends_test_() ->
+    nodes_test({waits, 13}, fun attached_terminal_ends/1).
+
+attached_terminal_ends(Base) ->
+    Root = filename:join(Base, "program"),
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "ender.ern"), ender()),
+    0 = built([Root]),
+    Ops = made(Base, "ops", none),
+    Home = Ops ++ ".home",
+    ok = filelib:ensure_path(Home),
+    Shell = lists:flatten(["HOME=", Home, " ", ?ERN, " shell --config-dir ", Ops,
+                           " --attach node --source-root ", Base]),
+    lists:foreach(
+      fun({Name, NodeStatus, Status, Line}) ->
+          Port = free_port(),
+          Node = made(Base, Name, Port),
+          Pipe = filename:join(Base, Name ++ ".pipe"),
+          [] = os:cmd("mkfifo " ++ Pipe),
+          lists(Node, [{"ops", Ops, none}]),
+          lists(Ops, [{"node", Node, Port}]),
+          {_, WaitNode} = started(Node, filename:join(Root, "ender.erc"),
+                                  [Pipe, Name, filename:join(Node, "ernest.pid")]),
+          prints(Node, "ready"),
+          {Status, Screen} = ern_pty:run(Shell, [{expect, ":detach to leave."},
+                                                 {expect, "> "},
+                                                 {send, hex("abc")},
+                                                 {expect, "abc"},
+                                                 {put, Pipe}],
+                                         " --screen --size 24x80"),
+          ?assertEqual(NodeStatus, WaitNode()),
+          Rows = [string:trim(Row, trailing)
+                  || Row <- string:split(binary_to_list(Screen), "\n", all)],
+          Under = lists:dropwhile(fun(Row) -> Row =/= ">" end, Rows),
+          ?assertMatch({[">" | _], _}, {Under, Rows}),
+          ?assert(lists:member(Line, Under)),
+          ?assertEqual([Line], [Row || Row <- Rows, string:find(Row, Line) =/= nomatch]),
+          ?assertEqual(nomatch, string:find(Screen, "abc"))
+      end, [{"ended", 0, 0, "the node node ended"},
+            {"lost", 137, 1, "the node node is lost"}]).
+
+%% A node's program that ends its node once the named pipe it is given has
+%% been opened and closed: by returning, or, told `lost`, by ending its
+%% host outright, whose process its pid file names, each run waiting the
+%% harness's time for one step.
+ender() ->
+    ["export fn main() : Unit =\n"
+    "    match Os.arguments {\n"
+    "        [pipe, how, pidFile] -> {\n"
+    "            Io.println(\"ready\");\n"
+    "            let _ = Os.run(Os.Command(program = \"cat\", arguments = [pipe], input = <<>>),\n"
+    "                           waitMs());\n"
+    "            if how == \"lost\" then {\n"
+    "                let kill = \"kill -KILL $(cat \" <> pidFile <> \")\";\n"
+    "                let _ = Os.run(Os.Command(program = \"sh\", arguments = [\"-c\", kill],\n"
+    "                                          input = <<>>),\n"
+    "                               waitMs());\n"
+    "                Unit\n"
+    "            } else\n"
+    "                Unit\n"
+    "        }\n"
+    "      | _ -> Unit\n"
+    "    }\n",
+     wait_ms_declaration()].
+
+%% Text as the pseudo-terminal's harness sends it, its bytes in hex.
+hex(Text) ->
+    lists:flatten([io_lib:format("~2.16.0b", [Char]) || Char <- Text]).
+
+%% A node ended outright, which tells its peers nothing, so that each loses
+%% its connection to it.
+lost(Dir, Wait) ->
+    {ok, Pid} = file:read_file(filename:join(Dir, "ernest.pid")),
+    _ = os:cmd("kill -KILL " ++ string:trim(binary_to_list(Pid))),
+    ?assertEqual(137, Wait()).
+
 %% report §11.2 *The attached shell*, §11.8: an attach no node answers is
 %% the job's refusal, naming the spawn's `Io.Error`, with status 1. Written
 %% after the code, a regression test of the refusal

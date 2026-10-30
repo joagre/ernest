@@ -144,6 +144,20 @@ export fn cleared(region : Region) : #(Region, String) = {
     #(region1, Ansi.clearScreen <> bytes)
 }
 
+/// Report §11.2: the bytes that take the region away where its last paint
+/// left it, for a session that ends without its screen: what was typed
+/// after the prompt and the rows shown under it go, the tail and the
+/// prompt stay where they stand, and the cursor goes to a fresh line under
+/// them, or to the start of the input's row where no prompt stands there.
+export fn ending(region : Region) : String = {
+    let kept = Region(..region, typed = "", cursor = 0);
+    "\r"
+        <> Ansi.up(region.resting - resting(kept))
+        <> Ansi.right(column(kept) - 1)
+        <> Ansi.clearBelow
+        <> (if String.isEmpty(region.prompt) then "" else "\n")
+}
+
 //
 // Committing and drawing
 //
@@ -726,6 +740,18 @@ let unendedHeld =
             Test.Passed
         else
             Test.Failed(Int.toString(String.size(region.writing)))
+    })
+
+// Report §11.2. Written before the local half wrote it (the plan's MVP
+// 4.0 item 8)
+let endsUnderThePrompt =
+    Test.Case(name = "the region ends under its prompt, what was typed taken away",
+              run = fn() = same(ending(typed("a\nbc", 4)), "\r\u{1b}[1A\u{1b}[2C\u{1b}[J\n"))
+
+let endsOnTheInputsRow =
+    Test.Case(name = "with no prompt the region ends at its input's row", run = fn() = {
+        let #(region, _) = entered(typed("abc", 3));
+        same(ending(region), "\r\u{1b}[J")
     })
 
 // A region with a prompt written, which is where an input is typed.

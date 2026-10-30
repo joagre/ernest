@@ -619,7 +619,14 @@ Counter, compiled from counter.ern
 
 The counter on the node started with none of this program's code runs its new code, with the tally it has counted since chapter 6.
 
-In your own terminal, `ern stop --config-dir foo`. The attached shell ends with `foo`, where its session ran, saying `the node foo ended`, and exits with status 0; the shell that is `a` says:
+In your own terminal, `ern stop --config-dir foo`. The attached shell ends with `foo`, where its session ran, and exits with status 0, its last prompt left as it stood and the shell's line under it:
+
+```console
+> 
+the node foo ended
+```
+
+The shell that is `a` says:
 
 ```console
 the peer foo ended

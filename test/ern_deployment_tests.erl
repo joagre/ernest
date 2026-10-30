@@ -15,7 +15,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("kernel/include/file.hrl").
 
--export([cataloged/4, job/2, keyed/1, listens/2]).
+-export([cataloged/4, ended/3, job/2, keyed/1, listens/2]).
 
 -define(ERN, filename:absname("../bin/ern")).
 -define(GUIDE, "../guide/deployment.md").
@@ -45,7 +45,8 @@
 %% though it lacked the new loop, ends with status 0, and connects to b and
 %% c, each saying so and saying that a ended; and b and c stopped, each
 %% saying nothing of a wait, ending with status 143, and the attached shell
-%% ending with b, with status 0, saying that b ended.
+%% ending with b, with status 0, saying that b ended under its last prompt,
+%% as the stop's block shows it (ended/3).
 %%
 %% The guide's directories are relative, and the test runs the commands
 %% from the directory that holds them, the ports the harness's. It does not
@@ -60,7 +61,7 @@ runbook_test_() ->
 
 runbook(Base) ->
     [Directories, Started, Reloaded, Moved, Stopped] = consoles("## 8."),
-    [Session] = [Lines || {"## 8." ++ _, "", Lines} <- blocks()],
+    [Session, Ended] = [Lines || {"## 8." ++ _, "", Lines} <- blocks()],
     ok = copied(Base),
     %% the shell's directory is made as the others are, which the step says
     %% and its console does not show
@@ -97,8 +98,7 @@ runbook(Base) ->
     ?assertEqual(143, WaitC()),
     %% report §11.2, §11.8: the attached shell ends with its node
     ?assertEqual(0, WaitShell()),
-    {_, ErrShell} = ern_nodes_tests:said(Ops),
-    ?assertEqual("the node b ended\n", ErrShell),
+    ended(Ended, ern_nodes_tests:said(Ops), "the node b ended"),
     {_, ErrB} = ern_nodes_tests:said(B),
     {_, ErrC} = ern_nodes_tests:said(C),
     [?assertEqual(nomatch, string:find(Err, "the end waits for")) || Err <- [ErrB, ErrC]],
@@ -687,6 +687,16 @@ attached(Base, Ops, ["$ ern " ++ Words | Lines]) ->
                 end || Line <- Shown] ++ [Tail],
     ?assertEqual(lists:flatten(Expected), lists:flatten(Unsaid)),
     Answer.
+
+%% Report §11.2 *The attached shell*, §11.8: an attached shell's end the
+%% guide shows, Shown, its last prompt and the shell's line under it, Line,
+%% held to what the shell printed in line mode, {Out, Err}: its standard
+%% output ending the prompt's line, and its standard error the line alone.
+-spec ended([string()], {string(), string()}, string()) -> ok.
+ended(Shown, {Out, Err}, Line) ->
+    ?assertEqual(["> ", Line], Shown),
+    ?assertMatch({true, _}, {lists:suffix("\n> \n", Out), Out}),
+    ?assertEqual(Line ++ "\n", Err).
 
 %% A job run from Base by its words after `ern`, as a person runs it: its
 %% status, its standard output and its standard error. One step of the

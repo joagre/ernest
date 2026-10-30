@@ -328,7 +328,7 @@ What a process the session started writes is shown at the prompt, and what the n
 
 `:detach` leaves, and the shell exits with status 0; `:quit` is refused. What the session started stays on `b`: a process an input spawned runs on, writes to `b`'s standard output from then on, and ends the node by an `Os.exit`, which while the session runs faults the process that calls it (report §11.2). `b` says `the peer ops ended`. Several shells may attach to one node at once, each from a directory of its own, each a session of its own.
 
-A session ends with its node: where `b` ends, by `ern stop` or by its program's end, the shell says `the node b ended` and exits with status 0, and where the connection is lost, it says `the node b is lost` and exits with status 1 (report §11.8).
+A session ends with its node: where `b` ends, by `ern stop` or by its program's end, the shell says `the node b ended` under its last prompt and exits with status 0, as section 8's stop shows, and where the connection is lost, it says `the node b is lost` and exits with status 1 (report §11.8).
 
 An attach that fails is refused with status 1 and a line that names why: `ern shell: the peer b is unreachable` where no session started within a dial's 7 seconds, and `ern shell: the peer b is not listed` where `ops` lists no `b`. A shell attaches with the node's own release of `ern`, since the session runs the toolchain's own code, which the node loads from its own installation (report §12.7): a node of another build on the shell's floor answers `ern shell: the node b runs another build of ern than this shell; attach with its release`, and one on another floor refuses the connection, as section 2.2 says.
 
@@ -435,6 +435,13 @@ $ ern stop --config-dir b
 $ ern stop --config-dir c
 ```
 
-Neither writes a `the end waits for` line, since the counter subscribed to no termination; each tells every connected peer that it ends and exits by the termination signal, status 143 in a shell. The shell attached to `b` ends with it, saying `the node b ended`, and exits with status 0 (section 6). `b` and `c` never connected to each other, and `a` has ended, so no node hears `c`'s end.
+Neither writes a `the end waits for` line, since the counter subscribed to no termination; each tells every connected peer that it ends and exits by the termination signal, status 143 in a shell. The shell attached to `b` ends with it and exits with status 0 (section 6), its last prompt left as it stood and the shell's line under it:
+
+```
+> 
+the node b ended
+```
+
+`b` and `c` never connected to each other, and `a` has ended, so no node hears `c`'s end.
 
 **When a step fails.** A `refused` line at the first connection is a key or a floor, section 7's `refused` rows; a `not loaded` line at the tool's spawn is a binding or a host module the peer lacks, section 4.3; a peer's line that shows a failure in place of a count, `c: Unreachable`, is a peer the tool could not start on, and its reason. Nothing of the above changes the nodes' directories: a deployment that goes wrong is stopped, the files fixed, and started again.

@@ -158,6 +158,8 @@ The cut: the operator's machine is the terminal and the files, everything else i
 
 **The end.** The local half ends with the session and gives the runner the line and the status the session's end says: a detach nothing and 0, the node ended 0, the node lost 1, an attach refused 1 with the job's refusal, any other end a failure of the shell's own (§11.8).
 
+The screen sends with each write the bytes that end what it drew where that write leaves it: at a terminal the region's `ending`, which takes away what was typed after the prompt and the rows under it and leaves the cursor on a fresh line under the tail and the prompt, and in line mode a line feed after a line left unended. A detach has taken its region away; at any other end the screen has gone with the session, and the local half writes the last ending it was sent before the runner says the line, so that the line stands on a row of its own (the log's *The Attached Shell's Last Row*).
+
 ## The screen and the region
 
 A line the shell has finished with is committed: written into the terminal, scrolled by it, and never touched again. So the scrollback, the search and the selection stay the terminal's (the log's *The Panes Become a Live Region*). The last rows are the live region, which the shell repaints: the tail of what programs wrote, the input being typed, and the rows `Tab` and `Shift-Tab` show under it.
@@ -297,4 +299,4 @@ While a startup input runs, the session holds its file and line, which a refusal
 
 **The terminal** is tested through `test/ern_pty.py`, which gives the shell a pseudo-terminal and sends each key once the screen shows what the step waits for. With `--screen` it renders the writes onto a grid of the terminal's size, since a shell that repaints writes a line many times over, and what is painted is asserted on that grid.
 
-**The attached shell** is tested by `test/ern_nodes_tests.erl`, over the harness's nodes on one machine: a shell attached in line mode to a node, its own node listed there without an address, and an attach that no node answers. The deployment guide's and the tour's attached sessions are run whole by `test/ern_deployment_tests.erl` and `test/ern_tour_tests.erl`. A plain shell runs the attach's path between its session and its local half, so every test above runs it too.
+**The attached shell** is tested by `test/ern_nodes_tests.erl`, over the harness's nodes on one machine: a shell attached in line mode to a node, its own node listed there without an address, an attach that no node answers, and the end of a node ended or lost, in line mode and at a terminal through the pseudo-terminal's harness. The deployment guide's and the tour's attached sessions are run whole by `test/ern_deployment_tests.erl` and `test/ern_tour_tests.erl`. A plain shell runs the attach's path between its session and its local half, so every test above runs it too.

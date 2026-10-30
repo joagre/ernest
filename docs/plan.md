@@ -61,18 +61,22 @@ One form of attaching, by a listed peer, since a node accepts a connection from 
    unit compiled, loaded and run. A slow tool is a defect (CLAUDE.md, *Design*). The shape of
    its fix: measure where the input's time goes, the compile, the load, the front end's table and
    the screen's round trip, as `make bench` measures, and fix it at its cause; before the release.
-8. **An attached shell's last line shares the prompt's row**, found 2026-10-30 as item 4 ran
-   its sessions: where the node ends or is lost, the shell writes `the node b ended`, or `the
-   node b is lost`, after the `> ` the session's screen last drew, `> the node b ended`, at a
-   terminal and in line mode alike, where a detach leaves the cursor on a line of its own. The
-   shape of its fix: the local half takes the region away before the runner says the line, as
-   the screen's `finish` does at a detach (the shell's note, *Processes*), which
-   needs the local half to know the rows the region's last paint holds; before the release.
+8. **An attached shell's last line shares the prompt's row**, fixed 2026-10-30 (the log's *The
+   Attached Shell's Last Row*).
 9. **An attached shell's own node tells no peer its utilization**, decided 2026-10-30 after item
    4's sessions showed a compute that names no node, typed at `b`'s prompt, running on the
    operator's machine: §11.2's *The attached shell* and Appendix E.27 state it since that day,
    and the runtime makes it so in item 5's commit, with a nodes test that a `Peer.compute` at
    the node's prompt never lands on the shell's own node.
+10. **Whether an attached shell's own node says that its node ended**, a decision found
+    2026-10-30 as item 8's test ran at a terminal: §12.5 has every node say that a peer ended or
+    was lost, and the shell's own node says it on a screen that ended with the session, so `the
+    peer b ended` is lost, or written before or after the shell's `the node b ended`; it came in
+    most runs at a terminal and in none in line mode, where the deployment and tour tests hold
+    the shell's standard error to its own line. Recommended: the shell's own node says nothing
+    of the end or the loss of the node its session runs on, which the shell's line says, as the
+    guides show; §11.2's *The attached shell* would say so. Discussed with the user before the
+    release.
 
 The attached shell is the operator's alone, trusted as a peer is, with no sandbox: the website runs
 the plain shell in a container per visitor (MVP 4.2).
