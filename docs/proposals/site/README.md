@@ -7,7 +7,7 @@ discussion has settled meanwhile.
 
 | File | What it is | Status |
 |---|---|---|
-| [`decisions.md`](decisions.md) | what the discussion has settled, tersely: the purpose, the docroot, the anchors, the pages, the look, the links, the templates, the generation, the live shell and the documents | current; begun 2026-10-13, from the design the removed `site.md` and `documents.md` held |
+| [`decisions.md`](decisions.md) | what the discussion has settled, tersely: the purpose, the docroot, the anchors, the pages, the look, the links, the templates, the generation, the live shell and the documents | current; begun 2026-10-13, from the design the removed `site.md` and `documents.md` held; read back 2026-10-30 with its findings applied |
 | `templates/` | the templates, early versions of the design, with their rendering contract in `templates/README.md` | a first design |
 | `docroot/` | the assets, laid out as served, and under `mockup/` the first design's pages, flat, to open in a browser, with the logos they show | a first design |
 | `tools/`, `Makefile`, `build/` | the prototype's generator, the rules that build and run it, and what they make: the compiled generator, and the served tree in `build/site/`, which git ignores | not written |
@@ -23,7 +23,7 @@ still builds the module pages from the doc chunk's parts.
 
 What the prototype still lacks:
 
-- `ern` has no command that gives a source's tokens, which the coloring needs.
+- The generator's `foreign` declaration over the toolchain's lexer, which the coloring needs (decided 2026-10-30).
 - `releases/<version>.md` does not exist; the release step writes the notes
   only to GitHub today.
 - The templates hold the first design, which `decisions.md` has moved past in

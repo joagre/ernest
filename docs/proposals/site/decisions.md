@@ -1,7 +1,8 @@
 # Decisions
 
 What the discussion has settled, tersely. A decision changes here, with its
-date.
+date. Read back on 2026-10-30 against the httpd proposal, the report and the
+tree, and its findings applied the same day.
 
 ## Purpose, 2026-10-13
 
@@ -79,10 +80,11 @@ The site's files as served.
 
 - It is `home.html`, its text the site's own; the README is the repository's,
   and the homepage takes nothing from it (decided 2026-10-13). In order: an
-  opening paragraph; the guide's §0 list "What Ernest adds", word for word,
-  which the documents test holds equal to the guide's as it holds the
-  README's, each item's bold name and first sentence linking to its section in
-  Why; a paragraph on
+  opening paragraph; Why's list "What Ernest adds", `guide/why.md`'s six
+  claims word for word, which the documents test `claims_test` holds equal
+  to the README's, each item's bold name and first sentence linking to its
+  heading in Why (corrected 2026-10-30, from "the guide's §0 list"); a
+  paragraph on
   intended use; and a small example with its output, which a test runs, so
   that Try prints what the page shows. The opening and the list are visible on
   a desktop without scrolling.
@@ -103,7 +105,7 @@ The site's files as served.
   leaves out: the questions, Deployment and Releases. Then
   the page: its source file in the repository with its last commit date, the
   version the site is built from, the license, the issues, and "served by
-  ehttpd, written in Ernest" once true.
+  ernest-httpd, written in Ernest" once true.
 - Previous and next stand above the footer on a tour, guide or report page.
 
 ## The other pages, 2026-10-13
@@ -113,9 +115,12 @@ The site's files as served.
 - Releases holds each release's notes as the release step writes them, newest
   first, from `releases/<version>.md`. The notes list no changes; they say
   where the changes are read.
-- The shell page: the terminal takes most of the space, with Start or Restart,
-  Stop, Examples and the time remaining above it. The session and its limits
-  are explained beside it. A dropped connection and an expired session are
+- The shell page: the terminal takes most of the space, with the panel's
+  controls above it, Start or Restart and Stop, and the warning banner with
+  Extend when it comes (*The live shell*); no time remaining is shown, since
+  the server sends only the warning, and there is no Examples control, the
+  pages' blocks being the examples (changed 2026-10-30). The session and its
+  limits are explained beside it. A dropped connection and an expired session are
   told apart; nothing is erased silently on a reconnect; nothing runs but by
   the visitor's act.
 
@@ -164,8 +169,12 @@ The site's files as served.
 - A report section carries a computed margin line naming the pages that cite
   it: "taught in guide §4.2; used by `List.sort`".
 - A citation of the log links to the log on GitHub.
-- Ernest code is colored when the site is generated, by `ern`'s own lexer. A
-  console block is plain monospace, as written: `ern build` colors nothing
+- Ernest code is colored when the site is generated, by `ern`'s own lexer,
+  which the generator reaches by a `foreign` declaration over the toolchain's
+  lexer module, as the shell's front end is foreign to the toolchain: the
+  generator is a tool of the repository's and the lexer a layer beneath it,
+  and no command of `ern`'s is added for one tool's need (decided
+  2026-10-30). A console block is plain monospace, as written: `ern build` colors nothing
   (report §11.2), and only the live shell shows the shell's colors.
 - A qualified name in code, or in backticks in prose, `List.sort` or
   `Markdown.Block`, links to its declaration in `/man/` where it is a `docs/man/`
@@ -242,7 +251,8 @@ The site's files as served.
 - The pages are complete without JavaScript. The shell panel and the code
   blocks' buttons are the script's additions.
 - No search: the report's whole pages serve the browser's find.
-- The site runs on ehttpd, as the deployment guide runs a node.
+- The site runs on ernest-httpd, a program under systemd and no node
+  (`../httpd/proposal.md`, *Under systemd*; corrected 2026-10-30).
 - `make install` ships no page of the site: the pages are the server's, their
   links absolute and the shell panel on each. An installation's documents stay
   each in the form its reader uses: the man pages as roff, the report and the
@@ -256,14 +266,18 @@ The site's files as served.
 - The server side of the shell, the pseudo-terminal, the container per visitor and its image, the session's timeouts, a second tab's takeover and the pool, is the server's, in `../httpd/proposal.md`'s *The live shell's server side* (moved there 2026-10-26).
 - xterm.js, its stylesheet, a fit addon and a session client, self-hosted. A
   WebSocket at `/shell/session` to a pseudo-terminal running `ern shell`
-  unchanged; the server behind it is ehttpd's (`../httpd/proposal.md`).
+  unchanged; the server behind it is ernest-httpd's (`../httpd/proposal.md`).
+  xterm.js and its addon get a row in `THIRD_PARTY_LICENSES` when they are
+  vendored, as the Lucide icons have one (2026-10-30).
 - xterm.js keeps a scrollback, a scrollbar, the wheel and Shift+PageUp, in
   the browser alone, so a session scrolls back as an xterm on Linux does;
   the shell writes above its live region on the ordinary screen, and a
   program on the alternate screen has none while it runs (decided
   2026-10-26).
-- Five states, each announced once: connecting, running, disconnected, expired
-  and unavailable.
+- Seven states, each announced once: connecting, running and disconnected,
+  the page's own, and expired, taken over, unavailable and stopped, one for
+  each close code the server sends, 4001 to 4004 (`../httpd/proposal.md`;
+  seven since 2026-10-30, five before the close codes were decided).
 - A session's warning is a banner with Extend, after four minutes with
   no key pressed; a key or Extend gives it five minutes more, and the
   banner is no dialog (decided 2026-10-27; the lifetime is
@@ -301,9 +315,13 @@ The site's files as served.
   language's block have Copy alone. An `ernest` block that cannot run in the
   container is `ernest-shown`: the tests compile it as `ernest`, and it has
   Copy alone. Copy is on every block.
-- A block with `export fn main` is Loaded: written into the session's scratch
-  directory as `example.ern`, and `:load Example` typed, so that `main()` is
-  one Enter away. Any other is Pasted.
+- A block with `export fn main` is Loaded: pasted as one declaring input,
+  since an input may declare what a module may and every declaration is the
+  session's (report §11.2), and then `main()` typed and not entered, so that
+  it is one Enter away. Any other is Pasted. No file is written and nothing
+  crosses the socket but the terminal's bytes (decided 2026-10-30, in place
+  of a file in the scratch directory and a `:load`, which no message of the
+  socket's could write).
 - A Paste arrives as one input, as bracketed paste does. Nothing runs until
   Enter.
 - In a block that shows a shell session, each `> ` line has a Paste of its
