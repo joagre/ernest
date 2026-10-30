@@ -129,7 +129,7 @@ The site's files as served.
 
 - Semantic HTML and one shared stylesheet. No framework, font download or icon
   runtime. No inline script and no inline style, since the server's
-  `Content-Security-Policy` allows only its own files (`../httpd/proposal.md`,
+  `Content-Security-Policy` allows only its own files (the server's proposal,
   *Limits against a crowd*; 2026-10-30).
 - System sans-serif for prose, system monospace for code and the terminal.
 - The browser's light or dark preference. Neutral backgrounds, dark text, one
@@ -257,11 +257,11 @@ The site's files as served.
 - The pages are complete without JavaScript. The shell panel and the code
   blocks' buttons are the script's additions.
 - Where compression is decided, the generator writes `page.html.gz` beside
-  each page, which the server chooses between (`../httpd/proposal.md`, *HTTP/1.1*);
+  each page, which the server chooses between (the server's proposal, *HTTP/1.1*);
   it writes none until then (2026-10-30).
 - No search: the report's whole pages serve the browser's find.
 - The site runs on ernest-httpd, a program under systemd and no node
-  (`../httpd/proposal.md`, *Under systemd*; corrected 2026-10-30).
+  (the server's proposal, *Under systemd*; corrected 2026-10-30).
 - `make install` ships no page of the site: the pages are the server's, their
   links absolute and the shell panel on each. An installation's documents stay
   each in the form its reader uses: the man pages as roff, the report and the
@@ -272,10 +272,10 @@ The site's files as served.
 
 ## The live shell, 2026-10-13
 
-- The server side of the shell, the pseudo-terminal, the container per visitor and its image, the session's timeouts and a second tab's takeover, is the server's, which has no pool,, in `../httpd/proposal.md`'s *The live shell's server side* (moved there 2026-10-26).
+- The server side of the shell, the pseudo-terminal, the container per visitor and its image, the session's timeouts and a second tab's takeover, is the server's, which has no pool, in the server's proposal's *The live shell's server side*, ernest-httpd's own page, https://github.com/joagre/ernest-httpd/blob/main/docs/proposals/basic/proposal.md (moved there 2026-10-26, and to the server's repository 2026-10-30); every citation of the server's proposal below is of that page.
 - xterm.js, its stylesheet, a fit addon and a session client, self-hosted. A
   WebSocket at `/shell/session` to a pseudo-terminal running `ern shell`
-  unchanged; the server behind it is ernest-httpd's (`../httpd/proposal.md`).
+  unchanged; the server behind it is ernest-httpd's (the server's proposal).
   xterm.js and its addon get a row in `THIRD_PARTY_LICENSES` when they are
   vendored, as the Lucide icons have one (2026-10-30).
 - xterm.js keeps a scrollback, a scrollbar, the wheel and Shift+PageUp, in
@@ -285,14 +285,14 @@ The site's files as served.
   2026-10-26).
 - The client sends the panel's size as its first message and at each
   resize, which the server takes as the session's start and its terminal's
-  size; the messages' forms are `../httpd/proposal.md`'s (2026-10-30).
+  size; the messages' forms are the server's proposal's (2026-10-30).
 - Seven states, each announced once: connecting, running and disconnected,
   the page's own, and expired, taken over, unavailable and stopped, one for
-  each close code the server sends, 4001 to 4004 (`../httpd/proposal.md`;
+  each close code the server sends, 4001 to 4004 (the server's proposal;
   seven since 2026-10-30, five before the close codes were decided).
 - A session's warning is a banner with Extend, shown when the server's
   warning comes, and the banner is no dialog; a key or Extend keeps the
-  session, by the lifetime `../httpd/proposal.md` owns (decided 2026-10-27,
+  session, by the lifetime the server's proposal owns (decided 2026-10-27,
   the numbers left to their owner 2026-10-30).
 - A session that expires closes its panel and gives the page back its
   width, a short line saying for a moment that the shell ended after five
@@ -311,7 +311,7 @@ The site's files as served.
   with a tooltip and an accessible name, `Paste into the shell`, so that
   the layout stays plain and a screen reader says what each does (decided
   2026-10-27).
-- Stop ends the session, and Restart is a deliberate act that ends the old one; what they end, the container, is the server's (`../httpd/proposal.md`).
+- Stop ends the session, and Restart is a deliberate act that ends the old one; what they end, the container, is the server's (the server's proposal).
 - The shell page carries a privacy line: no accounts, one cookie, the layout
   kept in the browser, what the server logs, nothing kept.
 - The shell panel is `base.html`'s, so every page has it, side by side or

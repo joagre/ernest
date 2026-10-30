@@ -55,6 +55,8 @@ Each fact has one owner. Every other document points at the owner and does not r
 
 Until a proposal is decided all of it is tentative, and nothing flows from it into the report, the plan or the log; nothing in it is ever authoritative, built or not.
 
+A program with a repository of its own holds its proposal there; what it asks of Ernest stays here under the program's name, the two citing each other by address. A proposal begun here before the repository exists is written whole, where the thinking happens, and split along that line in the commit that makes the repository.
+
 A built proposal is kept as the record of its design, its status line saying so, until its milestone's row names the log entries that argue it and nothing else cites the directory; then it goes, after a reading decided with the user of what it holds that no owner has yet, an experiment's finding or a table of what other systems do, which goes first to the design note or the log that keeps it.
 
 Meanwhile it changes only in its form, every decision, fact and number kept; a program under it that the tests still run follows the library's names, since the tests hold it to the library and not to the proposal.

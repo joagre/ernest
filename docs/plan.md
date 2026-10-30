@@ -112,11 +112,13 @@ the user on 2026-10-10 (the log's *ehttpd and the Website*): the base of Ernest'
 4.2, and the first program built against an installed Ernest by a build of its own, which the
 examples cannot be.
 
-Its design is `docs/proposals/httpd/proposal.md`, begun 2026-10-26, read back
-on 2026-10-30 and ready the same day: what of HTTP/1.1 and WebSocket it implements and leaves out,
-TLS in `Tcp`, the live shell's server side, its limits and its security, its configuration, its
-log, its life under systemd, and the five libraries it asks for. Its own plan lives in its
-repository; this one records what it asks of Ernest, written as it asks, in the proposal's order.
+What it asks of Ernest is `docs/proposals/httpd/proposal.md`, begun 2026-10-26 as the server's
+whole proposal, read back on 2026-10-30 and ready the same day, and split that day when the
+server's repository was made: TLS in `Tcp`, a pseudo-terminal in `Os`, the five libraries with
+their shapes, the installation and the release stay here; the server itself, what of HTTP/1.1 and
+WebSocket it implements, its sessions, its limits, its configuration, its log and its life under
+systemd, is its repository's own proposal and plan. This plan records what it asks of Ernest,
+written as it asks, in the proposal's order.
 
 What it lacks is added where it belongs and never worked around in Erlang or behind a `foreign
 fn`: a function the standard library lacks enters by E.0's admission rules, our need the occasion
@@ -138,13 +140,11 @@ MVP 4.2).
    alone; `http` with its client half, whose first use beside the tests is a `fetch` example that
    reads JSON over HTTPS with a verified certificate; then `websocket`, with a client's masked
    frames.
-4. **An installation from the release archive**, `make release`'s, installed into a prefix as a
-   user installs it, which ernest-httpd builds against: its session sees only `share/doc/ernest/`
-   and `man`, as a user in a year will, and every gap it meets goes to `language_feedback.md`; a
-   gap is fixed in the checkout, the archive made again and installed, with no public release
-   between. The release, the unpack and the install run from this repository, and the server's
-   work from a session started in its own, whose CLAUDE.md names the installation as the only
-   Ernest it sees.
+4. **The release archive the server builds against**: ernest-httpd builds against Ernest
+   installed from `make release`'s archive and never against the source tree, as a user does, and
+   every gap it meets comes here as a line of `language_feedback.md`; a gap is fixed in the
+   checkout and the archive made again, with no public release between. How the server's
+   repository installs and uses it is its own.
 5. **ernest-httpd**, in its own repository: `Config` and `Static` as pure functions; `Listener`,
    `Connection` and `AccessLog`, serving the site over plain HTTP; TLS, the redirect listener and
    the hosts; `Shell` and `Sessions` last, since they stand on the rest.

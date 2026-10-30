@@ -4,6 +4,6 @@ What each file here is, and which is current. All of it is under discussion, as 
 
 | File | What it is | Status |
 |---|---|---|
-| [`proposal.md`](proposal.md) | the server and the libraries it asks for: what of HTTP/1.1 and WebSocket it implements and what it leaves out, its configuration, its log, its life under systemd, and the decisions taken so far | current; begun 2026-10-26 as a starting point, read back 2026-10-30 with its findings applied |
+| [`proposal.md`](proposal.md) | what the server asks of Ernest: TLS in `Tcp`, a pseudo-terminal in `Os`, five libraries with their shapes, the installation it builds against and the release | current; begun 2026-10-26 as the server's whole proposal, read back 2026-10-30 with its findings applied, and split that day, the server's own half moving to its repository |
 
-The milestone is MVP 4.1, and the site it serves MVP 4.2's, whose design is [`../site/`](../site/README.md).
+The milestone is MVP 4.1, and the site it serves MVP 4.2's, whose design is [`../site/`](../site/README.md). The server's own proposal is its repository's, https://github.com/joagre/ernest-httpd/blob/main/docs/proposals/basic/proposal.md.
