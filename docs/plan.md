@@ -142,7 +142,9 @@ MVP 4.2).
    user installs it, which ernest-httpd builds against: its session sees only `share/doc/ernest/`
    and `man`, as a user in a year will, and every gap it meets goes to `language_feedback.md`; a
    gap is fixed in the checkout, the archive made again and installed, with no public release
-   between.
+   between. The release, the unpack and the install run from this repository, and the server's
+   work from a session started in its own, whose CLAUDE.md names the installation as the only
+   Ernest it sees.
 5. **ernest-httpd**, in its own repository: `Config` and `Static` as pure functions; `Listener`,
    `Connection` and `AccessLog`, serving the site over plain HTTP; TLS, the redirect listener and
    the hosts; `Shell` and `Sessions` last, since they stand on the rest.
