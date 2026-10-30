@@ -94,6 +94,11 @@ name, which Ernest's parentheses make a call, the dot, and the marks other langu
 3. **The sweep**: every site of the repository's Ernest, the guide's and the tour's blocks among
    them, written as a pun where the names agree; `guide/style.md`'s rule that they are; and
    whether `ern fmt` writes the pun, decided against the log's *What the Formatter Keeps*.
+4. **The programs outside**: the pun needs the release that carries it, so ernest-template's
+   floor rises to that release, and each copy's by hand, ernest-epx's and ernest-httpd's, as the
+   template's memory of copies says; ernest-epx's Ernest is swept as item 3 sweeps this
+   repository's, every `Foo(line = line)` written `Foo(=line)`, and ernest-httpd's where it has
+   any.
 
 Discussed with the user when the milestone opens, after MVP 4.0's release, each with its
 recommendation then: whether the formatter writes the pun where the names agree, or the style
