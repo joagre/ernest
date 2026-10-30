@@ -90,37 +90,50 @@ modules documented apart with an authority of their own. Why it is worth its cos
 
 ## MVP 4.0 (a shell attached to a running node), about a week
 
-Made on 2026-10-13 from MVP 4.3's item 4 when the deployment
-guide's section 6 was written and the user saw how thin a shell beside a node is for an operator:
-every look is a compute wrapped by hand, and nothing of the node's own is at the prompt. An attached
-shell runs each input on the node, over MVP 3.0's peers and MVP 3.2's shipping of code, so that a
-binding read is the node's, a process listed is the node's and a function called runs there without
-the wrapping; its `:processes` lists the node's processes, and its `:load` and `:reload` load and
-reload code on the node, as `erl -remsh` attaches to an Erlang node.
+Made on 2026-10-13 from MVP 4.3's item 4 when the deployment guide's section 6 was written and
+the user saw how thin a shell beside a node is for an operator: every look is a compute wrapped by
+hand, and nothing of the node's own is at the prompt.
 
-Whether the shell's design, `docs/design/shell.md`, assumes it runs
-on the node whose code it evaluates is the proposal's first question, read against the note before
-anything is built. Nothing of it is in 0.6.0.
+Its design is `docs/proposals/shell/attached.md`, read back against the shell's design note and rewritten on 2026-10-30, ready the same day (the
+log's *The Attached Shell's Cut*): the operator's machine is the terminal and the files, and
+everything else is the node's, so the shell of the design note runs on the node word for word,
+spawned there by the operator's `ern shell --config-dir ops --attach name`, and what crosses the
+carrier is the terminal's events and bytes and the operator's files.
 
-1. **The design**, discussed with the user first in `docs/proposals/shell/attached.md` (begun
-   2026-10-13): `ern shell --attach dir` to the node of a directory on this machine and `ern shell
-   --config-dir ops --attach name` to a listed peer over the carrier, never a process number or an
-   address, since a node is reached by its key (decided 2026-10-13).
+One form of attaching, by a listed peer, since a node accepts a connection from a peer it lists and no other (§12.5).
 
-   A session's namespace of its own, `$Session3.T`, and the code table keeping each session's units
-   apart, since operators attach to one node at once; `:detach` in `:quit`'s place; what an input's
-   process is on the node and who its root is; what `:processes`, `:load` and `:reload` do there;
-   what the session shows when the node is lost.
+1. **The report first**, the proposal's section 6: §11.2's attached shell, `--attach name`, which
+   takes no file, `:detach` in `:quit`'s place, sessions many on a node each with a number, what
+   `:processes`, `:load`, `:reload`, `:output` and `:faults` are there, the operator's files read by
+   the operator's machine, and what the shell says and exits with at the node's loss and its end;
+   Appendix H's one session namespace becoming each session's, `$Session3`; §12.1's write to
+   standard output or standard error routed by the writing process's root; Appendix E.21's
+   `Process.live()` leaving out every session's own processes. Nothing of §3 to §9 changes.
+2. **The runtime**: a write routed by its root, a session's to its screen and a root with no screen
+   to the node's; the runtime's own processes a set every session adds its own to and takes them
+   from; the toolchain's own units loaded from the node's tree at a spawn's placement, which
+   `docs/design/code.md` states and the build confirms.
+3. **The shell**: the local half in Ernest, holding the terminal, reading the history, the startup
+   files and the environment, spawning the shell's entry on the node with its address and what it
+   read, forwarding the terminal's events, writing the bytes the screen sends and answering its
+   `Flush`, reading a source for `:load` and listing the source root for its completion, and
+   appending `:output`'s file.
 
-   The deployment guide's sections 5.3 and 6 rewritten over it, the upgrade of the language
-   guide's §8.9 becoming a `:load` of the new build at the node's prompt with `Code.running` run
-   there, and `docs/development.md`'s row on attaching gone with the gap (asked by the user
-   2026-10-18).
+   On the node, the session's number in every host name an input
+   makes, `:detach` leaving the evaluators and what they started to the node, the node's reload
+   shared by every session, and the session's end at the local half's loss.
+4. **The guides and the documents**: the deployment guide's sections 5.3 and 6 rewritten over the
+   attached shell, the language guide's §8.9 upgrade becoming a `:load` of the new build at the
+   node's prompt with `Code.running` run there, `docs/development.md`'s row on attaching gone with
+   the gap (asked by the user 2026-10-18), and `docs/design/shell.md` gaining the attached shell's
+   section, the cut and the local half.
+5. **The tests and the release**: the nodes tests over a shell attached to a bare node and to a
+   program's node, two sessions on one node, a `:load` shipped as text, a detach that leaves a
+   service running, and the node's loss; the guide's section 6 run by them; the session golden
+   test over an attached session; then the release that follows, 0.7.0, by `docs/release_review.md`.
 
-   The attached shell is the operator's alone, trusted as a peer is, with no sandbox: the website
-   runs the plain shell in a container per visitor (MVP 4.2).
-2. **The build**, about a week, with the nodes tests over a shell attached to a bare node and to a
-   program's node, the guide's section 6 run by them, and the release that follows.
+The attached shell is the operator's alone, trusted as a peer is, with no sandbox: the website runs
+the plain shell in a container per visitor (MVP 4.2).
 
 ## MVP 4.1 (ehttpd, and the libraries it wants)
 
