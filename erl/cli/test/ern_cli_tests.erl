@@ -4867,6 +4867,32 @@ shell_main_without_file_test() ->
                                       <<"ern shell: --main names the function to spawn from"
                                         " the file the shell loads, and no file is given">>)).
 
+%% report §11.2 *The attached shell*: `--attach` takes no file, `--main`,
+%% `--load-path` or `--libs-dir`, each refused naming the option, and needs
+%% `--config-dir`, each refused before a node starts. A regression test,
+%% written after the code: MVP 4.0's item 5
+shell_attach_refused_test() ->
+    Dir = tmp(),
+    Attach = ["shell", "--config-dir", Dir, "--attach", "b"],
+    Refused = [{["shell", "--attach", "b"],
+                <<"ern shell: --attach needs --config-dir: the shell attaches from a node of its"
+                  " own\n">>},
+               {Attach ++ ["a.erc"],
+                <<"ern shell: a file is not given with --attach: the node's program runs there,"
+                  " and :load loads a module\n">>},
+               {Attach ++ ["--main", "A.b"],
+                <<"ern shell: --main is not given with --attach: the node's program runs"
+                  " there\n">>},
+               {Attach ++ ["--load-path", Dir],
+                <<"ern shell: --load-path is not given with --attach: the load path is the"
+                  " node's\n">>},
+               {Attach ++ ["--libs-dir", Dir],
+                <<"ern shell: --libs-dir is not given with --attach: the load path is the"
+                  " node's\n">>}],
+    lists:foreach(fun({Args, _}) -> ?assertEqual(1, ern_err(Args)) end, Refused),
+    Output = iolist_to_binary(?capturedOutput),
+    [?assertMatch({_, _}, binary:match(Output, Line)) || {_, Line} <- Refused].
+
 %% report §11: an option is matched by its whole name, a flag takes no
 %% value, and `--version` and `--help` stand alone. A regression test:
 %% `--emit-erl=x` was taken for `--emit`

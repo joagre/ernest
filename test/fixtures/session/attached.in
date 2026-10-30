@@ -1,0 +1,18 @@
+1 + 2
+Io.println("written at the prompt")
+:quit
+Counter.start()
+:load Counter
+:load Counter
+let c = Counter.start()
+send(c, Counter.Add(7))
+Address.call(c, fn(reply) = Counter.Get(reply = reply), 5000)
+1 / 0
+Os.exit(3)
+:bindings
+:processes
+:forget c
+c
+:processes
+:browse Counter
+:detach

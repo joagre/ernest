@@ -1,0 +1,30 @@
+Ernest 0.6.0-dev. :help for the commands, :detach to leave.
+> 3 : Int
+> written at the prompt
+> this shell is attached to a node; :detach leaves it
+> input 4:1:1: unknown name Counter.start
+1 | Counter.start()
+  | ^^^^^^^^^^^^^
+  | = help: :load Counter puts it in scope
+> Counter, compiled from fixtures/session/counter.ern
+> Counter is loaded already; :reload compiles it again when its source has changed
+> c : Address(Counter.Msg)
+> > Some(7) : Optional(Int)
+> fault: division by zero
+    erlang:'div'/2
+    input 10:1
+> fault: exited with status 3
+> c : Address(Counter.Msg)
+it : Optional(Int)
+> Counter.start:11 receiving
+bare node receiving
+> > input 15:1:1: unknown name c
+1 | c
+  | ^
+> Counter.start:11 receiving
+bare node receiving
+> type Counter.Msg
+Counter.boom() : Unit receiving Unit
+Counter.main() : Unit receiving Unit
+Counter.start() : Address(Counter.Msg)
+> 

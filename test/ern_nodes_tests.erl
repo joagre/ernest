@@ -54,6 +54,9 @@
 %% Report §12.6: the detector finds a silent peer at most 75 seconds after
 %% its last traffic.
 -define(DETECTOR_MS, 75000).
+%% Report §11.2: the time before a line a node writes where its stream is
+%% no terminal.
+-define(STAMP, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z ").
 
 tmp() ->
     Base = os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
@@ -3250,8 +3253,8 @@ own_units(Base) ->
 %%
 %% `:detach` ends the shell with status 0 and leaves that process running on
 %% the node, which a second session lists. Written after the code, a
-%% regression test of the attach; MVP 4.0's item 5 holds the nodes tests
-%% over attached sessions whole.
+%% regression test of the attach; the tests after it hold the rest of an
+%% attached session, written with MVP 4.0's item 5.
 attached_shell_test_() ->
     nodes_test({waits, 17}, fun attached_shell/1).
 
@@ -3331,27 +3334,33 @@ attached_shell(Base) ->
 %% session's node's end or loss. Written before the fixes (the plan's MVP
 %% 4.0 items 8 and 10), which the line sharing the prompt's row failed, and
 %% the shell's own node's `the peer node ended` before it, in one run of
-%% sixteen.
+%% sixteen. Each line is held to the deployment guide's section 6, which
+%% quotes it, since MVP 4.0's item 5.
 attached_shell_ends_test_() ->
     nodes_test({waits, 10}, fun attached_shell_ends/1).
 
 attached_shell_ends(Base) ->
     Ops = made(Base, "ops", none),
-    lists:foreach(
-      fun({Name, End, Status, Line}) ->
-          Node = made(Base, Name, 0),
-          lists(Node, [{"ops", Ops, none}]),
-          {_, WaitNode} = launched(Node, [?ERN, " run --config-dir ", Node]),
-          lists(Ops, [{"node", Node, bound_port(Node)}]),
-          {_, WaitShell} = attached(Ops, "node", Base),
-          prints(Ops, ":detach to leave.\n> "),
-          End(Node, WaitNode),
-          ?assertEqual(Status, WaitShell()),
-          {Out, Err} = said(Ops),
-          ?assertMatch({true, _}, {lists:suffix(":detach to leave.\n> \n", Out), Out}),
-          ?assertEqual(Line, Err)
-      end, [{"ended", fun stop/2, 0, "the node node ended\n"},
-            {"lost", fun lost/2, 1, "the node node is lost\n"}]).
+    [Ended, Lost] =
+        lists:map(
+          fun({Name, End, Status, Line}) ->
+              Node = made(Base, Name, 0),
+              lists(Node, [{"ops", Ops, none}]),
+              {_, WaitNode} = launched(Node, [?ERN, " run --config-dir ", Node]),
+              lists(Ops, [{"node", Node, bound_port(Node)}]),
+              {_, WaitShell} = attached(Ops, "node", Base),
+              prints(Ops, ":detach to leave.\n> "),
+              End(Node, WaitNode),
+              ?assertEqual(Status, WaitShell()),
+              {Out, Err} = said(Ops),
+              ?assertMatch({true, _}, {lists:suffix(":detach to leave.\n> \n", Out), Out}),
+              ?assertEqual(Line, Err),
+              Err
+          end, [{"ended", fun stop/2, 0, "the node node ended\n"},
+                {"lost", fun lost/2, 1, "the node node is lost\n"}]),
+    %% the lines as the deployment guide's section 6 quotes them
+    ern_deployment_tests:cataloged(Ended, "6", "ended", [{"b", "node"}]),
+    ern_deployment_tests:cataloged(Lost, "6", "is lost", [{"b", "node"}]).
 
 %% report §11.2 *The attached shell*, Appendix E.27: the shell's own node
 %% tells no peer how busy it is, so at the prompt of the node it attaches
@@ -3472,21 +3481,491 @@ lost(Dir, Wait) ->
     _ = os:cmd("kill -KILL " ++ string:trim(binary_to_list(Pid))),
     ?assertEqual(137, Wait()).
 
-%% report §11.2 *The attached shell*, §11.8: an attach no node answers is
-%% the job's refusal, naming the spawn's `Io.Error`, with status 1. Written
-%% after the code, a regression test of the refusal
+%% report §11.2 *The attached shell*, §11.8: an attach that fails is the
+%% job's refusal, naming the spawn's `Io.Error`, with status 1: one that no
+%% node answers says that the peer is unreachable, and one to a peer the
+%% shell's own node does not list that it is not listed, each line as the
+%% deployment guide's section 6 quotes it. Written after the code, a
+%% regression test of the refusal
 attach_refused_test_() ->
-    nodes_test({waits, 2}, fun attach_refused/1).
+    nodes_test({waits, 4}, fun attach_refused/1).
 
 attach_refused(Base) ->
     Absent = made(Base, "absent", none),
     Ops = made(Base, "ops", none),
     lists(Ops, [{"absent", Absent, free_port()}]),
-    {_, Wait} = attached(Ops, "absent", Base),
+    Refused = fun(Name) ->
+                  {_, Wait} = attached(Ops, Name, Base),
+                  ?assertEqual(1, Wait()),
+                  {Out, Err} = said(Ops),
+                  ?assertEqual("", Out),
+                  Err
+              end,
+    ern_deployment_tests:cataloged(Refused("absent"), "6", "is unreachable", [{"b", "absent"}]),
+    ern_deployment_tests:cataloged(Refused("nowhere"), "6", "is not listed", [{"b", "nowhere"}]).
+
+%% report §11.2 *The attached shell*, §11.8, §12.6: an attach to a node
+%% that takes the connection and answers nothing over it is refused once a
+%% dial's time has passed, saying that the peer did not answer in time,
+%% with status 1, its standard output in line mode the shell's own node's
+%% line of the connection alone (§11.2 *The shell*). The node's program
+%% suspends its gateway, the process that answers a peer's frames, a
+%% spawn's among them, so that the connection stands and the spawn waits.
+%% Written after the code, a regression test: MVP 4.0's item 5
+attach_unanswered_test_() ->
+    nodes_test({waits, 5, ?DIAL_MS}, fun attach_unanswered/1).
+
+attach_unanswered(Base) ->
+    Root = filename:join(Base, "program"),
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "stall.ern"), stall()),
+    0 = built([Root]),
+    Port = free_port(),
+    Node = made(Base, "node", Port),
+    Ops = made(Base, "ops", none),
+    lists(Node, [{"ops", Ops, none}]),
+    lists(Ops, [{"node", Node, Port}]),
+    {_, WaitNode} = started(Node, filename:join(Root, "stall.erc"), []),
+    prints(Node, "suspended: true"),
+    {_, Wait} = attached(Ops, "node", Base),
     ?assertEqual(1, Wait()),
     {Out, Err} = said(Ops),
-    ?assertEqual("", Out),
-    has(Err, "ern shell: the peer absent is unreachable").
+    ?assertEqual("the peer node connected\n", unstamped(Out)),
+    has(Err, "ern shell: the peer node did not answer in time\n"),
+    stop(Node, WaitNode).
+
+%% A node's program that suspends its node's gateway, which answers its
+%% peers' frames (report §12.6), and then waits.
+stall() ->
+    "// The gateway suspended: the node takes a connection and answers\n"
+    "// nothing over it.\n"
+    "foreign fn whereis(name : Foreign.Term) : Foreign.Term = \"erlang:whereis/1\"\n"
+    "foreign fn suspended(process : Foreign.Term) : Bool = \"erlang:suspend_process/1\"\n"
+    "\n"
+    "export fn main() : Unit receiving Unit = {\n"
+    "    let gateway = whereis(Foreign.atom(\"ern_gateway\"));\n"
+    "    Io.println(\"suspended: \" <> Io.show(suspended(gateway)));\n"
+    "    receive { _ -> Unit }\n"
+    "}\n".
+
+%% report §11.2 *The attached shell*, §11.8, §12.5, §12.7: a shell of
+%% another build of `ern` than its node's, on the node's floor, is refused,
+%% saying that the node runs another build, with status 1, the line as the
+%% deployment guide's section 6 quotes it, its standard output the line of
+%% the connection alone, as an attach unanswered leaves it; and the node
+%% says that the spawn was not loaded, naming a binding without a value.
+%%
+%% The two builds are two releases made from this tree under Base, so that
+%% each stands on the floor of the release VERSION names: the second's
+%% shell compiled from the shell's source with one binding's form changed,
+%% `dialMs`, its value not, so that the local half, whose reach names it,
+%% hashes otherwise and the node's own tree lacks it (the design note on
+%% code's *The toolchain's own units*). A shell of the node's own build
+%% attaches and detaches, so that the refusal is the shell's units and not
+%% the floor. Written after the code, a regression test: MVP 4.0's item 5
+attach_other_build_test_() ->
+    nodes_test({waits, 8}, fun attach_other_build/1).
+
+attach_other_build(Base) ->
+    Source = filename:join(Base, "shell"),
+    Tree = ern_tree:tree(),
+    [begin
+         File = filename:join(Source, Relative),
+         ok = filelib:ensure_dir(File),
+         {ok, _} = file:copy(filename:join([Tree, "src", "shell", Relative]), File)
+     end || Relative <- filelib:wildcard("**/*.ern", filename:join([Tree, "src", "shell"]))],
+    Main = filename:join(Source, "shell.ern"),
+    {ok, Text} = file:read_file(Main),
+    [Before, After] = binary:split(Text, <<"\nlet dialMs = 7000\n">>),
+    ok = file:write_file(Main, [Before, "\nlet dialMs = 7000 + 0\n", After]),
+    Changed = filename:join(Base, "changed"),
+    0 = built(["--build-root", Changed, Source]),
+    Own = released(filename:join(Base, "one"), ern_tree:build("shell")),
+    Other = released(filename:join(Base, "two"), Changed),
+    Node = made(Base, "node", 0),
+    Ops = made(Base, "ops", none),
+    lists(Node, [{"ops", Ops, none}]),
+    {_, WaitNode} = launched(Node, [Own, " run --config-dir ", Node]),
+    lists(Ops, [{"node", Node, bound_port(Node)}]),
+    Home = Ops ++ ".home",
+    ok = filelib:ensure_path(Home),
+    Shell = fun(Ern) -> launched(Ops, ["HOME=", Home, " ", Ern, " shell --config-dir ", Ops,
+                                       " --attach node"])
+            end,
+    {_, Refused} = Shell(Other),
+    ?assertEqual(1, Refused()),
+    {RefusedOut, RefusedErr} = said(Ops),
+    ?assertEqual("the peer node connected\n", unstamped(RefusedOut)),
+    ern_deployment_tests:cataloged(RefusedErr, "6", "another build", [{"b", "node"}]),
+    says(Node, "the peer ops's spawn at Shell.localHalf:"),
+    has(written(Node, err), " was not loaded: the binding "),
+    {Input, Attached} = Shell(Own),
+    true = port_command(Input, ":detach\n"),
+    ?assertEqual(0, Attached()),
+    {Out, Err} = said(Ops),
+    has(Out, ". :help for the commands, :detach to leave.\n"),
+    ?assertEqual(nomatch, string:find(Err, "ern shell:")),
+    stop(Node, WaitNode).
+
+%% Report §12.5, §12.7: a release of `ern` made in Dir from this tree, and
+%% its launcher: the tree's code, the runtime's helper, the standard
+%% library and the libraries copied as they stand, the shell's build from
+%% Shell, and `ern_release` compiled again without the mark `-dev`, as the
+%% release archive compiles it (tools/install.sh), so that its version
+%% text is VERSION's alone and it stands on a release's floor.
+released(Dir, Shell) ->
+    Tree = ern_tree:tree(),
+    Copies = [{filename:join(Tree, File), filename:join(Dir, File)}
+              || Pattern <- ["bin/ern", "erl/*/ebin/*", "erl/runtime/priv/ern_exec",
+                             "build/stdlib/*.erc", "build/libs/**/*.erc"],
+                 File <- filelib:wildcard(Pattern, Tree)]
+        ++ [{filename:join(Shell, File), filename:join([Dir, "build", "shell", File])}
+            || File <- filelib:wildcard("**/*.erc", Shell)],
+    lists:foreach(fun({From, To}) ->
+                      ok = filelib:ensure_dir(To),
+                      {ok, _} = file:copy(From, To)
+                  end, Copies),
+    [ok = file:change_mode(filename:join(Dir, File), 8#755)
+     || File <- ["bin/ern", "erl/runtime/priv/ern_exec"]],
+    {ok, Version} = file:read_file(filename:join(Tree, "VERSION")),
+    {ok, ern_release} = compile:file(filename:join(Tree, "erl/cli/src/ern_release"),
+                                     [{d, 'VERSION', string:trim(binary_to_list(Version))},
+                                      {outdir, filename:join(Dir, "erl/cli/ebin")}, report]),
+    filename:join([Dir, "bin", "ern"]).
+
+%% report §11.2 *The attached shell*, *Faults*, *Loading and reloading*,
+%% *Scope*, Appendix H, E.21, E.27: two shells attached at once to one bare
+%% node, each from a directory of its own. Each session's names are its
+%% own: `f()` answers 1 at the first prompt and 2 at the second. A type
+%% each declares in one text is two types, its qualified name standing
+%% under its session's namespace, which carries the session's number: each
+%% session's offer of the service `ping` at its own `Ping` is taken, where a
+%% second offer at one session's type answers its holder.
+%%
+%% A `:load` at the first prompt is in the second session's scope at its
+%% next input. A `:reload` at the first moves the second's binding of the
+%% module's type to its previous version, `Greet$1.Msg`, at the second's
+%% next input, and names the first's own binding at the first prompt and
+%% no binding at the second. A fault of a process the first session
+%% started is said at both prompts and on the node's standard error, and
+%% `Process.live()` at either prompt leaves out both sessions' own
+%% processes: the bare node's entry process and the three that the
+%% sessions' inputs spawned and still run are all it holds.
+%%
+%% The first detaches, and a third session from its directory takes a
+%% number no session had: its offer of `ping` at its own `Ping` is taken
+%% beside the first session's, whose process runs on. The shells run in
+%% Base, their source root `src` there, and the node elsewhere, so that the
+%% load names the file from the operator's working directory, where its
+%% local half reads it; on one machine the test cannot show that the node
+%% never opens the file itself. Written after the code, a regression test:
+%% MVP 4.0's item 5
+attached_sessions_test_() ->
+    nodes_test({waits, 20}, fun attached_sessions/1).
+
+attached_sessions(Base) ->
+    Source = filename:join(Base, "src"),
+    ok = filelib:ensure_path(Source),
+    Greet = filename:join(Source, "greet.ern"),
+    ok = file:write_file(Greet, greet("first", "")),
+    Node = made(Base, "node", 0),
+    [One, Two] = [made(Base, Name, none) || Name <- ["one", "two"]],
+    lists(Node, [{"one", One, none}, {"two", Two, none}]),
+    {_, WaitNode} = launched(Node, [?ERN, " run --config-dir ", Node]),
+    Port = bound_port(Node),
+    [lists(Ops, [{"node", Node, Port}]) || Ops <- [One, Two]],
+    Offered = "> Right(Unit) : Either(Process, Unit)\n",
+    Waiting = ": Address(Ping) = spawn(fn() = receive { _ -> Unit })",
+    {First, _} = Attached = sessioned(Base, One),
+    entered(First, One, ["fn f() : Int = 1", "type Ping = Ping(Int)", "let p" ++ Waiting,
+                         "Peer.offer(Peer.service(\"ping\"), p)", "f()"], "> 1 : Int\n"),
+    has(written(One, out), Offered),
+    {Second, WaitSecond} = sessioned(Base, Two),
+    entered(Second, Two, ["fn f() : Int = 2", "type Ping = Ping(Int)", "let q" ++ Waiting,
+                          "Peer.offer(Peer.service(\"ping\"), q)", "let r" ++ Waiting,
+                          "Either.isRight(Peer.offer(Peer.service(\"ping\"), r))", "f()"],
+            "> 2 : Int\n"),
+    has(written(Two, out), Offered ++ "> r : Address(Ping)\n> false : Bool\n"),
+    %% report §11.2: a load and a reload are the node's
+    entered(First, One, [":load Greet", "let n = Greet.Bye"], "> n : Greet.Msg\n"),
+    has(written(One, out), "> Greet, compiled from src/greet.ern\n"),
+    entered(Second, Two, ["Greet.hello()", "let m = Greet.Hello"], "> m : Greet.Msg\n"),
+    has(written(Two, out), "> \"hello, first\" : String\n"),
+    ok = file:write_file(Greet, greet("second", " | Again")),
+    entered(First, One, [":reload"],
+            "Greet.Msg changed: the binding n is of its previous version, Greet$1.Msg\n"),
+    has(written(One, out), "> Greet, compiled again\n"),
+    entered(Second, Two, ["m", "Greet.hello()"], "> \"hello, second\" : String\n"),
+    has(written(Two, out), "> Hello : Greet$1.Msg\n"),
+    %% report §11.2 *Faults*: the first session's tenth input faults the
+    %% process its ninth spawned
+    true = port_command(First, ["let w : Address(Int) = spawn(fn() = receive { n -> ",
+                                "Io.println(Int.toString(10 / n)) })\n", "send(w, 0)\n"]),
+    Faulted = "input 9:1 faulted: division by zero\n",
+    [fault_line(Input, Ops, Faulted) || {Input, Ops} <- [{First, One}, {Second, Two}]],
+    says(Node, Faulted),
+    %% report Appendix E.21: no session's own process is live at a prompt
+    [entered(Input, Ops, ["List.size(Process.live())"], "> 4 : Int\n")
+     || {Input, Ops} <- [{First, One}, {Second, Two}]],
+    {Out, _} = detached(Attached, One),
+    ?assertEqual(nomatch, string:find(Out, "Shell.")),
+    {Third, WaitThird} = sessioned(Base, One),
+    entered(Third, One, ["type Ping = Ping(Int)", "let s" ++ Waiting,
+                         "Peer.offer(Peer.service(\"ping\"), s)", "List.size(Process.live())"],
+            "> 5 : Int\n"),
+    has(written(One, out), Offered),
+    _ = detached({Third, WaitThird}, One),
+    {SecondOut, _} = detached({Second, WaitSecond}, Two),
+    ?assertEqual(nomatch, string:find(SecondOut, "changed:")),
+    stop(Node, WaitNode).
+
+%% The module the sessions load: its type, Hello, Bye and the constructors
+%% More adds, and its function, which says hello to Whom.
+greet(Whom, More) ->
+    ["export type Msg = Hello | Bye", More, "\n\nexport fn hello() : String = \"hello, ", Whom,
+     "\"\n"].
+
+%% A shell attached from the node of Ops to its listed peer `node`, in line
+%% mode, run in Base, its source root `src` there, relative, and its HOME a
+%% directory of its own: its input's port, and what waits for its end.
+sessioned(Base, Ops) ->
+    Home = Ops ++ ".home",
+    ok = filelib:ensure_path(Home),
+    launched(Ops, ["cd ", Base, " && HOME=", Home, " ", ?ERN, " shell --config-dir ", Ops,
+                   " --attach node --source-root src"]).
+
+%% Inputs typed in line mode at the shell of Ops through Port, a line each,
+%% until its standard output holds Part, which the last of them prints:
+%% one step.
+entered(Port, Ops, Inputs, Part) ->
+    true = port_command(Port, [[Input, "\n"] || Input <- Inputs]),
+    prints(Ops, Part).
+
+%% A shell in line mode detached, which ends it with status 0 and leaves
+%% the cursor on a line of its own, and what it wrote, nothing on its
+%% standard error: two steps.
+detached({Port, Wait}, Ops) ->
+    true = port_command(Port, ":detach\n"),
+    ?assertEqual(0, Wait()),
+    {Out, Err} = said(Ops),
+    ?assertEqual("", Err),
+    ?assertMatch({true, _}, {lists:suffix("> \n", Out), Out}),
+    {Out, Err}.
+
+%% report §11.2 *The attached shell*, *What a node holds*, §12.1 *A
+%% session's screen*: a detach leaves a server running. At the prompt of a
+%% program's node a session declares a server's loop, `counting`, which
+%% calls a function another of its inputs declares, starts the server with
+%% a `let`, hands its address to the program's service `Serve.holder`, and
+%% calls it, what the server prints standing on the session's screen. The
+%% session detaches, and the node keeps the session's units while the
+%% server runs them: a second session finds the server through the service
+%% and calls it, and it answers from the count it kept, printing on the
+%% node's standard output now and not on the second session's screen.
+%%
+%% It does not cover a process that holds a function of a detached
+%% session's unit, a function value, and calls it after the detach, which
+%% faults: the plan's MVP 4.0 item 13. Written after the code, a
+%% regression test: MVP 4.0's item 5
+attached_service_test_() ->
+    nodes_test({waits, 9}, fun attached_service/1).
+
+attached_service(Base) ->
+    Root = filename:join(Base, "program"),
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "serve.ern"), serve()),
+    0 = built([Root]),
+    Port = free_port(),
+    Node = made(Base, "node", Port),
+    [One, Two] = [made(Base, Name, none) || Name <- ["one", "two"]],
+    lists(Node, [{"one", One, none}, {"two", Two, none}]),
+    [lists(Ops, [{"node", Node, Port}]) || Ops <- [One, Two]],
+    {_, WaitNode} = started(Node, filename:join(Root, "serve.erc"), []),
+    prints(Node, "ready"),
+    Ms = wait_ms_text(),
+    Asked = fun(Number) ->
+                ["Address.call(c, fn(reply) = Serve.Ask(number = ", Number,
+                 ", reply = reply), ", Ms, ")"]
+            end,
+    {First, _} = Attached = attached(One, "node", Base),
+    true = port_command(First, [[Input, "\n"]
+                                || Input <- ["fn halved(n : Int) : Int = n / 2",
+                                             counting(),
+                                             "let c = spawn(fn() = counting(0))",
+                                             "send(Serve.holder, Serve.Hold(c))",
+                                             Asked("4")]]),
+    {Out, _} = detached(Attached, One),
+    has(Out, "> counted 4\nSome(2) : Optional(Int)\n"),
+    {Second, _} = Again = attached(Two, "node", Base),
+    true = port_command(Second, [[Input, "\n"]
+                                 || Input <- [["let held <- Address.call(Serve.holder, ",
+                                               "fn(reply) = Serve.Held(reply = reply), ", Ms,
+                                               ")"],
+                                              "let c <- held", Asked("6")]]),
+    {SecondOut, _} = detached(Again, Two),
+    has(SecondOut, "> c : Address(Serve.ServerMsg)\n> Some(5) : Optional(Int)\n"),
+    ?assertEqual(nomatch, string:find(SecondOut, "counted")),
+    prints(Node, "counted 10\n"),
+    stop(Node, WaitNode),
+    {NodeOut, NodeErr} = said(Node),
+    ?assertEqual("ready\ncounted 10\n", NodeOut),
+    ?assertEqual(nomatch, string:find(NodeErr, "faulted")).
+
+%% The server's loop a session declares, one input: it adds each number
+%% it is asked to its count, prints the count, and answers half of it.
+counting() ->
+    "fn counting(total : Int) : Unit receiving Serve.ServerMsg = receive {"
+    " Serve.Ask(number = number, reply = reply) -> {"
+    " Io.println(\"counted \" <> Int.toString(total + number));"
+    " answer(reply, halved(total + number)); counting(total + number) } }".
+
+%% A node's program whose service `holder` keeps the address of a server
+%% a session hands it, for a later session to find, its entry process
+%% waiting.
+serve() ->
+    "export type ServerMsg = Ask(number : Int, reply : Reply(Int))\n"
+    "\n"
+    "export type HolderMsg =\n"
+    "    Hold(Address(ServerMsg))\n"
+    "  | Held(reply : Reply(Optional(Address(ServerMsg))))\n"
+    "\n"
+    "export let holder : Address(HolderMsg) = spawn(fn() = holding(None))\n"
+    "\n"
+    "export fn main() : Unit receiving Unit = {\n"
+    "    Io.println(\"ready\");\n"
+    "    receive { _ -> Unit }\n"
+    "}\n"
+    "\n"
+    "fn holding(held : Optional(Address(ServerMsg))) : Unit receiving HolderMsg =\n"
+    "    receive {\n"
+    "        Hold(address) -> holding(Some(address))\n"
+    "      | Held(reply = reply) -> {\n"
+    "            answer(reply, held);\n"
+    "            holding(held)\n"
+    "        }\n"
+    "    }\n".
+
+%% report §11.2 *The attached shell*, *Inputs*, *Commands*, *Loading and
+%% reloading*, Appendix E.23: the session golden test over an attached
+%% session, as ern_shell_tests' session_test is over a plain one. The
+%% inputs of fixtures/session/attached.in, typed in line mode at a shell
+%% attached to a bare node, its source root fixtures/session, against
+%% fixtures/session/attached.out: the start line naming `:detach`, an
+%% expression, what an input prints, `:quit` refused, a qualified name
+%% answered with the `:load` that puts it in scope, `:load` compiling the
+%% operator's source and refusing a module loaded already, a `let`, a
+%% send and a call to the process it bound, an input's fault, `Os.exit`
+%% faulting the input that calls it, `:bindings`, `:processes` with each
+%% process's activity, `:forget` and the name forgotten, `:browse` of the
+%% module loaded, and `:detach`, which leaves the cursor on a line of its
+%% own.
+%%
+%% The shell's own node's line of the connection stands out of the file,
+%% since nothing orders it against the start line; it is held to stand
+%% once, without the time its stream stamps (§11.2). A process at
+%% `:processes` is spawned some inputs before, so that it waits by then.
+%% Written after the code, a regression test: MVP 4.0's item 5
+attached_session_test_() ->
+    nodes_test({waits, 4}, fun attached_session/1).
+
+attached_session(Base) ->
+    Node = made(Base, "node", 0),
+    Ops = made(Base, "ops", none),
+    lists(Node, [{"ops", Ops, none}]),
+    {_, WaitNode} = launched(Node, [?ERN, " run --config-dir ", Node]),
+    lists(Ops, [{"node", Node, bound_port(Node)}]),
+    Home = Ops ++ ".home",
+    ok = filelib:ensure_path(Home),
+    {_, Wait} = launched(Ops, ["HOME=", Home, " ", ?ERN, " shell --config-dir ", Ops,
+                               " --attach node --source-root fixtures/session"
+                               " < fixtures/session/attached.in"]),
+    ?assertEqual(0, Wait()),
+    {Out, Err} = said(Ops),
+    ?assertEqual("", Err),
+    Unstamped = unstamped(Out),
+    Connected = "the peer node connected\n",
+    ?assertEqual(2, length(string:split(Unstamped, Connected, all))),
+    {ok, Expected} = file:read_file("fixtures/session/attached.out"),
+    ?assertEqual(binary_to_list(Expected),
+                 lists:flatten(string:replace(Unstamped, Connected, "", all))),
+    stop(Node, WaitNode).
+
+%% Report §11.2: Text without the time its lines begin with where the
+%% stream is no terminal, which only a line of the runtime's has.
+unstamped(Text) ->
+    re:replace(Text, ?STAMP, "", [global, multiline, {return, list}]).
+
+%% report §11.2 *The attached shell*, *Faults*, *Editing*, §11.8: an
+%% attached session at a terminal, through the pseudo-terminal's harness.
+%% An input typed in part waits while a process of the node's program
+%% faults, once the test opens a named pipe the process reads; the fault's
+%% line and trace are said above the prompt, on rows of their own, and the
+%% prompt is drawn again under them with the part typed, which the rest of
+%% the input finishes and runs. `:detach` ends the shell with status 0 and
+%% leaves the node running, its own report of the fault on its standard
+%% error. Written after the code, a regression test: MVP 4.0's item 5
+attached_terminal_test_() ->
+    nodes_test({waits, 11}, fun attached_terminal/1).
+
+attached_terminal(Base) ->
+    Root = filename:join(Base, "program"),
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "faulter.ern"), faulter()),
+    0 = built([Root]),
+    Port = free_port(),
+    Node = made(Base, "node", Port),
+    Ops = made(Base, "ops", none),
+    Pipe = filename:join(Base, "fault.pipe"),
+    [] = os:cmd("mkfifo " ++ Pipe),
+    lists(Node, [{"ops", Ops, none}]),
+    lists(Ops, [{"node", Node, Port}]),
+    {_, WaitNode} = started(Node, filename:join(Root, "faulter.erc"), [Pipe]),
+    prints(Node, "ready"),
+    Home = Ops ++ ".home",
+    ok = filelib:ensure_path(Home),
+    Shell = lists:flatten(["HOME=", Home, " ", ?ERN, " shell --config-dir ", Ops,
+                           " --attach node --source-root ", Base]),
+    {0, Screen} = ern_pty:run(Shell, [{expect, ":detach to leave."}, {expect, "> "},
+                                      {send, hex("1 + ")}, {expect, "1 + "},
+                                      {put, Pipe},
+                                      {expect, "faulted: division by zero"},
+                                      {expect, "1 + "},
+                                      {send, hex("2\r")}, {expect, "3 : Int"},
+                                      {send, hex(":detach\r")}],
+                              " --screen --size 24x80"),
+    Fault = "Faulter.main:5 faulted: division by zero",
+    says(Node, Fault),
+    Rows = [string:trim(Row, trailing)
+            || Row <- string:split(binary_to_list(Screen), "\n", all)],
+    ?assertEqual([Fault], [Row || Row <- Rows, string:find(Row, "faulted") =/= nomatch]),
+    [Fault | Under] = lists:dropwhile(fun(Row) -> Row =/= Fault end, Rows),
+    Trace = lists:takewhile(fun(Row) -> lists:prefix("    ", Row) end, Under),
+    ?assertNotEqual([], Trace),
+    ?assertMatch({["> 1 + 2", "3 : Int", "> :detach" | _], _},
+                 {lists:nthtail(length(Trace), Under), Rows}),
+    ?assertEqual(["> 1 + 2"], [Row || Row <- Rows, lists:prefix("> 1 +", Row)]),
+    stop(Node, WaitNode).
+
+%% A node's program whose worker faults once the named pipe it is given
+%% has been opened and closed, each run of `cat` waiting the harness's time
+%% for one step, while its entry process waits.
+faulter() ->
+    ["export fn main() : Unit receiving Unit =\n"
+     "    match Os.arguments {\n"
+     "        [pipe] -> {\n"
+     "            Io.println(\"ready\");\n"
+     "            let _ = spawn(fn() = divided(pipe));\n"
+     "            receive { _ -> Unit }\n"
+     "        }\n"
+     "      | _ -> Unit\n"
+     "    }\n"
+     "\n"
+     "fn divided(pipe : String) : Unit = {\n"
+     "    let _ = Os.run(Os.Command(program = \"cat\", arguments = [pipe], input = <<>>),\n"
+     "                   waitMs());\n"
+     "    Io.println(Int.toString(1 / (List.size(Os.arguments) - 1)))\n"
+     "}\n",
+     wait_ms_declaration()].
 
 %% A shell attached from the node of Ops to its listed peer Name, in line
 %% mode, its source root SourceRoot and its HOME a directory of its own, so

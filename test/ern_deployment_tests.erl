@@ -2,14 +2,17 @@
 %% (plan, MVP 3.2's item 9): its section 8, a deployment end to end, on
 %% real nodes, each command as its consoles write it, run from the
 %% directory their paths are relative to; the commands of its sections
-%% 1.1, 1.3 and 5.3, the harness's paths in place of the guide's; section
-%% 1.4's statuses; and the lines its sections 7 and 4.3 quote, each held to
-%% the line a node writes where a test provokes it, here or in
-%% ern_nodes_tests, by cataloged/4, which catalog_test sees every quoted
-%% line has. The nodes are started by ern_nodes_tests' harness, which reads
-%% each node's streams through a watcher of its own and kills every node
-%% still running when a test ends. Regression tests, written after the
-%% guide and the code; each says what it does not cover.
+%% 1.1, 1.3 and 5.3 and the session of its section 6, the harness's paths
+%% in place of the guide's; section 1.4's statuses; and the lines its
+%% sections 7 and 4.3 quote, and those its section 6 quotes of an attached
+%% shell's end and of an attach refused, each held to the line a node or a
+%% shell writes where a test provokes it, here or in ern_nodes_tests, by
+%% cataloged/4, which catalog_test sees every quoted line has.
+%%
+%% The nodes are started by ern_nodes_tests' harness, which reads each
+%% node's streams through a watcher of its own and kills every node still
+%% running when a test ends. Regression tests, written after the guide and
+%% the code; each says what it does not cover.
 -module(ern_deployment_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -307,6 +310,47 @@ upgrade(Base) ->
     ern_nodes_tests:stop(B, WaitB).
 
 %%
+%% Section 6, looking in
+%%
+
+%% guide/deployment.md, section 6; report §11.2 *The attached shell*,
+%% *Commands*, Appendix E.21, E.27: a counter of the example's first build
+%% on b, as section 8 starts it, and the session the section shows, a shell
+%% attached to b from ops: `:processes` lists the counter by its site,
+%% waiting for a message; `Process.live()` and `Process.status` answer for
+%% b, the session's own processes left out; `Peer.peers()` is b's
+%% configuration; `:browse Counter` lists b's build; `:quit` is refused;
+%% and `:detach` ends the shell with status 0. b says that ops connected
+%% and, once the shell has detached, that ops ended.
+%%
+%% The section's other claims are held by ern_nodes_tests: a fault said at
+%% each attached prompt (attached_sessions), what a session started left
+%% running on the node (attached_service), and the lines it quotes of an
+%% attached shell's end and of an attach refused, each by cataloged/4. Its
+%% limit is the sum of its thirteen waits, each bounded by the harness's
+%% time for one wait: the build, a port that answers, the session's six
+%% prompts, the shell's end and what it said, b's two lines and b's end. A
+%% regression test, written after the guide and the shell: MVP 4.0's item 5.
+looking_in_test_() ->
+    ern_nodes_tests:nodes_test({waits, 13}, fun looking_in/1).
+
+looking_in(Base) ->
+    [Session] = [Lines || {"## 6." ++ _, "", Lines} <- blocks()],
+    ok = copied(Base),
+    PortB = ern_nodes_tests:free_port(),
+    A = ern_nodes_tests:made(Base, "a", none),
+    B = ern_nodes_tests:made(Base, "b", PortB),
+    Ops = ern_nodes_tests:made(Base, "ops", none),
+    ern_nodes_tests:lists(Ops, [{"b", B, PortB}]),
+    ern_nodes_tests:lists(B, [{"a", A, none}, {"ops", Ops, none}]),
+    ?assertEqual({0, "", ""}, job(Base, "build upgrade/v1")),
+    {_, WaitB} = node(Base, "run --config-dir b --main Counter.serve upgrade/v1/counter.erc"),
+    listens(B, PortB),
+    detached = attached(Base, Ops, Session),
+    [ern_nodes_tests:says(B, Line) || Line <- ["the peer ops connected", "the peer ops ended"]],
+    ern_nodes_tests:stop(B, WaitB).
+
+%%
 %% The lines a node writes, sections 7 and 4.3
 %%
 
@@ -453,10 +497,10 @@ four_fifths() ->
                    " back\n">>, Said),
     cataloged(binary_to_list(Said), "7", "never gives back", [{"N", "52429"}, {"M", "65536"}]).
 
-%% guide/deployment.md, sections 7 and 4.3: every line the guide quotes
-%% there is held to a node's by a check that names it, beside the test
-%% that provokes the line, in this module or in ern_nodes_tests, and each
-%% check names one line
+%% guide/deployment.md, sections 7, 4.3 and 6: every line the guide quotes
+%% there is held to a node's or a shell's by a check that names it, beside
+%% the test that provokes the line, in this module or in ern_nodes_tests,
+%% and each check names one line
 catalog_test() ->
     Quoted = quoted(),
     ?assert(length(Quoted) >= 26),
@@ -498,9 +542,9 @@ check(Node) ->
             []
     end.
 
-%% guide/deployment.md, sections 7 and 4.3: the line Section quotes that
-%% holds Fragment is a line of Err, a node's standard error, after its
-%% time, with each of the guide's names in it that Names gives the
+%% guide/deployment.md, sections 7, 4.3 and 6: the line Section quotes
+%% that holds Fragment is a line of Err, a node's or a shell's standard
+%% error, after its time, with each of the guide's names in it that Names gives the
 %% harness's in its place, and `...` any text. A line quoted after another
 %% in one cell or one item, `the peer b was added` / `was removed`, is the
 %% end of a line.
@@ -533,10 +577,12 @@ pattern(Line, Whole, Names) ->
 part("...", _) -> ".*";
 part(Part, Names) -> ["\\Q", proplists:get_value(Part, Names, Part), "\\E"].
 
-%% The lines sections 7 and 4.3 quote, {Section, Line, Whole}: each code
-%% span of the catalog's first column, and each of an item's before its
-%% colon, a span after the first in its cell or its item continuing the
-%% one before it.
+%% The lines sections 7, 4.3 and 6 quote, {Section, Line, Whole}: each
+%% code span of the catalog's first column, and each of an item's before
+%% its colon, a span after the first in its cell or its item continuing the
+%% one before it; and each span of section 6's prose that is a line an
+%% attached shell writes at its end or at a refused attach, `the node b
+%% ended`, `ern shell: the peer b is unreachable`, each a whole line.
 quoted() ->
     Lines = guide_lines(),
     [{"7", Span, Whole}
@@ -544,7 +590,13 @@ quoted() ->
         {Span, Whole} <- spans(hd(string:split(Row, " | ")))]
         ++ [{"4.3", Span, Whole}
             || "- `" ++ _ = Item <- section(Lines, "### 4.3"),
-               {Span, Whole} <- spans(hd(string:split(Item, "`: ")) ++ "`")].
+               {Span, Whole} <- spans(hd(string:split(Item, "`: ")) ++ "`")]
+        ++ [{"6", Span, true}
+            || Line <- section(Lines, "## 6."),
+               {match, Spans} <- [re:run(Line, "`([^`]*)`",
+                                         [global, {capture, all_but_first, list}])],
+               [Span] <- Spans,
+               lists:prefix("ern shell: ", Span) orelse lists:prefix("the node ", Span)].
 
 spans(Text) ->
     {match, Spans} = re:run(Text, "`([^`]*)`", [global, {capture, all_but_first, list}]),

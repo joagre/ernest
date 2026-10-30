@@ -50,10 +50,8 @@ One form of attaching, by a listed peer, since a node accepts a connection from 
    Built*).
 3. **The shell**, done 2026-10-30 (the log's *The Attached Shell, Built*).
 4. **The guides**, done 2026-10-30 (the log's *The Guides Over the Attached Shell*).
-5. **The tests and the release**: the nodes tests over a shell attached to a bare node and to a
-   program's node, two sessions on one node, a `:load` shipped as text, a detach that leaves a
-   service running, the node's loss and an attach that fails; the guide's section 6 run by them; the session golden
-   test over an attached session; then the release that follows, 0.7.0, by `docs/release_review.md`.
+5. **The tests and the release**: the tests, done 2026-10-30 (the log's *The Attached Shell,
+   Tested*); then the release that follows, 0.7.0, by `docs/release_review.md`.
 6. **The shell's end loses its last lines**, fixed 2026-10-30 (the log's *The End's Lines Reach
    the Screen*).
 7. **A line-mode input costs 25 ms**, halved 2026-10-30 (the log's *A Line-Mode Input's Cost*).
@@ -67,6 +65,13 @@ One form of attaching, by a listed peer, since a node accepts a connection from 
     an Input's Cost Flat*).
 12. **An input's cost grows with the session**, fixed 2026-10-30 (the log's *An Expression's One
     Unit, and an Input's Cost Flat*).
+13. **A function of a detached session's code faults**, found 2026-10-30 by item 5's tests (the
+    log's *The Attached Shell, Tested*): a process that holds a function of a session's unit, a
+    `restarting` service's among them, faults with `undef` when it calls it after the session has
+    detached, against §11.2's *The attached shell*, since OTP 29 does not count a function value
+    as code a process holds. A decision for the user before 0.7.0, §11.2 changing with it: the
+    log recommends holding a detached session's units that declare or build a function value for
+    the node's life, as a load's are.
 
 The attached shell is the operator's alone, trusted as a peer is, with no sandbox: the website runs
 the plain shell in a container per visitor (MVP 4.2).
