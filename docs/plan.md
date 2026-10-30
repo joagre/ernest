@@ -23,11 +23,12 @@ library or the libraries is driven by a need met in use and recorded as `docs/la
 records one.
 
 Next is the report pared to the language, MVP 3.96; then the attached shell, ehttpd,
-the website, the shell's second round and the back end (the log's *The Road to 1.0, Ordered*). A finished milestone is a row
+the website and the shell's second round (the log's *The Road to 1.0, Ordered*); the back end
+to BEAM's own instructions that closed the road is not built, decided 2026-10-30 (the log's *No
+Back End to BEAM's Own Instructions*). A finished milestone is a row
 of the table at the end, its reasons in the log entries the row names.
 
 ---
-
 
 ## MVP 3.96 (the report pared to the language), after 0.6.0, about three days
 
@@ -252,26 +253,6 @@ log's *The Shell's Second Round*), in this order. The first three need nothing o
    process is found without `List.map(Process.live(), Process.status)` (the full review's B-H3,
    placed here 2026-10-24).
 
-## MVP 4.4 (a back end to BEAM's own instructions)
-
-The last milestone, after Ernest 0.5.0, decided with the user on 2026-10-10 (the log's *The Road
-to 1.0, Ordered*): a second back end beside the emitter's Erlang abstract format, writing the
-BEAM's own instructions, its generic opcodes (`genop.tab`, format 0, additions only, OTP 29's
-record instructions among them), with Ernest's proven types written as the loader's typed
-registers, so that the JIT emits code without the run-time type tests the Erlang compiler must
-keep.
-
-It changes no rule of the language, and it makes the soundness argument load-bearing for
-the VM's memory safety: a value from outside, a peer's message, foreign code's return, is fully
-checked before its register is typed, which §8.4's checks and the argument's section 7 must
-then be read as carrying.
-
-Conditions before it is built: the language held still, as 1.0 will say, OTP
-pinned for the long term, and `make bench`'s numbers for what the type tests cost today, which
-decide whether it is worth its cost. A first, safe step to measure against: a type guard at each
-function's entry, from which the Erlang compiler's own inference types the body. Its design is a
-proposal first, discussed with the user, as MVP 3.1's was.
-
 ---
 
 ## Milestones
@@ -322,5 +303,3 @@ proposal first, discussed with the user, as MVP 3.1's was.
 | MVP 4.1 | ehttpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | | | above |
 | MVP 4.2 | the website, served by ehttpd: what Ernest is, its characteristics, the three doors, and a live shell in the browser | | | above |
 | MVP 4.3 | the shell's second round | | | above |
-| MVP 4.4 | after 0.5.0: a back end to BEAM's own instructions, Ernest's types as the loader's typed registers | a proposal first | | above |
-
