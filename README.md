@@ -98,7 +98,7 @@ It is young. Programs run on one node and across nodes, and 0.6.0, the release a
 
 ## Installing
 
-On Linux, with Erlang/OTP 29 on your `PATH`, GNU make and a C compiler; macOS is expected to work the same way, and is not yet verified:
+On Linux, with Erlang/OTP 29 on your `PATH`, GNU make and a C compiler, which on Debian and Ubuntu are the packages `make` and `gcc`, with OTP 29 as below since their own `erlang` package is older; macOS is expected to work the same way, and is not yet verified:
 
 ```
 git clone https://github.com/joagre/ernest.git

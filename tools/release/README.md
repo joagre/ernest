@@ -12,7 +12,7 @@ Ernest is a small functional language for concurrent programs, on the Erlang run
 
 ## Installing
 
-From the archive, on Linux; macOS is expected to work the same way, and is not yet verified. It needs Erlang/OTP 29 on your `PATH`, make, and a C compiler, for the one part of Ernest in C, the helper that runs another program for `Os.run`:
+From the archive, on Linux; macOS is expected to work the same way, and is not yet verified. It needs Erlang/OTP 29 on your `PATH`, make, and a C compiler, on Debian and Ubuntu the packages `make` and `gcc`, for the one part of Ernest in C, the helper that runs another program for `Os.run`; their own `erlang` package is older than 29, so OTP comes from [erlang.org/downloads](https://www.erlang.org/downloads) or a version manager such as kerl:
 
 ```
 make
