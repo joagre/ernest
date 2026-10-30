@@ -97,6 +97,14 @@ name, which Ernest's parentheses make a call, the dot, and the marks other langu
    them, written as a pun where the names agree; `guide/style.md`'s rule that they are; and
    whether `ern fmt` writes the pun, decided against the log's *What the Formatter Keeps*.
 
+Discussed with the user when the milestone opens, after MVP 4.0's release, each with its
+recommendation then: whether the formatter writes the pun where the names agree, or the style
+guide alone asks for it; `language_feedback.md`'s 170, a program's process answering a call with
+an `Either(Io.Error, a)` whose caller folds `Address.call`'s `None` into `Left(Io.Timeout)` by
+hand, a shape the shell writes three times; and its 171, an `Optional` taken as a list of none or
+one, which has no function. The two lines were found by the read-back that found the pun's
+sites, and are read the same way, as forms the code repeats.
+
 ---
 
 ## MVP 4.1 (ernest-httpd, and the libraries it wants)
