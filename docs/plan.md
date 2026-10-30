@@ -52,7 +52,11 @@ One form of attaching, by a listed peer, since a node accepts a connection from 
 4. **The guides**: the deployment guide's sections 5.3 and 6 rewritten over the attached shell,
    an attach made with the node's own release of `ern` among what section 6 says, and the
    language guide's §8.9 upgrade becoming a `:load` of the new build at the node's prompt with
-   `Code.running` run there (asked by the user 2026-10-18).
+   `Code.running` run there (asked by the user 2026-10-18). The line, decided 2026-10-30: a
+   compute stays where the text teaches a program's own operation, the language guide's §8.1 and
+   the tour's chapter 7 starting a counter on `foo`; an attached session replaces it wherever an
+   operator looks at a node or acts on it from a prompt, the tour's chapter 8 upgrading `foo`'s
+   counter by `:load` at its prompt among them, the chapters' programs unchanged.
 5. **The tests and the release**: the nodes tests over a shell attached to a bare node and to a
    program's node, two sessions on one node, a `:load` shipped as text, a detach that leaves a
    service running, the node's loss and an attach that fails; the guide's section 6 run by them; the session golden
@@ -66,6 +70,11 @@ One form of attaching, by a listed peer, since a node accepts a connection from 
    it (the runtime's note's *The process model*, `wait_for_later/0`), since a line of the
    toolchain's own is to wait until standard error has taken it; diagnosed with the session's end,
    which the detach rewrites, and before the release.
+7. **A line-mode input costs 25 ms**, found 2026-10-30 as item 3 closed: a thousand inputs of
+   `1` take 24.5 s, on the code before the item as after it, where an input's work is one small
+   unit compiled, loaded and run. A slow tool is a defect (CLAUDE.md, *Design*). The shape of
+   its fix: measure where the input's time goes, the compile, the load, the front end's table and
+   the screen's round trip, as `make bench` measures, and fix it at its cause; before the release.
 
 The attached shell is the operator's alone, trusted as a peer is, with no sandbox: the website runs
 the plain shell in a container per visitor (MVP 4.2).
