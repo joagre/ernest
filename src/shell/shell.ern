@@ -1404,8 +1404,9 @@ fn leave(state : State, screen : Address(ScreenMsg), text : String) : Unit recei
 
 // Report §11.2: an attached session's end, which leaves its node running:
 // its reader and its screen end, and the front end leaves what the session
-// started to the node and lets its units go as the purge allows (`detach`).
-// A plain shell's ends with its program.
+// started to the node, keeps for the node's life its units that declare a
+// function or build a function value, and lets the rest go as the purge
+// allows (`detach`). A plain shell's ends with its program.
 fn detached(state : State, screen : Address(ScreenMsg)) : Unit =
     if state.attached then {
         match state.reader {
@@ -2173,7 +2174,8 @@ foreign fn start(local : Address(LocalMsg),
     "ern_shell:start/5"
 
 // Report §11.2: an attached session's end: what it started left to the
-// node, its units let go as the purge allows.
+// node, its units that declare a function or build a function value kept
+// for the node's life, and the rest let go as the purge allows.
 foreign fn detach(session : Session) : Unit =
     "ern_shell:detach/1"
 

@@ -66,11 +66,8 @@ One form of attaching, by a listed peer, since a node accepts a connection from 
 12. **An input's cost grows with the session**, fixed 2026-10-30 (the log's *An Expression's One
     Unit, and an Input's Cost Flat*).
 13. **A detached session's units that declare a function or build a function value are kept
-    for the node's life**, as a load's are, decided 2026-10-30 after item 5's tests found a
-    process holding a function of a detached session's unit faulting with `undef` (the log's *The
-    Attached Shell, Tested*), since OTP 29's `check_process_code` does not count a function value
-    as code a process holds, confirmed with OTP alone: §11.2's `:detach` sentence states it since
-    that day; built before 0.7.0 with its test, the design note's *The detach* changing with it.
+    for the node's life**, built 2026-10-30 (the log's *The Detach Keeps What Declares a
+    Function*).
 
 The attached shell is the operator's alone, trusted as a peer is, with no sandbox: the website runs
 the plain shell in a container per visitor (MVP 4.2).

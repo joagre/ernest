@@ -176,12 +176,16 @@
 %% name it prints with.
 -record(bound, {interface = none, declared = none}).
 %% Report §11.2: a unit of the session's, a row by its Erlang name (unit/1):
-%% its namespace; the session's units it needs, those its code calls where
-%% the session keeps it, whose types its interface names and whose functions
-%% its values hold; the keys its values are kept under, and the qualified
-%% names in scope that reach them; and whether the session keeps its code
-%% while it runs, an input's that declares or builds a function value.
--record(session_unit, {namespace, needs = [], keys = [], names = [], kept = false}).
+%% its namespace; the session's units it needs, those its code calls and
+%% whose definitions its forms name where the session keeps it, whose types
+%% its interface names and whose functions its values hold; the keys its
+%% values are kept under, and the qualified names in scope that reach
+%% them; whether the session keeps its code while it runs, an input's that
+%% declares or builds a function value; and whether the node keeps it for
+%% its life once the session has detached, an input's that declares a
+%% function or builds a function value (lasting/3).
+-record(session_unit, {namespace, needs = [], keys = [], names = [], kept = false,
+                       lasting = false}).
 %% Where an input from a startup file came from: the file, the line it
 %% stands on, and the column it begins in (report §11.2); a typed input's
 %% origin is `{typed, Name}`.
@@ -1131,16 +1135,17 @@ run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interfac
                                               input_name => InputName},
     {ok, ErlangModule, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
     %% report §11.1: the interface as compiled, with the hash of each of its
-    %% definitions, by which a later input's forms name them; and whether
-    %% the input's code builds a function value, which the emitter says
-    {ok, #{interface := Compiled, builds_functions := BuildsFunctions}} =
+    %% definitions, by which a later input's forms name them; whether the
+    %% input's code builds a function value, which the emitter says; and
+    %% the other units' definitions its forms name (record_uses/5)
+    {ok, #{interface := Compiled, builds_functions := BuildsFunctions} = Chunk} =
         ern_interface:read(Beam),
     {module, ErlangModule} = code:load_binary(ErlangModule, atom_to_list(ErlangModule), Beam),
     unit_loaded(ErlangModule, Beam),
     keep(free, kept(free, []) -- [Namespace]),
-    Kept = Binds =:= declarations orelse BuildsFunctions,
+    Kept = is_kept(Binds, BuildsFunctions),
     Binding = binding(Plan, Session, Checked, ErlangModule, Beam, Compiled),
-    record_uses(ErlangModule, Beam, Checked, Kept, held_value(Binding)),
+    record_uses(ErlangModule, Beam, Checked, Chunk, held_value(Binding)),
     %% report §11.2: an input that declares keeps its text, to be compiled
     %% again as a new version of its input where a reload changes what it
     %% references (reached_inputs/2)
@@ -1326,37 +1331,72 @@ let_go(Named) ->
 
 %% Report §11.2: what the input's unit needs of the session's units, kept
 %% while it is (collected/1): where the session keeps it, those its code
-%% calls, since its code may run again, and where it declares or holds a
-%% value, those whose types its interface names; the keys it keeps a value
-%% under, and the names in scope that reach them; whether the session keeps
-%% its code while it runs; and the name its spawn sites are written with. A
-%% unit that holds `it` and that the session does not keep needs none of
-%% what its code called, which runs no more. A declaring input a reload
-%% compiles again is one the session keeps.
-record_uses(ErlangModule, Beam, Checked) ->
-    record_uses(ErlangModule, Beam, Checked, true, {[], []}).
+%% calls, since its code may run again, and those whose definitions its
+%% forms name, a type its body alone names among them, as a peer's spawn
+%% of its function ships them (§8.7); and where it declares or holds a
+%% value, those whose types its interface names. Then the keys it keeps a
+%% value under, and the names in scope that reach them; whether the
+%% session keeps its code while it runs, and whether the node keeps it for
+%% its life once the session has detached; and the name its spawn sites
+%% are written with. A unit that holds `it` and that the session does not
+%% keep needs none of what its code called, which runs no more. Chunk is
+%% the unit's interface chunk as read.
+record_uses(ErlangModule, Beam, Checked, Chunk) ->
+    record_uses(ErlangModule, Beam, Checked, Chunk, {[], []}).
 
 record_uses(ErlangModule, Beam, #checked{namespace = Namespace, interface = Interface,
                                          binds = Binds, site = {InputName, _}},
-            Kept, {Keys, Names}) ->
+            #{builds_functions := BuildsFunctions, references := References}, {Keys, Names}) ->
+    Kept = is_kept(Binds, BuildsFunctions),
     {ok, {_, [{imports, Imports}]}} = beam_lib:chunks(Beam, [imports]),
     Calls = [Imported || Kept, {Imported, _, _} <- Imports, is_session_module(Imported),
                          Imported =/= ErlangModule],
+    Referenced = case Kept of
+                     true -> mentions(References, Namespace);
+                     false -> []
+                 end,
     Named = case Binds =:= declarations orelse Keys =/= [] of
                 true -> mentions(Interface, Namespace);
                 false -> []
             end,
     unit_recorded(ErlangModule, #session_unit{namespace = Namespace,
-                                              needs = lists:usort(Calls ++ Named), keys = Keys,
-                                              names = Names, kept = Kept}),
+                                              needs = lists:usort(Calls ++ Referenced ++ Named),
+                                              keys = Keys, names = Names, kept = Kept,
+                                              lasting = lasting(ErlangModule, Binds,
+                                                                BuildsFunctions)}),
     node_keep({input_name, ErlangModule}, InputName),
     ok.
+
+%% Report §11.2: whether the session keeps an input's code while it runs,
+%% one that declares or whose code builds a function value (release/1).
+is_kept(Binds, BuildsFunctions) ->
+    Binds =:= declarations orelse BuildsFunctions.
+
+%% Report §11.2: whether the node keeps an input's unit for its life once
+%% the session has detached, as a load's are: one whose code builds a
+%% function value, and one that declares a function, a function or a
+%% foreign function its '$code'/0 lists, a member a type derives among
+%% them, since a process may hold a function of it anywhere and the host
+%% cannot tell which: erlang:check_process_code/2 counts no function value
+%% as code a process holds. An input that declares types alone, or that
+%% declares nothing, makes no function a value may hold.
+lasting(_ErlangModule, _Binds, true) ->
+    true;
+lasting(ErlangModule, declarations, false) ->
+    lists:any(fun({_, {function, _, _, _, _}}) -> true;
+                 ({_, {foreign, _, _, _, _}}) -> true;
+                 (_) -> false
+              end, ErlangModule:'$code'());
+lasting(_ErlangModule, _Binds, false) ->
+    false.
 
 %% Report §11.2: an input that declares, or whose code builds a function
 %% value, a lambda, an adapted address's function, a function taken as a value, which
 %% may then be held anywhere, is kept while the session runs, as a
-%% program's modules are; the emitter marks which (ern_emitter's
-%% function_value/2), and the interface chunk records it, `builds_functions`.
+%% program's modules are, and past an attached session's detach where it
+%% declares a function or builds one (lasting/3); the emitter marks which
+%% builds one (ern_emitter's function_value/2), and the interface chunk
+%% records it, `builds_functions`.
 %% An expression's that binds `it` holds its value, and is kept while a
 %% name reaches it (collected/1). Any other is done with its module once its
 %% answer is in, whether it faulted or not: no process runs its code then,
@@ -3906,13 +3946,14 @@ new_version(#session{interfaces = Interfaces, beams = Beams, units = Units} = Se
               form_namespace => session_namespace(Session), units => Units#{Namespace => Unit},
               input_name => InputName},
     {ok, Unit, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
-    {ok, #{interface := #interface{identities = Identities} = Compiled}} =
+    {ok, #{interface := #interface{identities = Identities} = Compiled} = Chunk} =
         ern_interface:read(Beam),
     {module, Unit} = code:load_binary(Unit, atom_to_list(Unit), Beam),
     unit_loaded(Unit, Beam),
     record_uses(Unit, Beam, #checked{namespace = Namespace, interface = Compiled,
                                      binds = declarations, site = Site,
-                                     printed_name = PrintedName}),
+                                     printed_name = PrintedName},
+                Chunk),
     Others = [Other || #interface{namespace = Found} = Other <- Interfaces, Found =/= Namespace],
     {Own, _} = redeclared(Compiled, Others),
     After = Session#session{interfaces = [case Found of
@@ -4563,8 +4604,7 @@ given_holder(Number) ->
 
 %% Report §11.2: the session's modules whose functions a term holds, a
 %% fun's own and those the funs it captured hold, so that a holder of a
-%% function a session module made needs that module while it lives, and a
-%% detach that keeps the holder keeps the module's code (released/4).
+%% function a session module made needs that module while it lives.
 held_functions(Fun, Acc) when is_function(Fun) ->
     {module, Module} = erlang:fun_info(Fun, module),
     Held = case is_session_module(Module) of
@@ -4789,9 +4829,10 @@ forget_units(ErlangModules) ->
 %% them what they started and every process an input spawned, left to the
 %% node, no longer the session's own, and writing to the node's standard
 %% output and standard error from then on, the rows of the session's screen
-%% dropped; and its units let go as an input's is, but one a process still
-%% runs or holds a function of, kept while it does (released/4). Its rows
-%% go with it.
+%% dropped; its units that declare a function or build a function value
+%% kept for the node's life, with what they need (kept_for_life/1); and the
+%% rest let go as an input's is, but one a process still runs, kept while
+%% it does (released/4). Its rows go with it.
 -spec detach(#session{}) -> 'Unit'.
 detach(_Session) ->
     Root = session_root(),
@@ -4799,7 +4840,8 @@ detach(_Session) ->
     Evaluators = kept(evaluators, []),
     'Unit' = ern_rt:disown(Evaluators),
     lists:foreach(fun ern_rt:drop_screen/1, [Root | Evaluators]),
-    Uses = units(),
+    Units = units(),
+    Uses = maps:without(maps:keys(kept_for_life(Units)), Units),
     case released(in_users_order(Uses), Uses, #{}, []) of
         [] -> ok;
         Remaining ->
@@ -4808,13 +4850,33 @@ detach(_Session) ->
     true = ets:match_delete(?MODULE, {{Root, '_'}, '_'}),
     'Unit'.
 
+%% Report §11.2: the session's units the node keeps for its life once the
+%% session has detached, as it keeps a load's: each that declares a
+%% function or builds a function value (lasting/3), its code, its values
+%% and its name, which a spawn site of it reads, and every unit one of
+%% them needs, its code calling it or its forms or its interface naming
+%% its definitions, and onward. The values of such a unit that none of
+%% them needs are let go here, since no code that stays reads them, `it`
+%% the last expression gave among them.
+kept_for_life(Units) ->
+    Needed = reached(lists:append([Needs || _ := #session_unit{lasting = true, needs = Needs}
+                                                <- Units]),
+                     Units, #{}),
+    Lasting = [ErlangModule || ErlangModule := #session_unit{lasting = true} <- Units],
+    [persistent_term:erase(Key)
+     || ErlangModule <- Lasting, not is_map_key(ErlangModule, Needed),
+        Key <- (maps:get(ErlangModule, Units))#session_unit.keys],
+    maps:merge(Needed, maps:from_keys(Lasting, true)).
+
 %% Report §11.2: each of a session's units let go once the session has
 %% ended, a unit after every unit that uses it: deleted and purged where no
-%% process runs it or holds a function of it, its values, its code and its
-%% name, which a spawn site of it reads, gone with it; and where one does,
-%% left as the old code it then is, and each unit it uses kept as it is,
-%% since that code calls them. The units that remain, to purge at a later
-%% collection of any session's (collect_detached/0).
+%% process runs it, its values, its code and its name, which a spawn site
+%% of it reads, gone with it; and where one does, left as the old code it
+%% then is, and each unit it uses kept as it is, since that code calls
+%% them. The units that remain, to purge at a later collection of any
+%% session's (collect_detached/0). A unit of which a process may hold a
+%% function stays for the node's life and comes to none of this
+%% (kept_for_life/1).
 released([], _Uses, _Kept, Remaining) ->
     Remaining;
 released([ErlangModule | Rest], Uses, Kept, Remaining) when is_map_key(ErlangModule, Kept) ->
@@ -4845,11 +4907,11 @@ in_users_order(Uses) ->
         Unneeded -> Unneeded ++ in_users_order(maps:without(Unneeded, Uses))
     end.
 
-%% Report §11.2: the units each detached session left, by its root, purged
-%% as their processes end, at each session's start and each collection, so
-%% that a unit kept for a process is let go once the process no longer
-%% needs it; one row of the node's, read once, which holds nothing but
-%% after a session left a unit a process ran.
+%% Report §11.2: the units each detached session left for a process that
+%% ran them, by its root, purged as their processes end, at each session's
+%% start and each collection, so that such a unit is let go once the
+%% process no longer runs it; one row of the node's, read once, which
+%% holds nothing but after a session left a unit a process ran.
 collect_detached() ->
     case node_kept(detached, #{}) of
         Detached when map_size(Detached) =:= 0 ->

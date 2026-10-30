@@ -3758,14 +3758,13 @@ detached({Port, Wait}, Ops) ->
 %% calls a function another of its inputs declares, starts the server with
 %% a `let`, hands its address to the program's service `Serve.holder`, and
 %% calls it, what the server prints standing on the session's screen. The
-%% session detaches, and the node keeps the session's units while the
-%% server runs them: a second session finds the server through the service
-%% and calls it, and it answers from the count it kept, printing on the
-%% node's standard output now and not on the second session's screen.
+%% session detaches, and the node keeps the session's units that declare
+%% the server's functions: a second session finds the server through the
+%% service and calls it, and it answers from the count it kept, printing on
+%% the node's standard output now and not on the second session's screen.
 %%
-%% It does not cover a process that holds a function of a detached
-%% session's unit, a function value, and calls it after the detach, which
-%% faults: the plan's MVP 4.0 item 13. Written after the code, a
+%% A process that holds a function of a detached session's unit, and runs
+%% none of its code, is attached_functions'. Written after the code, a
 %% regression test: MVP 4.0's item 5
 attached_service_test_() ->
     nodes_test({waits, 9}, fun attached_service/1).
@@ -3844,6 +3843,198 @@ serve() ->
     "            holding(held)\n"
     "        }\n"
     "    }\n".
+
+%% report §11.2 *The attached shell*, *Inputs*, §6.9: a detach keeps for
+%% the node's life each of the session's units that declares a function
+%% or builds a function value, with the units it needs, since the host
+%% cannot tell which process holds a function of one.
+%%
+%% At the prompt of a program's node a session declares the types `Pair`
+%% and `Unused`, a type that derives `compare`, a `foreign fn`, and
+%% `tripled`, whose body alone names `Pair`. It starts with a `let` a
+%% process of the program's loop holding a lambda that computes `tripled`
+%% on a bare peer, and with another a `restarting` service whose function
+%% is a lambda; hands the function and both addresses to the program's
+%% `Keep.holder`, and calls the service. It binds `let x = 1`, types
+%% `x + 1`, lists the session units the node holds, and detaches.
+%%
+%% A second session calls each through the process that holds it: the
+%% holder applies `tripled`; the process its lambda, the node shipping the
+%% forms of `tripled` and of `Pair` to the peer, which held none; and the
+%% service, made to fault, restarts with its function, now writing on the
+%% node's standard output, and answers. Nothing on the node's standard
+%% error is an `undef`.
+%%
+%% Of the first session's ten input units and three holders, the six
+%% inputs that declare a function or build a function value stay, with
+%% `Pair`'s, whose type `tripled`'s form names, and the holder of `s`,
+%% which the call of the service reads; `Unused`'s, the holders of `p` and
+%% `x`, the unit of `x + 1`, which holds `it`, and the input that listed
+%% them are let go, as §11.2 *Inputs* lets one go. The input that hands
+%% `tripled` builds no function value of its own, and went when the
+%% call's answer took `it`. Written before the code: MVP 4.0's item 13
+attached_functions_test_() ->
+    nodes_test({waits, 12}, fun attached_functions/1).
+
+attached_functions(Base) ->
+    Root = filename:join(Base, "program"),
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "keep.ern"), keep()),
+    Units = filename:join(Root, "ern_nodes_units.erl"),
+    ok = file:write_file(Units, units_module()),
+    {ok, _} = compile:file(Units, [{outdir, Root}]),
+    0 = built([Root]),
+    [Port, PeerPort] = [free_port(), free_port()],
+    Node = made(Base, "node", Port),
+    Peer = made(Base, "peer", PeerPort),
+    [One, Two] = [made(Base, Name, none) || Name <- ["one", "two"]],
+    lists(Node, [{"one", One, none}, {"two", Two, none}, {"peer", Peer, PeerPort}]),
+    [lists(Ops, [{"node", Node, Port}]) || Ops <- [One, Two, Peer]],
+    {_, WaitPeer} = launched(Peer, [?ERN, " run --config-dir ", Peer]),
+    says(Peer, "listening on "),
+    {_, WaitNode} = started(Node, filename:join(Root, "keep.erc"), []),
+    prints(Node, "ready"),
+    Ms = wait_ms_text(),
+    Asked = fun(Address, Message) ->
+                ["Address.call(", Address, ", fn(reply) = Keep.", Message, "reply = reply), ", Ms,
+                 ")"]
+            end,
+    {First, _} = Attached = attached(One, "node", Base),
+    true = port_command(First, [[Input, "\n"]
+                                || Input <- ["type Pair = Pair(left : Int, right : Int)",
+                                             "type Unused = Unused",
+                                             "type Ordered = Ordered(Int) derives compare",
+                                             "foreign fn yielded() : Bool = \"erlang:yield/0\"",
+                                             ["fn tripled(n : Int) : Int = {",
+                                              " let pair = Pair(left = 3, right = n);",
+                                              " pair.left * pair.right }"],
+                                             ["let p = spawn(fn() = Keep.applying(fn(n) =",
+                                              " match Peer.computeAt(\"peer\", fn() = tripled(n), ",
+                                              Ms, ") { Right(v) -> v | Left(_) -> 0 }))"],
+                                             ["let s = spawn(restarting(RestartLimit(restarts = 3,",
+                                              " within = 60000), fn() = {",
+                                              " Io.println(\"serving squares\");",
+                                              " Keep.applying(fn(n) = n * n) }))"],
+                                             ["send(Keep.holder, Keep.Hold(applied = tripled,",
+                                              " applying = p, service = s))"],
+                                             Asked("s", "Ask(number = 3, "),
+                                             "let x = 1", "x + 1",
+                                             "let _ = Keep.printUnits()"]]),
+    {Out, _} = detached(Attached, One),
+    has(Out, "serving squares\n"),
+    has(Out, "> Some(9) : Optional(Int)\n"),
+    has(Out, "> 2 : Int\n"),
+    {Second, _} = Again = attached(Two, "node", Base),
+    entered(Second, Two, [Asked("Keep.holder", "Apply(number = 5, "),
+                          ["let #(p, s) <- ", Asked("Keep.holder", "Servers(")],
+                          Asked("p", "Ask(number = 5, "), "send(s, Keep.Crash)"],
+            "s : Address(Keep.Ask)\n> Some(15) : Optional(Int)\n"),
+    prints(Node, "serving squares\n"),
+    true = port_command(Second, [Asked("s", "Ask(number = 5, "), "\n",
+                                 "let _ = Keep.printUnits()\n"]),
+    {SecondOut, _} = detached(Again, Two),
+    has(SecondOut, "> Some(15) : Optional(Int)\n> p : "),
+    %% the service's fault is said above its answer
+    has(SecondOut, "Some(25) : Optional(Int)\n"),
+    stop(Node, WaitNode),
+    stop(Peer, WaitPeer),
+    {NodeOut, NodeErr} = said(Node),
+    ?assertEqual("ready\nserving squares\n", NodeOut),
+    has(NodeErr, "input 7:1 faulted, restarted: asked to crash"),
+    ?assertEqual(nomatch, string:find(NodeErr, "undef")),
+    %% report §11.2: the first session's units, before its detach and after
+    Before = session_units(Out),
+    [Number] = lists:usort([Session || {_, Session} <- Before]),
+    After = [Unit || {_, Session} = Unit <- session_units(SecondOut), Session =:= Number],
+    ?assertEqual({10, 3}, kinds(Before)),
+    ?assertEqual({7, 1}, kinds(After)),
+    ?assertEqual([], After -- Before),
+    %% the first four inputs, `Pair`'s, `Unused`'s, `Ordered`'s and the
+    %% foreign function's, took the first four numbers, none having been
+    %% given again
+    [?assertEqual(Kept, lists:member({"ern@$input" ++ Number ++ "_" ++ Input, Number}, After))
+     || {Input, Kept} <- [{"1", true}, {"2", false}, {"3", true}, {"4", true}]].
+
+%% The session units a session's output lists, each its Erlang name and
+%% the number of its session (report §11.2, Appendix H).
+session_units(Text) ->
+    {match, Matched} = re:run(Text, "ern@\\$(?:input|bindings)([0-9]+)_[0-9]+\n",
+                              [global, {capture, all, list}]),
+    lists:usort([{string:trim(Name), Session} || [Name, Session] <- Matched]).
+
+%% How many of Units are inputs' and how many holders'.
+kinds(Units) ->
+    Inputs = [Unit || {"ern@$input" ++ _, _} = Unit <- Units],
+    {length(Inputs), length(Units) - length(Inputs)}.
+
+%% A node's program whose holder keeps a function and two servers a
+%% session hands it, for a later session to call through it; its loop a
+%% server a session may start, which answers each number it is asked with
+%% a function's value of it until it is asked to crash; and the session
+%% units the node holds, by their names, printed a line each.
+keep() ->
+    "export type Ask = Ask(number : Int, reply : Reply(Int)) | Crash\n"
+    "\n"
+    "export type HolderMsg =\n"
+    "    Hold(applied : (Int) -> Int, applying : Address(Ask), service : Address(Ask))\n"
+    "  | Apply(number : Int, reply : Reply(Int))\n"
+    "  | Servers(reply : Reply(#(Address(Ask), Address(Ask))))\n"
+    "\n"
+    "export let holder : Address(HolderMsg) = spawn(fn() = holding())\n"
+    "\n"
+    "export fn main() : Unit receiving Unit = {\n"
+    "    Io.println(\"ready\");\n"
+    "    receive { _ -> Unit }\n"
+    "}\n"
+    "\n"
+    "export fn applying(f : (Int) -> Int) : Unit receiving Ask =\n"
+    "    receive {\n"
+    "        Ask(number = number, reply = reply) -> {\n"
+    "            answer(reply, f(number));\n"
+    "            applying(f)\n"
+    "        }\n"
+    "      | Crash -> fault(\"asked to crash\")\n"
+    "    }\n"
+    "\n"
+    "export foreign fn units() : List(String) = \"ern_nodes_units:loaded/0\"\n"
+    "\n"
+    "export fn printUnits() : Unit = List.forEach(units(), Io.println)\n"
+    "\n"
+    "fn holding() : Unit receiving HolderMsg =\n"
+    "    receive {\n"
+    "        Hold(applied = applied, applying = applying, service = service) ->\n"
+    "            held(applied, #(applying, service))\n"
+    "      | _ -> holding()\n"
+    "    }\n"
+    "\n"
+    "fn held(applied : (Int) -> Int, servers : #(Address(Ask), Address(Ask))) : Unit\n"
+    "    receiving HolderMsg =\n"
+    "    receive {\n"
+    "        Hold(applied = again, applying = applying, service = service) ->\n"
+    "            held(again, #(applying, service))\n"
+    "      | Apply(number = number, reply = reply) -> {\n"
+    "            answer(reply, applied(number));\n"
+    "            held(applied, servers)\n"
+    "        }\n"
+    "      | Servers(reply = reply) -> {\n"
+    "            answer(reply, servers);\n"
+    "            held(applied, servers)\n"
+    "        }\n"
+    "    }\n".
+
+%% The host module behind `Keep.units`: the units of shell sessions the
+%% node holds loaded, an input's and a holder's, their names sorted.
+units_module() ->
+    <<"
+-module(ern_nodes_units).
+-export([loaded/0]).
+loaded() ->
+    lists:sort([atom_to_binary(Module) || {Module, _} <- code:all_loaded(),
+                                          is_session(atom_to_list(Module))]).
+is_session(\"ern@$input\" ++ _) -> true;
+is_session(\"ern@$bindings\" ++ _) -> true;
+is_session(_) -> false.
+">>.
 
 %% report §11.2 *The attached shell*, *Inputs*, *Commands*, *Loading and
 %% reloading*, Appendix E.23: the session golden test over an attached
