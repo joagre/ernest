@@ -251,8 +251,6 @@ rows(Unit, QualifiedName, {foreign, HostModule, HostFunction, Function, Arity}) 
       {foreign, HostModule, HostFunction, Function, Arity}}];
 rows(_, _, {sites, _}) ->
     [];
-rows(_, _, {initializers, _}) ->
-    [];
 rows(_, _, {calls, _}) ->
     [].
 
@@ -602,17 +600,16 @@ held_function(_) -> [].
 %% a definition its recorded forms name otherwise, an input's expression
 %% among them, `input 3`, by that name where the node keeps them.
 %%
-%% The unit's '$init'/0, where every top-level binding's initializer is
-%% evaluated, is named at a line by the binding whose source holds it, the
-%% last to begin at or before it. A lambda or a local function is named as
-%% the top-level declaration it is written in is, `Geo.area`, the frame's
-%% line its own, as a spawn site at the same place is (E.21): one lifted to
-%% a function of its own, '$3.2', the entry a spawn on a peer starts one
-%% by, '$3.2.entry', and a fun the host compiles one to, `-'$3'/1-fun-0-`,
+%% A top-level binding's initializer, '$3.init', is named as the binding
+%% is. A lambda or a local function is named as the top-level declaration
+%% it is written in is, `Geo.area`, the frame's line its own, as a spawn
+%% site at the same place is (E.21): one lifted to a function of its own,
+%% '$3.2', the entry a spawn on a peer starts one by, '$3.2.entry', and a
+%% fun the host compiles one to, `-'$3'/1-fun-0-` and `-'$3.init'/0-fun-0-`,
 %% alike. A unit an exchange made names each by the name its code frame
 %% gave it, as text, the sender's, `Counter.worker` (§12.7). None for any
-%% other function and for a module that is no unit, which keep the host's
-%% names.
+%% other function, the unit's '$init'/0 among them, and for a module that
+%% is no unit, which keep the host's names.
 -spec function_text(module(), atom(), pos_integer() | none) -> string() | none.
 function_text(Unit, Function, Line) ->
     case erlang:function_exported(Unit, '$code', 0) of
@@ -623,11 +620,12 @@ function_text(Unit, Function, Line) ->
 %% Report §8.4, Appendix E.21: a function value of a loaded unit as a trace
 %% names a frame of it, without a line, since a value carries none: a
 %% definition's function by its name, `Geo.area`, a lambda's or a local
-%% function's by the top-level declaration it is written in. A fun
-%% '$init'/0 made, where every initializer is evaluated and which a trace
-%% names by its line's binding, is named by the binding whose value it is,
-%% `Geo.scale` of `let scale = fn(x : Float) = x * 2.0`. None for any other,
-%% which keeps the host's name, a fun inside a binding's value among them.
+%% function's by the top-level declaration it is written in, a binding's
+%% among them, `Geo.scale` of `let scale = fn(x : Float) = x * 2.0` and of
+%% a lambda inside its value. A fun of the unit's that names no definition,
+%% the boundary's wrapper around a function foreign code gave, is named by
+%% the binding whose value it is, `Geo.given` of `let given = made()`. None
+%% for any other, which keeps the host's name.
 -spec value_text(fun()) -> string() | none.
 value_text(Function) ->
     case [erlang:fun_info(Function, Item) || Item <- [module, name]] of
@@ -663,10 +661,8 @@ named_function("-" ++ Fun, Line, Unit, Code) ->
         [Enclosing, _] -> named_function(Enclosing, Line, Unit, Code);
         _ -> none
     end;
-named_function("$init", Line, Unit, Code) ->
-    initializer_name(Line, Unit, Code);
 named_function("$" ++ Numbered, _, Unit, Code) ->
-    %% '$3', '$3.2' and '$3.2.entry' are the definition '$3''s code
+    %% '$3', '$3.init', '$3.2' and '$3.2.entry' are the definition '$3''s code
     case string:split(Numbered, ".", all) of
         [Number] -> declared_name("$" ++ Number, Unit, Code);
         [Number, _] -> declared_name("$" ++ Number, Unit, Code);
@@ -683,27 +679,6 @@ declared_name(Function, Unit, Code) ->
                                    atom_to_list(Held1) =:= Function] of
         [{QualifiedName, Held} | _] -> written_name(QualifiedName, Held, Unit, Code);
         [] -> none
-    end.
-
-%% The binding whose initializer holds Line of '$init'/0: of the unit's
-%% bindings, which '$code'/0 lists by their first lines in order
-%% (ern_emitter:initializers/2), the last to begin at or before it, since
-%% the initializers alone are evaluated there and no two declarations'
-%% lines cross; none at no line.
-initializer_name(none, _, _) ->
-    none;
-initializer_name(Line, Unit, Code) ->
-    Begun = [QualifiedName || {_, {initializers, Initializers}} <- Code,
-                              {First, QualifiedName} <- Initializers, First =< Line],
-    case Begun of
-        [] ->
-            none;
-        _ ->
-            Last = lists:last(Begun),
-            case [Held || {Named, {binding, _, _} = Held} <- Code, Named =:= Last] of
-                [Held | _] -> written_name(Last, Held, Unit, Code);
-                [] -> none
-            end
     end.
 
 %% The name a definition's sites write it by: the one Unit's recorded forms

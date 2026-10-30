@@ -57,6 +57,9 @@ start() ->
                   end,
     Status = try
                  persistent_term:put({?MODULE, streams}, fds),
+                 %% report §11.1: the build of `ern`, set at the job's start as
+                 %% every persistent term is set at a launch (docs/design/runtime.md)
+                 _ = ern_build:compiler_build(),
                  ern(Args, ErrorDevice)
              catch
                  Class:Error:Trace ->
@@ -1940,6 +1943,7 @@ load(Namespace, Waiting, LoadPath, Loaded, {Reader, StdlibHash, Say} = Reading) 
             File = compiled_file(Namespace, Waiting, LoadPath, Reader),
             Beam = ern_build:read(File),
             #{deps := DependencyHashes} = Chunk = held_chunk(Namespace, File, Beam),
+            same_build(File, Chunk),
             say_read(Say, Namespace, File),
             Loaded1 = lists:foldl(fun({Dependency, _}, Acc) ->
                                       load(Dependency, [Namespace | Waiting], LoadPath, Acc,
@@ -2051,6 +2055,14 @@ held_chunk(Namespace, File, Beam) ->
         {error, Error} ->
             ern_build:fail(File ++ ": " ++ Error)
     end.
+
+%% Report §11.2, §11.1: a compiled form another build of `ern` wrote,
+%% another version or the same version's code changed, is refused, naming
+%% the file, since `ern build` compiles it again (ern_build:current/6) and
+%% a run cannot.
+same_build(File, Chunk) ->
+    maps:get(compiler, Chunk, none) =:= ern_build:compiler_build()
+        orelse ern_build:fail(ern_build:shown(File) ++ ": compiled by another build of ern").
 
 same_stdlib(Namespace, Chunk, StdlibHash) ->
     Name = ern_namespace:text(Namespace),

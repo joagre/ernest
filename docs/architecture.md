@@ -114,9 +114,11 @@ All three compile through `ern_compile:compiled/2`.
 
 `ern_emitter:unit/1` builds Erlang forms with `erl_syntax` in one traversal of each form, threading `#emit_context{}`. `prepared/2` first marks the references within a group and each lambda's and local fn's position (Appendix H). A value's representation is §12.2's ABI.
 
-A unit's functions are named by position (§11.1), as `ern_emitter`'s header comment gives them: `'$N'` (`function_name/1`), `'$N.P'` for a lifted local fn, `'$N.P.entry'` for an entry, `'$type_K'` for a descriptor, and `'$lacked_K'` for a lacked function. The functions the runtime calls keep their names: `'$init'/0`, `'$deps'/0`, `'$tests'/0`, `'$spawned'/2` and `'$code'/0`. The interface's `positions` say where a dependent calls each.
+A unit's functions are named by position (§11.1), as `ern_emitter`'s header comment gives them: `'$N'` (`function_name/1`), `'$N.P'` for a lifted local fn, `'$N.P.entry'` for an entry, `'$N.init'` for a binding's initializer, `'$type_K'` for a descriptor, and `'$lacked_K'` for a lacked function. The functions the runtime calls keep their names: `'$init'/0`, `'$deps'/0`, `'$tests'/0`, `'$spawned'/2` and `'$code'/0`. The interface's `positions` say where a dependent calls each.
 
-A caller from Erlang finds a function by its qualified name through `ern_code:function/2`: `ern_cli` for the entry point and the shell's program, `ern_shell` for an input's entry, `ern_page`, and the tests through `ern_named`. A fault's trace (`ern_rt:trace/1`) names each frame of a unit's code as a spawn site is named through `ern_code:function_text/3`, which reads the unit's `'$code'/0`, the namespace its sites name its declarations under and each binding's first line among it, and the name the recorded forms give an input's expression; a frame of `'$init'/0` is named by the binding whose source holds its line, and the frames beneath the program's outermost are left out (E.21). A function value has no line, and `ern_code:value_text/1` names it so without one, a fun of `'$init'/0` by the binding whose value it is, for the cause of an argument foreign code gives it (§8.4).
+A caller from Erlang finds a function by its qualified name through `ern_code:function/2`: `ern_cli` for the entry point and the shell's program, `ern_shell` for an input's entry, `ern_page`, and the tests through `ern_named`.
+
+A fault's trace (`ern_rt:trace/1`) names each frame of a unit's code as a spawn site is named through `ern_code:function_text/3`, which reads the unit's `'$code'/0`, the namespace its sites name its declarations under among it, and the name the recorded forms give an input's expression; a frame of a binding's initializer, `'$N.init'`, is named by the binding, and the frames beneath the program's outermost, `'$init'/0`'s among them, are left out (E.21). A function value has no line, and `ern_code:value_text/1` names it so without one, a fun that names no definition, the boundary's wrapper around a function foreign code gave, by the binding whose value it is, for the cause of an argument foreign code gives it (§8.4).
 
 ### What the emitter writes
 
@@ -126,7 +128,7 @@ Each construct's function says how it is written:
 - `let p <- e`, a `case` (§5.5);
 - a selected field (§3.5, §8.4);
 - a clause's alternatives, `alternatives/3` (§5.9);
-- a top-level `let`, a getter over `persistent_term` that `'$init'/0` fills (§8.5, §11.1); one whose initializer is a ground term, `ground/2`, is read as its value, `term_form/1`, in its module and, through the interface's `terms` and a `#linked{}`'s `term`, in a dependent, and `'$init'/0` gives it its value before any initializer runs (§11.1);
+- a top-level `let`, a getter over `persistent_term` that its initializer fills, a function of its own, `initializer_function/2`, exported and called by the unit's name from `'$init'/0` in dependency order, a call the host's type pass does not follow (`init_function/2`, §8.5, §11.1); one whose initializer is a ground term, `ground/2`, is read as its value, `term_form/1`, in its module and, through the interface's `terms` and a `#linked{}`'s `term`, in a dependent, and `'$init'/0` gives it its value before any initializer runs (§11.1);
 - a spawn on a peer, `spawned/2`, its captures, `captures/1`, and a service's hash, `service_hash/1` (§8.7, §12.6);
 - a spawn's site, `site_name/2`, written by `ern_namespace:site_text/2` as a frame of a trace is (§6.9, E.21);
 - a fault the code meets, `thrown_fault/1`, the host's throw where it is met, so that the trace holds the function that met it (§7.3);

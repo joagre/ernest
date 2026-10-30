@@ -30,7 +30,9 @@ encode(Facts, Interface) ->
     term_to_binary(Facts#{format => ?FORMAT, interface => canonical(Interface, keep)}).
 
 %% A chunk of another format, from another version of the compiler, reads
-%% as an error, which makes the module stale (report §11.1).
+%% as an error, which makes the module stale (report §11.1) and which a
+%% run refuses in §11.2's words, as it refuses a form another build of
+%% `ern` wrote in this format (ern_cli).
 -spec read(binary() | file:filename()) -> {ok, chunk()} | {error, string()}.
 read(Beam) ->
     case beam_lib:chunks(Beam, [binary_to_list(?CHUNK)]) of
@@ -41,9 +43,9 @@ read(Beam) ->
                        interface := {interface, _, _, _, _, _, _, _, _, _, _} = Written} = Read} ->
                     {ok, Read#{interface => interface(Written)}};
                 _ ->
-                    {error, "the interface chunk is of another compiler version"}
+                    {error, "compiled by another build of ern"}
             catch _:_ ->
-                {error, "the interface chunk is of another compiler version"}
+                {error, "compiled by another build of ern"}
             end;
         %% the host's text of the error quotes the bytes it was given
         {error, beam_lib, _} ->

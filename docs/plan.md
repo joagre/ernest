@@ -14,79 +14,20 @@ and a feature declined in a dated entry of the log; nothing stands between.
 
 ## Where we are
 
-**MVP 3.95 is done**, and Ernest 0.6.0 is released, the tag `v0.6.0` of 2026-10-25 (the log's *The
-Release Review Before 0.6.0*): what the review and 0.5.0 left, the release review read back, a
-restart told across nodes, the harness counting a test's steps, the round's method with an owner,
-and the release review, seven readers and the machines, its 66 lines made in two rounds the same
-evening. No promise of stability is made: from 0.5.0 on a change to the language, the standard
-library or the libraries is driven by a need met in use and recorded as `docs/language_feedback.md`
-records one.
+**MVP 3.96 is done**, the report pared to the language and what the paring found, on 2026-10-30
+(the log's *One Function per Initializer*, its last item): `language.md` holds what decides what a
+program means and the runtime's mechanism is chapter 12 of `toolchain.md`; the build's cost per
+function measured and made linear, `Test.until`, `<-` at the prompt, the comments' paragraphs, and
+the emitter's calls as the host's. Ernest 0.6.0 of 2026-10-25 is the last release; no promise of
+stability is made, and a change to the language, the standard library or the libraries is driven
+by a need met in use and recorded as `docs/language_feedback.md` records one.
 
-Next is the report pared to the language, MVP 3.96; then the attached shell, ernest-httpd,
-the website and the shell's second round (the log's *The Road to 1.0, Ordered*); the back end
-to BEAM's own instructions that closed the road is not built, decided 2026-10-30 (the log's *No
-Back End to BEAM's Own Instructions*). A finished milestone is a row
-of the table at the end, its reasons in the log entries the row names.
+Next is the attached shell, MVP 4.0; then ernest-httpd, the website and the shell's second round
+(the log's *The Road to 1.0, Ordered*); the back end to BEAM's own instructions that closed the
+road is not built, decided 2026-10-30 (the log's *No Back End to BEAM's Own Instructions*). A
+finished milestone is a row of the table at the end, its reasons in the log entries the row names.
 
 ---
-
-## MVP 3.96 (the report pared to the language), after 0.6.0, about three days
-
-Made on 2026-10-25, left to after 0.6.0 so that the release read the report as it was, decided with the user on 2026-10-24 from the full review's
-E.18 reading and the question what a Wirth report holds: the Pascal report defined files because
-Pascal had no modules, and the Modula-2 and Oberon reports hold the language alone, the library's
-modules documented apart with an authority of their own. Why it is worth its cost, asked again on
-2026-10-25, is the log's *The Report Pared After 0.6.0*.
-
-1. **The report pared**, done 2026-10-25 (the log's *The Report Pared, Built*): chapter 12, the
-   runtime, at the end of `toolchain.md` in eight sections, §10 moved whole before §11, each place of
-   `language.md` keeping its rules and one sentence that points at the moved mechanism, every
-   citation of a moved paragraph redirected and every section cited by a test.
-2. **The build's cost per function measured**, done 2026-10-26 (the log's *The Build's Cost per
-   Function*): the check grew with the module's square in five places that scanned lists, each now a
-   map or the host's graph, and the rest is the host's own compile, linear at half a millisecond a
-   function; `ern build` of 7,000 functions takes 5.4 s quiet, the harness's 27 s having been its
-   parallel load.
-3. **A nested group's child answering a peek from its old run**, done 2026-10-26 (the log's *The
-   Nested Group's Third Restart*): the test's own race, two `Restarted` heard for three restarts,
-   `a`'s at its fault and each child's as the nested group asks; the test hears three, red 0 of 600
-   runs under load where it was red 13, and the runtime's order holds.
-4. **What the newcomer's feedback left**, done 2026-10-26 (the log's *What the Newcomer's Feedback
-   Left*): 165, 167, 168 and 169 dropped, by principles 2, 3 and 5, the guide gaining the
-   request-building function and `Map.update`'s present-entry line; 166 decided as item 8.
-5. **The second cut, §8.7 to E.27**, done 2026-10-26 (the log's *The Second Cut, §8.7 to E.27*): nine
-   paragraphs of contracts, what a spawn, a compute, a utilization, an offer and a find answer and
-   when, under E.27 as they stood, three restatements gone, §8.7 at 2,886 words of rules, each
-   once, pointing at E.27 at each place; the citations redirected and every section cited.
-6. **The comments' paragraphs**, done 2026-10-26 (the log's *The Comments' Paragraphs*): a comment
-   is paragraphs as a document is, none past 150 words, which `comment_ceiling_test` holds over
-   `tools/comments.sh`'s listing; the 166 blocks past it split at their turns, and the nine headers
-   past 300 words read against the design notes they restated, each keeping what a reader of the
-   module needs and pointing at its note.
-7. **Chained top-level lets in the host's compile.** Found 2026-10-26 by item 2: the emitter writes
-   every top-level `let`'s initializer into one function, `'$init'/0`, and where each initializer
-   calls the one before it the host's type pass on that one function grows faster than linearly,
-   1.5 s at 400 lets, 7.6 s at 1,000 and 73 s at 2,000, where 2,000 lets that need nothing of each
-   other take 1.0 s. No program written has a hundred; the shape of the fix is the emitter's, an
-   initializer a function of its own, which the plain form may already be, decided with the user
-   when a program meets it or before 1.0.
-8. **`Test.until`**, done 2026-10-30 (the log's *`Test.until`, Built*), from feedback 166: a test
-   that waits for a server to show the effect of a `Down` has no order to wait on, and
-   `Test.until(run, ms)` runs the test again until it passes or the milliseconds end, answering the
-   last outcome, Ernest alone, with its page, its test and the guide's §5.2 sentence.
-9. **What the emitter writes against what OTP writes**, done 2026-10-27 (the log's *The Emitter's
-   Calls Against the Host's, Built*): a call of a standard library shim is the host's function at
-   the call site inside its `try`, none for twelve host functions that cannot raise at their
-   declared types, the interface carrying each shim's host function; `compare` at a prelude type
-   the host's comparison; the mixer 1.7 times faster, still 2.6 times Erlang through `Int`'s
-   shifts, which stay calls.
-10. **The standard library's small functions at a call site**, dropped 2026-10-27 (the log's *Small
-    Library Functions Stay Calls*): the bench's programs gain 0 to 5% from it, the mixer alone,
-    built for these calls, much more, so the plain form stays and its cost is recorded.
-11. **`<-` at the prompt**, done 2026-10-27 (the log's *`<-` at the Prompt*): the shell takes
-    `let p <- e`, binding on `Right` or `Some` and showing a `Left` or a `None` as an expression's
-    value, as §11.2 states; the README's, the guide's and the tour's spawns on `foo` write
-    `let far <- Peer.spawn(...)` in place of a `match`.
 
 ## MVP 4.0 (a shell attached to a running node), about a week
 
@@ -96,8 +37,8 @@ hand, and nothing of the node's own is at the prompt.
 
 Its design is `docs/proposals/shell/attached.md`, read back against the shell's design note and rewritten on 2026-10-30, ready the same day (the
 log's *The Attached Shell's Cut*): the operator's machine is the terminal and the files, and
-everything else is the node's, so the shell of the design note runs on the node word for word,
-spawned there by the operator's `ern shell --config-dir ops --attach name`, and what crosses the
+everything else is the node's, so the shell of the design note runs on the node, touching the
+terminal and the files through the local half alone, spawned there by the operator's `ern shell --config-dir ops --attach name`, and what crosses the
 carrier is the terminal's events and bytes and the operator's files.
 
 One form of attaching, by a listed peer, since a node accepts a connection from a peer it lists and no other (§12.5).
@@ -105,32 +46,53 @@ One form of attaching, by a listed peer, since a node accepts a connection from 
 1. **The report first**, the proposal's section 6: §11.2's attached shell, `--attach name`, which
    takes no file, `:detach` in `:quit`'s place, sessions many on a node each with a number, what
    `:processes`, `:load`, `:reload`, `:output` and `:faults` are there, the operator's files read by
-   the operator's machine, and what the shell says and exits with at the node's loss and its end;
+   the operator's machine, and what the shell says and exits with at an attach that fails, at the
+   node's loss and at its end;
    Appendix H's one session namespace becoming each session's, `$Session3`; §12.1's write to
    standard output or standard error routed by the writing process's root; Appendix E.21's
-   `Process.live()` leaving out every session's own processes. Nothing of §3 to §9 changes.
+   `Process.live()` leaving out every session's own processes; §12.7's definition a peer lacks
+   that a unit of the toolchain's own holds, loaded from its own tree as a load places one and
+   asked for from no node. Nothing of §3 to §9 changes.
 2. **The runtime**: a write routed by its root, a session's to its screen and a root with no screen
-   to the node's; the runtime's own processes a set every session adds its own to and takes them
-   from; the toolchain's own units loaded from the node's tree at a spawn's placement, which
-   `docs/design/code.md` states and the build confirms.
+   to the node's, by a row of the session's root and its screen that the standard streams read; the runtime's own processes a set every session adds its own to and takes them
+   from; a lacked definition of the toolchain's own loaded from the node's tree at a spawn, its
+   bindings evaluated as a load's, which `docs/design/code.md` gains with the build.
 3. **The shell**: the local half in Ernest, holding the terminal, reading the history, the startup
    files and the environment, spawning the shell's entry on the node with its address and what it
    read, forwarding the terminal's events, writing the bytes the screen sends and answering its
-   `Flush`, reading a source for `:load` and listing the source root for its completion, and
-   appending `:output`'s file.
+   `Flush`, reading a source for `:load` and `:reload` and listing the source root for its
+   completion, appending the history and `:output`'s file, and reading each line in line mode.
 
-   On the node, the session's number in every host name an input
-   makes, `:detach` leaving the evaluators and what they started to the node, the node's reload
-   shared by every session, and the session's end at the local half's loss.
+   On the node, the session's number, given once in a node's life, in every host name an input
+   makes, the names counted by the code table's sums, `:detach` leaving the evaluators, what
+   they started and what inputs spawned to the node, the node's reload shared by every session,
+   and the session's end at the local half's loss; at the local half, an attach that fails said
+   as the job's refusal, `NotLoaded` naming another build of `ern` than this shell's.
 4. **The guides and the documents**: the deployment guide's sections 5.3 and 6 rewritten over the
-   attached shell, the language guide's §8.9 upgrade becoming a `:load` of the new build at the
-   node's prompt with `Code.running` run there, `docs/development.md`'s row on attaching gone with
-   the gap (asked by the user 2026-10-18), and `docs/design/shell.md` gaining the attached shell's
-   section, the cut and the local half.
+   attached shell, an attach made with the node's own release of `ern` among what section 6
+   says, the language guide's §8.9 upgrade becoming a `:load` of the new build at the node's
+   prompt with `Code.running` run there, `docs/development.md`'s row on attaching gone with
+   the gap (asked by the user 2026-10-18).
+
+   The design notes: `docs/design/shell.md` gaining the attached shell's
+   section, the cut and the local half, `docs/design/runtime.md` the row of a session's screen
+   with its reader, and `docs/design/code.md` each session's namespace, the
+   toolchain's own units at a spawn, and its rule on unloading narrowed to a load's, an arrival's
+   and a version's units, and `docs/design/nodes.md`'s rule on evaluating nothing for a peer
+   narrowed for the toolchain's own units.
 5. **The tests and the release**: the nodes tests over a shell attached to a bare node and to a
    program's node, two sessions on one node, a `:load` shipped as text, a detach that leaves a
-   service running, and the node's loss; the guide's section 6 run by them; the session golden
+   service running, the node's loss and an attach that fails; the guide's section 6 run by them; the session golden
    test over an attached session; then the release that follows, 0.7.0, by `docs/release_review.md`.
+6. **The shell's end loses its last lines**, found 2026-10-30 while MVP 3.96's item 7 was
+   measured: `reload_version_sites` in `test/ern_shell_tests.erl` goes red in about three runs of
+   a hundred under the harness, quiet or loaded, on the code of 0.6.0 as on today's, the session
+   exiting with status 0 while the end's lines on standard error, `the end waits for 2
+   subscribers` or a subscriber's `answered`, end short, the last one or two never written. The
+   shape of its fix: find which process says the end's lines and what the job's exit waits for of
+   it (the runtime's note's *The process model*, `wait_for_later/0`), since a line of the
+   toolchain's own is to wait until standard error has taken it; diagnosed with the session's end,
+   which the detach rewrites, and before the release.
 
 The attached shell is the operator's alone, trusted as a peer is, with no sandbox: the website runs
 the plain shell in a container per visitor (MVP 4.2).
@@ -175,9 +137,10 @@ MVP 4.2).
 5. **ernest-httpd**, in its own repository: `Config` and `Static` as pure functions; `Listener`,
    `Connection` and `AccessLog`, serving the site over plain HTTP; TLS, the redirect listener and
    the hosts; `Shell` and `Sessions` last, since they stand on the rest.
-6. **The deployment**: the systemd unit, certbot's certificate for the four names with the deploy
-   hook that gives the server its key, the podman image, and the smoke test against the deployed
-   site.
+6. **The deployment**: the node's directory with the operator's shell listed, since the server
+   runs as a node on the loopback for the attached shell, the systemd unit, certbot's certificate
+   for the four names with the deploy hook that gives the server its key, the podman image, and
+   the smoke test against the deployed site, an attached shell's `:processes` among it.
 7. **A release of Ernest**, 0.8.0, when the server first serves the site, carrying the libraries
    after their first real user has shaped them; 0.7.0 is the attached shell's.
 8. **The terminal tests over `Os.startTerminal`**, dropping `test/ern_pty.py`, an item of its own
@@ -249,24 +212,28 @@ attached shell, MVP 4.0, is the operator's alone.
    the tour, Why, the questions, the deployment guide, the README's *Installing*, the release
    notes and `docs/man/`'s Markdown; the contents pages; the anchors, the citations' links and a
    report section's margin line; Ernest code colored by a `foreign` declaration over the
-   toolchain's lexer; each page's sidebar, title, description and footer. It may come before
-   the rest whenever it is wanted.
+   toolchain's lexer; which buttons a block gets, Copy alone for a transcript the container
+   cannot hold, a node's or an attached session's, read from its first line; the shell page's
+   limits read from the server's configuration; each page's sidebar, title, description and
+   footer. It may come before the rest whenever it is wanted.
 2. **The templates and the docroot** brought to the decisions: `page.html`, `toc.html`,
    `home.html` and `shell.html` on `base.html`, the fragments for a list's items, the stoat in
-   the header, the favicon, the footer's rooms, the homepage's order and the panel's controls, a
-   test holding each template to its tokens; `site/` at the repository's root holding
+   the header, the favicon, the footer's rooms, the homepage's order and the panel's controls,
+   no inline script or style under the server's policy, a test holding each template to its
+   tokens; `site/` at the repository's root holding
    `templates/` and `docroot/`; xterm.js and its fit addon vendored, with their row in
    `THIRD_PARTY_LICENSES`.
 3. **The documents the site lacks**: `releases/<version>.md`, which the release step writes
    from the next release on, `docs/release_review.md` saying so, and the root `CONTRIBUTING.md`,
    written before the site goes live.
 4. **The live shell's page side**, the session client in JavaScript over ernest-httpd's socket:
-   the seven states, the panel on every page with its layout in local storage, Copy, Paste and
-   Load on a code block, a transcript's Paste for each input, the warning banner with Extend,
+   the panel's size sent first and at each resize, the seven states, the panel on every page with
+   its layout in local storage, Copy, Paste and Load on a code block, Load pasting the block as
+   declarations with `main()` typed, a transcript's Paste for each input, the warning banner with Extend,
    the snackbar at a session's end, and everything reachable by keyboard with xterm.js's
    screen-reader mode on.
-5. **The build and the deployment**: `make site` from a release's tag by `git archive`, the
-   toolchain built there and `make man` run, the check of every internal link and anchor, the
+5. **The build and the deployment**: `make site` from a release's tag by `git archive`, given the
+   server's configuration file, the toolchain built there and `make man` run, the check of every internal link and anchor, the
    copy of `build/site/` to the host, and the site live at ernest-lang.org with the smoke test
    against it.
 
@@ -350,7 +317,7 @@ log's *The Shell's Second Round*), in this order. The first three need nothing o
 | MVP 3.3 | the tour, `tour/`: a third way into Ernest beside the report and the guide, one program, the counter, grown through eight chapters from a process with a typed mailbox, through the same counter on a peer that holds none of its code, to its move to new code there, where the deployment guide takes over; with it a README for `report/` and for `guide/`, the README's three ways in, the guide's taste of the rest, and the path read by a fresh reader and the two skeptics | 2026-10-24 | | *The Tour*, *The Tour, Shorter*, *What the Outline Asked*, *The Skeptics' Read*, *What the Skeptics Found*, *The Tour's Programs, Built*, *The Tour Written*; the outline, `docs/proposals/tour/` as it stood at `688ffa03` |
 | MVP 3.9 | the review, and Ernest 0.5.0: the nodes' and the code's design notes, the proposals built by then swept, the full review and its findings, the process-only mark narrowed and a wrap's `self` its recipient's, what the lease broker found, the release review and Ernest 0.5.0, a release with no promise of stability | 2026-10-25 | tag `v0.5.0` | *MVP 3.9 Weighed*, *The Nodes' and the Code's Notes*, *The Design Notes Leave the Proposals*, *The Full Review Before 0.5.0*, *The Review's Fixes, First Round*, *The Review's Decisions*, *The Process-Only Mark Marks a Wait*, *A Wrap's `self` Is Its Recipient's*, *Two Nodes Tests Take the Fault's Line*, *One Name for Every Order*, *The Shell's End Writes What It Was Told*, *A Restart Empties Before It Tells*, *A Member Has One Face*, *The Release Review Before 0.5.0*; `findings.md` as it stood at `105fb3fc` |
 | MVP 3.95 | what the review and 0.5.0 left: the release review read back, a restart told across nodes by the runtime's own frames, the harness counting a test's steps, the review round's method with an owner, the site proposal's sitting, the first fault's cost measured, the member regime's missing test, the teller's late delivery closed, dialyzer in the full run, and Ernest 0.6.0, the protocol's version moved | 2026-10-25 | tag `v0.6.0` | *The Release Review Read Back*, *A Restart Told Across Nodes*, *A Restart Told Across Nodes, Built*, *The Report's Readers Read the Diff*, *The Teller's Late Delivery*, *The Teller's Late Delivery, Built*, *The Harness Counts a Test's Steps*, *The First Fault's Cost*, *The Review's Decisions*, *A Member Has One Face*, *The Report Pared After 0.6.0*, *The Release Review Before 0.6.0*; `findings.md` as it stood at `c6eab569` |
-| MVP 3.96 | the report pared to the language: `language.md` holds what decides what a program means, the runtime's mechanism a chapter of its own at the end of `toolchain.md`, chapter 12, and §10 moved whole with its number; every citation of a moved paragraph redirected | made 2026-10-25 from MVP 3.95's item 3; after 0.6.0 | | above |
+| MVP 3.96 | the report pared to the language, `language.md` holding what decides what a program means and the runtime's mechanism chapter 12 of `toolchain.md`, and what the paring found: the build's cost per function linear, one function per initializer, the nested group's third restart, the newcomer's feedback decided, the second cut to E.27, the comments' paragraphs, the emitter's calls as the host's, `<-` at the prompt and `Test.until` | 2026-10-30 | | *The Report Pared After 0.6.0*, *The Report Pared, Built*, *The Build's Cost per Function*, *One Function per Initializer*, *The Nested Group's Third Restart*, *What the Newcomer's Feedback Left*, *The Second Cut, §8.7 to E.27*, *The Comments' Paragraphs*, *The Emitter's Calls Against the Host's, Built*, *Small Library Functions Stay Calls*, *`<-` at the Prompt*, *`Test.until`, Built* |
 | MVP 4.0 | a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches | made 2026-10-13 from MVP 4.3's item 4 | | above |
 | MVP 4.1 | ernest-httpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | | | above |
 | MVP 4.2 | the website, served by ernest-httpd: what Ernest is, its characteristics, the three doors, and a live shell in the browser | | | above |

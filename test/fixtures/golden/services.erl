@@ -8,6 +8,10 @@
          '$10'/0,
          '$12'/0,
          '$init'/0,
+         '$5.init'/0,
+         '$6.init'/0,
+         '$8.init'/0,
+         '$10.init'/0,
          '$spawned'/2]).
 
 %% Services.services
@@ -189,32 +193,48 @@
     end.
 
 '$init'() ->
+    ern@services:'$5.init'(),
+    ern@services:'$6.init'(),
+    ern@services:'$8.init'(),
+    ern@services:'$10.init'(),
+    ok.
+
+%% the initializer of Services.services
+'$5.init'() ->
     ern_rt:initializing(<<"Services.services:62">>),
     persistent_term:put({ern@services, '$5'},
                         ern_rt:spawn(ern@supervisor:'$8'('RestForOne',
                                                          {'RestartLimit',
                                                           3,
                                                           10000}),
-                                     <<"Services.services:63">>)),
+                                     <<"Services.services:63">>)).
+
+%% the initializer of Services.store
+'$6.init'() ->
     ern_rt:initializing(<<"Services.store:65">>),
     persistent_term:put({ern@services, '$6'},
                         ern_rt:spawn(ern@supervisor:'$21'('$5'(),
                                                           fun () ->
                                                                   '$7'(ern@map:'$1'())
                                                           end),
-                                     <<"Services.store:65">>)),
+                                     <<"Services.store:65">>)).
+
+%% the initializer of Services.ids
+'$8.init'() ->
     ern_rt:initializing(<<"Services.ids:86">>),
     persistent_term:put({ern@services, '$8'},
                         ern_rt:spawn(ern@supervisor:'$21'('$5'(),
                                                           fun () -> '$9'(1)
                                                           end),
-                                     <<"Services.ids:86">>)),
+                                     <<"Services.ids:86">>)).
+
+%% the initializer of Services.audit
+'$10.init'() ->
     ern_rt:initializing(<<"Services.audit:96">>),
     persistent_term:put({ern@services, '$10'},
                         ern_rt:spawn(ern@supervisor:'$21'('$5'(),
                                                           fun () -> '$11'([])
                                                           end),
-                                     <<"Services.audit:96">>)),
-    ok.
+                                     <<"Services.audit:96">>)).
 
 '$spawned'('$12', []) -> '$12'().

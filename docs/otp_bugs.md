@@ -268,3 +268,50 @@ OTP 29, erts 17.1, stdlib 8.1, on Linux x86_64.
 
 Found by measuring a compiler that emits Erlang, whose test module of 7,000 unexported functions compiles through the host in 3.3 s where the warning is off; a module that is linted with the warning on pays the square.
 
+
+## 7. The type pass types a function again after each local function it calls
+
+Not filed. Found on 2026-10-26, measured on 2026-10-30; the log's *The Build's Cost per Function* and *One Function per Initializer*.
+
+**Title:** beam_ssa_type: signatures/2 is quadratic in the number of distinct local functions one function calls in sequence
+
+**Describe the bug**
+
+A function that calls N distinct local functions one after another compiles in time that grows with N squared. The signature pass in `beam_ssa_type.erl` (compiler 10.0.5) takes a local function it has not yet typed for one that never returns: `sig_local_return/4` (line 365) finds no success types, `return_type/2` (line 1947) answers `none`, and the code after the call is unreachable. The caller is typed up to the first such call, the callee is typed, and its new return type puts the caller back on the work list (`do_sig_function/4`, line 197). Each of the N callees costs one more pass over the caller.
+
+**To Reproduce**
+
+A module whose `main/0` calls `f0/0` to `fN-1/0` in turn, each a function of its own, and the same module with each call written `?MODULE:fK()`, every function exported:
+
+```
+$ python3 -c "
+import sys
+n=int(sys.argv[1])
+print('-module(calls_%d).' % n)
+print('-export([main/0]).')
+print('main() ->')
+for i in range(n): print('    f%d(),' % i)
+print('    ok.')
+for i in range(n): print('f%d() -> erlang:put(%d, %d).' % (i, i, i))
+" 4000 > calls_4000.erl
+```
+
+```
+$ time erlc calls_1000.erl     # 2.8 s
+$ time erlc calls_2000.erl     # 9.2 s
+$ time erlc calls_4000.erl     # 41.4 s
+$ time erlc +no_type_opt calls_4000.erl    # 2.0 s
+$ time erlc remote_4000.erl    # 2.4 s, each call ?MODULE:fK()
+```
+
+**Expected behavior**
+
+The pass costs what the module's size costs, as with remote calls or with `no_type_opt`. Typing each callee before going on with the caller, or going on past a callee not yet typed instead of taking its call as one that never returns, would make each callee cost one pass.
+
+**Affected versions**
+
+OTP 29, erts 17.1, compiler 10.0.5, on Linux x86_64.
+
+**Additional context**
+
+Found by a compiler that emits Erlang, whose module initialization calls one function for each top-level binding: 2,000 bindings took 11.3 s to build called locally and 4.05 s called by the module's name, which the compiler writes until this is fixed.

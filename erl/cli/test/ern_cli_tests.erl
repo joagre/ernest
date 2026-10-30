@@ -4243,7 +4243,7 @@ crafted_module_test() ->
     Rewritten("ErnI", fun(Chunk) -> (binary_to_term(Chunk))#{compiler => fun erlang:halt/0} end),
     ?assertEqual(1, ern_err(["doc", Erc])),
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
-                                      <<"of another compiler version">>)).
+                                      <<"compiled by another build of ern">>)).
 
 %% report §11.4: `ern doc --man src-dir` writes each page beside its
 %% module's .erc, in a file named as `man` finds it, and no index
@@ -4944,6 +4944,43 @@ stale_dependent_refused_test() ->
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
                                       <<"Main was compiled against another Geo.Shape;"
                                         " build Main again">>)).
+
+%% report §11.2, §11.1: `ern run` and `ern test` refuse a compiled form
+%% another build of `ern` wrote, here the same version whose code changed,
+%% the file given and a module it uses from the load path alike, naming
+%% the file, before anything runs; the forms the build wrote run. Written
+%% with the code
+another_build_refused_test() ->
+    Dir = tmp(),
+    write(Dir, "src/geo/shape.ern", "export fn area(n : Int) : Int = n * n\n"),
+    write(Dir, "src/main.ern", "export fn main() : Unit ="
+                               " Io.println(Int.toString(Geo.Shape.area(3)))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", Dir ++ "/src"])),
+    Main = Dir ++ "/src/main.erc",
+    Shape = Dir ++ "/src/geo/shape.erc",
+    {ok, MainBeam} = file:read_file(Main),
+    {ok, ShapeBeam} = file:read_file(Shape),
+    Another = fun(Chunk) -> Chunk#{compiler => <<?VERSION "+another">>} end,
+    Refusal = fun(Job, File) ->
+                  iolist_to_binary([Job, ": ", ern_build:shown(File),
+                                    ": compiled by another build of ern\n"])
+              end,
+    Refused = fun(Job) ->
+                  Before = byte_size(iolist_to_binary(?capturedOutput)),
+                  ?assertEqual(1, ern_err([Job, Main])),
+                  Output = iolist_to_binary(?capturedOutput),
+                  binary:part(Output, Before, byte_size(Output) - Before)
+              end,
+    ok = file:write_file(Main, forge(MainBeam, Another)),
+    ?assertEqual(Refusal("ern run", Main), Refused("run")),
+    ?assertEqual(Refusal("ern test", Main), Refused("test")),
+    ok = file:write_file(Main, MainBeam),
+    ok = file:write_file(Shape, forge(ShapeBeam, Another)),
+    ?assertEqual(Refusal("ern run", Shape), Refused("run")),
+    ?assertEqual(Refusal("ern test", Shape), Refused("test")),
+    ok = file:write_file(Shape, ShapeBeam),
+    ?assertEqual(0, ern_err(["run", Main])),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), <<"9\n">>)).
 
 %% report §11.1, §11.2: a single-file build from another source root does
 %% not write over a .erc of another namespace, naming --source-root where

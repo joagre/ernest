@@ -50,6 +50,17 @@ captured_output() ->
     group_leader() ! {get_output, self()},
     receive {output, Output} -> iolist_to_binary(Output) end.
 
+%% A compiled module with its interface chunk changed by Change, as
+%% ern_cli_tests forges one.
+forge(Beam, Change) ->
+    {ok, _, Chunks} = beam_lib:all_chunks(Beam),
+    Rewritten = [case Id of
+                     "ErnI" -> {Id, term_to_binary(Change(binary_to_term(Chunk)))};
+                     _ -> {Id, Chunk}
+                 end || {Id, Chunk} <- Chunks],
+    {ok, Forged} = beam_lib:build_module(Rewritten),
+    Forged.
+
 %%
 %% Code.load, Appendix E.28
 %%
@@ -346,6 +357,33 @@ other_interface_test() ->
                  "    Io.println(Io.show(Code.load(Path(\"" ++ Lib ++ "/plug/user.erc\"))))\n"),
     built(Dir, "main.ern"),
     ?assertEqual([<<"Left(Invalid)">>], ran(filename:rootname(Main) ++ ".erc")).
+
+%% Appendix E.28, report §11.1: a compiled form another build of `ern`
+%% wrote is Invalid, the module loaded and a module it uses alike, and the
+%% form this build wrote loads. Written with the code
+another_build_test() ->
+    Dir = tmp(),
+    Lib = filename:join(Dir, "lib"),
+    write(Lib, "plug/base.ern", "export fn one() : Int = 1\n"),
+    write(Lib, "plug/user.ern", "export fn two() : Int = Plug.Base.one() + 1\n"),
+    built(Lib, "plug/base.ern"),
+    built(Lib, "plug/user.ern"),
+    [Base, User] = [filename:join(Lib, Leaf) || Leaf <- ["plug/base.erc", "plug/user.erc"]],
+    {ok, BaseBeam} = file:read_file(Base),
+    {ok, UserBeam} = file:read_file(User),
+    Another = fun(Chunk) -> Chunk#{compiler => <<?VERSION "+another">>} end,
+    Main = write(Dir, "main.ern",
+                 "export fn main() : Unit =\n"
+                 "    Io.println(Io.show(Code.load(Path(\"" ++ User ++ "\"))))\n"),
+    built(Dir, "main.ern"),
+    Program = filename:rootname(Main) ++ ".erc",
+    ok = file:write_file(User, forge(UserBeam, Another)),
+    ?assertEqual([<<"Left(Invalid)">>], ran(Program)),
+    ok = file:write_file(User, UserBeam),
+    ok = file:write_file(Base, forge(BaseBeam, Another)),
+    ?assertEqual([<<"Left(Invalid)">>], ran(Program)),
+    ok = file:write_file(Base, BaseBeam),
+    ?assertEqual([<<"Right(Unit)">>], ran(Program)).
 
 %% Appendix E.28, report §4.1, §11.1: a module of a cycle through the load
 %% path is Invalid, whichever of its modules is loaded: Plug.A uses Plug.B,

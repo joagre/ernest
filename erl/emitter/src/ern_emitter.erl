@@ -15,8 +15,10 @@
 %% position N is '$N'. The function a local function of the definition at
 %% N is lifted to, at its position P among the definition's lambdas and
 %% local functions (Appendix H), is '$N.P', and the entry a spawn on a peer
-%% starts a lambda or a local function by is '$N.P.entry' (§8.7). A
-%% descriptor's function is '$type_K', K counting the unit's descriptors.
+%% starts a lambda or a local function by is '$N.P.entry' (§8.7). The
+%% initializer of a binding at N whose initializer is no ground term is
+%% evaluated in '$N.init' (§8.5). A descriptor's function is '$type_K', K
+%% counting the unit's descriptors.
 %%
 %% What the runtime calls on every unit keeps its name: '$init'/0,
 %% '$deps'/0, '$tests'/0, '$spawned'/2 and '$code'/0. Each function's
@@ -154,6 +156,10 @@ entry_name(Definition, Position) ->
     list_to_atom([$$ | integer_to_list(Definition)] ++ [$. | integer_to_list(Position)]
                  ++ ".entry").
 
+%% The function the initializer of the binding at Position is evaluated in.
+initializer_name(Position) ->
+    list_to_atom([$$ | integer_to_list(Position)] ++ ".init").
+
 syntax(#unit{namespace = Namespace, name = ErlangModule, code = Code} = Unit) ->
     {Placed, ForeignPlaced} = placed(Unit),
     Context = context(Placed, ForeignPlaced, Unit),
@@ -178,14 +184,14 @@ syntax(#unit{namespace = Namespace, name = ErlangModule, code = Code} = Unit) ->
                            code_function(code(Placed, ForeignKept, Entries, Context3)
                                          ++ [{Unit#unit.form_namespace,
                                               {sites, site_namespace(Unit)}},
-                                             {Unit#unit.form_namespace,
-                                              {initializers, initializers(Placed, Context3)}},
                                              {Namespace, {calls, Calls}}]);
                        false ->
                            []
                    end,
     Exports = exports(Placed, ForeignKept, Context3)
-        ++ [{'$init', 0} || InitFunction =/= []] ++ [{'$tests', 0} || TestsFunction =/= []]
+        ++ [{erl_syntax:atom_value(erl_syntax:function_name(Function)), 0}
+            || Function <- InitFunction]
+        ++ [{'$tests', 0} || TestsFunction =/= []]
         ++ [{'$deps', 0} || DependenciesFunction =/= []]
         ++ [{'$spawned', 2} || SpawnedFunction =/= []] ++ [{'$code', 0} || CodeFunction =/= []]
         ++ [{Function, Arity} || {Function, Arity, _} <- Unit#unit.lacked],
@@ -718,46 +724,62 @@ foreign_return(Source, Try, ParamTypes, ResultType, HostText, Context) ->
 key(#emit_context{unit = #unit{name = ErlangModule}}, Name) ->
     erl_syntax:tuple([erl_syntax:atom(ErlangModule), erl_syntax:atom(Name)]).
 
-%% '$init'/0 evaluates the top-level lets once, in dependency order, each
-%% named as the process's site while it runs, so that its fault is reported
-%% under it (report §8.5, §11.2). Report §11.1, §11.2: a binding whose
-%% initializer is a ground term is given its value first, with no site,
-%% since it cannot fault, so that it has its value whatever faults after,
-%% and the runtime's readers of a binding's value, its getter, a peer's
-%% spawn and the shell's reload, find what its reads were compiled to.
+%% '$init'/0 evaluates the top-level lets once, in dependency order (report
+%% §8.5). Report §11.1, §11.2: a binding whose initializer is a ground term
+%% is given its value first, with no site, since it cannot fault, so that
+%% it has its value whatever faults after, and the runtime's readers of a
+%% binding's value, its getter, a peer's spawn and the shell's reload, find
+%% what its reads were compiled to. Each other binding's initializer is
+%% then called, a function of its own (initializer_function/2).
+%%
+%% Each initializer is exported and called by the unit's name, since the
+%% host's type pass takes a local function it has not yet typed for one
+%% that never returns, and types the caller again after each, the square
+%% of the computed bindings, where a call by the module's name it does not
+%% follow: 2,000 lets that need nothing of each other took 11.3 s called
+%% locally, 4.05 s so and 3.65 s in one function, and 2,000 chained lets
+%% 73.9 s in one function and 5.4 s so (docs/otp_bugs.md's report 7).
 init_function(#unit{binding_order = []}, Context) ->
     {[], Context};
 init_function(#unit{binding_order = Order},
-              #emit_context{own = #own{names = Names, forms = Forms,
-                                       grounds = Grounds}} = Context) ->
-    {Ground, Computed} = lists:partition(fun(QualifiedName) ->
-                                             is_map_key(maps:get(QualifiedName, Names), Grounds)
-                                         end, Order),
+              #emit_context{unit = #unit{name = ErlangModule},
+                            own = #own{names = Names, grounds = Grounds}} = Context) ->
+    {Ground, Computed} = lists:partition(fun(Position) -> is_map_key(Position, Grounds) end,
+                                         [maps:get(QualifiedName, Names)
+                                          || QualifiedName <- Order]),
     Given = [call_remote(persistent_term, put,
                          [key(Context, function_name(Position)),
                           term_form(maps:get(Position, Grounds))])
-             || QualifiedName <- Ground, Position <- [maps:get(QualifiedName, Names)]],
-    {Stores, Context1} =
-        lists:mapfoldl(fun(QualifiedName, Acc) ->
-                           Position = maps:get(QualifiedName, Names),
-                           {Definition, Form} = maps:get(Position, Forms),
-                           {Source, {binding, _, Body}} = sourced(Form),
-                           Acc1 = entering(Position, Definition, Form, Acc),
-                           Named = call_remote(ern_rt, initializing, [site(Source, Acc1)]),
-                           {BodyForm, Acc2} = expr(Body, Acc1),
-                           Store = call_remote(persistent_term, put,
-                                               [key(Acc, function_name(Position)), BodyForm]),
-                           {[Named, Store], Acc2}
-                       end, Context, Computed),
-    Clause = erl_syntax:clause([], none, Given ++ lists:append(Stores) ++ [erl_syntax:atom(ok)]),
-    {[erl_syntax:function(erl_syntax:atom('$init'), [Clause])], Context1}.
+             || Position <- Ground],
+    Called = [call_remote(ErlangModule, initializer_name(Position), []) || Position <- Computed],
+    {Initializers, Context1} = lists:mapfoldl(fun initializer_function/2, Context, Computed),
+    Clause = erl_syntax:clause([], none, Given ++ Called ++ [erl_syntax:atom(ok)]),
+    {[erl_syntax:function(erl_syntax:atom('$init'), [Clause]) | Initializers], Context1}.
+
+%% Report §8.5, §11.2: the initializer of the binding at Position, '$N.init'
+%% beside its getter '$N', which names the binding as the process's site
+%% while it runs, so that its fault is reported under it, and keeps its
+%% value; a trace names its frame by the binding, at the frame's line
+%% (ern_code:function_text/3).
+initializer_function(Position, #emit_context{own = #own{forms = Forms}} = Context) ->
+    {#definition{qualified_name = QualifiedName} = Definition, Form} = maps:get(Position, Forms),
+    {Source, {binding, _, Body}} = sourced(Form),
+    Context1 = entering(Position, Definition, Form, Context),
+    Named = call_remote(ern_rt, initializing, [site(Source, Context1)]),
+    {BodyForm, Context2} = expr(Body, Context1),
+    Store = call_remote(persistent_term, put, [key(Context, function_name(Position)), BodyForm]),
+    Clause = at(Source, erl_syntax:clause([], none, [Named, Store])),
+    Function = at(Source, erl_syntax:function(erl_syntax:atom(initializer_name(Position)),
+                                              [Clause])),
+    {with_comment(Function, "the initializer of " ++ ern_namespace:text(QualifiedName)),
+     Context2}.
 
 %% Report §12.7, §11.1: the bindings the unit holds and does not evaluate,
 %% each a binding an exchange's unit holds for a lambda written in it that
 %% a spawn on a peer starts, whose value is its node's: each initializer
-%% compiled as '$init'/0 compiles one, for the entries of its lambdas and
-%% the functions they lift, and its own code left out, since nothing is
-%% evaluated because code arrived.
+%% compiled as initializer_function/2 compiles one, for the entries of its
+%% lambdas and the functions they lift, and its own code left out, since
+%% nothing is evaluated because code arrived.
 carried(Placed, #unit{binding_order = Order}, #emit_context{own = #own{forms = Forms}} = Context) ->
     lists:foldl(fun({Position, Definition}, Acc) ->
                         {_, Form} = maps:get(Position, Forms),
@@ -845,12 +867,11 @@ foreign_arity(#foreign_function{scheme = {scheme, _, {arrow, ParamTypes, _, _}, 
 %% holds the namespace its spawn sites name its declarations under
 %% (site_namespace/1), by which a fault's trace names its functions
 %% (ern_code:function_text/3), the empty namespace for an input of a
-%% shell's session, whose sites name them by their own names; under the
-%% same namespace each binding's first line (initializers/2); and, last,
+%% shell's session, whose sites name them by their own names; and, last,
 %% under the module's namespace, the units its code calls (calls/2). Each
 %% qualified name is the forms' (Appendix H): an input of a shell's session
 %% names what it declares under the session's one namespace, by which a
-%% reach finds it. The last three rows are the unit's, which syntax/1 adds.
+%% reach finds it. The last two rows are the unit's, which syntax/1 adds.
 %% A literal '$code'/0 answers, so that a load reads it without decoding
 %% the module's chunks, which costs more than the load.
 code(Placed, ForeignPlaced, Entries,
@@ -874,18 +895,6 @@ code(Placed, ForeignPlaced, Entries,
                        || #entry{function = Function, arity = Arity,
                                  qualified_name = QualifiedName, hash = Hash,
                                  position = Position} <- Entries]).
-
-%% Report Appendix E.21: each top-level binding's first line and its
-%% qualified name as the forms write it, in the order of the lines, by
-%% which a fault's trace names a frame of '$init'/0, where every
-%% initializer is evaluated, by the binding whose source holds the
-%% frame's line (ern_code:function_text/3); a binding without its source
-%% has none.
-initializers(Placed, #emit_context{unit = Unit, own = #own{forms = Forms}}) ->
-    lists:sort([{Line, form_name(QualifiedName, Unit)}
-                || {Position, #definition{kind = binding, qualified_name = QualifiedName}}
-                       <- Placed,
-                   {{Line, _, _}, _} <- [sourced(element(2, maps:get(Position, Forms)))]]).
 
 definition_code(Position, #definition{kind = function, qualified_name = QualifiedName, hash = Hash},
                 Form, #emit_context{unit = #unit{reaches = Reaches} = Unit}) ->

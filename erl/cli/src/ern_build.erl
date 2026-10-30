@@ -1401,19 +1401,34 @@ compiler_modules() ->
 %% Report §11.1, §11.2: the build of ern, its version and a hash of the
 %% modules that compile, so that a compiler changed under one version is
 %% another; a .erc records the one that wrote it, which the build and the
-%% shell's `:load` compare.
+%% shell's `:load` compare, and which `ern run`, `ern test` and Code.load
+%% refuse where it is another (ern_cli, ern_code_load).
+%%
+%% It is found once, at the job's start (ern_cli:start/0), and kept for
+%% the host's life, since no job replaces the compiler's files while a host
+%% runs, and their digest, some milliseconds, would cost a Code.load more
+%% than the load does (E.28); a persistent term is set at a launch and
+%% never lazily, so that what a session counts of them holds.
 -spec compiler_build() -> binary().
 compiler_build() ->
-    Hash = erlang:md5(term_to_binary([code_md5(ErlangModule)
-                                      || ErlangModule <- compiler_modules()])),
-    <<(list_to_binary(?VERSION))/binary, $+, (binary:encode_hex(Hash, lowercase))/binary>>.
+    case persistent_term:get({?MODULE, compiler_build}, none) of
+        none ->
+            Hash = erlang:md5(term_to_binary([code_md5(ErlangModule)
+                                              || ErlangModule <- compiler_modules()])),
+            Build = <<(list_to_binary(?VERSION))/binary, $+,
+                      (binary:encode_hex(Hash, lowercase))/binary>>,
+            persistent_term:put({?MODULE, compiler_build}, Build),
+            Build;
+        Build ->
+            Build
+    end.
 
 %% A module's code as the host digests it: as loaded, which is the code
 %% that compiles, where the host has loaded the module; else as its file
 %% holds it, which is what the host will load, so that a build that finds
 %% every module current loads none of the compiler's code it does not run.
 %% A file replaced between the digest and the load leaves the older code's
-%% digest recorded, and the next build compiles the module again.
+%% digest recorded, and a build in the next host compiles the module again.
 code_md5(ErlangModule) ->
     case erlang:module_loaded(ErlangModule) of
         true ->

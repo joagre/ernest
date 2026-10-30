@@ -457,8 +457,11 @@ received_beyond_reach_test() ->
         unloaded(Unit)
     end.
 
+%% heavy's form is this test's own: the host keeps every unit a test loads
+%% (ern_code), and one that exports a function of the same form, `n * n`,
+%% holds heavy's hash, which the node then does not lack (§12.7)
 -define(IN_LET,
-        "fn heavy(n : Int) : Int = n * n\n"
+        "fn heavy(n : Int) : Int = n * n + 7\n"
         "export let job = fn() = Peer.computeAt(\"p\", fn() = heavy(4), 100)\n").
 
 %% report §8.7, §12.7, §11.1, Appendix H: a lambda written in a top-level binding,
@@ -476,7 +479,10 @@ received_beyond_reach_test() ->
 %% Before 0.5.0*: the spawner's node found no definition by the binding's
 %% hash and answered that it no longer held the reach); it does not cover a
 %% binding that crosses as a member of its group, which the unit compiles
-%% for its lambdas so too, nor real nodes, test/ern_nodes_tests.erl's
+%% for its lambdas so too, nor real nodes, test/ern_nodes_tests.erl's.
+%% heavy's own form and the check that no unit holds it were written after
+%% the test waited forever behind another test's run of a module whose
+%% exported `area` had heavy's earlier form
 in_let_test() ->
     {Unit, Beam, Defined} = compiled(['Exinlet'], ?IN_LET),
     #definition{hash = Job} = JobDefinition = maps:get(['Exinlet', job], Defined),
@@ -508,7 +514,9 @@ in_let_test() ->
     after
         unloaded(Unit)
     end,
-    %% the node the compute was asked of, which lacks the module
+    %% the node the compute was asked of, which lacks the module, and no
+    %% unit of the host's another test loaded holds heavy's hash
+    ?assertEqual(none, ern_code:linkable(Heavy)),
     Peer = fun() ->
                    true = register(ern_gateway, self()),
                    ok = ern_exchange:start(),
@@ -535,7 +543,7 @@ in_let_test() ->
         receive {peer, _, _, _, _} = Got -> Got end,
     try
         ?assertEqual(lists:sort([Job, Heavy]), lists:sort(Lacked)),
-        ?assertEqual(16, Computed),
+        ?assertEqual(23, Computed),
         ?assertMatch("ern$" ++ _, atom_to_list(Arrival)),
         ?assertMatch([{code_frame, _, [Job], _, _}], Onward),
         ?assertEqual([], Said())

@@ -162,17 +162,14 @@ unit_load_fills_table_test() ->
                  ern_code:spawnable({foreign, ['Tablefill', backwards]})),
     ?assertEqual([], ern_code:foreign(Called, ['Tablefill', missing])),
     %% every definition the chunk holds, and nothing else, the namespace
-    %% its sites name its declarations under, its bindings' first lines,
-    %% and the calls
+    %% its sites name its declarations under, and the calls
     ?assertEqual(lists:sort(maps:keys(Definitions)),
                  lists:sort([QualifiedName
                              || {QualifiedName, Held} <- Unit:'$code'(),
                                 not lists:member(element(1, Held),
-                                                 [foreign, sites, initializers, calls])])),
+                                                 [foreign, sites, calls])])),
     ?assertEqual([{['Tablefill'], {sites, ['Tablefill']}}],
                  [Sites || {_, {sites, _}} = Sites <- Unit:'$code'()]),
-    ?assertEqual([{['Tablefill'], {initializers, [{5, ['Tablefill', answer]}]}}],
-                 [Lines || {_, {initializers, _}} = Lines <- Unit:'$code'()]),
     ?assertEqual([{['Tablefill'], {calls, []}}],
                  [Calls || {_, {calls, _}} = Calls <- Unit:'$code'()]),
     ern_code:unloaded(Unit),

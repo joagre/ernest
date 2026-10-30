@@ -15,7 +15,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-10-30.** [The Attached Shell's Cut](#the-attached-shells-cut-2026-10-30); [No Back End to BEAM's Own Instructions](#no-back-end-to-beams-own-instructions-2026-10-30); [`Test.until`, Built](#testuntil-built-2026-10-30).
+**2026-10-30.** [One Function per Initializer](#one-function-per-initializer-2026-10-30); [The Attached Shell's Cut](#the-attached-shells-cut-2026-10-30); [No Back End to BEAM's Own Instructions](#no-back-end-to-beams-own-instructions-2026-10-30); [`Test.until`, Built](#testuntil-built-2026-10-30).
 
 **2026-10-27.** [`<-` at the Prompt](#--at-the-prompt-2026-10-27); [The Shell Does Not Indent](#the-shell-does-not-indent-2026-10-27); [Small Library Functions Stay Calls](#small-library-functions-stay-calls-2026-10-27); [The Emitter's Calls Against the Host's, Built](#the-emitters-calls-against-the-hosts-built-2026-10-27); [The Emitter's Calls Against the Host's](#the-emitters-calls-against-the-hosts-2026-10-27); [The BEAM Opcode Experiment](#the-beam-opcode-experiment-2026-10-27).
 
@@ -9524,6 +9524,34 @@ MVP 3.9's last item began on the user's word on 2026-10-24 over `0e37caeb`, as `
 The host's own times are down a fifth on most rows, the loop alone 7.5 against 9.3, so the machine is faster than it was and the ratio is what is compared. Two rows are better, `String.size` and the spawn, the spawn by the review's rounds since 0.4.0 (*The Rows That Grew*). Nine rows are within a tenth of their last ratio, the noise the reviews before 0.3.1 and 0.4.0 took for the machine's own, and two are a little past it, `List.map` 1.62 against 1.5 and the call 1.71 against 1.6, each by a hundredth or two beyond a tenth, with no change to either operation's path since 0.4.0; the release ships with the rows as they stand, which the user decides at the tag. Of the rows the bench gained since 0.4.0's table: `spawnMonitored` 11.1 and a monitor of an ended process 27.2, against 10.2 and 25.6 on 2026-10-20, within their spread; `restarting` entered and returning 356 ns against 553 then. The language's rows against the host (*The Language Against the Host*): the dot product 1.28 against 1.65 and the ray tracer 1.61 against 1.95, both better since the operators' tuple patterns, a record update 1.73 against 1.50, `Map.put` 1.32 against 1.18, `List.map` 1.42 against 1.57, the parser 1.28 and the counter 1.30 as they were.
 
 **The newcomer's program** is `kvd`, a key-value server over TCP that keeps its values in a log file, 732 lines in four modules: a session per connection with a reader process, a tracker and a store under a `OneForOne` group, `Clock.alarm` for keys that lapse and a compaction every thirty seconds, `Os.termination` compacting the log at the end, nine tests and three doc examples. It ran, a `CRASH` restarted by the group and the values read again by the second run; it is published beside the archive with its driver script.
+
+## One Function per Initializer, 2026-10-30
+
+MVP 3.96's item 7, its last, found by *The Build's Cost per Function*: the emitter wrote every top-level `let`'s initializer into one function, `'$init'/0`, and the host's type pass on that one function grew faster than linearly where each initializer read the one before it, 73.9 s at 2,000 chained lets against 3.65 s for 2,000 that need nothing of each other. Built by an agent on the model below from a brief in the shape the item named.
+
+**The shape.** Each computed binding's initializer is a function of its own, `'$N.init'/0` beside the binding's getter `'$N'/0`, holding the binding's site and its `persistent_term:put`; `'$init'/0` keeps the ground bindings' puts and calls each initializer in §8.5's order. The runtime names a frame of `'$3.init'/0`, and of a fun the host makes inside it, as the binding `'$3'`'s by the rule that already named `'$3.2'` and `'$3.2.entry'`, so a fault in an initializer traces as before, and a lambda inside a binding's tuple, which kept the host's name, is named by its binding now. What that made redundant went: the row of first lines that named `'$init'/0`'s frames by line, its reader, and the clause that passed over it.
+
+**The call is by the module's name.** The plain form, a local call, left the build quadratic in the computed bindings whatever their shape: the host's type pass treats a local function it has not typed yet as one that never returns, stops at the first such call and types `'$init'/0` again after each initializer, so 2,000 independent lets took 11.3 s against 3.65 before. A call by the module's name, `ern@m:'$3.init'()`, each initializer exported, the pass does not follow, and the build is linear in both cases; it is Erlang's own form of a call and no trick, and the comment says why it is written so. Decided with the user, who was given both measures. The pass's cost is `docs/otp_bugs.md`'s seventh entry, with a pure Erlang module that shows it.
+
+**The numbers**, `ern build` in seconds, each in a fresh host on a laptop at a load of two to three, before and after:
+
+| module | before | after |
+|---|---|---|
+| 400 chained lets | 1.83 | 1.25 |
+| 1,000 chained | 8.65 | 2.34 |
+| 2,000 chained | 73.9 | 5.49 |
+| 3,000 chained | | 7.52 |
+| 4,000 chained | | 11.1 |
+| 2,000 independent, computed | 3.65 | 4.15 |
+| 4,000 independent, computed | 9.58 | 9.94 |
+| 2,000 ground | 3.70 | 4.19 |
+| 7,000 functions | 6.98 | 7.68 |
+
+The chained case is linear now, and the rows the change does not touch, the ground lets and the functions, move within the load's noise. A launch is unchanged, the bench's rules part giving 2,464 µs against 2,471 and the library's initializers 1,745 µs against 1,756.
+
+**Two things decided in the build.** The build of `ern`, its version and the digest of the compiler's modules, which every `.erc` records and the refusal compares, is found once, at the job's start, and kept in a persistent term, as the runtime's note has every persistent term set at a launch: no job replaces the compiler's files while a host runs, and the digest, 6 to 11 ms, would cost a `Code.load` of twenty definitions more than the load, 7.7 ms. Made lazily at the first `:load`, as the build first had it, it moved the count of persistent terms a shell test keeps, which is how the rule was found again. And an interface chunk of another format, which an older `ern` wrote, is refused in the same words, `compiled by another build of ern`, since §11.2's sentence names another version among the builds refused.
+
+**A compiled form another build wrote.** An `.erc` built before this change holds the row the runtime no longer reads, and `ern run` of one ended in an internal error. `ern build` and the shell's `:load` already compile again a module another build of `ern` compiled (§11.1), but `ern run` has no source. Decided with the user: `ern run` and `ern test` refuse such a file before anything runs, naming it, and `Code.load` answers `Left(Invalid)` for one, which §11.2 and E.28 now state; the other way kept a dead row's clause in the runtime for files no build writes any more.
 
 ## The Attached Shell's Cut, 2026-10-30
 

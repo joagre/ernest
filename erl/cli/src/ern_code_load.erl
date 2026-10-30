@@ -8,9 +8,9 @@
 %% descends from (§11.2), and each module it uses is found by its namespace
 %% under that root and then on the run's load path (ern_cli:load_path/0),
 %% each verified against its hashes (ern_canonical:is_verified/1) and
-%% checked against the interfaces it was compiled against and the standard
-%% library the node holds, and a module of a cycle among them refused
-%% (§4.1).
+%% checked against the build of `ern` that wrote it, the interfaces it was
+%% compiled against and the standard library the node holds, and a module
+%% of a cycle among them refused (§4.1).
 %%
 %% Each module becomes a unit of the node's (§11.2): the node's own where
 %% the node holds that very code under its Erlang name and each module it
@@ -152,11 +152,11 @@ compiled_file(Namespace, LoadPath) ->
     end.
 
 %% Appendix E.28: a compiled form read, of the namespace Expected or of
-%% any: a file of this `ern`, whose interface and forms it can read, which
-%% holds that namespace, each of its definitions its hash, and compiled
-%% against the standard library the node holds; else `Invalid`. A path
-%% that names no file is `NotFound`, and a file the host cannot read its
-%% reason (Appendix E.1).
+%% any: a file of this `ern`, whose interface and forms it can read and
+%% which this build of `ern` wrote (§11.1), which holds that namespace,
+%% each of its definitions its hash, and compiled against the standard
+%% library the node holds; else `Invalid`. A path that names no file is
+%% `NotFound`, and a file the host cannot read its reason (Appendix E.1).
 found(File, Expected) ->
     Beam = case file:read_file(File) of
                {ok, Bytes} -> Bytes;
@@ -168,7 +168,8 @@ found(File, Expected) ->
         {{ok, #{interface := #interface{namespace = Namespace}} = Chunk},
          {ok, #recorded{definitions = Definitions} = Recorded}}
           when Expected =:= any; Expected =:= Namespace ->
-            ern_canonical:is_verified(Definitions)
+            maps:get(compiler, Chunk, none) =:= ern_build:compiler_build()
+                andalso ern_canonical:is_verified(Definitions)
                 andalso lists:member(maps:get(stdlib, Chunk, none),
                                      [none, ern_build:stdlib_hash()])
                 orelse refuse('Invalid'),

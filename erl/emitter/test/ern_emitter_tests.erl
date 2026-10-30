@@ -588,9 +588,8 @@ units_from_forms(Root, Files, LoadPath) ->
     length(Made).
 
 %% The unit made with the source and from its forms alone, the same code but
-%% for the source's lines, names and sites' lines, and the bindings' first
-%% lines its '$code'/0 lists (ern_emitter:initializers/2), and the host
-%% compiles the second.
+%% for the source's lines, names and sites' lines, and the host compiles
+%% the second.
 same_but_the_source(Sourced, Alone) ->
     {WithSource, _} = ern_emitter:unit(Sourced),
     {FromForms, _} = ern_emitter:unit(Alone),
@@ -598,13 +597,8 @@ same_but_the_source(Sourced, Alone) ->
     ?assertEqual(ok, same_code(normalize(WithSource), normalize(FromForms))).
 
 %% Two normalized forms the same but where a string of the first is the
-%% second's with a line after a colon, a spawn site's (report §6.9), and
-%% where the first lists its bindings' first lines and the second, with no
-%% source, none (Appendix E.21).
+%% second's with a line after a colon, a spawn site's (report §6.9).
 same_code({string, Anno, Text}, {string, Anno, Text}) ->
-    ok;
-same_code({tuple, Anno, [{atom, _, initializers} = Tag, _]},
-          {tuple, Anno, [Tag, {nil, _}]}) ->
     ok;
 same_code({string, Anno, WithLine}, {string, Anno, Text}) ->
     case lists:prefix(Text ++ ":", WithLine)
@@ -631,12 +625,15 @@ same_code(First, Second) ->
 %% its foreign functions after them; a local function lifted to its own
 %% function by its definition's position and its own among the
 %% definition's lambdas and local functions, and the entry a spawn on a
-%% peer starts one by, '.entry' after; and two builds of one module, as on
-%% two nodes, name them alike. Written after the code
+%% peer starts one by, '.entry' after; report §8.5: the initializer of a
+%% binding whose initializer is no ground term by the binding's position,
+%% '.init' after, exported; and two builds of one module, as on two nodes,
+%% name them alike. Written after the code, and the initializer's name with
+%% it
 functions_named_by_position_test() ->
     Text = "export type Box = Box(Int)\n"
            "export fn Box.compare(a : Box, b : Box) : Ordering = Equal\n"
-           "let base : Int = 1\n"
+           "let base : Int = twice(1)\n"
            "export fn twice(n : Int) : Int = {\n"
            "    fn add(k : Int) : Int = k + n;\n"
            "    add(n)\n"
@@ -652,11 +649,13 @@ functions_named_by_position_test() ->
     {Unit, Beam} = Compiled(),
     {module, Unit} = code:load_binary(Unit, "test", Beam),
     Functions = [Function || {Function, _} <- Unit:module_info(functions)],
-    ?assertEqual(['$2', '$3', '$4', '$4.1', '$5', '$5.1.entry', '$6', '$code', '$init',
-                  '$spawned'],
+    ?assertEqual(['$2', '$3', '$3.init', '$4', '$4.1', '$5', '$5.1.entry', '$6', '$code',
+                  '$init', '$spawned'],
                  lists:sort([Function || Function <- Functions,
                                          lists:prefix("$", atom_to_list(Function)),
                                          not lists:prefix("$type_", atom_to_list(Function))])),
+    %% '$init'/0 calls an initializer by the unit's name, which exports it
+    ?assert(erlang:function_exported(Unit, '$3.init', 0)),
     ?assertEqual({'$4', 1}, ern_code:function(Unit, ['Numbered', twice])),
     ?assertEqual({'$2', 2}, ern_code:function(Unit, ['Numbered', 'Box', compare])),
     ?assertEqual({'$3', 0}, ern_code:function(Unit, ['Numbered', base])),
@@ -705,6 +704,25 @@ trace_names_functions_test() ->
                   <<"Traced.Vec.+:5">>, <<"Traced.helper:8">>, <<"List.map:", _/binary>>,
                   <<"Traced.helper:8">>, <<"Traced.main:11">>],
                  frames(Trace)).
+
+%% Appendix E.21, report §8.5, §11.2: a fault in a top-level binding's
+%% initializer is reported under the binding's site and traced by the
+%% binding's name and the frame's line, beneath the frames of what it
+%% called, and the trace ends there, the binding's frame the program's
+%% outermost. A regression test, written after the code: the trace was the
+%% same when every initializer was written into '$init'/0, whose frame was
+%% named by the binding whose source held its line; it does not cover a
+%% fault in a lambda of a binding's value, which raise_has_line_test reads
+initializer_fault_traced_test() ->
+    Text = "fn half(n : Int) : Int = 10 / n\n"
+           "let zero : Int = List.size([])\n"
+           "let doubled : Int = List.size([1, 2]) * 2\n"
+           "let bad : Int =\n"
+           "    half(zero) + doubled\n"
+           "export fn main() : Unit = Io.println(Int.toString(bad))\n",
+    {{initializer_fault, <<"Inits.bad:4">>, <<"division by zero">>, Trace}, _} =
+        run(['Inits'], Text, #{}),
+    ?assertEqual([<<"erlang:'div'/2">>, <<"Inits.half:1">>, <<"Inits.bad:5">>], frames(Trace)).
 
 %% report §7.3, Appendix E.21: a fault met in place carries its line, so
 %% that the trace's first frame is the Ernest site with it: a Float
@@ -3667,21 +3685,28 @@ foreign_casts_and_callbacks_test() ->
 %% function as a caller writes it, `Main.handler`, another module's,
 %% `Int.toString`, and a top-level `let` bound to a lambda, `Main.bound`;
 %% a lambda or a local fn by the top-level declaration it is written in,
-%% `Main.main`, as a trace names its frame (Appendix E.21). A function value
-%% foreign code gave names itself as the host does, its return that does
-%% not match and an exception it raises alike, as a foreign function's.
+%% `Main.main`, and a lambda inside a top-level binding's value, a tuple's,
+%% `Main.paired`, as a trace names its frame (Appendix E.21); a function
+%% foreign code gave that a top-level binding holds, given back, by the
+%% binding, `Main.given`. A function value foreign code gave names itself
+%% as the host does, its return that does not match and an exception it
+%% raises alike, as a foreign function's.
 %%
-%% A regression test, written after the code; it does not cover a lambda
-%% inside a top-level binding's value, a tuple's or a list's, which keeps
-%% the host's name for the fun '$init'/0 made, since no line tells the
-%% binding, nor a function foreign code gave and was given back, which is
-%% named by the wrapper the boundary made
+%% A regression test, written after the code, but for the lambda inside a
+%% tuple, written with each initializer's function of its own (MVP 3.96's
+%% item 7), before which it kept the host's name; it does not cover a
+%% function foreign code gave and was given back that no binding holds,
+%% which is named by the wrapper the boundary made
 function_named_in_cause_test() ->
     Each = "foreign fn each(f : (Int) -> Int, xs : List(String)) : List(Int) = \"lists:map/2\"\n"
            "foreign fn strings(f : (Int) -> String, xs : List(String)) : List(String) =\n"
            "    \"lists:map/2\"\n"
            "fn handler(n : Int) : Int = n + 1\n"
-           "let bound = fn(n : Int) = n + 2\n",
+           "let bound = fn(n : Int) = n + 2\n"
+           "let paired = #(fn(n : Int) = n + 3, 1)\n"
+           "foreign fn made(module : Foreign.Term, function : Foreign.Term, arity : Int)\n"
+           "    : (Int) -> Int = \"erlang:make_fun/3\"\n"
+           "let given = made(Foreign.atom(\"erlang\"), Foreign.atom(\"abs\"), 1)\n",
     Cause = fun(Body) ->
                 {{fault, Faulted, _}, _} =
                     run(['Main'], Each ++ "export fn main() : Unit = {\n" ++ Body
@@ -3695,6 +3720,9 @@ function_named_in_cause_test() ->
     ?assertEqual(Argument("Main.handler"), Cause("    let _ = each(handler, [\"x\"]);\n")),
     ?assertEqual(Argument("Int.toString"), Cause("    let _ = strings(Int.toString, [\"x\"]);\n")),
     ?assertEqual(Argument("Main.bound"), Cause("    let _ = each(bound, [\"x\"]);\n")),
+    ?assertEqual(Argument("Main.paired"), Cause("    let #(inPair, _) = paired;\n"
+                                                "    let _ = each(inPair, [\"x\"]);\n")),
+    ?assertEqual(Argument("Main.given"), Cause("    let _ = each(given, [\"x\"]);\n")),
     ?assertEqual(Argument("Main.main"), Cause("    let _ = each(fn(n) = n * 2, [\"x\"]);\n")),
     ?assertEqual(Argument("Main.main"), Cause("    fn local(n : Int) : Int = n * 3;\n"
                                               "    let _ = each(local, [\"x\"]);\n")),

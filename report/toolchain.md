@@ -1,6 +1,6 @@
 # Ernest Report: The Toolchain
 
-Revision of 27 October 2026.
+Revision of 30 October 2026.
 
 This file holds the report's §10 to §12 and Appendices C and H. §0 to §9 and Appendices A, B and F are in [`language.md`](language.md), and Appendices D, E and G in [`library.md`](library.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
@@ -114,7 +114,9 @@ A member's name, as the unit lists it and its documentation keys it, is its type
 
 ### 11.2 `ern run`, `ern test`, and `ern shell` (runner)
 
-`ern run [--config-dir dir] [--load-path dir]... [--libs-dir dir] [--main Qualified.name] [--verbose] [file.erc [argument]...]` loads the module and, on demand, the modules on the load path. They are found by namespace: `A.B.C` is `a/b/c.erc`, each segment written as its file's name is (§4.2), `OrderedSet` as `ordered_set`. A type-member reference `A.B.C.T.member` is found through the interface of `a/b/c.erc`, the module that owns `T`. A cycle among the modules a program uses is refused as `ern build` refuses one (§11.1), before anything runs, at a node's start as at a program's. The runner starts the system processes (§8.2) and calls the entry point (§8.1): the `export fn main` of the loaded module, or the function of that module that `--main` names. A `--main` that names a function of another module is refused, naming both modules: `--main Tools.check names a function of Tools, and the file given is the module Main`.
+`ern run [--config-dir dir] [--load-path dir]... [--libs-dir dir] [--main Qualified.name] [--verbose] [file.erc [argument]...]` loads the module and, on demand, the modules on the load path. They are found by namespace: `A.B.C` is `a/b/c.erc`, each segment written as its file's name is (§4.2), `OrderedSet` as `ordered_set`. A type-member reference `A.B.C.T.member` is found through the interface of `a/b/c.erc`, the module that owns `T`. A cycle among the modules a program uses is refused as `ern build` refuses one (§11.1), before anything runs, at a node's start as at a program's.
+
+The runner starts the system processes (§8.2) and calls the entry point (§8.1): the `export fn main` of the loaded module, or the function of that module that `--main` names. A `--main` that names a function of another module is refused, naming both modules: `--main Tools.check names a function of Tools, and the file given is the module Main`. A compiled form another build of `ern` wrote, another version or the same version's code changed (§11.1), is refused before anything runs, naming the file, `ern run: main.erc: compiled by another build of ern`, since `ern build` compiles it again and `ern run` cannot; `ern test` refuses one the same way.
 
 The load path holds the standard library and the root of the loaded module: the directory reached from the module's file by going up one directory per segment of its namespace. `--load-path` adds a directory, and `--libs-dir dir` the `ebin` directory of each application under `dir`, in the order the options are given; after them stands the build of each library of the toolchain's own (Appendix G), a root each; a program names none of them.
 

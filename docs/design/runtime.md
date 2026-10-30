@@ -37,7 +37,7 @@ Shared rows, in the runtime's tables, each with the reader outside its owner tha
 
 Beyond the runtime's tables, the gateway keeps two for a node's life, the spawns it waits on and its peers' utilizations (`ern_spawns`, `ern_utilizations`), and the code table two for the host's, the units and their sums (`ern_code`, `ern_code_sums`) (§8.7, §11.1, E.27).
 
-The host's persistent terms, few, small and set at a launch or a reload: the system processes' pids and the process that holds the terminal for a shell (`ern_rt`), the terminal's settings the program found (`ern_tty`), the file mode mask the host's facts gave (`ern_os`), a node's peers and services, `names`, `nodes`, `named` and `services` (`ern_peer`), and a top-level binding's value, which a ground binding needs no read of (§8.2, §8.5, §8.7, §11.1, §12.1); beside them the toolchain's own modules, a map put once in a host's life (`ern_rt`'s `own_modules`).
+The host's persistent terms, few, small and set at a job's start, a launch or a reload: the build of `ern` that every `.erc` records, its version and the compiler's digest, which a run compares before anything runs (`ern_build`, §11.1, §11.2), the system processes' pids and the process that holds the terminal for a shell (`ern_rt`), the terminal's settings the program found (`ern_tty`), the file mode mask the host's facts gave (`ern_os`), a node's peers and services, `names`, `nodes`, `named` and `services` (`ern_peer`), and a top-level binding's value, which a ground binding needs no read of (§8.2, §8.5, §8.7, §11.1, §12.1); beside them the toolchain's own modules, a map put once in a host's life (`ern_rt`'s `own_modules`).
 
 ## The look
 
