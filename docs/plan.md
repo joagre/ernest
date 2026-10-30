@@ -69,19 +69,20 @@ One form of attaching, by a listed peer, since a node accepts a connection from 
     ended with the session, lost or written beside the shell's `the node b ended`: §11.2's *The
     attached shell* states it since that day, and the runtime makes it so in item 5's commit,
     beside item 9, with the terminal test asserting the row.
-11. **An expression makes two units**, its own and the holder of `it`, a decision for the user
-    found by item 7 (the log's *A Line-Mode Input's Cost*): the host's work on the two is 10.0
-    of an input's 11.6 ms, and one unit holding the `it` it binds, kept while `it` names it,
-    takes an input to about the 5.9 ms of `let _ = 1`. §11.2 *Inputs* lets an expression's code
-    go once its answer is in, so the report changes first. Recommended: one unit.
+11. **An expression makes one unit**, holding the `it` it binds and kept while `it` names it,
+    decided 2026-10-30 from item 7's measure (the log's *A Line-Mode Input's Cost*): the host's
+    work on two units was 10.0 of an input's 11.6 ms, and one takes an input to about `let _ =
+    1`'s 5.9. §11.2 *Inputs* states it since that day; built in item 5's commit with items 9, 10
+    and 12.
 12. **An input's cost grows with the session**, found by item 7: after a thousand declarations
     an input of `1` takes 38 ms, since the session's record crosses five places at each input
     with every interface it holds, and the check adds every interface to the prelude's
     environment again. The shape of its fix: the input answers what it bound and the session
     joins it, so that the record stays in its process and its row is written once an input;
     and the environment over the session's interfaces kept between inputs and built again where
-    they change, a cache decided with the user by its argument. Before the release, since an
-    attached shell meets it at a node whose program has many modules.
+    they change, a cache decided 2026-10-30 on its argument, what it holds being fixed by the
+    interfaces and let go when they change or the session ends. Before the release, in item
+    5's commit, since an attached shell meets it at a node whose program has many modules.
 
 The attached shell is the operator's alone, trusted as a peer is, with no sandbox: the website runs
 the plain shell in a container per visitor (MVP 4.2).
