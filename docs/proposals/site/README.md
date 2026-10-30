@@ -12,7 +12,7 @@ discussion has settled meanwhile.
 | `docroot/` | the assets, laid out as served, and under `mockup/` the first design's pages, flat, to open in a browser, with the logos they show | a first design |
 | `tools/`, `Makefile`, `build/` | the prototype's generator, the rules that build and run it, and what they make: the compiled generator, and the served tree in `build/site/`, which git ignores | not written |
 
-The milestone is MVP 4.2; the generator may come earlier, whenever it is wanted.
+The milestone is MVP 4.2, whose first item brings the templates and the mockups to the decisions by hand, in a browser, before the generator is written (decided 2026-10-30).
 
 ## Prototyping
 

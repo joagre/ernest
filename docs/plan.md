@@ -183,11 +183,23 @@ visitor running the plain shell, whose server side is the httpd proposal's; a sa
 language's was weighed and set aside on 2026-10-13 (`docs/proposals/shell/attached.md`), and the
 attached shell, MVP 4.0, is the operator's alone.
 
-1. **The generator**, `tools/site.ern` beside `tools/manual.ern`, in Ernest over `libs/markdown`'s
+1. **The look, by hand, before any generation**, decided 2026-10-30: the templates and the
+   mockup pages brought to the decisions in a browser, one page per kind, `page.html`,
+   `toc.html`, `home.html` and `shell.html` on `base.html`, the fragments for a list's items,
+   the stoat in the header, the favicon, the footer's rooms, the homepage's order and the
+   panel's controls, no inline script or style under the server's policy; the mockups written
+   over a fixture document in Lorem ipsum that carries every shape a page holds, prose,
+   headings, a code block, a console transcript, a table, citations and a margin line, and one
+   mockup over a real report section beside them, since Lorem never wraps a long title; `site/`
+   at the repository's root holding `templates/` and `docroot/`; xterm.js and its fit addon
+   vendored, with their row in `THIRD_PARTY_LICENSES`.
+2. **The generator**, `tools/site.ern` beside `tools/manual.ern`, in Ernest over `libs/markdown`'s
    tree, `Block` and `Inline`, an `html` function of one clause per constructor; the library
    renders to its tree and to the terminal alone, and nothing of the site enters it (decided
    2026-10-10), `roff` moving to `tools/manual.ern`, its one user, when something next touches the
-   library.
+   library. Its first job is item 1's mockups, rendered from the fixture through the templates,
+   with a test holding what it writes equal to the committed pages, so that the look decided by
+   hand and the generation never drift; a test holds each template to its tokens the same way.
 
    It reads the repository and writes static files: the pages of the report, the guide,
    the tour, Why, the questions, the deployment guide, the README's *Installing*, the release
@@ -196,14 +208,7 @@ attached shell, MVP 4.0, is the operator's alone.
    toolchain's lexer; which buttons a block gets, Copy alone for a transcript the container
    cannot hold, a node's or an attached session's, read from its first line; the shell page's
    limits read from the server's configuration; each page's sidebar, title, description and
-   footer. It may come before the rest whenever it is wanted.
-2. **The templates and the docroot** brought to the decisions: `page.html`, `toc.html`,
-   `home.html` and `shell.html` on `base.html`, the fragments for a list's items, the stoat in
-   the header, the favicon, the footer's rooms, the homepage's order and the panel's controls,
-   no inline script or style under the server's policy, a test holding each template to its
-   tokens; `site/` at the repository's root holding
-   `templates/` and `docroot/`; xterm.js and its fit addon vendored, with their row in
-   `THIRD_PARTY_LICENSES`.
+   footer.
 3. **The document the site lacks**: the root `CONTRIBUTING.md`, written before the site goes
    live, saying that Ernest takes no contribution before 1.0, a defect found going to the
    repository's issues and nothing else (decided 2026-10-30); the Releases page is `CHANGES.md`, which the release step writes from the next release
