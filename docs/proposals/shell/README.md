@@ -6,6 +6,6 @@ The shell's design as built, which stood here, is [`docs/design/shell.md`](../..
 
 | File | What it is | Status |
 |---|---|---|
-| [`attached.md`](attached.md) | a shell attached to a running node, `ern shell --attach`, for the operator: the two uses, attaching by a listed name, what a session is on the node and the sessions' namespaces; what other systems do; and the questions open for MVP 4.0's design | decided 2026-10-13 in what it settles, the name and that no sandbox of the language's is built; its open questions are MVP 4.0's design |
+| [`attached.md`](attached.md) | a shell attached to a running node, `ern shell --config-dir ops --attach name`, for the operator: the two uses, the cut between the operator's machine and the node, attaching by a listed name, the session on the node, what other systems do, and the report sentences the build writes first | decided 2026-10-13 in what it settles, the name and that no sandbox of the language's is built; rewritten 2026-10-30 over the cut, every question closed, read back before MVP 4.0's build |
 
-`attached.md`'s section 2 flows into MVP 4.0's design when that milestone opens; the sandboxed session weighed on 2026-10-13 is set aside, and the log records why. The visitor's shell, its container and its measured numbers are the web server's, `../httpd/proposal.md`, since 2026-10-27.
+`attached.md`'s section 6 is MVP 4.0's first item once the proposal is ready; the sandboxed session weighed on 2026-10-13 is set aside, and the log records why. The visitor's shell, its container and its measured numbers are the web server's, `../httpd/proposal.md`, since 2026-10-27.
