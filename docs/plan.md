@@ -22,7 +22,7 @@ evening. No promise of stability is made: from 0.5.0 on a change to the language
 library or the libraries is driven by a need met in use and recorded as `docs/language_feedback.md`
 records one.
 
-Next is the report pared to the language, MVP 3.96; then the attached shell, ehttpd,
+Next is the report pared to the language, MVP 3.96; then the attached shell, ernest-httpd,
 the website and the shell's second round (the log's *The Road to 1.0, Ordered*); the back end
 to BEAM's own instructions that closed the road is not built, decided 2026-10-30 (the log's *No
 Back End to BEAM's Own Instructions*). A finished milestone is a row
@@ -135,52 +135,74 @@ One form of attaching, by a listed peer, since a node accepts a connection from 
 The attached shell is the operator's alone, trusted as a peer is, with no sandbox: the website runs
 the plain shell in a container per visitor (MVP 4.2).
 
-## MVP 4.1 (ehttpd, and the libraries it wants)
+## MVP 4.1 (ernest-httpd, and the libraries it wants)
 
-**ehttpd**, an HTTP/1.1 server written in Ernest, in a repository of its own, decided with the
-user on 2026-10-10 (the log's *ehttpd and the Website*): the base of Ernest's own website, MVP
+**ernest-httpd**, an HTTP/1.1 server written in Ernest, in a repository of its own, decided with
+the user on 2026-10-10 (the log's *ehttpd and the Website*): the base of Ernest's own website, MVP
 4.2, and the first program built against an installed Ernest by a build of its own, which the
-examples cannot be. Its plan lives in its repository; this one records what it asks of the
-language and the libraries, and each is written as it asks, the libraries below among them.
+examples cannot be.
 
-What it will evidently ask for, named here for the milestone's size and decided one by one
-when the need comes: HTTP's message format, `libs/http`; WebSocket, RFC 6455, for the website's
-terminal, a library over `libs/http` and `Tcp`; base64; TLS on a socket; and what of `Tcp` a
-server needs beyond what E.18 gives.
+Its design is `docs/proposals/httpd/proposal.md`, begun 2026-10-26, read back
+on 2026-10-30 and ready the same day: what of HTTP/1.1 and WebSocket it implements and leaves out,
+TLS in `Tcp`, the live shell's server side, its limits and its security, its configuration, its
+log, its life under systemd, and the five libraries it asks for. Its own plan lives in its
+repository; this one records what it asks of Ernest, written as it asks, in the proposal's order.
 
-What it lacks is added where it belongs and never worked around in
-Erlang or behind a `foreign fn`: a function the standard library lacks enters by E.0's admission
-rules, our need the occasion and the rules deciding the function; a format or a protocol is a
-library's; what the prelude or the language lacks goes to `language_feedback.md` first, as any
-Ernest written here, and is discussed before any code goes around it (decided with the user on
-2026-10-10, with the site's generator, MVP 4.2).
+What it lacks is added where it belongs and never worked around in Erlang or behind a `foreign
+fn`: a function the standard library lacks enters by E.0's admission rules, our need the occasion
+and the rules deciding the function; a format or a protocol is a library's; what the prelude or the
+language lacks goes to `language_feedback.md` first, as any Ernest written here, and is discussed
+before any code goes around it (decided with the user on 2026-10-10, with the site's generator,
+MVP 4.2).
 
-A library not yet written waits, and is written when our work needs it, MVP 3.0 and 3.1 among
-that work, when someone asks for it, or when we want it, decided 2026-09-25 (the log's
-*Libraries As They Are Wanted*). Each is an Ernest source root under `src/libs/<name>/` whose build
-ends every job's load path, so that a program names none (§11.2), with `src/stdlib/`'s test discipline, documented in one pass to
-[`module_doc_template.md`](module_doc_template.md) with its executed examples as its first
-user, and a section in the appendix of libraries. Own repositories come later, when there is a
-package story. Written: `libs/ets`, `libs/markdown`, `libs/ansi`, `libs/utilization`,
-`libs/json` and `libs/proxy` (Appendix G; `libs/markdown` in the table of milestones, `utilization`, named
-`load` until 2026-10-13, and `json` in MVP 3.0, and `proxy`, named `standing` until 2026-10-10,
-in MVP 3.1). Named so far:
+1. **The report first**: `Tcp.listenTls` and `Tcp.connectTls` in E.18, answering the same socket
+   as a plain one, the handshake in the socket's process after `accept`, `listenTls`'s
+   `Other(text)` for a certificate or key the host refuses, and the host's backlog stated;
+   `Os.startTerminal` and `Os.resize` in E.23 through E.0's admission rules, one address with
+   `start` and one stream out; and a section in Appendix G for each of the five libraries.
+2. **The runtime's two additions**, the riskiest work, before anything stands on them: TLS in
+   `Tcp`'s socket process over the host's `ssl`, and the C helper's `forkpty` and resize behind
+   `Os`, on Linux and macOS.
+3. **The five libraries**, each a source root under `src/libs/` with the standard library's
+   discipline and its page: `base64` and `crypto`, which `websocket` needs; `time`, the calendar
+   alone; `http` with its client half, whose first use beside the tests is a `fetch` example that
+   reads JSON over HTTPS with a verified certificate; then `websocket`, with a client's masked
+   frames.
+4. **An installation from the checkout**: `make install` into a prefix exists
+   (`docs/design/install.md`), and ernest-httpd builds against it and never against the source
+   tree; a gap the server finds in a library is fixed in the checkout and installed again, with no
+   release between.
+5. **ernest-httpd**, in its own repository: `Config` and `Static` as pure functions; `Listener`,
+   `Connection` and `AccessLog`, serving the site over plain HTTP; TLS, the redirect listener and
+   the hosts; `Shell` and `Sessions` last, since they stand on the rest.
+6. **The deployment**: the systemd unit, certbot's certificate for the four names with the deploy
+   hook that gives the server its key, the podman image, and the smoke test against the deployed
+   site.
+7. **A release of Ernest**, 0.8.0, when the server first serves the site, carrying the libraries
+   after their first real user has shaped them; 0.7.0 is the attached shell's.
+8. **The terminal tests over `Os.startTerminal`**, dropping `test/ern_pty.py`, an item of its own
+   once item 2 stands.
 
-- **`libs/base64`**, a shim over `base64`.
-- **`libs/tls`**, a shim over `ssl` and `public_key`: `listen`, `accept`, `connect`. Whether
-  it answers `Tcp`'s `Address(SocketMsg)`, its foreign process then speaking an encoding private
-  to `Tcp` (E.18), or a socket type of its own with its own `read`, `write` and `close`, is
-  decided when it is written. Certificate verification is the caller's to ask for.
-- **`libs/http`**, Ernest over `Tcp` and `Tls`: request and response types, their parsing and
-  rendering in both directions, and a client. No server loop; that is the web server example's,
-  whose hand-written parser and renderer the library replaces (feedback item 55; the log's *The
-  Web Server Waits for Its Library*). With it, `examples/fetch.ern`, a command-line tool that
-  fetches JSON over HTTPS and prints a report, and `Time` in Appendix E over the clock's
-  milliseconds.
+The site's content, MVP 4.2, runs beside any of it, since its generator needs nothing of the
+server.
+
+**Libraries named and not the server's**, written when our work needs one, when someone asks for
+it, or when we want it, decided 2026-09-25 (the log's *Libraries As They Are Wanted*). Each is an
+Ernest source root under `src/libs/<name>/` whose build ends every job's load path, so that a
+program names none (§11.2), with `src/stdlib/`'s test discipline, documented in one pass to
+[`module_doc_template.md`](module_doc_template.md) with its executed examples as its first user,
+and a section in the appendix of libraries. Own repositories come later, when there is a package
+story.
+
+Written: `libs/ets`, `libs/markdown`, `libs/ansi`, `libs/utilization`, `libs/json` and
+`libs/proxy` (Appendix G; `libs/markdown` in the table of milestones, `utilization`, named `load`
+until 2026-10-13, and `json` in MVP 3.0, and `proxy`, named `standing` until 2026-10-10, in MVP
+3.1). Named so far:
+
 - **`libs/regex`**, a shim over `re`, a library and never syntax: `Regex.compile : (String) ->
-  Either(RegexError, Regex)`, `Regex` a foreign type.
-- **`libs/crypto`**, a shim over `crypto` for hashes, HMAC and random bytes; **`libs/uri`**,
-  pure Ernest or a shim over `uri_string`; **`libs/zlib`**, a shim over `zlib`.
+  Either(RegexError, Regex)`, `Regex` a foreign type (the log's *A Regex Literal Weighed*).
+- **`libs/uri`**, pure Ernest or a shim over `uri_string`; **`libs/zlib`**, a shim over `zlib`,
+  which the site's precompressed pages would want first.
 - **A listing by bytes in `Fs`**, decided when a program must manage a directory others
   write by names it does not choose: `Fs.names` and `Fs.removeName`, through E.0's rules,
   beside an `Fs.list` that stays whole or an error (§8.2; the log's *The Full Review's Questions,
@@ -189,7 +211,7 @@ in MVP 3.1). Named so far:
   serving files from a root others can write is written: `Fs.readUnder` and `Fs.writeUnder`,
   through E.0 rule 1, walking by opened directories in the runtime's helper, started per call
   or resident as that program's cost decides (E.17; the log's *The Full Review's Questions, One by
-  One*, S16).
+  One*, S16). ernest-httpd serves a root no one else writes and waits for neither.
 - **A file made with a mode in `Fs`**, decided when a program must write a file only its owner
   may read into a directory others may enter: a function beside `makeFile` that takes the mode,
   through E.0 rule 1, opening with it in the runtime's helper (E.17; the log's *The Full Review's
@@ -203,7 +225,7 @@ in MVP 3.1). Named so far:
 
 ## MVP 4.2 (the website)
 
-Ernest's website, served by ehttpd (MVP 4.1), decided with the user on 2026-10-10: what Ernest is,
+Ernest's website, served by ernest-httpd (MVP 4.1), decided with the user on 2026-10-10: what Ernest is,
 its characteristics, and the README's three ways in, the tour, the guide and the report (the log's *The Tour Written*), each with
 the reader it is for; and a live shell, a terminal in the visitor's browser, a JavaScript terminal
 such as xterm.js, connected by WebSocket to `ern shell` behind a pseudo-terminal on the server. The
@@ -313,6 +335,6 @@ log's *The Shell's Second Round*), in this order. The first three need nothing o
 | MVP 3.95 | what the review and 0.5.0 left: the release review read back, a restart told across nodes by the runtime's own frames, the harness counting a test's steps, the review round's method with an owner, the site proposal's sitting, the first fault's cost measured, the member regime's missing test, the teller's late delivery closed, dialyzer in the full run, and Ernest 0.6.0, the protocol's version moved | 2026-10-25 | tag `v0.6.0` | *The Release Review Read Back*, *A Restart Told Across Nodes*, *A Restart Told Across Nodes, Built*, *The Report's Readers Read the Diff*, *The Teller's Late Delivery*, *The Teller's Late Delivery, Built*, *The Harness Counts a Test's Steps*, *The First Fault's Cost*, *The Review's Decisions*, *A Member Has One Face*, *The Report Pared After 0.6.0*, *The Release Review Before 0.6.0*; `findings.md` as it stood at `c6eab569` |
 | MVP 3.96 | the report pared to the language: `language.md` holds what decides what a program means, the runtime's mechanism a chapter of its own at the end of `toolchain.md`, chapter 12, and §10 moved whole with its number; every citation of a moved paragraph redirected | made 2026-10-25 from MVP 3.95's item 3; after 0.6.0 | | above |
 | MVP 4.0 | a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches | made 2026-10-13 from MVP 4.3's item 4 | | above |
-| MVP 4.1 | ehttpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | | | above |
-| MVP 4.2 | the website, served by ehttpd: what Ernest is, its characteristics, the three doors, and a live shell in the browser | | | above |
+| MVP 4.1 | ernest-httpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | | | above |
+| MVP 4.2 | the website, served by ernest-httpd: what Ernest is, its characteristics, the three doors, and a live shell in the browser | | | above |
 | MVP 4.3 | the shell's second round | | | above |
