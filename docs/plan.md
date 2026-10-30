@@ -138,10 +138,11 @@ MVP 4.2).
    alone; `http` with its client half, whose first use beside the tests is a `fetch` example that
    reads JSON over HTTPS with a verified certificate; then `websocket`, with a client's masked
    frames.
-4. **An installation from the checkout**: `make install` into a prefix exists
-   (`docs/design/install.md`), and ernest-httpd builds against it and never against the source
-   tree; a gap the server finds in a library is fixed in the checkout and installed again, with no
-   release between.
+4. **An installation from the release archive**, `make release`'s, installed into a prefix as a
+   user installs it, which ernest-httpd builds against: its session sees only `share/doc/ernest/`
+   and `man`, as a user in a year will, and every gap it meets goes to `language_feedback.md`; a
+   gap is fixed in the checkout, the archive made again and installed, with no public release
+   between.
 5. **ernest-httpd**, in its own repository: `Config` and `Static` as pure functions; `Listener`,
    `Connection` and `AccessLog`, serving the site over plain HTTP; TLS, the redirect listener and
    the hosts; `Shell` and `Sessions` last, since they stand on the rest.
