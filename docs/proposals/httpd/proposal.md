@@ -8,7 +8,7 @@ A starting point, written 2026-10-26 from the first discussion, and read back on
 
 ## From the plan's MVP 4.1
 
-What the plan's MVP 4.1 states of the server, held here as the proposal's own, the plan's section to become a line pointing here once the proposal is decided (2026-10-26):
+What the plan's MVP 4.1 stated of the server before 2026-10-30, held here as the proposal's own; the plan's section is this proposal's order of work since that day:
 
 - The server is a program in a repository of its own, decided with the user on 2026-10-10 (the log's *ehttpd and the Website*), the first program built against an installed Ernest by a build of its own, which the examples cannot be. Its own plan lives in its repository.
 - What it lacks is added where it belongs and never worked around in Erlang or behind a `foreign fn`: a function the standard library lacks enters by E.0's admission rules, our need the occasion and the rules deciding; a format or a protocol is a library's; what the prelude or the language lacks goes to `language_feedback.md` first and is discussed before any code goes around it.
@@ -32,7 +32,7 @@ RFC 9110 states HTTP's semantics and RFC 9112 its HTTP/1.1 message syntax.
 - A name beginning with `.` answers 404, `/.well-known/` on the redirect listener aside, so that nothing like a `.git` or an editor's backup is ever served (decided 2026-10-27).
 - An error answers a short body of plain text, and a 404 the root's `404.html` where it exists, with the status 404 (decided 2026-10-27).
 - No `Cache-Control`: `Last-Modified` and 304 make a revisit a cheap check, and headers by path wait for a measured need (decided 2026-10-27).
-- The content types built in are `html`, `css`, `js`, `json`, `svg`, `png`, `ico`, `woff2`, `txt` and `wasm`, the configuration adding the rest (decided 2026-10-27).
+- The content types built in are `html`, `css`, `js`, `json`, `svg`, `png`, `ico`, `woff2`, `txt`, `xml`, for the site's `sitemap.xml`, and `wasm`, the configuration adding the rest (decided 2026-10-27, `xml` added 2026-10-30).
 - The errors a log's reader needs: 400, 404, 405, 408 on a request that comes too slowly, 413 on a request with a body, 414 and 431 past the limits, 421 on a host it does not serve, 500, and 505 on another version.
 
 **What it leaves out.**
@@ -56,7 +56,7 @@ RFC 6455, for xterm.js.
 
 **What it leaves out.** Extensions, `permessage-deflate` among them, and subprotocols, which xterm.js's attach addon does not ask for.
 
-Behind the socket stands a shell in a container per visitor (`../site/decisions.md`). The pseudo-terminal is the server's: `Os` gains a start under a pseudo-terminal of a given size, and a resize, which the runtime's helper gives by the host's `forkpty` and `TIOCSWINSZ`, and `ernest-httpd` runs `podman run -it --rm` on it, podman giving the container its own terminal and forwarding each resize. The socket carries the terminal's bytes both ways, and a few messages beside them, a resize from xterm.js's fit addon among them (*The live shell's server side*).
+Behind the socket stands a shell in a container per visitor (*The live shell's server side*). The pseudo-terminal is the server's: `Os` gains a start under a pseudo-terminal of a given size, and a resize, which the runtime's helper gives by the host's `forkpty` and `TIOCSWINSZ`, and `ernest-httpd` runs `podman run -it --rm` on it, podman giving the container its own terminal and forwarding each resize. The socket carries the terminal's bytes both ways, and a few messages beside them, a resize from xterm.js's fit addon among them (*The live shell's server side*).
 
 ## The live shell's server side
 
@@ -84,7 +84,7 @@ What other systems do, read the same day:
 
 A session outlives a connection (decided 2026-10-27), since moving to another page closes the WebSocket and the site's decisions keep a visitor's shell across pages: `Sessions` holds a session process for each cookie, which starts its command under a terminal and owns it, and which ends, killing the program with it, at its lifetime's alarm or at Stop.
 
-A session starts its command at the page's first resize and not at the connection, so that the shell starts at the panel's size and not a guessed one (decided 2026-10-27). A connection attaches to its session and detaches when it closes, the lifetime running whether one is attached or not; a second tab is a second attach, which detaches the first and tells it so.
+A session starts its command at the page's first resize and not at the connection, so that the shell starts at the panel's size and not a guessed one (decided 2026-10-27). A connection whose cookie names no live session, an expired or a stopped one's, starts a new session under that cookie at its first resize, so that a visitor keeps one cookie across sessions (decided 2026-10-30). A connection attaches to its session and detaches when it closes, the lifetime running whether one is attached or not; a second tab is a second attach, which detaches the first and tells it so.
 
 The server knows terminals and not containers: its configuration says that a WebSocket path runs a command under a terminal for each connection, at most so many at once, with a session's lifetime, and the container is the command's, `podman run -it --rm` with its flags and its image. So `ernest-httpd` stays a general server, a static site and web terminals, and nothing of ernest-lang.org's sandbox is in its code. Pre-started containers are decided only if a container's start is measured slow.
 

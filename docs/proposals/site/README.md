@@ -17,9 +17,8 @@ The milestone is MVP 4.2; the generator may come earlier, whenever it is wanted.
 ## Prototyping
 
 The site is prototyped in this directory, its generator and its pages, as
-`decisions.md` lays them out. Nothing goes to the plan until the user says the
-proposal is ready. When it is, the plan's MVP 4.2 changes with it, since it
-still builds the module pages from the doc chunk's parts.
+`decisions.md` lays them out. The proposal was ready on 2026-10-30, and the plan's
+MVP 4.2 is its items in build order since that day.
 
 What the prototype still lacks:
 

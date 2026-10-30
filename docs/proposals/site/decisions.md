@@ -127,7 +127,9 @@ The site's files as served.
 ## The look, 2026-10-13
 
 - Semantic HTML and one shared stylesheet. No framework, font download or icon
-  runtime.
+  runtime. No inline script and no inline style, since the server's
+  `Content-Security-Policy` allows only its own files (`../httpd/proposal.md`,
+  *Limits against a crowd*; 2026-10-30).
 - System sans-serif for prose, system monospace for code and the terminal.
 - The browser's light or dark preference. Neutral backgrounds, dark text, one
   accent color for links, active navigation and focus; the logo's brown and
@@ -197,7 +199,10 @@ The site's files as served.
 - A plain token is escaped. A `*_html` token takes only HTML the generator
   makes from the repository, rendered Markdown or code, navigation or a
   template's fragment, or from the server's configuration, the session's
-  limits.
+  limits: `make site` is given the server's configuration file, from which
+  the generator reads the shell's lifetime, its warning, the shells at once
+  and the command's memory flag, so that the shell page says what the server
+  enforces and nothing is written twice (decided 2026-10-30).
 - A list in a page, `contents_html`, `navigation_html` or `entries_html`, takes
   its item's look from a fragment file beside the page's.
 
@@ -250,6 +255,9 @@ The site's files as served.
   copies `build/site/` to the host; it is never edited in place.
 - The pages are complete without JavaScript. The shell panel and the code
   blocks' buttons are the script's additions.
+- Where compression is decided, the generator writes `page.html.gz` beside
+  each page, which the server chooses between (`../httpd/proposal.md`, *HTTP/1.1*);
+  it writes none until then (2026-10-30).
 - No search: the report's whole pages serve the browser's find.
 - The site runs on ernest-httpd, a program under systemd and no node
   (`../httpd/proposal.md`, *Under systemd*; corrected 2026-10-30).
@@ -274,14 +282,17 @@ The site's files as served.
   the shell writes above its live region on the ordinary screen, and a
   program on the alternate screen has none while it runs (decided
   2026-10-26).
+- The client sends the panel's size as its first message and at each
+  resize, which the server takes as the session's start and its terminal's
+  size; the messages' forms are `../httpd/proposal.md`'s (2026-10-30).
 - Seven states, each announced once: connecting, running and disconnected,
   the page's own, and expired, taken over, unavailable and stopped, one for
   each close code the server sends, 4001 to 4004 (`../httpd/proposal.md`;
   seven since 2026-10-30, five before the close codes were decided).
-- A session's warning is a banner with Extend, after four minutes with
-  no key pressed; a key or Extend gives it five minutes more, and the
-  banner is no dialog (decided 2026-10-27; the lifetime is
-  `../httpd/proposal.md`'s).
+- A session's warning is a banner with Extend, shown when the server's
+  warning comes, and the banner is no dialog; a key or Extend keeps the
+  session, by the lifetime `../httpd/proposal.md` owns (decided 2026-10-27,
+  the numbers left to their owner 2026-10-30).
 - A session that expires closes its panel and gives the page back its
   width, a short line saying for a moment that the shell ended after five
   quiet minutes and that opening it starts a new one; the layout kept in
