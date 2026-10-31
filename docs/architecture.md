@@ -42,7 +42,7 @@ The modules of `cli`:
 
 ### The launcher
 
-`bin/ern` finds its tree, refuses a working directory whose name is not UTF-8, and starts the host with `-noinput` and `erl/*/ebin` on its code path; its header comment says what else it sets and why. No compiled Ernest module is on that path: a unit of the standard library, the shell or the shell's two libraries is loaded from its `.erc` at its first call (*The code table*). It calls `ern_signals:install/0` and then `ern_cli:start/0`. [`design/install.md`](design/install.md) lays out the installed tree.
+`bin/ern` finds its tree, refuses a working directory whose name is not UTF-8, and starts the host with `-noinput` and `erl/*/ebin` on its code path; its header comment says what else it sets and why. No compiled Ernest module is on that path: a unit of the standard library, the shell or the shell's three libraries, `libs/ansi`, `libs/markdown` and `libs/ets`, is loaded from its `.erc` at its first call (*The code table*). It calls `ern_signals:install/0` and then `ern_cli:start/0`. [`design/install.md`](design/install.md) lays out the installed tree.
 
 `ern_cli:start/0` installs `ern_signals` again, for a caller that is no launcher, and runs `ern_cli:ern/2`, whose status the host ends with (§11.8).
 

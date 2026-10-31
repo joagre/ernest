@@ -144,8 +144,9 @@ cookie(Release, CodeDigest) ->
 
 %% Report §12.5: the digest of a development build's own code: each module
 %% of the toolchain's, its applications', the standard library's, the
-%% shell's and the two libraries the shell is compiled against, every
-%% module compiled from an application's tests aside, by the digest of its
+%% shell's and those of the libraries the shell is compiled against
+%% (ern_code:own_builds/0), every module compiled from an application's
+%% tests aside, by the digest of its
 %% code, which the host's module_info(md5) answers too, in the order of
 %% their names. Read from the files, loading none of them, at a node's
 %% first start, which alone asks.
@@ -153,10 +154,8 @@ code_digest() ->
     Applications = [File || File <- filelib:wildcard(filename:join(ern_tree:tree(),
                                                                    "erl/*/ebin/*.beam")),
                             not is_test(File)],
-    Built = lists:append([filelib:wildcard(filename:join(ern_tree:build(Build), Pattern))
-                          || {Build, Pattern} <- [{"stdlib", "*.erc"}, {"shell", "**/*.erc"},
-                                                  {"libs/ansi", "*.erc"},
-                                                  {"libs/markdown", "*.erc"}]]),
+    Built = lists:append([filelib:wildcard(filename:join(Build, "**/*.erc"))
+                          || Build <- [ern_tree:build("stdlib") | ern_code:own_builds()]]),
     %% read first: beam_lib adds `.beam` to a file's name that lacks it
     Digests = lists:sort([Digest || File <- Applications ++ Built,
                                     {ok, Beam} <- [file:read_file(File)],

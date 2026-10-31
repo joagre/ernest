@@ -48,7 +48,7 @@ At a terminal:
 2. `continues` asks the parser (`needsMore`) whether the input takes another line. It does not, so the reader has the local half append the input to the history (`remember`), sends the screen `Entered` and the session `Typed(text)`, and starts the next line.
 3. `keyLoop` receives `Typed`, sends the screen `Taken`, and calls `taking`. `taking` passes a line that is not blank to `submit`, which sends a `:` line to `perform` and any other to `evaluate`.
 4. A command: `Shell.Command.parse` answers the action and its argument, or a refusal. `obey` carries out the action.
-5. Ernest: `evaluate` calls `execute`, which checks the input (`check`) and starts it (`spawnInput`). `await` waits for the input's `Done`, has the front end bind what it bound and let go what nothing reaches (`collect`), and says what it came to. A fault report of the input's own process is its answer too: such a fault is one a signal brought, and no `Done` follows it.
+5. Ernest: `evaluate` calls `execute`, which checks the input (`check`) and starts it (`spawnInput`). `await` waits for the input's `Done`, has the front end bind what it bound and let go what nothing reaches (`collect`), and says what it came to; then, for each input's process the collection set to go (`going`), what it owned that ends with it, before it lets them go (`letGoSaid`, `letGo`). A fault report of the input's own process is its answer too: such a fault is one a signal brought, and no `Done` follows it.
 6. `say` sends the screen `Said`, and the screen writes the bytes `Shell.Region.said` gives back.
 7. `taking` calls `prompt`, which drains the screen with a `Flush` call and writes the next `> ` (the design note's *Ordering*).
 

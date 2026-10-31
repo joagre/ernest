@@ -123,9 +123,9 @@ loaded_from(Unit, File) ->
 %% Report §11.1, §11.2: the `.erc` of a unit of the toolchain's own, found
 %% by the namespace its Erlang name gives, `ern@` and its path with `@` for
 %% `/`, in the standard library's directory, then in the shell's build and
-%% in the builds of the two libraries the shell is compiled against,
-%% libs/ansi and libs/markdown; none where none holds it, a program's unit
-%% among them, which its runner loads (§11.2).
+%% in the builds of the three libraries the shell is compiled against,
+%% libs/ansi, libs/markdown and libs/ets; none where none holds it, a
+%% program's unit among them, which its runner loads (§11.2).
 -spec own_file(module()) -> {ok, file:filename()} | none.
 own_file(Module) ->
     case atom_to_list(Module) of
@@ -143,15 +143,15 @@ own_file(Module) ->
 
 %% Report §11.2, §12.7: the builds of the toolchain's own units beside the
 %% standard library's, under the tree's `build` (ern_tree:build/1): the
-%% shell's and those of the two libraries it is compiled against.
+%% shell's and those of the three libraries it is compiled against.
 -spec own_builds() -> [file:filename()].
 own_builds() ->
-    [ern_tree:build(Build) || Build <- ["shell", "libs/ansi", "libs/markdown"]].
+    [ern_tree:build(Build) || Build <- ["shell", "libs/ansi", "libs/markdown", "libs/ets"]].
 
 %% Report §12.7, *The toolchain's own units*: the unit of the toolchain's
 %% own whose `.erc` in this node's tree holds the definition of Hash, by
-%% its Erlang name, or none: a unit of the shell's or of the two libraries'
-%% it is compiled against (own_builds/0), the standard library's being
+%% its Erlang name, or none: a unit of the shell's or of the three
+%% libraries' it is compiled against (own_builds/0), the standard library's being
 %% held by every node from its start. The index is read from the builds'
 %% interfaces, each definition's hash by its name (#interface{}'s
 %% `identities`), at its first need, and kept for the host's life, since

@@ -3217,7 +3217,7 @@ own_units(Base) ->
             "    Io.println(\"faulted: \" <> Io.show(Either.map(spawned, fn(_) = Unit)))\n"
             "}\n",
             wait_ms_declaration()]),
-    Builds = [ern_tree:build(Build) || Build <- ["shell", "libs/ansi", "libs/markdown"]],
+    Builds = ern_code:own_builds(),
     LoadPath = [[" --load-path ", Build] || Build <- Builds],
     0 = built(lists:append([["--load-path", Build] || Build <- Builds]) ++ [ProgramDir]),
     A = made(Base, "a", none),
@@ -5191,23 +5191,27 @@ shell_service(Base) ->
     ?assertEqual(0, WaitA()),
     [has(Out, "Left(OtherType)\n") || {Out, _} <- [said(A), said(B)]].
 
-%% report Appendix H, §11.2 *The attached shell*, §8.7: the form of a
-%% session's namespace carries its node's public key, so that two nodes'
-%% sessions of one number declare two names. `let below = Clock.now()` and
-%% a function over it, typed at the prompts of two shells that are nodes,
-%% each its node's session 1, are two bindings and two functions: a compute
-%% from b on a of a lambda that reads `below`, and one of b's function,
-%% answer `Left(NotLoaded)`, b's binding having no value on a, and a
-%% names it without the key, `$Session1.below`, on its screen, where a
-%% plain shell's node writes its lines; b's own function runs on b over
-%% b's value.
+%% report Appendix H, §11.2 *Inputs*, *The attached shell*, §8.7, §3.11:
+%% the form of a session's namespace carries its node's public key, so that
+%% two nodes' sessions of one number declare two names. `let below =
+%% Clock.now()` and a function over it, typed at the prompts of two shells
+%% that are nodes, each its node's session 1, are two bindings and two
+%% functions. A name a prompt `let` binds is its node's binding, read where
+%% the code that names it runs: a compute from b on a of a lambda that
+%% reads `below`, and one of b's function, answer `Left(NotLoaded)`, b's
+%% binding having no value on a, and a names it without the key,
+%% `$Session1.below`, on its screen, where a plain shell's node writes its
+%% lines; a local the lambda captures crosses with it, and b's own function
+%% runs on b over b's value.
 %%
 %% A regression test of the release review's C7 and S3, written after the
 %% code (the log's *Sites, Sessions and Their Names*): a's value was read,
 %% the two sessions' declarations being one identity. The test it replaces,
 %% written for the holder of what a `let` binds counted as evaluated so
 %% that a peer's spawn found it (the log's *MVP 3.1 Read*), named a binding
-%% of another node's session, which no peer can now
+%% of another node's session, which no peer can now. The captured local's
+%% compute was added with the log's *The Input's Process*, which states
+%% the rule the code kept.
 shell_binding_spawned_test_() ->
     nodes_test({waits, 7}, fun shell_binding_spawned/1).
 
@@ -5227,9 +5231,11 @@ shell_binding_spawned(Base) ->
     Limit = wait_ms_text(),
     true = port_command(InputB, [Typed, "Peer.computeAt(\"a\", fn() = below + 1, ", Limit, ")\n",
                                  "Peer.computeAt(\"a\", later, ", Limit, ")\n",
+                                 "{ let n = below; Peer.computeAt(\"a\", fn() = n + 1, ", Limit,
+                                 ") == Right(below + 1) }\n",
                                  "later() == below + 1\n"]),
     prints(B, "Left(NotLoaded) : Either(Io.Error, Int)", 2, ?WAIT_MS),
-    prints(B, "true : Bool"),
+    prints(B, "true : Bool", 2, ?WAIT_MS),
     prints(A, "the binding $Session1.below has no value here"),
     true = port_command(InputB, ":quit\n"),
     ?assertEqual(0, WaitB()),

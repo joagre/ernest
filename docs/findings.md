@@ -22,9 +22,9 @@ The review of 2026-10-31 over commit `36b94d31`, run as [`release_review.md`](re
 
 ### The input's process (decide, batch 3)
 
-- P2 — rebinding a name ends the input's process and the listener another name still holds, unsaid where it happens. decide: the shell says what the ended process owned, or ownership at the prompt goes to a process that lives with the session. decided 2026-10-31: the rule stays, the session says what the ended process owned, §11.2 *Inputs*. The log's *The Input's Process*.
-- M9, L13, U7 — a `let` typed at the prompt is captured by no compute, `Left(NotLoaded)` at run time, and the report is silent; the guide teaches `{ let n = below; ... }`. decide: §11.2 states whether a prompt binding is captured as a block's local or is a session binding a peer lacks; the guide cites it and drops the workaround. decided 2026-10-31: the binding is the session's node's, read where the code runs, §11.2 *Inputs*; the guide and the tour cite it.
-- P12 — `let y : Int <- Left("e")` shows the value and leaves `it` unchanged. decide: `it` binds the `Left` or `None`, or the report says why not. decided 2026-10-31: `it` binds the `Left` or `None` shown, §11.2 *Inputs*.
+- P2 — rebinding a name ends the input's process and the listener another name still holds, unsaid where it happens. decide: the shell says what the ended process owned, or ownership at the prompt goes to a process that lives with the session. decided 2026-10-31: the rule stays, the session says what the ended process owned, §11.2 *Inputs*. The log's *The Input's Process*. built 2026-10-31 (`owned_said`, `owned_test`), through E.21's `Process.owned` and G.1's `Ets.owned`.
+- M9, L13, U7 — a `let` typed at the prompt is captured by no compute, `Left(NotLoaded)` at run time, and the report is silent; the guide teaches `{ let n = below; ... }`. decide: §11.2 states whether a prompt binding is captured as a block's local or is a session binding a peer lacks; the guide cites it and drops the workaround. decided 2026-10-31: the binding is the session's node's, read where the code runs, §11.2 *Inputs*; the guide and the tour cite it. built 2026-10-31 (`shell_binding_spawned`), the code unchanged.
+- P12 — `let y : Int <- Left("e")` shows the value and leaves `it` unchanged. decide: `it` binds the `Left` or `None`, or the report says why not. decided 2026-10-31: `it` binds the `Left` or `None` shown, §11.2 *Inputs*. built 2026-10-31 (`arrow_let`).
 
 ### `:quit` and `:detach` (decide, batch 4)
 

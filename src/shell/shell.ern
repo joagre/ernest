@@ -711,6 +711,7 @@ fn await(state : State,
                 sayTime(screen, state.settings, started)
             } else
                 Unit;
+            letGoSaid(screen);
             Continue(State(..state, session = session))
         }
       | Done(Faulted(cause = cause,
@@ -721,7 +722,9 @@ fn await(state : State,
             sayFault(state, screen, causeLine(cause, callee, peer), trace);
             if printing then sayTime(screen, state.settings, started) else Unit;
             // report §11.2: the input's unit, which holds nothing, is let go
-            Continue(State(..state, session = collect(state.session, None)))
+            let session = collect(state.session, None);
+            letGoSaid(screen);
+            Continue(State(..state, session = session))
         }
       // the outcome of an input `Interrupted` killed, which came after the
       // next was taken
@@ -780,9 +783,10 @@ fn sayFault(state : State, screen : Address(ScreenMsg), cause : String, trace : 
         Shell.Style.fault(placed(state, "fault: " <> cause) <> indentedTrace(trace), state.color))
 
 // Report §11.2: what an input declared, a line each in the order it was
-// written, or else its value with its type, an expression's and a `let`
-// with `<-` that bound nothing. A value of type `Unit` prints nothing, and
-// `it` is left as it was when the input did not settle its type.
+// written, or else its value with its type, an expression's and the `Left`
+// or the `None` of a `let` with `<-`, each bound to `it`. A value of type
+// `Unit` prints nothing, and `it` is left as it was when the input did not
+// settle its type.
 fn printResult(state : State,
                screen : Address(ScreenMsg),
                checked : Checked,
@@ -802,6 +806,38 @@ fn printResult(state : State,
             }
       | Some(lines) ->
             printLines(screen, lines)
+    }
+
+// Report §11.2 *Inputs*: what each input's process that a collection set
+// to go owned, said by its site, a line each, and then those processes let
+// go: each is asked while it lives, since what it owned ends with it.
+fn letGoSaid(screen : Address(ScreenMsg)) : Unit = {
+    printLines(screen, List.flatMap(going(), fn(#(binder, names)) = endedLines(binder, names)));
+    letGo()
+}
+
+// Report §11.2 *Inputs*, Appendix E.21, G.1: a line for each listener,
+// socket, running program, table and process started to end with it that
+// the binder owns, `the listener Tcp.listen ended with l`, a process by its
+// site and a table by `Ets.new`.
+fn endedLines(binder : Process, names : List(String)) : List(String) = {
+    let ended = " ended with " <> String.join(names, ", ");
+    List.filterMap(Process.owned(binder),
+                   fn(process) =
+                       Optional.map(Process.status(process),
+                                    fn(status) = "the " <> ownedSite(status.site) <> ended))
+        <> List.repeat("the table Ets.new" <> ended, Ets.owned(binder))
+}
+
+// Report Appendix E.18, E.23, G.7: what an owned process is, read from its
+// site, and the site.
+fn ownedSite(site : String) : String =
+    match site {
+        "Tcp.listen" -> "listener Tcp.listen"
+      | "Tcp.accept" -> "socket Tcp.accept"
+      | "Tcp.connect" -> "socket Tcp.connect"
+      | "Os.start" -> "running program Os.start"
+      | other -> "process " <> other
     }
 
 // Report §11.2: with timing on, a result is followed by the time the input
@@ -1091,8 +1127,12 @@ fn obey(state : State,
             }
       | Shell.Command.Forget ->
             match forget(session, argument) {
-                Left(text) -> refused(state, screen, text)
-              | Right(session1) -> Continue(State(..state, session = session1))
+                Left(text) ->
+                    refused(state, screen, text)
+              | Right(session1) -> {
+                    letGoSaid(screen);
+                    Continue(State(..state, session = session1))
+                }
             }
       | Shell.Command.Browse ->
             match browse(session, argument) {
@@ -2394,6 +2434,17 @@ foreign fn leavesItUnchanged(checked : Checked) : Bool =
 // (report §11.2).
 foreign fn collect(session : Session, answer : Optional(#(Bound, Value))) : Session =
     "ern_shell:collect/2"
+
+// Report §11.2 *Inputs*: the processes of the inputs the session's
+// collections set to go, each with the names its holder held, which the
+// session asks what each owned of before it lets them go.
+foreign fn going() : List(#(Process, List(String))) =
+    "ern_shell:going/0"
+
+// Report §11.2 *Inputs*: the processes the collections set to go let go,
+// what each owned ending with it.
+foreign fn letGo() : Unit =
+    "ern_shell:let_go/0"
 
 foreign fn spawnInput(session : Session,
                       checked : Checked,

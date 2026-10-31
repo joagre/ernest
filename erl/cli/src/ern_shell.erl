@@ -19,7 +19,8 @@
 -export([loaded/1, start/6, number/1, reloaded_by/3, spawn_program/0, config_startup/0,
          given_source_root/0, attach_to/0, end_with/2, ending/0, is_same_file/2, needs_more/1,
          opening/1, check/3, check_type/3,
-         is_unit/1, type_text/1, spawn_input/4, show/3, bindings/1, slot/1, names/0,
+         is_unit/1, type_text/1, spawn_input/4, going/0, let_go/0, show/3, bindings/1, slot/1,
+         names/0,
          session_names/0, session_texts/0, source_root/0, segment/1, component/1, forget/2,
          browse/2, doc/2,
          documentation/1, fields/1, signature/1, declared_type/2, load/2, reload/1, version/0,
@@ -1319,8 +1320,10 @@ spawn_input(Session, #checked{namespace = Namespace, typed = Typed, interface = 
 %% keeps no checker's environment for it: the value `it` names, where the
 %% input settles its type; the names a `let` binds, each a component of its
 %% value's tuple where it binds several, and for a `let` with `<-` the
-%% constructor of its sum type's value side that holds them (§5.5); what
-%% it declares; or nothing, `let _ = e` among it.
+%% constructor of its sum type's value side that holds them (§5.5), with
+%% `it` for the `Left` or the `None` it shows, where the input settles the
+%% type of `e`, as an expression's value is bound; what it declares; or
+%% nothing, `let _ = e` among it.
 binding_plan(declarations, _Type, _Env) ->
     declarations;
 binding_plan(it, Type, Env) ->
@@ -1330,10 +1333,14 @@ binding_plan(it, Type, Env) ->
     end;
 binding_plan({names, Names}, Type, Env) ->
     named(Names, Type, Env);
-binding_plan({arrow, Names, NamesType, Constructor}, _Type, Env) ->
-    case named(Names, NamesType, Env) of
-        none -> none;
-        {names, Named} -> {arrow, Constructor, Named}
+binding_plan({arrow, Names, NamesType, Constructor}, Type, Env) ->
+    Named = case named(Names, NamesType, Env) of
+                none -> [];
+                {names, Given} -> Given
+            end,
+    case {Named, binding_plan(it, Type, Env)} of
+        {[], none} -> none;
+        {_, Shown} -> {arrow, Constructor, Named, Shown}
     end;
 binding_plan({lambda, Name, Scheme}, _Type, _Env) ->
     {names, [{Name, Scheme}]};
@@ -1352,11 +1359,14 @@ named(Names, Type, Env) ->
     {names, [{Name, binding_scheme(Component, TypeState)}
              || {Name, Component} <- lists:zip(Names, Types)]}.
 
-%% Report §11.2: the build of an expression that binds `it`, whose unit
+%% Report §11.2: the build of an expression that binds `it`, and of a `let`
+%% with `<-` that binds it to the `Left` or the `None` it shows, whose unit
 %% holds the value under a getter of its own, as a binding of the input's
 %% entry (ern_compile).
 build_holding({it, _}, Namespace) ->
     #{held => {it, Namespace ++ [?ENTRY]}};
+build_holding({arrow, _Constructor, _Named, {it, _} = Shown}, Namespace) ->
+    build_holding(Shown, Namespace);
 build_holding(_Plan, _Namespace) ->
     #{}.
 
@@ -1366,9 +1376,10 @@ build_holding(_Plan, _Namespace) ->
 %% environment: for `it`, the key the unit's getter reads, at the position
 %% the compiled interface gives it, and the interface of `it` the session
 %% joins; for a `let`, its names with their schemes, the constructor that
-%% holds them for a `<-`, and what its holder's forms name it by, the
-%% session's namespace and the input's entry's hash, each name a binding
-%% of it; for declarations, what the session joins.
+%% holds them for a `<-`, with what binds `it` to the other side, and what
+%% its holder's forms name it by, the session's namespace and the input's
+%% entry's hash, each name a binding of it; for declarations, what the
+%% session joins.
 binding(none, _Session, _Checked, _ErlangModule, _Beam, _Compiled) ->
     none;
 binding(declarations, _Session, #checked{namespace = Namespace, printed_name = PrintedName},
@@ -1385,9 +1396,10 @@ binding({it, Scheme}, _Session, #checked{namespace = Namespace}, ErlangModule, _
 binding({names, Named}, Session, #checked{namespace = Namespace}, _ErlangModule, _Beam,
         Compiled) ->
     {holder, Named, holding(Session, Namespace, Compiled)};
-binding({arrow, Constructor, Named}, Session, #checked{namespace = Namespace}, _ErlangModule,
-        _Beam, Compiled) ->
-    {holder_under, Constructor, Named, holding(Session, Namespace, Compiled)}.
+binding({arrow, Constructor, Named, Shown}, Session, #checked{namespace = Namespace} = Checked,
+        ErlangModule, Beam, Compiled) ->
+    {holder_under, Constructor, Named, holding(Session, Namespace, Compiled),
+     binding(Shown, Session, Checked, ErlangModule, Beam, Compiled)}.
 
 holding(Session, Namespace, Compiled) ->
     {session_namespace(Session), entry_hash(Namespace, Compiled)}.
@@ -1395,30 +1407,33 @@ holding(Session, Namespace, Compiled) ->
 %% The keys the input's unit keeps a value under, `it`'s, with the name in
 %% scope that reaches it, or none.
 held_value({held, Key, #scoped{interface = #interface{lets = Names}}}) -> {[Key], Names};
+held_value({holder_under, _Constructor, _Named, _Holding, Shown}) -> held_value(Shown);
 held_value(_Binding) -> {[], []}.
 
 %% Report §11.2: the input's own process where the session makes a holder
 %% of what its value binds, a `let`'s names, whose binder it is; none for
 %% every other binding, a `<-` whose value is a `Left` or a `None` among
-%% them, which binds nothing (§5.5).
+%% them, which binds no name (§5.5).
 binder({holder, _Named, _Holding}, _Value) -> erlang:self();
-binder({holder_under, Constructor, _Named, _Holding}, {Constructor, _}) -> erlang:self();
+binder({holder_under, Constructor, [_ | _], _Holding, _Shown}, {Constructor, _}) ->
+    erlang:self();
 binder(_Binding, _Value) -> none.
 
 %% Report §11.2: what the input bound of its value, in the session's own
 %% process, the session with it, and the holder that holds it, or none:
-%% `it` kept under its unit's getter, the unit's bindings having their
-%% values then (§8.7), and needing the session's units whose functions it
-%% holds; a `let`'s names kept by a holder of their own, given a namespace
-%% of the session's; and a `<-` whose value is a `Left` or a `None`
-%% binding nothing (§5.5).
+%% `it` kept under its unit's getter, needing the session's units whose
+%% functions it holds; a `let`'s names kept by a holder of their own, given
+%% a namespace of the session's; and a `<-` whose value is a `Left` or a
+%% `None` binding no name, and that value to `it`, kept as an expression's
+%% is (§5.5). Neither unit is marked as one whose bindings have their
+%% values (ern_rt:initialized/1), which only a peer's spawn reads, since no
+%% peer can name a session's binding (Appendix H).
 bound_value(none, _Value, Session) ->
     {#scoped{}, none, Session};
 bound_value({declared, Scoped}, _Value, Session) ->
     {Scoped, none, Session};
 bound_value({held, {ErlangModule, _} = Key, Scoped}, Value, Session) ->
     persistent_term:put(Key, Value),
-    ern_rt:initialized(ErlangModule),
     case held_functions(Value, []) -- [ErlangModule] of
         [] -> ok;
         Held -> needs_added(ErlangModule, Held)
@@ -1426,10 +1441,12 @@ bound_value({held, {ErlangModule, _} = Key, Scoped}, Value, Session) ->
     {Scoped, none, Session};
 bound_value({holder, Named, Holding}, Value, Session) ->
     holder_bound(paired(Named, Value), Holding, Session);
-bound_value({holder_under, Constructor, Named, Holding}, {Constructor, Bound}, Session) ->
+bound_value({holder_under, Constructor, [], _Holding, _Shown}, {Constructor, _}, Session) ->
+    {#scoped{}, none, Session};
+bound_value({holder_under, Constructor, Named, Holding, _Shown}, {Constructor, Bound}, Session) ->
     holder_bound(paired(Named, Bound), Holding, Session);
-bound_value({holder_under, _Constructor, _Named, _Holding}, _Value, Session) ->
-    {#scoped{}, none, Session}.
+bound_value({holder_under, _Constructor, _Named, _Holding, Shown}, Value, Session) ->
+    bound_value(Shown, Value, Session).
 
 %% Each name a pattern bound with its value and its scheme: the whole value
 %% for one name, a component of its tuple for each of several.
@@ -1442,7 +1459,7 @@ paired(Named, Value) ->
 %% Report §11.2: the process of an input that bound a name, which lives
 %% while a name it bound is in scope: until the session lets the last of
 %% them go, by `:forget` or a later input that binds or declares the name
-%% (let_go/1), or the session ends.
+%% (leaving/2, let_go/0), or the session ends.
 bound_lives(SessionProcess) ->
     MonitorRef = erlang:monitor(process, SessionProcess),
     receive
@@ -1455,16 +1472,43 @@ bound_lives(SessionProcess) ->
 binders() ->
     kept(binders, #{}).
 
-%% Report §11.2: each binder none of whose names is in the session's scope
-%% any more let go, its process ending; Named holds each holder a name in
-%% scope reaches (collected/1).
-let_go(Named) ->
+%% Report §11.2 *Inputs*: each binder none of whose names is in the
+%% session's scope any more set to go, with the names its holder held,
+%% Units holding the holder, so that the session asks what it owned while
+%% it lives (going/0) and then lets it go (let_go/0); Named holds each
+%% holder a name in scope reaches (collected/1).
+leaving(Named, Units) ->
     {Live, Gone} = lists:partition(fun({Holder, _}) ->
                                        is_map_key(ern_namespace:erlang_module(Holder), Named)
                                    end, maps:to_list(binders())),
-    lists:foreach(fun({_, Pid}) -> Pid ! {?MODULE, let_go} end, Gone),
-    Gone =:= [] orelse keep(binders, maps:from_list(Live)),
+    Gone =:= [] orelse
+        begin
+            keep(binders, maps:from_list(Live)),
+            keep(going, going() ++ [{Pid, holder_names(Holder, Units)} || {Holder, Pid} <- Gone])
+        end,
     ok.
+
+%% The names a holder held, each as the session writes it.
+holder_names(Holder, Units) ->
+    case maps:find(ern_namespace:erlang_module(Holder), Units) of
+        {ok, #session_unit{names = Names}} -> [atom_to_binary(lists:last(Name)) || Name <- Names];
+        error -> []
+    end.
+
+%% Report §11.2 *Inputs*: the processes of the inputs the session's
+%% collections set to go, each with the names its holder held, which the
+%% session asks what each owned of before it lets them go (let_go/0).
+-spec going() -> [{pid(), [binary()]}].
+going() ->
+    kept(going, []).
+
+%% Report §11.2 *Inputs*: the processes the session's collections set to
+%% go let go, each ending, and what it owned with it (E.18, E.23, G.1).
+-spec let_go() -> 'Unit'.
+let_go() ->
+    lists:foreach(fun({Pid, _}) -> Pid ! {?MODULE, let_go} end, going()),
+    keep(going, []),
+    'Unit'.
 
 %% Report §11.2: what the input's unit needs of the session's units, kept
 %% while it is (collected/1): where the session keeps it, those its code
@@ -1592,9 +1636,10 @@ value(_ErlangModule, none, declarations) ->
 value(ErlangModule, Entry, {arrow, _, _, Constructor}) ->
     %% report §5.5, §11.2: the session stands for the block's rest, which
     %% answers what the pattern bound under the sum type's value side; the
-    %% session binds the names it holds and prints them, never this value
-    %% (declared/2): the outcome's descriptor is the type of `e`, which
-    %% describes a `Left` or a `None` and not the names
+    %% session binds the names it holds and prints them, and binds to `it`
+    %% and prints a `Left` or a `None` (declared/2): the outcome's
+    %% descriptor is the type of `e`, which describes a `Left` or a `None`
+    %% and not the names
     ErlangModule:Entry(fun(Bound) -> {Constructor, Bound} end);
 value(ErlangModule, Entry, _Binds) ->
     ErlangModule:Entry().
@@ -4613,9 +4658,13 @@ entry_hash(Namespace, #interface{identities = Identities}) ->
     maps:get(Namespace ++ [?ENTRY], Identities).
 
 %% Report §11.2: whether the input leaves `it` as it was, its value's type
-%% not being determined by the input itself.
+%% not being determined by the input itself: an expression's, or the type
+%% of `e` in a `let p <- e` that shows a `Left` or a `None`, as the
+%% session asks only where it shows one.
 -spec leaves_it_unchanged(#checked{}) -> boolean().
 leaves_it_unchanged(#checked{binds = it, type = Type, env = Env}) -> is_open(Type, Env);
+leaves_it_unchanged(#checked{binds = {arrow, _, _, _}, type = Type, env = Env}) ->
+    is_open(Type, Env);
 leaves_it_unchanged(#checked{}) -> false.
 
 %% Report §11.2: a value whose type its own input did not settle is
@@ -4659,9 +4708,6 @@ holder_bound(Bindings, {SessionNamespace, Hash}, Session) ->
                                                                               <- Bindings],
                                                                       []))}),
     [persistent_term:put(Key, Value) || {Key, {_, Value, _}} <- lists:zip(Keys, Bindings)],
-    %% report §8.7, §11.2: its bindings have their values, so a peer's spawn
-    %% of a function whose reach names one finds it
-    ern_rt:initialized(ErlangModule),
     %% report Appendix H, §8.7: each by its identity as a form names it, its
     %% name under the session's one namespace, whatever holder holds it
     Code = [{SessionNamespace ++ [Name], {binding, Hash, Key}}
@@ -4747,7 +4793,7 @@ joined_bound(#session{beams = Beams, input_names = InputNames} = Session,
 %% follows what an input made and not what the session holds. The session
 %% collects in its own process, once an input has answered (collect/2), so
 %% that an input killed while it runs has let nothing go that the session
-%% still names; the binders go by the same reading (let_go/2).
+%% still names; the binders go by the same reading (leaving/2).
 collected(#session{interfaces = Interfaces, scope = Scope} = Session) ->
     Values = maps:get(values, Scope, #{}),
     Units = #{ErlangModule => Unit || ErlangModule := _ <- held_units(),
@@ -4755,7 +4801,7 @@ collected(#session{interfaces = Interfaces, scope = Scope} = Session) ->
     Named = #{ErlangModule => true
               || ErlangModule := #session_unit{namespace = Namespace, names = Names} <- Units,
                  lists:any(fun(Name) -> is_named(Name, Namespace, Values) end, Names)},
-    let_go(Named),
+    leaving(Named, Units),
     Reached = reached(maps:keys(Named) ++ maps:keys(kept_needs()), Units, #{}),
     Dead = [ErlangModule || ErlangModule := #session_unit{kept = false} <- Units,
                             not is_map_key(ErlangModule, Reached)],
@@ -4933,7 +4979,7 @@ own(Processes) ->
 -spec detach() -> 'Unit'.
 detach() ->
     Root = session_root(),
-    Binders = maps:values(binders()),
+    Binders = maps:values(binders()) ++ [Pid || {Pid, _} <- going()],
     lists:foreach(fun(Pid) -> Pid ! {?MODULE, let_go} end, Binders),
     [ern_rt:killed(Pid, {ern, killed}) || Pid <- [kept(input, none) | kept(own, [])],
                                           is_pid(Pid), Pid =/= self(), Pid =/= Root,
@@ -5168,8 +5214,8 @@ is_expression(#checked{binds = Binds}) ->
 %% Report §11.2: what an input declares, a line for each, in the order they
 %% were written, or none where the input shows its value instead: an
 %% expression, and a `let` with `<-` whose value is a `Left` or a `None`,
-%% which binds nothing (§5.5). A value is its name and its type, a type its
-%% keyword and its name.
+%% which binds no name and binds that value to `it` (§5.5). A value is its
+%% name and its type, a type its keyword and its name.
 -spec declared(#checked{}, #value{}) -> {'Some', [binary()]} | 'None'.
 declared(#checked{binds = it}, _Value) ->
     'None';

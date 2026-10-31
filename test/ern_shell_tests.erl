@@ -2805,20 +2805,78 @@ pattern_let() ->
     ?assertMatch({_, _}, binary:match(Output, <<"a `let` pattern must be irrefutable">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"the types of e, f are not determined">>)).
 
-%% report §11.2, §5.5: a `let` with `<-` at the prompt takes its value apart
-%% as in a block, the session standing for the block's rest: a `Some` or a
-%% `Right` binds what it holds, a tuple pattern each of its names and `_`
-%% none; a `None` or a `Left` binds nothing and is shown as an expression's
-%% value with its type, `it` and an earlier binding of the name unchanged.
+%% report §11.2 *Inputs*, Appendix E.21, G.1, G.7: where a later input or
+%% `:forget` ends the process of an input that bound a name, the session
+%% says each listener, socket, running program, table and process started
+%% to end with it that the process owned, by its site, with the names the
+%% input bound: a listener another name still holds ends as its input's
+%% name is bound again, a table at `:forget`, and at `:forget *` the
+%% process `Proxy.start` started, a table, a running program, a socket and
+%% its listener; a name still in scope keeps its input's process. Written
+%% with the code, after the release review's P2 (the log's *The Input's
+%% Process*); it does not cover the shell at a terminal, which says a line
+%% as line mode does, nor a session's end, which says nothing of what ends
+owned_said_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun owned_said/0).
+
+owned_said() ->
+    InputFile = scratch_file("ern_owned_"),
+    ok = file:write_file(
+           InputFile,
+           ":load Ets\n:load Proxy\n"
+           "let l <- Tcp.listen(\"127.0.0.1\", 0)\n"
+           "let l2 = l\n"
+           "let l = 5\n"
+           "let t : Ets.Table(Int, Int) = Ets.new()\n"
+           ":forget t\n"
+           "let s : Peer.Service(Int) = Peer.service(\"x\")\n"
+           "let #(a, b) : #(Ets.Table(Int, Int), Address(Int)) =\n"
+           "    #(Ets.new(), Proxy.start(s, 100))\n"
+           "let a = 1\n"
+           "Io.println(\"a rebound\")\n"
+           "let p <- Os.start(Os.Command(program = \"cat\", arguments = [], input = <<>>))\n"
+           "let l3 <- Tcp.listen(\"127.0.0.1\", 0)\n"
+           "let #(c, d) <- Either.map(Either.andThen(Tcp.port(l3), fn(port) ="
+           " Tcp.connect(\"127.0.0.1\", port, 1000)), fn(c) = #(1, c))\n"
+           ":forget *\n"),
+    {0, Output} = ern_pty:sh("../bin/ern shell < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"> l : Int\nthe listener Tcp.listen ended with l\n"
+                                                "> t : Ets.Table(Int, Int)\n"
+                                                "> the table Ets.new ended with t\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> a : Int\n> a rebound\n">>)),
+    %% each line as said, without the prompt line mode writes before it, and
+    %% the proxy's site without its line
+    Ended = lists:sort([re:replace(Line, "^> |(?<=Proxy\\.start):[0-9]+", "",
+                                   [global, {return, binary}])
+                        || Line <- binary:split(Output, <<"\n">>, [global]),
+                           binary:match(Line, <<" ended with ">>) =/= nomatch]),
+    ?assertEqual(lists:sort([<<"the listener Tcp.listen ended with l">>,
+                             <<"the table Ets.new ended with t">>,
+                             <<"the process Proxy.start ended with a, b">>,
+                             <<"the table Ets.new ended with a, b">>,
+                             <<"the running program Os.start ended with p">>,
+                             <<"the listener Tcp.listen ended with l3">>,
+                             <<"the socket Tcp.connect ended with c, d">>]),
+                 Ended).
+
+%% report §11.2 *Inputs*, §5.5: a `let` with `<-` at the prompt takes its
+%% value apart as in a block, the session standing for the block's rest: a
+%% `Some` or a `Right` binds what it holds, a tuple pattern each of its
+%% names and `_` none; a `None` or a `Left` binds no name, an earlier
+%% binding of the name unchanged, and is shown as an expression's value
+%% with its type and bound to `it` at the whole `Optional` or `Either`
+%% type, but where the input does not settle that type, which leaves `it`
+%% as it was, as an expression's does.
 %% A value of another type is refused with the checker's own error, a
 %% refutable pattern as a block refuses it, and a binding whose type the
 %% input does not settle as a `let`'s is, with the annotation's help
 %% written with `<-`.
 %%
-%% A regression test written after the code; it does not cover the shell
-%% at a terminal, which shows a result as line mode does, nor a `Left`
-%% that a spawn on a peer answers, which the tour's chapter 2 meets only
-%% as a `Right`
+%% A regression test written after the code, and `it` after a `Left`
+%% after the release review's P12 (the log's *The Input's Process*); it
+%% does not cover the shell at a terminal, which shows a result as line
+%% mode does, nor a `Left` that a spawn on a peer answers, which the tour's
+%% chapter 2 meets only as a `Right`
 arrow_let_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun arrow_let/0).
 
@@ -2834,6 +2892,8 @@ arrow_let() ->
                                     "let x : Int <- Left(\"no\")\n"
                                     "it\n"
                                     "x\n"
+                                    "let k : Int <- Left([])\n"
+                                    "it\n"
                                     "let #(a, b) <- Some(#(1, \"b\"))\n"
                                     "b\n"
                                     "let _ <- Some(3)\n"
@@ -2845,11 +2905,17 @@ arrow_let() ->
     {0, Output} = ern_pty:sh("../bin/ern shell < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"> x : Int\n> 2 : Int\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> y : String\n> \"two\" : String\n">>)),
-    %% nothing bound on None or Left: `it` stays 42, and x stays 1
+    %% no name bound on None or Left, which `it` names, and x stays 1
     ?assertMatch({_, _}, binary:match(Output, <<"> 42 : Int\n> None : Optional(Int)\n"
-                                                "> 42 : Int\n">>)),
+                                                "> None : Optional(Int)\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> Left(\"no\") : Either(String, Int)\n"
-                                                "> 42 : Int\n> 1 : Int\n">>)),
+                                                "> Left(\"no\") : Either(String, Int)\n"
+                                                "> 1 : Int\n">>)),
+    %% a `Left` whose type the input does not settle leaves `it`
+    ?assertMatch({_, _}, binary:match(Output, <<"> Left([]) : Either(List(a), Int)\n"
+                                                "`it` is unchanged: this input did not"
+                                                " determine the type of its value\n"
+                                                "> 1 : Int\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> a : Int\nb : String\n> \"b\" : String\n">>)),
     %% `let _ <- Some(3)` binds none and prints nothing
     ?assertMatch({_, _}, binary:match(Output, <<"\"b\" : String\n> > ">>)),

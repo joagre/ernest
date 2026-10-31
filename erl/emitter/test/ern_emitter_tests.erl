@@ -554,7 +554,8 @@ units_from_forms_alone() ->
              {Programs ++ "/modules", ern_build:sources(Programs ++ "/modules"), []},
              {"../../../src/stdlib", ern_build:sources("../../../src/stdlib"), []},
              {"../../../src/shell", ern_build:sources("../../../src/shell"),
-              ["../../../build/libs/ansi", "../../../build/libs/markdown"]}],
+              ["../../../build/libs/ansi", "../../../build/libs/markdown",
+               "../../../build/libs/ets"]}],
     %% every program, every module of the library and both of the shell
     [?assertEqual(length(Files), units_from_forms(SourceRoot, Files, LoadPath))
      || {SourceRoot, Files, LoadPath} <- Roots].
