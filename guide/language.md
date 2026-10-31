@@ -2556,9 +2556,7 @@ fn heavy(n : Int) : Int =
     n * n
 ```
 
-The node picks by what its peers tell it. A node that lists peers tells each one it is connected to how busy it is, but for an attached shell's own node, which tells none (§9.2), every `utilization-interval` milliseconds its `ernest.conf` names, 5000 where it names none, and holds the last utilization each peer told it with the moment it came (report Appendix C, Appendix E.27). How busy is on one scale: 1.0 is every scheduler busy, below it room and above it work waiting. A scheduler is a thread of the host that runs processes. The node measures as its `"utilization"` entry says, and by its run queue where it says nothing, the processes running or ready to run with the one measuring left out.
-
-`Peer.compute` draws two of the peers whose utilizations the node may use, at random, and takes the less busy, the first drawn where the two are equal. A *telling* is the message that carries a peer's utilization, and names the peer's interval. A utilization older than two of its peer's intervals is not used, and a peer's loss drops its utilization.
+The node picks by what its peers tell it. A node that lists peers tells each one it is connected to how busy it is, a *telling*, every `utilization-interval` milliseconds its `ernest.conf` names, 5000 where it names none, but for an attached shell's own node, which tells none (§9.2); on the scale lower is less busy. `Peer.compute` draws two of the peers it has heard from, at random, and takes the less busy. What the scale measures, how old a telling may be used and what a peer's loss does are the report's (Appendix C, Appendix E.27).
 
 Where no peer has told a utilization the node may use, the compute answers `Left(Io.Unreachable)`, and where the node lists no peer, as a program that is no node lists none, `Left(Io.NotListed)`; at both, `placed.ern` runs the work here, `heavy(n)`: a node has no name for itself, and `compute` takes none. `Peer.utilization(name, ms)` asks one peer how busy it is now, where the node's table holds what each said last.
 

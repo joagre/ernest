@@ -66,51 +66,51 @@ The review of 2026-10-31 over commit `36b94d31`, run as [`release_review.md`](re
 
 ### The report's prose and citations (fix)
 
-- A3 — section 2's promise takes §8.4's words and the lemma names a lambda's parameter foreign code calls. fix.
-- A4, K2 — §11.2's `:detach` sentence gains "with every unit of the session its code reads", as built; soundness §7 rewritten to the end-of-session rule, its citation of *What a node holds* for `ern test` corrected, its date. fix.
-- A6, A7, A8, K10, A9, A10, A11, A12, K11 — the argument's wording and citations: §3.11's words for the spawn's variable; the toolchain's own units' path in *Code that crosses*, §8.7 and §12.7 agreeing; the spawner's copy restored in E.27 and cited; the alias cited at §12.2 and §12.6; "meets §10 and §12" with §6.4 for the ordering; the date; a cause's three sources in §7.3, claim 1 and §7.4. fix.
-- K3, P6 — §8.7's "seventeen" names a different set from §12.6's; §8.7 says "which §12.6 lists" and enumerates none. fix.
-- K4 — *Loading*, line 312 and `:detach` disagree on the evaluator: it is not the session's own and stays the node's. fix.
-- K5 — §12.7 says how a toolchain identity is told from a program's at a peer that lacks it, as the code does it. fix after the code is read.
-- K6, L4 — E.21 `faults` and §11.2's report except each session's own processes; the guide's §6 says `:faults` lists the faults since the attach. fix.
-- K7 — a load by any session is the node's: the module is in every session's scope. fix.
-- K9 — §11.2 line 173 gains "but in an attached shell". fix.
-- K12 — one list of a unit's life's exceptions in §11.2, cited by §10 and the glossary's *unit*. fix.
-- K14, K15, K16, K17, P11 — about thirty citations pointing at §7.4, §8.2, §8.4, §8.6, §8.7 or §10 for a rule the paring moved to §12 or E.27, and §12.7 citing §12.5 for §8.7's rule. fix.
-- K18 — §12.5's lines gain the exception for the shell's own node. fix.
-- K19, P8 — E.27 says "an attached shell's own node". fix.
+- A3 — section 2's promise takes §8.4's words and the lemma names a lambda's parameter foreign code calls. fix. done 2026-10-31 in the report and the argument.
+- A4, K2 — §11.2's `:detach` sentence gains "with every unit of the session its code reads", as built; soundness §7 rewritten to the end-of-session rule, its citation of *What a node holds* for `ern test` corrected, its date. fix. done 2026-10-31 in the report and the argument.
+- A6, A7, A8, K10, A9, A10, A11, A12, K11 — the argument's wording and citations: §3.11's words for the spawn's variable; the toolchain's own units' path in *Code that crosses*, §8.7 and §12.7 agreeing; the spawner's copy restored in E.27 and cited; the alias cited at §12.2 and §12.6; "meets §10 and §12" with §6.4 for the ordering; the date; a cause's three sources in §7.3, claim 1 and §7.4. fix. done 2026-10-31 in the report and the argument.
+- K3, P6 — §8.7's "seventeen" names a different set from §12.6's; §8.7 says "which §12.6 lists" and enumerates none. fix. done 2026-10-31 in the report and the argument.
+- K4 — *Loading*, line 312 and `:detach` disagree on the evaluator: it is not the session's own and stays the node's. fix. done 2026-10-31 in the report and the argument.
+- K5 — §12.7 says how a toolchain identity is told from a program's at a peer that lacks it, as the code does it. read 2026-10-31: the code tells none apart; the peer runs the exchange and its reach refuses on a binding without a value, F3. decide, batch 5: the spawn's frame says the function's unit is the toolchain's own, which the spawner's node knows, and a peer lacking the identity loads from its tree or answers `NotLoaded` without asking, §12.6 and §12.7.
+- K6, L4 — E.21 `faults` and §11.2's report except each session's own processes; the guide's §6 says `:faults` lists the faults since the attach. fix. done 2026-10-31 in the report and the argument.
+- K7 — a load by any session is the node's: the module is in every session's scope. fix. done 2026-10-31 in the report and the argument.
+- K9 — §11.2 line 173 gains "but in an attached shell". fix. done 2026-10-31 in the report and the argument.
+- K12 — one list of a unit's life's exceptions in §11.2, cited by §10 and the glossary's *unit*. fix. done 2026-10-31 in the report and the argument.
+- K14, K15, K16, K17, P11 — about thirty citations pointing at §7.4, §8.2, §8.4, §8.6, §8.7 or §10 for a rule the paring moved to §12 or E.27, and §12.7 citing §12.5 for §8.7's rule. fix. done 2026-10-31 in the report and the argument.
+- K18 — §12.5's lines gain the exception for the shell's own node. fix. done 2026-10-31 in the report and the argument.
+- K19, P8 — E.27 says "an attached shell's own node". fix. done 2026-10-31 in the report and the argument.
 - K20, C10 — `:load`'s "as new as it" compares file times across machines; the recorded source digest decides, §11.2 and the code. fix. done 2026-10-31 in the code: the form's recorded digest against the source's as the local half reads it (`load_judges_by_digest`).
-- K22 — a node's end's answer named in §12.6's list. fix.
-- K23 — §12.7's "at once" becomes "without an exchange, as §8.7 says". fix.
-- K24 — what makes a process a session's, defined once in §12.1, "until the session ends", cited from E.23. fix.
-- K25 — E.21 `live`: "in a shell, and on a node a shell is attached to". fix.
+- K22 — a node's end's answer named in §12.6's list. fix. done 2026-10-31 in the report and the argument.
+- K23 — §12.7's "at once" becomes "without an exchange, as §8.7 says". fix. done 2026-10-31 in the report and the argument.
+- K24 — what makes a process a session's, defined once in §12.1, "until the session ends", cited from E.23. fix. done 2026-10-31 in the report and the argument.
+- K25 — E.21 `live`: "in a shell, and on a node a shell is attached to". fix. done 2026-10-31 in the report and the argument.
 - P3 — a library shim's Ernest fault loses the caller's line in the trace, where a host raise keeps it. fix in the code, E.21 unchanged. done 2026-10-31: the boundary raises a passing fault again with the stack it came with (`shim_fault_keeps_line`); `Os.exit`'s fault at an attached prompt now has its trace, `input 11:1`.
-- P10 — G.7's proxy sentence restated, its workaround gone. fix.
-- U4 — §11.1's "a compiled module after it only through `Code.load`" gains an attached `:load`. fix.
+- P10 — G.7's proxy sentence restated, its workaround gone. fix. done 2026-10-31 in the report and the argument.
+- U4 — §11.1's "a compiled module after it only through `Code.load`" gains an attached `:load`. fix. done 2026-10-31 in the report and the argument.
 
 ### The guides, the tour, the README and the pages (fix)
 
-- M1, U1 — deployment §6's last paragraph stale after item 13. fix.
-- U2 — §1.3 and language §9.2 on `ern reload` and a changed `listen` or key. fix.
-- U3 — §6's "unreachable" against "did not answer in time". fix.
-- U4 — §5.1, §5.2, §6 and §9.2 say `:load` takes the node's compiled form where its load path holds one. fix.
-- U5 — §8's console gains a's own lines. fix.
-- U6 — §4.3's fourth line's example dropped or replaced. fix.
-- U8 — `Process.live`'s and `Os.exit`'s doc blocks gain E.21's and E.23's clauses. fix.
-- U10 — the telling's exception in deployment §3.2, language §8.1 and `Peer`'s page. fix.
-- U11 — language §8.9's console points at deployment §5.3's. fix.
-- U14, U16 — §1.2's refusal list; the README's line for the deployment guide. fix.
-- N1 — language §2.5's `Map.update` sentence does not compile. fix.
-- N5, M14, U15 — README's "that reading". fix.
+- M1, U1 — deployment §6's last paragraph stale after item 13. fix. done 2026-10-31.
+- U2 — §1.3 and language §9.2 on `ern reload` and a changed `listen` or key. fix. done 2026-10-31.
+- U3 — §6's "unreachable" against "did not answer in time". fix. done 2026-10-31.
+- U4 — §5.1, §5.2, §6 and §9.2 say `:load` takes the node's compiled form where its load path holds one. fix. done 2026-10-31.
+- U5 — §8's console gains a's own lines. fix. done: found so at the review's commit.
+- U6 — §4.3's fourth line's example dropped or replaced. fix. done 2026-10-31.
+- U8 — `Process.live`'s and `Os.exit`'s doc blocks gain E.21's and E.23's clauses. fix. done 2026-10-31.
+- U10 — the telling's exception in deployment §3.2, language §8.1 and `Peer`'s page. fix. done 2026-10-31.
+- U11 — language §8.9's console points at deployment §5.3's. fix. done 2026-10-31.
+- U14, U16 — §1.2's refusal list; the README's line for the deployment guide. fix. done 2026-10-31.
+- N1 — language §2.5's `Map.update` sentence does not compile. fix. done 2026-10-31.
+- N5, M14, U15 — README's "that reading". fix. done 2026-10-31.
 - N7, U13 — `:help`'s lines for `:processes` and `:quit` in an attached shell. fix. done 2026-10-31: each line true in both shells.
-- N8, N9, N10, N14, N15, N16, M10, L17 — `!=` beside `==`; "bare node" before §8.1; "effect variable" before §3.5; `Path` named; §7.2's count; "three to do along"; §8.1's and §9.2's unparseable sentences; §6's `Os.exit` sentence; §8's `--peer-dir` commands; §5.2's title; tour §2's `.erc` sentence; tour §5's version sentence; tour §6's "wrapped there". fix.
+- N8, N9, N10, N14, N15, N16, M10, L17 — `!=` beside `==`; "bare node" before §8.1; "effect variable" before §3.5; `Path` named; §7.2's count; "three to do along"; §8.1's and §9.2's unparseable sentences; §6's `Os.exit` sentence; §8's `--peer-dir` commands; §5.2's title; tour §2's `.erc` sentence; tour §5's version sentence; tour §6's "wrapped there". fix. done 2026-10-31, the tour's §6 sentence last, with §6.5 and its one step more.
 - N11 — the guard's help names binding the field before the `receive`; guide §4.3 the same. fix. done 2026-10-31 in the checker (`receive_guard_field`).
 - N12 — "unknown name" for a private name says it is not exported. fix. decide: §11.5 says a private function is unknown to a dependent and at the prompt, and an interface carries none; telling it apart needs the interface to carry private names or the shell to read the unit's forms, the report first.
-- N18, N21, M13 — why.md's hash bullet without the placement clause; §8.1's *Which peer* cut to what a caller needs; the two-peer caveat said once; the wrong-mailbox program not three times in a row; the `.erc` sentence in one place. fix.
-- N19, N20 — claims that open on what another system lacks, turned to say what Ernest does first; `Subject` and hex said in a word. fix.
-- M7, L15 — the upgrade's four limits collected in §8.9, the tour's chapter 8 citing it. fix.
-- L9 — deployment §7's row for "no peer has its key" gains the case of this node's own dial reaching a stranger. fix.
-- M15, L18 — "about a second" said as measured on an idle machine. fix.
+- N18, N21, M13 — why.md's hash bullet without the placement clause; §8.1's *Which peer* cut to what a caller needs; the two-peer caveat said once; the wrong-mailbox program not three times in a row; the `.erc` sentence in one place. fix. done 2026-10-31, *Which peer* cut to the pick and the interval, the measure left to the report.
+- N19, N20 — claims that open on what another system lacks, turned to say what Ernest does first; `Subject` and hex said in a word. fix. done 2026-10-31.
+- M7, L15 — the upgrade's four limits collected in §8.9, the tour's chapter 8 citing it. fix. done 2026-10-31.
+- L9 — deployment §7's row for "no peer has its key" gains the case of this node's own dial reaching a stranger. fix. done 2026-10-31.
+- M15, L18 — "about a second" said as measured on an idle machine. fix. done 2026-10-31.
 
 ### The code (fix, one batch on the model below)
 
