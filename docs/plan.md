@@ -59,6 +59,11 @@ name, which Ernest's parentheses make a call, the dot, and the marks other langu
 7. **The settler's restart case tested**: a caller asked to restart while it waits for its
    evaluator ends the load as a kill does (E.28), which the release's round built and tested for
    the kill alone (the log's *The Release Review Before 0.7.0*, *The round*).
+8. **The guides' lines of the release review read.** The deployment guide's §5.3, the language
+   guide's §8.9 and the README's opening were written by the review's batches and read by no
+   reader, since the round read the report's diff alone (`docs/release_review.md` now reads the
+   guide's too): one cold reader over `git diff 36b94d31 v0.7.0 -- guide tour README.md`, its
+   lines sorted and made as a review's are.
 
 Discussed with the user when the milestone opens, each with its
 recommendation then: whether the formatter writes the pun where the names agree, or the style
