@@ -4222,14 +4222,14 @@ waited_evaluation(Evaluator, Ref) ->
 %% Report Appendix E.28: whether the evaluator owns what a binding opened:
 %% a listener, a socket or a running program, each of which watches its
 %% owner from before its address is given out, and stops when it is given
-%% to another (Appendix E.18, E.23), or a table it made that it still owns
-%% (G.1). What watches it and what it made are its own, so the question
-%% reads no other process's state.
+%% to another (Appendix E.18, E.23), a process it started to end with it,
+%% a proxy's (G.7), or a table it made that it still owns (G.1): what
+%% `Process.owned` and `Ets.owned` answer of it (owned/1, owned_tables/1).
+%% What watches it and what it keeps are its own, so the question reads
+%% no other process's state.
 is_owner() ->
     Self = erlang:self(),
-    {monitored_by, Watchers} = erlang:process_info(Self, monitored_by),
-    lists:any(fun(Watcher) -> is_pid(Watcher) andalso is_opened(Watcher) end, Watchers)
-        orelse owned_tables(Self) > 0.
+    owned(Self) =/= [] orelse owned_tables(Self) > 0.
 
 %% An evaluator that owns what a binding opened, which lives until it is
 %% ended: by the program's end, or as any process is.

@@ -44,8 +44,8 @@ carrier is the terminal's events and bytes and the operator's files.
 One form of attaching, by a listed peer, since a node accepts a connection from a peer it lists and no other (§12.5).
 
 1. **The report first**, done 2026-10-30 (the log's *The Attached Shell's Sentences*): §11.2's
-   *The attached shell*, §11.7, §11.8, §12.1, §12.7, Appendices E.21, E.23, F and H, and `:detach`
-   in the command table, refused in a shell attached to no node.
+   *The attached shell*, §11.7, §11.8, §12.1, §12.7, Appendices E.21, E.23, F and H, and the attach's end, since
+   `:quit`'s (the log's *One Word to Leave*).
 2. **The runtime**, done 2026-10-30 (the log's *The Session's Screen and the Toolchain's Units,
    Built*).
 3. **The shell**, done 2026-10-30 (the log's *The Attached Shell, Built*).

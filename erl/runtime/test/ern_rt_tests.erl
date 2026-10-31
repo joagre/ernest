@@ -3,7 +3,7 @@
 %% boundary's proxies, and the end of a program.
 -module(ern_rt_tests).
 
--export([queued_input/2, evaluated/0, kept_table/0, closed_table/0]).
+-export([queued_input/2, evaluated/0, kept_table/0, closed_table/0, kept_proxy/0, ended_proxy/0]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include("ern_rt.hrl").
@@ -388,6 +388,37 @@ evaluator_owns_its_table_test() ->
     ?assertEqual({true, 'None', false, Kept}, {Alive, Status, Listed, Owner}),
     ?assertEqual({false, undefined}, {ClosedAlive, After}).
 
+%% report Appendix E.28, G.7, E.21: a load's evaluator that owns a process
+%% a binding started to end with it, a proxy's, lives on, `Process.owned`
+%% of it naming that process; one whose started process has ended owns
+%% nothing and has ended once the load answers. A regression test, written
+%% after the code (the log's *The Input's Process*): the evaluator ended
+%% with the proxy a binding started
+evaluator_owns_its_proxy_test() ->
+    Self = self(),
+    Units = [unit_calling('ern@zz_proxy_kept', kept_proxy),
+             unit_calling('ern@zz_proxy_ended', ended_proxy)],
+    try
+        ok = ern_rt:run_main(
+               fun() ->
+                   true = register(ern_rt_tests_main, erlang:self()),
+                   {evaluated, Kept} = ern_rt:evaluate(['ern@zz_proxy_kept'], <<"S.load:1">>),
+                   Proxy = receive {proxy, P} -> P end,
+                   Seen = {erlang:is_process_alive(Kept), ern_rt:owned(Kept)},
+                   {evaluated, Ended} = ern_rt:evaluate(['ern@zz_proxy_ended'],
+                                                        <<"S.load:2">>),
+                   MonitorRef = erlang:monitor(process, Kept),
+                   ern_rt:kill(Kept),
+                   receive {'DOWN', MonitorRef, process, Kept, _} -> ok end,
+                   Proxy ! stop,
+                   Self ! {owned, {Seen, Proxy, erlang:is_process_alive(Ended)}}
+               end, <<"main">>, #{stdout => fun(_) -> ok end})
+    after
+        [begin code:purge(Unit), code:delete(Unit) end || Unit <- Units]
+    end,
+    {{Alive, Owned}, Proxy, EndedAlive} = wait(owned),
+    ?assertEqual({true, [Proxy], false}, {Alive, Owned, EndedAlive}).
+
 %% docs/memory.md, Appendix G.1, E.21: a process that makes and closes a
 %% thousand tables keeps, of the tables it made, fewer than the floor at
 %% which it drops those it no longer owns, and `Ets.owned` of it counts
@@ -434,6 +465,25 @@ kept_table() ->
 -spec closed_table() -> ok.
 closed_table() ->
     true = ets:delete(ern_rt:made_table(ets:new(ernest, [set, public]))),
+    ok.
+
+%% The bindings of evaluator_owns_its_proxy_test's units, each starting a
+%% process to end with the evaluator, as `Proxy.start` starts one: the
+%% first's waits and is told to the test's main process, the second's has
+%% ended before the binding has its value.
+-spec kept_proxy() -> ok.
+kept_proxy() ->
+    Proxy = spawn(fun() -> receive stop -> ok end end),
+    'Unit' = ern_rt:ends_with_caller(Proxy),
+    ern_rt_tests_main ! {proxy, Proxy},
+    ok.
+
+-spec ended_proxy() -> ok.
+ended_proxy() ->
+    Proxy = spawn(fun() -> ok end),
+    MonitorRef = erlang:monitor(process, Proxy),
+    receive {'DOWN', MonitorRef, process, Proxy, _} -> ok end,
+    'Unit' = ern_rt:ends_with_caller(Proxy),
     ok.
 
 %% report §8.6: a program's end ends every process the runtime started,
