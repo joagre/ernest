@@ -3248,14 +3248,14 @@ own_units(Base) ->
 %% shell attached in line mode to a node whose program reads lines, from a
 %% node of its own that the node lists without an address. An input runs on
 %% the node, and what it writes reaches the shell's own standard output,
-%% while what the node's program writes stays on the node's; `:quit` is
-%% refused and the greeting names `:detach`; `:load` compiles a module of
+%% while what the node's program writes stays on the node's; `:detach` is
+%% no command and the greeting names `:quit`; `:load` compiles a module of
 %% the shell's source root, which the shell's own node reads; the process of
 %% a `let` lives while its name is in scope, and `:forget` ends it; and
 %% `:processes` lists the node's program and what an input spawned, each
 %% with its activity.
 %%
-%% `:detach` ends the shell with status 0 and leaves that process running on
+%% `:quit` ends the shell with status 0 and leaves that process running on
 %% the node, which a second session lists. Written after the code, a
 %% regression test of the attach; the tests after it hold the rest of an
 %% attached session, written with MVP 4.0's item 5.
@@ -3293,13 +3293,13 @@ attached_shell(Base) ->
     {NodeInput, WaitNode} = started(Node, filename:join(Root, "echo.erc"), []),
     prints(Node, "ready"),
     {ShellInput, WaitShell} = attached(Ops, "node", Source),
-    prints(Ops, ". :help for the commands, :detach to leave."),
+    prints(Ops, ". :help for the commands, :quit to leave."),
     true = port_command(ShellInput, "Io.println(\"written at the prompt\")\n"),
     prints(Ops, "written at the prompt"),
     true = port_command(NodeInput, "go\n"),
     prints(Node, "the node's own: go"),
-    true = port_command(ShellInput, ":quit\n"),
-    prints(Ops, "this shell is attached to a node; :detach leaves it"),
+    true = port_command(ShellInput, ":detach\n"),
+    prints(Ops, "no command :detach; :help lists them"),
     true = port_command(ShellInput, ":load Greet\nGreet.hello()\n"),
     prints(Ops, "hello from the operator"),
     true = port_command(ShellInput, ["let p = Process.current()\n", "let q = p\n",
@@ -3313,7 +3313,7 @@ attached_shell(Base) ->
                                      ":processes\n"]),
     prints(Ops, "$Session1.input 11:1 receiving"),
     prints(Ops, "Echo.main "),
-    true = port_command(ShellInput, ":detach\n"),
+    true = port_command(ShellInput, ":quit\n"),
     ?assertEqual(0, WaitShell()),
     {Out, _} = said(Ops),
     has(Out, "Greet, compiled from " ++ ern_build:shown(filename:join(Source, "greet.ern"))),
@@ -3321,7 +3321,7 @@ attached_shell(Base) ->
     ?assertEqual(nomatch, string:find(Out, "Shell.")),
     %% report §11.2: what the session started stays the node's
     {SecondInput, WaitSecond} = attached(Ops, "node", Source),
-    true = port_command(SecondInput, ":processes\n:detach\n"),
+    true = port_command(SecondInput, ":processes\n:quit\n"),
     prints(Ops, "$Session1.input 11:1 receiving"),
     ?assertEqual(0, WaitSecond()),
     stop(Node, WaitNode),
@@ -3353,11 +3353,11 @@ attached_shell_ends(Base) ->
               {_, WaitNode} = launched(Node, [?ERN, " run --config-dir ", Node]),
               lists(Ops, [{"node", Node, bound_port(Node)}]),
               {_, WaitShell} = attached(Ops, "node", Base),
-              prints(Ops, ":detach to leave.\n> "),
+              prints(Ops, ":quit to leave.\n> "),
               End(Node, WaitNode),
               ?assertEqual(Status, WaitShell()),
               {Out, Err} = said(Ops),
-              ?assertMatch({true, _}, {lists:suffix(":detach to leave.\n> \n", Out), Out}),
+              ?assertMatch({true, _}, {lists:suffix(":quit to leave.\n> \n", Out), Out}),
               ?assertEqual(Line, Err),
               Err
           end, [{"ended", fun stop/2, 0, "the node node ended\n"},
@@ -3383,12 +3383,12 @@ attached_utilization(Base) ->
     {_, WaitNode} = launched(Node, [?ERN, " run --config-dir ", Node]),
     lists(Ops, [{"node", Node, bound_port(Node)}]),
     {Shell, WaitShell} = attached(Ops, "node", Base),
-    prints(Ops, ":detach to leave.\n> "),
+    prints(Ops, ":quit to leave.\n> "),
     Ms = wait_ms_text(),
     true = port_command(Shell, ["Peer.computeAt(\"ops\", fn() = Peer.peers(), ", Ms, ")\n"]),
     prints(Ops, "Right([\"node\"]) : Either(Io.Error, List(String))\n"),
     true = port_command(Shell, ["Peer.utilizations()\n",
-                                "Peer.compute(fn() = Peer.peers(), ", Ms, ")\n", ":detach\n"]),
+                                "Peer.compute(fn() = Peer.peers(), ", Ms, ")\n", ":quit\n"]),
     ?assertEqual(0, WaitShell()),
     {Out, _} = said(Ops),
     has(Out, "> [] : List(#(String, Float, Int))\n"),
@@ -3414,7 +3414,7 @@ attached_lost_unanswered(Base) ->
     {_, WaitNode} = launched(Node, [?ERN, " run --config-dir ", Node]),
     lists(Ops, [{"node", Node, bound_port(Node)}]),
     {_, WaitShell} = attached(Ops, "node", Base),
-    prints(Ops, ":detach to leave.\n> "),
+    prints(Ops, ":quit to leave.\n> "),
     {ok, Hole} = gen_tcp:listen(0, [{ip, {127, 0, 0, 1}}]),
     {ok, HolePort} = inet:port(Hole),
     lists(Ops, [{"node", Node, HolePort}]),
@@ -3464,7 +3464,7 @@ attached_terminal_ends(Base) ->
           {_, WaitNode} = started(Node, filename:join(Root, "ender.erc"),
                                   [Pipe, Name, filename:join(Node, "ernest.pid")]),
           prints(Node, "ready"),
-          {Status, Screen} = ern_pty:run(Shell, [{expect, ":detach to leave."},
+          {Status, Screen} = ern_pty:run(Shell, [{expect, ":quit to leave."},
                                                  {expect, "> "},
                                                  {send, hex("abc")},
                                                  {expect, "abc"},
@@ -3639,10 +3639,10 @@ attach_other_build(Base) ->
     says(Node, "the peer ops's spawn at Shell.localHalf:"),
     has(written(Node, err), " was not loaded: the binding "),
     {Input, Attached} = Shell(Own),
-    true = port_command(Input, ":detach\n"),
+    true = port_command(Input, ":quit\n"),
     ?assertEqual(0, Attached()),
     {Out, Err} = said(Ops),
-    has(Out, ". :help for the commands, :detach to leave.\n"),
+    has(Out, ". :help for the commands, :quit to leave.\n"),
     ?assertEqual(nomatch, string:find(Err, "ern shell:")),
     stop(Node, WaitNode).
 
@@ -3724,7 +3724,7 @@ attached_sessions(Base) ->
     Waiting = ": Address(Ping) = spawn(fn() = receive { _ -> Unit })",
     {First, _} = Attached = sessioned(Base, One),
     prints(One, "Ernest " ++ ern_release:version_text() ++ ", session 1. :help for the commands,"
-           " :detach to leave.\n"),
+           " :quit to leave.\n"),
     entered(First, One, ["fn f() : Int = 1", "type Ping = Ping(Int)", "let p" ++ Waiting,
                          "Peer.offer(Peer.service(\"ping\"), p)", "f()"], "> 1 : Int\n"),
     has(written(One, out), Offered),
@@ -3801,7 +3801,7 @@ entered(Port, Ops, Inputs, Part) ->
 %% the cursor on a line of its own, and what it wrote, nothing on its
 %% standard error: two steps.
 detached({Port, Wait}, Ops) ->
-    true = port_command(Port, ":detach\n"),
+    true = port_command(Port, ":quit\n"),
     ?assertEqual(0, Wait()),
     {Out, Err} = said(Ops),
     ?assertEqual("", Err),
@@ -4076,7 +4076,7 @@ attached_startup_diagnostic(Base) ->
     ok = filelib:ensure_path(Home),
     {Shell, _} = Attached = launched(Ops, ["cd ", Base, " && HOME=", Home, " ", ?ERN,
                                            " shell --config-dir ops --attach node"]),
-    prints(Ops, ":detach to leave.\n"),
+    prints(Ops, ":quit to leave.\n"),
     true = port_command(Shell, "a\n"),
     {Out, _} = detached(Attached, Ops),
     has(Out, "ops/startup:2:"),
@@ -4131,7 +4131,7 @@ attached_code_load(Base) ->
     {_, WaitNode} = started(Node, filename:join(Root, "idle.erc"), []),
     prints(Node, "ready"),
     {Shell, _} = Attached = attached(Ops, "node", Base),
-    prints(Ops, ":detach to leave.\n"),
+    prints(Ops, ":quit to leave.\n"),
     entered(Shell, Ops, ["Code.load(Path(\"" ++ filename:join(Lib, "told.erc") ++ "\"))"],
             "Right(Unit)"),
     entered(Shell, Ops, [":processes"], "Told.teller:15 receiving"),
@@ -4359,14 +4359,14 @@ is_session(_) -> false.
 %% session, as ern_shell_tests' session_test is over a plain one. The
 %% inputs of fixtures/session/attached.in, typed in line mode at a shell
 %% attached to a bare node, its source root fixtures/session, against
-%% fixtures/session/attached.out: the start line naming `:detach`, an
-%% expression, what an input prints, `:quit` refused, a qualified name
+%% fixtures/session/attached.out: the start line naming `:quit`, an
+%% expression, what an input prints, `:detach` no command, a qualified name
 %% answered with the `:load` that puts it in scope, `:load` compiling the
 %% operator's source and refusing a module loaded already, a `let`, a
 %% send and a call to the process it bound, an input's fault, `Os.exit`
 %% faulting the input that calls it, `:bindings`, `:processes` with each
 %% process's activity, `:forget` and the name forgotten, `:browse` of the
-%% module loaded, and `:detach`, which leaves the cursor on a line of its
+%% module loaded, and `:quit`, which leaves the cursor on a line of its
 %% own.
 %%
 %% The shell's own node's line of the connection stands out of the file,
@@ -4410,7 +4410,7 @@ unstamped(Text) ->
 %% faults, once the test opens a named pipe the process reads; the fault's
 %% line and trace are said above the prompt, on rows of their own, and the
 %% prompt is drawn again under them with the part typed, which the rest of
-%% the input finishes and runs. `:detach` ends the shell with status 0 and
+%% the input finishes and runs. `:quit` ends the shell with status 0 and
 %% leaves the node running, its own report of the fault on its standard
 %% error. Written after the code, a regression test: MVP 4.0's item 5
 attached_terminal_test_() ->
@@ -4434,13 +4434,13 @@ attached_terminal(Base) ->
     ok = filelib:ensure_path(Home),
     Shell = lists:flatten(["HOME=", Home, " ", ?ERN, " shell --config-dir ", Ops,
                            " --attach node --source-root ", Base]),
-    {0, Screen} = ern_pty:run(Shell, [{expect, ":detach to leave."}, {expect, "> "},
+    {0, Screen} = ern_pty:run(Shell, [{expect, ":quit to leave."}, {expect, "> "},
                                       {send, hex("1 + ")}, {expect, "1 + "},
                                       {put, Pipe},
                                       {expect, "faulted: division by zero"},
                                       {expect, "1 + "},
                                       {send, hex("2\r")}, {expect, "3 : Int"},
-                                      {send, hex(":detach\r")}],
+                                      {send, hex(":quit\r")}],
                               " --screen --size 24x80"),
     Fault = "Faulter.main:5 faulted: division by zero",
     says(Node, Fault),
@@ -4450,7 +4450,7 @@ attached_terminal(Base) ->
     [Fault | Under] = lists:dropwhile(fun(Row) -> Row =/= Fault end, Rows),
     Trace = lists:takewhile(fun(Row) -> lists:prefix("    ", Row) end, Under),
     ?assertNotEqual([], Trace),
-    ?assertMatch({["> 1 + 2", "3 : Int", "> :detach" | _], _},
+    ?assertMatch({["> 1 + 2", "3 : Int", "> :quit" | _], _},
                  {lists:nthtail(length(Trace), Under), Rows}),
     ?assertEqual(["> 1 + 2"], [Row || Row <- Rows, lists:prefix("> 1 +", Row)]),
     stop(Node, WaitNode).
@@ -4478,10 +4478,10 @@ attached_terminal_size(Base) ->
                            " --attach node --source-root ", Base]),
     {_, WaitNode} = launched(Node, [?ERN, " run --config-dir ", Node]),
     says(Node, "listening on "),
-    {0, Screen} = ern_pty:run(Shell, [{expect, ":detach to leave."}, {expect, "> "},
+    {0, Screen} = ern_pty:run(Shell, [{expect, ":quit to leave."}, {expect, "> "},
                                       {send, hex("Terminal.size()\r")},
                                       {expect, "NotATerminal"},
-                                      {send, hex(":detach\r")}],
+                                      {send, hex(":quit\r")}],
                               " --screen --size 24x80"),
     has(binary_to_list(Screen), "Left(NotATerminal) : Either(Io.Error, Terminal.Size)"),
     stop(Node, WaitNode),
@@ -4489,7 +4489,7 @@ attached_terminal_size(Base) ->
     [] = os:cmd("mkfifo " ++ Pipe),
     Input = filename:join(Base, "size.in"),
     Output = filename:join(Base, "size.out"),
-    ok = file:write_file(Input, "Terminal.size()\n:detach\n"),
+    ok = file:write_file(Input, "Terminal.size()\n:quit\n"),
     Script = lists:flatten([?ERN, " run --config-dir ", Node, " & cat ", Pipe, " > /dev/null; ",
                             Shell, " < ", Input, " > ", Output, " 2>&1; ",
                             ?ERN, " stop --config-dir ", Node, "; wait"]),

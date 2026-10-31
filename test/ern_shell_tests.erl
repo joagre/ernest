@@ -1669,7 +1669,7 @@ listing_at_once() ->
                 " --size 8x80"),
     %% under the line, cut to the eight rows with the count last
     ?assertMatch({_, _}, binary:match(Bytes, <<"> :\r\n:bindings ">>)),
-    ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nand 8 more">>)).
+    ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nand 7 more">>)).
 
 %% report §11.2, Appendix E.0 shape rule 6: `Shift-Tab` on a name shows its type,
 %% its first sentence, and the version it appeared in, and its page when

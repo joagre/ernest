@@ -28,7 +28,7 @@ The review of 2026-10-31 over commit `36b94d31`, run as [`release_review.md`](re
 
 ### `:quit` and `:detach` (decide, batch 4)
 
-- P4, P7 — two words for the key's one act, each refused where the other stands, and `:d` ambiguous in every shell. decide: `:quit` leaves both shells and `:detach` goes, or `:detach` is no command of a plain shell. decided 2026-10-31: `:quit` leaves both shells and `:detach` goes, §11.2. The log's *One Word to Leave*.
+- P4, P7 — two words for the key's one act, each refused where the other stands, and `:d` ambiguous in every shell. decide: `:quit` leaves both shells and `:detach` goes, or `:detach` is no command of a plain shell. decided 2026-10-31: `:quit` leaves both shells and `:detach` goes, §11.2. The log's *One Word to Leave*. built 2026-10-31 (`oneWordToLeave` in `Shell.Command`, `attached_session`, `start_lines`).
 
 ### The shell's own node (decide, batch 5)
 

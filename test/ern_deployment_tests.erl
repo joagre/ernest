@@ -269,7 +269,7 @@ statuses(Base) ->
 %% starts it, and the session the section shows, a shell attached to b from
 %% ops with the second build's directory as its source root, whose
 %% `:reload` compiles the second build on b and whose `Counter.moved()`
-%% moves b's counter, which b's build started, then finds none; `:detach`
+%% moves b's counter, which b's build started, then finds none; `:quit`
 %% ends the shell with status 0.
 %%
 %% Then section 8's tool, the second build built, run on a with a peer
@@ -319,8 +319,8 @@ upgrade(Base) ->
 %% attached to b from ops: `:processes` lists the counter by its site,
 %% waiting for a message; `Process.live()` and `Process.status` answer for
 %% b, the session's own processes left out; `Peer.peers()` is b's
-%% configuration; `:browse Counter` lists b's build; `:quit` is refused;
-%% and `:detach` ends the shell with status 0. b says that ops connected
+%% configuration; `:browse Counter` lists b's build; and `:quit` ends
+%% the shell with status 0. b says that ops connected
 %% and, once the shell has detached, that ops ended.
 %%
 %% The section's other claims are held by ern_nodes_tests: a fault said at
@@ -332,7 +332,7 @@ upgrade(Base) ->
 %% prompts, the shell's end and what it said, b's two lines and b's end. A
 %% regression test, written after the guide and the shell: MVP 4.0's item 5.
 looking_in_test_() ->
-    ern_nodes_tests:nodes_test({waits, 13}, fun looking_in/1).
+    ern_nodes_tests:nodes_test({waits, 12}, fun looking_in/1).
 
 looking_in(Base) ->
     [Session] = [Lines || {"## 6." ++ _, "", Lines} <- blocks()],
@@ -699,7 +699,7 @@ node(Base, Words) ->
 %% prints them: a prompt with no input after it, since line mode echoes
 %% none, the start line this build's, and a line its node says without its
 %% time, which nothing orders against the start line. Where the last input
-%% is `:detach`, the shell has ended with status 0, having left the cursor
+%% is `:quit`, the shell has ended with status 0, having left the cursor
 %% on a line of its own and written nothing on standard error, and the
 %% answer is `detached`; otherwise it waits at its prompt, and the answer is
 %% `{attached, Wait}`, what waits for its end.
@@ -716,7 +716,7 @@ attached(Base, Ops, ["$ ern " ++ Words | Lines]) ->
                     end, 1, Inputs),
     {Tail, Printed, Answer} =
         case lists:last(Inputs) of
-            ":detach" ->
+            ":quit" ->
                 ?assertEqual(0, Wait()),
                 {Out, Err} = ern_nodes_tests:said(Ops),
                 ?assertEqual("", Err),

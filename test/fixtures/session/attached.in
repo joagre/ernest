@@ -1,6 +1,6 @@
 1 + 2
 Io.println("written at the prompt")
-:quit
+:detach
 Counter.start()
 :load Counter
 :load Counter
@@ -15,4 +15,4 @@ Os.exit(3)
 c
 :processes
 :browse Counter
-:detach
+:quit

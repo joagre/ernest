@@ -343,9 +343,8 @@ fn session(desk : Desk) : Unit receiving ShellMsg = {
                                   screen = screenProcess,
                                   reply = reply),
                      screenMs);
-    let leaving = if attached then ":detach" else ":quit";
     let greeting = "Ernest " <> version() <> ", session " <> Int.toString(number(state.session));
-    send(screen, Said(greeting <> ". :help for the commands, " <> leaving <> " to leave.\n"));
+    send(screen, Said(greeting <> ". :help for the commands, :quit to leave.\n"));
     // report §11.2: a process that faults is news at the prompt, whichever
     // it is, and the session hears of it as any subscriber does, from
     // before the program's entry point runs
@@ -403,7 +402,7 @@ fn localFault(down : Down) : a =
     }
 
 // Report §11.2: the local half's end, which an attached session takes as
-// it takes `:detach`, and which faults a plain shell (localFault).
+// it takes `:quit`, and which faults a plain shell (localFault).
 fn localEnded(state : State, down : Down) : Unit =
     if state.attached then Unit else localFault(down)
 
@@ -1074,18 +1073,10 @@ fn obey(state : State,
         column : Int) : Next = {
     let State(session = session, color = color) = state;
     match action {
-        // report §11.2: `:quit` leaves a shell attached to no node, and
-        // `:detach` an attached one, each refused in the other
+        // report §11.2: `:quit` leaves every shell, an attached one's node
+        // running on
         Shell.Command.Quit ->
-            if state.attached then
-                refused(state, screen, "this shell is attached to a node; :detach leaves it")
-            else
-                Leave
-      | Shell.Command.Detach ->
-            if state.attached then
-                Leave
-            else
-                refused(state, screen, "this shell is attached to no node; :quit leaves it")
+            Leave
       | Shell.Command.Help ->
             answered(state, screen, Shell.Command.help())
       | Shell.Command.Bindings ->
@@ -1441,12 +1432,11 @@ fn place(destination : Optional(Path), screenPlace : String) : String =
       | None -> screenPlace
     }
 
-// Report §11.2: the shell ends by `:quit`, `:detach` in an attached shell,
-// by `C-d`, at the end of its input, or where its reader or its local half
-// stops, and before it ends it writes every fault reported to it until
-// then, a prompt pending. In a plain shell a process that still runs ends
-// with the program, which is no fault; an attached session leaves its node
-// running (detached).
+// Report §11.2: the shell ends by `:quit`, by `C-d`, at the end of its
+// input, or where its reader or its local half stops, and before it ends
+// it writes every fault reported to it until then, a prompt pending. In a
+// plain shell a process that still runs ends with the program, which is no
+// fault; an attached session leaves its node running (detached).
 fn leave(state : State, screen : Address(ScreenMsg), text : String) : Unit receiving ShellMsg = {
     reportRemaining(state, screen, Noted);
     finish(screen, text);

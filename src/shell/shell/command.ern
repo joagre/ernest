@@ -8,7 +8,6 @@
 export type Action =
     Bindings
   | Browse
-  | Detach
   | Doc
   | Faults
   | Forget
@@ -60,11 +59,6 @@ export let commands =
              placeholder = "Module",
              takes = Needs(what = "a module", completes = Modules),
              about = "the exports of Module with their types"),
-     Command(name = "detach",
-             action = Detach,
-             placeholder = "",
-             takes = Nothing,
-             about = "an attached shell left, its node running on"),
      Command(name = "doc",
              action = Doc,
              placeholder = "Name",
@@ -100,7 +94,7 @@ export let commands =
              action = Quit,
              placeholder = "",
              takes = Nothing,
-             about = "a shell attached to no node left, as C-d on an empty line leaves it"),
+             about = "the shell left, as by C-d on an empty line; an attached node runs on"),
      Command(name = "reload",
              action = Reload,
              placeholder = "",
@@ -267,6 +261,16 @@ let whole = Test.Case(name = "a whole name selects its command", run = fn() = ma
     Picked(Command(name = "set")) -> Test.Passed
   | _ -> Test.Failed("set")
 })
+
+// Report §11.2 *Commands*: `:quit` leaves every shell and `:detach` is no
+// command, so `:d` selects `:doc`. A regression test of the release
+// review's P4 and P7, written after the code.
+let oneWordToLeave =
+    Test.Case(name = "d selects doc, and detach is no command",
+              run = fn() = match #(pick("d"), pick("detach")) {
+                  #(Picked(Command(name = "doc")), Unknown) -> Test.Passed
+                | _ -> Test.Failed("d")
+              })
 
 let alphabetical = Test.Case(name = "the commands are in alphabetical order", run = fn() = {
     let names = List.map(commands, fn(command) = command.name);

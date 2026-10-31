@@ -281,14 +281,14 @@ The example `examples/upgrade/` is one module, `Counter`, in two builds: the fir
 ```
 $ ern shell --config-dir ops --attach b --source-root upgrade/v2
 the peer b connected
-Ernest 0.6.0, session 1. :help for the commands, :detach to leave.
+Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
 > :reload
 Counter, compiled again
 > Counter.moved()
 1 : Int
 > Counter.moved()
 0 : Int
-> :detach
+> :quit
 ```
 
 `:reload` finds that the source of `b`'s `Counter` has changed, and `b` compiles the second build from the text the shell sends. `Counter.moved()` runs on `b`, and the shell prints its value with its type: `Code.running` lists the processes running the old loop, `count`, by the hash of its definition, which both builds write alike, here the counter `serve` started, and `moved` sends each the `Upgrade` that hands it `count2`. Asked again, it finds none.
@@ -308,7 +308,7 @@ A session on section 8's `b`, whose counter `--main Counter.serve` started:
 ```
 $ ern shell --config-dir ops --attach b
 the peer b connected
-Ernest 0.6.0, session 1. :help for the commands, :detach to leave.
+Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
 > :processes
 Counter.serve receiving
 > List.map(Process.live(), Process.status)
@@ -318,8 +318,6 @@ Counter.serve receiving
 > :browse Counter
 Counter.serve() : Unit receiving Counter.CounterMsg
 > :quit
-this shell is attached to a node; :detach leaves it
-> :detach
 ```
 
 `the peer b connected` is said by `ops` as the shell dials, and `b` says `the peer ops connected`. The shell prints each value with its type. `:processes` lists `b`'s live processes, each by its spawn site and what it does, `running`, `receiving` or `calling`, here the counter waiting for a message. `Process.live()` and `Process.status` answer for `b` at its prompt, and `Process.live()`, as `:processes`, leaves out every session's own processes, this one's and another's (report Appendix E.21). `Peer.peers()` is `b`'s configuration, and a binding of the program read at the prompt is `b`'s value, as a function of the program called there runs on `b`.
@@ -330,7 +328,7 @@ What a process the session started writes is shown at the prompt, and what the n
 
 `:load` reads a module's source under the shell's source root, its working directory or the directory `--source-root` names, sends it to `b` as text, and `b` compiles it as its own, or takes its own compiled form where its load path holds one built from that source; a module of `b`'s own build is refused by `:load` and compiled again by `:reload` where its source has changed (section 5.2). A module so loaded stays on `b` for its life (section 4.2).
 
-`:detach` leaves, and the shell exits with status 0; `:quit` is refused. What the session started stays on `b`: a process an input spawned runs on, writes to `b`'s standard output from then on, and, once the session has ended, ends the node by an `Os.exit`, which faults its caller while the session runs (report §11.2). `b` says `the peer ops ended`. Several shells may attach to one node at once, each from a directory of its own, each a session of its own.
+`:quit` leaves, as `C-d` on an empty line does, and the shell exits with status 0. What the session started stays on `b`: a process an input spawned runs on, writes to `b`'s standard output from then on, and, once the session has ended, ends the node by an `Os.exit`, which faults its caller while the session runs (report §11.2). `b` says `the peer ops ended`. Several shells may attach to one node at once, each from a directory of its own, each a session of its own.
 
 A session ends with its node: where `b` ends, by `ern stop` or by its program's end, the shell says `the node b ended` under its last prompt and exits with status 0, as section 8's stop shows, and where the connection is lost, it says `the node b is lost` and exits with status 1 (report §11.8).
 
@@ -403,7 +401,7 @@ Each says the address and the port it listens on, `listening on 127.0.0.1:8655` 
 ```
 $ ern shell --config-dir ops --attach b
 the peer b connected
-Ernest 0.6.0, session 1. :help for the commands, :detach to leave.
+Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
 > :processes
 Counter.serve receiving
 ```

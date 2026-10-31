@@ -457,20 +457,20 @@ loads_listed_test() ->
 
 %% report §11.2, docs/release_review.md: a shell's start line a tracked
 %% document shows, `Ernest 0.5.0, session 1. :help for the commands, :quit
-%% to leave.`, or `:detach` in `:quit`'s place for an attached shell's,
-%% names the release VERSION holds, in every document but the log, which is
+%% to leave.`, in every shell (report §11.2 *Startup and history*), names
+%% the release VERSION holds, in every document but the log, which is
 %% history, and a proposal, so that a release that forgets one is told; the
 %% session's number is the one the session had where the document's session
 %% ran. The guide's and the catalog's sessions are held to it as they run
 %% (ern_guide_tests), and the README's by ern_tour_tests; the tour's two
 %% were held by nothing. A regression test, written after the tour; the
 %% attached shell's line was added with the guides over the attached shell,
-%% MVP 4.0's item 4, and the session's number with the log's *Sites,
-%% Sessions and Their Names*
+%% MVP 4.0's item 4, the session's number with the log's *Sites, Sessions
+%% and Their Names*, and one line for both shells with *One Word to Leave*
 start_lines_test() ->
     Version = string:trim(ern_repository:read("VERSION")),
     Expected = ["^Ernest \\Q", Version, "\\E, session [1-9][0-9]*\\. :help for the commands,"
-                " :(quit|detach) to leave\\.$"],
+                " :quit to leave\\.$"],
     Files = [File || File <- string:lexemes(os:cmd("git -C " ++ ?ROOT ++ " ls-files '*.md'"), "\n"),
                      File =/= "docs/log.md", not lists:prefix("docs/proposals/", File)],
     Found = [{File, Line} || File <- Files,

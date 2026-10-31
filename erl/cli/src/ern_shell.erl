@@ -4910,7 +4910,7 @@ own(Processes) ->
     keep(own, Processes ++ kept(own, [])),
     ern_rt:own(Processes).
 
-%% Report §11.2: the session detached from its node, by `:detach`, `C-d` or
+%% Report §11.2: the session detached from its node, by `:quit`, `C-d` or
 %% the end of its input, or by its local half's end or loss, as it leaves,
 %% and at any other end of the session's, a fault among them, by the root
 %% of its chain, which learns of the end (shell.ern's `attached`).

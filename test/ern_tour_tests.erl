@@ -486,7 +486,7 @@ moved_there(#tour{base = Base, foo = Foo, shell = Shell} = Tour) ->
                   "config --config-dir foo --peer-dir ops", "reload --config-dir foo"]],
     ern_nodes_tests:says(Foo, "the peer ops was added"),
     Attached = started(Base, Ops, " --config-dir ops --attach foo",
-                       [<<"the peer foo connected">>], ":detach"),
+                       [<<"the peer foo connected">>]),
     Running = "\\[<address [0-9]+>\\] : List\\(Address\\(Counter\\.CounterMsg\\)\\)",
     Empty = "[] : List(Address(Counter.CounterMsg))",
     #shell{read = Read} = Moved = session(
@@ -547,16 +547,12 @@ copied(Chapter, Base) ->
 %% Report §11.2, §12.5: a shell started in the reader's directory, `ern
 %% shell` with Options, its HOME a directory of its own so that no
 %% person's startup file runs; once it has printed its start line, as this
-%% build writes it, `:detach` in `:quit`'s place for an attached shell,
-%% Leave, and its first prompt, after the lines its node says as it starts,
-%% Said, each without its time.
+%% build writes it, and its first prompt, after the lines its node says as
+%% it starts, Said, each without its time.
 started(Base, Dir, Options) ->
     started(Base, Dir, Options, []).
 
 started(Base, Dir, Options, Said) ->
-    started(Base, Dir, Options, Said, ":quit").
-
-started(Base, Dir, Options, Said, Leave) ->
     Home = Dir ++ ".home",
     ok = filelib:ensure_path(Home),
     {Port, Wait} = ern_nodes_tests:launched(Dir, ["cd ", Base, " && HOME=", Home, " ", ?ERN,
@@ -564,7 +560,7 @@ started(Base, Dir, Options, Said, Leave) ->
     ern_nodes_tests:prints(Dir, "> "),
     Started = written(Dir),
     Start = iolist_to_binary(["Ernest ", ern_release:version_text(),
-                              ", session 1. :help for the commands, ", Leave, " to leave.\n> "]),
+                              ", session 1. :help for the commands, :quit to leave.\n> "]),
     Before = byte_size(Started) - byte_size(Start),
     ?assertEqual({Said, Start}, {stamped(binary:part(Started, 0, Before)),
                                  binary:part(Started, Before, byte_size(Start))}),

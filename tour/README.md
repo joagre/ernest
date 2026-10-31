@@ -595,7 +595,7 @@ $ ern reload --config-dir foo
 ```console
 $ ern shell --config-dir ops --attach foo
 the peer foo connected
-Ernest 0.6.0, session 1. :help for the commands, :detach to leave.
+Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
 > :load Counter
 Tally, compiled from tally.ern
 Counter, compiled from counter.ern

@@ -97,7 +97,7 @@ Examples
     // => "a"
 > no command :zz; :help lists them
 > no command :help\tme; :help lists them
-> this shell is attached to no node; :quit leaves it
+> no command :detach; :help lists them
 > :b is :bindings or :browse
 > :f is :faults or :forget
 > :type takes an expression
@@ -123,7 +123,6 @@ zero : () -> Int
 > Commands, which a prefix of the name selects where it begins no other:
   :bindings       what the session declares, with their types
   :browse Module  the exports of Module with their types
-  :detach         an attached shell left, its node running on
   :doc Name       the documentation of Name
   :faults         the faults reported since the session began
   :forget name    a name the session declared, forgotten, or every one for *
@@ -131,7 +130,7 @@ zero : () -> Int
   :load Module    the module by its namespace, from its source or its compiled form
   :output path    what programs write, appended to path, or back in the region for -
   :processes      the live processes by spawn site, the shell's own left out
-  :quit           a shell attached to no node left, as C-d on an empty line leaves it
+  :quit           the shell left, as by C-d on an empty line; an attached node runs on
   :reload         every loaded module whose source has changed
   :set            depth n, length n, rows n, timing on or off; :set alone shows them
   :type e         the type of e, which is not run
