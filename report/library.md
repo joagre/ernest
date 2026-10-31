@@ -681,7 +681,7 @@ Bytes.fromHex : (String) -> Optional(Bytes) // two digits an octet, in either ca
 
 ### Appendix E.21. `process.ern` (namespace `Process`)
 
-`Process` is the prelude's (§9.1), and this module provides its operations. The primitives are `current`, the host's own identity of the running process, of a wrap's recipient (§6.9), or, in an adapted address's function, of the process that owns what the function opens (§6.5), `fromAddress`, `status` and `live`, which read the runtime's record of its processes, `kill`, the runtime's end of a process (§6.9), and a private one beneath `faults`, which reaches the runtime's report of faults (E.0 rule 1).
+`Process` is the prelude's (§9.1), and this module provides its operations. The primitives are `current`, the host's own identity of the running process, of a wrap's recipient (§6.9), or, in an adapted address's function, of the process that owns what the function opens (§6.5), `fromAddress`, `status`, `live` and `owned`, which read the runtime's record of its processes, `kill`, the runtime's end of a process (§6.9), and a private one beneath `faults`, which reaches the runtime's report of faults (E.0 rule 1).
 
 A `Process` is the identity of a process. It has equality and no ordering, exact as §3.10 says, and nothing can be sent to it; `monitor` takes one (§6.9). Across nodes a `Process` names its node.
 
@@ -708,6 +708,7 @@ Process.kill : (Process) -> Unit // ends the process with the reason Killed, as 
 Process.current : () -> Process // the running process, a wrap's recipient, or in an adapted address's function the process §6.5 names
 Process.status : (Process) -> Optional(Status) // its spawn site (§6.9), the messages in its mailbox, and whether it runs, waits in a receive, or waits for a call's answer; None once it has ended, and for a process of another node
 Process.live : () -> List(Process) // in unspecified order
+Process.owned : (Process) -> List(Process) // the processes that end with it: each listener, socket and running program it owns (E.18, E.23) and each process started to end with it (G.7), told apart by their sites; none once it has ended
 Process.faults : ((FaultReport) -> m) -> Unit receiving m // every fault from now on, wrapped, in the caller's mailbox
 ```
 
@@ -943,11 +944,12 @@ No library listed here is part of the language or of the standard library. Each 
 
 ### Appendix G.1. `libs/ets` (namespace `Ets`)
 
-Tables of the runtime, Erlang's `ets` tables of type `set`, which Appendix D writes out with its rules.
+Tables of the runtime, Erlang's `ets` tables of type `set`, which Appendix D writes out with its rules. A table is owned by the process that made it and ends with it; `owned(p)` counts the tables `p` made and still owns, read from the runtime's record and no table, which a shell says of an ended input's process as `the table Ets.new ended with t` (§11.2), `Ets.new` standing as a table's site as `Tcp.listen` stands as a listener's (Appendix E.18).
 
 ```
 foreign type Table(k=, v)
 Ets.new : () -> Table(k=, v)
+Ets.owned : (Process) -> Int // the tables the process made that it still owns; 0 once it has ended
 Ets.put : (Table(k=, v), k=, v) -> Unit
 Ets.get : (Table(k=, v), k=) -> Optional(v)
 Ets.contains : (Table(k=, v), k=) -> Bool
