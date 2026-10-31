@@ -681,7 +681,7 @@ Bytes.fromHex : (String) -> Optional(Bytes) // two digits an octet, in either ca
 
 ### Appendix E.21. `process.ern` (namespace `Process`)
 
-`Process` is the prelude's (§9.1), and this module provides its operations. The primitives are `current`, the host's own identity of the running process, of a wrap's recipient (§6.9), or, in an adapted address's function, of the process that owns what the function opens (§6.5), `fromAddress`, `status` and `live`, which read the runtime's record of its processes, and a private one beneath `faults`, which reaches the runtime's report of faults (E.0 rule 1).
+`Process` is the prelude's (§9.1), and this module provides its operations. The primitives are `current`, the host's own identity of the running process, of a wrap's recipient (§6.9), or, in an adapted address's function, of the process that owns what the function opens (§6.5), `fromAddress`, `status` and `live`, which read the runtime's record of its processes, `kill`, the runtime's end of a process (§6.9), and a private one beneath `faults`, which reaches the runtime's report of faults (E.0 rule 1).
 
 A `Process` is the identity of a process. It has equality and no ordering, exact as §3.10 says, and nothing can be sent to it; `monitor` takes one (§6.9). Across nodes a `Process` names its node.
 
