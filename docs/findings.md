@@ -44,11 +44,11 @@ The review of 2026-10-31 over commit `36b94d31`, run as [`release_review.md`](re
 
 ### The standard library (decide, batch 7)
 
-- N17 — the hand-written gather of §4.4 appears again in §8.1, nearly line for line. decide: a library function for waiting on n results and their ends, or the pattern taught once and cited.
-- P13, E6 — `Test.until` runs again at once after a `Failed`, spinning a scheduler for the wait. decide: the cost stated in E.24, or a yield between runs.
-- E5 — `endWith` is a second way to end with a status, since the shell's own node, which runs no session, cannot `Os.exit`. decide: whether the shell's own node's entry point may `Os.exit`, E.23.
-- N, apart — the language's nine: a field read refused in a guard, an alarm that cannot be canceled, `receive { after }` putting `receiving e` on a signature, `:reload` restarting services, tests running service bindings, `if` as a statement needing `else Unit`, a one-field named constructor built with its name, an exported function's type naming a private message type, no interpolation. The pun's milestone: each a line of `language_feedback.md`, decided there.
-- N, apart — thirteen names a newcomer could not predict, `andThen` beside `flatMap`, `answer`, `adapted`, `restarting`, `monitorService`, `Os.termination`, `Process.live`, `Io.show`, `Path.under`, `Os.user`, `give`, `makeDir`, `OrderedSet.Set`. decide each after the word is searched across the report, the code and the shell, as `release_review.md` says.
+- N17 — the hand-written gather of §4.4 appears again in §8.1, nearly line for line. decide: a library function for waiting on n results and their ends, or the pattern taught once and cited. decided 2026-10-31: taught once, §8.1 calls §4.4's `gathered`. The log's *The Library's Lines*.
+- P13, E6 — `Test.until` runs again at once after a `Failed`, spinning a scheduler for the wait. decide: the cost stated in E.24, or a yield between runs. decided 2026-10-31: `until` yields between runs, E.24.
+- E5 — `endWith` is a second way to end with a status, since the shell's own node, which runs no session, cannot `Os.exit`. decide: whether the shell's own node's entry point may `Os.exit`, E.23. decided 2026-10-31: `Os.exit` from the shell's own processes ends the shell, E.23 and §11.2; `endWith` goes.
+- N, apart — the language's nine: a field read refused in a guard, an alarm that cannot be canceled, `receive { after }` putting `receiving e` on a signature, `:reload` restarting services, tests running service bindings, `if` as a statement needing `else Unit`, a one-field named constructor built with its name, an exported function's type naming a private message type, no interpolation. The pun's milestone: each a line of `language_feedback.md`, decided there. done 2026-10-31: lines 174 to 180 of `docs/language_feedback.md`, 4 and 5 being batch 6's.
+- N, apart — thirteen names a newcomer could not predict, `andThen` beside `flatMap`, `answer`, `adapted`, `restarting`, `monitorService`, `Os.termination`, `Process.live`, `Io.show`, `Path.under`, `Os.user`, `give`, `makeDir`, `OrderedSet.Set`. decide each after the word is searched across the report, the code and the shell, as `release_review.md` says. decided 2026-10-31: all kept after the search, the log's *The Library's Lines*.
 
 ### The claims, the README and the tour (decide, batch 8)
 
