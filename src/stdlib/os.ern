@@ -198,8 +198,10 @@ foreign fn hostDirectory() : String =
 /// does not return. It ends the whole program, not one process; a process ends
 /// by returning or by `kill` (report §8.6).
 ///
-/// In the shell and under `ern test`, it faults the calling process with the
-/// cause `exited with status n` instead, and ends neither.
+/// In the shell, in a process of an attached session's, and under `ern test`,
+/// it faults the calling process with the cause `exited with status n` instead,
+/// and ends neither; on a node a shell is attached to, from any other process
+/// it ends the node (report §11.2).
 ///
 /// ### Errors
 ///

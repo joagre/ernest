@@ -86,7 +86,7 @@ Ernest is for programs written in it from the start, not for an OTP application 
 
 Three ways in, each for a reader:
 
-- **[The tour](tour/README.md)**, for the programmer who wants the whole picture in an evening: one program, a counter, grown through eight chapters from a process with a typed mailbox to the same counter on a node started with none of its code, moved to new code there. An hour to read, about three to do along.
+- **[The tour](tour/README.md)**, for the programmer who wants the whole picture in an evening: one program, a counter, grown through eight chapters from a process with a typed mailbox to the same counter on a node started with none of its code, moved to new code there. An hour to read, about three hours to do along.
 - **[The guide](guide/language.md)**, *Programming in Ernest*, for the programmer learning the language, who has used a functional language: every rule taught where a program first needs it, with the report's section named. An afternoon to read; [`guide/README.md`](guide/README.md) says what stands beside it, for whom and how long.
 - **[The report](report/README.md)**, for whoever builds or checks a toolchain or writes a library against the exact rules: the definition, three files, which everything else defers to.
 
@@ -94,7 +94,7 @@ The counter above is the first three claims at work, and the rest of the argumen
 
 ## Where it stands
 
-It is young. Programs run on one node and across nodes, and 0.6.0, the release after what that reading and 0.5.0 left was done, is the latest release. Where the project stands is "Where we are" in the [plan](docs/plan.md), and what the toolchain does not do yet is a table in [`docs/development.md`](docs/development.md). Until 1.0 a release may refuse a program the previous release accepted, as the plan says; each release's notes, on the [releases page](https://github.com/joagre/ernest/releases), say where to read what changed.
+It is young. Programs run on one node and across nodes, and 0.6.0 is the latest release. Where the project stands is "Where we are" in the [plan](docs/plan.md), and what the toolchain does not do yet is a table in [`docs/development.md`](docs/development.md). Until 1.0 a release may refuse a program the previous release accepted, as the plan says; each release's notes, on the [releases page](https://github.com/joagre/ernest/releases), say where to read what changed.
 
 ## Installing
 
@@ -123,7 +123,7 @@ Two nodes on one machine take four more commands: `ern config --config-dir` make
 
 - **[Why Ernest](guide/why.md)** is the argument for the design, and **[the questions](guide/faq.md)** answer what a reader of another BEAM language asks first.
 - **[Style](guide/style.md)** is the rules a program is written by: its layout, its names, and the names every program shares.
-- **[The deployment guide](guide/deployment.md)**, *Running Ernest*, is for whoever runs nodes: a node's directory and its service manager, its peers, and a running program given new code.
+- **[The deployment guide](guide/deployment.md)**, *Running Ernest*, is for whoever runs nodes: a node's directory and its service manager, its peers, a running program given new code, and looking in from a shell attached to a node.
 - **[`examples/`](examples/)** holds complete programs, from `hello.ern` to a game at a terminal, [`snake.ern`](examples/snake.ern), and a small web server, [`web_server.ern`](examples/web_server.ern); [`examples/README.md`](examples/README.md) lists them by topic, with what each shows.
 - **[The manual pages](docs/man/)**, as Markdown: the prelude's, every standard library module's and every library's, which `man Ernest.List` shows where Ernest is installed.
 - **[`ernest-template`](https://github.com/joagre/ernest-template)** is where an application written in Ernest begins: a repository copied with *Use this template*, with one Makefile, the documents and the working rules of this repository cut to an application's size, and `TEMPLATE.md` saying why.

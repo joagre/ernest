@@ -17,7 +17,8 @@
 /// caller waits for as for a call's answer. A spawn names its peer, and so
 /// does `computeAt`; `compute` runs on a peer the node picks by the
 /// utilizations it holds. Each node that lists peers tells them how busy it
-/// is every `utilization-interval` of its `ernest.conf`, and holds what each
+/// is every `utilization-interval` of its `ernest.conf`, but for an attached
+/// shell's own node, which tells none (report §11.2), and holds what each
 /// told it: `compute` draws two of them and takes the less busy, and
 /// `utilizations` answers the table, over which a program writes a rule of
 /// its own. A program that knows how busy it is better than its node's

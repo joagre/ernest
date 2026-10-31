@@ -6,7 +6,7 @@ The questions a reader of [*Programming in Ernest*](language.md) brings, each an
 
 The process is the language, where Gleam's typed messaging is a library over the runtime's processes, well made too. What differs is how far the types reach: a function that receives names its mailbox's type, a `receive` reads only the mailbox of its own process, the one that type names, and `spawn` and `monitor` are the prelude's, what every module sees without naming a module, and `Address.call` is the prelude type's, written with the type's name, so the compiler sees all of them (the guide's §4).
 
-Being the language buys what a library cannot: the function's type says which mailbox it runs in, so `spawn` types the address from the function and refuses the function for a mailbox of another type, where a `Subject` is a value a process makes and hands out, or that an actor's start answers.
+Being the language buys what a library cannot: the function's type says which mailbox it runs in, so `spawn` types the address from the function and refuses the function for a mailbox of another type, where Gleam's `Subject`, a typed channel, is a value a process makes and hands out, or that an actor's start answers.
 
 What is the same is the types, Hindley-Milner as ML has it, which Gleam made ordinary on the Erlang runtime, and made well, in semantics and in syntax, and the look, which Ernest owes Gleam: `fn`, the pipe `|>`, the update `Con(..x, f = v)` and foreign declarations as the one door to Erlang follow it, its line comment was taken outright, and every other form of Gleam's was weighed against the design principles of report §0 and left out where it only gave a shorter way to write what the language already says (the guide's §11).
 
@@ -72,7 +72,7 @@ What nothing catches is `Address.callForever` on a callee that lives on and neve
 
 **How does Ernest talk to Erlang, and to the other languages on the runtime?**
 
-Through `foreign fn` and `foreign type`, which are the one door: a `foreign fn` names a function of the host's, in any language the runtime runs, a library from hex among them, built by its own tools and given to `ern run`, `ern test` or `ern shell` with `--libs-dir dir`, which puts each `dir/*/ebin` on the load path (report §11.2), and declares its Ernest type, with nothing generated from the other side; a `foreign type` names a value Ernest holds without looking inside (the guide's §8.3, report §4.7).
+Through `foreign fn` and `foreign type`, which are the one door: a `foreign fn` names a function of the host's, in any language the runtime runs, a library from hex, the BEAM's package index, among them, built by its own tools and given to `ern run`, `ern test` or `ern shell` with `--libs-dir dir`, which puts each `dir/*/ebin` on the load path (report §11.2), and declares its Ernest type, with nothing generated from the other side; a `foreign type` names a value Ernest holds without looking inside (the guide's §8.3, report §4.7).
 
 The foreign side promises the declared types. A return value that breaks the promise faults the caller when the call returns, a check that walks the value and so costs with its size, and where a program hands an address to foreign code, a message the foreign side sends to it is checked on delivery, so that a compiled `receive` never sees a value of the wrong shape from it (report §8.4). A foreign function that delivers into its caller's own mailbox, declared `receiving M`, is trusted to deliver values of `M` alone, and nothing checks it (report §4.7).
 
@@ -82,7 +82,7 @@ The standard library stands on the host through such declarations (the guide's �
 
 That two nodes on two networks are the ordinary case. Nodes talk over Erlang's own distribution, set up one way and not through its options: a node knows a peer by a name, a public key and an address in its own configuration, accepts a connection from a listed key alone, under the name that key gives it, and opens one TLS connection to a peer when an operation first needs it (report §8.3, the guide's §8.1).
 
-There is no mesh, so a program's nodes talk where its configuration says and nowhere else; no port mapper, so one port per node is opened, the node's own carrier finding a peer by its listed address, which is also why a node of Erlang's own is no peer; and the key is the identity, so the configuration is the whole of what an operator reads to know who talks to whom ([the deployment guide](deployment.md)).
+A program's nodes talk where its configuration says and nowhere else, so there is no mesh; one port per node is opened, the node's own carrier finding a peer by its listed address, so there is no port mapper, which is also why a node of Erlang's own is no peer; and the key is the identity, so the configuration is the whole of what an operator reads to know who talks to whom ([the deployment guide](deployment.md)).
 
 **How is code replaced in a running program, and why not old and new code?**
 
@@ -100,7 +100,7 @@ The `needs` is written, never inferred, and no type is declared an instance of a
 
 **Where are ETS, tracing, `observer`, back pressure and releases?**
 
-A table is the library `Ets`, the host's table with Ernest types on it, owned by the process that made it and read and written by every process of its node (report Appendix G.1). There is no tracing and no `observer`: a shell attached to a node is the operator's window, its inputs running on the node and `:processes` listing what runs there, each process by its spawn site and what it does (the deployment guide's §6).
+A table is the library `Ets`, the host's table with Ernest types on it, owned by the process that made it and read and written by every process of its node (report Appendix G.1). A shell attached to a node is the operator's window, its inputs running on the node and `:processes` listing what runs there, each process by its spawn site and what it does (the deployment guide's §6); there is no tracing and no `observer`.
 
 In place of `global`, a service has one holder on each node that offers it, and a find answers the address offered by the first peer that offers it, in the order the configuration lists them (the guide's §8.2). In place of `pg`, a group of processes across nodes is the program's own, a process that keeps their addresses.
 

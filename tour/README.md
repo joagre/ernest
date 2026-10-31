@@ -144,7 +144,7 @@ A node accepts a connection from a listed key alone, and nothing else is set up:
 
 `Peer.spawn` starts `count` on `foo` and answers `Right(address)`, or `Left(error)` with the reason it could not, an `Either`; `let far <-` binds the address inside a `Right`, as `<-` does in a block, and on a `Left` binds nothing and shows the reason, `Left(NotListed)` where no peer is named `foo` (the guide's §2.7). The shell connected to `foo` as the spawn needed it, and `count` crossed with the spawn, since `foo` had no code of it. The counter there is then the counter of chapter 1: the same `send`, the same call, the same answer. That is the second claim of *Why Ernest*: a process started on another node brings its code along, and nothing was installed first.
 
-Chapter 1's counter ended with its shell; this shell runs to the end of the tour. A shell started with `--config-dir` is a node like any other (the guide's §9.2 and §8.1). A node started with a program reads every compiled module under the program's directory at its start, where `ern run` without a configuration reads only those the program uses, so an `.erc` there built from another source root keeps the node from starting (the deployment guide's §5.1).
+Chapter 1's counter ended with its shell; this shell runs to the end of the tour. A shell started with `--config-dir` is a node like any other (the guide's §9.2 and §8.1).
 
 ## 3. The client
 
@@ -366,7 +366,7 @@ input 21:1:15: the argument does not fit Counter.apply: expected Address(Counter
 > kill(far)
 ```
 
-`:reload` brings `Tally` in from the build and compiles `Counter` again, and this time a type changed. Each reload makes a *version* of the module, counted from the first load, `Counter$3` now the previous one; a process keeps its mailbox type for life, so the two counters spawned under the old type, chapter 4's ended one and the one on `foo`, are of `Counter$3.CounterMsg`, though `far` was spawned under the first: a type several versions hold unchanged takes the number of the last of them (report §11.2), and the compiler refuses them the new protocol, the new mailbox type, with the reason (the guide's §9.3).
+`:reload` brings `Tally` in from the build and compiles `Counter` again, and this time a type changed. Each reload makes a *version* of the module, counted from the first load, `Counter$3` now the previous one; a process keeps its mailbox type for life, so the two counters spawned under the old type, chapter 4's ended one and the one on `foo`, are of `Counter$3.CounterMsg`, though `far` was spawned under the first: a type unchanged through several versions carries the number of the newest (report §11.2), and the compiler refuses them the new protocol, the new mailbox type, with the reason (the guide's §9.3).
 
 The first claim and the second meet here: a process on another node that has run since chapter 2 cannot be sent what it does not take, and only `far`, bound before the reload, still reaches it. It is killed; chapter 6 gives the counter a door by which its code changes without a kill. A new counter counts per key:
 
@@ -570,7 +570,9 @@ Counter, compiled again
 "apples: 2" : String
 ```
 
-`Code.running(f)` lists the processes on this node that are running `f`, by the hash of its definition, so the two lists are the two versions side by side. It is a *form*, written as a call and read by the compiler by a rule of its own, `f` the name of a top-level `fn` (the guide's §8.9). `move` sends each counter on the old loop its `Upgrade`, `next` a function of this node's that never crosses, and the counter switches to `count2` with its tally in hand. The `report` in between was answered after the `Upgrade`: a `send` puts its message in the mailbox before it returns, and the shell runs an input only once the one before it has ended (the guide's §1.2, §4.1). The lists then read the other way round, the same address in each, which is what shows where the process now runs.
+`Code.running(f)` lists the processes on this node that are running `f`, by the hash of its definition, within the limits the guide's §8.9 states, so the two lists are the two versions side by side. It is a *form*, written as a call and read by the compiler by a rule of its own, `f` the name of a top-level `fn` (the guide's §8.9).
+
+`move` sends each counter on the old loop its `Upgrade`, `next` a function of this node's that never crosses, and the counter switches to `count2` with its tally in hand. The `report` in between was answered after the `Upgrade`: a `send` puts its message in the mailbox before it returns, and the shell runs an input only once the one before it has ended (the guide's §1.2, §4.1). The lists then read the other way round, the same address in each, which is what shows where the process now runs.
 
 `Client(Inc(amount = amount)) when amount < 0` names one field and guards the clause (the guide's §2.6). A negative amount is now passed over, and the tally stands.
 

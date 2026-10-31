@@ -141,7 +141,8 @@ export foreign fn status(process : Process) : Optional(Status) =
 
 /// The processes the runtime started that have not ended, in unspecified order:
 /// those the program spawned, and each listener, socket or running program a
-/// system module opened. The runtime's system processes are left out.
+/// system module opened. The runtime's system processes are left out, and on
+/// a node a shell is attached to, each session's own processes (report §11.2).
 ///
 /// ### Examples
 ///

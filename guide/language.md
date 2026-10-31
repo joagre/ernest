@@ -72,6 +72,8 @@ An error in a module's source has this form: the position as `file:line:column`,
 
 **A failure dropped.** `Fs.write` returns `Either(Io.Error, Unit)`, a value that is `Right(Unit)` or `Left(error)` (§2.7): the file was written, or the reason it was not. Its last argument, `1000`, is how many milliseconds it may take, after which it answers `Left(Io.Timeout)`. A statement in a block must be `Unit`, so the failure cannot pass unseen. `let _ = ...` discards it where that is meant.
 
+`Path` is the standard library's type of a file's path, a constructor around its text.
+
 ```ernest-rejected
 export fn main() : Unit = {
     Fs.write(Path("notes.txt"), String.toUtf8("buy milk"), 1000);
@@ -434,9 +436,9 @@ Map.fromList([#("a", 2), #("b", 2)]) : Map(String, Int)
 Set.fromList([1, 2, 3]) : Set(Int)
 ```
 
-`Map.update` sees the entry as an `Optional`, present or not, and stores what the function returns: the counting idiom in one call. A present entry is changed the same way and an absent one left absent: `Map.update(map, key, fn(found) = Optional.map(found, f))`.
+`Map.update` sees the entry as an `Optional`, present or not, and stores what the function returns: the counting idiom in one call.
 
-Map keys and set elements need equality. `==` is defined on every type except one that contains a function, an address or a reply, the `Reply` an answer goes back on (§4.2). On a value of a foreign type, `Foreign.Term` (§8.3) among them, it is the runtime's exact equality (report §3.10). A map keyed by addresses is a type error at its first operation, since an address has no equality; key it by the process behind each address instead (§5.5). The compiler infers which type variables need equality, and a printed type marks them (§2.9).
+Map keys and set elements need equality. `==` and `!=` are defined on every type except one that contains a function, an address or a reply, the `Reply` an answer goes back on (§4.2). On a value of a foreign type, `Foreign.Term` (§8.3) among them, it is the runtime's exact equality (report §3.10). A map keyed by addresses is a type error at its first operation, since an address has no equality; key it by the process behind each address instead (§5.5). The compiler infers which type variables need equality, and a printed type marks them (§2.9).
 
 Ordering is separate: `a < b` asks the type's `compare`, which answers an `Ordering`: `Less`, `Equal`, or `Greater`. `Int`, `Float`, `String` and `Char` have one; `Optional` and `Either` have one where their element types do, `None` before `Some` and `Left` before `Right`, and a tuple and a list where every component's type does, component by component from the left, a shorter list before a longer one it begins; `Bool`, `Map` and `Set` have none. A type of your own gets one by `derives compare` on its declaration (§7.3), or by declaring `compare` in its module.
 
@@ -743,7 +745,7 @@ input 2:1:46: the argument does not fit one: expected List(Int), found List(Stri
 
 **A type nothing settles.** After `let xs = []` in a block, the element type of `xs` is settled by an annotation, by a later use in the block, or by `xs` reaching the block's result. Where nothing settles it, with `xs` never read, the type stays open and the block compiles.
 
-A top-level `let` that is not polymorphic, and a `let` at the prompt, must have their types settled, by an annotation where nothing else settles them. A top-level `let` settles an effect variable nothing else settles by where it stands: one left as a function type's effect is none, so `let p = twice(fn(x : Int) = x)`, with `fn twice(f) = #(f, f)`, is `#((Int) -> Int, (Int) -> Int)`; and one left as a type argument is `Never`, the mailbox type of a process that receives nothing (§4.1), as a spawned function's is (report §4.6).
+A top-level `let` that is not polymorphic, and a `let` at the prompt, must have their types settled, by an annotation where nothing else settles them. A top-level `let` settles an effect variable (§3.5) nothing else settles by where it stands: one left as a function type's effect is none, so `let p = twice(fn(x : Int) = x)`, with `fn twice(f) = #(f, f)`, is `#((Int) -> Int, (Int) -> Int)`; and one left as a type argument is `Never`, the mailbox type of a process that receives nothing (§4.1), as a spawned function's is (report §4.6).
 
 ### 3.4 Functions that receive
 
@@ -913,7 +915,7 @@ fn waitForData() : Optional(Int) receiving Inbox =
 
 `after 1000` gives up after 1000 milliseconds with no matching message, and `after 0` looks without waiting. Without `after`, the process waits for as long as it takes. A `receive` with only an `after` clause is a timed wait, the one `receive` a process with mailbox `Never` may use.
 
-A guard in `receive` is narrower than one in `match`, since it chooses a message before taking it: it compares and tests only what is already at hand, the variables in scope, a top-level `let`, literals and nullary constructors, joins these with `!`, `&&` and `||`, and calls nothing (report §6.3). For more, receive the message and `match` it. That is another program: the message is then out of the mailbox, where a guard that does not hold would have left it for a later `receive`.
+A guard in `receive` is narrower than one in `match`, since it chooses a message before taking it: it compares and tests only what is already at hand, the variables in scope, a top-level `let`, literals and nullary constructors, joins these with `!`, `&&` and `||`, and calls nothing (report §6.3). A field of a value in scope is bound to a local before the `receive`, `let at = s.at`, and compared by that name. For more, receive the message and `match` it. That is another program: the message is then out of the mailbox, where a guard that does not hold would have left it for a later `receive`.
 
 If a `Woke` is already in the mailbox, `waitForData` leaves it there and waits for a `Data`; a later `receive` can take the `Woke`.
 
@@ -1792,7 +1794,7 @@ What must survive a fault lives in the process that does not fault: here the lis
 
 ### 6.5 A service
 
-A *service* is a process the program reaches by name. The name is a top-level binding whose value is the process's address, `counter` below, so a module sends to the process by writing its name, and `export` says which modules may. It is no registry on the node: the name is resolved by the compiler, in the module's scope, like any other name, and is typed by its declaration. It needs none, because `restarting` keeps the process's address across its faults: the binding is made once and stays good, where a registry exists to find the new process behind an old name.
+A *service* is a process the program reaches by name. The name is a top-level binding whose value is the process's address, `counter` below, so a module sends to the process by writing its name, and `export` says which modules may. The name is resolved by the compiler, in the module's scope, like any other name, and is typed by its declaration, so no registry stands on the node, and none is needed: `restarting` keeps the process's address across its faults, so the binding is made once and stays good, where a registry would find the new process behind an old name.
 
 ```ernest
 export type CounterMsg = Add(amount : Int, reply : Reply(Int))
@@ -2084,7 +2086,7 @@ $ ern run --main Tools.check build/tools.erc
 
 ### 7.2 Abstract types
 
-An abstract type keeps its representation to its module: every definition in the module may name its constructor, and no other module can. A type's operations are functions of its module, so a stack is a module of its own, `stack.ern`, whose functions other modules call `Stack.push` and `Stack.pop`. Only the six operators `+`, `-`, `*`, `/`, `%` and `<>`, `compare` and `negate` are declared with the type's name before theirs, as report §4.8's `fn Distance.+` is.
+An abstract type keeps its representation to its module: every definition in the module may name its constructor, and no other module can. A type's operations are functions of its module, so a stack is a module of its own, `stack.ern`, whose functions other modules call `Stack.push` and `Stack.pop`. Only the six operators, `+`, `-`, `*`, `/`, `%` and `<>`, and the two members `compare` and `negate` are declared with the type's name before theirs, as report §4.8's `fn Distance.+` is.
 
 ```ernest
 // stack.ern  (namespace Stack)
@@ -2107,7 +2109,7 @@ export fn size(Stack(items)) =
 
 Inside `stack.ern` the operations are `push` and the rest, and any definition may take a `Stack` apart, a private helper or a test included. Outside, they are `Stack.push` and the rest, the type is `Stack.Stack`, and `Stack.Stack([])` is an error: another module sees the type and the operations, never the constructor.
 
-`empty` is a constant, a constructor applied to an empty list, so it has its value wherever its code is, on a bare node too (§2.2). A binding whose initializer computes, `let limit = 1024 * 1024` or `let index = Map.empty`, has its value only on a node that loaded the module: a spawn or a compute on a bare node whose function names it is not started there, and a module meant for such work makes such a value a function, `limit()` (§8.1).
+`empty` is a constant, a constructor applied to an empty list, so it has its value wherever its code is, on a bare node too (§8.1). A binding whose initializer computes, `let limit = 1024 * 1024` or `let index = Map.empty`, has its value only on a node that loaded the module: a spawn or a compute on a bare node whose function names it is not started there, and a module meant for such work makes such a value a function, `limit()` (§8.1).
 
 An abstract type is exported, since one its module keeps would hide from no module:
 
@@ -2536,7 +2538,7 @@ The compiler must see what the function captures, so the function a compute or a
 
 The function runs on the peer once the peer holds it and what it reaches, which cross where the peer lacks them, and only where every top-level binding the function reaches has its value on the peer and every module a foreign declaration it reaches calls is there; otherwise the compute answers `Left(Io.NotLoaded)`, and the peer says on its standard error what it lacked. A binding the function does not reach keeps it from no peer, whatever its module holds (report §8.7, Appendix E.27).
 
-So a value a spawned function needs from where it was written is a parameter, a local it captures, or a constant: a binding whose initializer is a constant, `let limit = 10` or `let empty = Stack([])`, has its value wherever its code is (§2.2), and any other binding is the node's own. The standard library's bindings have their values on every node, since every node holds the library from its start, so `Map.empty` is a `let`, where a program's own value that names it, `let index = Map.empty`, is a function when it is spawned with on a bare node, `index()`.
+So a value a spawned function needs from where it was written is a parameter, a local it captures, or a constant: a binding whose initializer is a constant, `let limit = 10` or `let empty = Stack([])`, has its value wherever its code is (§2.2), and any other binding is the node's own. The standard library's bindings have their values on every node, since every node holds the library from its start, so `Map.empty` is a `let`; a program's own binding of it, `let index = Map.empty`, is the node's own, and a function that is spawned with on a bare node reads `Map.empty` itself.
 
 A `let` typed at the shell's prompt is a binding of the shell's node, which no peer has: after `let below = 2000`, `Peer.computeAt("foo", fn() = below + 1, 5000)` answers `Left(Io.NotLoaded)`, and `{ let n = below; Peer.computeAt("foo", fn() = n + 1, 5000) }` answers `Right(2001)`, the value crossing as a local the lambda captures (§9.3).
 
@@ -2554,7 +2556,7 @@ fn heavy(n : Int) : Int =
     n * n
 ```
 
-The node picks by what its peers tell it. A node that lists peers tells each one it is connected to how busy it is every `utilization-interval` milliseconds its `ernest.conf` names, 5000 where it names none, and holds the last utilization each peer told it with the moment it came (report Appendix C, Appendix E.27). How busy is on one scale: 1.0 is every scheduler busy, below it room and above it work waiting. A scheduler is a thread of the host that runs processes. The node measures as its `"utilization"` entry says, and by its run queue where it says nothing, the processes running or ready to run with the one measuring left out.
+The node picks by what its peers tell it. A node that lists peers tells each one it is connected to how busy it is, but for an attached shell's own node, which tells none (§9.2), every `utilization-interval` milliseconds its `ernest.conf` names, 5000 where it names none, and holds the last utilization each peer told it with the moment it came (report Appendix C, Appendix E.27). How busy is on one scale: 1.0 is every scheduler busy, below it room and above it work waiting. A scheduler is a thread of the host that runs processes. The node measures as its `"utilization"` entry says, and by its run queue where it says nothing, the processes running or ready to run with the one measuring left out.
 
 `Peer.compute` draws two of the peers whose utilizations the node may use, at random, and takes the less busy, the first drawn where the two are equal. A *telling* is the message that carries a peer's utilization, and names the peer's interval. A utilization older than two of its peer's intervals is not used, and a peer's loss drops its utilization.
 
@@ -3126,7 +3128,7 @@ A service `Registry`, with `type Msg = Register((Int) -> Int)` and a binding `re
 
 ### 8.9 A service moved to new code
 
-A process changes its code by a message of its own type that carries the new loop (§4.6). Across a program, the processes running a function are listed by `Code.running(f)`, a *form*, a call the compiler reads by a rule of its own: `f` names a top-level `fn`, and the list holds the addresses of the processes on this node whose stack holds a frame of `f` at that moment, among the innermost 64 frames the host keeps, so a process whose frame of `f` lies deeper is not listed (report §3.11, Appendix E.28). A tool moves every counter by sending each its `Upgrade`:
+A process changes its code by a message of its own type that carries the new loop (§4.6). Across a program, the processes running a function are listed by `Code.running(f)`, a *form*, a call the compiler reads by a rule of its own: `f` names a top-level `fn`, and the list holds the addresses of the processes on this node whose stack holds a frame of `f` at that moment, among the innermost 64 frames the host keeps, so a process whose frame of `f` lies deeper is not listed (report §3.11, Appendix E.28). The move's limits are four: the same message type, the same state type, a frame of `f` among the innermost 64, and no `restarting` around the process, whose restart runs the old loop (the deployment guide's §5.3). A tool moves every counter by sending each its `Upgrade`:
 
 ```ernest
 type CounterMsg =
@@ -3185,18 +3187,7 @@ The state's type is in the message type, `next : (Int) -> Unit receiving Counter
 
 On a peer, the move is made at the peer's own prompt, from a shell attached to it (§9.2). Its inputs run on the peer, and `:reload`, or `:load` for a module the peer does not hold, sends the new build's source there as text, which the peer compiles as its own (report §11.2). A function of the new build called at that prompt runs `Code.running` on the peer and sends each counter its `Upgrade` there, so no function value crosses in a message (§8.4). With a counter of `examples/upgrade`'s first build on the peer `b`, and `ops` the operator's node, which `b` lists, the second build's `moved` moves the counters of its node and answers how many:
 
-```console
-$ ern shell --config-dir ops --attach b --source-root upgrade/v2
-the peer b connected
-Ernest 0.6.0. :help for the commands, :detach to leave.
-> :reload
-Counter, compiled again
-> Counter.moved()
-1 : Int
-> Counter.moved()
-0 : Int
-> :detach
-```
+The session is the deployment guide's §5.3, which shows it, `:reload` at `b`'s prompt and `Counter.moved()` answering `1 : Int` and then `0 : Int`.
 
 `b`'s build holds `Counter`, so `:reload` compiles the second build there as the module's next version, `count2` among it, which `b` never had. `count` is written alike in both builds, one hash, so `Code.running(count)` in `moved` lists the counter `b`'s build started.
 
@@ -3227,7 +3218,7 @@ One command, `ern`, whose first word is its job, and a mode for Emacs. `ern --he
 - `--libs-dir dir` adds the Erlang applications under `dir`, each one's `ebin`: one flag where a program's foreign functions call several of them (report §11.2).
 - `ern test module.erc` runs the module's tests, and `ern test dir` those of every module compiled under the directory; it exits with status 1 unless all passed (§7.1).
 - `ern shell`, with or without a file, starts the shell (§1.2). A file's `main`, or the function `--main` names, runs beside it; a file without either is loaded with nothing running. `--source-root dir` names where `:load` finds a module's source, and `--config-dir dir` the configuration directory.
-- `ern shell --config-dir dir --attach name` attaches the shell to the peer `name` that `dir` lists: the session runs on that node, every module of its build in scope, and `:load` and `:reload` send a module's source there as text; the terminal and the files stay with the node `dir` makes the shell, which `name` lists without an address. `:detach` leaves, and what the session started runs on (§8.9, report §11.2); the deployment guide's §6 is the operator's use of it.
+- `ern shell --config-dir dir --attach name` attaches the shell to the peer `name` that `dir` lists: the session runs on that node, every module of its build in scope, and `:load` and `:reload` send a module's source there as text, or `:load` takes the node's own compiled form where its load path holds one; the terminal and the files stay with the shell's own node, started from `dir`, which `name` lists without an address. `:detach` leaves, and what the session started runs on (§8.9, report §11.2); the deployment guide's §6 is the operator's use of it.
 - `ern config --config-dir dir` makes the configuration a node with peers needs (§8) in the directory `dir`, listening where `--listen address:port` says; `ern config --config-dir dir --peer-dir other` lists the node of `other`, a directory of this machine, in `dir`'s (§8.1, report §11.3). `ern run --config-dir dir` runs the program as that node, and `ern reload --config-dir dir` and `ern stop --config-dir dir` have the running node read its configuration again, or end, `ern stop` returning once it has (report §11.2). `ern reload` reads the directory as the node would, and refuses a configuration the node would refuse, with status 1, before it signals.
 
 ### 9.3 The shell
@@ -3287,7 +3278,7 @@ Ernest runs on the Erlang runtime, and a program in it is processes that send me
 - There are no exceptions, no `catch`, and no `try`. A failure is a value, a message, or a fault (§6).
 - There are no links and no exit signals, only monitors. A process that must die with another monitors it and returns.
 - A `Down` comes from the runtime and not from the process that ended, so it may arrive before that process's last message to the watcher, where Erlang's `'DOWN'` comes after it (§5.2).
-- There are no registered names on a node, and none are needed: a registry exists so that a name can be looked up again after the process behind it has died and been replaced, and `restarting` restarts a process in place, so its address stays good across its faults and a top-level binding can hold it for the program's life (§6.5).
+- A process is reached by its address, held in a binding (§6.5), and no registry stands on a node: one exists so that a name can be looked up again after the process behind it has died and been replaced, and `restarting` restarts a process in place, so its address stays good across its faults and a top-level binding can hold it for the program's life (§6.5).
 
   Addresses cannot be compared; the processes behind them can, `Process.fromAddress(a)`, which is a pid without the right to send.
 
