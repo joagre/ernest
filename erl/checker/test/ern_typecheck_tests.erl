@@ -4270,6 +4270,39 @@ receive_guard_refused_test() ->
     [?assertEqual({Guard, ok}, {Guard, ok(Head ++ Guard ++ Tail)})
      || Guard <- ["N(k) when k > limit", "N(_) when !ready", "N(k) when k > limit && ready"]].
 
+%% report §11.1, §4.2: a call of a standard library's foreign declaration
+%% calls the host's function it names directly, its shim, which the
+%% library's interface holds; one that another module's interface claims
+%% is not honored, and its declaration's own function, which checks what
+%% the host returns, is called. Written before the fix, the release review
+%% before 0.7.0 (S2): a crafted `.erc` on the load path made a dependent
+%% call any host function unchecked
+shims_of_the_library_alone_test() ->
+    Prelude = ern_typecheck:prelude_env(),
+    ?assertEqual({erlang, byte_size}, ern_typecheck:shim(['Bytes', size], Prelude)),
+    Crafted = #interface{namespace = ['Crafted'],
+                         values = #{['Crafted', size] =>
+                                        #scheme{type = {tfn, [{tcon, ['Bytes'], []}],
+                                                        {tcon, ['Int'], []}, none}}},
+                         shims = #{['Crafted', size] => {erlang, byte_size}}},
+    ?assertEqual(none, ern_typecheck:shim(['Crafted', size],
+                                          ern_typecheck:seeded([Crafted], Prelude))).
+
+%% report §6.3: a field read in a `receive` guard is no operand, and the
+%% help names the `let` before the `receive` that reads it, or the pattern
+%% that binds it where it is the message's. Written before the code, the
+%% release review before 0.7.0 (N11), whose reader read a state's field
+receive_guard_field_test() ->
+    Source = "type Msg = At(at : Int)\ntype State = State(at : Int)\n"
+             "fn loop(s : State) : Unit receiving Msg = receive {"
+             " At(at = at) when at == s.at -> Unit | _ -> Unit }",
+    ?assertEqual({"a comparison in a `receive` guard compares variables, top-level lets,"
+                  " literals, and nullary constructors",
+                  "read the field with a `let` before the `receive` and compare that, or bind"
+                  " it in the pattern where it is the message's; or receive the message and"
+                  " `match` it, which takes it out of the mailbox"},
+                 refusal_and_help(Source)).
+
 %% report §6.3, §3.10: `<`, `<=`, `>`, and `>=` in a receive guard order
 %% Int, Float, String, and Char only, not a user type with its own compare
 receive_guard_ordering_test() ->

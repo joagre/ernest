@@ -227,6 +227,13 @@
         "bind what the guard needs that does not come from the message with a `let` before"
         " the `receive` and compare that; or receive the message and `match` it, which takes"
         " it out of the mailbox").
+%% Report §6.3: the help for a field read in a guard, which a `let` before
+%% the `receive` reads, or the message's pattern binds where it is the
+%% message's field.
+-define(GUARD_FIELD_HELP,
+        "read the field with a `let` before the `receive` and compare that, or bind it in the"
+        " pattern where it is the message's; or receive the message and `match` it, which"
+        " takes it out of the mailbox").
 
 %%
 %% Entry points
@@ -750,9 +757,24 @@ add_interface(Interface, #env{types = Types, globals = Globals} = Env) ->
             %% since the interface carries neither where it is empty
             terms = maps:merge(maps:without(maps:keys(Values), Env#env.terms), Terms),
             reaches = maps:merge(maps:without(maps:keys(Values), Env#env.reaches), Reaches),
-            shims = maps:merge(maps:without(maps:keys(Values), Env#env.shims), Shims),
+            shims = maps:merge(maps:without(maps:keys(Values), Env#env.shims),
+                               honored(Namespace, Shims, Env)),
             declaring = maps:merge(Env#env.declaring,
                                    maps:from_keys(maps:keys(Values), Namespace))}.
+
+%% Report §11.1, §4.2: the shims of an interface, where it is the standard
+%% library's, a namespace no other module may take: the library's
+%% interfaces the prelude's environment holds (prelude_env/0), and every
+%% interface while the library's own source root builds, its installed copy
+%% set aside, when the only modules are its own; none of any other, so
+%% that no compiled form claims a host function a dependent calls with no
+%% check of what it returns.
+honored(Namespace, Shims, Env) ->
+    case map_size(Shims) =:= 0 orelse is_provided(hd(Namespace), Env)
+         orelse ern_prelude:stdlib_directory() =:= none of
+        true -> Shims;
+        false -> #{}
+    end.
 
 %% Report §4.2: the interface without the values a member of its parent's
 %% type takes the place of: the member of M's type T, which an operator
@@ -5185,9 +5207,13 @@ guard_operand(#e_var{referent = Referent} = Variable, Env) ->
                     callee_name(Variable) ++ " is a function, and a `receive` guard calls nothing",
                     [], ?GUARD_CALLS_HELP);
 guard_operand(Operand, _) ->
+    Help = case Operand of
+               #e_selection{} -> ?GUARD_FIELD_HELP;
+               _ -> "receive the message and `match` it"
+           end,
     fail(ern_ast:span(Operand), "a comparison in a `receive` guard compares variables, top-level"
                                 " lets, literals, and nullary constructors",
-         [], "receive the message and `match` it").
+         [], Help).
 
 %% Whether a name's referent is a top-level `let`, of this module or another.
 -spec is_top_let(term(), env()) -> boolean().
