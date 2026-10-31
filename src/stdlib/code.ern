@@ -60,16 +60,20 @@
 ///
 /// since 0.4.0
 
-/// Loads the compiled module at `path`, with the modules it uses, and evaluates
-/// the top-level bindings among them that have no value on this node, in the
-/// calling process, and answers `Right(Unit)`. The modules it uses are found by
-/// their namespaces under the module's own root and then on the load path, as
-/// `ern run` finds a program's (report §11.2), and each definition is verified
-/// against its hash. A module the node holds with the same code is the node's
-/// own; one it holds with other code, another build's, is loaded beside it, and
-/// a process that runs the other goes on running it. The bindings are evaluated
-/// in the order `ern run` evaluates a program's before `main`, each in a body of
-/// mailbox type `Never` (report §8.5).
+/// Loads the compiled module at `path`, with the modules it uses, evaluates the
+/// top-level bindings among them that have no value on this node, and answers
+/// `Right(Unit)`. The modules it uses are found by their namespaces under the
+/// module's own root and then on the load path, as `ern run` finds a program's
+/// (report §11.2), and each definition is verified against its hash. A module
+/// the node holds with the same code is the node's own; one it holds with other
+/// code, another build's, is loaded beside it, and a process that runs the other
+/// goes on running it.
+///
+/// The bindings are evaluated in the order `ern run` evaluates a program's
+/// before `main`, each in a body of mailbox type `Never` (report §8.5), in a
+/// process of the runtime's own, the load's evaluator, while the calling process
+/// waits. The evaluator lives on, as a shell's load's does, and keeps what a
+/// binding opened, a listener or a running program (report §11.2).
 ///
 /// A file that is no `.erc` of this `ern`, one compiled against another
 /// interface than the node holds, a module of a cycle through the load path
@@ -80,9 +84,11 @@
 ///
 /// A binding that faults answers `Left(Other(text))`, `text` the fault as
 /// `ern run` reports it, `Init.bad:3 faulted: division by zero`: nothing is
-/// loaded, and every process the evaluation started is killed. So does a load
-/// the node cannot make, `text` its reason, a count of the host's that the load
-/// would pass among them.
+/// loaded, every process the evaluation started is killed, and the evaluator
+/// ends. So does a load the node cannot make, `text` its reason, a count of the
+/// host's that the load would pass among them. A deadlock while the evaluator
+/// waits faults the evaluator and not the caller, and refuses the load so
+/// (report §8.6).
 ///
 /// ### Examples
 ///

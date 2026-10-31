@@ -4075,6 +4075,28 @@ worker_faults_test() ->
                  lists:sort(binary:split(untraced(?capturedOutput), <<"\n">>,
                                          [global, trim]))).
 
+%% report §6.9, §7.4, §11.2: a restarting function called in a monitor's
+%% wrap, which the runtime applies for the process the wrap delivers to,
+%% faults with `Fault("restart in a function the runtime applies")`, the
+%% fault of that process, which meets it at its next wait, and whose report
+%% shows it with the wrap's line. Written with the code
+restart_in_a_wrap_test() ->
+    Dir = tmp(),
+    File = write(Dir, "wrapped.ern",
+                 "type Msg = Ended(Down)\n"
+                 "export fn main() : Unit receiving Msg = {\n"
+                 "    let _ = spawnMonitored(fn() = Unit, fn(down) = {\n"
+                 "        restarting(Unlimited, fn() = Unit)();\n"
+                 "        Ended(down)\n"
+                 "    });\n"
+                 "    receive { Ended(_) -> Io.println(\"restarted\") }\n"
+                 "}\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
+    ?assertEqual(1, ern_err(["run", filename:join(Dir, "wrapped.erc")])),
+    ?assertEqual([<<"Wrapped.main faulted: restart in a function the runtime applies">>,
+                  <<"    Wrapped.main:4">>],
+                 binary:split(iolist_to_binary(?capturedOutput), <<"\n">>, [global, trim])).
+
 %% report §11.2, §7.3, §12.3: beneath a foreign function's raise the fault
 %% line has its trace, as every fault's has, naming first the function
 %% that raised, as the host names it. A regression test: the stack was

@@ -133,13 +133,15 @@ load_test() ->
     ?assertNot(erlang:module_loaded('ern@plug@bad$2')).
 
 %% Appendix E.28, report §8.6: a binding a load evaluates that waits on
-%% what nothing will send is a deadlock, the fault of the process that
-%% waits, as one in the program's own code is, since the load marks its
-%% caller inside foreign code only while it reads, places and loads. A
-%% regression test, written after the code: the whole load was marked, the
-%% evaluation among it, so the look never saw the wait and the program
-%% waited for ever; it does not cover a load on a node, where the look
-%% seeks no deadlock (§8.6)
+%% what nothing will send is a deadlock, which faults the load's evaluator
+%% in the caller's place and refuses the load, the process the binding
+%% spawned killed with it, so that the program goes on with the entry
+%% process alone, since the load marks its caller inside foreign code only
+%% while it reads, places and loads. A regression test, written after the
+%% code: the whole load was marked, the evaluation among it, so the look
+%% never saw the wait and the program waited for ever; then the deadlock
+%% faulted the caller, before the evaluator; it does not cover a load on a
+%% node, where the look seeks no deadlock (§8.6)
 load_deadlock_test() ->
     Dir = tmp(),
     Lib = filename:join(Dir, "lib"),
@@ -152,15 +154,107 @@ load_deadlock_test() ->
           "let stuck : Int = Address.callForever(spawn(silent), Ask)\n"),
     built(Lib, "plug/stuck.ern"),
     Main = write(Dir, "main.ern",
-                 "export fn main() : Unit =\n"
-                 "    Io.println(Io.show(Code.load(Path(\"" ++ Lib ++ "/plug/stuck.erc\"))))\n"),
+                 "export fn main() : Unit = {\n"
+                 "    Io.println(Io.show(Code.load(Path(\"" ++ Lib ++ "/plug/stuck.erc\"))));\n"
+                 "    Io.println(Int.toString(List.size(Process.live())))\n"
+                 "}\n"),
     built(Dir, "main.ern"),
     Self = self(),
     Device = spawn(fun() -> said(Self, []) end),
-    ?assertEqual(1, ern_cli:ern(["run", filename:rootname(Main) ++ ".erc"], Device)),
+    Before = byte_size(captured_output()),
+    ?assertEqual(0, ern_cli:ern(["run", filename:rootname(Main) ++ ".erc"], Device)),
+    Output = binary:part(captured_output(), Before, byte_size(captured_output()) - Before),
     Device ! {done, self()},
     Said = receive {said, Text} -> unicode:characters_to_binary(Text) end,
-    ?assertMatch({0, _}, binary:match(Said, <<"Plug.Stuck.stuck:8 faulted: deadlock\n">>)).
+    ?assertEqual(<<"Left(Other(\"Plug.Stuck.stuck:8 faulted: deadlock\"))\n1\n">>, Output),
+    %% report §8.6, Appendix E.28: the load's answer is the fault's one report
+    ?assertEqual(<<>>, Said).
+
+%% Appendix E.28, report §8.5, §8.6, §6.8: a load evaluates in an evaluator
+%% of its own while the caller waits, so a binding that calls a function
+%% generic in its mailbox type takes none of the caller's messages: it
+%% waits at `Never` for one that cannot come, a deadlock, which faults the
+%% evaluator in the caller's place and refuses the load, and the caller
+%% then receives the message it sent itself. A regression test, the
+%% readers' program (the log's *The Argument's Four Decisions*): the
+%% binding ran in the caller, took its `Hello(41)` and faulted on it, and
+%% the caller waited for ever
+load_takes_no_message_test() ->
+    Dir = tmp(),
+    Lib = filename:join(Dir, "lib"),
+    write(Lib, "grab.ern",
+          "fn take() = receive { x -> x }\n\n"
+          "export let shown : String = Io.show(take())\n"),
+    built(Lib, "grab.ern"),
+    Main = write(Dir, "main.ern",
+                 "type Msg = Hello(Int)\n\n"
+                 "export fn main() : Unit receiving Msg = {\n"
+                 "    send(self(), Hello(41));\n"
+                 "    Io.println(Io.show(Code.load(Path(\"" ++ Lib ++ "/grab.erc\"))));\n"
+                 "    receive {\n"
+                 "        Hello(n) -> Io.println(Int.toString(n))\n"
+                 "    }\n"
+                 "}\n"),
+    built(Dir, "main.ern"),
+    ?assertEqual([<<"Left(Other(\"Grab.shown:3 faulted: deadlock\"))">>, <<"41">>],
+                 ran(filename:rootname(Main) ++ ".erc")).
+
+%% Appendix E.28, E.18, E.21: the evaluator lives on after the load and
+%% owns what a binding opened, a listener here, which stays open after the
+%% load has answered and closes when the evaluator is killed; `self()` in
+%% the binding is the evaluator's address, and `Process.live()` leaves the
+%% evaluator out, the runtime's own, listing the program's processes and
+%% the listener. Written with the code
+load_evaluator_lives_on_test() ->
+    Dir = tmp(),
+    Lib = filename:join(Dir, "lib"),
+    write(Lib, "plug/registry.ern",
+          "export type Msg =\n"
+          "    Opened(listener : Address(Tcp.ListenerMsg), evaluator : Address(Never))\n"
+          "  | Get(Reply(#(Address(Tcp.ListenerMsg), Address(Never))))\n\n"
+          "fn waiting() : Unit receiving Msg =\n"
+          "    receive {\n"
+          "        Opened(listener = listener, evaluator = evaluator) ->"
+          " holding(listener, evaluator)\n"
+          "    }\n\n"
+          "fn holding(listener : Address(Tcp.ListenerMsg), evaluator : Address(Never)) : Unit\n"
+          "    receiving Msg =\n"
+          "    receive {\n"
+          "        Get(reply) -> {\n"
+          "            answer(reply, #(listener, evaluator));\n"
+          "            holding(listener, evaluator)\n"
+          "        }\n"
+          "    }\n\n"
+          "export let holder : Address(Msg) = spawn(waiting)\n"),
+    write(Lib, "plug/opener.ern",
+          "let opened : Unit =\n"
+          "    match Tcp.listen(\"127.0.0.1\", 0) {\n"
+          "        Right(listener) -> send(Plug.Registry.holder,"
+          " Plug.Registry.Opened(listener = listener, evaluator = self()))\n"
+          "      | Left(_) -> Unit\n"
+          "    }\n"),
+    built(Lib, "plug/registry.ern"),
+    built(Lib, "plug/opener.ern"),
+    Main = write(Dir, "main.ern",
+                 "type Msg = Closed(Down)\n\n"
+                 "export fn main() : Unit receiving Msg = {\n"
+                 "    Io.println(Io.show(Code.load(Path(\"" ++ Lib ++ "/plug/opener.erc\"))));\n"
+                 "    match Address.callForever(Plug.Registry.holder, Plug.Registry.Get) {\n"
+                 "        #(listener, evaluator) -> {\n"
+                 "            let open = Process.status(Process.fromAddress(listener));\n"
+                 "            Io.println(Io.show(Optional.isSome(open)));\n"
+                 "            Io.println(Int.toString(List.size(Process.live())));\n"
+                 "            monitor(Process.fromAddress(listener), Closed);\n"
+                 "            kill(evaluator);\n"
+                 "            receive {\n"
+                 "                Closed(_) -> Io.println(\"closed\")\n"
+                 "            }\n"
+                 "        }\n"
+                 "    }\n"
+                 "}\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, "--load-path", Lib, Main])),
+    ?assertEqual([<<"Right(Unit)">>, <<"true">>, <<"3">>, <<"closed">>],
+                 ran(filename:rootname(Main) ++ ".erc", ["--load-path", Lib])).
 
 %% What a job wrote on its error device, an I/O server of its own, for
 %% Owner, once told it is done.

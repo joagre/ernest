@@ -4066,6 +4066,67 @@ attached_startup_diagnostic(Base) ->
     has(Out, "2 | let b : Int = \"not an Int\"\n"),
     stop(Node, WaitNode).
 
+%% report §11.2 *The attached shell*, §12.1 *A session's screen*, Appendix
+%% E.28, E.21: a `Code.load` at an attached prompt evaluates in an
+%% evaluator the session's input started, which writes to the session's
+%% screen, and so does what the evaluation starts; `:processes` lists what
+%% it started and not the evaluator, the runtime's own. Once the session
+%% detaches they are the node's and write to the node's standard output:
+%% the binding's process, subscribed to the program's end, says so as the
+%% node ends. Written with the code, the evaluator's row of the screen
+%% taken from the input's chain and dropped with the session's
+%% (ern_rt:evaluate/2, drop_screens/1)
+attached_code_load_test_() ->
+    nodes_test({waits, 10}, fun attached_code_load/1).
+
+attached_code_load(Base) ->
+    Root = filename:join(Base, "program"),
+    Lib = filename:join(Base, "lib"),
+    [ok = filelib:ensure_path(Dir) || Dir <- [Root, Lib]],
+    ok = file:write_file(filename:join(Root, "idle.ern"),
+                         "export fn main() : Unit receiving Unit = {\n"
+                         "    Io.println(\"ready\");\n"
+                         "    receive { _ -> Unit }\n"
+                         "}\n"),
+    ok = file:write_file(filename:join(Lib, "told.ern"),
+                         "type Msg = Ending(Reply(Unit))\n"
+                         "\n"
+                         "let evaluated : Unit = Io.println(\"evaluated at the prompt\")\n"
+                         "\n"
+                         "fn told() : Unit receiving Msg = {\n"
+                         "    Os.termination(Ending);\n"
+                         "    receive {\n"
+                         "        Ending(reply) -> {\n"
+                         "            Io.println(\"told at the end\");\n"
+                         "            answer(reply, Unit)\n"
+                         "        }\n"
+                         "    }\n"
+                         "}\n"
+                         "\n"
+                         "let teller : Address(Msg) = spawn(told)\n"),
+    0 = built([Root]),
+    0 = built([Lib]),
+    Port = free_port(),
+    Node = made(Base, "node", Port),
+    Ops = made(Base, "ops", none),
+    lists(Node, [{"ops", Ops, none}]),
+    lists(Ops, [{"node", Node, Port}]),
+    {_, WaitNode} = started(Node, filename:join(Root, "idle.erc"), []),
+    prints(Node, "ready"),
+    {Shell, _} = Attached = attached(Ops, "node", Base),
+    prints(Ops, ":detach to leave.\n"),
+    entered(Shell, Ops, ["Code.load(Path(\"" ++ filename:join(Lib, "told.erc") ++ "\"))"],
+            "Right(Unit)"),
+    entered(Shell, Ops, [":processes"], "Told.teller:15 receiving"),
+    {Out, _} = detached(Attached, Ops),
+    has(Out, "evaluated at the prompt\n"),
+    ?assertEqual(2, length(string:split(Out, "Told.teller:15", all))),
+    stop(Node, WaitNode),
+    {NodeOut, _} = said(Node),
+    has(NodeOut, "told at the end\n"),
+    ?assertEqual(nomatch, string:find(NodeOut, "evaluated at the prompt")),
+    ?assertEqual(nomatch, string:find(Out, "told at the end")).
+
 %% report §11.2 *The attached shell*: the shell's own node reads for its
 %% session the files of the source root, the startup files it ran and the
 %% path `:output` names, and no other: a process of the session's node that

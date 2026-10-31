@@ -3,7 +3,7 @@
 %% boundary's proxies, and the end of a program.
 -module(ern_rt_tests).
 
--export([queued_input/2]).
+-export([queued_input/2, evaluated/0]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include("ern_rt.hrl").
@@ -138,40 +138,57 @@ process_status_test() ->
     ?assertEqual(true, wait(live)),
     ?assertEqual('None', wait(gone)).
 
-%% report §12.1, §11.2: on a node a shell is attached to, standard output
-%% and standard error write what a process of a session sends them to that
-%% session's screen, the row of its root, a process it started and one a
-%% load's evaluation in it started among them, and a process of the
+%% report §12.1, §11.2, Appendix E.28: on a node a shell is attached to,
+%% standard output and standard error write what a process of a session
+%% sends them to that session's screen, the row of its root, a process it
+%% started among them, and a load's evaluator it started and what the
+%% evaluation started, the row the evaluator writes; and a process of the
 %% runtime's own that acts for one, a delivery and a kept process, writes
-%% as the one it acts for; what any other process sends, the entry
-%% process's and the session's once its row is dropped, goes to the node's
-%% own. Written before the code
+%% as the one it acts for. What any other process sends, the entry
+%% process's, and the session's and the evaluation's once the screen's
+%% rows are dropped, goes to the node's own. Written before the code, the
+%% evaluator's part with it
 screen_routed_test() ->
     Self = self(),
     Sink = fun(Where) -> fun(Bytes) -> Self ! {Where, Bytes} end end,
-    ok = ern_rt:run_main(
-           fun() ->
-               Main = erlang:self(),
-               Session = ern_rt:spawn_root(fun() -> session(Main) end, <<"S.session:1">>),
-               ern_rt:screen(Session, Sink(screen)),
-               ern_rt:send(Session, go),
-               written(stdout, <<"node\n">>),
-               receive {done, Session} -> ok end,
-               ern_rt:drop_screen(Session),
-               ern_rt:send(Session, again),
-               receive {done, Session} -> ok end
-           end, <<"main">>, #{stdout => Sink(out), stderr => Sink(err)}),
+    Unit = 'ern@zz_screen_evaluated',
+    Forms = [{attribute, 1, module, Unit}, {attribute, 1, export, [{'$init', 0}]},
+             {function, 1, '$init', 0,
+              [{clause, 1, [], [], [{call, 1, {remote, 1, {atom, 1, ?MODULE}, {atom, 1, evaluated}},
+                                     []}]}]}],
+    {ok, Unit, Beam} = compile:forms(Forms),
+    {module, Unit} = code:load_binary(Unit, "zz_screen_evaluated.erl", Beam),
+    try
+        ok = ern_rt:run_main(
+               fun() ->
+                   Main = erlang:self(),
+                   Session = ern_rt:spawn_root(fun() -> session(Main, Unit) end, <<"S.session:1">>),
+                   ern_rt:screen(Session, Sink(screen)),
+                   ern_rt:send(Session, go),
+                   written(stdout, <<"node\n">>),
+                   receive {done, Session} -> ok end,
+                   ern_rt:drop_screens(Sink(screen)),
+                   ern_rt:send(Session, again),
+                   receive {done, Session} -> ok end
+               end, <<"main">>, #{stdout => Sink(out), stderr => Sink(err)})
+    after
+        code:purge(Unit),
+        code:delete(Unit)
+    end,
     Screen = lists:sort(taken(screen)),
     ?assertEqual(lists:sort([<<"session\n">>, <<"started\n">>, <<"started error\n">>,
-                             <<"evaluated\n">>, <<"delivered\n">>, <<"kept\n">>]), Screen),
-    ?assertEqual(lists:sort([<<"node\n">>, <<"detached\n">>]), lists:sort(taken(out))),
+                             <<"evaluated\n">>, <<"evaluation started\n">>, <<"delivered\n">>,
+                             <<"kept\n">>]), Screen),
+    ?assertEqual(lists:sort([<<"node\n">>, <<"detached\n">>, <<"evaluation detached\n">>]),
+                 lists:sort(taken(out))),
     ?assertEqual([], taken(err)).
 
 %% The session of screen_routed_test: it writes, and starts a process that
-%% writes to both streams, one under a load's mark that writes, a
-%% delivery's wrap and a kept process's function that write, then, once
-%% its row is dropped, writes again.
-session(Main) ->
+%% writes to both streams, a load's evaluator of Unit, whose bindings write
+%% and start processes that write (evaluated/0), a delivery's wrap and a
+%% kept process's function that write, then, once its screen's rows are
+%% dropped, writes again, and so does a process the evaluation started.
+session(Main, Unit) ->
     receive go -> ok end,
     written(stdout, <<"session\n">>),
     Started = fun() ->
@@ -179,10 +196,8 @@ session(Main) ->
                   written(stderr, <<"started error\n">>)
               end,
     ended(ern_rt:spawn_monitored(Started, fun(Down) -> {ended, Down} end, <<"S.started:2">>)),
-    {Mark, Root} = ern_rt:rooting(),
-    Evaluated = fun() -> written(stdout, <<"evaluated\n">>) end,
-    ended(ern_rt:spawn_monitored(Evaluated, fun(Down) -> {ended, Down} end, <<"S.load:3">>)),
-    ern_rt:rooted(Mark, Root),
+    {evaluated, _} = ern_rt:evaluate([Unit], <<"S.load:3">>),
+    Later = whereis(ern_rt_tests_later),
     Quick = ern_rt:spawn(fun() -> ok end, <<"S.quick:4">>),
     ern_rt:monitor(Quick, fun(Down) -> written(stdout, <<"delivered\n">>), {ended, Down} end),
     ended(Quick),
@@ -195,7 +210,23 @@ session(Main) ->
     Main ! {done, Session},
     receive again -> ok end,
     written(stdout, <<"detached\n">>),
+    ern_rt:monitor(Later, fun(Down) -> {ended, Down} end),
+    Later ! again,
+    ended(Later),
     Main ! {done, Session}.
+
+%% The bindings of screen_routed_test's unit, which its evaluator runs: they
+%% write, start a process that writes and is waited for, and one that
+%% writes once it is told, after the screen's rows are dropped.
+-spec evaluated() -> ok.
+evaluated() ->
+    written(stdout, <<"evaluated\n">>),
+    Later = ern_rt:spawn(fun() ->
+                             receive again -> written(stdout, <<"evaluation detached\n">>) end
+                         end, <<"S.later:6">>),
+    true = register(ern_rt_tests_later, Later),
+    Started = fun() -> written(stdout, <<"evaluation started\n">>) end,
+    ended(ern_rt:spawn_monitored(Started, fun(Down) -> {ended, Down} end, <<"S.evaluated:5">>)).
 
 ended(_Process) ->
     receive {ended, _} -> ok end.
@@ -1266,6 +1297,59 @@ faulting_wrap_test() ->
     ?assertMatch({'Down', _, {'Fault', <<"division by zero">>}, <<"Main.main:3">>}, wait(d1)),
     ?assertMatch({'Down', _, 'Returned', <<"Main.main:5">>}, wait(d2)).
 
+%% report §6.9, §7.4: a restarting function called where the runtime
+%% applies a function for another process faults with its cause before
+%% anything of a restart begins: in a monitor's wrap, the fault of the
+%% process the wrap delivers to, met at its next wait; in an adapted
+%% address's function that the process kept for the address applies on
+%% delivery, the target's; and so where the target is on another node and
+%% the kept process acts for none, as the function itself sees, that target
+%% being out of reach here (§6.5). An adapted address's function that a
+%% send applies runs in the sender, and restarts there. Written with the
+%% code
+restart_where_the_runtime_applies_test() ->
+    Self = self(),
+    Far = binary_to_term(<<131, 88, 119, 13, "other@node.er", 0:32, 1:32, 1:32>>),
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = erlang:self(),
+               Restarting = ern_rt:restarting('Unlimited', fun() -> 'Unit' end),
+               Ended = fun(Tag) -> fun(Down) -> {Tag, Down} end end,
+               _ = ern_rt:spawn_monitored(
+                     fun() ->
+                         _ = ern_rt:spawn_monitored(fun() -> ok end, fun(_) -> Restarting() end,
+                                                    <<"w">>),
+                         waiting()
+                     end, Ended(wrapped), <<"Main.wrapped:3">>),
+               receive {wrapped, WrappedDown} -> Self ! {wrapped, WrappedDown} end,
+               Target = ern_rt:spawn_monitored(fun waiting/0, Ended(target), <<"Main.target:5">>),
+               kept_applied(ern_rt:adapted(Target, fun(_) -> Restarting() end)),
+               receive {target, TargetDown} -> Self ! {target, TargetDown} end,
+               kept_applied(ern_rt:adapted(Far, fun(_) ->
+                                                    try Restarting()
+                                                    catch throw:{ern, fault, Cause} ->
+                                                        Self ! {far, Cause}
+                                                    end
+                                                end)),
+               Sent = ern_rt:spawn(fun() -> receive Message -> Main ! {sent, Message} end end,
+                                   <<"Main.sent:9">>),
+               ern_rt:send(ern_rt:adapted(Sent, fun(_) -> Restarting() end), go),
+               receive {sent, Message} -> Self ! {sent, Message} end
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    Cause = <<"restart in a function the runtime applies">>,
+    ?assertMatch({'Down', _, {'Fault', Cause}, <<"Main.wrapped:3">>}, wait(wrapped)),
+    ?assertMatch({'Down', _, {'Fault', Cause}, <<"Main.target:5">>}, wait(target)),
+    ?assertEqual(Cause, wait(far)),
+    ?assertEqual('Unit', wait(sent)).
+
+%% A message applied by the process kept for Address, as a peer's worker
+%% hands it one, and the kept process stopped.
+kept_applied(Address) ->
+    Kept = ern_rt:kept(Address),
+    Kept ! {apply, message},
+    receive {applied, Kept} -> ok end,
+    Kept ! stop.
+
 %% report §6.5, E.15: an alarm's function that never finishes holds up no
 %% other alarm. A regression test: the clock applied it itself, and froze
 %% for every process.
@@ -2019,7 +2103,7 @@ wrap_acts_for_its_recipient_test() ->
                                                                             <<"M.recipient:2">>),
                                                  receive wrapped -> ok end,
                                                  receive stop -> ok end
-                                             end, fun(Down) -> Down end, <<"M.main:9">>),
+                                             end, <<"M.main:9">>),
                {Delivery, Current, Socket, Spawned} =
                    receive {wrapped, D, C, S, P} -> {D, C, ern_rt:process_of(S), P} end,
                DeliveryRef = erlang:monitor(process, Delivery),
@@ -2536,7 +2620,7 @@ started_by_test() ->
                               ern_rt:send(EntryProcess, rooted),
                               waiting()
                           end,
-               Root = ern_rt:spawn_root(RootBody, fun(Down) -> {root, Down} end, <<"M.root:1">>),
+               Root = ern_rt:spawn_root(RootBody, <<"M.root:1">>),
                Grandchild = receive {grandchild, Pid} -> Pid end,
                receive rooted -> ok end,
                Opened = erlang:spawn(fun waiting/0),

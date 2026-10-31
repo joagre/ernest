@@ -76,7 +76,7 @@ Something may be kept as long as a program holds what it stands for: a socket un
 - An offer's rows in `ern_offers` and `ern_offered` go when its process ends, which the reaper sees for a process the runtime started or opened, and watches for in any other.
 - `ern_initialized` holds a row for each unit whose initializers a run or a load has run, which the build and the session's loads bound; a unit unloaded takes its row with it, a session's input's and holder's among them (`ern_code:unloaded/1`).
 - The utilization a program set is one row of `ern_launch`, each set in place of the last, for the launch's life.
-- A session's screen, a row of `ern_screens` for each root the session heads, is dropped by the session that wrote it, an evaluator's that faulted by the session as the load answers, and goes with the launch's tables at the end; the mark that a process is a session's own is in its row, and goes with the process (report §12.1, §11.2). A character a program's write cut waits in the screen's own state, and goes with the screen.
+- A session's screen, a row of `ern_screens` for each root the session heads, its own and each evaluator's started in its chain, is dropped whole by the session as it detaches, every row of its sink, an evaluator's that ended by its load as the load answers, and goes with the launch's tables at the end; one of an evaluator killed while the session runs stays until that detach; the mark that a process is a session's own is in its row, and goes with the process (report §12.1, §11.2). A character a program's write cut waits in the screen's own state, and goes with the screen.
 - The note of a call from another node, in `ern_notes` and `ern_callees`, goes at an answer given on this node, the callee's restart or end, the caller's second note, or the loss of the caller's node. The call sends the second note wherever it ends otherwise, its caller's end among them.
 
 ### The gateway and its peers (report §8.7)
@@ -111,7 +111,7 @@ Something may be kept as long as a program holds what it stands for: a socket un
 - A module loaded again, unchanged, makes no unit: its code is the node's, or a unit an earlier load made from the same forms (`ern_code:unit_beside/2`).
 - A load whose binding faulted keeps its units, out of reach, with their bindings' values erased and the processes it started killed (Appendix E.28).
 - The run's load path, which `Code.load` reads, is one persistent term, replaced at each run's start (`ern_cli:load_path/0`).
-- The rows of the processes a load's evaluation starts carry a mark in place of their root only while it runs, and take the root back as it ends.
+- A load that evaluates bindings keeps its evaluator, a process of the runtime's own with its row, until it is killed or the node ends, as a shell's load keeps one for each module; one whose binding faulted ends. A load of what the node holds evaluates nothing and starts none, so the evaluators are bounded as the units are (Appendix E.28). The caller's mark of the evaluator it waits for is in its own dictionary while it waits.
 
 ## Tracing a growth
 

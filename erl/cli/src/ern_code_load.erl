@@ -2,7 +2,7 @@
 %% it uses loaded by a program after its node started, as `ern run` loads a
 %% program's (ern_cli:program/3) and the shell's `:load` a compiled module
 %% (ern_shell), with their refusals, and its top-level bindings evaluated in
-%% the calling process.
+%% an evaluator of the runtime's own while the caller waits.
 %%
 %% The module at the path names its root, the directory its namespace
 %% descends from (§11.2), and each module it uses is found by its namespace
@@ -28,27 +28,28 @@
 %% (§11.2).
 %%
 %% The bindings of the units without values, the units the node held and
-%% had not evaluated among them, are evaluated in the calling process in
-%% §8.5's order, each in a body of mailbox type `Never` (§4.6), the caller
-%% the head of a spawn chain of its own meanwhile (ern_rt:rooting/0). One
-%% that faults ends the evaluation: every process the evaluation started is
-%% killed (ern_rt:kill_started/1) and the values its evaluation stored go,
-%% as a refused load of the shell's is undone, and the load answers the
-%% fault as §8.5 reports it. The units the load brought stay loaded, out of
-%% reach, since a process running before the load may hold a function of
-%% one (§11.2); loaded again, unchanged, the module makes no unit.
+%% had not evaluated among them, are evaluated in §8.5's order, each in a
+%% body of mailbox type `Never` (§4.6), in an evaluator, a process of the
+%% runtime's own that heads a spawn chain of its own and lives on, while
+%% the caller waits (ern_rt:evaluate/2), as the shell's load evaluates. One
+%% that faults ends the evaluation and the evaluator: every process the
+%% evaluation started is killed and the values its evaluation stored go,
+%% as a refused load of the shell's is undone (ern_rt:withdraw_load/2), and
+%% the load answers the fault as §8.5 reports it. The units the load
+%% brought stay loaded, out of reach, since a process running before the
+%% load may hold a function of one (§11.2); loaded again, unchanged, the
+%% module makes no unit.
 %%
 %% Report §12.7: a unit of the toolchain's own that a peer's spawn names is
 %% loaded the same way from the node's own tree, the modules it uses found
 %% in the tree's builds of the toolchain's own and not on the load path,
-%% in a process of the runtime's own (own/1).
+%% for a process of the runtime's own (own/1).
 -module(ern_code_load).
 
 -export([load/1, own/1]).
 
 -include_lib("checker/include/ern_types.hrl").
 -include_lib("checker/include/ern_canonical.hrl").
--include_lib("runtime/include/ern_rt.hrl").
 
 %% A module of the load as its compiled form gives it: its namespace, the
 %% file it was read from, its bytes, its interface chunk (ern_interface)
@@ -74,10 +75,10 @@ load({'Path', Path}) ->
 %% tree (ern_code:own_file/1), and the modules it uses, found in the
 %% tree's builds of the toolchain's own (ern_code:own_builds/0), each
 %% placed and loaded as a load places a module and their bindings that
-%% have no value on the node evaluated in the calling process, a process
-%% of the runtime's own, before any process runs the spawned function;
-%% nothing is asked of another node. ok, or what the node lacked, a
-%% binding's fault among it, which the node says beside `NotLoaded`.
+%% have no value on the node evaluated as a load evaluates them, before any
+%% process runs the spawned function; nothing is asked of another node. ok,
+%% or what the node lacked, a binding's fault among it, which the node says
+%% beside `NotLoaded`.
 -spec own(module()) -> ok | {lacked, binary()}.
 own(Unit) ->
     {ok, File} = ern_code:own_file(Unit),
@@ -94,8 +95,9 @@ own(Unit) ->
 %% through the host's code server, which wait on the host's file and code
 %% servers, where the look cannot see them deliver, so that the caller is
 %% inside foreign code for the look meanwhile; the evaluation of the
-%% bindings after it is Ernest code, whose waits the look reads, a
-%% deadlock among them.
+%% bindings after it is Ernest code, in the evaluator, whose waits the look
+%% reads, a deadlock among them, while the caller waits for it as the look
+%% reads a wait (ern_rt:evaluate/2).
 placed_and_loaded(Path, LoadPath) ->
     ern_rt:entered_foreign(),
     try
@@ -296,41 +298,35 @@ made(#placed{found = #found{beam = Beam} = Found, unit = Unit, made = forms}, Pl
 
 %% Report §8.5, Appendix E.28: the bindings of each unit of the load whose
 %% bindings have no value, those of the units it uses first, evaluated in
-%% the calling process, under a spawn chain of its own; `Right(Unit)`, or
-%% the fault of one, the load undone (withdrawn/2).
+%% one evaluator, at Code.load's site until a binding names its own;
+%% `Right(Unit)`, or the end of one, the load undone: every process the
+%% evaluation started killed, and the values of the units it evaluated gone
+%% (§8.5), so that a unit the node held and had not evaluated is without
+%% them as before. The units it brought stay loaded and in the code table,
+%% as a refused load of the shell's leaves them, their names in no
+%% program's reach. A load with no binding to evaluate starts no evaluator.
 evaluated(Placed) ->
     Units = [Unit || #placed{unit = Unit} <- Placed],
-    Evaluated = [Unit || Unit <- ern_rt:ordered(Units), erlang:function_exported(Unit, '$init', 0),
-                         not ern_rt:is_initialized(Unit)],
-    {Mark, Root} = ern_rt:rooting(),
-    Site = ern_rt:site(),
-    Outcome = try lists:foreach(fun(Unit) -> Unit:'$init'() end, Evaluated) of
-                  ok -> ok
-              catch
-                  Class:Error:Stack ->
-                      %% report §8.5: the binding that faulted, by its site
-                      #fault{cause = FaultCause} = ern_rt:met(Class, Error, Stack),
-                      {fault, ern_rt:site(), FaultCause}
-              end,
-    _ = ern_rt:initializing(Site),
-    case Outcome of
-        ok ->
+    evaluated_by([Unit || Unit <- ern_rt:ordered(Units),
+                          erlang:function_exported(Unit, '$init', 0),
+                          not ern_rt:is_initialized(Unit)]).
+
+evaluated_by([]) ->
+    {'Right', 'Unit'};
+evaluated_by(Evaluated) ->
+    case ern_rt:evaluate(Evaluated, <<"Code.load">>) of
+        {evaluated, _} ->
             lists:foreach(fun ern_rt:initialized/1, Evaluated),
-            ern_rt:rooted(Mark, Root),
             {'Right', 'Unit'};
-        {fault, BindingSite, Cause} ->
-            withdrawn(Evaluated, Mark),
-            ern_rt:rooted(Mark, Root),
-            refuse({'Other', <<BindingSite/binary, " faulted: ", Cause/binary>>})
+        {ended, Evaluator, BindingSite, How} ->
+            _ = ern_rt:withdraw_load([Evaluator], Evaluated),
+            refuse({'Other', ended(BindingSite, How)})
     end.
 
-%% Report §11.2, Appendix E.28: a load whose binding faulted undone: every
-%% process its evaluation started killed, and the values of the units it
-%% evaluated gone (§8.5), so that a unit the node held and had not
-%% evaluated is without them as before. The units it brought stay loaded
-%% and in the code table, as a refused load of the shell's leaves them,
-%% their names in no program's reach.
-withdrawn(Evaluated, Mark) ->
-    Keys = lists:append([ern_code:binding_keys(Unit) || Unit <- Evaluated]),
-    _ = ern_rt:kill_started([Mark]),
-    lists:foreach(fun persistent_term:erase/1, Keys).
+%% Report §8.5, §11.2, Appendix E.28: a binding that faulted, by its site,
+%% with its cause; and one whose evaluator was killed as it evaluated, as
+%% the shell's load says it.
+ended(BindingSite, {faulted, Cause}) ->
+    <<BindingSite/binary, " faulted: ", Cause/binary>>;
+ended(BindingSite, killed) ->
+    <<BindingSite/binary, " was killed">>.

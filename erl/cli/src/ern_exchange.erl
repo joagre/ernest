@@ -206,15 +206,16 @@ own_unit({foreign, _}) -> none.
 %% Report §12.7, *The toolchain's own units*: a spawn or a compute of a
 %% function a unit of the toolchain's own holds, this node lacking it: the
 %% unit and those it uses loaded from the node's own tree and their
-%% bindings evaluated before the process starts (ern_code_load:own/1), in
-%% a process of the runtime's own, which then reads the frame again as the
-%% gateway's worker reads it, which starts it, or answers `NotLoaded`, the
-%% node saying what it lacked, a binding that faulted among it. The
-%% exchange goes on with its other frames meanwhile. Two such loads are one
-%% at a time on the node, so that a unit is loaded and its bindings
-%% evaluated once, the second finding them so. The spawner's node is asked
-%% for nothing, and the work is bounded, the toolchain's own units being
-%% few and their bindings its tables and constants.
+%% bindings evaluated in an evaluator before the process starts
+%% (ern_code_load:own/1), for a process of the runtime's own, which then
+%% reads the frame again as the gateway's worker reads it, which starts it,
+%% or answers `NotLoaded`, the node saying what it lacked, a binding that
+%% faulted among it. The exchange goes on with its other frames meanwhile.
+%% Two such loads are one at a time on the node, so that a unit is loaded
+%% and its bindings evaluated once, the second finding them so. The
+%% spawner's node is asked for nothing, and the work is bounded, the
+%% toolchain's own units being few and their bindings its tables and
+%% constants.
 own_loaded(Unit, From, Body) ->
     _ = spawn(fun() -> own_answered(Unit, From, Body) end),
     ok.

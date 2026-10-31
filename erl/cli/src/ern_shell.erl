@@ -35,7 +35,7 @@
 %% Report §8.6: each receive that can wait, by its kind (docs/style.md): the
 %% wait for the table's holder, a process of the toolchain's own the look
 %% does not read, and the holder's own.
--receives({ernest_wait, [withdraw/2, evaluate/3, bound_lives/1, evaluated_lives/0]}).
+-receives({ernest_wait, [bound_lives/1]}).
 -receives({foreign_wait, [made_table/0]}).
 -receives({own_process, [flush_screen/0, hold_table/1]}).
 
@@ -1537,7 +1537,7 @@ value(ErlangModule, Entry, _Binds) ->
     ErlangModule:Entry().
 
 %% Report §7.3, §7.4: the cause of a fault the shell catches in a process
-%% of its own, an input's or an evaluator's, its trace (Appendix E.21), and
+%% of its own, an input's, its trace (Appendix E.21), and
 %% report §6.6, §8.7: the callee's site and the peer's name a call or a
 %% compute carried it with, each `None` or `Some`, as the runtime gives a
 %% process's (ern_rt:met/3). What such a catch meets is a fault of the
@@ -3036,12 +3036,12 @@ held_interfaces(Namespace, Interfaces) ->
 installed(Session, All, Answer) ->
     Session1 = install(Session, All),
     case initialize(in_order(All)) of
-        {ok, Roots} ->
+        {ok, Evaluators} ->
             initialized(All),
-            evaluating(Roots),
+            evaluating(Evaluators),
             {'Right', {keep_session(Session1), Answer}};
-        {fault, _, Site, How, _, Roots} ->
-            Killed = withdraw(All, Roots),
+        {fault, _, Site, How, _, Evaluators} ->
+            Killed = withdraw(All, Evaluators),
             {'Left', <<(binding_end(Site, How))/binary, "; nothing was loaded",
                        (killed_text(Killed))/binary, "\n">>}
     end.
@@ -3057,12 +3057,11 @@ in_order(CompiledModules) ->
 %% Report §11.2: a refused `:load` or `:reload` undone, so that the session
 %% is as it was: every process its evaluation started, directly or
 %% through one it started, is killed (§6.9) and waited for, each of them
-%% started by one of Roots, the processes the bindings were evaluated in
-%% (ern_rt:kill_started/1), a process of a unit the node held among them,
-%% and then each of Roots that lives on, the shell's own, which nothing
-%% names; and the values the bindings of every unit it evaluated stored
-%% go, so that a unit the node held, which the session had not evaluated,
-%% is without them as before.
+%% started by one of Evaluators, a process of a unit the node held among
+%% them, and then each of Evaluators that lives on, which nothing names;
+%% and the values the bindings of every unit it evaluated stored go, so
+%% that a unit the node held, which the session had not evaluated, is
+%% without them as before (ern_rt:withdraw_load/2).
 %%
 %% The units the load brought stay loaded and in the code table, as any
 %% unit does, out of the session's scope, since a process running before
@@ -3070,16 +3069,8 @@ in_order(CompiledModules) ->
 %% kept; the module loaded again, unchanged, makes no unit (compile_unit/5,
 %% compiled_unit/5). Code.load undoes a load so too (Appendix E.28). The
 %% spawn sites of the processes killed.
-withdraw(All, Roots) ->
-    Keys = lists:append([ern_code:binding_keys(Unit) || #compiled{unit = Unit} <- All]),
-    Sites = ern_rt:kill_started([Root || {Root, _} <- Roots]),
-    Living = [{Root, Ref} || {Root, Ref} <- Roots, erlang:is_process_alive(Root)],
-    ern_rt:kill_all([Root || {Root, _} <- Living]),
-    %% the end of each, which its monitor from its spawn tells the session
-    lists:foreach(fun({_, Ref}) -> receive {Ref, {'Down', _, _, _}} -> ok end end, Living),
-    lists:foreach(fun({Root, _}) -> ern_rt:drop_screen(Root) end, Roots),
-    lists:foreach(fun persistent_term:erase/1, Keys),
-    Sites.
+withdraw(All, Evaluators) ->
+    ern_rt:withdraw_load(Evaluators, [Unit || #compiled{unit = Unit} <- All]).
 
 %% Report §11.2: the refusal names the processes it killed by their spawn
 %% sites.
@@ -3100,97 +3091,49 @@ unit_bindings(Unit) ->
     end.
 
 %% Report §11.2, §8.5: the top-level bindings of each module, dependencies
-%% first, each module's evaluated in a fresh process of the shell's own, at
-%% `Never`, while the session waits; its fault is this answer's and not a
-%% fault report's. `{ok, Roots}`, or the module whose binding faulted or
-%% whose process was killed, the binding's site, how it ended, `{faulted,
-%% Cause}` or `killed`, the modules after it, and Roots; Roots the
-%% processes the modules were evaluated in, in order, each the root of the
-%% processes its evaluation started (ern_rt:spawn_root/3), with the
-%% reference its end is told under. Roots: those evaluated so far, the last
-%% first.
+%% first, each module's evaluated in an evaluator of its own, at `Never`,
+%% while the session waits (ern_rt:evaluate/2): its fault is this answer's
+%% and not a fault report's, and a kill, which nothing catches, is no fault
+%% (§6.9), each named by the binding's site, which '$init' gave the
+%% evaluator. `{ok, Evaluators}`, or the module whose binding faulted or
+%% whose evaluator was killed, the binding's site, how it ended, `{faulted,
+%% Cause}` or `killed`, the modules after it, and Evaluators, those the
+%% modules were evaluated in, in order, each the root of the processes its
+%% evaluation started. Evaluators: those so far, the last first.
+%%
+%% Report §11.2: once the bindings have their values the evaluator lives on,
+%% so that what a binding opens, a listener or a running program, stays
+%% open as it does under `ern run` (Appendix E.18): to the program's end,
+%% and on a node a session detaches from, after the session, as the node's
+%% (detach/0). No deadlock is found in the wait, since a session holds the
+%% terminal, waits on its next line or is a node (ern_rt's look).
 initialize(CompiledModules) ->
     initialize(CompiledModules, []).
 
-initialize([], Roots) ->
-    {ok, lists:reverse(Roots)};
-initialize([#compiled{unit = Unit} = Compiled | Rest], Roots) ->
+initialize([], Evaluators) ->
+    {ok, lists:reverse(Evaluators)};
+initialize([#compiled{unit = Unit} = Compiled | Rest], Evaluators) ->
     case erlang:function_exported(Unit, '$init', 0) of
-        true -> evaluate(Compiled, Rest, Roots);
-        false -> initialize(Rest, Roots)
+        true -> evaluate(Compiled, Rest, Evaluators);
+        false -> initialize(Rest, Evaluators)
     end.
 
-%% A binding's fault is the load's to report, so the process catches it and
-%% ends without one, and no subscriber of Process.faults hears of it twice;
-%% a kill, which nothing catches, is seen by the monitor, and is no fault
-%% (§6.9). Each is named by the binding's site, which '$init' gave the
-%% process (report §8.5, §11.2), and which its Down carries.
-%%
-%% Report §11.2: once the bindings have their values the process lives on,
-%% as the entry process lives through a program (§8.5), so that what a
-%% binding opens, a listener or a running program, stays open as it does
-%% under `ern run` (Appendix E.18): to the program's end, and on a node a
-%% session detaches from, after the session, as the node's (detach/1). No
-%% deadlock is found in the wait, since a session holds the terminal, waits
-%% on its next line or is a node (ern_rt's look). Report §12.1: the process
-%% heads a chain of its own, its row of the session's screen written before
-%% any binding runs.
-evaluate(#compiled{unit = Unit} = Compiled, Rest, Roots) ->
-    Self = self(),
-    Ref = make_ref(),
-    Screen = kept(screen, none),
-    Init = fun() ->
-               Screen =:= none orelse ern_rt:screen(self(), sink(Screen)),
-               Result = try Unit:'$init'() of
-                            _ -> ok
-                        catch
-                            Class:Error:Stack ->
-                                {Cause, _, _, _} = caught_fault(Class, Error, Stack),
-                                {fault, ern_rt:site(), Cause}
-                        end,
-               Self ! {Ref, Result},
-               case Result of
-                   ok -> evaluated_lives();
-                   _ -> ended
-               end
-           end,
-    %% monitored from its spawn, so that its end is known however soon it
-    %% comes (report §6.9), and the root of what it starts (report §11.2)
-    Root = ern_rt:spawn_root(Init, fun(Down) -> {Ref, Down} end, <<"Shell.load">>),
-    Evaluated = lists:reverse([{Root, Ref} | Roots]),
-    receive
-        {Ref, ok} ->
-            initialize(Rest, [{Root, Ref} | Roots]);
-        {Ref, {fault, Site, Cause}} ->
-            receive {Ref, {'Down', _, _, _}} -> ok end,
-            {fault, Compiled, Site, {faulted, Cause}, Rest, Evaluated};
-        {Ref, {'Down', _, Reason, Site}} ->
-            {fault, Compiled, Site,
-             case Reason of
-                 'Killed' -> killed;
-                 {'Fault', Cause} -> {faulted, Cause};
-                 Other -> {faulted, atom_to_binary(Other)}
-             end, Rest, Evaluated}
+evaluate(#compiled{unit = Unit} = Compiled, Rest, Evaluators) ->
+    case ern_rt:evaluate([Unit], <<"Shell.load">>) of
+        {evaluated, Evaluator} ->
+            initialize(Rest, [Evaluator | Evaluators]);
+        {ended, Evaluator, Site, How} ->
+            {fault, Compiled, Site, How, Rest, lists:reverse([Evaluator | Evaluators])}
     end.
 
-%% An evaluator whose bindings have their values, which lives until it is
-%% ended: by the program's end, or as any process is.
--spec evaluated_lives() -> no_return().
-evaluated_lives() ->
-    receive after infinity -> ended end.
-
-%% Report §11.2, Appendix E.21: the processes a load or a reload evaluated
-%% bindings in, which live on while the session runs, among the session's
-%% own, which Process.live() leaves out.
-%% Report §12.1: an evaluator that ended, its binding faulted, has its row
-%% of the session's screen dropped, and each that lives is the session's to
-%% leave to the node as it detaches (detach/1).
-evaluating(Roots) ->
-    {Living, Ended} = lists:partition(fun({Root, _}) -> erlang:is_process_alive(Root) end,
-                                      Roots),
-    lists:foreach(fun({Root, _}) -> ern_rt:drop_screen(Root) end, Ended),
-    'Unit' = ern_rt:own([Root || {Root, _} <- Living]),
-    keep(evaluators, [Root || {Root, _} <- Living] ++ kept(evaluators, [])),
+%% Report §11.2, Appendix E.21: the evaluators a load or a reload evaluated
+%% bindings in that live on, which Process.live() leaves out, each the
+%% session's to leave to the node as it detaches (detach/0); one that ended,
+%% its binding faulted, has had its row of the session's screen dropped
+%% (ern_rt:evaluate/2).
+evaluating(Evaluators) ->
+    keep(evaluators, [Evaluator || Evaluator <- Evaluators, erlang:is_process_alive(Evaluator)]
+         ++ kept(evaluators, [])),
     ok.
 
 %% Report §8.7: the units whose bindings a load evaluated, so that a peer's
@@ -3482,20 +3425,20 @@ reloaded(#session{source_hashes = Loaded} = Session, Needed, Compiled, Sourceles
     Session1 = install(Session, All),
     IsFirst = fun(#compiled{namespace = Namespace}) -> not is_map_key(Namespace, Loaded) end,
     case initialize(in_order(All)) of
-        {ok, Roots} ->
-            evaluating(Roots),
+        {ok, Evaluators} ->
+            evaluating(Evaluators),
             reload_done(Session, Session1, {All, Compiled}, [], SourcelessLines);
-        {fault, Faulted, Site, How, Rest, Roots} ->
+        {fault, Faulted, Site, How, Rest, Evaluators} ->
             case lists:any(IsFirst, [Faulted | Rest]) of
                 false ->
                     lists:foreach(fun(Kept) -> kept_values(Session, Kept) end, [Faulted | Rest]),
                     %% the bindings before the fault keep their values, and
                     %% their processes live on
-                    evaluating(Roots),
+                    evaluating(Evaluators),
                     reload_done(Session, Session1, {All, Compiled},
                                 [kept_values_line(Site, How)], SourcelessLines);
                 true ->
-                    Killed = withdraw(All, Roots),
+                    Killed = withdraw(All, Evaluators),
                     {'Left', <<(binding_end(Site, How))/binary, "; nothing was reloaded",
                                (killed_text(Killed))/binary, "\n">>}
             end
@@ -4918,9 +4861,8 @@ detach() ->
     [ern_rt:killed(Pid, {ern, killed}) || Pid <- [kept(input, none) | kept(own, [])],
                                           is_pid(Pid), Pid =/= self(), Pid =/= Root,
                                           not lists:member(Pid, Binders)],
-    Evaluators = kept(evaluators, []),
-    'Unit' = ern_rt:disown(Evaluators),
-    lists:foreach(fun ern_rt:drop_screen/1, [Root | Evaluators]),
+    'Unit' = ern_rt:disown(kept(evaluators, [])),
+    'Unit' = ern_rt:drop_screens(sink(kept(screen, none))),
     Units = units(),
     Uses = maps:without(maps:keys(kept_for_life(Units)), Units),
     node_locked(fun() ->
