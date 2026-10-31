@@ -2035,7 +2035,7 @@ fn localHalf(attachment : Attachment) : Unit receiving LocalMsg = {
             let deadline = Clock.monotonic() + attachMs;
             match Peer.spawnMonitored(name, fn() = attached(desk), EntryEnded, attachMs) {
                 Right(_) -> attaching(Serving(..serving, peer = Some(name)), Some(deadline))
-              | Left(error) -> endWith(1, refusal(name, error))
+              | Left(error) -> ended(1, refusal(name, error))
             }
         }
     }
@@ -2103,13 +2103,13 @@ fn attaching(serving : Serving, deadline : Optional(Int)) : Unit receiving Local
               // report §11.2: the connection lost, or the node ended, before
               // the session started, which no connection gives
               | EntryEnded(down) ->
-                    endWith(1, refusal(name, match down.reason {
+                    ended(1, refusal(name, match down.reason {
                         Unreachable -> Io.Unreachable
                       | ProgramEnd -> Io.Unreachable
                       | other -> Io.Other(Io.show(other))
                     }))
               | after Int.max(0, ending - Clock.monotonic()) ->
-                    endWith(1, refusal(name, Io.Timeout))
+                    ended(1, refusal(name, Io.Timeout))
             }
       | _ ->
             receive {
@@ -2249,13 +2249,21 @@ fn sessionEnded(name : String, down : Down, ending : String) : Unit = {
     setNodeScreen(None);
     match down.reason {
         Returned ->
-            endWith(0, "")
+            ended(0, "")
       | reason -> {
             write(ending);
             let #(status, line) = nodeEnd(name, reason);
-            endWith(status, line)
+            ended(status, line)
         }
     }
+}
+
+// Report §11.2, §11.8, Appendix E.23: the shell's end with a status, its
+// line said first where it has one; `Os.exit` from the shell's own process
+// ends the shell as it ends a run of `ern run`.
+fn ended(status : Int, line : String) : Unit = {
+    if String.isEmpty(line) then Unit else sayEnd(line);
+    Os.exit(status)
 }
 
 // Report §11.2, §11.8: the status and the line of a session's end other
@@ -2336,11 +2344,10 @@ foreign fn givenSourceRoot() : String =
 foreign fn attachTo() : Optional(String) =
     "ern_shell:attach_to/0"
 
-// Report §11.2, §11.8: an attached shell's exit status and the line it
-// says on standard error, which the runner says and exits with once the
-// local half has ended, since the shell's `Os.exit` faults.
-foreign fn endWith(status : Int, line : String) : Unit =
-    "ern_shell:end_with/2"
+// Report §11.2, §11.8: the line an attached shell's end says on the job's
+// standard error, the job's own, which no screen takes.
+foreign fn sayEnd(line : String) : Unit =
+    "ern_shell:say_end/1"
 
 // Report §11.2: the text of what a program wrote, after the bytes of a
 // character the screen's last write cut, each byte that is not UTF-8 shown

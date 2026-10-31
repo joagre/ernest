@@ -21,9 +21,10 @@
 %% with, written as it ends (ern_rt:ended_with/2), which the reaper reports
 %% beside the host's term of its end (§12.2); `carried` for a compute's
 %% process whose fault went to its caller, which no one here is told of
-%% (§8.7); or none; own: whose own it is, `session` for a session's own,
-%% the session, its reader, its screen or an input that runs, which the
-%% session marks, `evaluator` for a load's evaluator, the runtime's own,
+%% (§8.7); or none; own: whose own it is, `session` for a process of the
+%% shell's own, the session, its reader, its screen or its local half,
+%% which the session marks, `input` for an input's process, which marks
+%% itself, `evaluator` for a load's evaluator, the runtime's own,
 %% marked as it is spawned, which Process.status knows not, or none; and
 %% Process.live() leaves out both (ern_rt:own/1, ern_rt:evaluate/2,
 %% Appendix E.21, E.28, §11.2).

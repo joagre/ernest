@@ -1227,15 +1227,9 @@ shell(Options, Rest, ErrorDevice) ->
                                                 exit => fault,
                                                 flush => fun ern_shell:flush_screen/0})
                       end),
-    %% report §11.2, §11.8: an attached shell's end, its line and status,
-    %% which its local half gave
-    case ern_shell:ending() of
-        {Status, Line} ->
-            Line =:= <<>> orelse io:format(ErrorDevice, "~ts~n", [Line]),
-            Status;
-        none ->
-            report_shell_outcome(ErrorDevice, Outcome)
-    end.
+    %% report §11.2, §11.8: an attached shell's end, its line said and its
+    %% status given by its local half's Os.exit (Appendix E.23)
+    report_shell_outcome(ErrorDevice, Outcome).
 
 %% Report §11.2: `--attach` takes no file, `--main`, `--load-path` or
 %% `--libs-dir`, each refused naming it, and needs `--config-dir`.

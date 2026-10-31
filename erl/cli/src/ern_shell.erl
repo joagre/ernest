@@ -17,7 +17,7 @@
 -module(ern_shell).
 
 -export([loaded/1, start/6, number/1, reloaded_by/3, spawn_program/0, config_startup/0,
-         given_source_root/0, attach_to/0, end_with/2, ending/0, is_same_file/2, needs_more/1,
+         given_source_root/0, attach_to/0, say_end/1, is_same_file/2, needs_more/1,
          opening/1, check/3, check_type/3,
          is_unit/1, type_text/1, spawn_input/4, going/0, let_go/0, show/3, bindings/1, slot/1,
          names/0,
@@ -626,18 +626,13 @@ attach_to() ->
         #loaded{attach = Name} -> {'Some', unicode:characters_to_binary(Name)}
     end.
 
-%% Report §11.2, §11.8: how an attached shell ended, its exit status and the
-%% line said on standard error, none where it says nothing, which the
-%% runner says and exits with once the local half has ended (ending/0),
-%% since a shell's Os.exit faults.
--spec end_with(integer(), binary()) -> 'Unit'.
-end_with(Status, Line) ->
-    node_keep(ending, {Status, Line}),
+%% Report §11.2, §11.8: the line an attached shell's end says, on the job's
+%% own standard error, where the job's lines go (ern_cli:error_line/1),
+%% before its local half ends the shell by Os.exit with its status.
+-spec say_end(binary()) -> 'Unit'.
+say_end(Line) ->
+    ern_cli:error_line(<<Line/binary, "\n">>),
     'Unit'.
-
--spec ending() -> {integer(), binary()} | none.
-ending() ->
-    node_kept(ending, none).
 
 %% Report §11.2: whether two paths name one file, both there, on one device,
 %% with one node, which a file's entry in Ernest does not hold.
@@ -1286,7 +1281,7 @@ spawn_input(Session, #checked{namespace = Namespace, typed = Typed, interface = 
                %% report §11.2, Appendix E.21: the session's own while it
                %% runs, which Process.live() leaves out, marked before
                %% anything of the input's runs
-               ern_rt:own([self()]),
+               ern_rt:own_input(self()),
                %% report §11.2: the input's own fault is its answer, caught
                %% here, so that its process does not end with a fault; its
                %% cause, its trace, a frame a line (Appendix E.21), and the

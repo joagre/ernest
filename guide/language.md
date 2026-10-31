@@ -2575,40 +2575,12 @@ The rule takes the utilizations as the node holds them, one older than the pick 
 
 Another rule is another function beside it; none is a line of `ernest.conf`. A process is placed where it is to live, by a deployment's decision, so `Peer.spawn` always names its peer.
 
-**Many at once.** A compute is a call, and its caller waits for it. It is §4.4's `gathered` with a compute as each helper's work. Work spread over the peers at once is a process for each piece, which computes and sends its piece home, spawned monitored so that its fault comes home too (§6.4). `Placed.computed` is each helper's whole work, so a piece that finds no peer runs here:
+**Many at once.** A compute is a call, and its caller waits for it. Work spread over the peers at once is §4.4's `gathered` with a compute as the work: a process for each piece, which computes and sends its piece home, spawned monitored so that its fault comes home too (§6.4). `Placed.computed` is the work, so a piece that finds no peer runs here:
 
 ```ernest
 // gathered.ern
-type Piece = Piece(n : Int, value : Either(Io.Error, Int))
-
-type GatherMsg = Computed(Piece) | Ended(Down)
-
-fn gathered(numbers : List(Int)) : List(Piece) receiving GatherMsg = {
-    let me = self();
-    List.forEach(numbers, fn(n) = {
-        let _ =
-            spawnMonitored(fn() = send(me, Computed(Piece(n = n, value = Placed.computed(n)))),
-                           Ended);
-        Unit
-    });
-    gather(List.size(numbers), 0, [])
-}
-
-// A helper that returned has sent its piece, and its Down keeps no order with
-// that message, so the gather ends once every helper has ended and each one
-// that returned has been heard from. owed counts the helpers that returned
-// and whose piece has not come; it is below 0 while a piece is ahead of its end.
-fn gather(running : Int, owed : Int, pieces : List(Piece)) : List(Piece) receiving GatherMsg =
-    if running == 0 && owed == 0 then
-        pieces
-    else receive {
-        Computed(piece) -> gather(running, owed - 1, piece :: pieces)
-      | Ended(Down(reason = Returned)) -> gather(running - 1, owed + 1, pieces)
-      | Ended(_) -> gather(running - 1, owed, pieces)
-    }
-
-export fn main() : Unit receiving GatherMsg =
-    gathered([3, 1, 2])
+export fn main() : Unit =
+    Gather.gathered([3, 1, 2], Placed.computed)
         |> List.sortBy(fn(piece) = piece.n)
         |> List.forEach(fn(piece) =
                             Io.println(Int.toString(piece.n) <> ": " <> Io.show(piece.value)))

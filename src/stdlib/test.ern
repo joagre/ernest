@@ -169,10 +169,12 @@ fn verdict(reason : Reason, cause : String) : Result = {
 /// `Failed`, which says what the test saw, in place of a `Timeout` (report
 /// Appendix E.0 shape rule 8).
 ///
-/// `run` runs once at least, in the caller's process, and again at once after
-/// a `Failed`, with no wait between. It is how a test waits for an effect that
-/// has no order with what the test can wait on: what a server did with a
-/// `Down` the runtime delivered it (report §6.9).
+/// `run` runs once at least, in the caller's process, and again after a
+/// `Failed`, the caller yielding the scheduler between runs and waiting for
+/// nothing else, so that what the test waits for gets the scheduler: the wait
+/// is the test's own running. It is how a test waits for an effect that has
+/// no order with what the test can wait on: what a server did with a `Down`
+/// the runtime delivered it (report §6.9).
 ///
 /// ### Examples
 ///
@@ -190,10 +192,23 @@ fn verdict(reason : Reason, cause : String) : Result = {
 export fn until(run : () -> Result receiving m, ms : Int) : Result receiving m =
     runUntil(run, Clock.monotonic() + ms)
 
-// Report Appendix E.24: the last answer of `run`, run again at once after
-// each `Failed` until it passes or the monotonic clock reaches `deadline`.
+// Report Appendix E.24: the last answer of `run`, run again after each
+// `Failed`, the scheduler yielded between, until it passes or the monotonic
+// clock reaches `deadline`.
 fn runUntil(run : () -> Result receiving m, deadline : Int) : Result receiving m =
     match run() {
-        Passed -> Passed
-      | failed -> if Clock.monotonic() >= deadline then failed else runUntil(run, deadline)
+        Passed ->
+            Passed
+      | failed ->
+            if Clock.monotonic() >= deadline then
+                failed
+            else {
+                let _ = yield();
+                runUntil(run, deadline)
+            }
     }
+
+// Report Appendix E.24: the scheduler given up for the processes waiting
+// for it, which answers true, the host's own.
+foreign fn yield() : Bool =
+    "erlang:yield/0"

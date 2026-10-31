@@ -4,7 +4,9 @@
 %% a file, `// net/http.ern`, is placed there, and such blocks under one
 %% heading compile together as a source tree; blocks that name the same
 %% file are its parts, in order, and one headed `// words.ern, continued`
-%% adds to the file as it stood before, however many headings back. An
+%% adds to the file as it stood before, however many headings back. A
+%% tree takes beside its own files each file an earlier heading wrote whose
+%% module its files name, `Gather.` of `gather.ern`, as the file stood. An
 %% `erlang` block that begins `-module(name).` joins them as `name.erl`,
 %% compiled with `erlc` beside the compiled modules, where report §11.2 has
 %% `ern` find it.
@@ -591,14 +593,32 @@ group([#block{line = Number, info = Info, heading = Heading, code = Code} = Bloc
                      end,
             {Same, Others} = lists:splitwith(InTree, Rest),
             Tree = [Block | Same],
-            Files = parts([{named(BlockCode), BlockCode} || #block{code = BlockCode} <- Tree],
-                          Seen),
-            Seen1 = (maps:merge(Seen, maps:from_list(Files)))#{{tree, Heading} => Files},
+            Own = parts([{named(BlockCode), BlockCode} || #block{code = BlockCode} <- Tree],
+                        Seen),
+            Files = Own ++ used(Own, Seen),
+            Seen1 = (maps:merge(Seen, maps:from_list(Own)))#{{tree, Heading} => Files},
             Unit = #{line => Number, files => Files, launch => launch(Others)},
             [{modules, Unit} | group(Others, Seen1)]
     end;
 group([_ | Rest], Seen) ->
     group(Rest, Seen).
+
+%% The files an earlier heading wrote, Seen, that a source tree's files,
+%% Own, name the module of and do not hold, each as it stood.
+used(Own, Seen) ->
+    [{Name, Code} || {Name, Code} <- maps:to_list(Seen), is_list(Name),
+                     not lists:keymember(Name, 1, Own),
+                     lists:any(fun({_, OwnCode}) -> names_module(OwnCode, Name) end, Own)].
+
+%% Whether Code names the module of File, `gather.ern`'s `Gather.`.
+names_module(Code, File) ->
+    Segments = [string:titlecase(Segment)
+                || Segment <- string:split(filename:rootname(File), "/", all)],
+    Module = list_to_binary(lists:join(".", [lists:append([string:titlecase(Word)
+                                                            || Word <- string:split(Segment, "_",
+                                                                                    all)])
+                                             || Segment <- Segments])),
+    binary:match(Code, <<Module/binary, ".">>) =/= nomatch.
 
 %% The files of a source tree, each the blocks that name it joined in order,
 %% after the file as it stood when its first block here continues it.

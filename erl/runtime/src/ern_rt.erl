@@ -45,7 +45,7 @@
          current/0, adapted/2, call/3, call/4, call_forever/2, call_forever/3, compute/4, answer/2,
          refuse/2, reply_process/1, is_reply/1, monitor/2, monitor_service/2, demonitor/1, kill/1,
          killed/2, reason/1, peer_restarted/2, left_waiting/1, wait_for_deliveries/0, started_by/1,
-         kill_started/1, kill_all/1, processes/0, own/1,
+         kill_started/1, kill_all/1, processes/0, own/1, own_input/1,
          screen/2, drop_screens/1, root_of/1, status/1, faults/1, termination/1,
          expected/1, checker_for/3, checker_forget/2, source_begin/0, source_begin/1, source_end/0,
          opened/3, forget_opened/1, timed/0, untimed/0, deadline/1, remaining/1, now/0, monotonic/0,
@@ -2085,15 +2085,32 @@ processes() ->
     end.
 
 %% Report §11.2, Appendix E.21: each of Processes marked as a session's
-%% own, the session, its reader, its screen and an input that runs, which
-%% Process.live() leaves out until it ends, its row going with it; one the
-%% runtime did not start has no row to mark, and is never listed.
+%% own, a process of the shell's own, the session, its reader, its screen
+%% and its local half, which Process.live() leaves out until it ends, its
+%% row going with it; one the runtime did not start has no row to mark, and
+%% is never listed.
 -spec own([pid()]) -> 'Unit'.
 own(Processes) ->
     lists:foreach(fun(Pid) ->
                       _ = ets:update_element(?PROCESSES, Pid, {#process_row.own, session})
                   end, Processes),
     ?UNIT.
+
+%% Report §11.2, Appendix E.21, E.23: the process of an input, marked as a
+%% session's own, which Process.live() leaves out, and as one a session
+%% started, whose Os.exit faults it (exit_program/1).
+-spec own_input(pid()) -> 'Unit'.
+own_input(Pid) ->
+    _ = ets:update_element(?PROCESSES, Pid, {#process_row.own, input}),
+    ?UNIT.
+
+%% Report §11.2, Appendix E.23: whether Pid is a process of the shell's own
+%% (own/1), whose Os.exit ends the shell.
+is_shells_own(Pid) ->
+    case ets_lookup(?PROCESSES, Pid) of
+        [#process_row{own = session}] -> true;
+        _ -> false
+    end.
 
 %% Report §12.1, §11.2: the screen of a session's root on a node a shell
 %% is attached to, its row written, so that what a process of the root's
@@ -3980,14 +3997,21 @@ arguments() ->
 %% look, since the runner brings it (entered_foreign/0). In the shell and
 %% under `ern test` it faults the caller instead, and so it does in a
 %% process of a session's on a node a shell is attached to, the one a
-%% process of the runtime's own acts for among them (§11.2, screen_of/1).
+%% process of the runtime's own acts for among them (§11.2, screen_of/1);
+%% but a process of the shell's own in the shell's own run, a plain shell's
+%% or an attached shell's own node's, its local half among them, ends the
+%% shell with the status (is_shells_own/1); on the node a session is
+%% attached to, whose run is no shell's, one faults as the session's
+%% processes do, and ends no node.
 -spec exit_program(integer()) -> no_return().
 exit_program(Status) ->
     case Status >= 0 andalso Status =< 255 of
         true -> ok;
         false -> fault(<<"an exit status is from 0 to 255">>)
     end,
-    case launch_field(#launch.exit, program) =:= fault orelse screen_of(current()) =/= none of
+    Faults = launch_field(#launch.exit, program) =:= fault,
+    Ends = Faults andalso is_shells_own(current()),
+    case not Ends andalso (Faults orelse screen_of(current()) =/= none) of
         true ->
             fault(format("exited with status ~B", [Status]));
         false ->

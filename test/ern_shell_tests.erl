@@ -3012,21 +3012,28 @@ library_file() ->
     ?assertMatch({_, _}, binary:match(Output, <<"42 : Int">>)).
 
 %% report §11.2, Appendix E.23: in the shell Os.arguments is the empty list,
-%% and Os.exit faults the input that calls it and ends neither the input
-%% after it nor the shell; its environment is the host's. A regression
-%% test, written after the code.
+%% and Os.exit faults the input that calls it, and a process an input
+%% started through one it started, and ends neither the input after it nor
+%% the shell; its environment is the host's. A regression test, written
+%% after the code, the started process's with the release review's E5 (the
+%% log's *The Library's Lines*); the shell's own processes ending the shell
+%% by Os.exit are ern_nodes_tests' attached shell's ends, attach_refused
+%% and attached_shell_ends among them.
 shell_os_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun shell_os/0).
 
 shell_os() ->
     Dir = scratch("ern_os_"),
     ok = file:write_file(filename:join(Dir, "in"),
-                         "Os.arguments\nOs.exit(2)\nOs.environment(\"ERN_SEEN\")\n"),
+                         "Os.arguments\nOs.exit(2)\n"
+                         "let _ = spawn(fn() = { let _ = spawn(fn() = Os.exit(4)); Unit })\n"
+                         "Os.environment(\"ERN_SEEN\")\n"),
     {0, Output} = ern_pty:sh(
         "HOME=" ++ Dir ++ " ERN_SEEN=yes ../bin/ern shell < "
         ++ filename:join(Dir, "in")),
     ?assertMatch({_, _}, binary:match(Output, <<"[] : List(String)">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"fault: exited with status 2">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"faulted: exited with status 4">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"Some(\"yes\") : Optional(String)">>)).
 
 %% report §11.2, §8.1: a `main` that is not an entry point leaves the file
