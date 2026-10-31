@@ -49,6 +49,9 @@ name, which Ernest's parentheses make a call, the dot, and the marks other langu
    template's memory of copies says; ernest-epx's Ernest is swept as item 3 sweeps this
    repository's, every `Foo(line = line)` written `Foo(=line)`, and ernest-httpd's where it has
    any.
+5. **`make version V=x.y.z`**, which sets `VERSION` and every line the tests hold to it, the
+   start lines of the documents, the session fixtures and the man pages, since the 0.7.0 step found
+   them by hand (the log's *The Release Review Before 0.7.0*).
 
 Discussed with the user when the milestone opens, each with its
 recommendation then: whether the formatter writes the pun where the names agree, or the style
