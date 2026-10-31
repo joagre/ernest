@@ -112,10 +112,10 @@ server's CLAUDE.md carries the procedure its side follows.
    `Tcp`'s socket process over the host's `ssl`, and the C helper's `forkpty` and resize behind
    `Os`, on Linux and macOS.
 3. **The five libraries**, each a source root under `src/libs/` with the standard library's
-   discipline and its page: `base64` and `crypto`, which `websocket` needs; `time`, the calendar
-   and `sleep`, which a program that paces itself by the clock asks for, an epx example's
-   `Time.sleep(1000)` the first (decided 2026-10-30), the wait written as any wait is, on what
-   it waits for (CLAUDE.md, *Design*); `http` with its client half, whose first use beside the tests is a `fetch` example that
+   discipline and its page: `base64` and `crypto`, which `websocket` needs; `time`, the calendar,
+   with no `sleep`, since a `receive` with an `after` clause alone is the language's wait for a
+   time and a program that paces itself by the clock derives the delay from the clock (decided
+   2026-10-31, the log's *`sleep` Is a `receive` With `after`*); `http` with its client half, whose first use beside the tests is a `fetch` example that
    reads JSON over HTTPS with a verified certificate; then `websocket`, with a client's masked
    frames.
 4. **The server, ernest-httpd's milestone 1 whole**, by its own repository's plan, written once
