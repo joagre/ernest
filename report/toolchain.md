@@ -1,6 +1,6 @@
 # Ernest Report: The Toolchain
 
-Revision of 30 October 2026.
+Revision of 31 October 2026.
 
 This file holds the report's §10 to §12 and Appendices C and H. §0 to §9 and Appendices A, B and F are in [`language.md`](language.md), and Appendices D, E and G in [`library.md`](library.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
@@ -475,7 +475,7 @@ A failure of `ern` itself exits with status 70. A job whose standard output or s
 
 ## 12. The runtime
 
-What the runtime does behind the rules of §7 to §9, which a program relies on through those sections alone and a toolchain promises whole: its system processes, the host's terms for Ernest's values, the causes it raises at its boundaries, how it ends a program, and the carrier between nodes with its frames, its exchange and its measure of a node's load. §10 states what every runtime must give; this chapter states how this one gives it.
+What the runtime does behind the rules of §7 to §9, which a program relies on through those sections alone and a toolchain promises whole: its system processes, the host's terms for Ernest's values, the causes it raises at its boundaries, how it ends a program, and the carrier between nodes with its frames, its exchange and its measure of a node's load. §10 states what every runtime must give, and this chapter how this one gives it; the keys of §12.1 and the causes of §12.3, which a program matches, bind every runtime as §10 does.
 
 ### 12.1 The system processes
 

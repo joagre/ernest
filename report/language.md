@@ -1,6 +1,6 @@
 # Ernest Report: The Language
 
-Revision of 30 October 2026.
+Revision of 31 October 2026.
 
 *Dedicated to the memory of Joe Armstrong, 1950–2019.*
 
@@ -473,7 +473,7 @@ A top-level `let`'s type closes by that rule with none where a function type's e
 
 What a function a foreign function is given returns is the foreign code's to hand on, as a `Reply` it is given is its to answer (§8.4).
 
-A foreign function that declares `receiving M` may receive from the calling process's mailbox and deliver into it, and promises to deliver values of `M` alone; foreign code that holds a process's host identity, through `Foreign.term` of a `Process` among them (Appendix E.12), promises the same of that process's mailbox type. One without `receiving` promises to do neither, and may do anything else. The implementation promises the declared types: a value of another shape, where it is checked (§8.4), or an exception, is a fault, §7. Foreign code sees values in the runtime's representation, §8.4. Both declarations take `export` (§4.2).
+A foreign function that declares `receiving M` may receive from the calling process's mailbox and deliver into it, and promises to deliver values of `M` alone; one whose mailbox type is a variable that a parameter's function type names, `receiving e` with a parameter `(a) -> b receiving e`, promises to receive and deliver through that parameter alone; foreign code that holds a process's host identity, through `Foreign.term` of a `Process` among them (Appendix E.12), promises the same of that process's mailbox type. One without `receiving` promises to do neither, and may do anything else. The implementation promises the declared types: a value of another shape, where it is checked (§8.4), or an exception, is a fault, §7. Foreign code sees values in the runtime's representation, §8.4. Both declarations take `export` (§4.2).
 
 ### 4.8 Operators
 
@@ -817,6 +817,8 @@ The process keeps its address, and the new run begins with nothing of the old on
 
 When `n` restarts have happened within the last `t` milliseconds, the next fault is not restarted; a window and a count are corrected as §7.4 says. A fault restarts the innermost restarting function the process runs, which counts it against its own limit; one that does not restart it gives it to the restarting function around it, and the process dies with its cause where there is none. A restarting function counts from when it is entered, so one entered again by the restart of the one around it counts afresh. `restarting(Unlimited, f)` runs `f()` again after every fault. `f` returning, a `kill`, and the program's end end the process as they end any other.
 
+A restarting function called where the runtime applies a function for another process, in a `wrap` (above) or in an adapted address's function on delivery (§6.5), faults with `Fault("restart in a function the runtime applies")`, which the process the function delivers to meets as it meets any fault there.
+
 A child of a `Supervisor` (Appendix E.22) also runs `f()` again when its supervisor asks. It runs on until it next waits, in a `receive` or for a call's answer, and there runs `f()` again; a process already waiting does so at once. It restarts as a fault restarts it (above). A restart asked for is not a fault: it counts against no limit, and no fault is reported. Where `f` itself runs a `restarting` function, the restart asked for runs `f()` again, not the inner one.
 
 ### 6.10 Code replacement
@@ -882,9 +884,9 @@ A count or a duration below 0 is none, and a window below 1 is 1 (§6.9, Appendi
 - `fault(c)`, which compiles at any type: `Fault(c)`.
 - `Address.callForever` whose callee has ended, or ends or restarts before it answers (§6.6): the callee's cause, the fault's report naming the callee's site after it (§11.2), `Fault("callee was killed")`, `Fault("callee returned without answering")`, `Fault("callee was closed")`, `Fault("callee was restarted")`, `Fault("callee had ended")`, `Fault("callee ended with its program")` where the callee's node ended in order, or `Fault("callee is unreachable")` where the callee's node went out of reach (§8.7).
 
-Beside the list, these faults are raised. A failure in the runtime faults the process that meets it with the host's class and reason, as a spawn beyond the host's limit of processes does with `Fault("error:system_limit")`. A fault in a function adapting an address faults the target with its own cause (§6.5). The causes the runtime raises at its boundaries, a foreign function's raise or a value that does not match its declared type, a carrier that did not start, a terminal claimed the other way or held by the shell, and a standard input that is not UTF-8 or cannot be read, are §12.3's.
+Beside the list, these faults are raised. A failure in the runtime faults the process that meets it with the host's class and reason, as a spawn beyond the host's limit of processes does with `Fault("error:system_limit")`. A fault in a function adapting an address faults the target with its own cause (§6.5). A restarting function called where the runtime applies a function for another process faults with `Fault("restart in a function the runtime applies")` (§6.9). The causes the runtime raises at its boundaries, a foreign function's raise or a value that does not match its declared type, a carrier that did not start, a terminal claimed the other way or held by the shell, and a standard input that is not UTF-8 or cannot be read, are §12.3's.
 
-A deadlock faults the entry process with `Fault("deadlock")` (§8.6), and under `ern test` the process of the test that runs (§11.2). A use of a binding a faulting reload left without a value faults its reader with `Fault("the binding has no value, since one before it faulted")` (§11.2).
+A deadlock faults the entry process with `Fault("deadlock")` (§8.6), a load's evaluator that waits (Appendix E.28), and under `ern test` the process of the test that runs (§11.2). A use of a binding a faulting reload left without a value faults its reader with `Fault("the binding has no value, since one before it faulted")` (§11.2).
 
 ## 8. Programs
 
@@ -956,7 +958,7 @@ For a program that is no node, a signal from outside, the host's termination or 
 
 A node that ends is no loss to its peers (§8.7). A process this program spawned on a peer runs on there.
 
-When no forward progress is possible, the entry process faults with `Fault("deadlock")` (§7.4) and the program ends as above. The fault's report lists the waiting processes beneath the trace, a line for each group of processes with one spawn site and one waiting frame (§12.4).
+When no forward progress is possible, the entry process faults with `Fault("deadlock")` (§7.4) and the program ends as above; while an evaluator of a load waits (Appendix E.28), the evaluator faults in its place, and the load is refused. The fault's report lists the waiting processes beneath the trace, a line for each group of processes with one spawn site and one waiting frame (§12.4).
 
 No progress is possible when every live process waits in `receive` without `after` or in `Address.callForever`, no message is in flight, no monitor waits on a process the runtime did not start, and no system process, listener or socket (E.18) holds a timer, a subscription, a pending I/O, or a computation whose completion would deliver a message; a program that `Os.start` started counts as such a computation until it has exited or been killed, and a subscription to the program's end as such a subscription (Appendix E.23). The runtime counts a standard library operation as such a computation where the module that implements it says the operation waits.
 
@@ -1367,6 +1369,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **entry point** — the function run in the entry process: the module's `export fn main`, or the function `--main` names. §8.1, §11.2.
 - **entry process** — the process that runs the entry point. §8.1, §8.6.
 - **equality constraint** — the restriction on a type variable compared with `==`, or on a foreign type's parameter written `k=`. §3.10, §4.7.
+- **evaluator** — the process of the runtime's own in which a load evaluates a module's bindings. §11.2, Appendix E.28.
 - **exchange** — the frames by which a spawn or a compute carries to a peer the definitions of its function's reach that the peer lacks: the request for a reach, the reach, the lacks and the code frames. §8.7, §12.7.
 - **fault** — the end of a process with the reason `Fault(cause)`, or its restart where it restarts (§6.9). §7.3, §7.4.
 - **field selection** — `e.f`, the named field `f` of `e`, where every constructor of the type has it. §3.5.

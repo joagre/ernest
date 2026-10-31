@@ -6,10 +6,10 @@ The review of 2026-10-31 over commit `36b94d31`, run as [`release_review.md`](re
 
 ### The argument and the report's rules (decide, batch 1)
 
-- A1, K1 — `Code.load` evaluates a module's bindings in the calling process at `Never`, so a process-only function called there takes the caller's own messages; shown by program. decide: E.28 evaluates in a fresh process at `Never` with the caller waiting, as `:reload` does; soundness 6.4 names it.
-- A2 — a `foreign fn` whose effect variable is a callback's may read its process's mailbox, unpromised; shown. decide: §4.7 and the argument's section 2 promise it receives and delivers only through its callbacks; 6.3 names both foreign cases.
-- A5 — the argument says a restart empties the mailbox of the process the function was spawned in; `restarting(...)()` runs anywhere, an adapted address's function restarts the sender. fix the wording ("whichever process runs it"); decide what a restart inside a monitor's wrap restarts, §6.9.
-- K13 — §12's preamble says a program relies on §7 to §9 alone, but a TUI matches §12.1's keys and `Test.faults` matches §12.3's causes. decide: §12.1 and §12.3 bind every runtime.
+- A1, K1 — `Code.load` evaluates a module's bindings in the calling process at `Never`, so a process-only function called there takes the caller's own messages; shown by program. decide: E.28 evaluates in a fresh process at `Never` with the caller waiting, as `:reload` does; soundness 6.4 names it. decided 2026-10-31 as recommended, E.28 and §8.6 written, the code building; the log's *The Argument's Four Decisions*.
+- A2 — a `foreign fn` whose effect variable is a callback's may read its process's mailbox, unpromised; shown. decide: §4.7 and the argument's section 2 promise it receives and delivers only through its callbacks; 6.3 names both foreign cases. decided 2026-10-31 as recommended, §4.7 and the argument's section 2 and 6.3 written; the library's four such functions keep the promise.
+- A5 — the argument says a restart empties the mailbox of the process the function was spawned in; `restarting(...)()` runs anywhere, an adapted address's function restarts the sender. fix the wording ("whichever process runs it"); decide what a restart inside a monitor's wrap restarts, §6.9. done 2026-10-31: the wording in 6.3; decided as recommended, a restart where the runtime applies a function for another process refused, §6.9 and §7.4 written, the code building.
+- K13 — §12's preamble says a program relies on §7 to §9 alone, but a TUI matches §12.1's keys and `Test.faults` matches §12.3's causes. decide: §12.1 and §12.3 bind every runtime. decided 2026-10-31 as recommended, one sentence in §12's preamble.
 
 ### Sites, sessions and their names (decide, batch 2)
 
