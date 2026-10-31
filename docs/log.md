@@ -9701,6 +9701,8 @@ Every row but two is within a tenth of its last ratio, `Map.put` and `Bytes.size
 
 Every row is within a twentieth of the review's, the spawn back at 5.05 with the settler on no spawn's path. `spawnMonitored` 10.50 against 11.07, a monitor of an ended process 27.85 against 25.77, `restarting` 339 ns against 356; the dot product 1.26, a record update 1.76, the counter 1.28, the ray tracer 1.62 and the parser 1.38. A fault by a raise at depth 8 is 122 µs against 106 at the review, the host's time as it was; the release ships with the rows as they stand.
 
+**The raise's rise is noise.** The bench's core part run in a scratch clone at four commits, the review's `aa309a04`, batch 2's `a9058003`, the §11.8 build's `e982a340` and the release's `50b238fc`, gave the row 108.5, 107.6, 110.9 and 114.9 µs, each run's range from about 100 to 160 µs and more, the host's own 2.9, 2.4, 2.8 and 2.4. No commit adds a step: the sites carrying a session's namespace cost nothing the row shows, and the reporter's reading of a row the reaper keeps at most three microseconds inside a spread of half the value. What the measurement leaves for the fault's cost is the row's spread, too wide to read a sixth from, and the 36 times the host it has stood at since the trace was taken at the raise.
+
 ## The Release Review's Code Fixes, 2026-10-31
 
 The code batch of the release review before 0.7.0, over `36b94d31`: each line of `docs/findings.md`'s code section, its cause and its fix. The report changed for none of them but K20's sentence in §11.2, written beside it.

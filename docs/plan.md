@@ -72,13 +72,14 @@ pun's sites and read the same way, as forms the code repeats.
 
 ## The fault's cost, a few days, after the pun
 
-A fault by a raise at depth 8 cost 122 µs over 0.7.0's commit against 106 at the review and 3.4
-of the host's, 36 times the host where CLAUDE.md asks a fraction (the log's *The Release Review
-Before 0.7.0*); the release shipped with the row as it stood. The item measures first, the row at
-each runtime commit since the review's `aa309a04`, and then decides whether the report takes the
-trace and its sites at the raise or when a line is written, and whether the row the reaper keeps
-until the fault is reported costs the fault a message. A cost the plain form keeps is written to
-the log, and the item closes on the number.
+A fault by a raise at depth 8 costs about 110 µs against 3 of the host's, 36 times the host where
+CLAUDE.md asks a fraction, and the row's spread in one run is half its value, so that the rise
+0.7.0's release run showed was two draws from it, measured at four commits on 2026-10-31 (the log's
+*The Release Review Before 0.7.0*, *The raise's rise is noise*). The item first makes the row
+readable, a median over runs with more iterations, and then decides whether the report takes the
+trace and its sites at the raise or when a line is written. A cost the plain form keeps is written
+to the log, and the item closes on the number. It joins MVP 4.4's cost analysis when that
+milestone is written.
 
 ## MVP 4.1 (ernest-httpd, and the libraries it wants)
 
