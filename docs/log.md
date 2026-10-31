@@ -9681,6 +9681,26 @@ The fourth, the evaluator's site, was decided as the `load` call's, which the co
 
 Every row but two is within a tenth of its last ratio, `Map.put` and `Bytes.size` moved by the host's own time: `String.size` 1.24 against 1.16, and the spawn 5.29 against 5.04, its three runs 5.10 to 5.37, where the review's items changed what a spawn records (*The Detach Keeps What Declares a Function*). Of the rows the bench gained since 0.4.0: `spawnMonitored` 11.07 against 11.10, a monitor of an ended process 25.77 against 26.90, `restarting` entered and returning 356 ns against 357. The language's rows against the host: the dot product 1.24 against 1.27, a record update 1.74 against 1.68, the counter 1.34 against 1.26, the ray tracer 1.72 against 1.75 and the parser 1.37 against 1.39. Against the release's run a fault by a raise rose by a fifth to a half at every depth, Ernest's own time as it was, 106 µs at depth 8 against 112 the evening before the boundary's raise changed (P3), and the host's fallen from 3.4 µs to 2.4; the release ships with the rows as they stand, which the user decides at the tag.
 
+**Over the release's commit**, `e8663475`, after the round: the bench ran three times with the machine idle, about 612 s each, the seven loads were flat in 70 s, `make sections` named nothing, and `make bench-release` kept the last run as the release's. The median of the three runs' ratios, with the third run's nanoseconds:
+
+| Operation | Ernest | Erlang | Ratio | Review |
+|---|---|---|---|---|
+| the loop alone | 7.5 | 7.4 | 1.01 | 1.00 |
+| a record added by a function | 13.3 | 11.0 | 1.21 | 1.20 |
+| two records compared | 15.1 | 14.0 | 1.08 | 1.07 |
+| `Map.get`, `maps:find` | 20.0 | 18.4 | 1.08 | 1.09 |
+| `Map.put`, `maps:put` | 44.2 | 125.8 | 0.34 | 0.35 |
+| `List.map` over 100, `lists:map` | 1080.0 | 684.7 | 1.58 | 1.59 |
+| `List.size` of 100, `length` | 121.0 | 120.5 | 1.00 | 0.99 |
+| `String.size`, `string:length` | 106.2 | 83.7 | 1.26 | 1.24 |
+| `<>` and `String.size` | 140.0 | 313.1 | 0.45 | 0.43 |
+| `Bytes.size`, `byte_size` | 11.6 | 11.5 | 0.99 | 1.00 |
+| send and receive to self | 148.6 | 130.2 | 1.14 | 1.13 |
+| a call answered, as `gen_server`'s | 1979.0 | 1213.7 | 1.70 | 1.67 |
+| spawn a process that returns | 7490.0 | 1489.9 | 5.05 | 5.29 |
+
+Every row is within a twentieth of the review's, the spawn back at 5.05 with the settler on no spawn's path. `spawnMonitored` 10.50 against 11.07, a monitor of an ended process 27.85 against 25.77, `restarting` 339 ns against 356; the dot product 1.26, a record update 1.76, the counter 1.28, the ray tracer 1.62 and the parser 1.38. A fault by a raise at depth 8 is 122 µs against 106 at the review, the host's time as it was; the release ships with the rows as they stand.
+
 ## The Release Review's Code Fixes, 2026-10-31
 
 The code batch of the release review before 0.7.0, over `36b94d31`: each line of `docs/findings.md`'s code section, its cause and its fix. The report changed for none of them but K20's sentence in §11.2, written beside it.
