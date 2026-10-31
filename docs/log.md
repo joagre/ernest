@@ -9649,6 +9649,18 @@ MVP 4.0 built, the review began the night of 2026-10-30 over `36b94d31`, as `rel
 
 **The findings**: 59 fix lines, made the same day in four commits of documents and three of code (*The Release Review's Code Fixes*), about thirty of the report's citations repointed after the paring among them; eight batches to decide, which `docs/findings.md` holds with each line's recommendation; and the dropped lines with their reasons.
 
+**The round.** K's round read the report's diff from `36b94d31` to the release's commit, each changed line in its section, and found 22 lines: 21 made as fixes, and one `decide`, KR6, the four silences of E.28 on a load's evaluator, decided with KR1's and KR4's rules. A node whose carrier cannot start is no fault but an end, §8.6's fourth way, and the end's wait applies as at any end; the paragraph moves from §12.3 to §12.5 *Its start*, and §7.4 drops it from the runtime's causes. The code already told the subscribers of `Os.termination` the initializers made (`carrier_not_started_tells`). Principle 1: an end that skipped a subscriber's telling would surprise the program that subscribed.
+
+`Os.exit` faults its caller in a process a session started and in any process under `ern test`, and from a process of the shell's own ends the shell with its status, which §11.8 now gives; a plain shell's file entry point, and what it starts, are processes the session started, as the code treated them. Principle 1.
+
+KR6: in a binding under evaluation `Process.current()` is the evaluator, as it is the entry process under `ern run`. A caller killed, faulted or asked to restart while it waits ends the load as a binding's fault does, the evaluator and what it started killed and nothing loaded; built as `Code.load`'s settler (`load_caller_ends`). An evaluator that lives on lives until the program's end or until it is killed: ending it with its last table would need the runtime to watch each table, which nothing signals. Principle 1 for each.
+
+The fourth, the evaluator's site, was decided as the `load` call's, which the code was thought to pass to `ern_rt:evaluate/2`. It passes `Code.load` and `Shell.load` only as a start, and each binding's `'$init'` gives the evaluator that binding's site, as the entry process has under `ern run` (§8.5); the shell's `killed_binding` holds `K.x:3 was killed`, the fix of a load that named the module. So E.28 and §11.2 state the binding's site. Principle 1.
+
+**Found while building.** `Process.live` listed a process that had ended until the reaper took its end, against E.21's "that have not ended", and the settler's test showed it one run in twelve; it now asks the host of each row (`live_leaves_out_the_ended`). An evaluator killed while its spawn was on its way could leave that process to the withdrawal's miss; the undo waits for the reaper's notice of the evaluator's end. KR22's broader reading holds in the code: every wrap a process of the runtime's own delivers refuses a restart (`restart_in_an_alarms_wrap`).
+
+**The protocol's version.** The spawn's and the compute's frames gained a word in this release, whose a unit is (*The Shell's Own Node*), and the protocol's version stood at 4, since two minor releases never connect and the cookie carries the minor. The release note's writer asked when the number moves, and the report had not said. A number that names the protocol moves when the protocol does: §12.5 says it moves at the release whose frames differ from the last release's, and it is 5 from 0.7.0. Principle 1.
+
 **The bench**, the median of the three runs' ratios, nanoseconds an iteration of the third run, against the rows of *The Release Review Before 0.6.0*:
 
 | Operation | Ernest | Erlang | Ratio | Then |

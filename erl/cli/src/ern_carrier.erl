@@ -23,7 +23,7 @@
 %% different protocols never connect: 4 since MVP 3.95, whose two frames
 %% tell a restart to the nodes that monitor the restarting process and
 %% answer that their watchers have been told (§6.9).
--define(PROTOCOL, 4).
+-define(PROTOCOL, 5).
 
 %% The constant before the host of a node's name on the carrier, whose host
 %% is its key's digest and names no network address: a peer's address is

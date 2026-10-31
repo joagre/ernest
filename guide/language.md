@@ -131,7 +131,7 @@ hello, world
 
 ```console
 $ ern shell
-Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.7.0, session 1. :help for the commands, :quit to leave.
 > 1 + 2
 3 : Int
 > let xs = [3, 1, 2]
@@ -229,7 +229,7 @@ The tour's counter, `counter.ern`, whose type and loop are exported, run on a no
 
 ```console
 $ ern shell --config-dir a
-Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.7.0, session 1. :help for the commands, :quit to leave.
 > :load Counter
 Counter, compiled from counter.ern
 > let far <- Peer.spawn("foo", fn() = Counter.count(0), 5000)
@@ -278,7 +278,7 @@ A raw string, between backticks, is taken exactly as written, with no escapes, e
 
 ```console
 $ ern shell
-Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.7.0, session 1. :help for the commands, :quit to leave.
 > let number = `\d+(\.\d+)?`
 number : String
 > number
@@ -295,7 +295,7 @@ A name begins with a lowercase letter or `_`, and eighteen words are reserved an
 
 ```console
 $ ern shell
-Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.7.0, session 1. :help for the commands, :quit to leave.
 > let x = 5
 x : Int
 > let y = x + 1
@@ -368,7 +368,7 @@ For constructors that carry several things, name each field:
 
 ```console
 $ ern shell
-Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.7.0, session 1. :help for the commands, :quit to leave.
 > type Person = Person(name : String, age : Int)
 type Person
 > let alice = Person(name = "Alice", age = 30)
@@ -389,7 +389,7 @@ A field of a field is updated through a path:
 
 ```console
 $ ern shell
-Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.7.0, session 1. :help for the commands, :quit to leave.
 > type Stats = Stats(indexed : Int, hits : Int)
 type Stats
 > type Pool = Pool(name : String, stats : Stats)
@@ -410,7 +410,7 @@ A type with several constructors has a field only where every constructor has it
 
 ```console
 $ ern shell
-Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.7.0, session 1. :help for the commands, :quit to leave.
 > let xs = 1 :: [2, 3]
 xs : List(Int)
 > match xs { [] -> "empty" | head :: _ -> "first is " <> Int.toString(head) }
@@ -468,7 +468,7 @@ The same patterns appear in `match` clauses, `let` bindings, and function parame
 
 ```console
 $ ern shell
-Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.7.0, session 1. :help for the commands, :quit to leave.
 > let #(x, y) = #(3, 4)
 x : Int
 y : Int
@@ -488,7 +488,7 @@ A name in a pattern *introduces* a binding; it does not compare with a variable 
 
 ```console
 $ ern shell
-Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.7.0, session 1. :help for the commands, :quit to leave.
 > let x = 3
 x : Int
 > match 3 { n when n == x -> "same as x" | _ -> "different" }
@@ -569,7 +569,7 @@ At the prompt the session is the rest of the block: `let p <- e` binds what is i
 
 ```console
 $ ern shell
-Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.7.0, session 1. :help for the commands, :quit to leave.
 > let n <- String.toInt("42")
 n : Int
 > let m <- String.toInt("forty-two")
@@ -584,7 +584,7 @@ Ernest's stdlib is subject-first. `|>` reads left-to-right:
 
 ```console
 $ ern shell
-Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.7.0, session 1. :help for the commands, :quit to leave.
 > "abc" |> String.toList |> List.reverse |> String.fromList
 "cba" : String
 ```
@@ -623,7 +623,7 @@ Sections 2 to 5 build one program, a word counter, a stage in each. Here it is v
 
 ```console
 $ ern shell
-Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.7.0, session 1. :help for the commands, :quit to leave.
 > let text = "the cat and the hat"
 text : String
 > let words = String.words(text)
@@ -677,7 +677,7 @@ A block may declare a `fn` of its own, `{ fn square(n : Int) : Int = n * n; squa
 
 ```console
 $ ern shell
-Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.7.0, session 1. :help for the commands, :quit to leave.
 > let add1 = fn(x) = x + 1
 add1 : (Int) -> Int
 > add1(5)
@@ -729,7 +729,7 @@ Without a source that fixes the type, `value + value` is a type error, and `(val
 
 ```console
 $ ern shell
-Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.7.0, session 1. :help for the commands, :quit to leave.
 > { let pair = fn(x) = #(x, x); #(pair(1), pair("a")) }
 #(#(1, 1), #("a", "a")) : #(#(Int, Int), #(String, String))
 > { let one = List.take; #(one([1, 2], 1), one(["a"], 1)) }
@@ -791,7 +791,7 @@ export fn top(counts : Map(String, Int), limit : Int) : List(#(String, Int)) =
 ```console
 $ ern build words.ern
 $ ern shell words.erc
-Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.7.0, session 1. :help for the commands, :quit to leave.
 > Words.count("the cat and the hat")
 Map.fromList([#("and", 1), #("cat", 1), #("hat", 1), #("the", 2)]) : Map(String, Int)
 > Words.top(Words.count("the cat and the hat"), 2)
@@ -865,7 +865,7 @@ Where nothing fixes it by the end of the definition the spawn is written in, or 
 
 ```console
 $ ern shell
-Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.7.0, session 1. :help for the commands, :quit to leave.
 > let worker = spawn(fn() = Unit)
 worker : Address(Never)
 ```
@@ -874,7 +874,7 @@ A top-level `let`, and one at the prompt, must have its type settled, and is ref
 
 ```console
 $ ern shell
-Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.7.0, session 1. :help for the commands, :quit to leave.
 > let xs = []
 input 1:1:1: the type of xs is not determined by this input; it is List(a)
 1 | let xs = []
@@ -924,7 +924,7 @@ Synchronous request-reply, used from the caller side:
 
 ```console
 $ ern shell
-Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.7.0, session 1. :help for the commands, :quit to leave.
 > :type Address.call
 Address.call : (Address(m), (Reply(a)) -> m, Int) -> Optional(a)
 ```
@@ -1239,7 +1239,7 @@ export fn tally(counts : Map(String, Int)) : Unit receiving TallyMsg =
 ```console
 $ ern build words.ern
 $ ern shell words.erc
-Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.7.0, session 1. :help for the commands, :quit to leave.
 > let tally = spawn(fn() = Words.tally(Map.empty))
 tally : Address(Words.TallyMsg)
 > send(tally, Words.Add(Words.count("the cat and the hat")))
@@ -1332,7 +1332,7 @@ The output is `ping 3`, `pong 3`, `ping 2`, and so on, alternating. Messages fro
 
 ```console
 $ ern shell
-Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.7.0, session 1. :help for the commands, :quit to leave.
 > :type monitor
 monitor : (Process, (Down) -> m) -> Unit receiving m
 > :type monitorService
@@ -1409,7 +1409,7 @@ A fault in one process does not affect another, apart from the cases §6.3 lists
 
 ```console
 $ ern shell
-Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.7.0, session 1. :help for the commands, :quit to leave.
 > :type kill
 kill : (Address(a)) -> Unit
 ```
@@ -1432,7 +1432,7 @@ A process has one mailbox, and its mailbox has one type, but the process may be 
 
 ```console
 $ ern shell
-Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.7.0, session 1. :help for the commands, :quit to leave.
 > :type adapted
 adapted : (Address(b), (a) -> b) -> Address(a)
 ```
@@ -2845,7 +2845,7 @@ The store's `main` offers nothing and subscribes to nothing: it waits for its co
 
 A client that is to go on calling the counter finds it again, or holds a *proxy* for the service from the library `Proxy` (report Appendix G.7), on the load path as every library of the toolchain's is (§9.1); a node reads every module of its load path at its start, so the board's node holds the library with no flag.
 
-`Proxy.start(Counter.service, 5000)` in `board.ern` answers the proxy's address, an `Address(Counter.Msg)`. Behind it the proxy's process finds the service and forwards each message to the service found. When that service ends or its node is lost, the proxy finds it again at the next message, on whichever listed peer offers it, one find under way at a time. The proxy's process ends with the one that called `start`, so at the shell's prompt, where the caller is the input's process, a proxy is started in a process that lives on, as a socket is given to one (report §11.2).
+`Proxy.start(Counter.service, 5000)` in `board.ern` answers the proxy's address, an `Address(Counter.Msg)`. Behind it the proxy's process finds the service and forwards each message to the service found. When that service ends or its node is lost, the proxy finds it again at the next message, on whichever listed peer offers it, one find under way at a time. The proxy's process ends with the one that called `start`; at the shell's prompt that is the input's process, which lives while a name it bound is in scope (report §11.2).
 
 A find that answers `Io.OtherType`, the service offered at another type, faults the process, and the fault's line names the service: that is what the board of an older build sees against a store whose protocol changed.
 

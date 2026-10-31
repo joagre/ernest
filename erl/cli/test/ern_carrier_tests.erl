@@ -45,8 +45,9 @@ name_test() ->
     ?assertNot(public_key:pkix_verify_hostname(Certificate, [{dns_id, ern_carrier:host(Other)}])).
 
 %% report §12.5, Appendix H: the cookie is the digest of the floor: for a
-%% release, the protocol's version, 4 since MVP 3.95, the form's version, 2
-%% since MVP 3.27, `ern`'s major and minor and OTP's major release, so that
+%% release, the protocol's version, 5 since 0.7.0, whose frames say whose
+%% a unit is, the form's version, 2 since MVP 3.27, `ern`'s major and minor
+%% and OTP's major release, so that
 %% two patch levels of one minor stand on one floor and two minors do not;
 %% for a build that is no release, development, the digest of its own
 %% code, the code of the repository's build, and two codes stand apart; and
@@ -67,7 +68,7 @@ cookie_test() ->
              end,
     Unasked = fun() -> erlang:error(code_digest_asked) end,
     Otp = erlang:system_info(otp_release),
-    ?assertEqual(Digest({4, 2, 0, 3, Otp}), ern_carrier:cookie({0, 3, 1}, Unasked)),
+    ?assertEqual(Digest({5, 2, 0, 3, Otp}), ern_carrier:cookie({0, 3, 1}, Unasked)),
     ?assertEqual(ern_carrier:cookie({0, 3, 1}, Unasked), ern_carrier:cookie({0, 3, 7}, Unasked)),
     ?assertNotEqual(ern_carrier:cookie({0, 3, 1}, Unasked), ern_carrier:cookie({0, 4, 0}, Unasked)),
     ?assertNotEqual(ern_carrier:cookie({0, 3, 1}, Unasked), ern_carrier:cookie({1, 3, 1}, Unasked)),

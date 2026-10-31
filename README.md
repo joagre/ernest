@@ -32,7 +32,7 @@ In a shell `:load` compiles it, `spawn` starts the loop in a process of its own,
 
 ```console
 $ ern shell
-Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.7.0, session 1. :help for the commands, :quit to leave.
 > :load Counter
 Counter, compiled from counter.ern
 > let counter = spawn(fn() = Counter.count(0))
@@ -82,7 +82,7 @@ Then, with `foo` running, `Peer.spawn` starts `count` on `foo`, its code crossin
 
 ```console
 $ ern shell --config-dir a
-Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.7.0, session 1. :help for the commands, :quit to leave.
 > :load Counter
 Counter, compiled from counter.ern
 > let far <- Peer.spawn("foo", fn() = Counter.count(0), 5000)
@@ -118,7 +118,7 @@ The counter above is the first three claims at work, and the rest of the argumen
 
 ## Where it stands
 
-It is young. Programs run on one node and across nodes, and 0.6.0 is the latest release. Where the project stands is "Where we are" in the [plan](docs/plan.md), and what the toolchain does not do yet is a table in [`docs/development.md`](docs/development.md). Until 1.0 a release may refuse a program the previous release accepted, as the plan says; each release's notes, on the [releases page](https://github.com/joagre/ernest/releases), say where to read what changed.
+It is young. Programs run on one node and across nodes, and 0.7.0 is the latest release. Where the project stands is "Where we are" in the [plan](docs/plan.md), and what the toolchain does not do yet is a table in [`docs/development.md`](docs/development.md). Until 1.0 a release may refuse a program the previous release accepted, as the plan says; each release's notes, on the [releases page](https://github.com/joagre/ernest/releases), say where to read what changed.
 
 ## Installing
 
