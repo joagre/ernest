@@ -76,16 +76,21 @@ counted(Work) ->
 
 %% A listener or a socket, linked to the TCP process and recorded as opened
 %% before its address is given out (report §8.6), under the function that
-%% opened it, and as started by its owner (Appendix E.18). It traps exits
-%% from its start, so that however it ends, by a kill, with the program or
-%% with the TCP process, it closes its host's socket itself
-%% (close_socket/1).
+%% opened it, and as started by its owner (Appendix E.18), whom it watches
+%% from before then too, so that what an owner holds is what watches it
+%% (ern_rt:evaluate/2); Loop is given the monitor. It traps exits from its
+%% start, so that however it ends, by a kill, with the program or with the
+%% TCP process, it closes its host's socket itself (close_socket/1).
 opened(Tcp, Loop, Site, Owner) ->
+    Opener = erlang:self(),
     Pid = erlang:spawn(fun() ->
                            process_flag(trap_exit, true),
                            link(Tcp),
-                           receive go -> Loop() end
+                           MonitorRef = erlang:monitor(process, Owner),
+                           Opener ! {erlang:self(), watching},
+                           receive go -> Loop(MonitorRef) end
                        end),
+    receive {Pid, watching} -> ok end,
     ern_rt:opened(Pid, Site, Owner),
     Pid ! go,
     Pid.
@@ -108,10 +113,7 @@ listen(Tcp, Host, Port, Owner, Reply) ->
                          {ok, Socket} ->
                              %% report §6.9, Appendix E.18: owned by the
                              %% process that opened it, with which it ends
-                             Loop = fun() ->
-                                        MonitorRef = erlang:monitor(process, Owner),
-                                        listener_loop(Tcp, Socket, MonitorRef)
-                                    end,
+                             Loop = fun(MonitorRef) -> listener_loop(Tcp, Socket, MonitorRef) end,
                              Listener = opened(Tcp, Loop, <<"Tcp.listen">>, Owner),
                              gen_tcp:controlling_process(Socket, Listener),
                              {'Right', Listener};
@@ -253,10 +255,9 @@ accepted(Result) ->
 %% it until one is given it, and is killed when its owner dies; a monitor of
 %% an owner that has already ended fires at once.
 socket_process(Tcp, Socket, Owner, Site) ->
-    Pid = opened(Tcp, fun() ->
+    Pid = opened(Tcp, fun(MonitorRef) ->
                           Self = erlang:self(),
                           Writer = erlang:spawn_link(fun() -> writer(Socket, Self) end),
-                          MonitorRef = erlang:monitor(process, Owner),
                           socket_loop(#connection{socket = Socket, writer = Writer,
                                                   monitor_ref = MonitorRef})
                       end, Site, Owner),

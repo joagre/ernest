@@ -40,10 +40,11 @@
 %% form_namespace: the namespace its forms and its '$code'/0 name what a
 %% shell's session declares under (Appendix H, §11.2);
 %% site_namespace: the namespace its spawn sites name its declarations
-%% under, a reload's version's, `Counter$2` (§11.2);
+%% under, a reload's version's, `Counter$2`, and a session's input's the
+%% session's as it prints, `$Session2` (§11.2);
 %% session_input: whether the unit is an input of a shell's session, whose
-%% sites name what it declares by its own name (§11.2), its definitions'
-%% lines counted as its session counts them (ern_compile);
+%% own expression's sites the shell names (§11.2), its definitions' lines
+%% counted as its session counts them (ern_compile);
 %% held: for an expression's input, {Name, Definition}, the name of the
 %% value its unit holds, `it`, and the qualified name of the definition
 %% whose hash names that value as a binding, the input's entry; the unit's

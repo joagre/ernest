@@ -256,6 +256,48 @@ load_evaluator_lives_on_test() ->
     ?assertEqual([<<"Right(Unit)">>, <<"true">>, <<"3">>, <<"closed">>],
                  ran(filename:rootname(Main) ++ ".erc", ["--load-path", Lib])).
 
+%% Appendix E.28, report §6.9: a load whose bindings open nothing leaves no
+%% process: its evaluator, which a binding hands a process of the program,
+%% has ended once the load answers, so a monitor made then gives the
+%% reason `Unknown`. A regression test, written after the code: the
+%% evaluator lived on, and the monitor's wait was a deadlock (the log's
+%% *Sites, Sessions and Their Names*)
+load_evaluator_ends_test() ->
+    Dir = tmp(),
+    Lib = filename:join(Dir, "lib"),
+    write(Lib, "plug/registry.ern",
+          "export type Msg = Told(Process) | Get(Reply(Process))\n\n"
+          "fn waiting() : Unit receiving Msg =\n"
+          "    receive {\n"
+          "        Told(process) -> holding(process)\n"
+          "    }\n\n"
+          "fn holding(process : Process) : Unit receiving Msg =\n"
+          "    receive {\n"
+          "        Get(reply) -> {\n"
+          "            answer(reply, process);\n"
+          "            holding(process)\n"
+          "        }\n"
+          "    }\n\n"
+          "export let holder : Address(Msg) = spawn(waiting)\n"),
+    write(Lib, "plug/teller.ern",
+          "let told : Unit = send(Plug.Registry.holder, Plug.Registry.Told(Process.current()))\n"),
+    built(Lib, "plug/registry.ern"),
+    built(Lib, "plug/teller.ern"),
+    Main = write(Dir, "main.ern",
+                 "type Msg = Gone(Down)\n\n"
+                 "export fn main() : Unit receiving Msg = {\n"
+                 "    Io.println(Io.show(Code.load(Path(\"" ++ Lib ++ "/plug/teller.erc\"))));\n"
+                 "    let evaluator =\n"
+                 "        Address.callForever(Plug.Registry.holder, Plug.Registry.Get);\n"
+                 "    monitor(evaluator, Gone);\n"
+                 "    receive {\n"
+                 "        Gone(down) -> Io.println(Io.show(down.reason))\n"
+                 "    }\n"
+                 "}\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, "--load-path", Lib, Main])),
+    ?assertEqual([<<"Right(Unit)">>, <<"Unknown">>],
+                 ran(filename:rootname(Main) ++ ".erc", ["--load-path", Lib])).
+
 %% What a job wrote on its error device, an I/O server of its own, for
 %% Owner, once told it is done.
 said(Owner, Acc) ->

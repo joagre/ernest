@@ -9,8 +9,8 @@
 %% (ern_build:fail/1), naming the file.
 -module(ern_node).
 
--export([default_listen/0, create/2, add_peer/2, start/1, start/2, stop/1, file/2, read/1,
-         measures_changed/3, signaled/2, stopped/1, family/1]).
+-export([default_listen/0, create/2, public_pem/1, add_peer/2, start/1, start/2, stop/1, file/2,
+         read/1, measures_changed/3, signaled/2, stopped/1, family/1]).
 
 -include_lib("public_key/include/public_key.hrl").
 -include_lib("kernel/include/file.hrl").
@@ -77,7 +77,7 @@ create(Given, Listen) ->
     %% report §12.5: an ed25519 key, which serves in the handshake under the
     %% rule (the log's *The Node's Directory*)
     Key = public_key:generate_key({namedCurve, ed25519}),
-    Public = pem([{'SubjectPublicKeyInfo', public_der(Key), not_encrypted}]),
+    Public = public_pem(public_der(Key)),
     Certificate = pem([{'Certificate', signed_certificate(Key), not_encrypted}]),
     Private = pem([public_key:pem_entry_encode('PrivateKeyInfo', Key)]),
     %% written by the host's JSON formatter, its fields in Appendix C's
@@ -102,6 +102,13 @@ ordered({object, Fields}, Encode, State) ->
     json:format_key_value_list_checked(Fields, Encode, State);
 ordered(Value, Encode, State) ->
     json:format_value(Value, Encode, State).
+
+%% Report §12.5: a node's public key in PEM, the DER of its
+%% SubjectPublicKeyInfo, as `ern config` prints it and a shell session's
+%% namespace carries it (Appendix H).
+-spec public_pem(binary()) -> binary().
+public_pem(Der) ->
+    pem([{'SubjectPublicKeyInfo', Der, not_encrypted}]).
 
 %% PEM, ended by one line feed.
 pem(Entries) ->

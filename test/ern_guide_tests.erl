@@ -481,8 +481,8 @@ session_end(Output) ->
 %% does not.
 released(Output) ->
     {ok, Version} = file:read_file("../VERSION"),
-    binary:replace(Output, list_to_binary(["Ernest ", ern_release:version_text(), "."]),
-                   <<"Ernest ", (string:trim(Version))/binary, ".">>).
+    binary:replace(Output, list_to_binary(["Ernest ", ern_release:version_text(), ","]),
+                   <<"Ernest ", (string:trim(Version))/binary, ",">>).
 
 %% The checked units of a document, in order: {modules, Unit} for one
 %% module or a heading's source tree, {rejected, Unit} for an example that

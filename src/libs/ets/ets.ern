@@ -76,10 +76,16 @@ export foreign type Table(k=, v)
 /// process ends or the table is closed. The types of its keys and values
 /// are those of its first use, or of an annotation.
 export fn new() : Table(k, v) =
-    rawNew(Foreign.atom("ernest"), [Foreign.atom("set"), Foreign.atom("public")])
+    made(rawNew(Foreign.atom("ernest"), [Foreign.atom("set"), Foreign.atom("public")]))
 
 foreign fn rawNew(name : Foreign.Term, options : List(Foreign.Term)) : Table(k, v) =
     "ets:new/2"
+
+// Report Appendix E.28: the table the calling process made, told to the
+// runtime, which keeps it where that process is a load's evaluator, so that
+// the evaluator lives on while it owns a table; it answers the table.
+foreign fn made(table : Table(k, v)) : Table(k, v) =
+    "ern_rt:made_table/1"
 
 /// Puts the value at that key, replacing any entry the key had. The table
 /// is changed in place, for every process that holds it.

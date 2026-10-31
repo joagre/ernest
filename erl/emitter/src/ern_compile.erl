@@ -44,11 +44,12 @@ compile(Namespace, Declarations, Interface, Env) ->
 %% `units` names the unit of each namespace whose unit is not its module's
 %% Erlang name, the module's own among them, as the shell gives them where a
 %% reload brought a version as a unit of its own (report §11.2), and is not
-%% kept; `site_namespace`, which the shell gives such a version, is the
-%% namespace its spawn sites name its declarations under, `Counter$2`
-%% (§11.2), and is not kept; `input_name`, which the shell gives an input,
-%% is the name its expression's sites write, `input 3`, which the forms'
-%% chunk records beside the expression's form (§12.7), and is not kept;
+%% kept; `site_namespace`, which the shell gives such a version and an
+%% input, is the namespace its spawn sites name its declarations under,
+%% `Counter$2`, and the session's as it prints, `$Session2` (§11.2), and is
+%% not kept; `input_name`, which the shell gives an input, is the name its
+%% expression's sites write, `$Session2.input 3`, which the forms' chunk
+%% records beside the expression's form (§12.7), and is not kept;
 %% `canonical`, the module's canonical forms where the build made them
 %% already (ern_build), is not kept either.
 %%

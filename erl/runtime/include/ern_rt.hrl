@@ -8,7 +8,7 @@
 -define(ERN_RT_HRL, true).
 
 -record(process_row, {pid, site, spawn_order, root, peer = none, expected = false,
-                      fault = none, own = false}).
+                      fault = none, own = none}).
 %% pid: the process, the table's key; site: its spawn site (§6.9), which
 %% an initializer's evaluation names (ern_rt:initializing/1); spawn_order:
 %% its place in the order of spawns; root: the process at the head of its
@@ -21,11 +21,12 @@
 %% with, written as it ends (ern_rt:ended_with/2), which the reaper reports
 %% beside the host's term of its end (§12.2); `carried` for a compute's
 %% process whose fault went to its caller, which no one here is told of
-%% (§8.7); or none; own: whether it is a session's own, the session, its
-%% reader, its screen or an input that runs, which the session marks and
-%% unmarks, or a load's evaluator, marked as it is spawned and unmarked as
-%% a session leaves its own to the node, and which Process.live() leaves
-%% out (ern_rt:own/1, ern_rt:evaluate/2, Appendix E.21, E.28, §11.2).
+%% (§8.7); or none; own: whose own it is, `session` for a session's own,
+%% the session, its reader, its screen or an input that runs, which the
+%% session marks, `evaluator` for a load's evaluator, the runtime's own,
+%% marked as it is spawned, which Process.status knows not, or none; and
+%% Process.live() leaves out both (ern_rt:own/1, ern_rt:evaluate/2,
+%% Appendix E.21, E.28, §11.2).
 
 -record(fault, {cause, trace = none, callee = none, peer = none, time = none}).
 %% cause: the text of §7.4, which a Down carries (§6.9); trace: the fault's

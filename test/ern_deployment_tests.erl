@@ -731,7 +731,7 @@ attached(Base, Ops, ["$ ern " ++ Words | Lines]) ->
                              ?assertEqual(1, length(string:split(Text, Line ++ "\n", all)) - 1),
                              string:replace(Text, Line ++ "\n", "", all)
                          end, Untimed, Said),
-    Start = "Ernest " ++ ern_release:version_text() ++ ".",
+    Start = "Ernest " ++ ern_release:version_text() ++ ",",
     Expected = [case Line of
                     "> " ++ _ -> "> ";
                     "Ernest " ++ Rest -> [Start, string:find(Rest, " "), "\n"];

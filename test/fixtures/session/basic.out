@@ -1,4 +1,4 @@
-Ernest 0.6.0-dev. :help for the commands, :quit to leave.
+Ernest 0.6.0-dev, session 1. :help for the commands, :quit to leave.
 > 3 : Int
 > "hi!" : String
 > [1, 4, 9] : List(Int)
@@ -9,7 +9,7 @@ Ernest 0.6.0-dev. :help for the commands, :quit to leave.
   |     ^^^
 > fault: division by zero
     erlang:'div'/2
-    input 6:1
+    $Session1.input 6:1
 > side effect
 > x : Int
 > 42 : Int

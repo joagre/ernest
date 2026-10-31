@@ -1,4 +1,4 @@
-Ernest 0.6.0-dev. :help for the commands, :detach to leave.
+Ernest 0.6.0-dev, session 1. :help for the commands, :detach to leave.
 > 3 : Int
 > written at the prompt
 > this shell is attached to a node; :detach leaves it
@@ -12,9 +12,9 @@ Ernest 0.6.0-dev. :help for the commands, :detach to leave.
 > > Some(7) : Optional(Int)
 > fault: division by zero
     erlang:'div'/2
-    input 10:1
+    $Session1.input 10:1
 > fault: exited with status 3
-    input 11:1
+    $Session1.input 11:1
 > c : Address(Counter.Msg)
 it : Optional(Int)
 > Counter.start:11 receiving

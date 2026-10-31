@@ -47,7 +47,7 @@ In the directory that holds it:
 
 ```console
 $ ern shell
-Ernest 0.6.0. :help for the commands, :quit to leave.
+Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
 > :load Counter
 Counter, compiled from counter.ern
 > let counter = spawn(fn() = Counter.count(0))
@@ -123,7 +123,7 @@ In a second terminal `ern run --config-dir foo`, in a third `ern run --config-di
 ```console
 $ ern shell --config-dir a
 listening on 0.0.0.0:8654
-Ernest 0.6.0. :help for the commands, :quit to leave.
+Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
 > :load Counter
 Counter, compiled from counter.ern
 > let counter = spawn(fn() = Counter.count(0))
@@ -222,13 +222,13 @@ Counter, compiled again
 counter : Address(Counter.CounterMsg)
 > Counter.apply(counter, "inc -1")
 "ok" : String
-input 11:1 faulted: a negative amount
+$Session1.input 11:1 faulted: a negative amount
     Counter$3.count:8
 > Counter.apply(counter, "get")
 "no answer" : String
 ```
 
-The precondition is written as the guide's §6.3 writes one: `fault` ends the process with its cause, and nothing catches it, since there is no handler to write; a process that must outlive a fault is restarted, below. The `inc -1` answers `"ok"`, since a send does not wait, and the fault is reported as the counter meets it, under the input that spawned the process, `input 11:1`, and the place it faulted, `Counter$3.count:8`; the `$3` numbers the module's versions in this session, which chapter 5 comes to. The report and the answer are written as each happens, in no fixed order; the page shows one. The next `get` has no one to answer it.
+The precondition is written as the guide's §6.3 writes one: `fault` ends the process with its cause, and nothing catches it, since there is no handler to write; a process that must outlive a fault is restarted, below. The `inc -1` answers `"ok"`, since a send does not wait, and the fault is reported as the counter meets it, under the input that spawned the process, `$Session1.input 11:1`, after the session the start line numbers, and the place it faulted, `Counter$3.count:8`; the `$3` numbers the module's versions in this session, which chapter 5 comes to. The report and the answer are written as each happens, in no fixed order; the page shows one. The next `get` has no one to answer it.
 
 A counter that must come back is started under `restarting`, and a watcher monitors it:
 
@@ -241,7 +241,7 @@ watcher : Address(Counter.WatchMsg)
 "ok" : String
 > Counter.apply(counter, "inc -1")
 "ok" : String
-input 14:1 faulted, restarted: a negative amount
+$Session1.input 14:1 faulted, restarted: a negative amount
     Counter$3.count:8
 > Counter.apply(counter, "get")
 "0" : String
@@ -252,7 +252,7 @@ A process started under `restarting` runs its function again from the start afte
 ```console
 > Counter.apply(counter, "inc -1")
 "ok" : String
-input 14:1 faulted: a negative amount
+$Session1.input 14:1 faulted: a negative amount
     Counter$3.count:8
 the counter ended: Fault("a negative amount")
 ```
@@ -595,7 +595,7 @@ $ ern reload --config-dir foo
 ```console
 $ ern shell --config-dir ops --attach foo
 the peer foo connected
-Ernest 0.6.0. :help for the commands, :detach to leave.
+Ernest 0.6.0, session 1. :help for the commands, :detach to leave.
 > :load Counter
 Tally, compiled from tally.ern
 Counter, compiled from counter.ern

@@ -270,12 +270,12 @@ program() ->
                      {send, hex(":browse Counter\r")},
                      {expect, "Counter.start() : Address(Counter.Msg)\n"},
                      {send, hex("spawn(fn() = Counter.boom())\r")},
-                     {expect, "input 5:1 faulted: division by zero"},
+                     {expect, "$Session1.input 5:1 faulted: division by zero"},
                      {send, hex(":processes\r")},
                      {expect, "Counter.start:11"},
                      {send, hex(":faults\r")},
                      {expect, "Counter.main faulted: division by zero"},
-                     {expect, "input 5:1 faulted: division by zero"},
+                     {expect, "$Session1.input 5:1 faulted: division by zero"},
                      {send, "04"}],
                     "60x100"),
     %% what the program printed reached the screen
@@ -284,8 +284,8 @@ program() ->
     %% reported once as it faults and once by `:faults`
     ?assertEqual(2, ern_pty:count(Screen, <<"Counter.main faulted: division by zero">>)),
     %% (report §11.2: a site in an input's own expression is the input,
-    %% named by its count, `input 5:1`, the fifth thing entered)
-    ?assertEqual(2, ern_pty:count(Screen, <<"input 5:1 faulted: division by zero">>)),
+    %% named by its count, `$Session1.input 5:1`, the fifth thing entered)
+    ?assertEqual(2, ern_pty:count(Screen, <<"$Session1.input 5:1 faulted: division by zero">>)),
     %% `:processes` leaves the shell's own out
     ?assertEqual(nomatch, binary:match(Screen, <<"Shell.main">>)).
 
@@ -329,12 +329,15 @@ startup() ->
     ?assertEqual(nomatch, binary:match(Output, <<"1 : Int">>)).
 
 %% report §11.2: a startup input's refusal and fault are named by its file
-%% and line, as its diagnostic is, and a file that is not UTF-8 is said and
-%% not run. A regression test: each was printed bare, and the file was read
-%% as empty; the release review found `:type`'s
+%% and line, as its diagnostic is, and so is the spawn site of a process it
+%% starts, under the session's namespace (*Faults*); a file that is not
+%% UTF-8 is said and not run. A regression test: each was printed bare, and
+%% the file was read as empty; the release review found `:type`'s
 %% diagnostic named as though typed at the prompt, and `:load`'s refusal
 %% bare, and `:type`'s excerpt now places its argument after the command;
-%% the startup file is a node's, whose `:load` is any shell's
+%% the startup file is a node's, whose `:load` is any shell's. The site a
+%% regression test of the release review's P1 (the log's *Sites, Sessions
+%% and Their Names*)
 startup_failures_named_test_() ->
     ern_nodes_tests:counted_test({waits, 2}, fun startup_failures_named/0).
 
@@ -343,9 +346,10 @@ startup_failures_named() ->
     node_dir(ConfigDir),
     Startup = filename:join(ConfigDir, "startup"),
     startup_file(Startup, ":set depth x\n:bogus\n1 / 0\nlet k = 2\n:type  1 + \"a\"\n"
-                          ":load Nope\n"),
+                          ":load Nope\n"
+                          "let w : Address(Int) = spawn(fn() = receive { _ -> Unit })\n"),
     InputFile = filename:join(ConfigDir, "session.in"),
-    ok = file:write_file(InputFile, "k\n"),
+    ok = file:write_file(InputFile, "k\n:processes\n"),
     Command = "HOME=" ++ fresh_home() ++ " ../bin/ern shell --config-dir " ++ ConfigDir
         ++ " < " ++ InputFile,
     {0, Output} = ern_pty:sh(Command),
@@ -355,6 +359,8 @@ startup_failures_named() ->
                  ":6: no module Nope under the source root or on the load path"]],
     ?assertMatch({_, _}, binary:match(Output, <<"5 | :type  1 + \"a\"\n  |        -">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"2 : Int">>)),
+    ?assertMatch({_, _},
+                 binary:match(Output, list_to_binary(["$Session1.", Startup, ":7 receiving\n"]))),
     ok = file:write_file(Startup, <<255, 254, "\n">>),
     {0, Bad} = ern_pty:sh(Command),
     ?assertMatch({_, _},
@@ -860,7 +866,8 @@ fault_line_escaped() ->
                                     " fn(d : Down) = d); receive { _ -> Unit } }\n:faults\n"
                                     "fault(\"c\\u{1b}d\")\n"),
     {0, Output} = ern_pty:sh("HOME=" ++ Dir ++ " ../bin/ern shell < " ++ InputFile),
-    ?assertMatch({_, _}, binary:match(Output, <<"input 1:1 faulted: a\\u{1B}b\\nforged">>)),
+    ?assertMatch({_, _},
+                 binary:match(Output, <<"$Session1.input 1:1 faulted: a\\u{1B}b\\nforged">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"fault: c\\u{1B}d">>)),
     ?assertEqual(nomatch, binary:match(Output, <<27>>)).
 
@@ -884,7 +891,7 @@ fault_before_the_end_written() ->
                                     "    receive { _ -> Unit }\n"
                                     "}\n"),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
-    ?assertMatch({_, _}, binary:match(Output, <<"input 1:2 faulted: late">>)).
+    ?assertMatch({_, _}, binary:match(Output, <<"$Session1.input 1:2 faulted: late">>)).
 
 %% report §11.2: in line mode a fault the shell writes as it ends, at the
 %% end of its input, begins a line of its own: the line of the prompt the
@@ -935,7 +942,8 @@ end_fault_on_a_line_of_its_own() ->
     %% the end of the input
     port_close(Shell),
     {Out, _} = ern_nodes_tests:said(Dir),
-    ?assert(lists:suffix("> > \ninput 1:1 faulted: late\n    input 1:1\n", Out)).
+    ?assert(lists:suffix("> > \n$Session1.input 1:1 faulted: late\n"
+                         "    $Session1.input 1:1\n", Out)).
 
 %% report §11.2: in line mode a fault reported while the session waits for
 %% a line is the session's before the line runs, so that `:faults` on that
@@ -997,8 +1005,9 @@ faults_while_reading_listed() ->
     port_close(Shell),
     {Out, _} = ern_nodes_tests:said(Dir),
     ?assertEqual(nomatch, string:find(Out, "no process has faulted")),
-    {match, [Stamp]} = re:run(Out, "> > input 1:1 faulted: late\n    input 1:1\n"
-                                   "([-0-9T:.]+Z) input 1:1 faulted: late\n> ",
+    {match, [Stamp]} = re:run(Out, "> > \\$Session1\\.input 1:1 faulted: late\n"
+                                   "    \\$Session1\\.input 1:1\n"
+                                   "([-0-9T:.]+Z) \\$Session1\\.input 1:1 faulted: late\n> ",
                               [{capture, all_but_first, list}]),
     ?assert(calendar:rfc3339_to_system_time(Stamp, [{unit, millisecond}]) =< Learned).
 
@@ -1037,7 +1046,7 @@ process_live_at_the_prompt() ->
     ?assertMatch({_, _}, binary:match(Output, <<"> [] : List(Process)\n"
                                                 "> p : Address(Int)\n"
                                                 "> true : Bool\n"
-                                                "> input 2:1 receiving\n">>)).
+                                                "> $Session1.input 2:1 receiving\n">>)).
 
 %% report §11.2, Appendix E.24: the shell reports as `ern run` does, so a
 %% fault `Test.faults` expects is no line and not among `:faults`; the
@@ -3509,12 +3518,12 @@ fault_subscriber() ->
     %% with its trace beneath it and listed by `:faults` without it
     [?assertEqual({2, 1}, {ern_pty:count(Output, <<Line/binary, "\n">>),
                            ern_pty:count(Output, <<Line/binary, "\n    ">>)})
-     || Line <- [<<"input 4:1 faulted, restarted: division by zero">>,
-                 <<"input 4:1 faulted: division by zero">>]],
+     || Line <- [<<"$Session1.input 4:1 faulted, restarted: division by zero">>,
+                 <<"$Session1.input 4:1 faulted: division by zero">>]],
     Stamp = "^(?:> )?[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z ",
     [?assertMatch({match, _}, re:run(Output, Stamp ++ Line ++ "$", [multiline]))
-     || Line <- ["input 4:1 faulted, restarted: division by zero",
-                 "input 4:1 faulted: division by zero"]],
+     || Line <- ["\\$Session1\\.input 4:1 faulted, restarted: division by zero",
+                 "\\$Session1\\.input 4:1 faulted: division by zero"]],
     ?assertMatch({_, _}, binary:match(Output, <<"Bad.boom:2 faulted">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"Shell.load">>)).
 
@@ -3533,7 +3542,9 @@ input_fault_trace() ->
     ok = file:write_file(InputFile, "fn f(n : Int) : Int = 1 + 10 / n\nf(0) + 1\n1 + 1\n"),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
     ?assertMatch({match, _}, re:run(Output, "^> fault: division by zero\n    [^\n]*div[^\n]*\n"
-                                            "    f:1\n    input 2:1\n> 2 : Int$", [multiline])).
+                                            "    \\$Session1\\.f:1\n"
+                                            "    \\$Session1\\.input 2:1\n> 2 : Int$",
+                                    [multiline])).
 
 %% report §11.2, §7.3: a fault's line writes its spawn site as its cause is
 %% written, each control character as the escape a literal writes for it,
@@ -3777,8 +3788,9 @@ doc_every_name() ->
     ?assertMatch({_, _}, binary:match(Output, <<"\nErnest module List\n">>)).
 
 %% report §11.2, §6.9: a spawn site in the session is written as the
-%% session writes names, `input 5:1` in an input's own expression and
-%% `start:1` in a function an input declares, and the input's own wrapper
+%% session writes names, under its namespace, `$Session1.input 5:1` in an
+%% input's own expression and `$Session1.start:1` in a function an input
+%% declares (§11.2 *Faults*), and the input's own wrapper
 %% shadows no name the session declares. A regression test for findings
 %% of the session of real use: `:processes` showed `Input2.main:1`, a name
 %% the session shows only for a shadowed type, and `main()` after `fn main` called the
@@ -3795,7 +3807,8 @@ session_names() ->
                                      ":processes\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"> 1 : Int\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"input 5:1 receiving\nstart:1 receiving\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"$Session1.input 5:1 receiving\n"
+                                              "$Session1.start:1 receiving\n">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"Input">>)).
 
 %% report §11.2: text that is typed and not run makes no name the host
@@ -4081,7 +4094,7 @@ reload() ->
     ?assertMatch({_, _}, binary:match(Output, <<"Demo, compiled again\n> 2 : Int\n> 1 : Int">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"Demo, compiled again\n> 3 : Int\n> 1 : Int">>)),
     %% the process of the first version runs on
-    ?assertMatch({_, _}, binary:match(Output, <<"> input 4:1 receiving\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> $Session1.input 4:1 receiving\n">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"previous version">>)).
 
 %% report §11.2: `:reload` of a module that has come to use one the session
@@ -4855,8 +4868,9 @@ shell_told_of_the_end() ->
     %% what the subscriber prints and what the runtime says come by two
     %% streams, which nothing orders one against the other (§11.2)
     ?assertMatch({_, _}, binary:match(Output, <<"told\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"the end waits for 1 subscriber: input 3:1\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"the subscriber input 3:1 answered\n">>)).
+    ?assertMatch({_, _},
+                 binary:match(Output, <<"the end waits for 1 subscriber: $Session1.input 3:1\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"the subscriber $Session1.input 3:1 answered\n">>)).
 
 demo(Value) ->
     ["export fn answer() : Int = ", integer_to_list(Value), "\n\n",
@@ -5022,7 +5036,7 @@ load_loaded() ->
                                      ":load Demo\n", ":load Demo\n", ":processes\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
     ?assertEqual(2, ern_pty:count(Output, <<"Demo is loaded already; :reload compiles it again">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"input 2:1 receiving\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"$Session1.input 2:1 receiving\n">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"no process of the session's is running">>)).
 
 %% report §8.5, §11.2: `:reload` evaluates the changed modules' bindings in
@@ -5286,7 +5300,7 @@ with_loaded(Dir, Modules, Work) ->
                Local = ern_rt:spawn(fun local_files/0, <<"local half">>),
                {ok, Cwd} = file:get_cwd(),
                Started = ern_shell:start(Local, Local, ern_shell:given_source_root(),
-                                         list_to_binary(Cwd), false),
+                                         list_to_binary(Cwd), false, erlang:self()),
                Session = lists:foldl(fun(Module, Session) ->
                                          {'Right', {Session1, _}} = ern_shell:load(Session, Module),
                                          Session1
@@ -5383,7 +5397,7 @@ no_home() ->
                   {expect, "2 : Int"},
                   {send, "04"}]),
     ?assertMatch({_, _}, binary:match(Screen, <<"Ernest ", (string:trim(Version))/binary,
-                                                "-dev.">>)),
+                                                "-dev, session 1.">>)),
     ?assertEqual(1, length(binary:matches(Screen, <<"the history is not kept">>))),
     Relative = pty("HOME=relative ../bin/ern shell",
                    [{expect, "HOME is no absolute path"},

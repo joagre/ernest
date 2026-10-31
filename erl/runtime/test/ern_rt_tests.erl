@@ -3,7 +3,7 @@
 %% boundary's proxies, and the end of a program.
 -module(ern_rt_tests).
 
--export([queued_input/2, evaluated/0]).
+-export([queued_input/2, evaluated/0, kept_table/0, closed_table/0]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include("ern_rt.hrl").
@@ -142,12 +142,14 @@ process_status_test() ->
 %% standard output and standard error write what a process of a session
 %% sends them to that session's screen, the row of its root, a process it
 %% started among them, and a load's evaluator it started and what the
-%% evaluation started, the row the evaluator writes; and a process of the
-%% runtime's own that acts for one, a delivery and a kept process, writes
-%% as the one it acts for. What any other process sends, the entry
-%% process's, and the session's and the evaluation's once the screen's
-%% rows are dropped, goes to the node's own. Written before the code, the
-%% evaluator's part with it
+%% evaluation started, the row the evaluator writes, once the evaluator has
+%% ended with its work too; and a process of the runtime's own that acts
+%% for one, a delivery and a kept process, writes as the one it acts for.
+%% What any other process sends, the entry process's, and the session's and
+%% the evaluation's once the screen's rows are dropped, goes to the node's
+%% own. Written before the code, the evaluator's part with it; its end is a
+%% regression test, the evaluator having lived on (the log's *Sites,
+%% Sessions and Their Names*)
 screen_routed_test() ->
     Self = self(),
     Sink = fun(Where) -> fun(Bytes) -> Self ! {Where, Bytes} end end,
@@ -177,7 +179,8 @@ screen_routed_test() ->
     end,
     Screen = lists:sort(taken(screen)),
     ?assertEqual(lists:sort([<<"session\n">>, <<"started\n">>, <<"started error\n">>,
-                             <<"evaluated\n">>, <<"evaluation started\n">>, <<"delivered\n">>,
+                             <<"evaluated\n">>, <<"evaluation started\n">>,
+                             <<"evaluation after its evaluator\n">>, <<"delivered\n">>,
                              <<"kept\n">>]), Screen),
     ?assertEqual(lists:sort([<<"node\n">>, <<"detached\n">>, <<"evaluation detached\n">>]),
                  lists:sort(taken(out))),
@@ -185,9 +188,11 @@ screen_routed_test() ->
 
 %% The session of screen_routed_test: it writes, and starts a process that
 %% writes to both streams, a load's evaluator of Unit, whose bindings write
-%% and start processes that write (evaluated/0), a delivery's wrap and a
-%% kept process's function that write, then, once its screen's rows are
-%% dropped, writes again, and so does a process the evaluation started.
+%% and start processes that write (evaluated/0), and which has ended once
+%% the load answers, a process the evaluation started then writing again, a
+%% delivery's wrap and a kept process's function that write, then, once its
+%% screen's rows are dropped, writes again, and so does a process the
+%% evaluation started.
 session(Main, Unit) ->
     receive go -> ok end,
     written(stdout, <<"session\n">>),
@@ -196,8 +201,11 @@ session(Main, Unit) ->
                   written(stderr, <<"started error\n">>)
               end,
     ended(ern_rt:spawn_monitored(Started, fun(Down) -> {ended, Down} end, <<"S.started:2">>)),
-    {evaluated, _} = ern_rt:evaluate([Unit], <<"S.load:3">>),
+    {evaluated, Evaluator} = ern_rt:evaluate([Unit], <<"S.load:3">>),
+    false = erlang:is_process_alive(Evaluator),
     Later = whereis(ern_rt_tests_later),
+    Later ! {before, erlang:self()},
+    receive {Later, written} -> ok end,
     Quick = ern_rt:spawn(fun() -> ok end, <<"S.quick:4">>),
     ern_rt:monitor(Quick, fun(Down) -> written(stdout, <<"delivered\n">>), {ended, Down} end),
     ended(Quick),
@@ -217,11 +225,17 @@ session(Main, Unit) ->
 
 %% The bindings of screen_routed_test's unit, which its evaluator runs: they
 %% write, start a process that writes and is waited for, and one that
-%% writes once it is told, after the screen's rows are dropped.
+%% writes each time it is told, once the evaluator has ended and after the
+%% screen's rows are dropped.
 -spec evaluated() -> ok.
 evaluated() ->
     written(stdout, <<"evaluated\n">>),
     Later = ern_rt:spawn(fun() ->
+                             receive
+                                 {before, Told} ->
+                                     written(stdout, <<"evaluation after its evaluator\n">>),
+                                     Told ! {erlang:self(), written}
+                             end,
                              receive again -> written(stdout, <<"evaluation detached\n">>) end
                          end, <<"S.later:6">>),
     true = register(ern_rt_tests_later, Later),
@@ -314,8 +328,9 @@ screen_exit_test() ->
     ?assertEqual({exit, 4}, Outcome).
 
 %% report Appendix E.21, §11.2: Process.live() leaves out a session's own
-%% processes, each marked so and unmarked again by the session, and lists
-%% what they start. Written before the code
+%% processes, each marked so by the session, and lists what they start.
+%% Written before the code; the unmarking went with the evaluators a
+%% detach left to the node (the log's *Sites, Sessions and Their Names*)
 own_left_out_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -327,18 +342,76 @@ own_left_out_test() ->
                                       Main ! {started, Started},
                                       waiting()
                                   end, <<"S.own:1">>),
+               Unmarked = lists:sort(ern_rt:processes()),
                'Unit' = ern_rt:own([Own]),
                ern_rt:send(Own, go),
                Started = receive {started, Pid} -> Pid end,
                Marked = lists:sort(ern_rt:processes()),
-               'Unit' = ern_rt:disown([Own]),
-               Unmarked = lists:sort(ern_rt:processes()),
-               Self ! {live, {Marked =:= lists:sort([Main, Started]),
-                              Unmarked =:= lists:sort([Main, Own, Started])}},
+               Self ! {live, {Unmarked =:= lists:sort([Main, Own]),
+                              Marked =:= lists:sort([Main, Started])}},
                ern_rt:kill(Own),
                ern_rt:kill(Started)
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual({true, true}, wait(live)).
+
+%% report Appendix E.28, G.1, E.21: a load's evaluator that owns a table a
+%% binding made lives on, as the entry process lives through a program,
+%% `Process.status` knowing it not and `Process.live()` leaving it out, and
+%% the table ends with it; one whose binding made a table and closed it
+%% owns nothing and has ended once the load answers. A regression test,
+%% written after the code (the log's *Sites, Sessions and Their Names*):
+%% every evaluator lived on
+evaluator_owns_its_table_test() ->
+    Self = self(),
+    Units = [unit_calling('ern@zz_table_kept', kept_table),
+             unit_calling('ern@zz_table_closed', closed_table)],
+    try
+        ok = ern_rt:run_main(
+               fun() ->
+                   true = register(ern_rt_tests_main, erlang:self()),
+                   {evaluated, Kept} = ern_rt:evaluate(['ern@zz_table_kept'], <<"S.load:1">>),
+                   Table = receive {table, T} -> T end,
+                   Seen = {erlang:is_process_alive(Kept), ern_rt:status(Kept),
+                           lists:member(Kept, ern_rt:processes()), ets:info(Table, owner)},
+                   {evaluated, Closed} = ern_rt:evaluate(['ern@zz_table_closed'],
+                                                         <<"S.load:2">>),
+                   MonitorRef = erlang:monitor(process, Kept),
+                   ern_rt:kill(Kept),
+                   receive {'DOWN', MonitorRef, process, Kept, _} -> ok end,
+                   Self ! {owned, {Seen, Kept, erlang:is_process_alive(Closed),
+                                   ets:info(Table, owner)}}
+               end, <<"main">>, #{stdout => fun(_) -> ok end})
+    after
+        [begin code:purge(Unit), code:delete(Unit) end || Unit <- Units]
+    end,
+    {{Alive, Status, Listed, Owner}, Kept, ClosedAlive, After} = wait(owned),
+    ?assertEqual({true, 'None', false, Kept}, {Alive, Status, Listed, Owner}),
+    ?assertEqual({false, undefined}, {ClosedAlive, After}).
+
+%% A unit whose bindings call Function of this module, loaded.
+unit_calling(Unit, Function) ->
+    Forms = [{attribute, 1, module, Unit}, {attribute, 1, export, [{'$init', 0}]},
+             {function, 1, '$init', 0,
+              [{clause, 1, [], [], [{call, 1, {remote, 1, {atom, 1, ?MODULE}, {atom, 1, Function}},
+                                     []}]}]}],
+    {ok, Unit, Beam} = compile:forms(Forms),
+    {module, Unit} = code:load_binary(Unit, atom_to_list(Unit) ++ ".erl", Beam),
+    Unit.
+
+%% The bindings of evaluator_owns_its_table_test's units, which their
+%% evaluators run, each making a table as `Ets.new` makes one: the first
+%% keeps it, and tells the test's main process of it by its registered
+%% name, the second closes it.
+-spec kept_table() -> ok.
+kept_table() ->
+    Table = ern_rt:made_table(ets:new(ernest, [set, public])),
+    ern_rt_tests_main ! {table, Table},
+    ok.
+
+-spec closed_table() -> ok.
+closed_table() ->
+    true = ets:delete(ern_rt:made_table(ets:new(ernest, [set, public]))),
+    ok.
 
 %% report §8.6: a program's end ends every process the runtime started,
 %% one spawned as the program ends among them. A regression test: a spawn

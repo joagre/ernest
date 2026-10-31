@@ -3311,7 +3311,7 @@ attached_shell(Base) ->
     prints(Ops, "false : Bool"),
     true = port_command(ShellInput, ["let w : Address(Int) = spawn(fn() = receive { _ -> Unit })\n",
                                      ":processes\n"]),
-    prints(Ops, "input 11:1 receiving"),
+    prints(Ops, "$Session1.input 11:1 receiving"),
     prints(Ops, "Echo.main "),
     true = port_command(ShellInput, ":detach\n"),
     ?assertEqual(0, WaitShell()),
@@ -3322,7 +3322,7 @@ attached_shell(Base) ->
     %% report §11.2: what the session started stays the node's
     {SecondInput, WaitSecond} = attached(Ops, "node", Source),
     true = port_command(SecondInput, ":processes\n:detach\n"),
-    prints(Ops, "input 11:1 receiving"),
+    prints(Ops, "$Session1.input 11:1 receiving"),
     ?assertEqual(0, WaitSecond()),
     stop(Node, WaitNode),
     {NodeOut, _} = said(Node),
@@ -3682,25 +3682,32 @@ released(Dir, Shell) ->
 %% second offer at one session's type answers its holder.
 %%
 %% A `:load` at the first prompt is in the second session's scope at its
-%% next input. A `:reload` at the first moves the second's binding of the
-%% module's type to its previous version, `Greet$1.Msg`, at the second's
-%% next input, and names the first's own binding at the first prompt and
-%% no binding at the second. A fault of a process the first session
-%% started is said at both prompts and on the node's standard error, and
-%% `Process.live()` at either prompt leaves out both sessions' own
-%% processes: the bare node's entry process and the three that the
-%% sessions' inputs spawned and still run are all it holds.
+%% next input. A `:reload` at the first names the first's own binding at
+%% the first prompt, and is said at the second's, `Greet compiled again by
+%% session 1`, naming the second's binding of the module's type moved to
+%% its previous version, `Greet$1.Msg`. A fault of a process the first
+%% session started is said at both prompts and on the node's standard
+%% error, its site under the first session's namespace, `$Session1.input
+%% 9:1`, and `Process.live()` at either prompt leaves out both sessions' own
+%% processes and every evaluator: the bare node's entry process and the
+%% three that the sessions' inputs spawned and still run are all it holds.
 %%
 %% The first detaches, and a third session from its directory takes a
-%% number no session had: its offer of `ping` at its own `Ping` is taken
-%% beside the first session's, whose process runs on. The shells run in
-%% Base, their source root `src` there, and the node elsewhere, so that the
-%% load names the file from the operator's working directory, where its
-%% local half reads it; on one machine the test cannot show that the node
-%% never opens the file itself. Written after the code, a regression test:
-%% MVP 4.0's item 5
+%% number no session had, which its start line says, as each session's
+%% does, the first attached to a node `ern run` started being its 1: its
+%% offer of `ping` at its own `Ping` is taken beside the first session's,
+%% whose process runs on, and `:processes` lists no evaluator of the first
+%% session's load and reload, each having ended with its work.
+%%
+%% The shells run in Base, their source root `src` there, and the node
+%% elsewhere, so that the load names the file from the operator's working
+%% directory, where its local half reads it; on one machine the test cannot
+%% show that the node never opens the file itself. Written after the code,
+%% a regression test: MVP 4.0's item 5; the sites, the start line, the
+%% reload said and the evaluators' end a regression test of the release
+%% review's P1, P5 and N2 (the log's *Sites, Sessions and Their Names*)
 attached_sessions_test_() ->
-    nodes_test({waits, 20}, fun attached_sessions/1).
+    nodes_test({waits, 22}, fun attached_sessions/1).
 
 attached_sessions(Base) ->
     Source = filename:join(Base, "src"),
@@ -3716,10 +3723,13 @@ attached_sessions(Base) ->
     Offered = "> Right(Unit) : Either(Process, Unit)\n",
     Waiting = ": Address(Ping) = spawn(fn() = receive { _ -> Unit })",
     {First, _} = Attached = sessioned(Base, One),
+    prints(One, "Ernest " ++ ern_release:version_text() ++ ", session 1. :help for the commands,"
+           " :detach to leave.\n"),
     entered(First, One, ["fn f() : Int = 1", "type Ping = Ping(Int)", "let p" ++ Waiting,
                          "Peer.offer(Peer.service(\"ping\"), p)", "f()"], "> 1 : Int\n"),
     has(written(One, out), Offered),
     {Second, WaitSecond} = sessioned(Base, Two),
+    prints(Two, ", session 2. :help"),
     entered(Second, Two, ["fn f() : Int = 2", "type Ping = Ping(Int)", "let q" ++ Waiting,
                           "Peer.offer(Peer.service(\"ping\"), q)", "let r" ++ Waiting,
                           "Either.isRight(Peer.offer(Peer.service(\"ping\"), r))", "f()"],
@@ -3735,12 +3745,14 @@ attached_sessions(Base) ->
             "Greet.Msg changed: the binding n is of its previous version, Greet$1.Msg\n"),
     has(written(One, out), "> Greet, compiled again\n"),
     entered(Second, Two, ["m", "Greet.hello()"], "> \"hello, second\" : String\n"),
-    has(written(Two, out), "> Hello : Greet$1.Msg\n"),
+    has(written(Two, out), "Greet compiled again by session 1\nGreet.Msg changed: the binding m"
+        " is of its previous version, Greet$1.Msg\n"),
+    has(written(Two, out), "Hello : Greet$1.Msg\n"),
     %% report §11.2 *Faults*: the first session's tenth input faults the
     %% process its ninth spawned
     true = port_command(First, ["let w : Address(Int) = spawn(fn() = receive { n -> ",
                                 "Io.println(Int.toString(10 / n)) })\n", "send(w, 0)\n"]),
-    Faulted = "input 9:1 faulted: division by zero\n",
+    Faulted = "$Session1.input 9:1 faulted: division by zero\n",
     [fault_line(Input, Ops, Faulted) || {Input, Ops} <- [{First, One}, {Second, Two}]],
     says(Node, Faulted),
     %% report Appendix E.21: no session's own process is live at a prompt
@@ -3750,19 +3762,24 @@ attached_sessions(Base) ->
     ?assertEqual(nomatch, string:find(Out, "Shell.")),
     {Third, WaitThird} = sessioned(Base, One),
     entered(Third, One, ["type Ping = Ping(Int)", "let s" ++ Waiting,
-                         "Peer.offer(Peer.service(\"ping\"), s)", "List.size(Process.live())"],
+                         "Peer.offer(Peer.service(\"ping\"), s)", ":processes",
+                         "List.size(Process.live())"],
             "> 5 : Int\n"),
-    has(written(One, out), Offered),
+    ThirdOut = string:find(written(One, out), ", session 3. :help"),
+    has(ThirdOut, Offered),
+    has(ThirdOut, "$Session1.input 3:1 receiving\n"),
+    ?assertEqual(nomatch, string:find(ThirdOut, "Greet")),
     _ = detached({Third, WaitThird}, One),
     {SecondOut, _} = detached({Second, WaitSecond}, Two),
-    ?assertEqual(nomatch, string:find(SecondOut, "changed:")),
+    ?assertEqual(nomatch, string:find(SecondOut, "compiled again by session 2")),
     stop(Node, WaitNode).
 
 %% The module the sessions load: its type, Hello, Bye and the constructors
-%% More adds, and its function, which says hello to Whom.
+%% More adds, its function, which says hello to Whom, and a binding a load
+%% evaluates, which opens nothing.
 greet(Whom, More) ->
     ["export type Msg = Hello | Bye", More, "\n\nexport fn hello() : String = \"hello, ", Whom,
-     "\"\n"].
+     "\"\n\nlet started : Int = Clock.monotonic()\n"].
 
 %% A shell attached from the node of Ops to its listed peer `node`, in line
 %% mode, run in Base, its source root `src` there, relative, and its HOME a
@@ -3979,7 +3996,7 @@ attached_functions(Base) ->
     stop(Peer, WaitPeer),
     {NodeOut, NodeErr} = said(Node),
     ?assertEqual("ready\nserving squares\n", NodeOut),
-    has(NodeErr, "input 7:1 faulted, restarted: asked to crash"),
+    has(NodeErr, "$Session1.input 7:1 faulted, restarted: asked to crash"),
     ?assertEqual(nomatch, string:find(NodeErr, "undef")),
     %% report §11.2: the first session's units, before its detach and after
     Before = session_units(Out),
@@ -4437,6 +4454,49 @@ attached_terminal(Base) ->
                  {lists:nthtail(length(Trace), Under), Rows}),
     ?assertEqual(["> 1 + 2"], [Row || Row <- Rows, lists:prefix("> 1 +", Row)]),
     stop(Node, WaitNode).
+
+%% report §11.2 *The attached shell*, Appendix E.16: `Terminal.size` in a
+%% session reads its node's standard output. A session at a terminal of 24
+%% rows, attached to a node whose standard output is a file, answers
+%% `Left(NotATerminal)`; a session in line mode, attached to the same node
+%% started under a terminal of 30 rows and 100 columns, answers that size.
+%% A regression test of the release review's K8, written after the report
+%% said it (the log's *Sites, Sessions and Their Names*): the code read the
+%% node's standard output already
+attached_terminal_size_test_() ->
+    nodes_test({waits, 8}, fun attached_terminal_size/1).
+
+attached_terminal_size(Base) ->
+    Port = free_port(),
+    Node = made(Base, "node", Port),
+    Ops = made(Base, "ops", none),
+    lists(Node, [{"ops", Ops, none}]),
+    lists(Ops, [{"node", Node, Port}]),
+    Home = Ops ++ ".home",
+    ok = filelib:ensure_path(Home),
+    Shell = lists:flatten(["HOME=", Home, " ", ?ERN, " shell --config-dir ", Ops,
+                           " --attach node --source-root ", Base]),
+    {_, WaitNode} = launched(Node, [?ERN, " run --config-dir ", Node]),
+    says(Node, "listening on "),
+    {0, Screen} = ern_pty:run(Shell, [{expect, ":detach to leave."}, {expect, "> "},
+                                      {send, hex("Terminal.size()\r")},
+                                      {expect, "NotATerminal"},
+                                      {send, hex(":detach\r")}],
+                              " --screen --size 24x80"),
+    has(binary_to_list(Screen), "Left(NotATerminal) : Either(Io.Error, Terminal.Size)"),
+    stop(Node, WaitNode),
+    Pipe = filename:join(Base, "attach.pipe"),
+    [] = os:cmd("mkfifo " ++ Pipe),
+    Input = filename:join(Base, "size.in"),
+    Output = filename:join(Base, "size.out"),
+    ok = file:write_file(Input, "Terminal.size()\n:detach\n"),
+    Script = lists:flatten([?ERN, " run --config-dir ", Node, " & cat ", Pipe, " > /dev/null; ",
+                            Shell, " < ", Input, " > ", Output, " 2>&1; ",
+                            ?ERN, " stop --config-dir ", Node, "; wait"]),
+    {0, _} = ern_pty:run(Script, [{expect, "listening on "}, {put, Pipe}], " --size 30x100"),
+    {ok, Answered} = file:read_file(Output),
+    has(binary_to_list(Answered),
+        "Right(Size(rows = 30, columns = 100)) : Either(Io.Error, Terminal.Size)").
 
 %% A node's program whose worker faults once the named pipe it is given
 %% has been opened and closed, each run of `cat` waiting the harness's time
@@ -5059,43 +5119,57 @@ broken_exchange(Base) ->
     ern_deployment_tests:cataloged(ErrB, "4.3", "no longer holds the function's reach",
                                    [{"a", "z"}, {"Counter.main:19", "Lost.z:1"}]).
 
-%% report §11.2, §8.7, Appendix H: a service at a type the session declares
-%% names that type by its hash, as any service does, and the hash is the
-%% session's whatever input declares the type: two shells that are nodes
-%% declare one type at different inputs, the first at its first and the
-%% second at its second, after a declaration of its own, whose input keeps
-%% its module and so its namespace, and each offers a process as a service
-%% at it; each finds the other's and sends to it. A regression test, written
-%% after the code: the shell's test asserted the printed types alone. Then
-%% written again after the fix (the log's *MVP 3.1 Read*, for both): the
-%% type was hashed under its input's namespace, so the two shells held two
-%% types and a find answered `OtherType`
+%% report §11.2, §8.7, Appendix H: a service names its type by its hash, as
+%% any service does, a type the session declares among them, which is the
+%% session's whatever input declares it, and the session's namespace in
+%% its form carries the node's key. Two shells that are nodes each declare
+%% `T` at the prompt, the first at its first input and the second at its
+%% second, after a declaration of its own, and each offers a process as the
+%% service `p` at it: the two `T`s are two types, so each finds the other's
+%% `Left(OtherType)`. Each loads a module both load, as a program that wants
+%% two nodes to agree does, and offers a process as `t` at its type: each
+%% finds the other's and sends to it.
+%%
+%% A regression test, written after the code: the shell's test asserted the
+%% printed types alone. Then written again after the fix (the log's *MVP
+%% 3.1 Read*, for both): the type was hashed under its input's namespace, so
+%% the two shells held two types and a find answered `OtherType` where two
+%% sessions of one node's were meant. Then again for the node's key (the
+%% log's *Sites, Sessions and Their Names*): the two nodes' `T` were one
+%% type, the two sessions' namespaces one
 shell_service_test_() ->
     nodes_test({waits, 9}, fun shell_service/1).
 
 shell_service(Base) ->
     Root = filename:join(Base, "src"),
     ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "shared.ern"), "export type T = T(Int)\n"),
     [PortA, PortB] = [free_port(), free_port()],
     A = made(Base, "a", PortA),
     B = made(Base, "b", PortB),
     lists(A, [{"b", B, PortB}]),
     lists(B, [{"a", A, PortA}]),
-    edit(A, fun(Conf) -> Conf#{<<"services">> => #{<<"t">> => [<<"b">>]}} end),
-    edit(B, fun(Conf) -> Conf#{<<"services">> => #{<<"t">> => [<<"a">>]}} end),
-    Declared = "type T = T(Int)\nlet service : Peer.Service(T) = Peer.service(\"t\")\n",
+    [edit(Dir, fun(Conf) -> Conf#{<<"services">> => #{<<"t">> => [Peer], <<"p">> => [Peer]}} end)
+     || {Dir, Peer} <- [{A, <<"b">>}, {B, <<"a">>}]],
+    Declared = ["type T = T(Int)\n",
+                "let prompt : Peer.Service(T) = Peer.service(\"p\")\n",
+                "let waiting : Address(T) = spawn(fn() = receive { _ -> Unit })\n",
+                "Peer.offer(prompt, waiting)\n",
+                ":load Shared\n",
+                "let service : Peer.Service(Shared.T) = Peer.service(\"t\")\n"],
     Offered = fun(Node) ->
-                  ["let server : Address(T) = spawn(fn() : Unit receiving T =\n"
+                  ["let server : Address(Shared.T) = spawn(fn() : Unit receiving Shared.T =\n"
                    "    receive {\n"
-                   "        T(n) -> Io.println(\"", Node, " got \" <> Int.toString(n))\n"
+                   "        Shared.T(n) -> Io.println(\"", Node, " got \" <> Int.toString(n))\n"
                    "    })\n"
                    "Peer.offer(service, server)\n"
                    "Io.println(\"offered\")\n"]
               end,
     Found = fun(Count) ->
-                ["match Peer.find(service, ", wait_ms_text(), ") {\n"
+                ["Io.println(Io.show(Peer.find(prompt, ", wait_ms_text(), ")))\n",
+                 "match Peer.find(service, ", wait_ms_text(), ") {\n"
                  "    Right(server) -> {\n"
-                 "        send(server, T(", Count, "));\n"
+                 "        send(server, Shared.T(", Count, "));\n"
                  "        Io.println(\"found\")\n"
                  "    }\n"
                  "  | Left(failure) -> Io.println(Io.show(failure))\n"
@@ -5115,24 +5189,27 @@ shell_service(Base) ->
     ?assertEqual(0, WaitB()),
     true = port_command(InputA, ":quit\n"),
     ?assertEqual(0, WaitA()),
-    [?assertEqual(nomatch, string:find(Out, "OtherType")) || {Out, _} <- [said(A), said(B)]].
+    [has(Out, "Left(OtherType)\n") || {Out, _} <- [said(A), said(B)]].
 
-%% report §11.2, §8.7, Appendix H: what a `let` at the prompt binds has its
-%% value in the session, so a function typed at the prompt whose reach names
-%% it runs on a shell that is a node where a peer's spawn names it: two
-%% shells type one `let` and one function over it, the second after a `let`
-%% of its own, so that its binding is held by another of its holders, and
-%% the second spawns the function on the first, which runs it with its own
-%% value.
+%% report Appendix H, §11.2 *The attached shell*, §8.7: the form of a
+%% session's namespace carries its node's public key, so that two nodes'
+%% sessions of one number declare two names. `let below = Clock.now()` and
+%% a function over it, typed at the prompts of two shells that are nodes,
+%% each its node's session 1, are two bindings and two functions: a compute
+%% from b on a of a lambda that reads `below`, and one of b's function,
+%% answer `Left(NotLoaded)`, b's binding having no value on a, and a
+%% names it without the key, `$Session1.below`, on its screen, where a
+%% plain shell's node writes its lines; b's own function runs on b over
+%% b's value.
 %%
-%% A regression test, written before the fix: the module that holds what a
-%% `let` binds was never counted as evaluated, so the spawn was refused and
-%% the node said the binding had no value there, which was false. The `let`
-%% of its own a regression test too, written after the fix (the log's *MVP
-%% 3.1 Read*): a form named the binding under its holder, so the two shells
-%% held two functions and the spawn answered NotLoaded
+%% A regression test of the release review's C7 and S3, written after the
+%% code (the log's *Sites, Sessions and Their Names*): a's value was read,
+%% the two sessions' declarations being one identity. The test it replaces,
+%% written for the holder of what a `let` binds counted as evaluated so
+%% that a peer's spawn found it (the log's *MVP 3.1 Read*), named a binding
+%% of another node's session, which no peer can now
 shell_binding_spawned_test_() ->
-    nodes_test({waits, 6}, fun shell_binding_spawned/1).
+    nodes_test({waits, 7}, fun shell_binding_spawned/1).
 
 shell_binding_spawned(Base) ->
     Root = filename:join(Base, "src"),
@@ -5142,36 +5219,40 @@ shell_binding_spawned(Base) ->
     B = made(Base, "b", none),
     lists(A, [{"b", B, none}]),
     lists(B, [{"a", A, PortA}]),
-    Typed = "let x = 5\nfn f() : Unit = Io.println(\"x is \" <> Int.toString(x))\n",
+    Typed = "let below = Clock.now()\nfn later() : Int = below + 1\n",
     {InputA, WaitA} = shell_started(A, Root),
     true = port_command(InputA, [Typed, "Io.println(\"typed\")\n"]),
     prints(A, "typed"),
     {InputB, WaitB} = shell_started(B, Root),
-    Spawned = ["match Peer.spawn(\"a\", f, ", wait_ms_text(), ") {\n"
-               "    Right(_) -> Io.println(\"spawned\")\n"
-               "  | Left(failure) -> Io.println(Io.show(failure))\n"
-               "}\n"],
-    true = port_command(InputB, ["let other = 1\n", Typed, Spawned]),
-    prints(B, "spawned"),
-    prints(A, "x is 5"),
+    Limit = wait_ms_text(),
+    true = port_command(InputB, [Typed, "Peer.computeAt(\"a\", fn() = below + 1, ", Limit, ")\n",
+                                 "Peer.computeAt(\"a\", later, ", Limit, ")\n",
+                                 "later() == below + 1\n"]),
+    prints(B, "Left(NotLoaded) : Either(Io.Error, Int)", 2, ?WAIT_MS),
+    prints(B, "true : Bool"),
+    prints(A, "the binding $Session1.below has no value here"),
     true = port_command(InputB, ":quit\n"),
     ?assertEqual(0, WaitB()),
     true = port_command(InputA, ":quit\n"),
     ?assertEqual(0, WaitA()),
-    {OutA, _} = said(A),
-    ?assertEqual(nomatch, string:find(OutA, "has no value here")).
+    {OutA, ErrA} = said(A),
+    ?assertEqual(nomatch, string:find(OutA ++ ErrA, "$Session1@")).
 
 %% report §11.2, §8.7, Appendix E.27: a shell that is a node computes on a
-%% peer as a program does: a function declared at its prompt has a hash, and
-%% the peer, a shell that declared one of that hash, runs it and answers its
-%% value, which the shell prints at its type; a lambda typed at the prompt,
-%% and a function declared at the desk's prompt alone, held by no peer,
-%% cross with the compute, the desk answering the reach from the forms it
-%% keeps beside the input's code and sending them, and the peer, having
-%% verified them, compiles and runs them, answering their values (MVP 3.2's
-%% items 3 and 4); a type the desk declares crosses with a function spawned
-%% on the worker, whose check's cause names it as the session writes it,
-%% bare (§11.5). A regression test, written after the code
+%% peer as a program does: a function declared at its prompt has a hash,
+%% which the peer, a shell whose session declared a function of the same
+%% text, does not hold, since the form of each session's namespace carries
+%% its node's key (Appendix H), so it crosses with the compute; so do a
+%% lambda typed at the prompt and a function declared at the desk's prompt
+%% alone, the desk answering the reach from the forms it keeps beside the
+%% input's code and sending them, and the peer, having verified them,
+%% compiles and runs them, answering their values, which the shell prints
+%% at their type (MVP 3.2's items 3 and 4).
+%%
+%% A type the desk declares crosses with a function spawned on the worker,
+%% whose check's cause names it as the session writes it, bare (§11.5), and
+%% the fault's site carries the desk's session, its key left out. A
+%% regression test, written after the code
 shell_compute_test_() ->
     nodes_test({waits, 9}, fun shell_compute/1).
 
@@ -5206,43 +5287,48 @@ shell_compute(Base) ->
     prints(Desk, ?SPAWNED),
     prints(Worker, "counting"),
     fault_line(InputWorker, Worker,
-               "input 9:1 faulted: the return of foreign function erlang:yield/0 does not"
-               " match Count, spawned by the peer desk"),
+               "$Session1.input 9:1 faulted: the return of foreign function erlang:yield/0"
+               " does not match Count, spawned by the peer desk"),
     true = port_command(InputDesk, ":quit\n"),
     ?assertEqual(0, WaitDesk()),
     true = port_command(InputWorker, ":quit\n"),
     ?assertEqual(0, WaitWorker()),
     {OutWorker, _} = said(Worker),
     ?assertEqual(nomatch, string:find(OutWorker, "was not loaded")),
-    ?assertEqual(nomatch, string:find(OutWorker, "$Session")).
+    ?assertEqual(nomatch, string:find(OutWorker, "$Session1.Count")),
+    ?assertEqual(nomatch, string:find(OutWorker, "$Session1@")).
 
 %% report §11.2, §6.5, §8.7: an input that builds a function value keeps its
 %% code while the session runs, since the function may be held anywhere: a
 %% shell that is a node offers as a service an adapted address made at the
 %% prompt, whose function the input built and the runtime's offers hold, and
-%% a peer's message reaches the service through it after many inputs more. A
-%% regression test, written after the fix (the log's *MVP 3.1 Read*): the
-%% input's module was let go once its answer was in, and the message's
-%% delivery faulted with the host's `undef`
+%% a peer's message, of a type of a module both load, reaches the service
+%% through it after many inputs more. A regression test, written after the
+%% fix (the log's *MVP 3.1 Read*): the input's module was let go once its
+%% answer was in, and the message's delivery faulted with the host's
+%% `undef`; the type a module's since two nodes' sessions declare two (the
+%% log's *Sites, Sessions and Their Names*)
 shell_offered_adapted_test_() ->
     nodes_test({waits, 6}, fun shell_offered_adapted/1).
 
 shell_offered_adapted(Base) ->
     Root = filename:join(Base, "src"),
     ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "shared.ern"), "export type T = T(Int)\n"),
     PortA = free_port(),
     A = made(Base, "a", PortA),
     B = made(Base, "b", none),
     lists(A, [{"b", B, none}]),
     lists(B, [{"a", A, PortA}]),
     edit(B, fun(Conf) -> Conf#{<<"services">> => #{<<"t">> => [<<"a">>]}} end),
-    Declared = "type T = T(Int)\nlet service : Peer.Service(T) = Peer.service(\"t\")\n",
+    Declared = ":load Shared\nlet service : Peer.Service(Shared.T) = Peer.service(\"t\")\n",
     {InputA, WaitA} = shell_started(A, Root),
     true = port_command(InputA,
                         [Declared,
                          "let store : Address(Int) = spawn(fn() : Unit receiving Int =\n"
                          "    receive { n -> Io.println(\"a got \" <> Int.toString(n)) })\n",
-                         "Peer.offer(service, adapted(store, fn(t) = match t { T(n) -> n }))\n",
+                         "Peer.offer(service,"
+                         " adapted(store, fn(t) = match t { Shared.T(n) -> n }))\n",
                          [["1 + ", integer_to_list(Index), "\n"] || Index <- lists:seq(1, 30)],
                          "Io.println(\"offered\")\n"]),
     prints(A, "offered"),
@@ -5250,7 +5336,7 @@ shell_offered_adapted(Base) ->
     true = port_command(InputB, [Declared,
                                  "match Peer.find(service, ", wait_ms_text(), ") {\n"
                                  "    Right(server) -> {\n"
-                                 "        send(server, T(5));\n"
+                                 "        send(server, Shared.T(5));\n"
                                  "        Io.println(\"found\")\n"
                                  "    }\n"
                                  "  | Left(failure) -> Io.println(Io.show(failure))\n"

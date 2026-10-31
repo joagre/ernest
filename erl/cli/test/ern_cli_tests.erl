@@ -767,7 +767,7 @@ input_type_closed_as_a_top_level_let_test() ->
     %% report §11.2: a session's front end runs in a launch, its own screen
     %% the session's, and no local half, whose source root is none
     Main = fun() ->
-               Session = ern_shell:start(undefined, self(), <<".">>, <<".">>, false),
+               Session = ern_shell:start(undefined, self(), <<".">>, <<".">>, false, self()),
                Type = fun(Input) ->
                               case ern_shell:check(Session, {'Prompt', 1}, Input) of
                                   {'Right', {_, Checked}} -> ern_shell:type_text(Checked);
@@ -806,7 +806,7 @@ input_checked_against_the_prelude_built_once_test() ->
     ern_shell:loaded(#loaded{}),
     Self = self(),
     Main = fun() ->
-               Session = ern_shell:start(undefined, self(), <<".">>, <<".">>, false),
+               Session = ern_shell:start(undefined, self(), <<".">>, <<".">>, false, self()),
                Prelude = {ern_typecheck, prelude_env, 0},
                1 = erlang:trace_pattern(Prelude, true, [call_count]),
                Answers = [element(1, ern_shell:check(Session, {'Prompt', Count}, <<"1">>))

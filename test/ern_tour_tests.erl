@@ -136,7 +136,7 @@ readme(Base) ->
         readme_console(),
     {ok, Version} = file:read_file("../VERSION"),
     ?assertEqual(<<"Ernest ", (string:trim(Version))/binary,
-                   ". :help for the commands, :quit to leave.">>, Start),
+                   ", session 1. :help for the commands, :quit to leave.">>, Start),
     [PortA, PortFoo] = [ern_nodes_tests:free_port() || _ <- [a, foo]],
     [AddressA, AddressFoo] = [ern_nodes_tests:address(Port) || Port <- [PortA, PortFoo]],
     [A, Foo] = [filename:join(Base, Name) || Name <- ["a", "foo"]],
@@ -326,7 +326,7 @@ fault(#tour{shell = Shell} = Tour) ->
          {"let counter = spawn(fn() = Counter.count(0))",
           ["counter : Address(Counter.CounterMsg)"]},
          {"Counter.apply(counter, \"inc -1\")", [?SENT],
-          [["input 11:1 faulted: a negative amount", Trace]]},
+          [["$Session1.input 11:1 faulted: a negative amount", Trace]]},
          {"Counter.apply(counter, \"get\")", ["\"no answer\" : String"]},
          {"let counter = spawn(restarting(RestartLimit(restarts = 1, within = 60000),"
           " fn() = Counter.count(0)))",
@@ -335,10 +335,10 @@ fault(#tour{shell = Shell} = Tour) ->
           ["watcher : Address(Counter.WatchMsg)"]},
          {"Counter.apply(counter, \"inc 2\")", [?SENT]},
          {"Counter.apply(counter, \"inc -1\")", [?SENT],
-          [["input 14:1 faulted, restarted: a negative amount", Trace]]},
+          [["$Session1.input 14:1 faulted, restarted: a negative amount", Trace]]},
          {"Counter.apply(counter, \"get\")", ["\"0\" : String"]},
          {"Counter.apply(counter, \"inc -1\")", [?SENT],
-          [["input 14:1 faulted: a negative amount", Trace],
+          [["$Session1.input 14:1 faulted: a negative amount", Trace],
            ["the counter ended: Fault(\"a negative amount\")"]]}])}.
 
 %% Chapter 5: `ern build .` compiles both modules and says nothing, and
@@ -564,7 +564,7 @@ started(Base, Dir, Options, Said, Leave) ->
     ern_nodes_tests:prints(Dir, "> "),
     Started = written(Dir),
     Start = iolist_to_binary(["Ernest ", ern_release:version_text(),
-                              ". :help for the commands, ", Leave, " to leave.\n> "]),
+                              ", session 1. :help for the commands, ", Leave, " to leave.\n> "]),
     Before = byte_size(Started) - byte_size(Start),
     ?assertEqual({Said, Start}, {stamped(binary:part(Started, 0, Before)),
                                  binary:part(Started, Before, byte_size(Start))}),

@@ -35,7 +35,7 @@ What each process holds, and how the session orders and queues its work, is the 
 
 - `keysHeld` has the local half record itself as the terminal's holder (`holdTerminal`) and subscribe to the keys where standard output has a size, and line mode is chosen where there is no size or the subscription is refused. In line mode the local half's reader of lines records itself as the holder instead.
 - The local half reads the startup files and the history, and gives the session what it read, a `Desk`: by `Begun` in a plain shell, and in an attached one in its spawn of `attached` on the peer.
-- The session spawns its screen and, at a terminal, its reader (`keysRead`), and tells the local half the address its keys go to and the screen's process, which its node's own output goes to, `Attached`, a call; the local half binds its node's sinks to the screen (`setNodeScreen`). Then the session says the greeting, which names the version, `:help`, and `:quit` or `:detach`. It does so in either mode.
+- The session spawns its screen and, at a terminal, its reader (`keysRead`), and tells the local half the address its keys go to and the screen's process, which its node's own output goes to, `Attached`, a call; the local half binds its node's sinks to the screen (`setNodeScreen`). Then the session says the greeting, which names the version, the session's number on its node (`number`), `:help`, and `:quit` or `:detach`. It does so in either mode.
 - `prompt` writes every `> `, after draining the screen: at a terminal `main` calls it after the startup files, `taking` after each input and `keyLoop` after `C-c`; in line mode `lineLoop` calls it before each line, and `moreLines` writes `... ` itself.
 
 At a terminal `leave` ends the session: `reportRemaining` writes the faults reported until then, and `finish` takes the region away. In line mode `leaveLines` ends it, since the end of input and `:quit` come at a prompt whose line no input ended: it ends that line, and then `reportRemaining` writes the faults. A startup file's `:quit` comes before any prompt, and `leave` ends the session then, in either mode. An attached session then `detached`: the front end's `detach` ends its reader and its screen and leaves what it started to the node, and the root of its chain, `attached`, calls the same `detach` where the session ended by a fault; the local half's `sessionEnded` ends the screen where it last drew, but after a detach, names no screen for its node from then on (`setNodeScreen`), and gives the runner its line and status (`endWith`).
@@ -52,9 +52,9 @@ At a terminal:
 6. `say` sends the screen `Said`, and the screen writes the bytes `Shell.Region.said` gives back.
 7. `taking` calls `prompt`, which drains the screen with a `Flush` call and writes the next `> ` (the design note's *Ordering*).
 
-An input typed while another runs waits in the session's mailbox, and `C-c` kills the run (the design note's *Queueing*).
+An input typed while another runs waits in the session's mailbox, and `C-c` kills the run (the design note's *Queueing*). A reload by another session arrives as `Reloaded`, which `keyLoop` takes as it takes a fault report: `reloadSaid` has the front end name what the reload moved (`reloadedBy`) and sends the lines to the screen as `Noted` (the design note's *A reload said*).
 
-In line mode `lineLoop` takes the place of steps 1 to 3. It says the fault reports that waited (`reportPending`), writes the prompt, asks the local half for a line (`nextLine`), and says the reports that came while it waited. `takingLine` then passes the line, with the lines after it that `moreLines` takes while the parser cannot finish the input, to `submit` (the design note's *Line mode*).
+In line mode `lineLoop` takes the place of steps 1 to 3. It says the fault reports and the reloads that waited (`reportPending`), writes the prompt, asks the local half for a line (`nextLine`), and says the reports that came while it waited. `takingLine` then passes the line, with the lines after it that `moreLines` takes while the parser cannot finish the input, to `submit` (the design note's *Line mode*).
 
 ## The modules
 

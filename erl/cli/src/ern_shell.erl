@@ -16,8 +16,9 @@
 %% The shape is docs/design/shell.md's.
 -module(ern_shell).
 
--export([loaded/1, start/5, spawn_program/0, config_startup/0, given_source_root/0, attach_to/0,
-         end_with/2, ending/0, is_same_file/2, needs_more/1, opening/1, check/3, check_type/3,
+-export([loaded/1, start/6, number/1, reloaded_by/3, spawn_program/0, config_startup/0,
+         given_source_root/0, attach_to/0, end_with/2, ending/0, is_same_file/2, needs_more/1,
+         opening/1, check/3, check_type/3,
          is_unit/1, type_text/1, spawn_input/4, show/3, bindings/1, slot/1, names/0,
          session_names/0, session_texts/0, source_root/0, segment/1, component/1, forget/2,
          browse/2, doc/2,
@@ -29,6 +30,7 @@
 -include_lib("checker/include/ern_types.hrl").
 -include_lib("shared/include/ern_diagnostic.hrl").
 -include_lib("cli/include/ern_build.hrl").
+-include_lib("cli/include/ern_node.hrl").
 -include_lib("runtime/include/ern_rt.hrl").
 -include_lib("kernel/include/file.hrl").
 
@@ -61,7 +63,8 @@
 %% root, the interfaces of the modules behind the session, and the scope
 %% those modules make (report §11.2), which the checker takes as its fourth
 %% argument.
--record(session, {number = 1, load_path = [], source_root = ".", last_input = 0,
+-record(session, {number = 1, namespace = ['$Session1'], load_path = [], source_root = ".",
+                  last_input = 0, moved = [],
                   last_holder = 0, free = [], interfaces = [],
                   scope = #{}, beams = #{}, source_hashes = #{}, source_expected = #{},
                   units = #{}, versions = #{}, previous = [],
@@ -69,7 +72,11 @@
                   env = none, input_names = #{}}).
 %% number: the session's number on its node, given once in the node's life,
 %% which its namespace and every host name its inputs make carry (report
-%% §11.2, Appendix H)
+%% §11.2, Appendix H); namespace: the session's namespace in the forms,
+%% which carries the node's key where the program is a node
+%% (session_namespace/1); moved: the lines that name the session's bindings
+%% another session's reload moved to a previous version, said with that
+%% reload's line (reloaded_by/3)
 %% local: the address of the shell's local half, which holds the terminal
 %% and the operator's files (report §11.2); working_directory: the local
 %% half's, which a file of the source root is named from (§11.5); attached:
@@ -250,12 +257,13 @@ prelude() ->
 %% which a reload compiles it again from (input_text/2), each input's
 %% printed name, the modules whose `:load` was refused (refusal_kept/2),
 %% the processes of the inputs that bound what the scope still names
-%% (binders/0), the session's own processes and the input that runs
-%% (own/1), and the evaluators of its loads (evaluating/1). The node's rows
+%% (binders/0), and the session's own processes and the input that runs
+%% (own/1). The node's rows
 %% are the number the next session is given, the node's modules
-%% (node_modules/0), each input unit's name, which its spawn sites read
-%% for as long as the unit lives, a session's end among it (input_site/2),
-%% and what detached sessions left (collect_detached/0).
+%% (node_modules/0), each session's address by its root, which another's
+%% reload is said at (reload_said/2), each input unit's name, which its spawn
+%% sites read for as long as the unit lives, a session's end among it
+%% (input_site/2), and what detached sessions left (collect_detached/0).
 %%
 %% The table is made at its first need by a process of its own that holds
 %% it for the host's life, since sessions come and go on a node.
@@ -335,24 +343,48 @@ session_root() ->
 %% name a declaration under its input's namespace, and a binding's value is
 %% kept under its holder's. No `.erc` holds a session type, which only an
 %% input's unit, compiled in memory, declares.
-session_namespace(#session{number = Number}) ->
+session_namespace(#session{namespace = Namespace}) ->
+    Namespace.
+
+%% Report Appendix H: the session's namespace as its form holds it, made as
+%% the session starts: where the program is a node (§8.2), its atom
+%% carries the node's public key after the number, `$Session3@` and the
+%% base64 of the key's PEM, as `ern config` prints it (§12.5), so that two
+%% nodes' sessions of one number declare two names; a printed name leaves
+%% the key out (ern_namespace:segment_text/1).
+form_namespace(Number) ->
+    Name = "$Session" ++ integer_to_list(Number),
+    case ern_carrier:is_node() of
+        true ->
+            #configuration{public_key = PublicKey} = ern_carrier:configuration(),
+            [list_to_atom(Name ++ "@" ++ base64:encode_to_string(ern_node:public_pem(PublicKey)))];
+        false ->
+            [list_to_atom(Name)]
+    end.
+
+%% Report §11.2 *Faults*: the session's namespace as a name prints it, which
+%% its spawn sites carry, `$Session3`, the node's key left out.
+printed_namespace(#session{number = Number}) ->
     [list_to_atom("$Session" ++ integer_to_list(Number))].
 
 %% Report §11.2: a session of its node, given the node's next number: its
 %% local half's address, which holds the terminal and the operator's files;
 %% its screen's process, which what its processes write to standard output
 %% and standard error goes to (§12.1); the operator's source root and
-%% working directory; and whether it is attached to the node from another.
+%% working directory; whether it is attached to the node from another; and
+%% its own address, which another session's reload is said at (reload_said/2).
 %% Its screen's row is written for the root of its processes, so that a
 %% process it starts, directly or through one it started, writes there, and
 %% its load path and modules are the node's.
--spec start(term(), pid(), binary(), binary(), boolean()) -> #session{}.
-start(Local, Screen, SourceRoot, WorkingDirectory, Attached) ->
+-spec start(term(), pid(), binary(), binary(), boolean(), ern_rt:address()) -> #session{}.
+start(Local, Screen, SourceRoot, WorkingDirectory, Attached, Shell) ->
     table(),
     collect_detached(),
     Number = ets:update_counter(?MODULE, next_session, 1, {next_session, 0}),
     'Unit' = ern_rt:screen(session_root(), sink(Screen)),
     keep(screen, Screen),
+    Root = session_root(),
+    node_locked(fun() -> node_keep(sessions, (node_kept(sessions, #{}))#{Root => Shell}) end),
     LoadPath = case persistent_term:get({?MODULE, loaded}, none) of
                    #loaded{load_path = Given} -> Given;
                    none -> ern_cli:load_path()
@@ -360,11 +392,32 @@ start(Local, Screen, SourceRoot, WorkingDirectory, Attached) ->
     %% built as the host's first session starts, so that its first input
     %% does not wait for it
     prelude(),
-    keep_session(synced(#session{number = Number, load_path = LoadPath,
+    keep_session(synced(#session{number = Number, namespace = form_namespace(Number),
+                                 load_path = LoadPath,
                                  source_root = unicode:characters_to_list(SourceRoot),
                                  local = Local, working_directory =
                                      unicode:characters_to_list(WorkingDirectory),
                                  attached = Attached})).
+
+%% Report §11.2 *Startup and history*: the number the session's on its
+%% node, which the shell's greeting says.
+-spec number(#session{}) -> pos_integer().
+number(#session{number = Number}) ->
+    Number.
+
+%% Report §11.2 *The attached shell*: what the session says of a reload by
+%% the session numbered By, which compiled Modules again: a line for each,
+%% `Counter compiled again by session 3`, and each of the session's
+%% bindings whose type the reload moved to a previous version named as the
+%% session's own reload names it, once the session has taken the node's
+%% modules as they stand, the moves of an input checked meanwhile among
+%% what it names (synced/1).
+-spec reloaded_by(#session{}, pos_integer(), [binary()]) -> {#session{}, [binary()]}.
+reloaded_by(Session, By, Modules) ->
+    #session{moved = Moved} = Synced = synced(Session),
+    Lines = [<<Module/binary, " compiled again by session ", (integer_to_binary(By))/binary>>
+             || Module <- Modules] ++ Moved,
+    {keep_session(Synced#session{moved = []}), Lines}.
 
 %% Report §12.1, §11.2: what the session's processes write to standard
 %% output and standard error, sent to its screen as it comes, the bytes as
@@ -460,9 +513,11 @@ synced_with(#session{versions = Versions} = Session,
             Viewed;
         _ ->
             %% the versions as the session saw them, which the moves count
-            %% from, and then the node's
-            {Moved, _} = versioned(Session, Viewed#session{versions = Versions}, Reloaded),
-            Moved#session{versions = Viewed#session.versions}
+            %% from, and then the node's; the bindings moved are named once
+            %% the reload is said (reloaded_by/3)
+            {Moved, Previous} = versioned(Session, Viewed#session{versions = Versions}, Reloaded),
+            Moved#session{versions = Viewed#session.versions,
+                          moved = Session#session.moved ++ previous_lines(Moved, Previous)}
     end.
 
 %% Report §11.2: the node's modules as the session's load or reload left
@@ -933,7 +988,7 @@ check_module(#session{scope = Scope} = Given, Namespace, InputOrigin, Input, Dec
                     Checked = #checked{namespace = Namespace, typed = Typed,
                                        declarations = Declarations, interface = Interface,
                                        env = Env, type = Type, binds = Binds1,
-                                       site = site(InputOrigin), text = Input,
+                                       site = site(Session, InputOrigin), text = Input,
                                        origin = InputOrigin},
                     {'Right', {Session, Checked}};
                 {refused, Diagnostic} ->
@@ -1050,10 +1105,17 @@ generalized({lambda, Name}, Typed, Env) ->
 generalized(Binds, _Typed, _Env) ->
     Binds.
 
-%% Report §11.2: the name and the line offset a spawn site in the input is
-%% written with, as its diagnostics name and count it.
-site({typed, Name}) -> {Name, 0};
-site(#startup_input{file = File, line = Line}) -> {File, Line - 1}.
+%% Report §11.2 *Faults*: the name and the line offset a spawn site in the
+%% input is written with: the session's namespace as it prints and the
+%% file the input's diagnostics name, `$Session2.input 3` or the startup
+%% file's, and the lines as they count them.
+site(Session, {typed, Name}) ->
+    {site_name(Session, Name), 0};
+site(Session, #startup_input{file = File, line = Line}) ->
+    {site_name(Session, ern_build:shown(binary_to_list(File))), Line - 1}.
+
+site_name(Session, File) ->
+    unicode:characters_to_binary([ern_namespace:text(printed_namespace(Session)), ".", File]).
 
 %% Report §11.2: an input is compiled and run on its own, so what it
 %% binds must have a type by the time it runs; a later input cannot
@@ -1201,6 +1263,7 @@ spawn_input(Session, #checked{namespace = Namespace, typed = Typed, interface = 
     Build = (build_holding(Plan, Namespace))#{source_hash => <<>>, deps => [],
                                               session_offset => Offset,
                                               form_namespace => session_namespace(Session),
+                                              site_namespace => printed_namespace(Session),
                                               units => Session#session.units,
                                               input_name => InputName},
     {ok, ErlangModule, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
@@ -2870,10 +2933,33 @@ nodes_load(Session, Load) ->
     node_load(Session,
               fun(Synced) ->
                   case ern_build:read_through(source_access(Synced), fun() -> Load(Synced) end) of
-                      {'Right', {Loaded, Answer}} -> {'Right', {published(Loaded), Answer}};
-                      Refused -> Refused
+                      {'Right', {Loaded, Answer}} ->
+                          Published = published(Loaded),
+                          reload_said(Synced, Published),
+                          {'Right', {Published, Answer}};
+                      Refused ->
+                          Refused
                   end
               end).
+
+%% Report §11.2 *The attached shell*: a reload by any session is said at
+%% every other session's prompt, as a fault is: each module whose version
+%% the load moved, by its name, with this session's number, sent to every
+%% other session of the node by the address it started with (start/6),
+%% once the node's modules are published, so that what it moved is there
+%% to read (reloaded_by/3).
+reload_said(#session{versions = Before}, #session{number = Number, versions = After}) ->
+    case lists:sort([unicode:characters_to_binary(ern_namespace:text(Namespace))
+                     || Namespace := Version <- After, not is_session_namespace(Namespace),
+                        maps:get(Namespace, Before, 1) =/= Version]) of
+        [] ->
+            ok;
+        Reloaded ->
+            Root = session_root(),
+            _ = [ern_rt:send(Shell, {'Reloaded', Number, Reloaded})
+                 || Other := Shell <- node_kept(sessions, #{}), Other =/= Root],
+            ok
+    end.
 
 load_named(#session{source_hashes = SourceHashes} = Session, Text) ->
     case module_name(Session, Text) of
@@ -3036,9 +3122,8 @@ held_interfaces(Namespace, Interfaces) ->
 installed(Session, All, Answer) ->
     Session1 = install(Session, All),
     case initialize(in_order(All)) of
-        {ok, Evaluators} ->
+        {ok, _} ->
             initialized(All),
-            evaluating(Evaluators),
             {'Right', {keep_session(Session1), Answer}};
         {fault, _, Site, How, _, Evaluators} ->
             Killed = withdraw(All, Evaluators),
@@ -3125,16 +3210,6 @@ evaluate(#compiled{unit = Unit} = Compiled, Rest, Evaluators) ->
         {ended, Evaluator, Site, How} ->
             {fault, Compiled, Site, How, Rest, lists:reverse([Evaluator | Evaluators])}
     end.
-
-%% Report §11.2, Appendix E.21: the evaluators a load or a reload evaluated
-%% bindings in that live on, which Process.live() leaves out, each the
-%% session's to leave to the node as it detaches (detach/0); one that ended,
-%% its binding faulted, has had its row of the session's screen dropped
-%% (ern_rt:evaluate/2).
-evaluating(Evaluators) ->
-    keep(evaluators, [Evaluator || Evaluator <- Evaluators, erlang:is_process_alive(Evaluator)]
-         ++ kept(evaluators, [])),
-    ok.
 
 %% Report §8.7: the units whose bindings a load evaluated, so that a peer's
 %% spawn finds their values, as it finds a run's.
@@ -3425,8 +3500,7 @@ reloaded(#session{source_hashes = Loaded} = Session, Needed, Compiled, Sourceles
     Session1 = install(Session, All),
     IsFirst = fun(#compiled{namespace = Namespace}) -> not is_map_key(Namespace, Loaded) end,
     case initialize(in_order(All)) of
-        {ok, Evaluators} ->
-            evaluating(Evaluators),
+        {ok, _} ->
             reload_done(Session, Session1, {All, Compiled}, [], SourcelessLines);
         {fault, Faulted, Site, How, Rest, Evaluators} ->
             case lists:any(IsFirst, [Faulted | Rest]) of
@@ -3434,7 +3508,6 @@ reloaded(#session{source_hashes = Loaded} = Session, Needed, Compiled, Sourceles
                     lists:foreach(fun(Kept) -> kept_values(Session, Kept) end, [Faulted | Rest]),
                     %% the bindings before the fault keep their values, and
                     %% their processes live on
-                    evaluating(Evaluators),
                     reload_done(Session, Session1, {All, Compiled},
                                 [kept_values_line(Site, How)], SourcelessLines);
                 true ->
@@ -3952,9 +4025,10 @@ gone(Namespace, Origin, Why, {Session, Changed, Lines, Previous}) ->
 new_version(#session{interfaces = Interfaces, beams = Beams, units = Units} = Session, Namespace,
             Unit, #input_text{origin = Origin, printed_name = PrintedName},
             {Typed, Interface, Env}) ->
-    {InputName, Offset} = Site = site(Origin),
+    {InputName, Offset} = Site = site(Session, Origin),
     Build = #{source_hash => <<>>, deps => [], session_offset => Offset,
-              form_namespace => session_namespace(Session), units => Units#{Namespace => Unit},
+              form_namespace => session_namespace(Session),
+              site_namespace => printed_namespace(Session), units => Units#{Namespace => Unit},
               input_name => InputName},
     {ok, Unit, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
     {ok, #{interface := #interface{identities = Identities} = Compiled} = Chunk} =
@@ -4843,16 +4917,19 @@ own(Processes) ->
 %%
 %% The session's own processes are ended, its screen, its reader and an
 %% input that runs, but the calling process; each input that bound a name
-%% is let go; the evaluators of its loads, and with them what they started
-%% and every process an input spawned, left to the node, no longer the session's
-%% own, and writing to the node's standard output and standard error from
-%% then on, the rows of the session's screen dropped. Its units that
-%% declare a function or build a function value are kept for the node's
-%% life, with what they need (kept_for_life/1); and the rest let go as an
-%% input's is, but one a process still runs, kept while it does
-%% (released/4), under the node's lock, since every session's collection
-%% reads what it leaves (collect_detached/0). Its rows go with it, so that
-%% a second detach finds nothing to do.
+%% is let go; the evaluators of its loads that live on, and what they and
+%% the evaluators that ended started, and every process an input spawned,
+%% are left to the node, writing to the node's standard output and
+%% standard error from then on, the rows of the session's screen dropped,
+%% each evaluator's among them.
+%%
+%% Its units that declare a function or build a function value are kept
+%% for the node's life, with what they need (kept_for_life/1); and the rest
+%% let go as an input's is, but one a process still runs, kept while it
+%% does (released/4), under the node's lock, since every session's
+%% collection reads what it leaves (collect_detached/0), and its address
+%% leaves the node's, so that no reload is said to it (reload_said/2). Its
+%% rows go with it, so that a second detach finds nothing to do.
 -spec detach() -> 'Unit'.
 detach() ->
     Root = session_root(),
@@ -4861,11 +4938,11 @@ detach() ->
     [ern_rt:killed(Pid, {ern, killed}) || Pid <- [kept(input, none) | kept(own, [])],
                                           is_pid(Pid), Pid =/= self(), Pid =/= Root,
                                           not lists:member(Pid, Binders)],
-    'Unit' = ern_rt:disown(kept(evaluators, [])),
     'Unit' = ern_rt:drop_screens(sink(kept(screen, none))),
     Units = units(),
     Uses = maps:without(maps:keys(kept_for_life(Units)), Units),
     node_locked(fun() ->
+                    node_keep(sessions, maps:remove(Root, node_kept(sessions, #{}))),
                     case released(in_users_order(Uses), Uses, #{}, []) of
                         [] -> ok;
                         Remaining ->
@@ -4955,7 +5032,8 @@ released_detached() ->
     ok.
 
 %% Report §6.9, §11.2: the site of a spawn an input's expression makes, the
-%% input's name as its diagnostics give it, `input 3`, and the line. The
+%% input's name, the session's namespace and the file its diagnostics name,
+%% `$Session2.input 3`, and the line. The
 %% name is kept beside the module's uses and goes with them, since the
 %% module's number is given to a later input once it is purged. It is a
 %% row of its own, since every spawn of the input reads it, and the node's,

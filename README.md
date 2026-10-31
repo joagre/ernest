@@ -17,7 +17,7 @@ Ernest is a small functional language for concurrent programs, on the Erlang run
 ```console
 $ ern shell --config-dir a
 listening on 0.0.0.0:8654
-Ernest 0.6.0. :help for the commands, :quit to leave.
+Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
 > :load Counter
 Counter, compiled from counter.ern
 > let far <- Peer.spawn("foo", fn() = Counter.count(0), 5000)

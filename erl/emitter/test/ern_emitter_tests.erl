@@ -785,8 +785,10 @@ shim_fault_keeps_line_test() ->
 %% writes it, and the module's bindings' order: read back,
 %% each form with its lines is its form once they are taken out; a module of
 %% a shell's session records its lines as the session counts them and its
-%% declaration's name as its sites write it, its own. Written with the code
-%% (MVP 3.2's item 4)
+%% declaration's name as its sites write it, under the session's namespace
+%% (§11.2 *Faults*). Written with the code (MVP 3.2's item 4); the
+%% namespace in the name a regression test (the log's *Sites, Sessions and
+%% Their Names*)
 recorded_source_test() ->
     Text = "export fn twice(n : Int) : Int = {\n"
            "    let doubled = n * 2;\n"
@@ -815,16 +817,20 @@ recorded_source_test() ->
                  Definitions),
     #recorded{definitions = [Twice, Base]} =
         Recorded(['$Input7'], #{session_offset => 10, form_namespace => ['$Session'],
-                                input_name => <<"input 7">>}),
-    ?assertMatch(#definition{name = [<<"twice">>], sourced = {'$at', {11, _, none}, _},
+                                site_namespace => ['$Session'],
+                                input_name => <<"$Session.input 7">>}),
+    ?assertMatch(#definition{name = [<<"$Session">>, <<"twice">>],
+                             sourced = {'$at', {11, _, none}, _},
                              printing = {[<<"$Session">>], []}},
                  Twice),
-    ?assertMatch(#definition{name = [<<"base">>], sourced = {'$at', {15, _, none}, _}}, Base).
+    ?assertMatch(#definition{name = [<<"$Session">>, <<"base">>],
+                             sourced = {'$at', {15, _, none}, _}}, Base).
 
 %% report Appendix E.21, §11.1, §11.2: a foreign function's frame has the
 %% line of its declaration however its unit is made: from the source as a
 %% build makes it; as an input of a shell's session, whose lines the
-%% session counts and whose sites name what it declares by its own name;
+%% session counts and whose sites name what it declares under the session's
+%% namespace;
 %% and from what a compiled form records, as the shell and `Code.load` make
 %% a unit beside another of its name (ern_compile:from_compiled/5), the
 %% compiled form recording each foreign declaration with its place. A
@@ -863,10 +869,11 @@ foreign_line_test() ->
               <<"Placed.main:3">>],
     ?assertEqual(Frames, Traced(Built, Beam)),
     ?assertEqual(Frames, Traced('ern@placed$2', Made)),
-    {Input, InputBeam} = Compiled(#{session_offset => 10}),
+    {Input, InputBeam} = Compiled(#{session_offset => 10, site_namespace => ['$Session1']}),
     ?assertMatch({ok, #recorded{foreign = [#foreign_function{source = {11, 1, none}}]}},
                  ern_canonical:read(InputBeam)),
-    ?assertEqual([<<"erlang:binary_to_integer/1">>, <<"boom:11">>, <<"go:12">>, <<"main:13">>],
+    ?assertEqual([<<"erlang:binary_to_integer/1">>, <<"$Session1.boom:11">>,
+                  <<"$Session1.go:12">>, <<"$Session1.main:13">>],
                  Traced(Input, InputBeam)).
 
 %% report §11.2, §11.1, §8.7: a compiled module made a unit of another name

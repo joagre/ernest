@@ -192,7 +192,7 @@ syntax(#unit{namespace = Namespace, name = ErlangModule, code = Code} = Unit) ->
                            code_function(code(Placed, ForeignKept, Entries, Context3)
                                          ++ held_code(Placed, Unit)
                                          ++ [{Unit#unit.form_namespace,
-                                              {sites, site_namespace(Unit)}},
+                                              {sites, Unit#unit.site_namespace}},
                                              {Namespace, {calls, Calls}}]);
                        false ->
                            []
@@ -900,10 +900,9 @@ foreign_arity(#foreign_function{scheme = {scheme, _, {arrow, ParamTypes, _, _}, 
 %% with its entry and its reach.
 %%
 %% Under the namespace the forms name what it declares under, the unit
-%% holds the namespace its spawn sites name its declarations under
-%% (site_namespace/1), by which a fault's trace names its functions
-%% (ern_code:function_text/3), the empty namespace for an input of a
-%% shell's session, whose sites name them by their own names; and, last,
+%% holds the namespace its spawn sites name its declarations under, by
+%% which a fault's trace names its functions (ern_code:function_text/3),
+%% the session's as it prints for an input of a shell's session; and, last,
 %% under the module's namespace, the units its code calls (calls/2). Each
 %% qualified name is the forms' (Appendix H): an input of a shell's session
 %% names what it declares under the session's one namespace, by which a
@@ -1978,14 +1977,14 @@ holds_function(_) -> false.
 
 %% Report §6.9: the function that called `spawn`, qualified, and the line;
 %% report §11.2: a reload's version's under the version's namespace,
-%% `Counter$2.service:5`, as its unit is named. In the session, as the
-%% session writes names: a function an input declares by its own name, and
-%% the input's expression as its diagnostics name it, `input 3`; the line
-%% as they count it, which an input's forms hold (ern_compile). The input's
-%% name is asked of the shell when the spawn runs, and is not the unit's
-%% code: an input typed again then compiles to the code it did before, and
-%% the host keeps an entry for each lambda of each version it loads
-%% (docs/memory.md).
+%% `Counter$2.service:5`, as its unit is named. In the session, under the
+%% session's namespace as it prints: a function an input declares by its
+%% own name, `$Session2.start:2`, and the input's expression as its
+%% diagnostics name it, `$Session2.input 3`; the line as they count it,
+%% which an input's forms hold (ern_compile). The input's name is asked of
+%% the shell when the spawn runs, and is not the unit's code: an input
+%% typed again then compiles to the code it did before, and the host keeps
+%% an entry for each lambda of each version it loads (docs/memory.md).
 %%
 %% A form without its source names the declaration alone. Report §12.7: a
 %% definition of an exchange's unit by the name the code frame gave it, its
@@ -2008,20 +2007,14 @@ site(Source, #emit_context{unit = #unit{site_namespace = SiteNamespace,
 %% Declaration by, which its `.erc` records beside the declaration's form
 %% so that a peer it is shipped to writes them alike (§12.7): the
 %% qualified name under the unit's site namespace, a reload's version's
-%% `Counter$2.worker`; in the session, a declaration by its own name, and
-%% an input's expression, whose name the shell gives as the spawn runs,
+%% `Counter$2.worker`, a session's input's `$Session2.start`; and an
+%% input's expression, whose name the shell gives as the spawn runs,
 %% `input`.
 -spec site_name([atom() | binary()], #unit{}) -> [atom() | binary()] | input.
 site_name(['$input'], #unit{session_input = true}) ->
     input;
-site_name(Declaration, Unit) ->
-    site_namespace(Unit) ++ Declaration.
-
-%% The namespace a unit's spawn sites name its declarations under: its
-%% site namespace, and the empty namespace for an input of a shell's
-%% session (§11.2).
-site_namespace(#unit{session_input = true}) -> [];
-site_namespace(#unit{site_namespace = SiteNamespace}) -> SiteNamespace.
+site_name(Declaration, #unit{site_namespace = SiteNamespace}) ->
+    SiteNamespace ++ Declaration.
 
 %% Report §8.7, Appendix H: a service's message type's hash, of its
 %% canonical form.

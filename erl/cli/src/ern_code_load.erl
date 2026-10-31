@@ -30,8 +30,9 @@
 %% The bindings of the units without values, the units the node held and
 %% had not evaluated among them, are evaluated in §8.5's order, each in a
 %% body of mailbox type `Never` (§4.6), in an evaluator, a process of the
-%% runtime's own that heads a spawn chain of its own and lives on, while
-%% the caller waits (ern_rt:evaluate/2), as the shell's load evaluates. One
+%% runtime's own that heads a spawn chain of its own and ends with them, or
+%% lives on where it owns what a binding opened, while the caller waits
+%% (ern_rt:evaluate/2), as the shell's load evaluates. One
 %% that faults ends the evaluation and the evaluator: every process the
 %% evaluation started is killed and the values its evaluation stored go,
 %% as a refused load of the shell's is undone (ern_rt:withdraw_load/2), and

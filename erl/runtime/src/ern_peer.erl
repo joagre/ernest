@@ -762,9 +762,11 @@ no_function(HostFunction, Arity) ->
      " here"].
 
 %% A qualified name as a line writes it, its segments atoms of this node's
-%% or a peer's text, which may be any bytes, its controls shown.
+%% or a peer's text, which may be any bytes, its controls shown, and a
+%% session's namespace without the node's key (Appendix H).
 qualified_text(QualifiedName) ->
-    ern_show:controls(iolist_to_binary(lists:join(".", ern_namespace:text_segments(QualifiedName))),
+    ern_show:controls(iolist_to_binary(lists:join(".",
+                                                  ern_namespace:printed_segments(QualifiedName))),
                       line).
 
 %% Whether a module a peer names by its text is on this node, loaded or

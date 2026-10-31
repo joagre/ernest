@@ -40,15 +40,17 @@ type Outcome =
 // the end of input; the input's process sends `Done` as it ends, its
 // outcome carrying the input's serial, so that the outcome of one
 // `Interrupted` killed is known wherever it arrives; `Process.faults` sends
-// `Reported` for every fault, and the monitors on the reader, the screen
-// and the local half `ReaderDied`, `ScreenDied` and `LocalEnded` for their
-// ends.
+// `Reported` for every fault, and the front end `Reloaded` for a reload by
+// another session of the node, the modules it compiled again and the
+// session's number; and the monitors on the reader, the screen and the
+// local half `ReaderDied`, `ScreenDied` and `LocalEnded` for their ends.
 type ShellMsg =
     Typed(String)
   | InputEnded
   | Interrupted
   | Done(Outcome)
   | Reported(Process.FaultReport)
+  | Reloaded(by : Int, modules : List(String))
   | ReaderDied(Down)
   | ScreenDied(Down)
   | Begun(Desk)
@@ -318,7 +320,8 @@ fn session(desk : Desk) : Unit receiving ShellMsg = {
                               screenProcess,
                               desk.sourceRoot,
                               desk.workingDirectory,
-                              attached),
+                              attached,
+                              shell),
               settings = defaults,
               color = color,
               own = Set.fromList(ownProcesses),
@@ -341,8 +344,8 @@ fn session(desk : Desk) : Unit receiving ShellMsg = {
                                   reply = reply),
                      screenMs);
     let leaving = if attached then ":detach" else ":quit";
-    send(screen,
-         Said("Ernest " <> version() <> ". :help for the commands, " <> leaving <> " to leave.\n"));
+    let greeting = "Ernest " <> version() <> ", session " <> Int.toString(number(state.session));
+    send(screen, Said(greeting <> ". :help for the commands, " <> leaving <> " to leave.\n"));
     // report §11.2: a process that faults is news at the prompt, whichever
     // it is, and the session hears of it as any subscriber does, from
     // before the program's entry point runs
@@ -763,7 +766,8 @@ fn await(state : State,
                       started,
                       printing)
         // an input typed meanwhile is left in the mailbox: it waits for
-        // this one, and runs after it; `C-d` on an empty line ends the
+        // this one, and runs after it, as a reload by another session waits
+        // to be said at the next prompt; `C-d` on an empty line ends the
         // reader, whose end above kills this input and ends the shell, as
         // `:quit` ends it (report §11.2)
     }
@@ -822,9 +826,12 @@ fn keyLoop(state : State, screen : Address(ScreenMsg)) : Unit receiving ShellMsg
             keyLoop(state, screen)
         }
       // report §11.2: a prompt is pending, and a fault said there stands
-      // above the region, leaving the line being typed where it is
+      // above the region, leaving the line being typed where it is, as a
+      // reload by another session does
       | Reported(report) ->
             keyLoop(reported(state, screen, report, Noted), screen)
+      | Reloaded(by = by, modules = modules) ->
+            keyLoop(reloadSaid(state, screen, by, modules, Noted), screen)
       | ReaderDied(down) ->
             leave(state, screen, readerEnd(state.color, down))
       | ScreenDied(down) ->
@@ -908,6 +915,23 @@ fn reported(state : State,
         send(screen, wrap(Shell.Style.fault(text, state.color)));
         State(..state, faults = List.take(report :: state.faults, keptFaults))
     }
+
+// Report §11.2 *The attached shell*: a reload by another session, said at
+// the prompt as a fault is, wrapped as the caller says: a line for each
+// module it compiled again, `Counter compiled again by session 3`, and each
+// of this session's bindings it moved to a previous version named as the
+// session's own reload names it; the session takes the node's modules as
+// they stand (`reloadedBy`). One that comes while an input runs waits in
+// the mailbox for the prompt.
+fn reloadSaid(state : State,
+              screen : Address(ScreenMsg),
+              by : Int,
+              modules : List(String),
+              wrap : (String) -> ScreenMsg) : State = {
+    let #(session, lines) = reloadedBy(state.session, by, modules);
+    send(screen, wrap(String.join(lines, "\n")));
+    State(..state, session = session)
+}
 
 // A line the session says, ended.
 fn saidLine(line : String) : ScreenMsg =
@@ -1878,17 +1902,23 @@ fn nextLine(state : State) : Optional(String) receiving ShellMsg = {
 }
 
 // Report §11.2: what faulted while the session was reading, each report in
-// the mailbox said wrapped as `reported` says. In line mode the session
-// waits for its next line, so a fault is reported once the line has come,
-// before the line runs, and before the next prompt, and as the session
-// ends (`leaveLines`); §6.4 leaves every other message in the mailbox.
+// the mailbox said wrapped as `reported` says, and each reload by another
+// session as `reloadSaid` says. In line mode the session waits for its next
+// line, so a fault is reported once the line has come, before the line
+// runs, and before the next prompt, and as the session ends
+// (`leaveLines`); §6.4 leaves every other message in the mailbox.
 fn reportPending(state : State,
                  screen : Address(ScreenMsg),
                  wrap : (String) -> ScreenMsg) : State receiving ShellMsg =
     receive {
-        Reported(report) -> reportPending(reported(state, screen, report, wrap), screen, wrap)
-      | ScreenDied(down) -> screenDied(down)
-      | after 0 -> state
+        Reported(report) ->
+            reportPending(reported(state, screen, report, wrap), screen, wrap)
+      | Reloaded(by = by, modules = modules) ->
+            reportPending(reloadSaid(state, screen, by, modules, wrap), screen, wrap)
+      | ScreenDied(down) ->
+            screenDied(down)
+      | after 0 ->
+            state
     }
 
 // Report §11.2: in line mode, as at a terminal, an input the parser cannot
@@ -2231,14 +2261,29 @@ fn nextRead() : Unit receiving LinesMsg =
 // Report §11.2: the session on its node, given the node's next number: its
 // local half, which holds the terminal and the operator's files, the
 // screen's process, which what its processes write goes to, the
-// operator's source root and working directory, and whether it is attached
-// from another node.
+// operator's source root and working directory, whether it is attached
+// from another node, and its own address, which another session's reload
+// is said at (`Reloaded`).
 foreign fn start(local : Address(LocalMsg),
                  screen : Process,
                  sourceRoot : String,
                  workingDirectory : String,
-                 attached : Bool) : Session =
-    "ern_shell:start/5"
+                 attached : Bool,
+                 shell : Address(ShellMsg)) : Session =
+    "ern_shell:start/6"
+
+// Report §11.2 *Startup and history*: the number the session's on its node,
+// which the greeting says.
+foreign fn number(session : Session) : Int =
+    "ern_shell:number/1"
+
+// Report §11.2 *The attached shell*: the lines a reload by the session
+// numbered `by` is said with, and the session with the node's modules as
+// they stand.
+foreign fn reloadedBy(session : Session,
+                      by : Int,
+                      modules : List(String)) : #(Session, List(String)) =
+    "ern_shell:reloaded_by/3"
 
 // Report §11.2: an attached session's end, its own processes ended but the
 // caller: what it started left to the node, its units that declare a

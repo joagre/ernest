@@ -45,7 +45,7 @@
          current/0, adapted/2, call/3, call/4, call_forever/2, call_forever/3, compute/4, answer/2,
          refuse/2, reply_process/1, is_reply/1, monitor/2, monitor_service/2, demonitor/1, kill/1,
          killed/2, reason/1, peer_restarted/2, left_waiting/1, wait_for_deliveries/0, started_by/1,
-         kill_started/1, kill_all/1, processes/0, own/1, disown/1,
+         kill_started/1, kill_all/1, processes/0, own/1,
          screen/2, drop_screens/1, root_of/1, status/1, faults/1, termination/1,
          expected/1, checker_for/3, checker_forget/2, source_begin/0, source_begin/1, source_end/0,
          opened/3, forget_opened/1, timed/0, untimed/0, deadline/1, remaining/1, now/0, monotonic/0,
@@ -56,8 +56,8 @@
          input_not_utf8/0, by_input/1, read_input/1, run_main/3, say/2, say_later/2,
          wait_for_later/0, tables/0, arguments/0,
          exit_program/1, deadlock_victim/1, entry_process/0, signal/1, initializing/1, site/0,
-         evaluate/2, withdraw_load/2, binding/1, binding_value/2, is_initialized/1, restarting/2,
-         restart_now/0, ask_restart/1,
+         evaluate/2, made_table/1, withdraw_load/2, binding/1, binding_value/2, is_initialized/1,
+         restarting/2, restart_now/0, ask_restart/1,
          start_cause/0, is_restarting/0, on_this_node/1, spawn_order/1, gateway/0,
          stdlib_modules/0, init_modules/1, initialized/1, uninitialized/1, offer/2, offered/2,
          set_utilization/1, program_utilization/0, asked_of_run/1, note_call/3, drop_note/1,
@@ -110,6 +110,11 @@
 %% it, a process_info at its ask (ask_restart/1), so that no row is written
 %% for a reader that asks seldom (restartable/0).
 -define(START, '$ern_start').
+%% Report Appendix E.28, G.1: in a load's evaluator, the tables it made,
+%% newest first, which it owns until it ends or a table is closed, so that
+%% its end knows whether it owns one without reading every table of the
+%% node (made_table/1, evaluate/2); no other process keeps one.
+-define(TABLES, '$ern_tables').
 %% Report §12.5, §11.2: the registered name of the process that says the
 %% lines given it to say later, in order (say_later/2).
 -define(SAY_LATER, ern_say_later).
@@ -156,9 +161,10 @@
 %% attached to, {Root, Sink}, Sink the function its processes' writes to
 %% standard output and standard error go through, as the launch's options
 %% give the node's own (started_system/1); written by the session and by
-%% an evaluator its chain started (screen/2, evaluate/2), dropped by the
-%% session as it detaches and by a load whose evaluator ended
-%% (drop_screens/1, drop_screen/1), and read by the standard streams at
+%% an evaluator its chain started (screen/2, evaluate/2), which keeps its
+%% row past its own end, since what it started is the session's until the
+%% session ends; dropped by the session as it detaches and by a load
+%% withdrawn (drop_screens/1, drop_screen/1), and read by the standard streams at
 %% each write, by standard input and the terminal at each request, and by
 %% Os.exit (screen_of/1)
 -define(SCREENS, ern_screens).
@@ -1311,8 +1317,9 @@ watched(Pid, #reaper{watched = Watched} = Reaper) ->
 %% Its root is its spawner's, where Chain says so and the spawner is a
 %% process of the runtime's or acts for one, and else itself (current/0); a
 %% load's evaluator heads a chain of its own, its row marked expected and
-%% its own as it is written, so that its fault is reported to no one and
-%% Process.live() never lists it (evaluate/2); a peer's spawn, {peer,
+%% the runtime's own as it is written, so that its fault is reported to no
+%% one, Process.live() never lists it and Process.status knows it not
+%% (evaluate/2); a peer's spawn, {peer,
 %% Node}, heads a chain of its own, and its row keeps the peer's node,
 %% which its fault's line names (§11.2), and so does a peer's compute,
 %% {compute, Node, Caller, Alias}, whose process starts only once its note
@@ -1327,10 +1334,13 @@ spawned(From, Ref, Function, Site, SpawnMonitors, Chain, Reaper) ->
                        {peer, Node} -> {Pid, Node};
                        {compute, Node, _, _} -> {Pid, Node}
                    end,
-    Evaluator = Chain =:= evaluator,
+    {Expected, Own} = case Chain of
+                          evaluator -> {true, evaluator};
+                          _ -> {false, none}
+                      end,
     ets:insert(?PROCESSES, #process_row{pid = Pid, site = Site, spawn_order = next_spawn_order(),
-                                        root = Root, peer = Peer, expected = Evaluator,
-                                        own = Evaluator}),
+                                        root = Root, peer = Peer, expected = Expected,
+                                        own = Own}),
     case is_noted(Chain, Pid) of
         true ->
             Pid ! Ref,
@@ -2056,32 +2066,22 @@ kill_all(Pids) ->
 %% Appendix E.21: Process.live, the live processes the runtime started or
 %% adopted, the system processes excepted, which are the runtime's. Report
 %% §11.2: each session's own processes are left out, those marked so
-%% (own/1), and Appendix E.28: so is a load's evaluator, the runtime's own,
-%% marked as it is spawned (spawned/7).
+%% (own/1), and Appendix E.28: so is every load's evaluator, the runtime's
+%% own, marked as it is spawned (spawned/7).
 -spec processes() -> [pid()].
 processes() ->
-    try ets:select(?PROCESSES, [{#process_row{pid = '$1', own = false, _ = '_'}, [], ['$1']}])
+    try ets:select(?PROCESSES, [{#process_row{pid = '$1', own = none, _ = '_'}, [], ['$1']}])
     catch error:badarg -> []
     end.
 
 %% Report §11.2, Appendix E.21: each of Processes marked as a session's
 %% own, the session, its reader, its screen and an input that runs, which
-%% Process.live() leaves out until it is unmarked (disown/1) or ends, its
-%% row going with it; one the runtime did not start has no row to mark,
-%% and is never listed.
+%% Process.live() leaves out until it ends, its row going with it; one the
+%% runtime did not start has no row to mark, and is never listed.
 -spec own([pid()]) -> 'Unit'.
 own(Processes) ->
-    owned(Processes, true).
-
-%% Report §11.2: each of Processes no longer a session's own, an
-%% evaluator the session leaves to the node as it detaches among them.
--spec disown([pid()]) -> 'Unit'.
-disown(Processes) ->
-    owned(Processes, false).
-
-owned(Processes, Own) ->
     lists:foreach(fun(Pid) ->
-                      _ = ets:update_element(?PROCESSES, Pid, {#process_row.own, Own})
+                      _ = ets:update_element(?PROCESSES, Pid, {#process_row.own, session})
                   end, Processes),
     ?UNIT.
 
@@ -2100,7 +2100,8 @@ screen(Root, Sink) ->
 
 %% Report §12.1, §11.2: a root's screen dropped, so that its chain writes to
 %% the node's own standard output and standard error from then on: an
-%% evaluator's once it has ended (evaluate/2, withdraw_load/2).
+%% evaluator's once its load is withdrawn, which killed what it started
+%% (withdraw_load/2).
 drop_screen(Root) ->
     try ets:delete(?SCREENS, Root) catch error:badarg -> true end,
     ok.
@@ -2142,13 +2143,16 @@ root_of(Pid) ->
     end.
 
 %% Appendix E.21: Process.status, a snapshot of a live process, None once it
-%% has ended and for a process on another node. A process waiting for a
+%% has ended, for a process on another node, and for one of the runtime's
+%% own, which has no row but a load's evaluator (E.28). A process waiting for a
 %% call's answer is Calling, which the host's status does not tell from a
 %% receive: it keeps its call under its CALL key (§6.6).
 -spec status(pid()) -> 'None' | {'Some', {'Status', binary(), non_neg_integer(), atom()}}.
 status(Pid) when node(Pid) =:= node() ->
     case {ets_lookup(?PROCESSES, Pid),
           erlang:process_info(Pid, [status, message_queue_len, {dictionary, ?CALL}])} of
+        {[#process_row{own = evaluator}], _} ->
+            'None';
         {[#process_row{site = Site}],
          [{status, HostStatus}, {message_queue_len, Queued}, {_, Call}]} ->
             Activity = case {HostStatus, Call} of
@@ -2576,6 +2580,11 @@ forget_opened(Pid) ->
 
 opened() ->
     try [Pid || [Pid] <- ets:match(?HELD, {{opened, '$1'}})] catch _:_ -> [] end.
+
+%% Whether Pid is a listener, a socket or a running program a system
+%% module opened (opened/3).
+is_opened(Pid) ->
+    try ets:member(?HELD, {opened, Pid}) catch error:badarg -> false end.
 
 %% Report §8.6, §6.3: a receive with a deadline, the compiler's and a
 %% call's, puts TIMED in the process's dictionary before it waits and
@@ -4070,15 +4079,21 @@ site() ->
 %% row for itself before a binding runs, so that what it starts writes
 %% there too, and after a detach to the node's (drop_screens/1).
 %%
-%% Once the bindings have their values the evaluator lives on, as the entry
-%% process lives through a program (§8.5), and owns what a binding opened
-%% (Appendix E.18). One whose binding faults catches the fault, answers it
-%% and ends, and one ended from outside, killed or faulted by a deadlock in
-%% the caller's place (deadlock/0), is told of by the caller's monitor, a
-%% raw one as the runner's of the entry process is, which carries its site,
-%% the binding it evaluated, and its end. `{evaluated, Evaluator}`, or `{ended,
-%% Evaluator, Site, How}`, How `{faulted, Cause}` or `killed`, the row of
-%% its screen dropped.
+%% Once the bindings have their values the evaluator ends, unless it owns
+%% what a binding opened, a listener, a socket, a running program or a
+%% table, which would end with it (Appendix E.18, E.23, G.1): it then lives
+%% on, as the entry process lives through a program (§8.5). The caller
+%% waits for an end it is told of, so that the load answers once the
+%% evaluator has gone; its screen's row stays, since what the evaluation
+%% started is the session's until the session ends (§12.1), which drops it.
+%%
+%% One whose binding faults catches the fault, answers it and ends, and one
+%% ended from outside, killed or faulted by a deadlock in the caller's place
+%% (deadlock/0), is told of by the caller's monitor, a raw one as the
+%% runner's of the entry process is, which carries its site, the binding it
+%% evaluated, and its end. `{evaluated, Evaluator}`, or `{ended, Evaluator,
+%% Site, How}`, How `{faulted, Cause}` or `killed`; the row of its screen
+%% goes where the load is withdrawn (withdraw_load/2).
 -spec evaluate([module()], binary()) ->
           {evaluated, pid()} | {ended, pid(), binary(), {faulted, binary()} | killed}.
 evaluate(Units, Site) ->
@@ -4087,8 +4102,9 @@ evaluate(Units, Site) ->
     Sink = screen_of(current()),
     Evaluation = fun() ->
                      Sink =:= none orelse screen(erlang:self(), Sink),
+                     _ = erlang:put(?TABLES, []),
                      Outcome = try lists:foreach(fun(Unit) -> Unit:'$init'() end, Units) of
-                                   ok -> evaluated
+                                   ok -> {evaluated, is_owner()}
                                catch
                                    Class:Error:Stack ->
                                        #fault{cause = Cause} = met(Class, Error, Stack),
@@ -4096,25 +4112,27 @@ evaluate(Units, Site) ->
                                end,
                      Caller ! {Ref, Outcome},
                      case Outcome of
-                         evaluated -> evaluated_lives();
+                         {evaluated, true} -> evaluated_lives();
                          _ -> ended
                      end
                  end,
     Evaluator = spawn_with_monitors(Evaluation, Site, [{Caller, #monitor{wrap = {raw, Ref}}}],
                                     evaluator),
     case waited_evaluation(Evaluator, Ref) of
-        evaluated ->
+        lives ->
             unwatched(Evaluator, Ref),
             {evaluated, Evaluator};
+        evaluated ->
+            {evaluated, Evaluator};
         {ended, BindingSite, How} ->
-            drop_screen(Evaluator),
             {ended, Evaluator, BindingSite, How}
     end.
 
 %% Report §8.6, Appendix E.28: the caller's wait for its evaluator, an
 %% Ernest wait for the look, under the LOAD key, so that a deadlock faults
-%% the evaluator in its place (deadlock/0): its answer, and after a fault
-%% it answered the end of it, which its monitor tells; or the end of an
+%% the evaluator in its place (deadlock/0): `lives` for one that lives on;
+%% `evaluated` for one that ended with its work, and the end of one whose
+%% binding faulted, once its monitor tells the end; or the end of an
 %% evaluator ended from outside, its site and its reason. A restart asked
 %% of the caller, and a fault met on a message's way to it, wait in its
 %% mailbox for its next wait (§6.9, §6.5).
@@ -4122,8 +4140,10 @@ waited_evaluation(Evaluator, Ref) ->
     _ = erlang:put(?LOAD, Evaluator),
     try
         receive
-            {Ref, evaluated} ->
-                evaluated;
+            {Ref, {evaluated, true}} ->
+                lives;
+            {Ref, {evaluated, false}} ->
+                receive {Ref, _, _} -> evaluated end;
             {Ref, {ended, _, _} = Ended} ->
                 receive {Ref, _, _} -> Ended end;
             {Ref, Site, ExitReason} ->
@@ -4137,7 +4157,19 @@ waited_evaluation(Evaluator, Ref) ->
         erlang:erase(?LOAD)
     end.
 
-%% An evaluator whose bindings have their values, which lives until it is
+%% Report Appendix E.28: whether the evaluator owns what a binding opened:
+%% a listener, a socket or a running program, each of which watches its
+%% owner from before its address is given out, and stops when it is given
+%% to another (Appendix E.18, E.23), or a table it made that it still owns
+%% (G.1). What watches it and what it made are its own, so the question
+%% reads no other process's state.
+is_owner() ->
+    {monitored_by, Watchers} = erlang:process_info(erlang:self(), monitored_by),
+    lists:any(fun(Watcher) -> is_pid(Watcher) andalso is_opened(Watcher) end, Watchers)
+        orelse lists:any(fun(Table) -> ets:info(Table, owner) =:= erlang:self() end,
+                         erlang:get(?TABLES)).
+
+%% An evaluator that owns what a binding opened, which lives until it is
 %% ended: by the program's end, or as any process is.
 -spec evaluated_lives() -> no_return().
 evaluated_lives() ->
@@ -4151,6 +4183,17 @@ unwatched(Evaluator, Ref) ->
     launch_reaper() ! {demonitor, Evaluator, erlang:self(), erlang:self(), Asked},
     receive {Asked, demonitored} -> ok end,
     receive {Ref, _, _} -> ok after 0 -> ok end.
+
+%% Report Appendix E.28, G.1: a table the calling process made, which a
+%% load's evaluator keeps among the tables it made (evaluate/2), so that
+%% its end knows whether it owns one; any other process keeps nothing.
+%% `Ets.new` tells it, and answers the table.
+-spec made_table(term()) -> term().
+made_table(Table) ->
+    case erlang:get(?TABLES) of
+        undefined -> Table;
+        Tables -> erlang:put(?TABLES, [Table | Tables]), Table
+    end.
 
 %% Report §11.2, Appendix E.28: a refused load undone: every process its
 %% evaluators started, directly or through one they started, killed
