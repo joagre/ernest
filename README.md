@@ -12,23 +12,7 @@
 
 Ernest is a small functional language for concurrent programs, on the Erlang runtime. A process receives messages of one type, which the compiler checks every send against, and a process started on another node brings its code along: nothing is installed there first.
 
-`foo` is a *node*, a running program or shell that lists its peers in a configuration directory, started here with no program, `ern run --config-dir foo` in a terminal of its own, and it holds nothing of the counter's. The shell is a node too, and the two are two directories each listing the other by key, the shell's naming `foo`'s address too, which [the tour](tour/README.md)'s chapter 2 makes, with a third, in seven commands. `Peer.spawn` starts `count` on `foo`, its code crossing with the spawn, and the shell counts on it from here:
-
-```console
-$ ern shell --config-dir a
-Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
-> :load Counter
-Counter, compiled from counter.ern
-> let far <- Peer.spawn("foo", fn() = Counter.count(0), 5000)
-the peer foo connected
-far : Address(Counter.CounterMsg)
-> send(far, Counter.Inc(5))
-> send(far, Counter.Inc(3))
-> Address.call(far, Counter.Get, 1000)
-Some(8) : Optional(Int)
-```
-
-`counter.ern` is the whole of the counter. Its mailbox type, `CounterMsg`, is in the type of `count`, the loop the process runs, so that every message sent to its address is checked against it: `Inc` is sent, and `Get` is a call, `Address.call` making the reply, `Get` building the request around it, and the call waiting 1000 milliseconds at most for the answer:
+`counter.ern` is the whole of a counter. Its mailbox type, `CounterMsg`, is in the type of `count`, the loop the process runs, so that every message sent to its address is checked against it: `Inc` is sent, and `Get` is a call, `Address.call` making the reply, `Get` building the request around it, and the call waiting 1000 milliseconds at most for the answer:
 
 ```ernest
 export type CounterMsg = Inc(Int) | Get(Reply(Int))
@@ -42,6 +26,21 @@ export fn count(total : Int) : Unit receiving CounterMsg =
             count(total)
         }
     }
+```
+
+In a shell `:load` compiles it, `spawn` starts the loop in a process of its own, typed by the loop, and `send` and `Address.call` reach it:
+
+```console
+$ ern shell
+Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
+> :load Counter
+Counter, compiled from counter.ern
+> let counter = spawn(fn() = Counter.count(0))
+counter : Address(Counter.CounterMsg)
+> send(counter, Counter.Inc(5))
+> send(counter, Counter.Inc(3))
+> Address.call(counter, Counter.Get, 1000)
+Some(8) : Optional(Int)
 ```
 
 A function that receives runs only in a process whose mailbox takes what it receives, so `count` called by a `main` whose mailbox takes another type is refused before the program runs:
@@ -69,6 +68,32 @@ other.ern:6:5: count needs mailbox CounterMsg, and the mailbox here is OtherMsg
 6 |     count(0)
   |     ^^^^^^^^
 ```
+
+The same counter runs on another node. `foo` is a *node*, a running program or shell that lists its peers in a configuration directory, started with no program in a terminal of its own, `ern run --config-dir foo`, and it holds nothing of the counter's. The shell is a node too, from a directory of its own, and the two directories list each other by key, the shell's naming `foo`'s address too, which four commands make, each `ern config` that creates a directory printing the node's public key, left out here:
+
+```console
+$ ern config --config-dir foo --listen 127.0.0.1:8654
+$ ern config --config-dir a
+$ ern config --config-dir foo --peer-dir a
+$ ern config --config-dir a --peer-dir foo
+```
+
+Then, with `foo` running, `Peer.spawn` starts `count` on `foo`, its code crossing with the spawn, and the shell counts on it from here:
+
+```console
+$ ern shell --config-dir a
+Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
+> :load Counter
+Counter, compiled from counter.ern
+> let far <- Peer.spawn("foo", fn() = Counter.count(0), 5000)
+the peer foo connected
+far : Address(Counter.CounterMsg)
+> send(far, Counter.Inc(5))
+> Address.call(far, Counter.Get, 1000)
+Some(5) : Optional(Int)
+```
+
+`Peer.spawn` carried `count` and its type to `foo` by their hashes, and `foo` compiled them before the process started; `far` is an `Address(CounterMsg)` as `counter` was, checked the same way.
 
 Its parts come from elsewhere: Erlang's processes, the types of ML, which Gleam made ordinary on that runtime, and Unison's small core and its code known by the hash of its definition.
 

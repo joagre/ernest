@@ -122,20 +122,19 @@ told_boundary(Base) ->
 %% said where it listens, that `a` connected and, once the shell has quit,
 %% that it ended, and nothing else.
 %%
-%% A regression test, written after the README; it does not cover the
-%% configuration, which the README leaves to the tour, nor the shell at a
-%% terminal. Its limit is the sum of its sixteen waits, each bounded by the
+%% A regression test, written after the README; the README's four `ern
+%% config` lines are its four jobs, `foo`'s port one the harness found
+%% free in place of the README's. It does not cover the shell at a
+%% terminal. Its limit is the sum of its fifteen waits, each bounded by the
 %% harness's time for one wait: four `ern config` jobs, `foo`'s listening,
-%% the shell's start, five inputs, the shell's end and what it said, the
+%% the shell's start, four inputs, the shell's end and what it said, the
 %% stop, `foo`'s end and what it said.
 readme_test_() ->
-    ern_nodes_tests:nodes_test({waits, 16}, fun readme/1).
+    ern_nodes_tests:nodes_test({waits, 15}, fun readme/1).
 
 readme(Base) ->
-    [<<"$ ern shell --config-dir a">>, Start | Session] = readme_console(),
-    {ok, Version} = file:read_file("../VERSION"),
-    ?assertEqual(<<"Ernest ", (string:trim(Version))/binary,
-                   ", session 1. :help for the commands, :quit to leave.">>, Start),
+    [_, Start | Session] = readme_console(<<"$ ern shell --config-dir a">>),
+    ?assertEqual(readme_start(), Start),
     PortFoo = ern_nodes_tests:free_port(),
     AddressFoo = ern_nodes_tests:address(PortFoo),
     [A, Foo] = [filename:join(Base, Name) || Name <- ["a", "foo"]],
@@ -156,17 +155,43 @@ readme(Base) ->
                   <<"the peer a ended">>],
                  stamped(Err)).
 
-%% The lines of the README's console whose command starts the shell as a
-%% node, the command first.
-readme_console() ->
-    {ok, Text} = file:read_file("../README.md"),
-    readme_console(binary:split(Text, <<"\n">>, [global])).
+%% README.md's first console, the counter at a shell that is no node;
+%% report §6.1, §6.2, §6.6, §11.2: the README's counter in the reader's
+%% directory, the shell started plain, its start line the release's as
+%% the README shows it, and the console's inputs typed, each held to the
+%% lines the console shows after it. A regression test, written after the
+%% README's opening (the log's *The Claims, the README and the Tour*). Its
+%% limit is the sum of its eight waits, each bounded by the harness's
+%% time for one wait: the start, five inputs, the end and what the shell
+%% said.
+readme_shell_test_() ->
+    ern_nodes_tests:nodes_test({waits, 8}, fun readme_shell/1).
 
-readme_console(Lines) ->
+readme_shell(Base) ->
+    [_, Start | Session] = readme_console(<<"$ ern shell">>),
+    ?assertEqual(readme_start(), Start),
+    {ok, _} = file:copy(filename:join([?TOUR, "2", "counter.ern"]),
+                        filename:join(Base, "counter.ern")),
+    Shell = started(Base, filename:join(Base, "shell"), ""),
+    quit(session(Shell, inputs(Session))).
+
+%% The shell's start line as the README shows it, the release's version.
+readme_start() ->
+    {ok, Version} = file:read_file("../VERSION"),
+    <<"Ernest ", (string:trim(Version))/binary,
+      ", session 1. :help for the commands, :quit to leave.">>.
+
+%% The lines of the README's console whose first line is Command, the
+%% command first.
+readme_console(Command) ->
+    {ok, Text} = file:read_file("../README.md"),
+    readme_console(Command, binary:split(Text, <<"\n">>, [global])).
+
+readme_console(Command, Lines) ->
     {_, [_ | Rest]} = lists:splitwith(fun(Line) -> Line =/= <<"```console">> end, Lines),
     case lists:splitwith(fun(Line) -> Line =/= <<"```">> end, Rest) of
-        {[<<"$ ern shell --config-dir a">> | _] = Console, _} -> Console;
-        {_, [_ | After]} -> readme_console(After)
+        {[Command | _] = Console, _} -> Console;
+        {_, [_ | After]} -> readme_console(Command, After)
     end.
 
 %% A console's inputs as session/2 types them: each `> ` line with the
