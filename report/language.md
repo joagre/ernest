@@ -1,6 +1,6 @@
 # Ernest Report: The Language
 
-Revision of 31 October 2026.
+Revision of 1 November 2026.
 
 *Dedicated to the memory of Joe Armstrong, 1950–2019.*
 
@@ -45,7 +45,7 @@ Five principles. Principles 2 to 5 are constructive; when following them yields 
 
    No variants for the same thing, no two concepts that overlap. The standard library may pair functions for convenience.
 
-   A second spelling of what the language already writes enters only where the first would nest where the reader reads a sequence, repeat a body, rebuild what a pattern already holds, or pair each of a record's fields with the declaration of the same name in one namespace; one that only shortens stays out. A literal form enters where the reader of principle 1 predicts it.
+   A second spelling of what the language already writes enters only where the first would nest where the reader reads a sequence, repeat a body, rebuild what a pattern already holds, or pair each of a record's fields with the declaration of the same name in one namespace or with the variable of the same name in scope; one that only shortens stays out. A literal form enters where the reader of principle 1 predicts it.
 
 3. Nothing invisible.
 
@@ -546,7 +546,7 @@ Primary   = literal | QName | Tuple | ListLit
 QName     = { typename "." } ( ident | conname [ "(" ( Expr | Fields ) ")" ] ) .
 Fields    = ".." Expr [ "," UpdateSet { "," UpdateSet } ] | FieldSet { "," FieldSet } .
 UpdateSet = ident { "." ident } "=" Expr .
-FieldSet  = ident "=" Expr .
+FieldSet  = ident "=" Expr | "=" ident .
 Tuple     = "#(" Expr "," Expr { "," Expr } ")" .
 ListLit   = "[" [ Expr { "," Expr } ] "]" .
 BitExpr   = "<<" [ BitSegE { "," BitSegE } ] ">>" .
@@ -567,7 +567,8 @@ BitSpec   = "size" "(" Expr ")"
           | "utf8" | "utf16" | "utf32"
           | "big" | "little"
           | "signed" | "unsigned" .
-FieldPats = [ ident "=" Pattern { "," ident "=" Pattern } ] .
+FieldPats = [ FieldPat { "," FieldPat } ] .
+FieldPat  = ident "=" Pattern | "=" ident .
 ```
 
 `fn` and `if` are not operands: `1 + if c then a else b` is a syntax error; write `1 + (if c then a else b)`. A `match` and a `receive` are (§5.9).
@@ -600,7 +601,7 @@ In `let p : T <- e`, `T` is the type of `p`, the value inside. The sum type is d
 
 ### 5.6 Construction
 
-`Some(e)`, `None`, `Snapshot(directory = d, seen = s)`. All fields are given, each once. `Snapshot(..p, seen = s)`, a *record update*, takes the unlisted fields from `p`. A record update with no field after `..` is a type error: ``a record update gives at least one field after its `..` ``.
+`Some(e)`, `None`, `Snapshot(directory = d, seen = s)`. All fields are given, each once. A field given by the variable of its own name is written once, `=seen` for `seen = seen`, a *pun*: `Snapshot(=directory, =seen)` is `Snapshot(directory = directory, seen = seen)`, and a pun stands beside the other forms, `Snapshot(..p, =seen)`. A pun names a field, so it stands in a constructor with named fields alone: `Some(=x)` is an error, ``a pun names a field; write `Some(x)` ``. `Snapshot(..p, seen = s)`, a *record update*, takes the unlisted fields from `p`. A record update with no field after `..` is a type error: ``a record update gives at least one field after its `..` ``.
 
 A field of a field is updated through a *path*: `Pool(..pool, stats.indexed = e)` is `Pool(..pool, stats = Stats(..pool.stats, indexed = e))`, with `pool` evaluated once. A path stands in a record update only, and each type along it has one constructor with the named field. Two paths may share a prefix, `stats.indexed` beside `stats.hits`; neither may be a prefix of the other, and no path is given twice. The base is evaluated first, and the field expressions in source order (§5.1).
 
@@ -644,7 +645,7 @@ A pattern decomposes a value and binds its parts; the same patterns appear in `l
 
 `_` matches anything and binds nothing. An identifier binds the whole value at its position to a new variable, shadowing any outer one; it never refers to an existing variable. A literal matches itself, and a numeric literal may carry `-`: `match n { -1 -> "minus one" | _ -> "other" }`.
 
-A constructor pattern, `Some(p)` or `Snapshot(seen = s)`, matches that constructor and decomposes its fields; field patterns may omit fields. A nullary constructor is written bare: `None`. A single-positional constructor takes one pattern: `Some(p)`. A constructor with named fields takes its field patterns in parentheses, and may omit them all: `Circle()` matches any `Circle`. Any other form is a type error: `None()`, `Some`, `Some()`, and a bare `Circle`.
+A constructor pattern, `Some(p)` or `Snapshot(seen = s)`, matches that constructor and decomposes its fields; field patterns may omit fields. A field pattern that binds the variable of the field's name is written `=seen`, a pun, for `seen = seen`. A nullary constructor is written bare: `None`. A single-positional constructor takes one pattern: `Some(p)`. A constructor with named fields takes its field patterns in parentheses, and may omit them all: `Circle()` matches any `Circle`. Any other form is a type error: `None()`, `Some`, `Some()`, and a bare `Circle`.
 
 A tuple `#(p, q)`, a list `[p, q]`, and `p :: q` decompose a tuple, a list, and a cons. Patterns nest to any depth. `p as c` binds `c` to the whole value that `p` matches. `as` binds looser than `::`: `x :: rest as all` names the whole list. `or` stands between a clause's whole patterns (§5.9), and `as` names what one of them matches, so each alternative names the value itself: `Some(1) as x or Some(2) as x`.
 
@@ -1195,7 +1196,7 @@ Primary     = literal | QName | Tuple | ListLit
 QName       = { typename "." } ( ident | conname [ "(" ( Expr | Fields ) ")" ] ) .
 Fields      = ".." Expr [ "," UpdateSet { "," UpdateSet } ] | FieldSet { "," FieldSet } .
 UpdateSet   = ident { "." ident } "=" Expr .
-FieldSet    = ident "=" Expr .
+FieldSet    = ident "=" Expr | "=" ident .
 Tuple       = "#(" Expr "," Expr { "," Expr } ")" .
 ListLit     = "[" [ Expr { "," Expr } ] "]" .
 BitExpr     = "<<" [ BitSegE { "," BitSegE } ] ">>" .
@@ -1217,7 +1218,8 @@ BitSpec     = "size" "(" Expr ")"
             | "utf8" | "utf16" | "utf32"
             | "big" | "little"
             | "signed" | "unsigned" .
-FieldPats   = [ ident "=" Pattern { "," ident "=" Pattern } ] .
+FieldPats   = [ FieldPat { "," FieldPat } ] .
+FieldPat    = ident "=" Pattern | "=" ident .
 ```
 
 `binop`, `userop`, and `literal` are defined in §2, along with the other lexical categories; `binop` precedence follows the table there. Every nonterminal is decided by its first token, or by the later token this paragraph names: `let` begins a binding, `fn` a declaration or lambda (an identifier or type name after `fn` makes it a declaration, `(` a lambda), `{` a block, `[` a list, `#(` a tuple, `(` a call or parenthesized expression, `<<` a bitstring.
@@ -1427,6 +1429,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **process** — an execution of a function with a mailbox. §6.
 - **`Process`** — the identity of a process, with equality; nothing can be sent to it. §6.5, Appendix E.21.
 - **process-only** — a function whose effect variable is never none: one whose own `receive`, outside its lambdas and local `fn`s, fixes no type for what it takes, matching anything, a foreign function receiving a variable of its own, or a function that calls such a function. §3.9.
+- **pun** — `=f` for `f = f` in a construction or a pattern: the field `f` given or bound by the variable of its name. §5.6, §5.10.
 - **qualified name** — a name with a dotted namespace prefix, `Net.Http.parse`. §2.3, §4.2.
 - **raw string** — a `String` literal between backquotes, its text taken as written. §2.5.
 - **reach** — a definition with everything it references, transitively. §8.7.
