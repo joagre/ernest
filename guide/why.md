@@ -196,6 +196,8 @@ A node is Ernest started from a configuration directory, with a program or with 
 
 A listed peer is trusted whole. One that may spawn on a node may run anything on it, so the list of peers is the whole of the trust.
 
+The same trust is the operator's window. `ern shell --config-dir ops --attach foo` runs a shell whose every input runs on `foo`: its processes are listed, their faults said at the prompt, its modules loaded and reloaded from there, and a binding made at the prompt lives on the node while its name is in scope, the operator's machine keeping the terminal and the files alone. The shell is a node of its own, listed by `foo` under its key, so attaching is a connection like any other and nothing is installed on `foo` first; `:quit` leaves the node running. The deployment guide's §6 looks into a node this way, and the tour's chapter 8 moves a fix from a prompt on a node that holds none of the program's code.
+
 The connection is one, opened at the first operation towards the peer and kept. A peer that closes is found lost at once, and one that falls silent after 45 to 75 seconds, as the host's distribution finds a silence; the next operation towards it dials again. A node that only dials, a laptop behind a router, lists no `listen` (report §8.7, §12.5, Appendix C).
 
 A peer that goes out of reach is the monitor's `Down` with the reason `Unreachable` to whoever monitors a process on it, which says nothing of whether the process lives. A program is written for that case as for any other end.
