@@ -473,7 +473,7 @@ A top-level `let`'s type closes by that rule with none where a function type's e
 
 What a function a foreign function is given returns is the foreign code's to hand on, as a `Reply` it is given is its to answer (§8.4).
 
-A foreign function that declares `receiving M` may receive from the calling process's mailbox and deliver into it, and promises to deliver values of `M` alone; one whose mailbox type is a variable that a parameter's function type names, `receiving e` with a parameter `(a) -> b receiving e`, promises to receive and deliver through that parameter alone; foreign code that holds a process's host identity, through `Foreign.term` of a `Process` among them (Appendix E.12), promises the same of that process's mailbox type. One without `receiving` promises to do neither, and may do anything else. The implementation promises the declared types: a value of another shape, where it is checked (§8.4), or an exception, is a fault, §7. Foreign code sees values in the runtime's representation, §8.4. Both declarations take `export` (§4.2).
+A foreign function that declares `receiving M` may receive from the calling process's mailbox and deliver into it, and promises to deliver values of `M` alone; one whose mailbox type is a variable that a parameter's function type names, `receiving e` with a parameter `(a) -> b receiving e`, promises to receive and deliver through that parameter alone; foreign code that holds a process's host identity, through `Foreign.term` of a `Process` among them (Appendix E.12), promises to deliver values of that process's mailbox type alone. A foreign function without `receiving` promises to do neither, and may do anything else. The implementation promises the declared types: a value of another shape, where it is checked (§8.4), or an exception, is a fault, §7. Foreign code sees values in the runtime's representation, §8.4. Both declarations take `export` (§4.2).
 
 ### 4.8 Operators
 
@@ -803,7 +803,7 @@ A service monitor on a process of another node is told of its restarts too, by t
 
 A `Down` comes from the runtime and has no order with the messages the ended process sent (§6.4). The answer to a call (§6.6) is not overtaken by the callee's `Down`.
 
-A `wrap` has no sender to run in: the runtime applies it as it delivers the message. A fault in it is the fault of the process it delivers to, which meets it at its next wait (§6.5). What a `wrap` opens, spawns or asks of the runtime is that process's too, as if it had done it itself (Appendix E.18, E.21, E.28): `Process.current()` in it is that process, `self()` in it is that process's address, and a `monitor` in it is that process's monitor. A `wrap` that does not finish holds up no other delivery, but a service monitor's holds up the restart it is told of (above). A delivery to a process that has ended ends with it.
+A `wrap` has no sender to run in: the runtime applies it as it delivers the message. A fault in it is the fault of the process it delivers to, which meets it at its next wait (§6.5). What a `wrap` opens, spawns or asks of the runtime is that process's too, as if it had done it itself (Appendix E.18, E.21): `Process.current()` in it is that process, `self()` in it is that process's address, and a `monitor` in it is that process's monitor. A `wrap` that does not finish holds up no other delivery, but a service monitor's holds up the restart it is told of (above). A delivery to a process that has ended ends with it.
 
 `site` in `Down` is where the dead process was spawned: the qualified name of the top-level declaration in which the `spawn` or `spawnMonitored` that started it is written, with the line where it is written: `Counter.main:19`. A `spawn` in a lambda or a local `fn` counts as written in the top-level declaration that contains it. Where `spawn` is passed as a value, it counts as written where its name is. A `spawn` written in either of two definitions that are one (Appendix H) counts as written in the one a reference to them reaches: within their module the first declared, and otherwise the one its node loaded first.
 
@@ -817,7 +817,7 @@ The process keeps its address, and the new run begins with nothing of the old on
 
 When `n` restarts have happened within the last `t` milliseconds, the next fault is not restarted; a window and a count are corrected as §7.4 says. A fault restarts the innermost restarting function the process runs, which counts it against its own limit; one that does not restart it gives it to the restarting function around it, and the process dies with its cause where there is none. A restarting function counts from when it is entered, so one entered again by the restart of the one around it counts afresh. `restarting(Unlimited, f)` runs `f()` again after every fault. `f` returning, a `kill`, and the program's end end the process as they end any other.
 
-A restarting function called where the runtime applies a function for another process, in a `wrap` (above) or in an adapted address's function on delivery (§6.5), faults with `Fault("restart in a function the runtime applies")`, which the process the function delivers to meets as it meets any fault there.
+A restarting function called where the runtime applies a function for another process, in a `wrap` the runtime applies as it delivers (§10) or in an adapted address's function on delivery (§6.5), faults with `Fault("restart in a function the runtime applies")`, which the process the function delivers to meets as it meets any fault there.
 
 A child of a `Supervisor` (Appendix E.22) also runs `f()` again when its supervisor asks. It runs on until it next waits, in a `receive` or for a call's answer, and there runs `f()` again; a process already waiting does so at once. It restarts as a fault restarts it (above). A restart asked for is not a fault: it counts against no limit, and no fault is reported. Where `f` itself runs a `restarting` function, the restart asked for runs `f()` again, not the inner one.
 
@@ -884,9 +884,9 @@ A count or a duration below 0 is none, and a window below 1 is 1 (§6.9, Appendi
 - `fault(c)`, which compiles at any type: `Fault(c)`.
 - `Address.callForever` whose callee has ended, or ends or restarts before it answers (§6.6): the callee's cause, the fault's report naming the callee's site after it (§11.2), `Fault("callee was killed")`, `Fault("callee returned without answering")`, `Fault("callee was closed")`, `Fault("callee was restarted")`, `Fault("callee had ended")`, `Fault("callee ended with its program")` where the callee's node ended in order, or `Fault("callee is unreachable")` where the callee's node went out of reach (§8.7).
 
-Beside the list, these faults are raised. A failure in the runtime faults the process that meets it with the host's class and reason, as a spawn beyond the host's limit of processes does with `Fault("error:system_limit")`. A fault in a function adapting an address faults the target with its own cause (§6.5). A restarting function called where the runtime applies a function for another process faults with `Fault("restart in a function the runtime applies")` (§6.9). The causes the runtime raises at its boundaries, a foreign function's raise or a value that does not match its declared type, a carrier that did not start, a terminal claimed the other way or held by the shell, and a standard input that is not UTF-8 or cannot be read, are §12.3's.
+Beside the list, these faults are raised. A failure in the runtime faults the process that meets it with the host's class and reason, as a spawn beyond the host's limit of processes does with `Fault("error:system_limit")`. A fault in a function adapting an address faults the target with its own cause (§6.5). A restarting function called where the runtime applies a function for another process faults with `Fault("restart in a function the runtime applies")` (§6.9). The causes the runtime raises at its boundaries, a foreign function's raise or a value that does not match its declared type, a terminal claimed the other way or held by the shell, and a standard input that is not UTF-8 or cannot be read, are §12.3's.
 
-A deadlock faults the entry process with `Fault("deadlock")` (§8.6), a load's evaluator that waits (Appendix E.28), and under `ern test` the process of the test that runs (§11.2). A use of a binding a faulting reload left without a value faults its reader with `Fault("the binding has no value, since one before it faulted")` (§11.2).
+A deadlock faults the entry process with `Fault("deadlock")`, or in its place a load's evaluator that waits (§8.6, Appendix E.28) or, under `ern test`, the process of the test that runs (§11.2). A use of a binding a faulting reload left without a value faults its reader with `Fault("the binding has no value, since one before it faulted")` (§11.2).
 
 ## 8. Programs
 
@@ -944,7 +944,7 @@ An initializer that faults (§7.4) ends the program with that fault before `main
 
 ### 8.6 Program termination
 
-The program ends when the entry process dies, whatever the reason (§6.9), a fault being reported on the runtime's exit indicator, when any of its processes calls `Os.exit`, which gives the status the runtime exits with (Appendix E.23), or when its standard output or standard error can no longer be written (§12.1). A bare node's entry process does not return (§8.1), so a bare node ends by termination, by an `Os.exit` a process spawned on it calls, or by a stream that can no longer be written.
+The program ends when the entry process dies, whatever the reason (§6.9), a fault being reported on the runtime's exit indicator, when any of its processes calls `Os.exit`, which gives the status the runtime exits with (Appendix E.23), when its standard output or standard error can no longer be written (§12.1), or, on a node, when its carrier cannot start (§12.5). A bare node's entry process does not return (§8.1), so a bare node ends by termination, by an `Os.exit` a process spawned on it calls, or by a stream that can no longer be written.
 
 Before it ends by any of these, or by termination, the runtime tells the processes that subscribed with `Os.termination` (Appendix E.23): each is sent `wrap(reply)` in its own mailbox type, delivered as a monitor's `Down` is (§6.9), and the end waits until every reply is answered or its subscriber has ended or restarted; nothing of the runtime's own times the wait. A subscriber whose delivery foreign code kills before it arrives is waited for no longer. What the runtime says of the wait is §11.2's.
 
@@ -992,7 +992,7 @@ A mutually recursive group is hashed as one, in source order, each member's hash
 
 A definition's *reach* is the definition with everything it references, transitively. A node holds its definitions by hash, in the code table the runtime keeps (§10), read from its build directory at its start (§11.1). A lambda or a local function that a spawn on a peer starts, or a compute runs, is held by its identity too, as a function that takes the values it captured (§11.1), and with each function the bindings and the foreign declarations its reach names. Two nodes that hold one hash hold one definition, whatever each build calls it.
 
-**What passes.** A message is carried by the host as on one node, straight into the mailbox. What else crosses is the runtime's own frames, seventeen, fixed and documented, which §12.6 lists (§10). A monitor and its `Down`, the answer to a call, to a find, to a compute or to a utilization, and the proof of the floor are the host's.
+**What passes.** A message is carried by the host as on one node, straight into the mailbox. What else crosses is the runtime's own frames, seventeen, fixed and documented (§10), or the host's, and §12.6 lists both.
 
 **A loss.** A connection is lost when the network breaks it, when the detector finds it silent, or when a frame is faulty.
 
@@ -1415,7 +1415,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **operator resolution** — per-type dispatch of arithmetic and `<>` to `Type.<op>`. §4.8.
 - **or-pattern** — patterns joined by `or` in one clause, which matches when any of them does. §5.9.
 - **order** — a function `(T, T) -> Ordering` that keeps §3.10's laws, which a type's `compare` keeps, and `List.sort` and an ordered set or map require of it. §3.10, Appendix E.25.
-- **owner** — the process that opened a resource or was given it, with which the resource ends. §6.9, Appendix E.18.
+- **owner** — the process that opened a resource or was given it, or that made a table or started a proxy, with which the resource ends. §6.9, Appendix E.18, G.1, G.7.
 - **pattern** — decomposes a value and binds its parts. §5.10.
 - **peer** — another node this node lists in its `ernest.conf`, by a name, a public key and a network address. §8.3, §8.7.
 - **pipe** — the `|>` operator, `x |> f` = `f(x)`. §5.7.
@@ -1453,6 +1453,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **service** — a top-level binding that holds a process's address, §6.5; to the node's peers, a `Peer.Service(m)`, the service's name at its message type, under which its address is offered and found, §8.7, Appendix E.27.
 - **service monitor** — `monitorService(p, wrap)`; a monitor that also sends `wrap(d)` with the reason `Restarted` at each restart of `p`, and stands until `p` dies. §6.9, §9.5.
 - **session** — a shell's run on a node: its declarations, their scope and its inputs' processes; a node has many at once, each with a number. §11.2.
+- **session's own process** — a process the shell runs to serve a session, the session's, its reader's or its screen's, which `Process.live` leaves out. §11.2, Appendix E.21.
 - **shape rule** — one of the ten rules that give a function of the standard library its shape. Appendix E.0.
 - **shim** — a primitive written as a `foreign fn` over the host or as a request to a system process. Appendix E.0.
 - **source root** — the directory under which a file's path gives its namespace. §4.2, §11.1.
@@ -1476,6 +1477,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **taken namespace** — a namespace of the prelude or the standard library, which no other module may provide or stand under. §4.2.
 - **telling** — the frame a node sends each peer every `utilization-interval` with how busy it is, which the peer holds to draw a peer for `Peer.compute`. §8.7, Appendix E.27.
 - **tick** — a sign of life the host sends a peer where nothing else was sent for 15 seconds. §12.6.
+- **toolchain's own units** — the units of the toolchain, the shell's among them, which a node loads from its own tree where a spawn names one it lacks, and which cross to no peer. §8.7, §12.7.
 - **top-level binding** — a value bound at file scope by a `let`. §4.6, §8.5.
 - **trace** — the host's stack where a fault was met, at the moment it was, as text, a frame a line as Appendix E.21 writes it; a fault's report shows it and `Down` leaves it out. §7.3, §11.2, Appendix E.21.
 - **tuple** — a positional product, `#(a, b)`, `#(a, b, c)`. §3.2.

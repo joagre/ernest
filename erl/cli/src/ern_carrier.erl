@@ -199,7 +199,7 @@ start(#configuration{public_key = PublicKey, listen = Listen}) ->
                                              not_started(Listen, Reason)]))
     end.
 
-%% Report §12.3: why the carrier did not start: its listen address in use,
+%% Report §12.5: why the carrier did not start: its listen address in use,
 %% which the host's reason does not name, the host saying it only in a
 %% report of its own (filter/2), and which a listen on the address, made
 %% once the host has failed, finds, so that a start that succeeds pays
@@ -575,7 +575,7 @@ ended_line(Node, Line) ->
 %% name its key does not give, which the node says in its own words. Its
 %% reports of a distribution that could not start, the crash of
 %% `net_kernel` and the start error of `net_sup`, are among them: the
-%% carrier's fault says it (§12.3).
+%% job's line says it (§12.5).
 -spec filter(logger:log_event(), term()) -> logger:filter_return().
 filter(#{msg := {report, #{label := {error_logger, _}, format := Format, args := Args}}}, _) ->
     host_message(Format, Args);

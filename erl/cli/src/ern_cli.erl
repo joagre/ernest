@@ -1576,7 +1576,7 @@ quiet_signals() ->
 %% on the job's standard error, since the launch has ended.
 report_outcome(_ErrorDevice, _Site, ok) -> 0;
 report_outcome(_ErrorDevice, _Site, {exit, Status}) -> Status;
-%% report §12.3, §11.8: a run that could not start, a node whose carrier did
+%% report §12.5, §11.8: a run that could not start, a node whose carrier did
 %% not, is the job's refusal, said in the job's line form with status 1
 report_outcome(_ErrorDevice, _Site, {refused, Text}) ->
     ern_build:fail(unicode:characters_to_list(Text));

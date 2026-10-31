@@ -1434,9 +1434,9 @@ refused_after_start(Base) ->
     ?assertEqual(nomatch, string:find(Said, "ran")),
     ?assertNot(filelib:is_file(filename:join(A, "ernest.pid"))).
 
-%% report §12.3, §11.8, §8.7: a node whose carrier cannot start, its port
+%% report §12.5, §11.8, §8.7: a node whose carrier cannot start, its port
 %% taken, ends before `main` runs as a job that cannot start, with status 1
-%% and the line §12.3 states, which names the listen address in use, `ern
+%% and the line §12.5 states, which names the listen address in use, `ern
 %% run:` for a program's node and `ern shell:` for a shell's own, with no
 %% fault's line and nothing of the host's reports on its standard output. A
 %% regression test of the principles review (the log's *The Principles
@@ -1473,6 +1473,55 @@ carrier_not_started(Base) ->
     ok = gen_tcp:close(Held),
     ?assertEqual("ern shell: " ++ Line, unstamped(Shell)),
     ?assertNot(filelib:is_file(filename:join(A, "ernest.pid"))).
+
+%% report §8.6, §12.5, Appendix E.23: a node whose carrier cannot start ends
+%% as any program ends, so the subscriber of `Os.termination` its
+%% initializers started is told, and the end waits for its answer, which
+%% the runtime says, before the job's line. A regression test, written
+%% after the report named the end in §8.6 (the log's *The Release Review
+%% Before 0.7.0*, *The round*): the code already told it
+carrier_not_started_tells_test_() ->
+    nodes_test({waits, 2}, fun carrier_not_started_tells/1).
+
+carrier_not_started_tells(Base) ->
+    {ok, Held} = gen_tcp:listen(0, [{ip, {127, 0, 0, 1}}]),
+    {ok, Port} = inet:port(Held),
+    A = made(Base, "a", Port),
+    Root = filename:join(Base, "build"),
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "prog.ern"),
+                         "type Msg = Ending(Reply(Unit)) | Ready(Reply(Unit))\n\n"
+                         "fn told() : Unit receiving Msg = {\n"
+                         "    Os.termination(Ending);\n"
+                         "    waiting()\n"
+                         "}\n\n"
+                         "fn waiting() : Unit receiving Msg =\n"
+                         "    receive {\n"
+                         "        Ready(reply) -> {\n"
+                         "            answer(reply, Unit);\n"
+                         "            waiting()\n"
+                         "        }\n"
+                         "      | Ending(reply) -> {\n"
+                         "            Io.println(\"told at the end\");\n"
+                         "            answer(reply, Unit)\n"
+                         "        }\n"
+                         "    }\n\n"
+                         "let teller : Address(Msg) = {\n"
+                         "    let address = spawn(told);\n"
+                         "    Address.callForever(address, Ready);\n"
+                         "    address\n"
+                         "}\n\n"
+                         "export fn main() : Unit = Io.println(\"ran\")\n"),
+    0 = built([Root]),
+    Out = filename:join(Base, "out"),
+    {1, Said} = finished(?ERN ++ " run --config-dir " ++ A ++ " "
+                         ++ filename:join(Root, "prog.erc") ++ " 2>&1 >" ++ Out),
+    ok = gen_tcp:close(Held),
+    ?assertEqual({ok, <<"told at the end\n">>}, file:read_file(Out)),
+    ?assertEqual("the end waits for 1 subscriber: Prog.teller:21\n"
+                 "the subscriber Prog.teller:21 answered\n"
+                 "ern run: the node's carrier did not start: its listen address 127.0.0.1:"
+                 ++ integer_to_list(Port) ++ " is in use\n", unstamped(Said)).
 
 %% report §8.6: a node detects no deadlock, since it can be reached from
 %% outside: a node that waits for a message that never comes waits, where
@@ -4572,7 +4621,7 @@ attached(Ops, Name, SourceRoot) ->
     launched(Ops, ["HOME=", Home, " ", ?ERN, " shell --config-dir ", Ops, " --attach ", Name,
                    " --source-root ", SourceRoot]).
 
-%% report §8.7, §11.2, §12.3, §11.8: a bare node whose `ernest.conf` has no
+%% report §8.7, §11.2, §12.5, §11.8: a bare node whose `ernest.conf` has no
 %% `listen` is refused at its start, as the launcher's second start says
 %% it, and writes no ernest.pid; and one whose carrier cannot start, its
 %% port taken, ends as a job that cannot start, its line naming the listen
