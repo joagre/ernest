@@ -1727,8 +1727,9 @@ ended_reason({gone, _}) -> none.
 %% entry process's, an initializer's among them, which the outcome carries
 %% (example_launch/3); every other fault is reported as `ern run` reports
 %% it, and makes what the launch told a failure, since §11.8 has `ern test`
-%% exit with status 1 where any process faulted during the run, those
-%% `Test.faults` started excepted, which reach no report (Appendix E.24).
+%% exit with status 1 where any process faulted during the run, but one a
+%% case started, directly or through one it started, while the case runs,
+%% and those `Test.faults` started, which reach no report (Appendix E.24).
 cases_launch(Cases, Entry, Site, Init, ErrorDevice, Node) ->
     %% the test that runs, which the reporter asks for: a row, since it
     %% changes with each test, and the host copies its table of persistent
@@ -1769,9 +1770,11 @@ cases_launch(Cases, Entry, Site, Init, ErrorDevice, Node) ->
     end.
 
 %% Report §11.2, §11.8: a fault reported as `ern run` reports it, beside a
-%% case's line, kept so that the run is told failed.
-reported(Running, Report, FaultReport, Peer) ->
-    ets:insert(Running, {faulted}),
+%% case's line, kept so that the run is told failed, but where the process
+%% is one a case that runs started, directly or through one it started,
+%% whose root the case is (run_test/3).
+reported(Running, Report, {'FaultReport', Process, _, _, _, _, _, _, _, _} = FaultReport, Peer) ->
+    ets:member(Running, ern_rt:root_of(Process)) orelse ets:insert(Running, {faulted}),
     Report(FaultReport, Peer).
 
 %% Report §11.8: what the launch told, failed where a process faulted
@@ -1831,8 +1834,11 @@ tests_entry(ErlangModule, HasExamples, Caller, Running) ->
 run_test({'Case', Name, Run}, Running, Frames) ->
     Self = erlang:self(),
     Ref = make_ref(),
-    Pid = ern_rt:spawn_monitored(fun() -> receive {Ref, go} -> Self ! {Ref, Run()} end end,
-                                 fun(Down) -> {Ref, down, Down} end, Name),
+    %% report §11.8: the case heads a spawn chain of its own, so that a
+    %% process it started, directly or through one it started, is known as
+    %% the case's by its root (cases_launch/6)
+    Pid = ern_rt:spawn_monitored_root(fun() -> receive {Ref, go} -> Self ! {Ref, Run()} end end,
+                                      fun(Down) -> {Ref, down, Down} end, Name),
     ok = ern_rt:deadlock_victim(Pid),
     %% the reporter hears of the test's fault before this process does,
     %% so the test is known before it runs and forgotten only once its end

@@ -1931,13 +1931,16 @@ test_runner_test() ->
     ?assertEqual(0, ern_cli:ern(["test", Dir ++ "/build2/ok.erc"])).
 
 %% report §11.2, §11.8, Appendix E.24: under `ern test` a service binding
-%% starts its service as under `ern run`, which a test calls; a fault of any
-%% process during the run, the service's own after it restarts among them,
+%% starts its service as under `ern run`, which a test calls; a fault of a
+%% process the initializers started, the service's own after it restarts,
 %% is reported as `ern run` reports it, and the job exits with status 1
-%% though every case passed; a fault a process `Test.faults` started meets
-%% fails nothing. A regression test of the release review's N22, written
-%% after the code (the log's *Reload, Services and Tests*): four faults of a
-%% service left the status 0
+%% though every case passed, and so does a fault of a process a case
+%% started once its case has ended; a fault a process `Test.faults` started
+%% meets, or one a case started, directly or through a process it started,
+%% while the case runs, fails nothing. A regression test of the release
+%% review's N22, written after the code (the log's *Reload, Services and
+%% Tests*, *Refined at the build*): four faults of a service left the status
+%% 0
 test_fault_fails_the_run_test() ->
     Dir = tmp(),
     Service = "export type HouseMsg = Ask(Reply(Int)) | Boom\n"
@@ -1964,10 +1967,40 @@ test_fault_fails_the_run_test() ->
     ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(Errors),
                                       <<"Svc.house:8 faulted, restarted: boom">>)),
     Expected = write(Dir, "expected.ern",
+                     "type Msg = Ended(Down)\n"
                      "let expected = Test.Case(name = \"expected\", run = fn() =\n"
-                     "    Test.faults(fn() = fault(\"boom\"), \"boom\"))\n"),
+                     "    Test.faults(fn() = fault(\"boom\"), \"boom\"))\n"
+                     "let provoked = Test.Case(name = \"provoked\", run = fn() = {\n"
+                     "    let _ = spawnMonitored(fn() = {\n"
+                     "        let _ = spawn(fn() = fault(\"provoked\"));\n"
+                     "        fault(\"provoked\")\n"
+                     "    }, Ended);\n"
+                     "    receive { Ended(_) -> Test.Passed }\n"
+                     "})\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, Expected])),
-    ?assertEqual(0, ern_cli:ern(["test", filename:join(Dir, "expected.erc")])).
+    ?assertEqual(0, ern_cli:ern(["test", filename:join(Dir, "expected.erc")])),
+    After = write(Dir, "after.ern",
+                  "type Go = Go\n"
+                  "let board : Ets.Table(Int, Address(Go)) = Ets.new()\n"
+                  "let parks = Test.Case(name = \"parks\", run = fn() = {\n"
+                  "    let parked = spawn(fn() = receive { Go -> fault(\"after its case\") });\n"
+                  "    Ets.put(board, 1, parked);\n"
+                  "    Test.Passed\n"
+                  "})\n"
+                  "let wakes = Test.Case(name = \"wakes\", run = fn() =\n"
+                  "    match Ets.get(board, 1) {\n"
+                  "        Some(parked) -> {\n"
+                  "            monitor(Process.fromAddress(parked), fn(d : Down) = d);\n"
+                  "            send(parked, Go);\n"
+                  "            receive { _ -> Test.Passed }\n"
+                  "        }\n"
+                  "      | None -> Test.Failed(\"none parked\")\n"
+                  "    })\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, After])),
+    {AfterErrors, AfterStatus} = standard_error_of(["test", filename:join(Dir, "after.erc")]),
+    ?assertEqual(1, AfterStatus),
+    ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(AfterErrors),
+                                      <<"faulted: after its case">>)).
 
 %% report §11.2, Appendix E.0 shape rule 6: `ern test` runs the module's
 %% doc examples after its tests, each a case named by the declaration it

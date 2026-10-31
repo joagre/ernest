@@ -1918,7 +1918,9 @@ fn leaveLines(state : State, screen : Address(ScreenMsg)) : Unit receiving Shell
 // Report §11.2: in line mode the shell's own node reads each line, its
 // local half answering with the next or none at the end of input, which
 // the session takes as a line it read itself; an attached session takes
-// its local half's end as the end of its input.
+// its local half's end as the end of its input. Report §11.8: the screen's
+// end faults the session while it waits, as at a terminal, since a line
+// that never comes would keep it waiting with nothing to show itself on.
 fn nextLine(state : State) : Optional(String) receiving ShellMsg = {
     send(state.local, ReadLine(lines = state.lines));
     receive {
@@ -1928,6 +1930,8 @@ fn nextLine(state : State) : Optional(String) receiving ShellMsg = {
             localEnded(state, down);
             None
         }
+      | ScreenDied(down) ->
+            screenDied(down)
     }
 }
 

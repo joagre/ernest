@@ -64,7 +64,7 @@ The runner, `ern_cli`, loads the file and its dependencies and runs their initia
 
 Where standard output has no size, or standard input is not a terminal and the local half's subscription is refused (E.16), there is no reader. The local half's reader of lines holds the terminal and reads a line each time the session asks, which the session takes as a line read itself, taking further lines by the rule `Enter` follows at a terminal (§11.2 *Editing*). The screen sends what it is sent as it comes.
 
-The session waits for its line, so a fault report waits in its mailbox. Every waiting one is said before the next prompt, and one that came while the session read a line is said once the line has come, before the line runs. The end of input and `:quit` come at a prompt whose line no input ended, and the session ends that line before it says the faults that waited, so that each stands on a line of its own.
+The session waits for its line, so a fault report waits in its mailbox; the screen's end does not, and faults the session as it waits, since the line may never come. Every waiting fault report is said before the next prompt, and one that came while the session read a line is said once the line has come, before the line runs. The end of input and `:quit` come at a prompt whose line no input ended, and the session ends that line before it says the faults that waited, so that each stands on a line of its own.
 
 ## The front end
 

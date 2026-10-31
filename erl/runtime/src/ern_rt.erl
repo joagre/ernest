@@ -41,7 +41,8 @@
 -module(ern_rt).
 
 -export([send/2, kept/1, acting_for/1, launch_reaper/0, process_of/1, held/3, is_never_given/1,
-         is_started/1, is_address/1, spawn/2, spawn_monitored/3, spawn_root/2, self/0,
+         is_started/1, is_address/1, spawn/2, spawn_monitored/3, spawn_root/2,
+         spawn_monitored_root/3, self/0,
          current/0, adapted/2, call/3, call/4, call_forever/2, call_forever/3, compute/4, answer/2,
          refuse/2, reply_process/1, is_reply/1, monitor/2, monitor_service/2, demonitor/1, kill/1,
          killed/2, reason/1, peer_restarted/2, left_waiting/1, wait_for_deliveries/0, started_by/1,
@@ -119,12 +120,13 @@
 %% the node: by a load's evaluator at its end (evaluate/2), and by
 %% `Ets.owned` of another (owned_tables/1). Report Appendix E.21, G.7: in
 %% a process that started a process to end with it, a proxy's, that
-%% process (ends_with_caller/1, owned/1). Each is kept/3's.
+%% process (ends_with_caller/1, owned/1). Each is owned_listed/3's.
 -define(TABLES, '$ern_tables').
 -define(ENDING, '$ern_ending').
-%% Report §11.2: the fewest entries a list kept/3 keeps before it drops
-%% those no longer held, so that a process that holds few reads none again.
--define(KEPT_FLOOR, 8).
+%% Report §11.2: the fewest entries a list owned_listed/3 keeps before it
+%% drops those no longer held, so that a process that holds few reads none
+%% again.
+-define(LISTED_FLOOR, 8).
 %% Report §12.5, §11.2: the registered name of the process that says the
 %% lines given it to say later, in order (say_later/2).
 -define(SAY_LATER, ern_say_later).
@@ -585,6 +587,14 @@ spawn_monitored(Function, Wrap, Site) ->
 -spec spawn_root(fun(() -> term()), binary()) -> pid().
 spawn_root(Function, Site) ->
     spawn_with_monitors(Function, Site, [], root).
+
+%% Report §11.2, §11.8: the same, monitored by the caller from its start,
+%% as spawn_monitored/3 monitors: `ern test` runs each case in one, so that
+%% a fault of a process the case started, directly or through one it
+%% started, is known as the case's by the process's root (root_of/1).
+-spec spawn_monitored_root(fun(() -> term()), fun((term()) -> term()), binary()) -> pid().
+spawn_monitored_root(Function, Wrap, Site) ->
+    spawn_with_monitors(Function, Site, [{current(), #monitor{wrap = Wrap}}], root).
 
 %% Chain: chained, where the process's root is its spawner's, sent with the
 %% process the root is read from, the spawner or the process a process of
@@ -1629,12 +1639,15 @@ restarts_ended(Pid, Monitors) ->
 %% (killed/2), and one the host ended has it ended here (left_call/1); a
 %% caller learns of a callee's end by its own monitor, and removes its own.
 %% Report §6.9: the spawn site of a process the runtime did not start, or
-%% of one that had ended, is not known.
+%% of one that had ended, is not known. The row goes once the fault is
+%% reported, so that the reporter reads the process's root (root_of/1),
+%% `ern test`'s telling a case's processes so (§11.8).
 delivered_down(Pid, ExitReason, #reaper{monitors = Monitors, monitor_refs = MonitorRefs}) ->
-    case ets:take(?PROCESSES, Pid) of
+    case ets:lookup(?PROCESSES, Pid) of
         [#process_row{site = Site, peer = Peer, expected = Expected, fault = Fault}] ->
             is_host_end(ExitReason) andalso left_call(Pid),
             died(Pid, Site, Peer, Expected, ExitReason, Fault),
+            ets:delete(?PROCESSES, Pid),
             Down = {'Down', Pid, reason(ExitReason), Site},
             lists:foreach(fun({Caller, {raw, Tag}}) -> Caller ! {Tag, Site, ExitReason};
                              ({Caller, Wrap}) -> wrapped(Caller, Wrap, Down)
@@ -4239,7 +4252,7 @@ unwatched(Evaluator, Ref) ->
 -spec made_table(term()) -> term().
 made_table(Table) ->
     Self = erlang:self(),
-    kept(?TABLES, Table, fun(Made) -> ets:info(Made, owner) =:= Self end),
+    owned_listed(?TABLES, Table, fun(Made) -> ets:info(Made, owner) =:= Self end),
     Table.
 
 %% Report Appendix G.7, E.21: Process, which the calling process started to
@@ -4247,23 +4260,23 @@ made_table(Table) ->
 %% `Process.owned` finds it (owned/1).
 -spec ends_with_caller(pid()) -> 'Unit'.
 ends_with_caller(Process) ->
-    kept(?ENDING, Process, fun erlang:is_process_alive/1),
+    owned_listed(?ENDING, Process, fun erlang:is_process_alive/1),
     ?UNIT.
 
-%% Item kept under Key in the calling process's own dictionary, newest
-%% first, beside the count kept and the count at which those no longer
+%% Item listed under Key in the calling process's own dictionary, newest
+%% first, beside the count listed and the count at which those no longer
 %% held, by Holds, are dropped: twice those held at the last drop, so that
-%% the list stays within twice what the process holds and a drop costs a
-%% making its share.
-kept(Key, Item, Holds) ->
+%% the list stays within twice what the process holds and each listing
+%% pays a constant share of the drops.
+owned_listed(Key, Item, Holds) ->
     {Items, Count, Limit} = case erlang:get(Key) of
-                                undefined -> {[], 0, ?KEPT_FLOOR};
+                                undefined -> {[], 0, ?LISTED_FLOOR};
                                 Kept -> Kept
                             end,
     _ = case Count + 1 >= Limit of
             true ->
                 Held = [Item | lists:filter(Holds, Items)],
-                erlang:put(Key, {Held, length(Held), max(?KEPT_FLOOR, 2 * length(Held))});
+                erlang:put(Key, {Held, length(Held), max(?LISTED_FLOOR, 2 * length(Held))});
             false ->
                 erlang:put(Key, {[Item | Items], Count + 1, Limit})
         end,

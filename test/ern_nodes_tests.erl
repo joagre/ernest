@@ -6282,9 +6282,11 @@ pick(Base) ->
 %% another constructor (second_build/1), and finds `OtherType` at its
 %% service, the type it offers at having another hash. A third holds a
 %% proxy for the service against the second build, whose process faults at
-%% the first message, the fault reported as every fault is. A regression
-%% test, written after the code; it does not cover a reload, whose end a
-%% program cannot see (§12.5: the signal carries nothing back)
+%% the first message, the fault reported as every fault is, and counted
+%% against no case, the proxy being one its case started while it runs
+%% (§11.8). A regression test, written after the code; it does not cover a
+%% reload, whose end a program cannot see (§12.5: the signal carries
+%% nothing back)
 program_test_() ->
     nodes_test({waits, 30}, fun pair_program/1).
 

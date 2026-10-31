@@ -81,7 +81,7 @@ Something may be kept as long as a program holds what it stands for: a socket un
 
 ### What a process owns (Appendix E.21, G.1)
 
-- The tables a process made, which `Ets.new` tells the runtime of, and the processes it started to end with it, which `Proxy.start` tells, are a list in the process's own dictionary, which drops what the process no longer holds once it has doubled, so that it stays within twice what the process holds, and goes with the process (Appendix E.21, G.1, G.7; `ern_rt:kept/3`).
+- The tables a process made, which `Ets.new` tells the runtime of, and the processes it started to end with it, which `Proxy.start` tells, are a list in the process's own dictionary, which drops what the process no longer holds once it has doubled, so that it stays within twice what the process holds, and goes with the process (Appendix E.21, G.1, G.7; `ern_rt:owned_listed/3`).
 
 ### The gateway and its peers (report §8.7)
 

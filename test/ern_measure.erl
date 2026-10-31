@@ -797,7 +797,10 @@ process_scenarios() ->
     ProcessStatus = Process(status),
     ProcessLive = Process(live),
     ProcessFaults = Process(faults),
+    ProcessKill = Process(kill),
+    ProcessOwned = Process(owned),
     Me = ProcessFromAddress(ern_rt:self()),
+    Waiting = fun() -> receive _ -> ok end end,
     [{<<"Process.fromAddress">>,
       {fun() -> ProcessFromAddress(ern_rt:self()) end, fun() -> erlang:self() end}},
      {<<"Process.status">>, {fun() -> ProcessStatus(Me) end,
@@ -805,6 +808,13 @@ process_scenarios() ->
                                                           [message_queue_len, status])
                              end}},
      {<<"Process.live">>, {fun() -> ProcessLive() end, fun() -> erlang:processes() end}},
+     %% each side kills a process of the host's spawned for it, whose spawn
+     %% both pay
+     {<<"Process.kill">>, {fun() -> ProcessKill(spawn(Waiting)) end,
+                           fun() -> exit(spawn(Waiting), kill) end}},
+     %% what watches the process, the host's own part of the read
+     {<<"Process.owned">>, {fun() -> ProcessOwned(Me) end,
+                            fun() -> erlang:process_info(erlang:self(), monitored_by) end}},
      {<<"Process.faults">>, {fun() -> ProcessFaults(fun(Report) -> Report end) end, none}}].
 
 supervisor_scenarios() ->
@@ -1010,6 +1020,7 @@ ets_scenarios() ->
     EtsSize = Ets(size),
     EtsClear = Ets(clear),
     EtsToList = Ets(toList),
+    EtsOwned = Ets(owned),
     Table = EtsNew(),
     [EtsPut(Table, Key, Key) || Key <- lists:seq(1, ?SIZE)],
     Host = ets:new(ern_measure, [set, public]),
@@ -1025,7 +1036,12 @@ ets_scenarios() ->
      {<<"Ets.clear">>,
       {fun() -> EtsClear(Table), EtsPut(Table, 7, 7) end,
        fun() -> ets:delete_all_objects(Host), ets:insert(Host, {7, 7}) end}},
-     {<<"Ets.toList">>, {fun() -> EtsToList(Table) end, fun() -> ets:tab2list(Host) end}}].
+     {<<"Ets.toList">>, {fun() -> EtsToList(Table) end, fun() -> ets:tab2list(Host) end}},
+     %% the host knows a process's tables only by every table's owner
+     {<<"Ets.owned">>, {fun() -> EtsOwned(erlang:self()) end,
+                        fun() -> length([Owned || Owned <- ets:all(),
+                                                  ets:info(Owned, owner) =:= erlang:self()])
+                        end}}].
 
 %%
 %% The report
