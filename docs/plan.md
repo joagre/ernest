@@ -44,12 +44,13 @@ name, which Ernest's parentheses make a call, the dot, and the marks other langu
    in a single-positional constructor, `Some(=x)`, is refused naming the form to write.
 3. **The sweep**: every site of the repository's Ernest, the guide's and the tour's blocks among
    them, written as a pun where the names agree; `guide/style.md`'s rule that they are; and
-   whether `ern fmt` writes the pun, decided against the log's *What the Formatter Keeps*.
+   `ern format` leaves it to the writer, decided (the log's *The Pun's Opening Round*), the style
+   test refusing `name = name` in the repository's own sources.
 4. **The programs outside**: the pun needs the release that carries it, so ernest-template's
    floor rises to that release, and each copy's by hand, ernest-epx's and ernest-httpd's, as the
    template's memory of copies says; ernest-epx's Ernest is swept as item 3 sweeps this
    repository's, every `Foo(line = line)` written `Foo(=line)`, and ernest-httpd's where it has
-   any.
+   any; and each loses the `receiving e` written on a timed wait, which §4.5 now refuses.
 5. **`make version V=x.y.z`**, which sets `VERSION` and every line the tests hold to it, the
    start lines of the documents, the session fixtures and the man pages, since the 0.7.0 step found
    them by hand (the log's *The Release Review Before 0.7.0*).
@@ -65,14 +66,15 @@ name, which Ernest's parentheses make a call, the dot, and the marks other langu
    guide's too): one cold reader over `git diff 36b94d31 v0.7.0 -- guide tour README.md`, its
    lines sorted and made as a review's are.
 
-Discussed with the user when the milestone opens, each with its
-recommendation then: whether the formatter writes the pun where the names agree, or the style
-guide alone asks for it; and every line of `language_feedback.md` open on that day, decided one
-at a time as CLAUDE.md's *Before code* says, a report change, a library function or a line of the
-log dropping it, so that the milestone closes with the file empty (decided 2026-10-31). Today's
-lines are 170, `Address.call`'s `None` folded into `Left(Io.Timeout)` by hand at three sites,
-and 171, an `Optional` taken as a list of none or one, both found by the read-back that found the
-pun's sites and read the same way, as forms the code repeats.
+The round that opened the milestone on 2026-10-31 decided the formatter's answer and the ten lines
+of `language_feedback.md` open that day, so that the milestone closes with the file empty (the
+log's *The Pun's Opening Round*). Three are built before item 1, each with a test citing its
+section: a `receive` guard's operand may be a field selected from a variable in scope (§6.3), the
+help line that named a `let` before the `receive` going; a `receive` with an `after` clause alone
+makes no function process-only (§3.9), the checker's mark changing and every `receiving e` written
+on a timed wait, which §4.5 now refuses, swept from the repository's Ernest; and the shell's line at
+a binding's end names the site alone, `Tcp.listen ended with l` (§11.2). The seven others are kept
+or dropped in the entry.
 
 ---
 

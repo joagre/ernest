@@ -1022,7 +1022,7 @@ How busy this node is, by the host's measures, each a function of Ernest over th
 
 ```
 Utilization.runQueue : () -> Int
-Utilization.schedulers : (Int) -> Float receiving m+
+Utilization.schedulers : (Int) -> Float
 Utilization.cpu : () -> Optional(Float)
 Utilization.memory : () -> Optional(Float)
 Utilization.disk : () -> Optional(Float)

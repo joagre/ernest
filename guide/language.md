@@ -837,23 +837,25 @@ fn count(total : Int) : Unit receiving CounterMsg =
 
 A `Reply(Int)` is where an answer goes. The process that asks gets one from `Address.call`, which puts it in the request and waits for the answer (§4.4), and the process that receives the request answers it with `answer(reply, total)`. §4.5 runs the counter whole.
 
-**What receives.** A function whose type has `receiving M` involves the mailbox of the process it runs in, whose type is `M`: it runs a `receive`, gives out the process's address through its type, as `self` does, asks for a message to be delivered into the mailbox, as `monitor` does, or calls a function that does one of these (report §6.1). A function that calls `self` and keeps the address to itself receives nothing: `fn stop() = kill(self())` is a `() -> Unit` (report §3.9).
+**What receives.** A function whose type has `receiving M` involves the mailbox of the process it runs in, whose type is `M`: it takes a message in a `receive`, gives out the process's address through its type, as `self` does, asks for a message to be delivered into the mailbox, as `monitor` does, or calls a function that does one of these (report §6.1). A function that calls `self` and keeps the address to itself receives nothing: `fn stop() = kill(self())` is a `() -> Unit` (report §3.9).
 
 An effect variable that also appears inside `Address`, the type of an address to a process whose mailbox is `m`, as in `self : () -> Address(m) receiving m`, stands for a mailbox type only, since an address needs one (§3.5). The `Address(m)` shows it, and a printed type marks nothing more.
 
-**A timed wait.** A `receive` with an `after` clause alone waits on the mailbox and reads no type from it (§4.3). Its effect variable is *process-only*, a mailbox type and never none, since the wait is on a mailbox. A printed type marks such a variable `+`, `receiving e+`, where no `Address` in the type shows it already (report §3.9, report §11.5). Written out, such a function carries `receiving e`, and so does every function that calls it:
+**A timed wait.** A `receive` with an `after` clause alone waits for the time and takes no message (§4.3), so a function that waits so, where nothing else in it fixes a mailbox type, receives nothing: `fn pause(ms : Int) : Unit = receive { after ms -> Unit }` is an `(Int) -> Unit`, called from any function and from an initializer (report §3.9, report §4.6).
+
+**A receive that takes anything.** A `receive` whose pattern is a wildcard, or a variable whose type nothing else fixes, takes a message of whatever type the mailbox holds, so its function receives at its caller's mailbox type, and its effect variable is *process-only*, a mailbox type and never none. A printed type marks such a variable `+`, `receiving e+`, where no `Address` in the type shows it already (report §3.9, report §11.5). Written out, such a function carries `receiving e`, and so does every function that calls it:
 
 ```ernest
-fn pause(ms : Int) : Unit receiving e =
+fn skip() : Unit receiving e =
     receive {
-        after ms -> Unit
+        _ -> Unit
     }
 
 fn rest() : Unit receiving e =
-    pause(10)
+    skip()
 ```
 
-`pause` prints as `pause : (Int) -> Unit receiving e+`. Written `fn rest() : Unit = pause(10)`, the caller is refused, `pause needs a mailbox, and rest receives nothing`. An entry point that waits so is `: Unit receiving Never`, its mailbox the one nothing can be sent to (below). A top-level `let` whose type leaves a process-only variable unsettled is refused until an annotation settles it (§3.3, report §4.6).
+`skip` prints as `skip : () -> Unit receiving e+`. Written `fn rest() : Unit = skip()`, the caller is refused, `skip needs a mailbox, and rest receives nothing`. A top-level `let` whose type leaves a process-only variable unsettled is refused until an annotation settles it (§3.3, report §4.6).
 
 **A process that receives nothing.** A process with no `receive` has nothing in it that says what its mailbox takes. `spawn`'s type ties its function to the address it returns: the function is a `() -> Unit receiving n`, and the address an `Address(n)`. A function that receives nothing fits wherever one with a mailbox type is expected, so it is spawned as any other, and the definition the spawn is written in fixes `n`:
 
@@ -914,7 +916,7 @@ fn waitForData() : Optional(Int) receiving Inbox =
 
 `after 1000` gives up after 1000 milliseconds with no matching message, and `after 0` looks without waiting. Without `after`, the process waits for as long as it takes. A `receive` with only an `after` clause is a timed wait, the one `receive` a process with mailbox `Never` may use.
 
-A guard in `receive` is narrower than one in `match`, since it chooses a message before taking it: it compares and tests only what is already at hand, the variables in scope, a top-level `let`, literals and nullary constructors, joins these with `!`, `&&` and `||`, and calls nothing (report §6.3). A field of a value in scope is bound to a local before the `receive`, `let at = s.at`, and compared by that name. For more, receive the message and `match` it. That is another program: the message is then out of the mailbox, where a guard that does not hold would have left it for a later `receive`.
+A guard in `receive` is narrower than one in `match`, since it chooses a message before taking it: it compares and tests only what is already at hand, the variables in scope, a field of one, `s.at`, a top-level `let`, literals and nullary constructors, joins these with `!`, `&&` and `||`, and calls nothing (report §6.3). For more, receive the message and `match` it. That is another program: the message is then out of the mailbox, where a guard that does not hold would have left it for a later `receive`.
 
 If a `Woke` is already in the mailbox, `waitForData` leaves it there and waits for a `Data`; a later `receive` can take the `Woke`.
 
@@ -3277,7 +3279,7 @@ Several of these tell the compiler nothing it could not work out for itself. Wha
 
 ## 12. Answers to the exercises
 
-**§1.5.** (a) compiles, and gives `main` the type `() -> String`: `Io.debug` returns its argument, and inference takes the body's type. It sends to standard error's process, and a function that only sends receives nothing, so its type names no mailbox. `ern run` refuses it, since an entry point is a function of no arguments that returns `Unit` (§7.1). (b) is refused when it is built: `: Unit` declares the result, and the body is a `String`. With `Io.println`, as §1 writes it, both compile to `() -> Unit`, and `ern run` runs both. A `main` that waits a while, `receive { after 10 -> Unit }`, compiles as (a), and under `: Unit` needs `receiving Never` beside it (§4.1).
+**§1.5.** (a) compiles, and gives `main` the type `() -> String`: `Io.debug` returns its argument, and inference takes the body's type. It sends to standard error's process, and a function that only sends receives nothing, so its type names no mailbox. `ern run` refuses it, since an entry point is a function of no arguments that returns `Unit` (§7.1). (b) is refused when it is built: `: Unit` declares the result, and the body is a `String`. With `Io.println`, as §1 writes it, both compile to `() -> Unit`, and `ern run` runs both. A `main` that waits a while, `receive { after 10 -> Unit }`, compiles as (a), and under `: Unit` as well: a timed wait takes no message (§4.1).
 
 **§2.11.** (a) and (d) compile. Every constructor of `Shape` has `name`, with one type, so `s.name` reads it whichever built `s`.
 
