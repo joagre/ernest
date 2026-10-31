@@ -704,6 +704,7 @@ type Status = Status(site : String, queued : Int, activity : Activity)
 type Activity = Running | Receiving | Calling
 type FaultReport = FaultReport(process : Process, site : String, cause : String, restarted : Bool, trace : String, spawnedBy : Optional(String), callee : Optional(String), peer : Optional(String), time : Int)
 Process.fromAddress : (Address(m)) -> Process // the process behind the address, through every adapted address
+Process.kill : (Process) -> Unit // ends the process with the reason Killed, as kill does (§6.9); nothing for one that has ended
 Process.current : () -> Process // the running process, a wrap's recipient, or in an adapted address's function the process §6.5 names
 Process.status : (Process) -> Optional(Status) // its spawn site (§6.9), the messages in its mailbox, and whether it runs, waits in a receive, or waits for a call's answer; None once it has ended, and for a process of another node
 Process.live : () -> List(Process) // in unspecified order

@@ -752,7 +752,7 @@ An adapted address crosses to another node as a reference to `f` and the values 
 
 A fault in `f` is the target's, on one node and across nodes alike: it takes the message's place in the target's mailbox, and the target faults at the wait that reaches it, as at a fault of its own (§8.4), which `restarting` restarts (§6.9); a target the runtime did not start, a foreign process (§8.4), has no wait of Ernest's and is ended by the fault as an exit signal, and one on another node takes the fault as a message; the sender goes on.
 
-Addresses have no equality (§3.10). An address is the permission to send to a process and to kill it; a `Process` is its identity, which a `Down` carries and a monitor watches. The process behind an address is `Process.fromAddress(a)`, a value with equality that nothing can be sent to (§6.9, Appendix E.21). There is no registry. A process reaches another through an address it holds or received, through a top-level binding that holds one, which is a *service*, or, from another node, through the name the service is offered under (§8.7):
+Addresses have no equality (§3.10). An address is the permission to send to a process; a `Process` is its identity, which a `Down` carries, a monitor watches and `Process.kill` ends (Appendix E.21). The process behind an address is `Process.fromAddress(a)`, a value with equality that nothing can be sent to (§6.9, Appendix E.21). There is no registry. A process reaches another through an address it holds or received, through a top-level binding that holds one, which is a *service*, or, from another node, through the name the service is offered under (§8.7):
 
 ```ernest-fragment
 export type LogMsg = Line(String)
@@ -793,7 +793,7 @@ A process dies when its function returns, when `kill` is called on it, on a faul
 
 `kill` is asynchronous: the target may run until the runtime interrupts it. `kill` on a process that is dead has no effect, and `kill` on a process of another node reaches it as `send` does (§6.2).
 
-`monitor(p, wrap)`, §9.5, places `wrap(d)` in the caller's mailbox when the process `p` dies; `d : Down` gives the process and the cause. `p` is a `Process`, the identity of a process (Appendix E.21), which `Process.fromAddress(a)` gives for an address `a`; `kill` takes the address (§6.5). `process` in `Down` is `p`. If `p` is already dead, the message is placed at once, with the reason `Unknown`. A `monitor` made while the process runs gets its reason, and a process started with `spawnMonitored` (§6.2) is monitored from its start. Each `monitor` call produces one message.
+`monitor(p, wrap)`, §9.5, places `wrap(d)` in the caller's mailbox when the process `p` dies; `d : Down` gives the process and the cause. `p` is a `Process`, the identity of a process (Appendix E.21), which `Process.fromAddress(a)` gives for an address `a`; `kill` takes the address, and `Process.kill` the identity (§6.5, Appendix E.21). `process` in `Down` is `p`. If `p` is already dead, the message is placed at once, with the reason `Unknown`. A `monitor` made while the process runs gets its reason, and a process started with `spawnMonitored` (§6.2) is monitored from its start. Each `monitor` call produces one message.
 
 `monitorService(p, wrap)`, §9.5, is a *service monitor*: a monitor that is told of a restart too. At each restart of `p` (below) it places `wrap(d)` in the caller's mailbox with the reason `Restarted` and stands; at `p`'s death it delivers as `monitor` does, and ends. A `Down` with `Restarted` comes to a service monitor alone, and reaches its watcher before anything the new run sends: the restarting process empties its mailbox, waits until each service monitor's `wrap` has placed its message, and then runs `f` again, so a wrap that does not finish holds up that restart.
 
@@ -1392,7 +1392,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **inferred restriction** — the equality constraint or process-only, inferred from a body; where there is none, written on a foreign type's parameter or given by §4.7 and §9. §3.9.
 - **irrefutable pattern** — a pattern that cannot fail. §5.10.
 - **key** — a node's own key, the key pair by which it is identified. §8.3, §8.7, §11.3.
-- **`kill`** — `kill(a)`, ends the process `a` names with the reason `Killed`. §6.9, §9.5.
+- **`kill`** — `kill(a)`, ends the process `a` names with the reason `Killed`, as `Process.kill(p)` ends the process `p` identifies. §6.9, §9.5, Appendix E.21.
 - **lambda** — an anonymous function, `fn(x) = e`. §5.3.
 - **line mode** — the shell reading lines and editing none, when its input or output is not a terminal. §11.2.
 - **literal** — a token that stands for an `Int`, `Float`, `Char`, `String`, or `Bool` value. §2.5.
