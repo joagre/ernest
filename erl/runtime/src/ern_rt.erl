@@ -58,7 +58,8 @@
          wait_for_later/0, tables/0, arguments/0,
          exit_program/1, refused/1, deadlock_victim/1, entry_process/0, signal/1,
          initializing/1, site/0,
-         evaluate/2, made_table/1, ends_with_caller/1, owned/1, owned_tables/1, withdraw_load/2,
+         evaluate/2, evaluate_load/2, made_table/1, ends_with_caller/1, owned/1, owned_tables/1,
+         withdraw_load/2,
          binding/1, binding_value/2, is_initialized/1,
          restarting/2, restart_now/0, ask_restart/1,
          start_cause/0, is_restarting/0, on_this_node/1, spawn_order/1, gateway/0,
@@ -75,12 +76,13 @@
 %% Report §8.6: each receive that can wait, by its kind (docs/style.md).
 -receives({foreign_wait, [computed_answer/3, exit_program/1, refused/1, restart_taken/1,
                           end_with_program/0, waited_deliveries/1, tell_service_monitors/0,
-                          say/2]}).
+                          say/2, waited_settler/2]}).
 -receives({ernest_wait, [waited_answer/3, call_forever/3, waited_evaluation/2,
                          evaluated_lives/0]}).
 -receives({answered_at_once, [spawn_with_monitors/4, ask_monitor/2, demonitor/1, spawned/7,
-                              kill_all/1, opened/3, asked_of_run/1, unwatched/2]}).
--receives({own_process, [said_later/0, wait_for_later/0, kept_loop/2, reaper_loop/2,
+                              kill_all/1, opened/3, asked_of_run/1, unwatched/2,
+                              evaluator_ended/2]}).
+-receives({own_process, [said_later/0, wait_for_later/0, kept_loop/2, reaper_loop/2, settler/4,
                          wait_for_ends/1, ended_program/0, counted_link/3, delivery_ended/1,
                          write_loop/1, stream_loop/2, dropping/0, stdin_loop/2, read_input/1,
                          clock_loop/1, waited/5, told_how/3, entry_end/2, end_program/4,
@@ -2090,12 +2092,16 @@ kill_all(Pids) ->
 %% adopted, the system processes excepted, which are the runtime's. Report
 %% §11.2: each session's own processes are left out, those marked so
 %% (own/1), and Appendix E.28: so is every load's evaluator, the runtime's
-%% own, marked as it is spawned (spawned/7).
+%% own, marked as it is spawned (spawned/7). A row stands until the reaper
+%% has taken its process's end, so a process that has ended is left out by
+%% the host's answer, read as the rows are.
 -spec processes() -> [pid()].
 processes() ->
-    try ets:select(?PROCESSES, [{#process_row{pid = '$1', own = none, _ = '_'}, [], ['$1']}])
-    catch error:badarg -> []
-    end.
+    Rows = try ets:select(?PROCESSES, [{#process_row{pid = '$1', own = none, _ = '_'}, [],
+                                        ['$1']}])
+           catch error:badarg -> []
+           end,
+    [Pid || Pid <- Rows, erlang:is_process_alive(Pid)].
 
 %% Report §11.2, Appendix E.21: each of Processes marked as a session's
 %% own, a process of the shell's own, the session, its reader, its screen
@@ -3949,9 +3955,10 @@ entry_outcome(EntryPoint, Site, Options, Launch) ->
                 ets:insert(?LAUNCH, {entry_process, erlang:self()}),
                 run_inits(Stdlib),
                 Init(),
-                %% report §8.7, §12.3: a node listens once its bindings
-                %% have their values, a carrier that cannot start faulting
-                %% the entry process, under its own site (§6.9)
+                %% report §8.7, §12.5: a node listens once its bindings
+                %% have their values, a carrier that cannot start ending
+                %% the run as a job that cannot start (refused/1), under
+                %% the entry point's own site (§6.9)
                 initializing(Site),
                 Node(),
                 EntryPoint()
@@ -4034,10 +4041,12 @@ exit_program(Status) ->
             receive after infinity -> ok end
     end.
 
-%% Report §12.3, §11.8: the run ended before `main` as a job that cannot
-%% start, a node whose carrier did not (ern_carrier:start/1), Text saying
-%% why, which the job says as its refusal; the caller, the entry process,
-%% waits for its own end there, as an Os.exit's caller does.
+%% Report §12.5, §8.6, §11.8: the run ended before `main` as a job that
+%% cannot start, a node whose carrier did not (ern_carrier:start/1), Text
+%% saying why, which the job says as its refusal once the end has told the
+%% subscribers of Os.termination and waited, as at any end (told/3); the
+%% caller, the entry process, waits for its own end there, as an Os.exit's
+%% caller does.
 -spec refused(binary()) -> no_return().
 refused(Text) ->
     {Runner, Launch} = launch_runner(),
@@ -4143,12 +4152,13 @@ site() ->
 %% there too, and after a detach to the node's (drop_screens/1).
 %%
 %% Once the bindings have their values the evaluator ends, unless it owns
-%% what a binding opened, a listener, a socket, a running program or a
-%% table, which would end with it (Appendix E.18, E.23, G.1): it then lives
-%% on, as the entry process lives through a program (§8.5). The caller
-%% waits for an end it is told of, so that the load answers once the
-%% evaluator has gone; its screen's row stays, since what the evaluation
-%% started is the session's until the session ends (§12.1), which drops it.
+%% what a binding opened, a listener, a socket, a running program, a table
+%% or a proxy, which would end with it (Appendix E.18, E.23, G.1, G.7): it
+%% then lives on until the program's end or until it is killed, as the
+%% entry process lives through a program (§8.5). The caller waits for an
+%% end it is told of, so that the load answers once the evaluator has
+%% gone; its screen's row stays, since what the evaluation started is the
+%% session's until the session ends (§12.1), which drops it.
 %%
 %% One whose binding faults catches the fault, answers it and ends, and one
 %% ended from outside, killed or faulted by a deadlock in the caller's place
@@ -4156,13 +4166,121 @@ site() ->
 %% runner's of the entry process is, which carries its site, the binding it
 %% evaluated, and its end. `{evaluated, Evaluator}`, or `{ended, Evaluator,
 %% Site, How}`, How `{faulted, Cause}` or `killed`; the row of its screen
-%% goes where the load is withdrawn (withdraw_load/2).
+%% goes where the load is withdrawn (withdraw_load/2). A caller that meets a
+%% fault or a restart asked for at its wait undoes this evaluation first, as
+%% a binding's fault undoes it, and then faults or restarts (§6.5, §6.9).
 -spec evaluate([module()], binary()) ->
           {evaluated, pid()} | {ended, pid(), binary(), {faulted, binary()} | killed}.
 evaluate(Units, Site) ->
+    Ref = make_ref(),
+    Caller = erlang:self(),
+    Evaluator = evaluator(Units, Site, Caller, Ref, screen_of(current()), [{Caller, Ref}]),
+    case evaluation_waited(Evaluator, Ref) of
+        evaluated ->
+            {evaluated, Evaluator};
+        {ended, BindingSite, How} ->
+            {ended, Evaluator, BindingSite, How};
+        {interrupted, _} = Interrupted ->
+            evaluator_ended(Evaluator, Ref),
+            receive {Ref, _} -> ok after 0 -> ok end,
+            _ = withdraw_load([Evaluator], Units),
+            resumed(Interrupted)
+    end.
+
+%% Report Appendix E.28: Code.load's evaluation, evaluate/2's, settled by a
+%% process of the runtime's own, its settler, which watches the caller from
+%% before it spawns the evaluator, so that the load is whole or undone
+%% however the caller ends. Where the caller ends before it hands the
+%% settler what its wait came to, killed while it waits among the ways,
+%% the settler undoes the load as a binding's fault does: the evaluator and
+%% every process the evaluation started killed, the values the bindings
+%% stored gone, and nothing loaded. Otherwise the settler makes the load
+%% whole, its units marked initialized (§8.7), or undoes it, and answers.
+%% Report §8.6: the caller's waits for the settler are on a process the
+%% look cannot see deliver (entered_foreign/0); its wait for the evaluator
+%% is the look's as evaluate/2's is. `evaluated`, or the binding's site and
+%% how it ended.
+-spec evaluate_load([module()], binary()) ->
+          evaluated | {ended, binary(), {faulted, binary()} | killed}.
+evaluate_load(Units, Site) ->
     Caller = erlang:self(),
     Ref = make_ref(),
+    Word = make_ref(),
     Sink = screen_of(current()),
+    Spawn = fun(Watchers) -> evaluator(Units, Site, Caller, Ref, Sink, Watchers) end,
+    Settler = reaper_held(launch_reaper(),
+                          fun() -> settler(Caller, {Word, Ref}, Spawn, Units) end),
+    MonitorRef = erlang:monitor(process, Settler),
+    entered_foreign(),
+    Evaluator = try waited_settler(Word, MonitorRef) after left_foreign() end,
+    Waited = evaluation_waited(Evaluator, Ref),
+    case Waited of
+        {interrupted, _} -> unwatched(Evaluator, Ref);
+        _ -> ok
+    end,
+    Settler ! {Word, Waited},
+    entered_foreign(),
+    Settled = try waited_settler(Word, MonitorRef) after left_foreign() end,
+    erlang:demonitor(MonitorRef, [flush]),
+    resumed(Settled).
+
+%% The settler's word under Word, the evaluator it spawned or how it settled
+%% the load; a settler that ended without it is a failure of the runtime's
+%% (§7.4).
+waited_settler(Word, MonitorRef) ->
+    receive
+        {Word, Said} -> Said;
+        {'DOWN', MonitorRef, process, _, ExitReason} -> erlang:error({settler, ExitReason})
+    end.
+
+%% The settler: the caller watched, the evaluator spawned, watched by both,
+%% and named to the caller, and the load settled as the caller's wait came
+%% to, or undone where the caller ends first.
+settler(Caller, {Word, Ref}, Spawn, Units) ->
+    MonitorRef = erlang:monitor(process, Caller),
+    Tag = make_ref(),
+    Evaluator = Spawn([{Caller, Ref}, {erlang:self(), Tag}]),
+    Caller ! {Word, Evaluator},
+    Settled = receive
+                  {Word, Waited} ->
+                      erlang:demonitor(MonitorRef, [flush]),
+                      load_settled(Waited, Evaluator, Tag, Units);
+                  {'DOWN', MonitorRef, process, Caller, _} ->
+                      load_settled({interrupted, ended}, Evaluator, Tag, Units)
+              end,
+    Caller ! {Word, Settled}.
+
+%% A load made whole, its units marked initialized, the settler's monitor of
+%% an evaluator that lives on ended; or undone, as where a binding faults
+%% (withdraw_load/2), once the evaluator has ended, killed where it
+%% evaluates still (evaluator_ended/2).
+load_settled(evaluated, Evaluator, Tag, Units) ->
+    unwatched(Evaluator, Tag),
+    lists:foreach(fun initialized/1, Units),
+    evaluated;
+load_settled(Undone, Evaluator, Tag, Units) ->
+    evaluator_ended(Evaluator, Tag),
+    _ = withdraw_load([Evaluator], Units),
+    Undone.
+
+%% Report §6.9, §11.2: the evaluator ended, killed where it runs still, and
+%% its end taken from the reaper's notice under Tag, which the reaper gives
+%% once it has taken every spawn the evaluator asked for before it ended,
+%% so that withdraw_load/2 finds each process the evaluation started.
+evaluator_ended(Evaluator, Tag) ->
+    killed(Evaluator, {ern, killed}),
+    receive {Tag, _, _} -> ok end.
+
+%% Report §6.5, §6.9: the fault or the restart the caller met at its wait,
+%% met once the load is undone.
+resumed({interrupted, {fault, Fault}}) -> throw(Fault);
+resumed({interrupted, restart}) -> restart_now();
+resumed(Settled) -> Settled.
+
+%% The evaluator of Units at Site, which tells Caller its outcome under Ref,
+%% and whose end the reaper tells each of Watchers under its tag, as a raw
+%% monitor tells it.
+evaluator(Units, Site, Caller, Ref, Sink, Watchers) ->
     Evaluation = fun() ->
                      Sink =:= none orelse screen(erlang:self(), Sink),
                      Outcome = try lists:foreach(fun(Unit) -> Unit:'$init'() end, Units) of
@@ -4178,16 +4296,19 @@ evaluate(Units, Site) ->
                          _ -> ended
                      end
                  end,
-    Evaluator = spawn_with_monitors(Evaluation, Site, [{Caller, #monitor{wrap = {raw, Ref}}}],
-                                    evaluator),
+    spawn_with_monitors(Evaluation, Site,
+                        [{Watcher, #monitor{wrap = {raw, Tag}}} || {Watcher, Tag} <- Watchers],
+                        evaluator).
+
+%% The caller's wait for its evaluator, the monitor of one that lives on
+%% ended (unwatched/2).
+evaluation_waited(Evaluator, Ref) ->
     case waited_evaluation(Evaluator, Ref) of
         lives ->
             unwatched(Evaluator, Ref),
-            {evaluated, Evaluator};
-        evaluated ->
-            {evaluated, Evaluator};
-        {ended, BindingSite, How} ->
-            {ended, Evaluator, BindingSite, How}
+            evaluated;
+        Waited ->
+            Waited
     end.
 
 %% Report §8.6, Appendix E.28: the caller's wait for its evaluator, an
@@ -4196,8 +4317,8 @@ evaluate(Units, Site) ->
 %% `evaluated` for one that ended with its work, and the end of one whose
 %% binding faulted, once its monitor tells the end; or the end of an
 %% evaluator ended from outside, its site and its reason. A restart asked
-%% of the caller, and a fault met on a message's way to it, wait in its
-%% mailbox for its next wait (§6.9, §6.5).
+%% of the caller, and a fault met on a message's way to it, are taken at
+%% this wait as at a call's, and interrupt the load (§6.9, §6.5).
 waited_evaluation(Evaluator, Ref) ->
     _ = erlang:put(?LOAD, Evaluator),
     try
@@ -4213,7 +4334,11 @@ waited_evaluation(Evaluator, Ref) ->
                                   'Killed' -> killed;
                                   {'Fault', Cause} -> {faulted, Cause};
                                   Other -> {faulted, atom_to_binary(Other)}
-                              end}
+                              end};
+            '$ern_restart' ->
+                {interrupted, restart};
+            {'$ern_fault', Fault} ->
+                {interrupted, {fault, Fault}}
         end
     after
         erlang:erase(?LOAD)

@@ -170,6 +170,104 @@ load_deadlock_test() ->
     %% report §8.6, Appendix E.28: the load's answer is the fault's one report
     ?assertEqual(<<>>, Said).
 
+%% Appendix E.28, report §6.5, §6.9: a load whose caller ends while it
+%% waits for the evaluator ends as where a binding faults: the evaluator
+%% and every process the evaluation started killed and nothing loaded, so
+%% that the same load evaluates the bindings again. The binding kills its
+%% caller, and then a process its caller monitors through a wrap that
+%% faults, and holds the evaluation for ever. A regression test, written
+%% after the code: the evaluator and what it started ran on past a killed
+%% caller, and the program deadlocked waiting for them; a restart asked for
+%% at the wait, which takes the same path as the fault, is not covered
+load_caller_ends_test() ->
+    Dir = tmp(),
+    Lib = filename:join(Dir, "lib"),
+    write(Lib, "plug/cut.ern",
+          "type Watch = Ask(Reply(Unit))\n\n"
+          "let started : Unit = Io.println(\"Cut's bindings evaluated\")\n\n"
+          "let worker : Address(Int) =\n"
+          "    spawn(fn() : Unit receiving Int = receive {\n"
+          "        n -> Io.println(Int.toString(n))\n"
+          "    })\n\n"
+          "fn silent() : Unit receiving Watch =\n"
+          "    receive {\n"
+          "        Ask(_) -> silent()\n"
+          "    }\n\n"
+          "fn isTarget(process : Process) : Bool =\n"
+          "    match Process.status(process) {\n"
+          "        Some(status) -> status.site == \"Main.main:13\""
+          " || status.site == \"Main.main:18\"\n"
+          "      | None -> false\n"
+          "    }\n\n"
+          "let cut : Unit =\n"
+          "    match List.filter(Process.live(), isTarget) {\n"
+          "        [] -> Unit\n"
+          "      | targets -> {\n"
+          "            List.forEach(targets, Process.kill);\n"
+          "            Address.callForever(spawn(silent), Ask)\n"
+          "        }\n"
+          "    }\n"),
+    built(Lib, "plug/cut.ern"),
+    Main = write(Dir, "main.ern",
+                 "type Msg = Ended(Down)\n\n"
+                 "fn shown() : Unit =\n"
+                 "    Io.println(Io.show(Code.load(Path(\"" ++ Lib ++ "/plug/cut.erc\"))))\n\n"
+                 "fn isLoads(process : Process) : Bool =\n"
+                 "    match Process.status(process) {\n"
+                 "        Some(status) -> String.startsWith(status.site, \"Plug.Cut.\")\n"
+                 "      | None -> false\n"
+                 "    }\n\n"
+                 "export fn main() : Unit receiving Msg = {\n"
+                 "    let _ = spawnMonitored(fn() = shown(), Ended);\n"
+                 "    ended();\n"
+                 "    undone();\n"
+                 "    let _ = spawnMonitored(\n"
+                 "        fn() = {\n"
+                 "            let watched : Address(Int) ="
+                 " spawn(fn() : Unit receiving Int = receive { _ -> Unit });\n"
+                 "            monitor(Process.fromAddress(watched),"
+                 " fn(_) = fault(\"the watched process ended\"));\n"
+                 "            shown()\n"
+                 "        },\n"
+                 "        Ended\n"
+                 "    );\n"
+                 "    ended();\n"
+                 "    undone();\n"
+                 "    shown()\n"
+                 "}\n\n"
+                 "fn ended() : Unit receiving Msg =\n"
+                 "    receive {\n"
+                 "        Ended(down) -> Io.println(Io.show(down.reason))\n"
+                 "    }\n\n"
+                 "fn undone() : Unit receiving Msg = {\n"
+                 "    let started = List.filter(Process.live(), isLoads);\n"
+                 "    List.forEach(started, fn(process) = monitor(process, Ended));\n"
+                 "    awaited(List.size(started));\n"
+                 "    Io.println(Int.toString(List.size(Process.live())))\n"
+                 "}\n\n"
+                 "fn awaited(count : Int) : Unit receiving Msg =\n"
+                 "    if count == 0 then Unit"
+                 " else receive { Ended(_) -> awaited(count - 1) }\n"),
+    built(Dir, "main.ern"),
+    Self = self(),
+    Device = spawn(fun() -> said(Self, []) end),
+    Before = byte_size(captured_output()),
+    ?assertEqual(0, ern_cli:ern(["run", filename:rootname(Main) ++ ".erc"], Device)),
+    Output = binary:part(captured_output(), Before, byte_size(captured_output()) - Before),
+    Device ! {done, self()},
+    Said = receive {said, Text} -> unicode:characters_to_binary(Text) end,
+    ?assertEqual([<<"Cut's bindings evaluated">>,
+                  <<"Killed">>,
+                  <<"1">>,
+                  <<"Cut's bindings evaluated">>,
+                  <<"Fault(\"the watched process ended\")">>,
+                  <<"1">>,
+                  <<"Cut's bindings evaluated">>,
+                  <<"Right(Unit)">>],
+                 binary:split(Output, <<"\n">>, [global, trim])),
+    ?assertMatch({_, _}, binary:match(Said, <<"Main.main:16 faulted: the watched process"
+                                              " ended\n">>)).
+
 %% Appendix E.28, report §8.5, §8.6, §6.8: a load evaluates in an evaluator
 %% of its own while the caller waits, so a binding that calls a function
 %% generic in its mailbox type takes none of the caller's messages: it

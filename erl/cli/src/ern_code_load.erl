@@ -32,7 +32,7 @@
 %% body of mailbox type `Never` (§4.6), in an evaluator, a process of the
 %% runtime's own that heads a spawn chain of its own and ends with them, or
 %% lives on where it owns what a binding opened, while the caller waits
-%% (ern_rt:evaluate/2), as the shell's load evaluates. One
+%% (ern_rt:evaluate_load/2), as the shell's load evaluates. One
 %% that faults ends the evaluation and the evaluator: every process the
 %% evaluation started is killed and the values its evaluation stored go,
 %% as a refused load of the shell's is undone (ern_rt:withdraw_load/2), and
@@ -98,7 +98,7 @@ own(Unit) ->
 %% inside foreign code for the look meanwhile; the evaluation of the
 %% bindings after it is Ernest code, in the evaluator, whose waits the look
 %% reads, a deadlock among them, while the caller waits for it as the look
-%% reads a wait (ern_rt:evaluate/2).
+%% reads a wait (ern_rt:evaluate_load/2).
 placed_and_loaded(Path, LoadPath) ->
     ern_rt:entered_foreign(),
     try
@@ -305,7 +305,9 @@ made(#placed{found = #found{beam = Beam} = Found, unit = Unit, made = forms}, Pl
 %% (§8.5), so that a unit the node held and had not evaluated is without
 %% them as before. The units it brought stay loaded and in the code table,
 %% as a refused load of the shell's leaves them, their names in no
-%% program's reach. A load with no binding to evaluate starts no evaluator.
+%% program's reach. The runtime makes the load whole or undoes it, however
+%% the caller ends (ern_rt:evaluate_load/2). A load with no binding to
+%% evaluate starts no evaluator.
 evaluated(Placed) ->
     Units = [Unit || #placed{unit = Unit} <- Placed],
     evaluated_by([Unit || Unit <- ern_rt:ordered(Units),
@@ -315,13 +317,9 @@ evaluated(Placed) ->
 evaluated_by([]) ->
     {'Right', 'Unit'};
 evaluated_by(Evaluated) ->
-    case ern_rt:evaluate(Evaluated, <<"Code.load">>) of
-        {evaluated, _} ->
-            lists:foreach(fun ern_rt:initialized/1, Evaluated),
-            {'Right', 'Unit'};
-        {ended, Evaluator, BindingSite, How} ->
-            _ = ern_rt:withdraw_load([Evaluator], Evaluated),
-            refuse({'Other', ended(BindingSite, How)})
+    case ern_rt:evaluate_load(Evaluated, <<"Code.load">>) of
+        evaluated -> {'Right', 'Unit'};
+        {ended, BindingSite, How} -> refuse({'Other', ended(BindingSite, How)})
     end.
 
 %% Report §8.5, §11.2, Appendix E.28: a binding that faulted, by its site,

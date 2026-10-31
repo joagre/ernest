@@ -1443,6 +1443,30 @@ faulting_wrap_test() ->
     ?assertMatch({'Down', _, {'Fault', <<"division by zero">>}, <<"Main.main:3">>}, wait(d1)),
     ?assertMatch({'Down', _, 'Returned', <<"Main.main:5">>}, wait(d2)).
 
+%% Appendix E.21: `live` answers the processes that have not ended, and so
+%% leaves out one that has ended before the runtime's reaper has taken its
+%% end, which the reaper, suspended, cannot take here. A regression test,
+%% written after the fix: the listing read the rows alone, which stand
+%% until the reaper takes a process's end, so that a load undone was read
+%% now and then as leaving its processes running (ern_code_load_tests'
+%% load_caller_ends)
+live_leaves_out_the_ended_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Ended = ern_rt:spawn(fun waiting/0, <<"M.ended:1">>),
+               Pid = ern_rt:process_of(Ended),
+               Reaper = ern_rt:launch_reaper(),
+               true = erlang:suspend_process(Reaper),
+               MonitorRef = erlang:monitor(process, Pid),
+               ern_rt:kill(Ended),
+               ern_rt:timed(),
+               receive {'DOWN', MonitorRef, process, _, _} -> ern_rt:untimed() end,
+               Self ! {live, lists:member(Pid, ern_rt:processes())},
+               true = erlang:resume_process(Reaper)
+           end, <<"M.main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual(false, wait(live)).
+
 %% report §6.9, §7.4: a restarting function called where the runtime
 %% applies a function for another process faults with its cause before
 %% anything of a restart begins: in a monitor's wrap, the fault of the
@@ -1487,6 +1511,30 @@ restart_where_the_runtime_applies_test() ->
     ?assertMatch({'Down', _, {'Fault', Cause}, <<"Main.target:5">>}, wait(target)),
     ?assertEqual(Cause, wait(far)),
     ?assertEqual('Unit', wait(sent)).
+
+%% report §6.9, §10, Appendix E.15: a restarting function called in any
+%% wrap the runtime applies as it delivers faults so, an alarm's as a
+%% monitor's, the fault the recipient's, met at its next wait. A
+%% regression test, written after the report named every such wrap (the
+%% log's *The Release Review Before 0.7.0*, *The round*): the code applied
+%% the rule to each delivery already (counted_link/3)
+restart_in_an_alarms_wrap_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Restarting = ern_rt:restarting('Unlimited', fun() -> 'Unit' end),
+               _ = ern_rt:spawn_monitored(
+                     fun() ->
+                         Clock = ern_rt:system_process(clock),
+                         alarm(Clock, 0, ern_rt:adapted(ern_rt:self(),
+                                                        fun(_) -> Restarting() end)),
+                         waiting()
+                     end, fun(Down) -> {alarmed, Down} end, <<"Main.alarmed:3">>),
+               receive {alarmed, Down} -> Self ! {alarmed, Down} end
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertMatch({'Down', _, {'Fault', <<"restart in a function the runtime applies">>},
+                  <<"Main.alarmed:3">>},
+                 wait(alarmed)).
 
 %% A message applied by the process kept for Address, as a peer's worker
 %% hands it one, and the kept process stopped.
