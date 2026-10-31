@@ -14,65 +14,20 @@ and a feature declined in a dated entry of the log; nothing stands between.
 
 ## Where we are
 
-**MVP 3.96 is done**, the report pared to the language and what the paring found, on 2026-10-30
-(the log's *One Function per Initializer*, its last item): `language.md` holds what decides what a
-program means and the runtime's mechanism is chapter 12 of `toolchain.md`; the build's cost per
-function measured and made linear, `Test.until`, `<-` at the prompt, the comments' paragraphs, and
-the emitter's calls as the host's. Ernest 0.6.0 of 2026-10-25 is the last release; no promise of
+**MVP 4.0 is done**, a shell attached to a running node, on 2026-10-31, and Ernest 0.7.0 of
+2026-10-31 is the last release, the release review before it read, its eight batches decided and
+built (the log's *The Release Review Before 0.7.0* and the entries its row names). No promise of
 stability is made, and a change to the language, the standard library or the libraries is driven
 by a need met in use and recorded as `docs/language_feedback.md` records one.
 
-Next is the attached shell, MVP 4.0, and the pun after it; then ernest-httpd, the website
-and the shell's second round (the log's *The Road to 1.0, Ordered*); the back end to BEAM's own instructions that closed the
-road is not built, decided 2026-10-30 (the log's *No Back End to BEAM's Own Instructions*). A
-finished milestone is a row of the table at the end, its reasons in the log entries the row names.
+Next is the pun; then ernest-httpd, the website and the shell's second round (the log's *The Road
+to 1.0, Ordered*); the back end to BEAM's own instructions that closed the road is not built,
+decided 2026-10-30 (the log's *No Back End to BEAM's Own Instructions*). A finished milestone is a
+row of the table at the end, its reasons in the log entries the row names.
 
 ---
 
-## MVP 4.0 (a shell attached to a running node), about a week
-
-Made on 2026-10-13 from MVP 4.3's item 4 when the deployment guide's section 6 was written and
-the user saw how thin a shell beside a node is for an operator: every look is a compute wrapped by
-hand, and nothing of the node's own is at the prompt.
-
-Its design is `docs/proposals/shell/attached.md`, read back against the shell's design note and rewritten on 2026-10-30, ready the same day (the
-log's *The Attached Shell's Cut*): the operator's machine is the terminal and the files, and
-everything else is the node's, so the shell of the design note runs on the node, touching the
-terminal and the files through the local half alone, spawned there by the operator's `ern shell --config-dir ops --attach name`, and what crosses the
-carrier is the terminal's events and bytes and the operator's files.
-
-One form of attaching, by a listed peer, since a node accepts a connection from a peer it lists and no other (§12.5).
-
-1. **The report first**, done 2026-10-30 (the log's *The Attached Shell's Sentences*): §11.2's
-   *The attached shell*, §11.7, §11.8, §12.1, §12.7, Appendices E.21, E.23, F and H, and the attach's end, since
-   `:quit`'s (the log's *One Word to Leave*).
-2. **The runtime**, done 2026-10-30 (the log's *The Session's Screen and the Toolchain's Units,
-   Built*).
-3. **The shell**, done 2026-10-30 (the log's *The Attached Shell, Built*).
-4. **The guides**, done 2026-10-30 (the log's *The Guides Over the Attached Shell*).
-5. **The tests and the release**: the tests, done 2026-10-30 (the log's *The Attached Shell,
-   Tested*); then the release that follows, 0.7.0, by `docs/release_review.md`.
-6. **The shell's end loses its last lines**, fixed 2026-10-30 (the log's *The End's Lines Reach
-   the Screen*).
-7. **A line-mode input costs 25 ms**, halved 2026-10-30 (the log's *A Line-Mode Input's Cost*).
-8. **An attached shell's last line shares the prompt's row**, fixed 2026-10-30 (the log's *The
-   Attached Shell's Last Row*).
-9. **An attached shell's own node tells no peer its utilization**, built 2026-10-30 (the log's
-   *The Attached Shell's Own Node, Quiet*).
-10. **An attached shell's own node says nothing of its node's end or loss**, built 2026-10-30
-    (the log's *The Attached Shell's Own Node, Quiet*).
-11. **An expression makes one unit**, built 2026-10-30 (the log's *An Expression's One Unit, and
-    an Input's Cost Flat*).
-12. **An input's cost grows with the session**, fixed 2026-10-30 (the log's *An Expression's One
-    Unit, and an Input's Cost Flat*).
-13. **A detached session's units that declare a function or build a function value are kept
-    for the node's life**, built 2026-10-30 (the log's *The Detach Keeps What Declares a
-    Function*).
-
-The attached shell is the operator's alone, trusted as a peer is, with no sandbox: the website runs
-the plain shell in a container per visitor (MVP 4.2).
-
-## The pun (`Desk(=local)`), a day, after MVP 4.0
+## The pun (`Desk(=local)`), a day, next
 
 A field given or matched by the variable of its own name is written once, `Desk(=local, =size)`
 for `Desk(local = local, size = size)`, in a construction and in a pattern alike, decided with the
@@ -95,7 +50,7 @@ name, which Ernest's parentheses make a call, the dot, and the marks other langu
    repository's, every `Foo(line = line)` written `Foo(=line)`, and ernest-httpd's where it has
    any.
 
-Discussed with the user when the milestone opens, after MVP 4.0's release, each with its
+Discussed with the user when the milestone opens, each with its
 recommendation then: whether the formatter writes the pun where the names agree, or the style
 guide alone asks for it; and every line of `language_feedback.md` open on that day, decided one
 at a time as CLAUDE.md's *Before code* says, a report change, a library function or a line of the
@@ -176,7 +131,7 @@ ready the same day: the docroot, the anchors, the homepage, every page, the look
 templates, the generation, the live shell's page side and the documents; the first design's
 templates and mockup stand beside it. Its sandbox is the operating system's, one container per
 visitor running the plain shell, whose server side is the httpd proposal's; a sandbox of the
-language's was weighed and set aside on 2026-10-13 (`docs/proposals/shell/attached.md`), and the
+language's was weighed and set aside on 2026-10-13 (the log's *ehttpd and the Website*), and the
 attached shell, MVP 4.0, is the operator's alone.
 
 1. **The look, by hand, before any generation**, decided 2026-10-30, at least a day: the
@@ -281,7 +236,7 @@ the operator's prompt is, and four were dropped with their verdicts in the log.
 | MVP 3.9 | the review, and Ernest 0.5.0: the nodes' and the code's design notes, the proposals built by then swept, the full review and its findings, the process-only mark narrowed and a wrap's `self` its recipient's, what the lease broker found, the release review and Ernest 0.5.0, a release with no promise of stability | 2026-10-25 | tag `v0.5.0` | *MVP 3.9 Weighed*, *The Nodes' and the Code's Notes*, *The Design Notes Leave the Proposals*, *The Full Review Before 0.5.0*, *The Review's Fixes, First Round*, *The Review's Decisions*, *The Process-Only Mark Marks a Wait*, *A Wrap's `self` Is Its Recipient's*, *Two Nodes Tests Take the Fault's Line*, *One Name for Every Order*, *The Shell's End Writes What It Was Told*, *A Restart Empties Before It Tells*, *A Member Has One Face*, *The Release Review Before 0.5.0*; `findings.md` as it stood at `105fb3fc` |
 | MVP 3.95 | what the review and 0.5.0 left: the release review read back, a restart told across nodes by the runtime's own frames, the harness counting a test's steps, the review round's method with an owner, the site proposal's sitting, the first fault's cost measured, the member regime's missing test, the teller's late delivery closed, dialyzer in the full run, and Ernest 0.6.0, the protocol's version moved | 2026-10-25 | tag `v0.6.0` | *The Release Review Read Back*, *A Restart Told Across Nodes*, *A Restart Told Across Nodes, Built*, *The Report's Readers Read the Diff*, *The Teller's Late Delivery*, *The Teller's Late Delivery, Built*, *The Harness Counts a Test's Steps*, *The First Fault's Cost*, *The Review's Decisions*, *A Member Has One Face*, *The Report Pared After 0.6.0*, *The Release Review Before 0.6.0*; `findings.md` as it stood at `c6eab569` |
 | MVP 3.96 | the report pared to the language, `language.md` holding what decides what a program means and the runtime's mechanism chapter 12 of `toolchain.md`, and what the paring found: the build's cost per function linear, one function per initializer, the nested group's third restart, the newcomer's feedback decided, the second cut to E.27, the comments' paragraphs, the emitter's calls as the host's, `<-` at the prompt and `Test.until` | 2026-10-30 | | *The Report Pared After 0.6.0*, *The Report Pared, Built*, *The Build's Cost per Function*, *One Function per Initializer*, *The Nested Group's Third Restart*, *What the Newcomer's Feedback Left*, *The Second Cut, §8.7 to E.27*, *The Comments' Paragraphs*, *The Emitter's Calls Against the Host's, Built*, *Small Library Functions Stay Calls*, *`<-` at the Prompt*, *`Test.until`, Built* |
-| MVP 4.0 | a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches | made 2026-10-13 from MVP 4.3's item 4 | | above |
+| MVP 4.0 | a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches, its proposal `docs/proposals/shell/attached.md` as it stood at `facbd285`; and the release review before 0.7.0, eight readers over what changed since 0.6.0, its fix lines and its eight batches decided and built | 2026-10-31 | tag `v0.7.0` | *The Attached Shell's Cut*, *The Attached Shell's Sentences*, *The Session's Screen and the Toolchain's Units, Built*, *The Attached Shell, Built*, *The Guides Over the Attached Shell*, *The Attached Shell, Tested*, *The End's Lines Reach the Screen*, *A Line-Mode Input's Cost*, *The Attached Shell's Last Row*, *The Attached Shell's Own Node, Quiet*, *An Expression's One Unit, and an Input's Cost Flat*, *The Detach Keeps What Declares a Function*, *The Release Review Before 0.7.0*, *The Release Review's Code Fixes*, *The Argument's Four Decisions*, *Sites, Sessions and Their Names*, *The Input's Process*, *One Word to Leave*, *The Shell's Own Node*, *Reload, Services and Tests*, *The Library's Lines*, *The Claims, the README and the Tour* |
 | MVP 4.1 | ernest-httpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | | | above |
 | MVP 4.2 | the website, served by ernest-httpd: what Ernest is, its characteristics, the three doors, and a live shell in the browser | | | above |
 | MVP 4.3 | the shell's second round | | | above |

@@ -343,7 +343,7 @@ The site's files as served.
   tested as transcripts, so every input offered is one the tests have run
   (decided 2026-10-27). A transcript of a session the container cannot hold,
   one begun with `ern shell --config-dir`, a node's, or `--attach`, an
-  operator's (`../shell/attached.md`), which the nodes chapters, the tour and
+  operator's (§11.2 *The attached shell*), which the nodes chapters, the tour and
   the deployment guide show, has Copy alone, as an `ernest-shown` block has;
   the generator reads it from the transcript's first line (decided
   2026-10-30).
