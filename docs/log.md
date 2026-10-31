@@ -9558,6 +9558,12 @@ Principle 3 puts in the type what is received, and here that is nothing; the wai
 - 179, an exported function's type naming a private message type. Decided in *A File Beside the Prompt* and *Two Cryptic Sentences*, the mailbox effect the one exemption. Kept, principle 3, the answer being to export the type.
 - 180, no string interpolation. Considered in *`Io.debug`, and String Interpolation Considered*, which left it for later, and found standing in *The Pun*. Dropped, principle 2, a second way to build a string.
 
+**Built, 2026-11-01.** The three builds in one commit. A guard's field is read in place in the Erlang guard, `element/2` on the operand; where a field's place differs between a type's constructors, which a `case` in a guard cannot choose, the place is read from the tag through a literal map, and a selection through a call is refused, the `let` help staying for a guard that calls. A `match` guard of §6.3's form compiles as an Erlang guard too.
+
+The sweep of `receiving m` written over a timed wait, which §4.5 now refuses, was run before it was read: `make test-full` found five, `Utilization.schedulers`, a peer fixture's `heard` and three in the tests' programs, and the checker's tests that stood on the old mark moved to a wildcard `receive`.
+
+New tests show a timed wait in an initializer, a guard, a wrap, an alarm's delivery and an adapted address's function, and a fault and a restart met at one as at `Address.call`'s wait, since the runtime's own messages reach every wait (§6.5, §6.9). The newcomer's auction builds with `when at == lot.closesAt` and its `let` gone, once its `robot`'s `receiving e` over a timed wait goes, which item 4 sweeps outside.
+
 ## `sleep` Is a `receive` With `after`, 2026-10-31
 
 MVP 4.1's `time` library was to carry `sleep`, decided on 2026-10-30 for an epx example that wrote `Time.sleep(1000)` between two drawings of a clock's face. Read against the language the day after: Appendix A's `ReceiveExpr` admits an `AfterClause` alone, and §6.8 says a `receive` with only an `after` clause is how a body waits for a time, so the language already writes the wait, `receive { after ms -> e }`, in the one place a wait is written. A `Time.sleep(ms)` would be a second spelling of it, against principle 2, and one that hides the wait in a call where the `receive` shows it at the line that waits, against principle 3; it would also carry `receiving m` for nothing, or stand a process beside the caller to wait for it. Dropped: `time` keeps the calendar.

@@ -58,7 +58,7 @@ Utilization.runQueue() >= 0
 ## Utilization.schedulers
 
 ```ernest
-Utilization.schedulers(window : Int) : Float receiving m+
+Utilization.schedulers(window : Int) : Float
 ```
 
 The fraction of the schedulers' time spent running processes over a
