@@ -4,7 +4,7 @@
 /// `Map` and is an element of a `Set`, and it has no order. Nothing can be sent
 /// to it: an address is what a process is reached by, and a `Process` only says
 /// which one. `current` gives the running process, `fromAddress` the process
-/// behind an address, and `monitor` watches one.
+/// behind an address, `monitor` watches one, and `kill` ends one.
 ///
 /// `status`, `live` and `faults` show what runs, for a program that watches
 /// itself. What they say of a live process is a snapshot, which may have
@@ -108,6 +108,30 @@ export type FaultReport =
 /// ```
 export foreign fn fromAddress(address : Address(m)) : Process =
     "ern_rt:process_of/1"
+
+/// Ends the process with the reason `Killed`, as `kill` ends the process at an
+/// address (report §6.9). It returns at once, and the process may run a little
+/// before it stops. Killing a process that has ended does nothing.
+///
+/// An address is the permission to send to a process, and a `Process` its
+/// identity, which a `Down` carries and `live` lists, so a process found so is
+/// ended without its address (report §6.5).
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let worker : Address(Int) = spawn(fn() = receive {
+///         _ -> Unit
+///     });
+///     Process.kill(Process.fromAddress(worker))
+/// }
+/// // => Unit
+/// ```
+///
+/// since 0.7.0
+export foreign fn kill(process : Process) : Unit =
+    "ern_rt:kill/1"
 
 /// The running process, for a function that needs its identity and not its
 /// mailbox; `self` gives its address. It is the process `fromAddress(self())`

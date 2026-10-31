@@ -104,8 +104,9 @@ builtin_types() ->
       <<"""
       Where messages of type `m` are sent: a process, or a process seen through
       a function with `adapted`. Holding an address is the permission to send to
-      the process and to kill it. Addresses have no equality; the process
-      behind one has, `Process.fromAddress(a)`.
+      the process. Addresses have no equality; the process behind one has,
+      `Process.fromAddress(a)`, the identity a monitor watches and
+      `Process.kill` ends (report §6.5).
 
       ### Examples
 
@@ -609,6 +610,7 @@ values() ->
 
       `kill` returns at once, and the process may run a little before it stops.
       Killing a process that has ended does nothing (report §6.9).
+      `Process.kill` ends a process by its identity.
 
       ### Examples
 

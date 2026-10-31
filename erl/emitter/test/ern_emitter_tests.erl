@@ -4091,6 +4091,25 @@ kill_dead_test() ->
         "}\n"),
     ?assertEqual(<<"#(true, Unknown, \"\")\n">>, Output).
 
+%% Appendix E.21, report §6.5, §6.9: `Process.kill` ends a process by its
+%% identity, as `kill` ends one by its address: its monitor sees `Killed`, a
+%% second kill of the ended process does nothing, and the caller goes on. A
+%% regression test, written after the code; the kill of a process of another
+%% node is `kill`'s, which ern_rt_tests and ern_peer_tests cover
+process_kill_test() ->
+    {ok, Output} = run(
+        "type Msg = Died(Down)\n"
+        "export fn main() : Unit receiving Msg = {\n"
+        "    let w : Address(Int) = spawn(fn() = receive { _ -> Unit });\n"
+        "    let p = Process.fromAddress(w);\n"
+        "    monitor(p, Died);\n"
+        "    Process.kill(p);\n"
+        "    let reason = receive { Died(d) -> d.reason };\n"
+        "    Process.kill(p);\n"
+        "    Io.println(Io.show(#(reason, Process.status(p))))\n"
+        "}\n"),
+    ?assertEqual(<<"#(Killed, None)\n">>, Output).
+
 %% report §6.9, §9.3: a `Down` names the process behind the address
 %% monitored, through an adapted address, as `Process.fromAddress` gives it
 down_names_its_process_test() ->
