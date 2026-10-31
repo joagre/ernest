@@ -216,8 +216,9 @@ since(File) ->
 %% adds nothing and stands on its minor's floor: where VERSION names a
 %% release no tag holds yet, a patch of the last tag's minor, the library's
 %% listings, the form's version and the protocol's version are the last
-%% tag's. Before a release VERSION names the last tag's, and nothing is
-%% compared. A tag's are read from its source's lines, since the code of
+%% tag's. Between releases VERSION names the next minor, which `make
+%% version` sets once the last release is tagged, and nothing is compared.
+%% A tag's are read from its source's lines, since the code of
 %% today need not read it, and today's the same way. Written after the code
 %% (findings H5, H10); it compares the listings' lines and not what they
 %% mean, and a patch that moves a listing's comment alone fails it

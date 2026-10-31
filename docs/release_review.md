@@ -21,11 +21,14 @@ What a release runs to be ready, and nothing else. Between releases an item that
 
    A name a reader lists is decided after the word is searched across the report, the code and the shell, never from its module alone. Where it means something else anywhere in Ernest, the two meanings are weighed on §0's principles, a word carrying two where a reader who knows Ernest first keeps them apart, and the log names the principle that decided and the other meaning the verdict weighed.
 5. **The release:**
-   - `VERSION` set to the release's version, and where the release is a patch, the library's listings, the form's version (Appendix H) and the protocol's version unchanged since the minor, which the tests hold, since two patch levels stand on one floor (report §8.7);
+   - `VERSION` naming the release, which `make version V=x.y.z` set once the last release was tagged, and which a release of another version, a patch, sets now: the target sets `VERSION` and every line the tests hold to it, the documents' start lines and the session fixtures' (`tools/version.sh`), then writes the pages again by `make man`;
+   - where the release is a patch, the library's listings, the form's version (Appendix H) and the protocol's version unchanged since the minor, which the tests hold, since two patch levels stand on one floor (report §8.7);
    - every module of `src/stdlib/` and `src/libs/` that appeared since the last release, and every exported declaration that did, ending its doc block with its own `since` (Appendix E.0 shape rule 6, whose shape and versions `make test` holds);
    - the pages `make man` writes into `docs/man/`, committed with the release;
+   - the sentence of `README.md`'s *Where it stands* that names the latest release, which no test holds and `make version` leaves;
    - the release's section of `CHANGES.md`, first in the file, committed before the tag, which is the release's note: the release step copies it as the notes of the release on GitHub, so that the note is written once (the log's *A Release Carries No History*, sharpened 2026-10-30);
-   - the tag, and the archive `make release` writes, `ern-VERSION.tar.gz`, published beside it.
+   - the tag, and the archive `make release` writes, `ern-VERSION.tar.gz`, published beside it;
+   - and once the tag is made, `make version V=<next minor>.0`, committed at once, so that `VERSION` names the release the checkout works toward and a development build says `0.8.0-dev` while 0.7.0 is the latest release.
 
    The section restates no change. It says:
    - what the release is, in words, with the plan's row for it linked and no milestone named, since a reader of the notes is a user and a milestone's name is the plan's;

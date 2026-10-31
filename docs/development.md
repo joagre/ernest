@@ -15,7 +15,8 @@ The prelude is the report's §9 and the standard library its Appendix E, which a
 `src/` holds the Ernest code a release ships, the standard library, the libraries and the shell; `erl/` holds the Erlang it ships; `editors/` holds the editor modes; everything else serves the repository. `report/` and `guide/` stand at the top, since they are the language, where `docs/` holds every other document, the manual pages and the proposals among them.
 
 ```
-VERSION            the toolchain's version, read at build time
+VERSION            the release the checkout works toward, read at build time, which
+                   make version sets
 README.md          what Ernest is and where to begin
 CLAUDE.md          the working rules
 Makefile           the build and the tests' targets
@@ -92,7 +93,8 @@ tools/             the programs of the build: manual.ern writes ern(1) from the
                    installs and archives, for make install, uninstall and release;
                    paragraphs.sh lists the long paragraphs, for make paragraphs and make
                    test-docs, and comments.sh the long comment blocks, for make comments;
-                   and release/ holds the archive's own Makefile and README.md
+                   version.sh sets VERSION and the lines the tests hold to it, for make
+                   version; and release/ holds the archive's own Makefile and README.md
 build/             build products, not in git: stdlib/, libs/, shell/, tools/ and man/
                    from make, with the manual pages; the standard library's pages
                    in stdlib/ from make doc, and each library's in libs/ too from
@@ -278,6 +280,11 @@ make install      install under PREFIX, /usr/local by default, within DESTDIR if
                   is given (docs/design/install.md)
 make uninstall    remove the installation under the same PREFIX and DESTDIR
 make release      write the release archive, build/release/ern-VERSION.tar.gz
+make version V=x.y.z
+                  set VERSION, the release the checkout works toward, and every line the
+                  tests hold to it, the documents' start lines and the session fixtures',
+                  by tools/version.sh, then write every page as make man does
+                  (docs/release_review.md, step 5)
 make dialyzer     Dialyzer over the toolchain and the Erlang the compiler writes for
                   src/stdlib/, src/shell/ and src/libs/; its first run builds
                   build/dialyzer.plt; part of make test-full

@@ -161,10 +161,10 @@ man: all
 	} > docs/man/libs/README.md
 	@v=$$(cat VERSION); { \
 	  printf '# The manual pages\n\n'; \
-	  printf 'The pages `ern doc` wrote from `main` when `make man` last ran, the last '; \
-	  printf 'release then being Ernest %s; a module or a declaration that appeared ' "$$v"; \
-	  printf 'after it ends its doc block with the release that brings it. A page holds a '; \
-	  printf 'module'"'"'s doc block, then its declarations, each with its type and its '; \
+	  printf 'The pages `ern doc` wrote from `main` when `make man` last ran, the release '; \
+	  printf '`main` then worked toward being Ernest %s; a module or a declaration that ' "$$v"; \
+	  printf 'no release holds yet ends its doc block with the release that brings it. A page '; \
+	  printf 'holds a module'"'"'s doc block, then its declarations, each with its type and its '; \
 	  printf 'own doc block (report §11.4). Where Ernest is installed, `man Ernest.List` '; \
 	  printf 'shows a module'"'"'s page and `man ern` the toolchain'"'"'s.\n\n'; \
 	  printf -- '- [The prelude and the standard library](stdlib/README.md)\n'; \
@@ -198,6 +198,14 @@ uninstall:
 # from tools/release (docs/design/install.md).
 release: all
 	@sh tools/install.sh release build/release $$(cat VERSION)
+
+# VERSION, the release the checkout works toward, set to V, x.y.z, with
+# every line a test holds to it: tools/version.sh writes the documents'
+# start lines and the session fixtures', and make man every page, whose
+# last line names the version text (docs/release_review.md, step 5).
+version:
+	@sh tools/version.sh "$(V)"
+	@$(MAKE) -s man
 
 # The programs of the build written in Ernest, tools/*.ern, compiled into
 # build/tools against libs/markdown and libs/ansi, which it writes with.
@@ -526,6 +534,7 @@ EMACS_CORPUS = $(ERNEST_SOURCES:%=../../%)
         load service bench bench-release \
         test-emacs $(APP_TESTS) $(APP_PARTS) $(EMACS_ALL) \
         clean clean-emacs \
-        sections coverage golden xref contents format doc install uninstall release unicode \
+        sections coverage golden xref contents format doc install uninstall release version \
+        unicode \
         paragraphs comments \
         dialyzer sanitize diagnostics
