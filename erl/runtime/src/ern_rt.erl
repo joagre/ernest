@@ -58,9 +58,9 @@
          exit_program/1, deadlock_victim/1, entry_process/0, signal/1, initializing/1, site/0,
          binding/1, binding_value/2, is_initialized/1, restarting/2, restart_now/0, ask_restart/1,
          start_cause/0, is_restarting/0, on_this_node/1, spawn_order/1, gateway/0, init_stdlib/0,
-         stdlib_modules/0, init_modules/1, initialized/1, offer/2, offered/2, set_utilization/1,
-         program_utilization/0, asked_of_run/1, note_call/3, drop_note/1, note_compute/2,
-         computed/2, is_launched/0, drop_notes/1, ordered/1]).
+         stdlib_modules/0, init_modules/1, initialized/1, uninitialized/1, offer/2, offered/2,
+         set_utilization/1, program_utilization/0, asked_of_run/1, note_call/3, drop_note/1,
+         note_compute/2, computed/2, is_launched/0, drop_notes/1, ordered/1]).
 
 -export_type([address/0, mark/0]).
 
@@ -4627,6 +4627,15 @@ run_inits(ErlangModules) ->
 -spec initialized(module()) -> ok.
 initialized(Unit) ->
     try ets:insert(?INITIALIZED, {Unit}) catch error:badarg -> true end,
+    ok.
+
+%% Report §8.7, §11.2: a unit unloaded, its bindings without their values,
+%% its mark gone with it (ern_code:unloaded/1), so that the table holds a
+%% row for no unit the host no longer holds: the shell lets a session's
+%% units go as it runs and as it ends.
+-spec uninitialized(module()) -> ok.
+uninitialized(Unit) ->
+    try ets:delete(?INITIALIZED, Unit) catch error:badarg -> true end,
     ok.
 
 declared_dependencies(ErlangModule) ->

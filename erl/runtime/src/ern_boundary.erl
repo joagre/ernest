@@ -55,12 +55,16 @@
 %% its trace a failure's, which keeps the runtime's frames where the raise
 %% was met in the runtime's own code (Appendix E.21); an Ernest fault
 %% raised inside foreign code, by a function it was given, passes through
-%% as itself.
+%% as itself, and so does one the runtime raised there, a shim's of the
+%% standard library's among them, `float arithmetic error`. Appendix E.21:
+%% each is raised again with the stack it was raised with, so that its
+%% trace, read where it is met, keeps the line of the frame that called
+%% the foreign function, as a host function's raise keeps it.
 -spec raised(module(), atom(), arity(), error | exit | throw, term(), list()) -> no_return().
-raised(_, _, _, throw, {ern, _, _} = Passing, _) ->
-    throw(Passing);
-raised(_, _, _, throw, {ern, #fault{}} = Passing, _) ->
-    throw(Passing);
+raised(_, _, _, throw, {ern, _, _} = Passing, Stack) ->
+    erlang:raise(throw, Passing, Stack);
+raised(_, _, _, throw, {ern, #fault{}} = Passing, Stack) ->
+    erlang:raise(throw, Passing, Stack);
 %% report §6.9: a restart asked for inside it is a restart
 raised(_, _, _, throw, '$ern_restart', _) ->
     throw('$ern_restart');

@@ -46,8 +46,9 @@
 %% host: `ern test` over a directory runs many (§11.2).
 -module(ern_code).
 
--export([ensure_loaded/1, own_file/1, own_builds/0, own_unit/1, load/3, loaded/2, loaded/3,
-         unloaded/1, spawnable/1, holders/1, linkable/1, valued/1, ground/1, grounded/1, forms/1,
+-export([ensure_loaded/1, own_file/1, own_builds/0, own_unit/1, load/3, load/4, chunk/1,
+         chunks/0, loaded/2, loaded/3, unloaded/1, spawnable/1, holders/1, linkable/1, valued/1,
+         ground/1, grounded/1, forms/1,
          called/1, absent_binding/1, absent_binding/2, foreign/2, declared/1, declared/2,
          present/1, function/2,
          function_text/3, value_text/1, is_free/1, is_held/2, fresh_unit/1, unit_beside/2,
@@ -214,6 +215,52 @@ load(Unit, File, Beam) ->
             end
     end.
 
+%% Report §11.2: the same for a module the runner loads, a program's or its
+%% node's build's, with the interface chunk the runner read of Beam as it
+%% checked it (ern_interface), kept in a row of the unit's own as it was
+%% loaded, so that what reads it later, the shell's interfaces of the
+%% node's modules and a reload's dependencies, reads the code the node
+%% runs and never the file, which a build may have written again or taken
+%% away since; the row goes with the unit's other rows.
+-spec load(module(), file:filename(), binary(), map()) -> ok | {error, atom()}.
+load(Unit, File, Beam, Chunk) ->
+    case load(Unit, File, Beam) of
+        ok -> chunk_kept(Unit, Chunk);
+        {error, _} = Refused -> Refused
+    end.
+
+chunk_kept(Unit, Chunk) ->
+    case lookup({unit, Unit}) of
+        [{_, _, {Md5, Keys, Calls}} = UnitRow] ->
+            true = ets:insert(?TABLE, {{chunk, Unit}, Unit, Chunk}),
+            true = ets:delete_object(?TABLE, UnitRow),
+            true = ets:insert(?TABLE, {{unit, Unit}, Unit,
+                                       {Md5, lists:usort([{chunk, Unit} | Keys]), Calls}}),
+            ok;
+        [] ->
+            %% a module that is no unit holds nothing here (loaded/2)
+            ok
+    end.
+
+%% Report §11.2: the interface chunk of a unit the runner loaded, as it was
+%% loaded (load/4), or none for any other unit.
+-spec chunk(module()) -> {ok, map()} | none.
+chunk(Unit) ->
+    case lookup({chunk, Unit}) of
+        [{_, _, Chunk}] -> {ok, Chunk};
+        [] -> none
+    end.
+
+%% Report §11.2, §8.7: every unit the runner loaded, with its interface
+%% chunk as loaded, which a node's first shell session reads its modules
+%% from, once in the node's life: a reading of the whole table, since the
+%% chunks' rows are keyed by their units.
+-spec chunks() -> [{module(), map()}].
+chunks() ->
+    try ets:select(?TABLE, [{{{chunk, '$1'}, '_', '$2'}, [], [{{'$1', '$2'}}]}])
+    catch error:badarg -> []
+    end.
+
 %% Report §8.7: a unit's definitions put in the table as it loads, for a
 %% unit the host loaded from its compiled form Beam, which a file holds:
 %% the build's, whose forms the file holds. A unit whose code the table
@@ -292,9 +339,11 @@ rows(_, _, {sites, _}) ->
 rows(_, _, {calls, _}) ->
     [].
 
-%% Report §8.7: a unit unloaded, its rows gone with it.
+%% Report §8.7: a unit unloaded, its rows gone with it, and the runtime's
+%% mark that its bindings have their values (ern_rt:uninitialized/1).
 -spec unloaded(module()) -> ok.
 unloaded(Unit) ->
+    ok = ern_rt:uninitialized(Unit),
     forget(Unit, lookup({unit, Unit})).
 
 %% The rows of a unit as the table holds them, each found by its key and

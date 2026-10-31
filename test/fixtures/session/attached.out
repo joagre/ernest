@@ -14,6 +14,7 @@ Ernest 0.6.0-dev. :help for the commands, :detach to leave.
     erlang:'div'/2
     input 10:1
 > fault: exited with status 3
+    input 11:1
 > c : Address(Counter.Msg)
 it : Optional(Int)
 > Counter.start:11 receiving

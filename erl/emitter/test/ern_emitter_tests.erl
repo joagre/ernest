@@ -757,6 +757,28 @@ raise_has_line_test() ->
     ?assertEqual(return_cause("erlang:get/1", "Int"), WordCause),
     ?assertEqual([<<"Words.wrong:1">>, <<"Words.main:3">>], frames(WordTrace)).
 
+%% report §11.1, Appendix E.21, §7.3: a fault a standard library's shim
+%% raises, the runtime's own `float arithmetic error`, keeps the line of
+%% the frame that called the shim, as a host function's raise keeps it:
+%% `Float.exp` called at line 2, and `Float.pow`, whose own call of its
+%% shim keeps its line in float.ern above the caller's. Written before the
+%% fix, the release review before 0.7.0 (P3), each frame having lost its
+%% line where the boundary passed the fault on
+shim_fault_keeps_line_test() ->
+    {{fault, <<"float arithmetic error">>, Exp}, _} =
+        run("export fn main() : Unit = {\n"
+            "    let x = Float.exp(1000.0);\n"
+            "    Io.println(Float.toString(x))\n"
+            "}\n"),
+    ?assertEqual([<<"M.main:2">>], frames(Exp)),
+    {{fault, <<"float arithmetic error">>, Pow}, _} =
+        run("export fn main() : Unit = {\n"
+            "    let x = Float.pow(10.0, 400.0);\n"
+            "    Io.println(Io.show(x))\n"
+            "}\n"),
+    [Library, <<"M.main:2">>] = frames(Pow),
+    ?assertMatch(<<"Float.pow:", Line/binary>> when Line =/= <<>>, Library).
+
 %% report §11.1, §12.7, §11.5: the `.erc` records beside each definition's
 %% form the lines of its source, the locals' names left out, its name where
 %% its sites write another, and what prints a type in a cause as its module
