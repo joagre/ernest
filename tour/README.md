@@ -528,7 +528,7 @@ Each compute printed `counting the primes below 200000` in the terminal of the n
 
 `bar` reads 0.25, though it has no work of yours: a node tells a peer how busy it is as the peer connects, and at that moment the processes that open the connection are running or ready to run, which is what a node counts by default, over its schedulers (the deployment guide's §3.2). Its next telling, five seconds later, reads it idle.
 
-The number is written into each lambda, since a `let` typed at the prompt is a binding of the shell's node, which no peer has: after `let below = 200000`, `Peer.compute(fn() = Counter.primes(below), 5000)` answers `Left(Io.NotLoaded)`, where `{ let n = below; Peer.compute(fn() = Counter.primes(n), 5000) }` carries the value, a local the lambda captures (the guide's §8.1).
+The number is written into each lambda, since a `let` typed at the prompt is a binding of the session's node, which no peer has (report §11.2, *Inputs*): after `let below = 200000`, `Peer.compute(fn() = Counter.primes(below), 5000)` answers `Left(Io.NotLoaded)`, where `{ let n = below; Peer.compute(fn() = Counter.primes(n), 5000) }` carries the value, a local the lambda captures (the guide's §8.1).
 
 Nothing was installed on `foo` or `bar`, and nothing named either: that is the last sentence of the second claim of *Why Ernest*, a computation that names no node goes to the less busy of two peers drawn at random, and no program is deployed first.
 

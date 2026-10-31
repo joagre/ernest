@@ -2540,7 +2540,7 @@ The function runs on the peer once the peer holds it and what it reaches, which 
 
 So a value a spawned function needs from where it was written is a parameter, a local it captures, or a constant: a binding whose initializer is a constant, `let limit = 10` or `let empty = Stack([])`, has its value wherever its code is (§2.2), and any other binding is the node's own. The standard library's bindings have their values on every node, since every node holds the library from its start, so `Map.empty` is a `let`; a program's own binding of it, `let index = Map.empty`, is the node's own, and a function that is spawned with on a bare node reads `Map.empty` itself.
 
-A `let` typed at the shell's prompt is a binding of the shell's node, which no peer has: after `let below = 2000`, `Peer.computeAt("foo", fn() = below + 1, 5000)` answers `Left(Io.NotLoaded)`, and `{ let n = below; Peer.computeAt("foo", fn() = n + 1, 5000) }` answers `Right(2001)`, the value crossing as a local the lambda captures (§9.3).
+A `let` typed at the shell's prompt is a binding of the session's node, which no peer has (report §11.2, *Inputs*): after `let below = 2000`, `Peer.computeAt("foo", fn() = below + 1, 5000)` answers `Left(Io.NotLoaded)`, and `{ let n = below; Peer.computeAt("foo", fn() = n + 1, 5000) }` answers `Right(2001)`, the value crossing as a local the lambda captures (§9.3).
 
 **Which peer.** A computation needs room more than a place, so `Peer.compute(f, ms)` names no peer: the node picks one, and runs `f` there as `Peer.computeAt` runs it on the peer named (report §8.7, Appendix E.27):
 
