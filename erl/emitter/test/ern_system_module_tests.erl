@@ -470,6 +470,58 @@ opened_processes_are_live_test() ->
         "}\n"]),
     ?assertEqual(<<"#(\"Tcp.listen\", \"Tcp.connect\", true, true)\nOs.start\n">>, Output).
 
+%% Appendix E.21, E.18, E.23: `Process.owned` answers the listener, the
+%% socket and the running program a process opened, told apart by their
+%% sites, a socket given to another process no longer among them once it
+%% has taken the gift, which a write after it orders; and none
+%% once the process has ended, what it owned ending with it. A regression
+%% test, written after the code; the tables and a proxy's process, which
+%% the libraries make, are ern_shell_tests' owned_said_test_'s
+owned_test() ->
+    {ok, Output} = ern_emitter_tests:run(
+        [
+        "type Msg = Opened(listener : Process, socket : Address(Tcp.SocketMsg)) | Ended(Down)\n"
+        "fn sites(ps : List(Process)) : List(String) =\n"
+        "    List.sort(List.filterMap(ps, fn(p) = Optional.map(Process.status(p),"
+        " fn(s) = s.site)))\n"
+        "fn opener(main : Address(Msg)) : Unit receiving Unit =\n"
+        "    match Tcp.listen(\"127.0.0.1\", 0) {\n"
+        "    Right(l) -> match Either.andThen(Tcp.port(l), fn(port) ="
+        " Tcp.connect(\"127.0.0.1\", port, 1000)) {\n"
+        "        Right(c) -> {\n"
+        "            let _ = Os.start(Os.Command(program = \"cat\", arguments = [],"
+        " input = <<>>));\n"
+        "            send(main, Opened(listener = Process.fromAddress(l), socket = c));\n"
+        "            receive { _ -> Unit }\n"
+        "        }\n"
+        "      | Left(_) -> Unit\n"
+        "    }\n"
+        "  | Left(_) -> Unit\n"
+        "}\n"
+        "export fn main() : Unit receiving Msg = {\n"
+        "    let main = self();\n"
+        "    let o = spawn(fn() = opener(main));\n"
+        "    let p = Process.fromAddress(o);\n"
+        "    receive {\n"
+        "        Opened(listener = listener, socket = c) -> {\n"
+        "            Io.println(Io.show(sites(Process.owned(p))));\n"
+        "            Tcp.give(c, Process.current());\n"
+        "            let _ = Tcp.write(c, <<>>, 1000);\n"
+        "            Io.println(Io.show(sites(Process.owned(p))));\n"
+        "            monitor(p, Ended);\n"
+        "            monitor(listener, Ended);\n"
+        "            kill(o);\n"
+        "            receive { _ -> Unit };\n"
+        "            receive { _ -> Unit };\n"
+        "            Io.println(Io.show(#(Process.owned(p), Process.status(listener))))\n"
+        "        }\n"
+        "      | Ended(_) -> Unit\n"
+        "    }\n"
+        "}\n"]),
+    ?assertEqual(<<"[\"Os.start\", \"Tcp.connect\", \"Tcp.listen\"]\n"
+                   "[\"Os.start\", \"Tcp.listen\"]\n"
+                   "#([], None)\n">>, Output).
+
 %% Appendix E.18: a write answers Right(Unit) once the socket has taken the
 %% bytes, and Left(Closed) once the connection has closed; the far end's
 %% close is learned here by a read, so that the answer does not depend on

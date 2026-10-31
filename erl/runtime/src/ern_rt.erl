@@ -56,7 +56,8 @@
          input_not_utf8/0, by_input/1, read_input/1, run_main/3, say/2, say_later/2,
          wait_for_later/0, tables/0, arguments/0,
          exit_program/1, deadlock_victim/1, entry_process/0, signal/1, initializing/1, site/0,
-         evaluate/2, made_table/1, withdraw_load/2, binding/1, binding_value/2, is_initialized/1,
+         evaluate/2, made_table/1, ends_with_caller/1, owned/1, owned_tables/1, withdraw_load/2,
+         binding/1, binding_value/2, is_initialized/1,
          restarting/2, restart_now/0, ask_restart/1,
          start_cause/0, is_restarting/0, on_this_node/1, spawn_order/1, gateway/0,
          stdlib_modules/0, init_modules/1, initialized/1, uninitialized/1, offer/2, offered/2,
@@ -110,11 +111,18 @@
 %% it, a process_info at its ask (ask_restart/1), so that no row is written
 %% for a reader that asks seldom (restartable/0).
 -define(START, '$ern_start').
-%% Report Appendix E.28, G.1: in a load's evaluator, the tables it made,
-%% newest first, which it owns until it ends or a table is closed, so that
-%% its end knows whether it owns one without reading every table of the
-%% node (made_table/1, evaluate/2); no other process keeps one.
+%% Report Appendix G.1, E.28, §11.2: in every process that made a table,
+%% the tables it made, newest first, which it owns until it ends or a table
+%% is closed, so that what it owns is known without reading every table of
+%% the node: by a load's evaluator at its end (evaluate/2), and by
+%% `Ets.owned` of another (owned_tables/1). Report Appendix E.21, G.7: in
+%% a process that started a process to end with it, a proxy's, that
+%% process (ends_with_caller/1, owned/1). Each is kept/3's.
 -define(TABLES, '$ern_tables').
+-define(ENDING, '$ern_ending').
+%% Report §11.2: the fewest entries a list kept/3 keeps before it drops
+%% those no longer held, so that a process that holds few reads none again.
+-define(KEPT_FLOOR, 8).
 %% Report §12.5, §11.2: the registered name of the process that says the
 %% lines given it to say later, in order (say_later/2).
 -define(SAY_LATER, ern_say_later).
@@ -4102,7 +4110,6 @@ evaluate(Units, Site) ->
     Sink = screen_of(current()),
     Evaluation = fun() ->
                      Sink =:= none orelse screen(erlang:self(), Sink),
-                     _ = erlang:put(?TABLES, []),
                      Outcome = try lists:foreach(fun(Unit) -> Unit:'$init'() end, Units) of
                                    ok -> {evaluated, is_owner()}
                                catch
@@ -4164,10 +4171,10 @@ waited_evaluation(Evaluator, Ref) ->
 %% (G.1). What watches it and what it made are its own, so the question
 %% reads no other process's state.
 is_owner() ->
-    {monitored_by, Watchers} = erlang:process_info(erlang:self(), monitored_by),
+    Self = erlang:self(),
+    {monitored_by, Watchers} = erlang:process_info(Self, monitored_by),
     lists:any(fun(Watcher) -> is_pid(Watcher) andalso is_opened(Watcher) end, Watchers)
-        orelse lists:any(fun(Table) -> ets:info(Table, owner) =:= erlang:self() end,
-                         erlang:get(?TABLES)).
+        orelse owned_tables(Self) > 0.
 
 %% An evaluator that owns what a binding opened, which lives until it is
 %% ended: by the program's end, or as any process is.
@@ -4184,16 +4191,75 @@ unwatched(Evaluator, Ref) ->
     receive {Asked, demonitored} -> ok end,
     receive {Ref, _, _} -> ok after 0 -> ok end.
 
-%% Report Appendix E.28, G.1: a table the calling process made, which a
-%% load's evaluator keeps among the tables it made (evaluate/2), so that
-%% its end knows whether it owns one; any other process keeps nothing.
-%% `Ets.new` tells it, and answers the table.
+%% Report Appendix G.1, E.28: a table the calling process made, kept among
+%% the tables it made, so that what it owns is known (owned_tables/1,
+%% is_owner/0). `Ets.new` tells it, and answers the table.
 -spec made_table(term()) -> term().
 made_table(Table) ->
-    case erlang:get(?TABLES) of
-        undefined -> Table;
-        Tables -> erlang:put(?TABLES, [Table | Tables]), Table
-    end.
+    Self = erlang:self(),
+    kept(?TABLES, Table, fun(Made) -> ets:info(Made, owner) =:= Self end),
+    Table.
+
+%% Report Appendix G.7, E.21: Process, which the calling process started to
+%% end with it, a proxy's process (G.7), kept among such processes, so that
+%% `Process.owned` finds it (owned/1).
+-spec ends_with_caller(pid()) -> 'Unit'.
+ends_with_caller(Process) ->
+    kept(?ENDING, Process, fun erlang:is_process_alive/1),
+    ?UNIT.
+
+%% Item kept under Key in the calling process's own dictionary, newest
+%% first, beside the count kept and the count at which those no longer
+%% held, by Holds, are dropped: twice those held at the last drop, so that
+%% the list stays within twice what the process holds and a drop costs a
+%% making its share.
+kept(Key, Item, Holds) ->
+    {Items, Count, Limit} = case erlang:get(Key) of
+                                undefined -> {[], 0, ?KEPT_FLOOR};
+                                Kept -> Kept
+                            end,
+    _ = case Count + 1 >= Limit of
+            true ->
+                Held = [Item | lists:filter(Holds, Items)],
+                erlang:put(Key, {Held, length(Held), max(?KEPT_FLOOR, 2 * length(Held))});
+            false ->
+                erlang:put(Key, {[Item | Items], Count + 1, Limit})
+        end,
+    ok.
+
+%% Report Appendix E.21, E.18, E.23, G.7: the processes that end with Pid:
+%% each listener, socket and running program it owns, which watches its
+%% owner from before its address is given out until it is given to another
+%% (opened/3), and each process it started to end with it
+%% (ends_with_caller/1); none once it has ended, and none for a process of
+%% another node. What watches it and what it keeps are its own state, read
+%% here, and no other process's.
+-spec owned(pid()) -> [pid()].
+owned(Pid) when node(Pid) =:= node() ->
+    case erlang:process_info(Pid, [monitored_by, {dictionary, ?ENDING}]) of
+        [{monitored_by, Watchers}, {_, Ending}] ->
+            [Watcher || Watcher <- Watchers, is_pid(Watcher), is_opened(Watcher)]
+                ++ [Process || Process <- kept_items(Ending), erlang:is_process_alive(Process)];
+        undefined ->
+            []
+    end;
+owned(_) ->
+    [].
+
+%% Report Appendix G.1: how many tables Pid made that it still owns, read
+%% from what it keeps of the tables it made (made_table/1); 0 once it has
+%% ended, and for a process of another node.
+-spec owned_tables(pid()) -> non_neg_integer().
+owned_tables(Pid) when node(Pid) =:= node() ->
+    case erlang:process_info(Pid, {dictionary, ?TABLES}) of
+        {_, Made} -> length([Table || Table <- kept_items(Made), ets:info(Table, owner) =:= Pid]);
+        undefined -> 0
+    end;
+owned_tables(_) ->
+    0.
+
+kept_items({Items, _, _}) -> Items;
+kept_items(undefined) -> [].
 
 %% Report §11.2, Appendix E.28: a refused load undone: every process its
 %% evaluators started, directly or through one they started, killed

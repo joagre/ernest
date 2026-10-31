@@ -6,8 +6,8 @@
 /// which one. `current` gives the running process, `fromAddress` the process
 /// behind an address, `monitor` watches one, and `kill` ends one.
 ///
-/// `status`, `live` and `faults` show what runs, for a program that watches
-/// itself. What they say of a live process is a snapshot, which may have
+/// `status`, `live`, `owned` and `faults` show what runs, for a program that
+/// watches itself. What they say of a live process is a snapshot, which may have
 /// changed by the time it is read, and the runtime keeps nothing of a process
 /// that has ended (report Appendix E.21).
 ///
@@ -176,6 +176,25 @@ export foreign fn status(process : Process) : Optional(Status) =
 /// ```
 export foreign fn live() : List(Process) =
     "ern_rt:processes/0"
+
+/// The processes that end with the process, in unspecified order: each
+/// listener, socket and running program it owns (report Appendix E.18,
+/// E.23), and each process started to end with it, a proxy's (report
+/// Appendix G.7). Their sites, which `status` gives, tell them apart:
+/// `Tcp.listen` for a listener, `Tcp.accept` or `Tcp.connect` for a socket,
+/// `Os.start` for a running program. None once the process has ended, and
+/// for a process on another node.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Process.owned(Process.current())
+/// // => []
+/// ```
+///
+/// since 0.7.0
+export foreign fn owned(process : Process) : List(Process) =
+    "ern_rt:owned/1"
 
 /// Puts `wrap(report)` in the caller's mailbox for every fault of every process
 /// the runtime started, from now on, the system processes' left out. A process

@@ -79,6 +79,10 @@ Something may be kept as long as a program holds what it stands for: a socket un
 - A session's screen, a row of `ern_screens` for each root the session heads, its own and each evaluator's started in its chain, is dropped whole by the session as it detaches, every row of its sink, an evaluator's that ended among them, since what the evaluation started is the session's until then, a withdrawn load's by the load as it answers, and goes with the launch's tables at the end, a row a load at most while the session runs; the mark that a process is a session's own is in its row, and goes with the process (report §12.1, §11.2). A character a program's write cut waits in the screen's own state, and goes with the screen.
 - The note of a call from another node, in `ern_notes` and `ern_callees`, goes at an answer given on this node, the callee's restart or end, the caller's second note, or the loss of the caller's node. The call sends the second note wherever it ends otherwise, its caller's end among them.
 
+### What a process owns (Appendix E.21, G.1)
+
+- The tables a process made, which `Ets.new` tells the runtime of, and the processes it started to end with it, which `Proxy.start` tells, are a list in the process's own dictionary, which drops what the process no longer holds once it has doubled, so that it stays within twice what the process holds, and goes with the process (Appendix E.21, G.1, G.7; `ern_rt:kept/3`).
+
 ### The gateway and its peers (report §8.7)
 
 - A spawn's row in `ern_spawns` goes when its answer comes, when the spawner gives up, or at a loss of the peer's connection that the gateway learned of after the row was written. A later answer ends its process.
@@ -127,6 +131,7 @@ A growth found becomes a regression test in `make test-full` where one can show 
 - `declarations_kept_while_reached_test_`, `expressions_leave_no_code_test_` and `expressions_again_leave_no_code_test_` in `test/ern_shell_tests.erl`;
 - `monitors_let_go_test` in `erl/emitter/test/ern_reaper_tests.erl`, and `tellers_leave_no_monitor_test` in `erl/emitter/test/ern_terminating_tests.erl`;
 - `work_makes_no_atoms_test_` in `erl/emitter/test/ern_emitter_tests.erl`;
+- `kept_tables_stay_bounded_test` in `erl/runtime/test/ern_rt_tests.erl`;
 - the editor's `lastThousand` in `src/shell/shell/editor.ern`.
 
 ## Adding a load

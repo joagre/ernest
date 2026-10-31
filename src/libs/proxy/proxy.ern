@@ -81,8 +81,15 @@ export fn start(service : Peer.Service(m), ms : Int) : Address(m) = {
         let #(address, present) = found(service, ms, nowhere);
         held(service, ms, caller, shared(address, present))
     });
+    endsWithCaller(Process.fromAddress(proxy));
     adapted(proxy, Message)
 }
+
+// Report Appendix G.7, E.21: the proxy's process, told to the runtime as
+// one the caller started to end with it, which `Process.owned` of the
+// caller answers.
+foreign fn endsWithCaller(process : Process) : Unit =
+    "ern_rt:ends_with_caller/1"
 
 // The address the next message goes to, and whether it is the service's:
 // the service's where a find gives it, monitored from then on, and else

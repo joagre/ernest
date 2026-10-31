@@ -388,6 +388,29 @@ evaluator_owns_its_table_test() ->
     ?assertEqual({true, 'None', false, Kept}, {Alive, Status, Listed, Owner}),
     ?assertEqual({false, undefined}, {ClosedAlive, After}).
 
+%% docs/memory.md, Appendix G.1, E.21: a process that makes and closes a
+%% thousand tables keeps, of the tables it made, fewer than the floor at
+%% which it drops those it no longer owns, and `Ets.owned` of it counts
+%% the one it still owns; a process that ended owns none. A regression
+%% test, written with the code
+kept_tables_stay_bounded_test() ->
+    Self = self(),
+    Maker = spawn(fun() ->
+                      [true = ets:delete(ern_rt:made_table(ets:new(ernest, [set, public])))
+                       || _ <- lists:seq(1, 1000)],
+                      Kept = ern_rt:made_table(ets:new(ernest, [set, public])),
+                      {Tables, _, _} = erlang:get('$ern_tables'),
+                      Self ! {kept, length(Tables), Kept},
+                      receive stop -> ok end
+                  end),
+    {Count, _} = receive {kept, Length, Table} -> {Length, Table} end,
+    ?assert(Count =< 8),
+    ?assertEqual(1, ern_rt:owned_tables(Maker)),
+    MonitorRef = erlang:monitor(process, Maker),
+    Maker ! stop,
+    receive {'DOWN', MonitorRef, process, Maker, _} -> ok end,
+    ?assertEqual({0, []}, {ern_rt:owned_tables(Maker), ern_rt:owned(Maker)}).
+
 %% A unit whose bindings call Function of this module, loaded.
 unit_calling(Unit, Function) ->
     Forms = [{attribute, 1, module, Unit}, {attribute, 1, export, [{'$init', 0}]},

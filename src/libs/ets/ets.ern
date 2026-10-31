@@ -81,11 +81,32 @@ export fn new() : Table(k, v) =
 foreign fn rawNew(name : Foreign.Term, options : List(Foreign.Term)) : Table(k, v) =
     "ets:new/2"
 
-// Report Appendix E.28: the table the calling process made, told to the
-// runtime, which keeps it where that process is a load's evaluator, so that
-// the evaluator lives on while it owns a table; it answers the table.
+// Report Appendix G.1, E.28: the table the calling process made, told to
+// the runtime, which keeps it among the tables the process made, so that
+// `owned` answers what it owns, and a load's evaluator lives on while it
+// owns a table; it answers the table.
 foreign fn made(table : Table(k, v)) : Table(k, v) =
     "ern_rt:made_table/1"
+
+/// How many tables the process made that it still owns: each it made and
+/// has not seen closed. 0 once the process has ended, its tables ending
+/// with it, and for a process on another node. A shell says each table of
+/// an input's process that ends, by `Ets.new`, which stands as a table's
+/// site (report §11.2).
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let table : Ets.Table(String, Int) = Ets.new();
+///     Ets.owned(Process.current())
+/// }
+/// // => 1
+/// ```
+///
+/// since 0.7.0
+export foreign fn owned(process : Process) : Int =
+    "ern_rt:owned_tables/1"
 
 /// Puts the value at that key, replacing any entry the key had. The table
 /// is changed in place, for every process that holds it.
