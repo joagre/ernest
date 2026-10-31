@@ -1732,7 +1732,9 @@ ended_reason({gone, _}) -> none.
 %% case's own fault is its line, and so, in an example's launch, is the
 %% entry process's, an initializer's among them, which the outcome carries
 %% (example_launch/3); every other fault is reported as `ern run` reports
-%% it.
+%% it, and makes what the launch told a failure, since §11.8 has `ern test`
+%% exit with status 1 where any process faulted during the run, those
+%% `Test.faults` started excepted, which reach no report (Appendix E.24).
 cases_launch(Cases, Entry, Site, Init, ErrorDevice, Node) ->
     %% the test that runs, which the reporter asks for: a row, since it
     %% changes with each test, and the host copies its table of persistent
@@ -1754,10 +1756,10 @@ cases_launch(Cases, Entry, Site, Init, ErrorDevice, Node) ->
                            {false, example} ->
                                case ern_rt:entry_process() of
                                    Process -> ets:insert(Running, {entry, carried(Callee, From)});
-                                   _ -> Report(FaultReport, Peer)
+                                   _ -> reported(Running, Report, FaultReport, Peer)
                                end;
                            {false, tests} ->
-                               Report(FaultReport, Peer)
+                               reported(Running, Report, FaultReport, Peer)
                        end
                end,
     Outcome = ern_rt:run_main(Entry(Running), Site, RunOptions#{faults => Reporter}),
@@ -1765,11 +1767,24 @@ cases_launch(Cases, Entry, Site, Init, ErrorDevice, Node) ->
                   [{entry, EntryCarried}] -> EntryCarried;
                   [] -> []
               end,
+    Faulted = ets:member(Running, faulted),
     ets:delete(Running),
     case Outcome of
-        ok -> receive {ern_tests, Told} -> {told, Told} end;
+        ok -> receive {ern_tests, Told} -> {told, failed_by(Told, Faulted)} end;
         Ended -> {ended, Ended, Carried}
     end.
+
+%% Report §11.2, §11.8: a fault reported as `ern run` reports it, beside a
+%% case's line, kept so that the run is told failed.
+reported(Running, Report, FaultReport, Peer) ->
+    ets:insert(Running, {faulted}),
+    Report(FaultReport, Peer).
+
+%% Report §11.8: what the launch told, failed where a process faulted
+%% during it, but a refusal, which is a failure of its own.
+failed_by(refused, _Faulted) -> refused;
+failed_by(_Told, true) -> false;
+failed_by(Told, false) -> Told.
 
 %% Report §11.2: under a directory the module's name stands on a line
 %% before everything its run writes, its initializers' output among it.

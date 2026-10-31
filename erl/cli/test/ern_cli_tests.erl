@@ -1930,6 +1930,45 @@ test_runner_test() ->
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build2", Dir ++ "/src2"])),
     ?assertEqual(0, ern_cli:ern(["test", Dir ++ "/build2/ok.erc"])).
 
+%% report §11.2, §11.8, Appendix E.24: under `ern test` a service binding
+%% starts its service as under `ern run`, which a test calls; a fault of any
+%% process during the run, the service's own after it restarts among them,
+%% is reported as `ern run` reports it, and the job exits with status 1
+%% though every case passed; a fault a process `Test.faults` started meets
+%% fails nothing. A regression test of the release review's N22, written
+%% after the code (the log's *Reload, Services and Tests*): four faults of a
+%% service left the status 0
+test_fault_fails_the_run_test() ->
+    Dir = tmp(),
+    Service = "export type HouseMsg = Ask(Reply(Int)) | Boom\n"
+              "fn serve() : Unit receiving HouseMsg =\n"
+              "    receive {\n"
+              "        Ask(reply) -> { answer(reply, 7); serve() }\n"
+              "      | Boom -> fault(\"boom\")\n"
+              "    }\n"
+              "export let house =\n"
+              "    spawn(restarting(RestartLimit(restarts = 3, within = 5000), serve))\n",
+    File = write(Dir, "svc.ern",
+                 [Service,
+                  "let asks = Test.Case(name = \"asks\", run = fn() =\n"
+                  "    Test.equal(Address.call(house, Ask, 1000), Some(7)))\n"
+                  "let booms = Test.Case(name = \"booms\", run = fn() = {\n"
+                  "    send(house, Boom);\n"
+                  "    Test.until(fn() = Test.equal(Address.call(house, Ask, 1000), Some(7)),\n"
+                  "               5000)\n"
+                  "})\n"]),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
+    {Errors, Status} = standard_error_of(["test", filename:join(Dir, "svc.erc")]),
+    ?assertEqual(1, Status),
+    ?assertEqual(<<"asks: passed\nbooms: passed\n">>, iolist_to_binary(?capturedOutput)),
+    ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(Errors),
+                                      <<"Svc.house:8 faulted, restarted: boom">>)),
+    Expected = write(Dir, "expected.ern",
+                     "let expected = Test.Case(name = \"expected\", run = fn() =\n"
+                     "    Test.faults(fn() = fault(\"boom\"), \"boom\"))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, Expected])),
+    ?assertEqual(0, ern_cli:ern(["test", filename:join(Dir, "expected.erc")])).
+
 %% report §11.2, Appendix E.0 shape rule 6: `ern test` runs the module's
 %% doc examples after its tests, each a case named by the declaration it
 %% documents and its number among that declaration's, the module's own by
