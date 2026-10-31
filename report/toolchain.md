@@ -196,7 +196,7 @@ An input that faults answers with `fault: ` and the cause, its trace beneath as 
 
 - `:bindings` lists what the session declares, with their types.
 - `:browse Module` lists the exports of `Module` with their types, a function as its page's code block writes it, each parameter's name beside its type, and after the functions each type's members under a line naming the type, each by the first line of its code block, in its page's order (§11.4); `:browse Prelude` lists the prelude's types and values, and `:browse Address` the prelude's functions under `Address` (§9).
-- `:doc Name` shows the documentation of `Name`; `:doc Prelude` shows the prelude's page, and `:doc Prelude.name` the prelude's `name` past one the session declares.
+- `:doc Name` shows the documentation of `Name` as the node loaded its module, whatever its file holds since; `:doc Prelude` shows the prelude's page, and `:doc Prelude.name` the prelude's `name` past one the session declares.
 - `:faults` lists the faults reported since the session began, the last hundred of them, each by its line alone, without its trace, after the moment the fault was met, its report's `time` (Appendix E.21), written as a stamped line of `ern run`'s writes a time.
 - `:forget name` forgets a name the session declared, and `:forget *` forgets all of them.
 - `:help` lists the commands, each with a line of help.
@@ -272,7 +272,7 @@ A lone candidate is listed whenever `Tab` reaches it, a name with its type and a
 
 Where nothing is typed, the candidates are the names the session declares, the modules in scope, and the prelude's names other than its constructors; every other name is reached by typing its first letters. `Tab` with only spaces before the cursor on its row indents four spaces. Elsewhere, with nothing before the cursor to complete, it lists what may stand there, after a command as anywhere.
 
-**Documentation.** `Shift-Tab` on a name, the whole name the cursor stands in, shows the first line of its documentation's code block, its first sentence (§11.4), and the version it appeared in, and its documentation (§11.4) when pressed again.
+**Documentation.** `Shift-Tab` on a name, the whole name the cursor stands in, shows the first line of its documentation's code block, its first sentence (§11.4), and the version it appeared in, and its documentation (§11.4) when pressed again, as `:doc` shows it.
 
 A name's documentation is its declaration's section of §11.4's page, headed by the name as the session writes it and showing its declaration in the session's names, a function's as the page shows it. A constructor's documentation is its type's. A module's is the head of its page: the title, the version, and the module's doc block. A name that is both a type and a module has both, the type's section first. A namespace that is neither lists what it holds, each name with its type. A name bound by a `let` at the prompt has its name and type alone. `:doc` shows the same documentation.
 
@@ -370,7 +370,7 @@ An error is reported as `file:line:column: message`, then the source. Lines and 
 
 A diagnostic's first line, `file:line:column: message`, is the one a tool reads, and no line after it begins with a path. The source shows a gutter of line numbers, the line before the earliest line any of its spans covers, the erroneous span underlined with `^`, any second span the message depends on, underlined with `-` and labeled, and at most one `help:` line naming the fix. Where the lines shown are not one after another, a line `...` stands for those passed over. The source shows a tab as a space and a control character as its picture, `␛` for U+001B, one of U+0080 to U+009F as U+FFFD. A byte that begins no character is shown as U+FFFD, one column. Each error is followed by an empty line.
 
-A type a module keeps private and its compiled form carries (§11.1), named by a dependent or at the shell's prompt, is refused as `Plain.Msg is a type Plain keeps private`; one it does not carry is unknown there, as a private function is (§4.2, §11.2). A constructor of a private type the compiled form carries is refused as `Plain.Add is a constructor of Plain.Msg, a type Plain keeps private`, and one of a type it does not carry is unknown.
+A type a module keeps private and its compiled form carries (§11.1), named by a dependent or at the shell's prompt, is refused as `Plain.Msg is a type Plain keeps private`, and a private function or binding, which the form always carries, as `Plain.start is a function Plain keeps private`, `a binding` for a binding; a type the form does not carry is unknown there (§4.2, §11.2). A constructor of a private type the compiled form carries is refused as `Plain.Add is a constructor of Plain.Msg, a type Plain keeps private`, and one of a type it does not carry is unknown.
 
 The parser reports one error per file; the checker reports every error that does not follow from another. Within a block, an error in a statement that binds nothing, or in a `let` whose annotation fixes its name's type, does not stop the block, and the statements after it are checked; an error in any other binding does.
 
