@@ -17,7 +17,8 @@
 %% unit's own row, the units its code calls.
 %%
 %% Beside them a unit has rows of its own that its load adds: the
-%% interface chunk the runner read of it (load/4) and, for a unit loaded
+%% interface chunk the runner read of it and its documentation as it was
+%% loaded (load/4) and, for a unit loaded
 %% from the tree's builds of the toolchain's own, the mark that it is one
 %% (load/3, is_own/1).
 %%
@@ -51,7 +52,8 @@
 %% host: `ern test` over a directory runs many (§11.2).
 -module(ern_code).
 
--export([ensure_loaded/1, own_file/1, own_builds/0, own_unit/1, is_own/1, load/3, load/4, chunk/1,
+-export([ensure_loaded/1, own_file/1, own_builds/0, own_unit/1, is_own/1, load/3, load/4,
+         documented/1, chunk/1,
          chunks/0, loaded/2, loaded/3, unloaded/1, spawnable/1, holders/1, linkable/1, valued/1,
          ground/1, grounded/1, forms/1,
          called/1, absent_binding/1, absent_binding/2, foreign/2, declared/1, declared/2,
@@ -255,12 +257,39 @@ own_kept(Unit, File) ->
 %% loaded, so that what reads it later, the shell's interfaces of the
 %% node's modules and a reload's dependencies, reads the code the node
 %% runs and never the file, which a build may have written again or taken
-%% away since; the row goes with the unit's other rows.
+%% away since; and so is its documentation, which `:doc` and `Shift-Tab`
+%% read (documented/1); the rows go with the unit's other rows.
 -spec load(module(), file:filename(), binary(), map()) -> ok | {error, atom()}.
 load(Unit, File, Beam, Chunk) ->
     case load(Unit, File, Beam) of
-        ok -> chunk_kept(Unit, Chunk);
-        {error, _} = Refused -> Refused
+        ok ->
+            chunk_kept(Unit, Chunk),
+            documentation_kept(Unit, Beam);
+        {error, _} = Refused ->
+            Refused
+    end.
+
+%% Report §11.2: a unit's interface chunk and its documentation chunk, the
+%% host's `Docs`, as a compiled form of those two alone, with the atom
+%% table the host reads a compiled form's name from, which the page writer
+%% reads as it reads a file's (ern_page); none for a module without them.
+documentation_kept(Unit, Beam) ->
+    case beam_lib:chunks(Beam, ["AtU8", binary_to_list(ern_interface:chunk_name()), "Docs"]) of
+        {ok, {_, Chunks}} ->
+            {ok, Documented} = beam_lib:build_module(Chunks),
+            row_kept(Unit, {{documented, Unit}, Unit, Documented});
+        {error, beam_lib, _} ->
+            ok
+    end.
+
+%% Report §11.2: the documentation of a unit the runner loaded, as it was
+%% loaded, with its interface chunk, as a compiled form of those two
+%% (load/4); none for any other unit.
+-spec documented(module()) -> {ok, binary()} | none.
+documented(Unit) ->
+    case lookup({documented, Unit}) of
+        [{_, _, Documented}] -> {ok, Documented};
+        [] -> none
     end.
 
 chunk_kept(Unit, Chunk) ->

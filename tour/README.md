@@ -532,7 +532,7 @@ Nothing was installed on `foo` or `bar`, and nothing named either: that is the l
 
 ## 8. The fix
 
-A client's bad amount ends the counter and its tally, and a restart would start it from nothing. The new loop passes it over, beside the old loop, which stays as it is; `move` moves every counter of its node:
+The fix is moved at the shell that is `a`, and then on `foo` from a shell attached to it: a prompt on the node that holds none of the program's code, with no compute to carry the move there. A client's bad amount ends the counter and its tally, and a restart would start it from nothing. The new loop passes it over, beside the old loop, which stays as it is; `move` moves every counter of its node:
 
 ```ernest
 export fn count2(tally : Tally.Tally(String)) : Unit receiving CounterMsg =

@@ -1235,6 +1235,39 @@ private_type_named_by_a_dependent_test() ->
                                       unknown_namespace = ['Plain']}]},
                  ern_typecheck:check(['M'], Absent, [Interface])).
 
+%% report §11.5, §4.2, §11.1: a dependent that names a function or a
+%% binding another module keeps private, whose form its compiled form
+%% carries, is refused as private, `a function` or `a binding`, with no
+%% namespace to load, a foreign function among the functions; a name
+%% nothing declares stays unknown; and a private value changes no hash a
+%% dependent
+%% records. A regression test of the release review's N12, written after
+%% the code (the log's *The Claims, the README and the Tour*): the private
+%% name was refused as unknown; the prompt is ern_shell_tests'
+private_value_named_by_a_dependent_test() ->
+    Source = "fn start() : Int = 1\n"
+             "let house = 5\n"
+             "foreign fn now() : Int = \"erlang:system_time/0\"\n"
+             "export fn used() : Int = start() + house + now()\n",
+    {ok, _, Interface, _} = ern_typecheck:check_string(['Plain'], Source),
+    Refused = fun(Text) ->
+                  {ok, Named} = ern_parser:parse_string(Text),
+                  {error, [#diagnostic{message = Message, unknown_namespace = Namespace}]} =
+                      ern_typecheck:check(['M'], Named, [Interface]),
+                  {Message, Namespace}
+              end,
+    ?assertEqual({"Plain.start is a function Plain keeps private", undefined},
+                 Refused("fn f() : Int = Plain.start()\n")),
+    ?assertEqual({"Plain.house is a binding Plain keeps private", undefined},
+                 Refused("fn f() : Int = Plain.house\n")),
+    ?assertEqual({"Plain.now is a function Plain keeps private", undefined},
+                 Refused("fn f() : Int = Plain.now()\n")),
+    ?assertEqual({"unknown name Plain.absent", ['Plain']},
+                 Refused("fn f() : Int = Plain.absent\n")),
+    {ok, _, More, _} = ern_typecheck:check_string(['Plain'],
+                                                  Source ++ "fn more() : Int = 2\n"),
+    ?assertEqual(ern_interface:hash(Interface), ern_interface:hash(More)).
+
 %% report §8.7, §11.1, §11.2: an interface given after another of its
 %% module, a reload's version, takes the place of what the first held of
 %% each of its values, a function's reach among it, which the interface
@@ -3478,8 +3511,9 @@ builtin_type_operators_test() ->
                  ern_typecheck:check_string(['Float'],
                                             "export fn Float.abs(x : Float) : Float = x")).
 
-%% report §4.1, §4.2: a module's interface holds its exports under its
-%% namespace, and another module reaches them by the qualified name
+%% report §4.1, §4.2, §11.5: a module's interface holds its exports under
+%% its namespace, and another module reaches them by the qualified name; a
+%% private one is refused as private, since the release review's N12
 interface_test() ->
     Http = "export type Request = Request(method : String, path : String)\n"
            "export fn parse(s : String) : Optional(Request) =\n"
@@ -3500,7 +3534,8 @@ interface_test() ->
     Private = "fn f() = Net.Http.private()",
     {ok, PrivateDeclarations} = ern_parser:parse_string(Private),
     ?assertMatch({error, [#diagnostic{span = {1, 10, _},
-                                      message = "unknown name Net.Http.private"}]},
+                                      message = "Net.Http.private is a function Net.Http"
+                                                " keeps private"}]},
                  ern_typecheck:check(['Main'], PrivateDeclarations, [Interface])).
 
 %% report §11.1: every type the interfaces given name has a declaration

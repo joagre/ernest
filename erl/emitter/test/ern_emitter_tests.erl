@@ -4127,9 +4127,10 @@ down_names_its_process_test() ->
         "}\n"),
     ?assertEqual(<<"#(true, true)\n">>, Output).
 
-%% report §8.2, §9.7: a system reference is private to its module, and
-%% the prelude binds none, so a program names neither `Io.stdout` nor
-%% `Sys.stdout`, and a system module's message is not a program's to make
+%% report §8.2, §9.7, §11.5: a system reference is private to its module,
+%% refused as the binding its module keeps private, and the prelude binds
+%% none, so a program names neither `Io.stdout` nor `Sys.stdout`, and a
+%% system module's message is not a program's to make
 system_reference_private_test() ->
     Refused = fun(Main) ->
                   ern_typecheck:check_string(['M'],
@@ -4138,7 +4139,7 @@ system_reference_private_test() ->
               end,
     %% each refused for the reason the test names, not another; a
     %% regression test of the test, which took any error
-    ?assertMatch({error, [#diagnostic{message = "unknown name Io.stdout"} | _]},
+    ?assertMatch({error, [#diagnostic{message = "Io.stdout is a binding Io keeps private"} | _]},
                  Refused("send(Io.stdout, String.toUtf8(\"hi\"))")),
     ?assertMatch({error, [#diagnostic{message = "unknown name Sys.stdout"} | _]},
                  Refused("send(Sys.stdout, \"hi\")")),

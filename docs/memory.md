@@ -96,6 +96,7 @@ Something may be kept as long as a program holds what it stands for: a socket un
 
 - A unit's rows stay until the unit is loaded again with other code or unloaded, as the shell unloads an input's.
 - A unit no file holds, a load's, a shell input's or an arrival's, keeps what its compiled form records, its forms among it, in a row of its own for as long as its other rows (report §11.2).
+- A unit the runner loaded keeps its interface chunk and its documentation as it loaded them, the second a compiled form of the interface and the `Docs` chunk alone, in rows of its own for as long as its other rows, so that the shell's view of the node's modules, a reload and `:doc` read the code the node runs (report §11.2; `ern_code:chunk/1`, `documented/1`).
 - A build's unit's forms are read from its `.erc` at the first request of an exchange that needs them, and kept from then on for as long as the unit, which is the node's life (report §11.2). The build bounds them: the standard library's 27 units' forms, all read, take 2,425,824 bytes in the table, about 25 times their compressed chunks, `Terminal`'s 588 KB the largest (measured 2026-10-12, the same in seven runs; the log's *The Report for Code with a Spawn*).
 
 ### Code from peers

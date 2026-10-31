@@ -96,7 +96,8 @@
               effect_origin = undefined, declared_none = false,
               groups = #{}, typed = [], diagnostics = [], let_order = [],
               generalizing = false, provided = [], inferring = [], requirement = [], failed = [],
-              signature = [], definition, private_types = #{}, identities = #{},
+              signature = [], definition, private_types = #{}, private_values = #{},
+              identities = #{},
               reaches = #{}, positions = #{}, terms = #{}, shims = #{}, foreign = #{},
               declaring = #{}, uses = #{}, binder = none, definition_type}).
 %% definition_type: the type of the definition whose uses post_checks/3
@@ -665,7 +666,7 @@ seeded(Interfaces, Env) ->
 without_interface(#interface{types = InterfaceTypes, values = Values, lets = Lets,
                              private_types = PrivateTypes, identities = Identities,
                              reaches = Reaches, positions = Positions, terms = Terms,
-                             shims = Shims},
+                             shims = Shims, private_values = PrivateValues},
                   #env{types = Types, globals = Globals, constructors = Constructors} = Env) ->
     Names = maps:keys(Values),
     ConstructorNames = [QualifiedName || #type_info{constructors = TypeConstructors}
@@ -677,6 +678,7 @@ without_interface(#interface{types = InterfaceTypes, values = Values, lets = Let
             globals = maps:without(Names, Globals),
             constructors = maps:without(ConstructorNames, Constructors),
             private_types = maps:without(maps:keys(PrivateTypes), Env#env.private_types),
+            private_values = maps:without(maps:keys(PrivateValues), Env#env.private_values),
             identities = maps:without(maps:keys(Identities), Env#env.identities),
             positions = maps:without(maps:keys(Positions), Env#env.positions),
             lets = maps:without(Names ++ Lets, Env#env.lets),
@@ -738,14 +740,15 @@ with_interfaces(Interfaces, Env) ->
 add_interface(Interface, #env{types = Types, globals = Globals} = Env) ->
     #interface{namespace = Namespace, types = InterfaceTypes, values = Values, lets = Lets,
                private_types = PrivateTypes, identities = Identities, reaches = Reaches,
-               positions = Positions, terms = Terms,
-               shims = Shims} = without_shadowed(Interface, Env),
+               positions = Positions, terms = Terms, shims = Shims,
+               private_values = PrivateValues} = without_shadowed(Interface, Env),
     Constructors = maps:fold(fun(_, #type_info{constructors = TypeConstructors}, Acc) ->
                                  add_constructors(TypeConstructors, Acc)
                              end, Env#env.constructors, InterfaceTypes),
     Env#env{types = maps:merge(Types, InterfaceTypes), globals = maps:merge(Globals, Values),
             constructors = Constructors,
             private_types = maps:merge(Env#env.private_types, PrivateTypes),
+            private_values = maps:merge(Env#env.private_values, PrivateValues),
             identities = maps:merge(Env#env.identities, Identities),
             positions = maps:merge(Env#env.positions,
                                    maps:map(fun(_, Number) -> {Namespace, Number} end, Positions)),
@@ -6996,6 +6999,20 @@ lookup_global(Span, Namespace, Name, #env{globals = Globals} = Env) ->
                        end,
             {Scheme, Referent, Env};
         _ ->
+            unknown_value(Span, QualifiedName, Env)
+    end.
+
+%% Report §4.2, §11.5: a qualified name nothing declares is unknown, its
+%% namespace one the shell may offer to load; a private function or binding
+%% of another module, whose interface carries it (§11.1), is refused as
+%% private, as a private type is (unknown_type/3).
+-spec unknown_value(ern_diagnostic:span(), [atom()], env()) -> no_return().
+unknown_value(Span, QualifiedName, #env{private_values = PrivateValues}) ->
+    case PrivateValues of
+        #{QualifiedName := {Kind, Module}} ->
+            fail(Span, [ern_namespace:text(QualifiedName), " is a ", atom_to_list(Kind), " ",
+                        ern_namespace:text(Module), " keeps private"]);
+        _ ->
             unknown(Span, "name", QualifiedName)
     end.
 
@@ -7153,7 +7170,21 @@ interface_of(Declarations, #env{namespace = Namespace, types = Types, globals = 
     Lets = [QualifiedName || #let_declaration{} = Declaration <- Declarations,
                              {true, QualifiedName} <- [exported_value(Declaration, Env)]],
     #interface{namespace = Namespace, types = ExportedTypes, values = ExportedValues, lets = Lets,
-               private_types = private_types(ExportedTypes, ExportedValues, Env)}.
+               private_types = private_types(ExportedTypes, ExportedValues, Env),
+               private_values = maps:from_list(lists:append([private_value(Declaration, Env)
+                                                             || Declaration <- Declarations]))}.
+
+%% Report §11.1, §11.5: a private function or binding, whose form the
+%% compiled form carries, by its qualified name and its kind, so that a
+%% dependent or the shell's prompt naming it is refused as private.
+private_value(#fn_declaration{export = false, member_of = MemberOf, name = Name}, Env) ->
+    [{value_qualified_name(Env, MemberOf, Name), {function, Env#env.namespace}}];
+private_value(#foreign_fn_declaration{export = false, member_of = MemberOf, name = Name}, Env) ->
+    [{value_qualified_name(Env, MemberOf, Name), {function, Env#env.namespace}}];
+private_value(#let_declaration{export = false, name = Name}, Env) ->
+    [{value_qualified_name(Env, undefined, Name), {binding, Env#env.namespace}}];
+private_value(_, _) ->
+    [].
 
 %% Report §4.2, §8.4, §11.1: the module's private types an exported
 %% declaration names, and those theirs name, which a dependent describes a

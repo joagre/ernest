@@ -102,13 +102,19 @@
 %% §11.1). Produced by the checker, consumed by the checker of a dependent
 %% module and by the compiler.
 -record(interface, {namespace, types = #{}, values = #{}, lets = [], private_types = #{},
-                    identities = #{}, reaches = #{}, positions = #{}, terms = #{}, shims = #{}}).
+                    identities = #{}, reaches = #{}, positions = #{}, terms = #{}, shims = #{},
+                    private_values = #{}}).
 %% private_types: the module's private types an exported declaration names,
 %% a mailbox type an exported function receives wherever an arrow's effect
 %% names it, or a type an exported abstract type's fields name, and those
 %% theirs name, #{qualified_name() => #type_info{}}, by which a dependent
 %% describes a value of each (report §8.4, §11.1) and which it cannot name
 %% (§4.2)
+%% private_values: the module's private functions and bindings, whose
+%% forms its compiled form carries (§11.1), #{qualified_name() =>
+%% {function | binding, namespace()}}, by which a dependent and the shell's
+%% prompt refuse such a
+%% name as private (§11.5); no dependent's code reaches one
 %% lets: the qualified names among `values` that were declared with `let`,
 %% which the emitter calls through their getter (report §4.6, §8.5)
 %% namespace: qualified_name(); types: #{qualified_name() => #type_info{}};

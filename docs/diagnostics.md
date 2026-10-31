@@ -1054,6 +1054,19 @@ example.ern:1:10: Supervisor.WatcherMsg is a type Supervisor keeps private
   |          ^^^^^^^^^^^^^^^^^^^^^
 ```
 
+### A function or a binding another module keeps private (§4.2, §11.5)
+
+```ernest-rejected
+fn f() : Bool = Test.yield()
+```
+
+```console
+$ ern build example.ern
+example.ern:1:17: Test.yield is a function Test keeps private
+1 | fn f() : Bool = Test.yield()
+  |                 ^^^^^^^^^^
+```
+
 ### `Prelude.` before a type the prelude lacks (§4.2)
 
 ```ernest-rejected

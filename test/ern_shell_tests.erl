@@ -655,6 +655,52 @@ reload_reads_no_file() ->
                                                 "Main, compiled again\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> 4\n">>)).
 
+%% report §11.2 *Commands*, *Documentation*, §11.1: `:doc` documents a
+%% module as the node loaded it, whatever its file holds since: the shell
+%% over a built program, `Other` documented, `other.erc` written over with
+%% a build of another doc block once the shell has started and then taken
+%% away, documents `Other` and `Other.other` by the first doc block each
+%% time. The sibling of reload_reads_no_file, written after the code, the
+%% release review before 0.7.0 (F2; the log's *The Claims, the README and
+%% the Tour*): `:doc` read the module's `.erc`; it does not cover
+%% `Shift-Tab`, which reads the page `:doc` shows
+doc_reads_no_file_test_() ->
+    ern_nodes_tests:counted_test({waits, 3}, fun doc_reads_no_file/0).
+
+doc_reads_no_file() ->
+    Dir = fresh_home(),
+    Other = fun(Doc) ->
+                ["/// The module ", Doc, ".\n\n/// The number ", Doc, ".\n",
+                 "export let other : Int = 1\n"]
+            end,
+    [First, Second] =
+        [begin
+             Source = filename:join(Dir, Doc),
+             Build = filename:join(Dir, Doc ++ "_build"),
+             ok = filelib:ensure_path(Source),
+             ok = file:write_file(filename:join(Source, "other.ern"), Other(Doc)),
+             ok = file:write_file(filename:join(Source, "main.ern"),
+                                  "export fn main() : Unit =\n"
+                                  "    Io.println(Int.toString(Other.other))\n"),
+             {0, _} = ern_pty:sh("../bin/ern build --source-root " ++ Source ++ " --build-root "
+                                 ++ Build ++ " " ++ Source),
+             Build
+         end || Doc <- ["first", "second"]],
+    Erc = filename:join(First, "other.erc"),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile,
+                         ["Either.andThen(Fs.read(Path(\"", filename:join(Second, "other.erc"),
+                          "\"), 2000), fn(bytes) = Fs.write(Path(\"", Erc, "\"), bytes, 2000))\n",
+                          ":doc Other\n", ":doc Other.other\n",
+                          "Fs.remove(Path(\"", Erc, "\"), 2000)\n",
+                          ":doc Other\n"]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell " ++ filename:join(First, "main.erc"))
+                             ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"Right(Unit) : Either(Io.Error, Unit)\n">>)),
+    ?assertEqual(2, length(binary:matches(Output, <<"The module first.">>))),
+    ?assertMatch({_, _}, binary:match(Output, <<"The number first.">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"second">>)).
+
 %% report §4.2, §4.5, §11.2: a type and the module of its name share a
 %% namespace at the prompt as in a build: a load of the module brings the
 %% type's, whose member `compare` reaches, and `Main.Stack.push` is the
@@ -2199,6 +2245,39 @@ private_mailbox_type() ->
     ?assertMatch({_, _}, binary:match(Output, <<":1:17: Plain.Msg is a type Plain keeps private\n"
                                                 "1 | let q : Address(Plain.Msg) = p\n"
                                                 "  |                 ^^^^^^^^^\n">>)).
+
+%% report §11.5, §11.2, §11.1: a function or a binding a module keeps
+%% private is refused as private at the prompt, `a function` or `a
+%% binding`, of a module `:load` compiled and of one the shell's runner
+%% loaded from its compiled form alike, and a name nothing declares stays
+%% unknown. A regression test of the release review's N12, written after
+%% the code (the log's *The Claims, the README and the Tour*): the
+%% attached prompt said `unknown name Auction.house`
+private_value_at_the_prompt_test_() ->
+    ern_nodes_tests:counted_test({waits, 3}, fun private_value_at_the_prompt/0).
+
+private_value_at_the_prompt() ->
+    Dir = scratch("ern_private_value_"),
+    ok = file:write_file(filename:join(Dir, "plain.ern"),
+                         ["fn start() : Int = 1\n", "let house = 5\n",
+                          "export fn used() : Int = start() + house\n"]),
+    ok = file:write_file(filename:join(Dir, "main.ern"),
+                         "export fn main() : Unit = Io.println(Int.toString(Plain.used()))\n"),
+    {0, _} = ern_pty:sh("../bin/ern build --source-root " ++ Dir ++ " --build-root " ++ Dir
+                        ++ " " ++ Dir),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, ["Plain.start()\n", "Plain.house\n", "Plain.absent\n"]),
+    Refusals = [<<":1:1: Plain.start is a function Plain keeps private\n">>,
+                <<":1:1: Plain.house is a binding Plain keeps private\n">>,
+                <<":1:1: unknown name Plain.absent\n">>],
+    {0, Loaded} = ern_pty:sh(alone("../bin/ern shell " ++ filename:join(Dir, "main.erc"))
+                             ++ " < " ++ InputFile),
+    [?assertMatch({_, _}, binary:match(Loaded, Refusal)) || Refusal <- Refusals],
+    ok = file:write_file(InputFile, [":load Plain\n", "Plain.start()\n", "Plain.house\n",
+                                     "Plain.absent\n"]),
+    {0, Compiled} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < "
+                               ++ InputFile),
+    [?assertMatch({_, _}, binary:match(Compiled, Refusal)) || Refusal <- Refusals].
 
 %% report §11.2: a binding and a function may take the names the host gives
 %% every module, and a later input reaches them. A regression test: a

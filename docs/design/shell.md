@@ -285,7 +285,7 @@ Matching a word is pure (`Shell.Complete.complete`). It answers the word to stan
 
 ### Documentation
 
-`Shift-Tab` asks the front end for the page `:doc` shows of the whole name the cursor stands in, with its module's *Since* line added where the page has none of its own. The first press shows a brief read from the parsed page, its first sentence by `Markdown.firstSentence`, and the second press the whole page.
+`Shift-Tab` asks the front end for the page `:doc` shows of the whole name the cursor stands in, with its module's *Since* line added where the page has none of its own. A module the runner loaded is documented as it was loaded, its documentation kept in the code table with its interface chunk, never read from its file again (§11.2 *Commands*; `ern_code:documented/1`). The first press shows a brief read from the parsed page, its first sentence by `Markdown.firstSentence`, and the second press the whole page.
 
 Where the name has no page, the front end answers the call or constructor the input stops inside, in three parts: before the parameter at the cursor, the parameter, and after it. The parser records the innermost call on its diagnostic. The text is tried as an expression, a statement and declarations, so a `let` and a `fn` body find it, and a command's word is cut off before, so a command's argument finds it too.
 

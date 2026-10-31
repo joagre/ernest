@@ -2878,10 +2878,12 @@ module_signature(Session, QualifiedName) ->
 
 %% The compiled module behind a namespace the session can name, as bytes:
 %% the one `:load` or `:reload` compiled, which is loaded from memory and
-%% has no file; else the file the runner loaded it from, an `.erc`, or the
-%% standard library's `.erc`. `beam_lib` takes either as a binary. A
-%% module the session cannot name, the shell's own and its libraries among
-%% them, has none (report §11.2).
+%% has no file; else, for one the runner loaded, its interface and its
+%% documentation as the runner loaded them, which the code table keeps
+%% (ern_code:documented/1), never its file, which a build may have written
+%% again or taken away; or the standard library's `.erc`. `beam_lib` takes
+%% either as a binary. A module the session cannot name, the shell's own
+%% and its libraries among them, has none (report §11.2).
 beam_of(#session{beams = Beams, interfaces = Interfaces}, Namespace) ->
     case Beams of
         #{Namespace := Beam} -> Beam;
@@ -2898,7 +2900,11 @@ beam_of(#session{beams = Beams, interfaces = Interfaces}, Namespace) ->
 %% ern_prelude:stdlib_interfaces/0 finds the library.
 file_beam(Namespace, true) ->
     Text = ern_namespace:erlang_module_text(Namespace),
-    read_beam(try code:which(list_to_existing_atom(Text)) catch error:badarg -> non_existing end);
+    Unit = try list_to_existing_atom(Text) catch error:badarg -> none end,
+    case Unit =/= none andalso ern_code:documented(Unit) of
+        {ok, Documented} -> Documented;
+        _ -> read_beam(try code:which(Unit) catch error:badarg -> non_existing end)
+    end;
 file_beam(Namespace, false) ->
     Path = ern_namespace:path([ern_namespace:segment_text(Segment) || Segment <- Namespace]),
     read_beam(filename:join(ern_prelude:stdlib_directory(), Path ++ ".erc")).
