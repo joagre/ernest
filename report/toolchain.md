@@ -470,7 +470,9 @@ A `--load-path`, a `--libs-dir`, a `--source-root`, and a `--config-dir` of any 
 
 ### 11.8 Exit status
 
-A job exits with status 0 when it has done what it was asked, and with status 1 when it refuses its command line or cannot do it: an option it does not take, a module that does not compile, a file it cannot read or write, a node whose carrier cannot start (§12.3). `--help` and `--version` exit with status 0. `ern test` exits with status 1 unless every case passed and no process faulted during the run, those `Test.faults` started excepted (§11.2, Appendix E.24), and with status 0 for a module with neither tests nor examples. `ern format` exits with status 1 where a module does not parse, and with `--check` where a module is not in the layout.
+A job exits with status 0 when it has done what it was asked, and with status 1 when it refuses its command line or cannot do it: an option it does not take, a module that does not compile, a file it cannot read or write, a node whose carrier cannot start (§12.3). `--help` and `--version` exit with status 0.
+
+`ern test` exits with status 1 unless every case passed and no process faulted during the run, and with status 0 for a module with neither tests nor examples. A fault of a process `Test.faults` started does not count, nor one of a process a case started, directly or through a process it started, while that case runs (§11.2, Appendix E.24). The fault of a process the initializers started, a service's among them, counts, and so does one after its case has ended. `ern format` exits with status 1 where a module does not parse, and with `--check` where a module is not in the layout.
 
 `ern run` exits with the status `Os.exit` gives when a process calls it, and with status 0 when the entry point returns. A bare node (§8.7) exits by the termination that ends it, as below, or with the status an `Os.exit` on it gives. `ern run` exits with status 1 when the entry process faults, by a deadlock (§8.6) as by any other cause, or is killed, and when the program exhausts the host's memory (§10), writing nothing of the host's but its message.
 
