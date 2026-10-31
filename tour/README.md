@@ -100,7 +100,6 @@ $ ern config --config-dir bar --peer-dir a
 
 ```json
 {
-  "listen": "0.0.0.0:8654",
   "public-key": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA6UybIOO9Cx/+QIRHGqSce3mvI+1v/B3pmkxPHm+wLCk=\n-----END PUBLIC KEY-----\n",
   "peers": [
     {
@@ -122,7 +121,6 @@ In a second terminal `ern run --config-dir foo`, in a third `ern run --config-di
 
 ```console
 $ ern shell --config-dir a
-listening on 0.0.0.0:8654
 Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
 > :load Counter
 Counter, compiled from counter.ern
@@ -138,11 +136,11 @@ Some(5) : Optional(Int)
 
 `foo`'s terminal says `the peer a connected`. At a terminal a node's line, there and in the shell, is as shown; where standard error is a file or a pipe, it begins with the time (the deployment guide's §1.4).
 
-A node is a program, or a shell, started with a configuration directory, and `ern config` makes one: a key, a certificate, and `ernest.conf` with the port the node listens on. `a` keeps the port `ern config` gives, 8654 on every interface, and `--listen` gives `foo` and `bar` ports of their own, since three nodes on one machine cannot share one, and `--peer-dir` lists one node in another's file by the name of its directory, its key and its address, read from the directory.
+A node is a program, or a shell, started with a configuration directory, and `ern config` makes one: a key, a certificate, and `ernest.conf`, with the port the node listens on where `--listen` gives one. `a` only dials, and `--listen` gives `foo` and `bar` each a port, since two nodes on one machine cannot share one, and `--peer-dir` lists one node in another's file by the name of its directory, its key and its address, read from the directory, `a` listed with none.
 
 A node accepts a connection from a listed key alone, and nothing else is set up: two nodes are two configuration files each naming the other, with no cluster to join and no shared secret, the third claim of *Why Ernest* (the deployment guide's §2). `foo` and `bar` are *bare nodes*, started with no program: they hold nothing of the counter's and wait for work.
 
-`Peer.spawn` starts `count` on `foo` and answers `Right(address)`, or `Left(error)` with the reason it could not, an `Either`; `let far <-` binds the address inside a `Right`, as `<-` does in a block, and on a `Left` binds nothing and shows the reason, `Left(NotListed)` where no peer is named `foo` (the guide's §2.7). The shell connected to `foo` as the spawn needed it, and `count` crossed with the spawn, since `foo` had no code of it. The counter there is then the counter of chapter 1: the same `send`, the same call, the same answer. That is the second claim of *Why Ernest*: a process started on another node brings its code along, and nothing was installed first.
+`Peer.spawn` starts `count` on `foo` and answers `Right(address)`, or `Left(error)` with the reason it could not, an `Either`; `let far <-` binds the address inside a `Right`, as `<-` does in a block, and on a `Left` binds no name and shows the reason, which `it` then names, `Left(NotListed)` where no peer is named `foo` (the guide's §2.7). The shell connected to `foo` as the spawn needed it, and `count` crossed with the spawn, since `foo` had no code of it. The counter there is then the counter of chapter 1: the same `send`, the same call, the same answer. That is the second claim of *Why Ernest*: a process started on another node brings its code along, and nothing was installed first.
 
 Chapter 1's counter ended with its shell; this shell runs to the end of the tour. A shell started with `--config-dir` is a node like any other (the guide's §9.2 and §8.1).
 
@@ -578,7 +576,7 @@ Counter, compiled again
 
 That is the second claim of *Why Ernest* at its peak: the same process, new code, its state kept, told by a message of its own type. `count` stays in the source unchanged, since it is how the counters still on it are found, until `Code.running(count)` is empty on every node and it may go; nothing a node has loaded is unloaded while it runs, so a node reloaded without end grows with its versions (the guide's §8.9, the deployment guide's §4.2).
 
-Then on `foo`, which never had `count2` or `move`, from a shell *attached* to it: its inputs run on `foo`, and the terminal and the files stay with the node it starts from, `ops`, which `foo` lists without an address, since the shell dials in (the deployment guide's §6). In your own terminal, with `listen` removed from `ops/ernest.conf` after the first command, since `ops` only dials, the one edit no command makes:
+Then on `foo`, which never had `count2` or `move`, from a shell *attached* to it: its inputs run on `foo`, and the terminal and the files stay with the node it starts from, `ops`, which `foo` lists without an address, since the shell dials in (the deployment guide's §6). In your own terminal, `ops` made with no `--listen`, since it only dials:
 
 ```console
 $ ern config --config-dir ops

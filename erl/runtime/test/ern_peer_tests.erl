@@ -295,7 +295,7 @@ no_run_test() ->
         ?assertEqual({Alias, 'Unreachable'}, receive {Alias, _} = Found -> Found end),
         Ref = make_ref(),
         Quiet = {function, maps:get(['Peerquiet', quiet], Hashes)},
-        ok = ern_peer:frame(self(), {spawn, Ref, Quiet, <<"M.f:1">>, false, ?MS}),
+        ok = ern_peer:frame(self(), {spawn, Ref, Quiet, false, <<"M.f:1">>, false, ?MS}),
         ?assertEqual({answer, Ref, {failed, 'Unreachable'}},
                      receive {ern_frame, _, Body} -> Body end),
         %% report §6.9, §8.7: a restart told while no run holds a service
@@ -350,8 +350,8 @@ spawn_by_identity_test() ->
                true = register(ern_gateway, self()),
                Spawn = fun(Spawned) ->
                            Ref = make_ref(),
-                           Read = ern_peer:frame(self(), {spawn, Ref, Spawned, <<"M.f:1">>,
-                                                          false, ?MS}),
+                           Read = ern_peer:frame(self(), {spawn, Ref, Spawned, false,
+                                                          <<"M.f:1">>, false, ?MS}),
                            receive {ern_frame, _, {answer, Ref, Answer}} -> {Answer, Read} end
                        end,
                {LambdaHash, Position, 1} = Lambda,
@@ -361,10 +361,10 @@ spawn_by_identity_test() ->
                          Spawn({restarting, {'RestartLimit', 1, 1000}, Identity(quiet)}),
                          Spawn({foreign, [<<"Peerreach">>, <<"missing">>]})],
                Wrong = ern_peer:frame(self(), {spawn, make_ref(),
-                                               {lambda, LambdaHash, Position, []},
+                                               {lambda, LambdaHash, Position, []}, false,
                                                <<"M.f:1">>, false, ?MS}),
-               Lacking = [ern_peer:frame(self(), {spawn, make_ref(), Lacked, <<"M.f:1">>, false,
-                                                  ?MS})
+               Lacking = [ern_peer:frame(self(), {spawn, make_ref(), Lacked, false, <<"M.f:1">>,
+                                                  false, ?MS})
                           || Lacked <- [{function, <<7:256>>}, {lambda, <<8:256>>, 2, [1]},
                                         {restarting, 'Unlimited', {function, <<9:256>>}},
                                         {foreign, [<<"Peernone">>, <<"never">>]}]],
@@ -521,7 +521,7 @@ computed_here_test() ->
                              ok = ern_rt:note_compute(self(), Alias),
                              Before(Alias),
                              Read = ern_peer:frame(self(), {compute, Alias, Identity(Name),
-                                                            <<"M.f:1">>, ?MS}),
+                                                            false, <<"M.f:1">>, ?MS}),
                              {Read, Alias}
                          end,
                Plain = fun(_) -> ok end,
@@ -614,7 +614,8 @@ computed_restarting_test() ->
                              Alias = erlang:alias([reply]),
                              ok = ern_rt:note_compute(self(), Alias),
                              ok = ern_peer:frame(self(),
-                                                 {compute, Alias, Spawned, <<"M.f:1">>, ?MS}),
+                                                 {compute, Alias, Spawned, false, <<"M.f:1">>,
+                                                  ?MS}),
                              Answer(Alias)
                          end,
                Restarted = Compute({restarting, {'RestartLimit', 1, 60000}, Identity(flaky)}),
@@ -656,10 +657,10 @@ computed_restarting_test() ->
 %% and the answer that is not text, and again for the peer beside the cause
 compute_caller_test() ->
     Self = self(),
-    Frame = fun(Alias) -> {compute, Alias, {function, <<0:256>>}, <<"M.f:1">>, ?MS} end,
+    Frame = fun(Alias) -> {compute, Alias, {function, <<0:256>>}, false, <<"M.f:1">>, ?MS} end,
     Gateway = fun Gateway(Told, Answers) ->
                   receive
-                      {ern_frame, From, {compute, Alias, _, _, _}} ->
+                      {ern_frame, From, {compute, Alias, _, _, _, _}} ->
                           Told ! {noted, From},
                           case Answers of
                               [Answer | Rest] ->
@@ -743,12 +744,12 @@ compute_caller_test() ->
 %% nodes is test/ern_nodes_tests.erl's, which reads no row of a node
 kill_frame_test() ->
     Self = self(),
-    Frame = fun(Alias) -> {compute, Alias, {function, <<0:256>>}, <<"M.f:1">>, ?MS} end,
+    Frame = fun(Alias) -> {compute, Alias, {function, <<0:256>>}, false, <<"M.f:1">>, ?MS} end,
     Main = fun() ->
                Told = self(),
                Gateway = spawn(fun Gateway() ->
                                    receive
-                                       {ern_frame, From, {compute, _, _, _, _}} ->
+                                       {ern_frame, From, {compute, _, _, _, _, _}} ->
                                            Told ! {noted, From}, Gateway();
                                        {ern_frame, From, {call_over, _}} ->
                                            Told ! {over, From}, Gateway();
@@ -817,12 +818,12 @@ kill_frame_reaches_only_the_runtimes_test() ->
 %% note was sent for a caller the runtime killed alone
 host_ended_compute_test() ->
     Self = self(),
-    Frame = fun(Alias) -> {compute, Alias, {function, <<0:256>>}, <<"M.f:1">>, ?MS} end,
+    Frame = fun(Alias) -> {compute, Alias, {function, <<0:256>>}, false, <<"M.f:1">>, ?MS} end,
     Main = fun() ->
                Told = self(),
                Gateway = spawn(fun Gateway() ->
                                    receive
-                                       {ern_frame, From, {compute, _, _, _, _}} ->
+                                       {ern_frame, From, {compute, _, _, _, _, _}} ->
                                            Told ! {noted, From}, Gateway();
                                        {ern_frame, From, {call_over, _}} ->
                                            Told ! {over, From}, Gateway();
@@ -876,7 +877,7 @@ group_binding_test() ->
                true = register(ern_gateway, self()),
                Ref = make_ref(),
                Spawned = {function, maps:get(['Peergroup', ordered], Hashes)},
-               Read = ern_peer:frame(self(), {spawn, Ref, Spawned, <<"M.f:1">>, false, ?MS}),
+               Read = ern_peer:frame(self(), {spawn, Ref, Spawned, false, <<"M.f:1">>, false, ?MS}),
                receive {ern_frame, _, {answer, Ref, Answer}} -> Self ! {spawned, Answer, Read} end
            end,
     try

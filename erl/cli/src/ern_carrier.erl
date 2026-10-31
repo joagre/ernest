@@ -179,9 +179,9 @@ is_test(File) ->
 %% reports of its nodes turned off, the gateway, which watches the node's
 %% connections, and the host's distribution under the node's name,
 %% listening where `listen` names an interface, its listed peers' names
-%% allowed (allow/1). A carrier that cannot start ends the node as an
-%% initializer that faults ends a program (§8.5), the cause saying why
-%% (not_started/2).
+%% allowed (allow/1). A carrier that cannot start ends the node before
+%% `main` runs as a job that cannot start (§11.8), the line saying why
+%% (not_started/2, ern_rt:refused/1).
 -spec start(#configuration{}) -> ok.
 start(_Configuration) when node() =/= nonode@nohost ->
     %% report §11.2: `ern test` over a directory runs each module in a
@@ -195,8 +195,8 @@ start(#configuration{public_key = PublicKey, listen = Listen}) ->
         {ok, _} ->
             allow([Key || #peer{public_key = Key} <- (configuration())#configuration.peers]);
         {error, Reason} ->
-            ern_rt:fault(iolist_to_binary(["the node's carrier did not start: ",
-                                           not_started(Listen, Reason)]))
+            ern_rt:refused(iolist_to_binary(["the node's carrier did not start: ",
+                                             not_started(Listen, Reason)]))
     end.
 
 %% Report §12.3: why the carrier did not start: its listen address in use,

@@ -112,8 +112,8 @@ told_boundary(Base) ->
 
 %% README.md's console, the front page's transcript; report §8.7, §11.2,
 %% Appendix E.27: `a` and `foo` made with `ern config` and listed in each
-%% other's by `--peer-dir`, `a` listening on a port the harness found free
-%% in place of the README's 0.0.0.0:8654 and `foo` on another; `foo`
+%% other's by `--peer-dir`, `a` with no `--listen`, a node that only dials,
+%% and `foo` listening on a port the harness found free; `foo`
 %% started bare; the README's counter, tour/2/counter.ern, in the reader's
 %% directory; the shell started as `a`, its start line the release's as the
 %% README shows it, and the console's inputs typed, each held to the lines
@@ -132,16 +132,14 @@ readme_test_() ->
     ern_nodes_tests:nodes_test({waits, 16}, fun readme/1).
 
 readme(Base) ->
-    [<<"$ ern shell --config-dir a">>, <<"listening on 0.0.0.0:8654">>, Start | Session] =
-        readme_console(),
+    [<<"$ ern shell --config-dir a">>, Start | Session] = readme_console(),
     {ok, Version} = file:read_file("../VERSION"),
     ?assertEqual(<<"Ernest ", (string:trim(Version))/binary,
                    ", session 1. :help for the commands, :quit to leave.">>, Start),
-    [PortA, PortFoo] = [ern_nodes_tests:free_port() || _ <- [a, foo]],
-    [AddressA, AddressFoo] = [ern_nodes_tests:address(Port) || Port <- [PortA, PortFoo]],
+    PortFoo = ern_nodes_tests:free_port(),
+    AddressFoo = ern_nodes_tests:address(PortFoo),
     [A, Foo] = [filename:join(Base, Name) || Name <- ["a", "foo"]],
     created(Base, "config --config-dir a"),
-    ern_nodes_tests:edit(A, fun(Conf) -> Conf#{<<"listen">> => AddressA} end),
     created(Base, "config --config-dir foo --listen " ++ binary_to_list(AddressFoo)),
     [?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "config --config-dir " ++ Words))
      || Words <- ["a --peer-dir foo", "foo --peer-dir a"]],
@@ -149,7 +147,7 @@ readme(Base) ->
                         filename:join(Base, "counter.ern")),
     WaitFoo = ern_nodes_tests:bare_started(Foo, []),
     ern_deployment_tests:listens(Foo, PortFoo),
-    Shell = started(Base, A, " --config-dir a", [<<"listening on ", AddressA/binary>>]),
+    Shell = started(Base, A, " --config-dir a", []),
     quit(session(Shell, inputs(Session))),
     ?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "stop --config-dir foo")),
     ?assertEqual(143, WaitFoo()),
@@ -195,8 +193,8 @@ inputs([<<"> ", Input/binary>> | Rest]) ->
 %% says, and at the end what each bare node wrote.
 %%
 %% A bare node's port is one the harness found free, in place of the
-%% tour's 8655 and 8656, and so is `a`'s listen, which `ern config` sets to
-%% 0.0.0.0:8654, since one machine's nodes cannot share a port; the harness
+%% tour's 8655 and 8656, since one machine's nodes cannot share a port, and
+%% `a`, made with no `--listen`, only dials; the harness
 %% starts the bare nodes from their absolute directories, where the reader
 %% types `ern run --config-dir foo`. The inputs are the tour's, their
 %% deadlines among them. Two inputs follow chapter 8's stop of foo, which
@@ -215,14 +213,13 @@ tour_test_() ->
     ern_nodes_tests:nodes_test({waits, 95}, fun tour/1).
 
 tour(Base) ->
-    [PortA, PortFoo, PortBar] = [ern_nodes_tests:free_port() || _ <- [a, foo, bar]],
-    configured(Base, PortA, PortFoo, PortBar),
+    [PortFoo, PortBar] = [ern_nodes_tests:free_port() || _ <- [foo, bar]],
+    configured(Base, PortFoo, PortBar),
     [Foo, Bar] = [filename:join(Base, Name) || Name <- ["foo", "bar"]],
     WaitFoo = ern_nodes_tests:bare_started(Foo, []),
     WaitBar = ern_nodes_tests:bare_started(Bar, []),
     [ern_deployment_tests:listens(Dir, Port) || {Dir, Port} <- [{Foo, PortFoo}, {Bar, PortBar}]],
-    Shell = started(Base, filename:join(Base, "a"), " --config-dir a",
-                    [<<"listening on ", (ern_nodes_tests:address(PortA))/binary>>]),
+    Shell = started(Base, filename:join(Base, "a"), " --config-dir a", []),
     Chapters = [{2, fun far/1}, {3, fun client/1}, {4, fun fault/1}, {5, fun per_key/1},
                 {6, fun door/1}, {7, fun anywhere/1}, {8, fun fix/1}],
     Tour = #tour{base = Base, foo = Foo, bar = Bar, wait_foo = WaitFoo, wait_bar = WaitBar,
@@ -254,22 +251,20 @@ tour(Base) ->
 %% listed. a/ernest.conf, which the tour shows, then lists foo and bar at
 %% their ports, each by its key, and offers no service, and each bare node
 %% lists `a` at its port (report §8.7, §11.3).
-configured(Base, PortA, PortFoo, PortBar) ->
+configured(Base, PortFoo, PortBar) ->
     [A, Foo, Bar] = [filename:join(Base, Name) || Name <- ["a", "foo", "bar"]],
-    [AddressA, AddressFoo, AddressBar] = [ern_nodes_tests:address(Port)
-                                          || Port <- [PortA, PortFoo, PortBar]],
+    [AddressFoo, AddressBar] = [ern_nodes_tests:address(Port) || Port <- [PortFoo, PortBar]],
     created(Base, "config --config-dir a"),
-    ern_nodes_tests:edit(A, fun(Conf) -> Conf#{<<"listen">> => AddressA} end),
     created(Base, "config --config-dir foo --listen " ++ binary_to_list(AddressFoo)),
     created(Base, "config --config-dir bar --listen " ++ binary_to_list(AddressBar)),
     [?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "config --config-dir " ++ Words))
      || Words <- ["a --peer-dir foo", "a --peer-dir bar", "foo --peer-dir a", "bar --peer-dir a"]],
-    ?assertEqual(#{<<"listen">> => AddressA, <<"public-key">> => key(A),
+    ?assertEqual(#{<<"public-key">> => key(A),
                    <<"peers">> => [ern_nodes_tests:peer("foo", Foo, PortFoo),
                                    ern_nodes_tests:peer("bar", Bar, PortBar)],
                    <<"services">> => #{}},
                  ern_nodes_tests:configuration(A)),
-    [?assertEqual([ern_nodes_tests:peer("a", A, PortA)],
+    [?assertEqual([ern_nodes_tests:peer("a", A, none)],
                   maps:get(<<"peers">>, ern_nodes_tests:configuration(Dir)))
      || Dir <- [Foo, Bar]].
 
@@ -480,7 +475,6 @@ moved_here(#tour{shell = Shell} = Tour) ->
 moved_there(#tour{base = Base, foo = Foo, shell = Shell} = Tour) ->
     Ops = filename:join(Base, "ops"),
     created(Base, "config --config-dir ops"),
-    ern_nodes_tests:edit(Ops, fun(Conf) -> maps:remove(<<"listen">>, Conf) end),
     [?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, Words))
      || Words <- ["config --config-dir ops --peer-dir foo",
                   "config --config-dir foo --peer-dir ops", "reload --config-dir foo"]],

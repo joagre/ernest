@@ -14,10 +14,10 @@ tmp() ->
     ok = filelib:ensure_path(Dir),
     Dir.
 
-%% A directory `ern config` made.
+%% A directory `ern config` made, listening.
 made() ->
     Dir = filename:join(tmp(), "node"),
-    _ = ern_node:create(Dir, ern_node:default_listen()),
+    _ = ern_node:create(Dir, "0.0.0.0:8654"),
     Dir.
 
 %% The refusal `ern_node` throws, as the runner prints it.
@@ -56,7 +56,7 @@ ends(Message, Suffix) ->
 %% umask (the full review's S3); it answers the public key
 create_test() ->
     Dir = filename:join(tmp(), "node"),
-    Public = ern_node:create(Dir, ern_node:default_listen()),
+    Public = ern_node:create(Dir, "0.0.0.0:8654"),
     {ok, #file_info{mode = DirMode}} = file:read_file_info(Dir),
     ?assertEqual(8#700, DirMode band 8#777),
     {ok, #file_info{mode = KeyMode}} = file:read_file_info(filename:join(Dir, "private-key.pem")),
@@ -93,7 +93,7 @@ create_test() ->
     [SpkiEntry] = public_key:pem_decode(Public),
     ?assert(public_key:pkix_verify(Der, public_key:pem_entry_decode(SpkiEntry))),
     ?assert(public_key:pkix_is_self_signed(Certificate)),
-    Again = fun() -> ern_node:create(Dir, ern_node:default_listen()) end,
+    Again = fun() -> ern_node:create(Dir, none) end,
     ?assertEqual(<<"node exists">>,
                  iolist_to_binary(lists:last(string:split(refusal(Again), "/", trailing)))),
     %% what it makes, a node reads, its tellings every 5000 ms
@@ -286,7 +286,7 @@ certificate_refusals_test() ->
 peer_certificate_test() ->
     Dir = made(),
     Peer = filename:join(tmp(), "peer"),
-    _ = ern_node:create(Peer, ern_node:default_listen()),
+    _ = ern_node:create(Peer, "0.0.0.0:8654"),
     Certificate = filename:join(Peer, "certificate.pem"),
     ok = file:write_file(Certificate, named(Peer, "a.b")),
     Conf = filename:join(Dir, "ernest.conf"),

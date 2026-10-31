@@ -2028,8 +2028,12 @@ fn localHalf(attachment : Attachment) : Unit receiving LocalMsg = {
             attaching(serving, None)
         }
       | Attaching(name) -> {
-            let deadline = Clock.monotonic() + dialMs();
-            match Peer.spawnMonitored(name, fn() = attached(desk), EntryEnded, dialMs()) {
+            // report §11.2 *The attached shell*: twice a dial's time, the
+            // dial's for the connection and as much again for the session,
+            // so that a node nothing answers is unreachable at the dial's end
+            let attachMs = 2 * dialMs();
+            let deadline = Clock.monotonic() + attachMs;
+            match Peer.spawnMonitored(name, fn() = attached(desk), EntryEnded, attachMs) {
                 Right(_) -> attaching(Serving(..serving, peer = Some(name)), Some(deadline))
               | Left(error) -> endWith(1, refusal(name, error))
             }
@@ -2088,8 +2092,8 @@ fn refusal(name : String, error : Io.Error) : String = {
 
 // Report §11.2: until the session has its screen, the terminal's events
 // waiting meanwhile; an attached shell, `deadline` the moment its wait
-// ends, waits for it as long as a dial is waited for, from the attach's
-// start, and refuses the attach where it does not come.
+// ends, waits for it twice as long as a dial is waited for, from the
+// attach's start, and refuses the attach where it does not come.
 fn attaching(serving : Serving, deadline : Optional(Int)) : Unit receiving LocalMsg =
     match #(serving.peer, deadline) {
         #(Some(name), Some(ending)) ->

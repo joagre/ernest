@@ -5359,18 +5359,23 @@ config_dir_required_test() ->
 
 %% report §11.3, Appendix C: the configuration directory with no peer and
 %% no service, a private key readable only by its owner and a certificate,
-%% created where --config-dir names it, its public key printed; a second
-%% creation fails
+%% created where --config-dir names it, its public key printed, and no
+%% `listen` where `--listen` gives none, a node that only dials; a second
+%% creation fails. The `listen` left out is a regression test of the
+%% release review's K26, written after the code (the log's *The Shell's
+%% Own Node*): `0.0.0.0:8654` was written for every directory
 create_config_dir_test() ->
     Dir = tmp() ++ "/.ernest",
     ?assertEqual(0, ern_cli:ern(["config", "--config-dir", Dir])),
     {ok, Conf} = file:read_file(Dir ++ "/ernest.conf"),
-    #{<<"peers">> := [], <<"services">> := #{}, <<"listen">> := <<"0.0.0.0:8654">>,
-      <<"public-key">> := <<"-----BEGIN PUBLIC KEY-----", _/binary>> = Public} = json:decode(Conf),
+    #{<<"peers">> := [], <<"services">> := #{},
+      <<"public-key">> := <<"-----BEGIN PUBLIC KEY-----", _/binary>> = Public} = Decoded
+        = json:decode(Conf),
+    ?assertNot(is_map_key(<<"listen">>, Decoded)),
     ?assertEqual(Public, unicode:characters_to_binary(?capturedOutput)),
     %% laid out as Appendix C shows it, a key a line in its order; a
     %% regression test, it was one line with its keys sorted
-    ?assertMatch([<<"{">>, <<"  \"listen\": \"0.0.0.0:8654\",">>,
+    ?assertMatch([<<"{">>,
                   <<"  \"public-key\": \"-----BEGIN PUBLIC KEY-----", _/binary>>,
                   <<"  \"peers\": [],">>, <<"  \"services\": {}">>, <<"}">>, <<>>],
                  binary:split(Conf, <<"\n">>, [global])),
@@ -5392,8 +5397,6 @@ bare_node_refusals_test() ->
     Dir = tmp() ++ "/.ernest",
     ?assertEqual(0, ern_cli:ern(["config", "--config-dir", Dir])),
     Conf = filename:join(Dir, "ernest.conf"),
-    {ok, Text} = file:read_file(Conf),
-    ok = file:write_file(Conf, json:encode(maps:remove(<<"listen">>, json:decode(Text)))),
     ?assertEqual(1, ern_err(["run", "--config-dir", Dir])),
     ?assertEqual(1, ern_err(["run", "--config-dir", Dir, "--main", "Foo.bar"])),
     ?assertEqual(1, ern_err(["run", "--main", "Foo.bar"])),
@@ -5458,13 +5461,14 @@ config_dir_is_its_owners_test() ->
 %% peer named by its directory, its key the one its certificate certifies,
 %% which its `ern config` printed, and its address its `listen`, the
 %% loopback address for every interface's; `--peer-dir` prints nothing, writes
-%% the peer as Appendix C lays one out, and leaves a file a node reads
+%% the peer as Appendix C lays one out, and leaves a file a node reads. A
+%% third directory, made without `--listen`, is listed with no address
 config_peer_test() ->
     Dir = tmp(),
-    [A, Foo] = [filename:join(Dir, Name) || Name <- ["a", "foo"]],
+    [A, Foo, Ops] = [filename:join(Dir, Name) || Name <- ["a", "foo", "ops"]],
     [?assertEqual(0, ern_err(["config", "--config-dir" | Words]))
-     || Words <- [[A], [Foo, "--listen", "127.0.0.1:8655"], [A, "--peer-dir", Foo],
-                  [Foo, "--peer-dir", A]]],
+     || Words <- [[A, "--listen", "0.0.0.0:8654"], [Foo, "--listen", "127.0.0.1:8655"],
+                  [A, "--peer-dir", Foo], [Foo, "--peer-dir", A]]],
     #{<<"listen">> := <<"0.0.0.0:8654">>, <<"public-key">> := KeyA, <<"services">> := #{},
       <<"peers">> := [ListedFoo]} = conf_of(A),
     #{<<"listen">> := <<"127.0.0.1:8655">>, <<"public-key">> := KeyFoo, <<"services">> := #{},
@@ -5483,7 +5487,11 @@ config_peer_test() ->
                   <<"  \"services\": {}">>, <<"}">>, <<>>],
                  binary:split(Text, <<"\n">>, [global])),
     [?assertMatch({configuration, _, _, _, [{peer, _, _, {{127, 0, 0, 1}, _}}], _, _, _, _},
-                  ern_node:read(Node)) || Node <- [A, Foo]].
+                  ern_node:read(Node)) || Node <- [A, Foo]],
+    [?assertEqual(0, ern_err(["config", "--config-dir" | Words]))
+     || Words <- [[Ops], [A, "--peer-dir", Ops]]],
+    #{<<"peers">> := [_, ListedOps]} = conf_of(A),
+    ?assertEqual([<<"name">>, <<"public-key">>], lists:sort(maps:keys(ListedOps))).
 
 %% report §11.3, §11.7: `--listen` gives the directory's `listen`, any a
 %% node takes, port 0 among them; one a node refuses is refused before
@@ -5516,8 +5524,6 @@ config_peer_address_test() ->
     [?assertEqual(0, ern_err(["config", "--config-dir", Made, "--listen", Listen]))
      || {Made, Listen} <- [{A, "[::1]:8654"}, {All, "[::]:8660"}, {One, "[fe80::1]:8661"}]],
     ?assertEqual(0, ern_err(["config", "--config-dir", Silent])),
-    ok = file:write_file(filename:join(Silent, "ernest.conf"),
-                         json:encode(maps:remove(<<"listen">>, conf_of(Silent)))),
     [?assertEqual(0, ern_err(["config", "--config-dir", A, "--peer-dir", Dir ++ "/" ++ Given]))
      || Given <- ["all/", "all/../one", "silent"]],
     #{<<"peers">> := Listed} = conf_of(A),

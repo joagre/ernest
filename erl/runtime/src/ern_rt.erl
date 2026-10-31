@@ -55,7 +55,8 @@
          is_kept_from_terminal/1, own_terminal/1,
          input_not_utf8/0, by_input/1, read_input/1, run_main/3, say/2, say_later/2,
          wait_for_later/0, tables/0, arguments/0,
-         exit_program/1, deadlock_victim/1, entry_process/0, signal/1, initializing/1, site/0,
+         exit_program/1, refused/1, deadlock_victim/1, entry_process/0, signal/1,
+         initializing/1, site/0,
          evaluate/2, made_table/1, ends_with_caller/1, owned/1, owned_tables/1, withdraw_load/2,
          binding/1, binding_value/2, is_initialized/1,
          restarting/2, restart_now/0, ask_restart/1,
@@ -71,8 +72,9 @@
 -compile({no_auto_import, [spawn/2, self/0, monitor/2, demonitor/1, now/0]}).
 
 %% Report §8.6: each receive that can wait, by its kind (docs/style.md).
--receives({foreign_wait, [computed_answer/3, exit_program/1, restart_taken/1, end_with_program/0,
-                          waited_deliveries/1, tell_service_monitors/0, say/2]}).
+-receives({foreign_wait, [computed_answer/3, exit_program/1, refused/1, restart_taken/1,
+                          end_with_program/0, waited_deliveries/1, tell_service_monitors/0,
+                          say/2]}).
 -receives({ernest_wait, [waited_answer/3, call_forever/3, waited_evaluation/2,
                          evaluated_lives/0]}).
 -receives({answered_at_once, [spawn_with_monitors/4, ask_monitor/2, demonitor/1, spawned/7,
@@ -3395,7 +3397,8 @@ wait({time, At}, ReadTime) -> min(?SLICE, max(0, At - ReadTime())).
 
 -type outcome() :: ok | killed | {fault, binary(), binary()}
                  | {initializer_fault, binary(), binary(), binary()}
-                 | {exit, 0..255} | {gone, stdout | stderr} | {signal, sigterm | sighup}.
+                 | {exit, 0..255} | {refused, binary()} | {gone, stdout | stderr}
+                 | {signal, sigterm | sighup}.
 
 %% Runs EntryPoint as the entry process. It returns ok where the entry
 %% process returned, killed where it was killed, {fault, Cause, Trace}
@@ -3403,15 +3406,17 @@ wait({time, At}, ReadTime) -> min(?SLICE, max(0, At - ReadTime())).
 %% a system process's fault among the faults, whose trace is the process's
 %% stack where the runtime found it (report §8.6: the entry process faults
 %% with `Fault("deadlock")`), and an end the host gave it otherwise,
-%% Cause its reason and Trace empty
-%% (§6.9); {initializer_fault, Site, Cause, Trace} where a top-level
+%% Cause its reason and Trace empty (§6.9).
+%%
+%% It returns {initializer_fault, Site, Cause, Trace} where a top-level
 %% binding faulted so before EntryPoint ran, Site naming the binding
-%% (report §8.5); {exit, Status} where a process called
-%% Os.exit, {gone, Stream} where standard output or standard error could
-%% no longer be written, or {signal, Signal} where the host's termination
-%% or hangup ended the program (entry_end/2). Every local process is then
-%% ended with ProgramEnd, and standard output and standard error are
-%% flushed, however the run ended.
+%% (report §8.5); {exit, Status} where a process called Os.exit, {refused,
+%% Text} where the run could not start, a node whose carrier did not
+%% (refused/1), {gone, Stream} where standard output or standard error
+%% could no longer be written, or {signal, Signal} where the host's
+%% termination or hangup ended the program (entry_end/2). Every local
+%% process is then ended with ProgramEnd, and standard output and standard
+%% error are flushed, however the run ended.
 %%
 %% Options of the program and its run: init => a function run in the entry
 %% process before EntryPoint, after the system references are bound and the
@@ -3954,6 +3959,8 @@ entry_end(EntryProcess, Launch) ->
             entry_end(EntryProcess, Launch);
         {exit, Launch, Status} ->
             {{exit, Status}, none};
+        {refused, Launch, Text} ->
+            {{refused, Text}, none};
         {gone, Launch, Stream} ->
             {{gone, Stream}, none};
         {signal, Launch, Signal} ->
@@ -3989,6 +3996,17 @@ exit_program(Status) ->
             entered_foreign(),
             receive after infinity -> ok end
     end.
+
+%% Report §12.3, §11.8: the run ended before `main` as a job that cannot
+%% start, a node whose carrier did not (ern_carrier:start/1), Text saying
+%% why, which the job says as its refusal; the caller, the entry process,
+%% waits for its own end there, as an Os.exit's caller does.
+-spec refused(binary()) -> no_return().
+refused(Text) ->
+    {Runner, Launch} = launch_runner(),
+    Runner ! {refused, Launch, Text},
+    entered_foreign(),
+    receive after infinity -> ok end.
 
 input(Key, Options) ->
     case maps:find(Key, Options) of

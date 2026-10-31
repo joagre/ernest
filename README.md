@@ -12,11 +12,10 @@
 
 Ernest is a small functional language for concurrent programs, on the Erlang runtime. A process receives messages of one type, which the compiler checks every send against, and a process started on another node brings its code along: nothing is installed there first.
 
-`foo` is a *node*, a running program or shell that lists its peers in a configuration directory, started here with no program, `ern run --config-dir foo` in a terminal of its own, and it holds nothing of the counter's. The shell is a node too, and the two are two directories each listing the other by key and address, which [the tour](tour/README.md)'s chapter 2 makes, with a third, in seven commands. `Peer.spawn` starts `count` on `foo`, its code crossing with the spawn, and the shell counts on it from here:
+`foo` is a *node*, a running program or shell that lists its peers in a configuration directory, started here with no program, `ern run --config-dir foo` in a terminal of its own, and it holds nothing of the counter's. The shell is a node too, and the two are two directories each listing the other by key, the shell's naming `foo`'s address too, which [the tour](tour/README.md)'s chapter 2 makes, with a third, in seven commands. `Peer.spawn` starts `count` on `foo`, its code crossing with the spawn, and the shell counts on it from here:
 
 ```console
 $ ern shell --config-dir a
-listening on 0.0.0.0:8654
 Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
 > :load Counter
 Counter, compiled from counter.ern

@@ -972,7 +972,7 @@ required_by(_) -> [].
 config_options() ->
     [config_dir_option("the directory made, or with --peer-dir the one written"),
      {listen, undefined, "listen", string,
-      "the address and port the node listens on; default: " ++ ern_node:default_listen()},
+      "the address and port the node listens on; without it, the node only dials"},
      {peer_dir, undefined, "peer-dir", string,
       "list the node of this configuration directory, on this machine, as a peer"},
      help_option()].
@@ -1125,14 +1125,14 @@ node_dir(Options) ->
     end.
 
 %% Report §11.3: the configuration directory made, its `listen` the one
-%% --listen gives or the default, and the node's public key printed, which
+%% --listen gives or none, and the node's public key printed, which
 %% another node's configuration lists; or, given --peer-dir, the node of
 %% that directory listed among the directory's peers, and nothing printed.
 config(Options, [], _ErrorDevice) ->
     ConfigDir = node_dir(Options),
     case proplists:get_value(peer_dir, Options) of
         undefined ->
-            Listen = proplists:get_value(listen, Options, ern_node:default_listen()),
+            Listen = proplists:get_value(listen, Options, none),
             io:format("~ts", [ern_node:create(ConfigDir, Listen)]);
         PeerDir ->
             proplists:is_defined(listen, Options)
@@ -1582,6 +1582,10 @@ quiet_signals() ->
 %% on the job's standard error, since the launch has ended.
 report_outcome(_ErrorDevice, _Site, ok) -> 0;
 report_outcome(_ErrorDevice, _Site, {exit, Status}) -> Status;
+%% report §12.3, §11.8: a run that could not start, a node whose carrier did
+%% not, is the job's refusal, said in the job's line form with status 1
+report_outcome(_ErrorDevice, _Site, {refused, Text}) ->
+    ern_build:fail(unicode:characters_to_list(Text));
 %% report §12.1, §11.2: a stream that can no longer be written, as a shell
 %% reports a broken pipe
 report_outcome(_ErrorDevice, _Site, {gone, _Stream}) -> 128 + 13;

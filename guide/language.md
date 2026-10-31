@@ -225,11 +225,10 @@ Standard input is read as UTF-8, and a line that is not faults the process that 
 
 ### 1.4 A taste of the rest
 
-The tour's counter, `counter.ern`, whose type and loop are exported, run on a node started with none of its code. `foo` is a node started with a configuration directory and no program, and the shell is a node too, started with its own; `Peer.spawn` starts `count` on `foo`, which is sent the code it lacks, and answers `Right` with an address like any other, or `Left` with the reason it could not; `let far <-` binds the address inside a `Right`, and shows a `Left` and binds nothing (§2.7). Started as a node, the shell says where it listens before its first line:
+The tour's counter, `counter.ern`, whose type and loop are exported, run on a node started with none of its code. `foo` is a node started with a configuration directory and no program, and the shell is a node too, started with its own; `Peer.spawn` starts `count` on `foo`, which is sent the code it lacks, and answers `Right` with an address like any other, or `Left` with the reason it could not; `let far <-` binds the address inside a `Right`, and shows a `Left`, which `it` then names (§2.7):
 
 ```console
 $ ern shell --config-dir a
-listening on 0.0.0.0:8654
 Ernest 0.6.0, session 1. :help for the commands, :quit to leave.
 > :load Counter
 Counter, compiled from counter.ern
@@ -566,7 +565,7 @@ fn positiveInt(text : String) : Either(String, Int) = {
 - `positiveInt("oops")` → `Left("not an integer")`: `String.toInt` returned `None`, which `Either.fromOptional` turned into a `Left`, and the chain stopped.
 - `positiveInt("0")` → `Left("not positive")`: the parse succeeded, and the `if` refused the value.
 
-At the prompt the session is the rest of the block: `let p <- e` binds what is inside a `Some` or a `Right`, and shows a `None` or a `Left` as an expression's value is shown, binding nothing and leaving `it` as it was (report §11.2):
+At the prompt the session is the rest of the block: `let p <- e` binds what is inside a `Some` or a `Right`, and shows a `None` or a `Left` as an expression's value is shown, binding no name and binding it to `it` (report §11.2):
 
 ```console
 $ ern shell
@@ -2449,7 +2448,7 @@ export fn map(Set(list) : Set(a), f : (a) -> b receiving e) : Set(b) receiving e
 
 A program reaches outside its node's Ernest code in three ways: to peers over the network, to foreign code on the same node, and by bytes over TCP to any host (§8.6, §8.7).
 
-A *node* is a program started with `--config-dir`, and its *peers* are the nodes its `ernest.conf` lists (report §8.3). `ern config` makes the directory once: `ernest.conf` with the node's `listen` address and its public key, no peer and no service yet, and the private key and a certificate beside it.
+A *node* is a program started with `--config-dir`, and its *peers* are the nodes its `ernest.conf` lists (report §8.3). `ern config` makes the directory once: `ernest.conf` with the node's public key and the `listen` address `--listen` gives, none for a node that only dials, no peer and no service yet, and the private key and a certificate beside it.
 
 A peer has a name, which the program uses, a public key and a network address. A peer on the same machine is added by `ern config --peer-dir`, which reads all three from the peer's directory; one on another machine by editing the file, with the key `ern config` printed on the peer's machine (report §11.3). Under `services`, each service's name lists the peers that may offer it, in the order a *find* asks them (report §8.7, Appendix C). A peer offers a service by holding a process under its name for peers to find, and a find is the lookup of a service by its name (§8.2).
 
@@ -2495,11 +2494,10 @@ $ ern config --config-dir a --peer-dir foo
 $ ern config --config-dir foo --peer-dir a
 ```
 
-`a` listens on `0.0.0.0:8654`, as made, and `foo` on a port of its own, since two nodes on one machine cannot share one. `--peer-dir` reads the peer's directory: the peer's name is the directory's, its key is its certificate's, and its address is its `listen`, with `127.0.0.1` for `0.0.0.0`, since the peer is on this machine (report §11.3). `a/ernest.conf` then reads:
+`a` only dials, made without `--listen`, and `foo` listens on the port `--listen` gives it, which the operator who knows the machine chooses. `--peer-dir` reads the peer's directory: the peer's name is the directory's, its key is its certificate's, and its address is its `listen`, with `127.0.0.1` for `0.0.0.0`, since the peer is on this machine (report §11.3). `a/ernest.conf` then reads:
 
 ```json
 {
-  "listen": "0.0.0.0:8654",
   "public-key": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAxPrYwmRdoys5yu9UJVah/ssQO8AeM8Sz8XSW+1BQOVg=\n-----END PUBLIC KEY-----\n",
   "peers": [
     {
@@ -2512,7 +2510,7 @@ $ ern config --config-dir foo --peer-dir a
 }
 ```
 
-`foo/ernest.conf` lists `a` the same way, at `127.0.0.1:8654`; the node whose operation first needs the other dials it, opens the connection to it, as the report's word is (Appendix F).
+`foo/ernest.conf` lists `a` by its key and with no address, since `a` listens nowhere: `a` dials `foo` when an operation first needs it, opens the connection to it, as the report's word is (Appendix F), and `foo` answers over that connection.
 
 What `--peer-dir` does not write is written by hand: `services`, §8.2's, and a peer on another machine, its key the one `ern config` printed there, as one JSON string with its line breaks `\n` (the deployment guide's §2.1). One key listed under two names is refused, `two peers have one public-key, and two nodes with one key are one node`.
 
@@ -2520,7 +2518,6 @@ Start `foo` first, in a terminal of its own, with `ern run --config-dir foo`. A 
 
 ```console
 $ ern run --config-dir a square.erc
-listening on 0.0.0.0:8654
 the peer foo connected
 foo computed 25
 $ ern stop --config-dir foo
@@ -2807,7 +2804,7 @@ $ ern run desk.erc
 no store: NotListed
 ```
 
-On two nodes the desk finds the store. The store's directory is made with `ern config --config-dir store --listen 127.0.0.1:8655`, and the desk's with `ern config --config-dir desk`, its `listen` removed since it only dials; `--peer-dir` lists each in the other's file, and the desk's names the service, `"services": {"counter": ["store"]}`. The store runs in a terminal of its own:
+On two nodes the desk finds the store. The store's directory is made with `ern config --config-dir store --listen 127.0.0.1:8655`, and the desk's with `ern config --config-dir desk`, with no `--listen`, since it only dials; `--peer-dir` lists each in the other's file, and the desk's names the service, `"services": {"counter": ["store"]}`. The store runs in a terminal of its own:
 
 ```console
 $ ern run --config-dir store store.erc
@@ -3217,7 +3214,7 @@ One command, `ern`, whose first word is its job, and a mode for Emacs. `ern --he
 - `ern test module.erc` runs the module's tests, and `ern test dir` those of every module compiled under the directory; it exits with status 1 unless all passed (§7.1).
 - `ern shell`, with or without a file, starts the shell (§1.2). A file's `main`, or the function `--main` names, runs beside it; a file without either is loaded with nothing running. `--source-root dir` names where `:load` finds a module's source, and `--config-dir dir` the configuration directory.
 - `ern shell --config-dir dir --attach name` attaches the shell to the peer `name` that `dir` lists: the session runs on that node, every module of its build in scope, and `:load` and `:reload` send a module's source there as text, or `:load` takes the node's own compiled form where its load path holds one; the terminal and the files stay with the shell's own node, started from `dir`, which `name` lists without an address. `:quit` leaves, and what the session started runs on (§8.9, report §11.2); the deployment guide's §6 is the operator's use of it.
-- `ern config --config-dir dir` makes the configuration a node with peers needs (§8) in the directory `dir`, listening where `--listen address:port` says; `ern config --config-dir dir --peer-dir other` lists the node of `other`, a directory of this machine, in `dir`'s (§8.1, report §11.3). `ern run --config-dir dir` runs the program as that node, and `ern reload --config-dir dir` and `ern stop --config-dir dir` have the running node read its configuration again, or end, `ern stop` returning once it has (report §11.2). `ern reload` reads the directory as the node would, and refuses a configuration the node would refuse, with status 1, before it signals.
+- `ern config --config-dir dir` makes the configuration a node with peers needs (§8) in the directory `dir`, listening where `--listen address:port` says, and only dialing without it; `ern config --config-dir dir --peer-dir other` lists the node of `other`, a directory of this machine, in `dir`'s (§8.1, report §11.3). `ern run --config-dir dir` runs the program as that node, and `ern reload --config-dir dir` and `ern stop --config-dir dir` have the running node read its configuration again, or end, `ern stop` returning once it has (report §11.2). `ern reload` reads the directory as the node would, and refuses a configuration the node would refuse, with status 1, before it signals.
 
 ### 9.3 The shell
 

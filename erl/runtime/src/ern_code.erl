@@ -16,6 +16,11 @@
 %% its qualified name as text, as a spawn frame names it, and, in the
 %% unit's own row, the units its code calls.
 %%
+%% Beside them a unit has rows of its own that its load adds: the
+%% interface chunk the runner read of it (load/4) and, for a unit loaded
+%% from the tree's builds of the toolchain's own, the mark that it is one
+%% (load/3, is_own/1).
+%%
 %% A unit loaded again with other code replaces its rows, and one unloaded
 %% takes them with it, so that the table holds what the host holds and no
 %% more (docs/memory.md).
@@ -46,7 +51,7 @@
 %% host: `ern test` over a directory runs many (§11.2).
 -module(ern_code).
 
--export([ensure_loaded/1, own_file/1, own_builds/0, own_unit/1, load/3, load/4, chunk/1,
+-export([ensure_loaded/1, own_file/1, own_builds/0, own_unit/1, is_own/1, load/3, load/4, chunk/1,
          chunks/0, loaded/2, loaded/3, unloaded/1, spawnable/1, holders/1, linkable/1, valued/1,
          ground/1, grounded/1, forms/1,
          called/1, absent_binding/1, absent_binding/2, foreign/2, declared/1, declared/2,
@@ -161,6 +166,20 @@ own_builds() ->
 own_unit(Hash) ->
     maps:get(Hash, own_units(), none).
 
+%% Report §12.6, §12.7: whether the function a spawn or a compute names,
+%% as the compiler writes it (ern_peer's spawned()), is held by a unit of
+%% the toolchain's own on this node, one loaded from the tree's builds of
+%% the toolchain's own beside the standard library's (load/3), which the
+%% frame says so that a peer that lacks it asks this node for nothing.
+-spec is_own(term()) -> boolean().
+is_own({function, Hash}) -> is_held_own(lookup({hash, Hash}));
+is_own({lambda, Hash, Position, _Captures}) -> is_held_own(lookup({lambda, Hash, Position}));
+is_own({restarting, _Limit, Inner}) -> is_own(Inner);
+is_own({foreign, _}) -> false.
+
+is_held_own(Rows) ->
+    lists:any(fun({_, Unit, _}) -> lookup({own, Unit}) =/= [] end, Rows).
+
 own_units() ->
     case persistent_term:get({?MODULE, own_units}, none) of
         none ->
@@ -210,9 +229,24 @@ load(Unit, File, Beam) ->
         false ->
             code:purge(Unit),
             case code:load_binary(Unit, File, Beam) of
-                {module, Unit} -> loaded(Unit, Beam);
-                {error, _} = Refused -> Refused
+                {module, Unit} ->
+                    loaded(Unit, Beam),
+                    own_kept(Unit, File);
+                {error, _} = Refused ->
+                    Refused
             end
+    end.
+
+%% Report §12.6, §12.7: a unit loaded from the tree's builds of the
+%% toolchain's own beside the standard library's, the shell's and its
+%% libraries' (own_builds/0), marked so in a row of its own, which goes
+%% with its other rows, so that a spawn of its function says it (is_own/1).
+own_kept(Unit, File) ->
+    Absolute = filename:absname(File),
+    case lists:any(fun(Build) -> lists:prefix(filename:join(Build, "") ++ "/", Absolute) end,
+                   own_builds()) of
+        true -> row_kept(Unit, {{own, Unit}, Unit, true});
+        false -> ok
     end.
 
 %% Report §11.2: the same for a module the runner loads, a program's or its
@@ -230,15 +264,20 @@ load(Unit, File, Beam, Chunk) ->
     end.
 
 chunk_kept(Unit, Chunk) ->
+    row_kept(Unit, {{chunk, Unit}, Unit, Chunk}).
+
+%% A row of a unit's own beside the rows its load wrote, its key among the
+%% unit's keys, so that it goes with them; none for a module that is no
+%% unit, which holds nothing here (loaded/2).
+row_kept(Unit, {Key, Unit, _} = Row) ->
     case lookup({unit, Unit}) of
         [{_, _, {Md5, Keys, Calls}} = UnitRow] ->
-            true = ets:insert(?TABLE, {{chunk, Unit}, Unit, Chunk}),
+            true = ets:insert(?TABLE, Row),
             true = ets:delete_object(?TABLE, UnitRow),
             true = ets:insert(?TABLE, {{unit, Unit}, Unit,
-                                       {Md5, lists:usort([{chunk, Unit} | Keys]), Calls}}),
+                                       {Md5, lists:usort([Key | Keys]), Calls}}),
             ok;
         [] ->
-            %% a module that is no unit holds nothing here (loaded/2)
             ok
     end.
 

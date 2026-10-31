@@ -194,7 +194,8 @@ received_whole_test() ->
                ok = ern_exchange:lacking(self(), spawned(JoinedRef, Work), Work),
                Alias = erlang:alias([reply]),
                ok = ern_rt:note_compute(self(), Alias),
-               ok = ern_exchange:lacking(self(), {compute, Alias, Work, <<"M.f:3">>, ?MS}, Work),
+               Compute = {compute, Alias, Work, false, <<"M.f:3">>, ?MS},
+               ok = ern_exchange:lacking(self(), Compute, Work),
                ok = catch_up(),
                AskedAgain = waiting(),
                Identities = [Hash(Name) || Name <- [work, area, 'Shape', isEven, isOdd]] ++ [Held],
@@ -287,8 +288,8 @@ received_linked_test() ->
                    ok = ern_rt:init_modules([BoundUnit]),
                    Alias = erlang:alias([reply]),
                    ok = ern_rt:note_compute(self(), Alias),
-                   ok = ern_exchange:lacking(self(), {compute, Alias, Work, <<"M.f:3">>, ?MS},
-                                             Work),
+                   Compute = {compute, Alias, Work, false, <<"M.f:3">>, ?MS},
+                   ok = ern_exchange:lacking(self(), Compute, Work),
                    {Exchange, Ref} = receive {ern_frame, From, {reach_request, R, _}} ->
                                              {From, R}
                                      end,
@@ -392,7 +393,7 @@ received_beyond_reach_test() ->
                    Alias = erlang:alias([reply]),
                    ok = ern_rt:note_compute(self(), Alias),
                    ok = ern_exchange:lacking(self(), {compute, Alias, {lambda, Outer, 1, []},
-                                                      <<"M.f:3">>, ?MS}, Lambda),
+                                                      false, <<"M.f:3">>, ?MS}, Lambda),
                    {Exchange, Ref} = receive {ern_frame, From, {reach_request, R, Lambda}} ->
                                              {From, R}
                                      end,
@@ -523,7 +524,7 @@ in_let_test() ->
                    Alias = erlang:alias([reply]),
                    ok = ern_rt:note_compute(self(), Alias),
                    ok = ern_exchange:lacking(self(), {compute, Alias, {lambda, Job, Position, []},
-                                                      <<"M.f:3">>, ?MS}, Lambda),
+                                                      false, <<"M.f:3">>, ?MS}, Lambda),
                    {Exchange, Ref} = receive {ern_frame, From, {reach_request, R, Lambda}} ->
                                              {From, R}
                                      end,
@@ -930,7 +931,7 @@ spawned(Ref, Function) ->
 %% A spawn's frame, as the gateway's worker hands it on, whose spawner
 %% waits Ms.
 spawned(Ref, {function, Hash}, Ms) ->
-    {spawn, Ref, {function, Hash}, <<"M.f:1">>, false, Ms}.
+    {spawn, Ref, {function, Hash}, false, <<"M.f:1">>, false, Ms}.
 
 %% A code frame for a definition alone or a group's members in order, each
 %% with its name, its form with the lines of its source, and the foreign

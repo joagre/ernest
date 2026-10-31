@@ -27,7 +27,7 @@
          spawn_monitored/4, spawn_monitored/5, compute/2, compute/3, compute_at/3, compute_at/4,
          pick/0, utilization/2, peers/0, utilizations/0, set_utilization/1,
          hold_utilization/3, drop_utilization/1, frame/2, restart_told/1, watchers_told/1,
-         failed/4, unstarted/2, ms/1, reach_lacked/2, foreign_lacked/1, lost/2]).
+         failed/4, unstarted/2, ms/1, is_own/1, reach_lacked/2, foreign_lacked/1, lost/2]).
 
 -export_type([identity/0]).
 
@@ -252,7 +252,8 @@ spawned(Name, Spawned, Wrap, Ms, Site) ->
             Gateway = {ern_gateway, Node},
             MonitorRef = erlang:monitor(process, Gateway),
             erlang:send(Gateway, {ern_frame, erlang:self(),
-                                  {spawn, Ref, Spawned, Site, Wrap =/= none, Ms}}),
+                                  {spawn, Ref, Spawned, ern_code:is_own(Spawned), Site,
+                                   Wrap =/= none, Ms}}),
             ern_rt:entered_foreign(),
             Answer = try spawn_answer({Node, Ref}, MonitorRef, Deadline)
                      after ern_rt:left_foreign()
@@ -336,7 +337,8 @@ compute_at(Name, Spawned, Ms, Site) ->
 %% whose wait is a call's (ern_rt:compute/4); a fault it carries back names
 %% the peer by Name and the compute by its site (§8.7).
 computed(Node, Name, Spawned, Ms, Site) ->
-    ern_rt:compute(Node, fun(Alias) -> {compute, Alias, Spawned, Site, Ms} end,
+    Own = ern_code:is_own(Spawned),
+    ern_rt:compute(Node, fun(Alias) -> {compute, Alias, Spawned, Own, Site, Ms} end,
                    ern_rt:deadline(Ms), {Name, Site}).
 
 %% Report Appendix E.27: the peer a compute that names none runs on, the one
@@ -508,8 +510,9 @@ frame(_From, {find, Name, Hash, Alias})
 %% report §12.6: a spawn's site is the spawner's words, read as UTF-8 here,
 %% once, as the frame arrives: a site that is not is a frame no compiler
 %% writes, which this node cannot read
-frame(From, {spawn, Ref, Spawned, Site, Monitored, Ms})
-  when is_reference(Ref), is_binary(Site), is_boolean(Monitored), is_integer(Ms) ->
+frame(From, {spawn, Ref, Spawned, Own, Site, Monitored, Ms})
+  when is_reference(Ref), is_boolean(Own), is_binary(Site), is_boolean(Monitored),
+       is_integer(Ms) ->
     case ern_fs:is_utf8(Site) andalso process_function(Spawned) of
         false ->
             unreadable;
@@ -524,8 +527,9 @@ frame(From, {spawn, Ref, Spawned, Site, Monitored, Ms})
             Read
     end;
 %% report §12.6: a compute's site, read as a spawn's is
-frame(From, {compute, Alias, Spawned, Site, Ms})
-  when is_reference(Alias), node(Alias) =:= node(From), is_binary(Site), is_integer(Ms) ->
+frame(From, {compute, Alias, Spawned, Own, Site, Ms})
+  when is_reference(Alias), node(Alias) =:= node(From), is_boolean(Own), is_binary(Site),
+       is_integer(Ms) ->
     case ern_fs:is_utf8(Site) andalso process_function(Spawned) of
         false ->
             unreadable;
@@ -683,11 +687,11 @@ not_loaded(Kind, Site, Lacked) ->
 %% says of it, Lacked being what it lacked or why it did not start it.
 -spec failed(pid(), tuple(), 'NotLoaded' | {'Other', binary()}, iodata()) ->
           {not_loaded, spawn | compute, binary(), iodata()}.
-failed(From, {spawn, Ref, _Spawned, _Site, _Monitored, _Ms} = Body, Error, Lacked) ->
+failed(From, {spawn, Ref, _Spawned, _Own, _Site, _Monitored, _Ms} = Body, Error, Lacked) ->
     erlang:send({ern_gateway, node(From)},
                 {ern_frame, erlang:self(), {answer, Ref, {failed, Error}}}),
     unstarted(Body, Lacked);
-failed(_From, {compute, Alias, _Spawned, _Site, _Ms} = Body, Error, Lacked) ->
+failed(_From, {compute, Alias, _Spawned, _Own, _Site, _Ms} = Body, Error, Lacked) ->
     ern_rt:computed(Alias, Error),
     unstarted(Body, Lacked).
 
@@ -695,18 +699,27 @@ failed(_From, {compute, Alias, _Spawned, _Site, _Ms} = Body, Error, Lacked) ->
 %% frame/2, that it starts no process for, Lacked being what it lacked or
 %% why it did not start it, answered or not.
 -spec unstarted(tuple(), iodata()) -> {not_loaded, spawn | compute, binary(), iodata()}.
-unstarted({spawn, _Ref, _Spawned, Site, _Monitored, _Ms}, Lacked) ->
+unstarted({spawn, _Ref, _Spawned, _Own, Site, _Monitored, _Ms}, Lacked) ->
     {not_loaded, spawn, Site, Lacked};
-unstarted({compute, _Alias, _Spawned, Site, _Ms}, Lacked) ->
+unstarted({compute, _Alias, _Spawned, _Own, Site, _Ms}, Lacked) ->
     {not_loaded, compute, Site, Lacked}.
 
 %% Report §12.6: the milliseconds the sender of a spawn or a compute frame,
 %% read by frame/2, waits for its answer, which the frame carries.
 -spec ms(tuple()) -> integer().
-ms({spawn, _Ref, _Spawned, _Site, _Monitored, Ms}) ->
+ms({spawn, _Ref, _Spawned, _Own, _Site, _Monitored, Ms}) ->
     Ms;
-ms({compute, _Alias, _Spawned, _Site, Ms}) ->
+ms({compute, _Alias, _Spawned, _Own, _Site, Ms}) ->
     Ms.
+
+%% Report §12.6, §12.7: whether a spawn or a compute frame, read by frame/2,
+%% says that its function's unit is the toolchain's own, which a node that
+%% lacks it loads from its own tree, asking the spawner for nothing.
+-spec is_own(tuple()) -> boolean().
+is_own({spawn, _Ref, _Spawned, Own, _Site, _Monitored, _Ms}) ->
+    Own;
+is_own({compute, _Alias, _Spawned, Own, _Site, _Ms}) ->
+    Own.
 
 %% Report §12.7: what this node lacks of a reach a peer gave, before any of
 %% its code crosses, or none: the first foreign declaration whose module is

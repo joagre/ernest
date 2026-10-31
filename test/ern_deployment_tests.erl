@@ -70,10 +70,9 @@ runbook(Base) ->
     %% and its console does not show
     [] = ran(Base, Directories ++ [{"config --config-dir ops", []}]),
     [A, B, C, Ops] = [filename:join(Base, Name) || Name <- ["a", "b", "c", "ops"]],
-    [PortA, PortB, PortC] = [ern_nodes_tests:free_port() || _ <- [a, b, c]],
-    [listening(Dir, Port) || {Dir, Port} <- [{A, PortA}, {B, PortB}, {C, PortC}]],
-    %% a shell need not listen, and one machine's nodes cannot share a port
-    ern_nodes_tests:edit(Ops, fun(Conf) -> maps:remove(<<"listen">>, Conf) end),
+    %% one machine's nodes cannot share a port, and a and ops only dial
+    [PortB, PortC] = [ern_nodes_tests:free_port() || _ <- [b, c]],
+    [listening(Dir, Port) || {Dir, Port} <- [{B, PortB}, {C, PortC}]],
     ern_nodes_tests:lists(A, [{"b", B, PortB}, {"c", C, PortC}]),
     [ern_nodes_tests:lists(Dir, [{"a", A, none}, {"ops", Ops, none}]) || Dir <- [B, C]],
     ern_nodes_tests:lists(Ops, [{"b", B, PortB}, {"c", C, PortC}]),
@@ -457,7 +456,7 @@ main() ->
     true = register(ern_gateway, self()),
     true = net_kernel:connect_node(Node),
     Spawn = make_ref(),
-    sent(Node, {spawn, Spawn, {function, Hash}, <<\"Taker.main:1\">>, false,
+    sent(Node, {spawn, Spawn, {function, Hash}, false, <<\"Taker.main:1\">>, false,
                 list_to_integer(argument(ern_deployment_ms))}),
     Exchange = receive {ern_frame, _, {reach_request, Asked, _}} -> Asked end,
     sent(Node, {reach, Exchange, [Hash], [], []}),

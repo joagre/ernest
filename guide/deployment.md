@@ -23,13 +23,13 @@ A program becomes a node by being started with a configuration directory, and no
 ### 1.1 The directory
 
 ```console
-$ ern config --config-dir /etc/counter/b
+$ ern config --config-dir /etc/counter/b --listen 0.0.0.0:8654
 -----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEA...
 -----END PUBLIC KEY-----
 ```
 
-`ern config` creates the directory, which only its owner can open, and in it three files (report §11.3): `private-key.pem`, the node's ed25519 key, readable only by its owner; `certificate.pem`, which the node signs itself and whose dates mean nothing to a node; and `ernest.conf`, which lists nothing yet; section 1.2 says what goes in it. It prints the public key, which is what another node's configuration will list. It fails where the directory exists, empty or not; only `--peer-dir`, section 2.1, writes into one that exists.
+`ern config` creates the directory, which only its owner can open, and in it three files (report §11.3): `private-key.pem`, the node's ed25519 key, readable only by its owner; `certificate.pem`, which the node signs itself and whose dates mean nothing to a node; and `ernest.conf`, which lists nothing yet and listens where `--listen` says, here at port 8654 on every interface; section 1.2 says what goes in it. It prints the public key, which is what another node's configuration will list. It fails where the directory exists, empty or not; only `--peer-dir`, section 2.1, writes into one that exists.
 
 The directory is made for one machine and never copied: a copied key gives two nodes one identity, which a third node cannot tell apart. A node also refuses a configuration that lists its own key under `peers`, `a peer has this node's own key, and a node is no peer of itself`.
 
@@ -39,7 +39,7 @@ The directory belongs to the user who runs the node. A node refuses to start fro
 
 `ernest.conf` is JSON, and Appendix C of the report shows it whole. Its entries, in the order you will meet them:
 
-- `listen`: the address the node's listener binds to, `0.0.0.0:8654` as created, or what `ern config --listen` gave, an address of one interface or `0.0.0.0` or `::` for all of them, and a port. Port `0` lets the host pick one. At every start the node says on standard error the address and the port it listens on, `listening on 127.0.0.1:51204`. Two words recur from here: a node *listens* for connections from its peers, and it *dials* a peer when it opens the connection itself, at the address its configuration lists for that peer (report §12.5). A node without `listen` does not listen and only dials; a bare node (section 3.4) must listen.
+- `listen`: the address the node's listener binds to, what `ern config --listen` gave, an address of one interface or `0.0.0.0` or `::` for all of them, and a port, and none where it gave none. Port `0` lets the host pick one. At every start the node says on standard error the address and the port it listens on, `listening on 127.0.0.1:51204`. Two words recur from here: a node *listens* for connections from its peers, and it *dials* a peer when it opens the connection itself, at the address its configuration lists for that peer (report §12.5). A node without `listen` does not listen and only dials; a bare node (section 3.4) must listen.
 - `public-key`: this node's, as `ern config` printed it. It cannot change while the node runs.
 - `peers`: a list, each peer with a `name` you choose, which the program uses, its `public-key`, and a `network-address`, `host:port`, which is left out where this node never dials that peer. A host name is resolved at each dial, not when the file is read.
 - `services`: a service is a process a program offers under a name, which a program on another node looks up, a *find*, to get its address; under each service's name, the peers that may offer it, in the order a find asks them. A service not listed here is found nowhere from this node.
@@ -301,7 +301,7 @@ A program may also load a build itself at run time, `Code.load` from its own loa
 
 A shell attached to a node is the operator's window: `ern shell --config-dir ops --attach b` runs a session on `b`, each input checked against `b`'s modules, compiled on `b` and run in a process there, while the terminal, the history and the files the session reads stay with `ops`, the node the shell starts from (report §11.2, *The attached shell*). Every module of `b`'s build is in scope at the prompt. A file, `--main`, `--load-path` and `--libs-dir` are refused with `--attach`, since the program and the load path are the node's.
 
-`ops` is a directory of its own, made with `ern config`. It lists `b` with its address, and `b` lists it without one, since the shell dials in; it needs no `listen`, and on one machine `ern config --peer-dir` lists each in the other (section 2.1). Every peer `b` lists may attach to it, as every one may spawn on it.
+`ops` is a directory of its own, made with `ern config` and no `--listen`, since the shell dials in. It lists `b` with its address, and `b` lists it without one, and on one machine `ern config --peer-dir` lists each in the other (section 2.1). Every peer `b` lists may attach to it, as every one may spawn on it.
 
 A session on section 8's `b`, whose counter `--main Counter.serve` started:
 
@@ -332,7 +332,7 @@ What a process the session started writes is shown at the prompt, and what the n
 
 A session ends with its node: where `b` ends, by `ern stop` or by its program's end, the shell says `the node b ended` under its last prompt and exits with status 0, as section 8's stop shows, and where the connection is lost, it says `the node b is lost` and exits with status 1 (report §11.8).
 
-An attach that fails is refused with status 1 and a line that names why: `ern shell: the peer b is unreachable` where no connection opens, `ern shell: the peer b did not answer in time` where no session starts within a dial's 7 seconds, and `ern shell: the peer b is not listed` where `ops` lists no `b`. A shell attaches with the node's own release of `ern`, since the session runs the toolchain's own code, which the node loads from its own installation (report §12.7): a node of another build on the shell's floor answers `ern shell: the node b runs another build of ern than this shell; attach with its release`, and one on another floor refuses the connection, as section 2.2 says.
+An attach that fails is refused with status 1 and a line that names why: `ern shell: the peer b is unreachable` where no connection opens, `ern shell: the peer b did not answer in time` where a connection opens and no session starts within twice a dial's 7 seconds, and `ern shell: the peer b is not listed` where `ops` lists no `b`. A shell attaches with the node's own release of `ern`, since the session runs the toolchain's own code, which the node loads from its own installation (report §12.7): a node of another build on the shell's floor answers `ern shell: the node b runs another build of ern than this shell; attach with its release`, and one on another floor refuses the connection, as section 2.2 says.
 
 An attach takes about a second on an idle machine of eight cores, and longer under load, as a shell that is a node takes to start. Each input after it is a unit `b` compiles and loads, which the counts of section 4.2 count; `b` lets an input's code go as report §11.2 says: once its answer is in where it declared nothing, when a later expression replaces `it`, and at the session's end, keeping for its own life a unit that declares a function or builds a function value; the host never gives its counts back.
 
@@ -366,7 +366,7 @@ The first column is the line as it is written, with the peer's name from `ernest
 | `the end waits for 1 subscriber: Keeper.main` | Termination has told a subscriber and waits for its answer. | Wait, or a second `ern stop` ends at once, losing what it was writing. |
 | `ern run: dir is the configuration directory of the running node N, which ernest.pid names` | A second start from a directory whose `ernest.pid` a running node holds; the `ern run` command writes it, not a node. | Stop the first, or you meant another directory. |
 | `ern stop: dir/ernest.pid: no node holds it: no node runs from the directory` | `ern stop` or `ern reload` with no running node there; `no such file` where an orderly stop removed the file. The command writes it. | None; the node is already down. |
-| `Site faulted: the node's carrier did not start: ...` | The part of the node that listens for and dials its peers could not start, its port taken among the reasons; the node ended with the fault, named by its entry point's site. | Free the port or change `listen`, and start again. |
+| `ern run: the node's carrier did not start: ...` | The part of the node that listens for and dials its peers could not start, its port taken among the reasons; the node ended before its program ran, with status 1, as a job that cannot start, `ern shell:` for a shell's own node. | Free the port or change `listen`, and start again. |
 
 Lines that begin with a site and `faulted`, with no peer named, are the program's own faults, as on one node, and so is one with `, on the peer b` after the cause: a compute this node ran on `b` faulted there, and faulted its caller here with its cause, the trace that crossed beneath it and the caller's frame last. The language guide's §6 and §8.1 teach what they mean to the program's author.
 
@@ -382,7 +382,7 @@ $ ern config --config-dir b --listen 127.0.0.1:8655
 $ ern config --config-dir c --listen 127.0.0.1:8656
 ```
 
-Each prints its key. Make a fourth, `ops`, for the shell a later step attaches, as `a` was made. `a` and `ops` only dial, so remove `listen` from `a/ernest.conf` and `ops/ernest.conf`, the one edit no command makes.
+Each prints its key. Make a fourth, `ops`, for the shell a later step attaches, as `a` was made, with no `--listen`, since `a` and `ops` only dial.
 
 Then `--peer-dir` lists each node where it is to be known (section 2.1). `ern config --config-dir a --peer-dir b` and `--peer-dir c` list `b` and `c` in `a`'s file with their keys and addresses, and the same two commands with `--config-dir ops` list them in `ops`'s. `ern config --config-dir b --peer-dir a` and `--peer-dir ops` list `a` and `ops` in `b`'s file with their keys and no address, since neither listens, and the same two with `--config-dir c` list them in `c`'s. Each node then lists exactly who may connect to it and whom it may reach.
 
@@ -408,7 +408,7 @@ Counter.serve receiving
 
 `b` says `the peer ops connected` as the shell dials it, and `:processes` lists the counter by its site, the entry point `--main` named, waiting for a message. Leave the shell attached.
 
-**Reload a configuration.** Make a directory `d` as `ops` was made, with no `listen`, list it in `b`'s file with `ern config --config-dir b --peer-dir d`, and reload:
+**Reload a configuration.** Make a directory `d` as `ops` was made, with no `--listen`, list it in `b`'s file with `ern config --config-dir b --peer-dir d`, and reload:
 
 ```console
 $ ern reload --config-dir b

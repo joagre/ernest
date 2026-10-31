@@ -9,7 +9,7 @@
 %% (ern_build:fail/1), naming the file.
 -module(ern_node).
 
--export([default_listen/0, create/2, public_pem/1, add_peer/2, start/1, start/2, stop/1, file/2,
+-export([create/2, public_pem/1, add_peer/2, start/1, start/2, stop/1, file/2,
          read/1, measures_changed/3, signaled/2, stopped/1, family/1]).
 
 -include_lib("public_key/include/public_key.hrl").
@@ -24,10 +24,6 @@
 -define(CERTIFICATE, "certificate.pem").
 -define(PID_FILE, "ernest.pid").
 
-%% Report §11.3: the `listen` of a directory `ern config` makes where
-%% `--listen` gives none (default_listen/0).
--define(LISTEN, "0.0.0.0:8654").
-
 %% The certificate's subject, the same for every node, since a peer is known
 %% by its key and the host its key gives (report §12.5).
 -define(NAME, <<"ernest">>).
@@ -41,12 +37,6 @@
 %% ern config
 %%
 
-%% Report §11.3: the `listen` of a directory `ern config` makes where
-%% `--listen` gives none, which its help names.
--spec default_listen() -> string().
-default_listen() ->
-    ?LISTEN.
-
 %% Report §11.3, Appendix C: the configuration directory made, with this
 %% node's key, the certificate it signs itself and `ernest.conf`; the
 %% public key is answered, which `ern config` prints. The directory is made
@@ -54,18 +44,13 @@ default_listen() ->
 %% refused, and it is its owner's alone before a file is written in it, the
 %% key's among them (ern_build:make_private_dir/1). A name ending in `/`
 %% names the directory before it. Its
-%% `listen` is the one `--listen` gives, or default_listen/0's, refused
-%% before the directory is made where a node would refuse it; and the
-%% directory is the one directory made, its parent there before it, so
-%% that a mistyped path makes no tree.
--spec create(file:filename(), string()) -> binary().
+%% `listen` is the one `--listen` gives, refused before the directory is
+%% made where a node would refuse it, and none where it gives none, a node
+%% that only dials (§12.5); and the directory is the one directory made,
+%% its parent there before it, so that a mistyped path makes no tree.
+-spec create(file:filename(), string() | none) -> binary().
 create(Given, Listen) ->
-    Text = unicode:characters_to_binary(Listen),
-    case listener(Text) of
-        {ok, _} -> ok;
-        not_endpoint -> ern_build:fail("--listen is not address:port: " ++ Listen);
-        no_address -> ern_build:fail("--listen names no address: " ++ Listen)
-    end,
+    Listening = listening(Listen),
     ConfigDir = filename:join([Given]),
     Parent = filename:dirname(ConfigDir),
     filelib:is_dir(Parent) orelse ern_build:fail(Parent ++ ": no such directory"),
@@ -83,8 +68,7 @@ create(Given, Listen) ->
     %% written by the host's JSON formatter, its fields in Appendix C's
     %% order, two spaces a level, and a line feed at its end; a PEM's line
     %% breaks are escapes, as in any JSON string
-    Fields = [{<<"listen">>, Text}, {<<"public-key">>, Public}, {<<"peers">>, []},
-              {<<"services">>, #{}}],
+    Fields = Listening ++ [{<<"public-key">>, Public}, {<<"peers">>, []}, {<<"services">>, #{}}],
     Json = json:format({object, Fields}, fun ordered/3, #{indent => 2}),
     %% report §11.3: the two readable by all and writable by their owner
     %% alone, whatever the umask
@@ -93,6 +77,18 @@ create(Given, Listen) ->
     %% the key is its owner's alone before it is written
     ok = ern_build:write_output(filename:join(ConfigDir, ?KEY), Private, 8#600),
     Public.
+
+%% Report §11.3, §12.5: the `listen` field `--listen` gives, refused where
+%% a node would refuse it, or none.
+listening(none) ->
+    [];
+listening(Listen) ->
+    Text = unicode:characters_to_binary(Listen),
+    case listener(Text) of
+        {ok, _} -> [{<<"listen">>, Text}];
+        not_endpoint -> ern_build:fail("--listen is not address:port: " ++ Listen);
+        no_address -> ern_build:fail("--listen names no address: " ++ Listen)
+    end.
 
 %% Report Appendix C: an object whose fields keep the order given, as
 %% `ernest.conf` is decoded (decoded/1), for the host's JSON formatter,

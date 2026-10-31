@@ -187,13 +187,10 @@ free_port() ->
 -spec made(file:filename(), string(), none | inet:port_number()) -> file:filename().
 made(Base, Name, Listen) ->
     Dir = filename:join(Base, Name),
-    _ = ern_node:create(Dir, ern_node:default_listen()),
-    edit(Dir, fun(Conf) ->
-                  case Listen of
-                      none -> maps:remove(<<"listen">>, Conf);
-                      Port -> Conf#{<<"listen">> => address(Port)}
-                  end
-              end),
+    _ = ern_node:create(Dir, case Listen of
+                                 none -> none;
+                                 Port -> binary_to_list(address(Port))
+                             end),
     Dir.
 
 %% Report Appendix C: the `listen` or the `network-address` of a node at
@@ -297,7 +294,7 @@ send(Node) ->
 site(Node, Hash) ->
     Spawned = {function, binary:decode_hex(Hash)},
     %% the site alone out of shape, the spawner waiting nothing
-    Frame = {spawn, make_ref(), Spawned, <<255>>, false, 0},
+    Frame = {spawn, make_ref(), Spawned, false, <<255>>, false, 0},
     erlang:send({ern_gateway, Node}, {ern_frame, self(), Frame}),
     'Unit'.
 ">>),
@@ -1437,16 +1434,19 @@ refused_after_start(Base) ->
     ?assertEqual(nomatch, string:find(Said, "ran")),
     ?assertNot(filelib:is_file(filename:join(A, "ernest.pid"))).
 
-%% report §12.3, §8.7: a node whose carrier cannot start, its port taken,
-%% ends before `main` runs, its entry process faulting with the cause §12.3
-%% states, which names the listen address in use, under the entry point's
-%% site, and with nothing of the host's reports on its standard output. A
+%% report §12.3, §11.8, §8.7: a node whose carrier cannot start, its port
+%% taken, ends before `main` runs as a job that cannot start, with status 1
+%% and the line §12.3 states, which names the listen address in use, `ern
+%% run:` for a program's node and `ern shell:` for a shell's own, with no
+%% fault's line and nothing of the host's reports on its standard output. A
 %% regression test of the principles review (the log's *The Principles
 %% Review of 2026-10-09*), which stated the cause in §7.4: the fault was
 %% reported under the last initializer's site, `Terminal.widths`, and the
-%% host's crash report of its distribution was written on standard output
+%% host's crash report of its distribution was written on standard output;
+%% and of the release review's K26 (the log's *The Shell's Own Node*): the
+%% node's end was its entry process's fault, a shell's status 70
 carrier_not_started_test_() ->
-    nodes_test({waits, 2}, fun carrier_not_started/1).
+    nodes_test({waits, 3}, fun carrier_not_started/1).
 
 carrier_not_started(Base) ->
     {ok, Held} = gen_tcp:listen(0, [{ip, {127, 0, 0, 1}}]),
@@ -1460,13 +1460,19 @@ carrier_not_started(Base) ->
     Program = filename:join(Root, "prog.erc"),
     Out = filename:join(Base, "out"),
     {1, Said} = finished(?ERN ++ " run --config-dir " ++ A ++ " " ++ Program ++ " 2>&1 >" ++ Out),
-    ok = gen_tcp:close(Held),
-    has(Said, "Prog.main faulted: the node's carrier did not start: its listen address 127.0.0.1:"
-              ++ integer_to_list(Port) ++ " is in use\n"),
+    Line = "the node's carrier did not start: its listen address 127.0.0.1:"
+        ++ integer_to_list(Port) ++ " is in use\n",
+    ?assertEqual("ern run: " ++ Line, unstamped(Said)),
     ?assertEqual({ok, <<>>}, file:read_file(Out)),
     ?assertNot(filelib:is_file(filename:join(A, "ernest.pid"))),
     %% the line as the deployment guide quotes it
-    ern_deployment_tests:cataloged(Said, "7", "carrier did not start", [{"Site", "Prog.main"}]).
+    ern_deployment_tests:cataloged(Said, "7", "carrier did not start", []),
+    %% a shell's own node so
+    {1, Shell} = finished("HOME=" ++ Base ++ " " ++ ?ERN ++ " shell --config-dir " ++ A
+                          ++ " < /dev/null 2>&1"),
+    ok = gen_tcp:close(Held),
+    ?assertEqual("ern shell: " ++ Line, unstamped(Shell)),
+    ?assertNot(filelib:is_file(filename:join(A, "ernest.pid"))).
 
 %% report §8.6: a node detects no deadlock, since it can be reached from
 %% outside: a node that waits for a message that never comes waits, where
@@ -3521,17 +3527,22 @@ lost(Dir, Wait) ->
 
 %% report §11.2 *The attached shell*, §11.8: an attach that fails is the
 %% job's refusal, naming the spawn's `Io.Error`, with status 1: one that no
-%% node answers says that the peer is unreachable, and one to a peer the
-%% shell's own node does not list that it is not listed, each line as the
-%% deployment guide's section 6 quotes it. Written after the code, a
-%% regression test of the refusal
+%% node answers says that the peer is unreachable, at once where nothing
+%% takes the connection and at the dial's end where a port takes it and
+%% nothing answers over it, since the attach waits twice a dial's time; and
+%% one to a peer the shell's own node does not list that it is not listed,
+%% each line as the deployment guide's section 6 quotes it. Written after
+%% the code, a regression test of the refusal, the dial that waits with the
+%% release review's K27 (the log's *The Shell's Own Node*), whose answer
+%% was a race between the two
 attach_refused_test_() ->
-    nodes_test({waits, 4}, fun attach_refused/1).
+    nodes_test({waits, 6, ?DIAL_MS}, fun attach_refused/1).
 
 attach_refused(Base) ->
-    Absent = made(Base, "absent", none),
-    Ops = made(Base, "ops", none),
-    lists(Ops, [{"absent", Absent, free_port()}]),
+    [Absent, Unanswering, Ops] = [made(Base, Name, none) || Name <- ["absent", "hole", "ops"]],
+    {ok, Hole} = gen_tcp:listen(0, [{ip, {127, 0, 0, 1}}]),
+    {ok, HolePort} = inet:port(Hole),
+    lists(Ops, [{"absent", Absent, free_port()}, {"hole", Unanswering, HolePort}]),
     Refused = fun(Name) ->
                   {_, Wait} = attached(Ops, Name, Base),
                   ?assertEqual(1, Wait()),
@@ -3540,11 +3551,16 @@ attach_refused(Base) ->
                   Err
               end,
     ern_deployment_tests:cataloged(Refused("absent"), "6", "is unreachable", [{"b", "absent"}]),
+    Began = erlang:monotonic_time(millisecond),
+    ern_deployment_tests:cataloged(Refused("hole"), "6", "is unreachable", [{"b", "hole"}]),
+    ?assert(erlang:monotonic_time(millisecond) - Began < 2 * ern_carrier:dial_ms()),
+    ok = gen_tcp:close(Hole),
     ern_deployment_tests:cataloged(Refused("nowhere"), "6", "is not listed", [{"b", "nowhere"}]).
 
 %% report §11.2 *The attached shell*, §11.8, §12.6: an attach to a node
-%% that takes the connection and answers nothing over it is refused once a
-%% dial's time has passed, saying that the peer did not answer in time,
+%% that takes the connection and answers nothing over it is refused once
+%% twice a dial's time has passed, saying that the peer did not answer in
+%% time,
 %% with status 1, its standard output in line mode the shell's own node's
 %% line of the connection alone (§11.2 *The shell*), the line as the
 %% deployment guide's section 6 quotes it. The node's program
@@ -3552,7 +3568,7 @@ attach_refused(Base) ->
 %% spawn's among them, so that the connection stands and the spawn waits.
 %% Written after the code, a regression test: MVP 4.0's item 5
 attach_unanswered_test_() ->
-    nodes_test({waits, 5, ?DIAL_MS}, fun attach_unanswered/1).
+    nodes_test({waits, 5, 2 * ?DIAL_MS}, fun attach_unanswered/1).
 
 attach_unanswered(Base) ->
     Root = filename:join(Base, "program"),
@@ -3587,40 +3603,42 @@ stall() ->
     "    receive { _ -> Unit }\n"
     "}\n".
 
-%% report §11.2 *The attached shell*, §11.8, §12.5, §12.7: a shell of
-%% another build of `ern` than its node's, on the node's floor, is refused,
-%% saying that the node runs another build, with status 1, the line as the
-%% deployment guide's section 6 quotes it, its standard output the line of
-%% the connection alone, as an attach unanswered leaves it; and the node
-%% says that the spawn was not loaded, naming a binding without a value.
+%% report §11.2 *The attached shell*, §11.8, §12.5, §12.6, §12.7: a shell
+%% of another build of `ern` than its node's, on the node's floor, is
+%% refused, saying that the node runs another build, with status 1, the
+%% line as the deployment guide's section 6 quotes it, its standard output
+%% the line of the connection alone, as an attach unanswered leaves it; and
+%% the node says that the spawn was not loaded, its tree holding none of
+%% the toolchain's own definition the spawn's frame names, which it asks
+%% the shell's own node nothing of.
 %%
-%% The two builds are two releases made from this tree under Base, so that
-%% each stands on the floor of the release VERSION names: the second's
-%% shell compiled from the shell's source with one binding's form changed,
-%% `fileMs`, its value not, so that the local half, whose reach names it,
-%% hashes otherwise and the node's own tree lacks it (the design note on
-%% code's *The toolchain's own units*). A shell of the node's own build
-%% attaches and detaches, so that the refusal is the shell's units and not
-%% the floor. Written after the code, a regression test: MVP 4.0's item 5
+%% The builds are releases made from this tree under Base, so that each
+%% stands on the floor of the release VERSION names: the second's shell
+%% compiled from the shell's source with one binding's form changed,
+%% `fileMs`, its value not, and the third's with one function's form
+%% changed and no binding's, `isAttaching`'s clauses in the other order, so
+%% that the local half, whose reach names both, hashes otherwise and the
+%% node's own tree lacks it (the design note on code's *The toolchain's
+%% own units*). A shell of the node's own build attaches and leaves between
+%% the two, so that the refusal is the shell's units and not the floor, and
+%% so that the node's own shell units have run before the third's attach,
+%% which an exchange of its code would then have let run.
+%%
+%% Written after the code, a regression test: MVP 4.0's item 5, and the
+%% third build with the release review's F3 (the log's *The Shell's Own
+%% Node*), refused only where the reach named a binding without a value
 attach_other_build_test_() ->
-    nodes_test({waits, 8}, fun attach_other_build/1).
+    nodes_test({waits, 12}, fun attach_other_build/1).
 
 attach_other_build(Base) ->
-    Source = filename:join(Base, "shell"),
-    Tree = ern_tree:tree(),
-    [begin
-         File = filename:join(Source, Relative),
-         ok = filelib:ensure_dir(File),
-         {ok, _} = file:copy(filename:join([Tree, "src", "shell", Relative]), File)
-     end || Relative <- filelib:wildcard("**/*.ern", filename:join([Tree, "src", "shell"]))],
-    Main = filename:join(Source, "shell.ern"),
-    {ok, Text} = file:read_file(Main),
-    [Before, After] = binary:split(Text, <<"\nlet fileMs = 5000\n">>),
-    ok = file:write_file(Main, [Before, "\nlet fileMs = 5000 + 0\n", After]),
-    Changed = filename:join(Base, "changed"),
-    0 = built(["--build-root", Changed, Source]),
+    Changed = changed_shell(Base, "binding", <<"\nlet fileMs = 5000\n">>,
+                            <<"\nlet fileMs = 5000 + 0\n">>),
+    Reordered = changed_shell(Base, "function",
+                              <<"        Attaching(_) -> true\n      | Beside(_) -> false\n">>,
+                              <<"        Beside(_) -> false\n      | Attaching(_) -> true\n">>),
     Own = released(filename:join(Base, "one"), ern_tree:build("shell")),
     Other = released(filename:join(Base, "two"), Changed),
+    Third = released(filename:join(Base, "three"), Reordered),
     Node = made(Base, "node", 0),
     Ops = made(Base, "ops", none),
     lists(Node, [{"ops", Ops, none}]),
@@ -3631,20 +3649,46 @@ attach_other_build(Base) ->
     Shell = fun(Ern) -> launched(Ops, ["HOME=", Home, " ", Ern, " shell --config-dir ", Ops,
                                        " --attach node"])
             end,
-    {_, Refused} = Shell(Other),
-    ?assertEqual(1, Refused()),
-    {RefusedOut, RefusedErr} = said(Ops),
-    ?assertEqual("the peer node connected\n", unstamped(RefusedOut)),
-    ern_deployment_tests:cataloged(RefusedErr, "6", "another build", [{"b", "node"}]),
+    Refused = fun(Ern) ->
+                  {_, Wait} = Shell(Ern),
+                  ?assertEqual(1, Wait()),
+                  {RefusedOut, RefusedErr} = said(Ops),
+                  ?assertEqual("the peer node connected\n", unstamped(RefusedOut)),
+                  ern_deployment_tests:cataloged(RefusedErr, "6", "another build",
+                                                 [{"b", "node"}])
+              end,
+    Refused(Other),
     says(Node, "the peer ops's spawn at Shell.localHalf:"),
-    has(written(Node, err), " was not loaded: the binding "),
+    NotLoaded = " was not loaded: the toolchain's own definition it names, which this node's"
+        " tree holds none of, another build of ern than the spawner's\n",
+    has(written(Node, err), NotLoaded),
     {Input, Attached} = Shell(Own),
     true = port_command(Input, ":quit\n"),
     ?assertEqual(0, Attached()),
     {Out, Err} = said(Ops),
     has(Out, ". :help for the commands, :quit to leave.\n"),
     ?assertEqual(nomatch, string:find(Err, "ern shell:")),
+    Refused(Third),
+    seen(Node, err, NotLoaded, 2, ?WAIT_MS),
     stop(Node, WaitNode).
+
+%% The shell's source copied under Base and compiled with Old replaced by
+%% New in shell.ern, into a build root of its own named for What changed.
+changed_shell(Base, What, Old, New) ->
+    Source = filename:join(Base, "shell_" ++ What),
+    Tree = ern_tree:tree(),
+    [begin
+         File = filename:join(Source, Relative),
+         ok = filelib:ensure_dir(File),
+         {ok, _} = file:copy(filename:join([Tree, "src", "shell", Relative]), File)
+     end || Relative <- filelib:wildcard("**/*.ern", filename:join([Tree, "src", "shell"]))],
+    Main = filename:join(Source, "shell.ern"),
+    {ok, Text} = file:read_file(Main),
+    [Before, After] = binary:split(Text, Old),
+    ok = file:write_file(Main, [Before, New, After]),
+    Built = filename:join(Base, "built_" ++ What),
+    0 = built(["--build-root", Built, Source]),
+    Built.
 
 %% Report §12.5, §12.7: a release of `ern` made in Dir from this tree, and
 %% its launcher: the tree's code, the runtime's helper, the standard
@@ -4531,9 +4575,10 @@ attached(Ops, Name, SourceRoot) ->
 %% report §8.7, §11.2, §12.3, §11.8: a bare node whose `ernest.conf` has no
 %% `listen` is refused at its start, as the launcher's second start says
 %% it, and writes no ernest.pid; and one whose carrier cannot start, its
-%% port taken, ends with its entry process's fault under the site `bare
-%% node`, its cause naming the listen address in use, with status 1.
-%% Written after the code, the address with the line that names it
+%% port taken, ends as a job that cannot start, its line naming the listen
+%% address in use, with status 1. Written after the code, the address with
+%% the line that names it, and the job's line form with the log's *The
+%% Shell's Own Node*
 bare_node_refused_test_() ->
     nodes_test({waits, 2}, fun bare_node_refused/1).
 
@@ -4548,8 +4593,9 @@ bare_node_refused(Base) ->
     D = made(Base, "d", Port),
     {1, Taken} = finished(?ERN ++ " run --config-dir " ++ D ++ " 2>&1"),
     ok = gen_tcp:close(Held),
-    has(Taken, "bare node faulted: the node's carrier did not start: its listen address 127.0.0.1:"
+    has(Taken, "ern run: the node's carrier did not start: its listen address 127.0.0.1:"
                ++ integer_to_list(Port) ++ " is in use\n"),
+    ?assertEqual(nomatch, string:find(Taken, "faulted")),
     ?assertNot(filelib:is_file(filename:join(D, "ernest.pid"))).
 
 %% report §11.3, §8.7: two directories made and listed by `ern config`'s
@@ -5027,7 +5073,7 @@ sent(Node, Body) ->
     erlang:send({ern_gateway, Node}, {ern_frame, self(), Body}).
 spawned(Node, Hash) ->
     Ref = make_ref(),
-    sent(Node, {spawn, Ref, {function, Hash}, <<\"Lost.z:1\">>, false,
+    sent(Node, {spawn, Ref, {function, Hash}, false, <<\"Lost.z:1\">>, false,
                 list_to_integer(argument(ern_nodes_ms))}),
     Ref.
 requested() ->

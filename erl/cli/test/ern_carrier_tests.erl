@@ -18,7 +18,7 @@ tmp() ->
 %% A configuration directory `ern config` made, read.
 configured() ->
     Dir = filename:join(tmp(), "node"),
-    _ = ern_node:create(Dir, ern_node:default_listen()),
+    _ = ern_node:create(Dir, "0.0.0.0:8654"),
     ern_node:read(Dir).
 
 certificate(#configuration{config_dir = Dir}) ->

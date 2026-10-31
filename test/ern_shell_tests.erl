@@ -5522,7 +5522,4 @@ raw(Command, Steps, Extra) ->
 %% shell that is a node; it does not listen, so that the shells the tests
 %% start side by side take no port each other wants.
 node_dir(Dir) ->
-    _ = ern_node:create(Dir, ern_node:default_listen()),
-    File = filename:join(Dir, "ernest.conf"),
-    {ok, Text} = file:read_file(File),
-    ok = file:write_file(File, json:encode(maps:remove(<<"listen">>, json:decode(Text)))).
+    _ = ern_node:create(Dir, none).

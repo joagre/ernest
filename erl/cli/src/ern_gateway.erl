@@ -123,7 +123,7 @@ gateway(Workers, Ended, Measured, Deadline, Departed) ->
             gateway(Workers, Ended, Measured, Deadline, Departed);
         %% report §12.6: a compute's frame is its call's first note, recorded
         %% here before the worker for its peer starts its process
-        {ern_frame, From, {compute, Alias, _, _, _}} = Frame
+        {ern_frame, From, {compute, Alias, _, _, _, _}} = Frame
           when is_pid(From), node(From) =/= node(), is_reference(Alias),
                node(Alias) =:= node(From) ->
             noted(fun() -> ern_rt:note_compute(From, Alias) end),

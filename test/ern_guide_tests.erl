@@ -161,9 +161,9 @@ faq_examples_test_() ->
 %% guide/language.md §8.1; report §8.7, §11.2, §11.3, Appendix E.27: the
 %% section's square.ern run on two nodes from one directory, as the
 %% console after its two directories shows it. `a` and `foo` are made
-%% with `ern config` and listed in each other's by `--peer-dir`, `a`
-%% listening on a port the harness found free in place of the guide's
-%% 0.0.0.0:8654 and `foo` on another in place of 8655. `foo`, a bare node
+%% with `ern config` and listed in each other's by `--peer-dir`, `a` with
+%% no `--listen`, a node that only dials, and `foo` listening on a port the
+%% harness found free in place of 8655. `foo`, a bare node
 %% started first, says where it listens, that `a` connected and that `a`
 %% ended, as the section's prose says its terminal shows, each line without
 %% its time; `a`'s run prints the lines its console shows, standard output
@@ -182,16 +182,16 @@ work_on_a_peer(Base) ->
     built(Base, tree_of("square.ern")),
     [[{"run --config-dir a square.erc" = RunWords, RunShown},
       {"stop --config-dir foo" = StopWords, []}]] = node_consoles(<<"### 8.1 ">>),
-    [ListenA, ListenFoo] = [ern_nodes_tests:address(ern_nodes_tests:free_port()) || _ <- [a, foo]],
+    ListenFoo = ern_nodes_tests:address(ern_nodes_tests:free_port()),
     [?assertMatch({0, _, ""}, ern_deployment_tests:job(Base, Words))
-     || Words <- ["config --config-dir a --listen " ++ binary_to_list(ListenA),
+     || Words <- ["config --config-dir a",
                   "config --config-dir foo --listen " ++ binary_to_list(ListenFoo)]],
     [?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, Words))
      || Words <- ["config --config-dir a --peer-dir foo", "config --config-dir foo --peer-dir a"]],
     Foo = filename:join(Base, "foo"),
     Wait = ern_nodes_tests:bare_started(Foo, []),
     ern_nodes_tests:says(Foo, "listening on "),
-    ran(Base, RunWords, [binary:replace(Line, <<"0.0.0.0:8654">>, ListenA) || Line <- RunShown]),
+    ran(Base, RunWords, RunShown),
     ?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, StopWords)),
     ?assertEqual(143, Wait()),
     {"", Err} = ern_nodes_tests:said(Foo),
@@ -238,7 +238,6 @@ services_across_nodes(Base) ->
     [?assertMatch({0, _, ""}, ern_deployment_tests:job(Base, Words))
      || Words <- ["config --config-dir store --listen " ++ binary_to_list(Listen),
                   "config --config-dir desk"]],
-    ern_nodes_tests:edit(Desk, fun(Conf) -> maps:remove(<<"listen">>, Conf) end),
     [?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, Words))
      || Words <- ["config --config-dir desk --peer-dir store",
                   "config --config-dir store --peer-dir desk"]],

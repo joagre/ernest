@@ -175,13 +175,25 @@ loop(State) ->
 %% the exchange that asks for its identity, whose time it lengthens to its
 %% own where its own ends later, or asks the spawner's node for the reach;
 %% its time is the milliseconds its spawner waits, from its frame's coming,
-%% so that it never runs out before the spawner's own. One whose function
-%% a unit of the toolchain's own holds in this node's tree asks no node
-%% (own_loaded/3).
+%% so that it never runs out before the spawner's own. One whose frame says
+%% its function's unit is the toolchain's own asks no node (§12.6): a unit
+%% of this node's tree that holds it is loaded (own_loaded/3), and where
+%% none does, another build of `ern` than the spawner's, it is `NotLoaded`.
 asked(From, Body, Identity, State) ->
-    case own_unit(Identity) of
-        none -> exchanged(From, Body, Identity, State);
-        Unit -> own_loaded(Unit, From, Body), State
+    case ern_peer:is_own(Body) of
+        false ->
+            exchanged(From, Body, Identity, State);
+        true ->
+            case own_unit(Identity) of
+                none ->
+                    answered([{From, Body}], 'NotLoaded',
+                             <<"the toolchain's own definition it names, which this node's"
+                               " tree holds none of, another build of ern than the spawner's">>),
+                    State;
+                Unit ->
+                    own_loaded(Unit, From, Body),
+                    State
+            end
     end.
 
 exchanged(From, Body, Identity, #state{exchanges = Exchanges, asked = Asked} = State) ->
