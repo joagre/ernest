@@ -15,7 +15,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-10-31.** [The Release Review's Code Fixes](#the-release-reviews-code-fixes-2026-10-31).
+**2026-10-31.** [The Release Review Before 0.7.0](#the-release-review-before-070-2026-10-31); [The Release Review's Code Fixes](#the-release-reviews-code-fixes-2026-10-31).
 
 **2026-10-30.** [The Detach Keeps What Declares a Function](#the-detach-keeps-what-declares-a-function-2026-10-30); [The Attached Shell, Tested](#the-attached-shell-tested-2026-10-30); [An Expression's One Unit, and an Input's Cost Flat](#an-expressions-one-unit-and-an-inputs-cost-flat-2026-10-30); [The Attached Shell's Own Node, Quiet](#the-attached-shells-own-node-quiet-2026-10-30); [The Rest Stays First](#the-rest-stays-first-2026-10-30); [A Line-Mode Input's Cost](#a-line-mode-inputs-cost-2026-10-30); [The Attached Shell's Last Row](#the-attached-shells-last-row-2026-10-30); [The End's Lines Reach the Screen](#the-ends-lines-reach-the-screen-2026-10-30); [The Guides Over the Attached Shell](#the-guides-over-the-attached-shell-2026-10-30); [The Attached Shell, Built](#the-attached-shell-built-2026-10-30); [The Pun](#the-pun-2026-10-30); [The Session's Screen and the Toolchain's Units, Built](#the-sessions-screen-and-the-toolchains-units-built-2026-10-30); [The Attached Shell's Sentences](#the-attached-shells-sentences-2026-10-30); [The Shell's Second Round, Decided Again](#the-shells-second-round-decided-again-2026-10-30); [The Release's Note, Written Once](#the-releases-note-written-once-2026-10-30); [One Function per Initializer](#one-function-per-initializer-2026-10-30); [The Attached Shell's Cut](#the-attached-shells-cut-2026-10-30); [No Back End to BEAM's Own Instructions](#no-back-end-to-beams-own-instructions-2026-10-30); [`Test.until`, Built](#testuntil-built-2026-10-30).
 
@@ -9526,6 +9526,40 @@ MVP 3.9's last item began on the user's word on 2026-10-24 over `0e37caeb`, as `
 The host's own times are down a fifth on most rows, the loop alone 7.5 against 9.3, so the machine is faster than it was and the ratio is what is compared. Two rows are better, `String.size` and the spawn, the spawn by the review's rounds since 0.4.0 (*The Rows That Grew*). Nine rows are within a tenth of their last ratio, the noise the reviews before 0.3.1 and 0.4.0 took for the machine's own, and two are a little past it, `List.map` 1.62 against 1.5 and the call 1.71 against 1.6, each by a hundredth or two beyond a tenth, with no change to either operation's path since 0.4.0; the release ships with the rows as they stand, which the user decides at the tag. Of the rows the bench gained since 0.4.0's table: `spawnMonitored` 11.1 and a monitor of an ended process 27.2, against 10.2 and 25.6 on 2026-10-20, within their spread; `restarting` entered and returning 356 ns against 553 then. The language's rows against the host (*The Language Against the Host*): the dot product 1.28 against 1.65 and the ray tracer 1.61 against 1.95, both better since the operators' tuple patterns, a record update 1.73 against 1.50, `Map.put` 1.32 against 1.18, `List.map` 1.42 against 1.57, the parser 1.28 and the counter 1.30 as they were.
 
 **The newcomer's program** is `kvd`, a key-value server over TCP that keeps its values in a log file, 732 lines in four modules: a session per connection with a reader process, a tracker and a store under a `OneForOne` group, `Clock.alarm` for keys that lapse and a compaction every thirty seconds, `Os.termination` compacting the log at the end, nine tests and three doc examples. It ran, a `CRASH` restarted by the group and the values read again by the second run; it is published beside the archive with its driver script.
+
+## The Release Review Before 0.7.0, 2026-10-31
+
+MVP 4.0 built, the review began the night of 2026-10-30 over `36b94d31`, as `release_review.md` says: a fresh clone built and ran `make test-full`, the machines ran, eight readers read what changed since 0.6.0, and the findings were sorted into `docs/findings.md` the same night, its fix lines made the next morning and its eight batches decided with the user in turn, each batch's entry written as it is decided.
+
+**The fresh clone** under the session's scratchpad built and ran `make test-full` in 1503 s whole, red on one test: `compiled_beside_another`'s last assertion was order-sensitive, the crash's line arriving between its two parts under the readers' load, and passed three times alone, R1, fixed with the code batch. Everything else was green there, dialyzer among it.
+
+**The machines**, over the review's commit: `make sections` named nothing, the sanitizers wrote nothing in 518 s, the seven loads were flat in 73 s and the service manager's two checks passed in 11 s. Over `aa309a04`, the code batch in: `make sections` named nothing, the loads were flat in 70 s, and the bench ran three times with the machine idle, about 610 s each. Where a batch's decision changes the runtime, the bench and the loads run again over the release's commit, and `make bench-release` keeps the last of its three then.
+
+**The readers**, P on the most advanced model and K, N, L, M, U, A and C/E/S on the one below, each a session of its own given its brief and its files: P and K over the report's changed sections, §11.2 and §12 above all, A over the argument; N with a program no newcomer wrote; L and M over the README, *Why Ernest*, the tour, the questions and the guides' changed chapters; U over the deployment guide; the code's reader over the shell's, the runtime's and the nodes' diffs with E's and S's briefs. Their lists came to about 120 lines with the machines'. P's counts: concepts +2, the attached shell and the session; primitives 0; reserved words 0; one command, one option, one library function.
+
+**The newcomer's program** is `auction`, an auction house in one module of 408 lines: a house process that holds lots and takes bids by `Address.call`, a lot sold to its highest bidder at its deadline, bidders as monitored processes running scripts, a ledger written to a file, five tests, and a demo run at a node attached from an operator's shell. It built after one fix of its own and ran as intended, and its `:reload` under the attached shell found N2, N3 and N4.
+
+**The findings**: 59 fix lines, made the same day in four commits of documents and three of code (*The Release Review's Code Fixes*), about thirty of the report's citations repointed after the paring among them; eight batches to decide, which `docs/findings.md` holds with each line's recommendation; and the dropped lines with their reasons.
+
+**The bench**, the median of the three runs' ratios, nanoseconds an iteration of the third run, against the rows of *The Release Review Before 0.6.0*:
+
+| Operation | Ernest | Erlang | Ratio | Then |
+|---|---|---|---|---|
+| the loop alone | 7.5 | 7.5 | 1.00 | 1.05 |
+| a record added by a function | 13.2 | 11.0 | 1.20 | 1.20 |
+| two records compared | 15.0 | 14.0 | 1.07 | 1.08 |
+| `Map.get`, `maps:find` | 19.9 | 18.3 | 1.09 | 1.15 |
+| `Map.put`, `maps:put` | 43.8 | 126.8 | 0.35 | 0.33 |
+| `List.map` over 100, `lists:map` | 1070.0 | 688.8 | 1.59 | 1.56 |
+| `List.size` of 100, `length` | 121.0 | 122.5 | 0.99 | 1.04 |
+| `String.size`, `string:length` | 103.6 | 84.3 | 1.24 | 1.16 |
+| `<>` and `String.size` | 137.8 | 319.1 | 0.43 | 0.44 |
+| `Bytes.size`, `byte_size` | 11.6 | 11.6 | 1.00 | 1.30 |
+| send and receive to self | 147.8 | 130.7 | 1.13 | 1.15 |
+| a call answered, as `gen_server`'s | 2036.0 | 1158.4 | 1.67 | 1.72 |
+| spawn a process that returns | 7805.0 | 1476.1 | 5.29 | 5.04 |
+
+Every row but two is within a tenth of its last ratio, `Map.put` and `Bytes.size` moved by the host's own time: `String.size` 1.24 against 1.16, and the spawn 5.29 against 5.04, its three runs 5.10 to 5.37, where the review's items changed what a spawn records (*The Detach Keeps What Declares a Function*). Of the rows the bench gained since 0.4.0: `spawnMonitored` 11.07 against 11.10, a monitor of an ended process 25.77 against 26.90, `restarting` entered and returning 356 ns against 357. The language's rows against the host: the dot product 1.24 against 1.27, a record update 1.74 against 1.68, the counter 1.34 against 1.26, the ray tracer 1.72 against 1.75 and the parser 1.37 against 1.39. Against the release's run a fault by a raise rose by a fifth to a half at every depth, Ernest's own time as it was, 106 µs at depth 8 against 112 the evening before the boundary's raise changed (P3), and the host's fallen from 3.4 µs to 2.4; the release ships with the rows as they stand, which the user decides at the tag.
 
 ## The Release Review's Code Fixes, 2026-10-31
 

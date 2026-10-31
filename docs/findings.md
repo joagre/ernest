@@ -1,6 +1,6 @@
 # Findings of the release review before 0.7.0
 
-The review of 2026-10-31 over commit `36b94d31`, run as [`release_review.md`](release_review.md) says: the fresh clone built and ran `make test-full` (one shell test failed under the readers' load and passed alone three times, R1), `make sanitize`, `make load`, `make service` and `make sections` green, `make bench` to run over the release's commit; eight readers side by side, P on the most advanced model and K, N, L, M, U, A (the argument) and C/E/S on the one below. A line per finding, by area, naming its reader's letter and number; its decision, `fix`, `decide`, a milestone, or `dropped` with the reason; and `done` with the date once made. The readers' whole lists stand below the lines.
+The review of 2026-10-31 over commit `36b94d31`, run as [`release_review.md`](release_review.md) says: the fresh clone built and ran `make test-full` (one shell test failed under the readers' load and passed alone three times, R1), `make sanitize`, `make load`, `make service` and `make sections` green, `make bench` three times over `aa309a04` with the code batch in, its rows in the log's *The Release Review Before 0.7.0*; eight readers side by side, P on the most advanced model and K, N, L, M, U, A (the argument) and C/E/S on the one below. A line per finding, by area, naming its reader's letter and number; its decision, `fix`, `decide`, a milestone, or `dropped` with the reason; and `done` with the date once made. The readers' whole lists stand below the lines.
 
 ## The lines
 
