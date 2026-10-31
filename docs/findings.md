@@ -79,12 +79,12 @@ The review of 2026-10-31 over commit `36b94d31`, run as [`release_review.md`](re
 - K14, K15, K16, K17, P11 — about thirty citations pointing at §7.4, §8.2, §8.4, §8.6, §8.7 or §10 for a rule the paring moved to §12 or E.27, and §12.7 citing §12.5 for §8.7's rule. fix.
 - K18 — §12.5's lines gain the exception for the shell's own node. fix.
 - K19, P8 — E.27 says "an attached shell's own node". fix.
-- K20, C10 — `:load`'s "as new as it" compares file times across machines; the recorded source digest decides, §11.2 and the code. fix.
+- K20, C10 — `:load`'s "as new as it" compares file times across machines; the recorded source digest decides, §11.2 and the code. fix. done 2026-10-31 in the code: the form's recorded digest against the source's as the local half reads it (`load_judges_by_digest`).
 - K22 — a node's end's answer named in §12.6's list. fix.
 - K23 — §12.7's "at once" becomes "without an exchange, as §8.7 says". fix.
 - K24 — what makes a process a session's, defined once in §12.1, "until the session ends", cited from E.23. fix.
 - K25 — E.21 `live`: "in a shell, and on a node a shell is attached to". fix.
-- P3 — a library shim's Ernest fault loses the caller's line in the trace, where a host raise keeps it. fix in the code, E.21 unchanged.
+- P3 — a library shim's Ernest fault loses the caller's line in the trace, where a host raise keeps it. fix in the code, E.21 unchanged. done 2026-10-31: the boundary raises a passing fault again with the stack it came with (`shim_fault_keeps_line`); `Os.exit`'s fault at an attached prompt now has its trace, `input 11:1`.
 - P10 — G.7's proxy sentence restated, its workaround gone. fix.
 - U4 — §11.1's "a compiled module after it only through `Code.load`" gains an attached `:load`. fix.
 
@@ -102,10 +102,10 @@ The review of 2026-10-31 over commit `36b94d31`, run as [`release_review.md`](re
 - U14, U16 — §1.2's refusal list; the README's line for the deployment guide. fix.
 - N1 — language §2.5's `Map.update` sentence does not compile. fix.
 - N5, M14, U15 — README's "that reading". fix.
-- N7, U13 — `:help`'s lines for `:processes` and `:quit` in an attached shell. fix.
+- N7, U13 — `:help`'s lines for `:processes` and `:quit` in an attached shell. fix. done 2026-10-31: each line true in both shells.
 - N8, N9, N10, N14, N15, N16, M10, L17 — `!=` beside `==`; "bare node" before §8.1; "effect variable" before §3.5; `Path` named; §7.2's count; "three to do along"; §8.1's and §9.2's unparseable sentences; §6's `Os.exit` sentence; §8's `--peer-dir` commands; §5.2's title; tour §2's `.erc` sentence; tour §5's version sentence; tour §6's "wrapped there". fix.
-- N11 — the guard's help names binding the field before the `receive`; guide §4.3 the same. fix.
-- N12 — "unknown name" for a private name says it is not exported. fix.
+- N11 — the guard's help names binding the field before the `receive`; guide §4.3 the same. fix. done 2026-10-31 in the checker (`receive_guard_field`).
+- N12 — "unknown name" for a private name says it is not exported. fix. decide: §11.5 says a private function is unknown to a dependent and at the prompt, and an interface carries none; telling it apart needs the interface to carry private names or the shell to read the unit's forms, the report first.
 - N18, N21, M13 — why.md's hash bullet without the placement clause; §8.1's *Which peer* cut to what a caller needs; the two-peer caveat said once; the wrong-mailbox program not three times in a row; the `.erc` sentence in one place. fix.
 - N19, N20 — claims that open on what another system lacks, turned to say what Ernest does first; `Subject` and hex said in a word. fix.
 - M7, L15 — the upgrade's four limits collected in §8.9, the tour's chapter 8 citing it. fix.
@@ -114,30 +114,33 @@ The review of 2026-10-31 over commit `36b94d31`, run as [`release_review.md`](re
 
 ### The code (fix, one batch on the model below)
 
-- C1 — a program node's first session reads the modules' interfaces from disk, not from the loaded code; after a rebuild inputs are checked against the wrong interfaces, shown by an ill-typed value. fix: the interfaces the runner read at the node's start.
-- C2, E1 — a session that ends by a fault never detaches, leaving rows, screens, own marks, holders and units for the node's life. fix: the detach runs where the chain's root learns of the end.
-- C3 — `:reload` rereads every loaded module's chunk from disk; a removed `.erc` crashes the shell with status 70. fix: the chunk kept as loaded.
-- C4 — an attached session reads the operator's startup file on the node's disk. fix: through the local half.
-- C5 — a lost node's screen is monitored at the end, so the exit waits a dial. fix.
-- C6, E2 — each `:type` makes a fresh `$Input` atom. fix: a fixed namespace, as `$Fields`.
-- C8 — `ern_initialized` rows never deleted. fix.
-- C9 — rows read-modify-written by an input's process and the session, and the `detached` row by every session; a killed input may write after the detach's delete. fix: the session alone writes, the input sending what it recorded; `detached` under the load's lock.
-- C11 — a unit whose soft purge fails loses its code-table rows while its process runs. fix: rows kept until the purge succeeds.
-- C12 — `record_uses/5`'s `Referenced` is always empty, or the item 13 build changed it; read and fix or drop. fix.
-- C13 — the 7 s dial held in four places. fix: one owner.
-- C14 — completion seeds every interface again at each `Tab` after `.`. fix.
-- C15 — `spawnInput`, `setScreen` beside `ern_rt:screen/2`, `free_namespace(input)`. fix: the names, both kinds taking the namespace out.
-- C16 — `own_loaded/3` blocks the node's one exchange process. fix: load in the spawned process.
+- C1 — a program node's first session reads the modules' interfaces from disk, not from the loaded code; after a rebuild inputs are checked against the wrong interfaces, shown by an ill-typed value. fix: the interfaces the runner read at the node's start. done 2026-10-31: the runner keeps each unit's interface chunk as it loaded it, in the code table, and a node's first session reads those (`attached_checks_the_loaded_code`).
+- C2, E1 — a session that ends by a fault never detaches, leaving rows, screens, own marks, holders and units for the node's life. fix: the detach runs where the chain's root learns of the end. done 2026-10-31: the root of the session's chain detaches a session that did not return, and the detach ends the session's own processes from rows kept as they are marked (`attached_fault_detaches`).
+- C3 — `:reload` rereads every loaded module's chunk from disk; a removed `.erc` crashes the shell with status 70. fix: the chunk kept as loaded. done 2026-10-31: `:reload` reads the chunk the runner kept, or the session's own compiled module (`reload_reads_no_file`).
+- C4 — an attached session reads the operator's startup file on the node's disk. fix: through the local half. done 2026-10-31: the diagnostic reads the startup file through the local half, which answers the startup files it ran (`attached_startup_diagnostic`).
+- C5 — a lost node's screen is monitored at the end, so the exit waits a dial. fix. done 2026-10-31: the local half names no screen once its session has ended, the exit 30 ms after a loss where it was 7,027 (`attached_lost_unanswered`).
+- C6, E2 — each `:type` makes a fresh `$Input` atom. fix: a fixed namespace, as `$Fields`. done 2026-10-31: `:type` checks in `$Type`, taking no number (`type_takes_no_number`).
+- C8 — `ern_initialized` rows never deleted. fix. done 2026-10-31: a unit unloaded takes its row (`ern_rt:uninitialized/1` from `ern_code:unloaded/1`).
+- C9 — rows read-modify-written by an input's process and the session, and the `detached` row by every session; a killed input may write after the detach's delete. fix: the session alone writes, the input sending what it recorded; `detached` under the load's lock. done 2026-10-31: the input answers its value with its binding and writes nothing, the session binds it, makes the holder, records the binder and collects after a fault too, the free numbers are the `#session{}`'s, and `detached` is written under the node's lock; a killed input then leaves nothing to wait for.
+- C11 — a unit whose soft purge fails loses its code-table rows while its process runs. fix: rows kept until the purge succeeds. done 2026-10-31: the rows go once the purge succeeds, at the detach or a later collection.
+- C12 — `record_uses/5`'s `Referenced` is always empty, or the item 13 build changed it; read and fix or drop. fix. done 2026-10-31: kept, the branch is live: the chunk's `references` name each definition by its declaring input's qualified name, which `mentions/2` finds, as item 13's `Pair` shows; the comment says so.
+- C13 — the 7 s dial held in four places. fix: one owner. done 2026-10-31: `ern_carrier:dial_ms/0`, which the boot flag, the front end and the shell ask, and the tests' own number is held to it.
+- C14 — completion seeds every interface again at each `Tab` after `.`. fix. done 2026-10-31: the reader keeps the environment in its own process, made again where the interfaces changed (`reader_session/0`).
+- C15 — `spawnInput`, `setScreen` beside `ern_rt:screen/2`, `free_namespace(input)`. fix: the names, both kinds taking the namespace out. done 2026-10-31: `spawn_input/4`, `node_screen/1`, and both kinds taken out of the `#session{}`'s `free` as given (`given/3`).
+- C16 — `own_loaded/3` blocks the node's one exchange process. fix: load in the spawned process. done 2026-10-31: a process of its own loads and answers the spawn, two such loads one at a time on the node.
 - C17 — a partly bound key scanned at detach alone. dropped: once a session, bounded by the sessions.
 - E3 — feedback 170. the pun's milestone.
-- E4 — `attaching` carries the peer's name twice. fix.
+- E4 — `attaching` carries the peer's name twice. fix. done 2026-10-31: the deadline alone, the name read from the `Serving`.
 - E7 — the ending's bytes computed and sent at every write. dropped: measured at nine bytes and nine microseconds a write, and they depend on the write's own region.
-- E8 — the local half's process given to `markOwn` from another node, skipped silently. fix: not given, the comment corrected.
+- E8 — the local half's process given to `markOwn` from another node, skipped silently. fix: not given, the comment corrected. done 2026-10-31: an attached session marks no local half, and the comment says why.
 - E9 — the node evaluates the shell's units' bindings at an attach, reading its own `HOME` and `NO_COLOR`. dropped: the reach's evaluation is §12.7's, 0.27 s once, and nothing reads the values there.
-- S1 — the local half answers `Read`, `Stat`, `List` and `Append` for any path. fix: bounded to the source root and `:output`'s path, hardening.
-- S2 — a shim claimed by any interface chunk is called directly with no return check. fix: shims from the standard library's namespaces alone, hardening.
-- R1 — `compiled_beside_another`'s last assertion is order-sensitive under load. fix: the two parts matched apart.
-- N3, N2 — see batch 2; the diagnosis is the batch's.
+- S1 — the local half answers `Read`, `Stat`, `List` and `Append` for any path. fix: bounded to the source root and `:output`'s path, hardening. done 2026-10-31: reads under the source root and of the startup files it ran, appends to the path `:output` took through a message of its own, `Denied` otherwise (`attached_local_files`).
+- S2 — a shim claimed by any interface chunk is called directly with no return check. fix: shims from the standard library's namespaces alone, hardening. done 2026-10-31: honored where the interface's namespace is the library's, and while the library's own root builds (`shims_of_the_library_alone`).
+- R1 — `compiled_beside_another`'s last assertion is order-sensitive under load. fix: the two parts matched apart. done 2026-10-31.
+- N3, N2 — see batch 2; the diagnosis is the batch's. diagnosed 2026-10-31: N2's process is the reload's evaluator, which §11.2 keeps alive and the detach leaves the node's, one a reload, its site the last binding it evaluated, which `ern_rt:initializing/1` writes and nothing gives back, the service bindings' new processes beside it as §11.2 says; N3's sites are as §11.2 writes them, a version's number fixed at the spawn and the first load's plain, and a type's relative to the version now; both decisions.
+- F1 — the answer of an input was said before the session joined what it bound, so a `Tab` just after it read the session without the input, a window C9's binding in the session widened, which `tab_mid_row` found. done 2026-10-31: the session collects before it says the answer.
+- F2 — `:doc` and `Shift-Tab` of a module the node's runner loaded read its documentation from its `.erc`, which a build may have written again or taken away, as C3 read its chunk. decide: keep the documentation chunk as loaded, as the interface chunk is now, or §11.2 says `:doc` reads the build.
+- F3 — a shell of another build is refused only where its reach names a binding the node holds no value of: the node asks the shell's own node for the reach, `ern_exchange:reached/3` finding a binding without a value (`ern_peer:reach_lacked/2`); where the node's own shell units have run and the other build changed no binding of the reach, its code would arrive as an exchange's and run. decide: with K5, how a toolchain identity is told apart.
 
 
 ## Reader P's list

@@ -1520,8 +1520,12 @@ peers(Base) ->
 %% each wait the harness's time for one wait, and wait by the dial's and
 %% the detector's times the report states, which the module writes as
 %% numbers of its own. The two later times, written after the programs
-%% wrote them in place, are a regression test
+%% wrote them in place, are a regression test; and report §8.7: the dial's
+%% time the carrier gives the host, which the shell asks it, is the
+%% report's (ern_carrier:dial_ms/0), a regression test of the one place
+%% the toolchain states it, the release review before 0.7.0 (C13)
 fixtures_times_test() ->
+    ?assertEqual(?DIAL_MS, ern_carrier:dial_ms()),
     {ok, Text} = file:read_file("fixtures/peers/harness.ern"),
     ?assertEqual([integer_to_binary(Ms) || Ms <- [?WAIT_MS, ?DIAL_MS, ?DETECTOR_MS]],
                  [case re:run(Text, ["fn ", Name, "\\(\\) : Int =\\s+([0-9]+)"],
@@ -3391,6 +3395,40 @@ attached_utilization(Base) ->
     has(Out, "> Left(Unreachable) : Either(Io.Error, List(String))\n"),
     stop(Node, WaitNode).
 
+%% report §11.2 *The attached shell*, §11.8, §8.6, §12.5: a shell whose
+%% node is lost ends with `the node node is lost` and status 1 within a
+%% dial's time of the loss, though a dial of that node would wait the
+%% whole of it: the shell's own node reads its configuration again with
+%% the node's address moved to a port that takes a connection and never
+%% answers, and the node is then ended outright. The end's drain asks
+%% nothing of the screen, which went with the session, so that the host
+%% dials no lost node to reach it. Written before the fix, the release
+%% review before 0.7.0 (C5), the shell ending a dial late.
+attached_lost_unanswered_test_() ->
+    nodes_test({waits, 7, ?DIAL_MS}, fun attached_lost_unanswered/1).
+
+attached_lost_unanswered(Base) ->
+    Ops = made(Base, "ops", none),
+    Node = made(Base, "node", 0),
+    lists(Node, [{"ops", Ops, none}]),
+    {_, WaitNode} = launched(Node, [?ERN, " run --config-dir ", Node]),
+    lists(Ops, [{"node", Node, bound_port(Node)}]),
+    {_, WaitShell} = attached(Ops, "node", Base),
+    prints(Ops, ":detach to leave.\n> "),
+    {ok, Hole} = gen_tcp:listen(0, [{ip, {127, 0, 0, 1}}]),
+    {ok, HolePort} = inet:port(Hole),
+    lists(Ops, [{"node", Node, HolePort}]),
+    ?assertEqual({0, ""}, finished([?ERN, " reload --config-dir ", Ops, " 2>&1"])),
+    prints(Ops, "ernest.conf was read again"),
+    Began = erlang:monotonic_time(millisecond),
+    lost(Node, WaitNode),
+    ?assertEqual(1, WaitShell()),
+    Taken = erlang:monotonic_time(millisecond) - Began,
+    ok = gen_tcp:close(Hole),
+    ?assert(Taken < ern_carrier:dial_ms()),
+    {_, Err} = said(Ops),
+    has(Err, "the node node is lost\n").
+
 %% report §11.2 *The attached shell*, *Editing*, §11.8: the same at a
 %% terminal, through the pseudo-terminal's harness: the region is taken
 %% away where the screen last painted it, what was typed after the prompt
@@ -3508,7 +3546,8 @@ attach_refused(Base) ->
 %% that takes the connection and answers nothing over it is refused once a
 %% dial's time has passed, saying that the peer did not answer in time,
 %% with status 1, its standard output in line mode the shell's own node's
-%% line of the connection alone (§11.2 *The shell*). The node's program
+%% line of the connection alone (§11.2 *The shell*), the line as the
+%% deployment guide's section 6 quotes it. The node's program
 %% suspends its gateway, the process that answers a peer's frames, a
 %% spawn's among them, so that the connection stands and the spawn waits.
 %% Written after the code, a regression test: MVP 4.0's item 5
@@ -3531,7 +3570,7 @@ attach_unanswered(Base) ->
     ?assertEqual(1, Wait()),
     {Out, Err} = said(Ops),
     ?assertEqual("the peer node connected\n", unstamped(Out)),
-    has(Err, "ern shell: the peer node did not answer in time\n"),
+    ern_deployment_tests:cataloged(Err, "6", "did not answer in time", [{"b", "node"}]),
     stop(Node, WaitNode).
 
 %% A node's program that suspends its node's gateway, which answers its
@@ -3558,7 +3597,7 @@ stall() ->
 %% The two builds are two releases made from this tree under Base, so that
 %% each stands on the floor of the release VERSION names: the second's
 %% shell compiled from the shell's source with one binding's form changed,
-%% `dialMs`, its value not, so that the local half, whose reach names it,
+%% `fileMs`, its value not, so that the local half, whose reach names it,
 %% hashes otherwise and the node's own tree lacks it (the design note on
 %% code's *The toolchain's own units*). A shell of the node's own build
 %% attaches and detaches, so that the refusal is the shell's units and not
@@ -3576,8 +3615,8 @@ attach_other_build(Base) ->
      end || Relative <- filelib:wildcard("**/*.ern", filename:join([Tree, "src", "shell"]))],
     Main = filename:join(Source, "shell.ern"),
     {ok, Text} = file:read_file(Main),
-    [Before, After] = binary:split(Text, <<"\nlet dialMs = 7000\n">>),
-    ok = file:write_file(Main, [Before, "\nlet dialMs = 7000 + 0\n", After]),
+    [Before, After] = binary:split(Text, <<"\nlet fileMs = 5000\n">>),
+    ok = file:write_file(Main, [Before, "\nlet fileMs = 5000 + 0\n", After]),
     Changed = filename:join(Base, "changed"),
     0 = built(["--build-root", Changed, Source]),
     Own = released(filename:join(Base, "one"), ern_tree:build("shell")),
@@ -3955,6 +3994,178 @@ attached_functions(Base) ->
     [?assertEqual(Kept, lists:member({"ern@$input" ++ Number ++ "_" ++ Input, Number}, After))
      || {Input, Kept} <- [{"1", true}, {"2", false}, {"3", true}, {"4", true}]].
 
+%% report §11.2 *The attached shell*, §8.7: an input is checked against the
+%% interfaces of the code the node runs, as its runner loaded it at its
+%% start, and not as the files on its load path hold them now: the node's
+%% program is built again under it with `App.g` answering a `String` in
+%% place of an `Int`, and `App.g(1)` at an attached prompt is the `Int` the
+%% running code answers. Written before the fix, the release review before
+%% 0.7.0 (C1), the first session having read the rebuilt files, the value
+%% typed `String`, which faulted the session as it printed it.
+attached_checks_the_loaded_code_test_() ->
+    nodes_test({waits, 7}, fun attached_checks_the_loaded_code/1).
+
+attached_checks_the_loaded_code(Base) ->
+    Root = filename:join(Base, "program"),
+    ok = filelib:ensure_path(Root),
+    App = filename:join(Root, "app.ern"),
+    ok = file:write_file(App, ["export fn g(n : Int) : Int = n * 100\n\n",
+                               "export fn main() : Unit receiving Unit = {\n",
+                               "    Io.println(\"ready\");\n",
+                               "    receive { _ -> Unit }\n",
+                               "}\n"]),
+    0 = built([Root]),
+    Port = free_port(),
+    Node = made(Base, "node", Port),
+    Ops = made(Base, "ops", none),
+    lists(Node, [{"ops", Ops, none}]),
+    lists(Ops, [{"node", Node, Port}]),
+    {_, WaitNode} = started(Node, filename:join(Root, "app.erc"), []),
+    prints(Node, "ready"),
+    ok = file:write_file(App, ["export fn g(n : Int) : String = \"a string\"\n\n",
+                               "export fn main() : Unit receiving Unit = {\n",
+                               "    Io.println(\"ready\");\n",
+                               "    receive { _ -> Unit }\n",
+                               "}\n"]),
+    0 = built([Root]),
+    {Shell, _} = Attached = attached(Ops, "node", Base),
+    entered(Shell, Ops, ["App.g(1)"], "> 100 : Int\n"),
+    _ = detached(Attached, Ops),
+    stop(Node, WaitNode).
+
+%% report §11.2 *The attached shell*, *Startup and history*, §11.5: a
+%% startup input's diagnostic quotes the file the shell's own node read it
+%% from, its local half reading it again, and not a file of the node's: the
+%% configuration directory's startup file, named from the operator's
+%% working directory, `ops/startup`, its second input refused, which the
+%% node, run from another directory, finds no file at. Written before the
+%% fix, the release review before 0.7.0 (C4), the diagnostic quoting no
+%% line of the file.
+attached_startup_diagnostic_test_() ->
+    nodes_test({waits, 5}, fun attached_startup_diagnostic/1).
+
+attached_startup_diagnostic(Base) ->
+    Ops = made(Base, "ops", none),
+    Node = made(Base, "node", 0),
+    lists(Node, [{"ops", Ops, none}]),
+    {_, WaitNode} = launched(Node, [?ERN, " run --config-dir ", Node]),
+    lists(Ops, [{"node", Node, bound_port(Node)}]),
+    Startup = filename:join(Ops, "startup"),
+    ok = file:write_file(Startup, "let a = 1\nlet b : Int = \"not an Int\"\n"),
+    %% report §11.2: a startup file another user could change is not run
+    ok = file:change_mode(Startup, 8#600),
+    ok = file:change_mode(Ops, 8#700),
+    Home = Ops ++ ".home",
+    ok = filelib:ensure_path(Home),
+    {Shell, _} = Attached = launched(Ops, ["cd ", Base, " && HOME=", Home, " ", ?ERN,
+                                           " shell --config-dir ops --attach node"]),
+    prints(Ops, ":detach to leave.\n"),
+    true = port_command(Shell, "a\n"),
+    {Out, _} = detached(Attached, Ops),
+    has(Out, "ops/startup:2:"),
+    has(Out, "2 | let b : Int = \"not an Int\"\n"),
+    stop(Node, WaitNode).
+
+%% report §11.2 *The attached shell*: the shell's own node reads for its
+%% session the files of the source root, the startup files it ran and the
+%% path `:output` names, and no other: a process of the session's node that
+%% asks the local half itself, through a foreign function that finds its
+%% address, is answered a file of the source root, refused one outside it,
+%% refused an append anywhere but to the path `:output` took, and answered
+%% one there. Written before the fix, the release review before 0.7.0 (S1),
+%% the local half answering for any path, a hardening within the trust
+%% model, a listed peer being trusted whole.
+attached_local_files_test_() ->
+    nodes_test({waits, 6}, fun attached_local_files/1).
+
+attached_local_files(Base) ->
+    Root = filename:join(Base, "program"),
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "keep.ern"), keep()),
+    Units = filename:join(Root, "ern_nodes_units.erl"),
+    ok = file:write_file(Units, units_module()),
+    {ok, _} = compile:file(Units, [{outdir, Root}]),
+    0 = built([Root]),
+    Source = filename:join(Base, "src"),
+    ok = filelib:ensure_path(Source),
+    Inside = filename:join(Source, "inside.ern"),
+    ok = file:write_file(Inside, "export let x : Int = 1\n"),
+    Outside = filename:join(Base, "outside.txt"),
+    ok = file:write_file(Outside, "the operator's own\n"),
+    Output = filename:join(Base, "output.txt"),
+    Port = free_port(),
+    Node = made(Base, "node", Port),
+    Ops = made(Base, "ops", none),
+    lists(Node, [{"ops", Ops, none}]),
+    lists(Ops, [{"node", Node, Port}]),
+    {_, WaitNode} = started(Node, filename:join(Root, "keep.erc"), []),
+    prints(Node, "ready"),
+    {Shell, _} = Attached = attached(Ops, "node", Source),
+    Asked = fun(Kind, Path) -> ["Keep.asked(\"", Kind, "\", \"", Path, "\")"] end,
+    entered(Shell, Ops, [Asked("read", Inside), Asked("read", Outside),
+                         Asked("append", Outside), ":output " ++ Output,
+                         Asked("append", Output), ":output -"],
+            "output goes to standard output\n"),
+    {Out, _} = detached(Attached, Ops),
+    has(Out, "> \"taken\" : String\n> \"refused\" : String\n> \"refused\" : String\n"
+             "> output goes to " ++ Output ++ "\n> \"taken\" : String\n"),
+    ?assertEqual({ok, <<"the operator's own\n">>}, file:read_file(Outside)),
+    stop(Node, WaitNode).
+
+%% report §11.2 *The attached shell*, *Inputs*, §11.8: a session that ends
+%% by a fault detaches as one that leaves does. At the prompt of a
+%% program's node a session binds `x`, types `x + 1`, which holds `it`, and
+%% lists the session units the node holds; it then ends its own screen
+%% through a foreign function, which faults the session, a failure of the
+%% shell's own: status 70 and the session's fault on standard error. A
+%% second session lists the units again, and none of the first session's
+%% is there, since none declares a function or builds a function value.
+%% Written before the fix, the release review before 0.7.0 (C2, E1),
+%% which a session that faulted failed, leaving its units, its rows and
+%% its processes for the node's life.
+attached_fault_detaches_test_() ->
+    nodes_test({waits, 9}, fun attached_fault_detaches/1).
+
+attached_fault_detaches(Base) ->
+    Root = filename:join(Base, "program"),
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "keep.ern"), keep()),
+    Units = filename:join(Root, "ern_nodes_units.erl"),
+    ok = file:write_file(Units, units_module()),
+    {ok, _} = compile:file(Units, [{outdir, Root}]),
+    0 = built([Root]),
+    Port = free_port(),
+    Node = made(Base, "node", Port),
+    [One, Two] = [made(Base, Name, none) || Name <- ["one", "two"]],
+    lists(Node, [{"one", One, none}, {"two", Two, none}]),
+    [lists(Ops, [{"node", Node, Port}]) || Ops <- [One, Two]],
+    {_, WaitNode} = started(Node, filename:join(Root, "keep.erc"), []),
+    prints(Node, "ready"),
+    {First, WaitFirst} = attached(One, "node", Base),
+    entered(First, One, ["let x = 1", "x + 1", "let _ = Keep.printUnits()"], "> 2 : Int\n"),
+    prints(One, "ern@$bindings"),
+    true = port_command(First, "Keep.endScreen()\n"),
+    ?assertEqual(70, WaitFirst()),
+    {Out, Err} = said(One),
+    has(Err, "fault: the session on the node node: the shell's screen ended"),
+    Before = session_units(Out),
+    [Number] = lists:usort([Session || {_, Session} <- Before]),
+    {Second, _} = Again = attached(Two, "node", Base),
+    true = port_command(Second, "let _ = Keep.printUnits()\n"),
+    {SecondOut, _} = detached(Again, Two),
+    stop(Node, WaitNode),
+    ?assertEqual({2, 1}, kinds(Before)),
+    ?assertEqual([], [Unit || {_, Session} = Unit <- session_units_or_none(SecondOut),
+                              Session =:= Number]).
+
+%% The session units a session's output lists, as session_units/1 reads
+%% them, or none where it lists none.
+session_units_or_none(Text) ->
+    case re:run(Text, "ern@\\$(?:input|bindings)", [{capture, none}]) of
+        match -> session_units(Text);
+        nomatch -> []
+    end.
+
 %% The session units a session's output lists, each its Erlang name and
 %% the number of its session (report §11.2, Appendix H).
 session_units(Text) ->
@@ -3970,8 +4181,10 @@ kinds(Units) ->
 %% A node's program whose holder keeps a function and two servers a
 %% session hands it, for a later session to call through it; its loop a
 %% server a session may start, which answers each number it is asked with
-%% a function's value of it until it is asked to crash; and the session
-%% units the node holds, by their names, printed a line each.
+%% a function's value of it until it is asked to crash; the session units
+%% the node holds, by their names, printed a line each; the end of the
+%% calling session's screen; and a read or an append asked of its local
+%% half.
 keep() ->
     "export type Ask = Ask(number : Int, reply : Reply(Int)) | Crash\n"
     "\n"
@@ -4000,6 +4213,11 @@ keep() ->
     "\n"
     "export fn printUnits() : Unit = List.forEach(units(), Io.println)\n"
     "\n"
+    "export foreign fn endScreen() : Unit = \"ern_nodes_units:end_screen/0\"\n"
+    "\n"
+    "export foreign fn asked(kind : String, path : String) : String =\n"
+    "    \"ern_nodes_units:asked/2\"\n"
+    "\n"
     "fn holding() : Unit receiving HolderMsg =\n"
     "    receive {\n"
     "        Hold(applied = applied, applying = applying, service = service) ->\n"
@@ -4023,11 +4241,33 @@ keep() ->
     "    }\n".
 
 %% The host module behind `Keep.units`: the units of shell sessions the
-%% node holds loaded, an input's and a holder's, their names sorted.
+%% node holds loaded, an input's and a holder's, their names sorted; and
+%% behind `Keep.endScreen`, the calling session's screen ended outright,
+%% as the front end's table holds it under the session's root; and behind
+%% `Keep.asked`, a read or an append asked of the calling session's local
+%% half, its address the one pid the session's row holds, the process in
+%% front of it that checks what is sent (report §8.4), and whether it was
+%% taken.
 units_module() ->
     <<"
 -module(ern_nodes_units).
--export([loaded/0]).
+-export([loaded/0, end_screen/0, asked/2]).
+end_screen() ->
+    [{_, Screen}] = ets:lookup(ern_shell, {ern_rt:root_of(self()), screen}),
+    exit(Screen, kill),
+    'Unit'.
+asked(Kind, Path) ->
+    [{_, Session}] = ets:lookup(ern_shell, {ern_rt:root_of(self()), session}),
+    [Local] = [Pid || Pid <- tuple_to_list(Session), is_pid(Pid)],
+    Request = case Kind of
+                  <<\"read\">> -> fun(Reply) -> {'Read', {'Path', Path}, Reply} end;
+                  <<\"append\">> -> fun(Reply) -> {'Append', {'Path', Path}, <<\"x\">>, Reply} end
+              end,
+    case ern_rt:call(Local, Request, 5000) of
+        {'Some', {'Right', _}} -> <<\"taken\">>;
+        {'Some', {'Left', _}} -> <<\"refused\">>;
+        'None' -> <<\"no answer\">>
+    end.
 loaded() ->
     lists:sort([atom_to_binary(Module) || {Module, _} <- code:all_loaded(),
                                           is_session(atom_to_list(Module))]).

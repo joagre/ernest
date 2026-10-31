@@ -1536,12 +1536,12 @@ load_path() ->
 %% Report §11.2: the interfaces of the modules loaded, which the shell puts
 %% in the session's scope, each with the hash of the source it was compiled
 %% from, which `:reload` compares against the source it finds; both are in
-%% the `ErnI` chunk of the `.erc` it came from (§11.1).
+%% the `ErnI` chunk of the `.erc` it came from (§11.1), as the load read it
+%% (ern_code:chunk/1).
 interfaces(Loaded) ->
     [{Interface, Hash} || ErlangModule <- lists:reverse(Loaded),
-                          {ok, Beam} <- [file:read_file(code:which(ErlangModule))],
                           {ok, #{interface := Interface, source_hash := Hash}}
-                              <- [ern_interface:read(Beam)]].
+                              <- [ern_code:chunk(ErlangModule)]].
 
 %% Report §11.2: the namespaces of the loaded modules whose compiled forms
 %% lie under the file's own root, the program the shell runs, and not a
@@ -2014,14 +2014,16 @@ load(Namespace, Waiting, LoadPath, Loaded, {Reader, StdlibHash, Say} = Reading) 
                               same_interface(Namespace, Dependency, Hash)
                           end, DependencyHashes),
             same_stdlib(Namespace, Chunk, StdlibHash),
-            loaded_unit(ErlangModule, File, Beam),
+            loaded_unit(ErlangModule, File, Beam, Chunk),
             [ErlangModule | Loaded1]
     end.
 
 %% Report §11.2: a module loaded from its file, or taken as the host holds
-%% it (ern_code:load/3), and in the code table as it loads (§8.7).
-loaded_unit(ErlangModule, File, Beam) ->
-    case ern_code:load(ErlangModule, File, Beam) of
+%% it, and in the code table as it loads (§8.7), with the interface chunk
+%% read as it was checked, which what reads the module's interface later
+%% reads (ern_code:load/4).
+loaded_unit(ErlangModule, File, Beam, Chunk) ->
+    case ern_code:load(ErlangModule, File, Beam, Chunk) of
         ok -> ok;
         {error, Error} -> ern_build:fail("cannot load " ++ File ++ ": " ++ atom_to_list(Error))
     end.

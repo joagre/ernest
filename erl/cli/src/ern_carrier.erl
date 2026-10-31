@@ -11,7 +11,7 @@
 %% the lines a node says of its peers, one each on its standard error.
 -module(ern_carrier).
 
--export([boot_flags/1, name/1, host/1, cookie/0, cookie/2, start/1, list/1, booted/0,
+-export([dial_ms/0, boot_flags/1, name/1, host/1, cookie/0, cookie/2, start/1, list/1, booted/0,
          configuration/0, is_node/0, attaching/1, tells/0, reload/0, depart/0, peer/1, verify/3,
          dialing/1, listed/1, names_own_host/1, say/1, say_later/1, named/1, said/1,
          filter/2]).
@@ -31,16 +31,24 @@
 -define(NAME, "ernest").
 
 %% Report §8.7, §12.6, §7: the detector's time, a tick every quarter of it, and a
-%% dial nothing answers given up after 7 seconds; what may wait to be sent
-%% to a peer before a sender waits, in kilobytes; each the same on every
-%% node, and none set in `ernest.conf`.
+%% dial nothing answers given up after 7 seconds (dial_ms/0); what may wait
+%% to be sent to a peer before a sender waits, in kilobytes; each the same
+%% on every node, and none set in `ernest.conf`.
 -define(TICK_TIME, "60").
--define(SETUP_TIME, "7").
 -define(BUFFER, "1024").
 
 %% Report §12.5: the key under which the process that dials a peer holds the
 %% host it dials (dialing/1).
 -define(DIALED, {?MODULE, dialed}).
+
+%% Report §8.7: the milliseconds after which the host gives up a dial that
+%% nothing answers, which the host boots with in seconds (boot_flags/1):
+%% the one statement of it, which the shell asks, since an attached shell
+%% waits for its node as long and its local half for its files beside it
+%% (report §11.2).
+-spec dial_ms() -> pos_integer().
+dial_ms() ->
+    7000.
 
 %%
 %% The host's boot
@@ -66,7 +74,8 @@ boot_flags(#configuration{config_dir = ConfigDir, listen = Listen}) ->
                            {Name, Value} <- tls(Side, Certificate, Key)]),
     ["-proto_dist", Proto, "-ssl_dist_opt" | Tls]
         ++ ["-epmd_module", "ern_epmd", "-start_epmd", "false", "-connect_all", "false",
-            "-kernel", "net_ticktime", ?TICK_TIME, "-kernel", "net_setuptime", ?SETUP_TIME,
+            "-kernel", "net_ticktime", ?TICK_TIME, "-kernel", "net_setuptime",
+            integer_to_list(dial_ms() div 1000),
             "+zdbbl", ?BUFFER, "-setcookie", cookie()]
         ++ interface(Listen).
 

@@ -16,9 +16,12 @@
 %% As the node a spawn or a compute was asked of, the exchange takes from
 %% the gateway's worker each one whose function the node lacks, and asks
 %% the spawner's node for the reach (§12.7, §11.1, ern_code:linkable/1);
-%% one whose function a unit of the toolchain's own holds it loads from
-%% the node's own tree instead, asking no node (own_loaded/3). It
-%% verifies each code frame's forms with their source's lines against the
+%% one whose function a unit of the toolchain's own holds is loaded from
+%% the node's own tree instead, asking no node, in a process of its own
+%% that answers the spawn, so that the exchange serves its other frames
+%% meanwhile (own_loaded/3).
+%%
+%% It verifies each code frame's forms with their source's lines against the
 %% forms, and its foreign declarations against those the forms call, makes
 %% the whole reach one unit (ern_arrival, §11.2), and reads each spawn and
 %% compute that waits again as the gateway's worker reads it, which starts
@@ -75,7 +78,7 @@
 
 %% Report §8.6: each receive that can wait, by its kind (docs/style.md).
 -receives({answered_at_once, [start/0]}).
--receives({own_process, [loop/1, own_loaded/3]}).
+-receives({own_process, [loop/1]}).
 
 -define(NAME, ern_exchange).
 
@@ -203,23 +206,32 @@ own_unit({foreign, _}) -> none.
 %% Report §12.7, *The toolchain's own units*: a spawn or a compute of a
 %% function a unit of the toolchain's own holds, this node lacking it: the
 %% unit and those it uses loaded from the node's own tree and their
-%% bindings evaluated before the process starts, in a process of the
-%% runtime's own that the exchange waits for (ern_code_load:own/1), and
-%% the frame read again as the gateway's worker reads it, which starts it;
-%% or `NotLoaded`, the node saying what it lacked, a binding that faulted
-%% among it. The spawner's node is asked for nothing, and the work is
-%% bounded, the toolchain's own units being few and their bindings its
-%% tables and constants.
+%% bindings evaluated before the process starts (ern_code_load:own/1), in
+%% a process of the runtime's own, which then reads the frame again as the
+%% gateway's worker reads it, which starts it, or answers `NotLoaded`, the
+%% node saying what it lacked, a binding that faulted among it. The
+%% exchange goes on with its other frames meanwhile. Two such loads are one
+%% at a time on the node, so that a unit is loaded and its bindings
+%% evaluated once, the second finding them so. The spawner's node is asked
+%% for nothing, and the work is bounded, the toolchain's own units being
+%% few and their bindings its tables and constants.
 own_loaded(Unit, From, Body) ->
-    {Loader, MonitorRef} = spawn_monitor(fun() -> exit({own, ern_code_load:own(Unit)}) end),
-    receive
-        {'DOWN', MonitorRef, process, Loader, {own, ok}} ->
+    _ = spawn(fun() -> own_answered(Unit, From, Body) end),
+    ok.
+
+own_answered(Unit, From, Body) ->
+    Loaded = try global:trans({?MODULE, self()}, fun() -> ern_code_load:own(Unit) end, [node()])
+             catch
+                 Class:Reason -> {failed, {Class, Reason}}
+             end,
+    case Loaded of
+        ok ->
             started({From, Body});
-        {'DOWN', MonitorRef, process, Loader, {own, {lacked, Lacked}}} ->
+        {lacked, Lacked} ->
             answered([{From, Body}], 'NotLoaded', Lacked);
-        {'DOWN', MonitorRef, process, Loader, ExitReason} ->
+        {failed, Failure} ->
             Text = unicode:characters_to_binary(
-                     io_lib:format("its load from this node's tree failed, ~P", [ExitReason, 8])),
+                     io_lib:format("its load from this node's tree failed, ~P", [Failure, 8])),
             answered([{From, Body}], 'NotLoaded', Text)
     end.
 

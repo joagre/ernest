@@ -48,6 +48,26 @@ type_refuses_a_let() ->
                   " is not one">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>)).
 
+%% report §11.2, §2.3: `:type` checks its expression as an input is and
+%% takes no input's number, so that it makes no name of the host's: the
+%% declaring input after three of them is the session's second module,
+%% `ern@$input1_2`, the first being the foreign function's that asks.
+%% Written before the fix, the release review before 0.7.0 (C6, E2), each
+%% `:type` having taken a number and made its module's name
+type_takes_no_number_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun type_takes_no_number/0).
+
+type_takes_no_number() ->
+    Dir = fresh_home(),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile,
+                         ["foreign fn held(name : Foreign.Term) : Bool =",
+                          " \"erlang:module_loaded/1\"\n",
+                          ":type 1 + 1\n:type [2]\n:type Fs.stat\n", "fn f() : Int = 1\n",
+                          "held(Foreign.term(Foreign.atom(\"ern@$input1_2\")))\n"]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"> true : Bool\n">>)).
+
 %% report §11.2, §5: a `let` at the prompt binds as a block's `let` does, so
 %% an initializer that names its own name, which no earlier input bound,
 %% depends on itself, the help naming the `fn` that recurs, with `=` and
@@ -594,6 +614,40 @@ load_and_reload_dependents() ->
     ?assertMatch({_, _}, binary:match(Output, <<"nothing was reloaded">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"Geo.Shape, compiled again\n"
                                                 "Main, compiled again\n> 30\n">>)).
+
+%% report §11.2, §11.1: `:reload` reads what a loaded module's compiled form
+%% records as it was loaded, never its file again: the shell over a built
+%% program, `Main` using `Shape` and `Other`, `other.erc` taken away once
+%% the shell has started and `Shape`'s source changed, reloads `Shape` and
+%% `Main`, which uses it, and the session goes on. Written before the fix, the release
+%% review before 0.7.0 (C3): the reload read every loaded module's chunk
+%% from its file, and the file gone ended the shell, status 70
+reload_reads_no_file_test_() ->
+    ern_nodes_tests:counted_test({waits, 2}, fun reload_reads_no_file/0).
+
+reload_reads_no_file() ->
+    Dir = fresh_home(),
+    Source = filename:join(Dir, "src"),
+    Build = filename:join(Dir, "build"),
+    ok = filelib:ensure_path(Source),
+    ok = file:write_file(filename:join(Source, "shape.ern"),
+                         "export fn area(n : Int) : Int = n * n\n"),
+    ok = file:write_file(filename:join(Source, "other.ern"), "export let other : Int = 1\n"),
+    ok = file:write_file(filename:join(Source, "main.ern"),
+                         "export fn main() : Unit =\n"
+                         "    Io.println(Int.toString(Shape.area(3) + Other.other))\n"),
+    {0, _} = ern_pty:sh("../bin/ern build --source-root " ++ Source ++ " --build-root " ++ Build
+                        ++ " " ++ Source),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile,
+                         ["Fs.remove(Path(\"", filename:join(Build, "other.erc"), "\"), 2000)\n",
+                          write_source(Source, "shape.ern", "export fn area(n : Int) : Int = n\n"),
+                          ":reload\nMain.main()\n"]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Source ++ " "
+                                   ++ filename:join(Build, "main.erc")) ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"Shape, compiled again\n"
+                                                "Main, compiled again\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> 4\n">>)).
 
 %% report §4.2, §4.5, §11.2: a type and the module of its name share a
 %% namespace at the prompt as in a build: a load of the module brings the
@@ -4569,9 +4623,12 @@ compiled_beside_another() ->
     %% the crash's line may come after the next prompt, written as it
     %% arrives while the next input runs (report §11.2)
     ?assertMatch({_, _}, binary:match(Output, <<"true : Bool\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"Other, from ",
-                                                (shown(Dir, "one/other.erc"))/binary,
-                                                "\n> 1 : Int\n">>)).
+    %% and so may come between the load's line and the value after it:
+    %% the two are matched apart, the value after the line
+    {LoadedAt, _} = binary:match(Output, <<"Other, from ", (shown(Dir, "one/other.erc"))/binary,
+                                           "\n">>),
+    {ValueAt, _} = binary:match(Output, <<"1 : Int\n">>),
+    ?assert(LoadedAt < ValueAt).
 
 %% report §11.2: in a shell that is no node, a module loaded from its
 %% compiled form whose unit the session holds with other code, a module of
@@ -4600,9 +4657,10 @@ compiled_beside_the_shells_own() ->
 %% to the code the node holds of it from its build takes that unit as it
 %% is, and makes no second one; and so does `:load` of a module whose
 %% current compiled form it takes, which compiles nothing. Hello's source
-%% is given a time after its build's, so that it is compiled. Written after
-%% the code (the log's *The Shell's Reload by Hash, Built*); the taken
-%% form's half on 2026-10-16, after the code, a regression test
+%% is given a comment after its build, which changes its digest and not its
+%% code, so that it is compiled. Written after the code (the log's *The
+%% Shell's Reload by Hash, Built*); the taken form's half on 2026-10-16,
+%% after the code, a regression test
 node_takes_its_build_unit_test_() ->
     ern_nodes_tests:counted_test({waits, 2}, fun node_takes_its_build_unit/0).
 
@@ -4616,8 +4674,7 @@ node_takes_its_build_unit() ->
     Hello = filename:join(Build, "hello.ern"),
     ok = file:write_file(Hello, "export let hello : String = \"hello\"\n"),
     {0, _} = ern_pty:sh("../bin/ern build --source-root " ++ Build ++ " " ++ Build),
-    ok = file:write_file_info(Hello, #file_info{mtime = os:system_time(second) + 60},
-                              [{time, posix}]),
+    ok = file:write_file(Hello, "export let hello : String = \"hello\"\n// Hello's, again.\n"),
     InputFile = filename:join(Dir, "session.in"),
     ok = file:write_file(InputFile,
                          ["foreign fn held(name : Foreign.Term) : Bool =\n"
@@ -4640,7 +4697,7 @@ node_takes_its_build_unit() ->
 %% source: with a deployed build on the load path, whose greet.erc is newer
 %% than the source root's greet.ern but was compiled from the build's own,
 %% the source root's is compiled; and a form on the load path compiled from
-%% the source root's source, other.erc, is taken. A regression test for the
+%% the source root's source, other.erc, is taken, whatever the times. A regression test for the
 %% other source, written 2026-10-16, after the code: the sentence first
 %% written would have loaded the deployed greet.erc
 load_takes_no_form_of_another_source_test_() ->
@@ -4677,7 +4734,7 @@ load_takes_no_form_of_another_source() ->
 %% report §11.2: `:load` takes no compiled form that calls a module the
 %% session holds at a reload's version: D's form is taken, a comment added
 %% to its source and D reloaded, which changes no hash M's form references,
-%% and M, whose form beside its source is as new as it and compiled against
+%% and M, whose form beside its source is compiled from it and against
 %% D's interface, is compiled, so that it reads D's binding from D's second
 %% version, as the session does; the form would read the first's. A
 %% regression test for the reloaded module, written 2026-10-16, after the
@@ -4707,8 +4764,38 @@ load_takes_no_form_calling_a_reloaded_module() ->
     ?assertMatch({_, _}, binary:match(Output, <<"M, compiled from ", (shown(Dir, "m.ern"))/binary,
                                                 "\n> true : Bool\n">>)).
 
+%% report §11.2: `:load` takes a compiled form whose recorded source digest
+%% is that of the source the session reads, whatever the two files' times:
+%% Same's source, touched after its build and unchanged, is taken from its
+%% form, and Changed's, changed and given a time before its build's, is
+%% compiled, its new value read. Written before the fix, the release
+%% review before 0.7.0 (K20, C10), which compared the times, of files that
+%% an attached shell's two machines may keep by two clocks
+load_judges_by_digest_test_() ->
+    ern_nodes_tests:counted_test({waits, 2}, fun load_judges_by_digest/0).
+
+load_judges_by_digest() ->
+    Dir = scratch("ern_load_digest_"),
+    Same = filename:join(Dir, "same.ern"),
+    Changed = filename:join(Dir, "changed.ern"),
+    ok = file:write_file(Same, "export let same : Int = 1\n"),
+    ok = file:write_file(Changed, "export let changed : Int = 1\n"),
+    {0, _} = ern_pty:sh("../bin/ern build " ++ Dir),
+    Now = os:system_time(second),
+    ok = file:write_file_info(Same, #file_info{mtime = Now + 60}, [{time, posix}]),
+    ok = file:write_file(Changed, "export let changed : Int = 2\n"),
+    ok = file:write_file_info(Changed, #file_info{mtime = Now - 60}, [{time, posix}]),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, ":load Same\nSame.same\n:load Changed\nChanged.changed\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"Same, from ", (shown(Dir, "same.erc"))/binary,
+                                                "\n> 1 : Int\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"Changed, compiled from ",
+                                                (shown(Dir, "changed.ern"))/binary,
+                                                "\n> 2 : Int\n">>)).
+
 %% report §11.2: `:load` takes no compiled form another build of `ern`
-%% wrote: greet.erc, beside its source, as new as it and compiled from it,
+%% wrote: greet.erc, beside its source and compiled from it,
 %% its chunk naming another build of this version, is compiled afresh, and
 %% other.erc, as this build wrote it, is taken. A regression test, written
 %% 2026-10-16 after the code: the shell compared the source, the

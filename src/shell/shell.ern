@@ -173,11 +173,13 @@ type Desk =
 // answered once they are written.
 //
 // The reader sends `Remember` for an input the history appends; the
-// session sends `Append` for what `:output` appends, and in line mode
-// `ReadLine`, answered with the next line at the address it gives; the
-// front end asks `Read` and `Stat` of a file of the source root, and the
-// reader's completion `ListEntries` of a directory of it. The terminal
-// sends `Pressed` for each event, and the monitors on the session, on the
+// session sends `Output` for the path `:output` names, which the local half
+// tries and appends to from then on, the screen `Append` for what `:output`
+// appends there, and the session in line mode `ReadLine`, answered with
+// the next line at the address it gives; the front end asks `Read` and
+// `Stat` of a file of the source root, or of a startup file it ran, and
+// the reader's completion `ListEntries` of a directory of the source root.
+// The terminal sends `Pressed` for each event, and the monitors on the session, on the
 // root of an attached session's chain and on the reader of lines
 // `SessionEnded`, `EntryEnded` and `LinesEnded`.
 type LocalMsg =
@@ -188,6 +190,7 @@ type LocalMsg =
   | Write(text : String, ending : String)
   | Drain(reply : Reply(Unit))
   | Remember(input : String, reply : Reply(Either(Io.Error, Unit)))
+  | Output(path : Path, reply : Reply(Either(Io.Error, Unit)))
   | Append(path : Path, bytes : Bytes, reply : Reply(Either(Io.Error, Unit)))
   | ReadLine(lines : Address(Optional(String)))
   | Read(path : Path, reply : Reply(Either(Io.Error, Bytes)))
@@ -210,12 +213,18 @@ type Attachment = Beside(Address(ShellMsg)) | Attaching(String)
 // What the local half serves its session with: the address the terminal's
 // events go to, none in line mode, the reader of lines, none at a
 // terminal, the peer it attached to, none in a plain shell, and the bytes
-// that end what the screen drew where its last write left it.
+// that end what the screen drew where its last write left it; and the
+// operator's files it reads and appends for the session, and no other: the
+// source root, the startup files it ran, and the path `:output` took, none
+// before one does (report §11.2).
 type Serving =
     Serving(keys : Optional(Address(Terminal.Event)),
             lines : Optional(Address(LinesMsg)),
             peer : Optional(String),
-            ending : String)
+            ending : String,
+            sourceRoot : Path,
+            startup : List(Path),
+            output : Optional(Path))
 
 // Report §11.2: a value is printed to a depth and a length, and 0 is
 // neither. The defaults print what a prompt is used for whole and stop a
@@ -254,13 +263,19 @@ type EntryMsg = SessionDown(Down)
 // while the session does, so that the local half's monitor of it, made
 // with the spawn, sees the node's loss or its end while the session starts:
 // the session, whose mailbox type, which holds the front end's handles,
-// crosses to no node, chained to it.
+// crosses to no node, chained to it. A session that leaves detaches as it
+// returns; one that ends otherwise, by a fault, detaches here, where its
+// end is learned, so that it leaves what an orderly leave leaves.
 fn attached(desk : Desk) : Unit receiving EntryMsg = {
     ownMarked();
     let started = spawn(fn() = session(desk));
     monitor(Process.fromAddress(started), SessionDown);
     receive {
-        SessionDown(_) -> Unit
+        SessionDown(down) ->
+            match down.reason {
+                Returned -> Unit
+              | _ -> detach()
+            }
     }
 }
 
@@ -288,13 +303,15 @@ fn session(desk : Desk) : Unit receiving ShellMsg = {
     let reader = Optional.map(size, fn(given) = keysRead(shell, screen, desk, given));
     // report §11.2: the session, the screen and the reader are the shell's
     // own, whose faults are not news, and which `Process.live()` leaves out
-    // (Appendix E.21), and so is a plain shell's local half, beside them
+    // (Appendix E.21), and so is a plain shell's local half, beside them; an
+    // attached shell's is on the shell's own node, whose processes no
+    // session of this node's lists
     let readers = match reader {
         Some(given) -> [Process.fromAddress(given)]
       | None -> []
     };
-    let ownProcesses =
-        [Process.fromAddress(shell), screenProcess, Process.fromAddress(local)] <> readers;
+    let beside = if attached then [] else [Process.fromAddress(local)];
+    let ownProcesses = [Process.fromAddress(shell), screenProcess] <> beside <> readers;
     markOwn(ownProcesses);
     let state =
         State(session = start(local,
@@ -524,14 +541,10 @@ let fileMs = 5000
 // before the call to make first; past it the shell goes on without.
 let screenMs = 5000
 
-// Report §8.7, §11.2: a dial that nothing answers is given up after 7
-// seconds, and an attached shell waits for its node as long.
-let dialMs = 7000
-
 // How long to wait for the local half to answer for a file: as long as it
 // waits for its file system, and a dial beside it, the carrier's longest
 // wait to reach the shell's own node (§8.7).
-let localMs = fileMs + dialMs
+let localMs = fileMs + dialMs()
 
 fn trouble(error : Io.Error) : String =
     match error {
@@ -568,7 +581,7 @@ fn output(local : Address(LocalMsg),
         located(screen)
     } else {
         let path = Path(argument);
-        match appendedThere(local, path, <<>>) {
+        match outputTried(local, path) {
             Left(error) ->
                 Left(cannotWrite(path, error))
           | Right(_) -> {
@@ -585,8 +598,18 @@ fn located(screen : Address(ScreenMsg)) : Either(String, String) =
       | None -> Left("the screen did not say where output goes")
     }
 
-// Report §11.2: what the local half appends to a file of the shell's own
-// node, as `Fs.append` answers there, or `Timeout` where no answer comes.
+// Report §11.2: the path `:output` names, tried by the local half with an
+// append of nothing to a file of the shell's own node, as `Fs.append`
+// answers there, the one path it appends what programs write to from then
+// on, or `Timeout` where no answer comes.
+fn outputTried(local : Address(LocalMsg), path : Path) : Either(Io.Error, Unit) =
+    match Address.call(local, fn(reply) = Output(path = path, reply = reply), localMs) {
+        Some(tried) -> tried
+      | None -> Left(Io.Timeout)
+    }
+
+// Report §11.2: what the local half appends to the path `:output` took, as
+// `Fs.append` answers there, or `Timeout` where no answer comes.
 fn appendedThere(local : Address(LocalMsg), path : Path, bytes : Bytes) : Either(Io.Error, Unit) =
     match Address.call(local,
                        fn(reply) = Append(path = path, bytes = bytes, reply = reply),
@@ -675,15 +698,18 @@ fn await(state : State,
     let current = state.serial;
     receive {
         Done(Ok(bound = bound, serial = serial, value = value)) when serial == current -> {
+            // report §11.2: what the input bound is bound and joins the
+            // session, and what nothing reaches is let go, here, in the
+            // session's process, once the input has answered, and before
+            // the answer is said, so that what is said is the session's
+            // as completion reads it
+            let session = collect(state.session, Some(#(bound, value)));
             if printing then {
                 printResult(state, screen, checked, value);
                 sayTime(screen, state.settings, started)
             } else
                 Unit;
-            // report §11.2: what the input bound joins the session, and what
-            // nothing reaches is let go, here, in the session's process,
-            // once the input has answered
-            Continue(State(..state, session = collect(state.session, bound)))
+            Continue(State(..state, session = session))
         }
       | Done(Faulted(cause = cause,
                      trace = trace,
@@ -692,7 +718,8 @@ fn await(state : State,
                      serial = serial)) when serial == current -> {
             sayFault(state, screen, causeLine(cause, callee, peer), trace);
             if printing then sayTime(screen, state.settings, started) else Unit;
-            Continue(state)
+            // report §11.2: the input's unit, which holds nothing, is let go
+            Continue(State(..state, session = collect(state.session, None)))
         }
       // the outcome of an input `Interrupted` killed, which came after the
       // next was taken
@@ -1105,7 +1132,7 @@ fn obey(state : State,
 // Report §11.2: `:type` of an expression that is not one name, checked
 // as an input is and not run.
 fn typeOf(state : State, screen : Address(ScreenMsg), argument : String, column : Int) : Next =
-    match check(state.session, origin(state, column), argument) {
+    match checkType(state.session, origin(state, column), argument) {
         Left(text) ->
             diagnosed(state, screen, text)
       | Right(#(session, checked)) ->
@@ -1399,24 +1426,17 @@ fn place(destination : Optional(Path), screenPlace : String) : String =
 fn leave(state : State, screen : Address(ScreenMsg), text : String) : Unit receiving ShellMsg = {
     reportRemaining(state, screen, Noted);
     finish(screen, text);
-    detached(state, screen)
+    detached(state)
 }
 
 // Report §11.2: an attached session's end, which leaves its node running:
-// its reader and its screen end, and the front end leaves what the session
-// started to the node, keeps for the node's life its units that declare a
-// function or build a function value, and lets the rest go as the purge
-// allows (`detach`). A plain shell's ends with its program.
-fn detached(state : State, screen : Address(ScreenMsg)) : Unit =
-    if state.attached then {
-        match state.reader {
-            Some(reader) -> kill(reader)
-          | None -> Unit
-        };
-        kill(screen);
-        detach(state.session)
-    } else
-        Unit
+// the front end ends its own processes, its reader and its screen among
+// them, leaves what the session started to the node, keeps for the node's
+// life its units that declare a function or build a function value, and
+// lets the rest go as the purge allows (`detach`). A plain shell's ends
+// with its program.
+fn detached(state : State) : Unit =
+    if state.attached then detach() else Unit
 
 // Report §11.2: every fault reported to the session until it ends: it
 // waits until each report on its way to it has arrived, and says those its
@@ -1838,7 +1858,7 @@ fn leaveLines(state : State, screen : Address(ScreenMsg)) : Unit receiving Shell
     send(screen, Said("\n"));
     reportRemaining(state, screen, saidLine);
     drain(screen);
-    detached(state, screen)
+    detached(state)
 }
 
 // Report §11.2: in line mode the shell's own node reads each line, its
@@ -1916,7 +1936,8 @@ fn localHalf(attachment : Attachment) : Unit receiving LocalMsg = {
     // report §11.2: the startup files are checked and read as they are
     // found, and the person's directory is then made its owner's alone,
     // before the history makes it so at a terminal
-    let read = List.map(startupFiles(), ownInputs);
+    let startup = startupFiles();
+    let read = List.map(startup, ownInputs);
     Shell.History.keepOwn();
     let #(earlier, keeping, historyNotes) = match size {
         Some(_) -> history()
@@ -1933,19 +1954,24 @@ fn localHalf(attachment : Attachment) : Unit receiving LocalMsg = {
              sourceRoot = givenSourceRoot(),
              workingDirectory = Path.toString(Os.workingDirectory),
              attached = isAttaching(attachment));
+    let serving =
+        Serving(keys = None,
+                lines = lines,
+                peer = None,
+                ending = "",
+                sourceRoot = Path(desk.sourceRoot),
+                startup = List.map(startup, Path),
+                output = None);
     match attachment {
         Beside(session) -> {
             send(session, Begun(desk));
-            attaching(Serving(keys = None, lines = lines, peer = None, ending = ""), None)
+            attaching(serving, None)
         }
       | Attaching(name) -> {
-            let deadline = Clock.monotonic() + dialMs;
-            match Peer.spawnMonitored(name, fn() = attached(desk), EntryEnded, dialMs) {
-                Right(_) ->
-                    attaching(Serving(keys = None, lines = lines, peer = Some(name), ending = ""),
-                              Some(#(name, deadline)))
-              | Left(error) ->
-                    endWith(1, refusal(name, error))
+            let deadline = Clock.monotonic() + dialMs();
+            match Peer.spawnMonitored(name, fn() = attached(desk), EntryEnded, dialMs()) {
+                Right(_) -> attaching(Serving(..serving, peer = Some(name)), Some(deadline))
+              | Left(error) -> endWith(1, refusal(name, error))
             }
         }
     }
@@ -2001,17 +2027,12 @@ fn refusal(name : String, error : Io.Error) : String = {
 }
 
 // Report §11.2: until the session has its screen, the terminal's events
-// waiting meanwhile; an attached shell, `attach` the peer and the moment
-// its wait ends, waits for it as long as a dial is waited for, from the
-// attach's start, and refuses the attach where it does not come.
-fn attaching(serving : Serving, attach : Optional(#(String, Int))) : Unit receiving LocalMsg =
-    match attach {
-        None ->
-            receive {
-                Attached(session = session, keys = keys, screen = screen, reply = reply) ->
-                    served(attachedTo(serving, session, keys, screen, reply))
-            }
-      | Some(#(name, deadline)) ->
+// waiting meanwhile; an attached shell, `deadline` the moment its wait
+// ends, waits for it as long as a dial is waited for, from the attach's
+// start, and refuses the attach where it does not come.
+fn attaching(serving : Serving, deadline : Optional(Int)) : Unit receiving LocalMsg =
+    match #(serving.peer, deadline) {
+        #(Some(name), Some(ending)) ->
             receive {
                 Attached(session = session, keys = keys, screen = screen, reply = reply) ->
                     served(attachedTo(serving, session, keys, screen, reply))
@@ -2023,8 +2044,13 @@ fn attaching(serving : Serving, attach : Optional(#(String, Int))) : Unit receiv
                       | ProgramEnd -> Io.Unreachable
                       | other -> Io.Other(Io.show(other))
                     }))
-              | after Int.max(0, deadline - Clock.monotonic()) ->
+              | after Int.max(0, ending - Clock.monotonic()) ->
                     endWith(1, refusal(name, Io.Timeout))
+            }
+      | _ ->
+            receive {
+                Attached(session = session, keys = keys, screen = screen, reply = reply) ->
+                    served(attachedTo(serving, session, keys, screen, reply))
             }
     }
 
@@ -2036,7 +2062,7 @@ fn attachedTo(serving : Serving,
               keys : Optional(Address(Terminal.Event)),
               screen : Process,
               reply : Reply(Unit)) : Serving receiving LocalMsg = {
-    setScreen(screen);
+    setNodeScreen(Some(screen));
     if Optional.isSome(serving.peer) then monitor(session, SessionEnded) else Unit;
     answer(reply, Unit);
     Serving(..serving, keys = keys)
@@ -2065,8 +2091,23 @@ fn served(serving : Serving) : Unit receiving LocalMsg =
             answer(reply, Shell.History.add(input));
             served(serving)
         }
+      // report §11.2: `:output`'s path, tried with an append of nothing,
+      // which creates a file that is not there, and appended to from then
+      // on, and no other
+      | Output(path = path, reply = reply) -> {
+            let tried = Fs.append(path, <<>>, fileMs);
+            answer(reply, tried);
+            match tried {
+                Right(_) -> served(Serving(..serving, output = Some(path)))
+              | Left(_) -> served(serving)
+            }
+        }
       | Append(path = path, bytes = bytes, reply = reply) -> {
-            answer(reply, Fs.append(path, bytes, fileMs));
+            answer(reply,
+                   if serving.output == Some(path) then
+                       Fs.append(path, bytes, fileMs)
+                   else
+                       Left(Io.Denied));
             served(serving)
         }
       | ReadLine(lines = lines) -> {
@@ -2077,15 +2118,19 @@ fn served(serving : Serving) : Unit receiving LocalMsg =
             served(serving)
         }
       | Read(path = path, reply = reply) -> {
-            answer(reply, Fs.read(path, fileMs));
+            answer(reply, if isRead(serving, path) then Fs.read(path, fileMs) else Left(Io.Denied));
             served(serving)
         }
       | Stat(path = path, reply = reply) -> {
-            answer(reply, Fs.stat(path, fileMs));
+            answer(reply, if isRead(serving, path) then Fs.stat(path, fileMs) else Left(Io.Denied));
             served(serving)
         }
       | ListEntries(path = path, reply = reply) -> {
-            answer(reply, Fs.list(path, fileMs));
+            answer(reply,
+                   if isUnder(serving.sourceRoot, path) then
+                       Fs.list(path, fileMs)
+                   else
+                       Left(Io.Denied));
             served(serving)
         }
       // report §11.2: the session is monitored where it is attached alone
@@ -2111,12 +2156,33 @@ fn served(serving : Serving) : Unit receiving LocalMsg =
         }
     }
 
+// Report §11.2: whether the local half reads a file for its session: one
+// under the source root, or a startup file it ran, whose diagnostics quote
+// it.
+fn isRead(serving : Serving, path : Path) : Bool =
+    List.contains(serving.startup, path) || isUnder(serving.sourceRoot, path)
+
+// Report §11.2: whether a path, named from the working directory where it
+// is relative, lies under the root, which it may name itself, and takes no
+// step out of it, `..` or `.`, which `Path.under` refuses.
+fn isUnder(root : Path, path : Path) : Bool = {
+    let rootSegments = Path.split(root);
+    let segments = Path.split(Os.workingDirectory <> path);
+    let rest = List.drop(segments, List.size(rootSegments));
+    List.take(segments, List.size(rootSegments)) == rootSegments
+        && (List.isEmpty(rest) || Optional.isSome(Path.under(root, Path.join(rest))))
+}
+
 // Report §11.2, §11.8: an attached session's end, and the shell's with it:
 // a detach says nothing and exits with status 0. A detach has taken its
 // region away; any other end leaves the screen as it last drew, so the
 // local half ends it first, `ending` the bytes the screen sent for that,
-// and the line the runner says stands on a row of its own.
-fn sessionEnded(name : String, down : Down, ending : String) : Unit =
+// and the line the runner says stands on a row of its own. The screen has
+// gone with the session, or with its node, so what the shell's own node
+// writes from now on goes to its own standard output, and the end's drain
+// asks no node that may be lost (§8.6).
+fn sessionEnded(name : String, down : Down, ending : String) : Unit = {
+    setNodeScreen(None);
     match down.reason {
         Returned ->
             endWith(0, "")
@@ -2126,6 +2192,7 @@ fn sessionEnded(name : String, down : Down, ending : String) : Unit =
             endWith(status, line)
         }
     }
+}
 
 // Report §11.2, §11.8: the status and the line of a session's end other
 // than a detach: a node that ended says so and exits with status 0, and a
@@ -2173,11 +2240,13 @@ foreign fn start(local : Address(LocalMsg),
                  attached : Bool) : Session =
     "ern_shell:start/5"
 
-// Report §11.2: an attached session's end: what it started left to the
-// node, its units that declare a function or build a function value kept
-// for the node's life, and the rest let go as the purge allows.
-foreign fn detach(session : Session) : Unit =
-    "ern_shell:detach/1"
+// Report §11.2: an attached session's end, its own processes ended but the
+// caller: what it started left to the node, its units that declare a
+// function or build a function value kept for the node's life, and the
+// rest let go as the purge allows; nothing where the session has detached
+// already.
+foreign fn detach() : Unit =
+    "ern_shell:detach/0"
 
 // The host's alone: the source root the runner was given, absolute.
 foreign fn givenSourceRoot() : String =
@@ -2240,6 +2309,13 @@ foreign fn check(session : Session,
                  input : String) : Either(String, #(Session, Checked)) =
     "ern_shell:check/3"
 
+// Report §11.2: `:type`'s expression checked as an input is, in a
+// namespace of its own that no input takes, and not run.
+foreign fn checkType(session : Session,
+                     origin : Origin,
+                     input : String) : Either(String, #(Session, Checked)) =
+    "ern_shell:check_type/3"
+
 // The host's alone: the startup file of the configuration directory
 // `--config-dir` names, which the runner was given, or none.
 foreign fn configStartup() : Optional(String) =
@@ -2277,16 +2353,18 @@ foreign fn declared(checked : Checked, value : Value) : Optional(List(String)) =
 foreign fn leavesItUnchanged(checked : Checked) : Bool =
     "ern_shell:leaves_it_unchanged/1"
 
-// The session after an input has answered, with what it bound joined and
-// what nothing reaches any more let go (report §11.2).
-foreign fn collect(session : Session, bound : Bound) : Session =
+// The session after an input has answered, its value with what it bound,
+// or none where it faulted: what it bound bound by the session and joined,
+// and what nothing reaches any more let go, the input's own unit among it
+// (report §11.2).
+foreign fn collect(session : Session, answer : Optional(#(Bound, Value))) : Session =
     "ern_shell:collect/2"
 
 foreign fn spawnInput(session : Session,
                       checked : Checked,
                       serial : Int,
                       address : Address(Outcome)) : Address(Never) =
-    "ern_shell:run/4"
+    "ern_shell:spawn_input/4"
 
 foreign fn show(value : Value, depth : Int, length : Int) : String =
     "ern_shell:show/3"
@@ -2310,16 +2388,24 @@ foreign fn version() : String =
 foreign fn write(text : String) : Unit =
     "ern_shell:write/1"
 
-foreign fn setScreen(screen : Process) : Unit =
-    "ern_shell:screen/1"
+// Report §11.2, §12.1: the screen what the shell's own node writes goes
+// to, its session's, or none once the session has ended, from when it goes
+// to the node's own standard output and standard error.
+foreign fn setNodeScreen(screen : Optional(Process)) : Unit =
+    "ern_shell:node_screen/1"
+
+// Report §8.7: the milliseconds after which the carrier gives up a dial
+// that nothing answers, which an attached shell waits for its node.
+foreign fn dialMs() : Int =
+    "ern_carrier:dial_ms/0"
 
 foreign fn holdTerminal(holder : Address(a)) : Unit =
     "ern_rt:hold_terminal/1"
 
 // Report §11.2, Appendix E.21: the session's own processes, which
-// `Process.live()` leaves out.
+// `Process.live()` leaves out, and which its end ends.
 foreign fn markOwn(processes : List(Process)) : Unit =
-    "ern_rt:own/1"
+    "ern_shell:own/1"
 
 // Report §11.2, Appendix E.21: the calling process, one of the session's
 // own: the local half, its reader of lines, and the root of an attached

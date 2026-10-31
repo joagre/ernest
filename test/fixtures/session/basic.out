@@ -130,8 +130,8 @@ zero : () -> Int
   :help           this text
   :load Module    the module by its namespace, from its source or its compiled form
   :output path    what programs write, appended to path, or back in the region for -
-  :processes      the live processes of the session, by spawn site
-  :quit           the session ended, as C-d on an empty line ends it
+  :processes      the live processes by spawn site, the shell's own left out
+  :quit           a shell attached to no node left, as C-d on an empty line leaves it
   :reload         every loaded module whose source has changed
   :set            depth n, length n, rows n, timing on or off; :set alone shows them
   :type e         the type of e, which is not run
