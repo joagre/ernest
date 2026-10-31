@@ -958,7 +958,7 @@ For a program that is no node, a signal from outside, the host's termination or 
 
 A node that ends is no loss to its peers (§8.7). A process this program spawned on a peer runs on there.
 
-When no forward progress is possible, the entry process faults with `Fault("deadlock")` (§7.4) and the program ends as above; while an evaluator of a load waits (Appendix E.28), the evaluator faults in its place, and the load is refused. The fault's report lists the waiting processes beneath the trace, a line for each group of processes with one spawn site and one waiting frame (§12.4).
+When no forward progress is possible, the entry process faults with `Fault("deadlock")` (§7.4) and the program ends as above; while an evaluator of a load waits (Appendix E.28), the evaluator faults in its place, the one started last where several wait, and the load is refused. The fault's report lists the waiting processes beneath the trace, a line for each group of processes with one spawn site and one waiting frame (§12.4).
 
 No progress is possible when every live process waits in `receive` without `after` or in `Address.callForever`, no message is in flight, no monitor waits on a process the runtime did not start, and no system process, listener or socket (E.18) holds a timer, a subscription, a pending I/O, or a computation whose completion would deliver a message; a program that `Os.start` started counts as such a computation until it has exited or been killed, and a subscription to the program's end as such a subscription (Appendix E.23). The runtime counts a standard library operation as such a computation where the module that implements it says the operation waits.
 

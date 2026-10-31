@@ -58,7 +58,7 @@
          exit_program/1, deadlock_victim/1, entry_process/0, signal/1, initializing/1, site/0,
          evaluate/2, withdraw_load/2, binding/1, binding_value/2, is_initialized/1, restarting/2,
          restart_now/0, ask_restart/1,
-         start_cause/0, is_restarting/0, on_this_node/1, spawn_order/1, gateway/0, init_stdlib/0,
+         start_cause/0, is_restarting/0, on_this_node/1, spawn_order/1, gateway/0,
          stdlib_modules/0, init_modules/1, initialized/1, uninitialized/1, offer/2, offered/2,
          set_utilization/1, program_utilization/0, asked_of_run/1, note_call/3, drop_note/1,
          note_compute/2, computed/2, is_launched/0, drop_notes/1, ordered/1]).
@@ -4580,15 +4580,6 @@ sink_flushed(Sink) ->
               end,
     erlang:demonitor(MonitorRef, [flush]),
     Flushed.
-
-%% Report §8.5: a standard library module's top-level lets, `Map.empty`
-%% among them, are evaluated once at program start like any other module's;
-%% the runner initializes the program's own modules, the runtime these,
-%% which are build output beside the toolchain rather than modules of the
-%% load path.
--spec init_stdlib() -> ok.
-init_stdlib() ->
-    run_inits(stdlib_modules()).
 
 %% The standard library's modules, loaded, in the order their initializers
 %% run: one for every `.erc` of the library's directory, as the checker
