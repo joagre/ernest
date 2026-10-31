@@ -100,10 +100,9 @@ recommendation then: whether the formatter writes the pun where the names agree,
 guide alone asks for it; and every line of `language_feedback.md` open on that day, decided one
 at a time as CLAUDE.md's *Before code* says, a report change, a library function or a line of the
 log dropping it, so that the milestone closes with the file empty (decided 2026-10-31). Today's
-lines are 170, `Address.call`'s `None` folded into `Left(Io.Timeout)` by hand at three sites;
-171, an `Optional` taken as a list of none or one; and 172 and 173, a site named without its
-session at a node two sessions share. The first two were found by the read-back that found the
-pun's sites and are read the same way, as forms the code repeats.
+lines are 170, `Address.call`'s `None` folded into `Left(Io.Timeout)` by hand at three sites,
+and 171, an `Optional` taken as a list of none or one, both found by the read-back that found the
+pun's sites and read the same way, as forms the code repeats.
 
 ---
 

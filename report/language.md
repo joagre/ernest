@@ -1369,7 +1369,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **entry point** — the function run in the entry process: the module's `export fn main`, or the function `--main` names. §8.1, §11.2.
 - **entry process** — the process that runs the entry point. §8.1, §8.6.
 - **equality constraint** — the restriction on a type variable compared with `==`, or on a foreign type's parameter written `k=`. §3.10, §4.7.
-- **evaluator** — the process of the runtime's own in which a load evaluates a module's bindings. §11.2, Appendix E.28.
+- **evaluator** — the process of the runtime's own in which a load evaluates a module's bindings, which ends with them unless it owns what a binding opened. §11.2, Appendix E.28.
 - **exchange** — the frames by which a spawn or a compute carries to a peer the definitions of its function's reach that the peer lacks: the request for a reach, the reach, the lacks and the code frames. §8.7, §12.7.
 - **fault** — the end of a process with the reason `Fault(cause)`, or its restart where it restarts (§6.9). §7.3, §7.4.
 - **field selection** — `e.f`, the named field `f` of `e`, where every constructor of the type has it. §3.5.
@@ -1458,7 +1458,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **source root** — the directory under which a file's path gives its namespace. §4.2, §11.1.
 - **span** — a stretch of source a diagnostic underlines, the erroneous one with `^` and one the message depends on with `-` and its label. §11.5.
 - **`spawn`** — `spawn(f)`, starts a new process; `spawnMonitored(f, wrap)` starts one monitored from its start. §6.2.
-- **spawn site** — the top-level declaration and the line a process was spawned at, `Counter.main:19`, which `Down` and a fault report give. §6.9.
+- **spawn site** — the top-level declaration and the line a process was spawned at, `Counter.main:19`, which `Down` and a fault report give; a session's under its namespace, `$Session2.input 3:1`. §6.9, §11.2.
 - **standard library** — the modules under `src/stdlib/`, on the load path by default; not the prelude. §9, Appendix E.
 - **start number** — the number the host gives each start of a node, carried in every address of its processes. §8.7.
 - **startup file** — a file of the shell's inputs, run when the shell starts. §11.2.
