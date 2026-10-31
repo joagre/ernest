@@ -220,7 +220,10 @@ restarting_takes_the_function_s_mailbox_test() ->
     ?assertEqual(ok, ok("fn tryIt() : Unit = restarting(" ++ Limit ++ ", fn() = Unit)()\n")),
     ?assertEqual("the callee needs a mailbox, and tryIt receives nothing",
                  refusal("fn tryIt() : Unit = restarting(" ++ Limit ++ ","
-                         " fn() = receive { after 1 -> Unit })()\n")),
+                         " fn() = receive { _ -> Unit })()\n")),
+    %% report §3.9: a timed wait takes no message, and receives nothing
+    ?assertEqual(ok, ok("fn tryIt() : Unit = restarting(" ++ Limit ++ ","
+                        " fn() = receive { after 1 -> Unit })()\n")),
     ?assertEqual(ok, ok("fn serve() : Unit =\n"
                         "    restarting(" ++ Limit ++ ", fn() = Unit)()\n"
                         "fn start() : Unit = {\n"
@@ -260,7 +263,7 @@ receiving_nothing_stands_for_a_mailbox_test() ->
                              " fn(h) = { let _ = receive { n -> n }; h.run(1) })"))),
     ?assertEqual("field run: a function that receives where one that receives nothing is"
                  " needed",
-                 refusal(Main("let _ = Hook(run = fn(x) = receive { after 1 -> Unit })"))),
+                 refusal(Main("let _ = Hook(run = fn(x) = receive { _ -> Unit })"))),
     %% and a function that receives nothing prints without a mailbox type
     ?assertEqual("(Int) -> Unit", type_of("export fn done(n : Int) : Unit = Unit", done)).
 
@@ -438,7 +441,7 @@ operator_member_shape_test() ->
                          " Vec(a - b)\n")),
     ?assertEqual("Vec.<> must have the type (Vec, Vec) -> Vec, not (Vec, Vec) -> Vec receiving m+",
                  refusal(Vec ++ "export fn Vec.<>(Vec(a), Vec(b)) : Vec receiving m ="
-                         " { receive { after 1 -> Unit }; Vec(a + b) }\n")),
+                         " { receive { _ -> Unit }; Vec(a + b) }\n")),
     %% a member may send and print, as a guard may (§4.8, §5.9)
     ?assertEqual(ok, ok("export type Note = Note(Int)\n"
                         "export fn Note.+(Note(a), Note(b)) : Note ="
@@ -846,7 +849,7 @@ spawn_captures_test() ->
 %% refused
 spawn_mailbox_test() ->
     ?assertEqual(ok, peer_ok("fn f() : Unit = {\n" ++ spawning("", "fn() = Unit"))),
-    {ok, Typed} = typed_peer("fn idle() : Unit receiving m = receive { after 1 -> Unit }\n"
+    {ok, Typed} = typed_peer("fn idle() : Unit receiving m = receive { _ -> Unit }\n"
                              "fn f() : Unit = {\n" ++ spawning("", "idle")),
     ?assertEqual(["Address(Never)"],
                  [ern_types:format(Answer, ern_types:new())
@@ -1095,7 +1098,7 @@ code_running_test() ->
 %% before 0.5.0, which found it refused. It does not run a program
 code_running_never_test() ->
     Work = "fn work(n : Int) : Unit = if n == 0 then Unit else work(n - 1)\n",
-    Pause = "fn pause(ms : Int) : Unit receiving m = receive { after ms -> Unit }\n",
+    Skip = "fn skip() : Unit receiving m = receive { _ -> Unit }\n",
     lists:foreach(
       fun({Name, Function}) ->
               Listed = "Code.running(" ++ Name ++ ")",
@@ -1114,7 +1117,7 @@ code_running_never_test() ->
                            " List(Address(Int)), found List(Address(Never))",
                            peer_refusal(Function ++ "fn f() : List(Address(Int)) = "
                                         ++ Listed ++ "\n"))
-      end, [{"work", Work}, {"pause", Pause}]).
+      end, [{"work", Work}, {"skip", Skip}]).
 
 %% report §3.11, §8.7, §3.9: the value a compute answers crosses back, so
 %% the result type of its function is known whole where the compute is
@@ -1148,7 +1151,7 @@ compute_result({Form, Name, Position}) ->
                                           "fn() : Int receiving Int = receive { n -> n }"))),
     ?assertEqual(ok, peer_ok("fn f() : Unit = {\n"
                              ++ computing(Form, "", "fn() = { Io.println(\"here\"); 42 }"))),
-    {ok, Typed} = typed_peer("fn idle() : Int receiving m = receive { after 1 -> 7 }\n"
+    {ok, Typed} = typed_peer("fn idle() : Int receiving m = receive { _ -> 7 }\n"
                              "fn f() : Unit = {\n" ++ computing(Form, "", "idle")),
     [{Answer, Function}] = [{Answer, lists:nth(Position, Params)}
                             || #fn_declaration{name = f, body = Body} <- Typed,
@@ -1673,9 +1676,12 @@ effects_test() ->
                  type_of("export fn inc(xs) = List.map(xs, fn(x) = x + 1)", inc)),
     ?assertEqual("(List(String)) -> Unit",
                  type_of("export fn say(xs) = List.forEach(xs, fn(x) = Io.println(x))", say)),
-    ?assertEqual("(List(Int)) -> Unit receiving e+",
+    ?assertEqual("(List(Int)) -> Unit",
                  type_of("export fn wait(xs) ="
                          " List.forEach(xs, fn(x) = receive { after x -> Unit })", wait)),
+    ?assertEqual("(List(a)) -> Unit receiving e+",
+                 type_of("export fn skip(xs) ="
+                         " List.forEach(xs, fn(x) = receive { _ -> Unit })", skip)),
     ?assertEqual(ok, ok("type A = A\ntype B = B\n"
                         "fn ga() : Unit receiving A = receive { A -> Unit }\n"
                         "fn gb() : Unit receiving B = receive { B -> Unit }\n"
@@ -1685,24 +1691,35 @@ effects_test() ->
                                   "fn gb() : Unit receiving B = receive { B -> Unit }\n"
                                   "fn both() = { ga(); gb() }")).
 
-%% report §6.1, §6.3, §6.8, §7.2: a missing reply is `after` in receive; a
-%% receive with only `after` makes its function process-only
+%% report §6.1, §6.3, §6.8, §7.2, §3.9: a missing reply is `after` in
+%% receive; a receive with only `after` takes no message, so its function
+%% receives nothing, in any process, and one that receives nothing calls it
 receive_and_mailboxes_test() ->
     Counter = "type CounterMsg = Inc(Int) | Get(reply : Reply(Int))\n"
               "export fn counter(n : Int) : Unit receiving CounterMsg = receive {\n"
               "    Inc(k) -> counter(n + k)\n"
               "  | Get(reply = r) -> { answer(r, n); counter(n) }\n}",
     ?assertEqual("(Int) -> Unit receiving M.CounterMsg", type_of(Counter, counter)),
-    ?assertEqual("`receive` needs a mailbox, and f receives nothing",
-                 refusal("fn f() : Unit = receive { after 1 -> Unit }")),
+    ?assertEqual(ok, ok("fn f() : Unit = receive { after 1 -> Unit }")),
     ?assertEqual(ok, ok("fn f() : Unit receiving Never = receive { after 1 -> Unit }")),
-    %% an after-only receive, inferred, is process-only (a regression case,
-    %% added after the checker conformed)
-    ?assertEqual("(Int) -> Unit receiving e+",
-                 type_of("export fn sleep(ms : Int) = receive { after ms -> Unit }", sleep)),
-    ?assertEqual("sleep needs a mailbox, and p receives nothing",
-                 refusal("fn sleep(ms : Int) = receive { after ms -> Unit }\n"
-                         "fn p() : Unit = sleep(1)")),
+    ?assertEqual("(Int) -> Unit",
+                 type_of("export fn pause(ms : Int) = receive { after ms -> Unit }", pause)),
+    ?assertEqual("(Int) -> Unit",
+                 type_of("export fn pause(ms : Int) : Unit = receive { after ms -> Unit }",
+                         pause)),
+    ?assertEqual(ok, ok("fn pause(ms : Int) = receive { after ms -> Unit }\n"
+                        "fn p() : Unit = pause(1)\n"
+                        "let n : Int = { pause(1); 5 }\n"
+                        "fn q(n : Int) : Int =\n"
+                        "    match n { k when { pause(1); true } -> k | _ -> 0 }\n"
+                        "fn r() : Address(Int) receiving Int ="
+                        " adapted(self(), fn(n : Int) = { pause(1); n })\n")),
+    %% report §4.5: and so a `receiving m` written over it names nothing
+    ?assertEqual("pause receives nothing, and `receiving m` names no parameter's mailbox type",
+                 refusal("fn pause(ms : Int) : Unit receiving m = receive { after ms -> Unit }")),
+    ?assertEqual("skip needs a mailbox, and p receives nothing",
+                 refusal("fn skip() = receive { _ -> Unit }\n"
+                         "fn p() : Unit = skip()")),
     ?assertEqual("f is declared with mailbox Never and cannot receive",
                  refusal("fn f() : Unit receiving Never = receive { Unit -> Unit }")),
     ?assertEqual("(a) -> Unit receiving e+",
@@ -1732,22 +1749,23 @@ receive_fixing_no_type_test() ->
                                   "fn g() : Unit receiving Int ="
                                   " receive { n when ready() -> Unit }")).
 
-%% report §3.9, §11.5: a wait alone makes a function process-only, a
-%% `receive` that fixes no type, and a call of `self` or `monitor` does
-%% not: where the function's type holds the address nowhere, its effect
-%% variable stands in no value position, which a call binds to none, so
-%% the type prints without it and a function that receives nothing calls
-%% it, a guard and `adapted`'s function among them. `: T` lets it stand
-%% and `receiving m` over such a body is refused (report §4.5,
-%% standing_over_a_body_that_calls_self_test, needless_effect_test); the
-%% two waits stay
+%% report §3.9, §11.5: a `receive` that fixes no type makes a function
 %% process-only, through a call too, one whose variable is a value's among
-%% them. A regression test of the sweep's finding (2026-10-24), written
-%% after the code: `self` and `monitor` made their function process-only,
-%% `fn f() = kill(self())` printing `receiving e+`; the runtime's tests
-%% run such a function in a wrap and in an adapted address's function on
-%% arrival
-process_only_marks_a_wait_alone_test() ->
+%% them, and a timed wait and a call of `self` or `monitor` do not: where
+%% the function's type holds the address nowhere, its effect variable
+%% stands in no value position, which a call binds to none, so the type
+%% prints without it and a function that receives nothing calls it, a guard
+%% and `adapted`'s function among them. `: T` lets it stand and `receiving
+%% m` over such a body is refused (report §4.5,
+%% standing_over_a_body_that_calls_self_test, needless_effect_test).
+%%
+%% A regression test of the sweep's finding (2026-10-24), written after the
+%% code: `self` and `monitor` made their function process-only, `fn f() =
+%% kill(self())` printing `receiving e+`; the runtime's tests run such a
+%% function in a wrap and in an adapted address's function on arrival. The
+%% timed wait's case is the log's *The Pun's Opening Round*, written after
+%% the code too
+process_only_marks_a_receive_of_anything_test() ->
     Kill = "fn f() = kill(self())\n",
     ?assertEqual("() -> Unit", type_of("export " ++ Kill, f)),
     ?assertEqual("(Process) -> Unit",
@@ -1756,7 +1774,7 @@ process_only_marks_a_wait_alone_test() ->
                         "fn h(n : Int) : Int = match n { k when f() == Unit -> k | _ -> 0 }\n"
                         "fn k() : Address(Int) receiving Int ="
                         " adapted(self(), fn(n : Int) = { f(); n })\n")),
-    ?assertEqual("() -> Unit receiving e+",
+    ?assertEqual("() -> Unit",
                  type_of("export fn f() = { kill(self()); receive { after 1 -> Unit } }", f)),
     ?assertEqual("() -> Unit receiving e+",
                  type_of("export fn f() = { kill(self()); receive { _ -> Unit } }", f)),
@@ -1827,7 +1845,10 @@ standing_over_a_body_that_calls_self_test() ->
                  Late#diagnostic.labels),
     ?assertEqual("give f its mailbox type, `receiving Int`", Late#diagnostic.help),
     ?assertEqual("`receive` needs a mailbox, and f receives nothing",
-                 refusal("fn f() : Unit = { kill(self()); receive { after 1 -> Unit } }")),
+                 refusal("fn f() : Unit = { kill(self()); receive { _ -> Unit } }")),
+    ?assertEqual("() -> Unit",
+                 type_of("export fn f() : Unit = { kill(self()); receive { after 1 -> Unit } }",
+                         f)),
     ?assertEqual("w needs a mailbox, and f receives nothing",
                  refusal("fn w() = receive { x -> x }\nfn f() : Unit = { let _ = w(); Unit }")),
     ?assertEqual("((a) -> Int, a) -> Int", type_of("export fn apply(f, x) : Int = f(x)", apply)),
@@ -1876,7 +1897,9 @@ lambda_calling_self_receives_nothing_test() ->
     ?assertEqual(Refused, refusal(Run ++ "fn f() : Unit = { let me = self();"
                                   " run(fn() = send(me, self())) }")),
     ?assertEqual(Refused, refusal(Run ++ "fn f() : Unit ="
-                                  " run(fn() = { kill(self()); receive { after 1 -> Unit } })")),
+                                  " run(fn() = { kill(self()); receive { _ -> Unit } })")),
+    ?assertEqual(ok, ok(Run ++ "fn f() : Unit ="
+                        " run(fn() = { kill(self()); receive { after 1 -> Unit } })")),
     ?assertEqual(Refused, refusal("fn run(f : () -> Address(m)) : Unit = { let _ = f(); Unit }\n"
                                   "fn f() : Unit = run(fn() = self())")),
     ?assertEqual("the argument does not fit run: expected () -> Unit, found () -> Unit receiving"
@@ -1906,7 +1929,7 @@ group_member_written_none_test() ->
     B = "fn b(n : Int) : Unit = a(n)\n",
     ?assertEqual("(Int) -> Unit", type_of(A ++ B, a)),
     ?assertEqual("(Int) -> Unit", type_of(B ++ A, a)),
-    Waits = "fn a(n : Int) = { receive { after 1 -> Unit }; b(n) }\n",
+    Waits = "fn a(n : Int) = { receive { _ -> Unit }; b(n) }\n",
     ?assertEqual("a needs a mailbox, and b receives nothing", refusal(Waits ++ B)),
     ?assertEqual("a needs a mailbox, and b receives nothing", refusal(B ++ Waits)).
 
@@ -1984,17 +2007,17 @@ effect_mismatch_direction_test() ->
                  " receives nothing is needed",
                  refusal("fn apply(f, x) : Int = f(x)\n"
                          "fn g() : Int receiving m ="
-                         " apply(fn(y) = receive { after 1 -> y }, 1)")),
+                         " apply(fn(y) = receive { _ -> y }, 1)")),
     ?assertEqual("the value does not have the declared type: a function that receives where one"
                  " that receives nothing is needed",
                  refusal("fn g() : Int receiving m = {"
-                         " let k : (Int) -> Int = fn(y) = receive { after 1 -> y }; k(1) }")),
+                         " let k : (Int) -> Int = fn(y) = receive { _ -> y }; k(1) }")),
     %% h hands k a function that receives, and k's parameter must receive
     %% nothing
     ?assertEqual("the argument does not fit h: a function that receives where one that"
                  " receives nothing is needed",
                  refusal("fn h(k : ((Int) -> Int receiving m) -> Int) : Int receiving m ="
-                         " { receive { after 1 -> Unit }; k(fn(x) = x) }\n"
+                         " { receive { _ -> Unit }; k(fn(x) = x) }\n"
                          "fn g() : Int receiving n = h(fn(f : (Int) -> Int) : Int = f(1))")),
     ?assertEqual(ok, ok("fn apply(f, x) : Int = f(x)\nfn g() : Int = apply(fn(y) = y + 1, 1)")).
 
@@ -2006,7 +2029,7 @@ guards_receive_nothing_test() ->
     ?assertEqual(ok, ok("fn f(n : Int) : Int = match n {"
                         " k when Io.println(\"x\") == Unit -> 1 | _ -> 0 }")),
     ?assertEqual("wait needs a mailbox, and a guard receives nothing",
-                 refusal("fn wait() : Bool receiving m = receive { after 1 -> true }\n"
+                 refusal("fn wait() : Bool receiving m = receive { _ -> true }\n"
                          "fn f(n : Int) : Int receiving Never = match n {"
                          " k when wait() -> 1 | _ -> 0 }")).
 
@@ -2169,7 +2192,7 @@ bind_arrow_test() ->
 declared_names_in_labels_test() ->
     #diagnostic{labels = CallLabels} =
         diagnostic("fn g(x : Int, y : t) : t receiving m = {\n"
-                   "    receive { after 1 -> Unit };\n    y\n}\n"
+                   "    receive { _ -> Unit };\n    y\n}\n"
                    "fn f() : Unit receiving Int = g(\"x\", Unit)\n"),
     ?assertMatch([{_, "g : (Int, t) -> t receiving m+"}], CallLabels),
     #diagnostic{labels = FillLabels} =
@@ -2922,10 +2945,14 @@ not_generalized_effect_variable_is_none_test() ->
     ?assertEqual({"the type of w, () -> Unit receiving e+, is not determined, and a top-level"
                   " `let` whose initializer is no value is not generalized where its type holds"
                   " a function", "annotate it, `let w : () -> Unit receiving ... = ...`"},
-                 refusal_and_help("fn mkWaiter(ms : Int) = fn() = receive { after ms -> Unit }\n"
-                                  "let w = mkWaiter(10)")),
-    ?assertEqual(ok, ok("fn mkWaiter(ms : Int) = fn() = receive { after ms -> Unit }\n"
-                        "let w : () -> Unit receiving Never = mkWaiter(10)\n")),
+                 refusal_and_help("fn mkSkipper(n : Int) = fn() = receive { _ -> Unit }\n"
+                                  "let w = mkSkipper(10)")),
+    ?assertEqual(ok, ok("fn mkSkipper(n : Int) = fn() = receive { _ -> Unit }\n"
+                        "let w : () -> Unit receiving Int = mkSkipper(10)\n")),
+    %% report §3.9: a timed wait receives nothing, and its type settles
+    ?assertEqual("() -> Unit",
+                 type_of("fn mkWaiter(ms : Int) = fn() = receive { after ms -> Unit }\n"
+                         "export let w = mkWaiter(10)", w)),
     ?assertEqual({"the type of f, () -> Unit receiving e+, is not determined, and a top-level"
                   " `let` whose initializer is no value is not generalized where its type holds"
                   " a function", "annotate it, `let f : () -> Unit receiving ... = ...`"},
@@ -3780,7 +3807,7 @@ needless_effect_test() ->
     ?assertEqual("() -> Address(m) receiving m",
                  type_of("export let me = fn() : Address(m) receiving m = self()", me)),
     ?assertEqual(ok, ok("fn apply(f : () -> Unit receiving m) : Unit receiving m = f()\n"
-                        "fn pause(ms : Int) : Unit receiving m = receive { after ms -> Unit }\n"
+                        "fn skip() : Unit receiving m = receive { _ -> Unit }\n"
                         "fn me() : Address(m) receiving m = self()\n"
                         "fn k() : Int = 5\n")),
     ?assertEqual("(Int) -> Int, a function type, does not support equality, which equal"
@@ -4019,11 +4046,11 @@ helps_and_spans_test() ->
 %% report §11.5, §3.4: an effect error names the `receive`, the `self` or
 %% the callee that receives, and the function or the guard whose type names
 %% no mailbox, labels the annotation that made it so, and says what to do:
-%% the help gives the mailbox type where it is known, `Never` for an entry
-%% point that waits for a time and `e` for another function, and the
-%% messages' type where a `receive`'s clauses take them. The helps' types
-%% are a regression test, written after the code, where the help named
-%% none; it does not cover an entry point `--main` names
+%% the help gives the mailbox type where it is known, `e` where it is not,
+%% an entry point's among them, and the messages' type where a `receive`'s
+%% clauses take them. The helps' types are a regression test, written after
+%% the code, where the help named none; it does not cover an entry point
+%% `--main` names
 effect_placement_test() ->
     Self = diagnostic("fn main() : Unit = { let a = self(); send(a, 1) }\n"),
     ?assertEqual("self needs a mailbox, and main receives nothing", Self#diagnostic.message),
@@ -4032,17 +4059,18 @@ effect_placement_test() ->
                    "`: Unit` without `receiving` declares that main receives nothing"}],
                  Self#diagnostic.labels),
     ?assertEqual("give main its mailbox type, `receiving Int`", Self#diagnostic.help),
-    Guard = diagnostic("fn wait() : Bool receiving m = receive { after 1 -> true }\n"
+    Guard = diagnostic("fn wait() : Bool receiving m = receive { _ -> true }\n"
                        "fn f(n : Int) : Int receiving Never = match n {"
                        " k when wait() -> 1 | _ -> 0 }\n"),
     ?assertEqual("wait needs a mailbox, and a guard receives nothing", Guard#diagnostic.message),
     ?assertEqual([], Guard#diagnostic.labels),
     ?assertEqual("compute the value before the match", Guard#diagnostic.help),
-    Receive = diagnostic("fn f() : Unit = receive { after 1 -> Unit }\n"),
-    ?assertEqual("`receive` needs a mailbox, and f receives nothing", Receive#diagnostic.message),
+    Receive = diagnostic("fn skip() = receive { _ -> Unit }\nfn f() : Unit = skip()\n"),
+    ?assertEqual("skip needs a mailbox, and f receives nothing", Receive#diagnostic.message),
     ?assertEqual("give f its mailbox type, `receiving e`", Receive#diagnostic.help),
-    Entry = diagnostic("export fn main() : Unit = receive { after 1 -> Unit }\n"),
-    ?assertEqual("give main its mailbox type, `receiving Never`", Entry#diagnostic.help),
+    Entry = diagnostic("fn skip() = receive { _ -> Unit }\n"
+                       "export fn main() : Unit = skip()\n"),
+    ?assertEqual("give main its mailbox type, `receiving e`", Entry#diagnostic.help),
     Clauses = diagnostic("type Msg = Go\nfn f() : Unit = receive { Go -> Unit }\n"),
     ?assertEqual("give f its mailbox type with `receiving`, the type of the messages it takes",
                  Clauses#diagnostic.help),
@@ -4056,9 +4084,9 @@ effect_placement_test() ->
                  Declared#diagnostic.labels),
     ?assertEqual(undefined, Declared#diagnostic.help),
     %% a lambda's own annotation is the origin inside it
-    Lambda = diagnostic("fn f() : Unit receiving Never ="
-                        " { let g = fn() : Unit = receive { after 1 -> Unit }; g() }\n"),
-    ?assertEqual("`receive` needs a mailbox, and the lambda receives nothing",
+    Lambda = diagnostic("fn skip() = receive { _ -> Unit }\nfn f() : Unit receiving Never ="
+                        " { let g = fn() : Unit = skip(); g() }\n"),
+    ?assertEqual("skip needs a mailbox, and the lambda receives nothing",
                  Lambda#diagnostic.message),
     ?assertEqual("give the lambda its mailbox type, `receiving e`", Lambda#diagnostic.help).
 
@@ -4068,7 +4096,7 @@ effect_placement_test() ->
 %% covered: the other scopes that set the origin, a guard and a size
 %% expression, which effect_placement_test and the bitstring tests reach.
 effect_origin_is_restored_after_a_nested_definition_test() ->
-    AfterFn = diagnostic("fn f() : Unit = { fn g() : Int = 1; receive { after 1 -> Unit } }\n"),
+    AfterFn = diagnostic("fn f() : Unit = { fn g() : Int = 1; receive { _ -> Unit } }\n"),
     ?assertEqual("`receive` needs a mailbox, and f receives nothing", AfterFn#diagnostic.message),
     ?assertEqual([{{1, 10, {1, 14}},
                    "`: Unit` without `receiving` declares that f receives nothing"}],
@@ -4236,7 +4264,7 @@ bitstring_pattern_test() ->
                  refusal("fn f(b : Bytes) = match b { <<n:bytes, x:size(n)>> -> x | _ -> 0 }")),
     ?assertEqual("`receive` needs a mailbox, and a size expression receives nothing",
                  refusal("fn f(b : Bytes) : Int receiving Never = match b {"
-                         " <<x:size(receive { after 1 -> 8 })>> -> x | _ -> 0 }")),
+                         " <<x:size(receive { _ -> 8 })>> -> x | _ -> 0 }")),
     ?assertEqual("a segment pattern is a variable, `_`, or a literal",
                  refusal("fn f(b : Bytes) = match b { <<Some(x)>> -> x | _ -> 0 }")),
     ?assertEqual("a `bytes` segment without a size takes the rest, so it is the last segment",
@@ -4293,8 +4321,8 @@ receive_guard_refused_test() ->
     Head = "type Msg = N(Int)\nlet limit = 5\nlet ready = true\n"
            "fn loop(flag : Bool, go : Bool, m : Int) : Unit receiving Msg = receive { ",
     Tail = " -> Unit | _ -> Unit }",
-    Operand = "a comparison in a `receive` guard compares variables, top-level lets, literals,"
-              " and nullary constructors",
+    Operand = "a comparison in a `receive` guard compares variables, top-level lets, their"
+              " fields, literals, and nullary constructors",
     Refused = [{"N(_) when !flag == true", Operand},
                {"N(_) when flag == go == true", Operand},
                {"N(k) when k + 1 > 2", Operand},
@@ -4323,20 +4351,37 @@ shims_of_the_library_alone_test() ->
     ?assertEqual(none, ern_typecheck:shim(['Crafted', size],
                                           ern_typecheck:seeded([Crafted], Prelude))).
 
-%% report §6.3: a field read in a `receive` guard is no operand, and the
-%% help names the `let` before the `receive` that reads it, or the pattern
-%% that binds it where it is the message's. Written before the code, the
-%% release review before 0.7.0 (N11), whose reader read a state's field
+%% report §6.3, §3.5: a field selected from a variable in scope, a
+%% pattern's, a parameter's or a lambda's capture, from a top-level `let`,
+%% or from such a selection, `s.at`, `s.lot.at`, is an operand of a
+%% `receive` guard, and a Bool one a guard expression; one selected through
+%% a call, a function's or a lambda's a field holds, is not, the guard
+%% calling nothing. A regression test, written after the code; the refusal
+%% of the field read that stood until 2026-10-31 was the release review's
+%% before 0.7.0 (N11), whose reader read a state's field
 receive_guard_field_test() ->
-    Source = "type Msg = At(at : Int)\ntype State = State(at : Int)\n"
-             "fn loop(s : State) : Unit receiving Msg = receive {"
-             " At(at = at) when at == s.at -> Unit | _ -> Unit }",
-    ?assertEqual({"a comparison in a `receive` guard compares variables, top-level lets,"
-                  " literals, and nullary constructors",
-                  "read the field with a `let` before the `receive` and compare that, or bind"
-                  " it in the pattern where it is the message's; or receive the message and"
-                  " `match` it, which takes it out of the mailbox"},
-                 refusal_and_help(Source)).
+    Head = "type Msg = At(at : Int)\ntype Lot = Lot(at : Int, open : Bool)\n"
+           "type State = State(at : Int, lot : Lot, next : () -> State)\n"
+           "let start = Lot(at = 1, open = true)\n"
+           "fn later(s : State) : State = s\n"
+           "fn loop(s : State) : Unit receiving Msg = receive { ",
+    Tail = " -> Unit | _ -> Unit }",
+    Accepted = ["At(at = n) when n == s.at", "At(at = n) when s.lot.at > n",
+                "At(at = n) when n == start.at", "At(at = n) when s.lot.open",
+                "At(at = n) when !start.open && n <= s.lot.at",
+                "At(at = n) when n != s.lot.at || s.at == start.at"],
+    [?assertEqual({Guard, ok}, {Guard, ok(Head ++ Guard ++ Tail)}) || Guard <- Accepted],
+    ?assertEqual(ok, ok("type Msg = At(at : Int)\ntype State = State(at : Int)\n"
+                        "fn loop(s : State) : Unit receiving Msg ="
+                        " (fn() = receive { At(at = n) when n == s.at -> Unit })()\n")),
+    Calls = {"a `receive` guard selects a field from a variable, a top-level let, or a field"
+             " of one, and calls nothing",
+             "bind what the guard needs that does not come from the message with a `let`"
+             " before the `receive` and compare that; or receive the message and `match` it,"
+             " which takes it out of the mailbox"},
+    [?assertEqual({Guard, Calls}, {Guard, refusal_and_help(Head ++ Guard ++ Tail)})
+     || Guard <- ["At(at = n) when n == later(s).at", "At(at = n) when n == s.next().at",
+                  "At(at = n) when later(s).lot.at == n"]].
 
 %% report §6.3, §3.10: `<`, `<=`, `>`, and `>=` in a receive guard order
 %% Int, Float, String, and Char only, not a user type with its own compare

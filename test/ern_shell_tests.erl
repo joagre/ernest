@@ -2887,8 +2887,8 @@ pattern_let() ->
 %% report §11.2 *Inputs*, Appendix E.21, G.1, G.7: where a later input or
 %% `:forget` ends the process of an input that bound a name, the session
 %% says each listener, socket, running program, table and process started
-%% to end with it that the process owned, by its site, with the names the
-%% input bound: a listener another name still holds ends as its input's
+%% to end with it that the process owned, by its site alone, with the names
+%% the input bound: a listener another name still holds ends as its input's
 %% name is bound again, a table at `:forget`, and at `:forget *` the
 %% process `Proxy.start` started, a table, a running program, a socket and
 %% its listener; a name still in scope keeps its input's process. Written
@@ -2919,9 +2919,9 @@ owned_said() ->
            " Tcp.connect(\"127.0.0.1\", port, 1000)), fn(c) = #(1, c))\n"
            ":forget *\n"),
     {0, Output} = ern_pty:sh("../bin/ern shell < " ++ InputFile),
-    ?assertMatch({_, _}, binary:match(Output, <<"> l : Int\nthe listener Tcp.listen ended with l\n"
+    ?assertMatch({_, _}, binary:match(Output, <<"> l : Int\nTcp.listen ended with l\n"
                                                 "> t : Ets.Table(Int, Int)\n"
-                                                "> the table Ets.new ended with t\n">>)),
+                                                "> Ets.new ended with t\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> a : Int\n> a rebound\n">>)),
     %% each line as said, without the prompt line mode writes before it, and
     %% the proxy's site without its line
@@ -2929,13 +2929,13 @@ owned_said() ->
                                    [global, {return, binary}])
                         || Line <- binary:split(Output, <<"\n">>, [global]),
                            binary:match(Line, <<" ended with ">>) =/= nomatch]),
-    ?assertEqual(lists:sort([<<"the listener Tcp.listen ended with l">>,
-                             <<"the table Ets.new ended with t">>,
-                             <<"the process Proxy.start ended with a, b">>,
-                             <<"the table Ets.new ended with a, b">>,
-                             <<"the running program Os.start ended with p">>,
-                             <<"the listener Tcp.listen ended with l3">>,
-                             <<"the socket Tcp.connect ended with c, d">>]),
+    ?assertEqual(lists:sort([<<"Tcp.listen ended with l">>,
+                             <<"Ets.new ended with t">>,
+                             <<"Proxy.start ended with a, b">>,
+                             <<"Ets.new ended with a, b">>,
+                             <<"Os.start ended with p">>,
+                             <<"Tcp.listen ended with l3">>,
+                             <<"Tcp.connect ended with c, d">>]),
                  Ended).
 
 %% report §11.2 *Inputs*, §5.5: a `let` with `<-` at the prompt takes its
@@ -3008,9 +3008,10 @@ arrow_let() ->
 
 %% report §11.2, §3.9, §4.6, §8.6: a `let` at the prompt is a block `let`, so
 %% a lambda it binds is generalized, its effect variable with it, and runs,
-%% and a timed receive is no deadlock in line mode, first input or not. A
-%% declared name prints its own scheme after inputs whose type state numbers
-%% other variables alike. A regression test for three defects: the effect
+%% and a timed receive is no deadlock in line mode, first input or not; a
+%% lambda that waits for a time alone receives nothing. A declared name
+%% prints its own scheme after inputs whose type state numbers other
+%% variables alike. A regression test for three defects: the effect
 %% variable entered the session unbound and crashed the next input's check,
 %% the first input's timed wait was a deadlock, and the scheme printed
 %% through the later input's substitution
@@ -3020,15 +3021,19 @@ effect_variable_test_() ->
 effect_variable() ->
     InputFile = scratch_file("ern_eff_"),
     ok = file:write_file(InputFile, "receive { after 300 -> 5 }\n"
-                                    "let h = fn() = receive { after 1 -> Io.println(\"x\") }\n"
+                                    "let h = fn() = receive {"
+                                    " _ -> Io.println(\"y\") | after 1 -> Io.println(\"x\") }\n"
                                     "h()\n"
+                                    "let w = fn() = receive { after 1 -> Io.println(\"w\") }\n"
+                                    "w()\n"
                                     "let f = fn(x : Int) = x + 1\n"
                                     "f(2)\n"
-                                    "fn g() : Int receiving e = receive { after 5 -> 5 }\n"
+                                    "fn g() : Int receiving e = receive { _ -> 4 | after 5 -> 5 }\n"
                                     ":type g\n"),
     {0, Output} = ern_pty:sh("../bin/ern shell < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"> 5 : Int\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> h : () -> Unit receiving e+\n> x\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> w : () -> Unit\n> w\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> f : (Int) -> Int\n> 3 : Int\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> g : () -> Int receiving e+\n"
                                                 "> g : () -> Int receiving e+\n">>)).

@@ -78,10 +78,13 @@
 %% (§8.7, §11.1); builds_functions: whether the unit builds a function
 %% value, a fun of its own code that may be held anywhere
 %% (function_value/2), which the shell reads to keep an input (§11.2).
+%% guard: whether the expression being compiled is a clause's Erlang
+%% guard, where a selection reads its field in place (select/4).
 -record(emit_context, {unit, own, definition, declaration, printing, restrictions = #{},
                        variables = #{}, counter = 0, locals = #{}, lifted = [],
                        descriptors = #{}, pattern_guards = [], members = #{}, outer,
-                       let_lambdas = #{}, entries = #{}, builds_functions = false}).
+                       let_lambdas = #{}, entries = #{}, builds_functions = false,
+                       guard = false}).
 %% The unit's own (report §11.1, Appendix H): forms, each definition's
 %% position => {its #definition{}, its form prepared (prepared/2)}; hashes,
 %% each definition's hash => the position of the first with it, two
@@ -1319,6 +1322,9 @@ read_top_node({'not', Inner}, _, Acc) ->
 read_top_node({negate, Inner, Operation}, _, Acc) ->
     {Inner1, Acc1} = read_top(Inner, Acc),
     {{negate, Inner1, Operation}, Acc1};
+read_top_node({select, Inner, Reference, Field}, _, Acc) ->
+    {Inner1, Acc1} = read_top(Inner, Acc),
+    {{select, Inner1, Reference, Field}, Acc1};
 read_top_node({var, Reference, _}, Expr, {Reads, Context})
   when element(1, Reference) =/= local, element(1, Reference) =/= read ->
     {Form, Context1} = expr(Expr, Context),
@@ -2575,7 +2581,9 @@ constructor_at({constructor, Reference, Position}, Context) ->
 %% Report §3.5, §12.2: a selected field. A named constructor is its tag and
 %% its fields in declared order, so the field is one element of the tuple
 %% where every constructor has it at one place, and a case on the tag where
-%% the places differ.
+%% the places differ. Report §6.3: in a guard, where no case stands, the
+%% place is read from the tag, Form being a variable or a selection, which
+%% the guard reads twice at no cost.
 select(Field, Reference, Form, Context) ->
     {_, {_, Constructors}} = declared_type(Reference, Context),
     Places = [{ConstructorName, place(Field, [Name || {Name, _} <- Fields]) + 1, length(Fields)}
@@ -2583,6 +2591,13 @@ select(Field, Reference, Form, Context) ->
     case lists:usort([Index || {_, Index, _} <- Places]) of
         [Index] ->
             {call_remote(erlang, element, [erl_syntax:integer(Index), Form]), Context};
+        _ when Context#emit_context.guard ->
+            ByTag = erl_syntax:map_expr([erl_syntax:map_field_assoc(erl_syntax:atom(Name),
+                                                                    erl_syntax:integer(Index))
+                                         || {Name, Index, _} <- Places]),
+            Tag = call_remote(erlang, element, [erl_syntax:integer(1), Form]),
+            PlaceForm = call_remote(erlang, map_get, [Tag, ByTag]),
+            {call_remote(erlang, element, [PlaceForm, Form]), Context};
         _ ->
             {[Variable], Context1} = fresh_variables(1, "Field", Context),
             VariableForm = erl_syntax:variable(Variable),
@@ -3161,10 +3176,15 @@ clause_head(Pattern, Guard, #emit_context{pattern_guards = Guards} = Context) ->
     {PatternForm, Context1} = pattern(Pattern, Context#emit_context{pattern_guards = []}),
     {OwnGuard, Context2} = case Guard of
                                none -> {none, Context1};
-                               _ -> expr(Guard, Context1)
+                               _ -> guard_expr(Guard, Context1)
                            end,
     {PatternForm, joined_guard(OwnGuard, Context2),
      Context2#emit_context{pattern_guards = Guards}}.
+
+%% A clause's own guard, which is an Erlang guard here.
+guard_expr(Guard, Context) ->
+    {Form, Context1} = expr(Guard, Context#emit_context{guard = true}),
+    {Form, Context1#emit_context{guard = false}}.
 
 %% A guard that is no Erlang guard, as a test inside its clause: the body
 %% where it holds, the clauses after it where it does not.
@@ -3201,7 +3221,7 @@ simple_clauses(Clause, Context) ->
             MakeClause = fun(AlternativeSource, PatternForm, AlternativeGuard, Call, Acc) ->
                              {OwnGuard, Acc1} = case AlternativeGuard of
                                                     none -> {none, Acc};
-                                                    _ -> expr(AlternativeGuard, Acc)
+                                                    _ -> guard_expr(AlternativeGuard, Acc)
                                                 end,
                              GuardForm = joined_guard(OwnGuard, Acc1),
                              {at(AlternativeSource,
@@ -3276,6 +3296,7 @@ is_guard_node({'not', Expr}, Bound) -> is_erlang_guard(Expr, Bound);
 is_guard_node({literal, bool, _}, _) -> true;
 is_guard_node({var, {local, Number}, []}, Bound) -> lists:member(Number, Bound);
 is_guard_node({var, {read, _}, []}, _) -> true;
+is_guard_node({select, Selected, _, _}, Bound) -> is_selected(Selected, Bound);
 is_guard_node(_, _) -> false.
 
 %% Whether an ordering is the runtime's own at a prelude type of no
@@ -3295,6 +3316,17 @@ is_guard_operand(Operand, Bound) ->
         {_, {var, {local, Number}, []}} -> lists:member(Number, Bound);
         {_, {var, {read, _}, []}} -> true;
         {_, {construct, _, none}} -> true;
+        {_, {select, Selected, _, _}} -> is_selected(Selected, Bound);
+        _ -> false
+    end.
+
+%% Report §6.3: what a guard's field is selected from, a local in Bound, a
+%% top-level `let` read before the clauses, or a selection of one.
+is_selected(Selected, Bound) ->
+    case sourced(Selected) of
+        {_, {var, {local, Number}, []}} -> lists:member(Number, Bound);
+        {_, {var, {read, _}, []}} -> true;
+        {_, {select, Inner, _, _}} -> is_selected(Inner, Bound);
         _ -> false
     end.
 

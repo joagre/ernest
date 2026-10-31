@@ -3580,7 +3580,7 @@ example.ern:4:14: the clauses must have one type: expected String, found Int
 ```ernest-rejected
 fn wait() : Bool receiving m =
     receive {
-        after 1 -> true
+        _ -> true
     }
 
 fn f(n : Int) : Int receiving Never =
@@ -4148,26 +4148,26 @@ example.ern:2:5: f needs mailbox e, and the mailbox here is m
   | = help: give h its mailbox type, `receiving e`
 ```
 
-### A function that waits where one that receives nothing is expected (§3.9, §6.1)
+### A function that receives where one that receives nothing is expected (§3.9, §6.1)
 
 ```ernest-rejected
-fn pause(ms : Int) : Unit receiving m =
+fn skip() : Unit receiving m =
     receive {
-        after ms -> Unit
+        _ -> Unit
     }
 
-fn apply(f : (Int) -> Unit, ms : Int) : Unit = f(ms)
+fn apply(f : () -> Unit) : Unit = f()
 
-fn main() : Unit receiving Never = apply(pause, 10)
+fn main() : Unit receiving Never = apply(skip)
 ```
 
 ```console
 $ ern build example.ern
 example.ern:8:42: the argument does not fit apply: a function that receives where one that receives nothing is needed
 7 |
-8 | fn main() : Unit receiving Never = apply(pause, 10)
-  |                                    ----- apply : ((Int) -> Unit, Int) -> Unit
-  |                                          ^^^^^
+8 | fn main() : Unit receiving Never = apply(skip)
+  |                                    ----- apply : (() -> Unit) -> Unit
+  |                                          ^^^^
 ```
 
 ### `self` in a function that receives nothing (§6.1, §11.5)
@@ -4212,7 +4212,7 @@ example.ern:3:32: monitor needs a mailbox, and watch receives nothing
 ```ernest-rejected
 fn f() : Int =
     receive {
-        after 1 -> 1
+        _ -> 1
     }
 ```
 
@@ -4223,7 +4223,7 @@ example.ern:2:5: `receive` needs a mailbox, and f receives nothing
   |          --- `: Int` without `receiving` declares that f receives nothing
 2 |     receive {
   |     ^^^^^^^^^
-  | = help: give f its mailbox type, `receiving e`
+  | = help: give f its mailbox type with `receiving`, the type of the messages it takes
 ```
 
 ### `receive` in a function of mailbox Never (§6.8)
@@ -4375,6 +4375,28 @@ example.ern:3:19: a `receive` guard combines `true`, `false`, Bool variables, an
   | = help: bind what the guard needs that does not come from the message with a `let` before the `receive` and compare that; or receive the message and `match` it, which takes it out of the mailbox
 ```
 
+### A `receive` guard that selects a field through a call (§6.3)
+
+```ernest-rejected
+type State = State(at : Int)
+
+fn next(s : State) : State = s
+
+fn f(s : State) : Int receiving Int =
+    receive {
+        n when n == next(s).at -> 1
+    }
+```
+
+```console
+$ ern build example.ern
+example.ern:7:21: a `receive` guard selects a field from a variable, a top-level let, or a field of one, and calls nothing
+6 |     receive {
+7 |         n when n == next(s).at -> 1
+  |                     ^^^^^^^^^^
+  | = help: bind what the guard needs that does not come from the message with a `let` before the `receive` and compare that; or receive the message and `match` it, which takes it out of the mailbox
+```
+
 ### A `receive` guard that compares a computed value (§6.3)
 
 ```ernest-rejected
@@ -4386,7 +4408,7 @@ fn f() : Int receiving Int =
 
 ```console
 $ ern build example.ern
-example.ern:3:16: a comparison in a `receive` guard compares variables, top-level lets, literals, and nullary constructors
+example.ern:3:16: a comparison in a `receive` guard compares variables, top-level lets, their fields, literals, and nullary constructors
 2 |     receive {
 3 |         n when n + 1 > 2 -> 1
   |                ^^^^^
@@ -4563,20 +4585,20 @@ example.ern:2:30: Peer.spawn starts a function that uses a.show, a member of the
 ### A spawned process whose mailbox type is not known whole (§3.11)
 
 ```ernest-rejected
-fn idle() : Unit receiving m =
+fn skip() : Unit receiving m =
     receive {
-        after 1000 -> Unit
+        _ -> Unit
     }
 
 fn start() : Either(Io.Error, Address(a)) =
-    Peer.spawn("worker", idle, 1000)
+    Peer.spawn("worker", skip, 1000)
 ```
 
 ```console
 $ ern build example.ern
 example.ern:7:26: Peer.spawn starts a process whose mailbox type a is not known whole here
 6 | fn start() : Either(Io.Error, Address(a)) =
-7 |     Peer.spawn("worker", idle, 1000)
+7 |     Peer.spawn("worker", skip, 1000)
   |                          ^^^^
   | = help: give the function its mailbox type, `fn() : Unit receiving Msg = ...`: an instance of this definition could make the variable a type bound to its node (report §3.11)
 ```

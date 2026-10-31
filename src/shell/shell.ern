@@ -818,27 +818,15 @@ fn letGoSaid(screen : Address(ScreenMsg)) : Unit = {
 
 // Report §11.2 *Inputs*, Appendix E.21, G.1: a line for each listener,
 // socket, running program, table and process started to end with it that
-// the binder owns, `the listener Tcp.listen ended with l`, a process by its
-// site and a table by `Ets.new`.
+// the binder owns, by its site, `Tcp.listen ended with l`, and a table by
+// `Ets.new`.
 fn endedLines(binder : Process, names : List(String)) : List(String) = {
     let ended = " ended with " <> String.join(names, ", ");
     List.filterMap(Process.owned(binder),
                    fn(process) =
-                       Optional.map(Process.status(process),
-                                    fn(status) = "the " <> ownedSite(status.site) <> ended))
-        <> List.repeat("the table Ets.new" <> ended, Ets.owned(binder))
+                       Optional.map(Process.status(process), fn(status) = status.site <> ended))
+        <> List.repeat("Ets.new" <> ended, Ets.owned(binder))
 }
-
-// Report Appendix E.18, E.23, G.7: what an owned process is, read from its
-// site, and the site.
-fn ownedSite(site : String) : String =
-    match site {
-        "Tcp.listen" -> "listener Tcp.listen"
-      | "Tcp.accept" -> "socket Tcp.accept"
-      | "Tcp.connect" -> "socket Tcp.connect"
-      | "Os.start" -> "running program Os.start"
-      | other -> "process " <> other
-    }
 
 // Report §11.2: with timing on, a result is followed by the time the input
 // took.

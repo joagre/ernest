@@ -2701,6 +2701,200 @@ receive_guard_reads_top_level_test() ->
         "}\n"),
     ?assertEqual(<<"#(20, 30)\n">>, Output).
 
+%% report §6.3, §3.5: a receive guard reads a field of a variable in scope,
+%% of a selection of one and of a top-level `let`, in place, in an Erlang
+%% guard, a message the guard rejects staying in the mailbox; where the
+%% field's place differs between the type's constructors, the guard reads
+%% the place from the tag, and a field of a value whose type a later use
+%% fixes is read so too. A regression test, written after the code
+receive_guard_reads_a_field_test() ->
+    Text = "type Msg = Tick(Int) | Stop\n"
+           "type Lot = Lot(at : Int)\n"
+           "type Shape = Round(name : String, at : Int) | Square(at : Int, name : String)\n"
+           "type State = State(at : Int, lot : Lot)\n"
+           "let held = Lot(at = 4)\n"
+           "fn take(s : State, shape : Shape) : List(Int) receiving Msg = receive {\n"
+           "    Tick(k) when k == s.at || k == s.lot.at -> k :: take(s, shape)\n"
+           "  | Tick(k) when k == held.at || k == shape.at -> k :: take(s, shape)\n"
+           "  | Stop -> []\n"
+           "}\n"
+           "export fn main() : Unit receiving Msg = {\n"
+           "    let me = self();\n"
+           "    List.forEach([9, 1, 9, 2, 3, 4, 5, 9], fn(k) = send(me, Tick(k)));\n"
+           "    send(me, Stop);\n"
+           "    let s = State(at = 1, lot = Lot(at = 2));\n"
+           "    let _ = Io.debug(take(s, Square(at = 5, name = \"s\")));\n"
+           "    let _ = Io.debug(receive { Tick(k) -> k });\n"
+           "    Unit\n"
+           "}\n",
+    ?assertEqual({ok, <<"[1, 2, 4, 5]\n9\n">>}, run(Text)),
+    {ok, Typed, _, Env} = ern_typecheck:check_string(['M'], Text),
+    Guards = [erl_syntax:clause_guard(Clause)
+              || Form <- ern_compile:forms(['M'], Typed, Env),
+                 Receive <- erl_syntax_lib:fold(fun(Node, Acc) ->
+                                                       case erl_syntax:type(Node) of
+                                                           receive_expr -> [Node | Acc];
+                                                           _ -> Acc
+                                                       end
+                                                   end, [], Form),
+                 Clause <- erl_syntax:receive_expr_clauses(Receive),
+                 erl_syntax:clause_guard(Clause) =/= none],
+    Read = fun(Guard) ->
+               erl_syntax_lib:fold(fun(Node, Acc) ->
+                                       case erl_syntax:type(Node) =:= application
+                                           andalso erl_syntax_lib:analyze_application(Node) of
+                                           {erlang, {Function, _}} -> [Function | Acc];
+                                           _ -> Acc
+                                       end
+                                   end, [], Guard)
+           end,
+    ?assertEqual([[element, element, element], [element, element, element, map_get]],
+                 lists:sort([lists:sort(Read(Guard)) || Guard <- Guards])),
+    ?assertEqual({ok, <<"took 1\n">>}, run(
+        "type Msg = At(at : Int) | Stop\n"
+        "type State = State(at : Int)\n"
+        "fn loop(s) : Unit receiving Msg = {\n"
+        "    receive {\n"
+        "        At(at = a) when a == s.at -> Io.println(\"took \" <> Int.toString(a))\n"
+        "      | Stop -> Unit\n"
+        "    };\n"
+        "    let State(at = _) = s;\n"
+        "    Unit\n"
+        "}\n"
+        "export fn main() : Unit receiving Msg = {\n"
+        "    send(self(), At(at = 2));\n"
+        "    send(self(), At(at = 1));\n"
+        "    loop(State(at = 1))\n"
+        "}\n")).
+
+%% report §5.9, §6.3: a match guard that is §6.3's guard expression, a
+%% field read among its operands, is an Erlang guard too, the field's place
+%% read from the tag where it differs between the constructors. A
+%% regression test, written after the code, with the receive guard's field
+match_guard_reads_a_field_test() ->
+    Text = "type Shape = Round(name : String, at : Int) | Square(at : Int, name : String)\n"
+           "fn near(n : Int, shape : Shape) : String = match n {\n"
+           "    k when k == shape.at -> shape.name\n"
+           "  | _ -> \"far\"\n"
+           "}\n"
+           "export fn main() : Unit = {\n"
+           "    Io.println(near(1, Round(name = \"round\", at = 1)));\n"
+           "    Io.println(near(2, Square(at = 2, name = \"square\")));\n"
+           "    Io.println(near(3, Square(at = 2, name = \"square\")))\n"
+           "}\n",
+    ?assertEqual({ok, <<"round\nsquare\nfar\n">>}, run(Text)),
+    {ok, Typed, _, Env} = ern_typecheck:check_string(['M'], Text),
+    Guarded = [Clause || Form <- ern_compile:forms(['M'], Typed, Env),
+                         Clause <- erl_syntax_lib:fold(fun(Node, Acc) ->
+                                                               [Node | Acc]
+                                                       end, [], Form),
+                         erl_syntax:type(Clause) =:= clause,
+                         erl_syntax:clause_guard(Clause) =/= none],
+    ?assertMatch([_], Guarded).
+
+%% report §3.9, §4.6, §5.9, §6.5, §6.9, Appendix E.15: a timed wait takes
+%% no message, so a function that waits so receives nothing and runs where
+%% one that receives nothing is expected: in an initializer, at `Never`; in
+%% a match guard; in a monitor's wrap and an alarm's, which a delivery
+%% applies; and in an adapted address's function, which the send applies
+%% in the sender. Each wait is the one under test, its time immaterial. A
+%% regression test, written after the code; the delivery of a peer's
+%% message is timed_wait_on_delivery_test's
+timed_wait_receives_nothing_test() ->
+    {ok, Output} = run(
+        "type Msg = Died(Down) | Rang | Got(Int)\n"
+        "fn pause(ms : Int) : Unit = receive { after ms -> Unit }\n"
+        "let ready : Int = { pause(1); 5 }\n"
+        "fn positive(n : Int) : Bool =\n"
+        "    match n { k when { pause(1); k > 0 } -> true | _ -> false }\n"
+        "fn short() : Process = Process.fromAddress(spawn(fn() = Unit))\n"
+        "export fn main() : Unit receiving Msg = {\n"
+        "    Io.println(Int.toString(ready));\n"
+        "    Io.println(Bool.toString(positive(1)));\n"
+        "    monitor(short(), fn(d) = { pause(1); Died(d) });\n"
+        "    receive { Died(_) -> Io.println(\"wrapped\") };\n"
+        "    Clock.alarm(0, fn(_) = { pause(1); Rang });\n"
+        "    receive { Rang -> Io.println(\"rang\") };\n"
+        "    send(adapted(self(), fn(n : Int) = { pause(1); Got(n) }), 3);\n"
+        "    receive { Got(n) -> Io.println(Int.toString(n)) }\n"
+        "}\n"),
+    ?assertEqual(<<"5\ntrue\nwrapped\nrang\n3\n">>, Output).
+
+%% report §3.9, §6.5, §6.6, §6.9, §8.6: a timed wait in a function that
+%% receives nothing is a wait of the process that runs it, as `Address.call`'s
+%% is: a fault met in an adapted address's function on its way to the
+%% process reaches the process at that wait, as it reaches one waiting in a
+%% call, and a restart a supervisor asks for reaches a sibling there, which
+%% runs its function again. The waits loop, so that what reaches them
+%% does not hang on their time. A regression test, written after the code;
+%% it does not cover a restart a supervisor of another node asks for
+timed_wait_meets_a_fault_and_a_restart_test() ->
+    {ok, Faulted} = run(
+        "type Msg = Died(what : String, down : Down)\n"
+        "fn pause(ms : Int) : Unit = receive { after ms -> Unit }\n"
+        "fn idle() : Unit = { pause(1000); idle() }\n"
+        "fn calling(callee : Address(Reply(Int))) : Unit = {\n"
+        "    let _ = Address.callForever(callee, fn(reply) = reply);\n"
+        "    Unit\n"
+        "}\n"
+        "export fn main() : Unit receiving Msg = {\n"
+        "    let silent : Address(Reply(Int)) = spawn(fn() = receive { _ -> idle() });\n"
+        "    let waiting = spawnMonitored(idle, fn(d) = Died(what = \"pause\", down = d));\n"
+        "    let called = spawnMonitored(fn() = calling(silent),"
+        " fn(d) = Died(what = \"call\", down = d));\n"
+        "    send(adapted(waiting, fn(n : Int) = 10 / n), 0);\n"
+        "    send(adapted(called, fn(n : Int) = 10 / n), 0);\n"
+        "    List.forEach([1, 2], fn(_) = receive {\n"
+        "        Died(what = name, down = d) -> Io.println(name <> \" \" <> Io.show(d.reason))\n"
+        "    })\n"
+        "}\n"),
+    ?assertEqual([<<"call Fault(\"division by zero\")">>, <<"pause Fault(\"division by zero\")">>],
+                 lists:sort(binary:split(Faulted, <<"\n">>, [global, trim]))),
+    {ok, Restarted} = run(
+        "type Msg = Began(String) | Boom\n"
+        "let sup : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.OneForAll,"
+        " RestartLimit(restarts = 3, within = 60000)))\n"
+        "fn pause(ms : Int) : Unit = receive { after ms -> Unit }\n"
+        "fn idle() : Unit = { pause(1000); idle() }\n"
+        "fn booms() : Unit receiving Msg = receive {"
+        " Boom -> { let z = List.size([]); let _ = 1 / z; Unit } }\n"
+        "export fn main() : Unit receiving Msg = {\n"
+        "    let me = self();\n"
+        "    let a = spawn(Supervisor.child(sup, fn() = { send(me, Began(\"a\")); booms() }));\n"
+        "    let _ = spawn(Supervisor.child(sup, fn() = { send(me, Began(\"b\")); idle() }));\n"
+        "    let began = fn(_) = receive { Began(name) -> name };\n"
+        "    let first = List.map([1, 2], began);\n"
+        "    send(a, Boom);\n"
+        "    let again = List.map([1, 2], began);\n"
+        "    Io.println(String.join(List.sort(first), \" \") <> \", \""
+        " <> String.join(List.sort(again), \" \"))\n"
+        "}\n"),
+    ?assertEqual(<<"a b, a b\n">>, Restarted).
+
+%% report §3.9, §6.5: an adapted address's function that waits for a time,
+%% and so receives nothing, is applied on delivery by the process the node
+%% keeps for the address and a peer that sends to it, handed the message as
+%% a peer's worker hands it one, and what it answers reaches the target.
+%% A regression test, written after the code; the peer is stood in for, as
+%% the runtime's tests stand in for it (ern_rt_tests:kept_applied/1)
+timed_wait_on_delivery_test() ->
+    Text = "fn pause(ms : Int) : Unit = receive { after ms -> Unit }\n"
+           "export fn doubled(n : Int) : Int = { pause(1); n * 2 }\n",
+    {ok, Typed, Interface, Env} = ern_typecheck:check_string(['M'], Text),
+    Build = #{source_hash => <<>>, deps => [], standard => false},
+    {ok, ErlangModule, Beam} = ern_compile:compile(['M'], Typed, Interface, Env, Build),
+    {module, ErlangModule} = code:load_binary(ErlangModule, "test", Beam),
+    Doubled = ern_named:function(ErlangModule, doubled),
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Kept = ern_rt:kept(ern_rt:adapted(ern_rt:self(), Doubled)),
+               Kept ! {apply, 21},
+               receive {applied, Kept} -> Kept ! stop end,
+               receive Delivered -> Self ! {delivered, Delivered} end
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual(42, receive {delivered, Delivered} -> Delivered end).
+
 %% report §8.4, §12.3: an address given to foreign code is a proxy that
 %% checks each message on delivery, a bad one faulting the target even
 %% when no clause would bind it; a good one arrives, also from inside a

@@ -151,8 +151,8 @@
 %% "the lambda", "a guard", or top_let for a top-level `let`, whose mailbox
 %% is Never; the span that made it so, its label, undefined where no
 %% annotation made it so, and what to do, which for a function written
-%% `: T` is {receiving, Name, Entry}, its help naming the mailbox type the
-%% error needs (help/2).
+%% `: T` is {receiving, Name}, its help naming the mailbox type the error
+%% needs (help/2).
 -record(effect_origin, {what, span, label, help}).
 
 %% The equality constraint an instance carries, checked when its
@@ -228,13 +228,6 @@
         "bind what the guard needs that does not come from the message with a `let` before"
         " the `receive` and compare that; or receive the message and `match` it, which takes"
         " it out of the mailbox").
-%% Report §6.3: the help for a field read in a guard, which a `let` before
-%% the `receive` reads, or the message's pattern binds where it is the
-%% message's field.
--define(GUARD_FIELD_HELP,
-        "read the field with a `let` before the `receive` and compare that, or bind it in the"
-        " pattern where it is the message's; or receive the message and `match` it, which"
-        " takes it out of the mailbox").
 
 %%
 %% Entry points
@@ -2445,8 +2438,8 @@ check_value(#fn_declaration{span = Span, params = Params, result_type = ResultAn
     Env2 = unify_at(Span, Placeholder, FunctionType, Env1#env{type_state = TypeState},
                     "recursive use does not match the definition"),
     TypeState1 = Env2#env.type_state,
-    Origin = effect_origin({declaration_name(Declaration), is_entry(Declaration)},
-                           ResultAnnotation, Effect, ResultType, EffectType, TypeState1),
+    Origin = effect_origin(declaration_name(Declaration), ResultAnnotation, Effect, ResultType,
+                           EffectType, TypeState1),
     %% report §4.9: the declaration's requirement is in force in its body,
     %% beside the enclosing declarations' for the variables it shares
     Name = declaration_name(Declaration),
@@ -2690,16 +2683,15 @@ annotation_origin(Annotation, AnnotationType, Env) ->
 
 %% Report §11.5: the origin of the function's effect, which an effect error
 %% labels: a `receiving`, or a result type without one.
-%% {Name, Entry}: what the function is named in an error, and whether it is
-%% an entry point (§8.1), whose help differs.
-effect_origin(_Named, undefined, undefined, _ResultType, _EffectType, _TypeState) -> undefined;
-effect_origin({Name, Entry}, ResultAnnotation, undefined, ResultType, _EffectType, TypeState) ->
+%% Name: what the function is named in an error.
+effect_origin(_Name, undefined, undefined, _ResultType, _EffectType, _TypeState) -> undefined;
+effect_origin(Name, ResultAnnotation, undefined, ResultType, _EffectType, TypeState) ->
     #effect_origin{what = Name, span = ern_ast:span(ResultAnnotation),
                    label = "`: " ++ ern_types:format(ResultType, TypeState)
                            ++ "` without `receiving` declares that " ++ Name
                            ++ " receives nothing",
-                   help = {receiving, Name, Entry}};
-effect_origin({Name, _Entry}, _ResultAnnotation, Effect, _ResultType, EffectType, TypeState) ->
+                   help = {receiving, Name}};
+effect_origin(Name, _ResultAnnotation, Effect, _ResultType, EffectType, TypeState) ->
     #effect_origin{what = Name, span = ern_ast:span(Effect),
                    label = Name ++ " is declared `receiving "
                            ++ ern_types:format(EffectType, TypeState) ++ "` here"}.
@@ -2874,7 +2866,7 @@ needless_effect(_, _, _) ->
 %% Report §4.5, §3.9, §11.5: a function, a `fn` or a lambda, named Declared,
 %% of type Type, whose result annotation writes the effect variable Effect
 %% that §3.9 makes none at its end, one that nothing fixed, that no
-%% definition around it holds, that no wait made process-only, that stands
+%% definition around it holds, that no `receive` made process-only, that stands
 %% nowhere else in its type and that no check waiting for the definition's
 %% end holds (Held), is refused: the variable would be none at every call,
 %% and the printed type already leaves it out. A body that calls `self` or
@@ -4795,7 +4787,7 @@ infer(#e_lambda{span = LambdaSpan, params = Params, result_type = ResultAnnotati
                     %% report §11.5: the label names the annotation that fixed the
                     %% mailbox, and an unannotated lambda's is its own, not the
                     %% enclosing definition's
-                    effect_origin = effect_origin({"the lambda", false}, ResultAnnotation,
+                    effect_origin = effect_origin("the lambda", ResultAnnotation,
                                                   Effect, ResultType, EffectType, TypeState)},
     Rule = result_rule(ResultAnnotation, "the lambda body does not have the declared type"),
     ResultOrigin = result_origin(ResultAnnotation, ResultType, Env2),
@@ -4956,15 +4948,12 @@ check_expr(#e_match{scrutinee = Scrutinee, clauses = Clauses} = Expr, Expected, 
      Env2};
 check_expr(#e_receive{span = Span, clauses = Clauses, 'after' = After} = Expr, Expected, Rule,
            Origin, Env) ->
-    {MailboxType, Env0} = mailbox_type(Span, Clauses, Env),
-    %% report §6.8: a pattern clause where the mailbox is Never is refused
-    %% now, and where it is a variable as the definition ends (receives)
-    Env1 = case {Clauses, ern_types:resolve(MailboxType, Env0#env.type_state)} of
-               {[], _} -> Env0;
-               {_, ?NEVER} -> never_receives(Span, Env0#env.effect_origin);
-               {_, {tvar, _}} -> Env0#env{receives = [{Span, MailboxType} | Env0#env.receives]};
-               {_, _} -> Env0
-           end,
+    %% report §3.9: a `receive` with an `after` clause alone takes no
+    %% message, so it asks nothing of the mailbox
+    {MailboxType, Env1} = case Clauses of
+                              [] -> {undefined, Env};
+                              _ -> clause_mailbox(Span, Env)
+                          end,
     {TypedClauses, Env2} = check_clauses('receive', Clauses, MailboxType, undefined, Expected,
                                          Rule, Origin, "the clauses must have one type", Env1),
     {TypedAfter, Env3} =
@@ -5175,8 +5164,8 @@ receive_guard(#e_binop{span = Span, operator = Operator, left = Left, right = Ri
     Env1;
 receive_guard(#e_not{expr = Operand}, Env) -> receive_guard(Operand, Env);
 receive_guard(#e_literal{kind = bool}, Env) -> Env;
-receive_guard(#e_var{} = Variable, Env) ->
-    guard_operand(Variable, Env),
+receive_guard(Operand, Env) when is_record(Operand, e_var); is_record(Operand, e_selection) ->
+    guard_operand(Operand, Env),
     Env;
 receive_guard(Guard, _) ->
     fail(ern_ast:span(Guard), "a `receive` guard combines `true`, `false`, Bool variables, and"
@@ -5194,9 +5183,11 @@ guard_order(Span, Type, Env) ->
          [], "receive the message and `match` it").
 
 %% An operand: a variable of the pattern or of the enclosing function, a
-%% top-level `let`, which the `receive` reads before it waits, a literal, a
-%% negative numeric literal, or a nullary constructor. A regression: a
-%% top-level binding was refused, the host's guard showing through.
+%% top-level `let`, which the `receive` reads before it waits, a field
+%% selected from one of these or from such a selection, `s.at`,
+%% `s.lot.at`, which cannot fault (§3.5), a literal, a negative numeric
+%% literal, or a nullary constructor. A regression: a top-level binding was
+%% refused, the host's guard showing through.
 guard_operand(#e_literal{}, _) -> ok;
 guard_operand(#e_negation{expr = #e_literal{kind = Kind}}, _) when Kind =:= int; Kind =:= float ->
     ok;
@@ -5209,14 +5200,19 @@ guard_operand(#e_var{referent = Referent} = Variable, Env) ->
         orelse fail(ern_ast:span(Variable),
                     callee_name(Variable) ++ " is a function, and a `receive` guard calls nothing",
                     [], ?GUARD_CALLS_HELP);
+guard_operand(#e_selection{expr = Selected} = Operand, Env) ->
+    case Selected of
+        _ when is_record(Selected, e_var); is_record(Selected, e_selection) ->
+            guard_operand(Selected, Env);
+        _ ->
+            fail(ern_ast:span(Operand), "a `receive` guard selects a field from a variable, a"
+                                        " top-level let, or a field of one, and calls nothing",
+                 [], ?GUARD_CALLS_HELP)
+    end;
 guard_operand(Operand, _) ->
-    Help = case Operand of
-               #e_selection{} -> ?GUARD_FIELD_HELP;
-               _ -> "receive the message and `match` it"
-           end,
     fail(ern_ast:span(Operand), "a comparison in a `receive` guard compares variables, top-level"
-                                " lets, literals, and nullary constructors",
-         [], Help).
+                                " lets, their fields, literals, and nullary constructors",
+         [], "receive the message and `match` it").
 
 %% Whether a name's referent is a top-level `let`, of this module or another.
 -spec is_top_let(term(), env()) -> boolean().
@@ -5383,7 +5379,7 @@ placeholder_of(#e_var{referent = #own_declaration{member_of = MemberOf, name = N
 %% anything else is the enclosing function's effect (report §6.1). Report
 %% §4.5, §3.9: in the body of a function written `: T`, a callee's effect
 %% variable that stands in a value position of its type, `self`'s or
-%% `monitor`'s, and that no wait made process-only, stands free, since
+%% `monitor`'s, and that no `receive` made process-only, stands free, since
 %% the function receives nothing where nothing in its body has the
 %% variable's type; the function's end reads it (read_standing/2).
 use_effect(Span, Name, Effect,
@@ -5461,7 +5457,7 @@ rigid_mailbox(Span, Name, Effect, Have, Origin, TypeState) ->
 
 %% Report §4.5, §3.9: as a function written `: T` ends, a `fn` or a
 %% lambda, each variable a call in its body left free (use_effect/4) is
-%% read. One that a wait made process-only, that something fixed, that an
+%% read. One that a `receive` made process-only, that something fixed, that an
 %% enclosing definition holds, that stands in a value position of the
 %% signature, Type, a parameter or the result, or that a check waiting for
 %% the definition's end may yet fix, is a mailbox the function needs, and
@@ -5543,23 +5539,20 @@ twice(Fields, Verb) ->
                  [{ern_diagnostic:span(First), "first " ++ Verb ++ " here"}], undefined)
     end.
 
-%% Report §11.5, §8.1: the help of an effect error names the fix. A function
+%% Report §11.5: the help of an effect error names the fix. A function
 %% written `: T` that needs a mailbox is given one: the mailbox type Need
-%% names, where it is known; where any will do, as for a timed wait,
-%% `Never` for an entry point, whose process has that mailbox (§8.1), and a
-%% variable for any other function, which its callers fix; where a
-%% `receive`'s clauses will fix it, the type of the messages they take.
+%% names, where it is known; where any will do, a variable, which its
+%% callers fix; where a `receive`'s clauses will fix it, the type of the
+%% messages they take.
 help(undefined, _Need) -> "give the function its mailbox type with `receiving`";
-help(#effect_origin{help = {receiving, Name, Entry}}, Need) -> receiving_help(Name, Entry, Need);
+help(#effect_origin{help = {receiving, Name}}, Need) -> receiving_help(Name, Need);
 help(#effect_origin{help = Help}, _Need) -> Help.
 
-receiving_help(Name, _Entry, {mailbox, Text}) ->
+receiving_help(Name, {mailbox, Text}) ->
     "give " ++ Name ++ " its mailbox type, `receiving " ++ Text ++ "`";
-receiving_help(Name, _Entry, clauses) ->
+receiving_help(Name, clauses) ->
     "give " ++ Name ++ " its mailbox type with `receiving`, the type of the messages it takes";
-receiving_help(Name, true, any) ->
-    "give " ++ Name ++ " its mailbox type, `receiving Never`";
-receiving_help(Name, false, any) ->
+receiving_help(Name, any) ->
     "give " ++ Name ++ " its mailbox type, `receiving e`".
 
 infer_named(Expr, Names, FieldTypes, Constructed, Base, FieldSets, none, Env)
@@ -5821,17 +5814,25 @@ declared_fields(QualifiedName, Args, Env) ->
             erlang:error({undeclared_type, ern_namespace:text(QualifiedName)})
     end.
 
-%% The enclosing function's effect must be a mailbox type here; the help
-%% of a `receive` without clauses, a timed wait, takes any (help/2).
-mailbox_type(Span, Clauses, Env) ->
-    Need = case Clauses of
-               [] -> any;
-               _ -> clauses
-           end,
+%% A `receive` with a pattern clause: the enclosing function's effect must
+%% be a mailbox type, which the clauses' patterns are typed against, and
+%% process-only where they fix no type (report §3.9). Report §6.8: such a
+%% `receive` where the mailbox is Never is refused now, and where it is a
+%% variable as the definition ends (receives).
+clause_mailbox(Span, Env) ->
+    {MailboxType, Env1} = mailbox_type(Span, Env),
+    case ern_types:resolve(MailboxType, Env1#env.type_state) of
+        ?NEVER -> never_receives(Span, Env1#env.effect_origin);
+        {tvar, _} ->
+            {MailboxType, Env1#env{receives = [{Span, MailboxType} | Env1#env.receives]}};
+        _ -> {MailboxType, Env1}
+    end.
+
+mailbox_type(Span, Env) ->
     case ern_types:resolve(Env#env.effect, Env#env.type_state) of
         none -> fail(Span, "`receive` needs a mailbox, and " ++ what(Env#env.effect_origin)
                            ++ " receives nothing",
-                     labels(Env#env.effect_origin), help(Env#env.effect_origin, Need));
+                     labels(Env#env.effect_origin), help(Env#env.effect_origin, clauses));
         {tvar, _} = Variable ->
             {Mailbox, TypeState} = ern_types:fresh(Env#env.type_state, [process_only]),
             {Mailbox, bound(Variable, Mailbox, Env#env{type_state = TypeState})};

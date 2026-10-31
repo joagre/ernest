@@ -63,7 +63,7 @@ export fn runQueue() : Int =
 /// }
 /// // => true
 /// ```
-export fn schedulers(window : Int) : Float receiving m = {
+export fn schedulers(window : Int) : Float = {
     let flag = Foreign.atom("scheduler_wall_time");
     let _ = setFlag(flag, Foreign.term(true));
     let first = wallTimes(flag);

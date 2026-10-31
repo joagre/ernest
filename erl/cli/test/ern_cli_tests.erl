@@ -751,9 +751,10 @@ segment_test() ->
 %% report §11.2, §4.6: the type an input gives a name, `it` among them, is
 %% closed as a top-level `let` that is not generalized closes its own, an
 %% effect variable left in it none where it stands as a function type's
-%% effect, twice here, and Never where it stands as a type argument; one a
-%% value position holds, or a wait makes process-only, is still refused. A
-%% regression test of the release review's B-S1, written after the fix:
+%% effect, a timed wait's among them, and Never where it stands as a type
+%% argument; one a value position holds, or a `receive` that takes
+%% anything makes process-only, is still refused. A regression test of the
+%% release review's B-S1, written after the fix:
 %% the prompt refused a pair of one lambda's type as undetermined, where a
 %% module's top-level `let` closes it
 input_type_closed_as_a_top_level_let_test() ->
@@ -763,7 +764,8 @@ input_type_closed_as_a_top_level_let_test() ->
     Inputs = [<<"let p = ", Pair/binary>>, Pair,
               <<"let k = Test.Case(name = \"k\", run = fn() = Test.equal(1, 1))">>,
               <<"let s = List.partition([fn() = self()], fn(f) = true)">>,
-              <<"let t = List.partition([fn() = receive { after 1 -> Unit }], fn(f) = true)">>],
+              <<"let t = List.partition([fn() = receive { _ -> Unit }], fn(f) = true)">>,
+              <<"let w = List.partition([fn() = receive { after 1 -> Unit }], fn(f) = true)">>],
     %% report §11.2: a session's front end runs in a launch, its own screen
     %% the session's, and no local half, whose source root is none
     Main = fun() ->
@@ -781,10 +783,11 @@ input_type_closed_as_a_top_level_let_test() ->
     after
         persistent_term:erase({ern_shell, loaded})
     end,
-    [OfLet, OfPair, OfCase, OfS, OfT] = receive {types, Types} -> Types end,
+    [OfLet, OfPair, OfCase, OfS, OfT, OfW] = receive {types, Types} -> Types end,
     ?assertEqual(<<"#(List((Int) -> Int), List((Int) -> Int))">>, OfLet),
     ?assertEqual(<<"#(List((Int) -> Int), List((Int) -> Int))">>, OfPair),
     ?assertEqual(<<"Test.Case(Never)">>, OfCase),
+    ?assertEqual(<<"#(List(() -> Unit), List(() -> Unit))">>, OfW),
     Undetermined = fun(Name, Text) ->
                            Said = <<"the type of ", Name/binary,
                                     " is not determined by this input">>,
