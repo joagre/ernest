@@ -52,6 +52,12 @@ name, which Ernest's parentheses make a call, the dot, and the marks other langu
 5. **`make version V=x.y.z`**, which sets `VERSION` and every line the tests hold to it, the
    start lines of the documents, the session fixtures and the man pages, since the 0.7.0 step found
    them by hand (the log's *The Release Review Before 0.7.0*).
+6. **Appendix D writes out `libs/ets` whole**, `owned` among it, which the round before 0.7.0
+   left as "all but `owned`" since no test holds D to the source; a test holds it from then on, as
+   the listings are held.
+7. **The settler's restart case tested**: a caller asked to restart while it waits for its
+   evaluator ends the load as a kill does (E.28), which the release's round built and tested for
+   the kill alone (the log's *The Release Review Before 0.7.0*, *The round*).
 
 Discussed with the user when the milestone opens, each with its
 recommendation then: whether the formatter writes the pun where the names agree, or the style
@@ -63,6 +69,16 @@ and 171, an `Optional` taken as a list of none or one, both found by the read-ba
 pun's sites and read the same way, as forms the code repeats.
 
 ---
+
+## The fault's cost, a few days, after the pun
+
+A fault by a raise at depth 8 cost 122 µs over 0.7.0's commit against 106 at the review and 3.4
+of the host's, 36 times the host where CLAUDE.md asks a fraction (the log's *The Release Review
+Before 0.7.0*); the release shipped with the row as it stood. The item measures first, the row at
+each runtime commit since the review's `aa309a04`, and then decides whether the report takes the
+trace and its sites at the raise or when a line is written, and whether the row the reaper keeps
+until the fault is reported costs the fault a message. A cost the plain form keeps is written to
+the log, and the item closes on the number.
 
 ## MVP 4.1 (ernest-httpd, and the libraries it wants)
 
@@ -240,6 +256,7 @@ the operator's prompt is, and four were dropped with their verdicts in the log.
 | MVP 3.95 | what the review and 0.5.0 left: the release review read back, a restart told across nodes by the runtime's own frames, the harness counting a test's steps, the review round's method with an owner, the site proposal's sitting, the first fault's cost measured, the member regime's missing test, the teller's late delivery closed, dialyzer in the full run, and Ernest 0.6.0, the protocol's version moved | 2026-10-25 | tag `v0.6.0` | *The Release Review Read Back*, *A Restart Told Across Nodes*, *A Restart Told Across Nodes, Built*, *The Report's Readers Read the Diff*, *The Teller's Late Delivery*, *The Teller's Late Delivery, Built*, *The Harness Counts a Test's Steps*, *The First Fault's Cost*, *The Review's Decisions*, *A Member Has One Face*, *The Report Pared After 0.6.0*, *The Release Review Before 0.6.0*; `findings.md` as it stood at `c6eab569` |
 | MVP 3.96 | the report pared to the language, `language.md` holding what decides what a program means and the runtime's mechanism chapter 12 of `toolchain.md`, and what the paring found: the build's cost per function linear, one function per initializer, the nested group's third restart, the newcomer's feedback decided, the second cut to E.27, the comments' paragraphs, the emitter's calls as the host's, `<-` at the prompt and `Test.until` | 2026-10-30 | | *The Report Pared After 0.6.0*, *The Report Pared, Built*, *The Build's Cost per Function*, *One Function per Initializer*, *The Nested Group's Third Restart*, *What the Newcomer's Feedback Left*, *The Second Cut, §8.7 to E.27*, *The Comments' Paragraphs*, *The Emitter's Calls Against the Host's, Built*, *Small Library Functions Stay Calls*, *`<-` at the Prompt*, *`Test.until`, Built* |
 | MVP 4.0 | a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches, its proposal `docs/proposals/shell/attached.md` as it stood at `facbd285`; and the release review before 0.7.0, eight readers over what changed since 0.6.0, its fix lines and its eight batches decided and built | 2026-10-31 | tag `v0.7.0` | *The Attached Shell's Cut*, *The Attached Shell's Sentences*, *The Session's Screen and the Toolchain's Units, Built*, *The Attached Shell, Built*, *The Guides Over the Attached Shell*, *The Attached Shell, Tested*, *The End's Lines Reach the Screen*, *A Line-Mode Input's Cost*, *The Attached Shell's Last Row*, *The Attached Shell's Own Node, Quiet*, *An Expression's One Unit, and an Input's Cost Flat*, *The Detach Keeps What Declares a Function*, *The Release Review Before 0.7.0*, *The Release Review's Code Fixes*, *The Argument's Four Decisions*, *Sites, Sessions and Their Names*, *The Input's Process*, *One Word to Leave*, *The Shell's Own Node*, *Reload, Services and Tests*, *The Library's Lines*, *The Claims, the README and the Tour* |
+| The fault's cost | a raise's report measured at each runtime commit since the review, and the trace's taking decided | | | above |
 | MVP 4.1 | ernest-httpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | | | above |
 | MVP 4.2 | the website, served by ernest-httpd: what Ernest is, its characteristics, the three doors, and a live shell in the browser | | | above |
 | MVP 4.3 | the shell's second round | | | above |
