@@ -195,9 +195,9 @@ Any process of the node may cancel an alarm it holds.
 ```ernest
 {
     let alarm = Clock.alarm(60000, fn(_) = Unit);
-    Clock.cancel(alarm)
+    #(Clock.cancel(alarm), Clock.cancel(alarm))
 }
-// => true
+// => #(true, false)
 ```
 
 ## Clock.toString

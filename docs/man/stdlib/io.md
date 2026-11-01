@@ -95,11 +95,12 @@ module and `Peer` answer `Left` with one of these:
 ### Examples
 
 ```ernest
-match Fs.read(Path("/no/such/file"), 1000) {
+match Fs.read(Path("no-such-file"), 1000) {
     Left(Io.NotFound) -> "missing"
   | Left(_) -> "failed"
   | Right(_) -> "read"
 }
+// => "missing"
 ```
 
 ## Io.print

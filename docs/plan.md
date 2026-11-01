@@ -47,15 +47,16 @@ archive exists.
    `cancel` answers and what an alarm's wrap delivers; the log's paragraph that named the third
    reason is superseded. The report first, then the wrapper in
    `erl/cli/src/ern_examples.erl`, and a test citing §11.2.
-2. **A census of forms**, over all the Ernest in the repository and not the diff: the standard
-   library, the libraries, the shell, the examples, the tour and the tests' programs, counted by a
-   script and not felt: every lambda shape at a call site, every wrap passed to a function that
-   delivers later, every `let _ =`, every `match` over an `Either`, every `receive` clause shape,
-   every value rebuilt from its parts. A reader of the release's review, beside the code's, reads
-   the twenty most frequent cold and asks of each whether an Erlang programmer would write it
-   shorter. Each finding is decided as a `decide` line is, and one that changes the grammar or a
-   rule of §3 to §9 waits its night. Its first form is known, the lambda around a request's
-   constructor at the call, 121 sites (the log's *Ernest 0.8.0, a Small Release*).
+2. **A census of forms**, over the repository's Ernest whole and not the diff, counted by a
+   script: every lambda shape at a call site, every wrap, every `let _ =`, every `match` over an
+   `Either`, every `receive` clause shape. A reader of the release's review reads the twenty most
+   frequent cold and asks of each whether an Erlang programmer would write it shorter; each
+   finding is decided as a `decide` line is, one that changes the grammar or a rule of §3 to §9
+   waiting its night. Its first form is known, the lambda around a request's constructor, 121
+   sites. Its yield decides its future: one form of the pun's size among the twenty makes it a
+   standing reader of [`full_review.md`](full_review.md), run once more over ernest-httpd's code
+   before MVP 4.4; none, and the item closes with its counts in the log (the log's *Ernest 0.8.0,
+   a Small Release*).
 3. **A request whose only field is its reply declares it positional**, `Get(Reply(Int))`, and is
    passed to the call bare, `Address.call(counter, Get, ms)`, as the guide's §4.4 teaches: the
    rule in `guide/style.md` beside the request's name, the style test refusing a constructor whose

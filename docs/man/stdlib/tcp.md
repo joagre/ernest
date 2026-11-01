@@ -89,6 +89,7 @@ A listener's address, which `accept`, `port` and `closeListener` take:
     Tcp.closeListener(listener);
     Right(Unit)
 }
+// => Right(Unit)
 ```
 
 ## Tcp.SocketMsg

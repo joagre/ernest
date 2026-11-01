@@ -173,6 +173,7 @@ foreign fn hostFacts() : Host =
 ///
 /// ```ernest
 /// Either.map(Fs.stat(Os.workingDirectory, 5000), fn(entry) = entry.user == Os.user)
+/// // => Right(true)
 /// ```
 ///
 /// since 0.3.0

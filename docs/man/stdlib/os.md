@@ -172,6 +172,7 @@ starts. An `Fs.Entry` names the user a file belongs to by the same number.
 
 ```ernest
 Either.map(Fs.stat(Os.workingDirectory, 5000), fn(entry) = entry.user == Os.user)
+// => Right(true)
 ```
 
 ## Os.workingDirectory

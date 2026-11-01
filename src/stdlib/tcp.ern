@@ -81,6 +81,7 @@
 ///     Tcp.closeListener(listener);
 ///     Right(Unit)
 /// }
+/// // => Right(Unit)
 /// ```
 export abstract type ListenerMsg =
     Accept(ms : Int, owner : Process, reply : Reply(Either(Io.Error, Address(SocketMsg))))

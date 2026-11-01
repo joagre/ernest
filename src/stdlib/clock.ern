@@ -178,9 +178,9 @@ export fn alarmAt(time : Int, wrap : (Int) -> m) : Alarm receiving m = {
 /// ```ernest
 /// {
 ///     let alarm = Clock.alarm(60000, fn(_) = Unit);
-///     Clock.cancel(alarm)
+///     #(Clock.cancel(alarm), Clock.cancel(alarm))
 /// }
-/// // => true
+/// // => #(true, false)
 /// ```
 ///
 /// since 0.8.0
