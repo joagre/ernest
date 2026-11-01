@@ -72,7 +72,7 @@ An error in a module's source has this form: the position as `file:line:column`,
 
 **A failure dropped.** `Fs.write` returns `Either(Io.Error, Unit)`, a value that is `Right(Unit)` or `Left(error)` (§2.7): the file was written, or the reason it was not. Its last argument, `1000`, is how many milliseconds it may take, after which it answers `Left(Io.Timeout)`. A statement in a block must be `Unit`, so the failure cannot pass unseen. `let _ = ...` discards it where that is meant.
 
-`Path` is the standard library's type of a file's path, a constructor around its text.
+`Path` is the prelude's type of a file's path, a constructor around its text (report §9.3).
 
 ```ernest-rejected
 export fn main() : Unit = {
@@ -565,7 +565,7 @@ fn positiveInt(text : String) : Either(String, Int) = {
 - `positiveInt("oops")` → `Left("not an integer")`: `String.toInt` returned `None`, which `Either.fromOptional` turned into a `Left`, and the chain stopped.
 - `positiveInt("0")` → `Left("not positive")`: the parse succeeded, and the `if` refused the value.
 
-At the prompt the session is the rest of the block: `let p <- e` binds what is inside a `Some` or a `Right`, and shows a `None` or a `Left` as an expression's value is shown, binding no name and binding it to `it` (report §11.2):
+At the prompt the session is the rest of the block: `let p <- e` binds what is inside a `Some` or a `Right`, and shows a `None` or a `Left` as an expression's value is shown, binding none of its pattern's names, and binding the value shown to `it` (report §11.2):
 
 ```console
 $ ern shell
@@ -2067,7 +2067,7 @@ a worker answers back: passed
 Checks.add example 1: passed
 ```
 
-`ern test` runs every test of the module, one at a time in the order the module declares them, each in a process of its own, and prints each as it ends: passed, failed with its text, faulted with its cause, or killed. It exits with status 1 unless every test passed and no process faulted meanwhile, but one a test started while that test ran and one `Test.faults` started: a fault of a service the module's bindings started fails the run (report §11.8).
+`ern test` runs every test of the module, one at a time in the order the module declares them, each in a process of its own, and prints each as it ends: passed, failed with its text, faulted with its cause, or killed. It exits with status 1 unless every case passed, the doc examples below among them, and no process faulted during the run. A fault of a process `Test.faults` started does not count, nor one of a process a test started while that test runs; a fault of a service the module's bindings started does (report §11.8).
 
 It then runs the module's doc examples as cases (report §11.2). A doc example is an `ernest` block in a declaration's doc block, the `///` lines above it (below), and is named by the declaration, `Checks.add example 1`. One whose last line is `// => v`, alone on its line, passes where `Io.show` of its value is `v`; one without the line is reported `compiled` where it compiles. An exported declaration's example is compiled in a module of its own, as a caller's code is, so it writes the module's names as a caller writes them, `Checks.add(1, 2)`; a private declaration's is compiled inside the module, and writes them bare, as `add`'s does above.
 
@@ -2110,7 +2110,7 @@ export fn size(Stack(items)) =
 
 Inside `stack.ern` the operations are `push` and the rest, and any definition may take a `Stack` apart, a private helper or a test included. Outside, they are `Stack.push` and the rest, the type is `Stack.Stack`, and `Stack.Stack([])` is an error: another module sees the type and the operations, never the constructor.
 
-`empty` is a constant, a constructor applied to an empty list, so it has its value wherever its code is, on a bare node too (§8.1). A binding whose initializer computes, `let limit = 1024 * 1024` or `let index = Map.empty`, has its value only on a node that loaded the module: a spawn or a compute on a bare node whose function names it is not started there, and a module meant for such work makes such a value a function, `limit()` (§8.1).
+`empty` is a constant, a constructor applied to an empty list, so it has its value wherever its code is, on a bare node too (§8.1). A binding whose initializer computes, `let limit = 1024 * 1024` or `let index = Map.empty`, has its value only on a node that loaded the module: a spawn or a compute on a bare node whose function names it is not started there, and a module meant for such work makes such a value a function, `limit()`, or, where the binding only renames a library's constant, reads that constant in place (§8.1).
 
 An abstract type is exported, since one its module keeps would hide from no module:
 
@@ -2555,7 +2555,7 @@ fn heavy(n : Int) : Int =
     n * n
 ```
 
-The node picks by what its peers tell it. A node that lists peers tells each one it is connected to how busy it is, a *telling*, every `utilization-interval` milliseconds its `ernest.conf` names, 5000 where it names none, but for an attached shell's own node, which tells none (§9.2); on the scale lower is less busy. `Peer.compute` draws two of the peers it has heard from, at random, and takes the less busy. What the scale measures, how old a telling may be used and what a peer's loss does are the report's (Appendix C, Appendix E.27).
+The node picks by what its peers tell it. A node that lists peers tells each one it is connected to how busy it is, a *telling*, every `utilization-interval` milliseconds its `ernest.conf` names, 5000 where it names none, but for an attached shell's own node, which tells none (report §11.2, *The attached shell*); on the scale lower is less busy. `Peer.compute` draws two of the peers it has heard from, at random, and takes the less busy. What the scale measures, how old a telling may be used and what a peer's loss does are the report's (Appendix C, Appendix E.27).
 
 Where no peer has told a utilization the node may use, the compute answers `Left(Io.Unreachable)`, and where the node lists no peer, as a program that is no node lists none, `Left(Io.NotListed)`; at both, `placed.ern` runs the work here, `heavy(n)`: a node has no name for itself, and `compute` takes none. `Peer.utilization(name, ms)` asks one peer how busy it is now, where the node's table holds what each said last.
 
@@ -3097,7 +3097,7 @@ A service `Registry`, with `type Msg = Register((Int) -> Int)` and a binding `re
 
 ### 8.9 A service moved to new code
 
-A process changes its code by a message of its own type that carries the new loop (§4.6). Across a program, the processes running a function are listed by `Code.running(f)`, a *form*, a call the compiler reads by a rule of its own: `f` names a top-level `fn`, and the list holds the addresses of the processes on this node whose stack holds a frame of `f` at that moment, among the innermost 64 frames the host keeps, so a process whose frame of `f` lies deeper is not listed (report §3.11, Appendix E.28). The move's limits are four: the same message type, the same state type, a frame of `f` among the innermost 64, and no `restarting` around the process, whose restart runs the old loop (the deployment guide's §5.3). A tool moves every counter by sending each its `Upgrade`:
+A process changes its code by a message of its own type that carries the new loop (§4.6). Across a program, the processes running a function are listed by `Code.running(f)`, a *form*, a call the compiler reads by a rule of its own: `f` names a top-level `fn`, and the list holds the addresses of the processes on this node whose stack holds a frame of `f` at that moment, among the innermost 64 frames the host keeps, so a process whose frame of `f` lies deeper is not listed (report §3.11, Appendix E.28). The move's limits are four: the same message type, the same state type, a frame of `f` among the innermost 64, and no `restarting` around the process, whose restart runs the old loop (report §6.9; the deployment guide's §5.3). A tool moves every counter by sending each its `Upgrade`:
 
 ```ernest
 type CounterMsg =
@@ -3154,13 +3154,11 @@ total: Some(5)
 
 The state's type is in the message type, `next : (Int) -> Unit receiving CounterMsg`, and a process keeps its mailbox type for life, so no `Upgrade` gives a running server a state of another type. A server whose state takes a new type is a new process of the new build, started from the old one's state. The old one gives its state up in answer to a request of its own protocol, or writes it to a file the new one reads, as §8.2's store keeps its count. The clients are then given the new process's address, or find it again as a service (§8.2).
 
-On a peer, the move is made at the peer's own prompt, from a shell attached to it (§9.2). Its inputs run on the peer, and `:reload`, or `:load` for a module the peer does not hold, sends the new build's source there as text, which the peer compiles as its own (report §11.2). A function of the new build called at that prompt runs `Code.running` on the peer and sends each counter its `Upgrade` there, so no function value crosses in a message (§8.4). With a counter of `examples/upgrade`'s first build on the peer `b`, and `ops` the operator's node, which `b` lists, the second build's `moved` moves the counters of its node and answers how many:
-
-The session is the deployment guide's §5.3, which shows it, `:reload` at `b`'s prompt and `Counter.moved()` answering `1 : Int` and then `0 : Int`.
+On a peer, the move is made at the peer's own prompt, from a shell attached to it (§9.2). Its inputs run on the peer, and `:reload`, or `:load` for a module the peer does not hold, sends the new build's source there as text, which the peer compiles as its own (report §11.2). A function of the new build called at that prompt runs `Code.running` on the peer and sends each counter its `Upgrade` there, so no function value crosses in a message (§8.4). With a counter of `examples/upgrade`'s first build on the peer `b`, and `ops` the operator's node, which `b` lists, the second build's `moved` moves the counters of its node and answers how many, the session the deployment guide's §5.3 shows: `:reload` at `b`'s prompt, and `Counter.moved()` answering `1 : Int` and then `0 : Int`.
 
 `b`'s build holds `Counter`, so `:reload` compiles the second build there as the module's next version, `count2` among it, which `b` never had. `count` is written alike in both builds, one hash, so `Code.running(count)` in `moved` lists the counter `b`'s build started.
 
-A reload evaluates the module's top-level bindings again, so a service binding starts a second service of the new version beside the old, unless the binding offers its service and, finding it held, waits for the holder to end (§8.2; report §11.2). The old version's processes run on. `:processes` and `Process.status` list each under the site its version gave it, the build's plain, `Counter.serve`, and a reload's with the version's number, `Counter$2.serve`, which finds them where `Code.running` cannot, a fix in a callee having changed the hash of the function they run. Each is ended by `Process.kill`, or moved by a message of its own type as above. A service under `restarting` runs the function it was spawned with at each restart, so one moved by a message moves back at its next fault (report §6.9).
+A reload evaluates the module's top-level bindings again, so a service binding starts a second service of the new version beside the old, unless the binding offers its service and, finding it held, waits for the holder to end (§8.2; report §11.2). The old version's processes run on. `:processes` and `Process.status` list each under the site its version gave it, the build's plain, `Counter.service:5`, and a reload's with the version's number, `Counter$2.service:5`, which finds them where `Code.running` cannot, a fix in a callee having changed the hash of the function they run. Each is ended by `Process.kill`, or moved by a message of its own type as above. A service under `restarting` runs the function it was spawned with at each restart, so one moved by a message moves back at its next fault (report §6.9).
 
 A type that carries `Upgrade` holds a function, so it is bound to its node (§8.4). A process reached from another node, a service or one spawned on a peer, is offered through an adapted address (§5.5) of a type without it, and its upgrade is sent on its own node.
 
@@ -3187,7 +3185,7 @@ One command, `ern`, whose first word is its job, and a mode for Emacs. `ern --he
 - `--main Module.name` runs another exported function of no arguments instead of `main`.
 - `--load-path dir` adds compiled modules and Erlang `.beam` files the program needs (§8.5); the toolchain's libraries are on the load path already, after it.
 - `--libs-dir dir` adds the Erlang applications under `dir`, each one's `ebin`: one flag where a program's foreign functions call several of them (report §11.2).
-- `ern test module.erc` runs the module's tests, and `ern test dir` those of every module compiled under the directory; it exits with status 1 unless all passed and no process faulted during the run but one `Test.faults` started or one a test started while that test ran (§7.1). The module's top-level bindings are evaluated first, so a service binding starts its service under `ern test` as under `ern run`.
+- `ern test module.erc` runs the module's tests, and `ern test dir` those of every module compiled under the directory; it exits with status 1 unless every case passed and no process faulted during the run, apart from those §7.1 excepts. The module's top-level bindings are evaluated first, so a service binding starts its service under `ern test` as under `ern run`.
 - `ern shell`, with or without a file, starts the shell (§1.2). A file's `main`, or the function `--main` names, runs beside it; a file without either is loaded with nothing running. `--source-root dir` names where `:load` finds a module's source, and `--config-dir dir` the configuration directory.
 - `ern shell --config-dir dir --attach name` attaches the shell to the peer `name` that `dir` lists: the session runs on that node, every module of its build in scope, and `:load` and `:reload` send a module's source there as text, or `:load` takes the node's own compiled form where its load path holds one; the terminal and the files stay with the shell's own node, started from `dir`, which `name` lists without an address. `:quit` leaves, and what the session started runs on (§8.9, report §11.2); the deployment guide's §6 is the operator's use of it.
 - `ern config --config-dir dir` makes the configuration a node with peers needs (§8) in the directory `dir`, listening where `--listen address:port` says, and only dialing without it; `ern config --config-dir dir --peer-dir other` lists the node of `other`, a directory of this machine, in `dir`'s (§8.1, report §11.3). `ern run --config-dir dir` runs the program as that node, and `ern reload --config-dir dir` and `ern stop --config-dir dir` have the running node read its configuration again, or end, `ern stop` returning once it has (report §11.2). `ern reload` reads the directory as the node would, and refuses a configuration the node would refuse, with status 1, before it signals.
@@ -3206,7 +3204,7 @@ A name completed alone is shown under the line with its type, and a second `Tab`
 
 `Shift-Tab` shows the declaration, the first sentence, and the version of the name at the cursor, `String.trim(text : String) : String` and what it does, and pressed again its documentation. Inside a call, on no documented name, it shows the callee's signature with the parameter at the cursor marked, and inside a constructor its fields.
 
-**Loading and reloading.** `:load Words` puts the module `Words` in scope: it compiles `words.ern` under the source root, or takes a compiled form beside it or on the load path where one is as new as the source, and says which, `Words, compiled from words.ern` or `Words, from words.erc`. Nothing is loaded by being named, since a load evaluates the module's bindings, which may start processes; a name not in scope is answered with the `:load` that would put it there.
+**Loading and reloading.** `:load Words` puts the module `Words` in scope: it compiles `words.ern` under the source root, or takes a compiled form beside it or on the load path where one was compiled from that source, and says which, `Words, compiled from words.ern` or `Words, from words.erc`. Nothing is loaded by being named, since a load evaluates the module's bindings, which may start processes; a name not in scope is answered with the `:load` that would put it there.
 
 `:reload` compiles and loads again each loaded module whose source has changed, and with it each loaded module that uses one or whose code references a definition the change changes; where one of them does not compile, `:reload` loads none of them. A declaration of the session's that references what changed is compiled again too, and one that no longer compiles leaves scope while the reload goes on (report §11.2).
 
@@ -3249,7 +3247,7 @@ Ernest runs on the Erlang runtime, and a program in it is processes that send me
 - There are no exceptions, no `catch`, and no `try`. A failure is a value, a message, or a fault (§6).
 - There are no links and no exit signals, only monitors. A process that must die with another monitors it and returns.
 - A `Down` comes from the runtime and not from the process that ended, so it may arrive before that process's last message to the watcher, where Erlang's `'DOWN'` comes after it (§5.2).
-- A process is reached by its address, held in a binding (§6.5), and no registry stands on a node: one exists so that a name can be looked up again after the process behind it has died and been replaced, and `restarting` restarts a process in place, so its address stays good across its faults and a top-level binding can hold it for the program's life (§6.5).
+- A process is reached by its address, held in a binding (§6.5), and no registry stands on a node: one exists so that a name can be looked up again after the process behind it has died and been replaced, and `restarting` restarts a process in place, so its address stays good across its faults and a top-level binding can hold it for the program's life.
 
   Addresses cannot be compared; the processes behind them can, `Process.fromAddress(a)`, which is a pid without the right to send.
 
