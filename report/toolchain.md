@@ -407,7 +407,7 @@ Other errors are placed and told as follows.
 
 A printed type elides an effect variable bound to none (§3.9). An effect variable that occurs once in a printed type, and is not process-only, is printed as none, but within a parameter's type, where it is printed: `fn ignore(f : () -> Unit receiving e) : Int = 5` prints as `(() -> Unit receiving e) -> Int`, and `fn pair() = fn(x) = #(x, x)` as `() -> (a) -> #(a, a)`.
 
-The compiler shows the two inferred restrictions of §3.9. In a printed type a variable with the equality constraint is `a=`, and a process-only effect variable that occurs in no value position `m+`: `equal : (a=, a=) -> Bool`, `skip : () -> Unit receiving e+`. An effect variable that occurs in a value position is not marked: `self : () -> Address(m) receiving m`. A printed type is not an annotation, and no mark can be written in one (§4.7).
+The compiler shows the two inferred restrictions of §3.9. In a printed type a variable with the equality constraint is `a=`, and a process-only effect variable that occurs in no value position `e+`: `equal : (a=, a=) -> Bool`, `skip : () -> Unit receiving e+`. An effect variable that occurs in a value position is not marked: `self : () -> Address(m) receiving m`. A printed type is not an annotation, and no mark can be written in one (§4.7).
 
 A type name is printed as the module would write it (§4.2). The module's own types and the prelude's are printed unqualified. Other modules' types are printed qualified. A local type that shadows a prelude name is printed qualified. A type variable is printed under its annotation's name; an unnamed one is `a`, `b`, ... for a value variable and `e`, `e1`, ... for an effect variable, avoiding the names in use and those a pattern the message shows binds.
 

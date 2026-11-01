@@ -395,7 +395,7 @@ fn secondLoop(first : Address(FirstMsg)) : Unit receiving SecondMsg =
     }
 ```
 
-The fault comes at once, and its lines name both servers, each by its spawn site and the call it waits in:
+The fault comes once the program is quiet, and its lines name both servers, each by its spawn site and the call it waits in:
 
 ```console
 $ ern run mutual.erc
@@ -413,7 +413,7 @@ So "nothing can deliver and everyone waits" is a question with an answer, and th
 
 A deadlock is quiescence, not a cycle, and the runtime's look for one may be late, and is wrong in one case alone. A process it cannot see into, in foreign code or on a socket, is read as able to deliver, so such a process makes no false deadlock. The one false deadlock is a delivery that foreign code arranges for after its call has returned, a host timer's or that of a host process nothing monitors, which the runtime cannot see coming: `ern run` and `ern test` fault a program that waits for it alone with `deadlock` (report §8.6).
 
-Finding one costs a program at work almost nothing, since the runtime asks only once the program has been quiet; the count behind it costs a message at each spawn and each monitor, which the repository's `make bench` measures against the host's own. A program run as a node, `ern run --config-dir`, looks for no deadlock, since a peer can always deliver to it (report §8.6).
+Finding one costs a program at work almost nothing, since the runtime asks only once the program has been quiet; the count behind it costs a message at each spawn and each monitor, which the repository's `make bench` measures against the host's own. A program run as a node, `ern run` or `ern test` with `--config-dir`, looks for no deadlock, since a peer can always deliver to it (report §8.6).
 
 ### Little else
 

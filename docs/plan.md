@@ -14,60 +14,18 @@ and a feature declined in a dated entry of the log; nothing stands between.
 
 ## Where we are
 
-**MVP 4.0 is done**, a shell attached to a running node, on 2026-10-31, and Ernest 0.7.0 of
-2026-10-31 is the last release, the release review before it read, its eight batches decided and
-built (the log's *The Release Review Before 0.7.0* and the entries its row names). No promise of
+**Ernest 0.8.0 is the last release**, of 2026-11-01, the pun's: the release review before it read
+a day's diff, its 92 findings decided and built (the log's *The Release Review Before 0.8.0* and
+the entries its row names). No promise of
 stability is made, and a change to the language, the standard library or the libraries is driven
 by a need met in use and recorded as `docs/language_feedback.md` records one.
 
-The pun is done, with what its day decided beside it: a `receive` always receives, an alarm can
-be canceled, and the checkout works toward 0.8.0. Next is Ernest 0.8.0 itself, a small release,
-since the three application repositories already stand on its floor (the log's *Ernest 0.8.0, a
-Small Release*); then ernest-httpd, the website and the shell's second round (the log's *The Road
-to 1.0, Ordered*), and MVP 4.4 last, the promise, the cost, the full review and Ernest 1.0, where
+The pun is released, with what its day decided beside it: a `receive` always receives, an alarm
+can be canceled, and the checkout works toward 0.9.0. Next is ernest-httpd, then the website and
+the shell's second round (the log's *The Road to 1.0, Ordered*), and MVP 4.4 last, the promise, the cost, the full review and Ernest 1.0, where
 the road ends and a program begins (the log's *MVP 4.4, the Road's End*); the back end to BEAM's own instructions that closed the road is not built,
 decided 2026-10-30 (the log's *No Back End to BEAM's Own Instructions*). A finished milestone is a
 row of the table at the end, its reasons in the log entries the row names.
-
----
-
-## Ernest 0.8.0, a small release
-
-Ernest 0.8.0 is the pun's release, decided 2026-11-01 (the log's *Ernest 0.8.0, a Small
-Release*): what the pun's day built, the pun, a `receive` that always receives with `Clock.sleep`
-beside it, an alarm that can be canceled and a guard that reads a field, and nothing of MVP 4.1.
-ernest-template, ernest-epx and ernest-httpd stand on floor 0.8 since that day, and
-ernest-httpd's sessions see no Ernest but an installed release, so its work begins when the
-archive exists.
-
-1. **A doc example runs at its own mailbox type**, feedback 182: an example whose last line is
-   `// => v` runs in a process whose mailbox type is the example's own, an open one being `Never`,
-   as a test of type `Test.Case(m)` runs (§11.2); Appendix E.0's shape rule 6 keeps two reasons an
-   example is only compiled, an abstract value and a file or a socket; the clock's page shows what
-   `cancel` answers and what an alarm's wrap delivers; the log's paragraph that named the third
-   reason is superseded. The report first, then the wrapper in
-   `erl/cli/src/ern_examples.erl`, and a test citing §11.2.
-2. **A census of forms**, over the repository's Ernest whole and not the diff, counted by a
-   script: every lambda shape at a call site, every wrap, every `let _ =`, every `match` over an
-   `Either`, every `receive` clause shape. A reader of the release's review reads the twenty most
-   frequent cold and asks of each whether an Erlang programmer would write it shorter; each
-   finding is decided as a `decide` line is, one that changes the grammar or a rule of §3 to §9
-   waiting its night. Its first form is known, the lambda around a request's constructor, 121
-   sites. Its yield decides its future: one form of the pun's size among the twenty makes it a
-   standing reader of [`full_review.md`](full_review.md), run once more over ernest-httpd's code
-   before MVP 4.4; none, and the item closes with its counts in the log (the log's *Ernest 0.8.0,
-   a Small Release*).
-3. **A request whose only field is its reply declares it positional**, `Get(Reply(Int))`, and is
-   passed to the call bare, `Address.call(counter, Get, ms)`, as the guide's §4.4 teaches: the
-   rule in `guide/style.md` beside the request's name, the style test refusing a constructor whose
-   one field is a named `Reply` from then on, and the sweep of the 44 declarations, their 57 call
-   sites and their `receive` patterns, in the standard library, the shell, the examples, the tour,
-   the tests' programs and the documents' blocks; the three application repositories hold none. A
-   request with more fields keeps its lambda, and a construction missing its reply does not become
-   a function of it (the log's *Ernest 0.8.0, a Small Release*).
-4. **The release 0.8.0**, by [`release_review.md`](release_review.md) whole, the readers over the
-   diff since v0.7.0 and the census over the whole; 0.7.0 is the attached shell's and 0.8.0 the
-   pun's.
 
 ---
 
@@ -290,6 +248,7 @@ the website and the operator's prompt have used. After 1.0 the road is a program
 | MVP 3.96 | the report pared to the language, `language.md` holding what decides what a program means and the runtime's mechanism chapter 12 of `toolchain.md`, and what the paring found: the build's cost per function linear, one function per initializer, the nested group's third restart, the newcomer's feedback decided, the second cut to E.27, the comments' paragraphs, the emitter's calls as the host's, `<-` at the prompt and `Test.until` | 2026-10-30 | | *The Report Pared After 0.6.0*, *The Report Pared, Built*, *The Build's Cost per Function*, *One Function per Initializer*, *The Nested Group's Third Restart*, *What the Newcomer's Feedback Left*, *The Second Cut, §8.7 to E.27*, *The Comments' Paragraphs*, *The Emitter's Calls Against the Host's, Built*, *Small Library Functions Stay Calls*, *`<-` at the Prompt*, *`Test.until`, Built* |
 | MVP 4.0 | a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches, its proposal `docs/proposals/shell/attached.md` as it stood at `facbd285`; and the release review before 0.7.0, eight readers over what changed since 0.6.0, its fix lines and its eight batches decided and built | 2026-10-31 | tag `v0.7.0` | *The Attached Shell's Cut*, *The Attached Shell's Sentences*, *The Session's Screen and the Toolchain's Units, Built*, *The Attached Shell, Built*, *The Guides Over the Attached Shell*, *The Attached Shell, Tested*, *The End's Lines Reach the Screen*, *A Line-Mode Input's Cost*, *The Attached Shell's Last Row*, *The Attached Shell's Own Node, Quiet*, *An Expression's One Unit, and an Input's Cost Flat*, *The Detach Keeps What Declares a Function*, *The Release Review Before 0.7.0*, *The Release Review's Code Fixes*, *The Argument's Four Decisions*, *Sites, Sessions and Their Names*, *The Input's Process*, *One Word to Leave*, *The Shell's Own Node*, *Reload, Services and Tests*, *The Library's Lines*, *The Claims, the README and the Tour* |
 | The pun | a field given or matched by the variable of its own name written once, `Desk(=local)`, swept over 874 sites with the style test holding it; the round that opened it, ten feedback lines decided and three rules built, a guard's field read, the shell's line by site, and the timed wait's effect, superseded the same day by a `receive` that always receives and `Clock.sleep`; an alarm that can be canceled; `make version`, Appendix D whole, the settler's restart tested, the guide's lines after the release review read; the three outside programs on floor 0.8 | 2026-11-01 | the release after 0.7.0 | *The Pun*, *The Pun's Opening Round*, *A `receive` Always Receives*, *An Alarm Can Be Canceled*, *`make version`, Appendix D Whole, the Settler's Restart*, *The Guide's Lines After the Release Review* |
+| Ernest 0.8.0 | a small release, the pun's: a doc example run at its own mailbox type, a census of forms over the repository's Ernest, a one-field request's reply declared positional and passed bare, and the release review before it, 92 findings | 2026-11-01 | tag `v0.8.0` | the log's *Ernest 0.8.0, a Small Release*, *The Release Review Before 0.8.0* |
 | MVP 4.1 | ernest-httpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | | | above |
 | MVP 4.2 | the website, served by ernest-httpd: what Ernest is, its characteristics, the three doors, and a live shell in the browser | | | above |
 | MVP 4.3 | the shell's second round | | | above |

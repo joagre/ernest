@@ -24,7 +24,7 @@ Past its restart limit the process ends, and the binding names an ended process 
 
 A supervision tree is the standard library's `Supervisor`: a group with a strategy, `OneForOne`, `OneForAll` or `RestForOne`, and a restart limit, its children restarted in place with their addresses kept, and killed in the reverse of their order when the supervisor dies (the guide's §6.6, report Appendix E.22). A child joins the group when it starts, whenever that is, so there is no `simple_one_for_one`; and a child is killed, not asked to stop, so there is no shutdown timeout.
 
-A sibling restarts only when it next waits, in a `receive`, in `Clock.sleep` or for a call's answer, so a sibling that never waits is never restarted, and the child that faulted stays down until every sibling has reached a wait, a call to it answering `None` meanwhile (the guide's §6.6).
+A sibling restarts only when it next waits, in a `receive`, in `Clock.sleep`, for a call's answer or for a load's, so a sibling that never waits is never restarted, and the child that faulted stays down until every sibling has reached a wait, a call to it answering `None` meanwhile (the guide's §6.6).
 
 A process replaces its own code while it runs, by a message of its type that carries the new loop, keeping its address and its state (the guide's §4.6); it keeps its mailbox type for life, so a change of its messages is a new process. A module reloaded or brought by a peer runs beside its earlier versions (report §11.2).
 
