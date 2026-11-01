@@ -271,7 +271,7 @@ let oneWordToLeave =
 
 let alphabetical = Test.Case(name = "the commands are in alphabetical order", run = fn() = {
     let names = List.map(commands, fn(command) = command.name);
-    if names == List.sort(names) then Test.Passed else Test.Failed(String.join(names, " "))
+    Test.equal(names, List.sort(names))
 })
 
 let lines =
@@ -287,25 +287,18 @@ let refusals = Test.Case(name = "a command line that selects nothing says why", 
         Left(text) -> text
       | Right(_) -> "accepted"
     });
-    if said
-        == ["no command :zz; :help lists them",
-            ":f is :faults or :forget",
-            ":b is :bindings or :browse",
-            ":type takes an expression",
-            ":help takes no argument",
-            "a command is one line"] then
-        Test.Passed
-    else
-        Test.Failed(String.join(said, " | "))
+    Test.equal(said,
+               ["no command :zz; :help lists them",
+                ":f is :faults or :forget",
+                ":b is :bindings or :browse",
+                ":type takes an expression",
+                ":help takes no argument",
+                "a command is one line"])
 })
 
 let three =
     Test.Case(name = "three alternatives read as a list",
-              run = fn() =
-                  if alternatives(["a", "b", "c"]) == ":a, :b or :c" then
-                      Test.Passed
-                  else
-                      Test.Failed(alternatives(["a", "b", "c"])))
+              run = fn() = Test.equal(alternatives(["a", "b", "c"]), ":a, :b or :c"))
 
 let completing =
     Test.Case(name = "what completes is what the command takes",
@@ -321,10 +314,7 @@ let completing =
 let helpLines =
     Test.Case(name = "a help line's prose starts in one column", run = fn() = match pick("browse") {
         Picked(command) ->
-            if line(command) == ":browse Module  the exports of Module with their types" then
-                Test.Passed
-            else
-                Test.Failed(line(command))
+            Test.equal(line(command), ":browse Module  the exports of Module with their types")
       | _ ->
             Test.Failed("browse")
     })
@@ -337,11 +327,9 @@ let settingsRead =
                           setting("depth -1"),
                           setting("width 2")) {
                       #(Right(Depth(3)), Right(Timing(true)), Left(negative), Left(unknown)) ->
-                          if negative == ":set depth takes 0 or more"
-                              && unknown == ":set takes depth, length, rows or timing" then
-                              Test.Passed
-                          else
-                              Test.Failed(negative <> " | " <> unknown)
+                          Test.equal(#(negative, unknown),
+                                     #(":set depth takes 0 or more",
+                                       ":set takes depth, length, rows or timing"))
                     | _ ->
                           Test.Failed("setting")
                   })

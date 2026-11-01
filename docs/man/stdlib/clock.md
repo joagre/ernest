@@ -11,9 +11,9 @@ microseconds. `alarm` and `alarmAt` put a message in the caller's mailbox
 later, and `sleep` waits a time and takes no message.
 
 **Alarms.** An alarm fires once, and `alarm` and `alarmAt` answer it as an
-`Alarm`, which `cancel` ends until it fires. A fired alarm's message is in
-the mailbox or on its way, and no cancel takes it back. A periodic tick is
-set again each time the one before is handled. A restart of the process
+`Alarm`, which `cancel` can end before it fires. A fired alarm's message is
+in the mailbox or on its way, and no cancel takes it back. A periodic tick
+is set again each time the one before is handled. A restart of the process
 that set an alarm cancels it (report §6.9).
 
 **Alarms arrive in the mailbox.** An alarm is delivered into the caller's
@@ -41,9 +41,9 @@ abstract type Alarm
 
 *Since 0.8.0.*
 
-An alarm that `alarm` or `alarmAt` set, held until it fires, is canceled
-or its process ends. It is bound to its node, and `==` is the runtime's on
-it: an alarm equals itself alone (report §3.10, §3.11).
+An alarm that `alarm` or `alarmAt` set, which the clock holds until it
+fires, is canceled, or its process ends. It is bound to its node, and `==`
+is the runtime's on it: an alarm equals itself alone (report §3.10, §3.11).
 
 ### Examples
 
@@ -115,9 +115,11 @@ Clock.sleep(ms : Int) : Unit
 *Since 0.8.0.*
 
 Waits `ms` milliseconds, counted as `monotonic` counts them, and takes no
-message: the mailbox is as it was. A restart asked for, or a fault met on a
-message's way, reaches the wait as it reaches a `receive` (report §6.5,
-§6.9). A time below 0 is 0, and a time has no upper bound (report §7.4).
+message: the mailbox is as it was. A restart asked for (report §6.9)
+reaches the wait as it reaches a `receive`, and so does a fault that an
+adapted address's function met on its way to this process (report §6.5),
+or a foreign message that does not match (report §8.4). A time below 0 is
+0, and a time has no upper bound (report §7.4).
 
 ### Examples
 
@@ -137,8 +139,8 @@ Clock.alarm(ms : Int, wrap : (Int) -> m) : Alarm receiving m
 ```
 
 Puts `wrap(time)` in the caller's mailbox after `ms` milliseconds, `time`
-the time it fired, and answers the alarm, which `cancel` ends until then.
-A constructor of one argument passes as `wrap` as it is:
+the time it fired, and answers the alarm, which `cancel` can end before
+then. A constructor of one argument passes as `wrap` as it is:
 `Clock.alarm(100, Tick)` for `Tick(Int)`.
 
 ### Examples
@@ -161,7 +163,7 @@ Clock.alarmAt(time : Int, wrap : (Int) -> m) : Alarm receiving m
 
 Puts `wrap(time)` in the caller's mailbox at `time`, in milliseconds since
 the epoch, `time` then the time it fired, and answers the alarm, which
-`cancel` ends until then. A time already past fires at once.
+`cancel` can end before then. A time already past fires at once.
 
 ### Examples
 

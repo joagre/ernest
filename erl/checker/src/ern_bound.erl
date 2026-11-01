@@ -482,10 +482,13 @@ mailbox_crosses(Name, Span, Mailbox, Env) ->
                          " (report §3.11)")
             end;
         {Why, _} ->
+            %% report §6.5, §8.7: the process is started on the peer at its
+            %% own mailbox type, and an adapted address of a type that
+            %% crosses reaches it from elsewhere
             fail(Span, Name ++ " starts a process whose mailbox type " ++ Text
                        ++ " is bound to its node, since it holds " ++ Why,
-                 "keep " ++ Why ++ " on this node and send the process values that cross, or "
-                 ++ here(Name) ++ " (report §3.11)")
+                 started_there(Name) ++ ", or keep " ++ Why ++ " on this node and send the"
+                 " process values that cross (report §3.11)")
     end.
 
 %% Appendix E.27: whether the operation is a compute, on a peer named or on
@@ -501,6 +504,12 @@ verb(Name) -> by_kind(Name, " runs ", " starts ").
 act(Name) -> by_kind(Name, "the compute", "the spawn").
 
 here(Name) -> by_kind(Name, "run the function on this node, `f()`", "spawn on this node").
+
+started_there(Name) ->
+    by_kind(Name, "spawn the process in the function the compute runs, which answers an adapted"
+                  " address of a type that crosses",
+            "start it on the peer from `Peer.computeAt`, whose function spawns it and answers an"
+            " adapted address of a type that crosses").
 
 annotated(Name) -> by_kind(Name, "`fn() : Int receiving Msg = ...`",
                            "`fn() : Unit receiving Msg = ...`").

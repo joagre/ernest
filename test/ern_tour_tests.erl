@@ -418,8 +418,9 @@ door(#tour{shell = Shell} = Tour) ->
            " bound to its node, since it holds a function",
            "1 | Peer.spawn(\"foo\", fn() = Counter.count(Tally.empty()), 5000)",
            "  |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
-           "  | = help: keep a function on this node and send the process values that cross,"
-           " or spawn on this node (report §3.11)"]},
+           "  | = help: start it on the peer from `Peer.computeAt`, whose function spawns it"
+           " and answers an adapted address of a type that crosses, or keep a function on this"
+           " node and send the process values that cross (report §3.11)"]},
          {"kill(counter)", []},
          {"let counter = Counter.start()", ["counter : Address(Counter.ClientMsg)"]},
          {"let far <- Peer.computeAt(\"foo\", fn() = Counter.start(), 5000)",

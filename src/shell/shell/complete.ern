@@ -564,32 +564,23 @@ let shortModule =
     Test.Case(name = "a segment is abbreviated too",
               run = fn() = becomes(complete(word("L.fm"), library(), Expression), "List.filterMap"))
 
-let prefixFirst =
-    Test.Case(name = "a prefix is listed before an abbreviation",
-              run = fn() = match complete(word("List.f"), library(), Expression) {
-                  Completion(candidates = Name(text = first) :: _) ->
-                      if first == "List.filter" then Test.Passed else Test.Failed(first)
-                | _ ->
-                      Test.Failed("no candidates")
-              })
+let prefixFirst = Test.Case(name = "a prefix is listed before an abbreviation", run = fn() = {
+    let candidates = complete(word("List.f"), library(), Expression).candidates;
+    Test.equal(Optional.map(List.get(candidates, 0), fn(name) = name.text), Some("List.filter"))
+})
 
 let noneAtAll =
     Test.Case(name = "a word that reaches nothing completes to nothing",
               run = fn() = becomes(complete(word("Zz"), library(), Expression), ""))
 
-let words = Test.Case(name = "a word ends where a name cannot go on", run = fn() = {
-    let seen = word("1 + List.ma");
-    if seen == "List.ma" then Test.Passed else Test.Failed(seen)
-})
+let words =
+    Test.Case(name = "a word ends where a name cannot go on",
+              run = fn() = Test.equal(word("1 + List.ma"), "List.ma"))
 
 let applying =
     Test.Case(name = "a completion replaces the word and moves the cursor", run = fn() = {
-        let #(text, cursor) =
-            applied("1 + L.fm(xs)", 8, "L.fm", complete("L.fm", library(), Expression));
-        if text == "1 + List.filterMap(xs)" && cursor == 18 then
-            Test.Passed
-        else
-            Test.Failed("\"" <> text <> "\" at " <> Int.toString(cursor))
+        let completed = complete("L.fm", library(), Expression);
+        Test.equal(applied("1 + L.fm(xs)", 8, "L.fm", completed), #("1 + List.filterMap(xs)", 18))
     })
 
 // A regression test: the whole word was taken for the typed one, so the
@@ -602,29 +593,18 @@ let commandInWord =
 
 let ordered = Test.Case(name = "candidates are alphabetical", run = fn() = {
     let candidates = complete(word("List."), library(), Expression).candidates;
-    let texts = List.map(candidates, fn(name) = name.text);
-    if texts == ["List.filter", "List.filterMap", "List.map"] then
-        Test.Passed
-    else
-        Test.Failed(String.join(texts, ", "))
+    Test.equal(List.map(candidates, fn(name) = name.text),
+               ["List.filter", "List.filterMap", "List.map"])
 })
 
-let nothingTyped = Test.Case(name = "nothing typed reaches the names of one segment", run = fn() = {
-    let candidates = complete("", library(), Expression).candidates;
-    if List.size(candidates) == 2 then
-        Test.Passed
-    else
-        Test.Failed(Int.toString(List.size(candidates)))
-})
+let nothingTyped =
+    Test.Case(name = "nothing typed reaches the names of one segment",
+              run = fn() = Test.equal(List.size(complete("", library(), Expression).candidates), 2))
 
-let oneSegment =
-    Test.Case(name = "a segment reaches no name deeper than it",
-              run = fn() = match complete(word("L"), library(), Expression) {
-                  Completion(word = completed, candidates = [_]) ->
-                      if completed == "List." then Test.Passed else Test.Failed(completed)
-                | Completion(=candidates) ->
-                      Test.Failed(Int.toString(List.size(candidates)))
-              })
+let oneSegment = Test.Case(name = "a segment reaches no name deeper than it", run = fn() = {
+    let completion = complete(word("L"), library(), Expression);
+    Test.equal(#(completion.word, List.size(completion.candidates)), #("List.", 1))
+})
 
 let caseKept =
     Test.Case(name = "a lower-case letter reaches no constructor",
@@ -651,12 +631,8 @@ let neverShorter = Test.Case(name = "a Tab never takes away what was typed", run
     let aside =
         [Name(text = "filterMap", kind = Value, shown = "filterMap"),
          Name(text = "flatMap", kind = Value, shown = "flatMap")];
-    let prefixed = complete("Ad", names, Expression).word;
-    let abbreviated = complete("fm", aside, Expression).word;
-    if prefixed == "Address." && abbreviated == "" then
-        Test.Passed
-    else
-        Test.Failed(prefixed <> " | " <> abbreviated)
+    Test.equal(#(complete("Ad", names, Expression).word, complete("fm", aside, Expression).word),
+               #("Address.", ""))
 })
 
 let keepsTheLast =
@@ -678,18 +654,14 @@ let heldOnly =
                                       Name(text = "Shell.Region.Region",
                                            kind = Type,
                                            shown = "type Shell.Region.Region")]);
-                  let completed = complete("S", names, TypeName).word;
-                  if completed == "Shell." then Test.Passed else Test.Failed(completed)
+                  Test.equal(complete("S", names, TypeName).word, "Shell.")
               })
 
 let wholeWord =
     Test.Case(name = "the whole name the cursor stands in",
               run = fn() =
-                  if wordAt("x + List.m(1)", 8) == "List.m"
-                      && wordAt("List.map xs", 6) == "List.map" then
-                      Test.Passed
-                  else
-                      Test.Failed(wordAt("List.map xs", 6)))
+                  Test.equal(#(wordAt("x + List.m(1)", 8), wordAt("List.map xs", 6)),
+                             #("List.m", "List.map")))
 
 let namespaces =
     Test.Case(name = "a type with members is a namespace, completing with its dot",
@@ -735,7 +707,4 @@ fn library() : List(Name) =
      Name(text = "Some", kind = Constructor, shown = "Some : (a) -> Optional(a)")]
 
 fn becomes(completion : Completion, text : String) : Test.Result =
-    if completion.word == text then
-        Test.Passed
-    else
-        Test.Failed("\"" <> completion.word <> "\" instead of \"" <> text <> "\"")
+    Test.equal(completion.word, text)

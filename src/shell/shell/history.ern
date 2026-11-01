@@ -202,15 +202,12 @@ let plain =
 let newlines =
     Test.Case(name = "a newline is written as an escape and read back",
               run = fn() =
-                  if encode("a\nb") == "a\\nb" then same("a\nb") else Test.Failed(encode("a\nb")))
+                  Test.equal(#(encode("a\nb"), decode(encode("a\nb"))), #("a\\nb", "a\nb")))
 
 let backslash =
     Test.Case(name = "a backslash is doubled, so `\\n` is not a newline",
               run = fn() =
-                  if encode("a\\nb") == "a\\\\nb" then
-                      same("a\\nb")
-                  else
-                      Test.Failed(encode("a\\nb")))
+                  Test.equal(#(encode("a\\nb"), decode(encode("a\\nb"))), #("a\\\\nb", "a\\nb")))
 
 let both =
     Test.Case(name = "a backslash before a newline reads back whole",
@@ -219,7 +216,4 @@ let both =
 let empty = Test.Case(name = "an empty input reads back empty", run = fn() = same(""))
 
 fn same(input : String) : Test.Result =
-    if decode(encode(input)) == input then
-        Test.Passed
-    else
-        Test.Failed("\"" <> encode(input) <> "\" read back as \"" <> decode(encode(input)) <> "\"")
+    Test.equal(decode(encode(input)), input)

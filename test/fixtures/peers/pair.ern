@@ -159,7 +159,7 @@ fn text(value : Json.Value) : Either(String, String) =
     }
 
 fn shown(either : Either(e, a)) : Either(String, a) needs e.show =
-    Either.mapLeft(either, fn(error) = Io.show(error))
+    Either.mapLeft(either, Io.show)
 
 // Until the program has written the bytes on its standard output.
 fn said(program : Address(Os.ProgramMsg), bytes : Bytes, seen : Bytes) : Either(String, Unit) =

@@ -2583,7 +2583,7 @@ constructor_at({constructor, Reference, Position}, Context) ->
 %% where every constructor has it at one place, and a case on the tag where
 %% the places differ. Report §6.3: in a guard, where no case stands, the
 %% place is read from the tag, Form being a variable or a selection, which
-%% the guard reads twice at no cost.
+%% the guard reads twice, and a selection of such a selection twice again.
 select(Field, Reference, Form, Context) ->
     {_, {_, Constructors}} = declared_type(Reference, Context),
     Places = [{ConstructorName, place(Field, [Name || {Name, _} <- Fields]) + 1, length(Fields)}

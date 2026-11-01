@@ -760,11 +760,8 @@ let searchesOn =
 let searchShows =
     Test.Case(name = "a search shows its prompt and what it found",
               run = fn() =
-                  if shows(plays(start(["print two"]), [ctrl('r')] <> keys("two")))
-                      == "(reverse-i-search)`two\': print two" then
-                      Test.Passed
-                  else
-                      Test.Failed(shows(plays(start(["print two"]), [ctrl('r')] <> keys("two")))))
+                  Test.equal(shows(plays(start(["print two"]), [ctrl('r')] <> keys("two"))),
+                             "(reverse-i-search)`two\': print two"))
 
 let searchFails =
     Test.Case(name = "a search that matches nothing says so and keeps the line",
@@ -802,22 +799,15 @@ let searchLeft =
 
 let joinsHistory =
     Test.Case(name = "the line just taken joins the history",
-              run = fn() = match next(Editing(..start(["one"]), text = "two")) {
-                  Editing(history = ["two", "one"]) -> Test.Passed
-                | Editing(=history) -> Test.Failed(String.join(history, ", "))
-              })
+              run = fn() =
+                  Test.equal(next(Editing(..start(["one"]), text = "two")).history, ["two", "one"]))
 
 // Report §11.2: a regression test, written after the code; the session
 // kept every input it was given.
 let lastThousand = Test.Case(name = "the history keeps the last thousand inputs", run = fn() = {
     let full = List.map(List.range(1, Shell.History.kept), Int.toString);
-    match next(Editing(..start(full), text = "new")) {
-        Editing(=history) ->
-            if List.size(history) == Shell.History.kept && List.get(history, 0) == Some("new") then
-                Test.Passed
-            else
-                Test.Failed(Int.toString(List.size(history)))
-    }
+    let history = next(Editing(..start(full), text = "new")).history;
+    Test.equal(#(List.size(history), List.get(history, 0)), #(Shell.History.kept, Some("new")))
 })
 
 let notKept =
@@ -854,13 +844,8 @@ fn plays(initial : Editing, events : List(Terminal.Event)) : Edit =
 
 fn reads(edited : Edit, text : String, cursor : Int) : Test.Result =
     match edited {
-        Edited(state) ->
-            if state.text == text && state.cursor == cursor then
-                Test.Passed
-            else
-                Test.Failed("\"" <> state.text <> "\" at " <> Int.toString(state.cursor))
-      | other ->
-            Test.Failed(said(other))
+        Edited(state) -> Test.equal(#(state.text, state.cursor), #(text, cursor))
+      | other -> Test.Failed(said(other))
     }
 
 // What the reader would show, which is the line or the search's prompt

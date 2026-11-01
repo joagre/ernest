@@ -916,15 +916,26 @@ receive_expr(Tokens, Position) ->
     {Clauses, After, Rest1} = receive_clauses(Rest, []),
     spanned({#e_receive{span = Position, clauses = Clauses, 'after' = After}, expect(Rest1, '}')}).
 
-%% Report §6.3, Appendix A: a `receive` has a pattern clause, its `after`
-%% one beside them; a wait for a time alone is `Clock.sleep`.
-receive_clauses([{'after', Position} | _], []) ->
-    fail(Position, "a `receive` takes a message; to wait a time, write `Clock.sleep(ms)`");
+%% Report §6.3, Appendix A: a `receive` has a pattern clause, and its
+%% `after` clause comes last, so one followed by a clause is refused for
+%% its place; a `receive` of an `after` clause alone is refused naming the
+%% wait for a time, `Clock.sleep`, over the `after`'s time as a help
+%% writes it (§11.5).
 receive_clauses([{'after', Position} | Rest], Acc) ->
     {Timeout, Rest1} = expr(Rest),
     {Body, Rest2} = expr(expect(Rest1, '->')),
-    {After, _} = spanned({#after_clause{span = Position, timeout = Timeout, body = Body}, Rest2}),
-    {lists:reverse(Acc), After, Rest2};
+    case {Rest2, Acc} of
+        {[{'|', _} | _], _} ->
+            fail(Position, "the `after` clause of a `receive` comes last",
+                 "move it after the pattern clauses");
+        {[{'}', _} | _], []} ->
+            fail(Position, "a `receive` takes a message; to wait a time, write `Clock.sleep("
+                 ++ ern_ast:help_text(Timeout) ++ ")`");
+        _ ->
+            {After, _} = spanned({#after_clause{span = Position, timeout = Timeout,
+                                                body = Body}, Rest2}),
+            {lists:reverse(Acc), After, Rest2}
+    end;
 receive_clauses(Tokens, Acc) ->
     {Clause, Rest} = clause(Tokens),
     case Rest of

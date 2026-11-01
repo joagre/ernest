@@ -504,11 +504,11 @@ let columnsOfTheSize =
 
 let spansRows =
     Test.Case(name = "an input takes a row for each of its lines",
-              run = fn() = rowsAre(inputRows(typed("a\nb", 3)), ["> a", "... b"]))
+              run = fn() = Test.equal(inputRows(typed("a\nb", 3)), ["> a", "... b"]))
 
 let showsTheEmptyRow =
     Test.Case(name = "a text that ends in a line feed shows its empty row",
-              run = fn() = rowsAre(inputRows(typed("a\n", 2)), ["> a", "... "]))
+              run = fn() = Test.equal(inputRows(typed("a\n", 2)), ["> a", "... "]))
 
 let restsWhereTyped =
     Test.Case(name = "the cursor rests on the row and column it is typed at",
@@ -519,10 +519,8 @@ let restsWhereTyped =
 let picturesControls =
     Test.Case(name = "a control character typed or pasted is painted as its picture", run = fn() = {
         let region = typed("x\u{1b}]0;t\u{7}y\u{7f}\u{85}", 10);
-        match rowsAre(inputRows(region), ["> x\u{241b}]0;t\u{2407}y\u{2421}\u{fffd}"]) {
-            Test.Passed -> restsAt(region, 0, 13)
-          | failed -> failed
-        }
+        Test.equal(#(inputRows(region), resting(region), column(region)),
+                   #(["> x\u{241b}]0;t\u{2407}y\u{2421}\u{fffd}"], 0, 13))
     })
 
 let restsOnTheFirstRow =
@@ -532,28 +530,26 @@ let restsOnTheFirstRow =
 let wideGlyphs =
     Test.Case(name = "a wide glyph takes two columns and is never split",
               run = fn() =
-                  rowsAre(wrapped("中中中", 4) <> [clip("a中b", 2)] <> wrapped("中中", 1),
-                          ["中中", "中", "a", "中", "中"]))
+                  Test.equal(wrapped("中中中", 4) <> [clip("a中b", 2)] <> wrapped("中中", 1),
+                             ["中中", "中", "a", "中", "中"]))
 
 let restsAfterWide =
     Test.Case(name = "the cursor rests after a wide glyph's two columns",
               run = fn() = restsAt(typed("中a", 2), 0, 6))
 
-let escapesTakeNoColumn = Test.Case(name = "an escape sequence takes no column", run = fn() = {
-    let text = "a\u{1b}[36mbc\u{1b}[0md";
-    if Terminal.width(text) == 4 then
-        Test.Passed
-    else
-        Test.Failed(Int.toString(Terminal.width(text)))
-})
+let escapesTakeNoColumn =
+    Test.Case(name = "an escape sequence takes no column",
+              run = fn() = Test.equal(Terminal.width("a\u{1b}[36mbc\u{1b}[0md"), 4))
 
 let clipKeepsSequences =
     Test.Case(name = "a row cut short keeps its sequences and resets",
-              run = fn() = same(clip("ab\u{1b}[36mcdef\u{1b}[0m", 4), "ab\u{1b}[36mcd\u{1b}[0m"))
+              run = fn() =
+                  Test.equal(clip("ab\u{1b}[36mcdef\u{1b}[0m", 4), "ab\u{1b}[36mcd\u{1b}[0m"))
 
 let tabsAfterSequences =
     Test.Case(name = "a tab stop is counted without escape sequences",
-              run = fn() = same(expand("\u{1b}[36ma\u{1b}[0m\tb"), "\u{1b}[36ma\u{1b}[0m       b"))
+              run = fn() =
+                  Test.equal(expand("\u{1b}[36ma\u{1b}[0m\tb"), "\u{1b}[36ma\u{1b}[0m       b"))
 
 let takenPrompt =
     Test.Case(name = "a prompt spent on no input is dropped before the next answer", run = fn() = {
@@ -570,7 +566,8 @@ let takenPrompt =
 
 let expandsTabs =
     Test.Case(name = "a tab is painted to the next stop",
-              run = fn() = rowsAre([expand("> a\tb"), expand("\t.")], ["> a     b", "        ."]))
+              run = fn() =
+                  Test.equal([expand("> a\tb"), expand("\t.")], ["> a     b", "        ."]))
 
 let restsAfterATab =
     Test.Case(name = "the cursor rests where the tab left it",
@@ -580,24 +577,22 @@ let paintsTheLine = Test.Case(name = "typing erases the region and paints it aga
     let #(_, bytes) = edited(prompted(), "hi", 2, []);
     // the region is one row, so nothing is climbed; the cursor is put
     // after the prompt and what is typed
-    same(bytes, "\r\u{1b}[J> hi\r\u{1b}[4C")
+    Test.equal(bytes, "\r\u{1b}[J> hi\r\u{1b}[4C")
 })
 
 let commitsWhatIsEntered =
     Test.Case(name = "an input entered joins the transcript, a row a line", run = fn() = {
         let #(typed, _) = edited(prompted(), "a\nb", 3, []);
         let #(_, bytes) = entered(typed);
-        same(bytes, "\r\u{1b}[1A\u{1b}[J> a\n... b\n\r")
+        Test.equal(bytes, "\r\u{1b}[1A\u{1b}[J> a\n... b\n\r")
     })
 
 let offersUnderTheInput =
     Test.Case(name = "what Tab shows stands under the input, the cursor in it", run = fn() = {
         let #(region, bytes) = edited(prompted(), "Li", 2, ["List.map : a", "List.size : b"]);
         // three rows painted, and the cursor climbs the two under it
-        if rowsOf(region) == ["> Li", "List.map : a", "List.size : b"] && resting(region) == 0 then
-            same(bytes, offeredBytes)
-        else
-            Test.Failed(String.join(rowsOf(region), " | "))
+        Test.equal(#(rowsOf(region), resting(region), bytes),
+                   #(["> Li", "List.map : a", "List.size : b"], 0, offeredBytes))
     })
 
 // What typing "Li" writes with two rows offered under it.
@@ -606,37 +601,34 @@ let offeredBytes = "\r\u{1b}[J> Li\nList.map : a\nList.size : b\u{1b}[2A\r\u{1b}
 let nextKeyTakesItAway = Test.Case(name = "the next key takes away what Tab showed", run = fn() = {
     let #(region, _) = edited(prompted(), "Li", 2, ["List.map : a"]);
     let #(region1, _) = edited(region, "Lis", 3, []);
-    rowsAre(rowsOf(region1), ["> Lis"])
+    Test.equal(rowsOf(region1), ["> Lis"])
 })
 
 let enteredTakesItAway =
     Test.Case(name = "an input entered takes away what Tab showed", run = fn() = {
         let #(region, _) = edited(prompted(), "Li", 2, ["List.map : a"]);
         let #(region1, bytes) = entered(region);
-        if rowsOf(region1) == [""] && String.indexOf(bytes, "List.map") == None then
-            Test.Passed
-        else
-            Test.Failed(String.join(rowsOf(region1), " | "))
+        Test.equal(#(rowsOf(region1), String.indexOf(bytes, "List.map")), #([""], None))
     })
 
 let offerWraps = Test.Case(name = "a row shown under the input wraps at the edge", run = fn() = {
     let #(region, _) = said(new(Terminal.Size(rows = 24, columns = 6)), "> ");
     let #(region1, _) = edited(region, "", 0, ["abcdefgh"]);
-    rowsAre(rowsOf(region1), ["> ", "abcdef", "gh"])
+    Test.equal(rowsOf(region1), ["> ", "abcdef", "gh"])
 })
 
 let wrapKeepsColor =
     Test.Case(name = "a wrapped row is colored on as it was",
               run = fn() =
-                  rowsAre(wrapped("\u{1b}[1mabcdefgh\u{1b}[0m", 6),
-                          ["\u{1b}[1mabcdef\u{1b}[0m", "\u{1b}[1mgh\u{1b}[0m"]))
+                  Test.equal(wrapped("\u{1b}[1mabcdefgh\u{1b}[0m", 6),
+                             ["\u{1b}[1mabcdef\u{1b}[0m", "\u{1b}[1mgh\u{1b}[0m"]))
 
 let offerCounted = Test.Case(name = "what the screen has no room for is counted", run = fn() = {
     // six rows: one for the input, four for lines, one for the count
     let region = new(Terminal.Size(rows = 6, columns = 80));
     let #(region1, _) = said(region, "> ");
     let #(region2, _) = edited(region1, "", 0, ["a", "b", "c", "d", "e", "f", "g"]);
-    rowsAre(rowsOf(region2), ["> ", "a", "b", "c", "d", "and 3 more"])
+    Test.equal(rowsOf(region2), ["> ", "a", "b", "c", "d", "and 3 more"])
 })
 
 let enteredEmpty = Test.Case(name = "nothing typed after no prompt leaves no row", run = fn() = {
@@ -655,28 +647,16 @@ let wrapsTheInput =
         let #(region, _) = said(new(Terminal.Size(rows = 24, columns = 10)), "> ");
         let #(region1, _) = edited(region, "abcdefghijkl", 12, []);
         // `> ` and twelve characters are fourteen columns: two rows
-        if rowsOf(region1) == ["> abcdefgh", "ijkl"]
-            && resting(region1) == 1
-            && column(region1) == 5 then
-            Test.Passed
-        else
-            Test.Failed(String.join(rowsOf(region1), " | ")
-                            <> " at "
-                            <> Int.toString(resting(region1))
-                            <> ","
-                            <> Int.toString(column(region1)))
+        Test.equal(#(rowsOf(region1), resting(region1), column(region1)),
+                   #(["> abcdefgh", "ijkl"], 1, 5))
     })
 
 let fillsTheWidth =
     Test.Case(name = "a line that fills the width puts the cursor on the next row", run = fn() = {
         let #(region, _) = said(new(Terminal.Size(rows = 24, columns = 10)), "> ");
         let #(region1, _) = edited(region, "abcdefgh", 8, []);
-        if rowsOf(region1) == ["> abcdefgh", ""]
-            && resting(region1) == 1
-            && column(region1) == 1 then
-            Test.Passed
-        else
-            Test.Failed(String.join(rowsOf(region1), " | "))
+        Test.equal(#(rowsOf(region1), resting(region1), column(region1)),
+                   #(["> abcdefgh", ""], 1, 1))
     })
 
 let unendedRows =
@@ -685,11 +665,8 @@ let unendedRows =
         let #(region1, _) = wrote(region, "abcdefghijklmnopqrstuvwxy");
         let #(begun, _) = wrote(new(Terminal.Size(rows = 24, columns = 10)), "abcdefg");
         let #(continued, _) = wrote(begun, "hijklm");
-        if tailRowsOf(region1) == ["abcdefghij", "klmnopqrst", "uvwxy"]
-            && tailRowsOf(continued) == ["abcdefghij", "klm"] then
-            Test.Passed
-        else
-            Test.Failed(String.join(tailRowsOf(region1) <> ["/"] <> tailRowsOf(continued), " | "))
+        Test.equal(#(tailRowsOf(region1), tailRowsOf(continued)),
+                   #(["abcdefghij", "klmnopqrst", "uvwxy"], ["abcdefghij", "klm"]))
     })
 
 // A regression test: a tab on a row the input wrapped onto was counted
@@ -698,33 +675,26 @@ let wrappedTab =
     Test.Case(name = "a tab on a wrapped row stops as the terminal's do", run = fn() = {
         let #(region, _) = said(new(Terminal.Size(rows = 24, columns = 10)), "> ");
         let #(region1, _) = edited(region, "abcdefghij\tx", 12, []);
-        match rowsAre(screenInput(region1), ["> abcdefgh", "ij      x"]) {
-            Test.Passed -> restsAt(region1, 1, 10)
-          | failed -> failed
-        }
+        Test.equal(#(screenInput(region1), resting(region1), column(region1)),
+                   #(["> abcdefgh", "ij      x"], 1, 10))
     })
 
 // A regression test: an ended line was cut off at the window's edge.
 let endedRows = Test.Case(name = "an ended line gives the tail each row it fills", run = fn() = {
     let #(region, _) =
         wrote(new(Terminal.Size(rows = 24, columns = 10)), "abcdefghijklmnopqrstuvwxy\nz\n");
-    rowsAre(tailRowsOf(region), ["abcdefghij", "klmnopqrst", "uvwxy", "z"])
+    Test.equal(tailRowsOf(region), ["abcdefghij", "klmnopqrst", "uvwxy", "z"])
 })
 
 let unendedStyle =
     Test.Case(name = "a row of a line not yet ended begins with the style in force", run = fn() = {
         let #(rows, left) = filled("\u{1b}[31mabcdefghijkl", 10);
         let #(resetRows, resetLeft) = filled("\u{1b}[31mab\u{1b}[0mcdefghijkl", 10);
-        if rows == ["\u{1b}[31mabcdefghij"]
-            && left == "\u{1b}[31mkl"
-            && resetRows == ["\u{1b}[31mab\u{1b}[0mcdefghij"]
-            && resetLeft == "kl" then
-            Test.Passed
-        else
-            Test.Failed(String.replace(String.join(rows <> [left] <> resetRows <> [resetLeft],
-                                                   " | "),
-                                       "\u{1b}",
-                                       "ESC"))
+        Test.equal(#(rows, left, resetRows, resetLeft),
+                   #(["\u{1b}[31mabcdefghij"],
+                     "\u{1b}[31mkl",
+                     ["\u{1b}[31mab\u{1b}[0mcdefghij"],
+                     "kl"))
     })
 
 let unendedHeld =
@@ -746,12 +716,12 @@ let unendedHeld =
 // 4.0 item 8)
 let endsUnderThePrompt =
     Test.Case(name = "the region ends under its prompt, what was typed taken away",
-              run = fn() = same(ending(typed("a\nbc", 4)), "\r\u{1b}[1A\u{1b}[2C\u{1b}[J\n"))
+              run = fn() = Test.equal(ending(typed("a\nbc", 4)), "\r\u{1b}[1A\u{1b}[2C\u{1b}[J\n"))
 
 let endsOnTheInputsRow =
     Test.Case(name = "with no prompt the region ends at its input's row", run = fn() = {
         let #(region, _) = entered(typed("abc", 3));
-        same(ending(region), "\r\u{1b}[J")
+        Test.equal(ending(region), "\r\u{1b}[J")
     })
 
 // A region with a prompt written, which is where an input is typed.
@@ -767,17 +737,5 @@ fn typed(text : String, cursor : Int) : Region = {
     region
 }
 
-fn rowsAre(rows : List(String), expected : List(String)) : Test.Result =
-    if rows == expected then Test.Passed else Test.Failed(String.join(rows, " | "))
-
 fn restsAt(region : Region, expectedRow : Int, expectedColumn : Int) : Test.Result =
-    if resting(region) == expectedRow && column(region) == expectedColumn then
-        Test.Passed
-    else
-        Test.Failed("row "
-                        <> Int.toString(resting(region))
-                        <> ", column "
-                        <> Int.toString(column(region)))
-
-fn same(bytes : String, expected : String) : Test.Result =
-    if bytes == expected then Test.Passed else Test.Failed(String.replace(bytes, "\u{1b}", "ESC"))
+    Test.equal(#(resting(region), column(region)), #(expectedRow, expectedColumn))

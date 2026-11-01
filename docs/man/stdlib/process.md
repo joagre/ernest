@@ -53,8 +53,8 @@ Optional.map(Process.status(Process.current()), fn(status) = status.activity)
 type Activity = Running | Receiving | Calling
 ```
 
-What a live process is doing: running, waiting in a `receive`, or waiting
-for the answer to a call.
+What a live process is doing: running, waiting in a `receive` or in
+`Clock.sleep`, or waiting for the answer to a call.
 
 ### Examples
 

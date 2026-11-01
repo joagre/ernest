@@ -71,50 +71,30 @@ fn paint(color : Markdown.Output, style : Ansi.Style, text : String) : String =
 let off =
     Test.Case(name = "without color the text is unchanged",
               run = fn() =
-                  if fault("f faulted", Markdown.Plain) == "f faulted"
-                      && named("a : Int", Markdown.Plain) == "a : Int" then
-                      Test.Passed
-                  else
-                      Test.Failed("colored when off"))
+                  Test.equal(#(fault("f faulted", Markdown.Plain),
+                               named("a : Int", Markdown.Plain)),
+                             #("f faulted", "a : Int")))
 
 let faults =
     Test.Case(name = "a fault is red",
-              run = fn() =
-                  if fault("x", Markdown.Styled) == "\u{1b}[31mx\u{1b}[39m" then
-                      Test.Passed
-                  else
-                      Test.Failed(fault("x", Markdown.Styled)))
+              run = fn() = Test.equal(fault("x", Markdown.Styled), "\u{1b}[31mx\u{1b}[39m"))
 
 let diagnostics =
     Test.Case(name = "a diagnostic's first line is red, its source plain",
               run = fn() =
-                  if diagnostic("a:1:1: bad\n1 | a", Markdown.Styled)
-                      == "\u{1b}[31ma:1:1: bad\u{1b}[39m\n1 | a" then
-                      Test.Passed
-                  else
-                      Test.Failed(diagnostic("a:1:1: bad\n1 | a", Markdown.Styled)))
+                  Test.equal(diagnostic("a:1:1: bad\n1 | a", Markdown.Styled),
+                             "\u{1b}[31ma:1:1: bad\u{1b}[39m\n1 | a"))
 
 let names =
     Test.Case(name = "a name before its type is bold",
               run = fn() =
-                  if named("List.map : (a) -> b", Markdown.Styled)
-                      == "\u{1b}[1mList.map\u{1b}[22m : (a) -> b" then
-                      Test.Passed
-                  else
-                      Test.Failed(named("List.map : (a) -> b", Markdown.Styled)))
+                  Test.equal(named("List.map : (a) -> b", Markdown.Styled),
+                             "\u{1b}[1mList.map\u{1b}[22m : (a) -> b"))
 
 let marksWithout =
     Test.Case(name = "without color the marked parameter is between asterisks",
-              run = fn() =
-                  if emphasis("f : Int", Markdown.Plain) == "*f : Int*" then
-                      Test.Passed
-                  else
-                      Test.Failed(emphasis("f : Int", Markdown.Plain)))
+              run = fn() = Test.equal(emphasis("f : Int", Markdown.Plain), "*f : Int*"))
 
 let empties =
     Test.Case(name = "an empty text takes no color",
-              run = fn() =
-                  if emphasis("", Markdown.Styled) == "" then
-                      Test.Passed
-                  else
-                      Test.Failed("colored nothing"))
+              run = fn() = Test.equal(emphasis("", Markdown.Styled), ""))

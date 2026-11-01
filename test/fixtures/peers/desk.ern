@@ -316,7 +316,7 @@ fn restartTold() : Unit receiving Msg = {
     monitor(Process.fromAddress(herald), Died);
     send(herald, Herald.Crash);
     receive {
-        Started(label) when label == "held" -> Io.println("the wrap holds the restart")
+        Started("held") -> Io.println("the wrap holds the restart")
     };
     sever(Process.fromAddress(herald));
     ended("severed");
@@ -392,7 +392,7 @@ fn reconnected() : Unit receiving Msg = {
     let calling = spawnMonitored(fn() = callSleeper(sleeper, limit), Died);
     let computing = spawnMonitored(fn() = computeWaiting(me, limit), Died);
     receive {
-        Started(label) when label == "computing" -> Unit
+        Started("computing") -> Unit
     };
     let _ = notes(census, sleeper, 1);
     sever(Process.fromAddress(counter));
@@ -711,7 +711,7 @@ fn computes() : Unit receiving Msg = {
         Unit
     });
     receive {
-        Started(label) when label == "abandoned" -> kill(abandoned)
+        Started("abandoned") -> kill(abandoned)
     };
     killedFromTheStore(watcher);
     timedOut(watcher, 1);
@@ -734,7 +734,7 @@ fn computes() : Unit receiving Msg = {
                            },
                            Died);
     receive {
-        Started(label) when label == "ending" -> Io.println("now stop the store")
+        Started("ending") -> Io.println("now stop the store")
     };
     ended("ending")
 }
@@ -804,7 +804,7 @@ fn timedOut(watcher : Address(Counter.WatcherMsg), ms : Int) : Unit receiving Ms
                        },
                        ms);
     receive {
-        Started(label) when label == "timed out" -> Io.println("timed out: " <> Io.show(late))
+        Started("timed out") -> Io.println("timed out: " <> Io.show(late))
       | after 0 -> timedOut(watcher, ms * 2)
     }
 }

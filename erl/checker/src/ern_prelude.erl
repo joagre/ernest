@@ -405,7 +405,7 @@ values() ->
 
       ```ernest
       {
-          let texts = adapted(self(), fn(n) = Int.toString(n));
+          let texts = adapted(self(), Int.toString);
           send(texts, 42)
       }
       ```

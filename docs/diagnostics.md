@@ -1017,6 +1017,25 @@ example.ern:3:9: a `receive` takes a message; to wait a time, write `Clock.sleep
   |         ^^^^^
 ```
 
+### An `after` clause before another clause (§6.3)
+
+```ernest-rejected
+fn take() : Int receiving Int =
+    receive {
+        after 1000 -> 0
+      | n -> n
+    }
+```
+
+```console
+$ ern build example.ern
+example.ern:3:9: the `after` clause of a `receive` comes last
+2 |     receive {
+3 |         after 1000 -> 0
+  |         ^^^^^
+  | = help: move it after the pattern clauses
+```
+
 ## Types (report §3)
 
 ### A type given the wrong number of arguments (§3.9)
@@ -1959,6 +1978,26 @@ $ ern build example.ern
 example.ern:1:13: the type whose field x is read is not determined; annotate p
 1 | fn f(p) = p.x
   |             ^
+```
+
+### A field of a message whose type is not determined (§4.8, §6.3)
+
+```ernest-rejected
+fn take() =
+    receive {
+        message -> message.x
+    }
+```
+
+```console
+$ ern build example.ern
+example.ern:3:28: the type whose field x is read is not determined; annotate the function's mailbox type
+1 | fn take() =
+2 |     receive {
+  |     --------- the function this `receive` stands in
+3 |         message -> message.x
+  |                            ^
+  | = help: give the function its mailbox type with `receiving`, the type of the messages it takes, or match the message with a constructor's pattern
 ```
 
 ### A field of a value of a type variable of the signature (§4.9, §11.5)
@@ -4674,7 +4713,7 @@ example.ern:9:34: Peer.spawn starts a process whose mailbox type Msg is bound to
 8 | fn start() : Unit = {
 9 |     let _ = Peer.spawn("worker", serve, 1000);
   |                                  ^^^^^
-  | = help: keep the address of a socket on this node and send the process values that cross, or spawn on this node (report §3.11)
+  | = help: start it on the peer from `Peer.computeAt`, whose function spawns it and answers an adapted address of a type that crosses, or keep the address of a socket on this node and send the process values that cross (report §3.11)
 ```
 
 ### A compute whose function answers a value bound to its node (§3.11)
@@ -4735,7 +4774,7 @@ example.ern:9:38: Peer.computeAt starts a process whose mailbox type Msg is boun
 8 | fn start() : Unit = {
 9 |     let _ = Peer.computeAt("worker", serve, 1000);
   |                                      ^^^^^
-  | = help: keep the address of a socket on this node and send the process values that cross, or run the function on this node, `f()` (report §3.11)
+  | = help: spawn the process in the function the compute runs, which answers an adapted address of a type that crosses, or keep the address of a socket on this node and send the process values that cross (report §3.11)
 ```
 
 ### `Peer.compute` taken as a value (§3.11)

@@ -1702,15 +1702,15 @@ fn upToStop(inlines : List(Inline)) : List(Inline) =
 let headings =
     Test.Case(name = "an ATX heading drops its closing marks",
               run = fn() =
-                  blocksAre(parse("### Three ###\n####### seven"),
-                            [Heading(level = 3, text = [Text("Three")]),
-                             Paragraph([Text("####### seven")])]))
+                  Test.equal(parse("### Three ###\n####### seven"),
+                             [Heading(level = 3, text = [Text("Three")]),
+                              Paragraph([Text("####### seven")])]))
 
 // a regression test: a tab after the marks made the line a paragraph
 let tabbedHeading =
     Test.Case(name = "an ATX heading's marks may be followed by a tab",
               run = fn() =
-                  blocksAre(parse("#\tTitle"), [Heading(level = 1, text = [Text("Title")])]))
+                  Test.equal(parse("#\tTitle"), [Heading(level = 1, text = [Text("Title")])]))
 
 // a regression test: the inner emphasis turned the italics off for the
 // rest of the outer
@@ -1725,144 +1725,144 @@ let nestedEmphasis =
 // text was expanded, as one after a list's number is
 let tabInText =
     Test.Case(name = "a tab after text that is no marker is kept",
-              run = fn() = blocksAre(parse("3.14\tpi"), [Paragraph([Text("3.14\tpi")])]))
+              run = fn() = Test.equal(parse("3.14\tpi"), [Paragraph([Text("3.14\tpi")])]))
 
 // a regression test: a lazy line of `=` under a quoted paragraph made it
 // a heading
 let lazyUnderline =
     Test.Case(name = "a lazy line of = is the quoted paragraph's text",
               run = fn() =
-                  blocksAre(parse("> foo\nbar\n==="), [Quote([Paragraph([Text("foo bar ===")])])]))
+                  Test.equal(parse("> foo\nbar\n==="), [Quote([Paragraph([Text("foo bar ===")])])]))
 
 // a regression test: a URL in angle brackets was not read
 let angledUrl =
     Test.Case(name = "a URL in angle brackets may hold a space",
               run = fn() =
-                  blocksAre(parse("[a](<b c>) and [d](<e> \"t\")"),
-                            [Paragraph([Link(text = [Text("a")], url = "b c"),
-                                        Text(" and "),
-                                        Link(text = [Text("d")], url = "e")])]))
+                  Test.equal(parse("[a](<b c>) and [d](<e> \"t\")"),
+                             [Paragraph([Link(text = [Text("a")], url = "b c"),
+                                         Text(" and "),
+                                         Link(text = [Text("d")], url = "e")])]))
 
 let setext =
     Test.Case(name = "a line of = or - under a paragraph makes it a heading",
               run = fn() =
-                  blocksAre(parse("One\n===\n\nTwo\n---"),
-                            [Heading(level = 1, text = [Text("One")]),
-                             Heading(level = 2, text = [Text("Two")])]))
+                  Test.equal(parse("One\n===\n\nTwo\n---"),
+                             [Heading(level = 1, text = [Text("One")]),
+                              Heading(level = 2, text = [Text("Two")])]))
 
 let fences =
     Test.Case(name = "a fence runs to one as long, and keeps what is inside",
               run = fn() =
-                  blocksAre(parse("````ernest\n```\n# not a heading\n````\nafter"),
-                            [Code(info = "ernest", lines = ["```", "# not a heading"]),
-                             Paragraph([Text("after")])]))
+                  Test.equal(parse("````ernest\n```\n# not a heading\n````\nafter"),
+                             [Code(info = "ernest", lines = ["```", "# not a heading"]),
+                              Paragraph([Text("after")])]))
 
 let unclosedFence =
     Test.Case(name = "a fence that never closes runs to the end",
               run = fn() =
-                  blocksAre(parse("```\na\n\nb"), [Code(info = "", lines = ["a", "", "b"])]))
+                  Test.equal(parse("```\na\n\nb"), [Code(info = "", lines = ["a", "", "b"])]))
 
 let indentedCode =
     Test.Case(name = "an indented block keeps its inner blank lines",
               run = fn() =
-                  blocksAre(parse("    a\n\n    b\n\nc"),
-                            [Code(info = "", lines = ["a", "", "b"]), Paragraph([Text("c")])]))
+                  Test.equal(parse("    a\n\n    b\n\nc"),
+                             [Code(info = "", lines = ["a", "", "b"]), Paragraph([Text("c")])]))
 
 let tabs =
     Test.Case(name = "a tab is four columns",
-              run = fn() = blocksAre(parse("\tcode"), [Code(info = "", lines = ["code"])]))
+              run = fn() = Test.equal(parse("\tcode"), [Code(info = "", lines = ["code"])]))
 
 // a regression test: every tab was expanded, a code block's content among
 // them, so a Makefile's lines lost theirs
 let tabsInCode =
     Test.Case(name = "a tab in a code block's content is kept",
               run = fn() =
-                  blocksAre(parse("```\n\tx\n```\n\n    a\tb\n\n>\tquoted"),
-                            [Code(info = "", lines = ["\tx"]),
-                             Code(info = "", lines = ["a\tb"]),
-                             Quote([Paragraph([Text("quoted")])])]))
+                  Test.equal(parse("```\n\tx\n```\n\n    a\tb\n\n>\tquoted"),
+                             [Code(info = "", lines = ["\tx"]),
+                              Code(info = "", lines = ["a\tb"]),
+                              Quote([Paragraph([Text("quoted")])])]))
 
 let quotes =
     Test.Case(name = "a quote holds blocks, and a lazy line continues it",
               run = fn() =
-                  blocksAre(parse("> # In\n> text\nlazy"),
-                            [Quote([Heading(level = 1, text = [Text("In")]),
-                                    Paragraph([Text("text lazy")])])]))
+                  Test.equal(parse("> # In\n> text\nlazy"),
+                             [Quote([Heading(level = 1, text = [Text("In")]),
+                                     Paragraph([Text("text lazy")])])]))
 
 let ordered =
     Test.Case(name = "an ordered list keeps its first number",
               run = fn() =
-                  blocksAre(parse("3. a\n4. b"),
-                            [Items(start = Some(3),
-                                   items = [[Paragraph([Text("a")])], [Paragraph([Text("b")])]])]))
+                  Test.equal(parse("3. a\n4. b"),
+                             [Items(start = Some(3),
+                                    items = [[Paragraph([Text("a")])], [Paragraph([Text("b")])]])]))
 
 let kinds =
     Test.Case(name = "a different bullet begins a new list",
               run = fn() =
-                  blocksAre(parse("- a\n+ b"),
-                            [Items(start = None, items = [[Paragraph([Text("a")])]]),
-                             Items(start = None, items = [[Paragraph([Text("b")])]])]))
+                  Test.equal(parse("- a\n+ b"),
+                             [Items(start = None, items = [[Paragraph([Text("a")])]]),
+                              Items(start = None, items = [[Paragraph([Text("b")])]])]))
 
 let looseItems =
     Test.Case(name = "an item holds the indented blocks after a blank line",
               run = fn() =
-                  blocksAre(parse("- a\n\n  b\n- c"),
-                            [Items(start = None,
-                                   items = [[Paragraph([Text("a")]), Paragraph([Text("b")])],
-                                            [Paragraph([Text("c")])]])]))
+                  Test.equal(parse("- a\n\n  b\n- c"),
+                             [Items(start = None,
+                                    items = [[Paragraph([Text("a")]), Paragraph([Text("b")])],
+                                             [Paragraph([Text("c")])]])]))
 
 let interrupted =
     Test.Case(name = "a list interrupts a paragraph, a number other than 1 does not",
               run = fn() =
-                  blocksAre(parse("a\n- b\n\nc\n2. d"),
-                            [Paragraph([Text("a")]),
-                             Items(start = None, items = [[Paragraph([Text("b")])]]),
-                             Paragraph([Text("c 2. d")])]))
+                  Test.equal(parse("a\n- b\n\nc\n2. d"),
+                             [Paragraph([Text("a")]),
+                              Items(start = None, items = [[Paragraph([Text("b")])]]),
+                              Paragraph([Text("c 2. d")])]))
 
 // a regression test: the line after a quoted heading was read into the
 // quote, though only paragraph text continues lazily
 let lazyAfterHeading =
     Test.Case(name = "a line after a quoted heading is outside the quote",
               run = fn() =
-                  blocksAre(parse("> # Heading\nlazy"),
-                            [Quote([Heading(level = 1, text = [Text("Heading")])]),
-                             Paragraph([Text("lazy")])]))
+                  Test.equal(parse("> # Heading\nlazy"),
+                             [Quote([Heading(level = 1, text = [Text("Heading")])]),
+                              Paragraph([Text("lazy")])]))
 
 // a regression test: a comment ran to a blank line, so the paragraph after
 // it was swallowed into the Raw block, and a blank line inside it ended it
 let closedComment =
     Test.Case(name = "a comment runs to the line that closes it",
               run = fn() =
-                  blocksAre(parse("<!-- a\n\nb -->\nafter\n\n<!-- c -->\npara"),
-                            [Raw(["<!-- a", "", "b -->"]),
-                             Paragraph([Text("after")]),
-                             Raw(["<!-- c -->"]),
-                             Paragraph([Text("para")])]))
+                  Test.equal(parse("<!-- a\n\nb -->\nafter\n\n<!-- c -->\npara"),
+                             [Raw(["<!-- a", "", "b -->"]),
+                              Paragraph([Text("after")]),
+                              Raw(["<!-- c -->"]),
+                              Paragraph([Text("para")])]))
 
 // a regression test: `<![x` and `<!-x` began an HTML block that ran to a
 // blank line, though they open none
 let notHtml =
     Test.Case(name = "an opening no HTML block has is text",
               run = fn() =
-                  blocksAre(parse("<![x y\n\n<!-x"),
-                            [Paragraph([Text("<![x y")]), Paragraph([Text("<!-x")])]))
+                  Test.equal(parse("<![x y\n\n<!-x"),
+                             [Paragraph([Text("<![x y")]), Paragraph([Text("<!-x")])]))
 
 // a regression test: a tag that began a line made the line a Raw block,
 // and ended the paragraph before it
 let inlineHtml =
     Test.Case(name = "a tag with text after it is inline HTML, and ends no paragraph",
               run = fn() =
-                  blocksAre(parse("Some text\n<b>bold</b> more\n\n<em>hi</em> there"),
-                            [Paragraph([Text("Some text <b>bold</b> more")]),
-                             Paragraph([Text("<em>hi</em> there")])]))
+                  Test.equal(parse("Some text\n<b>bold</b> more\n\n<em>hi</em> there"),
+                             [Paragraph([Text("Some text <b>bold</b> more")]),
+                              Paragraph([Text("<em>hi</em> there")])]))
 
 let html =
     Test.Case(name = "an HTML block is kept as written, an autolink is not HTML",
               run = fn() =
-                  blocksAre(parse("<div>\n*x*\n</div>\n\n<https://a.org>"),
-                            [Raw(["<div>", "*x*", "</div>"]),
-                             Paragraph([Link(url = "https://a.org",
-                                             text = [Text("https://a.org")])])]))
+                  Test.equal(parse("<div>\n*x*\n</div>\n\n<https://a.org>"),
+                             [Raw(["<div>", "*x*", "</div>"]),
+                              Paragraph([Link(url = "https://a.org",
+                                              text = [Text("https://a.org")])])]))
 
 let escapes =
     Test.Case(name = "a backslash escapes punctuation and ends a line hard",
@@ -1907,212 +1907,225 @@ let notALink =
 let lineEndings =
     Test.Case(name = "a line may end in a carriage return, alone or before a feed",
               run = fn() =
-                  blocksAre(parse("a\r\nb\r\n\r\nc\rd"),
-                            [Paragraph([Text("a b")]), Paragraph([Text("c d")])]))
+                  Test.equal(parse("a\r\nb\r\n\r\nc\rd"),
+                             [Paragraph([Text("a b")]), Paragraph([Text("c d")])]))
 
 let asciiNumbers =
     Test.Case(name = "a list number is ASCII digits, not any script's",
-              run = fn() = blocksAre(parse("\u{661}. x"), [Paragraph([Text("\u{661}. x")])]))
+              run = fn() = Test.equal(parse("\u{661}. x"), [Paragraph([Text("\u{661}. x")])]))
 
 let styles =
     Test.Case(name = "with styles, each is turned off by its own code",
               run = fn() =
-                  rowsAre(render(parse("**a *b* `c`**"), 80, Styled),
-                          ["\u{1b}[1ma \u{1b}[3mb\u{1b}[23m \u{1b}[36mc\u{1b}[39m\u{1b}[22m"]))
+                  Test.equal(render(parse("**a *b* `c`**"), 80, Styled),
+                             ["\u{1b}[1ma \u{1b}[3mb\u{1b}[23m \u{1b}[36mc\u{1b}[39m\u{1b}[22m"]))
 
 let wrapping =
     Test.Case(name = "a word longer than the width stands alone on its row",
               run = fn() =
-                  rowsAre(render(parse("a abcdefghijklmnopqrstuvwxyz b"), 20, Plain),
-                          ["a", "abcdefghijklmnopqrstuvwxyz", "b"]))
+                  Test.equal(render(parse("a abcdefghijklmnopqrstuvwxyz b"), 20, Plain),
+                             ["a", "abcdefghijklmnopqrstuvwxyz", "b"]))
 
 // a regression test: bold was turned on in the first row and off in the
 // last, so a listing cut after the first left it on
 let styledRowsStandAlone =
     Test.Case(name = "a style a row leaves on is turned off at its end and on again after",
               run = fn() =
-                  rowsAre(render(parse("# A long heading here"), 8, Styled),
-                          ["\u{1b}[1mA long\u{1b}[22m",
-                           "\u{1b}[1mheading\u{1b}[22m",
-                           "\u{1b}[1mhere\u{1b}[22m"]))
+                  Test.equal(render(parse("# A long heading here"), 8, Styled),
+                             ["\u{1b}[1mA long\u{1b}[22m",
+                              "\u{1b}[1mheading\u{1b}[22m",
+                              "\u{1b}[1mhere\u{1b}[22m"]))
 
 let styledWidth =
     Test.Case(name = "a style takes no column when a row is filled",
               run = fn() =
-                  rowsAre(render(parse("*aaaa* *bbbb* *cccc* *dddd*"), 20, Styled),
-                          [String.join(List.map(["aaaa", "bbbb", "cccc", "dddd"],
-                                                fn(word) = "\u{1b}[3m" <> word <> "\u{1b}[23m"),
-                                       " ")]))
+                  Test.equal(render(parse("*aaaa* *bbbb* *cccc* *dddd*"), 20, Styled),
+                             [String.join(List.map(["aaaa", "bbbb", "cccc", "dddd"],
+                                                   fn(word) = "\u{1b}[3m" <> word <> "\u{1b}[23m"),
+                                          " ")]))
 
 let boldHeading =
     Test.Case(name = "strong emphasis in a heading leaves the heading bold",
               run = fn() =
-                  rowsAre(render(parse("# a **b** c"), 80, Styled), ["\u{1b}[1ma b c\u{1b}[22m"]))
+                  Test.equal(render(parse("# a **b** c"), 80, Styled),
+                             ["\u{1b}[1ma b c\u{1b}[22m"]))
 
 let separated =
     Test.Case(name = "blocks are separated by one empty row",
               run = fn() =
-                  rowsAre(render(parse("a\n\n\n\nb\n\n    c"), 80, Plain),
-                          ["a", "", "b", "", "    c"]))
+                  Test.equal(render(parse("a\n\n\n\nb\n\n    c"), 80, Plain),
+                             ["a", "", "b", "", "    c"]))
 
 let nestedRows =
     Test.Case(name = "a quote inside an item is under the item's text",
               run = fn() =
-                  rowsAre(render(parse("1. a\n\n   > q\n2. b"), 80, Plain),
-                          ["1. a", "", "   │ q", "2. b"]))
+                  Test.equal(render(parse("1. a\n\n   > q\n2. b"), 80, Plain),
+                             ["1. a", "", "   │ q", "2. b"]))
 
 // a regression test: an empty row of a quote ended in a space
 let emptyQuoteRow =
     Test.Case(name = "an empty row of a quote is the bar alone",
-              run = fn() = rowsAre(render(parse("> a\n>\n> b"), 80, Plain), ["│ a", "│", "│ b"]))
+              run = fn() = Test.equal(render(parse("> a\n>\n> b"), 80, Plain), ["│ a", "│", "│ b"]))
 
 let manualHeader =
     Test.Case(name = "a manual page begins with its header and its NAME line",
               run = fn() =
-                  rowsAre(roff([], hello()),
-                          [".TH \"hello\" \"1\" \"\" \"Hello 1.0\" \"Hello Manual\"",
-                           ".nh",
-                           ".ds AD l",
-                           ".ad l",
-                           ".SH NAME",
-                           "hello \\- greet"]))
+                  Test.equal(roff([], hello()),
+                             [".TH \"hello\" \"1\" \"\" \"Hello 1.0\" \"Hello Manual\"",
+                              ".nh",
+                              ".ds AD l",
+                              ".ad l",
+                              ".SH NAME",
+                              "hello \\- greet"]))
 
 let manualDescription =
     Test.Case(name = "the blocks before a first section are the page's DESCRIPTION",
               run = fn() =
-                  rowsAre(List.drop(roff(parse("Text.\n\n# USAGE\n\nMore."), hello()), 6),
-                          [".SH DESCRIPTION", ".PP", "Text.", ".SH", "USAGE", ".PP", "More."]))
+                  Test.equal(List.drop(roff(parse("Text.\n\n# USAGE\n\nMore."), hello()), 6),
+                             [".SH DESCRIPTION", ".PP", "Text.", ".SH", "USAGE", ".PP", "More."]))
 
 let manualSection =
     Test.Case(name = "a page that begins with a section has no DESCRIPTION of its own",
-              run = fn() = rowsAre(List.drop(roff(parse("# USAGE"), hello()), 6), [".SH", "USAGE"]))
+              run = fn() =
+                  Test.equal(List.drop(roff(parse("# USAGE"), hello()), 6), [".SH", "USAGE"]))
 
 let manualHeadings =
     Test.Case(name = "a heading of level 2 is a subsection and a deeper one a bold paragraph",
               run = fn() =
-                  rowsAre(List.drop(roff(parse("## Two `x`\n### Three *y*"), hello()), 7),
-                          [".SS", "Two x", ".PP", "\\fBThree \\f(BIy\\fB\\fR"]))
+                  Test.equal(List.drop(roff(parse("## Two `x`\n### Three *y*"), hello()), 7),
+                             [".SS", "Two x", ".PP", "\\fBThree \\f(BIy\\fB\\fR"]))
 
 let manualFonts =
     Test.Case(name = "each font returns to the one around it",
               run = fn() =
-                  rowsAre(List.drop(roff(parse("**a *b* `c`** `d` *e `f`*"), hello()), 8),
-                          ["\\fBa \\f(BIb\\fB c\\fR \\fBd\\fR \\fIe \\f(BIf\\fI\\fR"]))
+                  Test.equal(List.drop(roff(parse("**a *b* `c`** `d` *e `f`*"), hello()), 8),
+                             ["\\fBa \\f(BIb\\fB c\\fR \\fBd\\fR \\fIe \\f(BIf\\fI\\fR"]))
 
 let manualEscapes =
     Test.Case(name = "what roff would change is written by its escape, and the rest as it is",
               run = fn() =
-                  rowsAre(List.drop(roff(parse("a-b \\\\ 'c' ~ ^ \"d\" § \u{1f600}"), hello()), 8),
-                          ["a\\-b \\(rs \\(aqc\\(aq \\(ti \\(ha \\(dqd\\(dq § \u{1f600}"]))
+                  Test.equal(List.drop(roff(parse("a-b \\\\ 'c' ~ ^ \"d\" § \u{1f600}"), hello()),
+                                       8),
+                             ["a\\-b \\(rs \\(aqc\\(aq \\(ti \\(ha \\(dqd\\(dq § \u{1f600}"]))
 
 let manualLineStarts =
     Test.Case(name = "a line that begins with a period is not a request",
               run = fn() =
-                  rowsAre(List.drop(roff(parse("\\.a\\\n.b\n\n    .c"), hello()), 8),
-                          ["\\&.a", ".br", "\\&.b", ".PP", ".RS 4", ".nf", "\\&.c", ".fi", ".RE"]))
+                  Test.equal(List.drop(roff(parse("\\.a\\\n.b\n\n    .c"), hello()), 8),
+                             ["\\&.a",
+                              ".br",
+                              "\\&.b",
+                              ".PP",
+                              ".RS 4",
+                              ".nf",
+                              "\\&.c",
+                              ".fi",
+                              ".RE"]))
 
 let manualCode =
     Test.Case(name = "a code block keeps its lines and its spaces, blank lines among them",
               run = fn() =
-                  rowsAre(List.drop(roff(parse("```\nf(x)\n\n  `y`\n```"), hello()), 7),
-                          [".PP", ".RS 4", ".nf", "f(x)", "", "  \\(gay\\(ga", ".fi", ".RE"]))
+                  Test.equal(List.drop(roff(parse("```\nf(x)\n\n  `y`\n```"), hello()), 7),
+                             [".PP", ".RS 4", ".nf", "f(x)", "", "  \\(gay\\(ga", ".fi", ".RE"]))
 
 let manualItems =
     Test.Case(name = "an item follows its label, and its later blocks stand under its text",
               run = fn() =
-                  rowsAre(List.drop(roff(parse("- a\n\n  b\n- c\n  - d"), hello()), 7),
-                          [".IP \\(bu 2",
-                           "a",
-                           ".RS 2",
-                           ".PP",
-                           "b",
-                           ".RE",
-                           ".IP \\(bu 2",
-                           "c",
-                           ".RS 2",
-                           ".IP \\(bu 2",
-                           "d",
-                           ".RE"]))
+                  Test.equal(List.drop(roff(parse("- a\n\n  b\n- c\n  - d"), hello()), 7),
+                             [".IP \\(bu 2",
+                              "a",
+                              ".RS 2",
+                              ".PP",
+                              "b",
+                              ".RE",
+                              ".IP \\(bu 2",
+                              "c",
+                              ".RS 2",
+                              ".IP \\(bu 2",
+                              "d",
+                              ".RE"]))
 
 let manualNumbers =
     Test.Case(name = "an ordered list's text is as far in as its widest number",
               run = fn() =
-                  rowsAre(List.drop(roff(parse("9. a\n10. b"), hello()), 7),
-                          [".IP 9. 4", "a", ".IP 10. 4", "b"]))
+                  Test.equal(List.drop(roff(parse("9. a\n10. b"), hello()), 7),
+                             [".IP 9. 4", "a", ".IP 10. 4", "b"]))
 
 let manualRest =
     Test.Case(name = "a quote is indented, a rule is asterisks, raw lines are as written",
               run = fn() =
-                  rowsAre(List.drop(roff(parse("> q\n\n---\n\n<div>\n</div>"), hello()), 7),
-                          [".RS 4",
-                           ".PP",
-                           "q",
-                           ".RE",
-                           ".PP",
-                           "   *   *   *   *   *",
-                           ".PP",
-                           ".nf",
-                           "<div>",
-                           "</div>",
-                           ".fi"]))
+                  Test.equal(List.drop(roff(parse("> q\n\n---\n\n<div>\n</div>"), hello()), 7),
+                             [".RS 4",
+                              ".PP",
+                              "q",
+                              ".RE",
+                              ".PP",
+                              "   *   *   *   *   *",
+                              ".PP",
+                              ".nf",
+                              "<div>",
+                              "</div>",
+                              ".fi"]))
 
 let manualLinks =
     Test.Case(name = "a link is its text with its URL after it",
               run = fn() =
-                  rowsAre(List.drop(roff(parse("[home](https://a.org) <https://b.org>"), hello()),
-                                    8),
-                          ["home (https://a.org) https://b.org"]))
+                  Test.equal(List.drop(roff(parse("[home](https://a.org) <https://b.org>"),
+                                            hello()),
+                                       8),
+                             ["home (https://a.org) https://b.org"]))
 
 let tables =
     Test.Case(name = "a table reads its headings, its alignments and its rows",
               run = fn() =
-                  blocksAre(parse("| a | b | c |\n| :-- | :-: | --: |\n| 1 | 2 | 3 |"),
-                            [Table(columns = [Column(text = [Text("a")], alignment = LeftAligned),
-                                              Column(text = [Text("b")], alignment = Centered),
-                                              Column(text = [Text("c")], alignment = RightAligned)],
-                                   rows = [[[Text("1")], [Text("2")], [Text("3")]]])]))
+                  Test.equal(parse("| a | b | c |\n| :-- | :-: | --: |\n| 1 | 2 | 3 |"),
+                             [Table(columns = [Column(text = [Text("a")], alignment = LeftAligned),
+                                               Column(text = [Text("b")], alignment = Centered),
+                                               Column(text = [Text("c")],
+                                                      alignment = RightAligned)],
+                                    rows = [[[Text("1")], [Text("2")], [Text("3")]]])]))
 
 let tableCells =
     Test.Case(name = "a table's outer pipes are optional, and an escaped pipe is a cell's",
               run = fn() =
-                  blocksAre(parse("a | b\n--- | ---\n`x\\|y` | *c* | d\ne\n| f |"),
-                            [Table(columns = [Column(text = [Text("a")], alignment = LeftAligned),
-                                              Column(text = [Text("b")], alignment = LeftAligned)],
-                                   rows = [[[CodeSpan("x|y")], [Emphasis([Text("c")])]],
-                                           [[Text("e")], []],
-                                           [[Text("f")], []]])]))
+                  Test.equal(parse("a | b\n--- | ---\n`x\\|y` | *c* | d\ne\n| f |"),
+                             [Table(columns = [Column(text = [Text("a")], alignment = LeftAligned),
+                                               Column(text = [Text("b")], alignment = LeftAligned)],
+                                    rows = [[[CodeSpan("x|y")], [Emphasis([Text("c")])]],
+                                            [[Text("e")], []],
+                                            [[Text("f")], []]])]))
 
 let notTables =
     Test.Case(name = "no table where the cells' counts differ, nor inside a paragraph",
               run = fn() =
-                  blocksAre(parse("| a | b |\n| - |\n\ntext\n| c |\n| - |"),
-                            [Paragraph([Text("| a | b | | - |")]),
-                             Paragraph([Text("text | c | | - |")])]))
+                  Test.equal(parse("| a | b |\n| - |\n\ntext\n| c |\n| - |"),
+                             [Paragraph([Text("| a | b | | - |")]),
+                              Paragraph([Text("text | c | | - |")])]))
 
 let tableEnds =
     Test.Case(name = "a table ends at a blank line and at a line that begins a block",
               run = fn() =
-                  blocksAre(parse("| a |\n| - |\n| 1 |\n# H\n| b |\n| - |\n\nc"),
-                            [Table(columns = [Column(text = [Text("a")], alignment = LeftAligned)],
-                                   rows = [[[Text("1")]]]),
-                             Heading(level = 1, text = [Text("H")]),
-                             Table(columns = [Column(text = [Text("b")], alignment = LeftAligned)],
-                                   rows = []),
-                             Paragraph([Text("c")])]))
+                  Test.equal(parse("| a |\n| - |\n| 1 |\n# H\n| b |\n| - |\n\nc"),
+                             [Table(columns = [Column(text = [Text("a")], alignment = LeftAligned)],
+                                    rows = [[[Text("1")]]]),
+                              Heading(level = 1, text = [Text("H")]),
+                              Table(columns = [Column(text = [Text("b")], alignment = LeftAligned)],
+                                    rows = []),
+                              Paragraph([Text("c")])]))
 
 let tableLayout =
     Test.Case(name = "a table's columns are as wide as their widest cells, aligned as they say",
               run = fn() =
-                  rowsAre(render(parse("| a | bb |\n|:-:|--:|\n| ccc | d |"), 80, Plain),
-                          [" a  │ bb", "────┼───", "ccc │  d"]))
+                  Test.equal(render(parse("| a | bb |\n|:-:|--:|\n| ccc | d |"), 80, Plain),
+                             [" a  │ bb", "────┼───", "ccc │  d"]))
 
 let styledTable =
     Test.Case(name = "a table's headings are bold, each cell's style ended in it",
               run = fn() =
-                  rowsAre(render(parse("| a | b |\n| - | - |\n| *c* | d |"), 80, Styled),
-                          ["\u{1b}[1ma\u{1b}[22m │ \u{1b}[1mb\u{1b}[22m",
-                           "──┼──",
-                           "\u{1b}[3mc\u{1b}[23m │ d"]))
+                  Test.equal(render(parse("| a | b |\n| - | - |\n| *c* | d |"), 80, Styled),
+                             ["\u{1b}[1ma\u{1b}[22m │ \u{1b}[1mb\u{1b}[22m",
+                              "──┼──",
+                              "\u{1b}[3mc\u{1b}[23m │ d"]))
 
 let tableBreaks =
     Test.Case(name = "a hard break in a cell is a space, and a cell beyond the columns is dropped",
@@ -2120,30 +2133,30 @@ let tableBreaks =
                   let table =
                       Table(columns = [Column(text = [Text("a")], alignment = LeftAligned)],
                             rows = [[[Text("b"), Break, Text("c")], [Text("x")]]]);
-                  rowsAre(render([table], 80, Plain), ["a", "───", "b c"])
+                  Test.equal(render([table], 80, Plain), ["a", "───", "b c"])
               })
 
 let manualTable =
     Test.Case(name = "a table is laid out as render lays it out, its headings bold",
               run = fn() =
-                  rowsAre(List.drop(roff(parse("| a | b |\n|---|--:|\n| `c` | d-e |"), hello()), 7),
-                          [".PP",
-                           ".nf",
-                           "\\fBa\\fR │   \\fBb\\fR",
-                           "──┼────",
-                           "\\fBc\\fR │ d\\-e",
-                           ".fi"]))
+                  Test.equal(List.drop(roff(parse("| a | b |\n|---|--:|\n| `c` | d-e |"), hello()),
+                                       7),
+                             [".PP",
+                              ".nf",
+                              "\\fBa\\fR │   \\fBb\\fR",
+                              "──┼────",
+                              "\\fBc\\fR │ d\\-e",
+                              ".fi"]))
 
 let sentences =
     Test.Case(name = "the first sentence ends at a period a space follows outside emphasis",
               run = fn() =
-                  if firstSentence(parse("# T\n\nOne. Two.")) == [Text("One.")]
-                      && firstSentence(parse("One *a. b* c"))
-                          == [Text("One "), Emphasis([Text("a. b")]), Text(" c")]
-                      && firstSentence(parse("# T")) == [] then
-                      Test.Passed
-                  else
-                      Test.Failed(plain(firstSentence(parse("# T\n\nOne. Two.")))))
+                  Test.equal(#(firstSentence(parse("# T\n\nOne. Two.")),
+                               firstSentence(parse("One *a. b* c")),
+                               firstSentence(parse("# T"))),
+                             #([Text("One.")],
+                               [Text("One "), Emphasis([Text("a. b")]), Text(" c")],
+                               [])))
 
 fn hello() : Manual =
     Manual(name = "hello",
@@ -2152,19 +2165,5 @@ fn hello() : Manual =
            source = "Hello 1.0",
            title = "Hello Manual")
 
-fn blocksAre(blocks : List(Block), expected : List(Block)) : Test.Result =
-    Test.equal(blocks, expected)
-
 fn inlinesAre(text : String, expected : List(Inline)) : Test.Result =
-    match parse(text) {
-        [Paragraph(inlines)] ->
-            if inlines == expected then Test.Passed else Test.Failed(plain(inlines))
-      | _ ->
-            Test.Failed("not one paragraph")
-    }
-
-fn rowsAre(rows : List(String), expected : List(String)) : Test.Result =
-    if rows == expected then
-        Test.Passed
-    else
-        Test.Failed(String.replace(String.join(rows, " | "), "\u{1b}", "ESC"))
+    Test.equal(parse(text), [Paragraph(expected)])

@@ -64,7 +64,9 @@ Utilization.schedulers(window : Int) : Float
 The fraction of the schedulers' time spent running processes over a
 window of the next `window` milliseconds, from 0.0 to 1.0, which the call
 waits for; a window below 1 is 1. The host keeps the schedulers' time
-while this measures it, and as long as another process measures too.
+while this measures it, and as long as another process measures too. A
+restart asked for during the window, or a fault met there, leaves the host
+measuring until the process ends.
 
 ### Examples
 

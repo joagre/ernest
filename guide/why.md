@@ -340,13 +340,59 @@ The trace names line 7, the `spawn`, and not the `receive` below it: a wait leav
 
 Beneath the trace the fault lists the processes left waiting, a line for each spawn site and the frame its processes wait in: here the worker, spawned on line 7, waiting in `work` (report §12.4).
 
+Two servers that call each other wait the same way. The first answers `AskFirst` by calling the second, the second answers `AskSecond` by calling the first, and `main` calls the first, each call with `Address.callForever`, which waits as long as its callee lives:
+
+```ernest
+type FirstMsg = Meet(Address(SecondMsg)) | AskFirst(Reply(Int))
+
+type SecondMsg = AskSecond(Reply(Int))
+
+export fn main() : Unit = {
+    let first = spawn(fn() = meet());
+    let second = spawn(fn() = secondLoop(first));
+    send(first, Meet(second));
+    Io.println(Int.toString(Address.callForever(first, AskFirst)))
+}
+
+fn meet() : Unit receiving FirstMsg =
+    receive {
+        Meet(second) -> firstLoop(second)
+    }
+
+fn firstLoop(second : Address(SecondMsg)) : Unit receiving FirstMsg =
+    receive {
+        AskFirst(reply) -> {
+            answer(reply, Address.callForever(second, AskSecond));
+            firstLoop(second)
+        }
+    }
+
+fn secondLoop(first : Address(FirstMsg)) : Unit receiving SecondMsg =
+    receive {
+        AskSecond(reply) -> {
+            answer(reply, Address.callForever(first, AskFirst) + 1);
+            secondLoop(first)
+        }
+    }
+```
+
+The fault comes at once, and its lines name both servers, each by its spawn site and the call it waits in:
+
+```console
+$ ern run mutual.erc
+Mutual.main faulted: deadlock
+    Mutual.main:9
+    1 process of Mutual.main:6 waits in Mutual.firstLoop:20
+    1 process of Mutual.main:7 waits in Mutual.secondLoop:28
+```
+
 The fault names the deadlock and the processes it left waiting. On Erlang a bare `receive` waits forever, and a `gen_server:call` gives up after five seconds with an exit that names the timeout and not the cause; a programmer learns of the deadlock from that, a dashboard or a user.
 
 Ernest can decide it because the runtime owns every source of a message but one, which the next paragraph names. A mailbox is typed and reached through an address the program holds; a process is spawned by the runtime, which monitors it; the clock, the file system and TCP are system processes, and a socket and a running program are processes of the runtime, each counting what it holds; foreign code is entered through a declaration, and a process inside it is read as able to be delivered to. So "nothing can deliver and everyone waits" is a question with an answer, and the runtime asks it when a program has been quiet for a while, never on a node, which a peer can always reach.
 
 A deadlock is quiescence, not a cycle, and the runtime's look for one may be late, and is wrong in one case alone. A process it cannot see into, in foreign code or on a socket, is read as able to deliver, so it reports no deadlock that is not one. The case is a delivery that foreign code arranges for after its call has returned, a host timer's or that of a host process nothing monitors, which the runtime cannot see coming: `ern run` and `ern test` fault a program that waits for it alone with `deadlock` (report §8.6).
 
-Finding one costs a program at work almost nothing, since the runtime asks only once the program has been quiet; the count behind it costs a message at each spawn and each monitor, which `make bench` measures against the host's own.
+Finding one costs a program at work almost nothing, since the runtime asks only once the program has been quiet; the count behind it costs a message at each spawn and each monitor, which `make bench` measures against the host's own. A program run as a node, `ern run --config-dir`, looks for no deadlock, since a peer can always deliver to it (report §8.6).
 
 ### Little else
 

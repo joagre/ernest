@@ -3010,12 +3010,13 @@ unresolved(#deferred_operator{span = Span, operator = Operator, operand_type = O
                        ++ Declaration ++ " does not declare", [],
                  requirement_help(Wanted, Declaration));
         none ->
-            fail(Span, "the operand type of `" ++ atom_to_list(Operator)
-                       ++ "` is not determined; " ++ annotate_text(Local))
+            undetermined(Span, "the operand type of `" ++ atom_to_list(Operator)
+                               ++ "` is not determined", operand, OperandType, Local, Env)
     end;
-unresolved(#deferred_guard_order{span = Span, operator = Operator, local = Local}, _Env) ->
-    fail(Span, "the operand type of `" ++ atom_to_list(Operator)
-               ++ "` is not determined; " ++ annotate_text(Local));
+unresolved(#deferred_guard_order{span = Span, operator = Operator, operand_type = OperandType,
+                                 local = Local}, Env) ->
+    undetermined(Span, "the operand type of `" ++ atom_to_list(Operator) ++ "` is not determined",
+                 operand, OperandType, Local, Env);
 unresolved(#deferred_selection{span = Span, field = Field, operand_type = OperandType,
                                local = Local}, Env) ->
     %% report §11.5: a type variable of the signature is determined and has
@@ -3027,8 +3028,38 @@ unresolved(#deferred_selection{span = Span, field = Field, operand_type = Operan
                        ++ "'s signature, has no field " ++ atom_to_list(Field), [],
                  written_on_variable(Variable, Field, OperandType, Env));
         none ->
-            fail(Span, "the type whose field " ++ atom_to_list(Field)
-                       ++ " is read is not determined; " ++ annotate_text(Local))
+            undetermined(Span, "the type whose field " ++ atom_to_list(Field)
+                               ++ " is read is not determined", field, OperandType, Local, Env)
+    end.
+
+%% Report §4.8, §3.5, §11.5: an operand whose type is not determined, with
+%% the request to annotate the local it is read from where there is one.
+%% Where the type is that of the messages a `receive` takes, or a part of
+%% it, which a pattern's variable holds and no annotation reaches, the
+%% request is the mailbox type of the function the `receive` stands in,
+%% the `receive` labeled, and the help of a field read adds a
+%% constructor's pattern where the type is the whole message's.
+-spec undetermined(ern_diagnostic:span(), string(), field | operand, ern_types:type(),
+                   atom() | undefined, env()) -> no_return().
+undetermined(Span, Message, Read, OperandType, Local,
+             #env{receives = Receives, type_state = TypeState}) ->
+    Variable = ern_types:resolve(OperandType, TypeState),
+    case [{ReceiveSpan, Mailbox} || {tvar, Id} <- [Variable], {ReceiveSpan, Mailbox} <- Receives,
+                                    lists:member(Id, ern_types:free_variables(Mailbox,
+                                                                              TypeState))] of
+        [{ReceiveSpan, Mailbox} | _] ->
+            Constructor = case {Read, ern_types:resolve(Mailbox, TypeState)} of
+                              {field, Variable} ->
+                                  ", or match the message with a constructor's pattern";
+                              _ ->
+                                  ""
+                          end,
+            fail(Span, Message ++ "; annotate the function's mailbox type",
+                 [{ern_diagnostic:span(ReceiveSpan), "the function this `receive` stands in"}],
+                 "give the function its mailbox type with `receiving`, the type of the messages"
+                 " it takes" ++ Constructor);
+        [] ->
+            fail(Span, Message ++ "; " ++ annotate_text(Local))
     end.
 
 %% Report §4.8, §11.5: the request to annotate, naming the local whose
@@ -5827,23 +5858,17 @@ declared_fields(QualifiedName, Args, Env) ->
 %% are typed against, and process-only where they fix no type (report
 %% §3.9). Report §6.8: a `receive` where the mailbox is Never is refused
 %% now, and where it is a variable as the definition ends (receives).
-clause_mailbox(Span, Env) ->
-    {MailboxType, Env1} = mailbox_type(Span, Env),
-    case ern_types:resolve(MailboxType, Env1#env.type_state) of
-        ?NEVER -> never_receives(Span, Env1#env.effect_origin);
-        {tvar, _} ->
-            {MailboxType, Env1#env{receives = [{Span, MailboxType} | Env1#env.receives]}};
-        _ -> {MailboxType, Env1}
-    end.
-
-mailbox_type(Span, Env) ->
+clause_mailbox(Span, #env{effect_origin = Origin} = Env) ->
     case ern_types:resolve(Env#env.effect, Env#env.type_state) of
-        none -> fail(Span, "`receive` needs a mailbox, and " ++ what(Env#env.effect_origin)
-                           ++ " receives nothing",
-                     labels(Env#env.effect_origin), help(Env#env.effect_origin, clauses));
+        none ->
+            fail(Span, "`receive` needs a mailbox, and " ++ what(Origin) ++ " receives nothing",
+                 labels(Origin), help(Origin, clauses));
+        ?NEVER ->
+            never_receives(Span, Origin);
         {tvar, _} = Variable ->
             {Mailbox, TypeState} = ern_types:fresh(Env#env.type_state, [process_only]),
-            {Mailbox, bound(Variable, Mailbox, Env#env{type_state = TypeState})};
+            Env1 = bound(Variable, Mailbox, Env#env{type_state = TypeState}),
+            {Mailbox, Env1#env{receives = [{Span, Mailbox} | Env1#env.receives]}};
         Type ->
             {Type, Env}
     end.
@@ -6774,7 +6799,7 @@ reaching(negate) -> "prefix `-`".
 %% Report §11.5: the help that writes what reaches the member, its
 %% arguments as written where the help can write them.
 member_help(compare, {called, [Left, Right]}) ->
-    "write `compare(" ++ argument_text(Left) ++ ", " ++ argument_text(Right) ++ ")`";
+    "write `compare(" ++ ern_ast:help_text(Left) ++ ", " ++ ern_ast:help_text(Right) ++ ")`";
 member_help(compare, {called, _}) ->
     "write `compare(..., ...)`";
 member_help(compare, value) ->
@@ -6786,22 +6811,8 @@ member_help(negate, {called, _}) ->
 member_help(negate, value) ->
     "where a function is wanted, write a lambda, `fn(x) = -x`".
 
-%% An argument as a help writes it: a name, a field of one, or a number,
-%% and `...` for any other.
-argument_text(#e_var{namespace = Namespace, name = Name}) ->
-    ern_namespace:text(Namespace ++ [Name]);
-argument_text(#e_selection{expr = Expr, field = Field}) ->
-    case argument_text(Expr) of
-        "..." -> "...";
-        Text -> Text ++ "." ++ atom_to_list(Field)
-    end;
-argument_text(#e_literal{kind = int, value = Value}) ->
-    integer_to_list(Value);
-argument_text(_) ->
-    "...".
-
 negated_text(Operand) ->
-    case argument_text(Operand) of
+    case ern_ast:help_text(Operand) of
         "..." -> "-(...)";
         Text -> "-" ++ Text
     end.

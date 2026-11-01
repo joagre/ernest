@@ -628,7 +628,9 @@ opened(_, _, Open) ->
 %% guide/style.md: a request whose only field is its reply declares it
 %% positional, `Get(Reply(Int))`, and is passed to `Address.call` bare, in
 %% every text the pun rule reads; a request of more fields names its reply.
-%% Written with the rule, after the sweep that made it hold
+%% The Erlang tests' strings are excepted, as the pun rule's are: they test
+%% the language, where the named form is legal, and the rule does not read
+%% them. Written with the rule, after the sweep that made it hold
 positional_reply_test_() ->
     {timeout, 60,
      fun() ->

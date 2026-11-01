@@ -356,6 +356,43 @@ operators_need_a_determined_operand_type_test() ->
     ?assertEqual("`<` needs Bool.compare, and Bool has no compare",
                  refusal("fn f(a : Bool, b) = a < b")).
 
+%% report §4.8, §3.5, §6.3, §11.5: a value whose type is that of the
+%% messages a `receive` takes, or a part of it, which a pattern's variable
+%% holds and no annotation reaches, is asked for the mailbox type of the
+%% function the `receive` stands in, the `receive` labeled, and a field
+%% read on the whole message for a constructor's pattern too. A regression
+%% test, written after the code: the request was to annotate the pattern's
+%% variable, which takes no annotation. It does not cover a `receive` in a
+%% local fn
+undetermined_message_test() ->
+    Mailbox = "give the function its mailbox type with `receiving`, the type of the messages"
+              " it takes",
+    ?assertMatch(#diagnostic{message = "the type whose field at is read is not determined;"
+                                       " annotate the function's mailbox type",
+                             span = {3, 42, _},
+                             labels = [{{3, 23, _}, "the function this `receive` stands in"}]},
+                 diagnostic("type B = B(at : Int)\n"
+                            "fn main() : Unit receiving B = {\n"
+                            "    let pick = fn() = receive { a when a.at > 1 -> a.at };\n"
+                            "    Io.println(Int.toString(pick()))\n}\n")),
+    ?assertEqual({"the type whose field at is read is not determined; annotate the function's"
+                  " mailbox type",
+                  Mailbox ++ ", or match the message with a constructor's pattern"},
+                 refusal_and_help("fn pick() = receive { a -> a.at }")),
+    ?assertEqual({"the type whose field at is read is not determined; annotate the function's"
+                  " mailbox type", Mailbox},
+                 refusal_and_help("fn pick() = receive { Some(a) -> a.at }")),
+    ?assertEqual({"the operand type of `+` is not determined; annotate the function's mailbox"
+                  " type", Mailbox},
+                 refusal_and_help("fn twice() = receive { a -> a + a }")),
+    ?assertEqual({"the operand type of `<` is not determined; annotate the function's mailbox"
+                  " type", Mailbox},
+                 refusal_and_help("fn first() = receive { #(a, b) when a < b -> a }")),
+    ?assertEqual(ok, ok("type B = B(at : Int)\n"
+                        "fn pick() = receive { B(=at) -> at }")),
+    ?assertEqual("the type whose field at is read is not determined; annotate a",
+                 refusal("fn pick() = { let read = fn(a) = a.at; 1 }")).
+
 %% report §4.8: an operator's operand type is resolved once the definition
 %% is inferred, from either operand; `[]` and a lambda's use determine it as
 %% well as a literal; a local fn is a definition of its own, so its
@@ -998,11 +1035,13 @@ crossing_helps_name_the_fix_test() ->
                  " or spawn on this node (report §3.11)",
                  Help("fn f(describe : (Int) -> String) : Unit = {\n"
                       ++ Spawn("fn() = Io.println(describe(1))"))),
-    ?assertEqual("keep the address of a socket on this node and send the process values that"
-                 " cross, or spawn on this node (report §3.11)",
+    ?assertEqual("start it on the peer from `Peer.computeAt`, whose function spawns it and"
+                 " answers an adapted address of a type that crosses, or keep the address of a"
+                 " socket on this node and send the process values that cross (report §3.11)",
                  Help(Serve ++ "fn f() : Unit = {\n" ++ Spawn("serve"))),
-    ?assertEqual("keep the address of a socket on this node and send the process values that"
-                 " cross, or run the function on this node, `f()` (report §3.11)",
+    ?assertEqual("spawn the process in the function the compute runs, which answers an adapted"
+                 " address of a type that crosses, or keep the address of a socket on this node"
+                 " and send the process values that cross (report §3.11)",
                  Help(Serve ++ "fn g() : Int receiving Msg = receive { Run(_) -> g() }\n"
                       "fn f() : Unit = {\n"
                       "    let _ = Peer.computeAt(\"p\", g, 1000);\n    Unit\n}\n")),

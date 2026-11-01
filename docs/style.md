@@ -42,6 +42,7 @@ For every Ernest source and every Ernest block of the report and the guide. The 
 
 - **A comment cites the report section the code implements**, `// Report §8.4: ...`, as the Erlang's does.
 - **A name the report states changes only through the report**, and a new word that departs from the report's goes to the user first.
+- **A test that compares answers `Test.equal`**, over a tuple for several values, `Test.equal(#(rowsOf(region), resting(region)), #(["> a"], 0))`, and writes no failure text of its own; one that compares with a tolerance or a predicate answers `Passed` or `Failed` itself.
 
 ### Shims
 
@@ -72,6 +73,7 @@ An entry gives the name, what it names and where the code holds it. The mechanis
 
 - **Span**: the source a node or a diagnostic's label covers (§11.5); a token's start is its `Position`. Not `Pos` for a span.
 - **Diagnostic**: an error the toolchain reports, `#diagnostic{}` (§11.5); its text is its `Message`. Not `#diag{}`, `D`, `Error`, `Msg`.
+- **HelpText**: an expression as a help writes it in the fix for the text at hand (§11.5), a name, a field of one or a number, and `...` for any other, `ern_ast:help_text/1`, which the parser's and the checker's helps call. Not `argument_text`.
 - **Env**: the names in scope as the checker reads them, the word every Hindley-Milner text uses. Not `En`, `E`. The shell's session is a `Session`, the host's variables an `Environment`.
 - **TypeState**: the checker's type variables and substitution, `#type_state{}`. Not `St`, `S`.
 - **Substitution**: not `S`, `Sub`, `subst`; applying one is `substitute`, not `zonk`.

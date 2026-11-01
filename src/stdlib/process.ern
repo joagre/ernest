@@ -40,8 +40,8 @@
 /// since 0.4.0
 export type Status = Status(site : String, queued : Int, activity : Activity)
 
-/// What a live process is doing: running, waiting in a `receive`, or waiting
-/// for the answer to a call.
+/// What a live process is doing: running, waiting in a `receive` or in
+/// `Clock.sleep`, or waiting for the answer to a call.
 ///
 /// ### Examples
 ///

@@ -34,7 +34,7 @@ export fn main() : Unit receiving Unit = {
         _ -> Unit
     };
     let _ = Peer.offer(Counter.service, counter);
-    let _ = Peer.offer(Counter.adder, adapted(counter, fn(n) = Counter.Add(n)));
+    let _ = Peer.offer(Counter.adder, adapted(counter, Counter.Add));
     let _ = Peer.offer(Counter.victim, spawn(fn() : Unit receiving Int = receive {
         _ -> Unit
     }));
@@ -66,7 +66,7 @@ export fn main() : Unit receiving Unit = {
     let _ = Peer.offer(Calls.doomed, spawn(fn() = Calls.serve()));
     let echoer = spawn(fn() : Unit receiving Counter.EchoMsg = echoes());
     let _ = Peer.offer(Counter.echo, echoer);
-    let _ = Peer.offer(Counter.echoAdapted, adapted(echoer, fn(back) = Counter.Ping(back)));
+    let _ = Peer.offer(Counter.echoAdapted, adapted(echoer, Counter.Ping));
     let _ = Peer.offer(Counter.adapter, spawn(fn() = adapts()));
     let gate = spawn(fn() = closed());
     let _ = Peer.offer(Counter.gated, spawn(fn() = gates(gate)));

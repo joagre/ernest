@@ -437,16 +437,41 @@ receive_test() ->
                             'after' = #after_clause{timeout = #e_literal{value = 0}}},
                  expression("receive { _ -> hello | after 0 -> world }")).
 
-%% report §6.3, Appendix A: a `receive` has a pattern clause, so one with
-%% an `after` clause alone is refused at the `after`, naming the wait for
-%% a time, in an expression as in a declaration
+%% report §6.3, Appendix A, §11.5: a `receive` has a pattern clause, so one
+%% with an `after` clause alone is refused at the `after`, naming the wait
+%% for a time over the `after`'s time as a help writes it, in an expression
+%% as in a declaration
 receive_takes_a_message_test() ->
-    Refusal = "a `receive` takes a message; to wait a time, write `Clock.sleep(ms)`",
-    ?assertEqual({Refusal, undefined}, expression_refusal_and_help("receive { after 0 -> world }")),
-    ?assertMatch({error, #diagnostic{message = Refusal, span = {3, 9, _}}},
+    Refusal = fun(Time) ->
+                      "a `receive` takes a message; to wait a time, write `Clock.sleep("
+                          ++ Time ++ ")`"
+              end,
+    ?assertEqual({Refusal("0"), undefined},
+                 expression_refusal_and_help("receive { after 0 -> world }")),
+    ?assertMatch({error, #diagnostic{message = "a `receive` takes a message; to wait a time,"
+                                               " write `Clock.sleep(100)`",
+                                     span = {3, 9, _}}},
                  ern_parser:parse_string("fn f() : Unit = {\n    receive {\n"
                                          "        after 100 -> Unit\n    }\n}\n")),
-    ?assertEqual(Refusal, refusal("fn f() : Unit = receive { after 100 -> Unit }")).
+    ?assertEqual(Refusal("ms"), refusal("fn f(ms : Int) : Unit = receive { after ms -> Unit }")),
+    ?assertEqual(Refusal("state.ms"),
+                 refusal("fn f(state : State) : Unit = receive { after state.ms -> Unit }")),
+    ?assertEqual(Refusal("..."),
+                 refusal("fn f(ms : Int) : Unit = receive { after ms * 2 -> Unit }")).
+
+%% report §6.3, Appendix A: the `after` clause of a `receive` comes last, so
+%% one a clause follows is refused at the `after` for its place, first or
+%% between two clauses
+after_clause_comes_last_test() ->
+    Refusal = {"the `after` clause of a `receive` comes last",
+               "move it after the pattern clauses"},
+    ?assertEqual(Refusal,
+                 expression_refusal_and_help("receive { after 5 -> Unit | x -> Unit }")),
+    ?assertEqual(Refusal,
+                 expression_refusal_and_help("receive { x -> 1 | after 5 -> 2 | y -> 3 }")),
+    ?assertMatch({error, #diagnostic{span = {2, 5, _}}},
+                 ern_parser:parse_string("fn f() : Unit = receive {\n    after 5 -> Unit\n"
+                                         "  | x -> Unit\n}\n")).
 
 %% report §5.11
 bitstring_expr_test() ->

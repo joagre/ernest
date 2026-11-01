@@ -1,14 +1,14 @@
 %% What more than one stage reads of the AST the parser builds, typed or
 %% not: a node's span; every node in pre-order; what a pattern binds; the
-%% type variables a declaration's signature names; and the unqualified
-%% names free in an expression. The parser, the formatter,
-%% the checker, the reply check, the exhaustiveness check and the emitter
-%% each use them rather than a copy of their own, since copies of one rule
-%% drift.
+%% type variables a declaration's signature names; the unqualified names
+%% free in an expression; and an expression as a help writes it. The
+%% parser, the formatter, the checker, the reply check, the exhaustiveness
+%% check and the emitter each use them rather than a copy of their own,
+%% since copies of one rule drift.
 -module(ern_ast).
 
 -export([span/1, walk/3, binder/1, pattern_binders/1, pattern_bindings/1, free_names/2,
-         free_uses/2]).
+         free_uses/2, help_text/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
 
@@ -129,3 +129,18 @@ segments_free_uses(Segments, Bound) ->
     lists:append(Free).
 
 param_names(Params) -> lists:append([bound_names(Pattern) || #param{pattern = Pattern} <- Params]).
+
+%% Report §11.5: an expression as a help writes it in the fix for the text
+%% at hand, a name, a field of one, or a number, and `...` for any other.
+-spec help_text(tuple()) -> string().
+help_text(#e_var{namespace = Namespace, name = Name}) ->
+    ern_namespace:text(Namespace ++ [Name]);
+help_text(#e_selection{expr = Expr, field = Field}) ->
+    case help_text(Expr) of
+        "..." -> "...";
+        Text -> Text ++ "." ++ atom_to_list(Field)
+    end;
+help_text(#e_literal{kind = int, value = Value}) ->
+    integer_to_list(Value);
+help_text(_) ->
+    "...".

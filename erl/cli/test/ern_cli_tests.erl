@@ -751,9 +751,10 @@ segment_test() ->
 %% report §11.2, §4.6: the type an input gives a name, `it` among them, is
 %% closed as a top-level `let` that is not generalized closes its own, an
 %% effect variable left in it none where it stands as a function type's
-%% effect, a timed wait's among them, and Never where it stands as a type
-%% argument; one a value position holds, or a `receive` that takes
-%% anything makes process-only, is still refused. A regression test of the
+%% effect, and Never where it stands as a type argument; one a value
+%% position holds, or a `receive` that takes anything makes process-only,
+%% is still refused, and a lambda that sleeps receives nothing (Appendix
+%% E.15). A regression test of the
 %% release review's B-S1, written after the fix:
 %% the prompt refused a pair of one lambda's type as undetermined, where a
 %% module's top-level `let` closes it
