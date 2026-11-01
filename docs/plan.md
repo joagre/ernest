@@ -79,6 +79,13 @@ on a timed wait, which §4.5 now refuses, swept from the repository's Ernest; an
 a binding's end names the site alone, `Tcp.listen ended with l` (§11.2). The seven others are kept
 or dropped in the entry.
 
+Two more were decided on 2026-11-01 while the round was built, and are built before item 2 since
+the first changes the grammar too: a `receive` always receives, one with an `after` clause alone
+refused and `Clock.sleep(ms)` the one wait for a time (§6.3, §6.8, Appendix E.15; the log's *A
+`receive` Always Receives*); and an alarm can be canceled, `alarm` and `alarmAt` answering an
+`Alarm` that `Clock.cancel` ends where it has not fired (Appendix E.15; the log's *An Alarm Can Be
+Canceled*), every site that ignores its alarm writing `let _ =` as §5.1 asks.
+
 ---
 
 ## MVP 4.1 (ernest-httpd, and the libraries it wants)
@@ -118,9 +125,9 @@ server's CLAUDE.md carries the procedure its side follows.
    `Os`, on Linux and macOS.
 3. **The five libraries**, each a source root under `src/libs/` with the standard library's
    discipline and its page: `base64` and `crypto`, which `websocket` needs; `time`, the calendar,
-   with no `sleep`, since a `receive` with an `after` clause alone is the language's wait for a
-   time and a program that paces itself by the clock derives the delay from the clock (decided
-   2026-10-31, the log's *`sleep` Is a `receive` With `after`*); `http` with its client half, whose first use beside the tests is a `fetch` example that
+   with no `sleep`, which is `Clock.sleep` of the standard library (Appendix E.15; the log's *A
+   `receive` Always Receives*), a program that paces itself by the clock deriving the delay from
+   the clock; `http` with its client half, whose first use beside the tests is a `fetch` example that
    reads JSON over HTTPS with a verified certificate; then `websocket`, with a client's masked
    frames.
 4. **The server, ernest-httpd's milestone 1 whole**, by its own repository's plan, written once

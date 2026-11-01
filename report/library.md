@@ -556,20 +556,26 @@ Path.toString : (Path) -> String
 
 ### Appendix E.15. `clock.ern` (namespace `Clock`)
 
-Over the clock's system reference (§8.2). The primitives are `alarm` and `alarmAt`, which reach the clock's process, `now`, `monotonic` and `monotonicMicros`, which read the host's clock and its monotonic clock, and a private one beneath `toString`, which writes a time as the host writes one (E.0 rule 1).
+Over the clock's system reference (§8.2). The primitives are `alarm`, `alarmAt` and `cancel`, which reach the clock's process, `sleep`, the runtime's wait for a time, `now`, `monotonic` and `monotonicMicros`, which read the host's clock and its monotonic clock, and a private one beneath `toString`, which writes a time as the host writes one (E.0 rule 1).
 
 `toString` writes an epoch time in RFC 3339, in UTC to the millisecond, `2026-10-24T09:21:03.512Z`, as the runtime's own lines write theirs (§11.2), the one text form of a time E.0 rule 2 admits; nothing else of dates is the standard library's. A year before 0 is written with its sign before its four digits, `-0001-12-31T23:59:59.999Z`. A time outside the years -9999 to 9999 is beyond the host's limit and faults (§7.4): one before the year -9999 with `Fault("the time is before the year -9999")`, and one past the year 9999 with `Fault("the time is past the year 9999")`.
 
 Times are milliseconds since the epoch, by the host's clock, which may be set while the program runs. `monotonic` is milliseconds since a moment the runtime chose, and never goes back; `monotonicMicros` is the same clock in microseconds, for a program that measures what takes less than a millisecond. The difference of two readings of `monotonic` is the time the host ran between them: where the host's monotonic clock stops while the machine is suspended, that time is left out. The difference of two `now`s is not that time when the clock is set between them.
 
-An alarm after milliseconds counts them as `monotonic` does, and setting the clock does not move it. An alarm at a time fires when the clock reaches the time, though the clock is set before it fires: a clock set past the time fires it once the host reports the change, and a clock set back delays it. An alarm fires once, and a program cannot cancel it: a process that no longer wants it ignores the message, and a periodic tick is scheduled after the previous one is handled. A restart of the process that set it cancels it, and one that fires after its process has ended delivers nothing (§6.9).
+`sleep(ms)` waits `ms` milliseconds, counted as `monotonic` does, and takes no message, the mailbox being as it was; a fault or a restart waiting in the mailbox reaches the wait as it reaches a `receive` (§6.5, §6.9), a time below 0 is 0, and a time has no upper bound (§6.3). It is the one way a body waits a time (§6.3, §6.8).
+
+An alarm after milliseconds counts them as `monotonic` does, and setting the clock does not move it.
+
+An alarm at a time fires when the clock reaches the time, though the clock is set before it fires: a clock set past the time fires it once the host reports the change, and a clock set back delays it. An alarm fires once, and `alarm` and `alarmAt` answer it as an `Alarm`, an abstract type. `cancel(alarm)` ends one that has not fired and answers `true`; for one that fired it answers `false`, and the message, sent already, stays in the mailbox until a `receive` takes it, so a process that moves a deadline drops a stale alarm by what its message carries where the cancel came late. A periodic tick is scheduled after the previous one is handled. A restart of the process that set it cancels it, and one that fires after its process has ended delivers nothing (§6.9).
 
 ```
 Clock.now : () -> Int
 Clock.monotonic : () -> Int
 Clock.monotonicMicros : () -> Int
-Clock.alarm : (Int, (Int) -> m) -> Unit receiving m // after the milliseconds, wrap(time) in the caller's mailbox, time the time it fired
-Clock.alarmAt : (Int, (Int) -> m) -> Unit receiving m // at the time, wrap(time) in the caller's mailbox, time the time it fired
+Clock.sleep : (Int) -> Unit // waits the milliseconds and takes no message
+Clock.alarm : (Int, (Int) -> m) -> Alarm receiving m // after the milliseconds, wrap(time) in the caller's mailbox, time the time it fired
+Clock.alarmAt : (Int, (Int) -> m) -> Alarm receiving m // at the time, wrap(time) in the caller's mailbox, time the time it fired
+Clock.cancel : (Alarm) -> Bool // true where the alarm had not fired and now never will; false where it fired, its message sent
 Clock.toString : (Int) -> String // RFC 3339, UTC, to the millisecond; faults outside the years -9999 to 9999
 ```
 

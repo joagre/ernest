@@ -287,7 +287,7 @@ An effect position is the type after `receiving`. A value position is an argumen
 
 Inference asks for an annotation at an operator whose operand type nothing in the definition fixes (§4.8), a field selection whose operand type nothing fixes (§3.5), a top-level binding that is not generalized whose type keeps a variable nothing resolves (§4.6), a `<-` whose sum type is still open (§5.5), `Io.show` or `Io.debug` at a type not known whole that no requirement names (Appendix E.1, §4.9), a fill whose record type leaves a requirement's variable undetermined (§5.6), a path in a record update through a field whose type nothing fixes (§5.6), `Foreign.term` at a type not known whole that holds no type variable of the signature (Appendix E.12), `Peer.service` at a type not known whole once its definition is inferred (§8.7), and an input at the prompt that binds a name its type does not settle (§11.2).
 
-A function whose own body, outside its lambdas and local `fn`s, holds a `receive` that fixes no type for the message it takes, one whose patterns are wildcards or variables that nothing fixes, is *process-only* where nothing else fixes its mailbox type: its effect variable is treated as if it occurred in a value position, and is never none. So is a `foreign fn` whose `receiving` names a variable of its own. No other function is: one that waits in a `receive` with an `after` clause alone, which takes no message, or that sends, spawns, answers, calls a function that is not process-only, prints or reads a file names no mailbox, and a call of it adds nothing to the caller's type.
+A function whose own body, outside its lambdas and local `fn`s, holds a `receive` that fixes no type for the message it takes, one whose patterns are wildcards or variables that nothing fixes, is *process-only* where nothing else fixes its mailbox type: its effect variable is treated as if it occurred in a value position, and is never none. So is a `foreign fn` whose `receiving` names a variable of its own. No other function is: one that sends, spawns, answers, sleeps, calls a function that is not process-only, prints or reads a file names no mailbox, and a call of it adds nothing to the caller's type.
 
 A `foreign fn`'s mailbox type is its own unless its effect variable is also the effect of one of its parameters' function types, in which case the mailbox type is that callback's and the function is effect-polymorphic: `foreign fn each(m : Map(k, v), f : (k, v) -> Unit receiving e) : Unit receiving e` receives nothing when `f` does.
 
@@ -297,7 +297,7 @@ A function has one mailbox type or none. A function may take a callback that rec
 
 **Inferred restrictions.** An annotation gives a function's shape: arity, argument types, result, mailbox type. Two restrictions are inferred from the body. Where there is no body, a restriction is given instead: written on a foreign type's parameter, `k=`, or on a type variable in a foreign function's parameters, `a=`, the one mark a program writes (§4.7); given to a foreign function by this section's process-only rule; and stated for the prelude's types and primitives in §9. Each prints with its mark (§11.5).
 
-The equality constraint of §3.10 falls on a variable compared with `==`. Process-only is inherited by a function whose body calls a process-only function: `fn skip() = receive { _ -> Unit }` cannot be taken for one that receives nothing, and neither can `fn h() : Unit receiving e = skip()`. `fn pause(ms) = receive { after ms -> Unit }` receives nothing, `(Int) -> Unit`.
+The equality constraint of §3.10 falls on a variable compared with `==`. Process-only is inherited by a function whose body calls a process-only function: `fn skip() = receive { _ -> Unit }` cannot be taken for one that receives nothing, and neither can `fn h() : Unit receiving e = skip()`.
 
 Each restriction is part of the type scheme and travels with the function value through bindings, branches, and compiled interfaces. Each is checked at instantiation, not at definition.
 
@@ -455,7 +455,7 @@ In a block, `let p = e` binds the irrefutable pattern `p` to the value of `e`; `
 
 A block binding's type may hold unresolved type variables; `[]`, `None`, `Map.empty`, and a call that returns a polymorphic value introduce them. A later use of the binding in the block pins such a variable: `let m = Map.empty; Map.put(m, "a", 1)` pins `m` at `Map(String, Int)`. One that reaches the block's result is generalized by the enclosing `fn` or top-level `let`: `fn namedEmpty() = { let xs = []; xs }` has type `() -> List(a)`. An annotation on the binding fixes it. A use pins a variable only where it fixes the variable's type, and a variable that nothing pins stays free: in `{ let xs = []; List.size(xs) }` the element type stays open.
 
-At top level, `let` binds an `ident`. The left side is a name, not a pattern; `<-` is a block form only. The initializer is a body receiving `Never` (§6.8): it may spawn, send, and call, and it receives no message, a `receive` in it having only an `after` clause.
+At top level, `let` binds an `ident`. The left side is a name, not a pattern; `<-` is a block form only. The initializer is a body receiving `Never` (§6.8): it may spawn, send, call and sleep, and it receives no message: a `receive` in it is a type error (§6.8).
 
 The binding generalizes its free type variables where its initializer is a value: a literal, a name, a lambda, or a constructor applied to values, `let empty : Stack(a) = Stack([])`. A top-level binding whose initializer is a *constant*, a literal, a negated number literal, a constructor of no fields, or a constructor, a tuple or a list of constants, is not evaluated: it has its value from the program's start (§8.5), and no fault leaves it without one (§11.2).
 
@@ -535,7 +535,7 @@ Lambda    = "fn" "(" [ Param { "," Param } ] ")" [ Return ] "=" Expr .
 IfExpr    = "if" Expr "then" Expr "else" Expr .
 MatchExpr = "match" Expr "{" Clause { "|" Clause } "}" .
 Clause    = Pattern { "or" Pattern } [ "when" Expr ] "->" Expr .
-ReceiveExpr  = "receive" "{" ( Clause { "|" Clause } [ "|" AfterClause ] | AfterClause ) "}" .
+ReceiveExpr  = "receive" "{" Clause { "|" Clause } [ "|" AfterClause ] "}" .
 AfterClause  = "after" Expr "->" Expr .
 BinExpr   = Unary { binop Unary } .
 Unary     = [ "-" | "!" ] Primary { Call | Select } .
@@ -703,7 +703,7 @@ A process is an execution of a function with a mailbox type. It has a mailbox th
 
 Every function runs in a process; that is not marked, and neither is what a function does through other processes or through the world: a `send`, a `spawn`, a `kill`, an `answer`, a call, printing, a file, a socket or a clock carry no mark.
 
-The mailbox type is inferred. A function that calls a function receiving `M` receives `M`. Two calls with different concrete mailbox types in one body are a type error. Calls with variable mailbox types unify. A call of a function without `receiving` contributes nothing. A `receive` with pattern clauses gives the mailbox type its patterns have; one whose patterns fix no type is process-only, and one with only `after` gives none, as §3.9 says. A function that contains no `receive` but one with an `after` clause alone, calls no `self` whose address its type carries, asks for no delivery and none of whose calls determines a mailbox type receives nothing (§3.9).
+The mailbox type is inferred. A function that calls a function receiving `M` receives `M`. Two calls with different concrete mailbox types in one body are a type error. Calls with variable mailbox types unify. A call of a function without `receiving` contributes nothing. A `receive` with pattern clauses gives the mailbox type its patterns have; one whose patterns fix no type is process-only, as §3.9 says. A function that contains no `receive`, calls no `self` whose address its type carries, asks for no delivery and none of whose calls determines a mailbox type receives nothing (§3.9).
 
 | Written | Meaning |
 |---|---|
@@ -733,7 +733,7 @@ A node is one running runtime; a peer is another node it knows by name (§8.3). 
 
 A guard selects a message without removing it, so a `receive` guard is a *guard expression*. Its operands are the variables in scope, the pattern's and a lambda's captures among them, a field selected from a variable in scope or from a top-level `let`, or from such a selection, `s.at`, `s.lot.at` (§3.5), literals, negative numeric literals, and nullary constructors. A top-level `let` is an operand too, read when the `receive` begins. A guard expression is `true`, `false`, an operand of type `Bool`, a comparison of two operands with `==`, `!=`, `<`, `<=`, `>`, or `>=`, `!` before a guard expression, or two guard expressions joined by `&&` or `||`. `<`, `<=`, `>`, and `>=` compare `Int`, `Float`, `String`, and `Char`, in their order (§3.10), and on another type are a type error. A guard expression calls nothing and cannot fault.
 
-A final clause `after t -> e` gives a time limit of `t` milliseconds; `t` is evaluated on entry, and corrected as §7.4 says. A time has no upper bound. When the limit passes without a matching message, `e` is evaluated. `after 0` does not wait for a message. Without `after` there is no limit.
+A final clause `after t -> e` gives a time limit of `t` milliseconds; `t` is evaluated on entry, and corrected as §7.4 says. A time has no upper bound. When the limit passes without a matching message, `e` is evaluated. `after 0` does not wait for a message. Without `after` there is no limit. A `receive` has a pattern clause: one with an `after` clause alone is an error, ``a `receive` takes a message; to wait, call `Clock.sleep` ``, and a body waits a time with `Clock.sleep` (Appendix E.15).
 
 ### 6.4 Message ordering
 
@@ -786,7 +786,7 @@ Work on a peer is a process spawned there, `Peer.spawn(name, f, ms)` (§6.2, §8
 
 ### 6.8 `Never`
 
-A function receiving `Never` can send but never receive a message: a `receive` with a pattern clause written in a body receiving `Never` is a type error, and a `receive` with only an `after` clause is how such a body waits. A function whose mailbox type is a variable, called at `Never`, waits in its `receive` for a message that cannot come, and where nothing else can run the entry process faults with `Fault("deadlock")` (§8.6).
+A function receiving `Never` can send but never receive a message: a `receive` written in a body receiving `Never` is a type error, and such a body waits a time with `Clock.sleep` (Appendix E.15). A function whose mailbox type is a variable, called at `Never`, waits in its `receive` for a message that cannot come, and where nothing else can run the entry process faults with `Fault("deadlock")` (§8.6).
 
 `Never` is the mailbox type of a top-level initializer (§4.6), of the entry process where the entry point receives nothing (§8.6), and of a spawned function's process where nothing fixed it (§6.2); `self()` there is an `Address(Never)`, to which nothing can be sent. A function that receives nothing, `main` or the function a spawn runs among them, writes no mark, and is called from any process.
 
@@ -1187,7 +1187,7 @@ Lambda      = "fn" "(" [ Param { "," Param } ] ")" [ Return ] "=" Expr .
 IfExpr      = "if" Expr "then" Expr "else" Expr .
 MatchExpr   = "match" Expr "{" Clause { "|" Clause } "}" .
 Clause      = Pattern { "or" Pattern } [ "when" Expr ] "->" Expr .
-ReceiveExpr    = "receive" "{" ( Clause { "|" Clause } [ "|" AfterClause ] | AfterClause ) "}" .
+ReceiveExpr    = "receive" "{" Clause { "|" Clause } [ "|" AfterClause ] "}" .
 AfterClause    = "after" Expr "->" Expr .
 BinExpr     = Unary { binop Unary } .
 Unary       = [ "-" | "!" ] Primary { Call | Select } .
