@@ -1,6 +1,6 @@
 # What ernest-httpd asks of Ernest
 
-Begun 2026-10-26 as the server's whole proposal and split on 2026-10-30, when the server's repository was made: this half holds what the server asks of Ernest, TLS in `Tcp`, a pseudo-terminal in `Os`, five libraries, the installation it builds against and the release, each a change to Ernest's report and tree; the server itself, what of HTTP/1.1 and WebSocket it implements, its sessions, its limits, its configuration, its log and its life under systemd, is its own repository's proposal, https://github.com/joagre/ernest-httpd/blob/main/docs/proposals/basic/proposal.md. The reasons are given where a choice was made, and stay here until the proposal is decided.
+Begun 2026-10-26 as the server's whole proposal and split on 2026-10-30, when the server's repository was made: this half holds what the server asks of Ernest, TLS in `Tcp`, a pseudo-terminal in `Os`, four libraries, the installation it builds against and the release, each a change to Ernest's report and tree; the server itself, what of HTTP/1.1 and WebSocket it implements, its sessions, its limits, its configuration, its log and its life under systemd, is its own repository's proposal, https://github.com/joagre/ernest-httpd/blob/main/docs/proposals/basic/proposal.md. The reasons are given where a choice was made, and stay here until the proposal is decided.
 
 ## What it is for
 
@@ -30,7 +30,7 @@ This replaces the plan's separate `libs/tls`, which named the choice to be made 
 - **`libs/http`**, which replaces the hand-written parser of `examples/web_server.ern`, the server's smallest ancestor: a shim over `erlang:decode_packet/3` with `http_bin`, which reads a request line and one header at a time and answers `more` where the bytes end. Ernest closes the difference, a header's name as a string where the host gives some as atoms, and the host's limits on a line stated; rendering a response is Ernest. No server loop. Its client half's first use beside the tests is an example of the repository's, `fetch`, a command-line tool that fetches JSON over HTTPS with `Verified(caFile)` and prints a report, which the plan names.
 - **`libs/time`**: the calendar alone, a shim over the host's `calendar`: a moment of `Clock` as its civil date and time in UTC, and back. A format is its owner's, written over it: RFC 9110's date is `libs/http`'s and the Common Log Format's is the server's (decided 2026-10-27). Dates are a library's (E.0 rule 2), so `Clock` stays as it is: `Clock.toString` was admitted as the one text form the runtime's own lines write, and nothing more of a calendar enters it.
 - **`libs/crypto`**: a SHA-1 digest and strong random bytes, shims over `crypto`.
-- **`libs/websocket`**: the handshake's key and the frames, decoded and encoded, which the server and a client share.
+- **WebSocket**, the handshake's key and the frames: the server's own module since 2026-11-01, in its proposal, https://github.com/joagre/ernest-httpd/blob/main/docs/proposals/basic/proposal.md, since a single kind of program speaks it and its client half is the server's test (the log's *WebSocket Is the Server's*).
 - **`libs/base64`**: a shim over `base64`.
 
 ## The functions, a first cut
@@ -46,11 +46,7 @@ Names and shapes by E.0's shape rules, each a draft for the discussion and none 
   - For a client, the tests' first: a request rendered, and a response's head read from a socket as `readHead` reads a request's.
   - `Http.Error`, saying what is wrong and no status: `Malformed`, `TargetTooLong` and `HeadersTooLarge`. Which status each answers is the server's, 400, 414 and 431 in `Connection`, since a client meets the same errors and answers none (decided 2026-10-27). A version other than 1.0 or 1.1 parses, and the server answers it 505.
   - `Http.date(time) : String` and `Http.parseDate(text) : Optional(Int)`, RFC 9110's form, `Sun, 06 Nov 1994 08:49:37 GMT`, written over `Time.civil` with the English names of days and months the RFC fixes, for `Date`, `Last-Modified` and `If-Modified-Since` (decided 2026-10-27).
-- **`libs/websocket`**, a library of its own and not the server's, since a client wants it too.
-  - `WebSocket.accept(key) : String`.
-  - `WebSocket.decode(bytes, role, limit) : Either(WebSocket.Error, Decoded)`, `Incomplete` or a frame with the bytes after it, as `Head` carries those after a request; `role`, `FromClient` or `FromServer` by shape rule 9, decides which masking it refuses.
-  - `WebSocket.Error`: `ProtocolError`, `TooBig` and `NotUtf8`, and `WebSocket.closeCode(error)`, 1002, 1009 and 1007, which RFC 6455 itself assigns, so the mapping is the protocol's and the library's.
-  - `WebSocket.encode(frame) : Bytes`, a `Frame` one of text, binary, continuation, ping, pong and close, unmasked as a server sends one; and `WebSocket.encodeMasked(frame, key) : Bytes` for a client, whose every frame RFC 6455 has masked with a four-byte key the client draws, `key` drawn by the caller from `Crypto.randomBytes` so that the pure library holds no randomness (decided 2026-10-30).
+- **WebSocket**: the server's module, its shapes in the server's proposal since 2026-11-01, where the four lines that stood here went.
 - **`libs/crypto`**: `Crypto.sha1(bytes)`, a digest, and `Crypto.randomBytes(count)`, bytes from the host's strong random source, each a shim over `crypto`, and nothing more until something asks (decided 2026-10-27); the server uses the one for the WebSocket's handshake and the other for a session's cookie.
 - **`libs/base64`**: `Base64.encode(bytes) : String` and `decode(text) : Optional(Bytes)`.
 - **`libs/time`**, a library and not the standard library's, by E.0's rule for a module over a published specification or a policy and E.15's sentence that nothing of dates but `Clock.toString` is the standard library's (decided 2026-10-26).
@@ -69,15 +65,15 @@ Names and shapes by E.0's shape rules, each a draft for the discussion and none 
 Decided 2026-10-27.
 
 - **The libraries**, in Ernest's repository, with the standard library's discipline: doc examples and `Test.Case`s run by `ern test`. `Http.parseHead` and `WebSocket.decode` are pure, bytes in and values out, the RFCs' own examples among them, RFC 6455's handshake key and its accept value first.
-- **The running server** is tested in its repository by a client in Ernest, so `libs/http` gains a request rendered and a response's head read, `readHead`'s twin, and `libs/websocket`'s `FromServer` role is used from the other side, the same code a user's client would want.
+- **The running server** is tested in its repository by a client in Ernest, so `libs/http` gains a request rendered and a response's head read, `readHead`'s twin, and the server's WebSocket module's `FromServer` role is used from the other side, the same code a user's client would want.
 
 ## The order of work
 
 Decided 2026-10-27, the plan's MVP 4.1 since 2026-10-30; the server's own steps are its plan's, in its repository.
 
-1. **The report first**, in Ernest's repository: `Tcp.listenTls` and `connectTls` in E.18, `Os.startTerminal` and `Os.resize` in E.23 through E.0's admission rules, and a section in Appendix G for each of the five libraries.
+1. **The report first**, in Ernest's repository: `Tcp.listenTls` and `connectTls` in E.18, `Os.startTerminal` and `Os.resize` in E.23 through E.0's admission rules, and a section in Appendix G for each of the four libraries.
 2. **The runtime's two additions**: TLS in `Tcp`'s socket process, its handshake after `accept`, and the C helper's `forkpty` and resize behind `Os`, the only changes to the standard library and the riskiest work, before anything stands on them.
-3. **The five libraries**: `base64` and `crypto`, which `websocket` needs; `time`; `http` with its client half; then `websocket`.
+3. **The four libraries**: `base64` and `crypto`, which the server's WebSocket module needs; `time`; `http` with its client half.
 4. **The release archive the server builds against**: `ernest-httpd` builds against Ernest installed from `make release`'s `ern-VERSION.tar.gz` (`docs/design/install.md`) and never against the source tree, as a user does, so that what is opaque, badly described or missing in the installation's documents is met as a user meets it and comes here as a line of `language_feedback.md`; a gap is fixed in the checkout and the archive made again, with no public release between (decided 2026-10-30, in place of an installation from the checkout decided 2026-10-27). How the server's repository installs and uses the archive is its own.
 5. **A release of Ernest**, 0.8.0, when the server first serves the site, carrying the libraries after their first real user has shaped them; 0.7.0 is the attached shell's, MVP 4.0's, which comes first on the road (decided 2026-10-30).
 
@@ -95,4 +91,5 @@ The site's content, MVP 4.2, runs beside any of it, since its generator needs no
 - The running server tested by a client in Ernest, `libs/http` gaining a request's rendering and a response's head read (2026-10-27).
 - The order of work: the report, the runtime, the libraries, an installation from the checkout, `ernest-httpd` and its deployment, then a release when the site is served (2026-10-27).
 - Files under a root no one else writes: a path holding `..` refused, and no check of links, so the plan's `Fs.readUnder` waits for a root others can write (2026-10-26).
+- WebSocket the server's own module, in its proposal, by the rule CLAUDE.md now states of where a library lives; four libraries stay here (2026-11-01).
 - The read-back's findings of Ernest's half: the server's release 0.8.0 after the attached shell's 0.7.0; `encodeMasked` for a client with the caller's key; `Decoded` carrying the bytes after the frame; a folded header refused by its value; `HEAD`'s length from its headers; `listenTls`'s `Other(text)`; the backlog the host's; the `fetch` example kept (2026-10-30). The server's are its own page's.

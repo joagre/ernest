@@ -38,8 +38,9 @@ examples cannot be.
 
 What it asks of Ernest is `docs/proposals/httpd/proposal.md`, begun 2026-10-26 as the server's
 whole proposal, read back on 2026-10-30 and ready the same day, and split that day when the
-server's repository was made: TLS in `Tcp`, a pseudo-terminal in `Os`, the five libraries with
-their shapes, the installation and the release stay here; the server itself, what of HTTP/1.1 and
+server's repository was made: TLS in `Tcp`, a pseudo-terminal in `Os`, the four libraries with
+their shapes, the installation and the release stay here, WebSocket's frames the server's own
+module since 2026-11-01 (the log's *WebSocket Is the Server's*); the server itself, what of HTTP/1.1 and
 WebSocket it implements, its sessions, its limits, its configuration, its log and its life under
 systemd, is its repository's own proposal and plan. This plan records what it asks of Ernest,
 written as it asks, in the proposal's order.
@@ -70,17 +71,16 @@ server's CLAUDE.md carries the procedure its side follows.
    answering the same socket as a plain one, the handshake in the socket's process after
    `accept`, `listenTls`'s `Other(text)` for a certificate or key the host refuses, and the host's
    backlog stated; `Os.startTerminal` and `Os.resize` in E.23 through E.0's admission rules, one
-   address with `start` and one stream out; and a section in Appendix G for each of the five
+   address with `start` and one stream out; and a section in Appendix G for each of the four
    libraries.
 2. **The runtime's two additions**, TLS in `Tcp` and the terminal in `Os`, built 2026-11-01
    with their sentences of E.18 and E.23 (the log's *TLS in `Tcp` and a Terminal in `Os`*).
-3. **The five libraries**, each a source root under `src/libs/` with the standard library's
-   discipline and its page: `base64` and `crypto`, which `websocket` needs; `time`, the calendar,
+3. **The four libraries**, each a source root under `src/libs/` with the standard library's
+   discipline and its page: `base64` and `crypto`, which the server's WebSocket module needs; `time`, the calendar,
    with no `sleep`, which is `Clock.sleep` of the standard library (Appendix E.15; the log's *A
    `receive` Always Receives*), a program that paces itself by the clock deriving the delay from
    the clock; `http` with its client half, whose first use beside the tests is a `fetch` example that
-   reads JSON over HTTPS with a verified certificate; then `websocket`, with a client's masked
-   frames.
+   reads JSON over HTTPS with a verified certificate.
 4. **The server, ernest-httpd's milestone 1 whole**, by its own repository's plan, written once
    item 1's sentences stand and built once items 2 and 3 do, against Ernest installed from
    `make release`'s archive and never a checkout; what it meets of Ernest's, an attached shell at
