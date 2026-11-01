@@ -56,7 +56,15 @@ archive exists.
    shorter. Each finding is decided as a `decide` line is, and one that changes the grammar or a
    rule of §3 to §9 waits its night. Its first form is known, the lambda around a request's
    constructor at the call, 121 sites (the log's *Ernest 0.8.0, a Small Release*).
-3. **The release 0.8.0**, by [`release_review.md`](release_review.md) whole, the readers over the
+3. **A request whose only field is its reply declares it positional**, `Get(Reply(Int))`, and is
+   passed to the call bare, `Address.call(counter, Get, ms)`, as the guide's §4.4 teaches: the
+   rule in `guide/style.md` beside the request's name, the style test refusing a constructor whose
+   one field is a named `Reply` from then on, and the sweep of the 44 declarations, their 57 call
+   sites and their `receive` patterns, in the standard library, the shell, the examples, the tour,
+   the tests' programs and the documents' blocks; the three application repositories hold none. A
+   request with more fields keeps its lambda, and a construction missing its reply does not become
+   a function of it (the log's *Ernest 0.8.0, a Small Release*).
+4. **The release 0.8.0**, by [`release_review.md`](release_review.md) whole, the readers over the
    diff since v0.7.0 and the census over the whole; 0.7.0 is the attached shell's and 0.8.0 the
    pun's.
 
