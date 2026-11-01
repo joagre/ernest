@@ -10325,6 +10325,8 @@ write, and the pipe covers the value. Currying, operators as values and string i
 decided already, in *Syntax Revision 3*, §4.5's members and *`Io.debug`, and String Interpolation
 Considered*.
 
+**Built, 2026-11-01.** Item 2: the parser reads `=f` as `f = f`, the field spanning from its `=` and the name the identifier, in a construction, a record update, a fill and a pattern, so the checker and the emitter read one form and a pun hashes as its plain form does; `make test-grammar`, red since Appendix A gained `"=" ident`, is green. The positional refusal did not read as §5.6's, a construction saying `not named fields` and a pattern `write Some(_)`: the checker now tells a pun by its form, one field `x = x`, and gives §5.6's text, `Some(x = x)` told the same, being the same form read textually. The formatter cannot see the pun in the tree, so it reads the field's first token, as it reads a literal's `-`, and writes the pun tight as the report spells it; §11.6 states no spacing within a line for any token, and gains no sentence. The checker's help for a named constructor used as a function still writes `Point(x = x, y = y)`, which item 3's style rule changes.
+
 ## The Session's Screen and the Toolchain's Units, Built, 2026-10-30
 
 MVP 4.0's item 2, the runtime under the attached shell: §12.1's *A session's screen*, §11.2's terminal and `Os.exit` for a session's process, E.21's `live` and §12.7's *The toolchain's own units*. The shell calls none of it yet; item 3 does.

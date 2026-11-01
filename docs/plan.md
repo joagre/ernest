@@ -36,12 +36,10 @@ user on 2026-10-30 (the log's *The Pun*): the repository's own Ernest writes the
 sites. The mark is the pair's own `=` with the repeated name left out; the log weighs the bare
 name, which Ernest's parentheses make a call, the dot, and the marks other languages chose.
 
-1. **The report first**: Appendix A's `FieldSet` and `FieldPats` gain `"=" ident`; one sentence
-   each in §5.6 and §5.10 naming the *pun*; principle 2's sentence on a second spelling admits the
-   pair of a field with the variable of its name beside its pair with a namespace's declaration;
-   Appendix F's line.
-2. **The parser and the checker**, the emitter untouched, with a test citing each section; a pun
-   in a single-positional constructor, `Some(=x)`, is refused naming the form to write.
+1. **The report first**, done 2026-11-01 (the log's *The Pun*, with its cold read's lines): Appendix
+   A's `FieldSet`, `UpdateSet` and `FieldPat`, §5.6, §5.10, principle 2's sentence and Appendix F.
+2. **The parser and the checker**, done 2026-11-01 (the log's *The Pun*, *Built*): `=f` read as
+   `f = f`, the emitter untouched, `Some(=x)` refused with the positional refusal's text.
 3. **The sweep**: every site of the repository's Ernest, the guide's and the tour's blocks among
    them, written as a pun where the names agree; `guide/style.md`'s rule that they are; and
    `ern format` leaves it to the writer, decided (the log's *The Pun's Opening Round*), the style
