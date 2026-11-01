@@ -2,7 +2,7 @@
 // which hands a third node an address a node found, and a node an address
 // of a node it does not list.
 
-export type Msg(a) = Put(a) | Take(reply : Reply(a))
+export type Msg(a) = Put(a) | Take(Reply(a))
 
 export fn serve(held : Optional(a)) : Unit receiving Msg(a) =
     match held {
@@ -14,7 +14,7 @@ export fn serve(held : Optional(a)) : Unit receiving Msg(a) =
             receive {
                 Put(newer) ->
                     serve(Some(newer))
-              | Take(=reply) -> {
+              | Take(reply) -> {
                     answer(reply, value);
                     serve(Some(value))
                 }
@@ -22,4 +22,4 @@ export fn serve(held : Optional(a)) : Unit receiving Msg(a) =
     }
 
 export fn take(slot : Address(Msg(a))) : a =
-    Address.callForever(slot, fn(reply) = Take(=reply))
+    Address.callForever(slot, Take)

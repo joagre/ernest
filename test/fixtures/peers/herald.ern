@@ -5,7 +5,7 @@
 // sends, and the desk sees a restart that a wrap of its own holds up go on
 // once the connection is lost.
 
-export type Msg = Crash | Ping(reply : Reply(Unit))
+export type Msg = Crash | Ping(Reply(Unit))
 
 // What the herald tells its watcher, and what the watcher's service
 // monitor tells it.
@@ -27,7 +27,7 @@ fn serve() : Unit receiving Msg =
     receive {
         Crash ->
             fault("crashed")
-      | Ping(=reply) -> {
+      | Ping(reply) -> {
             answer(reply, Unit);
             serve()
         }

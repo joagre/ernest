@@ -625,6 +625,37 @@ opened({Kind, _}, _, [_ | Open]) when Kind =:= ')'; Kind =:= ']'; Kind =:= '}'; 
 opened(_, _, Open) ->
     Open.
 
+%% guide/style.md: a request whose only field is its reply declares it
+%% positional, `Get(Reply(Int))`, and is passed to `Address.call` bare, in
+%% every text the pun rule reads; a request of more fields names its reply.
+%% Written with the rule, after the sweep that made it hold
+positional_reply_test_() ->
+    {timeout, 60,
+     fun() ->
+         ?assertEqual([], [{File, line(Name)} || {File, Tokens} <- pun_tokens(),
+                                                 Name <- named_replies(Tokens)])
+     end}.
+
+%% The constructors among a text's tokens declared with one field, a named
+%% `Reply`, `Get(reply : Reply(Int))`, each as its name's token: a type's
+%% name, `(`, a name, `:` and `Reply` with its arguments, and the `)` that
+%% closes the constructor. Appendix A has a name and `:` follow a type's
+%% name and its `(` in a constructor's field alone.
+named_replies([{typename, _, _} = Name | [{'(', _}, {ident, _, _}, {':', _},
+                                          {typename, _, 'Reply'}, {'(', _} | Arguments] = Rest]) ->
+    [Name || closed(Arguments, 1)] ++ named_replies(Rest);
+named_replies([_ | Rest]) ->
+    named_replies(Rest);
+named_replies([]) ->
+    [].
+
+%% Whether the constructor closes where the reply's arguments do, its one
+%% field being the reply.
+closed([{')', _} | _], 0) -> true;
+closed(_, 0) -> false;
+closed([Token | Rest], Depth) -> closed(Rest, Depth + depth(Token));
+closed([], _) -> false.
+
 %% A token's line, the first of its position, which ern_parser reads so too.
 line(Token) ->
     {Line, _, _, _} = element(2, Token),

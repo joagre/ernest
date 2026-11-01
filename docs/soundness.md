@@ -174,7 +174,7 @@ No coverage is asked: a message no clause matches stays, and the process waits.
 A process is the one thing in the language that holds a state. Were its address generalized, the state would be read at two types:
 
 ```ernest-fragment
-type Cell(a) = Put(a) | Get(reply : Reply(a))
+type Cell(a) = Put(a) | Get(Reply(a))
 
 fn cell(v : a) : Unit receiving Cell(a) = …
 

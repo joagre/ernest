@@ -73,7 +73,7 @@ fn finds() : Unit receiving Msg = {
     };
     Io.println("after the loss: " <> Io.show(Peer.find(Counter.service, Harness.waitMs())));
     faulted("call forever", fn() = {
-        let _ = Address.callForever(counter, fn(reply) = Counter.Get(=reply));
+        let _ = Address.callForever(counter, Counter.Get);
         Unit
     })
 }
@@ -102,7 +102,7 @@ fn spawns() : Unit receiving Msg = {
 // The counter's total once it is at least the one given: a message to the
 // adapted address takes a step more, on the store, and a call can pass it.
 fn total(counter : Address(Counter.Msg), least : Int) : Int =
-    match Address.call(counter, fn(reply) = Counter.Get(=reply), Harness.waitMs()) {
+    match Address.call(counter, Counter.Get, Harness.waitMs()) {
         Some(total) when total >= least -> total
       | Some(_) -> total(counter, least)
       | None -> fault("no answer")
@@ -131,10 +131,10 @@ fn started(answer : Either(Io.Error, Address(m))) : String =
 fn across() : Unit receiving Msg = {
     let counter = Shared.found(Counter.service);
     let census = Shared.found(Census.service);
-    let atomsBefore = Address.callForever(census, fn(reply) = Census.Count(=reply));
+    let atomsBefore = Address.callForever(census, Census.Count);
     List.forEach(List.range(1, 200), fn(n) = send(census, Census.Value(shape(n))));
     send(census, Census.Value(Census.Raw(Bytes.repeat(String.toUtf8("x"), 8000000))));
-    let atomsAfter = Address.callForever(census, fn(reply) = Census.Count(=reply));
+    let atomsAfter = Address.callForever(census, Census.Count);
     Io.println("new atoms: " <> Int.toString(atomsAfter - atomsBefore));
     send(Shared.found(Counter.counterSlot), Slot.Put(counter));
     Io.println("through the third node: " <> Int.toString(total(counter, 10)));
@@ -181,7 +181,7 @@ fn restarted(counter : Address(Counter.Msg)) : Unit receiving Msg = {
     let _ = Io.readLine();
     let limit = Harness.waitMs();
     let called = Clock.monotonic();
-    let answer = Address.call(counter, fn(reply) = Counter.Get(=reply), limit);
+    let answer = Address.call(counter, Counter.Get, limit);
     Io.println("old call: "
                    <> Io.show(answer)
                    <> " "
@@ -253,13 +253,13 @@ fn calls() : Unit receiving Msg = {
     let census = Shared.found(Census.service);
     let limit = Harness.waitMs();
     let started = Clock.monotonic();
-    let crashed = Address.call(brittle, fn(reply) = Calls.Crash(=reply), limit);
+    let crashed = Address.call(brittle, Calls.Crash, limit);
     Io.println("restarted: "
                    <> Io.show(crashed)
                    <> " "
                    <> Io.show(Clock.monotonic() - started < limit));
     faulted("restarted forever", fn() = {
-        let _ = Address.callForever(brittle, fn(reply) = Calls.Crash(=reply));
+        let _ = Address.callForever(brittle, Calls.Crash);
         Unit
     });
     Io.println("echo: "
@@ -320,7 +320,7 @@ fn restartTold() : Unit receiving Msg = {
     };
     sever(Process.fromAddress(herald));
     ended("severed");
-    let pinged = Address.call(herald, fn(reply) = Herald.Ping(=reply), Harness.waitMs());
+    let pinged = Address.call(herald, Herald.Ping, Harness.waitMs());
     Io.println("after the loss: " <> Io.show(pinged))
 }
 
@@ -401,7 +401,7 @@ fn reconnected() : Unit receiving Msg = {
     shown("its computer", downs, Process.fromAddress(computing));
     Io.println("now open the connection again");
     let _ = Io.readLine();
-    let total = Address.call(counter, fn(reply) = Counter.Get(=reply), limit);
+    let total = Address.call(counter, Counter.Get, limit);
     Io.println("the same process: " <> Io.show(total));
     Io.println("computed after: " <> Io.show(Peer.computeAt("store", fn() = 6 * 7, limit)));
     Io.println("spawned after: " <> started(Work.squareOn("store", 6, limit)));
@@ -464,16 +464,10 @@ fn reloaded() : Unit receiving Msg = {
                    <> Io.show(Process.fromAddress(again) == Process.fromAddress(counter)));
     Io.println("now rename the desk");
     let _ = Io.readLine();
-    Io.println("renamed: "
-                   <> Io.show(Address.call(again,
-                                           fn(reply) = Counter.Get(=reply),
-                                           Harness.waitMs())));
+    Io.println("renamed: " <> Io.show(Address.call(again, Counter.Get, Harness.waitMs())));
     Io.println("now refuse a reload");
     let _ = Io.readLine();
-    Io.println("refused: "
-                   <> Io.show(Address.call(again,
-                                           fn(reply) = Counter.Get(=reply),
-                                           Harness.waitMs())))
+    Io.println("refused: " <> Io.show(Address.call(again, Counter.Get, Harness.waitMs())))
 }
 
 // Report §8.7, Appendix E.27, G.4: a compute on a peer the desk picks, of
@@ -511,10 +505,7 @@ fn silenced() : Unit receiving Msg = {
     // its word after the loss, so that only the loss ends the calls
     let outlasting = Harness.detectorMs() + 2 * Harness.waitMs();
     List.forEach(List.range(1, 10000), fn(_) = send(counter, Counter.Add(1)));
-    Io.println("counted: "
-                   <> Io.show(Address.call(counter,
-                                           fn(reply) = Counter.Get(=reply),
-                                           Harness.waitMs())));
+    Io.println("counted: " <> Io.show(Address.call(counter, Counter.Get, Harness.waitMs())));
     let local = spawn(fn() : Unit receiving Counter.Msg = counted(0));
     monitor(Process.fromAddress(counter), Died);
     let caller = spawnMonitored(fn() = {
@@ -543,16 +534,10 @@ fn silenced() : Unit receiving Msg = {
     shown("silent", downs, Process.fromAddress(counter));
     shown("its caller", downs, Process.fromAddress(caller));
     shown("its forever caller", downs, Process.fromAddress(forever));
-    Io.println("own process: "
-                   <> Io.show(Address.call(local,
-                                           fn(reply) = Counter.Get(=reply),
-                                           Harness.waitMs())));
+    Io.println("own process: " <> Io.show(Address.call(local, Counter.Get, Harness.waitMs())));
     Io.println("now let the store run");
     let _ = Io.readLine();
-    Io.println("again: "
-                   <> Io.show(Address.call(counter,
-                                           fn(reply) = Counter.Get(=reply),
-                                           Harness.waitMs())))
+    Io.println("again: " <> Io.show(Address.call(counter, Counter.Get, Harness.waitMs())))
 }
 
 fn received() : Down receiving Msg =
@@ -572,7 +557,7 @@ fn counted(total : Int) : Unit receiving Counter.Msg =
     receive {
         Counter.Add(amount) ->
             counted(total + amount)
-      | Counter.Get(=reply) -> {
+      | Counter.Get(reply) -> {
             answer(reply, total);
             counted(total)
         }
@@ -619,8 +604,7 @@ fn costs() : Unit receiving Msg = {
                    })));
     Io.println("local-call "
                    <> Io.show(timed(rounds, fn() = {
-                       let _ =
-                           Address.call(local, fn(reply) = Counter.Get(=reply), Harness.waitMs());
+                       let _ = Address.call(local, Counter.Get, Harness.waitMs());
                        Unit
                    })));
     Io.println("straight " <> Io.show(echoed(rounds, fn(back) = send(echo, Counter.Ping(back)))));

@@ -11,7 +11,7 @@
     ern_rt:send(Counter_1, {'Inc', 5}),
     ern_rt:send(Counter_1, {'Inc', 3}),
     case ern_rt:call(Counter_1,
-                     fun (Reply_2) -> {'Get', Reply_2} end,
+                     fun (Argument_2) -> {'Get', Argument_2} end,
                      1000,
                      {int, <<"reply does not match Int">>})
         of

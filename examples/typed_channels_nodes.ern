@@ -16,7 +16,7 @@
 //     ern stop --config-dir b
 //
 
-type CounterMsg = Add(Int) | Get(reply : Reply(Int))
+type CounterMsg = Add(Int) | Get(Reply(Int))
 
 // The counter's service, as b offers it to its peers. A service carries the hash of its
 // message type, so a find on a peer that offers "counter" at another type answers
@@ -29,7 +29,7 @@ export fn main() : Unit =
         Right(counter) -> {
             send(counter, Add(2));
             send(counter, Add(3));
-            let total = Address.call(counter, fn(reply) = Get(=reply), 5000);
+            let total = Address.call(counter, Get, 5000);
             Io.println("total on b: " <> Io.show(total))
         }
       | Left(error) ->
@@ -50,7 +50,7 @@ fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Add(amount) ->
             count(total + amount)
-      | Get(=reply) -> {
+      | Get(reply) -> {
             answer(reply, total);
             count(total)
         }

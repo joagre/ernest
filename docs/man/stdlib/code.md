@@ -29,13 +29,13 @@ runs `count`, and none is sent one:
 ```ernest
 type CounterMsg =
     Inc(Int)
-  | Get(reply : Reply(Int))
+  | Get(Reply(Int))
   | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit receiving CounterMsg)
 
 fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) -> count(total + amount)
-      | Get(=reply) -> {
+      | Get(reply) -> {
             answer(reply, total);
             count(total)
         }
@@ -45,7 +45,7 @@ fn count(total : Int) : Unit receiving CounterMsg =
 fn count2(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) -> count2(total + 2 * amount)
-      | Get(=reply) -> {
+      | Get(reply) -> {
             answer(reply, total);
             count2(total)
         }

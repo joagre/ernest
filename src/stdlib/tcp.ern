@@ -84,7 +84,7 @@
 /// ```
 export abstract type ListenerMsg =
     Accept(ms : Int, owner : Process, reply : Reply(Either(Io.Error, Address(SocketMsg))))
-  | Port(reply : Reply(Either(Io.Error, Int)))
+  | Port(Reply(Either(Io.Error, Int)))
   | CloseListener
 
 /// What a connected socket's process takes. Its constructors are hidden, so a
@@ -106,8 +106,8 @@ export abstract type SocketMsg =
   | Write(bytes : Bytes, ms : Int, reply : Reply(Either(Io.Error, Unit)))
   | Close
   | Give(owner : Process)
-  | Remote(reply : Reply(Either(Io.Error, Endpoint)))
-  | Local(reply : Reply(Either(Io.Error, Endpoint)))
+  | Remote(Reply(Either(Io.Error, Endpoint)))
+  | Local(Reply(Either(Io.Error, Endpoint)))
 
 /// One end of a connection: the host's address as text, and the port.
 ///
@@ -178,7 +178,7 @@ export fn listen(host : String, port : Int) : Either(Io.Error, Address(ListenerM
 /// // => Right(true)
 /// ```
 export fn port(listener : Address(ListenerMsg)) : Either(Io.Error, Int) =
-    Address.callForever(listener, fn(reply) = Port(=reply))
+    Address.callForever(listener, Port)
 
 /// Waits at most `ms` milliseconds for the next connection to the listener, and
 /// answers its socket, which belongs to the caller. It answers `Left(Timeout)`
@@ -324,7 +324,7 @@ export fn closeListener(listener : Address(ListenerMsg)) : Unit =
 ///
 /// since 0.2.0
 export fn remote(socket : Address(SocketMsg)) : Either(Io.Error, Endpoint) =
-    Address.callForever(socket, fn(reply) = Remote(=reply))
+    Address.callForever(socket, Remote)
 
 /// The near end of the connection, or `Left(Closed)` once the connection has
 /// closed.
@@ -350,4 +350,4 @@ export fn remote(socket : Address(SocketMsg)) : Either(Io.Error, Endpoint) =
 /// // => Right("127.0.0.1")
 /// ```
 export fn local(socket : Address(SocketMsg)) : Either(Io.Error, Endpoint) =
-    Address.callForever(socket, fn(reply) = Local(=reply))
+    Address.callForever(socket, Local)

@@ -4,7 +4,7 @@
 // nodes ends and what its note on the store does.
 
 export type Msg =
-    Crash(reply : Reply(Int))
+    Crash(Reply(Int))
   | Echo(n : Int, reply : Reply(Int))
   | Slow(ms : Int, reply : Reply(Int))
   | Forward(answerer : Address(Reply(Int)), reply : Reply(Int))
@@ -17,7 +17,7 @@ export let doomed : Peer.Service(Msg) = Peer.service("doomed")
 
 export fn serve() : Unit receiving Msg =
     receive {
-        Crash(=reply) ->
+        Crash(reply) ->
             fault("crashed")
       | Echo(=n, =reply) -> {
             answer(reply, n);

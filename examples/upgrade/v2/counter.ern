@@ -47,7 +47,7 @@
 
 type CounterMsg =
     Inc(Int)
-  | Get(reply : Reply(Int))
+  | Get(Reply(Int))
   | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit receiving CounterMsg)
 
 // What a process spawned on a peer tells the tool: the peer, and how many of its processes
@@ -59,10 +59,10 @@ export fn main() : Unit receiving ToolMsg = {
     let counter = spawn(fn() = count(0));
     send(counter, Inc(2));
     // the call is answered from count, so the counter runs count when Code.running looks
-    let _ = Address.call(counter, fn(reply) = Get(=reply), 1000);
+    let _ = Address.call(counter, Get, 1000);
     Io.println("here: " <> Int.toString(moved()) <> " moved");
     send(counter, Inc(3));
-    Io.println("total: " <> Io.show(Address.call(counter, fn(reply) = Get(=reply), 1000)));
+    Io.println("total: " <> Io.show(Address.call(counter, Get, 1000)));
     let me = self();
     told(List.size(List.filter(Peer.peers(), fn(node) = moving(node, me))))
 }
@@ -72,7 +72,7 @@ fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) ->
             count(total + amount)
-      | Get(=reply) -> {
+      | Get(reply) -> {
             answer(reply, total);
             count(total)
         }
@@ -87,7 +87,7 @@ fn count2(total : Int) : Unit receiving CounterMsg =
             Io.println("inc " <> Int.toString(amount));
             count2(total + amount)
         }
-      | Get(=reply) -> {
+      | Get(reply) -> {
             answer(reply, total);
             count2(total)
         }

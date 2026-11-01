@@ -1,7 +1,7 @@
 export type ClientMsg =
     Inc(key : String, amount : Int)
   | Get(key : String, reply : Reply(Int))
-  | Report(reply : Reply(List(#(String, Int))))
+  | Report(Reply(List(#(String, Int))))
 
 type CounterMsg =
     Client(ClientMsg)
@@ -28,7 +28,7 @@ fn handle(tally : Tally.Tally(String), message : ClientMsg) : Tally.Tally(String
             answer(reply, Tally.get(tally, key));
             tally
         }
-      | Report(=reply) -> {
+      | Report(reply) -> {
             answer(reply, Tally.report(tally));
             tally
         }
@@ -68,7 +68,7 @@ export fn apply(counter : Address(ClientMsg), line : String) : String =
               | None -> "no answer"
             }
       | ["report"] ->
-            match Address.call(counter, fn(reply) = Report(=reply), 1000) {
+            match Address.call(counter, Report, 1000) {
                 Some(entries) -> shown(entries)
               | None -> "no answer"
             }
@@ -108,5 +108,5 @@ let countsPerKey : Test.Case(m) = Test.Case(name = "counts per key", run = fn() 
 let reports : Test.Case(m) = Test.Case(name = "reports", run = fn() = {
     let counter = start();
     let _ = apply(counter, "inc apples 2");
-    Test.equal(Address.call(counter, fn(reply) = Report(=reply), 1000), Some([#("apples", 2)]))
+    Test.equal(Address.call(counter, Report, 1000), Some([#("apples", 2)]))
 })

@@ -1,7 +1,7 @@
 // Report §8.7: the store's services, as the store offers them and the desk
 // finds them, in one build.
 
-export type Msg = Add(Int) | Get(reply : Reply(Int))
+export type Msg = Add(Int) | Get(Reply(Int))
 
 export let service : Peer.Service(Msg) = Peer.service("counter")
 

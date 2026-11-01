@@ -5,7 +5,7 @@
 // the screen, not for the time these waits take.
 //
 
-export type Msg = Add(Int) | Get(reply : Reply(Int))
+export type Msg = Add(Int) | Get(Reply(Int))
 
 export fn start() : Address(Msg) =
     spawn(fn() = loop(0))
@@ -14,7 +14,7 @@ fn loop(count : Int) : Unit receiving Msg = {
     let count1 = receive {
         Add(amount) ->
             count + amount
-      | Get(=reply) -> {
+      | Get(reply) -> {
             answer(reply, count);
             count
         }

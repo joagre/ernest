@@ -940,7 +940,7 @@ Ernest 0.8.0, session 1. :help for the commands, :quit to leave.
 Address.call : (Address(m), (Reply(a)) -> m, Int) -> Optional(a)
 ```
 
-`Address.call(counter, Get, 1000)` makes a fresh `Reply`, gives it to the function that builds the request, here `Get`, a positional constructor and so a function (§2.3), sends the request to `counter`, and waits up to 1000 ms. A request that carries more than its reply, or whose reply is a named field, is built by a lambda: `fn(reply) = Add(amount = 5, =reply)`. A request called from many places is built by a function of its own, `fn add(amount) = fn(reply) = Add(=amount, =reply)`, and each call is `Address.call(counter, add(5), 1000)`.
+`Address.call(counter, Get, 1000)` makes a fresh `Reply`, gives it to the function that builds the request, here `Get`, a positional constructor and so a function (§2.3), sends the request to `counter`, and waits up to 1000 ms. A request that carries more than its reply is built by a lambda: `fn(reply) = Add(amount = 5, =reply)`. A request called from many places is built by a function of its own, `fn add(amount) = fn(reply) = Add(=amount, =reply)`, and each call is `Address.call(counter, add(5), 1000)`.
 
 The call returns `Some(v)` for an answer and `None` for none. `None` does not cancel the work: the recipient may still be computing, so a request that changes state and is sent again may change it twice. An answer that comes late is dropped and never reaches the caller's mailbox, so `Address.call` works whatever that mailbox's type is (report §6.6).
 
@@ -949,7 +949,7 @@ The call returns `Some(v)` for an answer and `None` for none. `None` does not ca
 A server that cannot answer at once keeps the reply until it can, in a list as well as anywhere else a value waits (§4.2). A queue answers a `Take` with an item it has, or keeps the reply until a `Put` brings one:
 
 ```ernest
-type QueueMsg = Put(Int) | Take(reply : Reply(Int))
+type QueueMsg = Put(Int) | Take(Reply(Int))
 
 type MainMsg = Took(Int)
 
@@ -966,7 +966,7 @@ fn queueing(items : List(Int), waiting : List(Reply(Int))) : Unit receiving Queu
               | [] ->
                     queueing(items <> [item], [])
             }
-      | Take(=reply) ->
+      | Take(reply) ->
             match items {
                 item :: rest -> {
                     answer(reply, item);
@@ -989,7 +989,7 @@ export fn main() : Unit receiving MainMsg = {
 
 // Waits for an item, for as long as it takes.
 fn take(queue : Address(QueueMsg)) : Int =
-    Address.callForever(queue, fn(reply) = Take(=reply))
+    Address.callForever(queue, Take)
 ```
 
 ```console
@@ -2667,7 +2667,7 @@ On one node a service is a top-level binding that holds an address (§6.5). A pe
 
 ```ernest
 // counter.ern
-export type Msg = Add(Int) | Get(reply : Reply(Int))
+export type Msg = Add(Int) | Get(Reply(Int))
 
 export let service : Peer.Service(Msg) = Peer.service("counter")
 ```
@@ -2705,7 +2705,7 @@ fn count(total : Int) : Unit receiving Msg =
     receive {
         Request(Counter.Add(amount)) ->
             count(total + amount)
-      | Request(Counter.Get(=reply)) -> {
+      | Request(Counter.Get(reply)) -> {
             answer(reply, total);
             count(total)
         }
@@ -2755,7 +2755,7 @@ export fn main() : Unit =
     match Peer.find(Counter.service, 5000) {
         Right(counter) -> {
             send(counter, Counter.Add(5));
-            match Address.call(counter, fn(reply) = Counter.Get(=reply), 1000) {
+            match Address.call(counter, Counter.Get, 1000) {
                 Some(total) -> Io.println("the counter is at " <> Int.toString(total))
               | None -> Io.println("no answer")
             }
@@ -2770,7 +2770,7 @@ export fn main() : Unit =
 export fn main() : Unit = {
     let counter = Proxy.start(Counter.service, 5000);
     send(counter, Counter.Add(5));
-    match Address.call(counter, fn(reply) = Counter.Get(=reply), 1000) {
+    match Address.call(counter, Counter.Get, 1000) {
         Some(total) -> Io.println("the counter is at " <> Int.toString(total))
       | None -> Io.println("no answer")
     }
@@ -3106,25 +3106,25 @@ A process changes its code by a message of its own type that carries the new loo
 ```ernest
 type CounterMsg =
     Inc(Int)
-  | Get(reply : Reply(Int))
+  | Get(Reply(Int))
   | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit receiving CounterMsg)
 
 export fn main() : Unit = {
     let counter = spawn(fn() = count(0));
     send(counter, Inc(2));
-    let _ = Address.call(counter, fn(reply) = Get(=reply), 1000);
+    let _ = Address.call(counter, Get, 1000);
     let old = Code.running(count);
     List.forEach(old, fn(process) = send(process, Upgrade(migrate = fn(n) = n, next = count2)));
     Io.println(Int.toString(List.size(old)) <> " moved");
     send(counter, Inc(3));
-    Io.println("total: " <> Io.show(Address.call(counter, fn(reply) = Get(=reply), 1000)))
+    Io.println("total: " <> Io.show(Address.call(counter, Get, 1000)))
 }
 
 fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) ->
             count(total + amount)
-      | Get(=reply) -> {
+      | Get(reply) -> {
             answer(reply, total);
             count(total)
         }
@@ -3138,7 +3138,7 @@ fn count2(total : Int) : Unit receiving CounterMsg =
             Io.println("inc " <> Int.toString(amount));
             count2(total + amount)
         }
-      | Get(=reply) -> {
+      | Get(reply) -> {
             answer(reply, total);
             count2(total)
         }

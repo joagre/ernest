@@ -285,7 +285,7 @@ Below are `counter.ern`'s type, its loop, the helper that writes a report, and t
 export type CounterMsg =
     Inc(key : String, amount : Int)
   | Get(key : String, reply : Reply(Int))
-  | Report(reply : Reply(List(#(String, Int))))
+  | Report(Reply(List(#(String, Int))))
 
 type TestMsg = Reported(List(#(String, Int)))
 
@@ -299,7 +299,7 @@ export fn count(tally : Tally.Tally(String)) : Unit receiving CounterMsg =
             answer(reply, Tally.get(tally, key));
             count(tally)
         }
-      | Report(=reply) -> {
+      | Report(reply) -> {
             answer(reply, Tally.report(tally));
             count(tally)
         }
@@ -389,7 +389,7 @@ The counter is given the door by which new code will reach it, and its protocol 
 export type ClientMsg =
     Inc(key : String, amount : Int)
   | Get(key : String, reply : Reply(Int))
-  | Report(reply : Reply(List(#(String, Int))))
+  | Report(Reply(List(#(String, Int))))
 
 type CounterMsg =
     Client(ClientMsg)
@@ -416,7 +416,7 @@ fn handle(tally : Tally.Tally(String), message : ClientMsg) : Tally.Tally(String
             answer(reply, Tally.get(tally, key));
             tally
         }
-      | Report(=reply) -> {
+      | Report(reply) -> {
             answer(reply, Tally.report(tally));
             tally
         }
@@ -429,7 +429,7 @@ The tests spawn with `start()`, and the second asks for its report instead of wa
 let reports : Test.Case(m) = Test.Case(name = "reports", run = fn() = {
     let counter = start();
     let _ = apply(counter, "inc apples 2");
-    Test.equal(Address.call(counter, fn(reply) = Report(=reply), 1000), Some([#("apples", 2)]))
+    Test.equal(Address.call(counter, Report, 1000), Some([#("apples", 2)]))
 })
 ```
 

@@ -38,7 +38,7 @@ The runtime's helper, `erl/runtime/c_src/ern_exec.c`, is C99 and compiles with `
 
 ## Ernest
 
-For every Ernest source and every Ernest block of the report and the guide. The layout is `ern format`'s (report §11.6), which `make test` holds every source to and `make format` restores, and the form and the names are [`guide/style.md`](../guide/style.md)'s, which the standard library, the shell and the examples follow, its block rule among them *(tested)*, and its pun, which the test reads in the Ernest blocks and the shell inputs of every document the paragraph listing reads too *(tested)*; the repository adds these, which bind its own Ernest and no program's:
+For every Ernest source and every Ernest block of the report and the guide. The layout is `ern format`'s (report §11.6), which `make test` holds every source to and `make format` restores, and the form and the names are [`guide/style.md`](../guide/style.md)'s, which the standard library, the shell and the examples follow, its block rule among them *(tested)*, and its pun and its request whose only field is its reply, which the test reads in the Ernest blocks and the shell inputs of every document the paragraph listing reads too *(tested)*; the repository adds these, which bind its own Ernest and no program's:
 
 - **A comment cites the report section the code implements**, `// Report §8.4: ...`, as the Erlang's does.
 - **A name the report states changes only through the report**, and a new word that departs from the report's goes to the user first.

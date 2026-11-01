@@ -4,7 +4,7 @@
 // another, and children join and return, then a mark (test/ern_load.erl).
 //
 
-type WorkMsg = Ask(reply : Reply(Int)) | Crash
+type WorkMsg = Ask(Reply(Int)) | Crash
 
 foreign fn mark(round : Int) : Unit =
     "ern_load:mark/1"
@@ -30,7 +30,7 @@ let second : Address(WorkMsg) = spawn(Supervisor.child(all, working))
 
 fn working() : Unit receiving WorkMsg =
     receive {
-        Ask(=reply) -> {
+        Ask(reply) -> {
             answer(reply, 1);
             working()
         }
@@ -80,7 +80,7 @@ fn crash(child : Address(WorkMsg)) : Unit = {
 }
 
 fn answered(child : Address(WorkMsg)) : Unit =
-    match Address.call(child, fn(reply) = Ask(=reply), 1000) {
+    match Address.call(child, Ask, 1000) {
         Some(_) -> Unit
       | None -> answered(child)
     }

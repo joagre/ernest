@@ -9,7 +9,7 @@
 
 type Msg = Ping(Int)
 
-type ServerMsg = Get(reply : Reply(Int))
+type ServerMsg = Get(Reply(Int))
 
 type Point = Point(x : Int, y : Int)
 
@@ -55,9 +55,7 @@ export fn main() : Unit receiving Msg = {
             Ping(value) -> value
         }
     });
-    measure("call",
-            1000000,
-            fn(index) = Address.callForever(server, fn(reply) = Get(=reply)) + index);
+    measure("call", 1000000, fn(index) = Address.callForever(server, Get) + index);
     measure("spawn", 200000, fn(index) = {
         let _ = spawn(fn() = Unit);
         index
@@ -82,9 +80,7 @@ export fn main() : Unit receiving Msg = {
     });
     measure("call_within",
             1000000,
-            fn(index) =
-                Optional.withDefault(Address.call(server, fn(reply) = Get(=reply), 1000), 0)
-                    + index);
+            fn(index) = Optional.withDefault(Address.call(server, Get, 1000), 0) + index);
     measure("monitor", 1000000, fn(index) = {
         monitor(endedProcessOf, fn(_) = Ping(index));
         receive {
@@ -202,7 +198,7 @@ fn loop(count : Int, operation : (Int) -> Int receiving m, acc : Int) : Int rece
 
 fn serve() : Unit receiving ServerMsg =
     receive {
-        Get(=reply) -> {
+        Get(reply) -> {
             answer(reply, 1);
             serve()
         }

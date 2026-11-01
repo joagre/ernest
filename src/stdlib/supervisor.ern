@@ -113,13 +113,13 @@ export abstract type GroupMsg =
 // and a child that waits for the last or for its restart.
 type WatcherMsg =
     Add(Member)
-  | Children(reply : Reply(List(Process)))
+  | Children(Reply(List(Process)))
   | Run(supervisor : Address(GroupMsg), reply : Reply(Bool))
   | Release
   | Report(process : Process, reply : Reply(Bool))
   | Gone(Process)
   | SupervisorDied
-  | Hold(reply : Reply(Unit))
+  | Hold(Reply(Unit))
 
 // A child as the watcher holds it: its process, where it stands in the
 // order of spawns, and how to kill it, which needs its address.
@@ -290,7 +290,7 @@ fn spawnedAfter(children : List(Process), child : Process) : List(Process) =
     }
 
 fn children(watcher : Address(WatcherMsg)) : List(Process) =
-    Address.callForever(watcher, fn(reply) = Children(=reply))
+    Address.callForever(watcher, Children)
 
 // Report §6.9: the child restarts at its next wait, and the answer says
 // whether it was asked; one that has ended, or has not yet begun to run
@@ -336,7 +336,7 @@ fn watching(supervisor : Address(GroupMsg),
                 monitor(member.process, fn(_) = Gone(member.process));
                 watching(supervisor, inOrder(members, member), held)
             }
-      | Children(=reply) -> {
+      | Children(reply) -> {
             answer(reply, List.map(members, fn(member) = member.process));
             watching(supervisor, members, held)
         }
@@ -359,7 +359,7 @@ fn watching(supervisor : Address(GroupMsg),
             send(supervisor, Settled(process));
             watching(supervisor, List.filter(members, fn(member) = member.process != process), held)
         }
-      | Hold(=reply) ->
+      | Hold(reply) ->
             watching(supervisor, members, reply :: held)
       | SupervisorDied -> {
             stopAll(List.reverse(members));
@@ -464,7 +464,7 @@ fn runAgain(supervisor : Address(GroupMsg),
             kill(self())
       | Some(_) -> {
             if Address.callForever(watcher, fn(reply) = Report(=process, =reply)) then
-                Address.callForever(watcher, fn(reply) = Hold(=reply))
+                Address.callForever(watcher, Hold)
             else
                 Unit;
             f()

@@ -265,7 +265,7 @@ program() ->
                      %% the second is typed while the first may still run,
                      %% and waits for it (report §11.2)
                      {send, hex("send(c, Counter.Add(7))\r")},
-                     {send, hex("Address.call(c, fn(r) = Counter.Get(reply = r), 1000)\r")},
+                     {send, hex("Address.call(c, Counter.Get, 1000)\r")},
                      {expect, "Some(7) : Optional(Int)"},
                      {send, hex(":browse Counter\r")},
                      {expect, "Counter.start() : Address(Counter.Msg)\n"},

@@ -119,9 +119,9 @@ type ScreenMsg =
   | Clear
   | SetRows(Int)
   | Redirect(Optional(Path))
-  | Locate(reply : Reply(String))
-  | Columns(reply : Reply(Int))
-  | Flush(reply : Reply(Unit))
+  | Locate(Reply(String))
+  | Columns(Reply(Int))
+  | Flush(Reply(Unit))
 
 // What the reader is told: a key, which the local half forwards from the
 // terminal (report §11.2).
@@ -190,7 +190,7 @@ type LocalMsg =
              screen : Process,
              reply : Reply(Unit))
   | Write(text : String, ending : String)
-  | Drain(reply : Reply(Unit))
+  | Drain(Reply(Unit))
   | Remember(input : String, reply : Reply(Either(Io.Error, Unit)))
   | Output(path : Path, reply : Reply(Either(Io.Error, Unit)))
   | Append(path : Path, bytes : Bytes, reply : Reply(Either(Io.Error, Unit)))
@@ -594,7 +594,7 @@ fn output(local : Address(LocalMsg),
 
 // Where the screen says what programs write goes.
 fn located(screen : Address(ScreenMsg)) : Either(String, String) =
-    match Address.call(screen, fn(reply) = Locate(=reply), screenMs) {
+    match Address.call(screen, Locate, screenMs) {
         Some(place) -> Right("output goes to " <> place)
       | None -> Left("the screen did not say where output goes")
     }
@@ -1207,7 +1207,7 @@ fn rendered(text : String, width : Int, color : Markdown.Output) : List(String) 
 // Report §11.2: the terminal's columns, as the screen holds them, or 80
 // where there is no terminal.
 fn columnsOf(screen : Address(ScreenMsg)) : Int =
-    Optional.withDefault(Address.call(screen, fn(reply) = Columns(=reply), screenMs), 80)
+    Optional.withDefault(Address.call(screen, Columns, screenMs), 80)
 
 // Report §11.2: the live processes by spawn site, each with its activity
 // beside its site, as `Process.status` answers it: what `Process.live()`
@@ -1324,15 +1324,15 @@ fn screenLoop(region : Shell.Region.Region, showing : Showing) : Unit receiving 
             painted(Shell.Region.rowsSized(region, rows), showing)
       | Redirect(destination) ->
             screenLoop(region, Showing(..showing, =destination))
-      | Locate(=reply) -> {
+      | Locate(reply) -> {
             answer(reply, place(showing.destination, "the live region"));
             screenLoop(region, showing)
         }
-      | Columns(=reply) -> {
+      | Columns(reply) -> {
             answer(reply, Shell.Region.columns(region));
             screenLoop(region, showing)
         }
-      | Flush(=reply) -> {
+      | Flush(reply) -> {
             drained(showing.local);
             answer(reply, Unit);
             screenLoop(region, showing)
@@ -1351,7 +1351,7 @@ fn painted(drawn : #(Shell.Region.Region, String), showing : Showing) : Unit rec
 // Report §11.2: once the local half has written everything the screen
 // sent it before, or `screenMs` has passed.
 fn drained(local : Address(LocalMsg)) : Unit = {
-    let _ = Address.call(local, fn(reply) = Drain(=reply), screenMs);
+    let _ = Address.call(local, Drain, screenMs);
     Unit
 }
 
@@ -1387,17 +1387,17 @@ fn plainLoop(showing : Showing) : Unit receiving ScreenMsg = {
         }
       | Redirect(destination) ->
             Showing(..showing, =destination)
-      | Locate(=reply) -> {
+      | Locate(reply) -> {
             answer(reply, place(showing.destination, "standard output"));
             showing
         }
       // report §11.2: documentation is rendered at 80 columns where there
       // is no terminal
-      | Columns(=reply) -> {
+      | Columns(reply) -> {
             answer(reply, 80);
             showing
         }
-      | Flush(=reply) -> {
+      | Flush(reply) -> {
             drained(showing.local);
             answer(reply, Unit);
             showing
@@ -1502,7 +1502,7 @@ fn prompt(screen : Address(ScreenMsg)) : Unit = {
 }
 
 fn drain(screen : Address(ScreenMsg)) : Unit = {
-    let _ = Address.call(screen, fn(reply) = Flush(=reply), screenMs);
+    let _ = Address.call(screen, Flush, screenMs);
     Unit
 }
 
@@ -2130,7 +2130,7 @@ fn served(serving : Serving) : Unit receiving LocalMsg =
             write(text);
             served(Serving(..serving, =ending))
         }
-      | Drain(=reply) -> {
+      | Drain(reply) -> {
             answer(reply, Unit);
             served(serving)
         }

@@ -26,7 +26,7 @@
 
 type CounterMsg =
     Inc(Int)
-  | Get(reply : Reply(Int))
+  | Get(Reply(Int))
   | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit receiving CounterMsg)
 
 // The node's entry point, run with --main: its own process is a counter.
@@ -38,7 +38,7 @@ fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) ->
             count(total + amount)
-      | Get(=reply) -> {
+      | Get(reply) -> {
             answer(reply, total);
             count(total)
         }

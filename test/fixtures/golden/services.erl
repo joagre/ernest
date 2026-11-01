@@ -108,7 +108,8 @@
         'Audit' ->
             ern@io:'$8'(<<"audit: ",
                           ('$19'('$15'('$10'(),
-                                       fun (Reply_27) -> {'Entries', Reply_27}
+                                       fun (Argument_27) ->
+                                               {'Entries', Argument_27}
                                        end)))/binary>>)
     end.
 
@@ -122,7 +123,7 @@
         of
         {'Some', Held_32} ->
             Id_34 = '$15'('$8'(),
-                          fun (Reply_33) -> {'NextId', Reply_33} end),
+                          fun (Argument_33) -> {'NextId', Argument_33} end),
             ern_rt:send('$10'(),
                         {'Record',
                          <<"#", (erlang:integer_to_binary(Id_34))/binary, " ",

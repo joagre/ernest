@@ -25,7 +25,7 @@ fn ask(counter : Address(Counter.Msg), label : String, ms : Int) : Int = {
     let _ = Io.readLine();
     if label == "away" then send(counter, Counter.Add(5)) else Unit;
     let called = Clock.monotonic();
-    let answered = Address.call(counter, fn(reply) = Counter.Get(=reply), ms);
+    let answered = Address.call(counter, Counter.Get, ms);
     Io.println(label <> ": " <> Io.show(answered));
     Clock.monotonic() - called
 }

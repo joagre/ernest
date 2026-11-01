@@ -10,20 +10,20 @@
 
 type CounterMsg =
     Inc(Int)
-  | Get(reply : Reply(Int))
+  | Get(Reply(Int))
   | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit receiving CounterMsg)
 
 export fn main() : Unit = {
     let counter = spawn(fn() = count(0));
     send(counter, Inc(5));
     send(counter, Inc(3));
-    match Address.call(counter, fn(reply) = Get(=reply), 1000) {
+    match Address.call(counter, Get, 1000) {
         Some(total) -> Io.println("before upgrade: " <> Int.toString(total))
       | None -> Io.println("timeout")
     };
     send(counter, Upgrade(migrate = fn(total) = total, next = countTwice));
     send(counter, Inc(1));
-    match Address.call(counter, fn(reply) = Get(=reply), 1000) {
+    match Address.call(counter, Get, 1000) {
         Some(total) -> Io.println("after upgrade: " <> Int.toString(total))
       | None -> Io.println("timeout")
     }
@@ -33,7 +33,7 @@ fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) ->
             count(total + amount)
-      | Get(=reply) -> {
+      | Get(reply) -> {
             answer(reply, total);
             count(total)
         }
@@ -45,7 +45,7 @@ fn countTwice(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) ->
             countTwice(total + 2 * amount)
-      | Get(=reply) -> {
+      | Get(reply) -> {
             answer(reply, total);
             countTwice(total)
         }

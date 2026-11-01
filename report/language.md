@@ -831,14 +831,14 @@ A process replaces its code by a message in its own type that carries the new lo
 ```ernest
 type CounterMsg =
     Inc(Int)
-  | Get(reply : Reply(Int))
+  | Get(Reply(Int))
   | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit receiving CounterMsg)
 
 fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) ->
             count(total + amount)
-      | Get(=reply) -> {
+      | Get(reply) -> {
             answer(reply, total);
             count(total)
         }
@@ -1241,14 +1241,14 @@ The counter of §6.10, with a `main` that sends it `Inc` and `Get`. §6.10 shows
 ```ernest
 type CounterMsg =
     Inc(Int)
-  | Get(reply : Reply(Int))
+  | Get(Reply(Int))
   | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit receiving CounterMsg)
 
 export fn main() : Unit = {
     let counter = spawn(fn() = count(0));
     send(counter, Inc(5));
     send(counter, Inc(3));
-    match Address.call(counter, fn(reply) = Get(=reply), 1000) {
+    match Address.call(counter, Get, 1000) {
         Some(total) -> Io.println("count is " <> Int.toString(total))
       | None -> Io.println("counter is not answering")
     }
@@ -1258,7 +1258,7 @@ fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) ->
             count(total + amount)
-      | Get(=reply) -> {
+      | Get(reply) -> {
             answer(reply, total);
             count(total)
         }

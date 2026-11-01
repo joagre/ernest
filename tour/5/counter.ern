@@ -1,7 +1,7 @@
 export type CounterMsg =
     Inc(key : String, amount : Int)
   | Get(key : String, reply : Reply(Int))
-  | Report(reply : Reply(List(#(String, Int))))
+  | Report(Reply(List(#(String, Int))))
 
 type WatchMsg = Ended(Down)
 
@@ -17,7 +17,7 @@ export fn count(tally : Tally.Tally(String)) : Unit receiving CounterMsg =
             answer(reply, Tally.get(tally, key));
             count(tally)
         }
-      | Report(=reply) -> {
+      | Report(reply) -> {
             answer(reply, Tally.report(tally));
             count(tally)
         }
@@ -47,7 +47,7 @@ export fn apply(counter : Address(CounterMsg), line : String) : String =
               | None -> "no answer"
             }
       | ["report"] ->
-            match Address.call(counter, fn(reply) = Report(=reply), 1000) {
+            match Address.call(counter, Report, 1000) {
                 Some(entries) -> shown(entries)
               | None -> "no answer"
             }

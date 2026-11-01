@@ -130,7 +130,7 @@
 type BrokerMsg =
     Borrow(holder : String, reply : Reply(Int))
   | GiveBack(lease : Int, reply : Reply(Unit))
-  | Ledger(reply : Reply(List(#(String, Int))))
+  | Ledger(Reply(List(#(String, Int))))
   | HolderWatched(Down)
 
 // The broker's state: the leases free, the leases lent, and the requests
@@ -261,7 +261,7 @@ fn lending(leases : Leases) : Unit receiving BrokerMsg =
             } else
                 fault("lease " <> Int.toString(lease) <> " is not lent to the caller")
         }
-      | Ledger(=reply) -> {
+      | Ledger(reply) -> {
             answer(reply, entries(leases));
             lending(leases)
         }
@@ -335,7 +335,7 @@ fn giveBack(broker : Address(BrokerMsg), lease : Int) : Unit =
     Address.callForever(broker, fn(reply) = GiveBack(=lease, =reply))
 
 fn ledger(broker : Address(BrokerMsg)) : List(#(String, Int)) =
-    Address.callForever(broker, fn(reply) = Ledger(=reply))
+    Address.callForever(broker, Ledger)
 
 //
 // A client

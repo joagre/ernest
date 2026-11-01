@@ -44,9 +44,9 @@ type StoreMsg =
     Change(key : String, by : Int, reply : Reply(Int))
   | Get(key : String, reply : Reply(Int))
 
-type IdMsg = NextId(reply : Reply(Int))
+type IdMsg = NextId(Reply(Int))
 
-type AuditMsg = Record(String) | Entries(reply : Reply(List(String)))
+type AuditMsg = Record(String) | Entries(Reply(List(String)))
 
 // A line of input, read as a command.
 type Command =
@@ -87,7 +87,7 @@ let ids : Address(IdMsg) = spawn(Supervisor.child(services, fn() = counting(1)))
 
 fn counting(next : Int) : Unit receiving IdMsg =
     receive {
-        NextId(=reply) -> {
+        NextId(reply) -> {
             answer(reply, next);
             counting(next + 1)
         }
@@ -99,7 +99,7 @@ fn recording(entries : List(String)) : Unit receiving AuditMsg =
     receive {
         Record(entry) ->
             recording(entries <> [entry])
-      | Entries(=reply) -> {
+      | Entries(reply) -> {
             answer(reply, entries);
             recording(entries)
         }
@@ -134,14 +134,14 @@ fn obey(command : Command, line : String) : Unit =
               | None -> Io.println(line <> ": no answer")
             }
       | Audit ->
-            Io.println("audit: " <> audited(asked(audit, fn(reply) = Entries(=reply))))
+            Io.println("audit: " <> audited(asked(audit, Entries)))
     }
 
 // A change to a key's stock, recorded with an id once the store has taken it.
 fn change(key : String, by : Int, line : String) : Unit =
     match Address.call(store, fn(reply) = Change(=key, =by, =reply), 5000) {
         Some(held) -> {
-            let id = asked(ids, fn(reply) = NextId(=reply));
+            let id = asked(ids, NextId);
             send(audit, Record("#" <> Int.toString(id) <> " " <> line));
             Io.println(key <> ": " <> Int.toString(held))
         }
