@@ -283,7 +283,7 @@ The example `examples/upgrade/` is one module, `Counter`, in two builds: the fir
 ```
 $ ern shell --config-dir ops --attach b --source-root upgrade/v2
 the peer b connected
-Ernest 0.8.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.9.0, session 1. :help for the commands, :quit to leave.
 > :reload
 Counter, compiled again
 > Counter.moved()
@@ -310,7 +310,7 @@ A session on section 8's `b`, whose counter `--main Counter.serve` started:
 ```
 $ ern shell --config-dir ops --attach b
 the peer b connected
-Ernest 0.8.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.9.0, session 1. :help for the commands, :quit to leave.
 > :processes
 Counter.serve receiving
 > List.map(Process.live(), Process.status)
@@ -405,7 +405,7 @@ Each says the address and the port it listens on, `listening on 127.0.0.1:8655` 
 ```
 $ ern shell --config-dir ops --attach b
 the peer b connected
-Ernest 0.8.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.9.0, session 1. :help for the commands, :quit to leave.
 > :processes
 Counter.serve receiving
 ```

@@ -47,7 +47,7 @@ In the directory that holds it:
 
 ```console
 $ ern shell
-Ernest 0.8.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.9.0, session 1. :help for the commands, :quit to leave.
 > :load Counter
 Counter, compiled from counter.ern
 > let counter = spawn(fn() = Counter.count(0))
@@ -121,7 +121,7 @@ In a second terminal `ern run --config-dir foo`, in a third `ern run --config-di
 
 ```console
 $ ern shell --config-dir a
-Ernest 0.8.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.9.0, session 1. :help for the commands, :quit to leave.
 > :load Counter
 Counter, compiled from counter.ern
 > let counter = spawn(fn() = Counter.count(0))
@@ -596,7 +596,7 @@ $ ern reload --config-dir foo
 ```console
 $ ern shell --config-dir ops --attach foo
 the peer foo connected
-Ernest 0.8.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.9.0, session 1. :help for the commands, :quit to leave.
 > :load Counter
 Tally, compiled from tally.ern
 Counter, compiled from counter.ern
