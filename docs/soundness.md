@@ -2,7 +2,7 @@
 
 What this document argues is held to the code by three machines of `make test-full`, [`test/ern_grammar_programs_tests.erl`](../test/ern_grammar_programs_tests.erl), [`erl/runtime/test/ern_laws_tests.erl`](../erl/runtime/test/ern_laws_tests.erl) and [`test/ern_typed_programs_tests.erl`](../test/ern_typed_programs_tests.erl), and by the checker's tests in [`erl/checker/test/ern_typecheck_tests.erl`](../erl/checker/test/ern_typecheck_tests.erl), which cite the sections cited here.
 
-An argument that a well-typed program does not go wrong, over the rules of the report, [`report/language.md`](../report/language.md), [`report/toolchain.md`](../report/toolchain.md) and [`report/library.md`](../report/library.md), in the language's and the library's revision of 1 November 2026 and the toolchain's of 31 October 2026. It is prose and no machine checks it. It states a small calculus, the invariants a running program keeps, why each step keeps them, and then each place where two rules meet. The report owns the rules and the log their reasons. This document owns the argument alone: a change to a rule it covers rewrites the paragraph for that rule in the same commit (CLAUDE.md, *Before code*).
+An argument that a well-typed program does not go wrong, over the rules of the report, [`report/language.md`](../report/language.md), [`report/toolchain.md`](../report/toolchain.md) and [`report/library.md`](../report/library.md), in their revision of 1 November 2026. It is prose and no machine checks it. It states a small calculus, the invariants a running program keeps, why each step keeps them, and then each place where two rules meet. The report owns the rules and the log their reasons. This document owns the argument alone: a change to a rule it covers rewrites the paragraph for that rule in the same commit (CLAUDE.md, *Before code*).
 
 ## 1. What is argued
 
@@ -53,7 +53,7 @@ The calculus is the language without its conveniences. The pipe is a call (§5.7
 e ::= x | k | fn(p, …) = e | e(e, …) | C | C(e) | C(f = e, …) | C(..e, f = e, …) | e.f
     | #(e, e, …) | [e, …] | e :: e | if e then e else e | { s; …; e }
     | match e { p when e -> e | … }
-    | receive { p when e -> e | … | after e -> e }
+    | receive { p when e -> e | … [ | after e -> e ] }
 s ::= let p = e | let p <- e | fn f(p, …) = e | e
 v ::= k | C | C(v) | C(f = v, …) | #(v, v, …) | [v, …] | ⟨fn(p, …) = e; η⟩ | a | adapted(a, v) | r
 ```
@@ -74,7 +74,7 @@ v ::= k | C | C(v) | C(f = v, …) | #(v, v, …) | [v, …] | ⟨fn(p, …) = e
 (match)    Γ ⊢ e : τ₀ ! ε,  each pᵢ : τ₀ binds Γᵢ,  Γ, Γᵢ ⊢ gᵢ : Bool ! none,
            Γ, Γᵢ ⊢ eᵢ : τ ! ε,  the unguarded pᵢ cover τ₀            gives  Γ ⊢ match e { pᵢ when gᵢ -> eᵢ } : τ ! ε
 (receive)  each pᵢ : M binds Γᵢ,  Γ, Γᵢ ⊢ gᵢ : Bool ! none,  Γ, Γᵢ ⊢ eᵢ : τ ! M,
-           Γ ⊢ t : Int ! M,  Γ ⊢ e′ : τ ! M          gives  Γ ⊢ receive { pᵢ when gᵢ -> eᵢ | after t -> e′ } : τ ! M
+           Γ ⊢ t : Int ! M,  Γ ⊢ e′ : τ ! M where an after clause stands   gives  Γ ⊢ receive { pᵢ when gᵢ -> eᵢ | after t -> e′ } : τ ! M
 ```
 
 A `fn` definition, a top-level `let`, and a block's `let` of a lambda are given the scheme that quantifies the variables of their type which `Γ` does not hold, each with its restrictions (§3.9, §4.6); section 6.1 gives the one exception.
@@ -93,11 +93,11 @@ answer       : ∀a. (Reply(a), a) -> Unit
 monitor      : ∀m. (Process, (Down) -> m) -> Unit receiving m
 ```
 
-No primitive has an effect of its own. `self` and `monitor` have the mailbox type of the process that calls them, in a value position, the address answered or the wrap's result, so it is never none. `Clock.sleep`, `(Int) -> Unit`, takes no message and names no mailbox, which section 2's promise for the standard library's foreign functions carries (E.15).
+No primitive has an effect of its own. `self` and `monitor` have the mailbox type of the process that calls them, in a value position, the address answered or the wrap's result, so it is never none. `Clock.sleep`, `(Int) -> Unit`, is a library function that section 2's promise covers (E.15): it takes no message and names no mailbox, and its step is (sleep) below.
 
 A function, a `fn` or a lambda, that calls `self` or `monitor`, and whose own type holds their variable `α` in no value position, `fn f() = kill(self())`, is given by (none) the type of one that receives nothing, `() -> Unit` (§3.9). None is no type, and the body is not typed at it: its derivation is at `α`, which stays free there, so putting any type `M` for `α` gives a derivation at `M`, as substitution does in Hindley-Milner's calculus. A process of mailbox type `M` that runs the body runs that instance.
 
-**Lemma.** No value of the type `α` itself arises in such a body. No parameter and no capture brings one, since `α` stands in no parameter's type and `Γ` holds it nowhere; a lambda's parameter that foreign code calls brings none, since section 2's first promise has foreign code call a function with only values it was given at `α`. No `receive` binds one, since a `receive` either fixes `α` by its patterns or makes it process-only (§3.9), and (none) applies to neither. A call answers no value of `α`, alone or inside another value, that it was not given at `α`, the callee's scheme being quantified over the variable in its result, which section 2's first promise carries for foreign code, and the body gives it none.
+**Lemma.** No value of the type `α` itself arises in such a body. No parameter and no capture brings one, since `α` stands in no parameter's type and `Γ` holds it nowhere; a lambda's parameter that foreign code calls brings none, since section 2's first promise has foreign code call a function with only values it was given at `α`. No `receive` binds one, since a `receive` either fixes `α`, by its patterns, its guards or its bodies, or makes it process-only (§3.9), and (none) applies to neither. A call answers no value of `α`, alone or inside another value, that it was not given at `α`, the callee's scheme being quantified over the variable in its result, which section 2's first promise carries for foreign code, and the body gives it none.
 
 An address `self` answers there is an address at `α`, and nothing is sent through it, since a `send` needs a value of `α`, which by the lemma the body has none of; the wrap the body gives `monitor` answers no value of `α`, by the lemma, and so faults or runs for ever. Whichever process runs the body, it reads no mailbox and puts no value in one.
 
@@ -113,6 +113,8 @@ In a process of the program's of mailbox type `M`, and in a wrap or an adapted a
 (self)     a: E[self()]                  a goes on with a
 (receive)  a: E[receive { … }]           the first message a clause matches leaves the mailbox and its
                                          clause is evaluated; where the time passes first, the after clause
+(sleep)    a: E[Clock.sleep(t)]          a goes on with Unit once t has passed; a fault or an asked restart
+                                         in its mailbox reaches it first, as (fault)
 (call)     a: E[Address.call(b, v, t)]   a fresh r; v(r) is sent to b; a waits for r, for t at most
 (answer)   c: E[answer(r, w)]            c goes on with Unit; the process that waits for r goes on with
                                          Some(w), and r is answered; nothing where none waits
@@ -167,6 +169,8 @@ No coverage is asked: a message no clause matches stays, and the process waits.
 
 **Faults, kills and restarts.** A process that ends takes no further step. What it held is gone, a reply among it; a call whose request that process was sent to ends with the process (§6.6), and one whose reply the process held by another way ends by its deadline or by an answer from another holder, of the call's type by I3. A restart runs the same function again in the same process (§6.9), at the same mailbox type, with an empty mailbox, so I1 holds.
 
+**A fault or a restart met at a wait.** A fault that stands in the mailbox, a foreign message's or an adapted address's function's (§6.5, §8.4), and a restart a supervisor asks for (§6.9), are met at the process's next wait, a `receive`, a sleep or a call's, and are the running process's own: they bind nothing, so no value of another type enters a derivation, and the restart's empty mailbox keeps I1 as above.
+
 ## 6. Where rules meet
 
 ### 6.1 Generalization and the value restriction
@@ -184,6 +188,8 @@ let shared = spawn(fn() = cell(None))       // refused
 Generalized, `shared` would have the type `Address(Cell(Optional(a)))` for every `a`: one process could be sent `Put(Some(1))` and then asked, at `Optional(String)`, for what it holds. So a top-level `let` is generalized only where its initializer is a value, a literal, a name, a lambda or a constructor applied to values, and one whose initializer is a call, `spawn` or any other, has the type the call gives (§4.6).
 
 One exception: a call's binding whose type, read through the declared types it names, holds no function type, no foreign type, no address and no reply is generalized all the same (§4.6). Such a value is data, a list, a tuple, a map, a set, a bitstring or a constructor over these, and refers to nothing outside itself: to no process, which an address, a reply or a function's capture would name, and to no state of the host's, which a foreign type names, `Ets.Table(k, v)` among them. A variable of its type stands for a component the call put nowhere, a standard library primitive being trusted here as everywhere and another foreign function's return checked for it (§8.4), so an instance at any type reads nothing written at another, and `Map.empty : Map(k, v)` is generalized as `[]` is.
+
+A `Process` or a `Clock.Alarm` does refer outside itself, and is generalized all the same: neither has a type parameter through which a component could be read at two types.
 
 Where the type is not generalized, a variable left in it is none, `Never`, or an error. An effect variable that stands in no value position and is not process-only is none where it stands as a function type's effect alone, one's or several's (§3.9, §4.6). Each function whose type carries it keeps its derivation at the variable, which holds at every type put for it, and by section 3's lemma for `self` and `monitor` and by 6.2 for a body that names no mailbox it reads no mailbox at the variable and puts no value in one, so it runs as one that receives nothing; where the variable stands within a parameter's function type, none restricts the caller to a function that receives nothing, which stands wherever one that receives is expected.
 
@@ -203,9 +209,9 @@ A spawned function's mailbox type that nothing has fixed by the end of the defin
 
 ### 6.3 Process-only
 
-An effect variable that stands in no value position may be instantiated with none (§3.9). A function that waits in a `receive` whose patterns fix no type has such a variable and must not be taken for one that receives nothing: it reads its process's mailbox and takes any message from it, so claim 3 holds of it as of a `receive` that binds. The variable carries the process-only restriction, and none does not instantiate it. `Clock.sleep` (E.15) takes no message and binds nothing, so a function that waits in it runs in any process, as 6.2 argues of one that receives nothing; an initializer waits so at `Never` (6.4).
+An effect variable that stands in no value position may be instantiated with none (§3.9). A function that waits in a `receive` that fixes no type for the message it takes (§3.9) has such a variable and must not be taken for one that receives nothing: it reads its process's mailbox and takes any message its guards admit from it, so claim 3 holds of it as of a `receive` that binds. The variable carries the process-only restriction, and none does not instantiate it. `Clock.sleep` (E.15) takes no message and binds nothing, so a function that waits in it runs in any process: its (sleep) step reads the mailbox for a fault or an asked restart alone, which section 5 argues are the process's own; an initializer may sleep (6.4).
 
-Claim 2 rests on this where the language runs functions outside the process they were written for. The function of an adapted address runs in the sender or, on delivery, in a process of the address's own, in no process of the target's (§6.5). A wrap is applied by the runtime (§6.9). A guard is evaluated while a message is selected (§6.3), and a member is called at an operator (§4.8). Each is typed as receiving nothing, so none reads a mailbox; each may send or print, which reaches no mailbox but the address's. Were a function that receives accepted there, its `receive` would read one process's mailbox at another's type.
+Claim 2 rests on this where the language runs functions outside the process they were written for. The function of an adapted address runs in the sender or, on delivery, in a process of the address's own, in no process of the target's (§6.5). A wrap is applied by the runtime (§6.9). A guard is evaluated while a message is selected (§6.3), and a member is called at an operator (§4.8). Each is typed as receiving nothing, so none reads a mailbox for a message; each may send, print or sleep, which reaches no mailbox but the address's, a sleep there being the applying process's wait, which no restart asked of the recipient reaches (§6.5, E.15). Were a function that receives accepted there, its `receive` would read one process's mailbox at another's type.
 
 A foreign function whose mailbox type is a callback's, `receiving e` with a parameter `(a) -> b receiving e`, is typed by the callback's and runs in the caller, so the type says nothing of what the function itself reads; §4.7's fourth promise (section 2) says it reads and delivers through the callback alone, which is typed as the caller's own, so claim 3 holds of the call as of a call of the callback. The standard library's four such functions, `Map.mapped`, `Map.mergedWith`, `Set.map` and `Peer.compute`, call their function and touch no mailbox.
 
@@ -213,9 +219,9 @@ A foreign function whose mailbox type is a callback's, `receiving e` with a para
 
 ### 6.4 An initializer runs at `Never`
 
-A top-level initializer is typed receiving `Never` and run in the entry process, whose mailbox type may be another (§4.6, §8.5). It is the one body that runs in a process of another mailbox type than its own, and `Never` is what makes it safe. `Never` has no value. So `self()` in an initializer is an `Address(Never)`, to which nothing can be sent; a wrap `(Down) -> Never` cannot return a message; and a `receive` there is a type error (§6.8). A function that returns what it receives, called there, waits for a message that cannot come, and the runtime faults it with `Fault("deadlock")` (§6.8, §8.6). Nothing therefore reaches the entry process's mailbox before `main` runs, and `main` begins with I1 holding at its own mailbox type.
+A top-level initializer is typed receiving `Never` and run in the entry process, whose mailbox type may be another (§4.6, §8.5). It is the one body that runs in a process of another mailbox type than its own, and `Never` is what makes it safe. `Never` has no value. So `self()` in an initializer is an `Address(Never)`, to which nothing can be sent; a wrap `(Down) -> Never` cannot return a message; and a `receive` there is a type error (§6.8). A function whose mailbox type is a variable, called there, a process-only one among them, waits for a message that cannot come; where nothing else can run, the runtime faults the entry process with `Fault("deadlock")`, and otherwise it waits (§6.8, §8.6). No value therefore reaches the entry process's mailbox before `main` runs, and `main` begins with I1 holding at its own mailbox type.
 
-A wrap `(Down) -> Never` an initializer gave `monitor` or `spawnMonitored` is applied when its process ends, which may be once `main` has begun: it returns no message, since `Never` has no value, and a fault in it is the fault of the process it delivers to, `main` (§6.9), so it puts nothing in `main`'s mailbox either.
+A wrap into `Never` an initializer gave `monitor`, `spawnMonitored`, `Clock.alarm` or a subscription is applied when its process ends or its time comes, which may be once `main` has begun: it returns no message, since `Never` has no value, and a fault in it is the fault of the process it delivers to, `main` (§6.9), so it puts no value in `main`'s mailbox; the fault is met at `main`'s next wait and binds nothing (section 5).
 
 `Code.load` evaluates a module's bindings at `Never` too, in an evaluator of its own and not in the calling process (Appendix E.28), so the one body that runs at another process's mailbox type is still the initializer in the entry process: a function that receives, called in a load's binding, waits in the evaluator for a message that cannot come, which the runtime faults as a deadlock and the load refuses (§8.6), and the caller's mailbox is read by nothing.
 

@@ -93,6 +93,12 @@ language lacks goes to `language_feedback.md` first, as any Ernest written here,
 before any code goes around it (decided with the user on 2026-10-10, with the site's generator,
 MVP 4.2).
 
+Before its items, built 2026-11-02 after its night and shipped with 0.9.0: §5.9 makes a guard
+that is the literal `false` a redundant clause, with the redundancy error, so that a `receive` left
+with its `after` alone meets §6.3's help; decided 2026-11-01 (the log's *The Release Review Before
+0.8.0*, P2), since principle 3 refuses a clause the text alone shows cannot run, and the literal
+alone, since evaluating guards is a slope the report does not start down.
+
 The work goes in three steps, decided 2026-10-30: items 1 to 3 here, closing with an archive;
 then the server's milestone 1 whole in its repository, item 4, which is that milestone and no
 item of this one; then items 5 and 6 here, the libraries reshaped by their first user. The
