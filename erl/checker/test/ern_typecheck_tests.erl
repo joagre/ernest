@@ -3162,6 +3162,59 @@ field_given_once_test() ->
                  refusal("type P = P(x : Int, y : Int)\n"
                          "fn f() : P = P(x = 1, x = 2, y = 3)")).
 
+%% report §5.6: a pun, `=f`, is `f = f` read textually, so it gives what
+%% its name names where the construction stands, a parameter, a local and
+%% a top-level function among them, alone, beside a plain field, in a
+%% record update and in a fill, a field the namespace lacks among them; in
+%% a pattern it binds the field's variable (§5.10). Written after the code
+pun_test() ->
+    Snapshot = "export type Snapshot = Snapshot(directory : String, seen : Int)\n",
+    ?assertEqual(ok, ok(Snapshot ++ "fn f(directory : String, seen : Int) : Snapshot ="
+                        " Snapshot(=directory, =seen)")),
+    ?assertEqual(ok, ok(Snapshot ++ "fn f(seen : Int) : Snapshot ="
+                        " Snapshot(directory = \"d\", =seen)")),
+    ?assertEqual(ok, ok(Snapshot ++ "fn f(p : Snapshot) : Snapshot ="
+                        " { let seen = 2; Snapshot(..p, =seen) }")),
+    ?assertEqual(ok, ok("type Step = Step(next : (Int) -> Int)\n"
+                        "fn next(n : Int) : Int = n + 1\n"
+                        "fn f() : Step = Step(=next)")),
+    ?assertEqual(ok, ok("type Ops(s, a) = Ops(fromList : (List(a)) -> s, tally : (s) -> Int)\n"
+                        "fn tally(set : Set(Int)) : Int = Set.size(set)\n"
+                        "let mine : Ops(Set(Int), Int) = Ops(..Set, =tally)\n")),
+    ?assertEqual("(M.Snapshot) -> Int",
+                 type_of(Snapshot ++ "export fn seenOf(s : Snapshot) ="
+                         " match s { Snapshot(=seen) -> seen }", seenOf)).
+
+%% report §5.6, §11.5: a pun's name that names nothing, or names a value of
+%% another type than its field's, is reported at the name, as the plain
+%% form's value is; one given twice at the second field, the pun whole.
+%% Written after the code
+pun_errors_test() ->
+    Snapshot = "type Snapshot = Snapshot(directory : String, seen : Int)\n",
+    ?assertMatch(#diagnostic{message = "unknown name seen", span = {2, 48, {2, 52}}},
+                 diagnostic(Snapshot ++ "fn f() : Snapshot = Snapshot(directory = \"d\", =seen)")),
+    ?assertMatch(#diagnostic{message = "field seen: expected Int, found String",
+                             span = {2, 61, {2, 65}}},
+                 diagnostic(Snapshot ++ "fn f(seen : String) : Snapshot ="
+                            " Snapshot(directory = \"d\", =seen)")),
+    ?assertMatch(#diagnostic{message = "field seen is given twice", span = {2, 64, {2, 69}}},
+                 diagnostic(Snapshot ++ "fn f(seen : Int) : Snapshot ="
+                            " Snapshot(directory = \"d\", =seen, =seen)")).
+
+%% report §5.6, §5.10: a pun names a field, so a single-positional
+%% constructor takes none, in a construction and in a pattern, and
+%% `Some(x = x)`, which the pun is, is told the same; a nullary constructor
+%% takes no fields, a pun among them. Written after the code
+positional_pun_test() ->
+    Refusal = "Some has one positional field; write `Some(x)`",
+    ?assertEqual(Refusal, refusal("fn f(x : Int) : Optional(Int) = Some(=x)")),
+    ?assertEqual(Refusal, refusal("fn f(x : Int) : Optional(Int) = Some(x = x)")),
+    ?assertEqual(Refusal,
+                 refusal("fn f(o : Optional(Int)) : Int = match o { Some(=x) -> x | None -> 0 }")),
+    ?assertEqual("None takes no fields", refusal("fn f(x : Int) : Optional(Int) = None(=x)")),
+    ?assertEqual("None takes no fields",
+                 refusal("fn f(o : Optional(Int)) : Int = match o { None(=x) -> x | _ -> 0 }")).
+
 %% report §5.6: `..` is allowed only on a type with one constructor. It was
 %% accepted on a type of two, and the program faulted with badmatch where
 %% the value was the other constructor.

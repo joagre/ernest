@@ -2026,6 +2026,19 @@ example.ern:1:26: Some has one positional field, not named fields
   |                          ^^^^^^^^^^^^^^^
 ```
 
+### A pun given to a positional constructor (§5.6)
+
+```ernest-rejected
+fn f(x : Int) : Optional(Int) = Some(=x)
+```
+
+```console
+$ ern build example.ern
+example.ern:1:33: Some has one positional field; write `Some(x)`
+1 | fn f(x : Int) : Optional(Int) = Some(=x)
+  |                                 ^^^^^^^^
+```
+
 ### A positional field given to a constructor of named fields (§5.6)
 
 ```ernest-rejected
@@ -3668,6 +3681,24 @@ example.ern:3:9: Some has one positional field; write Some(_) to match any Some
 2 |     match o {
 3 |         Some -> 1
   |         ^^^^
+```
+
+### A pun matched in a positional constructor (§5.10)
+
+```ernest-rejected
+fn f(o : Optional(Int)) : Int =
+    match o {
+        Some(=x) -> x
+      | None -> 0
+    }
+```
+
+```console
+$ ern build example.ern
+example.ern:3:9: Some has one positional field; write `Some(x)`
+2 |     match o {
+3 |         Some(=x) -> x
+  |         ^^^^^^^^
 ```
 
 ### A field matched twice (§5.10)

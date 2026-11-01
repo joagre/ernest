@@ -5383,6 +5383,14 @@ fields_by_module() ->
                                  Texts(ern_shell:slot(<<"match s { Discs.Round(">>))),
                     ?assertEqual([<<"radius">>],
                                  Texts(ern_shell:slot(<<"match s { Circles.Round(">>))),
+                    %% report §5.6, §5.10: a pun's name is a field's, after
+                    %% its `=` and after a pun; written after the code
+                    ?assertEqual([<<"diameter">>, <<"hole">>],
+                                 Texts(ern_shell:slot(<<"Discs.Round(=">>))),
+                    ?assertEqual([<<"diameter">>, <<"hole">>],
+                                 Texts(ern_shell:slot(<<"Discs.Round(=hole, ">>))),
+                    ?assertEqual([<<"radius">>],
+                                 Texts(ern_shell:slot(<<"match s { Circles.Round(=">>))),
                     %% an unqualified `Round` is neither module's, and has
                     %% no fields
                     ?assertEqual('Expression', ern_shell:slot(<<"Round(">>))

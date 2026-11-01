@@ -5019,6 +5019,9 @@ constructed(#e_constructor{span = Span, namespace = ConstructorNamespace, name =
             %% a single-positional constructor is a function value (§5.6)
             {Opened, TypeState1} = open_effect(ConstructorType, TypeState),
             {Expr#e_constructor{type = Opened}, Opened, Env1#env{type_state = TypeState1}};
+        {positional, {named, [#field_set{name = Field, path = [],
+                                         expr = #e_var{namespace = [], name = Field}}]}} ->
+            positional_pun(Span, Name, Field);
         {positional, {named, _}} ->
             fail(Span, atom_to_list(Name) ++ " has one positional field, not named fields");
         {{named, Names}, {named, FieldSets}} ->
@@ -5648,6 +5651,15 @@ one_constructor(Span, #constructor_info{name = Name, type_qualified_name = TypeQ
                                      " ~s has ~B", [Shown, length(Constructors)]),
                  [], "give every field of " ++ atom_to_list(Name))
     end.
+
+%% Report §5.6, §5.10: a pun names a field, and a single-positional
+%% constructor has none, `Some(=x)`. The pun is `x = x` read textually, so
+%% `Some(x = x)` is told the same.
+-spec positional_pun(ern_diagnostic:span(), atom(), atom()) -> no_return().
+positional_pun(Span, Name, Field) ->
+    Text = atom_to_list(Name),
+    fail(Span, Text ++ " has one positional field; write `" ++ Text ++ "("
+               ++ atom_to_list(Field) ++ ")`").
 
 %% Report §5.6, §5.10: a constructor with named fields as it is written,
 %% each field given `Part`: `Point(x = value, y = value)`.
@@ -6359,6 +6371,8 @@ infer_pattern(#p_constructor{span = Span, namespace = Namespace, name = Name,
             Env3 = unify_at(Span, FieldType, SubType, Env2, "the field of " ++ atom_to_list(Name)),
             {Pattern#p_constructor{args = {positional, TypedSubPattern}, type = Constructed},
              Constructed, Bindings, Env3};
+        {positional, {named, [#field_pattern{name = Field, pattern = #p_var{name = Field}}]}} ->
+            positional_pun(Span, Name, Field);
         {positional, _} ->
             fail(Span, atom_to_list(Name) ++ " has one positional field; write "
                        ++ atom_to_list(Name) ++ "(_) to match any " ++ atom_to_list(Name));

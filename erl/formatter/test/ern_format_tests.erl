@@ -629,3 +629,24 @@ update_path_test() ->
            "    Pool(..p, stats.indexed = 1, name = \"q\")"]),
     ?assertEqual([<<"fn f(s) =">>, <<"    Site(..s, pool.stats.hits = 5)">>],
                  laid(["fn f(s) = Site( ..s , pool . stats . hits = 5 )"])).
+
+%% report §5.6, §5.10, §11.6: a pun is written tight, `=seen`, as the
+%% report writes it, in a construction, a record update and a pattern,
+%% and stands as an item of a bracket that does not fit; `seen = seen`
+%% stays as written, the formatter keeping the tokens. Written after the
+%% code
+pun_test() ->
+    fixed(["fn f(directory, seen) =", "    Snapshot(=directory, seen = seen)"]),
+    ?assertEqual([<<"fn f(p, seen) =">>, <<"    Snapshot(..p, =seen)">>],
+                 laid(["fn f(p, seen) = Snapshot( ..p , = seen )"])),
+    ?assertEqual([<<"fn f(s) =">>,
+                  <<"    match s {">>,
+                  <<"        Snapshot(=seen, dir = d) -> seen">>,
+                  <<"    }">>],
+                 laid(["fn f(s) = match s { Snapshot( = seen,dir = d) -> seen }"])),
+    fixed(["fn f(a) =",
+           "    Snapshot(=directoryOfTheProgram,",
+           "             =seenSoFarInTheRun,",
+           "             =attachedSessions,",
+           "             =localHalfOfTheShell,",
+           "             =sizeOfTheScreen)"]).

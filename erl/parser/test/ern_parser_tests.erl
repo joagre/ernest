@@ -1373,3 +1373,72 @@ update_path_test() ->
      #expected_field{kind = field, namespace = [], constructor_name = 'Pool', segments = [stats]}} =
         stopped_within(<<"Pool(..pool, stats.">>),
     {_, #expected_field{segments = [pool, stats]}} = stopped_within(<<"Site(..site, pool.stats.">>).
+
+%% A tree with every span taken out, so that two trees differ only where
+%% their nodes do.
+unspanned({Line, Column, {EndLine, EndColumn}})
+  when is_integer(Line), is_integer(Column), is_integer(EndLine), is_integer(EndColumn) ->
+    span;
+unspanned(Tuple) when is_tuple(Tuple) ->
+    list_to_tuple([unspanned(Element) || Element <- tuple_to_list(Tuple)]);
+unspanned(List) when is_list(List) ->
+    [unspanned(Element) || Element <- List];
+unspanned(Other) ->
+    Other.
+
+%% report §5.6, Appendix A's FieldSet and UpdateSet: a pun, `=seen`, is
+%% `seen = seen` read textually, the tree the plain form makes, alone,
+%% beside a plain field, in a record update and in a fill; the field spans
+%% the pun from its `=`, the name its identifier. A pun in a constructor
+%% the parser cannot tell is positional, `Some(=x)`, names a field, which
+%% the checker refuses. Written after the code; the programs generated from
+%% Appendix A reach the pun in every place the grammar admits it
+pun_test() ->
+    ?assertEqual(unspanned(expression("Snapshot(directory = directory, seen = seen)")),
+                 unspanned(expression("Snapshot(=directory, =seen)"))),
+    ?assertEqual(unspanned(expression("Snapshot(directory = directory, seen = s)")),
+                 unspanned(expression("Snapshot(=directory, seen = s)"))),
+    ?assertEqual(unspanned(expression("Snapshot(..p, seen = seen)")),
+                 unspanned(expression("Snapshot(..p, =seen)"))),
+    ?assertEqual(unspanned(expression("Operations(..Set, toList = toList)")),
+                 unspanned(expression("Operations(..Set, =toList)"))),
+    #e_constructor{args = {named, [#field_set{span = {1, 10, {1, 15}}, name = seen, path = [],
+                                              expr = #e_var{span = {1, 11, {1, 15}},
+                                                            namespace = [], name = seen}}]}} =
+        expression("Snapshot(=seen)"),
+    #e_constructor{name = 'Some', args = {named, [#field_set{name = x}]}} =
+        expression("Some(=x)").
+
+%% report §5.10, Appendix A's FieldPat: a pun in a pattern, `=seen`, is
+%% `seen = seen`, binding seen, alone and beside a plain field pattern,
+%% the field spanning the pun and the variable its identifier; written
+%% after the code
+pattern_pun_test() ->
+    ?assertEqual(unspanned(pattern_of("Snapshot(seen = seen)")),
+                 unspanned(pattern_of("Snapshot(=seen)"))),
+    ?assertEqual(unspanned(pattern_of("Snapshot(dir = d, seen = seen)")),
+                 unspanned(pattern_of("Snapshot(dir = d, =seen)"))),
+    #p_constructor{args = {named, [#field_pattern{span = {1, 20, {1, 25}}, name = seen,
+                                                  pattern = #p_var{span = {1, 21, {1, 25}},
+                                                                   name = seen}}]}} =
+        pattern_of("Snapshot(=seen)"),
+    #p_constructor{name = 'Some', args = {named, [#field_pattern{name = x}]}} =
+        pattern_of("Some(=x)").
+
+%% Appendix A's FieldSet, UpdateSet and FieldPat: a pun is `=` and a name
+%% alone, so what follows the name is refused where the fields end, and
+%% what is no name after `=` where a field's name stands; an input that
+%% stops after the `=` stops where a field's name stands, for completion
+%% and `Shift-Tab` (report §11.2). Written after the code; it does not
+%% cover the shell's completion itself, which reads the tag
+pun_is_a_name_alone_test() ->
+    ?assertEqual("expected `)` instead of `+`", expression_refusal("Snapshot(=count + 1)")),
+    ?assertEqual("expected `)` instead of `.`", expression_refusal("Pool(..p, =stats.hits)")),
+    ?assertEqual("expected a name instead of integer 1", expression_refusal("Snapshot(=1)")),
+    ?assertEqual("expected `)` instead of the reserved word `as`",
+                 refusal("fn f(s) = match s { Snapshot(=seen as all) -> 0 }")),
+    ?assertEqual({#enclosing{namespace = [], name = 'Snapshot', argument = none},
+                  #expected_field{kind = field, namespace = [], constructor_name = 'Snapshot'}},
+                 stopped_within(<<"Snapshot(=">>)),
+    ?assertMatch({_, #expected_field{kind = field, constructor_name = 'Snapshot'}},
+                 stopped_within(<<"match s { Snapshot(=">>)).

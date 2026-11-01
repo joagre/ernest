@@ -1160,10 +1160,11 @@ constructor_expr(Position, Namespace, Name, [{'(', _} = Paren | Rest]) ->
                                     base = Base, args = {named, FieldSets}},
                      expect(Rest3, ')')});
         [{ident, _, _}, {'=', _} | _] ->
-            {FieldSets, Rest1} = separated(Rest, ',', field_of(Namespace, Name, construction)),
-            spanned({#e_constructor{span = Position, namespace = Namespace, name = Name,
-                                    args = {named, FieldSets}},
-                     expect(Rest1, ')')});
+            named_construction(Position, Namespace, Name, Rest);
+        [{'=', _} | _] ->
+            %% Appendix A: `=` before the first identifier, a pun's, names
+            %% the fields as `=` after it does (report §5.6)
+            named_construction(Position, Namespace, Name, Rest);
         [{')', _} | _] ->
             %% Appendix A: empty parentheses hold no constructor argument,
             %% so they are a call of the constructor's value, which the
@@ -1206,24 +1207,47 @@ constructor_expr(Position, Namespace, Name, [{'(', _} = Paren | Rest]) ->
 constructor_expr(Position, Namespace, Name, Tokens) ->
     spanned({#e_constructor{span = Position, namespace = Namespace, name = Name}, Tokens}).
 
+named_construction(Position, Namespace, Name, Tokens) ->
+    {FieldSets, Rest} = separated(Tokens, ',', field_of(Namespace, Name, construction)),
+    spanned({#e_constructor{span = Position, namespace = Namespace, name = Name,
+                            args = {named, FieldSets}},
+             expect(Rest, ')')}).
+
 %% Report §11.2: a field of this constructor, which the tag names, so
 %% that completion knows which fields may stand at the cursor; and where
 %% the input stops, which field's value it stops in, or `none` where a
 %% field's name would stand, for `Shift-Tab`. Report §5.6: in an update the
 %% field may be a path, `stats.indexed`, which a construction refuses.
+%%
+%% Report §5.6, Appendix A's FieldSet and UpdateSet: a pun, `=seen`, is
+%% `seen = seen` read textually, the field and the name at the pun's
+%% identifier, so that the checker and the emitter read one form; the
+%% field spans the pun from its `=`.
 field_of(Namespace, ConstructorName, Form) ->
     fun(Tokens) ->
         Expected = #expected_field{kind = field, namespace = Namespace,
                                    constructor_name = ConstructorName},
-        ParseFieldName = fun() ->
-                             tagging(Expected, fun() -> expect_ident_position(Tokens) end)
-                         end,
-        {Name, Position, Rest} = within(Namespace, ConstructorName, none, ParseFieldName),
-        {Segments, Rest1} = path_segments(Rest, Form, Expected, [Name]),
-        {Expr, Rest2} = within(Namespace, ConstructorName, {field, Name},
-                               fun() -> expr(expect(Rest1, '=')) end),
-        spanned({#field_set{span = Position, name = Name, path = Segments, expr = Expr}, Rest2})
+        case Tokens of
+            [{'=', Position} | Rest] ->
+                {Name, NamePosition, Rest1} = field_name(Expected, Rest),
+                {Var, Rest2} = spanned({#e_var{span = NamePosition, name = Name}, Rest1}),
+                spanned({#field_set{span = Position, name = Name, expr = Var}, Rest2});
+            _ ->
+                {Name, Position, Rest} = field_name(Expected, Tokens),
+                {Segments, Rest1} = path_segments(Rest, Form, Expected, [Name]),
+                {Expr, Rest2} = within(Namespace, ConstructorName, {field, Name},
+                                       fun() -> expr(expect(Rest1, '=')) end),
+                spanned({#field_set{span = Position, name = Name, path = Segments, expr = Expr},
+                         Rest2})
+        end
     end.
+
+%% A field's name, where a field's name stands for `Shift-Tab` and
+%% completion alike (report §11.2).
+field_name(#expected_field{namespace = Namespace, constructor_name = ConstructorName} = Expected,
+           Tokens) ->
+    within(Namespace, ConstructorName, none,
+           fun() -> tagging(Expected, fun() -> expect_ident_position(Tokens) end) end).
 
 %% The segments of a path after its first, each after a `.`, in an update;
 %% completion is told the segments typed so far (report §11.2).
@@ -1372,10 +1396,11 @@ constructor_pattern(Position, Namespace, Name, [{'(', _} | Rest]) ->
                                     args = {named, []}},
                      Rest1});
         [{ident, _, _}, {'=', _} | _] ->
-            {Fields, Rest1} = separated(Rest, ',', field_pattern_of(Namespace, Name)),
-            spanned({#p_constructor{span = Position, namespace = Namespace, name = Name,
-                                    args = {named, Fields}},
-                     expect(Rest1, ')')});
+            named_pattern(Position, Namespace, Name, Rest);
+        [{'=', _} | _] ->
+            %% Appendix A: `=` before the first identifier, a pun's, names
+            %% the fields as `=` after it does (report §5.10)
+            named_pattern(Position, Namespace, Name, Rest);
         [{eof, EndPosition} | _] ->
             %% report §11.2: as in an expression, a field's name or a
             %% pattern may stand here, and the constructor's type tells
@@ -1392,6 +1417,12 @@ constructor_pattern(Position, Namespace, Name, [{'(', _} | Rest]) ->
     end;
 constructor_pattern(Position, Namespace, Name, Tokens) ->
     spanned({#p_constructor{span = Position, namespace = Namespace, name = Name}, Tokens}).
+
+named_pattern(Position, Namespace, Name, Tokens) ->
+    {Fields, Rest} = separated(Tokens, ',', field_pattern_of(Namespace, Name)),
+    spanned({#p_constructor{span = Position, namespace = Namespace, name = Name,
+                            args = {named, Fields}},
+             expect(Rest, ')')}).
 
 %% Report §3.5, §11.5: a `,` after a constructor pattern's positional field
 %% is refused as a second positional field in a declaration is, with a help
@@ -1414,22 +1445,34 @@ no_path_pattern(_, _) ->
 
 %% Report §11.2: a field of this constructor in a pattern, tagged as in
 %% an expression, so that completion knows which fields may stand there.
+%% Report §5.10, Appendix A's FieldPat: a pun, `=seen`, is `seen = seen`,
+%% binding the variable at the pun's identifier, as in a construction.
 field_pattern_of(Namespace, ConstructorName) ->
     fun(Tokens) ->
         Expected = #expected_field{kind = field, namespace = Namespace,
                                    constructor_name = ConstructorName},
-        {Name, Position, Rest} = tagging(Expected, fun() -> expect_ident_position(Tokens) end),
-        case Rest of
-            [{'.', DotPosition} | _] ->
-                %% report §5.6: a path updates, and a pattern takes apart
-                fail(DotPosition, "a path stands in a record update only, not in a pattern",
-                     "match the field with a constructor pattern of its own");
+        FieldName = fun(NameTokens) ->
+                        tagging(Expected, fun() -> expect_ident_position(NameTokens) end)
+                    end,
+        case Tokens of
+            [{'=', Position} | Rest] ->
+                {Name, NamePosition, Rest1} = FieldName(Rest),
+                {Var, Rest2} = spanned({#p_var{span = NamePosition, name = Name}, Rest1}),
+                spanned({#field_pattern{span = Position, name = Name, pattern = Var}, Rest2});
             _ ->
-                ok
-        end,
-        {Pattern, Rest1} = pattern(expect(Rest, '=')),
-        spanned({#field_pattern{span = Position, name = Name, pattern = Pattern}, Rest1})
+                {Name, Position, Rest} = FieldName(Tokens),
+                no_path_in_field_pattern(Rest),
+                {Pattern, Rest1} = pattern(expect(Rest, '=')),
+                spanned({#field_pattern{span = Position, name = Name, pattern = Pattern}, Rest1})
+        end
     end.
+
+%% Report §5.6: a path updates, and a pattern takes apart.
+no_path_in_field_pattern([{'.', DotPosition} | _]) ->
+    fail(DotPosition, "a path stands in a record update only, not in a pattern",
+         "match the field with a constructor pattern of its own");
+no_path_in_field_pattern(_) ->
+    ok.
 
 %%
 %% Bitstrings. Value is parsed by Parse (an expression or a pattern).

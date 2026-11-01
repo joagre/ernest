@@ -490,11 +490,8 @@ bare_expr(#e_constructor{namespace = Namespace, args = none}, _) ->
 bare_expr(#e_constructor{namespace = Namespace, args = {positional, Expr}}, Code) ->
     [namespace(Namespace), token(), bracket(token('('), [expr(Expr, Code)], ')', Expr, Code)];
 bare_expr(#e_constructor{namespace = Namespace, base = Base, args = {named, FieldSets}}, Code) ->
-    %% report §5.6: a path's segments, each after its dot
     Items = [[token('..'), expr(Base, Code)] || Base =/= undefined]
-        ++ [[token(), [[token('.'), token()] || _ <- Segments], space(), token('='), space(),
-             expr(Expr, Code)]
-            || #field_set{path = Segments, expr = Expr} <- FieldSets],
+        ++ [field_set(FieldSet, Code) || FieldSet <- FieldSets],
     Last = last([Expr || #field_set{expr = Expr} <- FieldSets]),
     [namespace(Namespace), token(), bracket(token('('), Items, ')', Last, Code)];
 bare_expr(#e_tuple{elements = Elements}, Code) ->
@@ -541,6 +538,22 @@ bare_expr(#e_receive{clauses = Clauses, 'after' = After}, Code) ->
 
 args(Args, Code) ->
     bracket(token('('), [expr(Arg, Code) || Arg <- Args], ')', last(Args), Code).
+
+%% Report §5.6: a path's segments, each after its dot; a pun, `=seen`, is
+%% written tight, as the report writes it.
+field_set(#field_set{path = Segments, expr = Expr} = FieldSet, Code) ->
+    case is_pun(FieldSet, Code) of
+        true ->
+            [token('='), token()];
+        false ->
+            [token(), [[token('.'), token()] || _ <- Segments], space(), token('='), space(),
+             expr(Expr, Code)]
+    end.
+
+%% Whether a field is a pun, `=seen`, which begins at its `=` (report §5.6,
+%% §5.10).
+is_pun(Field, Code) ->
+    symbol(element(first_index(Field, Code), Code#code.tokens)) =:= '='.
 
 %% A block's, a match's and a receive's brace runs over lines.
 braces(Inside) ->
@@ -679,8 +692,8 @@ pattern(#p_constructor{namespace = Namespace, args = {named, []}}, _) ->
     [namespace(Namespace), token(), token('('), token(')')];
 pattern(#p_constructor{namespace = Namespace, args = {named, FieldPatterns}}, Code) ->
     [namespace(Namespace), token(),
-     bracket(token('('), [[token(), space(), token('='), space(), pattern(Pattern, Code)]
-                          || #field_pattern{pattern = Pattern} <- FieldPatterns], ')')];
+     bracket(token('('), [field_pattern(FieldPattern, Code) || FieldPattern <- FieldPatterns],
+             ')')];
 pattern(#p_constructor{namespace = Namespace, args = {positional, Pattern}}, Code) ->
     [namespace(Namespace), token(), bracket(token('('), [pattern(Pattern, Code)], ')')];
 pattern(#p_tuple{elements = Elements}, Code) ->
@@ -696,6 +709,13 @@ pattern(#p_or{alternatives = Alternatives}, Code) ->
                [pattern(Alternative, Code) || Alternative <- Alternatives]);
 pattern(#p_bitstring{segments = Segments}, Code) ->
     bracket(token('<<'), [segment(Segment, Code, fun pattern/2) || Segment <- Segments], '>>').
+
+%% Report §5.10: a pun, `=seen`, is written tight, as in a construction.
+field_pattern(#field_pattern{pattern = Pattern} = FieldPattern, Code) ->
+    case is_pun(FieldPattern, Code) of
+        true -> [token('='), token()];
+        false -> [token(), space(), token('='), space(), pattern(Pattern, Code)]
+    end.
 
 %%
 %% The second pass: the template in source order, with the tokens' text
