@@ -1,6 +1,8 @@
 # Findings of the release review before 0.8.0
 
-The review of 2026-11-01 over commit `9237801b`, run as [`release_review.md`](release_review.md) says: the fresh clone built and ran `make test-full` green in 13 minutes 31 seconds; `make load` green; `make sections` empty; `make sanitize` not due, the helper unchanged since 0.7.0; `make bench` over the review's commit and `make bench-release` over the release's, recorded in the log's entry for the review. Nine readers, the principles reader P on the most advanced model and the others on the one below: K the cold reader over the report's diff since v0.7.0 and the argument's changed paragraphs, A the argument's reader, N the newcomer, L and M the Erlang and the Gleam programmer, U the guide's reader, C the code's reader with E's and S's questions, and F over the census of forms the plan's item 2 asked for. Each line names its reader and number; a line carries its decision and `done` once made. The readers' lists are under the lines, condensed; the whole lists stand in the session's scratchpad until this document goes.
+The review of 2026-11-01 over commit `9237801b`, run as [`release_review.md`](release_review.md) says: the fresh clone built and ran `make test-full` green in 13 minutes 31 seconds; `make load` green; `make sections` empty; `make sanitize` not due, the helper unchanged since 0.7.0; `make bench` over the review's commit and `make bench-release` over the release's, recorded in the log's entry for the review.
+
+Nine readers, the principles reader P on the most advanced model and the others on the one below: K the cold reader over the report's diff since v0.7.0 and the argument's changed paragraphs, A the argument's reader, N the newcomer, L and M the Erlang and the Gleam programmer, U the guide's reader, C the code's reader with E's and S's questions, and F over the census of forms the plan's item 2 asked for. Each line names its reader and number; a line carries its decision and `done` once made. The readers' lists are under the lines, condensed; the whole lists stand in the session's scratchpad until this document goes.
 
 ## The lines
 
@@ -43,21 +45,21 @@ The review of 2026-11-01 over commit `9237801b`, run as [`release_review.md`](re
 
 ### The code and the library's pages (fix, one agent)
 
-- P10 — §6.3's help writes `Clock.sleep(ms)` with a placeholder where the parser holds the expression. fix: write the expression.
-- C2 — the parser gives §6.3's text to a `receive` whose `after` comes first with clauses after it; the fault is the order. fix: §6.3's text only where `}` follows the `after` body; otherwise Appendix A's, the `after` clause comes last.
-- C3 — the selection error's help "annotate a" at a receive pattern's variable names an annotation the grammar has no place for. fix: where the variable is a pattern's, the help names the enclosing function's `receiving` or a constructor pattern.
-- C5 — a test comment names "a timed wait's" effect variable, a form this release removed. fix.
-- C9 — the clock's request was renamed `AlarmAfter` to free the abstract type's constructor, against the style's rule that a request is the function it serves. fix: the request is `Alarm`, the constructor `Held(Foreign.Term)`.
-- C10 — the emitter's comment says a nested selection is read "at no cost". fix: twice, and a selection of such a selection twice again.
-- C11 — the positional-reply test's comment does not say the Erlang tests' strings are excepted, as the pun test's does. fix.
-- C12 — `mailbox_type/2` has one caller and a constant argument since the after-only `receive` went. fix: folded into `clause_mailbox/2`.
-- M16 — the bound-mailbox refusal's help for `Peer.spawn` names neither `Peer.computeAt` nor the adapted address, the routes the tour takes next. fix, the report's sentence first where §11.5 or §8.7 quotes the help.
-- C1, with K4 — `process.ern`'s `Activity` doc and page name three activities without the sleep. fix.
-- C6, C7, C8 — `clock.ern`: the garden-path sentence on `Alarm`, "ends until then", and "a fault met on a message's way". fix.
-- C4 — `Utilization.schedulers` sets the host's flag, sleeps, and unsets it; a restart or a fault met at the sleep leaves the flag set for the process's life. fix: the page says so. The gap behind it, no form that runs as a wait is left by a restart or a fault, is `language_feedback.md`'s line 183.
-- F5, F14 — 38 tests in the shell's and markdown's modules answer `Passed` from an `if` over equalities, with hand-made failure texts, where `Test.equal` over a tuple says the same. fix: the sites, and `docs/style.md`'s Ernest paragraph: a test that compares answers `Test.equal`, over a tuple for several values.
-- F12 — five guards in `test/fixtures/peers/desk.ern` compare a variable with a literal the pattern could hold. fix: literal patterns.
-- F13 — three lambdas only rename a function value, and the prelude's doc example for `adapted` is one. fix: the function bare.
+- P10 — §6.3's help writes `Clock.sleep(ms)` with a placeholder where the parser holds the expression. fix: write the expression. done 2026-11-01.
+- C2 — the parser gives §6.3's text to a `receive` whose `after` comes first with clauses after it; the fault is the order. fix: §6.3's text only where `}` follows the `after` body; otherwise Appendix A's, the `after` clause comes last. done 2026-11-01.
+- C3 — the selection error's help "annotate a" at a receive pattern's variable names an annotation the grammar has no place for. fix: where the variable is a pattern's, the help names the enclosing function's `receiving` or a constructor pattern. done 2026-11-01.
+- C5 — a test comment names "a timed wait's" effect variable, a form this release removed. fix. done 2026-11-01.
+- C9 — the clock's request was renamed `AlarmAfter` to free the abstract type's constructor, against the style's rule that a request is the function it serves. decide: §3.1 refuses a constructor named as a type in scope, so the request stays `AlarmAfter` beside `AlarmAt`, and the style's rule gains the case: where the function's name is a type the module declares, the request says what it asks for. done 2026-11-01.
+- C10 — the emitter's comment says a nested selection is read "at no cost". fix: twice, and a selection of such a selection twice again. done 2026-11-01.
+- C11 — the positional-reply test's comment does not say the Erlang tests' strings are excepted, as the pun test's does. fix. done 2026-11-01.
+- C12 — `mailbox_type/2` has one caller and a constant argument since the after-only `receive` went. fix: folded into `clause_mailbox/2`. done 2026-11-01.
+- M16 — the bound-mailbox refusal's help for `Peer.spawn` names neither `Peer.computeAt` nor the adapted address, the routes the tour takes next. fix, the report's sentence first where §11.5 or §8.7 quotes the help. done 2026-11-01.
+- C1, with K4 — `process.ern`'s `Activity` doc and page name three activities without the sleep. fix. done 2026-11-01.
+- C6, C7, C8 — `clock.ern`: the garden-path sentence on `Alarm`, "ends until then", and "a fault met on a message's way". fix. done 2026-11-01.
+- C4 — `Utilization.schedulers` sets the host's flag, sleeps, and unsets it; a restart or a fault met at the sleep leaves the flag set for the process's life. fix: the page says so. The gap behind it, no form that runs as a wait is left by a restart or a fault, is `language_feedback.md`'s line 183. done 2026-11-01.
+- F5, F14 — 38 tests in the shell's and markdown's modules answer `Passed` from an `if` over equalities, with hand-made failure texts, where `Test.equal` over a tuple says the same. fix: the sites, and `docs/style.md`'s Ernest paragraph: a test that compares answers `Test.equal`, over a tuple for several values. done 2026-11-01.
+- F12 — five guards in `test/fixtures/peers/desk.ern` compare a variable with a literal the pattern could hold. fix: literal patterns. done 2026-11-01.
+- F13 — three lambdas only rename a function value, and the prelude's doc example for `adapted` is one. fix: the function bare. done 2026-11-01.
 - N20 — a missing `;` is reported as "unexpected type name `Io`". 4.4: the diagnostics reader's question, whether a user who made the mistake knows the fix.
 
 ### The guides, the README and the tour (fix, one agent)
@@ -88,7 +90,7 @@ The review of 2026-11-01 over commit `9237801b`, run as [`release_review.md`](re
 - N21, N22 — two claims open on what another system lacks. fix: Ernest's rule first.
 - N25 — the guide does not say how a test compares several values. fix: one sentence, `Test.equal` over a tuple.
 - L1 — the tour's chapter 8 and the guide's §8.9 and deployment §5.3 say a process a callee's fix hides from `Code.running` can be "moved by a message of its own type", which needs an address the program kept. fix: the sentence says so, and the tour says a fix inside the loop's reach hides the counters.
-- L4 — the deadlock claim is shown on a bare `receive` against `gen_server:call`, and a program run as a node detects none, unsaid in the claim's paragraph. fix: the mutual `callForever` program with its trace, as a block the guide's test runs, and the node sentence beside the claim.
+- L4 — the deadlock claim is shown on a bare `receive` against `gen_server:call`, and a program run as a node detects none, unsaid in the claim's paragraph. fix: the mutual `callForever` program with its trace, as a block the guide's test runs, and the node sentence beside the claim. done 2026-11-01.
 - L6 — the deployment guide does not say the 45 to 75 second silence is the protocol's and fixed, nor what the operator does meanwhile. fix: one sentence citing §12.5.
 - L8 — the deployment guide's and the guide's site examples, `Counter.service:5`, name no program's site, and the entry process's site has no line, unsaid. fix: a site the example prints, and the sentence.
 - L11 — a prompt `let` captured by a lambda sent to a peer fails with a bare `Left(NotLoaded)` at the prompt, the reason on the peer, unsaid. fix: the sentence.

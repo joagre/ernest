@@ -206,6 +206,13 @@ the operator's prompt is, and four were dropped with their verdicts in the log.
    how a function of a unit is traced by its position and what the bound is. Built after MVP 4.0,
    on the node.
 
+A decision for the proposal, raised by the release review before 0.8.0 (the log's *The Release
+Review Before 0.8.0*, L1): a fix inside a loop's reach changes the hash of the function the running
+processes run, so `Code.running` no longer finds them, and a process found by its site alone can be
+killed and not moved, since a `Process` cannot be sent to (§6.5). Whether the shell's round gives
+the operator a way to reach such a process is decided with the proposal, against §6.5's decision
+that an address is the permission to send.
+
 ---
 
 ## MVP 4.4 (the promise, the cost, the full review and Ernest 1.0), about three weeks, last
