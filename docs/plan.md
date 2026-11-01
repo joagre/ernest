@@ -40,10 +40,9 @@ name, which Ernest's parentheses make a call, the dot, and the marks other langu
    A's `FieldSet`, `UpdateSet` and `FieldPat`, §5.6, §5.10, principle 2's sentence and Appendix F.
 2. **The parser and the checker**, done 2026-11-01 (the log's *The Pun*, *Built*): `=f` read as
    `f = f`, the emitter untouched, `Some(=x)` refused with the positional refusal's text.
-3. **The sweep**: every site of the repository's Ernest, the guide's and the tour's blocks among
-   them, written as a pun where the names agree; `guide/style.md`'s rule that they are; and
-   `ern format` leaves it to the writer, decided (the log's *The Pun's Opening Round*), the style
-   test refusing `name = name` in the repository's own sources.
+3. **The sweep**, done 2026-11-01 (the log's *The Pun*, *Swept*): 874 fields in 79 files, the style
+   guide's rule, and the style test refusing the pair from then on; `ern format` leaves it to the
+   writer (*The Pun's Opening Round*).
 4. **The programs outside**: the pun needs the release that carries it, so ernest-template's
    floor rises to that release, and each copy's by hand, ernest-epx's and ernest-httpd's, as the
    template's memory of copies says; ernest-epx's Ernest is swept as item 3 sweeps this
@@ -59,16 +58,10 @@ name, which Ernest's parentheses make a call, the dot, and the marks other langu
    a load's undoing kills has ended before the load answers or the caller goes on.
 8. **The guides' lines of the release review read**, done 2026-11-01 (the log's *The Guide's
    Lines After the Release Review*): 22 lines, 15 made at once and the rest decided there.
-9. **The shell's `session_names` test, red once under the full run's load** on 2026-11-01 and
-   green in thirty reruns alone: `:processes` is asked before a process just spawned has reached
-   its `receive`, so the line it shows lacks `receiving`. The fix's shape is the test's, which
-   waits for the two processes to be receiving before it asks, as `Test.until` waits; made with
-   item 3's sweep of the shell's tests, and diagnosed there if the wait does not end it.
-10. **Five fixed sleeps in the tests with no reason beside them**, found 2026-11-01 by the sweep to
-   `Clock.sleep`: `call_ends_with_callee`'s two of 50 ms and one of 60000, `killed_entry_test`'s
-   5000, and the shell tests' 300 and 500. Each becomes a wait on what it means, the callee telling
-   the killer when the request arrives for the first, or keeps its time with its reason written
-   beside it, as CLAUDE.md's rule asks; made with item 3's sweep.
+9. **The shell's `session_names` test**, red once under the full run's load, done 2026-11-01 with
+   item 3 (the log's *The Pun*, *Swept*): it asks `:processes` once both processes are receiving.
+10. **Five fixed sleeps in the tests with no reason beside them**, done 2026-11-01 with item 3 (the
+   same paragraph): three became waits on what they mean, two keep their time with its reason.
 
 The round that opened the milestone on 2026-10-31 decided the formatter's answer and the ten lines
 of `language_feedback.md` open that day, so that the milestone closes with the file empty (the

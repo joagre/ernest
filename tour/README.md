@@ -185,7 +185,7 @@ Counter, compiled again
 
 ## 4. A fault
 
-`count` refuses a negative amount, and `watch` hears a counter's end:
+`count` refuses a negative amount, and `watch` hears a counter's end; its `Down(=reason)` binds the field `reason` to a variable of its own name, a *pun* (the guide's §2.6):
 
 ```ernest
 type WatchMsg = Ended(Down)
