@@ -725,7 +725,7 @@ type FaultReport = FaultReport(process : Process, site : String, cause : String,
 Process.fromAddress : (Address(m)) -> Process // the process behind the address, through every adapted address
 Process.kill : (Process) -> Unit // ends the process with the reason Killed, as kill does (§6.9); nothing for one that has ended
 Process.current : () -> Process // the running process, a wrap's recipient, or in an adapted address's function the process §6.5 names
-Process.status : (Process) -> Optional(Status) // its spawn site (§6.9), the messages in its mailbox, and whether it runs, waits in a receive, or waits for a call's answer; None once it has ended, and for a process of another node
+Process.status : (Process) -> Optional(Status) // its spawn site (§6.9), the messages in its mailbox, and whether it runs, waits in a `receive` or in `Clock.sleep`, or waits for a call's answer; None once it has ended, and for a process of another node
 Process.live : () -> List(Process) // in unspecified order
 Process.owned : (Process) -> List(Process) // the processes that end with it: each listener, socket and running program it owns (E.18, E.23) and each process started to end with it (G.7), told apart by their sites; none once it has ended
 Process.faults : ((FaultReport) -> m) -> Unit receiving m // every fault from now on, wrapped, in the caller's mailbox

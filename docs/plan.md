@@ -66,6 +66,11 @@ name, which Ernest's parentheses make a call, the dot, and the marks other langu
    its `receive`, so the line it shows lacks `receiving`. The fix's shape is the test's, which
    waits for the two processes to be receiving before it asks, as `Test.until` waits; made with
    item 3's sweep of the shell's tests, and diagnosed there if the wait does not end it.
+10. **Five fixed sleeps in the tests with no reason beside them**, found 2026-11-01 by the sweep to
+   `Clock.sleep`: `call_ends_with_callee`'s two of 50 ms and one of 60000, `killed_entry_test`'s
+   5000, and the shell tests' 300 and 500. Each becomes a wait on what it means, the callee telling
+   the killer when the request arrives for the first, or keeps its time with its reason written
+   beside it, as CLAUDE.md's rule asks; made with item 3's sweep.
 
 The round that opened the milestone on 2026-10-31 decided the formatter's answer and the ten lines
 of `language_feedback.md` open that day, so that the milestone closes with the file empty (the
@@ -77,14 +82,10 @@ on a timed wait, which §4.5 now refuses, swept from the repository's Ernest; an
 a binding's end names the site alone, `Tcp.listen ended with l` (§11.2). The seven others are kept
 or dropped in the entry.
 
-Two more were decided on 2026-11-01 while the round was built, and are built before item 2 since
-the first changes the grammar too. A `receive` always receives: one with an `after` clause alone
-is refused by the parser, `Clock.sleep(ms)` is the one wait for a time, a shim over the runtime's
-wait that the emitted timed `receive` shares, and every clause-less `receive` in the repository is
-rewritten to it (§6.3, §6.8, Appendix E.15; the log's *A `receive` Always Receives*). An alarm can
-be canceled: `alarm` and `alarmAt` answer an `Alarm` that `Clock.cancel` ends where it has neither
-fired nor ended, and every site that ignores its alarm writes `let _ =` as §5.4 asks (Appendix
-E.15; the log's *An Alarm Can Be Canceled*).
+Two more were decided on 2026-11-01 while the round was built, and built before item 2: a
+`receive` always receives, `Clock.sleep(ms)` the one wait for a time (§6.3, §6.8, Appendix E.15;
+the log's *A `receive` Always Receives*), and an alarm can be canceled (Appendix E.15; the log's
+*An Alarm Can Be Canceled*).
 
 ---
 

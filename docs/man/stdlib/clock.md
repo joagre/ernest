@@ -2,18 +2,19 @@
 
 *Since 0.1.0.*
 
-The time, and alarms.
+The time, alarms, and the wait for a time.
 
 `now` is the time of day, in milliseconds since the epoch, 1970-01-01 UTC.
 `monotonic` is the clock to measure a duration by, since `now` moves when
 the host's clock is set, and `monotonicMicros` is the same clock in
 microseconds. `alarm` and `alarmAt` put a message in the caller's mailbox
-later.
+later, and `sleep` waits a time and takes no message.
 
-**Alarms.** An alarm fires once, and cannot be canceled: a process that no
-longer wants it ignores its message. A periodic tick is set again each time
-the one before is handled. A restart of the process that set an alarm
-cancels it (report §6.9).
+**Alarms.** An alarm fires once, and `alarm` and `alarmAt` answer it as an
+`Alarm`, which `cancel` ends until it fires. A fired alarm's message is in
+the mailbox or on its way, and no cancel takes it back. A periodic tick is
+set again each time the one before is handled. A restart of the process
+that set an alarm cancels it (report §6.9).
 
 **Alarms arrive in the mailbox.** An alarm is delivered into the caller's
 mailbox, so `alarm` and `alarmAt` carry `receiving m`, the caller's mailbox
@@ -31,6 +32,27 @@ Clock.now() > 0
 ## See also
 
 `Random.seed` for a sequence that differs between runs.
+
+## Clock.Alarm
+
+```ernest
+abstract type Alarm
+```
+
+*Since 0.8.0.*
+
+An alarm that `alarm` or `alarmAt` set, held until it fires, is canceled
+or its process ends. It is bound to its node, and `==` is the runtime's on
+it: an alarm equals itself alone (report §3.10, §3.11).
+
+### Examples
+
+```ernest
+{
+    let alarm = Clock.alarm(60000, fn(_) = Unit);
+    alarm == alarm
+}
+```
 
 ## Clock.now
 
@@ -83,14 +105,39 @@ program that measures what takes less than a millisecond.
 // => true
 ```
 
+## Clock.sleep
+
+```ernest
+Clock.sleep(ms : Int) : Unit
+```
+
+*Since 0.8.0.*
+
+Waits `ms` milliseconds, counted as `monotonic` counts them, and takes no
+message: the mailbox is as it was. A restart asked for, or a fault met on a
+message's way, reaches the wait as it reaches a `receive` (report §6.5,
+§6.9). A time below 0 is 0, and a time has no upper bound (report §7.4).
+
+### Examples
+
+```ernest
+{
+    let start = Clock.monotonic();
+    Clock.sleep(1);
+    Clock.monotonic() - start >= 1
+}
+// => true
+```
+
 ## Clock.alarm
 
 ```ernest
-Clock.alarm(ms : Int, wrap : (Int) -> m) : Unit receiving m
+Clock.alarm(ms : Int, wrap : (Int) -> m) : Alarm receiving m
 ```
 
 Puts `wrap(time)` in the caller's mailbox after `ms` milliseconds, `time`
-the time it fired. A constructor of one argument passes as `wrap` as it is:
+the time it fired, and answers the alarm, which `cancel` ends until then.
+A constructor of one argument passes as `wrap` as it is:
 `Clock.alarm(100, Tick)` for `Tick(Int)`.
 
 ### Examples
@@ -102,16 +149,40 @@ Clock.alarm(10, fn(_) = Unit)
 ## Clock.alarmAt
 
 ```ernest
-Clock.alarmAt(time : Int, wrap : (Int) -> m) : Unit receiving m
+Clock.alarmAt(time : Int, wrap : (Int) -> m) : Alarm receiving m
 ```
 
 Puts `wrap(time)` in the caller's mailbox at `time`, in milliseconds since
-the epoch, `time` then the time it fired. A time already past fires at once.
+the epoch, `time` then the time it fired, and answers the alarm, which
+`cancel` ends until then. A time already past fires at once.
 
 ### Examples
 
 ```ernest
 Clock.alarmAt(Clock.now() + 10, fn(_) = Unit)
+```
+
+## Clock.cancel
+
+```ernest
+Clock.cancel(alarm : Alarm) : Bool
+```
+
+*Since 0.8.0.*
+
+Ends `alarm` where it has neither fired nor ended, and answers `true`: its
+message never comes. It answers `false` for any other alarm, one that
+fired, one canceled already, and one whose process restarted or ended, and
+leaves it as it is; a fired alarm's message is delivered as any alarm's is.
+Any process of the node may cancel an alarm it holds.
+
+### Examples
+
+```ernest
+{
+    let alarm = Clock.alarm(60000, fn(_) = Unit);
+    Clock.cancel(alarm)
+}
 ```
 
 ## Clock.toString
