@@ -58,7 +58,7 @@ count is 8
 
 A fault, a division by zero or a `fault` call, ends the process, and nothing catches it. Whoever monitors the process hears of its end as a `Down` with the reason, wrapped as a message of their own type. A process started under `restarting` runs its function again from its start after a fault, its mailbox emptied and its address kept, so the name `counter` stays good and a request that waited in the mailbox is lost; the guide's §6.5 shows a restart.
 
-A function that receives runs only in a process of its mailbox's type. `spawn` takes the address's type from the function, `spawn(fn() = count(0))` being an `Address(CounterMsg)` and nothing else, and the one channel a program makes is a `Reply`, which a caller makes and hands over in its request (report §6.6). No process reads another's mailbox, since `receive` reads the mailbox of the process it runs in, the one the function's type names; a send of the wrong type is refused, `Peer.spawn` refuses before the run a function whose mailbox is bound to its node, and `Code.running(f)` lists, typed, the processes running `f`. Called in a process whose mailbox takes another type, here `main`'s, `count` is refused, though no address is in sight:
+A function that receives runs only in a process of its mailbox's type. `spawn` takes the address's type from the function, `spawn(fn() = count(0))` being an `Address(CounterMsg)` and nothing else, and the one channel a program makes is a `Reply`, which a caller makes and hands over in its request (report §6.6). No process reads another's mailbox, since `receive` reads the mailbox of the process it runs in, the one the function's type names. Called in a process whose mailbox takes another type, here `main`'s, `count` is refused, though no address is in sight:
 
 ```ernest-rejected
 type CounterMsg = Inc(Int)
@@ -97,7 +97,7 @@ So a mailbox type holds for messages the host sends to an address the program ga
 
 ### Code known by its hash
 
-The hash is never written in a program. It is what tells two versions of a definition apart, and what a peer asks for. The counter replaces its own code while it runs. A message of its type carries the new loop, and the process switches to it with a tail call, keeping its address and its state; the old loop keeps running wherever a process still runs it. `countTwice`, a loop of the same type that the guide's §4.6 writes, is sent as a value:
+The hash is never written in a program. It is what tells two versions of a definition apart, and what a peer asks for. The counter replaces its own code while it runs. A message of its type carries the new loop, and the process switches to it with a tail call, keeping its address and its state; the old loop keeps running wherever a process still runs it. `Code.running(f)` lists, typed, the processes of the node that run `f`, found by its hash, so a program finds the processes such a message is for (the tour's chapter 8). `countTwice`, a loop of the same type that the guide's §4.6 writes, is sent as a value:
 
 ```ernest-fragment
 type CounterMsg =
@@ -149,7 +149,9 @@ input 5:1:11: the argument does not fit send: expected Counter$1.CounterMsg, fou
 
 A version's name, `Counter$1`, is printed and cannot be written, so what a later input will need of the old version is bound before the reload: `let oldGet = Counter.Get` beside `old` lets `Address.call(old, oldGet, 1000)` ask the old counter after it.
 
-The first claim's counter, whose messages carry no function and so may cross to another node, runs on a peer that holds none of its code: a spawned function crosses as code, by its hash, where a function in a message would have to cross as a value, which none does (the guide's §8.4). A spawn names its function by hash, and a peer that lacks it is sent the definition with every definition it references, before the process starts. `foo` is a bare node, started from a configuration directory and no program. It holds the same `ern` on the same OTP, the standard library and the host's modules the program's foreign declarations name, and of the program nothing, and runs whichever version the spawn names:
+The first claim's counter, whose messages carry no function and so may cross to another node, runs on a peer that holds none of its code: a spawned function crosses as code, by its hash, where a function in a message would have to cross as a value, which none does (the guide's §8.4). A type that holds a function, a foreign type or a resource such as a socket is *bound to its node*, and `Peer.spawn` refuses before the run a function whose mailbox type is bound (report §3.11).
+
+A spawn names its function by hash, and a peer that lacks it is sent the definition with every definition it references, before the process starts. `foo` is a bare node, started from a configuration directory and no program. It holds the same `ern` on the same OTP, the standard library and the host's modules the program's foreign declarations name, and of the program nothing, and runs whichever version the spawn names:
 
 ```ernest-fragment
 match Peer.spawn("foo", fn() = count(0), 5000) {
@@ -278,6 +280,23 @@ color.ern:7:24: sorted needs Color.compare, and Color has no compare
   | = help: give Color a compare, `derives compare` on its declaration or `fn Color.compare`
 ```
 
+A requirement names nothing outside that set, and a member is declared in its type's own module alone. At the prompt a requirement of a `hash` is refused, and so is a `negate` for `String`, a type the prompt does not declare:
+
+```console
+$ ern shell
+Ernest 0.8.0, session 1. :help for the commands, :quit to leave.
+> fn hashed(x : a) : Int needs a.hash = 0
+input 1:1:30: `hash` is not a member: a requirement names `+`, `-`, `*`, `/`, `%`, `<>`, `compare`, `negate` or `show`
+1 | fn hashed(x : a) : Int needs a.hash = 0
+  |                              ^^^^^^
+> fn String.negate(s : String) : String = s
+input 2:1:4: String is not a type declared in this module
+1 | fn String.negate(s : String) : String = s
+  |    ^^^^^^^^^^^^^
+```
+
+A member is also no value: `Int.compare` in an expression is refused, and `compare` reaches it (report §4.5).
+
 An *operations record* is a record of functions, filled from a module by naming it. `Operations(..Set)` takes `fromList` and `toList` from the module `Set`, and `Operations(..OrderedSet)` the same two from `OrderedSet`. `Set` is the prelude's type, what every module sees without naming a module, and has no order of its own; `OrderedSet` is a module of the standard library, so its type is written whole, `OrderedSet.Set`:
 
 ```ernest
@@ -388,11 +407,13 @@ Mutual.main faulted: deadlock
 
 The fault names the deadlock and the processes it left waiting. On Erlang a bare `receive` waits forever, and a `gen_server:call` gives up after five seconds with an exit that names the timeout and not the cause; a programmer learns of the deadlock from that, a dashboard or a user.
 
-Ernest can decide it because the runtime owns every source of a message but one, which the next paragraph names. A mailbox is typed and reached through an address the program holds; a process is spawned by the runtime, which monitors it; the clock, the file system and TCP are system processes, and a socket and a running program are processes of the runtime, each counting what it holds; foreign code is entered through a declaration, and a process inside it is read as able to be delivered to. So "nothing can deliver and everyone waits" is a question with an answer, and the runtime asks it when a program has been quiet for a while, never on a node, which a peer can always reach.
+Ernest can decide it because the runtime owns every source of a message but one, which the next paragraph names. A mailbox is typed and reached through an address the program holds; a process is spawned by the runtime, which monitors it; the clock, the file system and TCP are system processes, and a socket and a running program are processes of the runtime, each counting what it holds; foreign code is entered through a declaration, and a process inside it is read as able to be delivered to.
 
-A deadlock is quiescence, not a cycle, and the runtime's look for one may be late, and is wrong in one case alone. A process it cannot see into, in foreign code or on a socket, is read as able to deliver, so it reports no deadlock that is not one. The case is a delivery that foreign code arranges for after its call has returned, a host timer's or that of a host process nothing monitors, which the runtime cannot see coming: `ern run` and `ern test` fault a program that waits for it alone with `deadlock` (report §8.6).
+So "nothing can deliver and everyone waits" is a question with an answer, and the runtime answers it by report §8.6's rule: no forward progress is possible when every process waits, no message is in flight, and nothing the runtime counts holds a timer, a pending I/O or a computation that would deliver one.
 
-Finding one costs a program at work almost nothing, since the runtime asks only once the program has been quiet; the count behind it costs a message at each spawn and each monitor, which `make bench` measures against the host's own. A program run as a node, `ern run --config-dir`, looks for no deadlock, since a peer can always deliver to it (report §8.6).
+A deadlock is quiescence, not a cycle, and the runtime's look for one may be late, and is wrong in one case alone. A process it cannot see into, in foreign code or on a socket, is read as able to deliver, so such a process makes no false deadlock. The one false deadlock is a delivery that foreign code arranges for after its call has returned, a host timer's or that of a host process nothing monitors, which the runtime cannot see coming: `ern run` and `ern test` fault a program that waits for it alone with `deadlock` (report §8.6).
+
+Finding one costs a program at work almost nothing, since the runtime asks only once the program has been quiet; the count behind it costs a message at each spawn and each monitor, which the repository's `make bench` measures against the host's own. A program run as a node, `ern run --config-dir`, looks for no deadlock, since a peer can always deliver to it (report §8.6).
 
 ### Little else
 

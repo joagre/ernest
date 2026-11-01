@@ -12,7 +12,7 @@
 
 Ernest is a small functional language for concurrent programs, on the Erlang runtime. A process receives messages of one type, which the compiler checks every send against, and a process started on another node brings its code along: nothing is installed there first.
 
-`counter.ern` is the whole of a counter. Its mailbox type, `CounterMsg`, is in the type of `count`, the loop the process runs, so that every message sent to its address is checked against it: `Inc` is sent, and `Get` is a call, `Address.call` making the reply, `Get` building the request around it, and the call waiting 1000 milliseconds at most for the answer:
+`counter.ern` is the whole of a counter. Its mailbox type, `CounterMsg`, is in the type of `count`, the loop the process runs, so that every message sent to its address is checked against it. `Inc` is sent, and `Get` is a call. A `Reply(Int)` is where a call's answer goes: `Address.call` makes it, `Get` builds the request around it, and `answer` sends the total to it. The call waits 1000 milliseconds at most, and answers `None` where no answer comes in time:
 
 ```ernest
 export type CounterMsg = Inc(Int) | Get(Reply(Int))
@@ -69,7 +69,7 @@ other.ern:6:5: count needs mailbox CounterMsg, and the mailbox here is OtherMsg
   |     ^^^^^^^^
 ```
 
-The same counter runs on another node. `foo` is a *node*, a running program or shell that lists its peers in a configuration directory, started with no program in a terminal of its own, `ern run --config-dir foo`, and it holds nothing of the counter's. The shell is a node too, from a directory of its own, and the two directories list each other by key, the shell's naming `foo`'s address too, which four commands make, each `ern config` that creates a directory printing the node's public key, left out here:
+The same counter runs on another node. A *node* is a running program or shell that lists its peers in a configuration directory. `foo` is a node started with no program, in a terminal of its own, by `ern run --config-dir foo`, and it holds nothing of the counter's. The shell is a node too, from a directory of its own. The two directories list each other by key, and the shell's directory names `foo`'s address too. Four commands make them; each `ern config` that creates a directory prints the node's public key, left out here:
 
 ```console
 $ ern config --config-dir foo --listen 127.0.0.1:8654
@@ -78,7 +78,7 @@ $ ern config --config-dir foo --peer-dir a
 $ ern config --config-dir a --peer-dir foo
 ```
 
-Then, with `foo` running, `Peer.spawn` starts `count` on `foo`, its code crossing with the spawn, and the shell counts on it from here:
+Then, with `foo` running, `Peer.spawn` starts `count` on `foo`, its code crossing with the spawn, and the shell counts on it from here. `Peer.spawn` answers `Right(address)`, or `Left(error)` where it could not start the process; `let far <-` binds the address inside a `Right`, and on a `Left` shows the reason:
 
 ```console
 $ ern shell --config-dir a
@@ -103,7 +103,7 @@ What Ernest adds is where the parts meet, six claims that [Why Ernest](guide/why
 - **[Code known by its hash](guide/why.md#code-known-by-its-hash).** A module's versions run side by side, a running process moves to a new one when told, and a process spawned on another node brings its code along.
 - **[A distribution built for a WAN](guide/why.md#a-distribution-built-for-a-wan).** Two nodes are two configuration files, each naming the other by key and address, with one TLS connection between them and no cluster to join.
 - **[Abstract types and requirements](guide/why.md#abstract-types-and-requirements).** A type keeps its representation to its module, and a generic function names the operations it needs, which the compiler supplies at each call.
-- **[A deadlock is found](guide/why.md#a-deadlock-is-found).** Under `ern run` and `ern test`, a program that is no node, and in which every process waits for a message none can send, ends with a fault and a trace; [Why Ernest](guide/why.md#a-deadlock-is-found) says where it cannot be found. Finding it costs a running program almost nothing.
+- **[A deadlock is found](guide/why.md#a-deadlock-is-found).** Under `ern test`, and under `ern run` without `--config-dir`, a program in which every process waits for a message none can send ends with a fault and a trace; [Why Ernest](guide/why.md#a-deadlock-is-found) says where it cannot be found. Finding it costs a running program almost nothing.
 - **[Little else](guide/why.md#little-else).** Functions and processes are the whole language, and a report of three files defines all of it.
 
 Ernest is for programs written in it from the start, not for an OTP application or a codebase of several languages; [Why Ernest](guide/why.md) says how it meets Erlang.

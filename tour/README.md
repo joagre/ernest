@@ -69,7 +69,7 @@ input 6:1:38: Counter.count needs mailbox Counter.CounterMsg, and the mailbox he
 
 A counter is a process that holds a number, and `count` is its loop: it takes one message, `Inc` or `Get`, does what the message says, and calls itself with the total. Its type says what it takes, `receiving CounterMsg`; the type and the loop are exported so that the prompt can name `Counter.Inc` and `Counter.count` (the guide's §7.1). `spawn` starts a process on the loop and answers its address, whose type comes from the loop's. `send` puts a message in the mailbox and answers nothing. `Address.call` makes a `Reply`, gives it to `Get`, sends the request and waits up to 1000 milliseconds for the answer, which the counter gives with `answer`: `Some(5)`, where `None` would be an answer that did not come (§4.4).
 
-The last two inputs never run. The address carries the mailbox's type, and a `String` is not a `CounterMsg`; the refusal is placed at `input 5:1:15`, the session's fifth input, line 1, column 15. And `count` receives from its own process's mailbox, so a function whose mailbox takes a `String` cannot call it, though no address is in sight. That is the first claim of *Why Ernest*. The mailbox type is in the function's type, so a wrong send is refused before the program runs, and `count` runs only in a process of that type.
+The last two inputs never run. The address carries the mailbox's type, and a `String` is not a `CounterMsg`; the refusal is placed at `input 5:1:15`, the session's fifth input, line 1, column 15. And `count` receives from its own process's mailbox, so a function whose mailbox takes a `String` cannot call it, though no address is in sight. A typed address alone refuses the first; the second is the first claim of *Why Ernest*. The mailbox type is in the function's type, so `count` runs only in a process of that type, and a call of it anywhere else is refused before the program runs.
 
 `:load` puts a module in scope: it compiles `counter.ern` from the shell's directory, or takes a compiled form where one was compiled from that source, and its line says which; `:quit` ends the shell. The guide's §1.2 has the rest of it.
 
@@ -226,7 +226,9 @@ $Session1.input 11:1 faulted: a negative amount
 "no answer" : String
 ```
 
-The precondition is written as the guide's §6.3 writes one: `fault` ends the process with its cause, and nothing catches it, since there is no handler to write; a process that must outlive a fault is restarted, below. The `inc -1` answers `"ok"`, since a send does not wait, and the fault is reported as the counter meets it, under the input that spawned the process, `$Session1.input 11:1`, the input in the session that the shell's first line numbers, and the place it faulted, `Counter$3.count:8`; the `$3` numbers the module's versions in this session, which chapter 5 comes to. The report and the answer are written as each happens, in no fixed order; the page shows one. The next `get` has no one to answer it.
+The precondition is written as the guide's §6.3 writes one: `fault` ends the process with its cause, and nothing catches it, since there is no handler to write; a process that must outlive a fault is restarted, below. The `inc -1` answers `"ok"`, since a send does not wait, and the fault is reported as the counter meets it, under the input that spawned the process, `$Session1.input 11:1`, the input in the session that the shell's first line numbers, and the place it faulted, `Counter$3.count:8`. The report and the answer are written as each happens, in no fixed order; the page shows one. The next `get` has no one to answer it.
+
+The `$3` is the module's third version in this session, the one this chapter's reload compiled: a site and a frame carry the number of the version that spawned the process or runs the code, the first load's printed plain. A type's number works the other way, which chapter 5 comes to.
 
 A counter that must come back is started under `restarting`, and a watcher monitors it:
 
@@ -364,7 +366,7 @@ input 21:1:15: the argument does not fit Counter.apply: expected Address(Counter
 > kill(far)
 ```
 
-`:reload` brings `Tally` in from the build and compiles `Counter` again, and this time a type changed. Each reload makes a *version* of the module, counted from the first load, `Counter$3` now the previous one; a process keeps its mailbox type for life, so the two counters spawned under the old type, chapter 4's ended one and the one on `foo`, are of `Counter$3.CounterMsg`, though `far` was spawned under the first: a type unchanged through several versions carries the number of the newest (report §11.2), and the compiler refuses them the new protocol, the new mailbox type, with the reason (the guide's §9.3).
+`:reload` brings `Tally` in from the build and compiles `Counter` again, and this time a type changed. Each reload makes a *version* of the module, counted from the first load, `Counter$3` now the previous one. A type of the current version prints plain, and a number names a previous one. `CounterMsg` did not change from the first version to the third, so the three share it, and it is named by the newest that held it, `Counter$3.CounterMsg` (report §11.2). A process keeps its mailbox type for life, so the two counters spawned under the old type, chapter 4's ended one and `far`, spawned in chapter 2 under the first version, are of `Counter$3.CounterMsg`, and the compiler refuses them the new protocol, the new mailbox type, with the reason (the guide's §9.3).
 
 The first claim and the second meet here: a process on another node that has run since chapter 2 cannot be sent what it does not take, and only `far`, bound before the reload, still reaches it. It is killed; chapter 6 gives the counter a door by which its code changes without a kill. A new counter counts per key:
 
@@ -441,7 +443,7 @@ Counter.CounterMsg changed: the binding counter is of its previous version, Coun
 input 29:1:19: Peer.spawn starts a process whose mailbox type Counter.CounterMsg is bound to its node, since it holds a function
 1 | Peer.spawn("foo", fn() = Counter.count(Tally.empty()), 5000)
   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  | = help: keep a function on this node and send the process values that cross, or spawn on this node (report §3.11)
+  | = help: start it on the peer from `Peer.computeAt`, whose function spawns it and answers an adapted address of a type that crosses, or keep a function on this node and send the process values that cross (report §3.11)
 > kill(counter)
 > let counter = Counter.start()
 counter : Address(Counter.ClientMsg)
@@ -525,7 +527,7 @@ Each compute printed `counting the primes below 200000` in the terminal of the n
 
 `bar` reads 0.25, though it has no work of yours: a node tells a peer how busy it is as the peer connects, and at that moment the processes that open the connection are running or ready to run, which is what a node counts by default, over its schedulers (the deployment guide's §3.2). Its next telling, five seconds later, reads it idle.
 
-The number is written into each lambda, since a `let` typed at the prompt is a binding of the session's node, which no peer has (report §11.2, *Inputs*): after `let below = 200000`, `Peer.compute(fn() = Counter.primes(below), 5000)` answers `Left(Io.NotLoaded)`, where `{ let n = below; Peer.compute(fn() = Counter.primes(n), 5000) }` carries the value, a local the lambda captures (the guide's §8.1).
+The number is written into each lambda, since a `let` typed at the prompt is a binding of the session's node, which no peer has (report §11.2, *Inputs*): after `let below = 200000`, `Peer.compute(fn() = Counter.primes(below), 5000)` answers `Left(Io.NotLoaded)`, and the prompt says no more: the peer that drew it says why on its terminal, `the binding $Session1.below has no value here`. `{ let n = below; Peer.compute(fn() = Counter.primes(n), 5000) }` carries the value, a local the lambda captures (the guide's §8.1).
 
 Nothing was installed on `foo` or `bar`, and nothing named either: that is the last sentence of the second claim of *Why Ernest*, a computation that names no node goes to a peer with room, and no program is deployed first.
 
@@ -574,6 +576,8 @@ Counter, compiled again
 `Client(Inc(=amount)) when amount < 0` names one field and guards the clause (the guide's §2.6). A negative amount is now passed over, and the tally stands.
 
 That is the second claim of *Why Ernest* at its peak: the same process, new code, its state kept, told by a message of its own type. `count` stays in the source unchanged, since it is how the counters still on it are found, until `Code.running(count)` is empty on every node and it may go; nothing a node has loaded is unloaded while it runs, so a node reloaded without end grows with its versions (the guide's §8.9, the deployment guide's §4.2).
+
+The fix is a new loop beside the old for the same reason. A fix inside `count`'s reach, in `handle`, which it calls, would change `count`'s hash, and `Code.running(count)` would find none of the counters. `:processes` still lists such a counter by its site, and it is then moved only through an address of its own type the program kept, or ended by `Process.kill` (the guide's §8.9).
 
 Then on `foo`, which never had `count2` or `move`, from a shell *attached* to it: its inputs run on `foo`, and the terminal and the files stay with the node it starts from, `ops`, which `foo` lists without an address, since the shell dials in (the deployment guide's §6). In your own terminal, `ops` made with no `--listen`, since it only dials:
 

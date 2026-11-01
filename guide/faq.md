@@ -4,9 +4,9 @@ The questions a reader of [*Programming in Ernest*](language.md) brings, each an
 
 **It looks like Gleam. What differs?**
 
-The process is the language, where Gleam's typed messaging is a library over the runtime's processes, well made too. What differs is how far the types reach: a function that receives names its mailbox's type, a `receive` reads only the mailbox of its own process, the one that type names, and `spawn` and `monitor` are the prelude's, what every module sees without naming a module, and `Address.call` is the prelude's too, so every spawn, send and receive is one the compiler checks (the guide's §4).
+The process is the language, where Gleam's typed messaging is a library over the runtime's processes, well made too. What differs is how far the types reach: a function that receives names its mailbox's type, a `receive` reads only the mailbox of its own process, the one that type names, and `spawn` and `monitor` are the prelude's, what every module sees without naming a module, and `Address.call` is the prelude's too, so every spawn and every receive is one the compiler checks against the function's type (the guide's §4).
 
-Being the language buys what a library cannot: the function's type says which mailbox it runs in, so `spawn` types the address from the function and refuses the function for a mailbox of another type, and the compiler refuses before the run a send of the wrong type and a `Peer.spawn` of a function whose mailbox is bound to its node. Gleam's `Subject` is a value a process makes; the one channel an Ernest program makes is a `Reply`, which a caller makes and hands over in its request.
+Being the language buys what a library cannot: the function's type says which mailbox it runs in, so `spawn` types the address from the function, a function that receives is refused in a process whose mailbox takes another type, and a `Peer.spawn` of a function whose mailbox is bound to its node is refused before the run. A send of the wrong type is refused in both languages, against Ernest's typed address as against Gleam's typed `Subject`. Gleam's `Subject` is a value a process makes; the one channel an Ernest program makes is a `Reply`, which a caller makes and hands over in its request.
 
 What is the same is the types, Hindley-Milner as ML has it, which Gleam made ordinary on the Erlang runtime, and made well, in semantics and in syntax, and the look, which Ernest owes Gleam: `fn`, the pipe `|>`, the update `Con(..x, f = v)` and foreign declarations as the one door to Erlang follow it, its line comment was taken outright, and every other form of Gleam's was weighed against the design principles of report §0 and left out where it only gave a shorter way to write what the language already says (the guide's §11).
 
@@ -24,11 +24,11 @@ Past its restart limit the process ends, and the binding names an ended process 
 
 A supervision tree is the standard library's `Supervisor`: a group with a strategy, `OneForOne`, `OneForAll` or `RestForOne`, and a restart limit, its children restarted in place with their addresses kept, and killed in the reverse of their order when the supervisor dies (the guide's §6.6, report Appendix E.22). A child joins the group when it starts, whenever that is, so there is no `simple_one_for_one`; and a child is killed, not asked to stop, so there is no shutdown timeout.
 
-A sibling restarts only when it next waits, in a `receive` or for a call's answer, so a sibling that never waits is never restarted, and the child that faulted stays down until every sibling has reached a wait, a call to it answering `None` meanwhile (the guide's §6.6).
+A sibling restarts only when it next waits, in a `receive`, in `Clock.sleep` or for a call's answer, so a sibling that never waits is never restarted, and the child that faulted stays down until every sibling has reached a wait, a call to it answering `None` meanwhile (the guide's §6.6).
 
 A process replaces its own code while it runs, by a message of its type that carries the new loop, keeping its address and its state (the guide's §4.6); it keeps its mailbox type for life, so a change of its messages is a new process. A module reloaded or brought by a peer runs beside its earlier versions (report §11.2).
 
-Failure arrives as a message: a `monitor` is given a function of the watcher's, `wrap`, that turns the watched process's end, a `Down` with its reason, into a message of the watcher's own type, and there are no links, no exit signals and no exceptions; a process is ended from outside by `kill` alone, and by the program's end, and a worker that must end with its owner monitors it (the guide's §5.2, §5.3, the guide's §6). An Ernest program is not an OTP application, and the guide's §10 says, item by item, what an Erlang programmer finds in its place.
+Failure arrives as a message: a `monitor` is given a function of the watcher's, `wrap`, that turns the watched process's end, a `Down` with its reason, into a message of the watcher's own type, and there are no links, no exit signals and no exceptions; a process is ended from outside by `kill`, which takes its address, or by `Process.kill`, which takes its identity, and by the program's end, and a worker that must end with its owner monitors it (the guide's §5.2, §5.3, the guide's §6). An Ernest program is not an OTP application, and the guide's §10 says, item by item, what an Erlang programmer finds in its place.
 
 **Is this Unison on the Erlang runtime?**
 
@@ -42,7 +42,7 @@ A process receives values of one type, so every clause of a `receive` is checked
 
 A process that hears from several sources gives each an adapted address, `adapted(self(), Logged)`, `Logged` a constructor of the process's own type, which wraps that source's messages as they arrive, written where the reader sees it (the guide's §5.5, report §6.5).
 
-The process's protocol is one type, read in one place, and where another language opens a second channel an Ernest process hands out such an address: a value, sent to whoever should write to it (the guide's §5.5). The gain over channels is not that the protocol is one type but that the type is in the function: the loop runs only in a process of that type, and the compiler sees it at the spawn.
+The process's protocol is one type, read in one place, and an Ernest process hands out such an address where another language opens a second channel: a value, sent to whoever should write to it (the guide's §5.5). The gain over channels is not that the protocol is one type but that the type is in the function: the loop runs only in a process of that type, and the compiler sees it at the spawn.
 
 Its cost is the library that waits on messages of its own: it runs a process of its own and is reached by a call, where a channel would be made in the caller's process (the guide's §4.4).
 
@@ -82,7 +82,7 @@ The standard library stands on the host through such declarations (the guide's �
 
 That two nodes on two networks are the ordinary case. Nodes talk over Erlang's own distribution, set up one way and not through its options: a node knows a peer by a name, a public key and an address in its own configuration, accepts a connection from a listed key alone, under the name that key gives it, and opens one TLS connection to a peer when an operation first needs it (report §8.3, the guide's §8.1).
 
-A program's nodes talk where its configuration says and nowhere else, so there is no mesh; one port per node is opened, the node's own carrier finding a peer by its listed address, so there is no port mapper, which is also why a node of Erlang's own is no peer; and the key is the identity, so the configuration is the whole of what an operator reads to know who talks to whom ([the deployment guide](deployment.md)).
+A program's nodes talk where its configuration says and nowhere else, so there is no mesh; one port per node is opened, the node's own carrier finding a peer by its listed address, so there is no port mapper, which is also why a plain Erlang node, started without Ernest, cannot be a peer; and the key is the identity, so the configuration is the whole of what an operator reads to know who talks to whom ([the deployment guide](deployment.md)).
 
 **How is code replaced in a running program, and why not old and new code?**
 
@@ -96,7 +96,7 @@ Across nodes a definition is known by the hash of its form, so two nodes agree o
 
 Not as a construct. A type's members are the functions declared under its name in its own module, `Int.compare`, so a type has one `compare`. A requirement names `compare`, `negate`, one of the six operators `+`, `-`, `*`, `/`, `%` and `<>`, or `show`, and nothing else. A function generic in `a` that needs it writes `needs a.compare`, and a call writes nothing, since the compiler supplies the type's own; code written once over several representations takes a record of functions the program declares, and `Operations(..Set)` fills each field from the declaration of its name in the module `Set` (the guide's §7.3).
 
-The `needs` is written, never inferred, and a type's members are declared in its own module, by `fn T.compare` or `derives compare`; `show` is no member, and every value has it through `Io.show` (report §4.9). What sets a requirement apart from a class is that its members are a closed set no program adds to, a type's own declared in its own module. All three stand in code under *Abstract types and requirements* in [Why Ernest](why.md), with the refusal of a type that lacks the member.
+The `needs` is written, never inferred, and a type's members are declared in its own module, by `fn T.compare` or `derives compare`; `show` is no member, and every value has it through `Io.show` (report §4.9). What sets a requirement apart from a class is that the operations it can name are a closed set no program adds to. All three stand in code under *Abstract types and requirements* in [Why Ernest](why.md), with the refusal of a type that lacks the member and the refusals of an operation outside the set and of a member declared outside its type's module.
 
 **Where are ETS, tracing, `observer`, back pressure and releases?**
 
