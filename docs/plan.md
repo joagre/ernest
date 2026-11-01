@@ -47,8 +47,18 @@ archive exists.
    `cancel` answers and what an alarm's wrap delivers; the log's paragraph that named the third
    reason is superseded. The report first, then the wrapper in
    `erl/cli/src/ern_examples.erl`, and a test citing §11.2.
-2. **The release 0.8.0**, by [`release_review.md`](release_review.md) whole, the readers over the
-   diff since v0.7.0; 0.7.0 is the attached shell's and 0.8.0 the pun's.
+2. **A census of forms**, over all the Ernest in the repository and not the diff: the standard
+   library, the libraries, the shell, the examples, the tour and the tests' programs, counted by a
+   script and not felt: every lambda shape at a call site, every wrap passed to a function that
+   delivers later, every `let _ =`, every `match` over an `Either`, every `receive` clause shape,
+   every value rebuilt from its parts. A reader of the release's review, beside the code's, reads
+   the twenty most frequent cold and asks of each whether an Erlang programmer would write it
+   shorter. Each finding is decided as a `decide` line is, and one that changes the grammar or a
+   rule of §3 to §9 waits its night. Its first form is known, the lambda around a request's
+   constructor at the call, 121 sites (the log's *Ernest 0.8.0, a Small Release*).
+3. **The release 0.8.0**, by [`release_review.md`](release_review.md) whole, the readers over the
+   diff since v0.7.0 and the census over the whole; 0.7.0 is the attached shell's and 0.8.0 the
+   pun's.
 
 ---
 

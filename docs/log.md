@@ -9541,6 +9541,10 @@ The release 0.8.0 stood as MVP 4.1's last item, after the server first served th
 
 An example is a test case already: `ern test` runs it as one, and a test runs in a process whose mailbox type is its own, `Never` where it is open (§11.2). An example run the same way needs one word less in the toolchain's wrapper and one reason less in rule 6, and the page shows what the function answers (principle 3) by the mechanism that runs a test rather than a second one beside it (principle 2). An example whose value is of an abstract type, or that reads a file or a socket, stays only compiled.
 
+**A census of forms, added the same day.** The two glaring things the pun's day fixed were found neither by a test nor by a reader. The bare `receive` with an `after` alone was found by use, surprising twice before it was named, and the pun by a count, 190 sites of one form standing through every item that wrote them, since each item read its own sites and the form looked ordinary at each. The readers a release runs hold the report to itself and the code to the report, and neither asks what the programs repeat.
+
+So this release's review gets a reader over counts: every form the repository's Ernest writes, counted by a script over the whole and not the diff, the most frequent read cold against what an Erlang programmer would write. The first form is known: the lambda around a request's constructor at `Address.call`, 121 sites, of which 57 wrap a constructor whose one field is the reply.
+
 ## The Guide's Lines After the Release Review, 2026-11-01
 
 Item 8 of the plan's *The pun*: one cold reader over `git diff 36b94d31 v0.7.0 -- guide tour README.md`, the lines the release review's batches wrote and no reader read, each read where it stands now against the report, its neighbors and the log. Twenty-two lines: fifteen `fix`, made at once; one `decide`; six `note`, four taken. Every shell session in the diff came back clean, since the tour's and the deployment guide's tests run them, and no paragraph was over 150 words.
