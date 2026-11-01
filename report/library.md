@@ -1,6 +1,6 @@
 # Ernest Report: The Standard Library
 
-Revision of 31 October 2026.
+Revision of 1 November 2026.
 
 This file holds the report's Appendices D, E and G. §0 to §10 and Appendices A, B and F are in [`language.md`](language.md), and §11 and Appendices C and H in [`toolchain.md`](toolchain.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
@@ -15,6 +15,8 @@ This file holds the report's Appendices D, E and G. §0 to §10 and Appendices A
 
 The toolchain's library `libs/ets` (Appendix G.1), over Erlang's `ets`, tables of type `set`, written out with a shorter documentation than its own; it is outside the standard library. Raw bindings are module-local, unqualified; the library is ordinary Ernest over them. The values `ets` returns match the ABI of §12.2 without an Erlang-side wrapper: `true` and `false` are `Bool` on both sides, and `[{K, V}]` is `List(#(k, v))`. A host answer that is not always of one Ernest type, `ets:info/2`'s count or `undefined`, is bound at `Foreign.Term` and read with E.12's conversions. An API that answers Erlang's `{ok, V} | {error, R}` needs an Erlang helper that rewrites the answer, as E.12 says; the `ets` calls below do not use that convention.
 
+Two bindings name functions of the runtime's own, which keeps the tables each process made: `made` tells it of each table `new` makes, and `owned` counts those a process still owns (Appendix G.1, E.28). The report states none of the runtime's functions; they are the toolchain's own.
+
 ```ernest
 // ets.ern  (namespace Ets)
 
@@ -27,10 +29,20 @@ export foreign type Table(k=, v)
 /// A fresh empty table. The table is owned by the current
 /// process and is destroyed when that process dies.
 export fn new() : Table(k, v) =
-    rawNew(Foreign.atom("ernest"), [Foreign.atom("set"), Foreign.atom("public")])
+    made(rawNew(Foreign.atom("ernest"), [Foreign.atom("set"), Foreign.atom("public")]))
 
 foreign fn rawNew(name : Foreign.Term, options : List(Foreign.Term)) : Table(k, v) =
     "ets:new/2"
+
+// The table, told to the runtime, which keeps it among the tables
+// the calling process made; it answers the table.
+foreign fn made(table : Table(k, v)) : Table(k, v) =
+    "ern_rt:made_table/1"
+
+/// How many tables the process made that it still owns; 0 once
+/// it has ended, and for a process on another node.
+export foreign fn owned(process : Process) : Int =
+    "ern_rt:owned_tables/1"
 
 /// Insert or replace the entry for key.
 export fn put(table : Table(k, v), key : k, value : v) : Unit = {
@@ -51,6 +63,10 @@ export fn get(table : Table(k, v), key : k) : Optional(v) =
 foreign fn rawLookup(table : Table(k, v), key : k) : List(#(k, v)) =
     "ets:lookup/2"
 
+/// True if key is present in table.
+export foreign fn contains(table : Table(k, v), key : k) : Bool =
+    "ets:member/2"
+
 /// Remove key. A key not present is not an error.
 export fn remove(table : Table(k, v), key : k) : Unit = {
     let _ = rawDelete(table, key);
@@ -70,15 +86,6 @@ export fn size(table : Table(k, v)) : Int =
 foreign fn rawInfo(table : Table(k, v), item : Foreign.Term) : Foreign.Term =
     "ets:info/2"
 
-/// Close the table, deleting it. All subsequent operations on it fault.
-export fn close(table : Table(k, v)) : Unit = {
-    let _ = rawDeleteTable(table);
-    Unit
-}
-
-foreign fn rawDeleteTable(table : Table(k, v)) : Bool =
-    "ets:delete/1"
-
 /// Remove all entries, leaving the table empty.
 export fn clear(table : Table(k, v)) : Unit = {
     let _ = rawDeleteAllObjects(table);
@@ -88,9 +95,14 @@ export fn clear(table : Table(k, v)) : Unit = {
 foreign fn rawDeleteAllObjects(table : Table(k, v)) : Bool =
     "ets:delete_all_objects/1"
 
-/// True if key is present in table.
-export fn contains(table : Table(k, v), key : k) : Bool =
-    Optional.isSome(get(table, key))
+/// Close the table, deleting it. All subsequent operations on it fault.
+export fn close(table : Table(k, v)) : Unit = {
+    let _ = rawDeleteTable(table);
+    Unit
+}
+
+foreign fn rawDeleteTable(table : Table(k, v)) : Bool =
+    "ets:delete/1"
 
 /// All key-value pairs currently in the table, in unspecified order.
 export foreign fn toList(table : Table(k, v)) : List(#(k, v)) =
@@ -946,7 +958,7 @@ No library listed here is part of the language or of the standard library. Each 
 
 ### Appendix G.1. `libs/ets` (namespace `Ets`)
 
-Tables of the runtime, Erlang's `ets` tables of type `set`, which Appendix D writes out with its rules, all but `owned`. A table is owned by the process that made it and ends with it. `owned(p)` counts the tables `p` made that have not ended; `Ets.new` is a table's site, as `Tcp.listen` is a listener's (Appendix E.18, §11.2).
+Tables of the runtime, Erlang's `ets` tables of type `set`, which Appendix D writes out with its rules. A table is owned by the process that made it and ends with it. `owned(p)` counts the tables `p` made that have not ended; `Ets.new` is a table's site, as `Tcp.listen` is a listener's (Appendix E.18, §11.2).
 
 ```
 foreign type Table(k=, v)

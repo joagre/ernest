@@ -1082,6 +1082,23 @@ appendix_d_library_test() ->
                                  Dir ++ "/build/src/main.erc"])),
     ?assertEqual(<<"1\n">>, iolist_to_binary(?capturedOutput)).
 
+%% report Appendix D, Appendix G.1: the library Appendix D writes out is
+%% src/libs/ets/ets.ern line for line, its comments and doc blocks aside,
+%% which the appendix writes shorter than the source's. A regression test,
+%% written after the round before 0.7.0 left `owned` out of the appendix,
+%% and `new` and `contains` as they had been; the doc blocks are not held
+appendix_d_is_the_library_test() ->
+    [Listed | _] = appendix_d_blocks(),
+    {ok, Source} = file:read_file("../../../src/libs/ets/ets.ern"),
+    ?assertEqual(code_lines(Source), code_lines(Listed)).
+
+%% A source's lines of code, each blank line, comment and doc block's line
+%% left out.
+code_lines(Source) ->
+    [Line || Line <- binary:split(Source, <<"\n">>, [global]),
+             Trimmed <- [string:trim(Line)],
+             Trimmed =/= <<>>, string:prefix(Trimmed, <<"//">>) =:= nomatch].
+
 %% report §11.2, §8.4: an Erlang module a `foreign fn` names is found as a
 %% `.beam` in a directory of the load path. A regression test: nothing put a
 %% user's own Erlang module where the host could find it
