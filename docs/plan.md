@@ -21,11 +21,34 @@ stability is made, and a change to the language, the standard library or the lib
 by a need met in use and recorded as `docs/language_feedback.md` records one.
 
 The pun is done, with what its day decided beside it: a `receive` always receives, an alarm can
-be canceled, and the checkout works toward 0.8.0. Next is ernest-httpd, then the website and the
-shell's second round (the log's *The Road to 1.0, Ordered*), and MVP 4.4 last, the promise, the cost, the full review and Ernest 1.0, where
+be canceled, and the checkout works toward 0.8.0. Next is Ernest 0.8.0 itself, a small release,
+since the three application repositories already stand on its floor (the log's *Ernest 0.8.0, a
+Small Release*); then ernest-httpd, the website and the shell's second round (the log's *The Road
+to 1.0, Ordered*), and MVP 4.4 last, the promise, the cost, the full review and Ernest 1.0, where
 the road ends and a program begins (the log's *MVP 4.4, the Road's End*); the back end to BEAM's own instructions that closed the road is not built,
 decided 2026-10-30 (the log's *No Back End to BEAM's Own Instructions*). A finished milestone is a
 row of the table at the end, its reasons in the log entries the row names.
+
+---
+
+## Ernest 0.8.0, a small release
+
+Ernest 0.8.0 is the pun's release, decided 2026-11-01 (the log's *Ernest 0.8.0, a Small
+Release*): what the pun's day built, the pun, a `receive` that always receives with `Clock.sleep`
+beside it, an alarm that can be canceled and a guard that reads a field, and nothing of MVP 4.1.
+ernest-template, ernest-epx and ernest-httpd stand on floor 0.8 since that day, and
+ernest-httpd's sessions see no Ernest but an installed release, so its work begins when the
+archive exists.
+
+1. **A doc example runs at its own mailbox type**, feedback 182: an example whose last line is
+   `// => v` runs in a process whose mailbox type is the example's own, an open one being `Never`,
+   as a test of type `Test.Case(m)` runs (§11.2); Appendix E.0's shape rule 6 keeps two reasons an
+   example is only compiled, an abstract value and a file or a socket; the clock's page shows what
+   `cancel` answers and what an alarm's wrap delivers; the log's paragraph that named the third
+   reason is superseded. The report first, then the wrapper in
+   `erl/cli/src/ern_examples.erl`, and a test citing §11.2.
+2. **The release 0.8.0**, by [`release_review.md`](release_review.md) whole, the readers over the
+   diff since v0.7.0; 0.7.0 is the attached shell's and 0.8.0 the pun's.
 
 ---
 
@@ -78,8 +101,8 @@ server's CLAUDE.md carries the procedure its side follows.
    checkout and the archive made again, with no public release between.
 5. **The terminal tests over `Os.startTerminal`**, dropping `test/ern_pty.py`, an item of its own
    once item 2 stands.
-6. **A release of Ernest**, 0.8.0, when the server first serves the site, carrying the libraries
-   after their first real user has shaped them; 0.7.0 is the attached shell's.
+6. **A release of Ernest**, 0.9.0, when the server first serves the site, carrying the libraries
+   after their first real user has shaped them; 0.8.0 is the pun's.
 
 The site's content, MVP 4.2, runs beside any of it, since its generator needs nothing of the
 server.
