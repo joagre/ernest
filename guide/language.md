@@ -611,7 +611,7 @@ Three more rules concern processes, and are for after §4:
   No time given to a system module means no limit. A server that waits for as long as it takes asks again on each `Left(Io.Timeout)` (§8.7).
 
   A read of standard input and a write to standard output wait without a limit, since those streams are the program's own. A socket's far end or a program the runtime started can hang unseen, so `Tcp.write`, `Os.read` and `Os.write` take a time too (report Appendix E.0 shape rule 8).
-- **A function that delivers later takes a function that makes the message.** `Clock.alarm(100, Ticked)` puts `Ticked(time)` in the mailbox after 100 ms, `time` being the moment it fired. The function that makes the message receives nothing; the one that takes it, `Clock.alarm` or `Terminal.subscribe`, asks for a delivery into the caller's mailbox, and its type says so, `receiving m` (§4.1). `Clock.now()` is the time now, in milliseconds since the epoch. A process that only waits a while writes `receive { after ms -> Unit }` (§4.3); `Clock` has no sleep.
+- **A function that delivers later takes a function that makes the message.** `Clock.alarm(100, Ticked)` puts `Ticked(time)` in the mailbox after 100 ms, `time` being the moment it fired. The function that makes the message receives nothing; the one that takes it, `Clock.alarm` or `Terminal.subscribe`, asks for a delivery into the caller's mailbox, and its type says so, `receiving m` (§4.1). `Clock.now()` is the time now, in milliseconds since the epoch. A process that only waits a while calls `Clock.sleep(ms)` (§3.5).
 
 What a type does not say, the entry in Appendix E does: `List.sort` is stable, `Map.toList` has no order. In the shell, `:doc List.sort` prints it. `:browse Fs` lists a module's types by name and its functions with their types, and `:doc Fs.Entry` shows a type's declaration, its fields among it.
 
@@ -841,7 +841,7 @@ A `Reply(Int)` is where an answer goes. The process that asks gets one from `Add
 
 An effect variable that also appears inside `Address`, the type of an address to a process whose mailbox is `m`, as in `self : () -> Address(m) receiving m`, stands for a mailbox type only, since an address needs one (§3.5). The `Address(m)` shows it, and a printed type marks nothing more.
 
-**A timed wait.** A function waits a time with `Clock.sleep(ms)`, which takes no message, so a function that waits so, where nothing else in it fixes a mailbox type, receives nothing: `fn pause(ms : Int) : Unit = Clock.sleep(ms)` is an `(Int) -> Unit`, called from any function and from an initializer (report §3.9, report §4.6, Appendix E.15). A `receive` always receives: one with an `after` clause alone is refused, naming `Clock.sleep` (§4.3).
+**A timed wait.** `Clock.sleep(ms)` waits a time and takes no message, so a function that sleeps, where nothing else in it fixes a mailbox type, receives nothing and is called from any function and from an initializer (report §6.8, report Appendix E.15). A `receive` always receives: one with an `after` clause alone is refused, naming `Clock.sleep` (§4.3).
 
 **A receive that takes anything.** A `receive` whose pattern is a wildcard, or a variable whose type nothing else fixes, takes a message of whatever type the mailbox holds, so its function receives at its caller's mailbox type, and its effect variable is *process-only*, a mailbox type and never none. A printed type marks such a variable `+`, `receiving e+`, where no `Address` in the type shows it already (report §3.9, report §11.5). Written out, such a function carries `receiving e`, and so does every function that calls it:
 
@@ -914,7 +914,7 @@ fn waitForData() : Optional(Int) receiving Inbox =
     }
 ```
 
-`after 1000` gives up after 1000 milliseconds with no matching message, and `after 0` looks without waiting. Without `after`, the process waits for as long as it takes. A `receive` has a pattern clause; a wait for a time alone is `Clock.sleep(ms)` (report §6.3), and a process with mailbox `Never` writes no `receive` at all.
+`after 1000` gives up after 1000 milliseconds with no matching message, and `after 0` looks without waiting. Without `after`, the process waits for as long as it takes. A `receive` has a pattern clause; a wait for a time alone is `Clock.sleep(ms)` (report §6.3), and a function receiving `Never` writes no `receive` (report §6.8).
 
 A guard in `receive` is narrower than one in `match`, since it chooses a message before taking it: it compares and tests only what is already at hand, the variables in scope, a field of one, `s.at`, a top-level `let`, literals and nullary constructors, joins these with `!`, `&&` and `||`, and calls nothing (report §6.3). For more, receive the message and `match` it. That is another program: the message is then out of the mailbox, where a guard that does not hold would have left it for a later `receive`.
 
@@ -1553,7 +1553,7 @@ fn waitForTick(state : World) : Unit receiving GameMsg =
 
 `game` schedules one alarm and hands over to `waitForTick`, which takes the keys typed without touching the alarm; only a `Ticked` returns to `game`, which schedules the next. `step` reads the world's field by selecting it, `world.score`.
 
-`Clock.cancel(alarm)` ends an alarm that has not fired, and answers whether it did; one that fired has its message in the mailbox already, which no cancel takes back. So a deadline for a piece of work carries the work's id, `let alarm = Clock.alarm(5000, fn(_) = Expired(job))`, and the loop that waits cancels it when the work ends and still matches every `Expired`, acting on one whose job is still open and dropping the rest; a message that no `receive` takes stays in the mailbox for as long as the process lives (report Appendix E.15).
+`Clock.cancel(alarm)` ends an alarm that has not fired and answers `true`; it answers `false` where the alarm had fired or ended, and a fired alarm's message is on its way or in the mailbox, which no cancel takes back. So a deadline for a piece of work carries the work's id, `let alarm = Clock.alarm(5000, fn(_) = Expired(job))`, and the loop that waits cancels it when the work ends and still matches every `Expired`, acting on one whose job is still open and dropping the rest; a message that no `receive` takes stays in the mailbox for as long as the process lives (report Appendix E.15).
 
 ### 5.6 The word counter at once
 
@@ -3244,6 +3244,7 @@ Ernest runs on the Erlang runtime, and a program in it is processes that send me
 - A mailbox has a type, so a message not of the mailbox's type is a compile error, not a message that sits in the mailbox forever; one of its type that no clause takes still sits there (§4.8).
 
 - A function says in its type whether it receives, `receiving M`, and one that only sends says nothing (§3.4).
+- A `receive` always takes a message: `timer:sleep` is `Clock.sleep`, and `erlang:cancel_timer` is `Clock.cancel` (report Appendix E.15).
 - There are no exceptions, no `catch`, and no `try`. A failure is a value, a message, or a fault (§6).
 - There are no links and no exit signals, only monitors. A process that must die with another monitors it and returns.
 - A `Down` comes from the runtime and not from the process that ended, so it may arrive before that process's last message to the watcher, where Erlang's `'DOWN'` comes after it (§5.2).
@@ -3277,7 +3278,7 @@ Several of these tell the compiler nothing it could not work out for itself. Wha
 
 ## 12. Answers to the exercises
 
-**§1.5.** (a) compiles, and gives `main` the type `() -> String`: `Io.debug` returns its argument, and inference takes the body's type. It sends to standard error's process, and a function that only sends receives nothing, so its type names no mailbox. `ern run` refuses it, since an entry point is a function of no arguments that returns `Unit` (§7.1). (b) is refused when it is built: `: Unit` declares the result, and the body is a `String`. With `Io.println`, as §1 writes it, both compile to `() -> Unit`, and `ern run` runs both. A `main` that waits a while, `Clock.sleep(10)`, compiles as (a), and under `: Unit` as well: a sleep takes no message (§4.1).
+**§1.5.** (a) compiles, and gives `main` the type `() -> String`: `Io.debug` returns its argument, and inference takes the body's type. It sends to standard error's process, and a function that only sends receives nothing, so its type names no mailbox. `ern run` refuses it, since an entry point is a function of no arguments that returns `Unit` (§7.1). (b) is refused when it is built: `: Unit` declares the result, and the body is a `String`. With `Io.println`, as §1 writes it, both compile to `() -> Unit`, and `ern run` runs both.
 
 **§2.11.** (a) and (d) compile. Every constructor of `Shape` has `name`, with one type, so `s.name` reads it whichever built `s`.
 

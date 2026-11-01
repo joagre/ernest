@@ -181,7 +181,7 @@ Four *admission rules* decide whether a function is in: rules 1 to 3 each admit 
 
 Ten *shape rules* give a function its shape. Shape rules 1 to 5, 7, 9 and 10 hold in a library outside the standard library too, as Appendix D's, which the four admission rules do not reach.
 
-1. The subject comes first, callbacks last but for shape rule 8's milliseconds, an accumulator between them: `x |> f(a)` is `f(x, a)`. A time that is the operation's own subject, an alarm's, comes first; one that bounds a wait comes last (shape rule 8). No aliases, no argument-order variants. An operations record (§4.9) comes directly after the subjects, before an accumulator and the callbacks: `common(list, other, operations)`. A function that needs a type's member declares the requirement (§4.9) and takes no function of the member's shape: `List.sort(list)` under `needs a.compare`, and `List.sortBy(list, key)` for an order by a key.
+1. The subject comes first, callbacks last but for shape rule 8's milliseconds, an accumulator between them: `x |> f(a)` is `f(x, a)`. A time that is the operation's own subject, an alarm's or a sleep's, comes first; one that bounds a wait comes last (shape rule 8). No aliases, no argument-order variants. An operations record (§4.9) comes directly after the subjects, before an accumulator and the callbacks: `common(list, other, operations)`. A function that needs a type's member declares the requirement (§4.9) and takes no function of the member's shape: `List.sort(list)` under `needs a.compare`, and `List.sortBy(list, key)` for an order by a key.
 2. One verb per operation on each kind of type that has it, and a type alone of its kind names its own; a module whose operations serve two kinds names the second's with the kind, `closeListener`, `nextFloat`.
 
    The container operations are `empty`, `size`, `isEmpty`, `contains`, `get` for lookup by index or key, `put` for insertion, `remove`, `map`, `filter`, `filterMap`, `fold`, `forEach`, `any`, `all`, `find`, `fromList`, and `toList`, and a container with an order folds by `foldLeft`, in that order, in place of `fold`; the sum-type operations are `withDefault`, `map`, and `andThen`.
@@ -562,20 +562,21 @@ Over the clock's system reference (§8.2). The primitives are `alarm`, `alarmAt`
 
 Times are milliseconds since the epoch, by the host's clock, which may be set while the program runs. `monotonic` is milliseconds since a moment the runtime chose, and never goes back; `monotonicMicros` is the same clock in microseconds, for a program that measures what takes less than a millisecond. The difference of two readings of `monotonic` is the time the host ran between them: where the host's monotonic clock stops while the machine is suspended, that time is left out. The difference of two `now`s is not that time when the clock is set between them.
 
-`sleep(ms)` waits `ms` milliseconds, counted as `monotonic` does, and takes no message, the mailbox being as it was; a fault or a restart waiting in the mailbox reaches the wait as it reaches a `receive` (§6.5, §6.9), a time below 0 is 0, and a time has no upper bound (§6.3). It is the one way a body waits a time (§6.3, §6.8).
+`sleep(ms)` waits `ms` milliseconds, counted as `monotonic` does, and takes no message, the mailbox being as it was; a fault or a restart waiting in the mailbox reaches the wait as it reaches a `receive` (§6.5, §6.9), and its time is corrected as §7.4 says. It is the one wait for a time alone (§6.3, §6.8).
 
-An alarm after milliseconds counts them as `monotonic` does, and setting the clock does not move it.
+An alarm after milliseconds counts them as `monotonic` does, and setting the clock does not move it. An alarm at a time fires when the clock reaches the time, though the clock is set before it fires: a clock set past the time fires it once the host reports the change, and a clock set back delays it. An alarm fires once, and a periodic tick is scheduled after the previous one is handled.
 
-An alarm at a time fires when the clock reaches the time, though the clock is set before it fires: a clock set past the time fires it once the host reports the change, and a clock set back delays it. An alarm fires once, and `alarm` and `alarmAt` answer it as an `Alarm`, an abstract type. `cancel(alarm)` ends one that has not fired and answers `true`; for one that fired it answers `false`, and the message, sent already, stays in the mailbox until a `receive` takes it, so a process that moves a deadline drops a stale alarm by what its message carries where the cancel came late. A periodic tick is scheduled after the previous one is handled. A restart of the process that set it cancels it, and one that fires after its process has ended delivers nothing (§6.9).
+`alarm` and `alarmAt` answer the alarm as an `Alarm`, an abstract type bound to its node (§3.11), on which `==` is the runtime's (§3.10). `cancel(alarm)` ends an alarm that has neither fired nor ended and answers `true`; any other it leaves and answers `false`, and a fired alarm's message is delivered as any alarm's is (§6.9). Any process of the node that holds the alarm may cancel it. A restart of the process that set an alarm cancels it, and one that fires after its process has ended delivers nothing (§6.9).
 
 ```
+abstract type Alarm // an alarm set, until it fires, is canceled or its process ends
 Clock.now : () -> Int
 Clock.monotonic : () -> Int
 Clock.monotonicMicros : () -> Int
 Clock.sleep : (Int) -> Unit // waits the milliseconds and takes no message
 Clock.alarm : (Int, (Int) -> m) -> Alarm receiving m // after the milliseconds, wrap(time) in the caller's mailbox, time the time it fired
 Clock.alarmAt : (Int, (Int) -> m) -> Alarm receiving m // at the time, wrap(time) in the caller's mailbox, time the time it fired
-Clock.cancel : (Alarm) -> Bool // true where the alarm had not fired and now never will; false where it fired, its message sent
+Clock.cancel : (Alarm) -> Bool // true where it ended the alarm, which had neither fired nor ended; false otherwise
 Clock.toString : (Int) -> String // RFC 3339, UTC, to the millisecond; faults outside the years -9999 to 9999
 ```
 

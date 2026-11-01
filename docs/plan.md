@@ -50,7 +50,8 @@ name, which Ernest's parentheses make a call, the dot, and the marks other langu
    floor rises to that release, and each copy's by hand, ernest-epx's and ernest-httpd's, as the
    template's memory of copies says; ernest-epx's Ernest is swept as item 3 sweeps this
    repository's, every `Foo(line = line)` written `Foo(=line)`, and ernest-httpd's where it has
-   any; and each loses the `receiving e` written on a timed wait, which §4.5 now refuses.
+   any; and each rewrites a `receive` with `after` alone to `Clock.sleep`, and an alarm it ignores
+   to `let _ = Clock.alarm(...)`.
 5. **`make version V=x.y.z`**, done 2026-11-01 (the log's *`make version`, Appendix D Whole, the
    Settler's Restart*): after a tag the release step runs it to the next minor at once, so the
    checkout says `0.8.0-dev` while 0.7.0 is the latest release.
@@ -77,11 +78,13 @@ a binding's end names the site alone, `Tcp.listen ended with l` (§11.2). The se
 or dropped in the entry.
 
 Two more were decided on 2026-11-01 while the round was built, and are built before item 2 since
-the first changes the grammar too: a `receive` always receives, one with an `after` clause alone
-refused and `Clock.sleep(ms)` the one wait for a time (§6.3, §6.8, Appendix E.15; the log's *A
-`receive` Always Receives*); and an alarm can be canceled, `alarm` and `alarmAt` answering an
-`Alarm` that `Clock.cancel` ends where it has not fired (Appendix E.15; the log's *An Alarm Can Be
-Canceled*), every site that ignores its alarm writing `let _ =` as §5.1 asks.
+the first changes the grammar too. A `receive` always receives: one with an `after` clause alone
+is refused by the parser, `Clock.sleep(ms)` is the one wait for a time, a shim over the runtime's
+wait that the emitted timed `receive` shares, and every clause-less `receive` in the repository is
+rewritten to it (§6.3, §6.8, Appendix E.15; the log's *A `receive` Always Receives*). An alarm can
+be canceled: `alarm` and `alarmAt` answer an `Alarm` that `Clock.cancel` ends where it has neither
+fired nor ended, and every site that ignores its alarm writes `let _ =` as §5.4 asks (Appendix
+E.15; the log's *An Alarm Can Be Canceled*).
 
 ---
 

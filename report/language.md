@@ -303,7 +303,7 @@ Each restriction is part of the type scheme and travels with the function value 
 
 ### 3.10 Equality and ordering
 
-`==` and `!=` are structural and defined for all values except those containing functions, addresses or replies, on which they are a type error. On a value of a foreign type, `Foreign.Term` among them, or of `Process`, they are the runtime's exact equality on the two representations (§12.2): two references are equal only when they are one reference, and two values that foreign code made as the same term are equal.
+`==` and `!=` are structural and defined for all values except those containing functions, addresses or replies, on which they are a type error. On a value of a foreign type, `Foreign.Term` among them, or of `Process` or `Alarm` (Appendix E.15), they are the runtime's exact equality on the two representations (§12.2): two references are equal only when they are one reference, and two values that foreign code made as the same term are equal.
 
 ```ernest-rejected
 fn same(f : () -> Int, g : () -> Int) : Bool =
@@ -326,7 +326,7 @@ A function that applies `==` to a value of a type variable gives that variable a
 
 ### 3.11 Serialization
 
-A message may be a value of any type, a function included. A type is *bound* to its node where it holds a function type, a foreign type (§3.8), a resource, or an `Address(m)` or a `Reply(m)` whose `m` is bound; a resource is the address of a socket, a listener or a program the runtime started (Appendix E.18, E.23), and a library's resource is a foreign type. Every other type crosses: `Int`, `Float`, `Bool`, `Char`, `String`, `Bytes`, a tuple, a list, `Map`, `Set`, a declared type's values, an address, a `Process` and a `Reply` of an unbound type, and an adapted address (§6.5).
+A message may be a value of any type, a function included. A type is *bound* to its node where it holds a function type, a foreign type (§3.8), a resource, or an `Address(m)` or a `Reply(m)` whose `m` is bound; a resource is the address of a socket, a listener or a program the runtime started, or an alarm it holds (Appendix E.15, E.18, E.23), and a library's resource is a foreign type. Every other type crosses: `Int`, `Float`, `Bool`, `Char`, `String`, `Bytes`, a tuple, a list, `Map`, `Set`, a declared type's values, an address, a `Process` and a `Reply` of an unbound type, and an adapted address (§6.5).
 
 A value of a bound type is never used on another node. The compiler refuses the operations that would start one on its way: a `Peer.service` at a bound type (§8.7); a `Peer.spawn`, a `Peer.spawnMonitored`, a `Peer.compute` or a `Peer.computeAt` whose function captured a value of a bound type, or a value whose type holds a type variable (§3.9); a `Peer.spawn`, a `Peer.spawnMonitored`, a `Peer.compute` or a `Peer.computeAt` whose function's mailbox type is bound; and a `Peer.compute` or a `Peer.computeAt` whose function's result type, which crosses back, is bound (§8.7).
 
@@ -455,7 +455,7 @@ In a block, `let p = e` binds the irrefutable pattern `p` to the value of `e`; `
 
 A block binding's type may hold unresolved type variables; `[]`, `None`, `Map.empty`, and a call that returns a polymorphic value introduce them. A later use of the binding in the block pins such a variable: `let m = Map.empty; Map.put(m, "a", 1)` pins `m` at `Map(String, Int)`. One that reaches the block's result is generalized by the enclosing `fn` or top-level `let`: `fn namedEmpty() = { let xs = []; xs }` has type `() -> List(a)`. An annotation on the binding fixes it. A use pins a variable only where it fixes the variable's type, and a variable that nothing pins stays free: in `{ let xs = []; List.size(xs) }` the element type stays open.
 
-At top level, `let` binds an `ident`. The left side is a name, not a pattern; `<-` is a block form only. The initializer is a body receiving `Never` (§6.8): it may spawn, send, call and sleep, and it receives no message: a `receive` in it is a type error (§6.8).
+At top level, `let` binds an `ident`. The left side is a name, not a pattern; `<-` is a block form only. The initializer is a body receiving `Never` (§6.8): it may spawn, send, call and sleep, and a `receive` in it is a type error.
 
 The binding generalizes its free type variables where its initializer is a value: a literal, a name, a lambda, or a constructor applied to values, `let empty : Stack(a) = Stack([])`. A top-level binding whose initializer is a *constant*, a literal, a negated number literal, a constructor of no fields, or a constructor, a tuple or a list of constants, is not evaluated: it has its value from the program's start (§8.5), and no fault leaves it without one (§11.2).
 
@@ -733,7 +733,7 @@ A node is one running runtime; a peer is another node it knows by name (§8.3). 
 
 A guard selects a message without removing it, so a `receive` guard is a *guard expression*. Its operands are the variables in scope, the pattern's and a lambda's captures among them, a field selected from a variable in scope or from a top-level `let`, or from such a selection, `s.at`, `s.lot.at` (§3.5), literals, negative numeric literals, and nullary constructors. A top-level `let` is an operand too, read when the `receive` begins. A guard expression is `true`, `false`, an operand of type `Bool`, a comparison of two operands with `==`, `!=`, `<`, `<=`, `>`, or `>=`, `!` before a guard expression, or two guard expressions joined by `&&` or `||`. `<`, `<=`, `>`, and `>=` compare `Int`, `Float`, `String`, and `Char`, in their order (§3.10), and on another type are a type error. A guard expression calls nothing and cannot fault.
 
-A final clause `after t -> e` gives a time limit of `t` milliseconds; `t` is evaluated on entry, and corrected as §7.4 says. A time has no upper bound. When the limit passes without a matching message, `e` is evaluated. `after 0` does not wait for a message. Without `after` there is no limit. A `receive` has a pattern clause: one with an `after` clause alone is an error, ``a `receive` takes a message; to wait, call `Clock.sleep` ``, and a body waits a time with `Clock.sleep` (Appendix E.15).
+A final clause `after t -> e` gives a time limit of `t` milliseconds; `t` is evaluated on entry, and corrected as §7.4 says. A time has no upper bound. When the limit passes without a matching message, `e` is evaluated. `after 0` does not wait for a message. Without `after` there is no limit. A `receive` has a pattern clause. One with an `after` clause alone is a syntax error: ``a `receive` takes a message; to wait a time, write `Clock.sleep(ms)` ``.
 
 ### 6.4 Message ordering
 
@@ -822,7 +822,7 @@ When `n` restarts have happened within the last `t` milliseconds, the next fault
 
 A restarting function called where the runtime applies a function for another process, in a `wrap` the runtime applies as it delivers (§10) or in an adapted address's function on delivery (§6.5), faults with `Fault("restart in a function the runtime applies")`, which the process the function delivers to meets as it meets any fault there.
 
-A child of a `Supervisor` (Appendix E.22) also runs `f()` again when its supervisor asks. It runs on until it next waits, in a `receive` or for a call's answer, and there runs `f()` again; a process already waiting does so at once. It restarts as a fault restarts it (above). A restart asked for is not a fault: it counts against no limit, and no fault is reported. Where `f` itself runs a `restarting` function, the restart asked for runs `f()` again, not the inner one.
+A child of a `Supervisor` (Appendix E.22) also runs `f()` again when its supervisor asks. It runs on until it next waits, in a `receive`, in `Clock.sleep` or for a call's answer, and there runs `f()` again; a process already waiting does so at once. It restarts as a fault restarts it (above). A restart asked for is not a fault: it counts against no limit, and no fault is reported. Where `f` itself runs a `restarting` function, the restart asked for runs `f()` again, not the inner one.
 
 ### 6.10 Code replacement
 

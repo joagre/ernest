@@ -2,7 +2,7 @@
 
 What this document argues is held to the code by three machines of `make test-full`, [`test/ern_grammar_programs_tests.erl`](../test/ern_grammar_programs_tests.erl), [`erl/runtime/test/ern_laws_tests.erl`](../erl/runtime/test/ern_laws_tests.erl) and [`test/ern_typed_programs_tests.erl`](../test/ern_typed_programs_tests.erl), and by the checker's tests in [`erl/checker/test/ern_typecheck_tests.erl`](../erl/checker/test/ern_typecheck_tests.erl), which cite the sections cited here.
 
-An argument that a well-typed program does not go wrong, over the rules of the report, [`report/language.md`](../report/language.md), [`report/toolchain.md`](../report/toolchain.md) and [`report/library.md`](../report/library.md), in their revision of 31 October 2026. It is prose and no machine checks it. It states a small calculus, the invariants a running program keeps, why each step keeps them, and then each place where two rules meet. The report owns the rules and the log their reasons. This document owns the argument alone: a change to a rule it covers rewrites the paragraph for that rule in the same commit (CLAUDE.md, *Before code*).
+An argument that a well-typed program does not go wrong, over the rules of the report, [`report/language.md`](../report/language.md), [`report/toolchain.md`](../report/toolchain.md) and [`report/library.md`](../report/library.md), in the language's and the library's revision of 1 November 2026 and the toolchain's of 31 October 2026. It is prose and no machine checks it. It states a small calculus, the invariants a running program keeps, why each step keeps them, and then each place where two rules meet. The report owns the rules and the log their reasons. This document owns the argument alone: a change to a rule it covers rewrites the paragraph for that rule in the same commit (CLAUDE.md, *Before code*).
 
 ## 1. What is argued
 
@@ -93,7 +93,7 @@ answer       : ∀a. (Reply(a), a) -> Unit
 monitor      : ∀m. (Process, (Down) -> m) -> Unit receiving m
 ```
 
-No primitive has an effect of its own. `self` and `monitor` have the mailbox type of the process that calls them, in a value position, the address answered or the wrap's result, so it is never none. `Clock.sleep` takes no message and names no mailbox, as section 2 has a system module's function that reads none.
+No primitive has an effect of its own. `self` and `monitor` have the mailbox type of the process that calls them, in a value position, the address answered or the wrap's result, so it is never none. `Clock.sleep`, `(Int) -> Unit`, takes no message and names no mailbox, which section 2's promise for the standard library's foreign functions carries (E.15).
 
 A function, a `fn` or a lambda, that calls `self` or `monitor`, and whose own type holds their variable `α` in no value position, `fn f() = kill(self())`, is given by (none) the type of one that receives nothing, `() -> Unit` (§3.9). None is no type, and the body is not typed at it: its derivation is at `α`, which stays free there, so putting any type `M` for `α` gives a derivation at `M`, as substitution does in Hindley-Milner's calculus. A process of mailbox type `M` that runs the body runs that instance.
 
@@ -213,7 +213,7 @@ A foreign function whose mailbox type is a callback's, `receiving e` with a para
 
 ### 6.4 An initializer runs at `Never`
 
-A top-level initializer is typed receiving `Never` and run in the entry process, whose mailbox type may be another (§4.6, §8.5). It is the one body that runs in a process of another mailbox type than its own, and `Never` is what makes it safe. `Never` has no value. So `self()` in an initializer is an `Address(Never)`, to which nothing can be sent; a wrap `(Down) -> Never` cannot return a message; and a `receive` there has no pattern clause (§6.8). A function that returns what it receives, called there, waits for a message that cannot come, and the runtime faults it with `Fault("deadlock")` (§6.8, §8.6). Nothing therefore reaches the entry process's mailbox before `main` runs, and `main` begins with I1 holding at its own mailbox type.
+A top-level initializer is typed receiving `Never` and run in the entry process, whose mailbox type may be another (§4.6, §8.5). It is the one body that runs in a process of another mailbox type than its own, and `Never` is what makes it safe. `Never` has no value. So `self()` in an initializer is an `Address(Never)`, to which nothing can be sent; a wrap `(Down) -> Never` cannot return a message; and a `receive` there is a type error (§6.8). A function that returns what it receives, called there, waits for a message that cannot come, and the runtime faults it with `Fault("deadlock")` (§6.8, §8.6). Nothing therefore reaches the entry process's mailbox before `main` runs, and `main` begins with I1 holding at its own mailbox type.
 
 A wrap `(Down) -> Never` an initializer gave `monitor` or `spawnMonitored` is applied when its process ends, which may be once `main` has begun: it returns no message, since `Never` has no value, and a fault in it is the fault of the process it delivers to, `main` (§6.9), so it puts nothing in `main`'s mailbox either.
 
