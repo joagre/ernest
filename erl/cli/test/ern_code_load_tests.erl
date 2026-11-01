@@ -178,7 +178,7 @@ load_deadlock_test() ->
 %% faults, and holds the evaluation for ever. A regression test, written
 %% after the code: the evaluator and what it started ran on past a killed
 %% caller, and the program deadlocked waiting for them; a restart asked for
-%% at the wait, which takes the same path as the fault, is not covered
+%% at the wait is load_caller_restarts_test's
 load_caller_ends_test() ->
     Dir = tmp(),
     Lib = filename:join(Dir, "lib"),
@@ -267,6 +267,111 @@ load_caller_ends_test() ->
                  binary:split(Output, <<"\n">>, [global, trim])),
     ?assertMatch({_, _}, binary:match(Said, <<"Main.main:16 faulted: the watched process"
                                               " ended\n">>)).
+
+%% Appendix E.28, report §6.9, Appendix E.22: a load whose caller is asked
+%% to restart while it waits for the evaluator ends as where a binding
+%% faults, the evaluator and every process the evaluation started killed
+%% and nothing loaded, and the caller runs its function again. Its next
+%% run waits for the processes the evaluation started to end, which the
+%% undoing alone ends, and loads again, the bindings evaluated anew; the
+%% settler hands the restart on only once the reaper has told it of the
+%% evaluator's end.
+%%
+%% The caller is a child of a OneForAll group. The load's binding kills
+%% the process main watches and holds the evaluation for ever; main then
+%% asks the other child to fault, and the group asks the loading child to
+%% restart, which it does at once, since it waits (§6.9). A regression
+%% test, written after the code (the log's *The Release Review Before
+%% 0.7.0*, *The round*); not covered: a restart asked for by a supervisor
+%% that is itself a child, and one a service monitor's wrap holds up
+load_caller_restarts_test() ->
+    Dir = tmp(),
+    Lib = filename:join(Dir, "lib"),
+    write(Lib, "plug/hold.ern",
+          "type Watch = Ask(Reply(Unit))\n\n"
+          "let started : Unit = Io.println(\"Hold's bindings evaluated\")\n\n"
+          "let worker : Address(Int) =\n"
+          "    spawn(fn() : Unit receiving Int = receive {\n"
+          "        n -> Io.println(Int.toString(n))\n"
+          "    })\n\n"
+          "fn silent() : Unit receiving Watch =\n"
+          "    receive {\n"
+          "        Ask(_) -> silent()\n"
+          "    }\n\n"
+          "fn isSignal(process : Process) : Bool =\n"
+          "    match Process.status(process) {\n"
+          "        Some(status) -> status.site == \"Main.main:23\"\n"
+          "      | None -> false\n"
+          "    }\n\n"
+          "let held : Unit =\n"
+          "    match List.filter(Process.live(), isSignal) {\n"
+          "        [] -> Unit\n"
+          "      | signals -> {\n"
+          "            List.forEach(signals, Process.kill);\n"
+          "            Address.callForever(spawn(silent), Ask)\n"
+          "        }\n"
+          "    }\n"),
+    built(Lib, "plug/hold.ern"),
+    Main = write(Dir, "main.ern",
+                 "type Msg = Ended(Down) | Loaded\n\n"
+                 "type FailMsg = Fail\n\n"
+                 "fn isLoads(process : Process) : Bool =\n"
+                 "    match Process.status(process) {\n"
+                 "        Some(status) -> String.startsWith(status.site, \"Plug.Hold.\")\n"
+                 "      | None -> false\n"
+                 "    }\n\n"
+                 "fn loading(entry : Address(Msg)) : Unit receiving Msg = {\n"
+                 "    undone();\n"
+                 "    Io.println(Io.show(Code.load(Path(\"" ++ Lib ++ "/plug/hold.erc\"))));\n"
+                 "    send(entry, Loaded)\n"
+                 "}\n\n"
+                 "fn faulting() : Unit receiving FailMsg =\n"
+                 "    receive {\n"
+                 "        Fail -> fault(\"asked to fault\")\n"
+                 "    }\n\n"
+                 "export fn main() : Unit receiving Msg = {\n"
+                 "    let signal : Address(Int) ="
+                 " spawn(fn() : Unit receiving Int = receive { _ -> Unit });\n"
+                 "    monitor(Process.fromAddress(signal), Ended);\n"
+                 "    let limit = RestartLimit(restarts = 3, within = 10000);\n"
+                 "    let group = spawn(Supervisor.group(Supervisor.OneForAll, limit));\n"
+                 "    let entry = self();\n"
+                 "    let faulter = spawn(Supervisor.child(group, faulting));\n"
+                 "    let _ = spawn(Supervisor.child(group, fn() = loading(entry)));\n"
+                 "    receive {\n"
+                 "        Ended(_) -> send(faulter, Fail)\n"
+                 "    };\n"
+                 "    receive {\n"
+                 "        Loaded -> Unit\n"
+                 "    }\n"
+                 "}\n\n"
+                 "fn undone() : Unit receiving Msg = {\n"
+                 "    let started = List.filter(Process.live(), isLoads);\n"
+                 "    List.forEach(started, fn(process) = monitor(process, Ended));\n"
+                 "    awaited(List.size(started));\n"
+                 "    Io.println(Int.toString(List.size(List.filter(Process.live(), isLoads))))\n"
+                 "}\n\n"
+                 "fn awaited(count : Int) : Unit receiving Msg =\n"
+                 "    if count == 0 then Unit"
+                 " else receive { Ended(_) -> awaited(count - 1) }\n"),
+    built(Dir, "main.ern"),
+    Self = self(),
+    Device = spawn(fun() -> said(Self, []) end),
+    Before = byte_size(captured_output()),
+    ?assertEqual(0, ern_cli:ern(["run", filename:rootname(Main) ++ ".erc"], Device)),
+    Output = binary:part(captured_output(), Before, byte_size(captured_output()) - Before),
+    Device ! {done, self()},
+    Said = receive {said, Text} -> unicode:characters_to_binary(Text) end,
+    ?assertEqual([<<"0">>,
+                  <<"Hold's bindings evaluated">>,
+                  <<"0">>,
+                  <<"Hold's bindings evaluated">>,
+                  <<"Right(Unit)">>],
+                 binary:split(Output, <<"\n">>, [global, trim])),
+    %% report §6.9: the other child's fault is reported, and the restart
+    %% asked for is not
+    ?assertEqual(<<"Main.main:28 faulted, restarted: asked to fault\n    Main.faulting:19\n">>,
+                 Said).
 
 %% Appendix E.28, report §8.5, §8.6, §6.8: a load evaluates in an evaluator
 %% of its own while the caller waits, so a binding that calls a function
