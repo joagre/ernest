@@ -51,20 +51,23 @@ name, which Ernest's parentheses make a call, the dot, and the marks other langu
    template's memory of copies says; ernest-epx's Ernest is swept as item 3 sweeps this
    repository's, every `Foo(line = line)` written `Foo(=line)`, and ernest-httpd's where it has
    any; and each loses the `receiving e` written on a timed wait, which §4.5 now refuses.
-5. **`make version V=x.y.z`**, which sets `VERSION` and every line the tests hold to it, the
-   start lines of the documents, the session fixtures and the man pages, since the 0.7.0 step found
-   them by hand (the log's *The Release Review Before 0.7.0*).
-6. **Appendix D writes out `libs/ets` whole**, `owned` among it, which the round before 0.7.0
-   left as "all but `owned`" since no test holds D to the source; a test holds it from then on, as
-   the listings are held.
-7. **The settler's restart case tested**: a caller asked to restart while it waits for its
-   evaluator ends the load as a kill does (E.28), which the release's round built and tested for
-   the kill alone (the log's *The Release Review Before 0.7.0*, *The round*).
+5. **`make version V=x.y.z`**, done 2026-11-01 (the log's *`make version`, Appendix D Whole, the
+   Settler's Restart*): after a tag the release step runs it to the next minor at once, so the
+   checkout says `0.8.0-dev` while 0.7.0 is the latest release.
+6. **Appendix D writes out `libs/ets` whole**, done 2026-11-01 (the same entry), a test holding
+   D's code to the source from then on.
+7. **The settler's restart case tested**, done 2026-11-01 (the same entry); E.28 gained that what
+   a load's undoing kills has ended before the load answers or the caller goes on.
 8. **The guides' lines of the release review read.** The deployment guide's §5.3, the language
    guide's §8.9 and the README's opening were written by the review's batches and read by no
    reader, since the round read the report's diff alone (`docs/release_review.md` now reads the
    guide's too): one cold reader over `git diff 36b94d31 v0.7.0 -- guide tour README.md`, its
    lines sorted and made as a review's are.
+9. **The shell's `session_names` test, red once under the full run's load** on 2026-11-01 and
+   green in thirty reruns alone: `:processes` is asked before a process just spawned has reached
+   its `receive`, so the line it shows lacks `receiving`. The fix's shape is the test's, which
+   waits for the two processes to be receiving before it asks, as `Test.until` waits; made with
+   item 3's sweep of the shell's tests, and diagnosed there if the wait does not end it.
 
 The round that opened the milestone on 2026-10-31 decided the formatter's answer and the ten lines
 of `language_feedback.md` open that day, so that the milestone closes with the file empty (the
