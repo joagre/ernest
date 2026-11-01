@@ -2074,6 +2074,54 @@ doc_examples_run_test() ->
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
                                       <<"Adds.f example 2: compiled\n">>)).
 
+%% report §11.2, Appendix E.0 shape rule 6: a doc example that shows a
+%% value runs in a process whose mailbox type is that of the function it is
+%% compiled into, as a test runs: one that sets an alarm with a wrap and
+%% cancels it, and one that receives what the wrap delivers, outside the
+%% module and inside it for a private declaration, run and pass. Written
+%% with the rule, and run against the wrapper that ran an example at Never,
+%% where each failed with `docExample needs mailbox Rings.Ring, and the
+%% mailbox here is Never`. It does not cover an example whose mailbox type
+%% is process-only, nor a run on a node
+doc_example_mailbox_test() ->
+    Dir = tmp(),
+    write(Dir, "src/rings.ern",
+          "/// A ring at the time it rang.\n"
+          "export type Ring = Rang(Int)\n"
+          "\n"
+          "/// Rings in `ms` milliseconds.\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// Clock.cancel(Rings.ring(60000))\n"
+          "/// // => true\n"
+          "/// ```\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// {\n"
+          "///     let _ = Rings.ring(1);\n"
+          "///     receive { Rings.Rang(time) -> time > 0 }\n"
+          "/// }\n"
+          "/// // => true\n"
+          "/// ```\n"
+          "export fn ring(ms : Int) : Clock.Alarm receiving Ring = Clock.alarm(ms, Rang)\n"
+          "\n"
+          "/// Rings at once.\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// {\n"
+          "///     let _ = now();\n"
+          "///     receive { Rang(_) -> \"rang\" }\n"
+          "/// }\n"
+          "/// // => \"rang\"\n"
+          "/// ```\n"
+          "fn now() : Clock.Alarm receiving Ring = ring(0)\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["test", Dir ++ "/build/rings.erc"])),
+    ?assertEqual(<<"Rings.ring example 1: passed\n"
+                   "Rings.ring example 2: passed\n"
+                   "Rings.now example 1: passed\n">>,
+                 iolist_to_binary(?capturedOutput)).
+
 %% report §11.2: over a directory, each module's examples run after its
 %% tests under the module's name, a module with examples and no test among
 %% them, and a module with neither is passed over. A regression test,

@@ -206,6 +206,7 @@ export foreign fn owned(process : Process) : List(Process) =
 ///
 /// ```ernest
 /// Process.faults(fn(report) = report)
+/// // => Unit
 /// ```
 export fn faults(wrap : (FaultReport) -> m) : Unit receiving m =
     subscribe(adapted(self(), wrap))

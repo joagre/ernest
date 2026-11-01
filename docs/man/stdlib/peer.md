@@ -226,6 +226,7 @@ reach. A spawn that fails leaves no monitor.
 
 ```ernest
 Peer.spawnMonitored("worker", fn() = Unit, fn(down) = down, 5000)
+// => Left(NotListed)
 ```
 
 ## Peer.compute

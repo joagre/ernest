@@ -195,6 +195,7 @@ export foreign fn spawn(name : String,
 ///
 /// ```ernest
 /// Peer.spawnMonitored("worker", fn() = Unit, fn(down) = down, 5000)
+/// // => Left(NotListed)
 /// ```
 export foreign fn spawnMonitored(name : String,
                                  f : () -> Unit receiving m,

@@ -410,19 +410,19 @@ framed_at(_Line, Number, {Name, Before, Start}) ->
 %% declarations, or before the example's first line where there are none,
 %% so that a trace names the example's line (frames/2).
 %%
-%% An example without a value is a lambda's body, since it runs nothing, so
-%% that it may receive. One with a value runs, `docExample` giving its
-%% value to `Io.show` as the module writes it (shown/1), so that the
-%% example's last call leaves its frame, and `docShown`, which calls it,
-%% has the mailbox type Never, as an entry point's left open has (report
-%% §8.1).
+%% An example with a value runs: `docExample` gives its value to `Io.show`
+%% as the module writes it (shown/1), so that the example's last call
+%% leaves its frame, and `docShown` calls it. One without a value is called
+%% by nothing. Neither function is annotated, so `docShown` receives what
+%% the example receives, and the case's process, spawned as a test's is
+%% (ern_cli:run_test/3), has that mailbox type, an open one being Never.
 -spec module_text([atom()], binary(), binary()) -> {iodata(), binary() | none}.
 module_text(Namespace, Before, Block) ->
     {Body, Value} = split_result(Block),
     {Head, Close} = case Value of
-                        none -> {"fn docExample() = fn() = {", "\n}\n"};
+                        none -> {"fn docExample() = {", "\n}\n"};
                         _ -> {["fn docExample() = ", shown(Namespace), "({"], "\n})\n\n"
-                              "export fn docShown() : String receiving Never = docExample()\n"}
+                              "export fn docShown() = docExample()\n"}
                     end,
     Opened = case declared(Body) of
                  {none, Expression} -> [Head, " ", Expression];

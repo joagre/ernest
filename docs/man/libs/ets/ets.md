@@ -229,6 +229,7 @@ A table closed once its work is done; an operation on it after this faults:
     Ets.put(table, "k", "v");
     Ets.close(table)
 }
+// => Unit
 ```
 
 ## Ets.toList

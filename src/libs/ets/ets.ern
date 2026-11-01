@@ -221,6 +221,7 @@ foreign fn rawDeleteAllObjects(table : Table(k, v)) : Bool =
 ///     Ets.put(table, "k", "v");
 ///     Ets.close(table)
 /// }
+/// // => Unit
 /// ```
 export fn close(table : Table(k, v)) : Unit = {
     let _ = rawDeleteTable(table);

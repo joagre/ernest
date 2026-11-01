@@ -430,6 +430,7 @@ program is killed if its reader dies:
     Os.give(program, Process.fromAddress(reader));
     Right(Unit)
 }
+// => Right(Unit)
 ```
 
 ## Os.run

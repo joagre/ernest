@@ -253,6 +253,7 @@ used from then on. A subscription ends when its process dies or restarts
 
 ```ernest
 Process.faults(fn(report) = report)
+// => Unit
 ```
 
 ---

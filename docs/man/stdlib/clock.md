@@ -52,6 +52,7 @@ it: an alarm equals itself alone (report §3.10, §3.11).
     let alarm = Clock.alarm(60000, fn(_) = Unit);
     alarm == alarm
 }
+// => true
 ```
 
 ## Clock.now
@@ -143,7 +144,13 @@ A constructor of one argument passes as `wrap` as it is:
 ### Examples
 
 ```ernest
-Clock.alarm(10, fn(_) = Unit)
+{
+    let _ = Clock.alarm(10, fn(_) = "rang");
+    receive {
+        message -> message
+    }
+}
+// => "rang"
 ```
 
 ## Clock.alarmAt
@@ -159,7 +166,14 @@ the epoch, `time` then the time it fired, and answers the alarm, which
 ### Examples
 
 ```ernest
-Clock.alarmAt(Clock.now() + 10, fn(_) = Unit)
+{
+    let time = Clock.now() + 10;
+    let _ = Clock.alarmAt(time, fn(fired) = fired);
+    receive {
+        fired -> fired >= time
+    }
+}
+// => true
 ```
 
 ## Clock.cancel
@@ -183,6 +197,7 @@ Any process of the node may cancel an alarm it holds.
     let alarm = Clock.alarm(60000, fn(_) = Unit);
     Clock.cancel(alarm)
 }
+// => true
 ```
 
 ## Clock.toString

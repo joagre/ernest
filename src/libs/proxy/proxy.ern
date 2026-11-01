@@ -70,6 +70,7 @@ type Msg(m) = Message(m) | Went(Down)
 ///     let service : Peer.Service(Int) = Peer.service("counter");
 ///     send(Proxy.start(service, 5000), 1)
 /// }
+/// // => Unit
 /// ```
 export fn start(service : Peer.Service(m), ms : Int) : Address(m) = {
     let caller = Process.current();

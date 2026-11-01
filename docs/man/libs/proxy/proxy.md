@@ -74,6 +74,7 @@ with the process that called `start`.
     let service : Peer.Service(Int) = Peer.service("counter");
     send(Proxy.start(service, 5000), 1)
 }
+// => Unit
 ```
 
 ---

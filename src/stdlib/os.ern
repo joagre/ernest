@@ -405,6 +405,7 @@ export fn closeInput(program : Address(ProgramMsg)) : Unit =
 ///     Os.give(program, Process.fromAddress(reader));
 ///     Right(Unit)
 /// }
+/// // => Right(Unit)
 /// ```
 ///
 /// since 0.2.0

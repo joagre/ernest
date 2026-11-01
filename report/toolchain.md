@@ -1,6 +1,6 @@
 # Ernest Report: The Toolchain
 
-Revision of 31 October 2026.
+Revision of 1 November 2026.
 
 This file holds the report's §10 to §12 and Appendices C and H. §0 to §9 and Appendices A, B and F are in [`language.md`](language.md), and Appendices D, E and G in [`library.md`](library.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
@@ -140,7 +140,7 @@ An Erlang module that a `foreign fn` names (§8.4) is the host's own, the toolch
 
 A paragraph of an example, its lines between blank lines, is a declaration where its first token is `type`, `abstract`, `foreign` or `export`, or `let` or `fn` followed by a name. The example's declarations are its paragraphs up to its last declaration, and the paragraphs after that are its body. An example is compiled as those declarations and a function whose body is the rest, in a module of its own that uses the module, a private declaration's inside its module, and fails with the diagnostic's message where it does not compile; the example's module may name any module the module's build root or the load path holds, as a module may (§11.1).
 
-An example whose last line is `// => v`, on a line of its own, runs in a process whose mailbox type is `Never`, as an entry point that receives nothing runs (§8.1), and fails where `Io.show` of its value is not `v`, `expected v, got w`. One without that line is compiled and not run, and its case's line says `compiled` where it compiles. A case passes where its line says `passed` or `compiled`.
+An example whose last line is `// => v`, on a line of its own, runs in a process whose mailbox type is that of the function it is compiled into, an open one being `Never`, as a test runs, and fails where `Io.show` of its value is not `v`, `expected v, got w`. One without that line is compiled and not run, and its case's line says `compiled` where it compiles. A case passes where its line says `passed` or `compiled`.
 
 A trace names a frame of an example's own code by its case and the line of the module's source the frame stands at, `Ex.f example 1:5`, and holds no frame of the function it is compiled into.
 

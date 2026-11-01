@@ -51,6 +51,7 @@ type Msg =
 ///     let alarm = Clock.alarm(60000, fn(_) = Unit);
 ///     alarm == alarm
 /// }
+/// // => true
 /// ```
 ///
 /// since 0.8.0
@@ -130,7 +131,13 @@ export foreign fn sleep(ms : Int) : Unit =
 /// ### Examples
 ///
 /// ```ernest
-/// Clock.alarm(10, fn(_) = Unit)
+/// {
+///     let _ = Clock.alarm(10, fn(_) = "rang");
+///     receive {
+///         message -> message
+///     }
+/// }
+/// // => "rang"
 /// ```
 export fn alarm(ms : Int, wrap : (Int) -> m) : Alarm receiving m = {
     let address = adapted(self(), wrap);
@@ -145,7 +152,14 @@ export fn alarm(ms : Int, wrap : (Int) -> m) : Alarm receiving m = {
 /// ### Examples
 ///
 /// ```ernest
-/// Clock.alarmAt(Clock.now() + 10, fn(_) = Unit)
+/// {
+///     let time = Clock.now() + 10;
+///     let _ = Clock.alarmAt(time, fn(fired) = fired);
+///     receive {
+///         fired -> fired >= time
+///     }
+/// }
+/// // => true
 /// ```
 export fn alarmAt(time : Int, wrap : (Int) -> m) : Alarm receiving m = {
     let address = adapted(self(), wrap);
@@ -166,6 +180,7 @@ export fn alarmAt(time : Int, wrap : (Int) -> m) : Alarm receiving m = {
 ///     let alarm = Clock.alarm(60000, fn(_) = Unit);
 ///     Clock.cancel(alarm)
 /// }
+/// // => true
 /// ```
 ///
 /// since 0.8.0
