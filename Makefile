@@ -27,7 +27,8 @@ ERNEST_SOURCES = src/stdlib/*.ern src/shell/*.ern src/shell/shell/*.ern examples
 
 # The helper that runs a program for Os.run (report Appendix E.23), written
 # in C since the host's ports cannot keep a program's standard error apart,
-# end its input while its output is read, or kill it.
+# end its input while its output is read, kill it, or run it under a
+# pseudo-terminal.
 EXEC = erl/runtime/priv/ern_exec
 
 all: $(EXEC)
@@ -444,7 +445,7 @@ golden: all
 # in sasl, is the host's and not the toolchain's, and is not said as the
 # table is built, where it ended the first run with status 2.
 DIALYZER_APPS = erts kernel stdlib compiler syntax_tools crypto public_key asn1 parsetools \
-		os_mon
+		os_mon ssl
 dialyzer: all
 	@test -f build/dialyzer.plt || dialyzer --build_plt -Wno_unknown \
 	  --output_plt build/dialyzer.plt --apps $(DIALYZER_APPS)

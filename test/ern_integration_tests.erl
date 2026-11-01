@@ -839,6 +839,67 @@ given_environment() ->
     Given = [Path, <<"mine">>, <<"unset">>, <<"/given">>, <<"7">>],
     ?assertEqual(Given ++ Given ++ [<<"caught">>, <<"survived">>], Lines).
 
+%% report Appendix E.23, §6.9: a program run end to end under a terminal
+%% from Ernest: its process's site `Os.startTerminal`, its size set by
+%% `Os.resize` before it reads a line, what it is given echoed with a
+%% carriage return before each line feed, and its exit status last; a
+%% resize of a program `Os.start` started answers `Left(NotATerminal)`, and
+%% a size the host cannot take `Left(Invalid)`. Written with the code. Its
+%% steps: the build and the run
+terminal_program_test_() ->
+    ern_nodes_tests:counted_test({waits, 2}, fun terminal_program/0).
+
+terminal_program() ->
+    SourceRoot = "build/sized/src",
+    ok = filelib:ensure_path(SourceRoot),
+    %% each wait given the harness's time for one wait
+    Ms = ern_nodes_tests:wait_ms_text(),
+    ok = file:write_file(
+           SourceRoot ++ "/sized.ern",
+           ["export fn main() : Unit = {\n"
+            "    let size = Terminal.Size(rows = 24, columns = 80);\n"
+            "    let script = \"read line; set -- $(stty size);"
+            " echo \\\"$1 $2 $line\\\"; exit 3\";\n"
+            "    let command = Os.Command(program = \"sh\", arguments = [\"-c\", script],"
+            " input = <<>>);\n"
+            "    match Os.startTerminal(command, size) {\n"
+            "        Right(sh) -> {\n"
+            "            match Process.status(Process.fromAddress(sh)) {\n"
+            "                Some(Process.Status(site = s, queued = _, activity = _)) ->"
+            " Io.println(s)\n"
+            "              | None -> Io.println(\"none\")\n"
+            "            };\n"
+            "            Io.println(Io.show(Os.resize(sh, Terminal.Size(rows = 30,"
+            " columns = 100))));\n"
+            "            Io.println(Io.show(Os.write(sh, String.toUtf8(\"hi\\n\"), ", Ms, ")));\n"
+            "            Io.println(Io.show(output(sh, <<>>)))\n"
+            "        }\n"
+            "      | Left(error) -> Io.println(Io.show(error))\n"
+            "    };\n"
+            "    match Os.start(Os.Command(program = \"cat\", arguments = [], input = <<>>)) {\n"
+            "        Right(cat) -> Io.println(Io.show(Os.resize(cat, size)))\n"
+            "      | Left(error) -> Io.println(Io.show(error))\n"
+            "    };\n"
+            "    match Os.startTerminal(command, Terminal.Size(rows = -1, columns = 80)) {\n"
+            "        Right(_) -> Io.println(\"started\")\n"
+            "      | Left(error) -> Io.println(Io.show(error))\n"
+            "    }\n"
+            "}\n"
+            "\n"
+            "fn output(program : Address(Os.ProgramMsg), acc : Bytes)"
+            " : Either(Io.Error, #(Optional(String), Int)) =\n"
+            "    match Os.read(program, ", Ms, ") {\n"
+            "        Right(Os.Stdout(bytes)) -> output(program, acc <> bytes)\n"
+            "      | Right(Os.Stderr(_)) -> Left(Io.Other(\"standard error apart\"))\n"
+            "      | Right(Os.Exited(status)) -> Right(#(String.fromUtf8(acc), status))\n"
+            "      | Left(error) -> Left(error)\n"
+            "    }\n"]),
+    0 = build("--source-root build/sized/src --build-root build/sized build/sized/src"),
+    ?assertEqual({0, <<"Os.startTerminal\nRight(Unit)\nRight(Unit)\n"
+                       "Right(#(Some(\"hi\\r\\n30 100 hi\\r\\n\"), 3))\n"
+                       "Left(NotATerminal)\nInvalid\n">>},
+                 sh("../bin/ern run build/sized/sized.erc")).
+
 %% report §11, Appendix E.23: `PWD` reaches a program as the launcher's
 %% shell leaves it, naming the working directory, where it was given so,
 %% unset, or naming another. Written after the code, which the shell

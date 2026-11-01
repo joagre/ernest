@@ -364,3 +364,53 @@ OTP 29, erts 17.1, on Linux x86_64.
 **Additional context**
 
 Found by measuring a shell that compiles each input to a module of its own and purges it afterward, where the purge was a third of an input's cost; the shell's answer was to purge less.
+
+## 9. `ssl:format_error` does not describe the file errors `ssl:listen` returns
+
+Not filed. Found on 2026-11-01, building TLS in `Tcp` (the log's *TLS in `Tcp` and a Terminal in `Os`*); `erl/runtime/src/ern_tcp.erl`'s `io_error/2` says how Ernest meets it.
+
+**Title:** ssl:format_error/1 gives "Invalid TLS option" for a certfile or keyfile ssl:listen cannot read
+
+**Describe the bug**
+
+`ssl:listen/2` reads its certificate and key files as it listens, and for a file it cannot read answers `{error, {options, {keyfile, {File, Reason}}}}`, `Reason` a POSIX code (`validate_cert_keys_pems/2` in `ssl_config.erl`, ssl 11.7.6). `ssl:format_error/1` describes a file error only in the form the connection's own reading raises, `{options, {FileType, File, {error, Reason}}}`, which `ssl:connect/4` answers for a CA file it cannot read. The listen's form falls to the clause for any option, so its text names no file error and prints the term, path and code as Erlang writes them, pretty-printed across lines where the path is long.
+
+**To Reproduce**
+
+```sh
+touch unreadable.key && chmod 000 unreadable.key
+erl -noshell -eval '
+    {ok, _} = application:ensure_all_started(ssl),
+    Show = fun(R) -> io:format("~p~n~s~n~n", [R, ssl:format_error(R)]) end,
+    {error, A} = ssl:listen(0, [{certfile, "missing.pem"}, {keyfile, "missing.key"}]), Show(A),
+    {error, B} = ssl:listen(0, [{certfile, "cert.pem"}, {keyfile, "unreadable.key"}]), Show(B),
+    {ok, L} = gen_tcp:listen(0, []), {ok, P} = inet:port(L),
+    {error, C} = ssl:connect("localhost", P, [{verify, verify_peer},
+                                              {cacertfile, "missing_ca.pem"}], 1000), Show(C),
+    halt().'
+```
+
+`cert.pem` is any certificate in PEM. The output, the CA file's path shortened:
+
+```
+{options,{certfile,{"missing.pem",enoent}}}
+Invalid TLS option: {certfile,{"missing.pem",enoent}}
+
+{options,{keyfile,{"unreadable.key",eacces}}}
+Invalid TLS option: {keyfile,{"unreadable.key",eacces}}
+
+{options,{cacertfile,"/tmp/missing_ca.pem",{error,enoent}}}
+Invalid CA certificate file /tmp/missing_ca.pem: no such file or directory
+```
+
+**Expected behavior**
+
+The listen's errors are described as the connect's is: `Invalid certificate file missing.pem: no such file or directory` and `Invalid key file unreadable.key: permission denied`. Either `ssl:listen` answers the form `format_error/1` describes, or `format_error/1` describes both.
+
+**Affected versions**
+
+OTP 29, erts 17.1, ssl 11.7.6, on Linux x86_64.
+
+**Additional context**
+
+`format_error/1`'s file clause would not describe the listen's code alone either: given `{options, {keyfile, "missing.key", enoent}}` it answers `Invalid key file missing.key: decoding error`, since `file_error_format/1` takes `{error, Reason}`.

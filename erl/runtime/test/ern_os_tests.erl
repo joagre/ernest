@@ -4,6 +4,9 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("kernel/include/file.hrl").
 
+%% The size a terminal of the tests begins with, `Terminal.Size(24, 80)`.
+-define(SIZE, {'Size', 24, 80}).
+
 %% Appendix E.23, report §7.4: a write and a read that wait while the helper
 %% ends fault their callers, the runtime's own failure. A regression test:
 %% the process gave them to the port the helper's end had closed, and
@@ -218,6 +221,17 @@ timeouts_traced() ->
 %% when its new owner dies. A regression test of the rule, before which a
 %% program could not be given
 give_test() ->
+    given(fun start/2).
+
+%% report Appendix E.23: a program under a terminal is given, and killed
+%% with its owner, as one `start` started is
+terminal_give_test() ->
+    given(fun(Program, Arguments) -> start_terminal(Program, Arguments, ?SIZE) end).
+
+%% Two programs Start starts, one given to a keeper and the other killed
+%% with the process that started them, and the given one killed with the
+%% keeper.
+given(Start) ->
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
@@ -227,8 +241,8 @@ give_test() ->
                %% killed of that end, shows the end has been told
                Forever = [<<"-f">>, <<"/dev/null">>],
                _ = erlang:spawn(fun() ->
-                                    {'Right', Started} = start(<<"tail">>, Forever),
-                                    {'Right', Kept} = start(<<"tail">>, Forever),
+                                    {'Right', Started} = Start(<<"tail">>, Forever),
+                                    {'Right', Kept} = Start(<<"tail">>, Forever),
                                     Started ! {'Give', Keeper},
                                     EntryProcess ! {programs, Started, Kept}
                                 end),
@@ -248,6 +262,172 @@ give_test() ->
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual(true, wait(alive)),
     ?assertEqual({ern, killed}, wait(ended)).
+
+%% report Appendix E.23: a program under a terminal of the size given: what
+%% is written to it is echoed, its size is the one given, a line feed it
+%% writes arrives after a carriage return, and its exit status comes last.
+%% `sh` reads its terminal as a shell does, its prompts among what it writes
+terminal_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Sh} = start_terminal(<<"sh">>, [], ?SIZE),
+               {'Right', 'Unit'} = write(Sh, <<"stty size\n">>, 5000),
+               Sized = read_until(Sh, <<"24 80\r\n">>, <<>>),
+               {'Right', 'Unit'} = write(Sh, <<"exit 3\n">>, 5000),
+               Self ! {ran, {Sized, read_to_end(Sh, <<>>)}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    {Sized, {Rest, Status}} = wait(ran),
+    {Echoed, _} = binary:match(Sized, <<"stty size\r\n">>),
+    {Answered, _} = binary:match(Sized, <<"24 80\r\n">>),
+    ?assert(Echoed < Answered),
+    ?assertMatch({_, _}, binary:match(Rest, <<"exit 3\r\n">>)),
+    ?assertEqual(3, Status).
+
+%% report Appendix E.23: a program's standard output and standard error
+%% come merged through its terminal, each piece read as `Stdout`
+terminal_merges_streams_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Sh} = start_terminal(<<"sh">>, [<<"-c">>, <<"echo out; echo err 1>&2">>],
+                                              ?SIZE),
+               Self ! {ran, read_to_end(Sh, <<>>)}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({<<"out\r\nerr\r\n">>, 0}, wait(ran)).
+
+%% report Appendix E.23: a resize sets the terminal's size and tells the
+%% program's foreground, which reads the new size when told. The program
+%% says it is ready once it listens, so that the resize comes after
+resize_test() ->
+    Self = self(),
+    Told = <<"import fcntl, os, signal, struct, termios\n"
+             "def told(number, frame):\n"
+             "    size = fcntl.ioctl(1, termios.TIOCGWINSZ, bytes(8))\n"
+             "    os.write(1, b'%d %d\\n' % struct.unpack('HHHH', size)[:2])\n"
+             "signal.signal(signal.SIGWINCH, told)\n"
+             "os.write(1, b'ready\\n')\n"
+             "while True:\n"
+             "    signal.pause()\n">>,
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Python} = start_terminal(<<"python3">>, [<<"-c">>, Told], ?SIZE),
+               _ = read_until(Python, <<"ready\r\n">>, <<>>),
+               Resized = resize(Python, {'Size', 30, 100}),
+               Self ! {resized, {Resized, read_until(Python, <<"30 100\r\n">>, <<>>)}},
+               ern_rt:kill(Python)
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({{'Right', 'Unit'}, <<"30 100\r\n">>}, wait(resized)).
+
+%% report Appendix E.23: a program `start` started has no terminal, and a
+%% resize of it answers `Left(NotATerminal)`, whatever the size
+resize_without_a_terminal_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Cat} = start(<<"cat">>, []),
+               Self ! {resized, [resize(Cat, ?SIZE), resize(Cat, {'Size', -1, 80})]},
+               ern_rt:kill(Cat)
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual([{'Left', 'NotATerminal'}, {'Left', 'NotATerminal'}], wait(resized)).
+
+%% report Appendix E.23: a count of rows or columns below 0 or above 65535
+%% is one the host cannot take, which `startTerminal` and `resize` answer
+%% `Left(Invalid)`; 0 and 65535 are taken
+terminal_size_out_of_range_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Started = [start_terminal(<<"true">>, [], Size)
+                          || Size <- [{'Size', -1, 80}, {'Size', 24, 65536}]],
+               {'Right', Cat} = start_terminal(<<"cat">>, [], ?SIZE),
+               Resized = [resize(Cat, Size)
+                          || Size <- [{'Size', 65536, 80}, {'Size', 24, -1}, {'Size', 0, 65535}]],
+               Self ! {answers, {Started, Resized}},
+               ern_rt:kill(Cat)
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    Invalid = {'Left', 'Invalid'},
+    ?assertEqual({[Invalid, Invalid], [Invalid, Invalid, {'Right', 'Unit'}]}, wait(answers)).
+
+%% report Appendix E.23: `closeInput` hangs the terminal up: the program is
+%% sent the hangup, which ends `sh` waiting on a line with 128 and the
+%% hangup's number, and nothing more it writes arrives
+close_input_hangs_up_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Sh} = start_terminal(<<"sh">>, [<<"-c">>, <<"echo ready; read line">>],
+                                              ?SIZE),
+               _ = read_until(Sh, <<"ready\r\n">>, <<>>),
+               Sh ! 'CloseInput',
+               Self ! {ended, read_to_end(Sh, <<>>)}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({<<>>, 129}, wait(ended)).
+
+%% report Appendix E.23: a program under a terminal is killed with the
+%% processes still in its process group. Its `sleep` ignores the hangup,
+%% which the terminal's end would send it, so that the kill alone ends it;
+%% it writes to a named pipe the test reads, whose end shows that `sleep`
+%% has ended, and is then found by its number
+terminal_kill_test() ->
+    Fifo = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
+                         "ern_os_kill_" ++ os:getpid()),
+    "" = os:cmd("mkfifo " ++ Fifo),
+    Reader = open_port({spawn_executable, os:find_executable("cat")},
+                       [{args, [Fifo]}, exit_status, binary]),
+    {os_pid, ReaderNumber} = erlang:port_info(Reader, os_pid),
+    Self = self(),
+    Script = <<"trap '' HUP; sleep 1000 > ", (list_to_binary(Fifo))/binary, " & echo $!; wait">>,
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Sh} = start_terminal(<<"sh">>, [<<"-c">>, Script], ?SIZE),
+               Number = read_until(Sh, <<"\r\n">>, <<>>),
+               ern_rt:kill(Sh),
+               Self ! {sleep, binary_to_integer(string:trim(Number))}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    Sleep = wait(sleep),
+    Ended = receive
+                {Reader, {exit_status, Status}} -> Status
+            after 5000 ->
+                _ = os:cmd("kill -KILL " ++ integer_to_list(ReaderNumber)),
+                running
+            end,
+    ok = file:delete(Fifo),
+    ?assertEqual(0, Ended),
+    %% gone, or ended and not yet taken by the process that inherited it
+    ?assertMatch("Z" ++ _, string:trim(os:cmd("ps -o stat= -p " ++ integer_to_list(Sleep)))
+                           ++ "Z").
+
+%% report Appendix E.23, §6.6: a resize after the program's process has
+%% ended faults as `Address.callForever` does, as a read does
+resize_after_the_end_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', True} = start_terminal(<<"true">>, [], ?SIZE),
+               MonitorRef = erlang:monitor(process, ern_rt:process_of(True)),
+               {<<>>, 0} = read_to_end(True, <<>>),
+               ern_rt:timed(),
+               receive {'DOWN', MonitorRef, process, _, _} -> ern_rt:untimed() end,
+               _ = ern_rt:spawn_monitored(fun() -> resize(True, ?SIZE) end,
+                                          fun(Down) -> {later, Down} end, <<"resizer">>),
+               receive {later, Down} -> Self ! {later, Down} end
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertMatch({'Down', _, {'Fault', <<"callee had ended">>}, _}, wait(later)).
+
+%% report Appendix E.23: a terminal the host cannot open is the helper's
+%% to say, with a 't' frame and the host's reason, where 'f' would say the
+%% program did not start: here for want of a file descriptor for the
+%% terminal itself. Under `make sanitize` the leak checker is off for this
+%% run alone, as helper_gives_the_hosts_reason_test says
+helper_says_the_terminal_could_not_be_opened_test() ->
+    Helper = open_port({spawn, "sh -c \"ulimit -n 5; ASAN_OPTIONS=$ASAN_OPTIONS:detect_leaks=0"
+                        " exec " ++ helper_path() ++ " terminal 24 80\""},
+                       [{packet, 4}, binary, exit_status]),
+    true = port_command(Helper, command(["true"])),
+    ?assertEqual(<<"temfile">>,
+                 receive {Helper, {data, Frame}} -> Frame after 5000 -> none end),
+    ?assertEqual(0, receive {Helper, {exit_status, Status}} -> Status after 5000 -> none end).
 
 %% Appendix E.23: a program's exit is reported as it happens, once its
 %% outputs have ended. A regression test: the helper asked for the exit as
@@ -293,11 +473,41 @@ start(Program, Arguments) ->
                                                        {'Start', Command, Self, Reply}
                                                    end).
 
+%% Size is `Terminal.Size(rows, columns)`.
+start_terminal(Program, Arguments, Size) ->
+    Self = self(),
+    Command = {'Command', Program, Arguments, <<>>},
+    ern_rt:call_forever(ern_rt:system_process(os), fun(Reply) ->
+                                                       {'StartTerminal', Command, Size, Self,
+                                                        Reply}
+                                                   end).
+
 read(Program, Ms) ->
     ern_rt:call_forever(Program, fun(Reply) -> {'Read', Ms, Reply} end).
 
 write(Program, Bytes, Ms) ->
     ern_rt:call_forever(Program, fun(Reply) -> {'Write', Bytes, Ms, Reply} end).
+
+resize(Program, Size) ->
+    ern_rt:call_forever(Program, fun(Reply) -> {'Resize', Size, Reply} end).
+
+%% What the program wrote, read until it holds Text, each piece `Stdout`.
+read_until(Program, Text, Output) ->
+    case binary:match(Output, Text) of
+        nomatch ->
+            {'Right', {'Stdout', Bytes}} = read(Program, 5000),
+            read_until(Program, Text, <<Output/binary, Bytes/binary>>);
+        _ ->
+            Output
+    end.
+
+%% What the program wrote, each piece `Stdout`, and its exit status, read
+%% to its end.
+read_to_end(Program, Output) ->
+    case read(Program, 5000) of
+        {'Right', {'Stdout', Bytes}} -> read_to_end(Program, <<Output/binary, Bytes/binary>>);
+        {'Right', {'Exited', Status}} -> {Output, Status}
+    end.
 
 %% The answer the runtime's process gives, in Ernest's form (report §12.2).
 answer(Reply) ->

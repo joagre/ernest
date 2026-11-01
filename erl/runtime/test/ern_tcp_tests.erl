@@ -2,6 +2,9 @@
 -module(ern_tcp_tests).
 
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("public_key/include/public_key.hrl").
+
+-export([pki/0]).
 
 %% Appendix E.18, report §6.6: a read that timed out leaves the socket
 %% delivering to the reads after it. A regression test: the socket asked
@@ -520,7 +523,7 @@ closed_socket_sends_what_it_took() ->
     Peer = spawn(fun() ->
                      {ok, Connection} = gen_tcp:accept(Listen),
                      receive {go, Closer} -> ok end,
-                     ok = ern_waits:called(Closer, {ern_tcp, lingering, 4}, 2),
+                     ok = ern_waits:called(Closer, {ern_tcp, lingering, 5}, 2),
                      Self ! {taken, taken(Connection, 0)}
                  end),
     Size = 4 * 1024 * 1024,
@@ -567,7 +570,7 @@ held(Socket, Size) ->
                              {ok, [{send_pend, Pending}]} = inet:getstat(HostSocket, [send_pend]),
                              case erlang:process_info(Writer, [status, current_function]) of
                                  [{status, waiting}, {current_function, Function}] ->
-                                     Function =/= {ern_tcp, writer, 2} andalso Pending > Size;
+                                     Function =/= {ern_tcp, writing, 3} andalso Pending > Size;
                                  _ ->
                                      false
                              end
@@ -682,6 +685,511 @@ runs(Count) ->
 %% The fault reports a run gave, in order.
 reported(Acc) ->
     receive {reported, Report} -> reported([Report | Acc]) after 0 -> lists:reverse(Acc) end.
+
+%% report Appendix E.18: a listener and a socket over TLS take what a
+%% listener and a socket over TCP take, `accept`, `port`, `read`, `write`,
+%% `remote`, `local` and `close`, the far end's certificate checked against
+%% the authority's file and for naming the host connected to, by its name
+%% and by its address, the chain after the server's certificate in its
+%% file; a read after the far end's close answers `Left(Closed)`. Written
+%% after the code, a regression test; it does not cover a chain of more
+%% than one intermediate
+tls_both_ways_test() ->
+    #{ca := Ca, server := Server} = pki(),
+    Self = self(),
+    ok = quietly(
+           fun() ->
+               {'Right', Listener} = listen_tls(0, Server),
+               {'Right', Port} = port(Listener),
+               Self ! {port, Port},
+               Main = self(),
+               Client = spawn(fun() ->
+                                  {'Right', Socket} = connect_tls(<<"localhost">>, Port,
+                                                                  verified(Ca), 5000),
+                                  Self ! {client_wrote, write(Socket, <<"ping">>)},
+                                  Self ! {client_read, read(Socket, 5000)},
+                                  Self ! {client_ends, {remote(Socket), local(Socket)}},
+                                  ern_rt:send(Socket, 'Close'),
+                                  Main ! closed,
+                                  receive done -> ok end
+                              end),
+               {'Right', Accepted} = accept(Listener, 5000),
+               Self ! {server_read, read(Accepted, 5000)},
+               Self ! {server_wrote, write(Accepted, <<"pong">>)},
+               Self ! {server_ends, {remote(Accepted), local(Accepted)}},
+               receive closed -> ok end,
+               Self ! {after_close, read(Accepted, 5000)},
+               %% by its address, which the certificate names too
+               ByAddress = spawn(fun() ->
+                                     Main ! {by_address, side(connect_tls(<<"127.0.0.1">>, Port,
+                                                                          verified(Ca), 5000))},
+                                     receive done -> ok end
+                                 end),
+               {'Right', _} = accept(Listener, 5000),
+               receive {by_address, _} = Connected -> Self ! Connected end,
+               [Connector ! done || Connector <- [Client, ByAddress]]
+           end),
+    Port = wait(port),
+    ?assertEqual({'Right', 'Unit'}, wait(client_wrote)),
+    ?assertEqual({'Right', <<"ping">>}, wait(server_read)),
+    ?assertEqual({'Right', 'Unit'}, wait(server_wrote)),
+    ?assertEqual({'Right', <<"pong">>}, wait(client_read)),
+    {{'Right', {'Endpoint', <<"127.0.0.1">>, Port}},
+     {'Right', {'Endpoint', <<"127.0.0.1">>, ClientPort}}} = wait(client_ends),
+    ?assertMatch({{'Right', {'Endpoint', <<"127.0.0.1">>, ClientPort}},
+                  {'Right', {'Endpoint', <<"127.0.0.1">>, Port}}}, wait(server_ends)),
+    ?assertEqual({'Left', 'Closed'}, wait(after_close)),
+    ?assertEqual('Right', wait(by_address)).
+
+%% report Appendix E.18: with `Unverified` the far end's certificate is not
+%% checked, so a certificate no authority of the client's signed, naming
+%% another host, is taken; once the far end has closed, a read answers what
+%% came before and then `Left(Closed)`, and a write `Left(Closed)`. Written
+%% after the code, a regression test
+tls_unverified_test() ->
+    #{elsewhere := Elsewhere} = pki(),
+    Self = self(),
+    ok = quietly(
+           fun() ->
+               {'Right', Listener} = listen_tls(0, Elsewhere),
+               {'Right', Port} = port(Listener),
+               Main = self(),
+               _ = spawn(fun() ->
+                             {'Right', Socket} = connect_tls(<<"localhost">>, Port,
+                                                             'Unverified', 5000),
+                             Main ! connected,
+                             Read = read(Socket, 5000),
+                             Self ! {reads, [Read, read(Socket, 5000)]},
+                             Self ! {wrote, write(Socket, <<"late">>)},
+                             Main ! done
+                         end),
+               {'Right', Accepted} = accept(Listener, 5000),
+               receive connected -> ok end,
+               {'Right', 'Unit'} = write(Accepted, <<"bye">>),
+               ern_rt:send(Accepted, 'Close'),
+               receive done -> ok end
+           end),
+    ?assertEqual([{'Right', <<"bye">>}, {'Left', 'Closed'}], wait(reads)),
+    ?assertEqual({'Left', 'Closed'}, wait(wrote)).
+
+%% report Appendix E.18: `Verified` refuses a far end whose certificate
+%% does not name the host connected to, by its name or by its address,
+%% with `Left(Other(text))`, the host's reason, as the handshake fails;
+%% `Unverified` takes it. Written after the code, a regression test
+tls_verified_checks_the_name_test() ->
+    #{ca := Ca, elsewhere := Elsewhere} = pki(),
+    Self = self(),
+    ok = quietly(
+           fun() ->
+               {'Right', Listener} = listen_tls(0, Elsewhere),
+               {'Right', Port} = port(Listener),
+               Acceptor = spawn(fun() -> accepting(Listener, 3) end),
+               Self ! {by_name, connect_tls(<<"localhost">>, Port, verified(Ca), 5000)},
+               Self ! {by_address, connect_tls(<<"127.0.0.1">>, Port, verified(Ca), 5000)},
+               Self ! {unverified, side(connect_tls(<<"localhost">>, Port, 'Unverified', 5000))},
+               Acceptor ! done
+           end),
+    ?assertMatch({'Left', {'Other', _}}, wait(by_name)),
+    ?assertMatch({'Left', {'Other', _}}, wait(by_address)),
+    ?assertEqual('Right', wait(unverified)).
+
+%% report Appendix E.18: `Verified` takes a certificate that names the host
+%% through a wildcard, `*.example.test` for `www.example.test`, as a
+%% browser does, and refuses it for a host outside it, `other.test`. Both
+%% names stand for the loopback in the host's own table while the test
+%% runs. Written after the code, a regression test; it does not cover the
+%% forms of wildcard the host's match for HTTPS refuses
+tls_verified_takes_a_wildcard_test() ->
+    #{ca := Ca, wildcard := Wildcard} = pki(),
+    Lookup = inet_db:res_option(lookup),
+    ok = inet_db:add_host({127, 0, 0, 1}, ["www.example.test", "other.test"]),
+    ok = inet_db:set_lookup([file, native]),
+    Self = self(),
+    try
+        ok = quietly(
+               fun() ->
+                   {'Right', Listener} = listen_tls(0, Wildcard),
+                   {'Right', Port} = port(Listener),
+                   Acceptor = spawn(fun() -> accepting(Listener, 2) end),
+                   Self ! {named, side(connect_tls(<<"www.example.test">>, Port,
+                                                   verified(Ca), 5000))},
+                   Self ! {outside, connect_tls(<<"other.test">>, Port, verified(Ca), 5000)},
+                   Acceptor ! done
+               end)
+    after
+        inet_db:del_host({127, 0, 0, 1}),
+        inet_db:set_lookup(Lookup)
+    end,
+    ?assertEqual('Right', wait(named)),
+    ?assertMatch({'Left', {'Other', _}}, wait(outside)).
+
+%% report Appendix E.18: a client whose authority did not sign the server's
+%% certificate fails its handshake, `connectTls` answering
+%% `Left(Other(text))`; the server's socket, which `accept` answered before
+%% its handshake, answers its first read with the handshake's failure,
+%% `Left(Other(text))`, and the next `Left(Closed)`. Written after the
+%% code, a regression test
+tls_unknown_authority_test() ->
+    #{other_ca := OtherCa, server := Server} = pki(),
+    Self = self(),
+    ok = quietly(
+           fun() ->
+               {'Right', Listener} = listen_tls(0, Server),
+               {'Right', Port} = port(Listener),
+               _ = spawn(fun() ->
+                             Self ! {client, connect_tls(<<"localhost">>, Port,
+                                                         verified(OtherCa), 5000)}
+                         end),
+               {'Right', Accepted} = accept(Listener, 5000),
+               Read = read(Accepted, 5000),
+               Self ! {reads, [Read, read(Accepted, 5000)]}
+           end),
+    ?assertMatch({'Left', {'Other', _}}, wait(client)),
+    ?assertMatch([{'Left', {'Other', _}}, {'Left', 'Closed'}], wait(reads)).
+
+%% report Appendix E.18: a client that sends a TLS listener what is no TLS
+%% fails the handshake of the socket `accept` answered: the read and the
+%% write waiting for it answer `Left(Other(text))`, the host's reason, and
+%% a read and a write after `Left(Closed)`. The garbage is sent once both
+%% wait on the socket. Written after the code, a regression test
+tls_handshake_fails_test() ->
+    #{server := Server} = pki(),
+    Self = self(),
+    ok = quietly(
+           fun() ->
+               {'Right', Listener} = listen_tls(0, Server),
+               {'Right', Port} = port(Listener),
+               %% a wait in the host's code, the deadlock detector's foreign code
+               {ok, Client} = gen_tcp:connect("127.0.0.1", Port, [binary, {active, false}]),
+               {'Right', Accepted} = accept(Listener, 5000),
+               Main = self(),
+               Reader = ern_rt:spawn(fun() -> Main ! {read, read(Accepted, 5000)} end,
+                                     <<"reader">>),
+               Writer = ern_rt:spawn(fun() -> Main ! {wrote, write(Accepted, <<"x">>)} end,
+                                     <<"writer">>),
+               [ok = ern_waits:waiting(ern_rt:process_of(Caller)) || Caller <- [Reader, Writer]],
+               %% the socket has taken both before the handshake fails
+               SocketPid = ern_rt:process_of(Accepted),
+               ok = ern_waits:until(SocketPid,
+                                    fun() ->
+                                        erlang:process_info(SocketPid, message_queue_len)
+                                            =:= {message_queue_len, 0}
+                                    end),
+               ok = gen_tcp:send(Client, <<"GET / HTTP/1.0\r\n\r\n">>),
+               receive {read, _} = Read -> Self ! Read end,
+               receive {wrote, _} = Wrote -> Self ! Wrote end,
+               Self ! {later, [read(Accepted, 5000), write(Accepted, <<"y">>)]},
+               gen_tcp:close(Client)
+           end),
+    ?assertMatch({'Left', {'Other', _}}, wait(read)),
+    ?assertMatch({'Left', {'Other', _}}, wait(wrote)),
+    ?assertEqual([{'Left', 'Closed'}, {'Left', 'Closed'}], wait(later)).
+
+%% report Appendix E.18: the handshake runs in the socket's own process
+%% once `accept` has answered, so a client that connects and does not
+%% shake hands holds up no other: the next client's handshake completes
+%% while the first waits, and a read that times out on the first, waiting
+%% for its handshake, leaves the handshake under way, which completes once
+%% the client shakes hands. Written after the code, a regression test
+tls_slow_handshake_test() ->
+    #{server := Server} = pki(),
+    Self = self(),
+    ok = quietly(
+           fun() ->
+               {'Right', Listener} = listen_tls(0, Server),
+               {'Right', Port} = port(Listener),
+               %% a wait in the host's code, the deadlock detector's foreign code
+               {ok, Slow} = gen_tcp:connect("127.0.0.1", Port, [binary, {active, false}]),
+               {'Right', First} = accept(Listener, 5000),
+               Main = self(),
+               _ = spawn(fun() ->
+                             {'Right', Fast} = connect_tls(<<"localhost">>, Port,
+                                                           'Unverified', 5000),
+                             {'Right', 'Unit'} = write(Fast, <<"fast">>),
+                             Main ! wrote,
+                             receive done -> ok end
+                         end),
+               {'Right', Second} = accept(Listener, 5000),
+               Self ! {second, read(Second, 5000)},
+               receive wrote -> ok end,
+               Self ! {first, read(First, 50)},
+               %% the slow client shakes hands at last, over its connection
+               {ok, Upgraded} = ssl:connect(Slow, [binary, {active, false},
+                                                   {verify, verify_none}], 5000),
+               ok = ssl:send(Upgraded, <<"slow">>),
+               Self ! {first_later, read(First, 5000)},
+               ssl:close(Upgraded)
+           end),
+    ?assertEqual({'Right', <<"fast">>}, wait(second)),
+    ?assertEqual({'Left', 'Timeout'}, wait(first)),
+    ?assertEqual({'Right', <<"slow">>}, wait(first_later)).
+
+%% report Appendix E.1, E.18: `listenTls` answers `Left(Other(text))`, the
+%% host's reason, where the host cannot read the certificate or the key,
+%% a file missing or one it may not read, or refuses what it reads, and
+%% `Left(Invalid)` for a path that holds U+0000. Written after the code, a
+%% regression test; it does not cover a key that does not match its
+%% certificate, which the host takes as it listens and refuses at each
+%% handshake
+listen_tls_refused_test() ->
+    #{dir := Dir, server := {Certificate, Key}} = pki(),
+    Unreadable = filename:join(Dir, "unreadable.key"),
+    {ok, _} = file:copy(Key, Unreadable),
+    ok = file:change_mode(Unreadable, 8#000),
+    Garbage = filename:join(Dir, "garbage.key"),
+    ok = file:write_file(Garbage, <<"no key here\n">>),
+    Self = self(),
+    ok = quietly(
+           fun() ->
+               Self ! {listened,
+                       [side_of(listen_tls(0, {Certificate, Missing}))
+                        || Missing <- [filename:join(Dir, "missing.key"), Unreadable, Garbage]]
+                       ++ [side_of(listen_tls(0, {filename:join(Dir, "missing.pem"), Key})),
+                           listen_tls(0, {Certificate, Key ++ [0]})]}
+           end),
+    ?assertEqual([other, other, other, other, {'Left', 'Invalid'}], wait(listened)).
+
+%% report Appendix E.18: `connectTls` to a port where nothing listens
+%% answers `Left(Refused)`, as `connect` does; to one whose far end does
+%% not shake hands within its milliseconds `Left(Timeout)`; and a file of
+%% certificates whose path holds U+0000 `Left(Invalid)`. Written after the
+%% code, a regression test
+connect_tls_refused_test() ->
+    #{ca := Ca} = pki(),
+    {ok, Held} = gen_tcp:listen(0, [{ip, {127, 0, 0, 1}}]),
+    {ok, Closed} = inet:port(Held),
+    ok = gen_tcp:close(Held),
+    %% a far end that accepts and says nothing
+    {ok, Silent} = gen_tcp:listen(0, [{ip, {127, 0, 0, 1}}]),
+    {ok, SilentPort} = inet:port(Silent),
+    Self = self(),
+    ok = quietly(
+           fun() ->
+               Self ! {refused, connect_tls(<<"127.0.0.1">>, Closed, verified(Ca), 2000)},
+               Self ! {timeout, connect_tls(<<"127.0.0.1">>, SilentPort, 'Unverified', 100)},
+               Self ! {invalid, connect_tls(<<"127.0.0.1">>, SilentPort,
+                                            verified(Ca ++ [0]), 2000)}
+           end),
+    gen_tcp:close(Silent),
+    ?assertEqual({'Left', 'Refused'}, wait(refused)),
+    ?assertEqual({'Left', 'Timeout'}, wait(timeout)),
+    ?assertEqual({'Left', 'Invalid'}, wait(invalid)).
+
+%% report Appendix E.18: a listener holds the host's backlog, 5, which the
+%% host gives a listen that names none, over TCP and over TLS alike. The
+%% host does not answer its backlog to `inet:getopts`, so the kernel's
+%% table is read, `ss`'s Send-Q of the listening socket, where `ss` is
+%% installed. Written after the code, a regression test; it does not cover
+%% how many connections the kernel holds against the backlog, which Linux
+%% makes one more
+listen_backlog_test() ->
+    case os:find_executable("ss") of
+        false ->
+            io:format(user, "  ss not installed; the listeners' backlog was not checked.~n", []);
+        Ss ->
+            #{server := Server} = pki(),
+            Self = self(),
+            ok = quietly(
+                   fun() ->
+                       {'Right', Plain} = listen(0),
+                       {'Right', Tls} = listen_tls(0, Server),
+                       Self ! {backlogs, [backlog(Ss, Port)
+                                          || Listener <- [Plain, Tls],
+                                             {'Right', Port} <- [port(Listener)]]}
+                   end),
+            ?assertEqual([5, 5], wait(backlogs))
+    end.
+
+%% The backlog of the listening socket on Port, as the kernel's table
+%% holds it, read by Ss.
+backlog(Ss, Port) ->
+    Line = os:cmd(Ss ++ " -Hltn 'sport = :" ++ integer_to_list(Port) ++ "'"),
+    [_State, _Waiting, Backlog | _] = string:lexemes(Line, " \n"),
+    list_to_integer(Backlog).
+
+%% report Appendix E.18: the host's ssl is started at a launch's first
+%% request over TLS where nothing has started it. Written after the code,
+%% a regression test; it does not cover a start that fails
+tls_starts_ssl_test() ->
+    #{server := Server} = pki(),
+    _ = quiet_host(fun() -> application:stop(ssl) end),
+    false = lists:keymember(ssl, 1, application:which_applications()),
+    Self = self(),
+    ok = quietly(fun() -> Self ! {listened, side(listen_tls(0, Server))} end),
+    ?assertEqual('Right', wait(listened)),
+    ?assert(lists:keymember(ssl, 1, application:which_applications())).
+
+%% report Appendix E.18: the bytes a socket over TLS has taken when it is
+%% closed reach a far end that takes them late, the connection's last
+%% record after them, and the connection then closes. Written after the
+%% code, a regression test
+tls_closed_socket_sends_what_it_took_test_() ->
+    {timeout, 60, fun tls_closed_socket_sends_what_it_took/0}.
+
+tls_closed_socket_sends_what_it_took() ->
+    #{server := Server} = pki(),
+    Self = self(),
+    %% the far end takes the bytes late: once the closer the socket hands
+    %% its host socket to has looked twice and found nothing taken
+    {FarEnd, FarPort} = tls_far_end(Server, fun(Accepted) ->
+                                           receive {go, Closer} -> ok end,
+                                           ok = ern_waits:called(Closer,
+                                                                 {ern_tcp, lingering, 5}, 2),
+                                           Self ! {taken, tls_taken(Accepted, 0)}
+                                       end),
+    Size = 4 * 1024 * 1024,
+    ok = quietly(
+           fun() ->
+               {'Right', Socket} = connect_tls(<<"127.0.0.1">>, FarPort, 'Unverified', 5000),
+               HostSocket = tls_host_socket(FarPort),
+               ok = inet:setopts(HostSocket, [{sndbuf, 4096}]),
+               Self ! {written, write(Socket, binary:copy(<<1>>, Size))},
+               Self ! {host_sockets, [HostSocket]},
+               SocketPid = ern_rt:process_of(Socket),
+               erlang:trace(SocketPid, true, [procs, {tracer, self()}]),
+               SocketRef = erlang:monitor(process, SocketPid),
+               ern_rt:send(Socket, 'Close'),
+               ern_rt:timed(),
+               Closer = receive {trace, SocketPid, spawn, Spawned, _} -> Spawned end,
+               receive {'DOWN', SocketRef, process, _, _} -> ern_rt:untimed() end,
+               FarEnd ! {go, Closer}
+           end),
+    ?assertEqual({'Right', 'Unit'}, wait(written)),
+    HostSockets = wait(host_sockets),
+    ?assertEqual({Size, {error, closed}}, receive {taken, Taken} -> Taken after 20000 -> none end),
+    ?assertEqual(HostSockets, gone(HostSockets, 9000)).
+
+%% Every byte the far end over TLS reads, and how the connection then ends.
+tls_taken(Connection, Count) ->
+    case ssl:recv(Connection, 0, 10000) of
+        {ok, Bytes} -> tls_taken(Connection, Count + byte_size(Bytes));
+        Ended -> {Count, Ended}
+    end.
+
+%% A far end over TLS of the host's own, a process that listens on the
+%% loopback with small buffers, so that it takes far less than a megabyte
+%% unread, accepts one connection, and runs Serve over it; and its port.
+tls_far_end({Certificate, Key}, Serve) ->
+    {ok, _} = application:ensure_all_started(ssl),
+    Self = self(),
+    FarEnd = spawn(fun() ->
+                       {ok, Listen} = ssl:listen(0, [binary, {active, false}, {recbuf, 4096},
+                                                     {ip, {127, 0, 0, 1}},
+                                                     {certfile, Certificate}, {keyfile, Key}]),
+                       {ok, {_, Port}} = ssl:sockname(Listen),
+                       Self ! {far_port, Port},
+                       {ok, Handshaking} = ssl:transport_accept(Listen, 5000),
+                       {ok, Accepted} = ssl:handshake(Handshaking, 5000),
+                       Serve(Accepted),
+                       ssl:close(Listen)
+                   end),
+    {FarEnd, wait(far_port)}.
+
+%% The host's socket of the connection to the far end on FarPort, which a
+%% socket over TLS reaches through the host's ssl, whose own process owns
+%% it.
+tls_host_socket(FarPort) ->
+    [HostSocket] = [Port || Port <- erlang:ports(),
+                            erlang:port_info(Port, name) =:= {name, "tcp_inet"},
+                            inet:peername(Port) =:= {ok, {{127, 0, 0, 1}, FarPort}}],
+    HostSocket.
+
+%% A listener's acceptor that accepts Count connections, keeping each, and
+%% ends when told.
+accepting(Listener, Count) ->
+    _ = [accept(Listener, 5000) || _ <- lists:seq(1, Count)],
+    receive done -> ok end.
+
+%% Report Appendix E.18: the certificates a test over TLS uses, PEM files of
+%% a directory of its own made by the host's test data: an authority's,
+%% `ca`, another's, `other_ca`, and two servers' certificates, each its
+%% chain of one intermediate after it, with their keys, which `ca` signed:
+%% `server`, which names localhost by name and by address, `elsewhere`,
+%% which names another host, and `wildcard`, which names the hosts under
+%% example.test through a wildcard.
+-spec pki() -> #{atom() => term()}.
+pki() ->
+    Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
+                        "ern_tcp_tls_" ++ os:getpid() ++ "_"
+                        ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = filelib:ensure_path(Dir ++ "/"),
+    Root = public_key:pkix_test_root_cert("Ernest test authority", key_options()),
+    Other = public_key:pkix_test_root_cert("Ernest other authority", key_options()),
+    #{dir => Dir,
+      ca => pem(Dir, "ca.pem", [maps:get(cert, Root)]),
+      other_ca => pem(Dir, "other_ca.pem", [maps:get(cert, Other)]),
+      server => server(Dir, "server", Root, [{dNSName, "localhost"},
+                                             {iPAddress, <<127, 0, 0, 1>>}]),
+      elsewhere => server(Dir, "elsewhere", Root, [{dNSName, "elsewhere.example"}]),
+      wildcard => server(Dir, "wildcard", Root, [{dNSName, "*.example.test"}])}.
+
+%% A server's certificate file, its intermediate after it, and its key's
+%% file, its certificate naming AltNames.
+server(Dir, Name, Root, AltNames) ->
+    Names = #'Extension'{extnID = ?'id-ce-subjectAltName', critical = false,
+                         extnValue = AltNames},
+    Configuration = public_key:pkix_test_data(#{root => Root,
+                                                intermediates => [key_options()],
+                                                peer => [{extensions, [Names]}
+                                                         | key_options()]}),
+    Certificate = proplists:get_value(cert, Configuration),
+    {KeyType, Key} = proplists:get_value(key, Configuration),
+    Chain = proplists:get_value(cacerts, Configuration) -- [maps:get(cert, Root)],
+    {pem(Dir, Name ++ ".pem", [Certificate | Chain]),
+     pem_entries(Dir, Name ++ ".key", [{KeyType, Key, not_encrypted}])}.
+
+%% Keys and signatures every TLS version the host speaks takes.
+key_options() ->
+    [{digest, sha256}, {key, {namedCurve, secp256r1}}].
+
+pem(Dir, Name, Certificates) ->
+    pem_entries(Dir, Name, [{'Certificate', Der, not_encrypted} || Der <- Certificates]).
+
+pem_entries(Dir, Name, Entries) ->
+    File = filename:join(Dir, Name),
+    ok = file:write_file(File, public_key:pem_encode(Entries)),
+    File.
+
+%% A run of the program Main whose host reports no notice, the alerts of
+%% its ssl among them, which a handshake that fails makes, as `ern run`
+%% reports none (ern_cli's quiet_signals/0).
+quietly(Main) ->
+    quiet_host(fun() -> ern_rt:run_main(Main, <<"main">>, quiet()) end).
+
+quiet_host(Work) ->
+    {ok, #{level := Level}} = logger:get_handler_config(default),
+    ok = logger:set_handler_config(default, level, warning),
+    try
+        Work()
+    after
+        logger:set_handler_config(default, level, Level)
+    end.
+
+%% Which side of an Either a result is, `other` for a Left(Other(_)).
+side_of({'Left', {'Other', _}}) -> other;
+side_of(Either) -> Either.
+
+listen_tls(Port, {Certificate, Key}) ->
+    Owner = self(),
+    ern_rt:call_forever(ern_rt:system_process(tcp),
+                        fun(Reply) ->
+                            {'ListenTls', <<"127.0.0.1">>, Port, path(Certificate), path(Key),
+                             Owner, Reply}
+                        end).
+
+connect_tls(Host, Port, Verification, Ms) ->
+    %% report Appendix E.18: the caller owns the socket
+    Owner = self(),
+    ern_rt:call_forever(ern_rt:system_process(tcp),
+                        fun(Reply) ->
+                            {'ConnectTls', Host, Port, Verification, Ms, Owner, Reply}
+                        end).
+
+verified(File) ->
+    {'Verified', path(File)}.
+
+path(File) ->
+    {'Path', unicode:characters_to_binary(File)}.
 
 listen(Port) ->
     listen(<<"127.0.0.1">>, Port).

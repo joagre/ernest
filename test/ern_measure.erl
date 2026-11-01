@@ -737,6 +737,8 @@ os_scenarios(Bytes) ->
     Os = ern_named:functions('ern@os'),
     OsRead = Os(read),
     OsStart = Os(start),
+    OsStartTerminal = Os(startTerminal),
+    OsResize = Os(resize),
     OsRun = Os(run),
     OsWrite = Os(write),
     OsCloseInput = Os(closeInput),
@@ -759,11 +761,21 @@ os_scenarios(Bytes) ->
                       end
               end,
     {'Right', Echo} = OsStart(Cat),
+    TerminalSize = {'Size', 24, 80},
+    {'Right', Sized} = OsStartTerminal(Cat, TerminalSize),
     HostEcho = erlang:open_port({spawn_executable, os:find_executable("cat")}, [binary, stream]),
     Size = byte_size(Bytes),
     [{<<"Os.run">>, {fun() -> {'Right', _} = OsRun(True, 5000) end, HostRun("true")}},
      {<<"Os.start">>, {fun() -> {'Right', Program} = OsStart(True), Exited(Program) end,
                        HostRun("true")}},
+     %% the host has no terminal to start a program under, so its side
+     %% starts the program as Os.start's does
+     {<<"Os.startTerminal">>,
+      {fun() -> {'Right', Program} = OsStartTerminal(True, TerminalSize), Exited(Program) end,
+       HostRun("true")}},
+     %% the host has no terminal to resize, and the program's process
+     %% answers without waiting on its helper
+     {<<"Os.resize">>, {fun() -> {'Right', 'Unit'} = OsResize(Sized, TerminalSize) end, none}},
      {<<"Os.write">>,
       {fun() -> OsWrite(Echo, Bytes, 5000), echoed(fun() -> OsRead(Echo, 5000) end, Size) end,
        fun() -> erlang:port_command(HostEcho, Bytes), port_echoed(HostEcho, Size) end}},

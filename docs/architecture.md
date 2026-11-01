@@ -245,7 +245,7 @@ A reference tags each launch, held with its runner, its reaper, its standard err
 - `ern_fs`, `ern_tty` and `ern_tcp` are the processes behind `Fs`, `Terminal` and `Tcp` (E.17, E.16, E.18), each speaking its module's message types.
 - The terminal reads keys through standard input in `stty`'s raw mode. `ern_tty_signal`, added to OTP's signal server at the first subscription, sends it each `SIGWINCH`.
 - A socket is a process over its `gen_tcp` port, alive until `Tcp.close`. One whose bytes the far end has not taken hands its host socket to a closer, `lingering/4`.
-- `ern_os` (E.23) answers `Start` with the program's process, which owns a port of `ern_exec` (`erl/runtime/c_src/ern_exec.c`). Run with no program, the helper answers `ern_os:host/0`, for `Os.user` and `Os.environment`.
+- `ern_os` (E.23) answers `Start` and `StartTerminal` with the program's process, which owns a port of `ern_exec` (`erl/runtime/c_src/ern_exec.c`), its `run` mode with pipes or its `terminal` mode under a pseudo-terminal. Run with no program, the helper answers `ern_os:host/0`, for `Os.user` and `Os.environment`.
 - `ern_exec` also holds a node's lock on `ernest.pid`, its `lock` mode, and signals the node that holds one, its `node` mode (§12.5, §11.2).
 
 ### A node

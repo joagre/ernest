@@ -437,6 +437,57 @@ socket_owner_test() ->
     ?assertEqual(<<"opener's: ended\ngiven, giver gone: alive\ngiven, keeper gone: ended\n"
                    "given to the dead: ended\n">>, Output).
 
+%% report Appendix E.18: over TLS from Ernest, `listenTls` and `connectTls`
+%% answer the addresses `listen` and `connect` answer, which `accept`,
+%% `port`, `read`, `write` and `close` take, each opened at its function's
+%% site; a key the host cannot read answers `Left(Other(text))`, and a
+%% `connectTls` where nothing listens `Left(Refused)`. Written after the
+%% code, a regression test of the requests the module sends TCP's process;
+%% the cases of the runtime's own are ern_tcp_tests'
+tcp_tls_test() ->
+    #{dir := Dir, ca := Ca, server := {Certificate, Key}} = ern_tcp_tests:pki(),
+    {ok, Output} = ern_emitter_tests:run(
+        ["fn site(p : Process) : String = match Process.status(p) {\n"
+         "    Some(Process.Status(site = s, queued = _, activity = _)) -> s\n"
+         "  | None -> \"none\"\n"
+         "}\n"
+         "fn echoed() : Either(Io.Error, #(Bytes, List(String))) = {\n"
+         "    let certificate = Path(\"", Certificate, "\");\n"
+         "    let listener <- Tcp.listenTls(\"127.0.0.1\", 0, certificate, Path(\"", Key, "\"));\n"
+         "    let port <- Tcp.port(listener);\n"
+         "    let _ = spawn(fn() = match Tcp.accept(listener, 5000) {\n"
+         "        Right(accepted) -> {\n"
+         "            let _ = Either.andThen(Tcp.read(accepted, 5000),\n"
+         "                                   fn(bytes) = Tcp.write(accepted, bytes, 5000));\n"
+         "            Tcp.close(accepted)\n"
+         "        }\n"
+         "      | Left(_) -> Unit\n"
+         "    });\n"
+         "    let check = Tcp.Verified(Path(\"", Ca, "\"));\n"
+         "    let client <- Tcp.connectTls(\"localhost\", port, check, 5000);\n"
+         "    let _ <- Tcp.write(client, String.toUtf8(\"ping\"), 5000);\n"
+         "    let received <- Tcp.read(client, 5000);\n"
+         "    let sites = List.map([Process.fromAddress(listener), Process.fromAddress(client)],"
+         " site);\n"
+         "    Tcp.close(client);\n"
+         "    Tcp.closeListener(listener);\n"
+         "    Right(#(received, sites))\n"
+         "}\n"
+         "fn refused(answer : Either(Io.Error, a)) : String = match answer {\n"
+         "    Left(Io.Other(_)) -> \"other\"\n"
+         "  | Left(error) -> Io.show(error)\n"
+         "  | Right(_) -> \"right\"\n"
+         "}\n"
+         "export fn main() : Unit = {\n"
+         "    Io.println(Io.show(echoed()));\n"
+         "    let missing = Path(\"", filename:join(Dir, "missing.key"), "\");\n"
+         "    let served = Path(\"", Certificate, "\");\n"
+         "    Io.println(refused(Tcp.listenTls(\"127.0.0.1\", 0, served, missing)));\n"
+         "    Io.println(refused(Tcp.connectTls(\"127.0.0.1\", 1, Tcp.Unverified, 1000)))\n"
+         "}\n"]),
+    ?assertEqual(<<"Right(#(<<112, 105, 110, 103>>, [\"Tcp.listenTls\", \"Tcp.connectTls\"]))\n"
+                   "other\nRefused\n">>, Output).
+
 %% Appendix E.18, E.21, E.23: a listener, a socket and a running program are
 %% processes of the program's: Process.live lists them, and Process.status
 %% gives the function that opened each as its site. A regression test: the

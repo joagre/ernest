@@ -1,11 +1,14 @@
 /*
- * ern_exec: runs one program for Os.start (report Appendix E.23), doing what
- * the host's ports cannot: the program's standard error apart from its
- * output, the end of its input while its output is still read, and a kill
- * of the program with its process group; and a node's lock on its
- * ernest.pid, and a signal to the node that holds one (report §12.5). It is
- * C99 over POSIX.1-2008 alone, so that any POSIX host builds it; Ernest
- * runs on Linux and macOS.
+ * ern_exec: runs one program for Os.start and Os.startTerminal (report
+ * Appendix E.23), doing what the host's ports cannot: the program's
+ * standard error apart from its output, the end of its input while its
+ * output is still read, a kill of the program with its process group, and
+ * a run under a pseudo-terminal; and a node's lock on its ernest.pid, and a
+ * signal to the node that holds one (report §12.5). It is C99 over
+ * POSIX.1-2008 alone, its XSI option among it for the pseudo-terminal, so
+ * that any POSIX host builds it, but for two ioctls that Linux and macOS
+ * both have beyond it, TIOCSCTTY and TIOCSWINSZ; Ernest runs on Linux and
+ * macOS.
  *
  * Run with the argument `run`, the helper runs the program the runtime's
  * first frame names. The runtime and this helper talk over fd 0 and fd 1 in
@@ -32,6 +35,22 @@
  *   'x' and a 4-byte big-endian status, once it has exited and both its
  *   output and its standard error have ended. A status is the program's
  *   exit code, or 128 and the signal's number for a program a signal ended.
+ *
+ * Run with the arguments `terminal`, a count of rows and one of columns,
+ * each from 0 to 65535, the helper runs the program so under a
+ * pseudo-terminal of that size, in the mode the host gives a new one: the
+ * program its session's leader, and the terminal its controlling terminal
+ * and its standard input, output and error. 't' and an error's name says
+ * the terminal could not be opened, where 'f' would say the program did
+ * not start. The program's output and its standard error come merged
+ * through the terminal, as 'o' alone and never 'r'.
+ *
+ *   Under a terminal, 'w' and its rows and its columns, each in 2 bytes,
+ *   big-endian, sets the terminal's size, which the host tells the
+ *   terminal's foreground of. 'e' hangs the terminal up at once, its master
+ *   closed: the host sends the program the hangup, the input it has not
+ *   taken is dropped, no more of its output is read, and 'x' comes once
+ *   it has exited.
  *
  * With no argument, the helper writes what the host says of the program as
  * it starts: a 'u' frame, the user it runs as in four bytes, big-endian,
@@ -95,15 +114,18 @@
  * name, saying so with ERN_GIVEN. A program the helper runs, and the
  * environment it writes, are then the user's and not the host's.
  */
-#define _POSIX_C_SOURCE 200809L
+/* POSIX.1-2008 with its XSI option, which holds posix_openpt and the
+   functions that ready its terminal */
+#define _XOPEN_SOURCE 700
 #include <errno.h>
 #include <fcntl.h>
-#include <poll.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
+#include <sys/select.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -116,10 +138,10 @@ extern char **environ;
 static pid_t program = -1;
 
 /* Report Appendix E.23: the program's exit wakes the helper as it happens.
-   SIGCHLD writes a byte to this pipe, which the helper polls beside the
+   SIGCHLD writes a byte to this pipe, which the helper waits on beside the
    runtime's frames once the program's outputs have ended, so no timer
    stands between the exit and its report, and an exit that comes between
-   the helper's asking and its poll leaves its byte to be read. */
+   the helper's asking and its wait leaves its byte to be read. */
 static int exited[2] = {-1, -1};
 
 static void program_exited(int signal_number)
@@ -186,6 +208,17 @@ static void given_environment(void)
         unsetenv(kept);
     }
     unsetenv("ERN_GIVEN");
+}
+
+/* A descriptor the helper waits on, added to the set, and the highest
+   such descriptor kept for select(2), which is POSIX.1-2008. The helper
+   holds a handful of descriptors, each far below FD_SETSIZE, which the
+   sets hold. */
+static void watch(int fd, fd_set *set, int *highest)
+{
+    FD_SET(fd, set);
+    if (fd > *highest)
+        *highest = fd;
 }
 
 /* The program and every process of its group, killed and reaped. */
@@ -261,6 +294,67 @@ static int not_started(int error)
     const char *name = posix_name(error);
     frame('f', (const unsigned char *)name, strlen(name));
     return 0;
+}
+
+/* The program's child could not become the program: the host's reason,
+   through the pipe the exec would have closed, which not_started sends. */
+static void child_failed(int fd)
+{
+    int error = errno;
+    ssize_t ignored = write(fd, &error, sizeof error);
+    (void)ignored;
+    _exit(127);
+}
+
+/* The run's terminal could not be opened: the host's reason, in a 't'
+   frame, which ends the helper's work (report Appendix E.23: start
+   answers it as a reason of the host's, the program neither missing nor
+   denied). */
+static int no_terminal(int error)
+{
+    const char *name = posix_name(error);
+    frame('t', (const unsigned char *)name, strlen(name));
+    return 0;
+}
+
+/* Report Appendix E.23: the terminal's size, set on its master, which
+   the host tells the terminal's foreground of where it changes. */
+static int set_size(int master, unsigned rows, unsigned columns)
+{
+    struct winsize size;
+    memset(&size, 0, sizeof size);
+    size.ws_row = (unsigned short)rows;
+    size.ws_col = (unsigned short)columns;
+    return ioctl(master, TIOCSWINSZ, &size);
+}
+
+/* Report Appendix E.23: the pseudo-terminal of a run under one, of the
+   size given, in the mode the host gives a new one. Its master is where
+   the program's output is read and the size set, and its input a second
+   descriptor of the master, which the program's input is written to and
+   which closes apart, as a pipe's end would. Its terminal is opened here,
+   before any process takes it as its controlling terminal, so that every
+   failure is the helper's to say; -1 where the host refuses one, errno
+   saying why. */
+static int open_terminal(unsigned rows, unsigned columns, int *master, int *input, int *slave)
+{
+    const char *name = NULL;
+    int error;
+
+    *input = *slave = -1;
+    *master = posix_openpt(O_RDWR | O_NOCTTY);
+    if (*master < 0)
+        return -1;
+    if (grantpt(*master) == 0 && unlockpt(*master) == 0 && (name = ptsname(*master)) != NULL
+        && set_size(*master, rows, columns) == 0 && (*input = dup(*master)) >= 0
+        && (*slave = open(name, O_RDWR | O_NOCTTY)) >= 0)
+        return 0;
+    error = errno;
+    close(*master);
+    if (*input >= 0)
+        close(*input);
+    errno = error;
+    return -1;
 }
 
 /* The input not yet written to the program: pending_size bytes from
@@ -404,6 +498,23 @@ static long number_of(const char *text)
         value = value * 10 + (*digit - '0');
     }
     return value;
+}
+
+/* `terminal ROWS COLUMNS`: the size a run under a terminal begins with,
+   each count from 0 to 65535, which the host's size holds; 0 where the
+   arguments are not that. */
+static int terminal_size(int argc, char **argv, unsigned *rows, unsigned *columns)
+{
+    long given_rows, given_columns;
+    if (argc != 4)
+        return 0;
+    given_rows = number_of(argv[2]);
+    given_columns = number_of(argv[3]);
+    if (given_rows < 0 || given_rows > 65535 || given_columns < 0 || given_columns > 65535)
+        return 0;
+    *rows = (unsigned)given_rows;
+    *columns = (unsigned)given_columns;
+    return 1;
 }
 
 /* `signal NUMBER PROCESS`: the signal sent, and how it went (above). A
@@ -569,6 +680,9 @@ static int signal_node(int argc, char **argv)
 int main(int argc, char **argv)
 {
     int in[2], out[2], err[2], failed[2];
+    int terminal = 0, master = -1, input = -1, slave = -1;
+    int program_in, program_out, program_err;
+    unsigned rows = 0, columns = 0;
     char **program_command;
 
     given_environment();
@@ -599,13 +713,25 @@ int main(int argc, char **argv)
         return hold_lock(argc, argv);
     if (strcmp(argv[1], "node") == 0)
         return signal_node(argc, argv);
-    if (strcmp(argv[1], "run") != 0)
+    if (strcmp(argv[1], "terminal") == 0) {
+        if (!terminal_size(argc, argv, &rows, &columns))
+            return 1;
+        terminal = 1;
+    } else if (strcmp(argv[1], "run") != 0) {
         return 1;
+    }
     program_command = read_command();
     if (program_command == NULL || program_command[0] == NULL)
         return 1;
-    if (pipe(in) < 0 || pipe(out) < 0 || pipe(err) < 0 || pipe(failed) < 0
-        || watch_exit() < 0)
+    /* the terminal before the handler of SIGCHLD, with which grantpt's
+       page leaves its work unspecified */
+    if (terminal) {
+        if (open_terminal(rows, columns, &master, &input, &slave) < 0)
+            return no_terminal(errno);
+    } else if (pipe(in) < 0 || pipe(out) < 0 || pipe(err) < 0) {
+        return not_started(errno);
+    }
+    if (pipe(failed) < 0 || watch_exit() < 0)
         return not_started(errno);
     fcntl(failed[1], F_SETFD, FD_CLOEXEC);
 
@@ -622,24 +748,46 @@ int main(int argc, char **argv)
         sigprocmask(SIG_SETMASK, &none, NULL);
         for (number = 1; number <= SIGNALS; number++)
             signal(number, SIG_DFL);
-        setpgid(0, 0);
-        dup2(in[0], 0);
-        dup2(out[1], 1);
-        dup2(err[1], 2);
-        close(in[0]); close(in[1]);
-        close(out[0]); close(out[1]);
-        close(err[0]); close(err[1]);
+        if (terminal) {
+            /* Report Appendix E.23: the program its session's leader, and so
+               its process group's, with the terminal as its controlling
+               terminal, which TIOCSCTTY makes it where opening it did not */
+            if (setsid() < 0 || ioctl(slave, TIOCSCTTY, 0) < 0)
+                child_failed(failed[1]);
+            dup2(slave, 0);
+            dup2(slave, 1);
+            dup2(slave, 2);
+            if (slave > 2)
+                close(slave);
+            close(master); close(input);
+        } else {
+            setpgid(0, 0);
+            dup2(in[0], 0);
+            dup2(out[1], 1);
+            dup2(err[1], 2);
+            close(in[0]); close(in[1]);
+            close(out[0]); close(out[1]);
+            close(err[0]); close(err[1]);
+        }
         close(failed[0]);
         execvp(program_command[0], program_command);
-        {
-            int error = errno;
-            ssize_t ignored = write(failed[1], &error, sizeof error);
-            (void)ignored;
-        }
-        _exit(127);
+        child_failed(failed[1]);
     }
-    setpgid(program, program);
-    close(in[0]); close(out[1]); close(err[1]); close(failed[1]);
+    /* a program under a terminal makes its own group as it makes its
+       session, which a group made here first would refuse */
+    if (terminal) {
+        close(slave);
+        program_in = input;
+        program_out = master;
+        program_err = -1;
+    } else {
+        setpgid(program, program);
+        close(in[0]); close(out[1]); close(err[1]);
+        program_in = in[1];
+        program_out = out[0];
+        program_err = err[0];
+    }
+    close(failed[1]);
 
     {
         int error;
@@ -656,7 +804,7 @@ int main(int argc, char **argv)
         }
     }
     frame('s', NULL, 0);
-    fcntl(in[1], F_SETFL, fcntl(in[1], F_GETFL) | O_NONBLOCK);
+    fcntl(program_in, F_SETFL, fcntl(program_in, F_GETFL) | O_NONBLOCK);
 
     {
         /* The frame being read from the runtime: its 4-byte length, then
@@ -665,27 +813,40 @@ int main(int argc, char **argv)
         size_t head_got = 0;
         unsigned char *body = NULL;
         size_t body_size = 0, body_got = 0;
-        int input_ended = 0;
+        int input_ended = 0, hung_up = 0;
         size_t wanted = 0;
-        int program_in = in[1], program_out = out[0], program_err = err[0];
         unsigned char buffer[CHUNK];
 
-        while (program_out >= 0 || program_err >= 0) {
-            struct pollfd fds[4];
-            int polled = 0, runtime_slot = -1, out_slot = -1, err_slot = -1, in_slot = -1;
+        /* a hung-up terminal's program may outlive the hangup, and its
+           input is answered until it has exited */
+        while (program_out >= 0 || program_err >= 0 || hung_up) {
+            fd_set readable, writable;
+            int highest = 0, out_watched = 0, err_watched = 0, in_watched = 0;
+            int exit_watched = 0;
 
-            fds[polled].fd = 0; fds[polled].events = POLLIN; runtime_slot = polled++;
+            FD_ZERO(&readable);
+            FD_ZERO(&writable);
+            watch(0, &readable, &highest);
             /* the program's output is taken only while the runtime asks */
             if (program_out >= 0 && wanted > 0) {
-                fds[polled].fd = program_out; fds[polled].events = POLLIN; out_slot = polled++;
+                watch(program_out, &readable, &highest);
+                out_watched = 1;
             }
             if (program_err >= 0 && wanted > 0) {
-                fds[polled].fd = program_err; fds[polled].events = POLLIN; err_slot = polled++;
+                watch(program_err, &readable, &highest);
+                err_watched = 1;
             }
             if (program_in >= 0 && pending_size > 0) {
-                fds[polled].fd = program_in; fds[polled].events = POLLOUT; in_slot = polled++;
+                watch(program_in, &writable, &highest);
+                in_watched = 1;
             }
-            if (poll(fds, (nfds_t)polled, -1) < 0) {
+            if (hung_up) {
+                watch(exited[0], &readable, &highest);
+                exit_watched = 1;
+            }
+            /* Report Appendix E.23: select(2), since poll(2) does not serve a
+               device on macOS, which a pseudo-terminal's master is */
+            if (select(highest + 1, &readable, &writable, NULL, NULL) < 0) {
                 if (errno == EINTR)
                     continue;
                 free(body);
@@ -693,7 +854,7 @@ int main(int argc, char **argv)
                 return 1;
             }
 
-            if (runtime_slot >= 0 && fds[runtime_slot].revents) {
+            if (FD_ISSET(0, &readable)) {
                 ssize_t got;
                 if (head_got < sizeof head)
                     got = read(0, head + head_got, sizeof head - head_got);
@@ -742,13 +903,19 @@ int main(int argc, char **argv)
                         input_ended = 1;
                     else if (body_size > 0 && body[0] == 'n')
                         wanted++;
+                    /* the host refuses no size of 0 to 65535 on a master
+                       the helper holds; one given after the hangup sizes
+                       nothing */
+                    else if (body_size == 5 && body[0] == 'w' && terminal && program_out >= 0)
+                        set_size(program_out, (unsigned)body[1] << 8 | body[2],
+                                 (unsigned)body[3] << 8 | body[4]);
                     free(body);
                     body = NULL;
                     head_got = 0;
                 }
             }
 
-            if (in_slot >= 0 && fds[in_slot].revents) {
+            if (in_watched && FD_ISSET(program_in, &writable)) {
                 ssize_t wrote = write(program_in, pending + pending_start, pending_size);
                 if (wrote > 0) {
                     pending_start += (size_t)wrote;
@@ -771,18 +938,20 @@ int main(int argc, char **argv)
                 program_in = -1;
             }
 
-            if (out_slot >= 0 && fds[out_slot].revents) {
+            if (out_watched && FD_ISSET(program_out, &readable)) {
                 ssize_t got = read(program_out, buffer, sizeof buffer);
                 if (got > 0) {
                     frame('o', buffer, (size_t)got);
                     wanted--;
                 }
-                else if (got == 0 || errno != EINTR) {
+                /* a terminal's master is its input's too, which writes
+                   without waiting, so a read may find nothing yet */
+                else if (got == 0 || (errno != EINTR && errno != EAGAIN)) {
                     close(program_out);
                     program_out = -1;
                 }
             }
-            if (err_slot >= 0 && fds[err_slot].revents && wanted > 0) {
+            if (err_watched && FD_ISSET(program_err, &readable) && wanted > 0) {
                 ssize_t got = read(program_err, buffer, sizeof buffer);
                 if (got > 0) {
                     frame('r', buffer, (size_t)got);
@@ -793,6 +962,24 @@ int main(int argc, char **argv)
                     program_err = -1;
                 }
             }
+
+            /* Report Appendix E.23: under a terminal the end of the input is
+               its hangup, at once: its master closed, the host sends the
+               program the hangup, the input it has not taken is dropped,
+               and nothing more it writes is read */
+            if (terminal && input_ended && program_out >= 0) {
+                close(program_out);
+                program_out = -1;
+                if (program_in >= 0)
+                    close(program_in);
+                program_in = -1;
+                pending_start = 0;
+                pending_size = 0;
+                acknowledge(1);
+                hung_up = 1;
+            }
+            if (exit_watched && FD_ISSET(exited[0], &readable))
+                break;
         }
 
         /* Both outputs have ended; the run ends when the program exits,
@@ -803,8 +990,8 @@ int main(int argc, char **argv)
             close(program_in);
         acknowledge(1);
         for (;;) {
-            int status;
-            struct pollfd woken[2];
+            int status, highest = 0;
+            fd_set woken;
             pid_t done = waitpid(program, &status, WNOHANG);
             if (done == program) {
                 unsigned char code[4];
@@ -819,20 +1006,21 @@ int main(int argc, char **argv)
                 return 0;
             }
             /* the program has not ended yet: wait for its exit, or for the
-               runtime to let go, with no timer */
-            woken[0].fd = 0; woken[0].events = POLLIN; woken[0].revents = 0;
-            woken[1].fd = exited[0]; woken[1].events = POLLIN; woken[1].revents = 0;
-            if (poll(woken, 2, -1) < 0) {
+               runtime to let go, with no timer, by select(2) as above */
+            FD_ZERO(&woken);
+            watch(0, &woken, &highest);
+            watch(exited[0], &woken, &highest);
+            if (select(highest + 1, &woken, NULL, NULL, NULL) < 0) {
                 if (errno == EINTR)
                     continue;
                 kill_program();
                 return 1;
             }
-            if (woken[1].revents) {
+            if (FD_ISSET(exited[0], &woken)) {
                 while (read(exited[0], buffer, sizeof buffer) > 0)
                     ;
             }
-            if (woken[0].revents) {
+            if (FD_ISSET(0, &woken)) {
                 ssize_t got = read(0, buffer, sizeof buffer);
                 if (got == 0 || (got < 0 && errno != EINTR)) {
                     kill_program();

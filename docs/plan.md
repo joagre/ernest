@@ -51,25 +51,29 @@ language lacks goes to `language_feedback.md` first, as any Ernest written here,
 before any code goes around it (decided with the user on 2026-10-10, with the site's generator,
 MVP 4.2).
 
-Before its items, built 2026-11-02 after its night and shipped with 0.9.0: §5.9 makes a guard
-that is the literal `false` a redundant clause, with the redundancy error, so that a `receive` left
-with its `after` alone meets §6.3's help; decided 2026-11-01 (the log's *The Release Review Before
-0.8.0*, P2), since principle 3 refuses a clause the text alone shows cannot run, and the literal
-alone, since evaluating guards is a slope the report does not start down.
+Before its items, written in §5.9 on 2026-11-01, built 2026-11-02 after its night and shipped
+with 0.9.0: §5.9 makes a guard that is the literal `false` a redundant clause, with the redundancy
+error, so that a `receive` left with its `after` alone meets §6.3's help; decided 2026-11-01 (the
+log's *The Release Review Before 0.8.0*, P2), since principle 3 refuses a clause the text alone
+shows cannot run, and the literal alone, since evaluating guards is a slope the report does not
+start down.
 
 The work goes in three steps, decided 2026-10-30: items 1 to 3 here, closing with an archive;
 then the server's milestone 1 whole in its repository, item 4, which is that milestone and no
 item of this one; then items 5 and 6 here, the libraries reshaped by their first user. The
 server's CLAUDE.md carries the procedure its side follows.
 
-1. **The report first**: `Tcp.listenTls` and `Tcp.connectTls` in E.18, answering the same socket
-   as a plain one, the handshake in the socket's process after `accept`, `listenTls`'s
-   `Other(text)` for a certificate or key the host refuses, and the host's backlog stated;
-   `Os.startTerminal` and `Os.resize` in E.23 through E.0's admission rules, one address with
-   `start` and one stream out; and a section in Appendix G for each of the five libraries.
-2. **The runtime's two additions**, the riskiest work, before anything stands on them: TLS in
-   `Tcp`'s socket process over the host's `ssl`, and the C helper's `forkpty` and resize behind
-   `Os`, on Linux and macOS.
+1. **The report first**, its sentences written before the code of each item below and landing
+   in that item's commit, since the prelude test holds every listing of Appendix E and G to its
+   compiled interface, so a section without its code is a red test (decided 2026-11-01; the log's
+   *TLS in `Tcp` and a Terminal in `Os`*): `Tcp.listenTls` and `Tcp.connectTls` in E.18,
+   answering the same socket as a plain one, the handshake in the socket's process after
+   `accept`, `listenTls`'s `Other(text)` for a certificate or key the host refuses, and the host's
+   backlog stated; `Os.startTerminal` and `Os.resize` in E.23 through E.0's admission rules, one
+   address with `start` and one stream out; and a section in Appendix G for each of the five
+   libraries.
+2. **The runtime's two additions**, TLS in `Tcp` and the terminal in `Os`, built 2026-11-01
+   with their sentences of E.18 and E.23 (the log's *TLS in `Tcp` and a Terminal in `Os`*).
 3. **The five libraries**, each a source root under `src/libs/` with the standard library's
    discipline and its page: `base64` and `crypto`, which `websocket` needs; `time`, the calendar,
    with no `sleep`, which is `Clock.sleep` of the standard library (Appendix E.15; the log's *A
