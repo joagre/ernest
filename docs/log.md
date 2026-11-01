@@ -3136,6 +3136,8 @@ The last module of the step, and the first written entirely as E.0 rule 8 descri
 
 Writing it found a third reason an example cannot run where a page's examples run. Rule 6 named two, an abstract value and one that reads a file or a socket. An alarm's wrap makes the caller's mailbox `Unit`, and the documentation runs its examples with `Never`, so `Clock.alarm(10, fn(_) = Unit)` type-checks and cannot run there. The rule now names that case too, and those examples carry no `// =>` line.
 
+*Superseded 2026-11-01 by "Ernest 0.8.0, a Small Release": a doc example runs at the mailbox type of the function it is compiled into, as a test does (§11.2), and E.0 shape rule 6 states the one test an example that stays compiled fails, not ending or answering differently from run to run; the clock's examples show their values.*
+
 With `Clock` the step is done: every module of Appendix E that does not wait for a system process of step 4 is written in Ernest, and `ern_prelude` keeps only §9 and the names step 4 will bring.
 
 ## The Sync Sweep After Step 3, 2026-09-20
@@ -9548,6 +9550,10 @@ So this release's review gets a reader over counts: every form the repository's 
 **The call's lambda, decided the same day.** The bare form exists and the guide's §4.4 teaches it: a request declared with one positional field is a function, and `Address.call(counter, Get, 1000)` needs no lambda. The declarations said otherwise at 44 sites: 20 requests of one field declared it positional and were passed bare, 44 declared a named `reply` and paid `fn(reply) = Get(=reply)` at 57 calls, and 62 carried more fields. No rule chose between the first two; each module chose, as each had chosen `Desk(local = local)` before the pun. Now the style guide chooses: a request whose only field is its reply declares it positional and is passed bare, and the style test refuses the named one. It is a rule of form and not of the language, so it is built on its day.
 
 A request of more fields keeps its lambda. A construction missing its reply as a function of it, `Address.call(store, Lookup(=key), ms)`, only shortens, which principle 2's sentence refuses, and would be a third special case around one call. The typed world writes the lambda, Gleam's `process.call` and Akka Typed's `ask` alike, since the answer's type depends on the request's; Erlang alone leaves it out by leaving its requests untyped. A request called from many places takes a function of its own, as the guide's §4.4 says.
+
+**Built, 2026-11-01.** §11.2 runs an example that shows a value in a process whose mailbox type is that of the function it is compiled into, an open one being `Never`, as a test runs. The case's process was already spawned as a test's, so the wrapper's `docShown` only lost its `receiving Never`, and a valueless example lost the lambda around it, whose one reason was that annotation. Of the library's 27 examples without a value, nine gained one: the clock's four, with `alarm` and `alarmAt` receiving what the wrap delivers, `Peer.spawnMonitored`, `Process.faults`, and three nothing had kept compiled, `Os.give`, `Ets.close` and `Proxy.start`.
+
+**Rule 6 restated.** Eighteen stayed, and rule 6 named the reason of four alone: an address in the value, a directory named afresh, the program's arguments, environment, input or terminal, a wait that does not end. Rule 6 now states the test they share, not ending or answering differently from run to run, in place of its list; the three that read a file or a socket inside the example's own directory gain their lines with `cancel`'s `false` edge.
 
 ## The Guide's Lines After the Release Review, 2026-11-01
 
