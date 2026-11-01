@@ -10254,6 +10254,11 @@ local of its name, as visible as the fill since every name stands at the use sit
 gains the scope beside the namespace rather than being overridden, and the style guide says a
 field whose variable bears its name is written as a pun, so one site has one spelling.
 
+`=f` is `f = f` read textually, so it gives whatever `f` names where the construction stands, a top-level
+function among them, and stands in a record update and a fill as in a plain construction. A pun
+names a field, so a single-positional constructor takes none: `Some(=x)` is refused, its error
+naming `Some(x)`, since a pun there would shorten nothing (principle 2).
+
 **Weighed beside it and left out.** Function clauses, `fn len([]) = 0 | len(x :: r) = ...`, which
 Standard ML, Haskell, OCaml's `function` and Erlang have: a second spelling of `match` that only
 shortens, where the `match` names what it matches at the cost of a line (principle 2). List
