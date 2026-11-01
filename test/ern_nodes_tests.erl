@@ -4738,10 +4738,14 @@ verbose_node_start(Base) ->
                  "read Shelf.Box from ", Root, "/shelf/box.erc\n"]),
     Size = byte_size(Program),
     <<Program:Size/binary, Libraries/binary>> = Said,
-    ?assertEqual([unicode:characters_to_binary(ern_build:shown(File))
-                  || Library <- ern_tree:libraries(), File <- ern_build:compiled_under(Library)],
-                 [lists:last(string:split(Line, " from "))
-                  || Line <- string:split(Libraries, "\n", all), Line =/= <<>>]).
+    %% Every library's compiled module is read, each once; a library a
+    %% module needs, Time under Http, is read as it is needed, so the lines'
+    %% order is the need's and not the directories', and the sets are held.
+    ?assertEqual(lists:sort([unicode:characters_to_binary(ern_build:shown(File))
+                             || Library <- ern_tree:libraries(),
+                                File <- ern_build:compiled_under(Library)]),
+                 lists:sort([lists:last(string:split(Line, " from "))
+                             || Line <- string:split(Libraries, "\n", all), Line =/= <<>>])).
 
 %% report §8.7, §12.7, §8.4, Appendix E.27: a lambda crosses as the definition
 %% that encloses it, and what that definition names beyond the lambda's

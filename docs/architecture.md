@@ -20,7 +20,7 @@ One Ernest module goes through these stages, each an Erlang application under `e
 | tree | `ern_tree`, in `shared`, the toolchain's tree and the builds of its own under it (§11.1, §11.2) | a build's path | its directory |
 | cli | the modules below | command lines, shell inputs | `ern`'s jobs, a session |
 
-`erl/json` is the one application beside the stages, `libs/json`'s primitives (*The libraries' primitives*).
+`erl/json`, `erl/base64` and `erl/http` are the applications beside the stages, `libs/json`'s, `libs/base64`'s and `libs/http`'s primitives (*The libraries' primitives*).
 
 The modules of `cli`:
 
@@ -303,6 +303,10 @@ The tests that hold the library to its names: `erl/runtime/test/ern_stdlib_tests
 A library under `src/libs/` stands on the host as the standard library does. The primitives it needs in Erlang are an application of their own under `erl/`, named for the library, on the code path as every application is (§11.2).
 
 `erl/json` is `libs/json`'s (G.6): `ern_json:parse/1` and `ern_json:format/1`.
+
+`erl/base64` is `libs/base64`'s (G.8): `ern_base64:decode/1`.
+
+`erl/http` is `libs/http`'s (G.11): `ern_http:parse_request/2` and `ern_http:parse_response/2`.
 
 ## The tools
 

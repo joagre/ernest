@@ -594,7 +594,8 @@ scenarios(Dir) ->
     lists:append([clock_scenarios(Self), fs_scenarios(Dir, Bytes), io_scenarios(Bytes, DevNull),
                   os_scenarios(Bytes), process_scenarios(), supervisor_scenarios(),
                   tcp_scenarios(Bytes), terminal_scenarios(), ets_scenarios(),
-                  peer_scenarios(), code_scenarios(), utilization_scenarios(), proxy_scenarios()]).
+                  peer_scenarios(), code_scenarios(), utilization_scenarios(), proxy_scenarios(),
+                  http_scenarios()]).
 
 dev_null() ->
     {ok, Fd} = file:open("/dev/null", [write, raw, binary]),
@@ -913,6 +914,74 @@ tcp_scenarios(Bytes) ->
        fun() -> gen_tcp:controlling_process(HostClient, erlang:self()) end}},
      {<<"Tcp.remote">>, {fun() -> TcpRemote(Client) end, fun() -> inet:peername(HostClient) end}},
      {<<"Tcp.local">>, {fun() -> TcpLocal(Client) end, fun() -> inet:sockname(HostClient) end}}].
+
+%% Appendix G.11: each reader over a loopback pair of its own, the client
+%% writing a head or a body of 5 bytes and the server reading it, beside the
+%% host's send and receive of the same bytes and, for a head, the host's
+%% decode_packet reading it a line at a time, which the primitive stands
+%% on.
+http_scenarios() ->
+    Http = ern_named:functions('ern@http'),
+    HttpReadRequest = Http(readRequest),
+    HttpReadRequestBody = Http(readRequestBody),
+    HttpReadResponse = Http(readResponse),
+    HttpReadResponseBody = Http(readResponseBody),
+    Tcp = ern_named:functions('ern@tcp'),
+    TcpWrite = Tcp(write),
+    Loopback = <<"127.0.0.1">>,
+    {'Right', Listener} = (Tcp(listen))(Loopback, 0),
+    {'Right', Port} = (Tcp(port))(Listener),
+    {'Right', Client} = (Tcp(connect))(Loopback, Port, 1000),
+    {'Right', Server} = (Tcp(accept))(Listener, 1000),
+    {ok, HostListener} = gen_tcp:listen(0, [binary, {active, false}, {ip, {127, 0, 0, 1}}]),
+    {ok, HostPort} = inet:port(HostListener),
+    {ok, HostClient} = gen_tcp:connect({127, 0, 0, 1}, HostPort, [binary, {active, false}]),
+    {ok, HostServer} = gen_tcp:accept(HostListener),
+    Limits = {'Limits', 8192, 65536},
+    Sized = [{'Header', <<"Content-Length">>, <<"5">>}],
+    RequestText = <<"GET /hello.txt HTTP/1.1\r\nHost: www.example.com\r\n"
+                    "Content-Length: 5\r\n\r\n">>,
+    ResponseText = <<"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\n">>,
+    Request = {'Request', <<"GET">>, <<"/hello.txt">>, {'Version', 1, 1}, Sized},
+    Response = {'Response', {'Version', 1, 1}, 200, Sized},
+    Body = <<"hello">>,
+    Read = fun(Text, Reader) ->
+                   fun() ->
+                           {'Right', 'Unit'} = TcpWrite(Client, Text, 1000),
+                           {'Right', _} = Reader()
+                   end
+           end,
+    HostRead = fun(Text, Parse) ->
+                       fun() ->
+                               ok = gen_tcp:send(HostClient, Text),
+                               {ok, Received} = gen_tcp:recv(HostServer, byte_size(Text)),
+                               Parse(Received)
+                       end
+               end,
+    [{<<"Http.readRequest">>,
+      {Read(RequestText, fun() -> HttpReadRequest(Server, <<>>, Limits, 1000) end),
+       HostRead(RequestText, fun host_head/1)}},
+     {<<"Http.readResponse">>,
+      {Read(ResponseText, fun() -> HttpReadResponse(Server, <<>>, Limits, 1000) end),
+       HostRead(ResponseText, fun host_head/1)}},
+     {<<"Http.readRequestBody">>,
+      {Read(Body, fun() -> HttpReadRequestBody(Server, <<>>, Request, 1000, 1000) end),
+       HostRead(Body, fun(Received) -> Received end)}},
+     {<<"Http.readResponseBody">>,
+      {Read(Body, fun() -> HttpReadResponseBody(Server, <<>>, Response, 1000, 1000) end),
+       HostRead(Body, fun(Received) -> Received end)}}].
+
+%% A head read by the host's decode_packet, its first line and then its
+%% header lines to the empty one.
+host_head(Bytes) ->
+    {ok, _, Rest} = erlang:decode_packet(http_bin, Bytes, [{packet_size, 8192}]),
+    host_headers(Rest).
+
+host_headers(Bytes) ->
+    case erlang:decode_packet(httph_bin, Bytes, [{packet_size, 8192}]) of
+        {ok, http_eoh, Rest} -> Rest;
+        {ok, {http_header, _, _, _, _}, Rest} -> host_headers(Rest)
+    end.
 
 terminal_scenarios() ->
     [{<<"Terminal.subscribe">>, {not_measured, <<"reads a terminal">>}},

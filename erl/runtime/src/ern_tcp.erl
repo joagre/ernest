@@ -745,9 +745,13 @@ endpoint(_, Ask) ->
 %% ssl answers of its own, a file it cannot read, an option it refuses or
 %% an alert, in its words. A certificate or key that listenTls cannot read
 %% is described in ssl's words for any option it refuses, with the file
-%% and the code as Erlang writes them (docs/otp_bugs.md, 9).
+%% and the code as Erlang writes them (docs/otp_bugs.md, 9). An alert's
+%% words end in a line feed, which ends the host's report of it and no
+%% part of the reason, so the white space that ends ssl's text is left
+%% out, and the rest kept as the host writes it, its line feeds within.
 io_error(_, closed) -> 'Closed';
 io_error(_, etimedout) -> 'Timeout';
 io_error(gen_tcp, Error) -> ern_io:host_error(Error, fun inet:format_error/1);
 io_error(ssl, Error) when is_atom(Error) -> ern_io:host_error(Error, fun inet:format_error/1);
-io_error(ssl, Error) -> {'Other', unicode:characters_to_binary(ssl:format_error(Error))}.
+io_error(ssl, Error) ->
+    {'Other', unicode:characters_to_binary(string:trim(ssl:format_error(Error), trailing))}.

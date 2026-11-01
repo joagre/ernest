@@ -50,9 +50,10 @@ program(Build, Name) ->
 
 %% Plan, MVP 2.5: the examples that the doors of step 4 opened. snake
 %% waits for a terminal, so it is only compiled here and ern_terminal_tests
-%% plays it under a pseudo-terminal; the others run below. The echo
-%% measurement, kept for the tests, prints timings, so it is compiled alone.
--define(COMPILES, ["file_sync", "repl", "snake", "web_server"]).
+%% plays it under a pseudo-terminal; fetch reaches a host on the network, so
+%% it is only compiled; the others run below. The echo measurement, kept for
+%% the tests, prints timings, so it is compiled alone.
+-define(COMPILES, ["fetch", "file_sync", "repl", "snake", "web_server"]).
 
 compiles_test_() ->
     {inparallel,
@@ -547,7 +548,7 @@ web_server() ->
         ?assertEqual(ok, said_line(Server, <<"listening on 127.0.0.1:8080">>)),
         First = request([]),
         ?assertMatch({_, _}, binary:match(First, <<"HTTP/1.1 200 OK">>)),
-        ?assertMatch({_, _}, binary:match(First, <<"set-cookie: sid=">>)),
+        ?assertMatch({_, _}, binary:match(First, <<"Set-Cookie: sid=">>)),
         ?assertMatch({_, _}, binary:match(First, <<"Visit number 1">>)),
         SessionId = cookie_of(First),
         Second = request([<<"cookie: sid=", SessionId/binary, "\r\n">>]),
@@ -639,7 +640,7 @@ recv_all(Socket, Acc) ->
     end.
 
 cookie_of(Answer) ->
-    [_, After] = binary:split(Answer, <<"set-cookie: sid=">>),
+    [_, After] = binary:split(Answer, <<"Set-Cookie: sid=">>),
     [SessionId | _] = binary:split(After, <<";">>),
     SessionId.
 

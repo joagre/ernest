@@ -64,32 +64,29 @@ then the server's milestone 1 whole in its repository, item 4, which is that mil
 item of this one; then items 5 and 6 here, the libraries reshaped by their first user. The
 server's CLAUDE.md carries the procedure its side follows.
 
-1. **The report first**, its sentences written before the code of each item below and landing
-   in that item's commit, since the prelude test holds every listing of Appendix E and G to its
-   compiled interface, so a section without its code is a red test (decided 2026-11-01; the log's
-   *TLS in `Tcp` and a Terminal in `Os`*): `Tcp.listenTls` and `Tcp.connectTls` in E.18,
-   answering the same socket as a plain one, the handshake in the socket's process after
-   `accept`, `listenTls`'s `Other(text)` for a certificate or key the host refuses, and the host's
-   backlog stated; `Os.startTerminal` and `Os.resize` in E.23 through E.0's admission rules, one
-   address with `start` and one stream out; and a section in Appendix G for each of the four
-   libraries.
+1. **The report first**, done 2026-11-01: E.18 and E.23 with item 2 and G.8 to G.11 with item
+   3, each section's sentences written before its code and landing in its commit, since the
+   prelude test holds every listing to its compiled interface (the log's *TLS in `Tcp` and a
+   Terminal in `Os`*).
 2. **The runtime's two additions**, TLS in `Tcp` and the terminal in `Os`, built 2026-11-01
    with their sentences of E.18 and E.23 (the log's *TLS in `Tcp` and a Terminal in `Os`*).
-3. **The four libraries**, each a source root under `src/libs/` with the standard library's
-   discipline and its page: `base64` and `crypto`, which the server's WebSocket module needs; `time`, the calendar,
-   with no `sleep`, which is `Clock.sleep` of the standard library (Appendix E.15; the log's *A
-   `receive` Always Receives*), a program that paces itself by the clock deriving the delay from
-   the clock; `http` with its client half, whose first use beside the tests is a `fetch` example that
-   reads JSON over HTTPS with a verified certificate.
+3. **The four libraries**, built 2026-11-01 with their sections of Appendix G, `base64`,
+   `crypto`, `time` and `http`, `examples/web_server.ern` written over `libs/http` and
+   `examples/fetch.ern` beside it (the log's *The Four Libraries*).
 4. **The server, ernest-httpd's milestone 1 whole**, by its own repository's plan, written once
    item 1's sentences stand and built once items 2 and 3 do, against Ernest installed from
    `make release`'s archive and never a checkout; what it meets of Ernest's, an attached shell at
    the server's node among it, comes here as a line of `language_feedback.md`, is fixed in the
    checkout and the archive made again, with no public release between.
 5. **The terminal tests over `Os.startTerminal`**, dropping `test/ern_pty.py`, an item of its own
-   once item 2 stands.
+   once item 2 stands. First in it, a defect seen once on 2026-11-01 under a load average of 37
+   from four agents' runs: `close_input_hangs_up_test` read `Exited(1)` where the hangup gives
+   129, as if `sh` met the pipe's end before the hangup reached it; diagnosed, with the order the
+   host closes a master and signals the session's leader in, before a test stands on it.
 6. **A release of Ernest**, 0.9.0, when the server first serves the site, carrying the libraries
-   after their first real user has shaped them; 0.8.0 is the pun's.
+   after their first real user has shaped them; 0.8.0 is the pun's. Before it, the deployment
+   test `one_node`, whose watcher once answered that a line was never said, in the full run of
+   2026-11-01 at the run's own load, passing alone after, is read for what it answered so for.
 
 The site's content, MVP 4.2, runs beside any of it, since its generator needs nothing of the
 server.
@@ -197,10 +194,14 @@ the website and the operator's prompt have used. After 1.0 the road is a program
    candidate, whether the trace is taken at the raise or when a line is written. The verdicts and
    rates are one log entry and the rules a section of the runtime's design note beside how it
    keeps its books, `why.md`'s cost claims held to them; read before the review.
-3. **The full review**, as `full_review.md` says, the principles review inside it, over the swept
+3. **The raise a primitive catches**, `ern_base64:decode` and `ern_json:parse` among them, whose
+   cost grows with the caller's stack, 0.4 microseconds on a shallow stack and 110 at 100,000
+   frames, the trace's capture (found 2026-11-01; the log's *The Four Libraries*): read in erts
+   and taken to `otp_bugs.md`, or decided against the trace `backtrace_depth` keeps.
+4. **The full review**, as `full_review.md` says, the principles review inside it, over the swept
    form after the pun and with the three programs written since 0.7.0; its findings sorted and
    worked as it says, the batches' sentences read cold before the build.
-4. **Ernest 1.0.0**, by `docs/release_review.md`'s step, on Linux: macOS unverified and said so
+5. **Ernest 1.0.0**, by `docs/release_review.md`'s step, on Linux: macOS unverified and said so
    in the README's installing sentence and the note; the three application repositories' floors
    raised to 1.0 the same week; the feedback file and the findings file empty.
 

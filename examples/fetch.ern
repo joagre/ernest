@@ -1,0 +1,221 @@
+//
+// Fetch: a JSON document over HTTPS, and its shape
+//
+// A command-line tool that fetches the URL named over TLS, the server's
+// certificate checked against the certificates in the file named, and
+// prints the response's status, its content type, its body's size, and the
+// shape of the JSON value the body holds: an object's members, each with
+// its value's kind, an array's length and its elements' kinds, or the
+// scalar. A failure is a line on standard error and the status 1; a body
+// that is not JSON is such a failure, after the status, the content type
+// and the size. Run with other arguments, it says how it is called and ends
+// with status 2.
+//
+// The URL is read as `https://host:port/path`, the port 443 and the path
+// `/` where either is left out, and a fragment after `#` dropped; an
+// `http://` URL is refused, since the tool shows TLS.
+//
+// What to look at:
+//
+// - `Tcp.connectTls` opens a socket over TLS, and `Tcp.Verified` checks the
+//   server's certificate against the file's and for the host's name; the
+//   socket is then written and read as any other (report Appendix E.18).
+// - The request is written by `Http.renderRequest`, the response's head is
+//   read by `Http.readResponse`, and its body by `Http.readResponseBody`
+//   from the bytes the head's read took past the head (libs/http, report
+//   Appendix G.11).
+// - `Json.parse` reads the body's text into a `Json.Value`, which `shape`
+//   takes apart by its constructors (libs/json, report Appendix G.6).
+// - Each step that can fail answers an `Either` of a line to print, and
+//   `<-` gives up at the first `Left` (report §5.5, §7.1); `Os.arguments`
+//   is the command line, and `Os.exit` ends the program with a status
+//   (report Appendix E.23).
+//
+// Run it from this directory, with the machine's certificates:
+//
+//     ern build fetch.ern
+//     ern run fetch.erc https://httpbin.org/json /etc/ssl/certs/ca-certificates.crt
+//
+
+type Target = Target(host : String, port : Int, authority : String, path : String)
+
+export fn main() : Unit =
+    match Os.arguments {
+        [url, caFile] ->
+            match fetched(url, Path(caFile)) {
+                Right(#(response, body)) -> reported(response, body)
+              | Left(cause) -> failed(cause)
+            }
+      | _ -> {
+            Io.printlnError("usage: fetch URL CAFILE");
+            Os.exit(2)
+        }
+    }
+
+// The line on standard error, and the end of the program with status 1.
+fn failed(cause : String) : Unit = {
+    Io.printlnError("fetch: " <> cause);
+    Os.exit(1)
+}
+
+//
+// The request and the response
+//
+
+// The response to a GET of the URL, and its body.
+fn fetched(url : String, caFile : Path) : Either(String, #(Http.Response, Bytes)) = {
+    let target <- targetOf(url);
+    let socket <-
+        Either.mapLeft(Tcp.connectTls(target.host, target.port, Tcp.Verified(caFile), 10000),
+                       fn(error) =
+                           "cannot connect to " <> target.authority <> ": " <> errorText(error));
+    let request =
+        Http.Request(method = "GET",
+                     target = target.path,
+                     version = Http.Version(major = 1, minor = 1),
+                     headers = [Http.Header(name = "Host", value = target.authority),
+                                Http.Header(name = "User-Agent",
+                                            value = "fetch (an Ernest example)"),
+                                Http.Header(name = "Accept", value = "application/json"),
+                                Http.Header(name = "Connection", value = "close")]);
+    let _ <-
+        Either.mapLeft(Tcp.write(socket, Http.renderRequest(request, <<>>), 10000),
+                       fn(error) = "cannot send the request: " <> errorText(error));
+    let #(response, carried) <-
+        Either.mapLeft(Http.readResponse(socket, <<>>, limits, 10000),
+                       fn(error) = "cannot read the response's head: " <> readErrorText(error));
+    let #(body, _) <-
+        Either.mapLeft(Http.readResponseBody(socket, carried, response, 10000000, 30000),
+                       fn(error) = "cannot read the response's body: " <> readErrorText(error));
+    Tcp.close(socket);
+    Right(#(response, body))
+}
+
+// The most bytes of the response's status line, and of its headers together.
+let limits = Http.Limits(line = 8192, headers = 65536)
+
+// The host, the port and the path of an `https://` URL, and the host and
+// the port as the URL writes them, which the `Host` header carries.
+fn targetOf(url : String) : Either(String, Target) =
+    match String.splitOnce(url, "://") {
+        Some(#("https", rest)) -> {
+            let located = match String.splitOnce(rest, "#") {
+                Some(#(before, _)) -> before
+              | None -> rest
+            };
+            let #(authority, path) = match String.indexOf(located, "/") {
+                Some(index) ->
+                    #(String.slice(located, 0, index),
+                      String.slice(located, index, String.size(located)))
+              | None ->
+                    #(located, "/")
+            };
+            let #(host, port) <- hostAndPort(authority);
+            Right(Target(=host, =port, =authority, =path))
+        }
+      | Some(#("http", _)) ->
+            Left("an http:// URL is refused, since fetch shows TLS: " <> url)
+      | _ ->
+            Left("not an https:// URL: " <> url)
+    }
+
+fn hostAndPort(authority : String) : Either(String, #(String, Int)) =
+    match String.splitOnce(authority, ":") {
+        Some(#(host, digits)) ->
+            match String.toInt(digits) {
+                Some(port) when host != "" -> Right(#(host, port))
+              | _ -> Left("not a host and a port: " <> authority)
+            }
+      | None ->
+            if authority == "" then Left("no host in the URL") else Right(#(authority, 443))
+    }
+
+//
+// The report
+//
+
+// The status, the content type and the size, then the body's shape, or the
+// failure where the body is not JSON.
+fn reported(response : Http.Response, body : Bytes) : Unit = {
+    Io.println("status: " <> statusText(response.status));
+    let contentType = Optional.withDefault(Http.header(response.headers, "Content-Type"), "none");
+    Io.println("content type: " <> contentType);
+    Io.println("body: " <> counted(Bytes.size(body), "byte"));
+    match String.fromUtf8(body) {
+        Some(text) ->
+            match Json.parse(text) {
+                Right(value) -> List.forEach(shape(value), Io.println)
+              | Left(error) -> failed("the body is not JSON: " <> Io.show(error))
+            }
+      | None ->
+            failed("the body is not UTF-8 text")
+    }
+}
+
+// The status and RFC 9110's phrase for it, where it names one.
+fn statusText(status : Int) : String =
+    match Http.reason(status) {
+        "" -> Int.toString(status)
+      | phrase -> Int.toString(status) <> " " <> phrase
+    }
+
+// The lines that describe the value: an object's members, each with its
+// value's kind, an array's length and its elements' kinds, or the scalar.
+// A `Map` keeps no order of its own, so the members are sorted by name.
+fn shape(value : Json.Value) : List(String) =
+    match value {
+        Json.Object(members) ->
+            ("an object of " <> counted(Map.size(members), "member") <> ":")
+                :: List.map(List.sortBy(Map.toList(members), fn(#(name, _)) = name),
+                            fn(#(name, member)) = "  " <> name <> ": " <> kind(member))
+      | Json.Array(elements) ->
+            ("an array of " <> counted(List.size(elements), "element") <> ", of kinds:")
+                :: List.map(List.unique(List.map(elements, kindName)), fn(name) = "  " <> name)
+      | scalar ->
+            [kindName(scalar) <> ": " <> String.trimEnd(Json.format(scalar))]
+    }
+
+// The value's kind, an object's and an array's with their sizes.
+fn kind(value : Json.Value) : String =
+    match value {
+        Json.Object(members) -> "object of " <> counted(Map.size(members), "member")
+      | Json.Array(elements) -> "array of " <> counted(List.size(elements), "element")
+      | scalar -> kindName(scalar)
+    }
+
+// The name of the value's kind.
+fn kindName(value : Json.Value) : String =
+    match value {
+        Json.Null -> "null"
+      | Json.Boolean(_) -> "boolean"
+      | Json.Integer(_) -> "integer"
+      | Json.Real(_) -> "real"
+      | Json.Text(_) -> "string"
+      | Json.Array(_) -> "array"
+      | Json.Object(_) -> "object"
+    }
+
+// The count and the noun, `1 member`, `3 members`.
+fn counted(count : Int, noun : String) : String =
+    Int.toString(count) <> " " <> (if count == 1 then noun else noun <> "s")
+
+//
+// Errors
+//
+
+fn readErrorText(error : Http.ReadError) : String =
+    match error {
+        Http.Protocol(refusal) -> "refused as " <> Io.show(refusal)
+      | Http.Socket(socketError) -> errorText(socketError)
+    }
+
+// The errors the program says in its own words, and the rest as the
+// library shows them.
+fn errorText(error : Io.Error) : String =
+    match error {
+        Io.Timeout -> "timed out"
+      | Io.Closed -> "the connection closed"
+      | Io.Refused -> "connection refused"
+      | Io.Other(text) -> text
+      | _ -> Io.show(error)
+    }

@@ -5,7 +5,7 @@
 # test` runs every test by area; docs/development.md names every other
 # target and what it is for.
 
-APPS = shared lexer parser formatter checker runtime emitter cli json
+APPS = shared lexer parser formatter checker runtime emitter cli json base64 http
 
 # The jobs a make runs side by side, as many as the host has cores.
 JOBS := $(shell getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
@@ -61,9 +61,11 @@ stdlib:
 # its own, compiled into build/libs/<name>, which ends every job's load path
 # (report §11.1, §11.2), each after the standard library and beside the
 # others, but libs/markdown, which writes its styles with libs/ansi (report
-# Appendix G.3) and is compiled after it, against it. A job waits on no
-# build it does not read, so that a make with nothing to do is as deep as
-# the builds' uses and no deeper (the log's *A Make With Nothing to Do*).
+# Appendix G.3) and is compiled after it, against it, and libs/http, which
+# writes its dates with libs/time (Appendix G.11) and is compiled after
+# that. A job waits on no build it does not read, so that a make with
+# nothing to do is as deep as the builds' uses and no deeper (the log's *A
+# Make With Nothing to Do*).
 # `libs` builds every library and then removes the build of one whose
 # directory is gone; `make` runs it among the jobs of `manual`, in the
 # make that builds the libraries the pages need, so that none is built
@@ -77,7 +79,10 @@ lib-markdown: lib-ansi
 	@bin/ern build --verbose --source-root src/libs/markdown --build-root build/libs/markdown \
 	  src/libs/markdown
 
-$(filter-out lib-markdown,$(LIB_BUILDS)): lib-%: stdlib
+lib-http: lib-time
+	@bin/ern build --verbose --source-root src/libs/http --build-root build/libs/http src/libs/http
+
+$(filter-out lib-markdown lib-http,$(LIB_BUILDS)): lib-%: stdlib
 	@bin/ern build --verbose --source-root src/libs/$* --build-root build/libs/$* src/libs/$*
 
 # The shell, written in Ernest (report §11.2, plan MVP 2.6): src/shell/
@@ -499,13 +504,14 @@ format: all
 	@bin/ern format $(ERNEST_SOURCES)
 	@$(MAKE) -s -C test format
 
-# Report sections no test cites (every test function carries a `%% report §x.y` line):
-# every numbered section and every appendix, a chapter cited through its sections.
+# Report sections no test cites (every test function carries a `%% report §x.y` line,
+# and a library's Ernest tests a `// report Appendix G.n` one): every numbered section
+# and every appendix, a chapter cited through its sections.
 sections:
 	@grep -ohE '^#{2,3} ([0-9]+(\.[0-9]+)?\.? |Appendix [A-Z](\.[0-9]+)?\.)' report/*.md | \
 	  sed -E 's/^#+ //; s/\.? $$//; s/\.$$//; s/^([0-9])/§\1/' | \
 	  while read -r s; do p=$$(printf '%s' "$$s" | sed 's/\./\\./g'); \
-	    grep -ohE "(guide )?$$p\b" erl/*/test/*.erl test/*.erl | \
+	    grep -ohE "(guide )?$$p\b" erl/*/test/*.erl test/*.erl src/stdlib/*.ern src/libs/*/*.ern | \
 	    grep -qv '^guide' || echo "$$s"; done
 
 # Every report section with the number of tests citing it and its length in

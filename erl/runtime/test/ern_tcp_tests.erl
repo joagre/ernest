@@ -827,8 +827,9 @@ tls_verified_takes_a_wildcard_test() ->
 %% certificate fails its handshake, `connectTls` answering
 %% `Left(Other(text))`; the server's socket, which `accept` answered before
 %% its handshake, answers its first read with the handshake's failure,
-%% `Left(Other(text))`, and the next `Left(Closed)`. Written after the
-%% code, a regression test
+%% `Left(Other(text))`, and the next `Left(Closed)`. Each text is the
+%% host's without the line feed that ends ssl's. Written after the code, a
+%% regression test
 tls_unknown_authority_test() ->
     #{other_ca := OtherCa, server := Server} = pki(),
     Self = self(),
@@ -844,8 +845,10 @@ tls_unknown_authority_test() ->
                Read = read(Accepted, 5000),
                Self ! {reads, [Read, read(Accepted, 5000)]}
            end),
-    ?assertMatch({'Left', {'Other', _}}, wait(client)),
-    ?assertMatch([{'Left', {'Other', _}}, {'Left', 'Closed'}], wait(reads)).
+    {'Left', {'Other', ClientText}} = wait(client),
+    [{'Left', {'Other', ServerText}}, {'Left', 'Closed'}] = wait(reads),
+    ?assertEqual([false, false], [lists:member(binary:last(Text), " \t\r\n")
+                                  || Text <- [ClientText, ServerText]]).
 
 %% report Appendix E.18: a client that sends a TLS listener what is no TLS
 %% fails the handshake of the socket `accept` answered: the read and the

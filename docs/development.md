@@ -46,10 +46,11 @@ examples/          Ernest programs written for a reader of the language, which
                    examples/README.md lists by topic
 erl/               the toolchain, as Erlang applications: shared, the four modules
                    beneath every stage; lexer, parser, formatter, checker, runtime and
-                   emitter; cli, which holds the vendored getopt; and json, the
-                   primitives of src/libs/json. Each has src/ and ebin/, all but json
-                   include/ and test/ too, and the runtime also c_src/, the helper
-                   ern_exec's C source, and priv/, where make builds it
+                   emitter; cli, which holds the vendored getopt; and json, base64 and
+                   http, the primitives of src/libs/json, src/libs/base64 and
+                   src/libs/http. Each has src/ and ebin/, all but json test/ too, all
+                   but json, base64 and http include/, and the runtime also c_src/,
+                   the helper ern_exec's C source, and priv/, where make builds it
 test/              what spans applications: the integration, nodes, deployment guide,
                    tour, installation, manual pages', document, style, guide, grammar,
                    generated-program, shell and terminal tests; the harnesses of the
@@ -82,8 +83,9 @@ test/machines/     machines.txt, the user's machines that make bench-machines, m
 bin/               ern, the launcher, a POSIX sh script
 src/stdlib/        the standard library as Ernest source
 src/libs/          the first-party libraries, each a source root whose build ends
-                   every job's load path, so that a program names none: ansi, ets,
-                   json, markdown, which needs ansi, proxy and utilization
+                   every job's load path, so that a program names none: ansi, base64,
+                   crypto, ets, http, which needs time, json, markdown, which needs
+                   ansi, proxy, time and utilization
 src/shell/         the shell as Ernest source; its README.md guides a reader
                    through the code
 editors/emacs/     ernest-mode.el, the Emacs major mode, and its tests under test/

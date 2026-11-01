@@ -655,7 +655,7 @@ On a socket or a listener that has ended, a function that waits for its answer, 
 
 `Tcp.write` answers `Right(Unit)` once the socket has taken the bytes, and waits while the connection is behind, at most the milliseconds it is given; a write that waits holds up no read of the socket. A `Left(Timeout)` does not undo the write: the bytes may still be sent, after those written before. A write after the connection has closed, from either end or by a failure, answers `Left(Closed)`, and one the host refuses for another reason answers `Left(Other(text))`, the host's reason.
 
-A port outside 0 to 65535, and a host or a path that holds U+0000, which names none, answer `Left(Invalid)`. A read, an accept, or a connect that times out has taken nothing: bytes that arrive later wait for the next read, and a connection that completes later is closed. There are no options.
+A port outside 0 to 65535, and a host or a path that holds U+0000, which names none, answer `Left(Invalid)`. A read, an accept, or a connect that times out has taken nothing: bytes that arrive later wait for the next read, and a connection that completes later is closed. A read given no time answers the bytes that have arrived, and `Left(Timeout)` where none have. There are no options.
 
 ```
 abstract type ListenerMsg // what a listener takes
@@ -1098,4 +1098,78 @@ A find that answers `OtherType` (E.27) is no absence but a protocol the two buil
 
 ```
 Proxy.start : (Peer.Service(m), Int) -> Address(m)
+```
+
+### Appendix G.8. `libs/base64` (namespace `Base64`)
+
+The base 64 encoding of RFC 4648, its standard alphabet with padding, over the host's `base64`. `encode` writes the bytes as text padded with `=` to a multiple of four characters. `decode` reads what `encode` writes and answers `None` for anything else: a character outside the alphabet, white space among them, which the host's `base64:decode` skips and this library does not; a count of characters that is no multiple of four; a `=` anywhere but as the last one or two characters, and a last character before a `=` that sets a bit the bytes do not use, `Zh==` where `encode` writes `Zg==`. `decode` is a primitive written in the host's language, since the host raises on a text it cannot read (E.0 rule 1).
+
+```
+Base64.encode : (Bytes) -> String
+Base64.decode : (String) -> Optional(Bytes) // None for a text encode does not write
+```
+
+### Appendix G.9. `libs/crypto` (namespace `Crypto`)
+
+Two shims over the host's `crypto` (E.0 rule 1). `sha1` is the SHA-1 digest of the bytes, 20 bytes, as FIPS 180-4 defines it. `randomBytes(count)` is `count` bytes from the host's strong random source, the one a key or a cookie is drawn from; a count below 0 is 0, and where the host's source cannot give the bytes the caller faults with the host's reason (§7.4).
+
+```
+Crypto.sha1 : (Bytes) -> Bytes // the digest, 20 bytes
+Crypto.randomBytes : (Int) -> Bytes // from the host's strong random source
+```
+
+### Appendix G.10. `libs/time` (namespace `Time`)
+
+The civil calendar, the proleptic Gregorian calendar in UTC, over the host's `calendar`. `civil(time)` is the civil date and time of the second that holds the epoch time `time`, in milliseconds as `Clock` counts them (E.15), the milliseconds within the second dropped; a year before 0 is written negative. `fromCivil(civil)` is the time at which that second begins, or `None` for a date or a time of day the calendar has not, a 30th of February, a 24th hour or a 60th second among them. `weekday(time)` is the day of the week of `time`'s civil date. No year bounds the three, and the year before 1 is 0. A text form of a date is its owner's, written over `civil`: RFC 9110's is `libs/http`'s (G.11), and RFC 3339's, as the runtime's own lines write it, is `Clock.toString` (E.15).
+
+```
+type Civil = Civil(year : Int, month : Int, day : Int, hour : Int, minute : Int, second : Int)
+type Weekday = Monday | Tuesday | Wednesday | Thursday | Friday | Saturday | Sunday
+Time.civil : (Int) -> Civil // the civil date and time, in UTC, of the second holding the epoch time
+Time.fromCivil : (Civil) -> Optional(Int) // the epoch time at which the second begins; None for a date or a time of day the calendar has not
+Time.weekday : (Int) -> Weekday // the day of the week of the time's civil date
+```
+
+### Appendix G.11. `libs/http` (namespace `Http`)
+
+HTTP/1.1's message syntax, RFC 9112, and of its semantics, RFC 9110, the date and the status phrases: a request's or a response's head read from bytes or from a socket, its body read after it, and a head and a body written. A head is read by a primitive over the host's `erlang:decode_packet`, a line at a time, written in the host's language since the host answers names of its own for the headers it knows (E.0 rule 1); the rest is Ernest.
+
+A `Request` is its method, its target as the client wrote it, its version and its headers, in their order and with their names as written; a `Response` is its version, its status and its headers, the status line's phrase being the status's. A body stands beside either as `Bytes`: `render` and `renderRequest` take one, and a reader of a head answers the bytes after it.
+
+`parseRequest(bytes, limits)` and `parseResponse(bytes, limits)` read one head from the bytes: `Incomplete` where the bytes end before the head's empty line, else the head and the bytes after it. A line ends in a line feed, with or without a carriage return before it. `Malformed` is a first line the host cannot read, a request line with no version among them, a header line with no `:`, or a header value holding a carriage return or a line feed, which a header folded over two lines holds; `LineTooLong` is a first line past `limits.line` bytes; `HeadersTooLarge` is a header line past `limits.line`, or headers past `limits.headers` bytes together. A version is read as written, `Version(2, 0)` among them.
+
+A request line is three words parted at spaces; one of more words, a bare carriage return in the target, or an empty line before it is `Malformed`, and so is a header line with no name, one the host cannot read, or a value holding U+0000 or bytes that are not UTF-8. A value is read without the white space before and after it. A limit counts a line's ending, a line that passes it is refused before its line feed comes, and a limit below 1 lets no line in. `header(headers, name)` is the first value under the name, compared in any case, and `headers(headers, name)` every value under it, in order.
+
+`readRequest(socket, carried, limits, ms)` and `readResponse(socket, carried, limits, ms)` read one head from a socket of `Tcp` (E.18): `carried` is what an earlier read took past its head, a pipelined request among them, and is read before the socket; `ms` bounds the whole head and not each read, so a client that sends a byte a second meets it. A `Left` is `Protocol(error)`, the parse's, or `Socket(error)`, the socket's, `Socket(Timeout)` when the milliseconds pass and `Socket(Closed)` where the connection closes before the head ends.
+
+`readRequestBody(socket, carried, request, limit, ms)` and `readResponseBody(socket, carried, response, limit, ms)` read the body the head's headers frame and answer it with the bytes after it: `Transfer-Encoding: chunked` decoded, its chunks' extensions and its trailers dropped, else `Content-Length` bytes; where neither frames one a request has no body, and a response's runs to the connection's close (RFC 9112). A response of status 1xx, 204 or 304 has no body, whatever its headers; one to a `HEAD` request has none either, which the reader cannot know, so a client that sent `HEAD` reads none.
+
+`ms` bounds the whole body. `limit` counts the body's bytes as they come, the chunked coding's framing among them: a body past it is `Protocol(BodyTooLarge)`, found at the bytes that pass it, a `Content-Length` past it at once. A `Content-Length` that is no decimal number or two that name different numbers, and a `Transfer-Encoding` whose last coding is not `chunked`, are `Protocol(Malformed)`.
+
+`render(response, body)` and `renderRequest(request, body)` write the head and the body: the first line, with the value's version, each header as `name: value`, `Content-Length` of the body's size where the headers carry none and no `Transfer-Encoding`, the status is no 1xx, 204 or 304, and, for a request, the body is not empty, an empty line, and the body; a header's value is written as given. A response's status line carries the phrase `reason(status)` gives, RFC 9110's for a status it names and `""` for another.
+
+`date(time)` writes a time as RFC 9110's `IMF-fixdate`, `Sun, 06 Nov 1994 08:49:37 GMT`, over `libs/time`; `parseDate(text)` reads that form and the two obsolete ones the RFC has a reader accept, RFC 850's `Sunday, 06-Nov-94 08:49:37 GMT` and asctime's `Sun Nov  6 08:49:37 1994`, each in its own case and spacing with the day of the week the date's, RFC 850's two-digit year read against the clock as the most recent year with those digits not more than fifty years ahead; it answers `None` for any other text.
+
+```
+type Version = Version(major : Int, minor : Int)
+type Header = Header(name : String, value : String)
+type Request = Request(method : String, target : String, version : Version, headers : List(Header))
+type Response = Response(version : Version, status : Int, headers : List(Header))
+type Limits = Limits(line : Int, headers : Int) // the most bytes of any line, and of the headers together
+type Error = Malformed | LineTooLong | HeadersTooLarge | BodyTooLarge
+type Parsed(a) = Incomplete | Parsed(head : a, rest : Bytes)
+type ReadError = Protocol(Error) | Socket(Io.Error)
+Http.parseRequest : (Bytes, Limits) -> Either(Error, Parsed(Request))
+Http.parseResponse : (Bytes, Limits) -> Either(Error, Parsed(Response))
+Http.readRequest : (Address(Tcp.SocketMsg), Bytes, Limits, Int) -> Either(ReadError, #(Request, Bytes)) // the request and the bytes after its head
+Http.readResponse : (Address(Tcp.SocketMsg), Bytes, Limits, Int) -> Either(ReadError, #(Response, Bytes)) // the response and the bytes after its head
+Http.readRequestBody : (Address(Tcp.SocketMsg), Bytes, Request, Int, Int) -> Either(ReadError, #(Bytes, Bytes)) // the body the request's headers frame, none where they frame none, at most the limit, and the bytes after it
+Http.readResponseBody : (Address(Tcp.SocketMsg), Bytes, Response, Int, Int) -> Either(ReadError, #(Bytes, Bytes)) // the body the response's headers frame, none for a 1xx, 204 or 304, to the close where they frame none, at most the limit, and the bytes after it
+Http.header : (List(Header), String) -> Optional(String) // the first value under the name, in any case
+Http.headers : (List(Header), String) -> List(String) // every value under the name, in order
+Http.render : (Response, Bytes) -> Bytes // the head and the body
+Http.renderRequest : (Request, Bytes) -> Bytes // the head and the body
+Http.reason : (Int) -> String // RFC 9110's phrase; "" for a status it does not name
+Http.date : (Int) -> String // IMF-fixdate, in UTC
+Http.parseDate : (String) -> Optional(Int) // IMF-fixdate, RFC 850's or asctime's form; None for another
 ```

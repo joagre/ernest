@@ -11,15 +11,13 @@
 //   (report §6.6).
 // - Each connection is a socket, itself a process, which the server reads
 //   and writes through its address (Tcp, report Appendix E.18).
+// - The request is read from the socket by `Http.readRequest`, and the
+//   response written by `Http.render`, which adds its `Content-Length` and
+//   its status's phrase (libs/http, report Appendix G.11).
+// - A session id is sixteen bytes drawn at random, which a client cannot
+//   guess (libs/crypto, report Appendix G.9).
 // - The session store forgets its sessions every ten minutes, by an alarm
 //   it sets itself (Clock, report Appendix E.15).
-//
-// Two things are simpler than a real server would have them, and wait for
-// libraries Ernest does not have yet. A session id is the connection's
-// number, which a client could guess; a cryptographic library would draw it
-// at random. And the request is parsed by hand, a small part of HTTP/1.1:
-// the version is not read and a chunked body is not understood; an HTTP
-// library would replace `parse` and `render`.
 //
 // Run it from this directory, and visit it from a second terminal:
 //
@@ -32,19 +30,11 @@
 // Types
 //
 
-type Request = Request(method : String, path : String, headers : List(#(String, String)))
-
-type Response = Response(status : StatusCode, headers : List(#(String, String)), body : String)
-
-type ParseError = BadEncoding | BadRequestLine | BadHeader(String)
-
 type SessionMsg =
     Visit(id : SessionId, reply : Reply(Int)) // the session's visits, this one counted
   | Forget
 
-type StatusCode = StatusCode(Int)
-
-type SessionId = SessionId(String)
+type SessionId = SessionId(Bytes)
 
 //
 // Program
@@ -55,7 +45,7 @@ export fn main() : Unit = {
     match Tcp.listen("127.0.0.1", 8080) {
         Right(listener) -> {
             Io.println("listening on 127.0.0.1:8080");
-            acceptor(sessions, 0, listener)
+            acceptor(sessions, listener)
         }
       | Left(error) ->
             Io.println("cannot listen: " <> errorText(error))
@@ -84,116 +74,66 @@ fn store(counts : Map(SessionId, Int)) : Unit receiving SessionMsg =
     }
 
 // The acceptor: one handler process per connection.
-fn acceptor(sessions : Address(SessionMsg),
-            accepted : Int,
-            listener : Address(Tcp.ListenerMsg)) : Unit =
+fn acceptor(sessions : Address(SessionMsg), listener : Address(Tcp.ListenerMsg)) : Unit =
     match Tcp.accept(listener, 60000) {
         Right(socket) -> {
             // the handler owns its connection, which ends with it
-            let handler = spawn(fn() = handle(sessions, accepted, socket));
+            let handler = spawn(fn() = handle(sessions, socket));
             Tcp.give(socket, Process.fromAddress(handler));
-            acceptor(sessions, accepted + 1, listener)
+            acceptor(sessions, listener)
         }
       | Left(Io.Timeout) ->
-            acceptor(sessions, accepted, listener)
+            acceptor(sessions, listener)
       | Left(error) ->
             Io.println("cannot accept: " <> errorText(error))
     }
 
 // One process per connection: reads a request, writes a response, closes.
-fn handle(sessions : Address(SessionMsg),
-          connection : Int,
-          socket : Address(Tcp.SocketMsg)) : Unit =
-    match Tcp.read(socket, 5000) {
-        Right(bytes) ->
-            match parse(bytes) {
-                Left(_) -> {
-                    let bad = Response(status = statusBadRequest, headers = [], body = "");
-                    // the connection is closed whether the far end took it or not
-                    let _ = Tcp.write(socket, render(bad), 5000);
-                    Tcp.close(socket)
-                }
-              | Right(request) -> {
-                    let id = match Optional.andThen(cookie(request, "sid"), parseSessionId) {
-                        Some(found) -> found
-                      | None -> freshSessionId(connection)
-                    };
-                    let visits = Address.callForever(sessions, fn(reply) = Visit(=id, =reply));
-                    let body = "Visit number " <> Int.toString(visits);
-                    let bytes =
-                        Response(status = statusOk, headers = [], =body)
-                            |> withCookie("sid", sessionIdText(id))
-                            |> render;
-                    let _ = Tcp.write(socket, bytes, 5000);
-                    Tcp.close(socket)
-                }
-            }
-      | Left(_) ->
-            Tcp.close(socket) // nothing arrived in time
+fn handle(sessions : Address(SessionMsg), socket : Address(Tcp.SocketMsg)) : Unit =
+    match Http.readRequest(socket, <<>>, limits, 5000) {
+        Right(#(request, _)) -> {
+            let id = match Optional.andThen(cookie(request.headers, "sid"), parseSessionId) {
+                Some(found) -> found
+              | None -> freshSessionId()
+            };
+            let visits = Address.callForever(sessions, fn(reply) = Visit(=id, =reply));
+            let body = String.toUtf8("Visit number " <> Int.toString(visits));
+            let setCookie = "sid=" <> sessionIdText(id) <> "; path=/";
+            let headers = Http.Header(name = "Set-Cookie", value = setCookie) :: closingHeaders();
+            let _ = Tcp.write(socket, Http.render(response(200, headers), body), 5000);
+            Tcp.close(socket)
+        }
+      | Left(Http.Protocol(_)) -> {
+            // the connection is closed whether the far end took it or not
+            let _ = Tcp.write(socket, Http.render(response(400, closingHeaders()), <<>>), 5000);
+            Tcp.close(socket)
+        }
+      | Left(Http.Socket(_)) ->
+            Tcp.close(socket) // no whole request arrived in time
     }
 
 //
-// Pure code: HTTP parsing and rendering
+// Pure code: requests and responses
 //
 
-fn parse(bytes : Bytes) : Either(ParseError, Request) = {
-    let text <- Either.fromOptional(String.fromUtf8(bytes), BadEncoding);
-    let lines = String.lines(text);
-    let #(method, path) <- requestLine(lines);
-    let headers <- headerLines(lines);
-    Right(Request(=method, =path, =headers))
-}
+// The most bytes of a request's line, and of its headers together.
+let limits = Http.Limits(line = 8192, headers = 65536)
 
-// "GET /path HTTP/1.1"; the version is not used.
-fn requestLine(lines : List(String)) : Either(ParseError, #(String, String)) =
-    match lines {
-        line :: _ ->
-            match String.split(String.trim(line), " ") {
-                method :: path :: _ -> Right(#(method, path))
-              | _ -> Left(BadRequestLine)
-            }
-      | [] ->
-            Left(BadRequestLine)
-    }
+// A response of HTTP/1.1, the version the server speaks.
+fn response(status : Int, headers : List(Http.Header)) : Http.Response =
+    Http.Response(version = Http.Version(major = 1, minor = 1), =status, =headers)
 
-// The lines after the request line, up to the empty one. A name is lowercased,
-// since a header name is case-insensitive; a value keeps any colons in it.
-fn headerLines(lines : List(String)) : Either(ParseError, List(#(String, String))) =
-    match lines {
-        _ :: rest -> headerPairs(rest, [])
-      | [] -> Right([])
-    }
+// The headers every response carries: the date it is sent, which an origin
+// server with a clock sends (RFC 9110 §6.6.1), and that the server closes
+// the connection after it.
+fn closingHeaders() : List(Http.Header) =
+    [Http.Header(name = "Date", value = Http.date(Clock.now())),
+     Http.Header(name = "Connection", value = "close")]
 
-fn headerPairs(lines : List(String),
-               acc : List(#(String, String))) : Either(ParseError, List(#(String, String))) =
-    match lines {
-        [] ->
-            Right(List.reverse(acc))
-      | line :: rest ->
-            if String.trim(line) == "" then
-                Right(List.reverse(acc))
-            else match String.split(line, ":") {
-                name :: first :: more -> {
-                    let value = String.join(first :: more, ":");
-                    headerPairs(rest,
-                                #(String.toLower(String.trim(name)), String.trim(value)) :: acc)
-                }
-              | _ ->
-                    Left(BadHeader(line))
-            }
-    }
-
-fn render(response : Response) : Bytes = {
-    let body = String.toUtf8(response.body);
-    let statusLine = "HTTP/1.1 " <> statusText(response.status);
-    let lengthHeader = "content-length: " <> Int.toString(Bytes.size(body));
-    let headers = List.map(response.headers, fn(#(name, value)) = name <> ": " <> value);
-    String.toUtf8(String.join(statusLine :: lengthHeader :: headers, "\r\n") <> "\r\n\r\n") <> body
-}
-
-fn cookie(request : Request, name : String) : Optional(String) =
-    Optional.andThen(List.find(request.headers, fn(#(field, _)) = field == "cookie"),
-                     fn(#(_, value)) = cookieValue(String.split(value, ";"), name))
+// The value of the cookie `name` in the request's `Cookie` header.
+fn cookie(headers : List(Http.Header), name : String) : Optional(String) =
+    Optional.andThen(Http.header(headers, "Cookie"),
+                     fn(value) = cookieValue(String.split(value, ";"), name))
 
 fn cookieValue(parts : List(String), name : String) : Optional(String) =
     match parts {
@@ -206,10 +146,6 @@ fn cookieValue(parts : List(String), name : String) : Optional(String) =
             }
     }
 
-fn withCookie(response : Response, name : String, value : String) : Response =
-    Response(..response,
-             headers = #("set-cookie", name <> "=" <> value <> "; path=/") :: response.headers)
-
 // The errors the program says in its own words, and the rest as the
 // library shows them.
 fn errorText(error : Io.Error) : String =
@@ -220,31 +156,18 @@ fn errorText(error : Io.Error) : String =
     }
 
 //
-// Status codes and session ids
+// Session ids
 //
 
-let statusOk = StatusCode(200)
+// Sixteen bytes from the host's strong random source.
+fn freshSessionId() : SessionId =
+    SessionId(Crypto.randomBytes(16))
 
-let statusBadRequest = StatusCode(400)
+// An id as `sessionIdText` writes it, thirty-two hexadecimal digits.
+fn parseSessionId(text : String) : Optional(SessionId) = {
+    let bytes <- Bytes.fromHex(text);
+    if Bytes.size(bytes) == 16 then Some(SessionId(bytes)) else None
+}
 
-// The status line's code and reason, each code the program answers with
-// its own; any other, which it does not answer, as its number, the reason
-// being optional (RFC 9112).
-fn statusText(StatusCode(code) : StatusCode) : String =
-    match code {
-        200 -> "200 OK"
-      | 400 -> "400 Bad Request"
-      | other -> Int.toString(other) <> " "
-    }
-
-fn freshSessionId(connection : Int) : SessionId =
-    SessionId(Int.toString(connection))
-
-fn parseSessionId(text : String) : Optional(SessionId) =
-    if !String.isEmpty(text) && List.all(String.toList(text), Char.isAsciiDigit) then
-        Some(SessionId(text))
-    else
-        None
-
-fn sessionIdText(SessionId(text) : SessionId) : String =
-    text
+fn sessionIdText(SessionId(bytes) : SessionId) : String =
+    Bytes.toHex(bytes)

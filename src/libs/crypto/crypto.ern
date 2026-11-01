@@ -1,0 +1,112 @@
+/// The SHA-1 digest of bytes, and bytes from the host's strong random source.
+///
+/// Use `sha1` where a protocol names SHA-1, as WebSocket's opening handshake
+/// does (RFC 6455). Two inputs with one SHA-1 digest have been found, so a
+/// digest that a forger must not match is not SHA-1's to give. Use
+/// `randomBytes` for what must not be guessed, a key, a token or a cookie;
+/// numbers a program draws for a simulation or a test, which a seed
+/// repeats, are `Random`'s.
+///
+/// The library stands on every job's load path, so a program names it with
+/// no option (report Appendix G).
+///
+/// **The strong random source.** `randomBytes` draws from the host's
+/// generator for keys, which the operating system's entropy seeds and mixes
+/// again as it runs. Where the generator fails for lack of entropy, the call
+/// faults, and no bytes are drawn from a weaker source.
+///
+/// ## Examples
+///
+/// The digest of `abc`, FIPS 180-4's example, in hexadecimal:
+///
+/// ```ernest
+/// Bytes.toHex(Crypto.sha1(String.toUtf8("abc")))
+/// // => "A9993E364706816ABA3E25717850C26C9CD0D89D"
+/// ```
+///
+/// A token of 16 random bytes, in hexadecimal, another at every call:
+///
+/// ```ernest
+/// Bytes.toHex(Crypto.randomBytes(16))
+/// ```
+///
+/// ## See also
+///
+/// `Random` for numbers drawn from a seed, `Bytes.toHex` to write bytes as
+/// text.
+///
+/// since 0.9.0
+
+/// The SHA-1 digest of the bytes, 20 bytes, as FIPS 180-4 defines it. Empty
+/// bytes have one too.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Bytes.toHex(Crypto.sha1(<<>>))
+/// // => "DA39A3EE5E6B4B0D3255BFEF95601890AFD80709"
+/// ```
+export fn sha1(bytes : Bytes) : Bytes =
+    hash(Foreign.atom("sha"), bytes)
+
+/// `count` bytes from the host's strong random source, each of the 256
+/// values as likely as any other. A count below 0 is 0, which answers no
+/// bytes (report §7.4).
+///
+/// ### Errors
+///
+/// Faults where the host's generator fails for lack of entropy, a limit of
+/// the host the program did not cause (report §7.4), with the cause `foreign
+/// function crypto:strong_rand_bytes/1 raised error:low_entropy`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Bytes.size(Crypto.randomBytes(16)), Crypto.randomBytes(-1))
+/// // => #(16, <<>>)
+/// ```
+export fn randomBytes(count : Int) : Bytes =
+    strongBytes(Int.max(count, 0))
+
+//
+// The tests (report §9.3), run by `ern test` as every library's are, each a
+// regression test written with the code (report Appendix G.9).
+//
+
+// Report Appendix G.9: the digest of no bytes, and FIPS 180-4's two
+// examples for SHA-1, of one block and of two.
+let digests =
+    Test.Case(name = "the digests of no bytes and of FIPS 180-4's examples",
+              run = fn() =
+                  Test.equal(List.map(["",
+                                       "abc",
+                                       "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"],
+                                      fn(text) = Bytes.toHex(sha1(String.toUtf8(text)))),
+                             ["DA39A3EE5E6B4B0D3255BFEF95601890AFD80709",
+                              "A9993E364706816ABA3E25717850C26C9CD0D89D",
+                              "84983E441C3BD26EBAAE4AA1F95129E5E54670F1"]))
+
+// Report Appendix G.9: as many bytes as the count asks, and two draws that
+// differ: two draws of 16 bytes are equal once in 2^128 pairs.
+let draws =
+    Test.Case(name = "random bytes come in the count asked, and two draws differ", run = fn() = {
+        let first = randomBytes(16);
+        let second = randomBytes(16);
+        Test.equal(#(Bytes.size(first), Bytes.size(second), first == second), #(16, 16, false))
+    })
+
+// Report Appendix G.9, §7.4: a count of 0 is no bytes, and so is one
+// below 0.
+let noCount =
+    Test.Case(name = "a count of 0 or below draws no bytes",
+              run = fn() = Test.equal(#(randomBytes(0), randomBytes(-1)), #(<<>>, <<>>)))
+
+//
+// The host's functions
+//
+
+foreign fn hash(algorithm : Foreign.Term, bytes : Bytes) : Bytes =
+    "crypto:hash/2"
+
+foreign fn strongBytes(count : Int) : Bytes =
+    "crypto:strong_rand_bytes/1"

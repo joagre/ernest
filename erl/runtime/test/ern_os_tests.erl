@@ -377,7 +377,12 @@ terminal_kill_test() ->
                        [{args, [Fifo]}, exit_status, binary]),
     {os_pid, ReaderNumber} = erlang:port_info(Reader, os_pid),
     Self = self(),
-    Script = <<"trap '' HUP; sleep 1000 > ", (list_to_binary(Fifo))/binary, " & echo $!; wait">>,
+    %% The shell opens the pipe itself before it prints the number, so that
+    %% a writer holds the pipe before the kill can come: a `sleep` that opens
+    %% it in the background may not have by then, and the reader would wait
+    %% on a pipe no writer ever opens.
+    Script = <<"trap '' HUP; exec 3> ", (list_to_binary(Fifo))/binary,
+               "; sleep 1000 >&3 & echo $!; wait">>,
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Sh} = start_terminal(<<"sh">>, [<<"-c">>, Script], ?SIZE),

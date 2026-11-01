@@ -1,0 +1,288 @@
+/// The civil calendar: the date and the time of day of a time, in UTC, and the
+/// time of a date and a time of day.
+///
+/// Use it where a program reads or writes a date. A time is milliseconds since
+/// the epoch, as `Clock.now` answers it (report Appendix E.15): `civil` reads
+/// its date and time of day, `fromCivil` makes the time from them, and
+/// `weekday` names its day. A text form of a date is its format's, written
+/// over `civil`: `Clock.toString` writes RFC 3339's, and `libs/http` RFC
+/// 9110's (report Appendix G.11).
+///
+/// The library stands on every job's load path, so a program names it with
+/// no option (report Appendix G).
+///
+/// **The calendar.** A date is the proleptic Gregorian calendar's, its leap
+/// years kept before 1582 too, in UTC, with no time zone and no leap second.
+/// A year before 1 is numbered as astronomers number it: 0 is the year before
+/// 1, and -1 the year before 0. No time is outside the calendar.
+///
+/// **Seconds.** `civil` drops the milliseconds within the second, and
+/// `fromCivil` answers the time at which the second begins, so
+/// `fromCivil(civil(time))` is `time` rounded down to its second. A time
+/// before the epoch is held by the second that begins at or before it: `-1`
+/// is in the last second of 1969.
+///
+/// ## Examples
+///
+/// The epoch, its date and time of day and its day of the week:
+///
+/// ```ernest
+/// #(Time.civil(0), Time.weekday(0))
+/// // => #(Civil(year = 1970, month = 1, day = 1, hour = 0, minute = 0, second = 0), Thursday)
+/// ```
+///
+/// A date and a time of day, made into a time:
+///
+/// ```ernest
+/// {
+///     let leapDay =
+///         Time.Civil(year = 2024, month = 2, day = 29, hour = 12, minute = 34, second = 56);
+///     Time.fromCivil(leapDay)
+/// }
+/// // => Some(1709210096000)
+/// ```
+///
+/// ## See also
+///
+/// `Clock.now` for the time now, `Clock.toString` for the time as RFC 3339
+/// writes it.
+///
+/// since 0.9.0
+
+/// A date and a time of day of the civil calendar, in UTC, to the second.
+/// One that `civil` answers is a date and a time of day the calendar has; one
+/// a program builds may not be, and `fromCivil` answers `None` for it.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Time.civil(1709210096789)
+/// // => Civil(year = 2024, month = 2, day = 29, hour = 12, minute = 34, second = 56)
+/// ```
+export type Civil = Civil(
+    /// The year, negative before the year 0, which is the year before 1.
+    year : Int,
+    /// The month, 1 for January to 12 for December.
+    month : Int,
+    /// The day of the month, from 1.
+    day : Int,
+    /// The hour, 0 to 23.
+    hour : Int,
+    /// The minute, 0 to 59.
+    minute : Int,
+    /// The second, 0 to 59.
+    second : Int)
+
+/// A day of the week, Monday to Sunday.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Time.weekday(-1)
+/// // => Wednesday
+/// ```
+export type Weekday = Monday | Tuesday | Wednesday | Thursday | Friday | Saturday | Sunday
+
+/// The civil date and time of day, in UTC, of the second that holds `time`,
+/// in milliseconds since the epoch; the milliseconds within the second are
+/// dropped.
+///
+/// A time before the epoch is in the second that begins at or before it. A
+/// year before 0 is negative.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Time.civil(-1)
+/// // => Civil(year = 1969, month = 12, day = 31, hour = 23, minute = 59, second = 59)
+/// ```
+export fn civil(time : Int) : Civil = {
+    let #(#(year, month, day), #(hour, minute, second)) =
+        universalTime(time, Foreign.atom("millisecond"));
+    Civil(=year, =month, =day, =hour, =minute, =second)
+}
+
+/// The time, in milliseconds since the epoch, at which the civil second
+/// begins; `None` for a date or a time of day the calendar has not.
+///
+/// A month outside 1 to 12, a day outside its month, a 29th of February
+/// outside a leap year, an hour outside 0 to 23, and a minute or a second
+/// outside 0 to 59 are `None`: a 24th hour and a 60th second among them.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Time.fromCivil(Time.Civil(year = 2023, month = 2, day = 29, hour = 0, minute = 0, second = 0))
+/// // => None
+/// ```
+export fn fromCivil(civil : Civil) : Optional(Int) = {
+    let Civil(=year, =month, =day, =hour, =minute, =second) = civil;
+    if validDate(year, month, day)
+        && within(hour, 23)
+        && within(minute, 59)
+        && within(second, 59) then
+        Some((gregorianSeconds(#(#(year, month, day), #(hour, minute, second))) - epoch) * 1000)
+    else
+        None
+}
+
+// Report Appendix G.10: whether the hour, the minute or the second is from 0
+// to its last, which the host's valid_date, a date's check alone, leaves to
+// the caller.
+fn within(value : Int, last : Int) : Bool =
+    value >= 0 && value <= last
+
+// The host's gregorian seconds of 1970-01-01T00:00:00, from the start of the
+// year 0: 719528 days of 86400 seconds, as its page counts them.
+let epoch = 62167219200
+
+/// The day of the week of the civil date that holds `time`, in UTC.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Time.weekday(1793524863000)
+/// // => Sunday
+/// ```
+export fn weekday(time : Int) : Weekday = {
+    let Civil(=year, =month, =day) = civil(time);
+    // the host's day of the week is 1 for Monday to 7 for Sunday
+    match dayOfTheWeek(year, month, day) {
+        1 -> Monday
+      | 2 -> Tuesday
+      | 3 -> Wednesday
+      | 4 -> Thursday
+      | 5 -> Friday
+      | 6 -> Saturday
+      | _ -> Sunday
+    }
+}
+
+//
+// The tests (report §9.3), run by `ern test` as every library's are.
+// Regression tests, written with the code.
+//
+
+// The first second of a date, the tests' way to name one.
+fn date(year : Int, month : Int, day : Int) : Civil =
+    Civil(=year, =month, =day, hour = 0, minute = 0, second = 0)
+
+// report Appendix G.10
+let theEpoch =
+    Test.Case(name = "the epoch is the first second of 1970, a Thursday",
+              run = fn() =
+                  Test.equal(#(civil(0), fromCivil(date(1970, 1, 1)), weekday(0)),
+                             #(date(1970, 1, 1), Some(0), Thursday)))
+
+// report Appendix G.10
+let roundTrip =
+    Test.Case(name = "a dated time comes back from its civil date and time of day", run = fn() = {
+        let dated = Civil(..date(2026, 11, 1), hour = 9, minute = 21, second = 3);
+        Test.equal(#(civil(1793524863000), fromCivil(dated)), #(dated, Some(1793524863000)))
+    })
+
+// report Appendix G.10
+let millisecondsDropped =
+    Test.Case(name = "the milliseconds are dropped, and the second's start answered",
+              run = fn() =
+                  Test.equal(#(civil(1709210096999) == civil(1709210096000),
+                               fromCivil(civil(1709210096999))),
+                             #(true, Some(1709210096000))))
+
+// report Appendix G.10
+let leapDay =
+    Test.Case(name = "a leap year has a 29th of February, and no year a 30th",
+              run = fn() =
+                  Test.equal(List.map([date(2024, 2, 29),
+                                       date(2000, 2, 29),
+                                       date(1900, 2, 29),
+                                       date(2023, 2, 29),
+                                       date(2024, 2, 30),
+                                       date(2024, 13, 1),
+                                       date(2024, 1, 0)],
+                                      fromCivil),
+                             [Some(1709164800000),
+                              Some(951782400000),
+                              None,
+                              None,
+                              None,
+                              None,
+                              None]))
+
+// report Appendix G.10
+let twentyFourthHour =
+    Test.Case(name = "a 24th hour, a 60th minute and a negative hour are no time of day",
+              run = fn() = {
+                  let day = date(2024, 1, 1);
+                  Test.equal(List.map([Civil(..day, hour = 24),
+                                       Civil(..day, hour = 23, minute = 60),
+                                       Civil(..day, hour = -1)],
+                                      fromCivil),
+                             [None, None, None])
+              })
+
+// report Appendix G.10
+let sixtiethSecond =
+    Test.Case(name = "a 60th second is no time of day, a leap second's among them", run = fn() = {
+        let lastMinute = Civil(..date(2016, 12, 31), hour = 23, minute = 59);
+        Test.equal(List.map([Civil(..lastMinute, second = 60),
+                             Civil(..lastMinute, second = 59),
+                             Civil(..lastMinute, second = -1)],
+                            fromCivil),
+                   [None, Some(1483228799000), None])
+    })
+
+// report Appendix G.10
+let beforeTheEpoch =
+    Test.Case(name = "a time before the epoch is in the second that begins at or before it",
+              run = fn() = {
+                  let lastSecond = Civil(..date(1969, 12, 31), hour = 23, minute = 59, second = 59);
+                  Test.equal(#(civil(-1), fromCivil(civil(-1)), civil(-1000), civil(-1001)),
+                             #(lastSecond,
+                               Some(-1000),
+                               lastSecond,
+                               Civil(..lastSecond, second = 58)))
+              })
+
+// report Appendix G.10
+let beforeTheYearZero =
+    Test.Case(name = "a year before 0 is negative, and its leap years are kept", run = fn() = {
+        let lastSecond = Civil(..date(-1, 12, 31), hour = 23, minute = 59, second = 59);
+        Test.equal(#(civil(-62167219201000),
+                     fromCivil(lastSecond),
+                     civil(-62167219200000),
+                     fromCivil(date(-4, 2, 29)),
+                     fromCivil(date(-1, 2, 29))),
+                   #(lastSecond, Some(-62167219201000), date(0, 1, 1), Some(-62288352000000), None))
+    })
+
+// report Appendix G.10
+let knownWeekdays =
+    Test.Case(name = "the day of the week of known dates, Monday to Sunday",
+              run = fn() =
+                  Test.equal(List.map([1730073600000,
+                                       1709164800000,
+                                       946684800000,
+                                       1793524863000,
+                                       -1,
+                                       1709251199999],
+                                      weekday),
+                             [Monday, Thursday, Saturday, Sunday, Wednesday, Thursday]))
+
+//
+// The host's functions
+//
+
+// The date and time of day of the time in the unit, of the second the time
+// rounds down to, by the host's floor (report Appendix G.10).
+foreign fn universalTime(time : Int, unit : Foreign.Term) : #(#(Int, Int, Int), #(Int, Int, Int)) =
+    "calendar:system_time_to_universal_time/2"
+
+foreign fn validDate(year : Int, month : Int, day : Int) : Bool =
+    "calendar:valid_date/3"
+
+foreign fn gregorianSeconds(datetime : #(#(Int, Int, Int), #(Int, Int, Int))) : Int =
+    "calendar:datetime_to_gregorian_seconds/1"
+
+foreign fn dayOfTheWeek(year : Int, month : Int, day : Int) : Int =
+    "calendar:day_of_the_week/3"

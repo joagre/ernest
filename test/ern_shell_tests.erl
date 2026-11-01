@@ -5048,11 +5048,9 @@ shell_told_of_the_end() ->
 
 demo(Value) ->
     ["export fn answer() : Int = ", integer_to_list(Value), "\n\n",
-     "export fn tick() : Unit receiving Unit = {\n",
-     "    let _ = Clock.alarm(50, fn(_) = Unit);\n",
-     "    receive { _ -> Unit };\n",
-     "    tick()\n",
-     "}\n"].
+     %% a wait with no alarm, so that `:processes` finds it receiving at
+     %% any moment, where a tick every 50 ms ran for a moment each time
+     "export fn tick() : Unit receiving Unit = receive { _ -> Unit }\n"].
 
 write_demo(Dir, Value) ->
     write_source(Dir, "demo.ern", demo(Value)).
