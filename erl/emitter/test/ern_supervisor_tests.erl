@@ -265,7 +265,7 @@ count_survives_restart_in_place_test() ->
         "fn ask(c : Address(Msg)) : Int = Address.callForever(c, fn(r) = Ask(reply = r))\n"
         "fn reported() : Unit receiving Process.FaultReport = receive { _ -> Unit }\n"
         "fn waitUntil(time : Int) : Unit =\n"
-        "    receive { after Int.max(0, time - Clock.monotonic()) -> Unit }\n"
+        "    Clock.sleep(Int.max(0, time - Clock.monotonic()))\n"
         "export fn main() : Unit receiving Process.FaultReport = {\n"
         "    let within = 1000;\n"
         "    Process.faults(fn(f) = f);\n"

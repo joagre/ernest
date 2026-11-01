@@ -104,7 +104,7 @@ let tickMs = 100
 // waits what is left of it, so that the time a tick's work takes does not
 // put off the ticks after it (report Appendix E.15).
 fn game(world : World, deadline : Int) : Unit receiving GameMsg = {
-    Clock.alarm(Int.max(deadline - Clock.monotonic(), 0), fn(_) = Ticked);
+    let _ = Clock.alarm(Int.max(deadline - Clock.monotonic(), 0), fn(_) = Ticked);
     receive {
         Ticked -> {
             let world1 = step(drain(world, 64));

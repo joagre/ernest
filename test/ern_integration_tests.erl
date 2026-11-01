@@ -452,8 +452,8 @@ hangup() ->
     ok = file:write_file(Dir ++ "/waits.ern",
                          ["export fn main() : Unit receiving Never = {\n"
                           "    Io.println(\"running\");\n"
-                          "    receive { after ", ern_nodes_tests:wait_ms_text(),
-                          " -> Io.println(\"late\") }\n"
+                          "    Clock.sleep(", ern_nodes_tests:wait_ms_text(), ");\n"
+                          "    Io.println(\"late\")\n"
                           "}\n"]),
     0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/waits.ern"),
     ?assertEqual({129, [<<"running">>]},
@@ -1315,8 +1315,8 @@ signal_end() ->
     ok = file:write_file(Dir ++ "/waits.ern",
                          ["export fn main() : Unit receiving Never = {\n"
                           "    Io.println(\"running\");\n"
-                          "    receive { after ", ern_nodes_tests:wait_ms_text(),
-                          " -> Io.println(\"late\") }\n"
+                          "    Clock.sleep(", ern_nodes_tests:wait_ms_text(), ");\n"
+                          "    Io.println(\"late\")\n"
                           "}\n"]),
     0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/waits.ern"),
     Python = "import subprocess, signal\n"

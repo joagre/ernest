@@ -31,7 +31,7 @@ fn serve() : Unit receiving Msg = {
 }
 
 fn tick() : Unit receiving Msg = {
-    Clock.alarm(1000, Tick);
+    let _ = Clock.alarm(1000, Tick);
     receive {
         Tick(_) -> tick()
     }

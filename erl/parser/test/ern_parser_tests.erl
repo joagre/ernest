@@ -433,8 +433,20 @@ receive_test() ->
                             'after' = #after_clause{timeout = #e_literal{value = 1000},
                                                     body = #e_constructor{name = 'None'}}},
                  expression("receive { Data(n) -> Some(n) | after 1000 -> None }")),
-    ?assertMatch(#e_receive{clauses = [], 'after' = #after_clause{timeout = #e_literal{value = 0}}},
-                 expression("receive { after 0 -> world }")).
+    ?assertMatch(#e_receive{clauses = [#clause{}],
+                            'after' = #after_clause{timeout = #e_literal{value = 0}}},
+                 expression("receive { _ -> hello | after 0 -> world }")).
+
+%% report §6.3, Appendix A: a `receive` has a pattern clause, so one with
+%% an `after` clause alone is refused at the `after`, naming the wait for
+%% a time, in an expression as in a declaration
+receive_takes_a_message_test() ->
+    Refusal = "a `receive` takes a message; to wait a time, write `Clock.sleep(ms)`",
+    ?assertEqual({Refusal, undefined}, expression_refusal_and_help("receive { after 0 -> world }")),
+    ?assertMatch({error, #diagnostic{message = Refusal, span = {3, 9, _}}},
+                 ern_parser:parse_string("fn f() : Unit = {\n    receive {\n"
+                                         "        after 100 -> Unit\n    }\n}\n")),
+    ?assertEqual(Refusal, refusal("fn f() : Unit = receive { after 100 -> Unit }")).
 
 %% report §5.11
 bitstring_expr_test() ->
@@ -881,7 +893,7 @@ non_operand_forms_test() ->
     ?assertMatch(#e_binop{operator = '||', left = #e_binop{operator = '&&', right = #e_match{}}},
                  expression("a && match x { _ -> true } || b")),
     ?assertMatch(#e_binop{operator = '+', left = #e_receive{}},
-                 expression("receive { after 0 -> 1 } + 2")).
+                 expression("receive { _ -> 1 } + 2")).
 
 %% report §2.6, §4.8: an operator that may be no member is refused after
 %% `.` with the six that may be named, in a declaration's name and in a

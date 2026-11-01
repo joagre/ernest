@@ -1,15 +1,16 @@
-/// The time, and alarms.
+/// The time, alarms, and the wait for a time.
 ///
 /// `now` is the time of day, in milliseconds since the epoch, 1970-01-01 UTC.
 /// `monotonic` is the clock to measure a duration by, since `now` moves when
 /// the host's clock is set, and `monotonicMicros` is the same clock in
 /// microseconds. `alarm` and `alarmAt` put a message in the caller's mailbox
-/// later.
+/// later, and `sleep` waits a time and takes no message.
 ///
-/// **Alarms.** An alarm fires once, and cannot be canceled: a process that no
-/// longer wants it ignores its message. A periodic tick is set again each time
-/// the one before is handled. A restart of the process that set an alarm
-/// cancels it (report §6.9).
+/// **Alarms.** An alarm fires once, and `alarm` and `alarmAt` answer it as an
+/// `Alarm`, which `cancel` ends until it fires. A fired alarm's message is in
+/// the mailbox or on its way, and no cancel takes it back. A periodic tick is
+/// set again each time the one before is handled. A restart of the process
+/// that set an alarm cancels it (report §6.9).
 ///
 /// **Alarms arrive in the mailbox.** An alarm is delivered into the caller's
 /// mailbox, so `alarm` and `alarmAt` carry `receiving m`, the caller's mailbox
@@ -32,10 +33,28 @@
 
 // What the clock takes: times in milliseconds, the time an alarm fires
 // sent to its `address`. An alarm is answered once the clock holds it, so that
-// the caller goes on only when it is counted as pending (report §8.6).
+// the caller goes on only when it is counted as pending (report §8.6), with
+// the clock's reference for it, which a cancel names.
 type Msg =
-    Alarm(ms : Int, address : Address(Int), reply : Reply(Unit))
-  | AlarmAt(time : Int, address : Address(Int), reply : Reply(Unit))
+    AlarmAfter(ms : Int, address : Address(Int), reply : Reply(Foreign.Term))
+  | AlarmAt(time : Int, address : Address(Int), reply : Reply(Foreign.Term))
+  | Cancel(alarm : Foreign.Term, reply : Reply(Bool))
+
+/// An alarm that `alarm` or `alarmAt` set, held until it fires, is canceled
+/// or its process ends. It is bound to its node, and `==` is the runtime's on
+/// it: an alarm equals itself alone (report §3.10, §3.11).
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let alarm = Clock.alarm(60000, fn(_) = Unit);
+///     alarm == alarm
+/// }
+/// ```
+///
+/// since 0.8.0
+export abstract type Alarm = Alarm(Foreign.Term)
 
 // Report §8.2: the system reference, the runtime's address of the clock,
 // bound at each start.
@@ -83,8 +102,29 @@ export foreign fn monotonic() : Int =
 export foreign fn monotonicMicros() : Int =
     "ern_rt:monotonic_micros/0"
 
+/// Waits `ms` milliseconds, counted as `monotonic` counts them, and takes no
+/// message: the mailbox is as it was. A restart asked for, or a fault met on a
+/// message's way, reaches the wait as it reaches a `receive` (report §6.5,
+/// §6.9). A time below 0 is 0, and a time has no upper bound (report §7.4).
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let start = Clock.monotonic();
+///     Clock.sleep(1);
+///     Clock.monotonic() - start >= 1
+/// }
+/// // => true
+/// ```
+///
+/// since 0.8.0
+export foreign fn sleep(ms : Int) : Unit =
+    "ern_rt:sleep/1"
+
 /// Puts `wrap(time)` in the caller's mailbox after `ms` milliseconds, `time`
-/// the time it fired. A constructor of one argument passes as `wrap` as it is:
+/// the time it fired, and answers the alarm, which `cancel` ends until then.
+/// A constructor of one argument passes as `wrap` as it is:
 /// `Clock.alarm(100, Tick)` for `Tick(Int)`.
 ///
 /// ### Examples
@@ -92,23 +132,46 @@ export foreign fn monotonicMicros() : Int =
 /// ```ernest
 /// Clock.alarm(10, fn(_) = Unit)
 /// ```
-export fn alarm(ms : Int, wrap : (Int) -> m) : Unit receiving m = {
+export fn alarm(ms : Int, wrap : (Int) -> m) : Alarm receiving m = {
     let address = adapted(self(), wrap);
-    let request = fn(reply) = Alarm(ms = ms, address = address, reply = reply);
-    Address.callForever(reference, request)
+    let request = fn(reply) = AlarmAfter(ms = ms, address = address, reply = reply);
+    Alarm(Address.callForever(reference, request))
 }
 
 /// Puts `wrap(time)` in the caller's mailbox at `time`, in milliseconds since
-/// the epoch, `time` then the time it fired. A time already past fires at once.
+/// the epoch, `time` then the time it fired, and answers the alarm, which
+/// `cancel` ends until then. A time already past fires at once.
 ///
 /// ### Examples
 ///
 /// ```ernest
 /// Clock.alarmAt(Clock.now() + 10, fn(_) = Unit)
 /// ```
-export fn alarmAt(time : Int, wrap : (Int) -> m) : Unit receiving m = {
+export fn alarmAt(time : Int, wrap : (Int) -> m) : Alarm receiving m = {
     let address = adapted(self(), wrap);
     let request = fn(reply) = AlarmAt(time = time, address = address, reply = reply);
+    Alarm(Address.callForever(reference, request))
+}
+
+/// Ends `alarm` where it has neither fired nor ended, and answers `true`: its
+/// message never comes. It answers `false` for any other alarm, one that
+/// fired, one canceled already, and one whose process restarted or ended, and
+/// leaves it as it is; a fired alarm's message is delivered as any alarm's is.
+/// Any process of the node may cancel an alarm it holds.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let alarm = Clock.alarm(60000, fn(_) = Unit);
+///     Clock.cancel(alarm)
+/// }
+/// ```
+///
+/// since 0.8.0
+export fn cancel(alarm : Alarm) : Bool = {
+    let Alarm(held) = alarm;
+    let request = fn(reply) = Cancel(alarm = held, reply = reply);
     Address.callForever(reference, request)
 }
 

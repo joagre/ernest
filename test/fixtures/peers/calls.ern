@@ -24,9 +24,8 @@ export fn serve() : Unit receiving Msg =
             serve()
         }
       | Slow(ms = ms, reply = reply) -> {
-            receive {
-                after ms -> answer(reply, ms)
-            };
+            Clock.sleep(ms);
+            answer(reply, ms);
             serve()
         }
       | Forward(answerer = answerer, reply = reply) -> {

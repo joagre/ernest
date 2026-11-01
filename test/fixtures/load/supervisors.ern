@@ -56,9 +56,7 @@ fn round(number : Int) : Unit receiving Never =
 // before it is marked: a sample counts the node at rest, and an alarm on
 // its way, delivered by a process of its own, is not at rest.
 fn rest() : Unit receiving Never =
-    receive {
-        after window + 100 -> Unit
-    }
+    Clock.sleep(window + 100)
 
 fn work(left : Int) : Unit =
     if left == 0 then

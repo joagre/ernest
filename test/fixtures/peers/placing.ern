@@ -26,6 +26,7 @@ fn answers(reading : Optional(Float)) : Bool =
 export fn heard(name : String, interval : Int) : Unit =
     if List.any(Peer.utilizations(), fn(#(peer, _, _)) = peer == name) then
         Unit
-    else receive {
-        after interval -> heard(name, interval)
+    else {
+        Clock.sleep(interval);
+        heard(name, interval)
     }

@@ -1000,6 +1000,23 @@ example.ern:1:6: expected a type name instead of identifier `point`
   | = help: a type name begins with an uppercase letter: Point
 ```
 
+### A `receive` with an `after` clause alone (§6.3)
+
+```ernest-rejected
+fn pause(ms : Int) : Unit =
+    receive {
+        after ms -> Unit
+    }
+```
+
+```console
+$ ern build example.ern
+example.ern:3:9: a `receive` takes a message; to wait a time, write `Clock.sleep(ms)`
+2 |     receive {
+3 |         after ms -> Unit
+  |         ^^^^^
+```
+
 ## Types (report §3)
 
 ### A type given the wrong number of arguments (§3.9)
@@ -4242,7 +4259,7 @@ example.ern:2:5: f is declared with mailbox Never and cannot receive
   |                        ----- f is declared `receiving Never` here
 2 |     receive {
   |     ^^^^^^^^^
-  | = help: only an `after` clause is allowed; give f another mailbox type with `receiving`
+  | = help: give f another mailbox type with `receiving`; to wait a time, write `Clock.sleep(ms)`
 ```
 
 ### `receive` in a spawned function whose mailbox nothing fixes (§6.8, §6.2)
@@ -4303,15 +4320,16 @@ example.ern:2:5: a top-level initializer runs with mailbox Never and cannot rece
 ```ernest-rejected
 fn f() : Int receiving Int =
     receive {
-        after "soon" -> 1
+        n -> n
+      | after "soon" -> 1
     }
 ```
 
 ```console
 $ ern build example.ern
-example.ern:3:15: the `after` time is in milliseconds: expected Int, found String
-2 |     receive {
-3 |         after "soon" -> 1
+example.ern:4:15: the `after` time is in milliseconds: expected Int, found String
+3 |         n -> n
+4 |       | after "soon" -> 1
   |               ^^^^^^
 ```
 

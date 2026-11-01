@@ -34,15 +34,13 @@ fn work(left : Int) : Unit receiving Msg =
     }
 
 fn once() : Unit receiving Msg = {
-    Clock.alarm(1, Ticked);
+    let _ = Clock.alarm(1, Ticked);
     receive {
         Ticked(_) -> Unit
     };
-    Clock.alarmAt(Clock.now(), Ticked);
+    let _ = Clock.alarmAt(Clock.now(), Ticked);
     receive {
         Ticked(_) -> Unit
     };
-    receive {
-        after 0 -> Unit
-    }
+    Clock.sleep(0)
 }

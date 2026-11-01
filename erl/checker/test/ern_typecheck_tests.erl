@@ -221,9 +221,10 @@ restarting_takes_the_function_s_mailbox_test() ->
     ?assertEqual("the callee needs a mailbox, and tryIt receives nothing",
                  refusal("fn tryIt() : Unit = restarting(" ++ Limit ++ ","
                          " fn() = receive { _ -> Unit })()\n")),
-    %% report §3.9: a timed wait takes no message, and receives nothing
+    %% report §3.9, Appendix E.15: a sleep takes no message, and receives
+    %% nothing
     ?assertEqual(ok, ok("fn tryIt() : Unit = restarting(" ++ Limit ++ ","
-                        " fn() = receive { after 1 -> Unit })()\n")),
+                        " fn() = Clock.sleep(1))()\n")),
     ?assertEqual(ok, ok("fn serve() : Unit =\n"
                         "    restarting(" ++ Limit ++ ", fn() = Unit)()\n"
                         "fn start() : Unit = {\n"
@@ -557,11 +558,12 @@ spawning(Statements, Function) ->
     "    Unit\n"
     "}\n".
 
-%% report §3.11, §3.8, Appendix E.18, E.23: a type is bound to its node
-%% where it holds a function, a foreign type, a resource, or an address or
-%% a reply whose message type is bound; the prelude's own types, which
-%% the checker keeps as foreign ones, cross, and so do a declared type's
-%% values, an address and a reply of an unbound type, and a Process
+%% report §3.11, §3.8, Appendix E.15, E.18, E.23: a type is bound to its
+%% node where it holds a function, a foreign type, a resource, an alarm
+%% among them, or an address or a reply whose message type is bound; the
+%% prelude's own types, which the checker keeps as foreign ones, cross, and
+%% so do a declared type's values, an address and a reply of an unbound
+%% type, and a Process
 bound_type_test() ->
     Env = ern_typecheck:prelude_env(),
     Binds = fun(Type) -> ern_bound:binds(Type, Env) end,
@@ -586,6 +588,7 @@ bound_type_test() ->
                  Binds({tcon, ['Address'], [{tcon, ['Tcp', 'ListenerMsg'], []}]})),
     ?assertEqual("the address of a running program",
                  Binds({tcon, ['Address'], [{tcon, ['Os', 'ProgramMsg'], []}]})),
+    ?assertEqual("an alarm", Binds({tcon, ['Clock', 'Alarm'], []})),
     ?assertEqual("an address whose message type holds a function",
                  Binds({tcon, ['Address'], [Function]})),
     ?assertEqual("a reply whose answer holds the address of a socket",
@@ -670,6 +673,23 @@ ets_table_bound_test() ->
                  " is bound to its node, since it holds a value of the foreign type Ets.Table",
                  Refusal("fn f(table : Ets.Table(Int, Int)) : Unit = {\n"
                          ++ spawning("", "fn() : Unit receiving Never = { let _ = table; Unit }"))).
+
+%% report §3.11, §3.10, Appendix E.15: an alarm is a resource the runtime
+%% holds, bound to its node and named as one: a service at a type that
+%% holds one is refused, and so is a spawn on a peer whose function
+%% captures one, while `==` on two alarms is the runtime's, as on a Process
+alarm_bound_test() ->
+    ?assertEqual("Peer.service names a service at Optional(Clock.Alarm), which is bound to its"
+                 " node, since it holds an alarm",
+                 peer_refusal("export let service : Peer.Service(Optional(Clock.Alarm)) ="
+                              " Peer.service(\"a\")\n")),
+    ?assertEqual("the function Peer.spawn starts captures alarm, whose type Clock.Alarm is"
+                 " bound to its node, since it holds an alarm",
+                 peer_refusal("fn f(alarm : Clock.Alarm) : Unit = {\n"
+                              ++ spawning("", "fn() : Unit receiving Never ="
+                                              " { let _ = Clock.cancel(alarm); Unit }"))),
+    ?assertEqual(ok, ok("fn same(alarm : Clock.Alarm, other : Clock.Alarm) : Bool ="
+                        " alarm == other\n")).
 
 %% report §3.11: the function a spawn on a peer starts is a lambda written
 %% in the definition, at the spawn or bound by a `let` the spawn names, a
@@ -1678,7 +1698,7 @@ effects_test() ->
                  type_of("export fn say(xs) = List.forEach(xs, fn(x) = Io.println(x))", say)),
     ?assertEqual("(List(Int)) -> Unit",
                  type_of("export fn wait(xs) ="
-                         " List.forEach(xs, fn(x) = receive { after x -> Unit })", wait)),
+                         " List.forEach(xs, fn(x) = Clock.sleep(x))", wait)),
     ?assertEqual("(List(a)) -> Unit receiving e+",
                  type_of("export fn skip(xs) ="
                          " List.forEach(xs, fn(x) = receive { _ -> Unit })", skip)),
@@ -1691,23 +1711,23 @@ effects_test() ->
                                   "fn gb() : Unit receiving B = receive { B -> Unit }\n"
                                   "fn both() = { ga(); gb() }")).
 
-%% report §6.1, §6.3, §6.8, §7.2, §3.9: a missing reply is `after` in
-%% receive; a receive with only `after` takes no message, so its function
-%% receives nothing, in any process, and one that receives nothing calls it
+%% report §6.1, §6.3, §6.8, §7.2, §3.9, Appendix E.15: a missing reply is
+%% `after` in receive; a sleep takes no message, so its function receives
+%% nothing, in any process, and one that receives nothing calls it
 receive_and_mailboxes_test() ->
     Counter = "type CounterMsg = Inc(Int) | Get(reply : Reply(Int))\n"
               "export fn counter(n : Int) : Unit receiving CounterMsg = receive {\n"
               "    Inc(k) -> counter(n + k)\n"
               "  | Get(reply = r) -> { answer(r, n); counter(n) }\n}",
     ?assertEqual("(Int) -> Unit receiving M.CounterMsg", type_of(Counter, counter)),
-    ?assertEqual(ok, ok("fn f() : Unit = receive { after 1 -> Unit }")),
-    ?assertEqual(ok, ok("fn f() : Unit receiving Never = receive { after 1 -> Unit }")),
+    ?assertEqual(ok, ok("fn f() : Unit = Clock.sleep(1)")),
+    ?assertEqual(ok, ok("fn f() : Unit receiving Never = Clock.sleep(1)")),
     ?assertEqual("(Int) -> Unit",
-                 type_of("export fn pause(ms : Int) = receive { after ms -> Unit }", pause)),
+                 type_of("export fn pause(ms : Int) = Clock.sleep(ms)", pause)),
     ?assertEqual("(Int) -> Unit",
-                 type_of("export fn pause(ms : Int) : Unit = receive { after ms -> Unit }",
+                 type_of("export fn pause(ms : Int) : Unit = Clock.sleep(ms)",
                          pause)),
-    ?assertEqual(ok, ok("fn pause(ms : Int) = receive { after ms -> Unit }\n"
+    ?assertEqual(ok, ok("fn pause(ms : Int) = Clock.sleep(ms)\n"
                         "fn p() : Unit = pause(1)\n"
                         "let n : Int = { pause(1); 5 }\n"
                         "fn q(n : Int) : Int =\n"
@@ -1716,7 +1736,7 @@ receive_and_mailboxes_test() ->
                         " adapted(self(), fn(n : Int) = { pause(1); n })\n")),
     %% report §4.5: and so a `receiving m` written over it names nothing
     ?assertEqual("pause receives nothing, and `receiving m` names no parameter's mailbox type",
-                 refusal("fn pause(ms : Int) : Unit receiving m = receive { after ms -> Unit }")),
+                 refusal("fn pause(ms : Int) : Unit receiving m = Clock.sleep(ms)")),
     ?assertEqual("skip needs a mailbox, and p receives nothing",
                  refusal("fn skip() = receive { _ -> Unit }\n"
                          "fn p() : Unit = skip()")),
@@ -1724,6 +1744,25 @@ receive_and_mailboxes_test() ->
                  refusal("fn f() : Unit receiving Never = receive { Unit -> Unit }")),
     ?assertEqual("(a) -> Unit receiving e+",
                  type_of("export fn tick(n) = { let m = receive { k -> k }; Unit }", tick)).
+
+%% report §6.8, §4.6, §6.3: a `receive` in a body receiving Never is a type
+%% error whatever its clauses, an `after` beside them among them, in a
+%% function declared so and in a top-level initializer, and the help names
+%% the wait for a time, which such a body makes with `Clock.sleep`
+%% (Appendix E.15). A regression test, written after the checker, which
+%% refused so already; the parser's refusal of a `receive` with an `after`
+%% clause alone is ern_parser_tests'
+never_refuses_every_receive_test() ->
+    Waits = "fn f() : Unit receiving Never = receive { _ -> Unit | after 1 -> Unit }\n",
+    ?assertEqual({"f is declared with mailbox Never and cannot receive",
+                  "give f another mailbox type with `receiving`; to wait a time, write"
+                  " `Clock.sleep(ms)`"},
+                 refusal_and_help(Waits)),
+    ?assertEqual({"a top-level initializer runs with mailbox Never and cannot receive",
+                  "receive in a process the initializer spawns"},
+                 refusal_and_help("let n : Int = receive { _ -> 1 | after 0 -> 2 }\n")),
+    ?assertEqual(ok, ok("fn f() : Unit receiving Never = Clock.sleep(1)\n"
+                        "let n : Int = { Clock.sleep(1); 2 }\n")).
 
 %% report §3.9: a `receive` whose patterns fix no type, a wildcard or a
 %% variable nothing fixes, reads its process's mailbox at no type, so its
@@ -1751,7 +1790,7 @@ receive_fixing_no_type_test() ->
 
 %% report §3.9, §11.5: a `receive` that fixes no type makes a function
 %% process-only, through a call too, one whose variable is a value's among
-%% them, and a timed wait and a call of `self` or `monitor` do not: where
+%% them, and a sleep and a call of `self` or `monitor` do not: where
 %% the function's type holds the address nowhere, its effect variable
 %% stands in no value position, which a call binds to none, so the type
 %% prints without it and a function that receives nothing calls it, a guard
@@ -1763,8 +1802,8 @@ receive_fixing_no_type_test() ->
 %% code: `self` and `monitor` made their function process-only, `fn f() =
 %% kill(self())` printing `receiving e+`; the runtime's tests run such a
 %% function in a wrap and in an adapted address's function on arrival. The
-%% timed wait's case is the log's *The Pun's Opening Round*, written after
-%% the code too
+%% sleep's case is the log's *The Pun's Opening Round* and *A `receive`
+%% Always Receives*, written after the code too
 process_only_marks_a_receive_of_anything_test() ->
     Kill = "fn f() = kill(self())\n",
     ?assertEqual("() -> Unit", type_of("export " ++ Kill, f)),
@@ -1775,7 +1814,7 @@ process_only_marks_a_receive_of_anything_test() ->
                         "fn k() : Address(Int) receiving Int ="
                         " adapted(self(), fn(n : Int) = { f(); n })\n")),
     ?assertEqual("() -> Unit",
-                 type_of("export fn f() = { kill(self()); receive { after 1 -> Unit } }", f)),
+                 type_of("export fn f() = { kill(self()); Clock.sleep(1) }", f)),
     ?assertEqual("() -> Unit receiving e+",
                  type_of("export fn f() = { kill(self()); receive { _ -> Unit } }", f)),
     ?assertEqual("() -> Unit receiving e+",
@@ -1847,7 +1886,7 @@ standing_over_a_body_that_calls_self_test() ->
     ?assertEqual("`receive` needs a mailbox, and f receives nothing",
                  refusal("fn f() : Unit = { kill(self()); receive { _ -> Unit } }")),
     ?assertEqual("() -> Unit",
-                 type_of("export fn f() : Unit = { kill(self()); receive { after 1 -> Unit } }",
+                 type_of("export fn f() : Unit = { kill(self()); Clock.sleep(1) }",
                          f)),
     ?assertEqual("w needs a mailbox, and f receives nothing",
                  refusal("fn w() = receive { x -> x }\nfn f() : Unit = { let _ = w(); Unit }")),
@@ -1899,7 +1938,7 @@ lambda_calling_self_receives_nothing_test() ->
     ?assertEqual(Refused, refusal(Run ++ "fn f() : Unit ="
                                   " run(fn() = { kill(self()); receive { _ -> Unit } })")),
     ?assertEqual(ok, ok(Run ++ "fn f() : Unit ="
-                        " run(fn() = { kill(self()); receive { after 1 -> Unit } })")),
+                        " run(fn() = { kill(self()); Clock.sleep(1) })")),
     ?assertEqual(Refused, refusal("fn run(f : () -> Address(m)) : Unit = { let _ = f(); Unit }\n"
                                   "fn f() : Unit = run(fn() = self())")),
     ?assertEqual("the argument does not fit run: expected () -> Unit, found () -> Unit receiving"
@@ -2795,17 +2834,17 @@ initializer_call_not_generalized_test() ->
     ?assertEqual(Refused, refusal(Cell ++ "let shared = apply(start)")),
     ?assertEqual("() -> Address(a) receiving a", type_of("export let me = fn() = self()", me)).
 
-%% report §6.8, §6.2, §8.1, §11.5: a `receive` with a pattern clause whose
-%% mailbox type the definition's end makes Never is refused at the receive,
-%% as one in a body declared `receiving Never` is: in a spawned function
-%% whose mailbox nothing fixed, and in the entry point whose mailbox type is
-%% a variable; a wait with an `after` clause alone, which fixes no type, a
-%% spawned function its patterns give a type, a generic function spawned
-%% at Never, which waits for a deadlock (§8.6), and an entry point a send
-%% gives its type stand. A regression test, written after the code, where
-%% both programs compiled and the first waited for good, the second for a
-%% deadlock; it does not cover a compute, whose function is read the same
-%% way
+%% report §6.8, §6.2, §8.1, §11.5: a `receive` whose mailbox type the
+%% definition's end makes Never is refused at the receive, as one in a body
+%% declared `receiving Never` is: in a spawned function whose mailbox
+%% nothing fixed, and in the entry point whose mailbox type is a variable;
+%% a spawned function and an entry point that sleep, which
+%% receive nothing, a spawned function its patterns give a type, a generic
+%% function spawned at Never, which waits for a deadlock (§8.6), and an
+%% entry point a send gives its type stand. A regression test, written
+%% after the code, where both programs compiled and the first waited for
+%% good, the second for a deadlock; it does not cover a compute, whose
+%% function is read the same way
 pattern_receive_at_never_test() ->
     Refused = fun(What) ->
                   {What ++ " runs with mailbox Never and cannot receive",
@@ -2826,9 +2865,9 @@ pattern_receive_at_never_test() ->
                  refusal_and_help("export fn main() : Unit receiving m ="
                                   " receive { _ -> Unit }\n")),
     ?assertEqual(ok, ok("export fn main() : Unit = {\n"
-                        "    let p = spawn(fn() = receive { after 5 -> Unit });\n"
+                        "    let p = spawn(fn() = Clock.sleep(5));\n"
                         "    Unit\n}\n")),
-    ?assertEqual(ok, ok("export fn main() = receive { after 5 -> Unit }\n")),
+    ?assertEqual(ok, ok("export fn main() = Clock.sleep(5)\n")),
     ?assertEqual(ok, ok("fn f() = receive { x -> Unit }\n"
                         "export fn main() : Unit = { let _ = spawn(f); Unit }\n")),
     ?assertEqual(ok, ok("export fn main() : Unit = {\n"
@@ -2859,7 +2898,7 @@ unfixed_mailbox_is_never_test() ->
     ?assertEqual("() -> Address(Never)",
                  type_of("export fn make() = spawn(fn() = Io.println(\"x\"))", make)),
     ?assertEqual("() -> Address(Never)",
-                 type_of("export fn start() = spawn(fn() = receive { after 5 -> Unit })", start)),
+                 type_of("export fn start() = spawn(fn() = Clock.sleep(5))", start)),
     ?assertEqual("(() -> Unit receiving a) -> Address(a)",
                  type_of("export fn start(f) = spawn(f)", start)),
     ?assertEqual(ok, ok("fn start(f) = spawn(f)\n"
@@ -2949,9 +2988,10 @@ not_generalized_effect_variable_is_none_test() ->
                                   "let w = mkSkipper(10)")),
     ?assertEqual(ok, ok("fn mkSkipper(n : Int) = fn() = receive { _ -> Unit }\n"
                         "let w : () -> Unit receiving Int = mkSkipper(10)\n")),
-    %% report §3.9: a timed wait receives nothing, and its type settles
+    %% report §3.9, Appendix E.15: a sleep receives nothing, and its type
+    %% settles
     ?assertEqual("() -> Unit",
-                 type_of("fn mkWaiter(ms : Int) = fn() = receive { after ms -> Unit }\n"
+                 type_of("fn mkWaiter(ms : Int) = fn() = Clock.sleep(ms)\n"
                          "export let w = mkWaiter(10)", w)),
     ?assertEqual({"the type of f, () -> Unit receiving e+, is not determined, and a top-level"
                   " `let` whose initializer is no value is not generalized where its type holds"
@@ -4078,7 +4118,7 @@ effect_placement_test() ->
                         "fn f() : Unit = g()\n"),
     ?assertEqual("give f its mailbox type, `receiving Msg`", Callee#diagnostic.help),
     Declared = diagnostic("type Msg = Go\n"
-                          "fn root() : Unit receiving Never = receive { after 1 -> Unit }\n"
+                          "fn root() : Unit receiving Never = Clock.sleep(1)\n"
                           "fn p() : Unit receiving Msg = root()\n"),
     ?assertEqual([{{3, 25, {3, 28}}, "p is declared `receiving Msg` here"}],
                  Declared#diagnostic.labels),

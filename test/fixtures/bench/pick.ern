@@ -182,9 +182,7 @@ fn paced(home : Address(PickMsg),
         Unit
     else {
         let early = started + (index - 1) * 50000 - Clock.monotonicMicros();
-        receive {
-            after Int.max(0, (early + 999) / 1000) -> Unit
-        };
+        Clock.sleep(Int.max(0, (early + 999) / 1000));
         asked(home, steps, rule, index);
         paced(home, steps, rule, index + 1, started)
     }
@@ -257,9 +255,8 @@ fn settled(setup : Setup, since : Int) : Unit receiving PickMsg = {
             List.map(List.filter(rows, fn(#(_, _, age)) = now - age < since),
                      fn(#(_, _, age)) = age);
         let due = setup.interval - List.foldLeft(ages, 0, Int.max);
-        receive {
-            after Int.max(due, 1) -> settled(setup, since)
-        }
+        Clock.sleep(Int.max(due, 1));
+        settled(setup, since)
     }
 }
 
@@ -269,9 +266,7 @@ fn idle(setup : Setup) : Unit receiving PickMsg = {
     settled(setup, Clock.monotonic());
     let label = ["idle", "rest", "1"];
     opened(setup, label);
-    receive {
-        after 4 * setup.interval -> Unit
-    };
+    Clock.sleep(4 * setup.interval);
     closed(setup, label)
 }
 

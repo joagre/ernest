@@ -605,6 +605,8 @@ clock_scenarios(_Self) ->
     Clock = ern_named:functions('ern@clock'),
     ClockAlarm = Clock(alarm),
     ClockAlarmAt = Clock(alarmAt),
+    ClockCancel = Clock(cancel),
+    ClockSleep = Clock(sleep),
     [{<<"Clock.now">>, {Clock(now), fun() -> erlang:system_time(millisecond) end}},
      {<<"Clock.monotonic">>,
       {Clock(monotonic), fun() -> erlang:monotonic_time(millisecond) end}},
@@ -614,7 +616,13 @@ clock_scenarios(_Self) ->
                           fun() -> erlang:send_after(3600000, erlang:self(), alarm) end}},
      {<<"Clock.alarmAt">>,
       {fun() -> ClockAlarmAt(erlang:system_time(millisecond) + 3600000, Wrap) end,
-       fun() -> erlang:send_after(3600000, erlang:self(), alarm) end}}].
+       fun() -> erlang:send_after(3600000, erlang:self(), alarm) end}},
+     %% an alarm set and canceled, beside a timer started and canceled
+     {<<"Clock.cancel">>,
+      {fun() -> ClockCancel(ClockAlarm(3600000, Wrap)) end,
+       fun() -> erlang:cancel_timer(erlang:send_after(3600000, erlang:self(), alarm)) end}},
+     %% a sleep that ends at once, beside the host's receive that does
+     {<<"Clock.sleep">>, {fun() -> ClockSleep(0) end, fun() -> receive after 0 -> ok end end}}].
 
 fs_scenarios(Dir, Bytes) ->
     In = fun(Name) -> filename:join(Dir, Name) end,

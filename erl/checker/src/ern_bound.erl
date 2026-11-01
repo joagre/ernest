@@ -27,8 +27,8 @@
 
 %% Report §3.11: false where a value of the type crosses to another node,
 %% and else what binds it there, as a phrase: a function, a value of a
-%% foreign type, the address of a resource, or an address or a reply whose
-%% message type is bound. A declared type holds its fields with its
+%% foreign type, an alarm or the address of a resource, or an address or a
+%% reply whose message type is bound. A declared type holds its fields with its
 %% arguments in place of its parameters, a private type of another module
 %% among them (§11.1), and a built-in type its arguments; a declared type
 %% met again inside its own fields is not read again, as the equality
@@ -49,6 +49,10 @@ binds(Type, Env, Seen) ->
             end;
         {tcon, ['Reply'], [Answer]} ->
             holding("a reply whose answer holds ", Answer, Env, Seen);
+        %% report §3.11, Appendix E.15: an alarm the clock holds is a
+        %% resource, named as one and not by its representation
+        {tcon, ['Clock', 'Alarm'], []} ->
+            "an alarm";
         {tcon, QualifiedName, Args} ->
             case {ern_prelude:is_builtin(QualifiedName),
                   ern_typecheck:described_type(QualifiedName, Env)} of

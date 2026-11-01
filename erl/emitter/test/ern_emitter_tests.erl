@@ -1706,10 +1706,11 @@ io_debug_escapes_test() ->
                        "}\n"),
     ?assertEqual(<<"\"a\\\"b\\\\c\\n\\t\\u{1}\\u{7F}é\"\n"/utf8>>, Output).
 
-%% report §6.3, §6.6, Appendix E.0 rule 8: a time below 0 is 0, in `after`,
-%% in `Address.call`, and in `Clock.alarm`. A regression test: the first two
-%% faulted with the host's `timeout_value`, and the alarm crashed the clock,
-%% which left the program waiting for ever
+%% report §6.3, §6.6, Appendix E.0 rule 8, E.15: a time below 0 is 0, in
+%% `after`, in `Address.call`, in `Clock.alarm` and in `Clock.sleep`. A
+%% regression test: the first two faulted with the host's `timeout_value`,
+%% and the alarm crashed the clock, which left the program waiting for
+%% ever; the sleep's case was written with it, after the code
 negative_time_test() ->
     {ok, Output} = run("type M = M | Get(reply : Reply(Int))\n"
                        "export fn main() : Unit receiving M = {\n"
@@ -1718,11 +1719,13 @@ negative_time_test() ->
                        "    let quiet = spawn(fn() : Unit receiving M = receive { M -> Unit });\n"
                        "    let asked = Address.call(quiet, fn(r) = Get(reply = r), 0 - 1);\n"
                        "    Io.println(match asked { Some(_) -> \"some\" | None -> \"none\" });\n"
-                       "    Clock.alarm(0 - 10, fn(_) = M);\n"
+                       "    let _ = Clock.alarm(0 - 10, fn(_) = M);\n"
                        "    receive { M -> Io.println(\"alarm\") | Get(reply = r) -> answer(r, 0)"
-                       " }\n"
+                       " };\n"
+                       "    Clock.sleep(0 - 5);\n"
+                       "    Io.println(\"slept\")\n"
                        "}\n"),
-    ?assertEqual(<<"after\nnone\nalarm\n">>, Output).
+    ?assertEqual(<<"after\nnone\nalarm\nslept\n">>, Output).
 
 %% report §6.3, §6.6, Appendix E.0 rule 8: a time has no upper bound, so a
 %% time beyond the host's longest wait, 2^32 - 1 ms, waits as any other: a
@@ -1788,7 +1791,7 @@ call_ends_with_callee() ->
         Types ++ Faulty ++
         "fn waits() : Unit receiving Msg = receive { Stop -> Unit }\n"
         "fn quiet() : Unit receiving Msg = receive { Ask(reply = r) -> "
-        "receive { after 60000 -> answer(r, 1) } | Stop -> Unit }\n"
+        "{ Clock.sleep(60000); answer(r, 1) } | Stop -> Unit }\n"
         "export fn main() : Unit receiving MainMsg = {\n" ++ Setup ++
         "    Io.println(Int.toString(Address.callForever(s, " ++ Ask ++ ")))\n"
         "}\n"
@@ -1798,11 +1801,11 @@ call_ends_with_callee() ->
     ?assertMatch({{fault, <<"callee was killed">>, _}, _},
                  run(Forever("    let s = spawn(quiet);\n"
                              "    let _ = spawn(fn() =\n"
-                             "        receive { after 50 -> kill(s) });\n"))),
+                             "        { Clock.sleep(50); kill(s) });\n"))),
     ?assertMatch({{fault, <<"callee returned without answering">>, _}, _},
                  run(Forever("    let s = spawn(waits);\n"
                              "    let _ = spawn(fn() =\n"
-                             "        receive { after 50 -> send(s, Stop) });\n"))),
+                             "        { Clock.sleep(50); send(s, Stop) });\n"))),
     ?assertMatch({{fault, <<"callee had ended">>, _}, _},
                  run(Forever("    let s = spawnMonitored(fn() : Unit receiving Msg = Unit,\n"
                              "        Died);\n"
@@ -1970,7 +1973,7 @@ alarm_time_test() ->
     {ok, Output} = run("type Msg = Tick(Int)\n"
                        "export fn main() : Unit receiving Msg = {\n"
                        "    let before = Clock.now();\n"
-                       "    Clock.alarm(5, Tick);\n"
+                       "    let _ = Clock.alarm(5, Tick);\n"
                        "    receive { Tick(at) -> Io.println(Bool.toString(at >= before)) }\n"
                        "}\n"),
     ?assertEqual(<<"true\n">>, Output).
@@ -2486,7 +2489,7 @@ callback_restart_passes_through_test() ->
         "        match cause {\n"
         "            First -> each(fn(_ : Int) = {\n"
         "                let _ = askRestart(Process.fromAddress(self()));\n"
-        "                receive { after 5000 -> Unit }\n"
+        "                Clock.sleep(5000)\n"
         "            }, [1])\n"
         "          | _ -> Unit\n"
         "        }\n"
@@ -2792,54 +2795,53 @@ match_guard_reads_a_field_test() ->
                          erl_syntax:clause_guard(Clause) =/= none],
     ?assertMatch([_], Guarded).
 
-%% report §3.9, §4.6, §5.9, §6.5, §6.9, Appendix E.15: a timed wait takes
-%% no message, so a function that waits so receives nothing and runs where
+%% report §3.9, §4.6, §5.9, §6.5, §6.9, Appendix E.15: `Clock.sleep` takes
+%% no message, so a function that sleeps receives nothing and runs where
 %% one that receives nothing is expected: in an initializer, at `Never`; in
 %% a match guard; in a monitor's wrap and an alarm's, which a delivery
 %% applies; and in an adapted address's function, which the send applies
-%% in the sender. Each wait is the one under test, its time immaterial. A
+%% in the sender. Each sleep is the one under test, its time immaterial. A
 %% regression test, written after the code; the delivery of a peer's
-%% message is timed_wait_on_delivery_test's
-timed_wait_receives_nothing_test() ->
+%% message is sleep_on_delivery_test's
+sleep_receives_nothing_test() ->
     {ok, Output} = run(
         "type Msg = Died(Down) | Rang | Got(Int)\n"
-        "fn pause(ms : Int) : Unit = receive { after ms -> Unit }\n"
-        "let ready : Int = { pause(1); 5 }\n"
+        "let ready : Int = { Clock.sleep(1); 5 }\n"
         "fn positive(n : Int) : Bool =\n"
-        "    match n { k when { pause(1); k > 0 } -> true | _ -> false }\n"
+        "    match n { k when { Clock.sleep(1); k > 0 } -> true | _ -> false }\n"
         "fn short() : Process = Process.fromAddress(spawn(fn() = Unit))\n"
         "export fn main() : Unit receiving Msg = {\n"
         "    Io.println(Int.toString(ready));\n"
         "    Io.println(Bool.toString(positive(1)));\n"
-        "    monitor(short(), fn(d) = { pause(1); Died(d) });\n"
+        "    monitor(short(), fn(d) = { Clock.sleep(1); Died(d) });\n"
         "    receive { Died(_) -> Io.println(\"wrapped\") };\n"
-        "    Clock.alarm(0, fn(_) = { pause(1); Rang });\n"
+        "    let _ = Clock.alarm(0, fn(_) = { Clock.sleep(1); Rang });\n"
         "    receive { Rang -> Io.println(\"rang\") };\n"
-        "    send(adapted(self(), fn(n : Int) = { pause(1); Got(n) }), 3);\n"
+        "    send(adapted(self(), fn(n : Int) = { Clock.sleep(1); Got(n) }), 3);\n"
         "    receive { Got(n) -> Io.println(Int.toString(n)) }\n"
         "}\n"),
     ?assertEqual(<<"5\ntrue\nwrapped\nrang\n3\n">>, Output).
 
-%% report §3.9, §6.5, §6.6, §6.9, §8.6: a timed wait in a function that
-%% receives nothing is a wait of the process that runs it, as `Address.call`'s
-%% is: a fault met in an adapted address's function on its way to the
-%% process reaches the process at that wait, as it reaches one waiting in a
-%% call, and a restart a supervisor asks for reaches a sibling there, which
-%% runs its function again. The waits loop, so that what reaches them
-%% does not hang on their time. A regression test, written after the code;
-%% it does not cover a restart a supervisor of another node asks for
-timed_wait_meets_a_fault_and_a_restart_test() ->
+%% report §3.9, §6.5, §6.6, §6.9, §8.6, Appendix E.15: a sleep is a wait of
+%% the process that runs it, as `Address.call`'s is: a fault met in an
+%% adapted address's function on its way to the process reaches the
+%% process at that wait, as it reaches one waiting in a call, and a restart
+%% a supervisor asks for reaches a sibling there, which runs its function
+%% again. Each sleeps past the host's longest wait, 2^32 - 1 ms, which a
+%% sleep waits as any other time (§6.3), and what reaches it does not wait
+%% for the time. A regression test, written after the code; it does not
+%% cover a restart a supervisor of another node asks for
+sleep_meets_a_fault_and_a_restart_test() ->
     {ok, Faulted} = run(
         "type Msg = Died(what : String, down : Down)\n"
-        "fn pause(ms : Int) : Unit = receive { after ms -> Unit }\n"
-        "fn idle() : Unit = { pause(1000); idle() }\n"
+        "fn idle() : Unit = Clock.sleep(5000000000)\n"
         "fn calling(callee : Address(Reply(Int))) : Unit = {\n"
         "    let _ = Address.callForever(callee, fn(reply) = reply);\n"
         "    Unit\n"
         "}\n"
         "export fn main() : Unit receiving Msg = {\n"
         "    let silent : Address(Reply(Int)) = spawn(fn() = receive { _ -> idle() });\n"
-        "    let waiting = spawnMonitored(idle, fn(d) = Died(what = \"pause\", down = d));\n"
+        "    let waiting = spawnMonitored(idle, fn(d) = Died(what = \"sleep\", down = d));\n"
         "    let called = spawnMonitored(fn() = calling(silent),"
         " fn(d) = Died(what = \"call\", down = d));\n"
         "    send(adapted(waiting, fn(n : Int) = 10 / n), 0);\n"
@@ -2848,20 +2850,21 @@ timed_wait_meets_a_fault_and_a_restart_test() ->
         "        Died(what = name, down = d) -> Io.println(name <> \" \" <> Io.show(d.reason))\n"
         "    })\n"
         "}\n"),
-    ?assertEqual([<<"call Fault(\"division by zero\")">>, <<"pause Fault(\"division by zero\")">>],
+    ?assertEqual([<<"call Fault(\"division by zero\")">>, <<"sleep Fault(\"division by zero\")">>],
                  lists:sort(binary:split(Faulted, <<"\n">>, [global, trim]))),
     {ok, Restarted} = run(
         "type Msg = Began(String) | Boom\n"
         "let sup : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.OneForAll,"
         " RestartLimit(restarts = 3, within = 60000)))\n"
-        "fn pause(ms : Int) : Unit = receive { after ms -> Unit }\n"
-        "fn idle() : Unit = { pause(1000); idle() }\n"
         "fn booms() : Unit receiving Msg = receive {"
         " Boom -> { let z = List.size([]); let _ = 1 / z; Unit } }\n"
         "export fn main() : Unit receiving Msg = {\n"
         "    let me = self();\n"
         "    let a = spawn(Supervisor.child(sup, fn() = { send(me, Began(\"a\")); booms() }));\n"
-        "    let _ = spawn(Supervisor.child(sup, fn() = { send(me, Began(\"b\")); idle() }));\n"
+        "    let _ = spawn(Supervisor.child(sup, fn() = {\n"
+        "        send(me, Began(\"b\"));\n"
+        "        Clock.sleep(5000000000)\n"
+        "    }));\n"
         "    let began = fn(_) = receive { Began(name) -> name };\n"
         "    let first = List.map([1, 2], began);\n"
         "    send(a, Boom);\n"
@@ -2871,15 +2874,14 @@ timed_wait_meets_a_fault_and_a_restart_test() ->
         "}\n"),
     ?assertEqual(<<"a b, a b\n">>, Restarted).
 
-%% report §3.9, §6.5: an adapted address's function that waits for a time,
-%% and so receives nothing, is applied on delivery by the process the node
-%% keeps for the address and a peer that sends to it, handed the message as
-%% a peer's worker hands it one, and what it answers reaches the target.
-%% A regression test, written after the code; the peer is stood in for, as
-%% the runtime's tests stand in for it (ern_rt_tests:kept_applied/1)
-timed_wait_on_delivery_test() ->
-    Text = "fn pause(ms : Int) : Unit = receive { after ms -> Unit }\n"
-           "export fn doubled(n : Int) : Int = { pause(1); n * 2 }\n",
+%% report §3.9, §6.5, Appendix E.15: an adapted address's function that
+%% sleeps, and so receives nothing, is applied on delivery by the process
+%% the node keeps for the address and a peer that sends to it, handed the
+%% message as a peer's worker hands it one, and what it answers reaches the
+%% target. A regression test, written after the code; the peer is stood in
+%% for, as the runtime's tests stand in for it (ern_rt_tests:kept_applied/1)
+sleep_on_delivery_test() ->
+    Text = "export fn doubled(n : Int) : Int = { Clock.sleep(1); n * 2 }\n",
     {ok, Typed, Interface, Env} = ern_typecheck:check_string(['M'], Text),
     Build = #{source_hash => <<>>, deps => [], standard => false},
     {ok, ErlangModule, Beam} = ern_compile:compile(['M'], Typed, Interface, Env, Build),
@@ -2894,6 +2896,55 @@ timed_wait_on_delivery_test() ->
                receive Delivered -> Self ! {delivered, Delivered} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual(42, receive {delivered, Delivered} -> Delivered end).
+
+%% report Appendix E.15, §8.6, §6.9: `Clock.cancel` ends an alarm that has
+%% neither fired nor ended and answers true, and any process of the node
+%% may cancel it; an alarm canceled already, one that fired, and one its
+%% process's restart canceled it leaves and answers false, and a fired
+%% alarm's message is delivered, its wrap having told the caller it fired.
+%% No message comes of a canceled alarm, which is no source then: a
+%% `receive` for it alone is a deadlock
+cancel_test() ->
+    {{fault, <<"deadlock">>, _}, Output} = run(
+        "type Msg = Rang | Fired | Canceled(Bool)\n"
+        "export fn main() : Unit receiving Msg = {\n"
+        "    let me = self();\n"
+        "    let alarm = Clock.alarm(60000, fn(_) = Rang);\n"
+        "    Io.println(Bool.toString(Clock.cancel(alarm)));\n"
+        "    Io.println(Bool.toString(Clock.cancel(alarm)));\n"
+        "    let other = Clock.alarm(60000, fn(_) = Rang);\n"
+        "    let _ = spawn(fn() = send(me, Canceled(Clock.cancel(other))));\n"
+        "    receive { Canceled(done) -> Io.println(Bool.toString(done)) };\n"
+        "    let fired = Clock.alarm(0, fn(_) = { send(me, Fired); Rang });\n"
+        "    receive { Fired -> Unit };\n"
+        "    Io.println(Bool.toString(Clock.cancel(fired)));\n"
+        "    receive { Rang -> Io.println(\"rang\") };\n"
+        "    receive { Rang -> Io.println(\"rang again\") }\n"
+        "}\n"),
+    ?assertEqual(<<"true\nfalse\ntrue\nfalse\nrang\n">>, Output),
+    {ok, Restarted} = run(
+        "type SetterMsg = Arm | Crash | Rang\n"
+        "type Msg = Began | Armed(Clock.Alarm)\n"
+        "fn setter(me : Address(Msg)) : Unit receiving SetterMsg = {\n"
+        "    send(me, Began);\n"
+        "    receive {\n"
+        "        Arm -> {\n"
+        "            send(me, Armed(Clock.alarm(60000, fn(_) = Rang)));\n"
+        "            receive { Crash -> fault(\"crash\") }\n"
+        "        }\n"
+        "    }\n"
+        "}\n"
+        "export fn main() : Unit receiving Msg = {\n"
+        "    let me = self();\n"
+        "    let limit = RestartLimit(restarts = 1, within = 60000);\n"
+        "    let s = spawn(restarting(limit, fn() = setter(me)));\n"
+        "    receive { Began -> send(s, Arm) };\n"
+        "    let alarm = receive { Armed(alarm) -> alarm };\n"
+        "    send(s, Crash);\n"
+        "    receive { Began -> Io.println(Bool.toString(Clock.cancel(alarm))) };\n"
+        "    kill(s)\n"
+        "}\n"),
+    ?assertEqual(<<"false\n">>, Restarted).
 
 %% report §8.4, §12.3: an address given to foreign code is a proxy that
 %% checks each message on delivery, a bad one faulting the target even
@@ -3682,7 +3733,7 @@ clock_path_test() ->
         "type Msg = Tick\n"
         "export fn main() : Unit receiving Msg = {\n"
         "    let t0 = Clock.now();\n"
-        "    Clock.alarm(10, fn(_) = Tick);\n"
+        "    let _ = Clock.alarm(10, fn(_) = Tick);\n"
         "    receive { Tick -> Unit };\n"
         "    Io.println(Bool.toString(Clock.now() >= t0 + 10));\n"
         "    Io.println(Path.toString(Path(\"a\") <> Path(\"b\")))\n"
@@ -3858,7 +3909,7 @@ work_makes_no_atoms() ->
         "    monitor(Process.fromAddress(w), Ended);\n"
         "    kill(w);\n"
         "    receive { Ended(_) -> Unit };\n"
-        "    Clock.alarm(1, Tick);\n"
+        "    let _ = Clock.alarm(1, Tick);\n"
         "    receive { Tick(_) -> Unit };\n"
         "    let _ = Os.run(Os.Command(program = \"true\", arguments = [], input = <<>>),\n"
         "        5000);\n"

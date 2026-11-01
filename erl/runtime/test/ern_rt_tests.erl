@@ -2560,9 +2560,10 @@ alarm_after_its_process_ended() ->
                     Setter = ern_rt:spawn(
                                fun() ->
                                    Address = ern_rt:adapted(ern_rt:self(), Spinning),
-                                   'Unit' = ern_rt:call_forever(
-                                              Clock, fun(Reply) -> {'AlarmAt', At, Address, Reply}
-                                                     end)
+                                   Alarm = ern_rt:call_forever(
+                                             Clock, fun(Reply) -> {'AlarmAt', At, Address, Reply}
+                                                    end),
+                                   true = is_reference(Alarm)
                                end, <<"Main.main:4">>),
                     MonitorRef = erlang:monitor(process, Setter),
                     receive {'DOWN', MonitorRef, process, Setter, _} -> ok end,
@@ -3022,11 +3023,18 @@ timed_wait(Ms) ->
     receive after Ms -> ok end,
     ern_rt:untimed().
 
-%% Report Appendix E.15: an alarm as `Clock.alarm` sets one, Alarm(ms,
-%% address, reply) in declared field order, answered once the clock holds
-%% it.
+%% Report Appendix E.15: an alarm as `Clock.alarm` sets one,
+%% AlarmAfter(ms, address, reply) in declared field order, answered once
+%% the clock holds it with the reference that names it to a cancel.
 alarm(Clock, Ms, Address) ->
-    'Unit' = ern_rt:call_forever(Clock, fun(Reply) -> {'Alarm', Ms, Address, Reply} end).
+    Alarm = ern_rt:call_forever(Clock, fun(Reply) -> {'AlarmAfter', Ms, Address, Reply} end),
+    true = is_reference(Alarm),
+    Alarm.
+
+%% Report Appendix E.15: a cancel as `Clock.cancel` asks it, Cancel(alarm,
+%% reply), answered whether it ended the alarm.
+cancel(Clock, Alarm) ->
+    ern_rt:call_forever(Clock, fun(Reply) -> {'Cancel', Alarm, Reply} end).
 
 %% report Appendix E.15: an alarm at a time fires when the clock reaches
 %% the time, though the clock is set before it fires: a clock set past the
@@ -3053,8 +3061,8 @@ alarm_at_follows_the_clock() ->
                      end,
                AlarmAt = fun(At, Tag) ->
                              Address = ern_rt:adapted(Me, fun(Fired) -> {Tag, Fired} end),
-                             'Unit' = ern_rt:call_forever(
-                                        Clock, fun(Reply) -> {'AlarmAt', At, Address, Reply} end)
+                             ern_rt:call_forever(
+                               Clock, fun(Reply) -> {'AlarmAt', At, Address, Reply} end)
                          end,
                Start = Time(),
                AlarmAt(Start + 60000, minute),
@@ -3072,6 +3080,37 @@ alarm_at_follows_the_clock() ->
                Self ! {ended, {Before, Minute >= 60000, Unmoved, SetBack, SetAgain, AfterMs}}
            end, <<"main">>, #{time => Time, stdout => fun(_) -> ok end}),
     ?assertEqual({waiting, true, waiting, waiting, fired, fired}, wait(ended)).
+
+%% report Appendix E.15, §8.6: an alarm keeps its reference while the clock
+%% sets its timer again, at a change of the clock, so a cancel after the
+%% change ends it and answers true, a second answers false, and the alarm,
+%% ended, is no source: a wait for nothing else is a deadlock. The test's
+%% clock stands in for the host's, as alarm_at_follows_the_clock_test_'s
+%% does, and the change and the cancel go to the clock in that order.
+%% Written with the code; it does not cover a timer set again past the
+%% host's longest wait, which no test waits for
+cancel_after_the_clock_is_set_test_() ->
+    {timeout, 30, fun cancel_after_the_clock_is_set/0}.
+
+cancel_after_the_clock_is_set() ->
+    Self = self(),
+    Ahead = atomics:new(1, []),
+    Time = fun() -> erlang:system_time(millisecond) + atomics:get(Ahead, 1) end,
+    Outcome = ern_rt:run_main(
+                fun() ->
+                    Clock = ern_rt:system_process(clock),
+                    Address = ern_rt:adapted(ern_rt:self(), fun(Fired) -> {rang, Fired} end),
+                    At = Time() + 60000,
+                    Alarm = ern_rt:call_forever(
+                              Clock, fun(Reply) -> {'AlarmAt', At, Address, Reply} end),
+                    atomics:put(Ahead, 1, 1000),
+                    Clock ! {'CHANGE', make_ref(), time_offset, clock_service, 0},
+                    Canceled = cancel(Clock, Alarm),
+                    Self ! {canceled, {Canceled, cancel(Clock, Alarm)}},
+                    ern_waits:forever()
+                end, <<"main">>, #{time => Time, stdout => fun(_) -> ok end}),
+    ?assertMatch({fault, <<"deadlock">>, _}, Outcome),
+    ?assertEqual({true, false}, wait(canceled)).
 
 %% report §6.5: a fault in an adapted address's function is the target's,
 %% and a target the runtime did not start, a foreign process, which has no

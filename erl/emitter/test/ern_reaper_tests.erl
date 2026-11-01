@@ -192,7 +192,7 @@ alarms_are_no_deadlock() ->
         "fn loop(n : Int) : Unit receiving Msg =\n"
         "    if n == 0 then Unit\n"
         "    else {\n"
-        "        Clock.alarmAt(Clock.now(), Tick);\n"
+        "        let _ = Clock.alarmAt(Clock.now(), Tick);\n"
         "        receive { Tick(_) -> Unit };\n"
         "        loop(n - 1)\n"
         "    }\n"

@@ -2979,7 +2979,7 @@ arrow_let() ->
                                     "let q <- 5\n"
                                     "let Some(s) <- Some(Some(1))\n"
                                     "let r <- Some([])\n"
-                                    "let p <- Some(spawn(fn() = receive { after 1 -> Unit }))\n"
+                                    "let p <- Some(spawn(fn() = Clock.sleep(1)))\n"
                                     "z\n"),
     {0, Output} = ern_pty:sh("../bin/ern shell < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"> x : Int\n> 2 : Int\n">>)),
@@ -3008,8 +3008,8 @@ arrow_let() ->
 
 %% report §11.2, §3.9, §4.6, §8.6: a `let` at the prompt is a block `let`, so
 %% a lambda it binds is generalized, its effect variable with it, and runs,
-%% and a timed receive is no deadlock in line mode, first input or not; a
-%% lambda that waits for a time alone receives nothing. A declared name
+%% and a sleep and a timed receive are no deadlock in line mode, first input
+%% or not; a lambda that sleeps receives nothing. A declared name
 %% prints its own scheme after inputs whose type state numbers other
 %% variables alike. A regression test for three defects: the effect
 %% variable entered the session unbound and crashed the next input's check,
@@ -3020,11 +3020,11 @@ effect_variable_test_() ->
 
 effect_variable() ->
     InputFile = scratch_file("ern_eff_"),
-    ok = file:write_file(InputFile, "receive { after 300 -> 5 }\n"
+    ok = file:write_file(InputFile, "{ Clock.sleep(300); 5 }\n"
                                     "let h = fn() = receive {"
                                     " _ -> Io.println(\"y\") | after 1 -> Io.println(\"x\") }\n"
                                     "h()\n"
-                                    "let w = fn() = receive { after 1 -> Io.println(\"w\") }\n"
+                                    "let w = fn() = { Clock.sleep(1); Io.println(\"w\") }\n"
                                     "w()\n"
                                     "let f = fn(x : Int) = x + 1\n"
                                     "f(2)\n"
@@ -4202,7 +4202,7 @@ typing_ahead_test_() ->
 typing_ahead() ->
     Screen = screen(alone("../bin/ern shell"),
                     [{expect, "> "},
-                     {send, hex("receive { after 500 -> 1 }\r")},
+                     {send, hex("{ Clock.sleep(500); 1 }\r")},
                      {send, hex("2 + 2\r")},             % typed while the first runs
                      {expect, "1 : Int"},
                      {expect, "4 : Int"},
@@ -5032,7 +5032,7 @@ shell_told_of_the_end() ->
 demo(Value) ->
     ["export fn answer() : Int = ", integer_to_list(Value), "\n\n",
      "export fn tick() : Unit receiving Unit = {\n",
-     "    Clock.alarm(50, fn(_) = Unit);\n",
+     "    let _ = Clock.alarm(50, fn(_) = Unit);\n",
      "    receive { _ -> Unit };\n",
      "    tick()\n",
      "}\n"].

@@ -4948,12 +4948,7 @@ check_expr(#e_match{scrutinee = Scrutinee, clauses = Clauses} = Expr, Expected, 
      Env2};
 check_expr(#e_receive{span = Span, clauses = Clauses, 'after' = After} = Expr, Expected, Rule,
            Origin, Env) ->
-    %% report §3.9: a `receive` with an `after` clause alone takes no
-    %% message, so it asks nothing of the mailbox
-    {MailboxType, Env1} = case Clauses of
-                              [] -> {undefined, Env};
-                              _ -> clause_mailbox(Span, Env)
-                          end,
+    {MailboxType, Env1} = clause_mailbox(Span, Env),
     {TypedClauses, Env2} = check_clauses('receive', Clauses, MailboxType, undefined, Expected,
                                          Rule, Origin, "the clauses must have one type", Env1),
     {TypedAfter, Env3} =
@@ -5493,8 +5488,8 @@ is_free_standing(Effect, Held, TypeState) ->
             false
     end.
 
-%% Report §6.8, §4.6: a receive with a pattern clause where the mailbox is
-%% Never, in a function or in a top-level initializer.
+%% Report §6.8, §4.6: a receive where the mailbox is Never, in a function
+%% or in a top-level initializer.
 -spec never_receives(ern_diagnostic:span(), term()) -> no_return().
 never_receives(Span, #effect_origin{what = top_let, help = Help} = Origin) ->
     fail(Span, "a top-level initializer runs with mailbox Never and cannot receive",
@@ -5503,16 +5498,16 @@ never_receives(Span, #effect_origin{what = Name} = Origin) ->
     %% report §11.5: the function named, and the `receiving` that fixed its
     %% mailbox labeled
     fail(Span, Name ++ " is declared with mailbox Never and cannot receive", labels(Origin),
-         "only an `after` clause is allowed; give " ++ Name ++ " another mailbox type with"
-         " `receiving`");
+         "give " ++ Name ++ " another mailbox type with `receiving`; to wait a time, write"
+         " `Clock.sleep(ms)`");
 never_receives(Span, _) ->
     fail(Span, "a function with mailbox Never cannot receive", [],
-         "only an `after` clause is allowed; give the function another mailbox type with"
-         " `receiving`").
+         "give the function another mailbox type with `receiving`; to wait a time, write"
+         " `Clock.sleep(ms)`").
 
-%% Report §6.8, §6.2, §8.1, §11.5: a receive with a pattern clause whose
-%% mailbox the definition's end makes Never, in a spawned function or in
-%% the entry point, refused at the receive, What naming the function.
+%% Report §6.8, §6.2, §8.1, §11.5: a receive whose mailbox the
+%% definition's end makes Never, in a spawned function or in the entry
+%% point, refused at the receive, What naming the function.
 -spec never_waits(ern_diagnostic:span(), string()) -> no_return().
 never_waits(Span, What) ->
     fail(Span, What ++ " runs with mailbox Never and cannot receive", [],
@@ -5814,11 +5809,11 @@ declared_fields(QualifiedName, Args, Env) ->
             erlang:error({undeclared_type, ern_namespace:text(QualifiedName)})
     end.
 
-%% A `receive` with a pattern clause: the enclosing function's effect must
-%% be a mailbox type, which the clauses' patterns are typed against, and
-%% process-only where they fix no type (report §3.9). Report §6.8: such a
-%% `receive` where the mailbox is Never is refused now, and where it is a
-%% variable as the definition ends (receives).
+%% A `receive`, which has a pattern clause (§6.3): the enclosing
+%% function's effect must be a mailbox type, which the clauses' patterns
+%% are typed against, and process-only where they fix no type (report
+%% §3.9). Report §6.8: a `receive` where the mailbox is Never is refused
+%% now, and where it is a variable as the definition ends (receives).
 clause_mailbox(Span, Env) ->
     {MailboxType, Env1} = mailbox_type(Span, Env),
     case ern_types:resolve(MailboxType, Env1#env.type_state) of

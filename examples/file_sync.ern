@@ -97,12 +97,12 @@ fn listing(directory : Path,
                 let _ = spawn(fn() = pusher(peer, change));
                 Unit
             });
-            tick();
+            let _ = tick();
             syncer(directory, peer, snapshot(entries))
         }
       | Listed(Left(error)) -> {
             Io.println("cannot list " <> Path.toString(directory) <> ": " <> errorText(error));
-            tick();
+            let _ = tick();
             syncer(directory, peer, seen)
         }
     }

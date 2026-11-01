@@ -916,6 +916,10 @@ receive_expr(Tokens, Position) ->
     {Clauses, After, Rest1} = receive_clauses(Rest, []),
     spanned({#e_receive{span = Position, clauses = Clauses, 'after' = After}, expect(Rest1, '}')}).
 
+%% Report §6.3, Appendix A: a `receive` has a pattern clause, its `after`
+%% one beside them; a wait for a time alone is `Clock.sleep`.
+receive_clauses([{'after', Position} | _], []) ->
+    fail(Position, "a `receive` takes a message; to wait a time, write `Clock.sleep(ms)`");
 receive_clauses([{'after', Position} | Rest], Acc) ->
     {Timeout, Rest1} = expr(Rest),
     {Body, Rest2} = expr(expect(Rest1, '->')),

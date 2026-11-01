@@ -1540,7 +1540,7 @@ fn step(world : World) : World =
     World(score = world.score + 1)
 
 fn game(state : World) : Unit receiving GameMsg = {
-    Clock.alarm(100, Ticked);
+    let _ = Clock.alarm(100, Ticked);
     waitForTick(state)
 }
 
@@ -3051,7 +3051,7 @@ fn serve(listener : Address(Tcp.ListenerMsg)) : Unit =
 fn session(socket : Address(Tcp.SocketMsg)) : Unit receiving Session = {
     let me = self();
     let _ = spawn(fn() = reader(socket, adapted(me, Arrived)));
-    Clock.alarm(10000, Ticked);
+    let _ = Clock.alarm(10000, Ticked);
     talk(socket, <<>>)
 }
 
@@ -3081,7 +3081,7 @@ fn talk(socket : Address(Tcp.SocketMsg), rest : Bytes) : Unit receiving Session 
         }
       | Ticked(_) -> {
             let _ = Tcp.write(socket, String.toUtf8("still here\n"), 5000);
-            Clock.alarm(10000, Ticked);
+            let _ = Clock.alarm(10000, Ticked);
             talk(socket, rest)
         }
       | Arrived(None) ->

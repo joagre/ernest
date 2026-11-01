@@ -49,8 +49,8 @@
          kill_started/1, kill_all/1, processes/0, own/1, own_input/1,
          screen/2, drop_screens/1, root_of/1, status/1, faults/1, termination/1,
          expected/1, checker_for/3, checker_forget/2, source_begin/0, source_begin/1, source_end/0,
-         opened/3, forget_opened/1, timed/0, untimed/0, deadline/1, remaining/1, now/0, monotonic/0,
-         monotonic_micros/0, entered_foreign/0, left_foreign/0, undefined_function/3,
+         opened/3, forget_opened/1, timed/0, untimed/0, deadline/1, remaining/1, sleep/1, now/0,
+         monotonic/0, monotonic_micros/0, entered_foreign/0, left_foreign/0, undefined_function/3,
          undefined_lambda/3, met/3, fault/1, fault/2, trace/1, failure_trace/1,
          system_process/1, hold_terminal/1, terminal_holder/0, shell_holds/0,
          is_kept_from_terminal/1, own_terminal/1,
@@ -78,7 +78,7 @@
                           end_with_program/0, waited_deliveries/1, tell_service_monitors/0,
                           say/2, waited_settler/2]}).
 -receives({ernest_wait, [waited_answer/3, call_forever/3, waited_evaluation/2,
-                         evaluated_lives/0]}).
+                         evaluated_lives/0, sleep_until/1]}).
 -receives({answered_at_once, [spawn_with_monitors/4, ask_monitor/2, demonitor/1, spawned/7,
                               kill_all/1, opened/3, asked_of_run/1, unwatched/2,
                               evaluator_ended/2]}).
@@ -1851,7 +1851,7 @@ ended_program() ->
 
 %% Sets, a map to sets, each a map to true, with Value put in Key's set:
 %% a process a caller monitors, among the processes it monitors; the
-%% clock's timer, among its recipient's.
+%% clock's alarm, among its recipient's.
 added(Key, Value, Sets) ->
     case Sets of
         #{Key := Set} -> Sets#{Key := Set#{Value => true}};
@@ -1860,7 +1860,7 @@ added(Key, Value, Sets) ->
 
 %% Sets, with Gone taken from Key's set, and Key gone with the set's last:
 %% a process that ended, from the processes its caller monitors; the
-%% clock's timer that fired, from its recipient's.
+%% clock's alarm that fired or was canceled, from its recipient's.
 forgotten(Key, Gone, Sets) ->
     case Sets of
         #{Key := #{Gone := _} = Set} when map_size(Set) =:= 1 -> maps:remove(Key, Sets);
@@ -2632,10 +2632,12 @@ opened() ->
 is_opened(Pid) ->
     try ets:member(?HELD, {opened, Pid}) catch error:badarg -> false end.
 
-%% Report §8.6, §6.3: a receive with a deadline, the compiler's and a
-%% call's, puts TIMED in the process's dictionary before it waits and
-%% takes it away first in every body, so tail position holds; the compiler
-%% emits the calls. Two never nest, since nothing runs while one waits.
+%% Report §8.6, §6.3: a receive with a deadline, the compiler's, a call's
+%% and a sleep's, puts TIMED in the process's dictionary before it waits
+%% and takes it away as the wait ends: the compiler's first in every body,
+%% so tail position holds, the compiler emitting the calls, and a call's
+%% and a sleep's as it returns or raises. Two never nest, since nothing
+%% runs while one waits.
 -spec timed() -> ok.
 timed() ->
     _ = erlang:put(?TIMED, true),
@@ -2658,6 +2660,31 @@ deadline(Ms) ->
 -spec remaining(integer()) -> 0..?SLICE.
 remaining(Deadline) ->
     min(?SLICE, max(0, Deadline - erlang:monotonic_time(millisecond))).
+
+%% Appendix E.15: Clock.sleep, the one wait for a time alone (§6.3, §6.8):
+%% the receive the compiler emits for an `after` (ern_emitter's waiting/4)
+%% with no clause of the program's, so that it takes no message of the
+%% mailbox's type and leaves the mailbox as it was. Report §6.9, §6.5,
+%% §8.4: a restart asked for and a fault that stands in the mailbox reach
+%% it as they reach a receive, the fault raised here as the compiler's
+%% receive raises it. Report §8.6: it holds TIMED while it waits, as a
+%% call's wait does (call/4).
+-spec sleep(integer()) -> 'Unit'.
+sleep(Ms) ->
+    Deadline = deadline(Ms),
+    timed(),
+    try sleep_until(Deadline) after untimed() end.
+
+sleep_until(Deadline) ->
+    receive
+        '$ern_restart' -> restart_now();
+        {'$ern_fault', Fault} -> throw(Fault)
+    after remaining(Deadline) ->
+        case remaining(Deadline) of
+            0 -> ?UNIT;
+            _ -> sleep_until(Deadline)
+        end
+    end.
 
 %% Appendix E.15: Clock.now, milliseconds since the epoch by the host's
 %% clock, read here and not through the clock's process, which an operation
@@ -3277,16 +3304,19 @@ fed_message({error, Error}) -> {error, Error};
 fed_message(Bytes) when is_binary(Bytes) -> {data, Bytes};
 fed_message(Chars) -> {data, unicode:characters_to_binary(Chars)}.
 
-%% Clock's messages, clock.ern's (report Appendix E.15): Alarm(ms,
-%% address, reply) and AlarmAt(time, address, reply); `now` reads the
-%% host's clock without them, and a test's `time` moves the alarms alone.
-%% Alarms are delivered through the clock itself, so each is counted as a
-%% source while it is pending (report §8.6). The clock holds each pending
-%% alarm by its timer, with its moment, where it goes and the process
-%% behind that, and each process's timers, so that a restart of that
-%% process cancels its own and reads no other's (report §6.9), and its
-%% monitor of each process it holds an alarm of, one for each, so that the
-%% end of that process forgets its alarms too (alarms_canceled/2).
+%% Clock's messages, clock.ern's (report Appendix E.15): AlarmAfter(ms,
+%% address, reply), AlarmAt(time, address, reply) and Cancel(alarm,
+%% reply); `now` reads the host's clock without them, and a test's `time`
+%% moves the alarms alone. Alarms are delivered through the clock itself,
+%% so each is counted as a source while it is pending (report §8.6). The
+%% clock holds each pending alarm by the reference it answered for it, the
+%% alarm, with its timer, its moment, where it goes and the process behind
+%% that; each timer's alarm, since a timer is set again before its moment
+%% and the alarm keeps its reference; each process's alarms, so that a
+%% restart of that process cancels its own and reads no other's (report
+%% §6.9); and its monitor of each process it holds an alarm of, one for
+%% each, so that the end of that process forgets its alarms too
+%% (alarms_canceled/2).
 %%
 %% An alarm after milliseconds is held by its deadline on the monotonic
 %% clock, `{monotonic, Deadline}`, which a clock that is set does not move;
@@ -3294,7 +3324,7 @@ fed_message(Chars) -> {data, unicode:characters_to_binary(Chars)}.
 %% against. The host's timers count monotonic time, so the clock asks the
 %% host to be told of each change of its time offset, and sets every alarm
 %% at a time again then. `read_time` reads the host's clock, or a test's.
--record(clock, {alarms = #{}, by_recipient = #{}, monitor_refs = #{}, read_time}).
+-record(clock, {alarms = #{}, timers = #{}, by_recipient = #{}, monitor_refs = #{}, read_time}).
 
 %% Report §6.5, E.15: the clock holds each alarm's delivery, a process of
 %% its own linked to it (fired/2), and traps their exits, as the reaper
@@ -3310,10 +3340,12 @@ clock(ReadTime) ->
 
 clock_loop(Clock) ->
     receive
-        {'Alarm', Ms, Address, Reply} ->
+        {'AlarmAfter', Ms, Address, Reply} ->
             clock_loop(alarm({monotonic, deadline(Ms)}, Address, Reply, Clock));
         {'AlarmAt', At, Address, Reply} ->
             clock_loop(alarm({time, At}, Address, Reply, Clock));
+        {'Cancel', Alarm, Reply} ->
+            clock_loop(canceled(Alarm, Reply, Clock));
         {timeout, Timer, deadline} ->
             clock_loop(fired(Timer, Clock));
         {'CHANGE', _, time_offset, clock_service, _} ->
@@ -3330,31 +3362,53 @@ clock_loop(Clock) ->
     end.
 
 %% An alarm, answered once it is counted, so that the caller goes on
-%% waiting only on what is counted (report §8.6).
+%% waiting only on what is counted (report §8.6), with the reference that
+%% names it to a cancel (Appendix E.15).
 alarm(Moment, Address, Reply, Clock) ->
     source_begin(),
-    Armed = armed(Moment, Address, Clock),
-    answer(Reply, ?UNIT),
+    Alarm = erlang:make_ref(),
+    Armed = armed(Alarm, Moment, Address, Clock),
+    answer(Reply, Alarm),
     Armed.
 
+%% Appendix E.15: a cancel, asked by any process of the node: an alarm the
+%% clock still holds, which has neither fired nor ended, is forgotten with
+%% its timer and its source, and the cancel answered true; any other is
+%% left as it is and the cancel answered false, a timer stopped too late
+%% firing as one forgotten does (fired/2).
+canceled(Alarm, Reply, #clock{alarms = Alarms} = Clock) ->
+    case Alarms of
+        #{Alarm := {Timer, _, _, Recipient}} ->
+            erlang:cancel_timer(Timer),
+            source_end(),
+            Canceled = without_alarm(Alarm, Recipient, Clock),
+            answer(Reply, true),
+            Canceled;
+        #{} ->
+            answer(Reply, false),
+            Clock
+    end.
+
 %% A timer that fired: its alarm delivered once its moment has come, and
-%% set again before; one a restart canceled as it fired, or a change of
-%% the clock set again, is gone.
+%% set again before; one a restart or a cancel ended as it fired, or a
+%% change of the clock set again, is gone.
 %% Report §6.5, E.15: the alarm's address may be an address seen through a
 %% function, and it is sent the time it fired, from a process of its own,
 %% so that a function that does not finish holds up no other alarm; the
 %% alarm is a source until it is delivered.
-fired(Timer, #clock{alarms = Alarms, read_time = ReadTime} = Clock) ->
-    case Alarms of
-        #{Timer := {Moment, Address, Recipient}} ->
+fired(Timer, #clock{alarms = Alarms, timers = Timers, read_time = ReadTime} = Clock) ->
+    case Timers of
+        #{Timer := Alarm} ->
+            #{Alarm := {Timer, Moment, Address, Recipient}} = Alarms,
             case wait(Moment, ReadTime) of
                 0 ->
                     Now = ReadTime(),
                     counted_link(Address, fun() -> deliver(Address, Now) end),
                     source_end(),
-                    without_alarm(Timer, Recipient, Clock);
+                    without_alarm(Alarm, Recipient, Clock);
                 _ ->
-                    without_alarm(Timer, Recipient, armed(Moment, Address, Clock))
+                    timed_alarm(Alarm, Moment, Address, Recipient,
+                                Clock#clock{timers = maps:remove(Timer, Timers)})
             end;
         #{} ->
             Clock
@@ -3364,10 +3418,12 @@ fired(Timer, #clock{alarms = Alarms, read_time = ReadTime} = Clock) ->
 %% against the clock as it now reads: one whose time has come fires at
 %% once, and one whose time is further off waits the longer.
 set_again(#clock{alarms = Alarms} = Clock) ->
-    maps:fold(fun(Timer, {{time, _} = Moment, Address, Recipient}, Acc) ->
+    maps:fold(fun(Alarm, {Timer, {time, _} = Moment, Address, Recipient},
+                  #clock{timers = Timers} = Acc) ->
                       erlang:cancel_timer(Timer),
-                      without_alarm(Timer, Recipient, armed(Moment, Address, Acc));
-                 (_Timer, {{monotonic, _}, _, _}, Acc) ->
+                      timed_alarm(Alarm, Moment, Address, Recipient,
+                                  Acc#clock{timers = maps:remove(Timer, Timers)});
+                 (_Alarm, {_, {monotonic, _}, _, _}, Acc) ->
                       Acc
               end, Clock, Alarms).
 
@@ -3376,41 +3432,52 @@ set_again(#clock{alarms = Alarms} = Clock) ->
 %% clock's monitor of it tells, since an alarm that fires after its process
 %% has ended delivers nothing, so that none is a source the deadlock count
 %% waits on.
-alarms_canceled(Pid, #clock{alarms = Alarms, by_recipient = ByRecipient,
+alarms_canceled(Pid, #clock{alarms = Alarms, timers = Timers, by_recipient = ByRecipient,
                             monitor_refs = MonitorRefs} = Clock) ->
-    {Timers, ByRecipient1} = case maps:take(Pid, ByRecipient) of
-                                 {Own, Others} -> {maps:keys(Own), Others};
-                                 error -> {[], ByRecipient}
-                             end,
-    lists:foreach(fun(Timer) -> erlang:cancel_timer(Timer), source_end() end, Timers),
+    {Own, ByRecipient1} = case maps:take(Pid, ByRecipient) of
+                              {OwnSet, Others} -> {maps:keys(OwnSet), Others};
+                              error -> {[], ByRecipient}
+                          end,
+    OwnTimers = [Timer || Alarm <- Own, #{Alarm := {Timer, _, _, _}} <- [Alarms]],
+    lists:foreach(fun(Timer) -> erlang:cancel_timer(Timer), source_end() end, OwnTimers),
     abandoned(Pid),
-    Clock#clock{alarms = maps:without(Timers, Alarms), by_recipient = ByRecipient1,
-                monitor_refs = without_monitor(Pid, MonitorRefs)}.
+    Clock#clock{alarms = maps:without(Own, Alarms), timers = maps:without(OwnTimers, Timers),
+                by_recipient = ByRecipient1, monitor_refs = without_monitor(Pid, MonitorRefs)}.
 
-%% Appendix E.0 rule 8: a time has no upper bound, and the host's timers
-%% have one, so an alarm is set again until its moment has come. The
-%% process it goes to is monitored from its first alarm.
-armed(Moment, Address, #clock{alarms = Alarms, by_recipient = ByRecipient,
-                              monitor_refs = MonitorRefs, read_time = ReadTime} = Clock) ->
-    Timer = erlang:start_timer(wait(Moment, ReadTime), erlang:self(), deadline),
+%% A new alarm held, the process it goes to monitored from its first.
+armed(Alarm, Moment, Address, #clock{by_recipient = ByRecipient,
+                                     monitor_refs = MonitorRefs} = Clock) ->
     Recipient = process_of(Address),
     MonitorRefs1 = case MonitorRefs of
                        #{Recipient := _} -> MonitorRefs;
                        #{} -> MonitorRefs#{Recipient => erlang:monitor(process, Recipient)}
                    end,
-    Clock#clock{alarms = Alarms#{Timer => {Moment, Address, Recipient}},
-                by_recipient = added(Recipient, Timer, ByRecipient), monitor_refs = MonitorRefs1}.
+    timed_alarm(Alarm, Moment, Address, Recipient,
+                Clock#clock{by_recipient = added(Recipient, Alarm, ByRecipient),
+                            monitor_refs = MonitorRefs1}).
 
-%% An alarm forgotten, and the monitor of its process with its last.
-without_alarm(Timer, Recipient, #clock{alarms = Alarms, by_recipient = ByRecipient,
+%% Appendix E.0 rule 8: a time has no upper bound, and the host's timers
+%% have one, so an alarm's timer is set for the next wait towards its
+%% moment, and set again until the moment has come.
+timed_alarm(Alarm, Moment, Address, Recipient,
+            #clock{alarms = Alarms, timers = Timers, read_time = ReadTime} = Clock) ->
+    Timer = erlang:start_timer(wait(Moment, ReadTime), erlang:self(), deadline),
+    Clock#clock{alarms = Alarms#{Alarm => {Timer, Moment, Address, Recipient}},
+                timers = Timers#{Timer => Alarm}}.
+
+%% An alarm forgotten with its timer, and the monitor of its process with
+%% its last.
+without_alarm(Alarm, Recipient, #clock{alarms = Alarms, timers = Timers,
+                                       by_recipient = ByRecipient,
                                        monitor_refs = MonitorRefs} = Clock) ->
-    ByRecipient1 = forgotten(Recipient, Timer, ByRecipient),
+    {{Timer, _, _, _}, Alarms1} = maps:take(Alarm, Alarms),
+    ByRecipient1 = forgotten(Recipient, Alarm, ByRecipient),
     MonitorRefs1 = case ByRecipient1 of
                        #{Recipient := _} -> MonitorRefs;
                        #{} -> without_monitor(Recipient, MonitorRefs)
                    end,
-    Clock#clock{alarms = maps:remove(Timer, Alarms), by_recipient = ByRecipient1,
-                monitor_refs = MonitorRefs1}.
+    Clock#clock{alarms = Alarms1, timers = maps:remove(Timer, Timers),
+                by_recipient = ByRecipient1, monitor_refs = MonitorRefs1}.
 
 %% The clock's monitor of Pid gone, and a DOWN it sent with it.
 without_monitor(Pid, MonitorRefs) ->

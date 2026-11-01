@@ -765,7 +765,7 @@ input_type_closed_as_a_top_level_let_test() ->
               <<"let k = Test.Case(name = \"k\", run = fn() = Test.equal(1, 1))">>,
               <<"let s = List.partition([fn() = self()], fn(f) = true)">>,
               <<"let t = List.partition([fn() = receive { _ -> Unit }], fn(f) = true)">>,
-              <<"let w = List.partition([fn() = receive { after 1 -> Unit }], fn(f) = true)">>],
+              <<"let w = List.partition([fn() = Clock.sleep(1)], fn(f) = true)">>],
     %% report §11.2: a session's front end runs in a launch, its own screen
     %% the session's, and no local half, whose source root is none
     Main = fun() ->
@@ -5389,7 +5389,8 @@ killed_entry_test() ->
                  "export fn main() : Unit receiving Never = {\n"
                  "    let me = self();\n"
                  "    let _ = spawn(fn() = kill(me));\n"
-                 "    receive { after 5000 -> Io.println(\"not killed\") }\n"
+                 "    Clock.sleep(5000);\n"
+                 "    Io.println(\"not killed\")\n"
                  "}\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
     ?assertEqual(1, ern_err(["run", filename:join(Dir, "main.erc")])),

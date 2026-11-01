@@ -67,9 +67,7 @@ export fn schedulers(window : Int) : Float = {
     let flag = Foreign.atom("scheduler_wall_time");
     let _ = setFlag(flag, Foreign.term(true));
     let first = wallTimes(flag);
-    receive {
-        after Int.max(window, 1) -> Unit
-    };
+    Clock.sleep(Int.max(window, 1));
     let second = wallTimes(flag);
     // the host counts each process's setting: this one's is taken back,
     // and the time is kept while another's stands

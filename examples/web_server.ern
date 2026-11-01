@@ -68,7 +68,7 @@ export fn main() : Unit = {
 
 // The session store: the visits of each session, forgotten every ten minutes.
 fn sessionStore() : Unit receiving SessionMsg = {
-    Clock.alarm(600000, fn(_) = Forget);
+    let _ = Clock.alarm(600000, fn(_) = Forget);
     store(Map.empty)
 }
 

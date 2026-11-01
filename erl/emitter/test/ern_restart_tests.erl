@@ -302,7 +302,7 @@ restart_cancels_what_it_asked_for() ->
     end,
     %% an alarm set by the old run, its time passed twice over
     ?assertEqual({ok, <<"0\n">>}, ern_emitter_tests:run(
-        Program("Clock.alarm(100, fn(_) = Heard)", "receive { after 2 * 100 -> Unit }"))),
+        Program("let _ = Clock.alarm(100, fn(_) = Heard)", "Clock.sleep(2 * 100)"))),
     %% a monitor made by the old run, of a process killed after the restart
     ?assertEqual({ok, <<"0\n">>},
                  ern_emitter_tests:run(

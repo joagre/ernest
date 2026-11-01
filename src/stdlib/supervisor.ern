@@ -231,7 +231,7 @@ fn supervise(group : Group,
                     restartSiblings(group, process, reply, recent, left)
               | RestartLimit(restarts = restarts, within = within) ->
                     if recent < restarts then {
-                        Clock.alarm(Int.max(within, 1), fn(_) = Expired);
+                        let _ = Clock.alarm(Int.max(within, 1), fn(_) = Expired);
                         restartSiblings(group, process, reply, recent + 1, left)
                     } else {
                         answer(reply, true);
