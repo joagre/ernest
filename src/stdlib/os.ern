@@ -299,8 +299,7 @@ foreign fn subscribe(address : Address(Reply(Unit))) : Unit =
 /// ```
 export fn start(command : Command) : Either(Io.Error, Address(ProgramMsg)) = {
     let owner = Process.current();
-    Address.callForever(reference,
-                        fn(reply) = Start(command = command, owner = owner, reply = reply))
+    Address.callForever(reference, fn(reply) = Start(=command, =owner, =reply))
 }
 
 /// The next piece of what the program wrote, to its standard output or its
@@ -335,7 +334,7 @@ export fn start(command : Command) : Either(Io.Error, Address(ProgramMsg)) = {
 /// // => Right(#(Stderr(<<110, 111, 10>>), Exited(1)))
 /// ```
 export fn read(program : Address(ProgramMsg), ms : Int) : Either(Io.Error, Output) =
-    Address.callForever(program, fn(reply) = Read(ms = ms, reply = reply))
+    Address.callForever(program, fn(reply) = Read(=ms, =reply))
 
 /// Gives `bytes` to the program as its input, after what it was given before.
 /// It answers `Right(Unit)` once the program has taken them, waiting while the
@@ -367,7 +366,7 @@ export fn read(program : Address(ProgramMsg), ms : Int) : Either(Io.Error, Outpu
 /// // => Right(Stdout(<<104, 105>>))
 /// ```
 export fn write(program : Address(ProgramMsg), bytes : Bytes, ms : Int) : Either(Io.Error, Unit) =
-    Address.callForever(program, fn(reply) = Write(bytes = bytes, ms = ms, reply = reply))
+    Address.callForever(program, fn(reply) = Write(=bytes, =ms, =reply))
 
 /// Ends the program's input, once what it was given before is written. A
 /// program that reads to the end of its input then sees the end.
@@ -410,7 +409,7 @@ export fn closeInput(program : Address(ProgramMsg)) : Unit =
 ///
 /// since 0.2.0
 export fn give(program : Address(ProgramMsg), owner : Process) : Unit =
-    send(program, Give(owner = owner))
+    send(program, Give(=owner))
 
 /// Runs the program to its end and answers its exit status and all it wrote: it
 /// starts the program, ends its input after `command.input`, and reads it until
@@ -453,9 +452,7 @@ fn collect(program : Address(ProgramMsg),
       | Right(Stderr(bytes)) ->
             collect(program, deadline, stdoutPieces, bytes :: stderrPieces)
       | Right(Exited(status)) ->
-            Right(Finished(status = status,
-                           stdout = joined(stdoutPieces),
-                           stderr = joined(stderrPieces)))
+            Right(Finished(=status, stdout = joined(stdoutPieces), stderr = joined(stderrPieces)))
       | Left(Io.Timeout) -> {
             kill(program);
             Left(Io.Timeout)

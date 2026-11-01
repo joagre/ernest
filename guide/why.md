@@ -113,7 +113,7 @@ fn count(total : Int) : Unit receiving CounterMsg =
             answer(reply, total);
             count(total)
         }
-      | Upgrade(next = next) ->
+      | Upgrade(=next) ->
             next(total)
     }
 

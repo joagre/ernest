@@ -154,7 +154,7 @@ call_ends_at_asked_restart_test() ->
         "let a : Address(Msg) = spawn(Supervisor.child(sup, fn() = serve()))\n"
         "let b : Address(Msg) = spawn(Supervisor.child(sup, fn() = serve()))\n"
         "fn serve() : Unit receiving Msg = receive {\n"
-        "    Slow(reply = r, trigger = trigger) -> {\n"
+        "    Slow(reply = r, =trigger) -> {\n"
         "        send(trigger, Unit);\n"
         "        receive { Boom -> Unit };\n"
         "        answer(r, 1);\n"
@@ -164,7 +164,7 @@ call_ends_at_asked_restart_test() ->
         "}\n"
         "export fn main() : Unit = {\n"
         "    let trigger = spawn(fn() : Unit receiving Unit = receive { _ -> send(a, Boom) });\n"
-        "    let _ = Address.callForever(b, fn(r) = Slow(reply = r, trigger = trigger));\n"
+        "    let _ = Address.callForever(b, fn(r) = Slow(reply = r, =trigger));\n"
         "    Io.println(\"answered\")\n"
         "}\n"),
     ?assertMatch({fault, <<"callee was restarted">>, _}, Result).
@@ -237,7 +237,7 @@ nested_group_restarts_in_place_test() ->
         "    Io.println(Io.show(restarts) <> \" \" <> Int.toString(peek(a)) <> \" \""
         " <> Int.toString(peek(b)))\n"
         "}\n"
-        "fn heard() : Reason receiving Down = receive { Down(reason = reason) -> reason }\n"
+        "fn heard() : Reason receiving Down = receive { Down(=reason) -> reason }\n"
         "fn peek(c : Address(Msg)) : Int = Address.callForever(c, fn(r) = Peek(reply = r))\n"),
     ?assertEqual(<<"[Restarted, Restarted, Restarted] 0 0\n">>, Output).
 

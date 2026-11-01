@@ -24,7 +24,7 @@ export fn main() : Unit receiving Msg = {
 
 fn serve() : Unit receiving Msg =
     receive {
-        Double(n = n, reply = reply) -> {
+        Double(=n, =reply) -> {
             answer(reply, 2 * n);
             serve()
         }
@@ -68,9 +68,7 @@ fn withSecondNode(build : String) : Either(String, #(String, Int)) = {
     let program <- started(build);
     let answered = match Peer.find(service, Harness.waitMs()) {
         Right(address) ->
-            Io.show(Address.call(address,
-                                 fn(reply) = Double(n = 21, reply = reply),
-                                 Harness.waitMs()))
+            Io.show(Address.call(address, fn(reply) = Double(n = 21, =reply), Harness.waitMs()))
       | Left(failure) ->
             Io.show(failure)
     };
@@ -85,12 +83,12 @@ fn proxyAgainst(build : String) : Either(String, #(String, String, String, Int))
     let proxy = Proxy.start(service, Harness.waitMs());
     monitor(Process.fromAddress(proxy), Ended);
     let program <- started(build);
-    let first = Address.call(proxy, fn(reply) = Double(n = 21, reply = reply), Harness.waitMs());
+    let first = Address.call(proxy, fn(reply) = Double(n = 21, =reply), Harness.waitMs());
     let ended = receive {
         Ended(down) -> Io.show(down.reason)
       | after Harness.waitMs() -> "no end"
     };
-    let second = Address.call(proxy, fn(reply) = Double(n = 21, reply = reply), Harness.waitMs());
+    let second = Address.call(proxy, fn(reply) = Double(n = 21, =reply), Harness.waitMs());
     let status <- stopped(program);
     Right(#(Io.show(first), ended, Io.show(second), status))
 }

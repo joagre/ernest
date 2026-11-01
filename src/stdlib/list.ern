@@ -550,7 +550,7 @@ foreign fn sorted(isLessOrEqual : (a, a) -> Bool receiving e,
 /// since 0.5.0
 export fn sortBy(list : List(a),
                  key : (a) -> k receiving e) : List(a) receiving e needs k.compare = {
-    let withKeys = map(list, fn(element) = Keyed(key = key(element), element = element));
+    let withKeys = map(list, fn(element) = Keyed(key = key(element), =element));
     map(sort(withKeys), fn(keyed) = keyed.element)
 }
 

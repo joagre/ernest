@@ -838,11 +838,11 @@ fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) ->
             count(total + amount)
-      | Get(reply = reply) -> {
+      | Get(=reply) -> {
             answer(reply, total);
             count(total)
         }
-      | Upgrade(migrate = migrate, next = next) ->
+      | Upgrade(=migrate, =next) ->
             next(migrate(total))
     }
 ```
@@ -1248,7 +1248,7 @@ export fn main() : Unit = {
     let counter = spawn(fn() = count(0));
     send(counter, Inc(5));
     send(counter, Inc(3));
-    match Address.call(counter, fn(reply) = Get(reply = reply), 1000) {
+    match Address.call(counter, fn(reply) = Get(=reply), 1000) {
         Some(total) -> Io.println("count is " <> Int.toString(total))
       | None -> Io.println("counter is not answering")
     }
@@ -1258,11 +1258,11 @@ fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) ->
             count(total + amount)
-      | Get(reply = reply) -> {
+      | Get(=reply) -> {
             answer(reply, total);
             count(total)
         }
-      | Upgrade(migrate = migrate, next = next) ->
+      | Upgrade(=migrate, =next) ->
             next(migrate(total))
     }
 ```
@@ -1287,7 +1287,7 @@ fn ping(opponent : Address(PongMsg), round : Int) : Unit =
         send(opponent, Stop)
     else {
         Io.println("ping " <> Int.toString(round));
-        match Address.call(opponent, fn(reply) = Ping(round = round, reply = reply), 5000) {
+        match Address.call(opponent, fn(reply) = Ping(=round, =reply), 5000) {
             Some(_) ->
                 ping(opponent, round - 1)
           | None -> {
@@ -1299,7 +1299,7 @@ fn ping(opponent : Address(PongMsg), round : Int) : Unit =
 
 fn pong() : Unit receiving PongMsg =
     receive {
-        Ping(round = round, reply = reply) -> {
+        Ping(=round, =reply) -> {
             Io.println("pong " <> Int.toString(round));
             answer(reply, round);
             pong()

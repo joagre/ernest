@@ -287,16 +287,15 @@ fn attached(desk : Desk) : Unit receiving EntryMsg = {
 // files, and those typed at the prompt or read as lines.
 fn session(desk : Desk) : Unit receiving ShellMsg = {
     let shell = self();
-    let Desk(local = local, size = size, color = color, attached = attached) = desk;
+    let Desk(=local, =size, =color, =attached) = desk;
     // report §11.2: the session and its local half monitor each other, and
     // the local half's end is the session's
     monitor(Process.fromAddress(local), LocalEnded);
     let screen = spawn(fn() = match size {
         Some(given) ->
-            screenLoop(Shell.Region.new(given),
-                       Showing(destination = None, local = local, cut = <<>>))
+            screenLoop(Shell.Region.new(given), Showing(destination = None, =local, cut = <<>>))
       | None ->
-            plainLoop(Showing(destination = None, local = local, cut = <<>>))
+            plainLoop(Showing(destination = None, =local, cut = <<>>))
     });
     // report §11.2: a session that cannot be shown is no shell, so the
     // screen's end is the session's
@@ -323,16 +322,16 @@ fn session(desk : Desk) : Unit receiving ShellMsg = {
                               attached,
                               shell),
               settings = defaults,
-              color = color,
+              =color,
               own = Set.fromList(ownProcesses),
               faults = [],
               startupLine = None,
               entered = 0,
               serial = 0,
-              local = local,
+              =local,
               lines = adapted(shell, Line),
-              reader = reader,
-              attached = attached);
+              =reader,
+              =attached);
     // report §11.2: the local half forwards the terminal's events to the
     // reader, and what its own node writes goes to the screen from now on
     let _ =
@@ -341,7 +340,7 @@ fn session(desk : Desk) : Unit receiving ShellMsg = {
                          Attached(session = Process.fromAddress(shell),
                                   keys = Optional.map(reader, fn(given) = adapted(given, Key)),
                                   screen = screenProcess,
-                                  reply = reply),
+                                  =reply),
                      screenMs);
     let greeting = "Ernest " <> version() <> ", session " <> Int.toString(number(state.session));
     send(screen, Said(greeting <> ". :help for the commands, :quit to leave.\n"));
@@ -595,7 +594,7 @@ fn output(local : Address(LocalMsg),
 
 // Where the screen says what programs write goes.
 fn located(screen : Address(ScreenMsg)) : Either(String, String) =
-    match Address.call(screen, fn(reply) = Locate(reply = reply), screenMs) {
+    match Address.call(screen, fn(reply) = Locate(=reply), screenMs) {
         Some(place) -> Right("output goes to " <> place)
       | None -> Left("the screen did not say where output goes")
     }
@@ -605,7 +604,7 @@ fn located(screen : Address(ScreenMsg)) : Either(String, String) =
 // answers there, the one path it appends what programs write to from then
 // on, or `Timeout` where no answer comes.
 fn outputTried(local : Address(LocalMsg), path : Path) : Either(Io.Error, Unit) =
-    match Address.call(local, fn(reply) = Output(path = path, reply = reply), localMs) {
+    match Address.call(local, fn(reply) = Output(=path, =reply), localMs) {
         Some(tried) -> tried
       | None -> Left(Io.Timeout)
     }
@@ -613,9 +612,7 @@ fn outputTried(local : Address(LocalMsg), path : Path) : Either(Io.Error, Unit) 
 // Report §11.2: what the local half appends to the path `:output` took, as
 // `Fs.append` answers there, or `Timeout` where no answer comes.
 fn appendedThere(local : Address(LocalMsg), path : Path, bytes : Bytes) : Either(Io.Error, Unit) =
-    match Address.call(local,
-                       fn(reply) = Append(path = path, bytes = bytes, reply = reply),
-                       localMs) {
+    match Address.call(local, fn(reply) = Append(=path, =bytes, =reply), localMs) {
         Some(appended) -> appended
       | None -> Left(Io.Timeout)
     }
@@ -661,7 +658,7 @@ fn executeQuietly(state : State,
                   file : String,
                   line : Int,
                   input : String) : Next receiving ShellMsg =
-    execute(state, screen, Startup(file = file, line = line, column = 1), input, false)
+    execute(state, screen, Startup(=file, =line, column = 1), input, false)
 
 fn execute(state : State,
            screen : Address(ScreenMsg),
@@ -678,7 +675,7 @@ fn execute(state : State,
             let started = Clock.monotonic();
             let serial = state.serial + 1;
             let inputProcess = spawnInput(session, checked, serial, adapted(self(), Done));
-            await(State(..state, session = session, serial = serial),
+            await(State(..state, =session, =serial),
                   screen,
                   checked,
                   inputProcess,
@@ -699,7 +696,7 @@ fn await(state : State,
          printing : Bool) : Next receiving ShellMsg = {
     let current = state.serial;
     receive {
-        Done(Ok(bound = bound, serial = serial, value = value)) when serial == current -> {
+        Done(Ok(=bound, =serial, =value)) when serial == current -> {
             // report §11.2: what the input bound is bound and joins the
             // session, and what nothing reaches is let go, here, in the
             // session's process, once the input has answered, and before
@@ -712,19 +709,15 @@ fn await(state : State,
             } else
                 Unit;
             letGoSaid(screen);
-            Continue(State(..state, session = session))
+            Continue(State(..state, =session))
         }
-      | Done(Faulted(cause = cause,
-                     trace = trace,
-                     callee = callee,
-                     peer = peer,
-                     serial = serial)) when serial == current -> {
+      | Done(Faulted(=cause, =trace, =callee, =peer, =serial)) when serial == current -> {
             sayFault(state, screen, causeLine(cause, callee, peer), trace);
             if printing then sayTime(screen, state.settings, started) else Unit;
             // report §11.2: the input's unit, which holds nothing, is let go
             let session = collect(state.session, None);
             letGoSaid(screen);
-            Continue(State(..state, session = session))
+            Continue(State(..state, =session))
         }
       // the outcome of an input `Interrupted` killed, which came after the
       // next was taken
@@ -853,7 +846,7 @@ fn keyLoop(state : State, screen : Address(ScreenMsg)) : Unit receiving ShellMsg
       // reload by another session does
       | Reported(report) ->
             keyLoop(reported(state, screen, report, Noted), screen)
-      | Reloaded(by = by, modules = modules) ->
+      | Reloaded(=by, =modules) ->
             keyLoop(reloadSaid(state, screen, by, modules, Noted), screen)
       | ReaderDied(down) ->
             leave(state, screen, readerEnd(state.color, down))
@@ -953,7 +946,7 @@ fn reloadSaid(state : State,
               wrap : (String) -> ScreenMsg) : State = {
     let #(session, lines) = reloadedBy(state.session, by, modules);
     send(screen, wrap(String.join(lines, "\n")));
-    State(..state, session = session)
+    State(..state, =session)
 }
 
 // A line the session says, ended.
@@ -1005,8 +998,8 @@ fn indentedTrace(trace : String) : String =
 // ended.
 fn downLine(down : Down) : String =
     match down {
-        Down(reason = Fault(cause), site = site) -> site <> " faulted: " <> escaped(cause)
-      | Down(reason = _, site = site) -> site <> " ended"
+        Down(reason = Fault(cause), =site) -> site <> " faulted: " <> escaped(cause)
+      | Down(reason = _, =site) -> site <> " ended"
     }
 
 // Report §11.2: a cause as `ern run` writes it, each control character as
@@ -1048,7 +1041,7 @@ fn refuse(state : State, screen : Address(ScreenMsg), text : String) : Unit =
 // the prompt.
 fn origin(state : State, column : Int) : Origin =
     match state.startupLine {
-        Some(#(file, line)) -> Startup(file = file, line = line, column = column)
+        Some(#(file, line)) -> Startup(=file, =line, =column)
       | None -> Prompt(state.entered)
     }
 
@@ -1095,7 +1088,7 @@ fn obey(state : State,
         action : Shell.Command.Action,
         argument : String,
         column : Int) : Next = {
-    let State(session = session, color = color) = state;
+    let State(=session, =color) = state;
     match action {
         // report §11.2: `:quit` leaves every shell, an attached one's node
         // running on
@@ -1180,9 +1173,7 @@ fn typeOf(state : State, screen : Address(ScreenMsg), argument : String, column 
             diagnosed(state, screen, text)
       | Right(#(session, checked)) ->
             if isExpression(checked) then
-                answered(State(..state, session = session),
-                         screen,
-                         [argument <> " : " <> typeText(checked)])
+                answered(State(..state, =session), screen, [argument <> " : " <> typeText(checked)])
             else
                 // report §11.2: `:type` takes an expression
                 refused(state,
@@ -1216,7 +1207,7 @@ fn rendered(text : String, width : Int, color : Markdown.Output) : List(String) 
 // Report §11.2: the terminal's columns, as the screen holds them, or 80
 // where there is no terminal.
 fn columnsOf(screen : Address(ScreenMsg)) : Int =
-    Optional.withDefault(Address.call(screen, fn(reply) = Columns(reply = reply), screenMs), 80)
+    Optional.withDefault(Address.call(screen, fn(reply) = Columns(=reply), screenMs), 80)
 
 // Report §11.2: the live processes by spawn site, each with its activity
 // beside its site, as `Process.status` answers it: what `Process.live()`
@@ -1248,15 +1239,15 @@ fn set(state : State, screen : Address(ScreenMsg), argument : String) : Settings
             settings
         }
       | Right(Shell.Command.Depth(depth)) ->
-            Settings(..settings, depth = depth)
+            Settings(..settings, =depth)
       | Right(Shell.Command.Length(length)) ->
-            Settings(..settings, length = length)
+            Settings(..settings, =length)
       | Right(Shell.Command.Rows(rows)) -> {
             send(screen, SetRows(rows));
-            Settings(..settings, rows = rows)
+            Settings(..settings, =rows)
         }
       | Right(Shell.Command.Timing(timing)) ->
-            Settings(..settings, timing = timing)
+            Settings(..settings, =timing)
     }
 }
 
@@ -1300,7 +1291,7 @@ fn screenLoop(region : Shell.Region.Region, showing : Showing) : Unit receiving 
             painted(Shell.Region.noted(region, text), showing)
       | Wrote(bytes) -> {
             let #(text, cut) = decoded(showing.cut, bytes);
-            let showing1 = Showing(..showing, cut = cut);
+            let showing1 = Showing(..showing, =cut);
             match showing.destination {
                 None ->
                     painted(Shell.Region.wrote(region, text), showing1)
@@ -1318,7 +1309,7 @@ fn screenLoop(region : Shell.Region.Region, showing : Showing) : Unit receiving 
                     }
             }
         }
-      | ShowInput(text = text, cursor = cursor, offered = offered) ->
+      | ShowInput(=text, =cursor, =offered) ->
             painted(Shell.Region.edited(region, text, cursor, offered), showing)
       | Entered ->
             painted(Shell.Region.entered(region), showing)
@@ -1332,16 +1323,16 @@ fn screenLoop(region : Shell.Region.Region, showing : Showing) : Unit receiving 
       | SetRows(rows) ->
             painted(Shell.Region.rowsSized(region, rows), showing)
       | Redirect(destination) ->
-            screenLoop(region, Showing(..showing, destination = destination))
-      | Locate(reply = reply) -> {
+            screenLoop(region, Showing(..showing, =destination))
+      | Locate(=reply) -> {
             answer(reply, place(showing.destination, "the live region"));
             screenLoop(region, showing)
         }
-      | Columns(reply = reply) -> {
+      | Columns(=reply) -> {
             answer(reply, Shell.Region.columns(region));
             screenLoop(region, showing)
         }
-      | Flush(reply = reply) -> {
+      | Flush(=reply) -> {
             drained(showing.local);
             answer(reply, Unit);
             screenLoop(region, showing)
@@ -1360,7 +1351,7 @@ fn painted(drawn : #(Shell.Region.Region, String), showing : Showing) : Unit rec
 // Report §11.2: once the local half has written everything the screen
 // sent it before, or `screenMs` has passed.
 fn drained(local : Address(LocalMsg)) : Unit = {
-    let _ = Address.call(local, fn(reply) = Drain(reply = reply), screenMs);
+    let _ = Address.call(local, fn(reply) = Drain(=reply), screenMs);
     Unit
 }
 
@@ -1377,15 +1368,15 @@ fn plainLoop(showing : Showing) : Unit receiving ScreenMsg = {
             match showing.destination {
                 None -> {
                     lineWritten(showing.local, text);
-                    Showing(..showing, cut = cut)
+                    Showing(..showing, =cut)
                 }
               | Some(path) ->
                     match appended(showing.local, path, text, "standard output") {
                         Right(_) ->
-                            Showing(..showing, cut = cut)
+                            Showing(..showing, =cut)
                       | Left(why) -> {
                             lineWritten(showing.local, why <> text);
-                            Showing(..showing, destination = None, cut = cut)
+                            Showing(..showing, destination = None, =cut)
                         }
                     }
             }
@@ -1395,18 +1386,18 @@ fn plainLoop(showing : Showing) : Unit receiving ScreenMsg = {
             showing
         }
       | Redirect(destination) ->
-            Showing(..showing, destination = destination)
-      | Locate(reply = reply) -> {
+            Showing(..showing, =destination)
+      | Locate(=reply) -> {
             answer(reply, place(showing.destination, "standard output"));
             showing
         }
       // report §11.2: documentation is rendered at 80 columns where there
       // is no terminal
-      | Columns(reply = reply) -> {
+      | Columns(=reply) -> {
             answer(reply, 80);
             showing
         }
-      | Flush(reply = reply) -> {
+      | Flush(=reply) -> {
             drained(showing.local);
             answer(reply, Unit);
             showing
@@ -1435,7 +1426,7 @@ fn lineWritten(local : Address(LocalMsg), text : String) : Unit =
     if String.isEmpty(text) then
         Unit
     else
-        send(local, Write(text = text, ending = if String.endsWith(text, "\n") then "" else "\n"))
+        send(local, Write(=text, ending = if String.endsWith(text, "\n") then "" else "\n"))
 
 // Report §11.2: what a program wrote, appended where `:output` sent it, on
 // the shell's own node; where that fails, why, and what programs write goes
@@ -1511,7 +1502,7 @@ fn prompt(screen : Address(ScreenMsg)) : Unit = {
 }
 
 fn drain(screen : Address(ScreenMsg)) : Unit = {
-    let _ = Address.call(screen, fn(reply) = Flush(reply = reply), screenMs);
+    let _ = Address.call(screen, fn(reply) = Flush(=reply), screenMs);
     Unit
 }
 
@@ -1536,7 +1527,7 @@ fn read(shell : Address(ShellMsg),
         screen : Address(ScreenMsg),
         reading : Reading,
         event : Terminal.Event) : Unit receiving ReaderMsg = {
-    let Reading(editing = editing, keeping = keeping) = reading;
+    let Reading(=editing, =keeping) = reading;
     match event {
         // report §11.2: the size the event carries is the terminal's on
         // the shell's own node, which the screen paints at and the reader
@@ -1606,7 +1597,7 @@ fn matching(shell : Address(ShellMsg),
         None ->
             showing(shell, screen, reading, edited)
       | Some(index) -> {
-            send(screen, ShowInput(text = text, cursor = index, offered = []));
+            send(screen, ShowInput(=text, cursor = index, offered = []));
             receive {
                 Key(event) -> {
                     send(screen, shownInput(edited));
@@ -1637,7 +1628,7 @@ fn showing(shell : Address(ShellMsg),
              screen,
              Reading(..reading,
                      editing = edited,
-                     hinted = hinted,
+                     =hinted,
                      last = if Shell.Editor.isMidSequence(edited) then reading.last else Ordinary))
 }
 
@@ -1715,7 +1706,7 @@ fn remember(screen : Address(ScreenMsg),
 // `Shell.History.add` answers on the shell's own node, or `Timeout` where
 // no answer comes.
 fn remembered(local : Address(LocalMsg), input : String) : Either(Io.Error, Unit) =
-    match Address.call(local, fn(reply) = Remember(input = input, reply = reply), localMs) {
+    match Address.call(local, fn(reply) = Remember(=input, =reply), localMs) {
         Some(added) -> added
       | None -> Left(Io.Timeout)
     }
@@ -1745,7 +1736,7 @@ fn completing(shell : Address(ShellMsg),
 // Report §11.2: a directory of the source root, listed by the local half,
 // which holds the operator's files, or `Timeout` where no answer comes.
 fn listed(local : Address(LocalMsg), path : Path) : Either(Io.Error, List(Fs.Entry)) =
-    match Address.call(local, fn(reply) = ListEntries(path = path, reply = reply), localMs) {
+    match Address.call(local, fn(reply) = ListEntries(=path, =reply), localMs) {
         Some(entries) -> entries
       | None -> Left(Io.Timeout)
     }
@@ -1772,7 +1763,7 @@ fn offering(shell : Address(ShellMsg),
     let listed = reading.last == Tabbed || text == line || Shell.Complete.isLone(completion);
     let rows = if listed then listing(completion, reading.color) else [];
     send(screen, under(completed, rows));
-    readLoop(shell, screen, Reading(..reading, editing = completed, hinted = hinted, last = Tabbed))
+    readLoop(shell, screen, Reading(..reading, editing = completed, =hinted, last = Tabbed))
 }
 
 // Report §11.2: the candidates, a lone one too, a line each with the
@@ -1790,7 +1781,7 @@ fn documenting(shell : Address(ShellMsg),
                screen : Address(ScreenMsg),
                reading : Reading,
                editing : Shell.Editor.Editing) : Unit receiving ReaderMsg = {
-    let Reading(last = last, color = color) = reading;
+    let Reading(=last, =color) = reading;
     let line = Shell.Editor.text(editing);
     let cursor = Shell.Editor.cursor(editing);
     // report §11.2: the whole name the cursor stands in, and a call is
@@ -1814,7 +1805,7 @@ fn documenting(shell : Address(ShellMsg),
             }
     };
     send(screen, under(editing, rows));
-    readLoop(shell, screen, Reading(..reading, editing = editing, last = Documented))
+    readLoop(shell, screen, Reading(..reading, =editing, last = Documented))
 }
 
 // The declaration, the first sentence, and the version a page's
@@ -1827,7 +1818,7 @@ fn brief(text : String,
          color : Markdown.Output) : List(String) = {
     let blocks = Markdown.parse(text);
     let declarations = List.flatMap(blocks, fn(block) = match block {
-        Markdown.Code(lines = lines) -> List.take(lines, 1)
+        Markdown.Code(=lines) -> List.take(lines, 1)
       | _ -> []
     });
     let paragraphs = List.filter(blocks, fn(block) = match block {
@@ -1935,7 +1926,7 @@ fn reportPending(state : State,
     receive {
         Reported(report) ->
             reportPending(reported(state, screen, report, wrap), screen, wrap)
-      | Reloaded(by = by, modules = modules) ->
+      | Reloaded(=by, =modules) ->
             reportPending(reloadSaid(state, screen, by, modules, wrap), screen, wrap)
       | ScreenDied(down) ->
             screenDied(down)
@@ -1997,10 +1988,10 @@ fn localHalf(attachment : Attachment) : Unit receiving LocalMsg = {
     };
     let desk =
         Desk(local = self(),
-             size = size,
-             color = color,
-             earlier = earlier,
-             keeping = keeping,
+             =size,
+             =color,
+             =earlier,
+             =keeping,
              notes = List.flatMap(read, fn(#(_, notes)) = notes) <> historyNotes,
              startup = List.flatMap(read, fn(#(inputs, _)) = inputs),
              sourceRoot = givenSourceRoot(),
@@ -2008,7 +1999,7 @@ fn localHalf(attachment : Attachment) : Unit receiving LocalMsg = {
              attached = isAttaching(attachment));
     let serving =
         Serving(keys = None,
-                lines = lines,
+                =lines,
                 peer = None,
                 ending = "",
                 sourceRoot = Path(desk.sourceRoot),
@@ -2090,7 +2081,7 @@ fn attaching(serving : Serving, deadline : Optional(Int)) : Unit receiving Local
     match #(serving.peer, deadline) {
         #(Some(name), Some(ending)) ->
             receive {
-                Attached(session = session, keys = keys, screen = screen, reply = reply) ->
+                Attached(=session, =keys, =screen, =reply) ->
                     served(attachedTo(serving, session, keys, screen, reply))
               // report §11.2: the connection lost, or the node ended, before
               // the session started, which no connection gives
@@ -2105,7 +2096,7 @@ fn attaching(serving : Serving, deadline : Optional(Int)) : Unit receiving Local
             }
       | _ ->
             receive {
-                Attached(session = session, keys = keys, screen = screen, reply = reply) ->
+                Attached(=session, =keys, =screen, =reply) ->
                     served(attachedTo(serving, session, keys, screen, reply))
             }
     }
@@ -2121,7 +2112,7 @@ fn attachedTo(serving : Serving,
     setNodeScreen(Some(screen));
     if Optional.isSome(serving.peer) then monitor(session, SessionEnded) else Unit;
     answer(reply, Unit);
-    Serving(..serving, keys = keys)
+    Serving(..serving, =keys)
 }
 
 // Report §11.2: what the local half does for its session, one message at a
@@ -2135,22 +2126,22 @@ fn served(serving : Serving) : Unit receiving LocalMsg =
             };
             served(serving)
         }
-      | Write(text = text, ending = ending) -> {
+      | Write(=text, =ending) -> {
             write(text);
-            served(Serving(..serving, ending = ending))
+            served(Serving(..serving, =ending))
         }
-      | Drain(reply = reply) -> {
+      | Drain(=reply) -> {
             answer(reply, Unit);
             served(serving)
         }
-      | Remember(input = input, reply = reply) -> {
+      | Remember(=input, =reply) -> {
             answer(reply, Shell.History.add(input));
             served(serving)
         }
       // report §11.2: `:output`'s path, tried with an append of nothing,
       // which creates a file that is not there, and appended to from then
       // on, and no other
-      | Output(path = path, reply = reply) -> {
+      | Output(=path, =reply) -> {
             let tried = Fs.append(path, <<>>, fileMs);
             answer(reply, tried);
             match tried {
@@ -2158,7 +2149,7 @@ fn served(serving : Serving) : Unit receiving LocalMsg =
               | Left(_) -> served(serving)
             }
         }
-      | Append(path = path, bytes = bytes, reply = reply) -> {
+      | Append(=path, =bytes, =reply) -> {
             answer(reply,
                    if serving.output == Some(path) then
                        Fs.append(path, bytes, fileMs)
@@ -2166,22 +2157,22 @@ fn served(serving : Serving) : Unit receiving LocalMsg =
                        Left(Io.Denied));
             served(serving)
         }
-      | ReadLine(lines = lines) -> {
+      | ReadLine(=lines) -> {
             match serving.lines {
-                Some(reader) -> send(reader, NextLine(lines = lines))
+                Some(reader) -> send(reader, NextLine(=lines))
               | None -> Unit
             };
             served(serving)
         }
-      | Read(path = path, reply = reply) -> {
+      | Read(=path, =reply) -> {
             answer(reply, if isRead(serving, path) then Fs.read(path, fileMs) else Left(Io.Denied));
             served(serving)
         }
-      | Stat(path = path, reply = reply) -> {
+      | Stat(=path, =reply) -> {
             answer(reply, if isRead(serving, path) then Fs.stat(path, fileMs) else Left(Io.Denied));
             served(serving)
         }
-      | ListEntries(path = path, reply = reply) -> {
+      | ListEntries(=path, =reply) -> {
             answer(reply,
                    if isUnder(serving.sourceRoot, path) then
                        Fs.list(path, fileMs)
@@ -2206,7 +2197,7 @@ fn served(serving : Serving) : Unit receiving LocalMsg =
                 Down(reason = Fault(cause)) -> fault(cause)
               | _ -> served(serving)
             }
-      | Attached(session = _, keys = _, screen = _, reply = reply) -> {
+      | Attached(session = _, keys = _, screen = _, =reply) -> {
             answer(reply, Unit);
             served(serving)
         }
@@ -2282,7 +2273,7 @@ fn linesRead() : Unit receiving LinesMsg = {
 
 fn nextRead() : Unit receiving LinesMsg =
     receive {
-        NextLine(lines = lines) -> {
+        NextLine(=lines) -> {
             send(lines, Io.readLine());
             nextRead()
         }

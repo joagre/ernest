@@ -54,7 +54,7 @@ export fn new(size : Terminal.Size) : Region =
            offered = [],
            resting = 0,
            rows = defaultRows,
-           size = size)
+           =size)
 
 /// What the session says is committed as it is produced; what it leaves
 /// without a line feed is the prompt, which the input is typed after.
@@ -97,7 +97,7 @@ export fn edited(region : Region,
                  text : String,
                  cursor : Int,
                  offered : List(String)) : #(Region, String) =
-    painted(Region(..region, typed = text, cursor = cursor, offered = offered), [])
+    painted(Region(..region, typed = text, =cursor, =offered), [])
 
 /// The input is finished: it joins the transcript, a row for each of its
 /// lines with the prompt each was typed after, and the region stops
@@ -106,9 +106,9 @@ export fn entered(region : Region) : #(Region, String) =
     match region {
         // nothing typed and no prompt, an input typed ahead and interrupted,
         // leaves no row
-        Region(tail = tail, prompt = "", typed = "") ->
+        Region(=tail, prompt = "", typed = "") ->
             painted(Region(..region, cursor = 0, offered = [], tail = []), tail)
-      | Region(tail = tail) ->
+      | Region(=tail) ->
             painted(Region(..region, prompt = "", typed = "", cursor = 0, offered = [], tail = []),
                     tail <> inputRows(region))
     }
@@ -125,7 +125,7 @@ export fn taken(region : Region) : #(Region, String) =
 
 /// The window has changed; the tail may no longer fit.
 export fn resized(region : Region, size : Terminal.Size) : #(Region, String) =
-    aged(Region(..region, size = size), [])
+    aged(Region(..region, =size), [])
 
 /// Report §11.2: the columns of the terminal the region is painted on,
 /// which documentation is rendered to the width of.
@@ -165,7 +165,7 @@ export fn ending(region : Region) : String = {
 // A line the tail no longer has room for is committed as it leaves, so
 // that a tail made shorter, or a window made smaller, loses nothing.
 fn aged(region : Region, commits : List(String)) : #(Region, String) = {
-    let Region(tail = tail) = region;
+    let Region(=tail) = region;
     let over = List.size(tail) - rowsGiven(region);
     if over <= 0 then
         painted(region, commits)

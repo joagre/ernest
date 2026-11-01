@@ -385,6 +385,15 @@ Person(name = "Alice", age = 31) : Person
 
 The fields may be given in any order, and are evaluated in the order written; a value prints them in the order the type declares them.
 
+Where a field's value is what the field's own name names in scope, the field is written once, `=name` for `name = name`, a *pun*, which stands beside the other forms (report §5.6):
+
+```console
+> let name = "Bob"
+name : String
+> Person(=name, age = 40)
+Person(name = "Bob", age = 40) : Person
+```
+
 A field of a field is updated through a path:
 
 ```console
@@ -506,7 +515,7 @@ fn reply(words : List(String)) : String =
     }
 ```
 
-A name appears at most once in a pattern. A pattern of a constructor with named fields may leave out the fields it does not need: `Rectangle(width = w)` binds one field of the `Rectangle` above, and `Rectangle()` matches any.
+A name appears at most once in a pattern. A pattern of a constructor with named fields may leave out the fields it does not need: `Rectangle(width = w)` binds one field of the `Rectangle` above, and `Rectangle()` matches any. A field bound to a variable of its own name is a pun here too, `Rectangle(=width)` for `Rectangle(width = width)`, which binds `width` (§2.4).
 
 A clause may list several patterns separated by `or`; it matches when any of them does. Every alternative binds the same variables at the same types, so the body uses them whichever alternative matched:
 
@@ -931,7 +940,7 @@ Ernest 0.7.0, session 1. :help for the commands, :quit to leave.
 Address.call : (Address(m), (Reply(a)) -> m, Int) -> Optional(a)
 ```
 
-`Address.call(counter, Get, 1000)` makes a fresh `Reply`, gives it to the function that builds the request, here `Get`, a positional constructor and so a function (§2.3), sends the request to `counter`, and waits up to 1000 ms. A request that carries more than its reply, or whose reply is a named field, is built by a lambda: `fn(reply) = Add(amount = 5, reply = reply)`. A request called from many places is built by a function of its own, `fn add(amount) = fn(reply) = Add(amount = amount, reply = reply)`, and each call is `Address.call(counter, add(5), 1000)`.
+`Address.call(counter, Get, 1000)` makes a fresh `Reply`, gives it to the function that builds the request, here `Get`, a positional constructor and so a function (§2.3), sends the request to `counter`, and waits up to 1000 ms. A request that carries more than its reply, or whose reply is a named field, is built by a lambda: `fn(reply) = Add(amount = 5, =reply)`. A request called from many places is built by a function of its own, `fn add(amount) = fn(reply) = Add(=amount, =reply)`, and each call is `Address.call(counter, add(5), 1000)`.
 
 The call returns `Some(v)` for an answer and `None` for none. `None` does not cancel the work: the recipient may still be computing, so a request that changes state and is sent again may change it twice. An answer that comes late is dropped and never reaches the caller's mailbox, so `Address.call` works whatever that mailbox's type is (report §6.6).
 
@@ -957,7 +966,7 @@ fn queueing(items : List(Int), waiting : List(Reply(Int))) : Unit receiving Queu
               | [] ->
                     queueing(items <> [item], [])
             }
-      | Take(reply = reply) ->
+      | Take(=reply) ->
             match items {
                 item :: rest -> {
                     answer(reply, item);
@@ -980,7 +989,7 @@ export fn main() : Unit receiving MainMsg = {
 
 // Waits for an item, for as long as it takes.
 fn take(queue : Address(QueueMsg)) : Int =
-    Address.callForever(queue, fn(reply) = Take(reply = reply))
+    Address.callForever(queue, fn(reply) = Take(=reply))
 ```
 
 ```console
@@ -1010,8 +1019,7 @@ fn run(numbers : List(Int), f : (Int) -> a receiving e) : Unit receiving GatherM
         Collect(reply) -> {
             let me = self();
             List.forEach(numbers, fn(n) = {
-                let _ =
-                    spawnMonitored(fn() = send(me, Computed(Piece(n = n, value = f(n)))), Ended);
+                let _ = spawnMonitored(fn() = send(me, Computed(Piece(=n, value = f(n)))), Ended);
                 Unit
             });
             answer(reply, gather(List.size(numbers), 0, []))
@@ -1163,7 +1171,7 @@ fn count(total : Int) : Unit receiving CounterMsg =
             answer(reply, total);
             count(total)
         }
-      | Upgrade(migrate = migrate, next = next) ->
+      | Upgrade(=migrate, =next) ->
             next(migrate(total))
     }
 ```
@@ -1182,7 +1190,7 @@ fn countTwice(total : Int) : Unit receiving CounterMsg =
             answer(reply, total);
             countTwice(total)
         }
-      | Upgrade(migrate = migrate, next = next) ->
+      | Upgrade(=migrate, =next) ->
             next(migrate(total))
     }
 ```
@@ -1229,7 +1237,7 @@ export fn tally(counts : Map(String, Int)) : Unit receiving TallyMsg =
     receive {
         Add(more) ->
             tally(Map.fold(more, counts, add))
-      | Top(limit = limit, reply = reply) -> {
+      | Top(=limit, =reply) -> {
             answer(reply, top(counts, limit));
             tally(counts)
         }
@@ -1246,7 +1254,7 @@ Ernest 0.7.0, session 1. :help for the commands, :quit to leave.
 tally : Address(Words.TallyMsg)
 > send(tally, Words.Add(Words.count("the cat and the hat")))
 > send(tally, Words.Add(Words.count("the bat")))
-> Address.call(tally, fn(reply) = Words.Top(limit = 2, reply = reply), 1000)
+> Address.call(tally, fn(reply) = Words.Top(limit = 2, =reply), 1000)
 Some([#("the", 3), #("and", 1)]) : Optional(List(#(String, Int)))
 ```
 
@@ -1302,7 +1310,7 @@ fn ping(opponent : Address(PongMsg), round : Int) : Unit =
         send(opponent, Stop)
     else {
         Io.println("ping " <> Int.toString(round));
-        match Address.call(opponent, fn(reply) = Ping(round = round, reply = reply), 5000) {
+        match Address.call(opponent, fn(reply) = Ping(=round, =reply), 5000) {
             Some(_) ->
                 ping(opponent, round - 1)
           | None -> {
@@ -1314,7 +1322,7 @@ fn ping(opponent : Address(PongMsg), round : Int) : Unit =
 
 fn pong() : Unit receiving PongMsg =
     receive {
-        Ping(round = round, reply = reply) -> {
+        Ping(=round, =reply) -> {
             Io.println("pong " <> Int.toString(round));
             answer(reply, round);
             pong()
@@ -1372,10 +1380,10 @@ fn runWorker(job : Int) : Optional(Int) receiving MainMsg = {
 
 fn waitFor(child : Process) : Optional(Int) receiving MainMsg =
     receive {
-        Result(from = sender, value = value) when sender == child -> Some(value)
+        Result(from = sender, =value) when sender == child -> Some(value)
       // the Down came before the result; a worker that returned has sent it, so go on waiting
-      | Died(Down(process = process, reason = Returned)) when process == child -> waitFor(child)
-      | Died(Down(process = process)) when process == child -> None
+      | Died(Down(=process, reason = Returned)) when process == child -> waitFor(child)
+      | Died(Down(=process)) when process == child -> None
       | _ -> waitFor(child)
     }
 
@@ -1566,7 +1574,7 @@ type MainMsg = Counted(Map(String, Int)) | Died(Down)
 export fn main() : Unit receiving MainMsg = {
     let totals = spawn(fn() = tally(Map.empty));
     countAll(totals, ["the cat and the hat", "the bat and the ball", "a cat"]);
-    match Address.call(totals, fn(reply) = Top(limit = 3, reply = reply), 1000) {
+    match Address.call(totals, fn(reply) = Top(limit = 3, =reply), 1000) {
         Some(best) -> List.forEach(best, fn(#(w, c)) = Io.println(w <> " " <> Int.toString(c)))
       | None -> Io.println("the tally did not answer")
     }
@@ -1633,12 +1641,12 @@ fn field(text : String, name : String) : Either(String, Int) = {
 fn parse(portText : String, workersText : String) : Either(String, Config) = {
     let port <- field(portText, "port");
     let workers <- field(workersText, "workers");
-    Right(Config(port = port, workers = workers))
+    Right(Config(=port, =workers))
 }
 
 fn show(result : Either(String, Config)) : String =
     match result {
-        Right(Config(port = port, workers = workers)) ->
+        Right(Config(=port, =workers)) ->
             "port " <> Int.toString(port) <> ", " <> Int.toString(workers) <> " workers"
       | Left(reason) ->
             "no config: " <> reason
@@ -1667,14 +1675,14 @@ type ParserMsg = Parse(text : String, reply : Reply(Either(String, Int)))
 
 fn parsing() : Unit receiving ParserMsg =
     receive {
-        Parse(text = text, reply = reply) -> {
+        Parse(=text, =reply) -> {
             answer(reply, Either.fromOptional(String.toInt(text), text <> " is not a number"));
             parsing()
         }
     }
 
 fn outcome(parser : Address(ParserMsg), text : String) : String =
-    match Address.call(parser, fn(reply) = Parse(text = text, reply = reply), 1000) {
+    match Address.call(parser, fn(reply) = Parse(=text, =reply), 1000) {
         Some(Right(n)) -> "parsed " <> Int.toString(n)
       | Some(Left(reason)) -> "refused: " <> reason
       | None -> "no answer"
@@ -1713,7 +1721,7 @@ fn worker(count : Int) : Unit =
 export fn main() : Unit receiving MainMsg = {
     let _ = spawnMonitored(fn() = worker(0), WorkerDied);
     receive {
-        WorkerDied(Down(reason = Fault(cause), site = site)) ->
+        WorkerDied(Down(reason = Fault(cause), =site)) ->
             Io.println("the worker spawned at " <> site <> " faulted: " <> cause)
       | WorkerDied(_) ->
             Io.println("the worker ended")
@@ -1770,7 +1778,7 @@ fn outcome() : String receiving SupervisorMsg =
             }
       | Ended(Down(reason = Fault(cause))) ->
             "failed, " <> cause
-      | Ended(Down(reason = reason)) ->
+      | Ended(Down(=reason)) ->
             "ended, " <> Io.show(reason)
     }
 
@@ -1811,7 +1819,7 @@ export fn start() : Address(CounterMsg) =
 // The counter's loop, which faults on a negative amount.
 fn count(total : Int) : Unit receiving CounterMsg =
     receive {
-        Add(amount = amount, reply = reply) ->
+        Add(=amount, =reply) ->
             if amount < 0 then
                 fault("a negative amount")
             else {
@@ -1821,8 +1829,7 @@ fn count(total : Int) : Unit receiving CounterMsg =
     }
 
 export fn main() : Unit = {
-    let add =
-        fn(amount) = Address.call(counter, fn(reply) = Add(amount = amount, reply = reply), 1000);
+    let add = fn(amount) = Address.call(counter, fn(reply) = Add(=amount, =reply), 1000);
     Io.println(Io.show(add(2)));
     Io.println(Io.show(add(-1)));
     Io.println(Io.show(add(3)))
@@ -1859,18 +1866,15 @@ type HolderMsg = Hold(lease : Int) | Use(lease : Int)
 // not hold.
 fn hold(leases : List(Int)) : Unit receiving HolderMsg =
     receive {
-        Hold(lease = lease) ->
-            hold(lease :: leases)
-      | Use(lease = lease) ->
-            if List.contains(leases, lease) then hold(leases) else fault("no such lease")
+        Hold(=lease) -> hold(lease :: leases)
+      | Use(=lease) -> if List.contains(leases, lease) then hold(leases) else fault("no such lease")
     }
 
 // What the holder was lent, taken back when the service monitor tells of
 // a restart, since the new run holds none of it, or of the end.
 fn takeBack(lent : List(Int)) : Unit receiving MainMsg =
     receive {
-        Watched(Down(reason = reason)) ->
-            Io.println(Io.show(reason) <> ", taken back: " <> Io.show(lent))
+        Watched(Down(=reason)) -> Io.println(Io.show(reason) <> ", taken back: " <> Io.show(lent))
     }
 
 export fn main() : Unit receiving MainMsg = {
@@ -1887,8 +1891,8 @@ export fn main() : Unit receiving MainMsg = {
 
 ```console
 $ ern run lease.erc
-Lease.main:24 faulted, restarted: no such lease
-    Lease.hold:12
+Lease.main:21 faulted, restarted: no such lease
+    Lease.hold:10
 Restarted, taken back: [1, 2]
 Killed, taken back: []
 ```
@@ -1914,7 +1918,7 @@ let sales : Address(CounterMsg) = spawn(Supervisor.child(group, fn() = count(0))
 
 fn count(total : Int) : Unit receiving CounterMsg =
     receive {
-        Add(amount = amount, reply = reply) ->
+        Add(=amount, =reply) ->
             if amount < 0 then
                 fault("a negative amount")
             else {
@@ -1924,7 +1928,7 @@ fn count(total : Int) : Unit receiving CounterMsg =
     }
 
 fn add(counter : Address(CounterMsg), amount : Int) : Optional(Int) =
-    Address.call(counter, fn(reply) = Add(amount = amount, reply = reply), 1000)
+    Address.call(counter, fn(reply) = Add(=amount, =reply), 1000)
 
 export fn main() : Unit = {
     Io.println(Io.show(add(visits, 2)) <> " " <> Io.show(add(sales, 5)));
@@ -1998,7 +2002,7 @@ export fn parse(text : String) : Optional(Request) =
 // main.ern  (namespace Main)
 export fn main() : Unit =
     match Net.Http.parse("GET /") {
-        Some(Net.Http.Request(method = method, path = path)) -> Io.println(method <> " " <> path)
+        Some(Net.Http.Request(=method, =path)) -> Io.println(method <> " " <> path)
       | None -> Io.println("bad request")
     }
 ```
@@ -2701,7 +2705,7 @@ fn count(total : Int) : Unit receiving Msg =
     receive {
         Request(Counter.Add(amount)) ->
             count(total + amount)
-      | Request(Counter.Get(reply = reply)) -> {
+      | Request(Counter.Get(=reply)) -> {
             answer(reply, total);
             count(total)
         }
@@ -2751,7 +2755,7 @@ export fn main() : Unit =
     match Peer.find(Counter.service, 5000) {
         Right(counter) -> {
             send(counter, Counter.Add(5));
-            match Address.call(counter, fn(reply) = Counter.Get(reply = reply), 1000) {
+            match Address.call(counter, fn(reply) = Counter.Get(=reply), 1000) {
                 Some(total) -> Io.println("the counter is at " <> Int.toString(total))
               | None -> Io.println("no answer")
             }
@@ -2766,7 +2770,7 @@ export fn main() : Unit =
 export fn main() : Unit = {
     let counter = Proxy.start(Counter.service, 5000);
     send(counter, Counter.Add(5));
-    match Address.call(counter, fn(reply) = Counter.Get(reply = reply), 1000) {
+    match Address.call(counter, fn(reply) = Counter.Get(=reply), 1000) {
         Some(total) -> Io.println("the counter is at " <> Int.toString(total))
       | None -> Io.println("no answer")
     }
@@ -3108,23 +3112,23 @@ type CounterMsg =
 export fn main() : Unit = {
     let counter = spawn(fn() = count(0));
     send(counter, Inc(2));
-    let _ = Address.call(counter, fn(reply) = Get(reply = reply), 1000);
+    let _ = Address.call(counter, fn(reply) = Get(=reply), 1000);
     let old = Code.running(count);
     List.forEach(old, fn(process) = send(process, Upgrade(migrate = fn(n) = n, next = count2)));
     Io.println(Int.toString(List.size(old)) <> " moved");
     send(counter, Inc(3));
-    Io.println("total: " <> Io.show(Address.call(counter, fn(reply) = Get(reply = reply), 1000)))
+    Io.println("total: " <> Io.show(Address.call(counter, fn(reply) = Get(=reply), 1000)))
 }
 
 fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) ->
             count(total + amount)
-      | Get(reply = reply) -> {
+      | Get(=reply) -> {
             answer(reply, total);
             count(total)
         }
-      | Upgrade(migrate = migrate, next = next) ->
+      | Upgrade(=migrate, =next) ->
             next(migrate(total))
     }
 
@@ -3134,11 +3138,11 @@ fn count2(total : Int) : Unit receiving CounterMsg =
             Io.println("inc " <> Int.toString(amount));
             count2(total + amount)
         }
-      | Get(reply = reply) -> {
+      | Get(=reply) -> {
             answer(reply, total);
             count2(total)
         }
-      | Upgrade(migrate = migrate, next = next) ->
+      | Upgrade(=migrate, =next) ->
             next(migrate(total))
     }
 ```

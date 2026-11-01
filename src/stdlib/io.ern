@@ -135,7 +135,7 @@ export fn println(text : String) : Unit =
 
 // The bytes to a stream, once it has taken them.
 fn writeTo(stream : Address(OutMsg), bytes : Bytes) : Unit =
-    Address.callForever(stream, fn(reply) = Write(bytes = bytes, reply = reply))
+    Address.callForever(stream, fn(reply) = Write(=bytes, =reply))
 
 /// Writes the string to standard error, as it is, without a line feed. Standard
 /// error is a second output stream, for messages to the person running the
@@ -184,7 +184,7 @@ export fn printlnError(text : String) : Unit =
 /// }
 /// ```
 export fn readLine() : Optional(String) =
-    Address.callForever(stdin, fn(reply) = ReadLine(reply = reply))
+    Address.callForever(stdin, fn(reply) = ReadLine(=reply))
 
 /// What has arrived on standard input, at least one byte, or `None` at the end
 /// of the input. Lines and bytes are read from one stream, so a read takes up
@@ -206,7 +206,7 @@ export fn readLine() : Optional(String) =
 /// }
 /// ```
 export fn read() : Optional(Bytes) =
-    Address.callForever(stdin, fn(reply) = Read(reply = reply))
+    Address.callForever(stdin, fn(reply) = Read(=reply))
 
 /// Writes the bytes to standard output, as they are.
 ///

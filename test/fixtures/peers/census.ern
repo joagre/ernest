@@ -21,11 +21,11 @@ export fn serve() : Unit receiving Msg =
     receive {
         Value(_) ->
             serve()
-      | Count(reply = reply) -> {
+      | Count(=reply) -> {
             answer(reply, atoms());
             serve()
         }
-      | Notes(callee = callee, reply = reply) -> {
+      | Notes(=callee, =reply) -> {
             answer(reply, notes(callee));
             serve()
         }

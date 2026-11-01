@@ -74,7 +74,7 @@ fn sessionStore() : Unit receiving SessionMsg = {
 
 fn store(counts : Map(SessionId, Int)) : Unit receiving SessionMsg =
     receive {
-        Visit(id = id, reply = reply) -> {
+        Visit(=id, =reply) -> {
             let visits = Optional.withDefault(Map.get(counts, id), 0) + 1;
             answer(reply, visits);
             store(Map.put(counts, id, visits))
@@ -118,11 +118,10 @@ fn handle(sessions : Address(SessionMsg),
                         Some(found) -> found
                       | None -> freshSessionId(connection)
                     };
-                    let visits =
-                        Address.callForever(sessions, fn(reply) = Visit(id = id, reply = reply));
+                    let visits = Address.callForever(sessions, fn(reply) = Visit(=id, =reply));
                     let body = "Visit number " <> Int.toString(visits);
                     let bytes =
-                        Response(status = statusOk, headers = [], body = body)
+                        Response(status = statusOk, headers = [], =body)
                             |> withCookie("sid", sessionIdText(id))
                             |> render;
                     let _ = Tcp.write(socket, bytes, 5000);
@@ -142,7 +141,7 @@ fn parse(bytes : Bytes) : Either(ParseError, Request) = {
     let lines = String.lines(text);
     let #(method, path) <- requestLine(lines);
     let headers <- headerLines(lines);
-    Right(Request(method = method, path = path, headers = headers))
+    Right(Request(=method, =path, =headers))
 }
 
 // "GET /path HTTP/1.1"; the version is not used.

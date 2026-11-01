@@ -134,7 +134,7 @@ export foreign fn sleep(ms : Int) : Unit =
 /// ```
 export fn alarm(ms : Int, wrap : (Int) -> m) : Alarm receiving m = {
     let address = adapted(self(), wrap);
-    let request = fn(reply) = AlarmAfter(ms = ms, address = address, reply = reply);
+    let request = fn(reply) = AlarmAfter(=ms, =address, =reply);
     Alarm(Address.callForever(reference, request))
 }
 
@@ -149,7 +149,7 @@ export fn alarm(ms : Int, wrap : (Int) -> m) : Alarm receiving m = {
 /// ```
 export fn alarmAt(time : Int, wrap : (Int) -> m) : Alarm receiving m = {
     let address = adapted(self(), wrap);
-    let request = fn(reply) = AlarmAt(time = time, address = address, reply = reply);
+    let request = fn(reply) = AlarmAt(=time, =address, =reply);
     Alarm(Address.callForever(reference, request))
 }
 
@@ -171,7 +171,7 @@ export fn alarmAt(time : Int, wrap : (Int) -> m) : Alarm receiving m = {
 /// since 0.8.0
 export fn cancel(alarm : Alarm) : Bool = {
     let Alarm(held) = alarm;
-    let request = fn(reply) = Cancel(alarm = held, reply = reply);
+    let request = fn(reply) = Cancel(alarm = held, =reply);
     Address.callForever(reference, request)
 }
 

@@ -5,8 +5,7 @@ export fn main() : Unit =
     match Peer.find(Counter.service, Harness.waitMs()) {
         Right(counter) -> {
             send(counter, Counter.Add(3));
-            let total =
-                Address.call(counter, fn(reply) = Counter.Get(reply = reply), Harness.waitMs());
+            let total = Address.call(counter, fn(reply) = Counter.Get(=reply), Harness.waitMs());
             Io.println("asked: " <> Io.show(total))
         }
       | Left(failure) ->

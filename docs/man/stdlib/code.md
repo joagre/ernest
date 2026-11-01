@@ -35,21 +35,21 @@ type CounterMsg =
 fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) -> count(total + amount)
-      | Get(reply = reply) -> {
+      | Get(=reply) -> {
             answer(reply, total);
             count(total)
         }
-      | Upgrade(migrate = migrate, next = next) -> next(migrate(total))
+      | Upgrade(=migrate, =next) -> next(migrate(total))
     }
 
 fn count2(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) -> count2(total + 2 * amount)
-      | Get(reply = reply) -> {
+      | Get(=reply) -> {
             answer(reply, total);
             count2(total)
         }
-      | Upgrade(migrate = migrate, next = next) -> next(migrate(total))
+      | Upgrade(=migrate, =next) -> next(migrate(total))
     }
 
 List.forEach(Code.running(count),

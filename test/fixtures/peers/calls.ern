@@ -17,18 +17,18 @@ export let doomed : Peer.Service(Msg) = Peer.service("doomed")
 
 export fn serve() : Unit receiving Msg =
     receive {
-        Crash(reply = reply) ->
+        Crash(=reply) ->
             fault("crashed")
-      | Echo(n = n, reply = reply) -> {
+      | Echo(=n, =reply) -> {
             answer(reply, n);
             serve()
         }
-      | Slow(ms = ms, reply = reply) -> {
+      | Slow(=ms, =reply) -> {
             Clock.sleep(ms);
             answer(reply, ms);
             serve()
         }
-      | Forward(answerer = answerer, reply = reply) -> {
+      | Forward(=answerer, =reply) -> {
             send(answerer, reply);
             serve()
         }

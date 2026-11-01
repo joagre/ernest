@@ -93,7 +93,7 @@ fn namesFor(typedWord : String) : List(Name) = {
         // to leave out is the prelude's constructors
         let own = sessionTexts();
         List.filter(all, fn(name) = match name {
-            Name(text = text, kind = Constructor) -> List.contains(own, text)
+            Name(=text, kind = Constructor) -> List.contains(own, text)
           | _ -> true
         })
     }
@@ -184,10 +184,8 @@ fn argumentNames(completes : Shell.Command.Completes,
         // `Http.Parser`, complete with their dots
         Shell.Command.Modules ->
             withNamespaces(List.filterMap(names(), fn(name) = match name {
-                Name(text = text, kind = Module) ->
-                    Some(Name(text = text, kind = Module, shown = text))
-              | _ ->
-                    None
+                Name(=text, kind = Module) -> Some(Name(=text, kind = Module, shown = text))
+              | _ -> None
             }))
       | Shell.Command.SourceModules ->
             sourceModules(typedWord, entries)
@@ -230,19 +228,19 @@ fn sourceModules(typedWord : String,
 
 fn sourceModule(prefix : String, entry : Fs.Entry) : Optional(Name) =
     match entry {
-        Fs.Entry(path = path, kind = Fs.Directory) ->
+        Fs.Entry(=path, kind = Fs.Directory) ->
             Optional.map(Optional.andThen(Path.name(path), segment), fn(namespace) = {
                 let text = prefix <> namespace;
-                Name(text = text, kind = Namespace, shown = text <> ".")
+                Name(=text, kind = Namespace, shown = text <> ".")
             })
-      | Fs.Entry(path = path) ->
+      | Fs.Entry(=path) ->
             if Path.extension(path) != Some("ern") then
                 None
             else {
                 let named = Optional.andThen(Path.name(Path.withoutExtension(path)), segment);
                 Optional.map(named, fn(module) = {
                     let text = prefix <> module;
-                    Name(text = text, kind = Module, shown = text)
+                    Name(=text, kind = Module, shown = text)
                 })
             }
     }
@@ -624,7 +622,7 @@ let oneSegment =
               run = fn() = match complete(word("L"), library(), Expression) {
                   Completion(word = completed, candidates = [_]) ->
                       if completed == "List." then Test.Passed else Test.Failed(completed)
-                | Completion(candidates = candidates) ->
+                | Completion(=candidates) ->
                       Test.Failed(Int.toString(List.size(candidates)))
               })
 

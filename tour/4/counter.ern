@@ -17,7 +17,7 @@ export fn count(total : Int) : Unit receiving CounterMsg =
 export fn watch(counter : Address(CounterMsg)) : Unit receiving WatchMsg = {
     monitor(Process.fromAddress(counter), Ended);
     receive {
-        Ended(Down(reason = reason)) -> Io.println("the counter ended: " <> Io.show(reason))
+        Ended(Down(=reason)) -> Io.println("the counter ended: " <> Io.show(reason))
     }
 }
 

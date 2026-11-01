@@ -42,7 +42,7 @@ fn work(left : Int) : Unit receiving Msg =
 fn once() : Unit receiving Msg = {
     // a call answered, then the callee monitored and killed
     let answerer = spawn(worker);
-    let _ = Address.call(answerer, fn(reply) = Ask(reply = reply), 1000);
+    let _ = Address.call(answerer, fn(reply) = Ask(=reply), 1000);
     monitor(Process.fromAddress(answerer), Ended);
     kill(answerer);
     receive {
@@ -51,11 +51,11 @@ fn once() : Unit receiving Msg = {
     // a call whose answer comes after its time, once the call has ended,
     // and one never answered
     let laggard = spawn(slow);
-    let _ = Address.call(laggard, fn(reply) = Ask(reply = reply), 1);
+    let _ = Address.call(laggard, fn(reply) = Ask(=reply), 1);
     send(laggard, Late);
     send(laggard, Stop);
     let mute = spawn(silent);
-    let _ = Address.call(mute, fn(reply) = Ask(reply = reply), 0);
+    let _ = Address.call(mute, fn(reply) = Ask(=reply), 0);
     kill(mute);
     // a process that faults, watched from its start
     let _ = spawnMonitored(fn() = fault("on purpose"), Ended);
@@ -81,7 +81,7 @@ fn once() : Unit receiving Msg = {
 
 fn worker() : Unit receiving WorkMsg =
     receive {
-        Ask(reply = reply) -> {
+        Ask(=reply) -> {
             answer(reply, 1);
             worker()
         }
@@ -91,7 +91,7 @@ fn worker() : Unit receiving WorkMsg =
 
 fn slow() : Unit receiving WorkMsg =
     receive {
-        Ask(reply = reply) -> {
+        Ask(=reply) -> {
             receive {
                 Late -> Unit
             };

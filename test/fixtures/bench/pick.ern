@@ -36,7 +36,7 @@ export fn main() : Unit receiving PickMsg =
       | "measure" :: steps :: bursts :: streams :: interval :: peers ->
             measured(Setup(steps = number(steps),
                            interval = number(interval),
-                           peers = peers,
+                           =peers,
                            carriers = named(peers)),
                      number(bursts),
                      number(streams))
@@ -192,11 +192,7 @@ fn asked(home : Address(PickMsg), steps : Int, rule : Rule, index : Int) : Unit 
     let _ = spawn(fn() = {
         let sent = Clock.monotonicMicros();
         let answer = computed(rule, steps);
-        send(home,
-             Answered(index = index,
-                      sent = sent,
-                      answered = Clock.monotonicMicros(),
-                      answer = answer))
+        send(home, Answered(=index, =sent, answered = Clock.monotonicMicros(), =answer))
     });
     Unit
 }

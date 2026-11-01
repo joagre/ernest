@@ -19,12 +19,9 @@ export fn main() : Unit receiving Msg =
 
 fn sizeText() : String =
     match Terminal.size() {
-        Left(Io.NotATerminal) ->
-            "no size"
-      | Left(_) ->
-            "a size refused otherwise"
-      | Right(Terminal.Size(rows = rows, columns = columns)) ->
-            Int.toString(rows) <> "x" <> Int.toString(columns)
+        Left(Io.NotATerminal) -> "no size"
+      | Left(_) -> "a size refused otherwise"
+      | Right(Terminal.Size(=rows, =columns)) -> Int.toString(rows) <> "x" <> Int.toString(columns)
     }
 
 fn loop() : Unit receiving Msg =
@@ -59,7 +56,7 @@ fn loop() : Unit receiving Msg =
             Io.println("pasted " <> String.replace(text, "\n", "|"));
             loop()
         }
-      | Key(Terminal.Resized(Terminal.Size(rows = rows, columns = columns))) -> {
+      | Key(Terminal.Resized(Terminal.Size(=rows, =columns))) -> {
             Io.println("resized " <> Int.toString(rows) <> "x" <> Int.toString(columns));
             loop()
         }

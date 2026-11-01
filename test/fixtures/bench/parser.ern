@@ -59,7 +59,7 @@ fn evaluateLine(acc : #(Map(String, Value), Int, Int),
                     match #(expression, eval(env, expression)) {
                         #(_, Left(_)) ->
                             #(env, sum, errors + 1)
-                      | #(Let(name = name), Right(value)) ->
+                      | #(Let(=name), Right(value)) ->
                             #(Map.put(env, name, value), sum + valueOf(value), errors)
                       | #(_, Right(value)) ->
                             #(env, sum + valueOf(value), errors)
@@ -112,7 +112,7 @@ fn lex(chars : List(Char), index : Int, acc : List(Token)) : Either(LexError, Li
       | char :: rest when List.contains(['+', '-', '*', '/'], char) ->
             lex(rest, index + 1, Operator(char) :: acc)
       | char :: _ ->
-            Left(BadChar(char = char, index = index))
+            Left(BadChar(=char, =index))
     }
 
 //
@@ -123,7 +123,7 @@ fn parse(tokens : List(Token)) : Either(ParseError, Expression) = {
     let #(expression, rest) <- match tokens {
         LetKeyword :: Name(name) :: Equals :: more -> {
             let #(value, remaining) <- parseExpression(more);
-            Right(#(Let(name = name, value = value), remaining))
+            Right(#(Let(=name, =value), remaining))
         }
       | _ ->
             parseExpression(tokens)
@@ -138,7 +138,7 @@ fn parseExpression(tokens : List(Token)) : Either(ParseError, #(Expression, List
     match tokens {
         FunKeyword :: Name(parameter) :: Arrow :: rest -> {
             let #(body, remaining) <- parseExpression(rest);
-            Right(#(Function(parameter = parameter, body = body), remaining))
+            Right(#(Function(=parameter, =body), remaining))
         }
       | _ ->
             parseSum(tokens)
@@ -154,7 +154,7 @@ fn sumRest(left : Expression,
     match tokens {
         Operator(operator) :: rest when operator == '+' || operator == '-' -> {
             let #(right, remaining) <- parseProduct(rest);
-            sumRest(Binary(operator = operator, left = left, right = right), remaining)
+            sumRest(Binary(=operator, =left, =right), remaining)
         }
       | _ ->
             Right(#(left, tokens))
@@ -170,7 +170,7 @@ fn productRest(left : Expression,
     match tokens {
         Operator(operator) :: rest when operator == '*' || operator == '/' -> {
             let #(right, remaining) <- parseApplication(rest);
-            productRest(Binary(operator = operator, left = left, right = right), remaining)
+            productRest(Binary(=operator, =left, =right), remaining)
         }
       | _ ->
             Right(#(left, tokens))
@@ -184,10 +184,8 @@ fn parseApplication(tokens : List(Token)) : Either(ParseError, #(Expression, Lis
 fn applicationRest(callee : Expression,
                    tokens : List(Token)) : Either(ParseError, #(Expression, List(Token))) =
     match parseAtom(tokens) {
-        Left(_) ->
-            Right(#(callee, tokens))
-      | Right(#(argument, rest)) ->
-            applicationRest(Apply(callee = callee, argument = argument), rest)
+        Left(_) -> Right(#(callee, tokens))
+      | Right(#(argument, rest)) -> applicationRest(Apply(=callee, =argument), rest)
     }
 
 fn parseAtom(tokens : List(Token)) : Either(ParseError, #(Expression, List(Token))) =
@@ -223,20 +221,20 @@ fn eval(env : Map(String, Value), expression : Expression) : Either(EvalError, V
                 Some(value) -> Right(value)
               | None -> Left(Unbound(name))
             }
-      | Function(parameter = parameter, body = body) ->
-            Right(Closure(parameter = parameter, body = body, env = env))
-      | Let(value = value) ->
+      | Function(=parameter, =body) ->
+            Right(Closure(=parameter, =body, =env))
+      | Let(=value) ->
             eval(env, value)
-      | Binary(operator = operator, left = left, right = right) -> {
+      | Binary(=operator, =left, =right) -> {
             let leftValue <- eval(env, left);
             let rightValue <- eval(env, right);
             arithmetic(operator, leftValue, rightValue)
         }
-      | Apply(callee = callee, argument = argument) -> {
+      | Apply(=callee, =argument) -> {
             let closure <- eval(env, callee);
             let value <- eval(env, argument);
             match closure {
-                Closure(parameter = parameter, body = body, env = captured) ->
+                Closure(=parameter, =body, env = captured) ->
                     eval(Map.put(captured, parameter, value), body)
               | Integer(_) ->
                     Left(NotAFunction)

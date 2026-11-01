@@ -1642,7 +1642,7 @@ replies_kept_as_values_test() ->
         " Request =\n"
         "    if count == 3 then release(pending, byKey, later)\n"
         "    else receive {\n"
-        "        Ask(n = n, reply = reply) ->\n"
+        "        Ask(=n, =reply) ->\n"
         "            if n == 1 then serve(reply :: pending, byKey, later, count + 1)\n"
         "            else if n == 2 then\n"
         "                serve(pending, Map.put(byKey, n, reply), later, count + 1)\n"
@@ -1663,7 +1663,7 @@ replies_kept_as_values_test() ->
         "    List.forEach([1, 2, 3], fn(n) = {\n"
         "        let _ = spawn(fn() =\n"
         "            send(me, Got(Address.callForever(server,\n"
-        "                                             fn(reply) = Ask(n = n, reply = reply)))));\n"
+        "                                             fn(reply) = Ask(=n, =reply)))));\n"
         "        Unit\n"
         "    });\n"
         "    let a = receive { Got(v) -> v };\n"
@@ -1759,7 +1759,7 @@ long_time_test() ->
         "    };\n"
         "    let a = spawn(server);\n"
         "    let caller = Process.fromAddress(me);\n"
-        "    let _ = Io.debug(Address.call(a, fn(r) = Get(reply = r, caller = caller),"
+        "    let _ = Io.debug(Address.call(a, fn(r) = Get(reply = r, =caller),"
         " 5000000000));\n"
         "    match Fs.read(Path(\"../../../VERSION\"), 5000000000) {\n"
         "        Right(_) -> Io.println(\"read\")\n"
@@ -1775,13 +1775,16 @@ long_time_test() ->
 %% same way. A regression test of the rule's first build: a callForever to
 %% a dead callee waited for a deadlock, and a call for its time; the cause
 %% the callee's alone since the release review's P8 (2026-10-25), the site
-%% left to the trace, which this test does not read
+%% left to the trace, which this test does not read. Each callee ends once
+%% the request has come: it faults, returns, or tells the process that
+%% kills it, and waits for nothing more
 call_ends_with_callee_test_() ->
     {timeout, 30, fun call_ends_with_callee/0}.
 
 call_ends_with_callee() ->
     Types = "type Msg = Ask(reply : Reply(Int)) | Stop\n"
-            "type MainMsg = Died(Down)\n",
+            "type MainMsg = Died(Down)\n"
+            "type KillerMsg = Arrived(Address(Msg))\n",
     Faulty = "fn faulty() : Unit receiving Msg = receive {\n"
              "    Ask(reply = r) -> { fault(\"bad request\"); answer(r, 1) }\n"
              "  | Stop -> Unit\n"
@@ -1789,9 +1792,12 @@ call_ends_with_callee() ->
     Ask = "fn(r) = Ask(reply = r)",
     Forever = fun(Setup) ->
         Types ++ Faulty ++
-        "fn waits() : Unit receiving Msg = receive { Stop -> Unit }\n"
-        "fn quiet() : Unit receiving Msg = receive { Ask(reply = r) -> "
-        "{ Clock.sleep(60000); answer(r, 1) } | Stop -> Unit }\n"
+        "fn returns() : Unit receiving Msg = receive { Ask(reply = _) -> Unit | Stop -> Unit }\n"
+        "fn told(killer : Address(KillerMsg)) : Unit receiving Msg = receive {\n"
+        "    Ask(reply = _) -> { send(killer, Arrived(self())); receive { Stop -> Unit } }\n"
+        "  | Stop -> Unit\n"
+        "}\n"
+        "fn killer() : Unit receiving KillerMsg = receive { Arrived(callee) -> kill(callee) }\n"
         "export fn main() : Unit receiving MainMsg = {\n" ++ Setup ++
         "    Io.println(Int.toString(Address.callForever(s, " ++ Ask ++ ")))\n"
         "}\n"
@@ -1799,13 +1805,10 @@ call_ends_with_callee() ->
     ?assertMatch({{fault, <<"bad request">>, _}, _},
                  run(Forever("    let s = spawn(faulty);\n"))),
     ?assertMatch({{fault, <<"callee was killed">>, _}, _},
-                 run(Forever("    let s = spawn(quiet);\n"
-                             "    let _ = spawn(fn() =\n"
-                             "        { Clock.sleep(50); kill(s) });\n"))),
+                 run(Forever("    let k = spawn(killer);\n"
+                             "    let s = spawn(fn() = told(k));\n"))),
     ?assertMatch({{fault, <<"callee returned without answering">>, _}, _},
-                 run(Forever("    let s = spawn(waits);\n"
-                             "    let _ = spawn(fn() =\n"
-                             "        { Clock.sleep(50); send(s, Stop) });\n"))),
+                 run(Forever("    let s = spawn(returns);\n"))),
     ?assertMatch({{fault, <<"callee had ended">>, _}, _},
                  run(Forever("    let s = spawnMonitored(fn() : Unit receiving Msg = Unit,\n"
                              "        Died);\n"
@@ -3541,7 +3544,7 @@ constructors_test() ->
         "type Shape = Dot | At(Point)\n"
         "fn show(s : Shape) : String = match s {\n"
         "    Dot -> \"dot\"\n"
-        "  | At(Point(x = x, y = y)) -> Int.toString(x) <> \",\" <> Int.toString(y)\n"
+        "  | At(Point(=x, =y)) -> Int.toString(x) <> \",\" <> Int.toString(y)\n"
         "}\n"
         "export fn main() : Unit = {\n"
         "    let p = Point(x = 1, y = 2);\n"
@@ -3875,7 +3878,7 @@ recursive_function_value_test() ->
     ?assertEqual({ok, <<"3\n">>}, run(
         "type Chain = Chain(n : Int, next : () -> Chain)\n"
         "foreign fn first(chains : List(Chain)) : Chain = \"erlang:hd/1\"\n"
-        "fn from(n : Int) : Chain = Chain(n = n, next = fn() = from(n + 1))\n"
+        "fn from(n : Int) : Chain = Chain(=n, next = fn() = from(n + 1))\n"
         "export fn main() : Unit = {\n"
         "    let c = first([from(1)]);\n"
         "    Io.println(Int.toString(c.next().next().n))\n"
@@ -4572,7 +4575,7 @@ update_path_test() ->
             "    Io.println(Io.show(counted(pool)));\n"
             "    Io.println(Io.show(Pool(..pool, stats.indexed = 1, name = \"q\","
             " stats.hits = 2)));\n"
-            "    let site = Site(pool = pool, visits = 0);\n"
+            "    let site = Site(=pool, visits = 0);\n"
             "    Io.println(Io.show(Site(..site, pool.stats.hits = 5, visits = 1)));\n"
             "    let shown = Pool(..{ Io.println(\"base\"); pool },\n"
             "                     stats.indexed = { Io.println(\"a\"); 1 },\n"

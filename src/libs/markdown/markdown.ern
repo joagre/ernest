@@ -140,7 +140,7 @@ export type Column = Column(text : List(Inline), alignment : Alignment)
 ///
 /// ```ernest
 /// match Markdown.parse("| a | b |\n| :-: | --: |") {
-///     [Markdown.Table(columns = columns)] -> List.map(columns, fn(column) = column.alignment)
+///     [Markdown.Table(=columns)] -> List.map(columns, fn(column) = column.alignment)
 ///   | _ -> []
 /// }
 /// // => [Centered, RightAligned]
@@ -369,11 +369,11 @@ fn atx(line : String) : Optional(Block) = {
     if level < 1 || level > 6 then
         None
     else if String.isEmpty(text) then
-        Some(Heading(level = level, text = []))
+        Some(Heading(=level, text = []))
     else if !String.startsWith(text, " ") && !String.startsWith(text, "\t") then
         None
     else
-        Some(Heading(level = level, text = inlines(closed(String.trim(text)))))
+        Some(Heading(=level, text = inlines(closed(String.trim(text)))))
 }
 
 fn closed(text : String) : String = {
@@ -424,10 +424,10 @@ fn fenced(mark : Char,
           acc : List(String)) : #(Block, List(String)) =
     match lines {
         [] ->
-            #(Code(info = info, lines = List.reverse(acc)), [])
+            #(Code(=info, lines = List.reverse(acc)), [])
       | line :: rest ->
             if closes(line, mark, size) then
-                #(Code(info = info, lines = List.reverse(acc)), rest)
+                #(Code(=info, lines = List.reverse(acc)), rest)
             else
                 fenced(mark, size, info, fenceIndent, rest, dedented(line, fenceIndent) :: acc)
     }
@@ -509,7 +509,7 @@ fn interrupts(line : String) : Bool =
 // an ordered one only when it starts at 1.
 fn markerInterrupts(line : String) : Bool =
     match markerOf(line) {
-        Some(Marker(start = start, width = width)) ->
+        Some(Marker(=start, =width)) ->
             !isBlank(String.slice(line, width, String.size(line)))
                 && (start == None || start == Some(1))
       | None ->
@@ -546,11 +546,11 @@ fn spaced(start : Optional(Int), mark : Char, size : Int, rest : List(Char)) : O
     let #(spaces, text) = List.span(rest, fn(char) = char == ' ');
     let count = List.size(spaces);
     if text == [] || count > 4 then
-        Some(Marker(start = start, mark = mark, width = size + 1))
+        Some(Marker(=start, =mark, width = size + 1))
     else if count == 0 then
         None
     else
-        Some(Marker(start = start, mark = mark, width = size + count))
+        Some(Marker(=start, =mark, width = size + count))
 }
 
 // A list is its items while each begins with a marker of the same kind.
@@ -560,8 +560,7 @@ fn listed(lines : List(String),
     match lines {
         line :: rest ->
             match markerOf(unindented(line)) {
-                Some(Marker(width = width) as marker) when indent(line) < 4
-                    && sameKind(marker, first) -> {
+                Some(Marker(=width) as marker) when indent(line) < 4 && sameKind(marker, first) -> {
                     let column = indent(line) + width;
                     let expanded = spacedPrefix(line);
                     let text = String.slice(expanded, column, String.size(expanded));
@@ -589,7 +588,7 @@ fn listed(lines : List(String),
     }
 
 fn listOf(marker : Marker, items : List(List(Block))) : Block =
-    Items(start = marker.start, items = items)
+    Items(start = marker.start, =items)
 
 // Two markers of one kind: both bullets or both numbers, of one character.
 fn sameKind(marker : Marker, first : Marker) : Bool =
@@ -727,10 +726,9 @@ fn tableStart(line : String, rest : List(String)) : Optional(#(Block, List(Strin
                 Some(alignments) when List.size(alignments) == List.size(headings) -> {
                     let columns =
                         List.map(List.zip(headings, alignments),
-                                 fn(#(text, alignment)) =
-                                     Column(text = inlines(text), alignment = alignment));
+                                 fn(#(text, alignment)) = Column(text = inlines(text), =alignment));
                     let #(rows, beyond) = tableRows(later, List.size(columns), []);
-                    Some(#(Table(columns = columns, rows = rows), beyond))
+                    Some(#(Table(=columns, =rows), beyond))
                 }
               | _ ->
                     None
@@ -984,7 +982,7 @@ fn linked(chars : List(Char)) : Optional(#(Inline, List(Char))) =
         Some(#(text, '(' :: rest)) ->
             match url(rest) {
                 Some(#(url, later)) ->
-                    Some(#(Link(text = inlines(String.fromList(text)), url = url), later))
+                    Some(#(Link(text = inlines(String.fromList(text)), =url), later))
               | None ->
                     None
             }
@@ -1093,7 +1091,7 @@ fn autolink(chars : List(Char), acc : List(Char)) : Optional(#(Inline, List(Char
         '>' :: rest -> {
             let url = String.fromList(List.reverse(acc));
             if String.contains(url, ":") || String.contains(url, "@") then
-                Some(#(Link(text = [Text(url)], url = url), rest))
+                Some(#(Link(text = [Text(url)], =url), rest))
             else
                 None
         }
@@ -1144,24 +1142,24 @@ export fn render(blocks : List(Block), width : Int, output : Output) : List(Stri
 
 fn rendered(block : Block, width : Int, output : Output) : List(String) =
     match block {
-        Heading(text = text) ->
+        Heading(=text) ->
             standing(output,
                      wrapped(paint(output, Ansi.Bold, spans(unstrong(text), output)), width))
       | Paragraph(text) ->
             standing(output, wrapped(spans(text, output), width))
-      | Code(lines = lines) ->
+      | Code(=lines) ->
             List.map(lines, fn(line) = if isBlank(line) then "" else "    " <> line)
       // an empty row of the quote is the bar alone, with no space after it
       | Quote(inner) ->
             List.map(render(inner, width - 2, output),
                      fn(row) = if String.isEmpty(row) then "│" else "│ " <> row)
-      | Items(start = start, items = items) ->
+      | Items(=start, =items) ->
             itemRows(start, items, width, output)
       | Rule ->
             [String.repeat("─", width)]
       | Raw(lines) ->
             lines
-      | Table(columns = columns, rows = rows) ->
+      | Table(=columns, =rows) ->
             standing(output, tableLines(columns, rows, output))
     }
 
@@ -1272,7 +1270,7 @@ fn unstrong(inlines : List(Inline)) : List(Inline) =
     List.flatMap(inlines, fn(inline) = match inline {
         Strong(inner) -> unstrong(inner)
       | Emphasis(inner) -> [Emphasis(unstrong(inner))]
-      | Link(text = inner, url = url) -> [Link(url = url, text = unstrong(inner))]
+      | Link(text = inner, =url) -> [Link(=url, text = unstrong(inner))]
       | other -> [other]
     })
 
@@ -1282,7 +1280,7 @@ fn unemphasized(inlines : List(Inline)) : List(Inline) =
     List.flatMap(inlines, fn(inline) = match inline {
         Emphasis(inner) -> unemphasized(inner)
       | Strong(inner) -> [Strong(unemphasized(inner))]
-      | Link(text = inner, url = url) -> [Link(url = url, text = unemphasized(inner))]
+      | Link(text = inner, =url) -> [Link(=url, text = unemphasized(inner))]
       | other -> [other]
     })
 
@@ -1303,7 +1301,7 @@ fn span(inline : Inline, output : Output) : String =
                    spans(if output == Styled then unemphasized(inner) else inner, output))
       | Strong(inner) ->
             marked(output, Ansi.Bold, "**", spans(inner, output))
-      | Link(text = text, url = url) ->
+      | Link(=text, =url) ->
             if plain(text) == url then url else spans(text, output) <> " (" <> url <> ")"
       | Break ->
             "\n"
@@ -1494,25 +1492,25 @@ fn header(manual : Manual) : List(String) = {
 
 fn roffed(block : Block) : List(String) =
     match block {
-        Heading(level = 1, text = text) ->
+        Heading(level = 1, =text) ->
             [".SH", textLine(heading(text))]
-      | Heading(level = 2, text = text) ->
+      | Heading(level = 2, =text) ->
             [".SS", textLine(heading(text))]
-      | Heading(text = text) ->
+      | Heading(=text) ->
             [".PP", textLine("\\fB" <> heading(text) <> "\\fR")]
       | Paragraph(text) ->
             ".PP" :: textLines(roffSpans(text, Roman))
-      | Code(lines = lines) ->
+      | Code(=lines) ->
             [".PP", ".RS 4", ".nf"] <> List.map(lines, codeLine) <> [".fi", ".RE"]
       | Quote(inner) ->
             [".RS 4"] <> List.flatMap(inner, roffed) <> [".RE"]
-      | Items(start = start, items = items) ->
+      | Items(=start, =items) ->
             roffItems(start, items)
       | Rule ->
             [".PP", "   *   *   *   *   *"]
       | Raw(lines) ->
             [".PP", ".nf"] <> List.map(lines, codeLine) <> [".fi"]
-      | Table(columns = columns, rows = rows) ->
+      | Table(=columns, =rows) ->
             [".PP", ".nf"] <> List.map(roffTable(columns, rows), textLine) <> [".fi"]
     }
 
@@ -1581,7 +1579,7 @@ fn roffSpan(inline : Inline, font : Font) : String =
             inFont(withItalic(font), font, roffSpans(inner, withItalic(font)))
       | Strong(inner) ->
             inFont(withBold(font), font, roffSpans(inner, withBold(font)))
-      | Link(text = text, url = url) ->
+      | Link(=text, =url) ->
             if plain(text) == url then
                 escaped(url)
             else

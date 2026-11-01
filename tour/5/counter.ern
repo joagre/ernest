@@ -9,15 +9,15 @@ type TestMsg = Reported(List(#(String, Int)))
 
 export fn count(tally : Tally.Tally(String)) : Unit receiving CounterMsg =
     receive {
-        Inc(key = key, amount = amount) -> {
+        Inc(=key, =amount) -> {
             if amount < 0 then fault("a negative amount") else Unit;
             count(Tally.inc(tally, key, amount))
         }
-      | Get(key = key, reply = reply) -> {
+      | Get(=key, =reply) -> {
             answer(reply, Tally.get(tally, key));
             count(tally)
         }
-      | Report(reply = reply) -> {
+      | Report(=reply) -> {
             answer(reply, Tally.report(tally));
             count(tally)
         }
@@ -26,7 +26,7 @@ export fn count(tally : Tally.Tally(String)) : Unit receiving CounterMsg =
 export fn watch(counter : Address(CounterMsg)) : Unit receiving WatchMsg = {
     monitor(Process.fromAddress(counter), Ended);
     receive {
-        Ended(Down(reason = reason)) -> Io.println("the counter ended: " <> Io.show(reason))
+        Ended(Down(=reason)) -> Io.println("the counter ended: " <> Io.show(reason))
     }
 }
 
@@ -35,19 +35,19 @@ export fn apply(counter : Address(CounterMsg), line : String) : String =
         ["inc", key, text] ->
             match String.toInt(text) {
                 Some(amount) -> {
-                    send(counter, Inc(key = key, amount = amount));
+                    send(counter, Inc(=key, =amount));
                     "ok"
                 }
               | None ->
                     "not a number: " <> text
             }
       | ["get", key] ->
-            match Address.call(counter, fn(reply) = Get(key = key, reply = reply), 1000) {
+            match Address.call(counter, fn(reply) = Get(=key, =reply), 1000) {
                 Some(total) -> Int.toString(total)
               | None -> "no answer"
             }
       | ["report"] ->
-            match Address.call(counter, fn(reply) = Report(reply = reply), 1000) {
+            match Address.call(counter, fn(reply) = Report(=reply), 1000) {
                 Some(entries) -> shown(entries)
               | None -> "no answer"
             }

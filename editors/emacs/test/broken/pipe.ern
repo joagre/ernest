@@ -1,5 +1,5 @@
 fn respond(sock : Socket, id : SessionId, body : String) : Unit = {
-    let bytes = Response(status = StatusCode.ok, headers = [], body = body)
+    let bytes = Response(status = StatusCode.ok, headers = [], =body)
         |> withCookie("sid", SessionId.text(id))
         |> render;
     let total = Bytes.size(bytes)

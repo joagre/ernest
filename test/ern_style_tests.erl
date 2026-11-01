@@ -3,7 +3,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
--export([write_formatted/0]).
+-export([write_formatted/0, long_pairs/1]).
 
 -define(ROOT, "..").
 
@@ -518,6 +518,112 @@ depth({Kind, _}) ->
         _ -> 0
     end;
 depth(_) -> 0.
+
+%% guide/style.md, report §5.6, §5.10: a field given or matched by the
+%% variable of its own name is written as a pun, `Desk(=local)`, in every
+%% module, every example of its doc blocks, every Ernest block and every
+%% shell input of a tracked document, the documents being those the
+%% paragraph listing reads, and every input of a session's fixture. A text
+%% the lexer refuses there, a shell input or the catalog's example of the
+%% lexer's own errors, holds no field and is passed over. No text is
+%% excepted: the long pairs a test must show, the parser's and the
+%% formatter's and the checker's `Some(x = x)`, are in the Erlang tests'
+%% strings, which the rule does not read. Written with the rule, after the
+%% sweep that made it hold
+pun_test_() ->
+    {timeout, 60,
+     fun() ->
+         ?assertEqual([], [{File, line(First)} || {File, Tokens} <- pun_tokens(),
+                                                  {First, _} <- long_pairs(Tokens)])
+     end}.
+
+%% Each text the pun rule reads, as the lexer's tokens: the style's texts
+%% of Ernest, and those of every other tracked document that lex, its
+%% fences and its console's inputs, and a session's fixture's inputs.
+pun_tokens() ->
+    Documents = string:lexemes(os:cmd("git -C " ++ ?ROOT ++ " ls-files -- '*.md'"
+                                      " ':!docs/log.md' ':!docs/proposals/' ':!docs/man/'"),
+                               "\n"),
+    ?assert(length(Documents) > 20),
+    Fences = [{File, Fence} || File <- Documents -- ?DOCUMENTS, Fence <- fences(numbered(File)),
+                               Fence =/= []],
+    Inputs = [{File, [{Number, Input}]}
+              || File <- Documents, {Number, Input} <- inputs(numbered(File))]
+        ++ [{File, [{Number, Input}]}
+            || File <- ern_repository:files(["test/fixtures/session/*.in"]),
+               {Number, Input} <- numbered(File)],
+    ?assert(length(Inputs) > 100),
+    ernest_tokens() ++ [{File, Tokens} || {File, Lines} <- Fences ++ Inputs,
+                                         {ok, Tokens} <- [lexed(Lines)]].
+
+%% A text's tokens, their lines the file's, or `error` where the lexer
+%% refuses it.
+lexed([{First, _} | _] = Lines) ->
+    case ern_lexer:tokenize(lists:join("\n", [Line || {_, Line} <- Lines])) of
+        {ok, Tokens} -> {ok, [moved(Token, First - 1) || Token <- Tokens]};
+        {error, _} -> error
+    end.
+
+%% The inputs of a document's ```console sessions, each a `> ` line's text
+%% after the prompt.
+inputs(Lines) ->
+    inputs(Lines, false).
+
+inputs([], _) -> [];
+inputs([{Number, Line} | Rest], Inside) ->
+    Trimmed = string:trim(Line, leading),
+    case {lists:prefix("```", Trimmed), Inside} of
+        {true, false} -> inputs(Rest, lists:prefix("```console", Trimmed));
+        {true, true} -> inputs(Rest, false);
+        {false, true} ->
+            case Trimmed of
+                "> " ++ Input -> [{Number, Input} | inputs(Rest, true)];
+                _ -> inputs(Rest, true)
+            end;
+        {false, false} -> inputs(Rest, false)
+    end.
+
+%% The long pairs among a text's tokens, each a field given or matched by
+%% the variable of its own name, `local = local`, as its two names' tokens:
+%% a name, `=` and the same name alone, after a constructor's `(` or a `,`
+%% within its parentheses, and before the next `,` or the `)`. A text that
+%% is a fragment, an Erlang string of a test's program, may begin inside
+%% the parentheses, so where no bracket stands open, a `,` before the pair
+%% or none is enough: Appendix A has a name and `=` follow a `,` in a field
+%% alone. Exported for the sweep that wrote the repository's pairs as puns
+%% (the log's *The Pun*) and those of the programs outside.
+-spec long_pairs([ern_lexer:token()]) -> [{ern_lexer:token(), ern_lexer:token()}].
+long_pairs(Tokens) ->
+    long_pairs(Tokens, none, []).
+
+%% Open is the brackets open, the innermost first, each `constructor` where
+%% a type name stands before its `(`, and `other` otherwise.
+long_pairs([{ident, _, Name} = First | [{'=', _}, {ident, _, Name} = Second, Next | _] = Rest],
+           Before, Open) ->
+    [{First, Second} || begins_field(Before, Open), ends_field(Next)]
+        ++ long_pairs(Rest, First, Open);
+long_pairs([Token | Rest], Before, Open) ->
+    long_pairs(Rest, Token, opened(Token, Before, Open));
+long_pairs([], _, _) ->
+    [].
+
+begins_field({'(', _}, [constructor | _]) -> true;
+begins_field({',', _}, [constructor | _]) -> true;
+begins_field({',', _}, []) -> true;
+begins_field(none, []) -> true;
+begins_field(_, _) -> false.
+
+ends_field({Kind, _}) -> lists:member(Kind, [',', ')', eof]);
+ends_field(_) -> false.
+
+opened({'(', _}, {typename, _, _}, Open) -> [constructor | Open];
+opened({Kind, _}, _, Open) when Kind =:= '('; Kind =:= '#('; Kind =:= '['; Kind =:= '{';
+                                Kind =:= '<<' ->
+    [other | Open];
+opened({Kind, _}, _, [_ | Open]) when Kind =:= ')'; Kind =:= ']'; Kind =:= '}'; Kind =:= '>>' ->
+    Open;
+opened(_, _, Open) ->
+    Open.
 
 %% A token's line, the first of its position, which ern_parser reads so too.
 line(Token) ->

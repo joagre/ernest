@@ -27,7 +27,7 @@ fn serve() : Unit receiving Msg =
     receive {
         Crash ->
             fault("crashed")
-      | Ping(reply = reply) -> {
+      | Ping(=reply) -> {
             answer(reply, Unit);
             serve()
         }

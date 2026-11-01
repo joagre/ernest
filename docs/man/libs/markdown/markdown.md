@@ -167,7 +167,7 @@ say.
 
 ```ernest
 match Markdown.parse("| a | b |\n| :-: | --: |") {
-    [Markdown.Table(columns = columns)] -> List.map(columns, fn(column) = column.alignment)
+    [Markdown.Table(=columns)] -> List.map(columns, fn(column) = column.alignment)
   | _ -> []
 }
 // => [Centered, RightAligned]

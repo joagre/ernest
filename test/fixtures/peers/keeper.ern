@@ -9,7 +9,7 @@ fn count(total : Int) : Unit receiving Counter.Msg =
     receive {
         Counter.Add(amount) ->
             count(total + amount)
-      | Counter.Get(reply = reply) -> {
+      | Counter.Get(=reply) -> {
             answer(reply, total);
             count(total)
         }

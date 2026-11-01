@@ -129,7 +129,7 @@ draws asks at each redraw, and hears of a change as `Resized`.
 ```ernest
 match Terminal.size() {
     Left(_) -> 24
-  | Right(Terminal.Size(rows = rows)) -> rows
+  | Right(Terminal.Size(=rows)) -> rows
 }
 ```
 

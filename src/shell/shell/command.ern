@@ -124,14 +124,11 @@ export fn parse(line : String) : Either(String, #(Action, String)) = {
             Left("no command " <> word <> "; :help lists them")
       | Ambiguous(names) ->
             Left(word <> " is " <> alternatives(names))
-      | Picked(Command(name = name, action = action, takes = takes)) ->
+      | Picked(Command(=name, =action, =takes)) ->
             match takes {
-                Needs(what = what) when String.isEmpty(argument) ->
-                    Left(":" <> name <> " takes " <> what)
-              | Nothing when !String.isEmpty(argument) ->
-                    Left(":" <> name <> " takes no argument")
-              | _ ->
-                    Right(#(action, argument))
+                Needs(=what) when String.isEmpty(argument) -> Left(":" <> name <> " takes " <> what)
+              | Nothing when !String.isEmpty(argument) -> Left(":" <> name <> " takes no argument")
+              | _ -> Right(#(action, argument))
             }
     }
 }
@@ -186,7 +183,7 @@ export fn wordEnd(line : String) : Int =
 /// `:`, `":load"`, where the command takes anything after it.
 export fn completes(word : String) : Optional(Completes) =
     match pick(String.slice(word, 1, String.size(word))) {
-        Picked(Command(takes = Needs(completes = completes))) -> Some(completes)
+        Picked(Command(takes = Needs(=completes))) -> Some(completes)
       | Picked(Command(takes = Allows(completes))) -> Some(completes)
       | _ -> None
     }

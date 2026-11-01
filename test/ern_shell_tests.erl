@@ -2424,7 +2424,7 @@ lambda_sent_kept() ->
                           "fn server(f : (Int) -> Int) : Unit receiving Msg =\n",
                           "    receive {\n",
                           "        Keep(f = g) -> server(g)\n",
-                          "      | Call(n = n, reply = r) -> { answer(r, f(n)); server(f) }\n",
+                          "      | Call(=n, reply = r) -> { answer(r, f(n)); server(f) }\n",
                           "    }\n",
                           "let s : Address(Msg) =\n",
                           "    spawn(fn() : Unit receiving Msg = server(fn(n) = n))\n",
@@ -2453,7 +2453,7 @@ redeclared_function_kept() ->
                           "type Msg = Apply(n : Int, reply : Reply(Int))\n",
                           "fn serve(g : (Int) -> Int) : Unit receiving Msg =\n",
                           "    receive {\n",
-                          "        Apply(n = n, reply = r) -> { answer(r, g(n)); serve(g) }\n",
+                          "        Apply(=n, reply = r) -> { answer(r, g(n)); serve(g) }\n",
                           "    }\n",
                           Served,
                           "let s : Address(Msg) = spawn(served)\n",
@@ -3020,6 +3020,11 @@ effect_variable_test_() ->
 
 effect_variable() ->
     InputFile = scratch_file("ern_eff_"),
+    %% The first input sleeps through a look for a deadlock, which nothing
+    %% the session shows can tell has come: the reaper looks 100 ms after
+    %% its last message (ern_rt's LOOK_SOON), and 300 ms is three of those
+    %% waits, so that a look comes while the input sleeps under the full
+    %% run's load too.
     ok = file:write_file(InputFile, "{ Clock.sleep(300); 5 }\n"
                                     "let h = fn() = receive {"
                                     " _ -> Io.println(\"y\") | after 1 -> Io.println(\"x\") }\n"
@@ -3278,7 +3283,7 @@ reload_version_sites() ->
               end,
     ok = file:write_file(filename:join(Dir, "counter.ern"), Counter(1)),
     InputFile = filename:join(Dir, "session.in"),
-    Asked = "Address.call(Counter.service, fn(reply) = Counter.Get(reply = reply), 1000)\n",
+    Asked = "Address.call(Counter.service, fn(reply) = Counter.Get(=reply), 1000)\n",
     ok = file:write_file(InputFile, [":load Counter\n", Asked,
                                      write_source(Dir, "counter.ern", Counter(2)),
                                      ":reload\n:processes\n", Asked, ":quit\n"]),
@@ -3951,19 +3956,27 @@ doc_every_name() ->
 %% shadows no name the session declares. A regression test for findings
 %% of the session of real use: `:processes` showed `Input2.main:1`, a name
 %% the session shows only for a shadowed type, and `main()` after `fn main` called the
-%% wrapper, which was named `main`, forever
+%% wrapper, which was named `main`, forever. `:processes` is asked once the
+%% two processes are receiving, which Test.until waits for, since a spawn
+%% answers before the process it spawned reaches its `receive`: asked at
+%% once, a line lacked `receiving` under the full run's load
 session_names_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun session_names/0).
 
 session_names() ->
     InputFile = scratch_file("ern_names_"),
     Wait = "receive { n -> Io.println(Int.toString(n)) }",
+    Receiving = ["Test.until(fn() = Test.equal(List.map(Process.live(), fn(p) =",
+                 " Optional.map(Process.status(p), fn(s) = s.activity)),",
+                 " [Some(Process.Receiving), Some(Process.Receiving)]), ",
+                 ern_nodes_tests:wait_ms_text(), ")\n"],
     ok = file:write_file(InputFile, ["fn main() : Int = 1\n", "main()\n",
                                      "fn start() : Address(Int) = spawn(fn() = ", Wait,
                                      ")\n", "start()\n", "spawn(fn() = ", Wait, ")\n",
-                                     ":processes\n"]),
+                                     Receiving, ":processes\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"> 1 : Int\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> Passed : Test.Result\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"$Session1.input 5:1 receiving\n"
                                               "$Session1.start:1 receiving\n">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"Input">>)).
@@ -4199,6 +4212,10 @@ signature() ->
 typing_ahead_test_() ->
     ern_nodes_tests:counted_test({waits, 4}, fun typing_ahead/0).
 
+%% The first input runs for 500 ms so that the second line, which the
+%% harness sends at once after it, comes while it runs, a time the line's
+%% way from the harness to the shell, one write and one read, takes a small
+%% part of; nothing the session shows tells when a line has come.
 typing_ahead() ->
     Screen = screen(alone("../bin/ern shell"),
                     [{expect, "> "},
@@ -4701,7 +4718,7 @@ held_function_keeps_its_version() ->
                           "fn loop(step : (Int, Int) -> Int, n : Int) : Unit receiving Msg =\n",
                           "    receive {\n",
                           "        Step(k) -> loop(step, step(n, k))\n",
-                          "      | Total(reply = reply) -> {\n",
+                          "      | Total(=reply) -> {\n",
                           "            answer(reply, n);\n",
                           "            loop(step, n)\n",
                           "        }\n",

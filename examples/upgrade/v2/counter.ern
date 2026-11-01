@@ -59,10 +59,10 @@ export fn main() : Unit receiving ToolMsg = {
     let counter = spawn(fn() = count(0));
     send(counter, Inc(2));
     // the call is answered from count, so the counter runs count when Code.running looks
-    let _ = Address.call(counter, fn(reply) = Get(reply = reply), 1000);
+    let _ = Address.call(counter, fn(reply) = Get(=reply), 1000);
     Io.println("here: " <> Int.toString(moved()) <> " moved");
     send(counter, Inc(3));
-    Io.println("total: " <> Io.show(Address.call(counter, fn(reply) = Get(reply = reply), 1000)));
+    Io.println("total: " <> Io.show(Address.call(counter, fn(reply) = Get(=reply), 1000)));
     let me = self();
     told(List.size(List.filter(Peer.peers(), fn(node) = moving(node, me))))
 }
@@ -72,11 +72,11 @@ fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) ->
             count(total + amount)
-      | Get(reply = reply) -> {
+      | Get(=reply) -> {
             answer(reply, total);
             count(total)
         }
-      | Upgrade(migrate = migrate, next = next) ->
+      | Upgrade(=migrate, =next) ->
             next(migrate(total))
     }
 
@@ -87,11 +87,11 @@ fn count2(total : Int) : Unit receiving CounterMsg =
             Io.println("inc " <> Int.toString(amount));
             count2(total + amount)
         }
-      | Get(reply = reply) -> {
+      | Get(=reply) -> {
             answer(reply, total);
             count2(total)
         }
-      | Upgrade(migrate = migrate, next = next) ->
+      | Upgrade(=migrate, =next) ->
             next(migrate(total))
     }
 
@@ -105,7 +105,7 @@ export fn moved() : Int = {
 // Whether a process started on the peer to move its counters, which tells the tool how many
 // it moved; a peer it could not start on is said, and passed over.
 fn moving(node : String, tool : Address(ToolMsg)) : Bool =
-    match Peer.spawn(node, fn() = send(tool, Moved(node = node, count = moved())), 5000) {
+    match Peer.spawn(node, fn() = send(tool, Moved(=node, count = moved())), 5000) {
         Right(_) ->
             true
       | Left(failure) -> {
@@ -119,7 +119,7 @@ fn told(left : Int) : Unit receiving ToolMsg =
     if left == 0 then
         Unit
     else receive {
-        Moved(node = node, count = count) -> {
+        Moved(=node, =count) -> {
             Io.println(node <> ": " <> Int.toString(count) <> " moved");
             told(left - 1)
         }

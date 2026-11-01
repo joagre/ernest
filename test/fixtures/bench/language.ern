@@ -30,8 +30,8 @@ export fn matched(count : Int, shape : Shape, acc : Int) : Int =
 
 fn area(shape : Shape) : Int =
     match shape {
-        Square(side = side) -> side * side
-      | Rectangle(width = width, height = height) -> width * height
+        Square(=side) -> side * side
+      | Rectangle(=width, =height) -> width * height
       | Dot -> 0
     }
 

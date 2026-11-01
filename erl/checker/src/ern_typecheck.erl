@@ -5058,8 +5058,9 @@ expected_record({tcon, QualifiedName, _} = Constructed, Expected, Env) ->
 %% Report §5.6, §11.5: a constructor of named fields is no function, and
 %% one that stands where a function of as many parameters as it has fields
 %% is wanted, as a wrap is (Appendix E.0, shape rule 8), is told the lambda
-%% that constructs it; one that stands elsewhere is told the construction
-%% (infer/2).
+%% that constructs it, each field a pun of its parameter, as the style
+%% writes it (guide/style.md); one that stands elsewhere is told the
+%% construction (infer/2).
 constructor_as_function(#e_constructor{span = Span, namespace = Namespace, name = Name,
                                        args = none}, Expected, Env) ->
     #constructor_info{fields = Fields} = lookup_constructor(Span, Namespace, Name, Env),
@@ -5068,7 +5069,7 @@ constructor_as_function(#e_constructor{span = Span, namespace = Namespace, name 
             Texts = [atom_to_list(Field) || Field <- Names],
             fail(Span, atom_to_list(Name) ++ " has named fields; write fn("
                        ++ lists:join(", ", Texts) ++ ") = " ++ atom_to_list(Name) ++ "("
-                       ++ lists:join(", ", [Text ++ " = " ++ Text || Text <- Texts]) ++ ")");
+                       ++ lists:join(", ", ["=" ++ Text || Text <- Texts]) ++ ")");
         _ ->
             ok
     end;

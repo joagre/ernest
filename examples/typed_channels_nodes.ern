@@ -29,7 +29,7 @@ export fn main() : Unit =
         Right(counter) -> {
             send(counter, Add(2));
             send(counter, Add(3));
-            let total = Address.call(counter, fn(reply) = Get(reply = reply), 5000);
+            let total = Address.call(counter, fn(reply) = Get(=reply), 5000);
             Io.println("total on b: " <> Io.show(total))
         }
       | Left(error) ->
@@ -50,7 +50,7 @@ fn count(total : Int) : Unit receiving CounterMsg =
     receive {
         Add(amount) ->
             count(total + amount)
-      | Get(reply = reply) -> {
+      | Get(=reply) -> {
             answer(reply, total);
             count(total)
         }

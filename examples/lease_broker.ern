@@ -242,12 +242,12 @@ fn allFree(count : Int) : Leases =
 
 fn lending(leases : Leases) : Unit receiving BrokerMsg =
     receive {
-        Borrow(holder = holder, reply = reply) -> {
+        Borrow(=holder, =reply) -> {
             watch(leases, Reply.process(reply));
-            let wait = Wait(holder = holder, reply = reply);
+            let wait = Wait(=holder, =reply);
             lending(lendToWaiting(Leases(..leases, waiting = leases.waiting <> [wait])))
         }
-      | GiveBack(lease = lease, reply = reply) -> {
+      | GiveBack(=lease, =reply) -> {
             let caller = Reply.process(reply);
             if List.any(leases.lent,
                         fn(loan) = loan.lease == lease && loan.process == caller) then {
@@ -261,11 +261,11 @@ fn lending(leases : Leases) : Unit receiving BrokerMsg =
             } else
                 fault("lease " <> Int.toString(lease) <> " is not lent to the caller")
         }
-      | Ledger(reply = reply) -> {
+      | Ledger(=reply) -> {
             answer(reply, entries(leases));
             lending(leases)
         }
-      | HolderWatched(Down(process = process, reason = reason)) ->
+      | HolderWatched(Down(=process, =reason)) ->
             lending(lendToWaiting(takeBack(leases, process, reason)))
     }
 
@@ -291,7 +291,7 @@ fn takeBack(leases : Leases, process : Process, reason : Reason) : Leases = {
     match held {
         [] ->
             Unit
-      | Loan(holder = holder) :: _ ->
+      | Loan(=holder) :: _ ->
             Io.println("the broker took back "
                            <> listed(taken)
                            <> " from "
@@ -310,10 +310,10 @@ fn takeBack(leases : Leases, process : Process, reason : Reason) : Leases = {
 // lease back (report §6.6).
 fn lendToWaiting(leases : Leases) : Leases =
     match #(leases.free, leases.waiting) {
-        #(lease :: free, Wait(holder = holder, reply = reply) :: waiting) -> {
+        #(lease :: free, Wait(=holder, =reply) :: waiting) -> {
             answer(reply, lease);
-            let loan = Loan(lease = lease, holder = holder, process = Reply.process(reply));
-            lendToWaiting(Leases(free = free, lent = leases.lent <> [loan], waiting = waiting))
+            let loan = Loan(=lease, =holder, process = Reply.process(reply));
+            lendToWaiting(Leases(=free, lent = leases.lent <> [loan], =waiting))
         }
       | _ ->
             leases
@@ -329,13 +329,13 @@ fn entries(leases : Leases) : List(#(String, Int)) =
 
 // A lease, waited for until one is free.
 fn borrow(broker : Address(BrokerMsg), holder : String) : Int =
-    Address.callForever(broker, fn(reply) = Borrow(holder = holder, reply = reply))
+    Address.callForever(broker, fn(reply) = Borrow(=holder, =reply))
 
 fn giveBack(broker : Address(BrokerMsg), lease : Int) : Unit =
-    Address.callForever(broker, fn(reply) = GiveBack(lease = lease, reply = reply))
+    Address.callForever(broker, fn(reply) = GiveBack(=lease, =reply))
 
 fn ledger(broker : Address(BrokerMsg)) : List(#(String, Int)) =
-    Address.callForever(broker, fn(reply) = Ledger(reply = reply))
+    Address.callForever(broker, fn(reply) = Ledger(=reply))
 
 //
 // A client
@@ -382,7 +382,7 @@ fn holding(broker : Address(BrokerMsg),
             }
       | Fail(cause) ->
             fault(cause)
-      | BrokerWatched(Down(reason = reason)) -> {
+      | BrokerWatched(Down(=reason)) -> {
             send(main,
                  Did(name <> " drops " <> listed(held) <> ": the broker " <> Io.show(reason)));
             holding(broker, name, main, [])
@@ -402,7 +402,7 @@ export fn serve() : Unit receiving MainMsg = {
     };
     monitor(Process.fromAddress(broker), Watched);
     receive {
-        Watched(Down(reason = reason)) -> Io.println("the broker ended: " <> Io.show(reason))
+        Watched(Down(=reason)) -> Io.println("the broker ended: " <> Io.show(reason))
     }
 }
 
@@ -422,7 +422,7 @@ export fn visit() : Unit receiving MainMsg =
             Io.println(tell(bob, Take));
             send(bob, Fail("bob's job failed"));
             receive {
-                Watched(Down(reason = reason)) -> Io.println("bob: " <> Io.show(reason))
+                Watched(Down(=reason)) -> Io.println("bob: " <> Io.show(reason))
             };
             Io.println(tell(bob, Release));
             printLedger(far)
@@ -490,7 +490,7 @@ let brokerRestartVoids =
         let took = tell(ann, Take);
         let _ = spawn(fn() = giveBackUnheld(broker, 2));
         let reason = receive {
-            Watched(Down(reason = reason)) -> reason
+            Watched(Down(=reason)) -> reason
         };
         let lent = ledger(broker);
         Test.equal(#(reason, lent, [took, heard()]),
@@ -500,6 +500,6 @@ let brokerRestartVoids =
 // A lease given back by a process that holds none. The call waits for no
 // answer, its time 0: its request is sent all the same (report §6.6).
 fn giveBackUnheld(broker : Address(BrokerMsg), lease : Int) : Unit = {
-    let _ = Address.call(broker, fn(reply) = GiveBack(lease = lease, reply = reply), 0);
+    let _ = Address.call(broker, fn(reply) = GiveBack(=lease, =reply), 0);
     Unit
 }

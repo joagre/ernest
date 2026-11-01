@@ -68,7 +68,7 @@ let store : Address(StoreMsg) = spawn(Supervisor.child(services, fn() = storing(
 // is one the store cannot take, and it faults.
 fn storing(stock : Map(String, Int)) : Unit receiving StoreMsg =
     receive {
-        Change(key = key, by = by, reply = reply) -> {
+        Change(=key, =by, =reply) -> {
             let held = inStock(stock, key);
             if held + by < 0 then
                 fault(key <> ": cannot take " <> Int.toString(-by) <> " of " <> Int.toString(held))
@@ -77,7 +77,7 @@ fn storing(stock : Map(String, Int)) : Unit receiving StoreMsg =
                 storing(Map.put(stock, key, held + by))
             }
         }
-      | Get(key = key, reply = reply) -> {
+      | Get(=key, =reply) -> {
             answer(reply, inStock(stock, key));
             storing(stock)
         }
@@ -87,7 +87,7 @@ let ids : Address(IdMsg) = spawn(Supervisor.child(services, fn() = counting(1)))
 
 fn counting(next : Int) : Unit receiving IdMsg =
     receive {
-        NextId(reply = reply) -> {
+        NextId(=reply) -> {
             answer(reply, next);
             counting(next + 1)
         }
@@ -99,7 +99,7 @@ fn recording(entries : List(String)) : Unit receiving AuditMsg =
     receive {
         Record(entry) ->
             recording(entries <> [entry])
-      | Entries(reply = reply) -> {
+      | Entries(=reply) -> {
             answer(reply, entries);
             recording(entries)
         }
@@ -124,24 +124,24 @@ export fn main() : Unit =
 
 fn obey(command : Command, line : String) : Unit =
     match command {
-        Add(key = key, count = count) ->
+        Add(=key, =count) ->
             change(key, count, line)
-      | Take(key = key, count = count) ->
+      | Take(=key, =count) ->
             change(key, -count, line)
       | Count(key) ->
-            match Address.call(store, fn(reply) = Get(key = key, reply = reply), 5000) {
+            match Address.call(store, fn(reply) = Get(=key, =reply), 5000) {
                 Some(held) -> Io.println(key <> ": " <> Int.toString(held))
               | None -> Io.println(line <> ": no answer")
             }
       | Audit ->
-            Io.println("audit: " <> audited(asked(audit, fn(reply) = Entries(reply = reply))))
+            Io.println("audit: " <> audited(asked(audit, fn(reply) = Entries(=reply))))
     }
 
 // A change to a key's stock, recorded with an id once the store has taken it.
 fn change(key : String, by : Int, line : String) : Unit =
-    match Address.call(store, fn(reply) = Change(key = key, by = by, reply = reply), 5000) {
+    match Address.call(store, fn(reply) = Change(=key, =by, =reply), 5000) {
         Some(held) -> {
-            let id = asked(ids, fn(reply) = NextId(reply = reply));
+            let id = asked(ids, fn(reply) = NextId(=reply));
             send(audit, Record("#" <> Int.toString(id) <> " " <> line));
             Io.println(key <> ": " <> Int.toString(held))
         }
@@ -165,8 +165,8 @@ fn asked(service : Address(m), request : (Reply(a)) -> m) : a =
 // The command a line writes, or None where it writes none.
 fn parsed(line : String) : Optional(Command) =
     match String.words(line) {
-        ["add", key, count] -> Optional.map(counted(count), fn(n) = Add(key = key, count = n))
-      | ["take", key, count] -> Optional.map(counted(count), fn(n) = Take(key = key, count = n))
+        ["add", key, count] -> Optional.map(counted(count), fn(n) = Add(=key, count = n))
+      | ["take", key, count] -> Optional.map(counted(count), fn(n) = Take(=key, count = n))
       | ["count", key] -> Some(Count(key))
       | ["audit"] -> Some(Audit)
       | _ -> None

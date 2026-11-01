@@ -503,7 +503,7 @@ owned_test() ->
         "    let o = spawn(fn() = opener(main));\n"
         "    let p = Process.fromAddress(o);\n"
         "    receive {\n"
-        "        Opened(listener = listener, socket = c) -> {\n"
+        "        Opened(=listener, socket = c) -> {\n"
         "            Io.println(Io.show(sites(Process.owned(p))));\n"
         "            Tcp.give(c, Process.current());\n"
         "            let _ = Tcp.write(c, <<>>, 1000);\n"

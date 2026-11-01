@@ -124,12 +124,12 @@ fn pixelRay(x : Int, y : Int) : Ray = {
 
 fn trace(ray : Ray, depth : Int) : Color =
     match nearest(ray) {
-        Some(Ball(distance = distance)) -> {
+        Some(Ball(=distance)) -> {
             let point = along(ray, distance);
             let normal = scaled(point - center, 1.0 / radius);
             shade(point, normal, ray.direction, check(normal))
         }
-      | Some(Floor(distance = distance)) -> {
+      | Some(Floor(=distance)) -> {
             let point = along(ray, distance);
             let normal = Vector(x = 0.0, y = 1.0, z = 0.0);
             let own = shade(point, normal, ray.direction, floorGray);

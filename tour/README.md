@@ -205,7 +205,7 @@ export fn count(total : Int) : Unit receiving CounterMsg =
 export fn watch(counter : Address(CounterMsg)) : Unit receiving WatchMsg = {
     monitor(Process.fromAddress(counter), Ended);
     receive {
-        Ended(Down(reason = reason)) -> Io.println("the counter ended: " <> Io.show(reason))
+        Ended(Down(=reason)) -> Io.println("the counter ended: " <> Io.show(reason))
     }
 }
 ```
@@ -291,15 +291,15 @@ type TestMsg = Reported(List(#(String, Int)))
 
 export fn count(tally : Tally.Tally(String)) : Unit receiving CounterMsg =
     receive {
-        Inc(key = key, amount = amount) -> {
+        Inc(=key, =amount) -> {
             if amount < 0 then fault("a negative amount") else Unit;
             count(Tally.inc(tally, key, amount))
         }
-      | Get(key = key, reply = reply) -> {
+      | Get(=key, =reply) -> {
             answer(reply, Tally.get(tally, key));
             count(tally)
         }
-      | Report(reply = reply) -> {
+      | Report(=reply) -> {
             answer(reply, Tally.report(tally));
             count(tally)
         }
@@ -403,20 +403,20 @@ export fn start() : Address(ClientMsg) =
 export fn count(tally : Tally.Tally(String)) : Unit receiving CounterMsg =
     receive {
         Client(message) -> count(handle(tally, message))
-      | Upgrade(next = next) -> next(tally)
+      | Upgrade(=next) -> next(tally)
     }
 
 fn handle(tally : Tally.Tally(String), message : ClientMsg) : Tally.Tally(String) =
     match message {
-        Inc(key = key, amount = amount) -> {
+        Inc(=key, =amount) -> {
             if amount < 0 then fault("a negative amount") else Unit;
             Tally.inc(tally, key, amount)
         }
-      | Get(key = key, reply = reply) -> {
+      | Get(=key, =reply) -> {
             answer(reply, Tally.get(tally, key));
             tally
         }
-      | Report(reply = reply) -> {
+      | Report(=reply) -> {
             answer(reply, Tally.report(tally));
             tally
         }
@@ -429,8 +429,7 @@ The tests spawn with `start()`, and the second asks for its report instead of wa
 let reports : Test.Case(m) = Test.Case(name = "reports", run = fn() = {
     let counter = start();
     let _ = apply(counter, "inc apples 2");
-    Test.equal(Address.call(counter, fn(reply) = Report(reply = reply), 1000),
-               Some([#("apples", 2)]))
+    Test.equal(Address.call(counter, fn(reply) = Report(=reply), 1000), Some([#("apples", 2)]))
 })
 ```
 
@@ -537,9 +536,9 @@ The fix is moved at the shell that is `a`, and then on `foo` from a shell attach
 ```ernest
 export fn count2(tally : Tally.Tally(String)) : Unit receiving CounterMsg =
     receive {
-        Client(Inc(amount = amount)) when amount < 0 -> count2(tally)
+        Client(Inc(=amount)) when amount < 0 -> count2(tally)
       | Client(message) -> count2(handle(tally, message))
-      | Upgrade(next = next) -> next(tally)
+      | Upgrade(=next) -> next(tally)
     }
 
 export fn move() : Unit =
@@ -572,7 +571,7 @@ Counter, compiled again
 
 `move` sends each counter on the old loop its `Upgrade`, `next` a function of this node's that never crosses, and the counter switches to `count2` with its tally in hand. The `report` in between was answered after the `Upgrade`: a `send` puts its message in the mailbox before it returns, and the shell runs an input only once the one before it has ended (the guide's §1.2, §4.1). The lists then read the other way round, the same address in each, which is what shows where the process now runs.
 
-`Client(Inc(amount = amount)) when amount < 0` names one field and guards the clause (the guide's §2.6). A negative amount is now passed over, and the tally stands.
+`Client(Inc(=amount)) when amount < 0` names one field and guards the clause (the guide's §2.6). A negative amount is now passed over, and the tally stands.
 
 That is the second claim of *Why Ernest* at its peak: the same process, new code, its state kept, told by a message of its own type. `count` stays in the source unchanged, since it is how the counters still on it are found, until `Code.running(count)` is empty on every node and it may go; nothing a node has loaded is unloaded while it runs, so a node reloaded without end grows with its versions (the guide's §8.9, the deployment guide's §4.2).
 

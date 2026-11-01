@@ -76,7 +76,7 @@ fn syncer(directory : Path,
             let _ = spawn(fn() = send(me, Listed(Fs.list(directory, 10000))));
             listing(directory, peer, seen)
         }
-      | Put(path = path, modified = modified, bytes = bytes, reply = reply) ->
+      | Put(=path, =modified, =bytes, =reply) ->
             syncer(directory, peer, store(directory, seen, path, modified, bytes, reply))
       | Listed(_) ->
             syncer(directory, peer, seen) // late listing, ignore
@@ -156,7 +156,7 @@ fn writer(path : Path, bytes : Bytes, modified : Int, reply : Reply(Ack)) : Unit
 }
 
 // One process per changed file: reads and sends to the peer.
-fn pusher(peer : Address(SyncMsg), Change(path = path, modified = modified) : Change) : Unit =
+fn pusher(peer : Address(SyncMsg), Change(=path, =modified) : Change) : Unit =
     match Fs.read(path, 10000) {
         Right(bytes) ->
             match Path.name(path) {
@@ -168,10 +168,7 @@ fn pusher(peer : Address(SyncMsg), Change(path = path, modified = modified) : Ch
     }
 
 fn push(peer : Address(SyncMsg), path : Path, modified : Int, bytes : Bytes) : Unit =
-    match Address.call(peer,
-                       fn(reply) =
-                           Put(path = path, modified = modified, bytes = bytes, reply = reply),
-                       30000) {
+    match Address.call(peer, fn(reply) = Put(=path, =modified, =bytes, =reply), 30000) {
         Some(Stored) -> Unit
       | Some(Conflict) -> Io.println("conflict: " <> Path.toString(path))
       | Some(Failed(_)) -> Io.println("the peer failed: " <> Path.toString(path))
@@ -188,13 +185,10 @@ fn diff(seen : Map(Path, Int), entries : List(Fs.Entry)) : List(Change) =
     List.filterMap(entries,
                    fn(entry) = if entry.kind == Fs.File then changed(seen, entry) else None)
 
-fn changed(seen : Map(Path, Int),
-           Fs.Entry(path = path, modified = modified) : Fs.Entry) : Optional(Change) =
+fn changed(seen : Map(Path, Int), Fs.Entry(=path, =modified) : Fs.Entry) : Optional(Change) =
     match Map.get(seen, path) {
-        None ->
-            Some(Change(path = path, modified = modified))
-      | Some(before) ->
-            if modified > before then Some(Change(path = path, modified = modified)) else None
+        None -> Some(Change(=path, =modified))
+      | Some(before) -> if modified > before then Some(Change(=path, =modified)) else None
     }
 
 fn snapshot(entries : List(Fs.Entry)) : Map(Path, Int) =

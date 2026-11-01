@@ -21,7 +21,7 @@ double(21)
 fn double(n) = n * 3
 double(21)
 type Shape = Dot | Box(w : Int, h : Int)
-fn area(s) = match s { Dot -> 0 | Box(w = w, h = h) -> w * h }
+fn area(s) = match s { Dot -> 0 | Box(=w, =h) -> w * h }
 let box = Box(w = 2, h = 3)
 area(box)
 fn id(a) = a

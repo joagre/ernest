@@ -113,7 +113,7 @@ foreign fn system(name : Foreign.Term) : Address(Msg) =
 /// cause `the terminal is already read as lines`.
 export fn subscribe(wrap : (Event) -> m) : Either(Io.Error, Unit) receiving m = {
     let address = adapted(self(), wrap);
-    Address.callForever(reference, fn(reply) = Subscribe(address = address, reply = reply))
+    Address.callForever(reference, fn(reply) = Subscribe(=address, =reply))
 }
 
 /// The terminal's size now, or `Left(NotATerminal)` where standard output is
@@ -125,7 +125,7 @@ export fn subscribe(wrap : (Event) -> m) : Either(Io.Error, Unit) receiving m = 
 /// ```ernest
 /// match Terminal.size() {
 ///     Left(_) -> 24
-///   | Right(Terminal.Size(rows = rows)) -> rows
+///   | Right(Terminal.Size(=rows)) -> rows
 /// }
 /// ```
 export foreign fn size() : Either(Io.Error, Size) =
@@ -202,11 +202,7 @@ fn tree(entries : List(#(Int, Int, Width))) : Ranges = {
         [] ->
             Empty
       | #(low, high, width) :: above ->
-            Branch(low = low,
-                   high = high,
-                   width = width,
-                   below = tree(List.take(entries, half)),
-                   above = tree(above))
+            Branch(=low, =high, =width, below = tree(List.take(entries, half)), above = tree(above))
     }
 }
 
@@ -214,7 +210,7 @@ fn widthOf(code : Int, ranges : Ranges) : Optional(Width) =
     match ranges {
         Empty ->
             None
-      | Branch(low = low, high = high, width = width, below = below, above = above) ->
+      | Branch(=low, =high, =width, =below, =above) ->
             if code < low then
                 widthOf(code, below)
             else if code > high then

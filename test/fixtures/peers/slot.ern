@@ -14,7 +14,7 @@ export fn serve(held : Optional(a)) : Unit receiving Msg(a) =
             receive {
                 Put(newer) ->
                     serve(Some(newer))
-              | Take(reply = reply) -> {
+              | Take(=reply) -> {
                     answer(reply, value);
                     serve(Some(value))
                 }
@@ -22,4 +22,4 @@ export fn serve(held : Optional(a)) : Unit receiving Msg(a) =
     }
 
 export fn take(slot : Address(Msg(a))) : a =
-    Address.callForever(slot, fn(reply) = Take(reply = reply))
+    Address.callForever(slot, fn(reply) = Take(=reply))

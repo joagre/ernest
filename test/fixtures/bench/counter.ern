@@ -13,7 +13,7 @@ export type RunMsg = Ended(Down)
 
 fn serve(total : Int) : Unit receiving CounterMsg =
     receive {
-        Add(amount = amount, reply = reply) -> {
+        Add(=amount, =reply) -> {
             answer(reply, total + amount);
             serve(total + amount)
         }
@@ -28,7 +28,7 @@ export fn run(callers : Int, calls : Int) : Int receiving RunMsg = {
         Unit
     });
     awaitCallers(callers);
-    let total = Address.callForever(counter, fn(reply) = Add(amount = 0, reply = reply));
+    let total = Address.callForever(counter, fn(reply) = Add(amount = 0, =reply));
     kill(counter);
     total
 }
@@ -37,7 +37,7 @@ fn call(counter : Address(CounterMsg), calls : Int) : Unit =
     if calls == 0 then
         Unit
     else {
-        let _ = Address.call(counter, fn(reply) = Add(amount = 1, reply = reply), 1000);
+        let _ = Address.call(counter, fn(reply) = Add(amount = 1, =reply), 1000);
         call(counter, calls - 1)
     }
 

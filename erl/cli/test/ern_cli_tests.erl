@@ -3598,7 +3598,7 @@ code_table_test() ->
           "export type Shape = Square(Int) | Rect(w : Int, h : Int)\n"
           "export fn area(shape : Shape) : Int = match shape {\n"
           "    Square(side) -> side * side\n"
-          "  | Rect(w = w, h = h) -> w * h\n"
+          "  | Rect(=w, =h) -> w * h\n"
           "}\n"
           "fn even(n : Int) : Bool = if n == 0 then true else odd(n - 1)\n"
           "fn odd(n : Int) : Bool = if n == 0 then false else even(n - 1)\n"
@@ -5382,15 +5382,16 @@ fault_status_test() ->
 %% printing `killed` after its site, as a fault's line names it, with
 %% status 1. A regression test: it printed `fault: 'Killed'`, since only a
 %% return and a fault had their own lines, and then `killed` alone, with
-%% no site and, in a log, no time.
+%% no site and, in a log, no time. The entry process waits in a `receive`
+%% that nothing answers, until the kill ends it.
 killed_entry_test() ->
     Dir = tmp(),
     File = write(Dir, "main.ern",
-                 "export fn main() : Unit receiving Never = {\n"
+                 "type MainMsg = Stop\n"
+                 "export fn main() : Unit receiving MainMsg = {\n"
                  "    let me = self();\n"
                  "    let _ = spawn(fn() = kill(me));\n"
-                 "    Clock.sleep(5000);\n"
-                 "    Io.println(\"not killed\")\n"
+                 "    receive { Stop -> Io.println(\"not killed\") }\n"
                  "}\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
     ?assertEqual(1, ern_err(["run", filename:join(Dir, "main.erc")])),

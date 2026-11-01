@@ -64,7 +64,7 @@ let fresh =
 /// A session's first line, after the inputs of the sessions before it,
 /// newest first.
 export fn start(history : List(String)) : Editing =
-    Editing(..fresh, history = history)
+    Editing(..fresh, =history)
 
 /// The state to type the next line in: the line just taken joins the
 /// history, which keeps the last inputs as the file does (report §11.2),
@@ -92,7 +92,7 @@ export fn newline(state : Editing) : Editing =
 /// back; the editor knows no names and does no completing of its own. The
 /// cursor is kept inside the line, whatever it is given.
 export fn withLine(state : Editing, text : String, cursor : Int) : Editing =
-    Editing(..state, text = text, cursor = Int.max(0, Int.min(String.size(text), cursor)))
+    Editing(..state, =text, cursor = Int.max(0, Int.min(String.size(text), cursor)))
 
 /// The line being edited, a search aside.
 export fn text(state : Editing) : String =
@@ -115,17 +115,15 @@ export fn isMidSequence(state : Editing) : Bool =
 /// with the match after it.
 export fn shown(state : Editing) : String =
     match state {
-        Editing(search = None, text = text) -> text
-      | Editing(search = Some(search), text = text) -> asked(search, text) <> text
+        Editing(search = None, =text) -> text
+      | Editing(search = Some(search), =text) -> asked(search, text) <> text
     }
 
 /// Where the cursor stands in what `shown` answers.
 export fn shownCursor(state : Editing) : Int =
     match state {
-        Editing(search = None, cursor = cursor) ->
-            cursor
-      | Editing(search = Some(search), text = text, cursor = cursor) ->
-            String.size(asked(search, text)) + cursor
+        Editing(search = None, =cursor) -> cursor
+      | Editing(search = Some(search), =text, =cursor) -> String.size(asked(search, text)) + cursor
     }
 
 fn asked(search : Search, text : String) : String =
@@ -209,7 +207,7 @@ fn plain(state : Editing, event : Terminal.Event) : Edit =
 
 // A character typed, which is Readline's control key where it is one.
 fn character(state : Editing, char : Char) : Edit = {
-    let Editing(text = text, cursor = cursor, killed = killed) = state;
+    let Editing(=text, =cursor, =killed) = state;
     match char {
         '\r' or '\n' -> Submit(state) // Enter
       | '\u{1}' -> Edited(Editing(..state, cursor = 0)) // C-a
@@ -237,7 +235,7 @@ fn character(state : Editing, char : Char) : Edit = {
 
 // `Escape` and then the key: Readline's Meta bindings.
 fn meta(state : Editing, event : Terminal.Event) : Edit = {
-    let Editing(text = text, cursor = cursor) = state;
+    let Editing(=text, =cursor) = state;
     match event {
         // report §11.2: another line, though the parser could run what
         // is typed
@@ -285,11 +283,7 @@ fn walkTo(state : Editing, back : Int) : Editing =
     else {
         let typed = if state.back == 0 then state.text else state.saved;
         let recalled = if back == 0 then typed else entry(state.history, back);
-        Editing(..state,
-                text = recalled,
-                cursor = String.size(recalled),
-                saved = typed,
-                back = back)
+        Editing(..state, text = recalled, cursor = String.size(recalled), saved = typed, =back)
     }
 
 // The input `back` places back, 1 being the one before this line.
@@ -310,7 +304,7 @@ fn search(state : Editing, forward : Bool) : Editing =
                                  back = state.back,
                                  origin = state.back,
                                  saved = state.text,
-                                 forward = forward)))
+                                 =forward)))
 
 fn searching(state : Editing, search : Search, event : Terminal.Event) : Edit =
     match event {
@@ -346,7 +340,7 @@ fn seek(state : Editing, search : Search, stride : Int) : Editing =
 // A character typed: the search narrows and looks again from where it
 // stands, since the match it has may match the longer query too.
 fn narrow(state : Editing, search : Search, char : Char) : Editing = {
-    let Search(query = query, back = back) = search;
+    let Search(=query, =back) = search;
     let narrower = Search(..search, query = query <> Char.toString(char));
     let first = if back == 0 then back + stride(search) else back;
     match find(state.history, query <> Char.toString(char), first, stride(search)) {
@@ -359,7 +353,7 @@ fn narrow(state : Editing, search : Search, char : Char) : Editing = {
 // again from where it started, so that a shorter query may match a
 // nearer input.
 fn shorten(state : Editing, search : Search) : Editing = {
-    let Search(query = query, origin = origin, saved = saved) = search;
+    let Search(=query, =origin, =saved) = search;
     let shorter = String.slice(query, 0, Int.max(0, String.size(query) - 1));
     let shortened = Search(..search, query = shorter, back = origin);
     if String.isEmpty(shorter) then
@@ -389,10 +383,10 @@ fn stop(state : Editing) : Editing =
 fn matched(state : Editing, search : Search, back : Int) : Editing = {
     let text = entry(state.history, back);
     Editing(..state,
-            text = text,
+            =text,
             cursor = matchAt(text, search.query),
-            back = back,
-            search = Some(Search(..search, back = back)))
+            =back,
+            search = Some(Search(..search, =back)))
 }
 
 fn matchAt(text : String, query : String) : Int =
@@ -419,7 +413,7 @@ fn stride(search : Search) : Int =
 /// grapheme before it, a combining mark or a skin tone, so the cursor is
 /// measured as the text before it now stands.
 export fn insert(state : Editing, text : String) : Editing = {
-    let Editing(text = line, cursor = cursor) = state;
+    let Editing(text = line, =cursor) = state;
     let before = String.slice(line, 0, cursor) <> text;
     Editing(..state, text = before <> suffix(line, cursor), cursor = String.size(before))
 }
@@ -428,14 +422,14 @@ fn deleteBefore(state : Editing) : Editing =
     match state {
         Editing(cursor = 0) ->
             state
-      | Editing(text = text, cursor = cursor) ->
+      | Editing(=text, =cursor) ->
             Editing(..state,
                     text = String.slice(text, 0, cursor - 1) <> suffix(text, cursor),
                     cursor = cursor - 1)
     }
 
 fn deleteAt(state : Editing, index : Int) : Editing = {
-    let Editing(text = text) = state;
+    let Editing(=text) = state;
     if index >= String.size(text) then
         state
     else
@@ -445,7 +439,7 @@ fn deleteAt(state : Editing, index : Int) : Editing = {
 // Kill back to `index`, keeping what was killed for `C-y`; a kill of
 // nothing leaves the last kill as it was, as Readline's does.
 fn killBackTo(state : Editing, index : Int) : Editing = {
-    let Editing(text = text, cursor = cursor) = state;
+    let Editing(=text, =cursor) = state;
     if index >= cursor then
         state
     else
@@ -457,7 +451,7 @@ fn killBackTo(state : Editing, index : Int) : Editing = {
 
 // Kill forward to `index`, as `killBackTo` kills back.
 fn killForwardTo(state : Editing, index : Int) : Editing = {
-    let Editing(text = text, cursor = cursor) = state;
+    let Editing(=text, =cursor) = state;
     if index <= cursor then
         state
     else
@@ -810,7 +804,7 @@ let joinsHistory =
     Test.Case(name = "the line just taken joins the history",
               run = fn() = match next(Editing(..start(["one"]), text = "two")) {
                   Editing(history = ["two", "one"]) -> Test.Passed
-                | Editing(history = history) -> Test.Failed(String.join(history, ", "))
+                | Editing(=history) -> Test.Failed(String.join(history, ", "))
               })
 
 // Report §11.2: a regression test, written after the code; the session
@@ -818,7 +812,7 @@ let joinsHistory =
 let lastThousand = Test.Case(name = "the history keeps the last thousand inputs", run = fn() = {
     let full = List.map(List.range(1, Shell.History.kept), Int.toString);
     match next(Editing(..start(full), text = "new")) {
-        Editing(history = history) ->
+        Editing(=history) ->
             if List.size(history) == Shell.History.kept && List.get(history, 0) == Some("new") then
                 Test.Passed
             else
@@ -879,11 +873,11 @@ fn shows(edited : Edit) : String =
 
 fn said(edited : Edit) : String =
     match edited {
-        Edited(Editing(text = text)) -> "typing \"" <> text <> "\""
-      | Matching(Editing(text = text)) -> "closing in \"" <> text <> "\""
+        Edited(Editing(=text)) -> "typing \"" <> text <> "\""
+      | Matching(Editing(=text)) -> "closing in \"" <> text <> "\""
       | Completing(_) -> "completing"
       | Documenting(_) -> "documenting"
-      | Submit(Editing(text = text)) -> "submitted \"" <> text <> "\""
+      | Submit(Editing(=text)) -> "submitted \"" <> text <> "\""
       | Cancel -> "canceled"
       | ClearScreen(_) -> "cleared"
       | Quit -> "left"

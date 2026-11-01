@@ -127,7 +127,7 @@ effect_only_type_argument_test() ->
                                          ern_typecheck:type_state(Env))),
     ?assertEqual(ok, ok(Source ++ "type K(e) = K(h : H(e)) | L(k : K(e))\n"
                         "fn go(k : K(e)) : Unit receiving e ="
-                        " match k { K(h = h) -> run(h, 1) | L(k = k2) -> go(k2) }\n"
+                        " match k { K(=h) -> run(h, 1) | L(k = k2) -> go(k2) }\n"
                         "fn usePlain() : Unit = go(L(k = K(h = H(f = fn(x) = Unit))))\n")),
     ?assertEqual("run needs a mailbox, and usePlain receives nothing",
                  refusal("type V(e) = V(f : (Int) -> Unit receiving e, v : e)\n"
@@ -2955,7 +2955,7 @@ unfixed_mailbox_is_never_test() ->
 %% *The Review's Decisions*); it does not cover a group of bindings
 not_generalized_effect_variable_is_none_test() ->
     Case = "fn case(name : String) : Test.Case(m) =\n"
-           "    Test.Case(name = name, run = fn() = Test.Passed)\n",
+           "    Test.Case(=name, run = fn() = Test.Passed)\n",
     ?assertEqual("Test.Case(Never)", type_of(Case ++ "export let t = case(\"x\")", t)),
     ?assertEqual("Test.Case(Never)",
                  type_of(Case ++ "export let u : Test.Case(m) = case(\"y\")", u)),
@@ -3143,12 +3143,12 @@ named_fields_named_test() ->
 %% construction. A regression test, written after the fix: the help named a
 %% construction where a function was wanted
 named_constructor_as_function_test() ->
-    ?assertEqual("Stop has named fields; write fn(reply) = Stop(reply = reply)",
+    ?assertEqual("Stop has named fields; write fn(reply) = Stop(=reply)",
                  refusal("type Stop = Stop(reply : Reply(Unit))\n"
                          "fn f() : Unit receiving Stop = Os.termination(Stop)\n")),
     Point = "type Point = Point(x : Int, y : Int)\n"
             "fn made(make : (Int, Int) -> Point) : Point = make(1, 2)\n",
-    ?assertEqual("Point has named fields; write fn(x, y) = Point(x = x, y = y)",
+    ?assertEqual("Point has named fields; write fn(x, y) = Point(=x, =y)",
                  refusal(Point ++ "fn f() : Point = made(Point)\n")),
     ?assertEqual("Point has named fields; write Point(x = value, y = value)",
                  refusal(Point ++ "fn f() : (Int) -> Point = Point\n")),
@@ -3644,7 +3644,7 @@ interface_test() ->
     ?assertEqual([['Net', 'Http', parse]], maps:keys(Interface#interface.values)),
     ?assertEqual([['Net', 'Http', 'Request']], maps:keys(Interface#interface.types)),
     Main = "export fn main() : Unit = match Net.Http.parse(\"GET /\") {\n"
-           "    Some(Net.Http.Request(method = method, path = path)) ->"
+           "    Some(Net.Http.Request(=method, =path)) ->"
            " Io.println(method <> \" \" <> path)\n"
            "  | None -> Io.println(\"bad request\")\n}",
     {ok, MainDeclarations} = ern_parser:parse_string(Main),

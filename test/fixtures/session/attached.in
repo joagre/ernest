@@ -6,7 +6,7 @@ Counter.start()
 :load Counter
 let c = Counter.start()
 send(c, Counter.Add(7))
-Address.call(c, fn(reply) = Counter.Get(reply = reply), 5000)
+Address.call(c, fn(reply) = Counter.Get(=reply), 5000)
 1 / 0
 Os.exit(3)
 :bindings

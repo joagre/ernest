@@ -183,7 +183,7 @@ export fn group(strategy : Strategy, limit : RestartLimit) : (() -> Unit receivi
                 send(watcher, Release)
             }
         };
-        supervise(Group(strategy = strategy, limit = limit, watcher = watcher), 0, [])
+        supervise(Group(=strategy, =limit, =watcher), 0, [])
     }
 }
 
@@ -191,7 +191,7 @@ export fn group(strategy : Strategy, limit : RestartLimit) : (() -> Unit receivi
 // call it has not answered is made again while it lives; one that has
 // ended ended with the group's first supervisor.
 fn runs(watcher : Address(WatcherMsg), supervisor : Address(GroupMsg)) : Bool =
-    match Address.call(watcher, fn(reply) = Run(supervisor = supervisor, reply = reply), retryMs) {
+    match Address.call(watcher, fn(reply) = Run(=supervisor, =reply), retryMs) {
         Some(runsGroup) ->
             runsGroup
       | None ->
@@ -216,20 +216,19 @@ fn supervise(group : Group,
              recent : Int,
              waiting : List(#(Reply(Bool), List(Process)))) : Unit receiving GroupMsg =
     receive {
-        Join(process = process, stop = stop, reply = reply) -> {
-            send(group.watcher,
-                 Add(Member(process = process, spawned = spawnOrder(process), stop = stop)));
+        Join(=process, =stop, =reply) -> {
+            send(group.watcher, Add(Member(=process, spawned = spawnOrder(process), =stop)));
             answer(reply, group.watcher);
             supervise(group, recent, waiting)
         }
       // a child that faults has restarted as its faulted siblings wait for
       // it to, whether or not it had taken the restart they asked of it
-      | Faulted(process = process, reply = reply) -> {
+      | Faulted(=process, =reply) -> {
             let left = settled(waiting, process);
             match group.limit {
                 Unlimited ->
                     restartSiblings(group, process, reply, recent, left)
-              | RestartLimit(restarts = restarts, within = within) ->
+              | RestartLimit(=restarts, =within) ->
                     if recent < restarts then {
                         let _ = Clock.alarm(Int.max(within, 1), fn(_) = Expired);
                         restartSiblings(group, process, reply, recent + 1, left)
@@ -291,7 +290,7 @@ fn spawnedAfter(children : List(Process), child : Process) : List(Process) =
     }
 
 fn children(watcher : Address(WatcherMsg)) : List(Process) =
-    Address.callForever(watcher, fn(reply) = Children(reply = reply))
+    Address.callForever(watcher, fn(reply) = Children(=reply))
 
 // Report §6.9: the child restarts at its next wait, and the answer says
 // whether it was asked; one that has ended, or has not yet begun to run
@@ -316,7 +315,7 @@ foreign fn spawnOrder(process : Process) : Int =
 // first run makes itself known.
 fn watch() : Unit receiving WatcherMsg =
     receive {
-        Run(supervisor = supervisor, reply = reply) -> {
+        Run(=supervisor, =reply) -> {
             monitor(Process.fromAddress(supervisor), fn(_) = SupervisorDied);
             answer(reply, true);
             watching(supervisor, [], [])
@@ -337,11 +336,11 @@ fn watching(supervisor : Address(GroupMsg),
                 monitor(member.process, fn(_) = Gone(member.process));
                 watching(supervisor, inOrder(members, member), held)
             }
-      | Children(reply = reply) -> {
+      | Children(=reply) -> {
             answer(reply, List.map(members, fn(member) = member.process));
             watching(supervisor, members, held)
         }
-      | Run(supervisor = other, reply = reply) -> {
+      | Run(supervisor = other, =reply) -> {
             answer(reply, Process.fromAddress(other) == Process.fromAddress(supervisor));
             watching(supervisor, members, held)
         }
@@ -352,15 +351,15 @@ fn watching(supervisor : Address(GroupMsg),
       // the child's reply goes with it, and the supervisor answers it; a
       // restart of the supervisor in place loses the fault and leaves the
       // child's call waiting here, where the new run's ask restarts it
-      | Report(process = process, reply = reply) -> {
-            send(supervisor, Faulted(process = process, reply = reply));
+      | Report(=process, =reply) -> {
+            send(supervisor, Faulted(=process, =reply));
             watching(supervisor, members, held)
         }
       | Gone(process) -> {
             send(supervisor, Settled(process));
             watching(supervisor, List.filter(members, fn(member) = member.process != process), held)
         }
-      | Hold(reply = reply) ->
+      | Hold(=reply) ->
             watching(supervisor, members, reply :: held)
       | SupervisorDied -> {
             stopAll(List.reverse(members));
@@ -389,7 +388,7 @@ fn stopAll(members : List(Member)) : Unit receiving WatcherMsg =
     match members {
         [] ->
             Unit
-      | Member(process = process, spawned = _, stop = stop) :: rest -> {
+      | Member(=process, spawned = _, =stop) :: rest -> {
             stop();
             receive {
                 Gone(gone) when gone == process -> Unit
@@ -464,9 +463,8 @@ fn runAgain(supervisor : Address(GroupMsg),
         None ->
             kill(self())
       | Some(_) -> {
-            if Address.callForever(watcher,
-                                   fn(reply) = Report(process = process, reply = reply)) then
-                Address.callForever(watcher, fn(reply) = Hold(reply = reply))
+            if Address.callForever(watcher, fn(reply) = Report(=process, =reply)) then
+                Address.callForever(watcher, fn(reply) = Hold(=reply))
             else
                 Unit;
             f()
@@ -480,7 +478,7 @@ fn runAgain(supervisor : Address(GroupMsg),
 fn join(supervisor : Address(GroupMsg),
         process : Process,
         stop : () -> Unit receiving WatcherMsg) : Address(WatcherMsg) = {
-    let request = fn(reply) = Join(process = process, stop = stop, reply = reply);
+    let request = fn(reply) = Join(=process, =stop, =reply);
     match Address.call(supervisor, request, retryMs) {
         Some(watcher) ->
             watcher

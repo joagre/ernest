@@ -176,8 +176,8 @@ let away =
     Test.Case(name = "a call through a proxy whose service is away answers None", run = fn() = {
         let service : Peer.Service(Probe) = Peer.service("probe");
         let proxy = start(service, 100);
-        let first = Address.call(proxy, fn(reply) = Ask(reply = reply), 100);
-        let second = Address.call(proxy, fn(reply) = Ask(reply = reply), 100);
+        let first = Address.call(proxy, fn(reply) = Ask(=reply), 100);
+        let second = Address.call(proxy, fn(reply) = Ask(=reply), 100);
         Test.equal(#(first, second), #(None, None))
     })
 

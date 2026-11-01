@@ -153,7 +153,7 @@ foreign fn system(name : Foreign.Term) : Address(Msg) =
 /// holds, `Left(Other("non-existing domain"))` for a name not found.
 export fn listen(host : String, port : Int) : Either(Io.Error, Address(ListenerMsg)) = {
     let owner = Process.current();
-    let request = fn(reply) = Listen(host = host, port = port, owner = owner, reply = reply);
+    let request = fn(reply) = Listen(=host, =port, =owner, =reply);
     Address.callForever(reference, request)
 }
 
@@ -178,7 +178,7 @@ export fn listen(host : String, port : Int) : Either(Io.Error, Address(ListenerM
 /// // => Right(true)
 /// ```
 export fn port(listener : Address(ListenerMsg)) : Either(Io.Error, Int) =
-    Address.callForever(listener, fn(reply) = Port(reply = reply))
+    Address.callForever(listener, fn(reply) = Port(=reply))
 
 /// Waits at most `ms` milliseconds for the next connection to the listener, and
 /// answers its socket, which belongs to the caller. It answers `Left(Timeout)`
@@ -207,7 +207,7 @@ export fn port(listener : Address(ListenerMsg)) : Either(Io.Error, Int) =
 export fn accept(listener : Address(ListenerMsg),
                  ms : Int) : Either(Io.Error, Address(SocketMsg)) = {
     let owner = Process.current();
-    Address.callForever(listener, fn(reply) = Accept(ms = ms, owner = owner, reply = reply))
+    Address.callForever(listener, fn(reply) = Accept(=ms, =owner, =reply))
 }
 
 /// Connects to `port` on `host`, within `ms` milliseconds, and answers the
@@ -221,8 +221,7 @@ export fn accept(listener : Address(ListenerMsg),
 /// `Left(Other("non-existing domain"))` for a name not found.
 export fn connect(host : String, port : Int, ms : Int) : Either(Io.Error, Address(SocketMsg)) = {
     let owner = Process.current();
-    let request =
-        fn(reply) = Connect(host = host, port = port, ms = ms, owner = owner, reply = reply);
+    let request = fn(reply) = Connect(=host, =port, =ms, =owner, =reply);
     Address.callForever(reference, request)
 }
 
@@ -237,7 +236,7 @@ export fn connect(host : String, port : Int, ms : Int) : Either(Io.Error, Addres
 /// cause `callee had ended`, or `callee was closed` where `close` ended it as
 /// the call was made.
 export fn read(socket : Address(SocketMsg), ms : Int) : Either(Io.Error, Bytes) =
-    Address.callForever(socket, fn(reply) = Read(ms = ms, reply = reply))
+    Address.callForever(socket, fn(reply) = Read(=ms, =reply))
 
 /// Writes `bytes` to the connection, and answers `Right(Unit)` once the socket
 /// has taken them, waiting while the connection is behind, at most `ms`
@@ -256,7 +255,7 @@ export fn read(socket : Address(SocketMsg), ms : Int) : Either(Io.Error, Bytes) 
 /// cause `callee had ended`, or `callee was closed` where `close` ended it as
 /// the call was made.
 export fn write(socket : Address(SocketMsg), bytes : Bytes, ms : Int) : Either(Io.Error, Unit) =
-    Address.callForever(socket, fn(reply) = Write(bytes = bytes, ms = ms, reply = reply))
+    Address.callForever(socket, fn(reply) = Write(=bytes, =ms, =reply))
 
 /// Closes the connection and ends the socket's process. On a socket that has
 /// ended already it does nothing.
@@ -292,7 +291,7 @@ export fn close(socket : Address(SocketMsg)) : Unit =
 /// // => Right(<<104, 101, 108, 108, 111>>)
 /// ```
 export fn give(socket : Address(SocketMsg), owner : Process) : Unit =
-    send(socket, Give(owner = owner))
+    send(socket, Give(=owner))
 
 /// Stops the listener and ends its process. An `accept` waiting on it answers
 /// `Left(Closed)`. On a listener that has ended already it does nothing.
@@ -325,7 +324,7 @@ export fn closeListener(listener : Address(ListenerMsg)) : Unit =
 ///
 /// since 0.2.0
 export fn remote(socket : Address(SocketMsg)) : Either(Io.Error, Endpoint) =
-    Address.callForever(socket, fn(reply) = Remote(reply = reply))
+    Address.callForever(socket, fn(reply) = Remote(=reply))
 
 /// The near end of the connection, or `Left(Closed)` once the connection has
 /// closed.
@@ -351,4 +350,4 @@ export fn remote(socket : Address(SocketMsg)) : Either(Io.Error, Endpoint) =
 /// // => Right("127.0.0.1")
 /// ```
 export fn local(socket : Address(SocketMsg)) : Either(Io.Error, Endpoint) =
-    Address.callForever(socket, fn(reply) = Local(reply = reply))
+    Address.callForever(socket, fn(reply) = Local(=reply))

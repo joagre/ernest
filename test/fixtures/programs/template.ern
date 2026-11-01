@@ -113,7 +113,7 @@ export fn pop(Stack(shapes) : Stack) : Optional(#(Shape, Stack)) =
 
 /// The circle of the radius around the center.
 export fn circle(center : Point, radius : Int) : Shape =
-    Circle(center = center, radius = radius)
+    Circle(=center, =radius)
 
 /// The area of the shape. A point's is zero, and a circle's is pi times
 /// its radius squared.
@@ -124,7 +124,7 @@ export fn circle(center : Point, radius : Int) : Shape =
 export fn area(shape : Shape) : Float =
     match shape {
         Dot(_) -> 0.0
-      | Circle(radius = radius) -> Float.pi * Int.toFloat(radius * radius)
+      | Circle(=radius) -> Float.pi * Int.toFloat(radius * radius)
     }
 
 /// The radius of a circle of that diameter, rounded toward zero.

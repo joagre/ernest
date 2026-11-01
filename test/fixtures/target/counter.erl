@@ -11,8 +11,8 @@
 %% has no code of its own; its constructors are the tuples
 %%
 %%   Inc(amount)                                {'Inc', Amount}
-%%   Get(reply = reply)                         {'Get', Reply}
-%%   Upgrade(migrate = migrate, next = next)    {'Upgrade', Migrate, Next}, fields
+%%   Get(=reply)                                {'Get', Reply}
+%%   Upgrade(=migrate, =next)                   {'Upgrade', Migrate, Next}, fields
 %%                                              in canonical (sorted) order
 %%
 %% The module atom is the module's path with @ for / and the prefix ern@,
@@ -47,7 +47,7 @@
 %%     let counter = spawn(fn() = count(0));
 %%     send(counter, Inc(5));
 %%     send(counter, Inc(3));
-%%     match Address.call(counter, fn(reply) = Get(reply = reply), 1000) {
+%%     match Address.call(counter, fn(reply) = Get(=reply), 1000) {
 %%         Some(total) -> Io.println("count is " <> Int.toString(total))
 %%       | None -> Io.println("counter is not answering")
 %%     }
@@ -66,8 +66,8 @@
 
 %% fn count(total : Int) : Unit receiving CounterMsg = receive {
 %%     Inc(amount) -> count(total + amount)
-%%   | Get(reply = reply) -> { answer(reply, total); count(total) }
-%%   | Upgrade(migrate = migrate, next = next) -> next(migrate(total))
+%%   | Get(=reply) -> { answer(reply, total); count(total) }
+%%   | Upgrade(=migrate, =next) -> next(migrate(total))
 %% }
 %%
 %% Every receive takes first the restart a supervisor asks for (report

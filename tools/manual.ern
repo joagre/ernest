@@ -114,17 +114,15 @@ fn usage(line : String) : Markdown.Block =
 
 fn beginsChapter(block : Markdown.Block) : Bool =
     match block {
-        Markdown.Heading(level = level) -> level <= 2
+        Markdown.Heading(=level) -> level <= 2
       | _ -> false
     }
 
 // §11's sections are the page's subsections, a level above their own.
 fn raised(block : Markdown.Block) : Markdown.Block =
     match block {
-        Markdown.Heading(level = level, text = text) ->
-            Markdown.Heading(level = level - 1, text = text)
-      | other ->
-            other
+        Markdown.Heading(=level, =text) -> Markdown.Heading(level = level - 1, =text)
+      | other -> other
     }
 
 // The pages the directory holds, the prelude's first, then the pages

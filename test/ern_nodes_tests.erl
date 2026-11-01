@@ -1877,7 +1877,7 @@ export fn main() : Unit receiving Unit =
 
 fn serve(peer : String) : Unit receiving Msg =
     receive {
-        Square(n = n, reply = reply) -> {
+        Square(=n, =reply) -> {
             match Peer.spawn(peer, fn() = answer(reply, n * n), waitMs()) {
                 Right(_) -> Unit
               | Left(failure) -> Io.println(\"no spawn: \" <> Io.show(failure))
@@ -1887,7 +1887,7 @@ fn serve(peer : String) : Unit receiving Msg =
     }
 
 fn asked(service : Address(Msg), n : Int) : String =
-    Io.show(Address.call(service, fn(reply) = Square(n = n, reply = reply), waitMs()))
+    Io.show(Address.call(service, fn(reply) = Square(=n, =reply), waitMs()))
 
 // A process that faults, spawned here, and then a fault of its own.
 fn spawning() : Unit = {
@@ -3933,7 +3933,7 @@ attached_service(Base) ->
     Ms = wait_ms_text(),
     Asked = fun(Number) ->
                 ["Address.call(c, fn(reply) = Serve.Ask(number = ", Number,
-                 ", reply = reply), ", Ms, ")"]
+                 ", =reply), ", Ms, ")"]
             end,
     {First, _} = Attached = attached(One, "node", Base),
     true = port_command(First, [[Input, "\n"]
@@ -3947,7 +3947,7 @@ attached_service(Base) ->
     {Second, _} = Again = attached(Two, "node", Base),
     true = port_command(Second, [[Input, "\n"]
                                  || Input <- [["let held <- Address.call(Serve.holder, ",
-                                               "fn(reply) = Serve.Held(reply = reply), ", Ms,
+                                               "fn(reply) = Serve.Held(=reply), ", Ms,
                                                ")"],
                                               "let c <- held", Asked("6")]]),
     {SecondOut, _} = detached(Again, Two),
@@ -3963,7 +3963,7 @@ attached_service(Base) ->
 %% it is asked to its count, prints the count, and answers half of it.
 counting() ->
     "fn counting(total : Int) : Unit receiving Serve.ServerMsg = receive {"
-    " Serve.Ask(number = number, reply = reply) -> {"
+    " Serve.Ask(=number, =reply) -> {"
     " Io.println(\"counted \" <> Int.toString(total + number));"
     " answer(reply, halved(total + number)); counting(total + number) } }".
 
@@ -3987,7 +3987,7 @@ serve() ->
     "fn holding(held : Optional(Address(ServerMsg))) : Unit receiving HolderMsg =\n"
     "    receive {\n"
     "        Hold(address) -> holding(Some(address))\n"
-    "      | Held(reply = reply) -> {\n"
+    "      | Held(=reply) -> {\n"
     "            answer(reply, held);\n"
     "            holding(held)\n"
     "        }\n"
@@ -4045,7 +4045,7 @@ attached_functions(Base) ->
     prints(Node, "ready"),
     Ms = wait_ms_text(),
     Asked = fun(Address, Message) ->
-                ["Address.call(", Address, ", fn(reply) = Keep.", Message, "reply = reply), ", Ms,
+                ["Address.call(", Address, ", fn(reply) = Keep.", Message, "=reply), ", Ms,
                  ")"]
             end,
     {First, _} = Attached = attached(One, "node", Base),
@@ -4373,7 +4373,7 @@ keep() ->
     "\n"
     "export fn applying(f : (Int) -> Int) : Unit receiving Ask =\n"
     "    receive {\n"
-    "        Ask(number = number, reply = reply) -> {\n"
+    "        Ask(=number, =reply) -> {\n"
     "            answer(reply, f(number));\n"
     "            applying(f)\n"
     "        }\n"
@@ -4391,7 +4391,7 @@ keep() ->
     "\n"
     "fn holding() : Unit receiving HolderMsg =\n"
     "    receive {\n"
-    "        Hold(applied = applied, applying = applying, service = service) ->\n"
+    "        Hold(=applied, =applying, =service) ->\n"
     "            held(applied, #(applying, service))\n"
     "      | _ -> holding()\n"
     "    }\n"
@@ -4399,13 +4399,13 @@ keep() ->
     "fn held(applied : (Int) -> Int, servers : #(Address(Ask), Address(Ask))) : Unit\n"
     "    receiving HolderMsg =\n"
     "    receive {\n"
-    "        Hold(applied = again, applying = applying, service = service) ->\n"
+    "        Hold(applied = again, =applying, =service) ->\n"
     "            held(again, #(applying, service))\n"
-    "      | Apply(number = number, reply = reply) -> {\n"
+    "      | Apply(=number, =reply) -> {\n"
     "            answer(reply, applied(number));\n"
     "            held(applied, servers)\n"
     "        }\n"
-    "      | Servers(reply = reply) -> {\n"
+    "      | Servers(=reply) -> {\n"
     "            answer(reply, servers);\n"
     "            held(applied, servers)\n"
     "        }\n"
@@ -6682,11 +6682,11 @@ upgraded_builds(Base) ->
             "export fn count(total : Int) : Unit receiving CounterMsg =\n"
             "    receive {\n"
             "        Inc(amount) -> count(total + amount)\n"
-            "      | Get(reply = reply) -> {\n"
+            "      | Get(=reply) -> {\n"
             "            answer(reply, total);\n"
             "            count(total)\n"
             "        }\n"
-            "      | Upgrade(migrate = migrate, next = next) -> next(migrate(total))\n"
+            "      | Upgrade(=migrate, =next) -> next(migrate(total))\n"
             "    }\n"
             "\n"
             "// Report §6.10: what the counter's clients send, a type without\n"
@@ -6702,7 +6702,7 @@ upgraded_builds(Base) ->
             "    let _ = spawn(fn() = count(20));\n"
             "    let _ = Peer.offer(public, adapted(self(), fn(message) = match message {\n"
             "        Add(amount) -> Inc(amount)\n"
-            "      | Total(reply = reply) -> Get(reply = reply)\n"
+            "      | Total(=reply) -> Get(=reply)\n"
             "    }));\n"
             "    Io.println(\"serving\");\n"
             "    count(0)\n"
@@ -6715,11 +6715,11 @@ upgraded_builds(Base) ->
              "            Io.println(\"count2 \" <> Int.toString(total + amount));\n"
              "            count2(total + amount)\n"
              "        }\n"
-             "      | Get(reply = reply) -> {\n"
+             "      | Get(=reply) -> {\n"
              "            answer(reply, total);\n"
              "            count2(total)\n"
              "        }\n"
-             "      | Upgrade(migrate = migrate, next = next) -> next(migrate(total))\n"
+             "      | Upgrade(=migrate, =next) -> next(migrate(total))\n"
              "    }\n"
              "\n"
              "// Report §8.5, §11.1: a computed binding, which a bare node evaluates\n"
@@ -6750,7 +6750,7 @@ upgraded_builds(Base) ->
            "    match Peer.find(Counter.public, waitMs()) {\n"
            "        Right(counter) -> {\n"
            "            send(counter, Counter.Add(4));\n"
-           "            let asked = fn(reply) = Counter.Total(reply = reply);\n"
+           "            let asked = fn(reply) = Counter.Total(=reply);\n"
            "            let total = Address.call(counter, asked, waitMs());\n"
            "            Io.println(moment <> \": \" <> Io.show(total))\n"
            "        }\n"
@@ -6764,7 +6764,7 @@ upgraded_builds(Base) ->
            "    let tool = self();\n"
            "    match Peer.spawn(node, fn() = upgrade(tool), waitMs()) {\n"
            "        Right(_) -> receive {\n"
-           "            Moved(count = count, left = left) ->\n"
+           "            Moved(=count, =left) ->\n"
            "                Io.println(\"moved \" <> Int.toString(count) <> \", left \"\n"
            "                           <> Int.toString(left))\n"
            "        }\n"
@@ -6778,7 +6778,7 @@ upgraded_builds(Base) ->
            "        send(process, Counter.Upgrade(migrate = fn(n) = n, next = Counter.count2)));\n"
            "    List.forEach(old, fn(process) = send(process, Counter.Inc(1)));\n"
            "    let _ = List.map(old, fn(process) =\n"
-           "        Address.call(process, fn(reply) = Counter.Get(reply = reply), waitMs()));\n"
+           "        Address.call(process, fn(reply) = Counter.Get(=reply), waitMs()));\n"
            "    let left = Code.running(Counter.count);\n"
            "    send(tool, Moved(count = List.size(old), left = List.size(left)))\n"
            "}\n"

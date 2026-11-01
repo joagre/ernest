@@ -524,7 +524,7 @@ or `None` where none came within `ms` milliseconds.
 
 `request` is given a fresh `Reply` and builds the message that carries
 it: a constructor whose one field is the reply, `Get`, or a lambda,
-`fn(reply) = Add(amount = 5, reply = reply)`. The process that receives
+`fn(reply) = Add(amount = 5, =reply)`. The process that receives
 the message answers it with `answer`.
 
 `None` does not cancel the work: the process asked may still do it, and

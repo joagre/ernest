@@ -68,12 +68,7 @@ export fn main() : Unit receiving GameMsg = {
     // placed for the board they are on.
     let #(width, height) = board();
     let world =
-        World(width = width,
-              height = height,
-              players = Map.empty,
-              apples = [],
-              seed = Random.seed(42),
-              tick = 0);
+        World(=width, =height, players = Map.empty, apples = [], seed = Random.seed(42), tick = 0);
     let me = self();
     // report §12.1: the keys are the game's input, so the game begins once
     // the player has the terminal's keys, and without them the program
@@ -131,7 +126,7 @@ fn steering(id : Int, game : Address(GameMsg)) : Unit receiving Terminal.Event =
             send(game, Played(Leave(id)))
       | event -> {
             match directionOf(event) {
-                Some(direction) -> send(game, Played(Turn(id = id, direction = direction)))
+                Some(direction) -> send(game, Played(Turn(=id, =direction)))
               | None -> Unit
             };
             steering(id, game)
@@ -154,7 +149,7 @@ fn directionOf(event : Terminal.Event) : Optional(Direction) =
 fn board() : #(Int, Int) =
     match Terminal.size() {
         Left(_) -> #(40, 20)
-      | Right(Terminal.Size(rows = rows, columns = columns)) -> #(Int.min(columns, 80), rows - 2)
+      | Right(Terminal.Size(=rows, =columns)) -> #(Int.min(columns, 80), rows - 2)
     }
 
 //
@@ -168,14 +163,14 @@ fn step(world : World) : World = {
         match player {
             Player(alive = false) or Player(body = []) ->
                 #(acc, apples)
-          | Player(body = head :: rest, direction = direction, score = score) -> {
+          | Player(body = head :: rest, =direction, =score) -> {
                 let next = move(world.width, world.height, head, direction);
                 let ate = List.contains(apples, next);
                 let #(body, score1) = if ate then
                     #(next :: head :: rest, score + 1)
                 else
                     #(next :: head :: List.dropLast(rest, 1), score);
-                let moved = Player(..player, body = body, moved = direction, score = score1);
+                let moved = Player(..player, =body, moved = direction, score = score1);
                 #(Map.put(acc, player.id, moved), List.filter(apples, fn(apple) = apple != next))
             }
         };
@@ -187,7 +182,7 @@ fn step(world : World) : World = {
 
 fn applyInput(world : World, input : Input) : World =
     match input {
-        Turn(id = id, direction = direction) ->
+        Turn(=id, =direction) ->
             match Map.get(world.players, id) {
                 Some(player) ->
                     World(..world, players = Map.put(world.players, id, turn(player, direction)))
@@ -216,7 +211,7 @@ fn refill(world : World, wanted : Int) : World =
         world
     else match freePoint(world) {
         Some(#(point, seed)) ->
-            refill(World(..world, apples = point :: world.apples, seed = seed), wanted)
+            refill(World(..world, apples = point :: world.apples, =seed), wanted)
       | None ->
             world
     }
@@ -225,13 +220,13 @@ fn addPlayer(world : World, id : Int) : World =
     match freePoint(world) {
         Some(#(point, seed)) -> {
             let player =
-                Player(id = id,
+                Player(=id,
                        body = [point],
                        direction = East,
                        moved = East,
                        score = 0,
                        alive = true);
-            World(..world, players = Map.put(world.players, id, player), seed = seed)
+            World(..world, players = Map.put(world.players, id, player), =seed)
         }
       | None ->
             world
@@ -242,7 +237,7 @@ fn addPlayer(world : World, id : Int) : World =
 fn freePoint(world : World) : Optional(#(Point, Random.Seed)) = {
     let cells =
         List.flatMap(List.range(0, world.height - 1),
-                     fn(y) = List.map(List.range(0, world.width - 1), fn(x) = Point(x = x, y = y)));
+                     fn(y) = List.map(List.range(0, world.width - 1), fn(x) = Point(=x, =y)));
     match List.filter(cells, fn(point) = !taken(world, point)) {
         [] ->
             None
@@ -267,7 +262,7 @@ fn render(world : World) : String = {
 // A row of the board, a character for each of its cells.
 fn row(world : World, y : Int) : String =
     String.fromList(List.map(List.range(0, world.width - 1),
-                             fn(x) = cell(world.players, world.apples, Point(x = x, y = y))))
+                             fn(x) = cell(world.players, world.apples, Point(=x, =y))))
 
 fn cell(players : Map(Int, Player), apples : List(Point), point : Point) : Char =
     if List.any(Map.values(players), fn(player) = headOf(player) == Some(point)) then
@@ -303,12 +298,12 @@ fn headOf(player : Player) : Optional(Point) =
 // Small helpers
 //
 
-fn move(width : Int, height : Int, Point(x = x, y = y) : Point, direction : Direction) : Point =
+fn move(width : Int, height : Int, Point(=x, =y) : Point, direction : Direction) : Point =
     match direction {
-        North -> Point(x = x, y = (y + height - 1) % height)
-      | South -> Point(x = x, y = (y + 1) % height)
-      | West -> Point(x = (x + width - 1) % width, y = y)
-      | East -> Point(x = (x + 1) % width, y = y)
+        North -> Point(=x, y = (y + height - 1) % height)
+      | South -> Point(=x, y = (y + 1) % height)
+      | West -> Point(x = (x + width - 1) % width, =y)
+      | East -> Point(x = (x + 1) % width, =y)
     }
 
 // No U-turn: a turn may not reverse the last move, which two turns within
@@ -316,7 +311,7 @@ fn move(width : Int, height : Int, Point(x = x, y = y) : Point, direction : Dire
 fn turn(player : Player, direction : Direction) : Player =
     match #(player.moved, direction) {
         #(North, South) or #(South, North) or #(West, East) or #(East, West) -> player
-      | _ -> Player(..player, direction = direction)
+      | _ -> Player(..player, =direction)
     }
 
 fn tailOf(player : Player) : List(Point) =
@@ -347,7 +342,7 @@ let applesOnFreeCells =
                   let body = [Point(x = 0, y = 0), Point(x = 1, y = 0), Point(x = 0, y = 1)];
                   let player =
                       Player(id = 1,
-                             body = body,
+                             =body,
                              direction = East,
                              moved = East,
                              score = 0,
