@@ -20,63 +20,12 @@ built (the log's *The Release Review Before 0.7.0* and the entries its row names
 stability is made, and a change to the language, the standard library or the libraries is driven
 by a need met in use and recorded as `docs/language_feedback.md` records one.
 
-Next is the pun; then ernest-httpd, the website and the shell's second round (the log's *The Road
-to 1.0, Ordered*), and MVP 4.4 last, the promise, the cost, the full review and Ernest 1.0, where
+The pun is done, with what its day decided beside it: a `receive` always receives, an alarm can
+be canceled, and the checkout works toward 0.8.0. Next is ernest-httpd, then the website and the
+shell's second round (the log's *The Road to 1.0, Ordered*), and MVP 4.4 last, the promise, the cost, the full review and Ernest 1.0, where
 the road ends and a program begins (the log's *MVP 4.4, the Road's End*); the back end to BEAM's own instructions that closed the road is not built,
 decided 2026-10-30 (the log's *No Back End to BEAM's Own Instructions*). A finished milestone is a
 row of the table at the end, its reasons in the log entries the row names.
-
----
-
-## The pun (`Desk(=local)`), a day, next
-
-A field given or matched by the variable of its own name is written once, `Desk(=local, =size)`
-for `Desk(local = local, size = size)`, in a construction and in a pattern alike, decided with the
-user on 2026-10-30 (the log's *The Pun*): the repository's own Ernest writes the pair at 190
-sites. The mark is the pair's own `=` with the repeated name left out; the log weighs the bare
-name, which Ernest's parentheses make a call, the dot, and the marks other languages chose.
-
-1. **The report first**, done 2026-11-01 (the log's *The Pun*, with its cold read's lines): Appendix
-   A's `FieldSet`, `UpdateSet` and `FieldPat`, §5.6, §5.10, principle 2's sentence and Appendix F.
-2. **The parser and the checker**, done 2026-11-01 (the log's *The Pun*, *Built*): `=f` read as
-   `f = f`, the emitter untouched, `Some(=x)` refused with the positional refusal's text.
-3. **The sweep**, done 2026-11-01 (the log's *The Pun*, *Swept*): 874 fields in 79 files, the style
-   guide's rule, and the style test refusing the pair from then on; `ern format` leaves it to the
-   writer (*The Pun's Opening Round*).
-4. **The programs outside**: the pun needs the release that carries it, so ernest-template's
-   floor rises to that release, and each copy's by hand, ernest-epx's and ernest-httpd's, as the
-   template's memory of copies says; ernest-epx's Ernest is swept as item 3 sweeps this
-   repository's, every `Foo(line = line)` written `Foo(=line)`, and ernest-httpd's where it has
-   any; and each rewrites a `receive` with `after` alone to `Clock.sleep`, and an alarm it ignores
-   to `let _ = Clock.alarm(...)`.
-5. **`make version V=x.y.z`**, done 2026-11-01 (the log's *`make version`, Appendix D Whole, the
-   Settler's Restart*): after a tag the release step runs it to the next minor at once, so the
-   checkout says `0.8.0-dev` while 0.7.0 is the latest release.
-6. **Appendix D writes out `libs/ets` whole**, done 2026-11-01 (the same entry), a test holding
-   D's code to the source from then on.
-7. **The settler's restart case tested**, done 2026-11-01 (the same entry); E.28 gained that what
-   a load's undoing kills has ended before the load answers or the caller goes on.
-8. **The guides' lines of the release review read**, done 2026-11-01 (the log's *The Guide's
-   Lines After the Release Review*): 22 lines, 15 made at once and the rest decided there.
-9. **The shell's `session_names` test**, red once under the full run's load, done 2026-11-01 with
-   item 3 (the log's *The Pun*, *Swept*): it asks `:processes` once both processes are receiving.
-10. **Five fixed sleeps in the tests with no reason beside them**, done 2026-11-01 with item 3 (the
-   same paragraph): three became waits on what they mean, two keep their time with its reason.
-
-The round that opened the milestone on 2026-10-31 decided the formatter's answer and the ten lines
-of `language_feedback.md` open that day, so that the milestone closes with the file empty (the
-log's *The Pun's Opening Round*). Three are built before item 1, each with a test citing its
-section: a `receive` guard's operand may be a field selected from a variable in scope (§6.3), the
-help line that named a `let` before the `receive` going; a `receive` with an `after` clause alone
-makes no function process-only (§3.9), the checker's mark changing and every `receiving e` written
-on a timed wait, which §4.5 now refuses, swept from the repository's Ernest; and the shell's line at
-a binding's end names the site alone, `Tcp.listen ended with l` (§11.2). The seven others are kept
-or dropped in the entry.
-
-Two more were decided on 2026-11-01 while the round was built, and built before item 2: a
-`receive` always receives, `Clock.sleep(ms)` the one wait for a time (§6.3, §6.8, Appendix E.15;
-the log's *A `receive` Always Receives*), and an alarm can be canceled (Appendix E.15; the log's
-*An Alarm Can Be Canceled*).
 
 ---
 
@@ -285,6 +234,7 @@ the website and the operator's prompt have used. After 1.0 the road is a program
 | MVP 3.95 | what the review and 0.5.0 left: the release review read back, a restart told across nodes by the runtime's own frames, the harness counting a test's steps, the review round's method with an owner, the site proposal's sitting, the first fault's cost measured, the member regime's missing test, the teller's late delivery closed, dialyzer in the full run, and Ernest 0.6.0, the protocol's version moved | 2026-10-25 | tag `v0.6.0` | *The Release Review Read Back*, *A Restart Told Across Nodes*, *A Restart Told Across Nodes, Built*, *The Report's Readers Read the Diff*, *The Teller's Late Delivery*, *The Teller's Late Delivery, Built*, *The Harness Counts a Test's Steps*, *The First Fault's Cost*, *The Review's Decisions*, *A Member Has One Face*, *The Report Pared After 0.6.0*, *The Release Review Before 0.6.0*; `findings.md` as it stood at `c6eab569` |
 | MVP 3.96 | the report pared to the language, `language.md` holding what decides what a program means and the runtime's mechanism chapter 12 of `toolchain.md`, and what the paring found: the build's cost per function linear, one function per initializer, the nested group's third restart, the newcomer's feedback decided, the second cut to E.27, the comments' paragraphs, the emitter's calls as the host's, `<-` at the prompt and `Test.until` | 2026-10-30 | | *The Report Pared After 0.6.0*, *The Report Pared, Built*, *The Build's Cost per Function*, *One Function per Initializer*, *The Nested Group's Third Restart*, *What the Newcomer's Feedback Left*, *The Second Cut, §8.7 to E.27*, *The Comments' Paragraphs*, *The Emitter's Calls Against the Host's, Built*, *Small Library Functions Stay Calls*, *`<-` at the Prompt*, *`Test.until`, Built* |
 | MVP 4.0 | a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches, its proposal `docs/proposals/shell/attached.md` as it stood at `facbd285`; and the release review before 0.7.0, eight readers over what changed since 0.6.0, its fix lines and its eight batches decided and built | 2026-10-31 | tag `v0.7.0` | *The Attached Shell's Cut*, *The Attached Shell's Sentences*, *The Session's Screen and the Toolchain's Units, Built*, *The Attached Shell, Built*, *The Guides Over the Attached Shell*, *The Attached Shell, Tested*, *The End's Lines Reach the Screen*, *A Line-Mode Input's Cost*, *The Attached Shell's Last Row*, *The Attached Shell's Own Node, Quiet*, *An Expression's One Unit, and an Input's Cost Flat*, *The Detach Keeps What Declares a Function*, *The Release Review Before 0.7.0*, *The Release Review's Code Fixes*, *The Argument's Four Decisions*, *Sites, Sessions and Their Names*, *The Input's Process*, *One Word to Leave*, *The Shell's Own Node*, *Reload, Services and Tests*, *The Library's Lines*, *The Claims, the README and the Tour* |
+| The pun | a field given or matched by the variable of its own name written once, `Desk(=local)`, swept over 874 sites with the style test holding it; the round that opened it, ten feedback lines decided and three rules built, a guard's field read, the shell's line by site, and the timed wait's effect, superseded the same day by a `receive` that always receives and `Clock.sleep`; an alarm that can be canceled; `make version`, Appendix D whole, the settler's restart tested, the guide's lines after the release review read; the three outside programs on floor 0.8 | 2026-11-01 | the release after 0.7.0 | *The Pun*, *The Pun's Opening Round*, *A `receive` Always Receives*, *An Alarm Can Be Canceled*, *`make version`, Appendix D Whole, the Settler's Restart*, *The Guide's Lines After the Release Review* |
 | MVP 4.1 | ernest-httpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | | | above |
 | MVP 4.2 | the website, served by ernest-httpd: what Ernest is, its characteristics, the three doors, and a live shell in the browser | | | above |
 | MVP 4.3 | the shell's second round | | | above |
