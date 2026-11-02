@@ -3742,9 +3742,10 @@ changed_shell(Base, What, Old, New) ->
 %% Report §12.5, §12.7: a release of `ern` made in Dir from this tree, and
 %% its launcher: the tree's code, the runtime's helper, the standard
 %% library and the libraries copied as they stand, the shell's build from
-%% Shell, and `ern_release` compiled again without the mark `-dev`, as the
-%% release archive compiles it (tools/install.sh), so that its version
-%% text is VERSION's alone and it stands on a release's floor.
+%% Shell, and `ern_release` compiled again with an empty mark in place of
+%% `-dev`, as the release archive compiles it at the release's tag
+%% (tools/install.sh), so that its version text is VERSION's alone and it
+%% stands on a release's floor.
 released(Dir, Shell) ->
     Tree = ern_tree:tree(),
     Copies = [{filename:join(Tree, File), filename:join(Dir, File)}
@@ -3762,6 +3763,7 @@ released(Dir, Shell) ->
     {ok, Version} = file:read_file(filename:join(Tree, "VERSION")),
     {ok, ern_release} = compile:file(filename:join(Tree, "erl/cli/src/ern_release"),
                                      [{d, 'VERSION', string:trim(binary_to_list(Version))},
+                                      {d, 'MARK', ""},
                                       {outdir, filename:join(Dir, "erl/cli/ebin")}, report]),
     filename:join([Dir, "bin", "ern"]).
 

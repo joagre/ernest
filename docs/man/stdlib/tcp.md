@@ -144,8 +144,10 @@ type Verification = Verified(Path) | Unverified
 *Since 0.9.0.*
 
 Whether `connectTls` checks the far end's certificate: `Verified(file)`
-checks it against the certificates of the file, in PEM, and for naming the
-host connected to, and `Unverified` checks nothing.
+checks it against the certificates of the file, in PEM, passing where its
+chain leads to one the file holds or where the file holds the far end's own
+certificate, self-signed or not, and for naming the host connected to;
+`Unverified` checks nothing.
 
 ### Examples
 
@@ -268,8 +270,10 @@ leaves the handshake under way. A handshake that fails closes the
 connection: the read or write waiting answers `Left(Other(text))`, in the
 host's words, and each later one `Left(Closed)`.
 
-It answers `Left(Other(text))` where the host cannot read or refuses the
-certificate or the key, in its words, and otherwise as `listen` does.
+It answers `Left(NotFound)` or `Left(Denied)` for a file it cannot read, as
+`Fs` does, `Left(Other(text))` for one it refuses, the file's name and what
+is wrong on one line, `cert.pem: no certificate`, `key.pem: not one key`,
+and otherwise as `listen` does.
 
 ### Examples
 
@@ -298,11 +302,14 @@ Tcp.connectTls(host : String, port : Int, verification : Verification, ms : Int)
 Connects over TLS to `port` on `host`, within `ms` milliseconds, and
 answers the socket once its handshake is done, as `connect` does.
 `verification` says whether the far end's certificate is checked:
-`Verified(file)` checks it against the certificates of the file and for
-naming `host`, and `Unverified` checks nothing.
+`Verified(file)` checks it against the certificates of the file, a chain
+leading to one the file holds or the far end's own certificate held there,
+and for naming `host`; `Unverified` checks nothing.
 
 It answers `Left(Other(text))` where the handshake fails, a check of the
-certificate among it, in the host's words, and otherwise as `connect` does:
+certificate among it, in the host's words, for a file of certificates it
+cannot read or refuses what `listenTls` answers for its files, and otherwise
+as `connect` does:
 `Left(Timeout)` where the connection and its handshake are not done in time,
 and `Left(Refused)` where nothing listens there.
 

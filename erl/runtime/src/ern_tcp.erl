@@ -261,7 +261,7 @@ connect(Tcp, Host, Port, Kind, Deadline, Owner, Reply) ->
 connecting(plain, _) ->
     {gen_tcp, <<"Tcp.connect">>, []};
 connecting({tls, Verification}, Host) ->
-    Options = case verification(Verification) of
+    Options = case verification(Verification, Host) of
                   invalid -> invalid;
                   Checked -> Checked ++ server_name(Host)
               end,
@@ -275,17 +275,65 @@ connecting({tls, Verification}, Host) ->
 %% `www.example.test`, as the host's match for HTTPS reads one, where the
 %% host's own match takes a name only as written. `Unverified` checks
 %% nothing.
-verification({'Verified', {'Path', Certificates}}) ->
+verification({'Verified', {'Path', Certificates}}, Host) ->
     case file_name(Certificates) of
         invalid ->
             invalid;
         CertificatesFile ->
-            Wildcards = public_key:pkix_verify_hostname_match_fun(https),
             [{verify, verify_peer}, {cacertfile, CertificatesFile},
-             {customize_hostname_check, [{match_fun, Wildcards}]}]
+             {verify_fun, {fun verify/4, {CertificatesFile, reference(Host)}}},
+             {customize_hostname_check, [{match_fun, wildcards()}]}]
     end;
-verification('Unverified') ->
+verification('Unverified', _) ->
     [{verify, verify_none}].
+
+%% Report Appendix E.18: the check of each certificate of the far end's
+%% chain, the host's own under verify_peer but for a self-signed far end,
+%% which the host refuses before it looks in the file, a chain of one
+%% being no chain to a certificate there, and whose name the host leaves
+%% unchecked once it is taken: one whose certificate the file holds, as
+%% sent, and names the host connected to, as the host's own check reads
+%% a name, is taken, as a chain that leads to one the file holds is. The
+%% file is read here on that path alone, so that the ordinary path costs
+%% nothing more.
+verify(OtpCert, Der, {bad_cert, selfsigned_peer}, {File, Reference} = State) ->
+    case holds(File, Der) of
+        true ->
+            case public_key:pkix_verify_hostname(OtpCert, Reference, [{match_fun, wildcards()}]) of
+                true -> {valid, State};
+                false -> {fail, {bad_cert, hostname_check_failed}}
+            end;
+        false ->
+            {fail, {bad_cert, selfsigned_peer}}
+    end;
+verify(_, _, {bad_cert, _} = Reason, _) ->
+    {fail, Reason};
+verify(_, _, {extension, _}, State) ->
+    {unknown, State};
+verify(_, _, valid, State) ->
+    {valid, State};
+verify(_, _, valid_peer, State) ->
+    {valid, State}.
+
+%% The host connected to, as a certificate is checked for naming it: an
+%% address as one, and a name as written, its trailing dots left out.
+reference(Host) ->
+    Name = unicode:characters_to_list(Host),
+    case inet:parse_address(Name) of
+        {ok, IpAddress} -> [{ip, IpAddress}];
+        {error, _} -> [{dns_id, string:trim(Name, trailing, ".")}]
+    end.
+
+%% A certificate's wildcard read as the host's match for HTTPS reads one.
+wildcards() ->
+    public_key:pkix_verify_hostname_match_fun(https).
+
+%% Whether the file of certificates holds the certificate, as sent.
+holds(File, Der) ->
+    case file:read_file(File) of
+        {ok, Pem} -> lists:member({'Certificate', Der, not_encrypted}, public_key:pem_decode(Pem));
+        {error, _} -> false
+    end.
 
 %% Report Appendix E.18: the host's name the far end is told and its
 %% certificate checked for, the name as given, its trailing dots left out,
@@ -743,9 +791,10 @@ endpoint(_, Ask) ->
 %% Report Appendix E.1, E.18: Io.Error for what the host's sockets answer, a
 %% code by its constructor or in the host's words, and for what the host's
 %% ssl answers of its own, a file it cannot read, an option it refuses or
-%% an alert, in its words. A certificate or key that listenTls cannot read
-%% is described in ssl's words for any option it refuses, with the file
-%% and the code as Erlang writes them (docs/otp_bugs.md, 9). An alert's
+%% an alert, in its words. A certificate, a key or a CA file the host
+%% cannot read or refuses is read from the option the host names, since
+%% its words for it are the term (file_error/2, docs/otp_bugs.md, 9). An
+%% alert's
 %% words end in a line feed, which ends the host's report of it and no
 %% part of the reason, so the white space that ends ssl's text is left
 %% out, and the rest kept as the host writes it, its line feeds within.
@@ -753,5 +802,35 @@ io_error(_, closed) -> 'Closed';
 io_error(_, etimedout) -> 'Timeout';
 io_error(gen_tcp, Error) -> ern_io:host_error(Error, fun inet:format_error/1);
 io_error(ssl, Error) when is_atom(Error) -> ern_io:host_error(Error, fun inet:format_error/1);
+io_error(ssl, {options, {Option, {File, Reason}}})
+  when Option =:= certfile; Option =:= keyfile; Option =:= cacertfile ->
+    file_error(File, Reason);
+io_error(ssl, {options, {Option, File, Reason}})
+  when Option =:= certfile; Option =:= keyfile; Option =:= cacertfile ->
+    file_error(File, Reason);
 io_error(ssl, Error) ->
     {'Other', unicode:characters_to_binary(string:trim(ssl:format_error(Error), trailing))}.
+
+%% Report Appendix E.1, E.18: a certificate's, a key's or a CA file's
+%% failure, answered for a file the host cannot read as Fs answers the
+%% path, by the host's code, and for one it refuses as Other(text), the
+%% file's name and what is wrong on one line: Ernest's words for the
+%% reasons the host names, and else the host's reason as it writes it.
+file_error(File, {error, Reason}) ->
+    file_error(File, Reason);
+file_error(File, no_certs) ->
+    file_other(File, "no certificate");
+file_error(File, {unexpected_content, {missing_single_key, _}}) ->
+    file_other(File, "not one key");
+file_error(File, {unexpected_content, _}) ->
+    file_other(File, "not a key");
+file_error(File, Reason) when is_atom(Reason) ->
+    case ern_io:host_error(Reason, fun file:format_error/1) of
+        {'Other', Text} -> file_other(File, Text);
+        Named -> Named
+    end;
+file_error(File, Reason) ->
+    file_other(File, io_lib:format("~0p", [Reason])).
+
+file_other(File, Text) ->
+    {'Other', unicode:characters_to_binary([File, ": ", Text])}.

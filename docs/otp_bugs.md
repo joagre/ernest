@@ -367,7 +367,7 @@ Found by measuring a shell that compiles each input to a module of its own and p
 
 ## 9. `ssl:format_error` does not describe the file errors `ssl:listen` returns
 
-Not filed. Found on 2026-11-01, building TLS in `Tcp` (the log's *TLS in `Tcp` and a Terminal in `Os`*); `erl/runtime/src/ern_tcp.erl`'s `io_error/2` says how Ernest meets it.
+Not filed. Found on 2026-11-01, building TLS in `Tcp` (the log's *TLS in `Tcp` and a Terminal in `Os`*); `erl/runtime/src/ern_tcp.erl`'s `file_error/2` reads the file and the reason from the term instead (the log's *Two Lines on TLS*).
 
 **Title:** ssl:format_error/1 gives "Invalid TLS option" for a certfile or keyfile ssl:listen cannot read
 

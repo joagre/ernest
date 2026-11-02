@@ -16,7 +16,7 @@ Such an archive says what it was made from: `ern --version` prints the version, 
 
 ## The lines
 
-What the application meets of Ernest's that feels against a principle, a workaround, a second way, something invisible, a function the library lacks, a defect, is a line of the application's own `docs/language_feedback.md`: the finding, the program that shows it, kept under its session's scratchpad, the principle, and the ask. The lines are numbered there from 1 and kept until Ernest answers. Ernest's session reads that file and never writes it.
+What the application meets of Ernest's that feels against a principle, a workaround, a second way, something invisible, a function the library lacks, a defect, is a line of the application's own `docs/language_feedback.md`: the finding, the program that shows it, kept under its session's scratchpad, the principle, and the ask. The lines are numbered there from 1 and on across every round, a number never used twice, so that a citation of a line stays unique, and each is kept until Ernest answers. Ernest's session reads that file and never writes it.
 
 ## The reading here
 

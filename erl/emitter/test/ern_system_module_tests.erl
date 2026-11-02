@@ -440,8 +440,8 @@ socket_owner_test() ->
 %% report Appendix E.18: over TLS from Ernest, `listenTls` and `connectTls`
 %% answer the addresses `listen` and `connect` answer, which `accept`,
 %% `port`, `read`, `write` and `close` take, each opened at its function's
-%% site; a key the host cannot read answers `Left(Other(text))`, and a
-%% `connectTls` where nothing listens `Left(Refused)`. Written after the
+%% site; a missing key answers `Left(NotFound)`, as `Fs` answers the path,
+%% and a `connectTls` where nothing listens `Left(Refused)`. Written after the
 %% code, a regression test of the requests the module sends TCP's process;
 %% the cases of the runtime's own are ern_tcp_tests'
 tcp_tls_test() ->
@@ -486,7 +486,7 @@ tcp_tls_test() ->
          "    Io.println(refused(Tcp.connectTls(\"127.0.0.1\", 1, Tcp.Unverified, 1000)))\n"
          "}\n"]),
     ?assertEqual(<<"Right(#(<<112, 105, 110, 103>>, [\"Tcp.listenTls\", \"Tcp.connectTls\"]))\n"
-                   "other\nRefused\n">>, Output).
+                   "NotFound\nRefused\n">>, Output).
 
 %% Appendix E.18, E.21, E.23: a listener, a socket and a running program are
 %% processes of the program's: Process.live lists them, and Process.status

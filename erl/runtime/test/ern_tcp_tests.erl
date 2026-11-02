@@ -959,13 +959,17 @@ tls_slow_handshake_test() ->
     ?assertEqual({'Left', 'Timeout'}, wait(first)),
     ?assertEqual({'Right', <<"slow">>}, wait(first_later)).
 
-%% report Appendix E.1, E.18: `listenTls` answers `Left(Other(text))`, the
-%% host's reason, where the host cannot read the certificate or the key,
-%% a file missing or one it may not read, or refuses what it reads, and
-%% `Left(Invalid)` for a path that holds U+0000. Written after the code, a
-%% regression test; it does not cover a key that does not match its
+%% report Appendix E.1, E.18: `listenTls` answers a certificate or key
+%% file the host cannot read as `Fs` answers the path, `Left(NotFound)`
+%% for one missing and `Left(Denied)` for one it may not read; one the
+%% host refuses `Left(Other(text))`, the file's name and what is wrong on
+%% one line, `not one key` for a file with no key in it and `no
+%% certificate` for one with no certificate; and `Left(Invalid)` for a
+%% path that holds U+0000. A regression test: the host's term stood in
+%% `Other(text)`, pretty-printed over two lines, and a missing file was
+%% not `NotFound`. It does not cover a key that does not match its
 %% certificate, which the host takes as it listens and refuses at each
-%% handshake
+%% handshake, nor a key of a kind the host does not take, `not a key`
 listen_tls_refused_test() ->
     #{dir := Dir, server := {Certificate, Key}} = pki(),
     Unreadable = filename:join(Dir, "unreadable.key"),
@@ -973,24 +977,34 @@ listen_tls_refused_test() ->
     ok = file:change_mode(Unreadable, 8#000),
     Garbage = filename:join(Dir, "garbage.key"),
     ok = file:write_file(Garbage, <<"no key here\n">>),
+    Empty = filename:join(Dir, "empty.pem"),
+    ok = file:write_file(Empty, <<>>),
     Self = self(),
     ok = quietly(
            fun() ->
                Self ! {listened,
-                       [side_of(listen_tls(0, {Certificate, Missing}))
+                       [listen_tls(0, {Certificate, Missing})
                         || Missing <- [filename:join(Dir, "missing.key"), Unreadable, Garbage]]
-                       ++ [side_of(listen_tls(0, {filename:join(Dir, "missing.pem"), Key})),
+                       ++ [listen_tls(0, {filename:join(Dir, "missing.pem"), Key}),
+                           listen_tls(0, {Empty, Key}),
                            listen_tls(0, {Certificate, Key ++ [0]})]}
            end),
-    ?assertEqual([other, other, other, other, {'Left', 'Invalid'}], wait(listened)).
+    ?assertEqual([{'Left', 'NotFound'},
+                  {'Left', 'Denied'},
+                  {'Left', {'Other', list_to_binary(Garbage ++ ": not one key")}},
+                  {'Left', 'NotFound'},
+                  {'Left', {'Other', list_to_binary(Empty ++ ": no certificate")}},
+                  {'Left', 'Invalid'}],
+                 wait(listened)).
 
 %% report Appendix E.18: `connectTls` to a port where nothing listens
 %% answers `Left(Refused)`, as `connect` does; to one whose far end does
-%% not shake hands within its milliseconds `Left(Timeout)`; and a file of
-%% certificates whose path holds U+0000 `Left(Invalid)`. Written after the
-%% code, a regression test
+%% not shake hands within its milliseconds `Left(Timeout)`; a file of
+%% certificates whose path holds U+0000 `Left(Invalid)`; and one that is
+%% missing `Left(NotFound)`, as `listenTls`'s files answer. Written after
+%% the code, a regression test
 connect_tls_refused_test() ->
-    #{ca := Ca} = pki(),
+    #{ca := Ca, dir := Dir} = pki(),
     {ok, Held} = gen_tcp:listen(0, [{ip, {127, 0, 0, 1}}]),
     {ok, Closed} = inet:port(Held),
     ok = gen_tcp:close(Held),
@@ -1003,12 +1017,50 @@ connect_tls_refused_test() ->
                Self ! {refused, connect_tls(<<"127.0.0.1">>, Closed, verified(Ca), 2000)},
                Self ! {timeout, connect_tls(<<"127.0.0.1">>, SilentPort, 'Unverified', 100)},
                Self ! {invalid, connect_tls(<<"127.0.0.1">>, SilentPort,
-                                            verified(Ca ++ [0]), 2000)}
+                                            verified(Ca ++ [0]), 2000)},
+               Self ! {missing, connect_tls(<<"127.0.0.1">>, SilentPort,
+                                            verified(filename:join(Dir, "missing_ca.pem")),
+                                            2000)}
            end),
     gen_tcp:close(Silent),
     ?assertEqual({'Left', 'Refused'}, wait(refused)),
     ?assertEqual({'Left', 'Timeout'}, wait(timeout)),
-    ?assertEqual({'Left', 'Invalid'}, wait(invalid)).
+    ?assertEqual({'Left', 'Invalid'}, wait(invalid)),
+    ?assertEqual({'Left', 'NotFound'}, wait(missing)).
+
+%% report Appendix E.18: `Verified` takes a far end whose own certificate
+%% the file holds, self-signed, a CA or not, as it takes one whose chain
+%% leads to a certificate the file holds; the host alone refuses every
+%% self-signed far end before it looks in the file. The name is checked
+%% still, and a self-signed certificate the file does not hold is
+%% refused. Written with the code, a regression test
+tls_verified_takes_a_held_certificate_test() ->
+    #{ca := Ca, self_signed := {Held, _} = SelfSigned, self_signed_leaf := {HeldLeaf, _} = Leaf,
+      self_signed_elsewhere := {Elsewhere, _} = SelfElsewhere} = pki(),
+    Self = self(),
+    ok = quietly(
+           fun() ->
+               Self ! {held, side(connected(SelfSigned, <<"localhost">>, verified(Held)))},
+               Self ! {by_address, side(connected(SelfSigned, <<"127.0.0.1">>, verified(Held)))},
+               Self ! {leaf, side(connected(Leaf, <<"localhost">>, verified(HeldLeaf)))},
+               Self ! {not_held, connected(SelfSigned, <<"localhost">>, verified(Ca))},
+               Self ! {elsewhere, connected(SelfElsewhere, <<"localhost">>, verified(Elsewhere))}
+           end),
+    ?assertEqual('Right', wait(held)),
+    ?assertEqual('Right', wait(by_address)),
+    ?assertEqual('Right', wait(leaf)),
+    ?assertMatch({'Left', {'Other', _}}, wait(not_held)),
+    ?assertMatch({'Left', {'Other', _}}, wait(elsewhere)).
+
+%% A connectTls to a listener over the server's files, which accepts once,
+%% and what it answers.
+connected(Server, Host, Verification) ->
+    {'Right', Listener} = listen_tls(0, Server),
+    {'Right', Port} = port(Listener),
+    Acceptor = spawn(fun() -> accepting(Listener, 1) end),
+    Answer = connect_tls(Host, Port, Verification, 5000),
+    Acceptor ! done,
+    Answer.
 
 %% report Appendix E.18: a listener holds the host's backlog, 5, which the
 %% host gives a listen that names none, over TCP and over TLS alike. The
@@ -1141,7 +1193,10 @@ accepting(Listener, Count) ->
 %% chain of one intermediate after it, with their keys, which `ca` signed:
 %% `server`, which names localhost by name and by address, `elsewhere`,
 %% which names another host, and `wildcard`, which names the hosts under
-%% example.test through a wildcard.
+%% example.test through a wildcard; and three self-signed certificates,
+%% each a file of its own with its key: `self_signed`, a CA naming
+%% localhost by name and by address, `self_signed_leaf`, no CA, naming
+%% localhost, and `self_signed_elsewhere`, naming another host.
 -spec pki() -> #{atom() => term()}.
 pki() ->
     Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
@@ -1156,7 +1211,24 @@ pki() ->
       server => server(Dir, "server", Root, [{dNSName, "localhost"},
                                              {iPAddress, <<127, 0, 0, 1>>}]),
       elsewhere => server(Dir, "elsewhere", Root, [{dNSName, "elsewhere.example"}]),
-      wildcard => server(Dir, "wildcard", Root, [{dNSName, "*.example.test"}])}.
+      wildcard => server(Dir, "wildcard", Root, [{dNSName, "*.example.test"}]),
+      self_signed => self_signed(Dir, "self_signed", true,
+                                 [{dNSName, "localhost"}, {iPAddress, <<127, 0, 0, 1>>}]),
+      self_signed_leaf => self_signed(Dir, "self_signed_leaf", false, [{dNSName, "localhost"}]),
+      self_signed_elsewhere => self_signed(Dir, "self_signed_elsewhere", true,
+                                          [{dNSName, "elsewhere.example"}])}.
+
+%% A self-signed certificate's file and its key's, the certificate naming
+%% AltNames, a CA where Ca is true and an end entity otherwise.
+self_signed(Dir, Name, Ca, AltNames) ->
+    Names = #'Extension'{extnID = ?'id-ce-subjectAltName', critical = false,
+                         extnValue = AltNames},
+    Constraints = #'Extension'{extnID = ?'id-ce-basicConstraints', critical = true,
+                               extnValue = #'BasicConstraints'{cA = Ca}},
+    #{cert := Certificate, key := Key} =
+        public_key:pkix_test_root_cert(Name, [{extensions, [Names, Constraints]} | key_options()]),
+    {pem(Dir, Name ++ ".pem", [Certificate]),
+     pem_entries(Dir, Name ++ ".key", [public_key:pem_entry_encode(element(1, Key), Key)])}.
 
 %% A server's certificate file, its intermediate after it, and its key's
 %% file, its certificate naming AltNames.
@@ -1199,10 +1271,6 @@ quiet_host(Work) ->
     after
         logger:set_handler_config(default, level, Level)
     end.
-
-%% Which side of an Either a result is, `other` for a Left(Other(_)).
-side_of({'Left', {'Other', _}}) -> other;
-side_of(Either) -> Either.
 
 listen_tls(Port, {Certificate, Key}) ->
     Owner = self(),
