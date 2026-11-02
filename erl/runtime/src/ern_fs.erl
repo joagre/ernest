@@ -54,6 +54,7 @@ handle({'ListEntries', Path, Reply}) ->
     answer(Reply, case file:list_dir_all(Dir) of
                       {ok, Names} ->
                           named_entries(Dir, lists:sort(lists:map(fun name_bytes/1, Names)));
+                      {error, enotdir} -> not_directory(Dir);
                       Error -> Error
                   end);
 handle({'Stat', Path, Reply}) ->
@@ -205,6 +206,15 @@ appendable(Text, Then) ->
     case file:read_file_info(Text, [raw]) of
         {ok, #file_info{type = device}} -> Then();
         _ -> regular_or_none(Text, Then)
+    end.
+
+%% Report Appendix E.17: the host says "not a directory" of a path that
+%% names a regular file and of one that leads through it; the first names
+%% something list does not work on, the second leads to nothing.
+not_directory(Dir) ->
+    case file:read_file_info(Dir, [raw]) of
+        {ok, _} -> {error, not_regular};
+        _ -> {error, enotdir}
     end.
 
 %% Every answer is Right(v) or Left(Io.Error).

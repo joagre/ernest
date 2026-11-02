@@ -4,8 +4,9 @@
 
 TCP connections: listening for them, making them, and moving their bytes.
 
-Use `listen` and `accept` to serve connections, and `connect` to make one.
-`read` and `write` move bytes over a connection, and `close` ends it. A
+Use `listen` and `accept` to serve connections, and `connect` to make one;
+`listenTls` and `connectTls` listen and connect over TLS. `read` and `write`
+move bytes over a connection, and `close` ends it, over TLS or not. A
 connection carries bytes, and a program frames its messages with bitstrings
 (report §5.11); there are no socket options.
 
@@ -19,7 +20,7 @@ when its owner dies. Ownership decides only that: any process that holds the
 address may read, write and close it. `give` hands a socket to another
 process, so that it dies with that one instead, as an accepting loop gives
 each socket to the process that serves it. A listener belongs to the process
-that called `listen`.
+that called `listen` or `listenTls`.
 
 **A connection that closes, and a socket that ends.** When the far end
 closes the connection, or the network fails, the socket lives on: each read
@@ -33,6 +34,12 @@ faults.
 that waits is the milliseconds it waits. A read, an accept or a connect that
 times out has taken nothing, so bytes that arrive later wait for the next
 read (report Appendix E.18).
+
+**TLS.** A listener over TLS serves a certificate and its key, files in PEM.
+A socket `accept` answers on it shakes hands as it is first read or written,
+and one `connectTls` answers has shaken hands, the far end's certificate
+checked where `Verified` asks it. The versions and the ciphers are the
+host's own, TLS 1.2 and 1.3 (report Appendix E.18).
 
 ## Examples
 
@@ -128,6 +135,25 @@ Tcp.Endpoint(host = "127.0.0.1", port = 7000).port
 // => 7000
 ```
 
+## Tcp.Verification
+
+```ernest
+type Verification = Verified(Path) | Unverified
+```
+
+*Since 0.9.0.*
+
+Whether `connectTls` checks the far end's certificate: `Verified(file)`
+checks it against the certificates of the file, in PEM, and for naming the
+host connected to, and `Unverified` checks nothing.
+
+### Examples
+
+```ernest
+Tcp.Verified(Path("/etc/ssl/certs/ca-certificates.crt"))
+// => Verified(Path("/etc/ssl/certs/ca-certificates.crt"))
+```
+
 ## Tcp.listen
 
 ```ernest
@@ -184,7 +210,8 @@ Tcp.accept(listener : Address(ListenerMsg), ms : Int) : Either(Io.Error, Address
 Waits at most `ms` milliseconds for the next connection to the listener, and
 answers its socket, which belongs to the caller. It answers `Left(Timeout)`
 where none comes in time, having taken none, and `Left(Closed)` where the
-listener is closed while it waits.
+listener is closed while it waits. On a listener over TLS the socket is
+answered before its handshake, which its first read or write waits for.
 
 ### Errors
 
@@ -221,6 +248,79 @@ closes one made later. It answers `Left(Refused)` where nothing listens
 there, `Left(Invalid)` for a port outside 0 to 65535 or a host that holds
 U+0000, and `Left(Other(text))` for the host's other reasons,
 `Left(Other("non-existing domain"))` for a name not found.
+
+## Tcp.listenTls
+
+```ernest
+Tcp.listenTls(host : String, port : Int, certificate : Path, key : Path) : Either(Io.Error, Address(ListenerMsg))
+```
+
+*Since 0.9.0.*
+
+Listens for connections over TLS on `port` of the interface `host` names,
+and answers the listener's address, as `listen` does. `certificate` is the
+file of the server's certificate, its chain after it, and `key` the file of
+its key, both in PEM, which the host reads as the listener opens.
+
+A socket `accept` answers on the listener shakes hands as it is first read
+or written, within that read's or write's milliseconds: one that times out
+leaves the handshake under way. A handshake that fails closes the
+connection: the read or write waiting answers `Left(Other(text))`, in the
+host's words, and each later one `Left(Closed)`.
+
+It answers `Left(Other(text))` where the host cannot read or refuses the
+certificate or the key, in its words, and otherwise as `listen` does.
+
+### Examples
+
+A server over TLS that greets the first connection and closes it:
+
+```ernest
+{
+    let certificate = Path("/etc/tls/server.pem");
+    let listener <- Tcp.listenTls("0.0.0.0", 8443, certificate, Path("/etc/tls/server.key"));
+    let socket <- Tcp.accept(listener, 60000);
+    let greeted = Tcp.write(socket, String.toUtf8("hello\n"), 5000);
+    Tcp.close(socket);
+    Tcp.closeListener(listener);
+    greeted
+}
+```
+
+## Tcp.connectTls
+
+```ernest
+Tcp.connectTls(host : String, port : Int, verification : Verification, ms : Int) : Either(Io.Error, Address(SocketMsg))
+```
+
+*Since 0.9.0.*
+
+Connects over TLS to `port` on `host`, within `ms` milliseconds, and
+answers the socket once its handshake is done, as `connect` does.
+`verification` says whether the far end's certificate is checked:
+`Verified(file)` checks it against the certificates of the file and for
+naming `host`, and `Unverified` checks nothing.
+
+It answers `Left(Other(text))` where the handshake fails, a check of the
+certificate among it, in the host's words, and otherwise as `connect` does:
+`Left(Timeout)` where the connection and its handshake are not done in time,
+and `Left(Refused)` where nothing listens there.
+
+### Examples
+
+A request over TLS, and the first bytes of its answer:
+
+```ernest
+{
+    let certificates = Tcp.Verified(Path("/etc/ssl/certs/ca-certificates.crt"));
+    let socket <- Tcp.connectTls("example.com", 443, certificates, 5000);
+    let request = "HEAD / HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n";
+    let _ <- Tcp.write(socket, String.toUtf8(request), 5000);
+    let answer = Tcp.read(socket, 5000);
+    Tcp.close(socket);
+    answer
+}
+```
 
 ## Tcp.read
 

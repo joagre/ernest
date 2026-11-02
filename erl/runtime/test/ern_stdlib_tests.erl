@@ -923,6 +923,46 @@ fs_named_pipe_test() ->
     ?assertEqual(lists:duplicate(6, Refused) ++ [{'Right', <<"hi">>}], collect(fs, [])),
     file:del_dir_r(Dir).
 
+%% report Appendix E.17, E.1: a path whose segment before its last names a
+%% regular file leads to nothing, and every function answers NotFound for
+%% it, where the host says "not a directory"; `list` of a regular file,
+%% which names something, is NotAFile. A regression test: the server's
+%% build read Other("not a directory") from stat
+fs_path_through_file_test() ->
+    Self = self(),
+    Dir = scratch("ern_through_"),
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(filename:join(Dir, "plain"), <<"hi">>),
+    InDir = fun(Name) -> {'Path', unicode:characters_to_binary(filename:join(Dir, Name))} end,
+    Fs = ern_named:functions('ern@fs'),
+    Through = InDir("plain/x"),
+    ?assertEqual(ok, ern_rt:run_main(
+                       fun() ->
+                           Self ! {fs, Fs(stat)(Through, 1000)},
+                           Self ! {fs, Fs(read)(Through, 1000)},
+                           Self ! {fs, Fs(readRange)(Through, 0, 1, 1000)},
+                           Self ! {fs, Fs(write)(Through, <<"x">>, 1000)},
+                           Self ! {fs, Fs(append)(Through, <<"x">>, 1000)},
+                           Self ! {fs, Fs(list)(Through, 1000)},
+                           Self ! {fs, Fs(makeDir)(Through, 1000)},
+                           Self ! {fs, Fs(remove)(Through, 1000)},
+                           Self ! {fs, Fs(rename)(Through, InDir("other"), 1000)},
+                           Self ! {fs, Fs(rename)(InDir("plain"), Through, 1000)},
+                           Self ! {fs, Fs(copy)(Through, InDir("other"), 1000)},
+                           Self ! {fs, Fs(copy)(InDir("plain"), Through, 1000)},
+                           Self ! {fs, Fs(makeSymlink)(Through, InDir("plain"), 1000)},
+                           Self ! {fs, Fs(makeHardLink)(Through, InDir("plain"), 1000)},
+                           Self ! {fs, Fs(readLink)(Through, 1000)},
+                           Self ! {fs, Fs(makeFile)(Through, <<"x">>, 1000)},
+                           Self ! {fs, Fs(setModified)(Through, 0, 1000)},
+                           Self ! {fs, Fs(setMode)(Through, 8#644, 1000)},
+                           Self ! {fs, Fs(list)(InDir("plain"), 1000)}
+                       end, <<"fs_path_through_file_test">>, #{})),
+    ?assertEqual(lists:duplicate(18, {'Left', 'NotFound'}) ++ [{'Left', 'NotAFile'}],
+                 collect(fs, [])),
+    ?assertEqual({ok, <<"hi">>}, file:read_file(filename:join(Dir, "plain"))),
+    file:del_dir_r(Dir).
+
 %% report Appendix E.17: append writes a device, a terminal among them, and
 %% read, write and copy refuse one, as append refuses a directory; the
 %% device here is the null device, which every host has. A regression test

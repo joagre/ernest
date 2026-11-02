@@ -8,19 +8,20 @@ other programs run from it.
 Use `arguments`, `environment` and `workingDirectory` to read what the
 program was started with, `exit` to end it with a status, and `termination`
 to be told before it ends. Use `run` to run another program to its end and
-read all it wrote, and `start` with `read` and `write` to talk to one while
-it runs.
+read all it wrote, `start` with `read` and `write` to talk to one while it
+runs, and `startTerminal` for one that needs a terminal, a shell or an
+editor, whose size `resize` changes.
 
 **No shell.** A program is found as the host finds a command: a name without
 `/` is looked for in the directories of `PATH`. Each argument reaches it as
 it is, so nothing is expanded or quoted; a program that wants a shell runs
 `sh` with `-c`.
 
-**A running program is a process.** `start` answers its address, as
-`Tcp.connect` answers a socket's. `read` answers what it wrote, a piece at a
-time, `write` and `closeInput` feed its input, and `kill` and `monitor` work
-on it as on any process. It belongs to the process that started it, and is
-killed when that process dies (report Appendix E.23).
+**A running program is a process.** `start` and `startTerminal` answer its
+address, as `Tcp.connect` answers a socket's. `read` answers what it wrote, a
+piece at a time, `write` and `closeInput` feed its input, and `kill` and
+`monitor` work on it as on any process. It belongs to the process that
+started it, and is killed when that process dies (report Appendix E.23).
 
 ## Examples
 
@@ -101,13 +102,13 @@ abstract type ProgramMsg
 ```
 
 What a running program's process takes. Its constructors are hidden, so a
-program uses `Os.read`, `Os.write`, `Os.closeInput` and `Os.give` on it
-(report Appendix E.23).
+program uses `Os.read`, `Os.write`, `Os.resize`, `Os.closeInput` and
+`Os.give` on it (report Appendix E.23).
 
 ### Examples
 
-The address of a running program, which `read`, `write`, `closeInput` and
-`give` take:
+The address of a running program, which `read`, `write`, `resize`,
+`closeInput` and `give` take:
 
 ```ernest
 Os.start(Os.Command(program = "cat", arguments = [], input = <<>>))
@@ -308,6 +309,113 @@ is a fault of the installation, not of the command.
 // => Right(Stdout(<<104, 105>>))
 ```
 
+## Os.startTerminal
+
+```ernest
+Os.startTerminal(command : Command, size : Terminal.Size) : Either(Io.Error, Address(ProgramMsg))
+```
+
+*Since 0.9.0.*
+
+Starts the program as `start` does, under a pseudo-terminal of `size` rows
+and columns, and answers its address, or `Left` with why it could not
+start, as `start` answers it.
+
+The terminal is the program's standard input, standard output and standard
+error, and the program is its session's leader and in its foreground, as a
+shell a terminal window starts is. The terminal begins in the host's
+ordinary mode, echoing what `write` gives it and giving the program a line
+at a time, which the program changes as it would any terminal's. `TERM` is
+not set: the program inherits the environment as under `start`.
+
+Its standard output and standard error come merged through the terminal, so
+`read` answers `Stdout` alone, and a line feed the program writes arrives
+as a carriage return and a line feed. `resize` changes the terminal's size,
+and `closeInput` hangs it up.
+
+- `Left(Invalid)`: rows or columns below 0 or above 65535, or a name or an
+  argument no program could be given.
+- `Left(Other(text))`: the host could not open a terminal, or another
+  reason, in the host's words.
+
+### Errors
+
+Faults with the cause `the runtime's helper ern_exec failed` where
+`ern_exec` fails, as `start` does.
+
+### Examples
+
+A program that reads its terminal's size and ends with its count of columns
+as its status:
+
+```ernest
+{
+    let sh <-
+        Os.startTerminal(Os.Command(program = "sh",
+                                    arguments = ["-c", "set -- $(stty size); exit $2"],
+                                    input = <<>>),
+                         Terminal.Size(rows = 24, columns = 80));
+    Os.read(sh, 5000)
+}
+// => Right(Exited(80))
+```
+
+## Os.resize
+
+```ernest
+Os.resize(program : Address(ProgramMsg), size : Terminal.Size) : Either(Io.Error, Unit)
+```
+
+*Since 0.9.0.*
+
+Sets the size of the terminal a program `startTerminal` started runs under,
+and tells the program's foreground, as a terminal window resized tells its
+shell: the host sends it `SIGWINCH`.
+
+It answers `Left(NotATerminal)` for a program `start` started, and
+`Left(Invalid)` for rows or columns below 0 or above 65535. Once the terminal
+has been hung up, or its program has exited, it sizes nothing and answers
+`Right(Unit)`.
+
+### Errors
+
+Faults where the runtime's helper fails, as `start` does. Faults where the
+program's process has ended, as `read` does: with the cause `callee had
+ended`, or `callee returned without answering` where the call came as it
+ended.
+
+### Examples
+
+A program that reads a line, then its terminal's size, which the resize
+before the line has set; the terminal echoes the line feed as it reads it:
+
+```ernest
+{
+    let sh <-
+        Os.startTerminal(Os.Command(program = "sh",
+                                    arguments = ["-c",
+                                                 "read line; set -- $(stty size); exit $1"],
+                                    input = <<>>),
+                         Terminal.Size(rows = 24, columns = 80));
+    let _ <- Os.resize(sh, Terminal.Size(rows = 30, columns = 100));
+    let _ <- Os.write(sh, <<10>>, 5000);
+    let echoed <- Os.read(sh, 5000);
+    let last <- Os.read(sh, 5000);
+    Right(#(echoed, last))
+}
+// => Right(#(Stdout(<<13, 10>>), Exited(30)))
+```
+
+A program `start` started has no terminal:
+
+```ernest
+{
+    let cat <- Os.start(Os.Command(program = "cat", arguments = [], input = <<>>));
+    Os.resize(cat, Terminal.Size(rows = 24, columns = 80))
+}
+// => Left(NotATerminal)
+```
+
 ## Os.read
 
 ```ernest
@@ -317,7 +425,8 @@ Os.read(program : Address(ProgramMsg), ms : Int) : Either(Io.Error, Output)
 The next piece of what the program wrote, to its standard output or its
 standard error, in the order the host delivered them, and last its exit
 status, once it has exited and both streams have ended. A status other than
-0 is the program's answer, not a `Left`.
+0 is the program's answer, not a `Left`. From a program `startTerminal`
+started every piece is `Stdout`, its two streams merged by the terminal.
 
 The host takes the program's output only while a read waits, so a program
 that no one reads waits on its output. Where `ms` milliseconds pass first
@@ -390,6 +499,11 @@ Os.closeInput(program : Address(ProgramMsg)) : Unit
 
 Ends the program's input, once what it was given before is written. A
 program that reads to the end of its input then sees the end.
+
+On a program `startTerminal` started it hangs the terminal up at once, as
+closing a terminal window does: the program is sent the hangup, what it was
+given and has not taken is dropped, nothing more it writes arrives, and
+`read` answers its exit once it has exited.
 
 ### Examples
 

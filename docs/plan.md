@@ -77,7 +77,9 @@ server's CLAUDE.md carries the procedure its side follows.
    item 1's sentences stand and built once items 2 and 3 do, against Ernest installed from
    `make release`'s archive and never a checkout; what it meets of Ernest's, an attached shell at
    the server's node among it, comes here as a line of `language_feedback.md`, is fixed in the
-   checkout and the archive made again, with no public release between.
+   checkout and the archive made again, with no public release between. The first, met
+   2026-11-02 and fixed the same day: a path through a regular file answers `NotFound` (the
+   log's *A Path Through a File*).
 5. **The terminal tests over `Os.startTerminal`**, dropping `test/ern_pty.py`, an item of its own
    once item 2 stands. First in it, a defect seen once on 2026-11-01 under a load average of 37
    from four agents' runs: `close_input_hangs_up_test` read `Exited(1)` where the hangup gives

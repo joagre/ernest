@@ -18,7 +18,9 @@
 ///
 /// `read`, `readRange`, `write` and `copy` work on regular files. For a
 /// directory, a named pipe, a device or a socket they answer
-/// `Left(Io.NotAFile)`.
+/// `Left(Io.NotAFile)`, and so does `list` for anything but a directory.
+/// A path that leads through a regular file, `index.html/x`, leads to
+/// nothing and is `Left(Io.NotFound)`, as a path that names nothing is.
 ///
 /// A function follows symbolic links, but not in a path's last name where
 /// the function is about the link itself: `list` describes a link as a
@@ -27,7 +29,8 @@
 /// Three answers are seldom met. A path that holds U+0000 names no file,
 /// and is `Left(Io.Invalid)`. A name that is not UTF-8 makes `list` answer
 /// `Left(Io.NotUtf8(name))`. `Io.Other(text)` holds the host's own words
-/// for a reason that has no constructor, `"not a directory"`.
+/// for a reason that has no constructor, `"too many levels of symbolic
+/// links"`.
 ///
 /// ## Examples
 ///

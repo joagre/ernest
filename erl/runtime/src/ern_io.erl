@@ -30,6 +30,9 @@ debug(Value, Descriptor) ->
 %% that names it, or Other.
 -spec host_error(term(), fun((atom()) -> string())) -> term().
 host_error(enoent, _) -> 'NotFound';
+%% Report Appendix E.17, E.23: a path through what is no directory leads
+%% to nothing.
+host_error(enotdir, _) -> 'NotFound';
 host_error(eacces, _) -> 'Denied';
 host_error(eperm, _) -> 'Denied';
 host_error(econnrefused, _) -> 'Refused';

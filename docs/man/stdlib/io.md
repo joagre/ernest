@@ -72,7 +72,8 @@ module and `Peer` answer `Left` with one of these:
 - `Refused`, `Closed`: the connection was refused, or has closed.
 - `Timeout`: the time given ran out.
 - `NotATerminal`: a standard stream an operation needs is not a terminal, or
-  is one with no rows or no columns.
+  is one with no rows or no columns; or a program `Os.resize` is given runs
+  under none.
 - `NotAFile`: a path names something other than a regular file.
 - `Exists`: the path already names something, where the operation needs it
   free, as when a directory is made that is there.
