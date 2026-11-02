@@ -61,22 +61,40 @@ export type Value =
   | Array(List(Value))
   | Object(Map(String, Value))
 
-/// Why a text holds no JSON value, as the host's `json` finds it, which
-/// does not say where. `UnexpectedEnd` is a text that ends inside its value
-/// or holds none. `UnexpectedByte` is a byte that cannot stand where it is,
-/// the first of its character's: a second value, a comma before a closing
-/// bracket, or a character no value begins with. `UnexpectedSequence` is an
-/// escape that writes no character, a surrogate's escape without its pair's
-/// among them, or a number the host cannot hold, an integer too long or a
-/// real larger than a `Float` can hold, in the host's spelling of it.
+/// Where an error begins: its line and its column, counted as a diagnostic
+/// counts them (report §11.5), from 1, a line ending at a line feed and a
+/// column a code point.
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// #(Json.parse("[1, 2"), Json.parse("[1, 2,]"))
-/// // => #(Left(UnexpectedEnd), Left(UnexpectedByte(93)))
+/// Json.parse("{\n  \"é\": x\n}")
+/// // => Left(UnexpectedByte(byte = 120, at = Position(line = 2, column = 8)))
 /// ```
-export type Error = UnexpectedEnd | UnexpectedByte(Int) | UnexpectedSequence(Bytes)
+///
+/// since 0.9.0
+export type Position = Position(line : Int, column : Int)
+
+/// Why a text holds no JSON value, as the host's `json` finds it, and where.
+/// `UnexpectedEnd` is a text that ends inside its value or holds none.
+/// `UnexpectedByte` is a byte that cannot stand where it is, the first of
+/// its character's, a second value, a comma before a closing bracket, or a
+/// character no value begins with, and its position. `UnexpectedSequence`
+/// is an escape that writes no character, a surrogate's escape without its
+/// pair's among them, or a number the host cannot hold, an integer too long
+/// or a real larger than a `Float` can hold, in the host's spelling of it,
+/// and its position.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Json.parse("[1, 2,]")
+/// // => Left(UnexpectedByte(byte = 93, at = Position(line = 1, column = 7)))
+/// ```
+export type Error =
+    UnexpectedEnd
+  | UnexpectedByte(byte : Int, at : Position)
+  | UnexpectedSequence(bytes : Bytes, at : Position)
 
 /// The value `text` writes, or why it writes none. White space may stand
 /// before the value and after it, and nothing else may.
@@ -84,8 +102,13 @@ export type Error = UnexpectedEnd | UnexpectedByte(Int) | UnexpectedSequence(Byt
 /// ### Examples
 ///
 /// ```ernest
-/// #(Json.parse(" 4001 "), Json.parse("4001 4002"))
-/// // => #(Right(Integer(4001)), Left(UnexpectedByte(32)))
+/// Json.parse(" 4001 ")
+/// // => Right(Integer(4001))
+/// ```
+///
+/// ```ernest
+/// Json.parse("4001 4002")
+/// // => Left(UnexpectedByte(byte = 52, at = Position(line = 1, column = 6)))
 /// ```
 export foreign fn parse(text : String) : Either(Error, Value) =
     "ern_json:parse/1"
@@ -130,7 +153,7 @@ let numbers =
 let tooLarge =
     Test.Case(name = "a real larger than a Float can hold is not read",
               run = fn() = match parse("1e400") {
-                  Left(UnexpectedSequence(_)) -> Test.Passed
+                  Left(UnexpectedSequence()) -> Test.Passed
                 | other -> Test.Failed(Io.show(other))
               })
 
@@ -139,25 +162,48 @@ let escapes =
               run = fn() =
                   Test.equal(#(parse("\"\\ud83d\\ude00 \\u00e9\""), parse("\"\\udc00\"")),
                              #(Right(Text("\u{1f600} é")),
-                               Left(UnexpectedSequence(String.toUtf8("\\udc00"))))))
+                               Left(UnexpectedSequence(bytes = String.toUtf8("\\udc00"),
+                                                       at = Position(line = 1, column = 2))))))
 
 let loneSurrogate =
     Test.Case(name = "a high surrogate's escape without a low one's after it writes no character",
               run = fn() = {
-                  let lone = Left(UnexpectedSequence(String.toUtf8("\\ud800")));
+                  let lone =
+                      fn(column) =
+                          Left(UnexpectedSequence(bytes = String.toUtf8("\\ud800"),
+                                                  at = Position(line = 1, =column)));
                   Test.equal([parse("\"\\ud800\""),
                               parse("[\"\\ud800 and more\", 1]"),
                               parse("\"\\ud800\\n\""),
                               parse("\"\\ud800"),
                               parse("\"\\\\ud800\"")],
-                             [lone, lone, lone, Left(UnexpectedEnd), Right(Text("\\ud800"))])
+                             [lone(2),
+                              lone(3),
+                              lone(2),
+                              Left(UnexpectedEnd),
+                              Right(Text("\\ud800"))])
               })
 
 let tooLong =
-    Test.Case(name = "an integer longer than the host can hold is not read", run = fn() = {
-        let digits = String.repeat("9", 1300000);
-        Test.equal(parse(digits), Left(UnexpectedSequence(String.toUtf8(digits))))
-    })
+    Test.Case(name = "a too-long integer is not read, and is found past a string holding it",
+              run = fn() = {
+                  let digits = String.repeat("9", 1300000);
+                  let sequence =
+                      fn(column) =
+                          Left(UnexpectedSequence(bytes = String.toUtf8(digits),
+                                                  at = Position(line = 1, =column)));
+                  Test.equal(#(parse(digits), parse("[\"" <> digits <> "\", " <> digits <> "]")),
+                             #(sequence(1), sequence(1300006)))
+              })
+
+let positions =
+    Test.Case(name = "a position is the line and the column in code points, past white space",
+              run = fn() =
+                  Test.equal([parse("{}\n}"), parse("[\"é\", x]"), parse("[1,\n 2,\n ß]")],
+                             [Left(UnexpectedByte(byte = 125, at = Position(line = 2, column = 1))),
+                              Left(UnexpectedByte(byte = 120, at = Position(line = 1, column = 7))),
+                              Left(UnexpectedByte(byte = 195,
+                                                  at = Position(line = 3, column = 2)))]))
 
 let empty =
     Test.Case(name = "a text of white space holds no value",

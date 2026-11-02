@@ -8,15 +8,23 @@
 
 -type value() :: 'Null' | {'Boolean', boolean()} | {'Integer', integer()} | {'Real', float()}
                | {'Text', binary()} | {'Array', [value()]} | {'Object', #{binary() => value()}}.
--type error() :: 'UnexpectedEnd' | {'UnexpectedByte', byte()} | {'UnexpectedSequence', binary()}.
+-type position() :: {'Position', pos_integer(), pos_integer()}.
+-type error() :: 'UnexpectedEnd' | {'UnexpectedByte', byte(), position()}
+               | {'UnexpectedSequence', binary(), position()}.
 
-%% Appendix G.6: the value the text writes, or the host's error.
+%% Appendix G.6: the value the text writes, or the host's error and where.
 %% `json:decode/3` raises the three errors its page lists, and calls the
 %% decoders given to build each value, in the order of the text: a number,
 %% null and an array or an object as it ends, and an element or a member's
 %% value as it is pushed, which is where a string and a boolean, which have
-%% no decoder, are seen. It answers the text left after the value, which
-%% `json:decode/1` refuses as an invalid byte, its first.
+%% no decoder, are seen. It answers the text left after the value, white
+%% space among it, whose first other byte is an unexpected one.
+%%
+%% The host's raise carries the byte's or the sequence's offset in the
+%% text as its error's position (position/1), from which the line and the
+%% column are counted (at/2). A number the host cannot hold is the
+%% decoder's own throw, with no offset, so the text is read for the number
+%% (number_offset/2).
 %%
 %% An object keeps a name's last member, as `Map.fromList` keeps a later
 %% pair (Appendix E.3): the members, pushed in front, are put back in the
@@ -28,18 +36,55 @@
 -spec parse(binary()) -> {'Right', value()} | {'Left', error()}.
 parse(Text) ->
     try json:decode(Text, ok, decoders()) of
-        {Term, ok, <<>>} -> {'Right', value(Term)};
-        {_, ok, <<Byte, _/binary>>} -> {'Left', {'UnexpectedByte', Byte}}
+        {Term, ok, Rest} ->
+            case white_space(Rest) of
+                <<>> ->
+                    {'Right', value(Term)};
+                <<Byte, _/binary>> = After ->
+                    {'Left', {'UnexpectedByte', Byte, at(Text, byte_size(Text) - byte_size(After))}}
+            end
     catch
         throw:{too_long, Digits} ->
-            {'Left', {'UnexpectedSequence', Digits}};
+            {'Left', {'UnexpectedSequence', Digits, at(Text, number_offset(Text, Digits))}};
         error:unexpected_end ->
             {'Left', lone_surrogate(Text, 'UnexpectedEnd')};
         error:{invalid_byte, Byte}:Trace ->
-            {'Left', lone_surrogate(Text, {'UnexpectedByte', Byte}, position(Trace))};
-        error:{unexpected_sequence, Bytes} ->
-            {'Left', {'UnexpectedSequence', Bytes}}
+            Offset = position(Trace),
+            {'Left', lone_surrogate(Text, {'UnexpectedByte', Byte, at(Text, Offset)}, Offset)};
+        error:{unexpected_sequence, Bytes}:Trace ->
+            {'Left', {'UnexpectedSequence', Bytes, at(Text, position(Trace))}}
     end.
+
+%% The text after its JSON white space.
+white_space(<<Byte, Rest/binary>>) when Byte =:= $\s; Byte =:= $\t; Byte =:= $\n; Byte =:= $\r ->
+    white_space(Rest);
+white_space(Rest) ->
+    Rest.
+
+%% The line and the column the byte at Offset begins, counted as a
+%% diagnostic's are (§11.5): from 1, a line ending at a line feed and a
+%% column a code point.
+at(Text, Offset) ->
+    Lines = binary:split(binary:part(Text, 0, Offset), <<"\n">>, [global]),
+    {'Position', length(Lines), 1 + length(unicode:characters_to_list(lists:last(Lines)))}.
+
+%% The offset of the number Digits writes: its first occurrence outside a
+%% string, since an earlier number holding the digits would be as long and
+%% would have been thrown on first.
+number_offset(Text, Digits) ->
+    number_offset(Text, Digits, byte_size(Digits), 0, false).
+
+number_offset(<<$\\, _, Rest/binary>>, Digits, Size, Offset, true) ->
+    number_offset(Rest, Digits, Size, Offset + 2, true);
+number_offset(<<$", Rest/binary>>, Digits, Size, Offset, InString) ->
+    number_offset(Rest, Digits, Size, Offset + 1, not InString);
+number_offset(<<_, Rest/binary>> = Text, Digits, Size, Offset, false) ->
+    case Text of
+        <<Digits:Size/binary, _/binary>> -> Offset;
+        _ -> number_offset(Rest, Digits, Size, Offset + 1, false)
+    end;
+number_offset(<<_, Rest/binary>>, Digits, Size, Offset, true) ->
+    number_offset(Rest, Digits, Size, Offset + 1, true).
 
 decoders() ->
     #{array_push => fun(Element, Acc) -> [value(Element) | Acc] end,
@@ -57,12 +102,10 @@ integer(Digits) ->
     catch error:system_limit -> throw({too_long, Digits})
     end.
 
-%% The offset of the byte the host's decoder could not read, which its
-%% raise carries as the error's position.
+%% The offset of the byte or the sequence the host's decoder could not
+%% read, which its raise carries as the error's position.
 position([{_, _, _, Info} | _]) ->
-    maps:get(position, maps:get(cause, proplists:get_value(error_info, Info, #{}), #{}), none);
-position(_) ->
-    none.
+    maps:get(position, maps:get(cause, proplists:get_value(error_info, Info))).
 
 %% Appendix G.6: an escape of a high surrogate that no low one's follows
 %% writes no character, UnexpectedSequence of its six bytes, as the host
@@ -74,13 +117,13 @@ position(_) ->
 %% names is not the one after it.
 lone_surrogate(Text, Found) ->
     case lone_escape(Text, 0) of
-        {Escape, _After} -> {'UnexpectedSequence', Escape};
+        {Escape, After} -> {'UnexpectedSequence', Escape, at(Text, After - byte_size(Escape))};
         none -> Found
     end.
 
-lone_surrogate(Text, Found, Position) ->
+lone_surrogate(Text, Found, Offset) ->
     case lone_escape(Text, 0) of
-        {Escape, Position} -> {'UnexpectedSequence', Escape};
+        {Escape, Offset} -> {'UnexpectedSequence', Escape, at(Text, Offset - byte_size(Escape))};
         _ -> Found
     end.
 

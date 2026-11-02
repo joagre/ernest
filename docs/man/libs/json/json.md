@@ -68,26 +68,49 @@ Json.parse("[null, true, 2, 2.5, \"x\", []]")
 // => Right(Array([Null, Boolean(true), Integer(2), Real(2.5), Text("x"), Array([])]))
 ```
 
-## Json.Error
+## Json.Position
 
 ```ernest
-type Error = UnexpectedEnd | UnexpectedByte(Int) | UnexpectedSequence(Bytes)
+type Position = Position(line : Int, column : Int)
 ```
 
-Why a text holds no JSON value, as the host's `json` finds it, which
-does not say where. `UnexpectedEnd` is a text that ends inside its value
-or holds none. `UnexpectedByte` is a byte that cannot stand where it is,
-the first of its character's: a second value, a comma before a closing
-bracket, or a character no value begins with. `UnexpectedSequence` is an
-escape that writes no character, a surrogate's escape without its pair's
-among them, or a number the host cannot hold, an integer too long or a
-real larger than a `Float` can hold, in the host's spelling of it.
+*Since 0.9.0.*
+
+Where an error begins: its line and its column, counted as a diagnostic
+counts them (report §11.5), from 1, a line ending at a line feed and a
+column a code point.
 
 ### Examples
 
 ```ernest
-#(Json.parse("[1, 2"), Json.parse("[1, 2,]"))
-// => #(Left(UnexpectedEnd), Left(UnexpectedByte(93)))
+Json.parse("{\n  \"é\": x\n}")
+// => Left(UnexpectedByte(byte = 120, at = Position(line = 2, column = 8)))
+```
+
+## Json.Error
+
+```ernest
+type Error =
+    UnexpectedEnd
+  | UnexpectedByte(byte : Int, at : Position)
+  | UnexpectedSequence(bytes : Bytes, at : Position)
+```
+
+Why a text holds no JSON value, as the host's `json` finds it, and where.
+`UnexpectedEnd` is a text that ends inside its value or holds none.
+`UnexpectedByte` is a byte that cannot stand where it is, the first of
+its character's, a second value, a comma before a closing bracket, or a
+character no value begins with, and its position. `UnexpectedSequence`
+is an escape that writes no character, a surrogate's escape without its
+pair's among them, or a number the host cannot hold, an integer too long
+or a real larger than a `Float` can hold, in the host's spelling of it,
+and its position.
+
+### Examples
+
+```ernest
+Json.parse("[1, 2,]")
+// => Left(UnexpectedByte(byte = 93, at = Position(line = 1, column = 7)))
 ```
 
 ## Json.parse
@@ -102,8 +125,13 @@ before the value and after it, and nothing else may.
 ### Examples
 
 ```ernest
-#(Json.parse(" 4001 "), Json.parse("4001 4002"))
-// => #(Right(Integer(4001)), Left(UnexpectedByte(32)))
+Json.parse(" 4001 ")
+// => Right(Integer(4001))
+```
+
+```ernest
+Json.parse("4001 4002")
+// => Left(UnexpectedByte(byte = 52, at = Position(line = 1, column = 6)))
 ```
 
 ## Json.format

@@ -1084,14 +1084,16 @@ JSON text as RFC 8259 defines it, read into a value and written from one by the 
 
 `parse` reads one value, with white space before it and after it and nothing else. A number written with neither a fraction nor an exponent is an `Integer`, of any size the host can hold, and one written with either is a `Real`; a `Real` nearer to zero than a `Float` can hold is `0.0`, and so is `-0.0` (§3.1). An object is a `Map` from its members' names to their values, and where a text names a member twice the last is kept, as `Map.fromList` keeps a later pair (E.3).
 
-An error says what the host found, and not where: `UnexpectedEnd` is a text that ends inside its value or holds none; `UnexpectedByte` is a byte that cannot stand where it is, the first of its character's; and `UnexpectedSequence` is an escape that writes no character, a surrogate's escape without its pair's among them, or a number the host cannot hold, an integer too long or a real larger than a `Float` can hold, in the host's spelling of it.
+An error says what the host found and where: `UnexpectedEnd` is a text that ends inside its value or holds none; `UnexpectedByte` is a byte that cannot stand where it is, the first of its character's, with its position; and `UnexpectedSequence` is an escape that writes no character, a surrogate's escape without its pair's among them, or a number the host cannot hold, an integer too long or a real larger than a `Float` can hold, in the host's spelling of it, with its position. A position is the line and the column the byte or the sequence begins at, counted as a diagnostic's are (§11.5).
 
 `format` lays a value out over lines as the host's `json:format` does, two spaces to a level, and ends it with a line feed; it writes an object's members in the order of their names' code points, an order of the library's own, which the host's leaves to its caller. `parse` reads what `format` writes as the value it was written from.
 
 ```
 type Value = Null | Boolean(Bool) | Integer(Int) | Real(Float) | Text(String)
   | Array(List(Value)) | Object(Map(String, Value))
-type Error = UnexpectedEnd | UnexpectedByte(Int) | UnexpectedSequence(Bytes)
+type Position = Position(line : Int, column : Int)
+type Error = UnexpectedEnd | UnexpectedByte(byte : Int, at : Position)
+  | UnexpectedSequence(bytes : Bytes, at : Position)
 Json.parse : (String) -> Either(Error, Value)
 Json.format : (Value) -> String
 ```
