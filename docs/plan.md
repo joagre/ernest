@@ -155,12 +155,18 @@ before the website (the log's *What the Server Taught*).
    decided with the user, then built here or dropped.
 5. **The deployment guide says what a waiting process holds**, one sentence in its section 7,
    pointing at §10 and item 1.
+6. **Relative names**, feedback 204, decided 2026-11-02: a qualified name resolves from the
+   writer's own namespace outward, as a relative path resolves from its directory, so that
+   `Command.parse` in `Ernest.Shell` names `Ernest.Shell.Command.parse` and `Region.Region` in
+   `Ernest.Shell.Complete` names its sibling's; a name written longer than its shortest
+   resolving form is an error whose help names the short one, as `Prelude.x` is (§4.2), and
+   Appendix H's canonical form keeps the full name. The lookup is C++'s and C#'s, with no
+   import; a proposal under `docs/proposals/relative_names/` first, with how far a short name
+   reaches, then §4.2 after the cold reading, the checker, the diagnostics, `ern doc`, the
+   shell's completion, and the shell's own sites written short.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
-started with no input. **Decision, the long qualified name**, feedback 204: whether a name
-under a long namespace, `Ernest.Shell.Command.parse` at every site of the shell, is written
-whole as §4.2 has it, or the language gives a shorter way; dropped once, then held for a
-discussion with the user once item 1 is decided, and nothing else of the milestone waits on it.
+started with no input.
 
 ## MVP 4.2 (the website)
 
