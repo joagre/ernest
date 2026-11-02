@@ -24,7 +24,7 @@ The pun is released, with what its day decided beside it: a `receive` always rec
 can be canceled, and the checkout works toward 0.9.0. ernest-httpd's first release serves the
 site since 2026-11-02, built against the checkout's archive (MVP 4.1, item 4).
 
-Next are feedback 206's two functions and Ernest 0.9.0 (MVP 4.1, items 6 and 7), then MVP 4.15, what the server taught, then the website and
+Next is Ernest 0.9.0 (MVP 4.1, item 6), then MVP 4.15, what the server taught, then the website and
 the shell's second round (the log's *The Road to 1.0, Ordered*), and MVP 4.4 last, the promise, the cost, the full review and Ernest 1.0, where
 the road ends and a program begins (the log's *MVP 4.4, the Road's End*); the back end to BEAM's own instructions that closed the road is not built,
 decided 2026-10-30 (the log's *No Back End to BEAM's Own Instructions*). A finished milestone is a
@@ -87,17 +87,7 @@ server's CLAUDE.md carries the procedure its side follows.
 5. **The terminal tests over `Os.startTerminal`**, done 2026-11-02: the harness is the Ernest program
    `test/fixtures/pty/pty.ern`, and `test/ern_pty.py` is gone (the log's *The Hangup's Order* and
    *The Harness in Ernest*).
-6. **Text from bytes that are not all UTF-8**, feedback 206, the policy §11.2 and §11.5 state
-   for the shell's region and a diagnostic's source line: each byte that begins no character
-   shows as U+FFFD. `String.fromUtf8Lossy`, the bytes as text so, and `String.fromUtf8Piece`,
-   the text of a piece of a stream and the bytes of a character the piece ends inside, which
-   the reader keeps for the next piece; admitted by E.0's rule 3 as policies of `fromUtf8`,
-   Ernest closing the difference around the host's decoder (rule 1), E.5 stating them. The
-   shell's `foreign fn decoded` and the harness's own decoding go; the compiler's diagnostic
-   keeps its Erlang, since the compiler calls no shim. Decided with the user whether the two
-   stand or one answering the text and the cut; two recommended, since a program with the
-   whole predicts a string.
-7. **A release of Ernest**, 0.9.0, when the server first serves the site, carrying the libraries
+6. **A release of Ernest**, 0.9.0, when the server first serves the site, carrying the libraries
    after their first real user has shaped them; 0.8.0 is the pun's. Before it, the deployment
    test `one_node`, whose watcher once answered that a line was never said, in the full run of
    2026-11-01 at the run's own load, passing alone after, is read for what it answered so for;
@@ -148,6 +138,15 @@ before the website (the log's *What the Server Taught*).
    import; a proposal under `docs/proposals/relative_names/` first, with how far a short name
    reaches, then §4.2 after the cold reading, the checker, the diagnostics, `ern doc`, the
    shell's completion, and the shell's own sites written short.
+7. **Text from bytes that are not all UTF-8**, feedback 206, decided 2026-11-02, the policy
+   §11.2 and §11.5 state for the shell's region and a diagnostic's source line: each byte that
+   begins no character shows as U+FFFD. Two functions, `String.fromUtf8Lossy`, the bytes as
+   text so, and `String.fromUtf8Piece`, the text of a piece of a stream and the bytes of a
+   character the piece ends inside, which the reader keeps for the next piece; admitted by
+   E.0's rule 3 as policies of `fromUtf8`, as `Float.round` and `Float.floor` are of one
+   conversion, Ernest closing the difference around the host's decoder (rule 1), E.5 stating
+   them. The shell's `foreign fn decoded` and the harness's own decoding go; the compiler's
+   diagnostic keeps its Erlang, since the compiler calls no shim.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
