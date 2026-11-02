@@ -78,18 +78,18 @@ load({'Path', Path}) ->
 %% placed and loaded as a load places a module and their bindings that
 %% have no value on the node evaluated as a load evaluates them, before any
 %% process runs the spawned function; nothing is asked of another node. ok,
-%% or what the node lacked, a binding's fault among it, which the node says
-%% beside `NotLoaded`.
--spec own(module()) -> ok | {lacked, binary()}.
+%% or why the node could not load them, a binding's fault among the
+%% causes, which the node answers as `Other(text)` and says.
+-spec own(module()) -> ok | {refused, binary()}.
 own(Unit) ->
     {ok, File} = ern_code:own_file(Unit),
     try evaluated(placed_and_loaded(File, ern_code:own_builds())) of
         {'Right', 'Unit'} -> ok
     catch
-        throw:{refused, {'Other', Text}} -> {lacked, Text};
+        throw:{refused, {'Other', Text}} -> {refused, Text};
         throw:{refused, Error} ->
-            {lacked, <<"the toolchain's own units in this node's tree could not be loaded: ",
-                       (ern_io:show(Error))/binary>>}
+            {refused, <<"the toolchain's own units in this node's tree could not be loaded: ",
+                        (ern_io:show(Error))/binary>>}
     end.
 
 %% Report §8.6: the load's reading of its files, its placing and its load

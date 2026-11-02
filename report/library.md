@@ -653,7 +653,7 @@ A socket `accept` answers on such a listener is accepted before its handshake, w
 
 The site of a listener is `Tcp.listen` or `Tcp.listenTls`, and of a socket `Tcp.accept`, `Tcp.connect` or `Tcp.connectTls`, the function that opened it (§6.9), with no line. It is owned by the process that opened it, the caller of `listen`, `listenTls`, `accept`, `connect` or `connectTls`, and `give(socket, process)` makes another a socket's owner. It lives until `Tcp.close`, until it is killed, until its owner dies, which kills it as a running program's is killed (Appendix E.23), or until the program ends; a socket given to a process that has ended is killed at once, and a restart is no death (§6.9). After its connection closes, from either end or by a failure, each `Tcp.read` answers `Left(Closed)`.
 
-A listener lives until `Tcp.closeListener`, until it is killed, until its owner dies, or until the program ends; closing it answers an `accept` waiting on it with `Left(Closed)`. A listener takes a port whose earlier connections are still closing, the host's `SO_REUSEADDR`. It holds the connections the program has not yet accepted up to the host's backlog, 5, which Linux counts one past; a connection past them waits in the network, its client retrying.
+A listener lives until `Tcp.closeListener`, until it is killed, until its owner dies, or until the program ends; closing it answers an `accept` waiting on it with `Left(Closed)`. A listener takes a port whose earlier connections are still closing, the host's `SO_REUSEADDR`. A listener takes connections of its address's family alone, `"::"` IPv6's and never an IPv4 connection as `::ffff:a.b.c.d`, so a listener on `"0.0.0.0"` and one on `"::"` stand on one port together, and a program that serves both families opens both; a listen on an IPv4-mapped address, `::ffff:a.b.c.d`, answers `Left(Invalid)`. It holds the connections the program has not yet accepted up to the host's backlog, 5, which Linux counts one past; a connection past them waits in the network, its client retrying.
 
 `close` and `closeListener` answer each read, write or accept the socket or the listener has taken and holds waiting with `Left(Closed)` and end its process; the bytes of a write so answered may have been taken, and are then sent as below. `kill` ends it as it ends any process, a call waiting on it faulting as §6.6 says, and a listener's host socket closes either way.
 
@@ -672,7 +672,7 @@ abstract type ListenerMsg // what a listener takes
 abstract type SocketMsg // what a socket takes
 type Endpoint = Endpoint(host : String, port : Int)
 type Verification = Verified(Path) | Unverified // whether connectTls checks the far end's certificate, against the file's certificates and the host's name
-Tcp.listen : (String, Int) -> Either(Io.Error, Address(ListenerMsg)) // host, port: the interface the host's name or address names, `"127.0.0.1"` the loopback alone and `"0.0.0.0"` or `"::"` every one; port 0 asks the system for a free one
+Tcp.listen : (String, Int) -> Either(Io.Error, Address(ListenerMsg)) // host, port: the interface the host's name or address names, `"127.0.0.1"` the loopback alone and `"0.0.0.0"` or `"::"` every one of its family; port 0 asks the system for a free one
 Tcp.port : (Address(ListenerMsg)) -> Either(Io.Error, Int) // the port it listens on
 Tcp.accept : (Address(ListenerMsg), Int) -> Either(Io.Error, Address(SocketMsg))
 Tcp.connect : (String, Int, Int) -> Either(Io.Error, Address(SocketMsg)) // host, port; Left(Refused) where the far end refuses the connection

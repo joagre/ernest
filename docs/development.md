@@ -352,7 +352,7 @@ bin/ern reload --config-dir node                  # the node running from node/ 
 bin/ern stop --config-dir node                    # and ends, in order
 bin/ern shell                                     # a shell over the standard library
 bin/ern shell build/modules/main.erc              # a shell beside a running program
-bin/ern test build/shell/shell/editor.erc         # the module's tests
+bin/ern test build/shell/ernest/shell/editor.erc  # the module's tests
 bin/ern test build/libs                           # the tests of every module under it
 ```
 

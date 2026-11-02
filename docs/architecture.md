@@ -204,7 +204,7 @@ Each chunk is read through `ern_chunk`. A name a shell session declares is writt
 | the exchange, registered `ern_exchange` | `ern_gateway:start/0` | | carries a reach's definitions between nodes (*The exchange and arrivals*) |
 | the shell's table's holder | `ern_shell`, at the table's first need (`table/0`) | | holds `ern_shell` for the host's life |
 | an evaluator | `Code.load` and a shell's load (`ern_rt:evaluate/2`) | the reaper, as a process of the program, its caller's monitor while the caller waits | evaluates a load's bindings, the root of what they start, its row of the session's screen its own where the chain that started it has one, and ends with them unless it owns what one opened (§11.2, E.28) |
-| a loader of the toolchain's own units | the exchange (`own_loaded/3`) | its own end, which answers the spawn | loads a unit of the toolchain's own a peer's spawn names from the node's tree and evaluates its bindings, one such load at a time on the node, and starts the spawn or answers it `NotLoaded` (§12.7) |
+| a loader of the toolchain's own units | the exchange (`own_loaded/3`) | its own end, which answers the spawn | loads a unit of the toolchain's own a peer's spawn names from the node's tree and evaluates its bindings, one such load at a time on the node, and starts the spawn or answers it `Other(text)`, why it could not load them (§12.7) |
 
 The gateway and the exchange are the only registered processes. A delivery, a courier and a kept process act for their recipient through `ern_rt:acting_for/1`, the recipient in their dictionary, or none where it is on another node (§6.5, §6.9).
 
@@ -330,7 +330,7 @@ A library under `src/libs/` stands on the host as the standard library does. The
 
 ### The shell
 
-The shell is an Ernest program over `Terminal`: `src/shell/shell.ern` and its modules under `src/shell/shell/`, compiled by `make` into `build/shell` against `libs/markdown` and `libs/ansi` in `build/libs`. [`src/shell/README.md`](../src/shell/README.md) guides a reader through the code, and [`design/shell.md`](design/shell.md) holds the design.
+The shell is an Ernest program over `Terminal`: `src/shell/ernest/shell.ern`, the module `Ernest.Shell`, and its modules under `src/shell/ernest/shell/`, compiled by `make` into `build/shell` against `libs/markdown` and `libs/ansi` in `build/libs`. [`src/shell/README.md`](../src/shell/README.md) guides a reader through the code, and [`design/shell.md`](design/shell.md) holds the design.
 
 `ern_shell` is the front end the shell reaches through `foreign fn`. It holds the session and checks an input with `ern_typecheck:check/5`, the input a module of its own (§11.2). A session's rows stand under the root of its processes (`kept/2`, `session_root/0`), and the node's modules, which every session's next input is checked against, are a row of the node's (`synced/1`, `published/1`, `node_load/2`).
 

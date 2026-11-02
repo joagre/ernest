@@ -454,12 +454,7 @@ module_of(File, SourceRoot, Mode) ->
     Relative = relative(File, SourceRoot),
     Relative =/= outside orelse fail(Shown ++ " is not under the source root " ++ SourceRoot
                                      ++ "; --source-root names another"),
-    %% report §4.2: a file of the standard library's own source root is
-    %% compiled with that root only
-    case is_stdlib_root(SourceRoot) orelse relative(File, stdlib_root()) =:= outside of
-        true -> ok;
-        false -> fail(Shown ++ " is in the standard library's source root; omit --source-root")
-    end,
+    own_root_only(Shown, File, SourceRoot),
     filename:extension(Relative) =:= ".ern" orelse fail(Shown ++ " does not end in .ern"),
     Components = filename:split(filename:rootname(Relative)),
     shaped(Shown, Components, SourceRoot, Mode),
@@ -470,26 +465,30 @@ module_of(File, SourceRoot, Mode) ->
         orelse fail(Shown ++ ": " ++ ern_namespace:host_name_text(
                                             "the module's Erlang name, `ern@` and its path,",
                                             ErlangModule)),
-    %% report §4.2: a module namespace is never a namespace of the prelude
-    %% or the standard library, nor under one, except in the standard
-    %% library's own source root; the message names which of the two takes
-    %% it, the prelude where both do
+    %% report §4.2: a module namespace is never a taken namespace, the
+    %% prelude's, the standard library's or the toolchain's, nor under one,
+    %% but in the toolchain's own source root that provides it; the message
+    %% names whose it is, the prelude's where two take it
     [First | Under] = Namespace,
     Taken = case Under of
                 [] -> " takes the ";
                 _ -> " stands under the "
             end,
-    not is_stdlib_root(SourceRoot) andalso
-        case {lists:member(First, prelude_namespaces()),
-              lists:member(First, stdlib_namespaces())} of
-            {true, _} ->
-                fail(Shown ++ Taken ++ "prelude namespace " ++ atom_to_list(First));
-            {false, true} ->
-                fail(Shown ++ Taken ++ "standard library namespace " ++ atom_to_list(First));
-            {false, false} ->
-                ok
-        end,
+    case taken_by(First, SourceRoot) of
+        none -> ok;
+        Whose -> fail(Shown ++ Taken ++ Whose ++ " namespace " ++ atom_to_list(First))
+    end,
     #build_module{namespace = Namespace, file = File, relative = Relative}.
+
+%% Report §4.2: a file of the toolchain's own source roots, the standard
+%% library's and the shell's, is compiled with that root only; the refusal
+%% names whose root holds it.
+own_root_only(Shown, File, SourceRoot) ->
+    case [Whose || {Root, Whose} <- own_roots(), absolute(SourceRoot) =/= Root,
+                   relative(File, Root) =/= outside] of
+        [] -> ok;
+        [Whose | _] -> fail(Shown ++ " is in " ++ Whose ++ " source root; omit --source-root")
+    end.
 
 %% Report §11.1: every component of the path keeps the shape. A file built
 %% alone has its own name checked first, and then the deepest directory
@@ -907,14 +906,14 @@ is_compiled(Relative, Roots) ->
     lists:any(fun(Dir) -> filelib:is_regular(filename:join(Dir, Relative ++ ".erc")) end, Roots).
 
 %% Report §11.1: the source root is --source-root; without it, the standard
-%% library's root for a path under it, else Default.
+%% library's or the shell's root for a path under it, else Default.
 -spec source_root([term()], file:filename(), file:filename()) -> file:filename().
 source_root(Options, Path, Default) ->
     case proplists:get_value(source_root, Options) of
         undefined ->
-            case relative(Path, stdlib_root()) of
-                outside -> absolute(Default);
-                _ -> stdlib_root()
+            case [Root || {Root, _} <- own_roots(), relative(Path, Root) =/= outside] of
+                [Root | _] -> Root;
+                [] -> absolute(Default)
             end;
         Given -> absolute(Given)
     end.
@@ -957,8 +956,39 @@ is_stdlib_root(SourceRoot) ->
 stdlib_root() ->
     filename:join([ern_tree:tree(), "src", "stdlib"]).
 
-%% Report §4.2: the namespaces a module may not take, the prelude's and the
-%% standard library's.
+%% Report §4.2: the shell's source root, `src/shell/` in the toolchain's
+%% tree, whose files provide `Ernest.Shell` and what stands under it.
+shell_root() ->
+    filename:join([ern_tree:tree(), "src", "shell"]).
+
+%% Report §4.2: the toolchain's own source roots, each with whose it is as
+%% a refusal names it.
+own_roots() ->
+    [{stdlib_root(), "the standard library's"}, {shell_root(), "the shell's"}].
+
+%% Report §4.2: whose taken namespace a module's first segment names, where
+%% its source root does not provide it, or none: the standard library's own
+%% root provides every taken namespace, and the shell's provides the
+%% toolchain's, `Ernest`.
+taken_by(First, SourceRoot) ->
+    case is_stdlib_root(SourceRoot) of
+        true ->
+            none;
+        false ->
+            case {lists:member(First, prelude_namespaces()),
+                  lists:member(First, stdlib_namespaces()),
+                  First =:= 'Ernest' andalso absolute(SourceRoot) =/= shell_root()} of
+                {true, _, _} -> "prelude";
+                {false, true, _} -> "standard library";
+                {false, false, true} -> "toolchain's";
+                {false, false, false} -> none
+            end
+    end.
+
+%% Report §4.2: the prelude's and the standard library's namespaces, which a
+%% module may not take and every check is given, so that no dependency is
+%% looked for under them; `Ernest`, the toolchain's, is taken too, and its
+%% modules are found as any module is.
 taken_namespaces() ->
     lists:usort(prelude_namespaces() ++ stdlib_namespaces()).
 

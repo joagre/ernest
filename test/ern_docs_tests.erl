@@ -417,15 +417,17 @@ architecture_tables_test() ->
                                string:find(Launch, Shown) =:= nomatch]).
 
 %% src/shell/README.md, report §4.2, §11.1: the README's table of the
-%% shell's modules names each module of the shell, `shell.ern` and those
-%% under `shell/`, by the name its path gives it beside a link to its file,
-%% and the count of those under `shell/` in words. A regression test,
-%% written after the table; it does not read what a row says its module is.
+%% shell's modules names each module of the shell, `ernest/shell.ern` and
+%% those under `ernest/shell/`, by the name its path gives it beside a link
+%% to its file, and the count of those under `ernest/shell/` in words. A
+%% regression test, written after the table; it does not read what a row
+%% says its module is.
 shell_modules_test() ->
     Readme = ern_repository:read("src/shell/README.md"),
-    Named = "\\| `(Shell[A-Za-z.]*)` \\| \\[`([a-z_/]+\\.ern)`\\]\\(([a-z_/]+\\.ern)\\)",
+    Named = "\\| `(Ernest\\.Shell[A-Za-z.]*)` \\| "
+        "\\[`([a-z_/]+\\.ern)`\\]\\(([a-z_/]+\\.ern)\\)",
     Rows = matches(Readme, Named),
-    Files = ern_repository:files(["src/shell/*.ern", "src/shell/shell/*.ern"]),
+    Files = ern_repository:files(["src/shell/ernest/*.ern", "src/shell/ernest/shell/*.ern"]),
     ?assertEqual(lists:sort(Files), lists:sort(["src/shell/" ++ Link || [_, _, Link] <- Rows])),
     ?assertEqual([], [Row || [Module, Shown, Link] = Row <- Rows,
                              Shown =/= Link orelse Module =/= module_named(Link)]),
@@ -433,7 +435,7 @@ shell_modules_test() ->
                                                   " modules under"])).
 
 %% The module a path under a source root names (report §4.2):
-%% `shell/kv_parser.ern` is `Shell.KvParser`.
+%% `ernest/shell/command.ern` is `Ernest.Shell.Command`.
 module_named(Path) ->
     ern_namespace:text(ern_namespace:namespace(string:lexemes(filename:rootname(Path), "/"))).
 
@@ -593,9 +595,9 @@ described() ->
 
 %% A backticked path a document writes under one of the repository's own
 %% directories, or under a directory beside the document, as
-%% src/shell/README.md writes `shell/editor.ern`. A metavariable is written
-%% `<name>`, as docs/style.md writes `ern_<thing>`, and a wildcard stands for
-%% a set, so neither names one file.
+%% src/shell/README.md writes `ernest/shell/editor.ern`. A metavariable is
+%% written `<name>`, as docs/style.md writes `ern_<thing>`, and a wildcard
+%% stands for a set, so neither names one file.
 paths(File) ->
     Tops = ["erl/", "docs/", "test/", "bin/", "src/", "examples/", "build/", "tools/",
             "editors/", "assets/"],

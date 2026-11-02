@@ -287,7 +287,7 @@ program() ->
     %% named by its count, `$Session1.input 5:1`, the fifth thing entered)
     ?assertEqual(2, ern_pty:count(Screen, <<"$Session1.input 5:1 faulted: division by zero">>)),
     %% `:processes` leaves the shell's own out
-    ?assertEqual(nomatch, binary:match(Screen, <<"Shell.main">>)).
+    ?assertEqual(nomatch, binary:match(Screen, <<"Ernest.Shell.main">>)).
 
 %% report §11.2: at start the shell runs the inputs of the person's
 %% startup file and then the node's, a line an input, a command among them;
@@ -1075,7 +1075,7 @@ compare_at_the_prompt() ->
 %% `:processes` lists, the processes the session's inputs started, and
 %% none of the shell's own, its chain, its evaluators and the input that
 %% asks among them. Written with the inputs spawned as roots of their own
-%% (the log's *The Review's Decisions*), when it listed `Shell.main`; it
+%% (the log's *The Review's Decisions*), when it listed the shell's `main`; it
 %% does not cover a process a load's evaluation started, which program_test
 %% lists
 process_live_at_the_prompt_test_() ->
@@ -1270,17 +1270,17 @@ reader_and_screen_ends() ->
                                     {expect, "stop : "},
                                     {send, hex(Processes)},
                                     {expect, "processes : "},
-                                    {send, hex(Ending("Shell.keysRead"))},
+                                    {send, hex(Ending("Ernest.Shell.keysRead"))},
                                     {expect, "stopped reading the keyboard"}],
                                    " --size 30x120"),
-    ?assertMatch({_, _}, binary:match(ReaderEnded, <<"Shell.keysRead">>)),
+    ?assertMatch({_, _}, binary:match(ReaderEnded, <<"Ernest.Shell.keysRead">>)),
     {70, ScreenEnded} = ern_pty:run(alone("../bin/ern shell"),
                                     [{expect, "> "},
                                      {send, hex(Stop)},
                                      {expect, "stop : "},
                                      {send, hex(Processes)},
                                      {expect, "processes : "},
-                                     {send, hex(Ending("Shell.session:"))},
+                                     {send, hex(Ending("Ernest.Shell.session:"))},
                                      {expect, "screen ended"}],
                                     " --size 30x120"),
     ?assertMatch({_, _}, binary:match(ScreenEnded, <<"fault: the shell's screen ended">>)).
@@ -1303,8 +1303,9 @@ editor() ->
     Passed = [Line || Line <- Lines, binary:match(Line, <<": passed">>) =/= nomatch],
     %% a module with tests is named before them, and one without is passed
     %% over (report §11.2)
-    ?assertEqual([<<"Shell.Command">>, <<"Shell.Complete">>, <<"Shell.Editor">>,
-                  <<"Shell.History">>, <<"Shell.Region">>, <<"Shell.Style">>],
+    ?assertEqual([<<"Ernest.Shell.Command">>, <<"Ernest.Shell.Complete">>,
+                  <<"Ernest.Shell.Editor">>, <<"Ernest.Shell.History">>,
+                  <<"Ernest.Shell.Region">>, <<"Ernest.Shell.Style">>],
                  Lines -- Passed),
     ?assert(length(Passed) >= 100),
     ?assertEqual(0, Status).
@@ -3627,15 +3628,15 @@ libraries_in_the_shell() ->
     ?assertMatch({_, _}, binary:match(Output, <<"> \"[1]\\n\" : String\n">>)).
 
 %% report §11.2: the commands the report's paragraph lists are the shell's
-%% own list, `Shell.Command.commands`, each once; a mirror, a list that lives
-%% in the code and in the report (CLAUDE.md)
+%% own list, `Ernest.Shell.Command.commands`, each once; a mirror, a list
+%% that lives in the code and in the report (CLAUDE.md)
 commands_mirror_test() ->
     {ok, Report} = file:read_file("../report/toolchain.md"),
     [_, Rest] = binary:split(Report, <<"**Commands.**">>),
     [Paragraph | _] = binary:split(Rest, <<"\n\n**">>),
     {match, Listed} = re:run(Paragraph, "^- `:([a-z]+)", [multiline, global,
                                                          {capture, all_but_first, binary}]),
-    {ok, Source} = file:read_file("../src/shell/shell/command.ern"),
+    {ok, Source} = file:read_file("../src/shell/ernest/shell/command.ern"),
     [_, AfterList] = binary:split(Source, <<"export let commands =">>),
     [List | _] = binary:split(AfterList, <<")]\n">>),
     {match, Named} = re:run(List, "Command\\(name = \"([a-z]+)\"",
@@ -3687,7 +3688,7 @@ fault_subscriber() ->
      || Line <- ["\\$Session1\\.input 4:1 faulted, restarted: division by zero",
                  "\\$Session1\\.input 4:1 faulted: division by zero"]],
     ?assertMatch({_, _}, binary:match(Output, <<"Bad.boom:2 faulted">>)),
-    ?assertEqual(nomatch, binary:match(Output, <<"Shell.load">>)).
+    ?assertEqual(nomatch, binary:match(Output, <<"Ernest.Shell.load">>)).
 
 %% report §11.2, §7.3, Appendix E.21: an input that faults answers with
 %% `fault:` and its cause, and beneath them its trace, a frame a line
@@ -3736,7 +3737,7 @@ site_escaped() ->
 %% being where programs write. A regression test, written after the code:
 %% the setting was `:set output n`. It covers line mode, where the rows
 %% are shown and not used; the region's rows at a terminal are
-%% `Shell.Region`'s tests'
+%% `Ernest.Shell.Region`'s tests'
 set_rows_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun set_rows/0).
 
@@ -4609,7 +4610,7 @@ load_keeps_what_bindings_open() ->
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"Right(Some(\"hello\"))">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"Greeter.acceptor:21 calling\n">>)),
-    ?assertEqual(nomatch, binary:match(Output, <<"Shell.load">>)).
+    ?assertEqual(nomatch, binary:match(Output, <<"Ernest.Shell.load">>)).
 
 %% report §11.2, §6.9: a `:load` whose binding faults loads nothing: the
 %% process a binding before it started is killed, the refusal names it by
@@ -5471,8 +5472,8 @@ load_words_segment() ->
 %% by `:load`, one after the other, kept where completion reads it, run as
 %% a plain shell runs its session, in a launch of the runtime's, beside a
 %% local half that reads the source root on this node, as the shell's does
-%% (src/shell/shell.ern's `localHalf`); the front end's state goes with it,
-%% so that a test leaves none behind for the next.
+%% (src/shell/ernest/shell.ern's `localHalf`); the front end's state goes
+%% with it, so that a test leaves none behind for the next.
 with_loaded(Dir, Modules, Work) ->
     ern_shell:loaded(#loaded{source_root = Dir}),
     Self = self(),

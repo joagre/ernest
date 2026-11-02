@@ -8,23 +8,25 @@ How `ern shell` is built. What the shell does is report §11.2, cited here by th
 
 The shell is an Ernest program over a front end in Erlang. Its source is a tree of its own, `src/shell/`, beside `src/stdlib/` and `src/libs/`, which `make` compiles into `build/shell/`, where `ern shell` finds it. It is the toolchain's own program, neither standard library nor a library under `src/libs/`.
 
-`Shell`, in `src/shell/shell.ern`, holds the processes and the front end's declarations: everything that sends, receives or reaches the host, but the history file and the questions `Shell.Complete` asks of the front end. A process only carries messages and writes bytes.
+Its modules stand under the toolchain's taken namespace, `Ernest.Shell` and those under it, which `src/shell/` as their source root gives the paths `ernest/shell.ern` and `ernest/shell/` (§4.2, §11.1). `ern build` refuses `Ernest` to every other source root, so a program's module names none of the shell's units, which a node loads beside the program from its own tree (§12.7; the log's *Four Lines From the Deployment*).
 
-The decisions are pure functions in modules of their own, each tested by its `Test` values (Appendix E.24). `Shell.Editor` decides what a key does, `Shell.Region` what the screen shows, `Shell.Complete.complete` what a word completes to, `Shell.Command` what a command line selects, and `Shell.Style` how a line is colored. `Shell.History` reads and writes the history file.
+`Ernest.Shell`, in `src/shell/ernest/shell.ern`, holds the processes and the front end's declarations: everything that sends, receives or reaches the host, but the history file and the questions `Ernest.Shell.Complete` asks of the front end. A process only carries messages and writes bytes.
+
+The decisions are pure functions in modules of their own, each tested by its `Test` values (Appendix E.24). `Ernest.Shell.Editor` decides what a key does, `Ernest.Shell.Region` what the screen shows, `Ernest.Shell.Complete.complete` what a word completes to, `Ernest.Shell.Command` what a command line selects, and `Ernest.Shell.Style` how a line is colored. `Ernest.Shell.History` reads and writes the history file.
 
 ## Processes
 
 The shell runs as four processes, the session, the reader, the screen and the local half, and in line mode the local half's reader of lines beside them. Each input runs in one more, and so does each module a load evaluates (*Loading and reloading*). The local half is on the shell's own node and the rest on the node the session runs on, one node in a plain shell and two in an attached one (*The attached shell*).
 
-**The session** runs no user code. In a plain shell it is the entry process (§8.1), `Shell.main`; in an attached one it is spawned on the node. Its `State` holds the front end's `Session`, the settings, whether it colors, its own processes, its local half and its reader, the fault reports `:faults` lists, and what names an input: the count of what was entered at the prompt, the serial of the last input run, and the file and line of a startup input while one runs.
+**The session** runs no user code. In a plain shell it is the entry process (§8.1), `Ernest.Shell.main`; in an attached one it is spawned on the node. Its `State` holds the front end's `Session`, the settings, whether it colors, its own processes, its local half and its reader, the fault reports `:faults` lists, and what names an input: the count of what was entered at the prompt, the serial of the last input run, and the file and line of a startup input while one runs.
 
 **The local half** holds the terminal and the operator's files. It records itself as the terminal's holder before it subscribes, so that the keys are its alone and the interrupt reaches it as a key (§11.2 *The shell*, §12.1 *Interrupt*). It forwards each event to the reader, writes the bytes the screen sends, and reads and appends the files the session asks of it, one message at a time in the order they come. In line mode its reader of lines holds the terminal and reads a line each time the session asks, so that the local half writes while a line is awaited.
 
 It reads and appends those files alone: a file under the source root, read or listed, and a startup file it ran, read again for a diagnostic, each refused `Denied` outside them, a path that steps out with `..` among it; and an append to the path `:output` took, which it tries itself, refused to any other (§11.2 *The attached shell*; the log's *The Release Review's Code Fixes, 2026-10-31*). A process of the node that finds its address asks no more of it than the session does.
 
-**The reader** edits the line at a terminal. Each event the local half forwards goes through `Shell.Editor.edit`, and the reader sends the screen the line to show and the session what was entered. It draws nothing, and it stays live while an input runs.
+**The reader** edits the line at a terminal. Each event the local half forwards goes through `Ernest.Shell.Editor.edit`, and the reader sends the screen the line to show and the session what was entered. It draws nothing, and it stays live while an input runs.
 
-**The screen** is the only process that draws. It holds a `Shell.Region.Region` and sends the local half the bytes the region answers, which the local half writes. In line mode it sends what it is sent as it comes.
+**The screen** is the only process that draws. It holds an `Ernest.Shell.Region.Region` and sends the local half the bytes the region answers, which the local half writes. In line mode it sends what it is sent as it comes.
 
 **An input's process** runs the input at its own inferred mailbox type (the log's *The Shell's Design*). That type is known only once the input is checked, so the front end spawns the process, chained to the session, so that what it starts writes to the session's screen through the session's row (*Output*). It is given what it needs to compute its value, and not the session.
 
@@ -46,7 +48,7 @@ Each outcome carries its input's serial, so an outcome that still arrives from a
 
 ### Start and end
 
-The runner, `ern_cli`, loads the file and its dependencies and runs their initializers (§8.5). Through `ern_shell:loaded/1` it hands the front end the load path, the source root, the loaded modules' interfaces, the entry point to spawn, the paths of the startup files and the peer `--attach` names. It then runs `Shell.main` as the entry point, or `Shell.attach` with `--attach`, with standard output and standard error bound to `ern_shell:to_screen`.
+The runner, `ern_cli`, loads the file and its dependencies and runs their initializers (§8.5). Through `ern_shell:loaded/1` it hands the front end the load path, the source root, the loaded modules' interfaces, the entry point to spawn, the paths of the startup files and the peer `--attach` names. It then runs `Ernest.Shell.main` as the entry point, or `Ernest.Shell.attach` with `--attach`, with standard output and standard error bound to `ern_shell:to_screen`.
 
 `main` spawns the local half, which reads what the session needs and sends it, and `attach` is the local half itself. The two halves are ordered by what each step needs from the one before:
 
@@ -77,7 +79,7 @@ The front end's values reach the shell as handles of four foreign types, `Sessio
 - **The session**: `start`, `number`, `check`, `checkType`, `spawnInput`, `load`, `reload`, `reloadedBy`, `forget`, `collect`, `going`, `letGo`, `markOwn` and `detach`, each but `number`, `going`, `letGo`, `markOwn`, `detach` and `spawnInput` answering the `Session` it made. `check` answers §11.5's text instead for an input that does not check, and a `Checked` beside the `Session` for one that does; `checkType` checks `:type`'s expression so. `spawnInput`'s outcome carries the input's value and the `Bound`, what it bound, which `collect` binds and joins to the session, or its fault, after which `collect` lets the input's unit go; `going` answers the processes of inputs a collection set to go, and `letGo` lets them go.
 - **A result**: `typeText`, `isUnit`, `isExpression`, `declared`, `leavesItUnchanged` and `declaredType` read a `Checked` for what is printed and what `:type` and `it` do; `declared` reads the input's `Value` too, since a `let` with `<-` binds by its value's side. `show` prints a `Value` to a depth and a length.
 - **The commands** that reach past the shell: `bindings`, `browse` and `doc`.
-- **The questions the reader and `Shell.Complete` ask**: `names`, `sessionNames`, `sessionTexts`, `sourceRoot`, `slot`, `needsMore`, `opening`, `fields`, `documentation`, `signature`, `segment` and `component`. None takes a `Session`; those that read the session read the front end's copy.
+- **The questions the reader and `Ernest.Shell.Complete` ask**: `names`, `sessionNames`, `sessionTexts`, `sourceRoot`, `slot`, `needsMore`, `opening`, `fields`, `documentation`, `signature`, `segment` and `component`. None takes a `Session`; those that read the session read the front end's copy.
 - **The host's alone**: `version`, `configStartup`, `isSameFile`, `givenSourceRoot`, `attachTo`, `sayEnd`, `spawnProgram`, `write`, `decoded`, `setNodeScreen`, `dialMs` and `holdTerminal`.
 
 `check` is told where the input came from: the count of what was entered at the prompt, or a startup file's line and the column the input begins in.
@@ -166,7 +168,9 @@ A type whose hash the reload changed moves, in the interfaces of the session's i
 
 The cut: the operator's machine is the terminal and the files, everything else is the node's (§11.2 *The attached shell*; the log's *The Attached Shell's Cut*). The local half is the shell's own node's entry point, and the session, its reader and its screen run on the node, as this note has them, touching the terminal and the files through the local half alone. What crosses is the terminal's events, the screen's bytes and the calls the session makes of the local half's files, the reads of a source among them, shipped as text.
 
-**The session's start.** The local half spawns on the peer, with what it read, a process whose mailbox type crosses (§3.11), monitored from the spawn: the root of the session's chain, which spawns the session and lives while it does, so that the monitor sees the node lost or ended while the session starts. The shell's units are the toolchain's own, which the node loads from its own tree (§12.7). The whole attach waits twice as long as a dial is waited for, the dial's time for the connection and as much again for the session, so that a node nothing answers is unreachable at the dial's end (§8.7; the log's *The Shell's Own Node*). The local half then monitors the session, and the session the local half.
+**The session's start.** The local half spawns on the peer, with what it read, a process whose mailbox type crosses (§3.11), monitored from the spawn: the root of the session's chain, which spawns the session and lives while it does, so that the monitor sees the node lost or ended while the session starts. The whole attach waits twice as long as a dial is waited for, the dial's time for the connection and as much again for the session, so that a node nothing answers is unreachable at the dial's end (§8.7; the log's *The Shell's Own Node*). The local half then monitors the session, and the session the local half.
+
+**The shell's units on the node.** They are the toolchain's own, which the node loads from its own tree (§12.7): a node whose tree lacks them answers `NotLoaded`, another build of `ern`, and one that could not load them `Other(r)`, its reason, which the local half says as it is (`refusal`; the log's *Four Lines From the Deployment*). An end of the chain's root before the session began is the start's refusal (`startRefusal`).
 
 **Sessions and their numbers.** A node gives each session a number once in its life, the plain shell's own session 1 and the first attached to a node `ern run` started 1 too, which its start line says, every host name an input makes carries (*An input as a module*), and each of its spawn sites carries under its namespace (*Faults*). The node's modules are every session's, and a reload by any session is the node's (*The session's scope*).
 
@@ -192,7 +196,7 @@ A line the shell has finished with is committed: written into the terminal, scro
 
 Nothing is ever written below the region, which is what makes the erase correct. The region never addresses a row: it does not know where on the screen it sits, and never asks.
 
-`Shell.Region` is pure (the log's *The Region Is a Pure Function*). Each event takes the region and answers the region after it and the bytes to write, which the screen writes. The region is abstract (§4.4), so its module alone keeps the tail within its rows and the cursor within the input. Beside what it shows, it holds the row the cursor rests on, the terminal's size, and the rows the tail may take.
+`Ernest.Shell.Region` is pure (the log's *The Region Is a Pure Function*). Each event takes the region and answers the region after it and the bytes to write, which the screen writes. The region is abstract (§4.4), so its module alone keeps the tail within its rows and the cursor within the input. Beside what it shows, it holds the row the cursor rests on, the terminal's size, and the rows the tail may take.
 
 ### Drawing
 
@@ -245,7 +249,7 @@ The screen then holds where output goes, and has the local half append each `Wro
 
 ## The editor
 
-`Shell.Editor` is a pure function from the state being edited and a `Terminal.Event` to an `Edit`, which tells the reader what to do. It writes nothing and knows no names: the reader completes and documents, and puts the line back. The state, `Editing`, is abstract (§4.4), so the editor alone keeps the cursor inside the line and a search inside the history. Its one kill outlives the line.
+`Ernest.Shell.Editor` is a pure function from the state being edited and a `Terminal.Event` to an `Edit`, which tells the reader what to do. It writes nothing and knows no names: the reader completes and documents, and puts the line back. The state, `Editing`, is abstract (§4.4), so the editor alone keeps the cursor inside the line and a search inside the history. Its one kill outlives the line.
 
 **Sequences.** §12.1 delivers a sequence it does not name as `Escape` and its characters. So `Escape` and a key is that key's Meta binding, and `Escape [ Z` is `Shift-Tab`. The reader keeps its record of the key before while a sequence is begun, so that `Shift-Tab` twice is two presses and not six keys.
 
@@ -261,7 +265,7 @@ The screen then holds where output goes, and has the local half append each `Wro
 
 ## The history file
 
-`Shell.History` is Ernest over `Os`, `Fs`, `String` and `List`, with no foreign function; where the file is and what it holds is §11.2 *Startup and history*. It decodes a line left to right, since `\\n` is a backslash and an `n`, which two passes of `String.replace` would read as a newline. It answers the inputs newest first, the order the editor walks.
+`Ernest.Shell.History` is Ernest over `Os`, `Fs`, `String` and `List`, with no foreign function; where the file is and what it holds is §11.2 *Startup and history*. It decodes a line left to right, since `\\n` is a backslash and an `n`, which two passes of `String.replace` would read as a newline. It answers the inputs newest first, the order the editor walks.
 
 The local half reads the file at start, and the session hands the inputs to the reader. The reader has the local half append each input it takes and each `C-c` abandons, where the editor says the input is kept, and asks no more once an append has failed.
 
@@ -269,19 +273,19 @@ The local half reads the file at start, and the session hands the inputs to the 
 
 ### Completion
 
-`Shell.Complete` decides from the line what may stand at the cursor:
+`Ernest.Shell.Complete` decides from the line what may stand at the cursor:
 
 - in a command's name, a command, without asking the parser, since a command is not the language's;
-- after a command, what `Shell.Command` says the command takes;
+- after a command, what `Ernest.Shell.Command` says the command takes;
 - anywhere else, what the parser says it wanted where it stopped, given the text before the word.
 
-The names come from the front end, which `Shell.Complete` asks itself: every name in reach, read from the compiled interfaces and the session, each with its kind and the line a listing shows.
+The names come from the front end, which `Ernest.Shell.Complete` asks itself: every name in reach, read from the compiled interfaces and the session, each with its kind and the line a listing shows.
 
 For the text before a `.`, the front end checks it as an input in `$Fields`, which does not enter the session, and answers the fields its type selects (§3.5). So a chain of selections is the checker's. The checker's environment over the session's interfaces, which a check of the reader's takes, is kept in the reader's own process, made again only where the interfaces changed since its last question, so that a `Tab` adds no interface again (the session's row holds none, *The front end's copy*).
 
 For `:load`, only the one directory of the source root the typed segments name is listed, by the local half, which holds the operator's files, so a large root is never walked. Each entry is named by the compiler's path-shape rule (§11.1).
 
-Matching a word is pure (`Shell.Complete.complete`). It answers the word to stand in place of the one typed, and the candidates. The word replaces rather than extends, since an abbreviation is no prefix of what it reaches. The candidates are listed as the rows under the line, which the next key's `ShowInput` takes away.
+Matching a word is pure (`Ernest.Shell.Complete.complete`). It answers the word to stand in place of the one typed, and the candidates. The word replaces rather than extends, since an abbreviation is no prefix of what it reaches. The candidates are listed as the rows under the line, which the next key's `ShowInput` takes away.
 
 ### Documentation
 
@@ -295,7 +299,7 @@ Pages are rendered by `libs/markdown`, which the shell is built against, at the 
 
 ## Commands
 
-`Shell.Command.commands` is the one table of commands: each command's name, its action, what it takes and what completes after it, and its help line. `commands_mirror_test`, in `test/ern_shell_tests.erl`, holds it equal to the list of §11.2 *Commands*. The session carries each action out, most through the foreign function of its name.
+`Ernest.Shell.Command.commands` is the one table of commands: each command's name, its action, what it takes and what completes after it, and its help line. `commands_mirror_test`, in `test/ern_shell_tests.erl`, holds it equal to the list of §11.2 *Commands*. The session carries each action out, most through the foreign function of its name.
 
 The settings are an Ernest value in the session's state, not the front end's. `:processes` lists what `Process.live()` lists at the prompt, each with its activity beside its site as `Process.status` answers it, which leaves out the processes every session marks as its own, the session, its local half where it is beside it, its screen and its reader, the inputs that bound names and the input that asks (`ern_rt:own/1`), and every load's evaluator, the runtime's own, and `:faults` reads the session's state, each fault with the time it was met, its report's `time` (Appendix E.21). `:quit` leaves every shell, an attached one detaching its session (the log's *One Word to Leave*).
 
@@ -319,7 +323,7 @@ While a startup input runs, the session holds its file and line, which a refusal
 
 ## Testing
 
-**The modules but `Shell`** are tested by their `Test` values (Appendix E.24, §11.2), at the foot of each file, which `make test-shell` runs for every module. Each of the editor's tests plays a list of events onto a fresh line and reads the text and the cursor; the region's read the bytes a redraw writes and where the cursor rests.
+**The modules but `Ernest.Shell`** are tested by their `Test` values (Appendix E.24, §11.2), at the foot of each file, which `make test-shell` runs for every module. Each of the editor's tests plays a list of events onto a fresh line and reads the text and the cursor; the region's read the bytes a redraw writes and where the cursor rests.
 
 **The session** is tested by `test/ern_shell_tests.erl`. A golden test is a file of inputs run in line mode, `test/fixtures/session/basic.in`, against its expected output. A session that drives a program is not one, since where a fault report lands among the inputs depends on when the process faults; that test asserts what must be true of it instead.
 

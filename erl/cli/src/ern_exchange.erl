@@ -221,8 +221,11 @@ own_unit({foreign, _}) -> none.
 %% bindings evaluated in an evaluator before the process starts
 %% (ern_code_load:own/1), for a process of the runtime's own, which then
 %% reads the frame again as the gateway's worker reads it, which starts it,
-%% or answers `NotLoaded`, the node saying what it lacked, a binding that
-%% faulted among it. The exchange goes on with its other frames meanwhile.
+%% or answers `Other(text)`, why the node could not load them, a binding
+%% that faulted among the causes, as a reach it cannot load is answered
+%% (report §8.7), which the node says too. The exchange goes on with its
+%% other frames meanwhile.
+%%
 %% Two such loads are one at a time on the node, so that a unit is loaded
 %% and its bindings evaluated once, the second finding them so. The
 %% spawner's node is asked for nothing, and the work is bounded, the
@@ -240,12 +243,12 @@ own_answered(Unit, From, Body) ->
     case Loaded of
         ok ->
             started({From, Body});
-        {lacked, Lacked} ->
-            answered([{From, Body}], 'NotLoaded', Lacked);
+        {refused, Refusal} ->
+            answered([{From, Body}], {'Other', Refusal}, Refusal);
         {failed, Failure} ->
             Text = unicode:characters_to_binary(
                      io_lib:format("its load from this node's tree failed, ~P", [Failure, 8])),
-            answered([{From, Body}], 'NotLoaded', Text)
+            answered([{From, Body}], {'Other', Text}, Text)
     end.
 
 %% The request for a reach, of the node of the first of the spawns that

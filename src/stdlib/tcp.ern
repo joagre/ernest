@@ -179,14 +179,18 @@ foreign fn system(name : Foreign.Term) : Address(Msg) =
 ///
 /// `host` is an address or a name: `"127.0.0.1"` is the loopback alone,
 /// `"0.0.0.0"` every interface of IPv4, and `"::"` every interface of IPv6. A
-/// name is looked up, its IPv4 address before its IPv6 one. Port 0 asks the
-/// host for a free port, which `port` tells. The listener belongs to the
-/// process that calls `listen`, and is killed when that process dies.
+/// name is looked up, its IPv4 address before its IPv6 one. A listener takes
+/// connections of its address's family alone, so a listener on `"0.0.0.0"`
+/// and one on `"::"` stand on one port together, and a program that serves
+/// both families opens both. Port 0 asks the host for a free port, which
+/// `port` tells. The listener belongs to the process that calls `listen`, and
+/// is killed when that process dies.
 ///
-/// It answers `Left(Invalid)` for a port outside 0 to 65535 or a host that
-/// holds U+0000, and `Left(Other(text))` where the host refuses, in the host's
-/// words: `Left(Other("address already in use"))` for a port another listener
-/// holds, `Left(Other("non-existing domain"))` for a name not found.
+/// It answers `Left(Invalid)` for a port outside 0 to 65535, a host that holds
+/// U+0000 or an IPv4-mapped address, `"::ffff:a.b.c.d"`, and
+/// `Left(Other(text))` where the host refuses, in the host's words:
+/// `Left(Other("address already in use"))` for a port another listener holds,
+/// `Left(Other("non-existing domain"))` for a name not found.
 export fn listen(host : String, port : Int) : Either(Io.Error, Address(ListenerMsg)) = {
     let owner = Process.current();
     let request = fn(reply) = Listen(=host, =port, =owner, =reply);

@@ -106,7 +106,8 @@ cookie_test() ->
 %% of addresses, the node's certificate and key on each side, the rule as
 %% the verification, no port-mapper daemon, no mesh, the detector's times,
 %% the buffer, and the floor's digest as the cookie; the listener's
-%% interface is the kernel's to bind where it is one
+%% interface is the kernel's to bind where it is one, and an IPv6
+%% listener's family alone (Appendix E.18)
 boot_flags_test() ->
     Configuration = configured(),
     Dir = filename:absname(Configuration#configuration.config_dir),
@@ -132,9 +133,12 @@ boot_flags_test() ->
                                                                          8654}}),
     ?assertMatch(["-proto_dist", "inet6_tls" | _], All),
     ?assertNot(lists:member("inet_dist_use_interface", All)),
+    ?assert(contains(All, ["-kernel", "inet_dist_listen_options", "[{ipv6_v6only,true}]"])),
+    ?assertNot(lists:member("inet_dist_listen_options", Flags)),
     Dialing = ern_carrier:boot_flags(Configuration#configuration{listen = none}),
     ?assertMatch(["-proto_dist", "inet_tls" | _], Dialing),
-    ?assertNot(lists:member("inet_dist_use_interface", Dialing)).
+    ?assertNot(lists:member("inet_dist_use_interface", Dialing)),
+    ?assertNot(lists:member("inet_dist_listen_options", Dialing)).
 
 contains(List, Part) ->
     lists:prefix(Part, List) orelse (List =/= [] andalso contains(tl(List), Part)).

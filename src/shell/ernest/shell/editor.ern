@@ -74,7 +74,7 @@ export fn next(state : Editing) : Editing =
     Editing(..fresh,
             killed = state.killed,
             history = if keeps(state) then
-                List.take(state.text :: state.history, Shell.History.kept)
+                List.take(state.text :: state.history, Ernest.Shell.History.kept)
             else
                 state.history)
 
@@ -805,9 +805,10 @@ let joinsHistory =
 // Report §11.2: a regression test, written after the code; the session
 // kept every input it was given.
 let lastThousand = Test.Case(name = "the history keeps the last thousand inputs", run = fn() = {
-    let full = List.map(List.range(1, Shell.History.kept), Int.toString);
+    let full = List.map(List.range(1, Ernest.Shell.History.kept), Int.toString);
     let history = next(Editing(..start(full), text = "new")).history;
-    Test.equal(#(List.size(history), List.get(history, 0)), #(Shell.History.kept, Some("new")))
+    Test.equal(#(List.size(history), List.get(history, 0)),
+               #(Ernest.Shell.History.kept, Some("new")))
 })
 
 let notKept =

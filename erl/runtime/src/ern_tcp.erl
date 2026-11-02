@@ -159,7 +159,8 @@ listen(Tcp, Host, Port, Kind, Owner, Reply) ->
                      {'Left', 'Invalid'};
                  {true, {ok, IpAddress}, {Transport, Site, KindOptions}} ->
                      Options = [binary, {active, false}, {reuseaddr, true}, {packet, raw},
-                                {ip, IpAddress} | family(IpAddress)] ++ KindOptions,
+                                {ip, IpAddress}]
+                         ++ family(IpAddress) ++ family_alone(IpAddress) ++ KindOptions,
                      case guarded(fun() -> Transport:listen(Port, Options) end) of
                          {ok, Socket} ->
                              %% report §6.9, Appendix E.18: owned by the
@@ -219,6 +220,15 @@ named(Name) ->
 
 family({_, _, _, _, _, _, _, _}) -> [inet6];
 family(_) -> [].
+
+%% Report Appendix E.18: a listener takes connections of its address's
+%% family alone, the host's IPV6_V6ONLY, so that one on "::" takes no IPv4
+%% connection as ::ffff:a.b.c.d and one on "0.0.0.0" stands beside it on
+%% its port. An IPv4 address written as IPv6's, ::ffff:a.b.c.d, is then
+%% one no listener can take a connection at, which the host refuses as
+%% invalid.
+family_alone({_, _, _, _, _, _, _, _}) -> [{ipv6_v6only, true}];
+family_alone(_) -> [].
 
 %% What the host raises for an input it refuses, as the error it would be,
 %% whatever the class it raises: a worker that dies of one answers nothing.

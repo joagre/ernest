@@ -60,7 +60,8 @@ dial_ms() ->
 %% of addresses; no port-mapper daemon, a module of the runtime's answering
 %% from the configuration in its place; no mesh; the detector's times and
 %% the buffer; and the floor's digest as the cookie. The listener's
-%% interface, where it is one, is the kernel's to bind.
+%% interface, where it is one, is the kernel's to bind, and so is its
+%% family alone (family_alone/1).
 -spec boot_flags(#configuration{}) -> [string()].
 boot_flags(#configuration{config_dir = ConfigDir, listen = Listen}) ->
     Certificate = ern_node:file(filename:absname(ConfigDir), certificate),
@@ -77,7 +78,7 @@ boot_flags(#configuration{config_dir = ConfigDir, listen = Listen}) ->
             "-kernel", "net_ticktime", ?TICK_TIME, "-kernel", "net_setuptime",
             integer_to_list(dial_ms() div 1000),
             "+zdbbl", ?BUFFER, "-setcookie", cookie()]
-        ++ interface(Listen).
+        ++ interface(Listen) ++ listen_options(Listen).
 
 %% Report §12.5: the TLS options of one side: the node's own certificate as
 %% the one the host trusts, so that a peer's is checked by the rule alone,
@@ -93,6 +94,24 @@ interface({{0, 0, 0, 0, 0, 0, 0, 0}, _}) -> [];
 interface({Address, _}) ->
     ["-kernel", "inet_dist_use_interface", lists:flatten(io_lib:format("~w", [Address]))];
 interface(none) -> [].
+
+listen_options(Listen) ->
+    case family_alone(Listen) of
+        [] -> [];
+        Options ->
+            ["-kernel", "inet_dist_listen_options", lists:flatten(io_lib:format("~w", [Options]))]
+    end.
+
+%% Report §12.5: a listener takes connections of its address's family
+%% alone, IPv6's the host's IPV6_V6ONLY, as a program's does (Appendix
+%% E.18), so that a node on `::` takes no IPv4 peer as ::ffff:a.b.c.d and a
+%% listener on `0.0.0.0` stands beside it on its port.
+family_alone(none) -> [];
+family_alone(Listen) ->
+    case ern_node:family(Listen) of
+        inet6 -> [{ipv6_v6only, true}];
+        inet -> []
+    end.
 
 %% Report §12.5: a node's name on the carrier, a constant at the host its
 %% public key gives, holding no network address.
@@ -206,7 +225,8 @@ start(#configuration{public_key = PublicKey, listen = Listen}) ->
 %% nothing for it; else the host's reason, as the host writes it. A port
 %% the host picks is never in use.
 not_started({Address, Port} = Listen, Reason) when Port =/= 0 ->
-    case gen_tcp:listen(Port, [ern_node:family(Listen), {ip, Address}, {reuseaddr, true}]) of
+    case gen_tcp:listen(Port, [ern_node:family(Listen), {ip, Address}, {reuseaddr, true}
+                               | family_alone(Listen)]) of
         {error, eaddrinuse} ->
             ["its listen address ", listen_text(Listen), " is in use"];
         {ok, Socket} ->

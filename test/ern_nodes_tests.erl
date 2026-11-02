@@ -1337,23 +1337,18 @@ ipv6_test_() ->
     nodes_test({waits, 7}, fun ipv6/1).
 
 ipv6(Base) ->
-    Free = fun() ->
-               {ok, Socket} = gen_tcp:listen(0, [inet6, {ip, {0, 0, 0, 0, 0, 0, 0, 1}}]),
-               {ok, Port} = inet:port(Socket),
-               ok = gen_tcp:close(Socket),
-               Port
-           end,
-    Six = fun(Port) -> list_to_binary("[::1]:" ++ integer_to_list(Port)) end,
-    {PortA, PortB} = {Free(), Free()},
+    {PortA, PortB} = {free_ipv6_port(), free_ipv6_port()},
     A = made(Base, "a", none),
     B = made(Base, "b", none),
     edit(A, fun(Conf) ->
-                Conf#{<<"listen">> => Six(PortA),
-                      <<"peers">> => [(peer("b", B, none))#{<<"network-address">> => Six(PortB)}]}
+                Conf#{<<"listen">> => ipv6_loopback(PortA),
+                      <<"peers">> => [(peer("b", B, none))#{<<"network-address">> =>
+                                                                 ipv6_loopback(PortB)}]}
             end),
     edit(B, fun(Conf) ->
-                Conf#{<<"listen">> => Six(PortB),
-                      <<"peers">> => [(peer("a", A, none))#{<<"network-address">> => Six(PortA)}]}
+                Conf#{<<"listen">> => ipv6_loopback(PortB),
+                      <<"peers">> => [(peer("a", A, none))#{<<"network-address">> =>
+                                                                 ipv6_loopback(PortA)}]}
             end),
     Program = program(filename:join(Base, "build")),
     WaitB = start(B, Program, []),
@@ -1366,6 +1361,59 @@ ipv6(Base) ->
     {_, ErrB} = said(B),
     has(OutA, "connect: true"),
     has(ErrB, "the peer a connected").
+
+%% report §12.5, Appendix E.18: a node's listener on `::` takes connections
+%% of IPv6's family alone, so a listener on `0.0.0.0` stands beside it on
+%% its port and is the one an IPv4 connection to the port reaches. A
+%% regression test: the node on `::` took IPv4 connections too, and beside
+%% a listener on `0.0.0.0` its carrier did not start, its listen address
+%% in use. It does not cover an interface other than the loopback's
+ipv6_beside_ipv4_test_() ->
+    nodes_test({waits, 7}, fun ipv6_beside_ipv4/1).
+
+ipv6_beside_ipv4(Base) ->
+    {ok, Held} = gen_tcp:listen(0, [{ip, {0, 0, 0, 0}}, {active, false}]),
+    {ok, PortB} = inet:port(Held),
+    PortA = free_ipv6_port(),
+    A = made(Base, "a", none),
+    B = made(Base, "b", none),
+    edit(A, fun(Conf) ->
+                Conf#{<<"listen">> => ipv6_loopback(PortA),
+                      <<"peers">> => [(peer("b", B, none))#{<<"network-address">> =>
+                                                                 ipv6_loopback(PortB)}]}
+            end),
+    edit(B, fun(Conf) ->
+                Conf#{<<"listen">> => list_to_binary("[::]:" ++ integer_to_list(PortB)),
+                      <<"peers">> => [(peer("a", A, none))#{<<"network-address">> =>
+                                                                 ipv6_loopback(PortA)}]}
+            end),
+    Program = program(filename:join(Base, "build")),
+    WaitB = start(B, Program, []),
+    prints(B, "waiting"),
+    WaitA = start(A, Program, ["connect", name(B)]),
+    ?assertEqual(0, WaitA()),
+    says(B, "the peer a connected"),
+    step(ipv4_accepted),
+    {ok, Client} = gen_tcp:connect({127, 0, 0, 1}, PortB, [{active, false}], ?WAIT_MS),
+    Accepted = gen_tcp:accept(Held, ?WAIT_MS),
+    ok = gen_tcp:close(Client),
+    ok = gen_tcp:close(Held),
+    stop(B, WaitB),
+    ?assertMatch({ok, _}, Accepted),
+    {OutA, _} = said(A),
+    has(OutA, "connect: true").
+
+%% A port of IPv6's loopback free as the test asks for it.
+free_ipv6_port() ->
+    {ok, Socket} = gen_tcp:listen(0, [inet6, {ip, {0, 0, 0, 0, 0, 0, 0, 1}}]),
+    {ok, Port} = inet:port(Socket),
+    ok = gen_tcp:close(Socket),
+    Port.
+
+%% Report Appendix C: the `listen` or the `network-address` of a node at
+%% Port of IPv6's loopback.
+ipv6_loopback(Port) ->
+    list_to_binary("[::1]:" ++ integer_to_list(Port)).
 
 %% report §8.6, §12.5, Appendix E.23: a node whose program ends by `Os.exit`
 %% exits with its status, and its ernest.pid, there while it runs, is gone
@@ -3242,14 +3290,16 @@ constant_crosses(Base) ->
 %% function a unit of the toolchain's own holds, the shell's, on a bare
 %% node that lacks it, load its units from the bare node's own tree and
 %% evaluate their bindings before the process starts, asking the spawner
-%% for nothing: `Shell.History.keepOwn`, whose reach names
-%% `Shell.History.directory`, which is no constant and so would have no
-%% value had it crossed as forms, runs and returns, and
-%% `Shell.Command.help` answers its lines; and on a bare node whose
-%% `Shell.History.directory` faults, its environment's `HOME` not UTF-8, a
-%% spawn of `keepOwn` answers `NotLoaded`, the node saying the binding
-%% faulted. The spawner is a program built against the shell's builds.
-%% Written before the code
+%% for nothing: `Ernest.Shell.History.keepOwn`, whose reach names
+%% `Ernest.Shell.History.directory`, which is no constant and so would
+%% have no value had it crossed as forms, runs and returns, and
+%% `Ernest.Shell.Command.help` answers its lines; and on a bare node whose
+%% `Ernest.Shell.History.directory` faults, its environment's `HOME` not
+%% UTF-8, a spawn of `keepOwn` answers `Other(text)`, the node's reason,
+%% the binding and its fault, which the node says too. The spawner is a
+%% program built against the shell's builds. Written before the code; the
+%% `Other(text)` with the log's *Four Lines From the Deployment*, where it
+%% had answered `NotLoaded`
 own_units_test_() ->
     nodes_test({waits, 12}, fun own_units/1).
 
@@ -3260,15 +3310,16 @@ own_units(Base) ->
            filename:join(ProgramDir, "owned.ern"),
            ["type Msg = Ended(Down)\n"
             "export fn main() : Unit receiving Msg = {\n"
-            "    match Peer.spawnMonitored(\"b\", Shell.History.keepOwn, Ended, waitMs()) {\n"
+            "    match Peer.spawnMonitored(\"b\", Ernest.Shell.History.keepOwn, Ended, "
+            "waitMs()) {\n"
             "        Right(_) -> receive {\n"
             "            Ended(down) -> Io.println(\"keepOwn: \" <> Io.show(down.reason))\n"
             "        }\n"
             "      | Left(failure) -> Io.println(\"keepOwn: \" <> Io.show(failure))\n"
             "    };\n"
-            "    let help = Peer.computeAt(\"b\", Shell.Command.help, waitMs());\n"
+            "    let help = Peer.computeAt(\"b\", Ernest.Shell.Command.help, waitMs());\n"
             "    Io.println(\"help: \" <> Io.show(help));\n"
-            "    let spawned = Peer.spawn(\"c\", Shell.History.keepOwn, waitMs());\n"
+            "    let spawned = Peer.spawn(\"c\", Ernest.Shell.History.keepOwn, waitMs());\n"
             "    Io.println(\"faulted: \" <> Io.show(Either.map(spawned, fn(_) = Unit)))\n"
             "}\n",
             wait_ms_declaration()]),
@@ -3286,7 +3337,7 @@ own_units(Base) ->
     {_, WaitA} = launched(A, [?ERN, " run --config-dir ", A, LoadPath, " ",
                               filename:join(ProgramDir, "owned.erc")]),
     ?assertEqual(0, WaitA()),
-    says(C, "was not loaded: Shell.History.directory:"),
+    says(C, "was not loaded: Ernest.Shell.History.directory:"),
     ?assertMatch({0, _}, signaled("stop", B)),
     ?assertEqual(143, WaitB()),
     ?assertMatch({0, _}, signaled("stop", C)),
@@ -3294,10 +3345,87 @@ own_units(Base) ->
     {Out, _} = said(A),
     {_, ErrB} = said(B),
     [has(Out, Line) || Line <- ["keepOwn: Returned", "help: Right([\"", ":bindings",
-                                "faulted: Left(NotLoaded)"]],
+                                "faulted: Left(Other(\"Ernest.Shell.History.directory:",
+                                "faulted: the environment variable HOME is not UTF-8\"))"]],
     ?assertEqual(nomatch, string:find(ErrB, "was not loaded")),
     {_, ErrC} = said(C),
     has(ErrC, " faulted: the environment variable HOME is not UTF-8").
+
+%% report §11.2 *The attached shell*, §12.7, §8.7: an attach to a node
+%% that holds the shell's units and could not load them, a bare node whose
+%% `HOME` is not UTF-8, so that `Ernest.Shell.History.directory` faults as
+%% their bindings are evaluated, is refused with status 1 and the node's
+%% reason as the node answers it, `Other(r)`, which the node says too. A
+%% regression test, written after the code: the node answered `NotLoaded`,
+%% and the shell said that the node ran another build of `ern`. It does
+%% not cover a load the host refuses, whose reason crosses the same way
+attach_unloadable_shell_test_() ->
+    nodes_test({waits, 6}, fun attach_unloadable_shell/1).
+
+attach_unloadable_shell(Base) ->
+    Node = made(Base, "node", 0),
+    Ops = made(Base, "ops", none),
+    lists(Node, [{"ops", Ops, none}]),
+    {_, WaitNode} = launched(Node, ["HOME=\"$(printf '\\377')\" ", ?ERN, " run --config-dir ",
+                                    Node]),
+    lists(Ops, [{"node", Node, bound_port(Node)}]),
+    Home = Ops ++ ".home",
+    ok = filelib:ensure_path(Home),
+    {_, WaitShell} = launched(Ops, ["HOME=", Home, " ", ?ERN, " shell --config-dir ", Ops,
+                                    " --attach node"]),
+    ?assertEqual(1, WaitShell()),
+    {_, Err} = said(Ops),
+    Reason = "Ernest.Shell.History.directory:",
+    has(Err, "ern shell: the node node could not load the shell: " ++ Reason),
+    has(Err, " faulted: the environment variable HOME is not UTF-8\n"),
+    ?assertEqual(nomatch, string:find(Err, "another build")),
+    says(Node, "the peer ops's spawn at Ernest.Shell.localHalf:"),
+    has(written(Node, err), "was not loaded: " ++ Reason),
+    ?assertMatch({0, _}, signaled("stop", Node)),
+    ?assertEqual(143, WaitNode()).
+
+%% report §4.2, §11.2 *The attached shell*, §12.7: a shell attaches to a
+%% node whose program has a module `Shell` of its own, the shell's units
+%% standing under `Ernest`, which no program's module takes: an input reads
+%% the program's `Shell.greeting`, and `:quit` ends the shell with status
+%% 0. A regression test, written after the code: the shell was `Shell`,
+%% the node held the program's unit of that name where its load of the
+%% toolchain's own units looked for the shell's, the link failed, and the
+%% shell said the node ran another build of `ern`. It does not cover a
+%% plain shell beside such a program, whose units the same names keep apart
+attach_beside_a_program_shell_test_() ->
+    nodes_test({waits, 7}, fun attach_beside_a_program_shell/1).
+
+attach_beside_a_program_shell(Base) ->
+    Root = filename:join(Base, "program"),
+    Source = filename:join(Base, "src"),
+    [ok = filelib:ensure_path(Dir) || Dir <- [Root, Source]],
+    ok = file:write_file(filename:join(Root, "shell.ern"),
+                         ["// A node's program whose module is named Shell, which waits.\n"
+                          "export let greeting = \"the program's own Shell\"\n"
+                          "\n"
+                          "export fn main() : Unit receiving Unit = {\n"
+                          "    Io.println(\"ready\");\n"
+                          "    receive {\n"
+                          "        _ -> Unit\n"
+                          "    }\n"
+                          "}\n"]),
+    0 = built([Root]),
+    PortNode = free_port(),
+    Node = made(Base, "node", PortNode),
+    Ops = made(Base, "ops", none),
+    lists(Node, [{"ops", Ops, none}]),
+    lists(Ops, [{"node", Node, PortNode}]),
+    WaitNode = start(Node, filename:join(Root, "shell.erc"), []),
+    prints(Node, "ready"),
+    {Input, WaitShell} = attached(Ops, "node", Source),
+    prints(Ops, ". :help for the commands, :quit to leave."),
+    entered(Input, Ops, ["Shell.greeting"], "\"the program's own Shell\" : String"),
+    true = port_command(Input, ":quit\n"),
+    ?assertEqual(0, WaitShell()),
+    stop(Node, WaitNode),
+    {_, Err} = said(Ops),
+    ?assertEqual(nomatch, string:find(Err, "ern shell:")).
 
 %% report §11.2 *The attached shell*, §12.1 *A session's screen*, §11.8: a
 %% shell attached in line mode to a node whose program reads lines, from a
@@ -3373,7 +3501,7 @@ attached_shell(Base) ->
     {Out, _} = said(Ops),
     has(Out, "Greet, compiled from " ++ ern_build:shown(filename:join(Source, "greet.ern"))),
     ?assertEqual(nomatch, string:find(Out, "the node's own")),
-    ?assertEqual(nomatch, string:find(Out, "Shell.")),
+    ?assertEqual(nomatch, string:find(Out, "Ernest.Shell.")),
     %% report §11.2: what the session started stays the node's
     {SecondInput, WaitSecond} = attached(Ops, "node", Source),
     true = port_command(SecondInput, ":processes\n:quit\n"),
@@ -3680,14 +3808,12 @@ attach_other_build_test_() ->
     nodes_test({waits, 12}, fun attach_other_build/1).
 
 attach_other_build(Base) ->
-    Changed = changed_shell(Base, "binding", <<"\nlet fileMs = 5000\n">>,
-                            <<"\nlet fileMs = 5000 + 0\n">>),
-    Reordered = changed_shell(Base, "function",
-                              <<"        Attaching(_) -> true\n      | Beside(_) -> false\n">>,
-                              <<"        Beside(_) -> false\n      | Attaching(_) -> true\n">>),
     Own = released(filename:join(Base, "one"), ern_tree:build("shell")),
-    Other = released(filename:join(Base, "two"), Changed),
-    Third = released(filename:join(Base, "three"), Reordered),
+    Other = changed_release(filename:join(Base, "two"), <<"\nlet fileMs = 5000\n">>,
+                            <<"\nlet fileMs = 5000 + 0\n">>),
+    Third = changed_release(filename:join(Base, "three"),
+                            <<"        Attaching(_) -> true\n      | Beside(_) -> false\n">>,
+                            <<"        Beside(_) -> false\n      | Attaching(_) -> true\n">>),
     Node = made(Base, "node", 0),
     Ops = made(Base, "ops", none),
     lists(Node, [{"ops", Ops, none}]),
@@ -3707,7 +3833,7 @@ attach_other_build(Base) ->
                                                  [{"b", "node"}])
               end,
     Refused(Other),
-    says(Node, "the peer ops's spawn at Shell.localHalf:"),
+    says(Node, "the peer ops's spawn at Ernest.Shell.localHalf:"),
     NotLoaded = " was not loaded: the toolchain's own definition it names, which this node's"
         " tree holds none of, another build of ern than the spawner's\n",
     has(written(Node, err), NotLoaded),
@@ -3721,23 +3847,28 @@ attach_other_build(Base) ->
     seen(Node, err, NotLoaded, 2, ?WAIT_MS),
     stop(Node, WaitNode).
 
-%% The shell's source copied under Base and compiled with Old replaced by
-%% New in shell.ern, into a build root of its own named for What changed.
-changed_shell(Base, What, Old, New) ->
-    Source = filename:join(Base, "shell_" ++ What),
+%% A release of `ern` made in Dir as released/2 makes one, and its
+%% launcher, whose shell is compiled from the shell's source with Old
+%% replaced by New in `ernest/shell.ern`: the source copied into the
+%% release's own tree and built there by the release's `ern`, since a
+%% module of `Ernest` is built in the shell's own source root alone (report
+%% §4.2), the tree's of the `ern` that builds it. One step, the build.
+changed_release(Dir, Old, New) ->
+    Ern = released(Dir, ern_tree:build("shell")),
     Tree = ern_tree:tree(),
+    Source = filename:join([Dir, "src", "shell"]),
     [begin
          File = filename:join(Source, Relative),
          ok = filelib:ensure_dir(File),
          {ok, _} = file:copy(filename:join([Tree, "src", "shell", Relative]), File)
      end || Relative <- filelib:wildcard("**/*.ern", filename:join([Tree, "src", "shell"]))],
-    Main = filename:join(Source, "shell.ern"),
+    Main = filename:join([Source, "ernest", "shell.ern"]),
     {ok, Text} = file:read_file(Main),
     [Before, After] = binary:split(Text, Old),
     ok = file:write_file(Main, [Before, New, After]),
-    Built = filename:join(Base, "built_" ++ What),
-    0 = built(["--build-root", Built, Source]),
-    Built.
+    ?assertMatch({0, _}, finished([Ern, " build --build-root ",
+                                   filename:join([Dir, "build", "shell"]), " ", Source])),
+    Ern.
 
 %% Report §12.5, §12.7: a release of `ern` made in Dir from this tree, and
 %% its launcher: the tree's code, the runtime's helper, the standard
@@ -3854,7 +3985,7 @@ attached_sessions(Base) ->
     [entered(Input, Ops, ["List.size(Process.live())"], "> 4 : Int\n")
      || {Input, Ops} <- [{First, One}, {Second, Two}]],
     {Out, _} = detached(Attached, One),
-    ?assertEqual(nomatch, string:find(Out, "Shell.")),
+    ?assertEqual(nomatch, string:find(Out, "Ernest.Shell.")),
     {Third, WaitThird} = sessioned(Base, One),
     entered(Third, One, ["type Ping = Ping(Int)", "let s" ++ Waiting,
                          "Peer.offer(Peer.service(\"ping\"), s)", ":processes",

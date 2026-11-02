@@ -1161,9 +1161,10 @@ shell(Options, Rest, ErrorDevice) ->
     %% report §11.7: the shell takes no --verbose, and says nothing of what
     %% it reads
     Say = fun(_) -> ok end,
-    %% report §11.2: the shell's modules are loaded from build/shell as each
-    %% is first called (ern_code:ensure_loaded/1)
-    ErlangModule = ern_namespace:erlang_module(['Shell']),
+    %% report §11.2, §4.2: the shell's modules, `Ernest.Shell` and those
+    %% under it, are loaded from build/shell as each is first called
+    %% (ern_code:ensure_loaded/1)
+    ErlangModule = ern_namespace:erlang_module(['Ernest', 'Shell']),
     case ern_code:ensure_loaded(ErlangModule) of
         {module, ErlangModule} -> ok;
         _ -> ern_build:fail("the shell is not built; run make")
@@ -1211,10 +1212,10 @@ shell(Options, Rest, ErrorDevice) ->
     %% report §11.2: Os.exit faults the process that calls it
     %% report §11.1: the unit names its functions by their position
     {EntryName, EntrySite} = case Attach of
-                                 none -> {main, <<"Shell.main">>};
-                                 _ -> {attach, <<"Shell.attach">>}
+                                 none -> {main, <<"Ernest.Shell.main">>};
+                                 _ -> {attach, <<"Ernest.Shell.attach">>}
                              end,
-    {Main, 0} = ern_code:function(ErlangModule, ['Shell', EntryName]),
+    {Main, 0} = ern_code:function(ErlangModule, ['Ernest', 'Shell', EntryName]),
     Outcome = as_node(Options, LoadPath, Say,
                       fun(Node) ->
                           %% report §11.2, Appendix E.27: an attached shell's
@@ -1614,7 +1615,8 @@ report_shell_outcome(ErrorDevice, {initializer_fault, Site, Cause, Trace}) ->
     io:format(ErrorDevice, "~ts faulted: ~ts~n~ts",
               [Site, ern_show:controls(Cause, line), indented_trace(Trace)]),
     1;
-report_shell_outcome(ErrorDevice, Other) -> report_outcome(ErrorDevice, <<"Shell.main">>, Other).
+report_shell_outcome(ErrorDevice, Other) ->
+    report_outcome(ErrorDevice, <<"Ernest.Shell.main">>, Other).
 
 %% Report §8.5: every top-level let of the loaded modules, dependencies
 %% first, once the runtime has bound the system references.

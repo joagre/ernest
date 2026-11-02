@@ -1685,7 +1685,8 @@ bindings(#session{scope = Scope} = Session) ->
 %% knows and nothing else does: it says what it wanted where it stopped
 %% (§11.5's diagnostic carries the tag). Both readings are tried, as
 %% `input/1` tries them. Completion decides for itself which kinds of
-%% name a slot admits; this only answers the slot, a `Shell.Complete.Slot`.
+%% name a slot admits; this only answers the slot, an
+%% `Ernest.Shell.Complete.Slot`.
 -spec slot(binary()) -> atom() | {'Fields', [{'Name', binary(), atom(), binary()}]}.
 slot(Before) ->
     %% a line being typed is read and not run, so reading it makes no name:
@@ -1741,8 +1742,9 @@ slot_for(#expected_field{kind = field_or_pattern, namespace = Namespace,
 %% finds it (report §4.2): unqualified, the session's or the prelude's, and
 %% qualified, its module's; after a path's segments (report §5.6), the
 %% fields of the type the path has reached.
-%% Report §11.2: each as a `Shell.Complete.Name`, listed with its type, the
-%% constructor's parameter in the field's place, both in declared order.
+%% Report §11.2: each as an `Ernest.Shell.Complete.Name`, listed with its
+%% type, the constructor's parameter in the field's place, both in declared
+%% order.
 fields_of(Namespace, ConstructorName, Segments) ->
     Session = kept_session(),
     Written = named_constructor(Session, Namespace, ConstructorName),
@@ -1789,8 +1791,8 @@ one_constructor(QualifiedName, #session{interfaces = Interfaces}) ->
 
 %% Report §11.2: every name completion may reach — the session's, the
 %% prelude's, and each module in scope with its exports — as
-%% `Shell.Complete.Name`, whose fields are in declared order (§3.5): the
-%% text as it is typed, its kind, the line a listing shows. Only the
+%% `Ernest.Shell.Complete.Name`, whose fields are in declared order (§3.5):
+%% the text as it is typed, its kind, the line a listing shows. Only the
 %% reading of the interfaces is the host's; the matching is Ernest's.
 -spec names() -> [{'Name', binary(), atom(), binary()}].
 names() ->
@@ -3250,7 +3252,7 @@ initialize([#compiled{unit = Unit} = Compiled | Rest], Evaluators) ->
     end.
 
 evaluate(#compiled{unit = Unit} = Compiled, Rest, Evaluators) ->
-    case ern_rt:evaluate([Unit], <<"Shell.load">>) of
+    case ern_rt:evaluate([Unit], <<"Ernest.Shell.load">>) of
         {evaluated, Evaluator} ->
             initialize(Rest, [Evaluator | Evaluators]);
         {ended, Evaluator, Site, How} ->

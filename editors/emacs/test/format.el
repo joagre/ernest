@@ -41,7 +41,7 @@
 ;; a large source, its indentation taken away, comes back as it was, and
 ;; point stays where it was in the text
 (let ((source (with-temp-buffer
-                (insert-file-contents "../../src/shell/shell.ern")
+                (insert-file-contents "../../src/shell/ernest/shell.ern")
                 (buffer-string))))
   (with-temp-buffer
     (ernest-mode)

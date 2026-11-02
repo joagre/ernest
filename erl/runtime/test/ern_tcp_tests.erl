@@ -337,6 +337,60 @@ connect_ipv6_test() ->
            end, <<"main">>, quiet()),
     ?assertEqual('Right', wait(connected)).
 
+%% Appendix E.18: a listener takes connections of its address's family
+%% alone, so one on "::" and one on "0.0.0.0" stand on one port together,
+%% whichever opens first, and each socket's `remote` reads an address of
+%% its connection's family. A regression test: "::" took IPv4 connections
+%% too, as ::ffff:127.0.0.1, and "0.0.0.0" beside it was answered
+%% `Other("address already in use")`. It does not cover an interface other
+%% than the loopback's, nor a machine without IPv6, where it says so
+listen_of_one_family_test() ->
+    with_ipv6_loopback(
+      fun() ->
+          Self = self(),
+          ok = ern_rt:run_main(
+                 fun() ->
+                     {'Right', Six} = listen(<<"::">>, 0),
+                     {'Right', Port} = port(Six),
+                     {'Right', Four} = listen(<<"0.0.0.0">>, Port),
+                     {'Right', _} = connect(<<"127.0.0.1">>, Port, 2000),
+                     {'Right', FromFour} = accept(Four, 2000),
+                     {'Right', _} = connect(<<"::1">>, Port, 2000),
+                     {'Right', FromSix} = accept(Six, 2000),
+                     {'Right', FourFirst} = listen(<<"0.0.0.0">>, 0),
+                     {'Right', Other} = port(FourFirst),
+                     Self ! {remotes, {remote(FromFour), remote(FromSix)}},
+                     Self ! {six_second, side(listen(<<"::">>, Other))}
+                 end, <<"main">>, quiet()),
+          ?assertMatch({{'Right', {'Endpoint', <<"127.0.0.1">>, _}},
+                        {'Right', {'Endpoint', <<"::1">>, _}}}, wait(remotes)),
+          ?assertEqual('Right', wait(six_second))
+      end).
+
+%% Appendix E.18: an IPv4 address written as IPv6's, ::ffff:127.0.0.1, is
+%% one a listener of IPv6's family alone takes no connection at, which the
+%% host refuses, `Invalid`. Written after the code, a regression test of
+%% the place E.18 is silent on
+listen_on_a_mapped_address_test() ->
+    with_ipv6_loopback(
+      fun() ->
+          Self = self(),
+          ok = ern_rt:run_main(fun() -> Self ! {listened, listen(<<"::ffff:127.0.0.1">>, 0)} end,
+                               <<"main">>, quiet()),
+          ?assertEqual({'Left', 'Invalid'}, wait(listened))
+      end).
+
+%% Runs Test where the machine has IPv6's loopback, and says it did not
+%% where it has none.
+with_ipv6_loopback(Test) ->
+    case gen_tcp:listen(0, [inet6, {ip, {0, 0, 0, 0, 0, 0, 0, 1}}]) of
+        {ok, Socket} ->
+            ok = gen_tcp:close(Socket),
+            Test();
+        {error, _} ->
+            io:format(user, "  no IPv6 loopback; a listener's family was not checked.~n", [])
+    end.
+
 %% Appendix E.18: a listener reuses its address, so a server that closed
 %% its side of a connection first, which leaves the port's connection
 %% closing, listens on the port again at once. Written after the code, a

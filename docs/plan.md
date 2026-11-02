@@ -100,6 +100,20 @@ server's CLAUDE.md carries the procedure its side follows.
    it ran, and a read whose caller has ended is dropped, on a program and on a socket; a fifth line
    moved what a write to an exited program answers into `write`'s own paragraph (the
    log's *A Program After Its Exit*).
+
+   Four lines from the deployment met 2026-11-02 (the log's *Four Lines From the
+   Deployment*): `Ernest` is a taken namespace and the shell stands under it as
+   `Ernest.Shell`, and an attach the node could not load says the node's reason, built
+   2026-11-02 after the cold reading; a listener takes its address's family alone, built the
+   same day; the deployment guide says how two users' nodes list each other; §10 says when
+   a dropped value is reclaimed.
+
+   **Decision, the collection at a wait:** whether the runtime
+   collects a process as it begins a wait where its binaries pass the host's threshold, the
+   host's own collection moved to where the process has time, measured by `make bench`; or
+   the rule of §10 stands and a server holds its memory until its next request. The
+   recommendation is the first, built as an item of its own once the server's milestone 1
+   stands and its measurement under `measure/` can be run again.
 5. **The terminal tests over `Os.startTerminal`**, dropping `test/ern_pty.py`, an item of its own
    once item 2 stands. First in it, a defect seen on 2026-11-01 under a load average of 37
    from four agents' runs, and again in the full run of 2026-11-02: `close_input_hangs_up_test`

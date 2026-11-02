@@ -1867,6 +1867,35 @@ stdlib_file_takes_its_root_test() ->
     ?assertEqual(1, ern_cli:ern(["build", "--source-root", "../../..", "--build-root", Dir,
                                  "../../../src/stdlib/optional.ern"])).
 
+%% report §4.2, §11.1: `Ernest`, the toolchain's namespace, is taken with
+%% every namespace under it: `ernest.ern` at a source root and
+%% `ernest/shell.ern` under it are refused as `io.ern` is, each naming
+%% whose namespace it takes, and the file beside them is built; a file
+%% under the shell's own source root is compiled with that root, the
+%% default for it, and another root is an error, as for the standard
+%% library's. Written with the code
+ernest_namespace_taken_test() ->
+    Dir = tmp(),
+    write(Dir, "src/ernest.ern", "export fn f() : Int = 1\n"),
+    write(Dir, "src/ernest/shell.ern", "export fn f() : Int = 1\n"),
+    write(Dir, "src/main.ern", hello()),
+    ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    Output = iolist_to_binary(?capturedOutput),
+    ?assertMatch({_, _},
+                 binary:match(Output, <<"ernest.ern takes the toolchain's namespace Ernest">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"ernest/shell.ern stands under the toolchain's"
+                                                " namespace Ernest">>)),
+    ?assert(filelib:is_regular(Dir ++ "/build/main.erc")),
+    ?assertEqual([], filelib:wildcard("**/*.erc", Dir ++ "/build") -- ["main.erc"]),
+    Style = "../../../src/shell/ernest/shell/style.ern",
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/shell", Style])),
+    ?assert(filelib:is_regular(Dir ++ "/shell/ernest/shell/style.erc")),
+    ?assertEqual(1, build_err(["--source-root", "../../../src", "--build-root", Dir ++ "/other",
+                               Style])),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
+                                      <<"style.ern is in the shell's source root;"
+                                        " omit --source-root">>)).
+
 %% report §11.2: a failed test's text prints as it was written (a
 %% regression test: text outside ASCII printed as its UTF-8 bytes)
 test_runner_unicode_test() ->
@@ -4902,8 +4931,8 @@ mvp_refusals_listed_test() ->
     %% a pattern that finds nothing would otherwise pass
     ?assertEqual([<<"x is not here yet; it arrives in MVP 9">>],
                  Find("fail(\"x is not here yet; it arrives in MVP 9\")")),
-    Sources = filelib:wildcard("../../*/src/*.erl") ++ filelib:wildcard("../../../src/shell/*.ern")
-        ++ filelib:wildcard("../../../src/shell/shell/*.ern"),
+    Sources = filelib:wildcard("../../*/src/*.erl")
+        ++ filelib:wildcard("../../../src/shell/**/*.ern"),
     %% a name the wildcard matches may not be a readable file: an editor's
     %% lock is a dangling symlink beside the file it locks, and a person
     %% with a source open should not see a red suite

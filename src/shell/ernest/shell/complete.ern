@@ -54,7 +54,7 @@ export fn completion(line : String,
                      entries : (Path) -> Either(Io.Error,
                                                 List(Fs.Entry))) : #(Completion, String) = {
     let typedWord = word(String.slice(line, 0, cursor));
-    if String.startsWith(line, ":") && cursor <= Shell.Command.wordEnd(line) then {
+    if String.startsWith(line, ":") && cursor <= Ernest.Shell.Command.wordEnd(line) then {
         // the command's word as far as the cursor, as a name's is: what
         // follows the cursor stays where it is
         let command = String.slice(line, 0, cursor);
@@ -102,16 +102,16 @@ fn namesFor(typedWord : String) : List(Name) = {
 fn commandWord(typedWord : String, line : String) : Completion = {
     let completion = complete(typedWord, commandNames(), Anything);
     withSpace(completion,
-              Shell.Command.wordEnd(line) == String.size(line)
-                  && Shell.Command.completes(completion.word) != None)
+              Ernest.Shell.Command.wordEnd(line) == String.size(line)
+                  && Ernest.Shell.Command.completes(completion.word) != None)
 }
 
 fn commandNames() : List(Name) =
-    List.map(Shell.Command.commands,
+    List.map(Ernest.Shell.Command.commands,
              fn(command) =
                  Name(text = ":" <> command.name,
                       kind = Value,
-                      shown = Shell.Command.line(command)))
+                      shown = Ernest.Shell.Command.line(command)))
 
 // Report §11.2: a lone candidate is completed as far as it goes, so one
 // that takes a value after it, a command with an argument or a setting,
@@ -132,17 +132,18 @@ fn argument(line : String,
             cursor : Int,
             typedWord : String,
             entries : (Path) -> Either(Io.Error, List(Fs.Entry))) : Completion = {
-    let end = Shell.Command.wordEnd(line);
+    let end = Ernest.Shell.Command.wordEnd(line);
     let wordIndex = cursor - String.size(typedWord);
     let before = String.slice(line, end, wordIndex);
-    match Shell.Command.completes(String.slice(line, 0, end)) {
-        Some(Shell.Command.Expressions) ->
+    match Ernest.Shell.Command.completes(String.slice(line, 0, end)) {
+        Some(Ernest.Shell.Command.Expressions) ->
             complete(typedWord, namesFor(typedWord), slot(before))
       // every setting takes a value after it, and `timing`'s is a word
-      | Some(Shell.Command.SettingWords) ->
+      | Some(Ernest.Shell.Command.SettingWords) ->
             match String.trim(before) {
                 "" -> {
-                    let names = argumentNames(Shell.Command.SettingWords, typedWord, entries);
+                    let names =
+                        argumentNames(Ernest.Shell.Command.SettingWords, typedWord, entries);
                     withSpace(complete(typedWord, names, Anything), cursor == String.size(line))
                 }
               | "timing" -> {
@@ -168,38 +169,38 @@ fn argument(line : String,
 
 // Report §11.2: a module `:browse` or `:load` takes is completed whole,
 // without the dot a name inside it would need.
-fn argumentSlot(completes : Shell.Command.Completes) : Slot =
+fn argumentSlot(completes : Ernest.Shell.Command.Completes) : Slot =
     match completes {
-        Shell.Command.Modules -> Modules
-      | Shell.Command.SourceModules -> Modules
+        Ernest.Shell.Command.Modules -> Modules
+      | Ernest.Shell.Command.SourceModules -> Modules
       | _ -> Anything
     }
 
-fn argumentNames(completes : Shell.Command.Completes,
+fn argumentNames(completes : Ernest.Shell.Command.Completes,
                  typedWord : String,
                  entries : (Path) -> Either(Io.Error, List(Fs.Entry))) : List(Name) =
     match completes {
         // a module is listed by its name alone, since every candidate here
         // is a module; the namespaces they are in, `Http` for
         // `Http.Parser`, complete with their dots
-        Shell.Command.Modules ->
+        Ernest.Shell.Command.Modules ->
             withNamespaces(List.filterMap(names(), fn(name) = match name {
                 Name(=text, kind = Module) -> Some(Name(=text, kind = Module, shown = text))
               | _ -> None
             }))
-      | Shell.Command.SourceModules ->
+      | Ernest.Shell.Command.SourceModules ->
             sourceModules(typedWord, entries)
-      | Shell.Command.Expressions ->
+      | Ernest.Shell.Command.Expressions ->
             namesFor(typedWord)
-      | Shell.Command.Names ->
+      | Ernest.Shell.Command.Names ->
             namesFor(typedWord)
-      | Shell.Command.SessionNames ->
+      | Ernest.Shell.Command.SessionNames ->
             sessionNames()
-      | Shell.Command.SettingWords ->
-            List.map(Shell.Command.settings,
+      | Ernest.Shell.Command.SettingWords ->
+            List.map(Ernest.Shell.Command.settings,
                      fn(#(setting, value)) =
                          Name(text = setting, kind = Value, shown = setting <> " " <> value))
-      | Shell.Command.Paths ->
+      | Ernest.Shell.Command.Paths ->
             []
     }
 
@@ -247,7 +248,7 @@ fn sourceModule(prefix : String, entry : Fs.Entry) : Optional(Name) =
 
 // Report §11.2: every name completion may reach, as the session stands.
 // Reading the compiled interfaces is the host's; the matching is
-// `Shell.Complete`'s.
+// `Ernest.Shell.Complete`'s.
 foreign fn names() : List(Name) =
     "ern_shell:names/0"
 
@@ -334,7 +335,7 @@ fn admitted(names : List(Name), slot : Slot) : List(Name) =
 
 // Report §11.2: the names that may stand there, and the namespaces that
 // hold one, at any depth: where a type stands, `Net` holds no type and is not
-// offered, where `Shell` holds `Shell.Region.Region`.
+// offered, where `Ernest.Shell` holds `Ernest.Shell.Region.Region`.
 fn held(names : List(Name), keep : (Name) -> Bool) : List(Name) =
     List.filter(names,
                 fn(name) =
@@ -651,10 +652,10 @@ let heldOnly =
               run = fn() = {
                   let names =
                       withNamespaces([Name(text = "Net.get", kind = Value, shown = "Net.get"),
-                                      Name(text = "Shell.Region.Region",
+                                      Name(text = "Ernest.Shell.Region.Region",
                                            kind = Type,
-                                           shown = "type Shell.Region.Region")]);
-                  Test.equal(complete("S", names, TypeName).word, "Shell.")
+                                           shown = "type Ernest.Shell.Region.Region")]);
+                  Test.equal(complete("E", names, TypeName).word, "Ernest.")
               })
 
 let wholeWord =
