@@ -43,8 +43,8 @@ export fn main() : Unit =
     match Os.arguments {
         [url, caFile] ->
             match fetched(url, Path(caFile)) {
-                Right(#(response, body)) -> reported(response, body)
-              | Left(cause) -> failed(cause)
+                Right(#(response, body)) -> report(response, body)
+              | Left(cause) -> fail(cause)
             }
       | _ -> {
             Io.printlnError("usage: fetch URL CAFILE");
@@ -53,7 +53,7 @@ export fn main() : Unit =
     }
 
 // The line on standard error, and the end of the program with status 1.
-fn failed(cause : String) : Unit = {
+fn fail(cause : String) : Unit = {
     Io.printlnError("fetch: " <> cause);
     Os.exit(1)
 }
@@ -136,7 +136,7 @@ fn hostAndPort(authority : String) : Either(String, #(String, Int)) =
 
 // The status, the content type and the size, then the body's shape, or the
 // failure where the body is not JSON.
-fn reported(response : Http.Response, body : Bytes) : Unit = {
+fn report(response : Http.Response, body : Bytes) : Unit = {
     Io.println("status: " <> statusText(response.status));
     let contentType = Optional.withDefault(Http.header(response.headers, "Content-Type"), "none");
     Io.println("content type: " <> contentType);
@@ -145,10 +145,10 @@ fn reported(response : Http.Response, body : Bytes) : Unit = {
         Some(text) ->
             match Json.parse(text) {
                 Right(value) -> List.forEach(shape(value), Io.println)
-              | Left(error) -> failed("the body is not JSON: " <> Io.show(error))
+              | Left(error) -> fail("the body is not JSON: " <> Io.show(error))
             }
       | None ->
-            failed("the body is not UTF-8 text")
+            fail("the body is not UTF-8 text")
     }
 }
 
