@@ -9639,7 +9639,7 @@ Items 5 to 7 of the plan's *The pun*, built by one agent on 2026-11-01, one comm
 
 ## TLS in `Tcp` and a Terminal in `Os`, 2026-11-01
 
-MVP 4.1 opened on the user's word, its proposal `docs/proposals/httpd/proposal.md` ready since 2026-10-30; what the proposal argued of `Tcp` and `Os` is decided here, and the libraries' half is *The Five Libraries* when they are built.
+MVP 4.1 opened on the user's word, its proposal `docs/proposals/httpd/proposal.md` ready since 2026-10-30; what the proposal argued of `Tcp` and `Os` is decided here, and the libraries' half is *The Four Libraries*, four since *WebSocket Is the Server's*.
 
 **The order changed by a test.** The plan's item 1, the report first, had the sections land before any code. `libraries_test` and the Appendix E check in `erl/checker/test/ern_prelude_tests.erl` hold every listing of Appendix E and G to the compiled interface, so a section without its code is a red test and cannot be committed. The sentences are still written first, by the session, and the code is built against them by an agent, but both land in one commit, item by item; the plan says so. The proposal's shapes of the five libraries stay a draft until item 3's sections are written, as item 1 had them.
 

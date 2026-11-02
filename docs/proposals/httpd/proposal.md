@@ -1,6 +1,6 @@
 # What ernest-httpd asks of Ernest
 
-Begun 2026-10-26 as the server's whole proposal and split on 2026-10-30, when the server's repository was made: this half holds what the server asks of Ernest, TLS in `Tcp`, a pseudo-terminal in `Os`, four libraries, the installation it builds against and the release, each a change to Ernest's report and tree; the server itself, what of HTTP/1.1 and WebSocket it implements, its sessions, its limits, its configuration, its log and its life under systemd, is its own repository's proposal, https://github.com/joagre/ernest-httpd/blob/main/docs/proposals/basic/proposal.md. The reasons are given where a choice was made, and stay here until the proposal is decided.
+Begun 2026-10-26 as the server's whole proposal and split on 2026-10-30, when the server's repository was made: this half holds what the server asks of Ernest, TLS in `Tcp`, a pseudo-terminal in `Os`, four libraries, the installation it builds against and the release, each a change to Ernest's report and tree; the server itself, what of HTTP/1.1 and WebSocket it implements, its sessions, its limits, its configuration, its log and its life under systemd, is its own repository's proposal, https://github.com/joagre/ernest-httpd/blob/main/docs/proposals/basic/proposal.md. The reasons are given where a choice was made; the proposal is decided and built, and the log's entries the README names argue what was built, this page kept as the record of its design.
 
 ## What it is for
 
