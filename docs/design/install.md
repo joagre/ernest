@@ -33,7 +33,7 @@ The documents installed are for a reader with no checkout. A file is installed b
 
 The README is `tools/release/README.md`, the release's: it says how to install from the archive and where to begin, names each thing by its place under the prefix, and holds no link into the checkout.
 
-Each `.md` of those paths is staged with each link into the checkout, to a file that is not installed, made a link into the repository: on `main` where a checkout is installed, and at the release's tag, `v<version>`, in the archive. A link to one of the paths installed, or to the logo under `assets/`, stays a link to the installed copy, as the guide's links to the examples and to the Emacs README do; the guide's other links outside them, to the log and to `docs/module_doc_template.md`, go to the repository. Every other file is copied as it is. So every link of an installed document names what is installed beside it, or an address.
+Each `.md` of those paths is staged with each link into the checkout, to a file that is not installed, made a link into the repository: on `main` where a checkout is installed, and in the archive at what it was made from, the release's tag, `v<version>`, or the commit (§11.7). A link to one of the paths installed, or to the logo under `assets/`, stays a link to the installed copy, as the guide's links to the examples and to the Emacs README do; the guide's other links outside them, to the log and to `docs/module_doc_template.md`, go to the repository. Every other file is copied as it is. So every link of an installed document names what is installed beside it, or an address.
 
 `tools/install.sh` stages, installs, uninstalls and writes the archive. `make` builds everything installed, the manual pages included, and `make install` stages the checkout in a temporary directory outside it and installs from there, so that one run as another user writes nothing into the checkout. Nothing installed names the prefix, so a prefix moved whole runs where it is moved to.
 
@@ -53,7 +53,7 @@ It needs `sh`, `readlink` and `iconv`.
 
 ## The release archive
 
-`make release` writes `build/release/ern-<version>.tar.gz`: under `ern-<version>/`, the staged tree without the compiled helper, and beside it the helper's source `ern_exec.c`, `install.sh`, the `Makefile` of `tools/release`, the `README.md` it installs, and the logo that README shows, under `assets/`. The archive's `make` compiles the helper with `cc`, or the `CC` given; its `make install` and `make uninstall` take `PREFIX` and `DESTDIR` as the checkout's do.
+`make release` writes `build/release/ern-<version>.tar.gz`: under `ern-<version>/`, the staged tree without the compiled helper, and beside it the helper's source `ern_exec.c`, `install.sh`, the `Makefile` of `tools/release`, the `README.md` it installs, and the logo that README shows, under `assets/`. The archive's `make` compiles the helper with `cc`, or the `CC` given; its `make install` and `make uninstall` take `PREFIX` and `DESTDIR` as the checkout's do. Its version text says what it was made from (§11.7): the version alone at the release's tag with no uncommitted change, else the version, `+` and the commit, `.dirty` after it where the tree had changes; `ern_release` is compiled into it with that mark.
 
 ## Removing it
 

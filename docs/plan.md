@@ -76,13 +76,8 @@ server's CLAUDE.md carries the procedure its side follows.
 4. **The server, ernest-httpd's milestone 1 whole**, by its own repository's plan, written once
    item 1's sentences stand and built once items 2 and 3 do, against Ernest installed from
    `make release`'s archive and never a checkout. How the two sessions work, the archive,
-   the lines and the reply, is `docs/clean_room.md`'s.
-
-   An archive `make release` makes from the checkout says `0.9.0` alone, as a release would,
-   and its pages link to a tag that does not exist yet, so the application cannot tell which
-   archive it installed; the reply names the commit meanwhile. The archive is to say its
-   commit after the version where the checkout is not at the version's tag, the pages' links
-   following, in `tools/install.sh` and `ern_release`, built in the next round of lines.
+   the lines and the reply, is `docs/clean_room.md`'s; an archive says the commit it was
+   made from (the log's *An Archive Says Its Commit*).
 
    Four lines met
    2026-11-02 and decided the same day: a path through a regular file or a loop of links

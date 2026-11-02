@@ -239,8 +239,14 @@ version() ->
 %% beside it in the archive, as under the prefix. The installed `ern` is a
 %% release, whose version text is VERSION's alone, as the repository's
 %% build is not (report §12.5): a regression test, written after the code
-%% (the log's *MVP 3.1 Read*). The archive holds no module compiled from an
-%% application's tests, as the installation does not.
+%% (the log's *MVP 3.1 Read*). The archive holds no module compiled from
+%% an application's tests, as the installation does not.
+%%
+%% An archive made from a checkout that does not stand at the release's
+%% tag says the commit after the version, and `.dirty` where the tree had
+%% uncommitted changes, its links going to that commit (report §11.7):
+%% written with the code, and read from the checkout as it stands, since a
+%% test run is at the tag only on a release's day.
 release() ->
     Base = filename:absname("build/release"),
     ok = ern_integration_tests:del(Base),
@@ -268,12 +274,14 @@ release() ->
     %% the README beside the archive shows the logo it carries there
     ?assertEqual([], dead_links(Unpacked ++ "/")),
     Tag = "v" ++ string:trim(binary_to_list(Version)),
+    {Mark, Ref} = made_from(Tag),
     kept_links(Documents),
     ?assert(links_to(Documents ++ "guide/language.md",
-                     "/blob/" ++ Tag ++ "/docs/module_doc_template.md")),
+                     "/blob/" ++ Ref ++ "/docs/module_doc_template.md")),
     Ern = Base ++ "/p/bin/ern",
-    %% report §12.5: a release's version text is VERSION's alone
-    ?assertEqual({0, <<"ern ", (string:trim(Version))/binary, "\n">>},
+    %% report §11.7, §12.5: a release's version text is VERSION's alone,
+    %% and an archive made elsewhere says its commit
+    ?assertEqual({0, iolist_to_binary(["ern ", string:trim(Version), Mark, "\n"])},
                  ern_integration_tests:sh(Ern ++ " --version", [{cd, Base ++ "/work"}])),
     ok = file:write_file(Base ++ "/work/hi.ern", runs_echo()),
     _ = ern_integration_tests:succeed(Ern ++ " build hi.ern", [{cd, Base ++ "/work"}]),
@@ -283,6 +291,21 @@ release() ->
                                       [{cd, Unpacked}]),
     ?assertEqual([],
                  [File || File <- filelib:wildcard(Base ++ "/p/**/*"), not filelib:is_dir(File)]).
+
+%% What an archive made from the checkout as it stands says it was made
+%% from: the version's mark and the ref its links go to, the tag where the
+%% checkout stands at it with no uncommitted change, else the commit.
+made_from(Tag) ->
+    {0, Head} = ern_integration_tests:sh("git -C .. rev-parse --short=8 HEAD"),
+    {0, Tags} = ern_integration_tests:sh("git -C .. tag --points-at HEAD"),
+    {0, Changes} = ern_integration_tests:sh("git -C .. status --porcelain --untracked-files=no"),
+    Commit = string:trim(binary_to_list(Head)),
+    AtTag = lists:member(list_to_binary(Tag), binary:split(Tags, <<"\n">>, [global, trim])),
+    case {AtTag, string:trim(Changes) =:= <<>>} of
+        {true, true} -> {"", Tag};
+        {_, true} -> {"+" ++ Commit, Commit};
+        {_, false} -> {"+" ++ Commit ++ ".dirty", Commit}
+    end.
 
 %% The modules of Files, paths ending `erl/<application>/ebin/<module>.beam`,
 %% that the checkout compiled from the application's test/ directory.

@@ -1493,6 +1493,6 @@ Every technical term this report introduces, with a gloss and the section that d
 - **unit** — a compiled module of the host's that holds definitions: one per source module in a build, one for the definitions one exchange brought, one per load; held for the node's life but for what §11.2's *What a node holds* lets go; nothing in a program names one. §10, §11.1, §11.2.
 - **utilization** — how busy a node is, on one scale: 1.0 every scheduler busy, below it room, above it work waiting; measured as the node's `ernest.conf` says, and answered to a peer by `Peer.utilization`. §8.7, §12.8, Appendix E.27.
 - **value position** — an argument, a result, a tuple component, or a type argument whose parameter occurs in a value position of its type's fields. §3.9.
-- **version text** — the toolchain's version as `ern --version` writes it, `0.4.0`, and `0.4.0-dev` for a build that is no release. §11.7.
+- **version text** — the toolchain's version as `ern --version` writes it, `0.4.0`, and `0.4.0-dev` or `0.4.0+1a2b3c4d` for a build that is no release. §11.7.
 - **vocabulary** — the operations a kind of type provides by its structure, named alike in every module that has them. Appendix E.0.
 - **wildcard** — the pattern `_`; matches anything, binds nothing. §2.3, §5.10.

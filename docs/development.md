@@ -281,7 +281,8 @@ make manual       the manual pages alone, which make also writes: each module's 
 make install      install under PREFIX, /usr/local by default, within DESTDIR if one
                   is given (docs/design/install.md)
 make uninstall    remove the installation under the same PREFIX and DESTDIR
-make release      write the release archive, build/release/ern-VERSION.tar.gz
+make release      write the release archive, build/release/ern-VERSION.tar.gz, which says its
+                  commit after the version where the checkout is not at the release's tag
 make version V=x.y.z
                   set VERSION, the release the checkout works toward, and every line the
                   tests hold to it, the documents' start lines and the session fixtures',

@@ -1,6 +1,6 @@
 # Ernest Report: The Toolchain
 
-Revision of 1 November 2026.
+Revision of 2 November 2026.
 
 This file holds the report's §10 to §12 and Appendices C and H. §0 to §9 and Appendices A, B and F are in [`language.md`](language.md), and Appendices D, E and G in [`library.md`](library.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
@@ -464,7 +464,7 @@ Each option, the jobs that take it, and the section that says what it does:
 - `--peer-dir dir`, of `ern config`: a node of this machine, by its configuration directory, listed among the peers of the directory `--config-dir` names (§11.3).
 - `--source-root src-root`, of `ern build` and `ern doc`: the source root (§11.1); of `ern shell`, where the shell finds a module's source (§11.2).
 - `--verbose`, of `ern build`, `ern doc`, `ern run` and `ern test`: what the job decided, a line each on standard error (§11.1, §11.2, §11.4).
-- `--version`, alone: `ern` and the toolchain's version text, written to standard output: `ern 0.4.0`, and `ern 0.4.0-dev` for a build that is no release.
+- `--version`, alone: `ern` and the toolchain's version text, written to standard output: `ern 0.4.0` for a release; `ern 0.4.0-dev` for the repository's own build; and `ern 0.4.0+1a2b3c4d` for an archive made from a checkout that does not stand at the release's tag, the commit after `+`, with `.dirty` after the commit where the tree had uncommitted changes. A build whose version text is not the version alone is no release (§12.5).
 
 An option a job does not take is refused with the jobs that take it, `--check is not an option of ern build; ern format takes it`.
 

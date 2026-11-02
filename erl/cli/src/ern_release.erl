@@ -1,9 +1,12 @@
-%% Report §12.5, §11: the toolchain's version text, which `ern --version`
+%% Report §11.7, §12.5: the toolchain's version text, which `ern --version`
 %% and the shell's start line print, and which marks a build of `ern` that
-%% is no release: VERSION's text in a release, and VERSION's text and the
-%% mark `-dev` in every other build. The repository's build compiles this
-%% module with DEVELOPMENT defined (erl/app.mk), and the release archive's
-%% compiles it again without (tools/install.sh). A node's floor reads
+%% is no release: VERSION's text in a release; VERSION's text and the mark
+%% `-dev` in the repository's own build; and VERSION's text, `+` and the
+%% commit in an archive made from a checkout that does not stand at the
+%% release's tag, `.dirty` after the commit where the tree had uncommitted
+%% changes. The repository's build compiles this module with DEVELOPMENT
+%% defined (erl/app.mk), and an archive's compiles it again with MARK
+%% given, empty for a release (tools/install.sh). A node's floor reads
 %% which it is, and a release's numbers (release/0, ern_carrier:cookie/0).
 -module(ern_release).
 
@@ -11,8 +14,6 @@
 
 -ifdef(DEVELOPMENT).
 -define(MARK, "-dev").
--else.
--define(MARK, "").
 -endif.
 
 -spec version_text() -> string().

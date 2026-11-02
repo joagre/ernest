@@ -193,19 +193,31 @@ uninstall() {
 # The release archive: a staged tree without the helper, whose C source
 # it carries instead with the Makefile of tools/release, the README it
 # installs with the logo that README shows, and this script, packed as
-# ern-VERSION. Its version text is VERSION's alone, which marks it a
-# release (report §12.5): ern_release is compiled again into it without the
-# repository's DEVELOPMENT, and stripped as the stage strips it.
+# ern-VERSION. Its version text says what it was made from (report
+# §11.7, §12.5): VERSION's alone where the checkout stands at the
+# release's tag with no uncommitted change, which marks it a release, and
+# else VERSION's, `+` and the commit, `.dirty` after it where the tree had
+# uncommitted changes; a document's links into the repository go to the
+# same tag or commit. ern_release is compiled again into it with the mark
+# given and without the repository's DEVELOPMENT, and stripped as the
+# stage strips it.
 release() {
     dir=$1
     version=$2
     name=ern-$version
-    ref=v$version
+    commit=$(git -C "$repo" rev-parse --short=8 HEAD)
+    if [ -n "$(git -C "$repo" status --porcelain --untracked-files=no)" ]; then
+        mark=+$commit.dirty && ref=$commit
+    elif git -C "$repo" tag --points-at HEAD | grep -qx "v$version"; then
+        mark= && ref=v$version
+    else
+        mark=+$commit && ref=$commit
+    fi
     stage "$dir/$name"
     rm "$dir/$name/lib/ernest/erl/runtime/priv/ern_exec"
     cd "$repo"
-    erlc -Werror -DVERSION="\"$version\"" -o "$dir/$name/lib/ernest/erl/cli/ebin" \
-        erl/cli/src/ern_release.erl
+    erlc -Werror -DVERSION="\"$version\"" -DMARK="\"$mark\"" \
+        -o "$dir/$name/lib/ernest/erl/cli/ebin" erl/cli/src/ern_release.erl
     escript tools/strip.escript "$dir/$name/lib/ernest/erl/cli/ebin"
     cp erl/runtime/c_src/ern_exec.c tools/install.sh "$dir/$name/"
     cp "$dir/$name/share/doc/ernest/README.md" "$dir/$name/README.md"

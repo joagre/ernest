@@ -10,9 +10,9 @@ Ernest's session reads the application's repository and never writes it: no edit
 
 ## The archive
 
-Ernest's session says when the checkout is still: the last commit made, the tree clean. The application's session then runs `make release` here, which packs the working tree as it stands into `build/release/ern-VERSION.tar.gz`, and installs it under a prefix of its own, beside the published release under `~/opt/ernest`. A new archive is made after each round of verdicts, with no public release between.
+Ernest's session says when the checkout is still: the last commit made, the tree clean. The application's session then runs `make release` here, which packs the working tree as it stands into the archive, `ern-<version>.tar.gz` under the build directory, and installs it under a prefix of its own, beside the published release under `~/opt/ernest`. A new archive is made after each round of verdicts, with no public release between.
 
-Such an archive says VERSION's text alone, `0.9.0`, as a release would, and its pages link to a tag that does not exist yet. Until it says its commit, the reply names the commit the archive is to be made from, and the application's session checks that `git log` here shows it before it runs `make release`.
+Such an archive says what it was made from: `ern --version` prints the version, `+` and the commit, `0.9.0+f3fcc49d`, and its pages link into the repository at that commit (§11.7). The reply names the commit the archive is to be made from, and the application's session checks the installed `ern --version` against it; a `.dirty` after the commit means the tree was not still, and the archive is made again.
 
 ## The lines
 
