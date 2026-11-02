@@ -88,11 +88,9 @@ server's CLAUDE.md carries the procedure its side follows.
    `test/fixtures/pty/pty.ern`, and `test/ern_pty.py` is gone (the log's *The Hangup's Order* and
    *The Harness in Ernest*).
 6. **A release of Ernest**, 0.9.0, when the server first serves the site, carrying the libraries
-   after their first real user has shaped them; 0.8.0 is the pun's. Before it, the deployment
-   test `one_node`, whose watcher once answered that a line was never said, in the full run of
-   2026-11-01 at the run's own load, passing alone after, is read for what it answered so for;
-   so is `tls_both_ways_test`, which once answered `Closed` for both endpoints in the light run
-   of 2026-11-02, three runs alone passing after.
+   after their first real user has shaped them; 0.8.0 is the pun's. The three tests that failed
+   once under load were read first, two races in the TLS tests fixed and the nodes harness
+   made to say what a node that ended unheard said (the log's *Three Flakes Read*).
 
 The site's content, MVP 4.2, runs beside any of it, since its generator needs nothing of the
 server.

@@ -852,9 +852,11 @@ reported(Acc) ->
 %% `remote`, `local` and `close`, the far end's certificate checked against
 %% the authority's file and for naming the host connected to, by its name
 %% and by its address, the chain after the server's certificate in its
-%% file; a read after the far end's close answers `Left(Closed)`. Written
-%% after the code, a regression test; it does not cover a chain of more
-%% than one intermediate
+%% file; a read, `remote` and `local` after the far end's close answer
+%% `Left(Closed)`. The server names its ends before it writes, since the
+%% client closes once it has read, and the ends of a closed connection are
+%% asserted after the close. Written after the code, a regression test; it
+%% does not cover a chain of more than one intermediate
 tls_both_ways_test() ->
     #{ca := Ca, server := Server} = pki(),
     Self = self(),
@@ -876,10 +878,11 @@ tls_both_ways_test() ->
                               end),
                {'Right', Accepted} = accept(Listener, 5000),
                Self ! {server_read, read(Accepted, 5000)},
-               Self ! {server_wrote, write(Accepted, <<"pong">>)},
                Self ! {server_ends, {remote(Accepted), local(Accepted)}},
+               Self ! {server_wrote, write(Accepted, <<"pong">>)},
                receive closed -> ok end,
                Self ! {after_close, read(Accepted, 5000)},
+               Self ! {ends_after_close, {remote(Accepted), local(Accepted)}},
                %% by its address, which the certificate names too
                ByAddress = spawn(fun() ->
                                      Main ! {by_address, side(connect_tls(<<"127.0.0.1">>, Port,
@@ -900,6 +903,7 @@ tls_both_ways_test() ->
     ?assertMatch({{'Right', {'Endpoint', <<"127.0.0.1">>, ClientPort}},
                   {'Right', {'Endpoint', <<"127.0.0.1">>, Port}}}, wait(server_ends)),
     ?assertEqual({'Left', 'Closed'}, wait(after_close)),
+    ?assertEqual({{'Left', 'Closed'}, {'Left', 'Closed'}}, wait(ends_after_close)),
     ?assertEqual('Right', wait(by_address)).
 
 %% report Appendix E.18: with `Unverified` the far end's certificate is not
@@ -989,8 +993,10 @@ tls_verified_takes_a_wildcard_test() ->
 %% `Left(Other(text))`; the server's socket, which `accept` answered before
 %% its handshake, answers its first read with the handshake's failure,
 %% `Left(Other(text))`, and the next `Left(Closed)`. Each text is the
-%% host's without the line feed that ends ssl's. Written after the code, a
-%% regression test
+%% host's without the line feed that ends ssl's. The entry process waits
+%% for the client's answer before it returns, since the run's end kills
+%% the client's socket, and a connect still under way would fault with
+%% that instead. Written after the code, a regression test
 tls_unknown_authority_test() ->
     #{other_ca := OtherCa, server := Server} = pki(),
     Self = self(),
@@ -998,13 +1004,16 @@ tls_unknown_authority_test() ->
            fun() ->
                {'Right', Listener} = listen_tls(0, Server),
                {'Right', Port} = port(Listener),
+               Main = self(),
                _ = spawn(fun() ->
                              Self ! {client, connect_tls(<<"localhost">>, Port,
-                                                         verified(OtherCa), 5000)}
+                                                         verified(OtherCa), 5000)},
+                             Main ! client_answered
                          end),
                {'Right', Accepted} = accept(Listener, 5000),
                Read = read(Accepted, 5000),
-               Self ! {reads, [Read, read(Accepted, 5000)]}
+               Self ! {reads, [Read, read(Accepted, 5000)]},
+               receive client_answered -> ok end
            end),
     {'Left', {'Other', ClientText}} = wait(client),
     [{'Left', {'Other', ServerText}}, {'Left', 'Closed'}] = wait(reads),

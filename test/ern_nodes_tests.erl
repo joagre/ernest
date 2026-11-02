@@ -613,7 +613,10 @@ waited(Dir, Stream, Part, Count, Ms) ->
     Bytes = unicode:characters_to_binary(Part),
     watcher_name(Dir) ! {waiting, Stream, Bytes, Count, self()},
     receive
-        {seen, Stream, Bytes, Seen} -> ?assert(Seen)
+        {seen, Stream, Bytes, true} -> ok;
+        %% the stream ended without the part: what it said is the cause
+        {seen, Stream, Bytes, false} ->
+            erlang:error({ended_unsaid, Dir, Part, written(Dir, Stream)})
     after Ms ->
         erlang:error({not_said, Dir, Part})
     end.
