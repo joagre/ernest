@@ -1,6 +1,6 @@
 # Ernest Report: The Language
 
-Revision of 1 November 2026.
+Revision of 2 November 2026.
 
 *Dedicated to the memory of Joe Armstrong, 1950–2019.*
 
@@ -949,7 +949,7 @@ An initializer that faults (§7.4) ends the program with that fault before `main
 
 The program ends when the entry process dies, whatever the reason (§6.9), a fault being reported on the runtime's exit indicator, when any of its processes calls `Os.exit`, which gives the status the runtime exits with (Appendix E.23), when its standard output or standard error can no longer be written (§12.1), or, on a node, when its carrier cannot start (§12.5). A bare node's entry process does not return (§8.1), so a bare node ends by termination, by an `Os.exit` a process spawned on it calls, or by a stream that can no longer be written.
 
-Before it ends by any of these, or by termination, the runtime tells the processes that subscribed with `Os.termination` (Appendix E.23): each is sent `wrap(reply)` in its own mailbox type, delivered as a monitor's `Down` is (§6.9), and the end waits until every reply is answered or its subscriber has ended or restarted; nothing of the runtime's own times the wait. A subscriber whose delivery foreign code kills before it arrives is waited for no longer. What the runtime says of the wait is §11.2's.
+Before it ends by any of these, or by termination, the runtime tells the processes that subscribed with `Os.termination` (Appendix E.23): each is sent `wrap(reply)` in its own mailbox type, delivered as a monitor's `Down` is (§6.9), and the end waits until every reply is answered or its subscriber has ended or restarted; nothing of the runtime's own times the wait. The caller of an `Os.exit` that began the end is neither told nor waited for: its subscription ends at the call. A subscriber whose delivery foreign code kills before it arrives is waited for no longer. What the runtime says of the wait is §11.2's.
 
 Every process runs while the end waits, and a peer finds, calls and sends to the node as before (§8.7). A subscription made while the end waits is told at once. The end goes on without a subscriber that faults, whether it ends or restarts (§6.9). A process that waits with nothing in flight while the end waits is no deadlock. While the end waits, what began it stands: the entry process's end and a stream that can no longer be written change nothing.
 

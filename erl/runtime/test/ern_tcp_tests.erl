@@ -410,6 +410,38 @@ write_holds_up_no_read() ->
     ?assertEqual({'Left', 'Timeout'}, Read),
     ?assert(Took < 2000).
 
+%% Appendix E.18: the socket takes a write whole, whatever its size, and a
+%% write behind one the host holds back waits, at most its milliseconds. A
+%% regression test, written with the sentence: the 8 MB pass the kernel's
+%% buffer for the socket, so the host holds the rest and the byte waits
+write_taken_whole_test_() ->
+    {timeout, 60, fun write_taken_whole/0}.
+
+write_taken_whole() ->
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Port} = inet:port(Listen),
+    Self = self(),
+    %% the far end accepts and never reads
+    Peer = spawn(fun() ->
+                     {ok, Connection} = gen_tcp:accept(Listen),
+                     receive done -> gen_tcp:close(Connection) end
+                 end),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Socket} = connect(Port, 2000),
+               Whole = write(Socket, binary:copy(<<0>>, 8 * 1024 * 1024)),
+               Before = erlang:monotonic_time(millisecond),
+               Behind = ern_rt:call_forever(Socket, fun(Reply) -> {'Write', <<1>>, 300, Reply} end),
+               Self ! {written, Whole, Behind, erlang:monotonic_time(millisecond) - Before}
+           end, <<"main">>, quiet()),
+    Peer ! done,
+    gen_tcp:close(Listen),
+    {written, Whole, Behind, Took} =
+        receive {written, _, _, _} = Message -> Message after 10000 -> timeout end,
+    ?assertEqual({'Right', 'Unit'}, Whole),
+    ?assertEqual({'Left', 'Timeout'}, Behind),
+    ?assert(Took < 2000).
+
 %% report §6.9, Appendix E.18: a listener is owned by the process that
 %% opened it and is killed when that process dies. A regression test of the
 %% rule, before which a listener belonged to no one and lived until the
