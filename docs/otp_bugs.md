@@ -414,3 +414,67 @@ OTP 29, erts 17.1, ssl 11.7.6, on Linux x86_64.
 **Additional context**
 
 `format_error/1`'s file clause would not describe the listen's code alone either: given `{options, {keyfile, "missing.key", enoent}}` it answers `Invalid key file missing.key: decoding error`, since `file_error_format/1` takes `{error, Reason}`.
+
+## 10. `ssl:close/2` ignores the time it is given
+
+Not filed. Found on 2026-11-01, building TLS in `Tcp` (the log's *TLS in `Tcp` and a Terminal in `Os`*, *The TLS linger bound*), and measured on 2026-11-02; `erl/runtime/src/ern_tcp.erl`'s `close_socket/2` hands a socket over TLS to a closer of its own, and Appendix E.18 states the host's bound, up to 10 seconds past the one it states for a plain socket.
+
+**Title:** ssl:close/2 closes a TLS connection in its own two 5-second waits whatever Timeout it is given
+
+**Describe the bug**
+
+`ssl:close(SslSocket, Timeout)` accepts a timeout for a connection (`close/2` in `ssl.erl`, ssl 11.7.6, the clause guarded by `?IS_TIMEOUT(Timeout)`), and `ssl_gen_statem:close/2` carries it as `{close, Timeout}`. The connection's `handle_call({close, _} = Close, ...)` calls `terminate(Close, StateName, State)`, and `terminate/3`'s clause for the `connection` state reads nothing of its reason: it sends the close alert through `tls_sender:send_and_ack_alert/2`, a `gen_statem:call` with `?DEFAULT_TIMEOUT`, 5000 ms, whose failure a `catch` swallows, and then calls `Connection:close({close, ?DEFAULT_TIMEOUT}, ...)`, which shuts the socket's write side and waits in `Transport:recv(Socket, 0, 5000)` for the far end.
+
+Where the far end takes nothing, the sender is behind the full socket and cannot write the alert, and the far end answers no close, so a close takes 10 seconds, the same with `ssl:close/1`, with a timeout of 1000 and with one of 100. Only the downgrade form, `{NewController, Timeout}`, and the `{shutdown, own_alert}` path, which reads the application's `alert_timeout`, honor a time.
+
+**To Reproduce**
+
+```sh
+erl -noshell -eval '
+    {ok, _} = application:ensure_all_started(ssl),
+    Key = [{key, {rsa, 2048, 65537}}],
+    #{server_config := S, client_config := C} =
+        public_key:pkix_test_data(#{server_chain => #{root => Key, intermediates => [], peer => Key},
+                                    client_chain => #{root => Key, intermediates => [], peer => Key}}),
+    Run = fun(How) ->
+        {ok, L} = ssl:listen(0, [binary, {active, false} | S]),
+        {ok, {_, Port}} = ssl:sockname(L),
+        Self = self(),
+        spawn(fun() -> {ok, Cl} = ssl:connect("localhost", Port,
+                                              [binary, {active, false}, {verify, verify_none} | C], 5000),
+                       Self ! connected, receive done -> ssl:close(Cl) end end),
+        {ok, T} = ssl:transport_accept(L, 5000), {ok, Srv} = ssl:handshake(T, 5000),
+        receive connected -> ok end,
+        %% fill the far end, which reads nothing, until a write hangs
+        Fill = fun Fill() -> P = self(),
+                             W = spawn(fun() -> P ! {sent, ssl:send(Srv, binary:copy(<<0>>, 65536))} end),
+                             receive {sent, ok} -> Fill() after 2000 -> exit(W, kill) end end,
+        Fill(),
+        T0 = erlang:monotonic_time(millisecond),
+        R = case How of none -> ssl:close(Srv); Ms -> ssl:close(Srv, Ms) end,
+        io:format("close ~p: ~p in ~p ms~n", [How, R, erlang:monotonic_time(millisecond) - T0]),
+        ssl:close(L)
+    end,
+    [Run(How) || How <- [none, 1000, 100]],
+    halt().'
+```
+
+The output:
+
+```
+close none: ok in 10002 ms
+close 1000: ok in 10002 ms
+close 100: ok in 10002 ms
+```
+
+**Expected behavior**
+
+A close given a timeout returns within it, the alert's write and the wait for the far end's close bounded by it together, as `close/2`'s type promises; or the documentation of `close/2` says that the timeout bounds the downgrade alone and a plain close waits up to 10 seconds.
+
+**Affected versions**
+
+OTP 29, erts 17.1, ssl 11.7.6, on Linux x86_64.
+
+**Additional context**
+
+The two waits are `?DEFAULT_TIMEOUT` of `ssl_internal.hrl`. A program that closes a connection whose far end has stopped reading, a server dropping a stalled client, holds the closing process for 10 seconds per connection, which it can escape only by closing from another process or by `ssl:shutdown/2` and a close of the transport socket behind ssl's back.

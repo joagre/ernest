@@ -612,7 +612,9 @@ stop_writer(Writer) ->
 %% nothing, and once the socket's owner has ended no process can stop that;
 %% so a socket with bytes waiting is handed to a closer of its own first.
 %% A socket over TLS always is, since ssl's close writes the record that
-%% ends the connection and waits for the far end's answer.
+%% ends the connection and waits for the far end's answer, in two waits
+%% of 5 seconds of its own whatever time it is given (docs/otp_bugs.md,
+%% 10).
 close_socket(Transport, Socket) ->
     Inet = inet(Transport),
     case Inet:getstat(Socket, [send_pend]) of
