@@ -543,7 +543,9 @@ Random.nextFloat : (Seed) -> #(Float, Seed) // uniform above 0.0 and below 1.0, 
 
 `Path` is `Path(String)`, §9.3, in the runtime's syntax. A path is read by its code points, as the runtime reads it, and not by graphemes: a separator or a `.` is one though a combining mark follows it, so `Path.name(Path("a/\u{301}b"))` is `Some("\u{301}b")`.
 
-`Path.<>` is the prelude's, §9.6; this module provides it (§9). `<>` joins the segments of both, `split` then `join`: `Path("a//b") <> Path("c")` is `Path("a/b/c")`. An absolute second is the result, as it was written. The primitives are `isAbsolute`, `separator`, the host's separator, and `parts`, the text between each occurrence of a separator or a `.`, the last two private to the module (E.0 rule 1); the rest is Ernest over them and `String`. `under` reads the path's text alone: a link under the root that leads out of it is the file system's (E.17).
+`Path.<>` is the prelude's, §9.6; this module provides it (§9). `<>` joins the segments of both, `split` then `join`: `Path("a//b") <> Path("c")` is `Path("a/b/c")`. An absolute second is the result, as it was written. `join` writes each segment as given, one separator between them: a segment that holds a separator, or is empty, is written as it is, and the path reads as the segments its text holds, so `join(["/x", "etc"])` is `Path("/x/etc")` and `join(["root", "/x"])` is `Path("root//x")`.
+
+The primitives are `isAbsolute`, `separator`, the host's separator, and `parts`, the text between each occurrence of a separator or a `.`, the last two private to the module (E.0 rule 1); the rest is Ernest over them and `String`. `under` reads the path's text alone: a link under the root that leads out of it is the file system's (E.17).
 
 ```
 Path.join : (List(String)) -> Path // the segments as a path, the inverse of split: a root first stays a root, one separator between the others

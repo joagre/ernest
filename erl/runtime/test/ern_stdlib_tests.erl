@@ -1368,6 +1368,17 @@ path_edges_test() ->
     ?assertEqual(AsPath(<<"/etc/hosts">>), Path('<>')(AsPath(<<"/etc/">>), AsPath(<<"hosts">>))),
     ?assertEqual(AsPath(<<"b">>), Path('<>')(AsPath(<<"">>), AsPath(<<"b">>))),
     ?assertEqual([<<"/">>], Path(split)(AsPath(<<"/">>))),
+    %% report Appendix E.14: a segment is written as given, one that holds a
+    %% separator read as the segments it holds, and `under` refuses the path
+    %% where it would leave the root. A regression test: the server's build
+    %% showed the escape through `<>`
+    ?assertEqual(AsPath(<<"/x/etc">>), Path(join)([<<"/x">>, <<"etc">>])),
+    ?assertEqual(AsPath(<<"root//x">>), Path(join)([<<"root">>, <<"/x">>])),
+    ?assertEqual(AsPath(<<"a//b">>), Path(join)([<<"a">>, <<"">>, <<"b">>])),
+    ?assertEqual('None', Path(under)(AsPath(<<"root">>), Path(join)([<<"/x">>, <<"etc">>]))),
+    ?assertEqual('None', Path(under)(AsPath(<<"root">>), Path(join)([<<"a/..">>, <<"b">>]))),
+    ?assertEqual({'Some', AsPath(<<"root/a/b">>)},
+                 Path(under)(AsPath(<<"root">>), Path(join)([<<"a/b">>]))),
     %% report Appendix E.14: the root has no name, a regression test of the
     %% rule, before which it was ""
     ?assertEqual('None', Path(name)(AsPath(<<"/">>))),

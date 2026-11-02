@@ -80,9 +80,9 @@ server's CLAUDE.md carries the procedure its side follows.
    checkout and the archive made again, with no public release between. Four lines met
    2026-11-02 and decided the same day: a path through a regular file or a loop of links
    answers `NotFound`, a search of a `String` matches whole graphemes and a request target
-   is visible ASCII, `Io.show` writes a constructor by its name alone, and `<<>>` as a last
-   clause stands as decided (the log's *A Path Through a File* and *Three Lines From the
-   Server*).
+   is visible ASCII, `Io.show` writes a constructor by its name alone, `Path.join` writes a
+   segment as given, and `<<>>` as a last clause stands as decided (the log's *A Path Through
+   a File* and *Three Lines From the Server*).
 5. **The terminal tests over `Os.startTerminal`**, dropping `test/ern_pty.py`, an item of its own
    once item 2 stands. First in it, a defect seen on 2026-11-01 under a load average of 37
    from four agents' runs, and again in the full run of 2026-11-02: `close_input_hangs_up_test`

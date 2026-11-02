@@ -44,13 +44,17 @@ Path.join(segments : List(String)) : Path
 ```
 
 The path of those segments, the inverse of `split`. A root first stays a
-root, and one separator stands between the others.
+root, and one separator stands between the others. A segment is written
+as given: one that holds a separator is read as the segments it holds,
+so a segment from outside the program can leave the path; `Path.under`
+refuses a path that would leave its root.
 
 ### Examples
 
 ```ernest
-Path.toString(Path.join(Path.split(Path("/etc//hosts"))))
-// => "/etc/hosts"
+#(Path.toString(Path.join(Path.split(Path("/etc//hosts")))),
+  Path.toString(Path.join(["/x", "etc"])))
+// => #("/etc/hosts", "/x/etc")
 ```
 
 ## Path.split
