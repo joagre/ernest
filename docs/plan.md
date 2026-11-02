@@ -21,7 +21,7 @@ stability is made, and a change to the language, the standard library or the lib
 by a need met in use and recorded as `docs/language_feedback.md` records one.
 
 The pun is released, with what its day decided beside it: a `receive` always receives, an alarm
-can be canceled, and the checkout works toward 0.9.0. Next is ernest-httpd, then the website and
+can be canceled, and the checkout works toward 0.9.0. Next is ernest-httpd, then MVP 4.15, what the server taught, then the website and
 the shell's second round (the log's *The Road to 1.0, Ordered*), and MVP 4.4 last, the promise, the cost, the full review and Ernest 1.0, where
 the road ends and a program begins (the log's *MVP 4.4, the Road's End*); the back end to BEAM's own instructions that closed the road is not built,
 decided 2026-10-30 (the log's *No Back End to BEAM's Own Instructions*). A finished milestone is a
@@ -106,14 +106,7 @@ server's CLAUDE.md carries the procedure its side follows.
    `Ernest.Shell`, and an attach the node could not load says the node's reason, built
    2026-11-02 after the cold reading; a listener takes its address's family alone, built the
    same day; the deployment guide says how two users' nodes list each other; §10 says when
-   a dropped value is reclaimed.
-
-   **Decision, the collection at a wait:** whether the runtime
-   collects a process as it begins a wait where its binaries pass the host's threshold, the
-   host's own collection moved to where the process has time, measured by `make bench`; or
-   the rule of §10 stands and a server holds its memory until its next request. The
-   recommendation is the first, built as an item of its own once the server's milestone 1
-   stands and its measurement under `measure/` can be run again.
+   a dropped value is reclaimed; what the runtime does about it is MVP 4.15's first item.
 5. **The terminal tests over `Os.startTerminal`**, dropping `test/ern_pty.py`, an item of its own
    once item 2 stands. First in it, a defect seen on 2026-11-01 under a load average of 37
    from four agents' runs, and again in the full run of 2026-11-02: `close_input_hangs_up_test`
@@ -131,6 +124,40 @@ The site's content, MVP 4.2, runs beside any of it, since its generator needs no
 server.
 
 ---
+
+## MVP 4.15 (what the server taught), about three days
+
+What building and deploying ernest-httpd showed of Ernest, decided 2026-11-02 and built here
+before the website (the log's *What the Server Taught*).
+
+1. **The host's collection at the wait.** A process that drops a value and waits holds it until
+   its next collection, which the host runs only as the process allocates (§10): the server's
+   idle connection held its last response. The runtime moves the host's own collection to the
+   wait: a `receive` that finds nothing to take asks the host, before it waits, for the
+   process's counts, and collects where the binaries referenced since its last collection pass
+   the host's own threshold, `min_bin_vheap_size`; a receive that takes a message at once pays
+   nothing, and one that waits pays one call of the host's beside its suspension.
+
+   §10 states it, a test holds the probe, a process that drops a megabyte and waits and the node's binary
+   memory falling, `make bench` measures a waiting receive before and after, and the server's
+   measurement under its `measure/` shows the gain. Where the cost is more than a fraction of
+   a wait, the design goes to the log with its number and the rule of §10 stands alone.
+2. **Memory shown.** `Process.status` and `:processes` show each process's memory, the host's
+   count with its binaries (E.21, §11.2), read against E.0's rules first, so that an operator
+   sees what an idle connection holds.
+3. **`libs/http`'s values**, feedback 186: a value for its ordinary limits and one for HTTP/1.1,
+   named by the guide's style, the examples and the pages using them.
+4. **An error across a library**, feedback 185: a block's `<-` takes one error type, so a
+   library whose error wraps the host's makes a program lift every `Tcp` call. A proposal under
+   `docs/proposals/errors_across_libraries/` argues the three ways, the library answering
+   `Io.Error` itself, a conversion declared at `<-`, or the form standing as the one way to lift
+   with the library reading and writing the socket for the program, the third recommended;
+   decided with the user, then built here or dropped.
+5. **The deployment guide says what a waiting process holds**, one sentence in its section 7,
+   pointing at §10 and item 1.
+
+Dropped on 2026-11-02, their verdicts in the log: feedback 184, a shorter form for a command
+started with no input, and 204, an alias for a long namespace.
 
 ## MVP 4.2 (the website)
 
