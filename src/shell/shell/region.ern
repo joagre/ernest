@@ -140,8 +140,8 @@ export fn rowsSized(region : Region, rows : Int) : #(Region, String) =
 /// Report §11.2: `C-l` gives a clean screen. What is committed stays in
 /// the terminal's scrollback; the region is painted again at the top.
 export fn cleared(region : Region) : #(Region, String) = {
-    let #(region1, bytes) = painted(Region(..region, resting = 0), []);
-    #(region1, Ansi.clearScreen <> bytes)
+    let #(region, bytes) = painted(Region(..region, resting = 0), []);
+    #(region, Ansi.clearScreen <> bytes)
 }
 
 /// Report §11.2: the bytes that take the region away where its last paint
@@ -554,9 +554,9 @@ let tabsAfterSequences =
 let takenPrompt =
     Test.Case(name = "a prompt spent on no input is dropped before the next answer", run = fn() = {
         let region = new(Terminal.Size(rows = 24, columns = 80));
-        let #(region1, _) = said(region, "1 : Int\n> ");
-        let #(region2, _) = taken(region1);
-        let #(_, bytes) = said(region2, "4 : Int\n> ");
+        let #(region, _) = said(region, "1 : Int\n> ");
+        let #(region, _) = taken(region);
+        let #(_, bytes) = said(region, "4 : Int\n> ");
         if String.indexOf(bytes, "> 4 : Int") == None
             && String.indexOf(bytes, "4 : Int") != None then
             Test.Passed
@@ -600,21 +600,21 @@ let offeredBytes = "\r\u{1b}[J> Li\nList.map : a\nList.size : b\u{1b}[2A\r\u{1b}
 
 let nextKeyTakesItAway = Test.Case(name = "the next key takes away what Tab showed", run = fn() = {
     let #(region, _) = edited(prompted(), "Li", 2, ["List.map : a"]);
-    let #(region1, _) = edited(region, "Lis", 3, []);
-    Test.equal(rowsOf(region1), ["> Lis"])
+    let #(region, _) = edited(region, "Lis", 3, []);
+    Test.equal(rowsOf(region), ["> Lis"])
 })
 
 let enteredTakesItAway =
     Test.Case(name = "an input entered takes away what Tab showed", run = fn() = {
         let #(region, _) = edited(prompted(), "Li", 2, ["List.map : a"]);
-        let #(region1, bytes) = entered(region);
-        Test.equal(#(rowsOf(region1), String.indexOf(bytes, "List.map")), #([""], None))
+        let #(region, bytes) = entered(region);
+        Test.equal(#(rowsOf(region), String.indexOf(bytes, "List.map")), #([""], None))
     })
 
 let offerWraps = Test.Case(name = "a row shown under the input wraps at the edge", run = fn() = {
     let #(region, _) = said(new(Terminal.Size(rows = 24, columns = 6)), "> ");
-    let #(region1, _) = edited(region, "", 0, ["abcdefgh"]);
-    Test.equal(rowsOf(region1), ["> ", "abcdef", "gh"])
+    let #(region, _) = edited(region, "", 0, ["abcdefgh"]);
+    Test.equal(rowsOf(region), ["> ", "abcdef", "gh"])
 })
 
 let wrapKeepsColor =
@@ -626,9 +626,9 @@ let wrapKeepsColor =
 let offerCounted = Test.Case(name = "what the screen has no room for is counted", run = fn() = {
     // six rows: one for the input, four for lines, one for the count
     let region = new(Terminal.Size(rows = 6, columns = 80));
-    let #(region1, _) = said(region, "> ");
-    let #(region2, _) = edited(region1, "", 0, ["a", "b", "c", "d", "e", "f", "g"]);
-    Test.equal(rowsOf(region2), ["> ", "a", "b", "c", "d", "and 3 more"])
+    let #(region, _) = said(region, "> ");
+    let #(region, _) = edited(region, "", 0, ["a", "b", "c", "d", "e", "f", "g"]);
+    Test.equal(rowsOf(region), ["> ", "a", "b", "c", "d", "and 3 more"])
 })
 
 let enteredEmpty = Test.Case(name = "nothing typed after no prompt leaves no row", run = fn() = {
@@ -645,27 +645,26 @@ let enteredEmpty = Test.Case(name = "nothing typed after no prompt leaves no row
 let wrapsTheInput =
     Test.Case(name = "a line wider than the screen wraps, the cursor after it", run = fn() = {
         let #(region, _) = said(new(Terminal.Size(rows = 24, columns = 10)), "> ");
-        let #(region1, _) = edited(region, "abcdefghijkl", 12, []);
+        let #(region, _) = edited(region, "abcdefghijkl", 12, []);
         // `> ` and twelve characters are fourteen columns: two rows
-        Test.equal(#(rowsOf(region1), resting(region1), column(region1)),
+        Test.equal(#(rowsOf(region), resting(region), column(region)),
                    #(["> abcdefgh", "ijkl"], 1, 5))
     })
 
 let fillsTheWidth =
     Test.Case(name = "a line that fills the width puts the cursor on the next row", run = fn() = {
         let #(region, _) = said(new(Terminal.Size(rows = 24, columns = 10)), "> ");
-        let #(region1, _) = edited(region, "abcdefgh", 8, []);
-        Test.equal(#(rowsOf(region1), resting(region1), column(region1)),
-                   #(["> abcdefgh", ""], 1, 1))
+        let #(region, _) = edited(region, "abcdefgh", 8, []);
+        Test.equal(#(rowsOf(region), resting(region), column(region)), #(["> abcdefgh", ""], 1, 1))
     })
 
 let unendedRows =
     Test.Case(name = "a line not yet ended gives the tail each row it fills", run = fn() = {
         let region = new(Terminal.Size(rows = 24, columns = 10));
-        let #(region1, _) = wrote(region, "abcdefghijklmnopqrstuvwxy");
+        let #(region, _) = wrote(region, "abcdefghijklmnopqrstuvwxy");
         let #(begun, _) = wrote(new(Terminal.Size(rows = 24, columns = 10)), "abcdefg");
         let #(continued, _) = wrote(begun, "hijklm");
-        Test.equal(#(tailRowsOf(region1), tailRowsOf(continued)),
+        Test.equal(#(tailRowsOf(region), tailRowsOf(continued)),
                    #(["abcdefghij", "klmnopqrst", "uvwxy"], ["abcdefghij", "klm"]))
     })
 
@@ -674,8 +673,8 @@ let unendedRows =
 let wrappedTab =
     Test.Case(name = "a tab on a wrapped row stops as the terminal's do", run = fn() = {
         let #(region, _) = said(new(Terminal.Size(rows = 24, columns = 10)), "> ");
-        let #(region1, _) = edited(region, "abcdefghij\tx", 12, []);
-        Test.equal(#(screenInput(region1), resting(region1), column(region1)),
+        let #(region, _) = edited(region, "abcdefghij\tx", 12, []);
+        Test.equal(#(screenInput(region), resting(region), column(region)),
                    #(["> abcdefgh", "ij      x"], 1, 10))
     })
 

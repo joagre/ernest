@@ -505,17 +505,17 @@ fn chunks(reading : Reading,
           bytes : Bytes,
           consumed : Int,
           body : Bytes) : Either(ReadError, #(Bytes, Bytes)) = {
-    let #(sizeLine, afterSize, consumed1) <- line(reading, bytes, consumed);
+    let #(sizeLine, afterSize, consumed) <- line(reading, bytes, consumed);
     let size <- Either.fromOptional(chunkSize(sizeLine), Protocol(Malformed));
     if size == 0 then
-        Either.map(trailers(reading, afterSize, consumed1), fn(rest) = #(body, rest))
-    else if consumed1 + size > reading.limit then
+        Either.map(trailers(reading, afterSize, consumed), fn(rest) = #(body, rest))
+    else if consumed + size > reading.limit then
         Left(Protocol(BodyTooLarge))
     else {
         let #(data, afterData) <- taken(reading, afterSize, size);
-        let #(end, rest, consumed2) <- line(reading, afterData, consumed1 + size);
+        let #(end, rest, consumed) <- line(reading, afterData, consumed + size);
         if Bytes.isEmpty(end) then
-            chunks(reading, rest, consumed2, body <> data)
+            chunks(reading, rest, consumed, body <> data)
         else
             Left(Protocol(Malformed))
     }
@@ -539,8 +539,8 @@ fn chunkSize(sizeLine : Bytes) : Optional(Int) = {
 // RFC 9112, section 7.1.2: the trailer lines after the last chunk, dropped,
 // to the empty line that ends the body, and the bytes after it.
 fn trailers(reading : Reading, bytes : Bytes, consumed : Int) : Either(ReadError, Bytes) = {
-    let #(trailer, rest, consumed1) <- line(reading, bytes, consumed);
-    if Bytes.isEmpty(trailer) then Right(rest) else trailers(reading, rest, consumed1)
+    let #(trailer, rest, consumed) <- line(reading, bytes, consumed);
+    if Bytes.isEmpty(trailer) then Right(rest) else trailers(reading, rest, consumed)
 }
 
 // The line the bytes begin with, without its line feed and a carriage

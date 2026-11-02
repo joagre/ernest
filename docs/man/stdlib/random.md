@@ -21,8 +21,8 @@ Two throws of a die, the seed the first answers carried to the second:
 
 ```ernest
 {
-    let #(first, seed1) = Random.nextInt(Random.seed(2026), 5);
-    let #(second, _) = Random.nextInt(seed1, 5);
+    let #(first, seed) = Random.nextInt(Random.seed(2026), 5);
+    let #(second, _) = Random.nextInt(seed, 5);
     #(first + 1, second + 1)
 }
 // => #(2, 6)

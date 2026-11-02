@@ -75,8 +75,8 @@ fn repl(env : Map(String, Value), serial : Int) : Unit receiving ReplMsg =
         None ->
             Unit // end of input
       | Some(text) -> {
-            let #(env1, serial1) = evaluateLine(env, serial, text);
-            repl(env1, serial1)
+            let #(env, serial) = evaluateLine(env, serial, text);
+            repl(env, serial)
         }
     }
 

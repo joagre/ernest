@@ -16,7 +16,7 @@ Shape rule 6 says what a module's documentation holds, which `ern doc` writes as
 
 ## What the standard library does
 
-A value's name is camelCase and a type's PascalCase, `parseHeader`, `OrderedSet`, and a yes-or-no reads as the question, `isEmpty`. A name says what its value is or what its function does, in the words of the domain: a function that does something is a verb, `parse`, and one that gives a value is that value, a noun or an adjective, `size`, `sorted`; a type or a constructor names what it holds, a type as a noun, `Line(String)`, not `L`.
+A value's name is camelCase and a type's PascalCase, `parseHeader`, `OrderedSet`, and a yes-or-no reads as the question, `isEmpty`. A name says what its value is or what its function does, in the words of the domain: a function that does something is a verb, `parse`, and one that gives a value is that value, a noun or an adjective, `size`, `sorted`; a type or a constructor names what it holds, a type as a noun, `Line(String)`, not `L`. A value that changes through a function is bound again under its name, `let #(draw, seed) = splitMix(seed)`, which the language guide's §5.4 provides, where the earlier value is never used again; where it is, the later value has a name of its own. No variable's name ends in a number: `seed1` is a second name for the one seed.
 
 No abbreviation a reader must guess: a well-known acronym is fine, `TCP`, `URL`, `UTF-8`, `JSON`, and so is one the host, the Erlang runtime Ernest runs on, writes, `Pid`, `Ref`, `Fd`. One letter only where the whole scope is one line that shows what it is, `fn(x) = x + 1`, and `xs` and `f` only where nothing more can be said. One concept, one name, in every module.
 

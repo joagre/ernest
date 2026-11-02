@@ -357,9 +357,9 @@ fn session(desk : Desk) : Unit receiving ShellMsg = {
             // so the reader's death is said and the session ends with it
             monitor(Process.fromAddress(given), ReaderDied);
             match fromFiles(state, screen, desk.startup) {
-                Continue(state1) -> {
+                Continue(state) -> {
                     prompt(screen);
-                    keyLoop(state1, screen)
+                    keyLoop(state, screen)
                 }
               | Leave ->
                     leave(state, screen, "")
@@ -367,7 +367,7 @@ fn session(desk : Desk) : Unit receiving ShellMsg = {
         }
       | None ->
             match fromFiles(state, screen, desk.startup) {
-                Continue(state1) -> lineLoop(state1, screen)
+                Continue(state) -> lineLoop(state, screen)
               | Leave -> leave(state, screen, "")
             }
     }
@@ -639,12 +639,12 @@ fn fromFiles(state : State,
         [] ->
             Continue(state)
       | #(file, line, input) :: rest -> {
-            let state1 = State(..state, startupLine = Some(#(file, line)));
-            if String.startsWith(input, ":") then match perform(state1, screen, input) {
-                Continue(state2) -> fromFiles(State(..state2, startupLine = None), screen, rest)
+            let state = State(..state, startupLine = Some(#(file, line)));
+            if String.startsWith(input, ":") then match perform(state, screen, input) {
+                Continue(state) -> fromFiles(State(..state, startupLine = None), screen, rest)
               | Leave -> Leave
-            } else match executeQuietly(state1, screen, file, line, input) {
-                Continue(state2) -> fromFiles(State(..state2, startupLine = None), screen, rest)
+            } else match executeQuietly(state, screen, file, line, input) {
+                Continue(state) -> fromFiles(State(..state, startupLine = None), screen, rest)
               | Leave -> Leave
             }
         }
@@ -874,9 +874,9 @@ fn taking(state : State, screen : Address(ScreenMsg), line : String) : Unit rece
             match submit(state, screen, input) {
                 Leave ->
                     leave(state, screen, "")
-              | Continue(state1) -> {
+              | Continue(state) -> {
                     prompt(screen);
-                    keyLoop(state1, screen)
+                    keyLoop(state, screen)
                 }
             }
     }
@@ -1110,9 +1110,9 @@ fn obey(state : State,
             match forget(session, argument) {
                 Left(text) ->
                     refused(state, screen, text)
-              | Right(session1) -> {
+              | Right(session) -> {
                     letGoSaid(screen);
-                    Continue(State(..state, session = session1))
+                    Continue(State(..state, =session))
                 }
             }
       | Shell.Command.Browse ->
@@ -1150,17 +1150,13 @@ fn obey(state : State,
             }
       | Shell.Command.Load ->
             match load(session, argument) {
-                Left(text) ->
-                    diagnosed(state, screen, placed(state, text))
-              | Right(#(session1, line)) ->
-                    answered(State(..state, session = session1), screen, [line])
+                Left(text) -> diagnosed(state, screen, placed(state, text))
+              | Right(#(session, line)) -> answered(State(..state, =session), screen, [line])
             }
       | Shell.Command.Reload ->
             match reload(session) {
-                Left(text) ->
-                    diagnosed(state, screen, placed(state, text))
-              | Right(#(session1, lines)) ->
-                    answered(State(..state, session = session1), screen, lines)
+                Left(text) -> diagnosed(state, screen, placed(state, text))
+              | Right(#(session, lines)) -> answered(State(..state, =session), screen, lines)
             }
     }
 }
@@ -1291,20 +1287,20 @@ fn screenLoop(region : Shell.Region.Region, showing : Showing) : Unit receiving 
             painted(Shell.Region.noted(region, text), showing)
       | Wrote(bytes) -> {
             let #(text, cut) = decoded(showing.cut, bytes);
-            let showing1 = Showing(..showing, =cut);
+            let showing = Showing(..showing, =cut);
             match showing.destination {
                 None ->
-                    painted(Shell.Region.wrote(region, text), showing1)
+                    painted(Shell.Region.wrote(region, text), showing)
               | Some(path) ->
                     match appended(showing.local, path, text, "the live region") {
                         Right(_) ->
-                            screenLoop(region, showing1)
+                            screenLoop(region, showing)
                       | Left(why) -> {
-                            let #(region1, said) = Shell.Region.said(region, why);
+                            let #(region, said) = Shell.Region.said(region, why);
                             send(showing.local,
-                                 Write(text = said, ending = Shell.Region.ending(region1)));
-                            painted(Shell.Region.wrote(region1, text),
-                                    Showing(..showing1, destination = None))
+                                 Write(text = said, ending = Shell.Region.ending(region)));
+                            painted(Shell.Region.wrote(region, text),
+                                    Showing(..showing, destination = None))
                         }
                     }
             }
@@ -1358,7 +1354,7 @@ fn drained(local : Address(LocalMsg)) : Unit = {
 // Report §11.2: without a terminal there is no region, and what the screen
 // is sent is written as it comes, a note on a line of its own.
 fn plainLoop(showing : Showing) : Unit receiving ScreenMsg = {
-    let showing1 = receive {
+    let showing = receive {
         Said(text) -> {
             lineWritten(showing.local, text);
             showing
@@ -1415,7 +1411,7 @@ fn plainLoop(showing : Showing) : Unit receiving ScreenMsg = {
       | SetRows(_) ->
             showing
     };
-    plainLoop(showing1)
+    plainLoop(showing)
 }
 
 // Report §11.2: text written in line mode, by the local half, with what
@@ -1548,27 +1544,27 @@ fn read(shell : Address(ShellMsg),
                     if continues(Shell.Editor.text(edited)) then
                         showing(shell, screen, reading, Shell.Editor.newline(edited))
                     else {
-                        let keeping1 = remember(screen, reading.local, edited, keeping);
+                        let keeping = remember(screen, reading.local, edited, keeping);
                         send(screen, Entered);
                         send(shell, Typed(Shell.Editor.text(edited)));
                         readLoop(shell,
                                  screen,
                                  Reading(..reading,
                                          editing = Shell.Editor.next(edited),
-                                         keeping = keeping1,
+                                         =keeping,
                                          last = Ordinary))
                     }
               | Shell.Editor.Cancel -> {
                     // what was typed stays in the transcript, abandoned, and
                     // in the history to recall and mend
-                    let keeping1 = remember(screen, reading.local, editing, keeping);
+                    let keeping = remember(screen, reading.local, editing, keeping);
                     send(screen, Entered);
                     send(shell, Interrupted);
                     readLoop(shell,
                              screen,
                              Reading(..reading,
                                      editing = Shell.Editor.next(editing),
-                                     keeping = keeping1,
+                                     =keeping,
                                      last = Ordinary))
                 }
               | Shell.Editor.ClearScreen(edited) -> {
@@ -1858,16 +1854,16 @@ fn isVersion(block : Markdown.Block) : Bool =
 //
 
 fn lineLoop(state : State, screen : Address(ScreenMsg)) : Unit receiving ShellMsg = {
-    let state1 = reportPending(state, screen, saidLine);
+    let state = reportPending(state, screen, saidLine);
     prompt(screen);
-    match nextLine(state1) {
+    match nextLine(state) {
         None ->
-            leaveLines(state1, screen)
+            leaveLines(state, screen)
       | Some(line) ->
             // report §11.2: a fault reported while the session waited for
             // the line is said before the line runs, so that `:faults`
             // lists it
-            takingLine(reportPending(state1, screen, saidLine), screen, line)
+            takingLine(reportPending(state, screen, saidLine), screen, line)
     }
 }
 
@@ -1879,7 +1875,7 @@ fn takingLine(state : State, screen : Address(ScreenMsg), line : String) : Unit 
         lineLoop(state, screen)
     else match submit(state, screen, String.trim(moreLines(state, screen, line))) {
         Leave -> leaveLines(state, screen)
-      | Continue(state1) -> lineLoop(state1, screen)
+      | Continue(state) -> lineLoop(state, screen)
     }
 
 // Report §11.2: the session ends in line mode as `leave` says, the end of

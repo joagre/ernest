@@ -17,8 +17,8 @@
 ///
 /// ```ernest
 /// {
-///     let #(first, seed1) = Random.nextInt(Random.seed(2026), 5);
-///     let #(second, _) = Random.nextInt(seed1, 5);
+///     let #(first, seed) = Random.nextInt(Random.seed(2026), 5);
+///     let #(second, _) = Random.nextInt(seed, 5);
 ///     #(first + 1, second + 1)
 /// }
 /// // => #(2, 6)
@@ -69,16 +69,16 @@ export fn seed(int : Int) : Seed =
 ///
 /// since 0.4.0
 export fn nextInt(seed : Seed, bound : Int) : #(Int, Seed) = {
-    let #(drawn, seed1) = below(seed, Int.abs(bound) + 1);
-    if bound < 0 then #(-drawn, seed1) else #(drawn, seed1)
+    let #(drawn, seed) = below(seed, Int.abs(bound) + 1);
+    if bound < 0 then #(-drawn, seed) else #(drawn, seed)
 }
 
 // A number from 0 to below `bound`, from as many 64-bit draws as span
 // `bound`, those at or above the largest multiple of `bound` the draws can
 // reach drawn again.
 fn below(seed : Seed, bound : Int) : #(Int, Seed) = {
-    let #(value, span, seed1) = spanning(seed, bound, 0, 1);
-    if value < span - span % bound then #(value % bound, seed1) else below(seed1, bound)
+    let #(value, span, seed) = spanning(seed, bound, 0, 1);
+    if value < span - span % bound then #(value % bound, seed) else below(seed, bound)
 }
 
 // A value drawn from as many 64-bit draws as span `bound`, the span they
@@ -87,8 +87,8 @@ fn spanning(seed : Seed, bound : Int, value : Int, span : Int) : #(Int, Int, See
     if span >= bound && span > 1 then
         #(value, span, seed)
     else {
-        let #(draw, seed1) = splitMix(seed);
-        spanning(seed1, bound, value * drawSpan + draw, span * drawSpan)
+        let #(draw, seed) = splitMix(seed);
+        spanning(seed, bound, value * drawSpan + draw, span * drawSpan)
     }
 
 // SplitMix64: the counter advanced by the golden gamma, and its new value
@@ -100,10 +100,10 @@ fn splitMix(seed : Seed) : #(Int, Seed) =
             let mixed =
                 Int.bitAnd(Int.bitXor(counter, Int.shiftRight(counter, 30)) * 0xBF58_476D_1CE4_E5B9,
                            mask);
-            let mixed1 =
+            let mixed =
                 Int.bitAnd(Int.bitXor(mixed, Int.shiftRight(mixed, 27)) * 0x94D0_49BB_1331_11EB,
                            mask);
-            #(Int.bitXor(mixed1, Int.shiftRight(mixed1, 31)), Seed(counter))
+            #(Int.bitXor(mixed, Int.shiftRight(mixed, 31)), Seed(counter))
         }
     }
 
@@ -120,8 +120,8 @@ fn splitMix(seed : Seed) : #(Int, Seed) =
 /// // => true
 /// ```
 export fn nextFloat(seed : Seed) : #(Float, Seed) = {
-    let #(draw, seed1) = splitMix(seed);
-    #((Int.toFloat(Int.shiftRight(draw, 12)) + 0.5) / fractionSpan, seed1)
+    let #(draw, seed) = splitMix(seed);
+    #((Int.toFloat(Int.shiftRight(draw, 12)) + 0.5) / fractionSpan, seed)
 }
 
 let mask = 0xFFFF_FFFF_FFFF_FFFF

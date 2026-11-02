@@ -102,10 +102,10 @@ fn game(world : World, deadline : Int) : Unit receiving GameMsg = {
     let _ = Clock.alarm(Int.max(deadline - Clock.monotonic(), 0), fn(_) = Ticked);
     receive {
         Ticked -> {
-            let world1 = step(drain(world, 64));
-            Io.print(render(world1));
+            let world = step(drain(world, 64));
+            Io.print(render(world));
             // the last player left, so the game is over (report §8.6)
-            if Map.isEmpty(world1.players) then Unit else game(world1, deadline + tickMs)
+            if Map.isEmpty(world.players) then Unit else game(world, deadline + tickMs)
         }
     }
 }
@@ -166,11 +166,11 @@ fn step(world : World) : World = {
           | Player(body = head :: rest, =direction, =score) -> {
                 let next = move(world.width, world.height, head, direction);
                 let ate = List.contains(apples, next);
-                let #(body, score1) = if ate then
+                let #(body, score) = if ate then
                     #(next :: head :: rest, score + 1)
                 else
                     #(next :: head :: List.dropLast(rest, 1), score);
-                let moved = Player(..player, =body, moved = direction, score = score1);
+                let moved = Player(..player, =body, moved = direction, =score);
                 #(Map.put(acc, player.id, moved), List.filter(apples, fn(apple) = apple != next))
             }
         };

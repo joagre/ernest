@@ -11,7 +11,7 @@ export fn start() : Address(Msg) =
     spawn(fn() = loop(0))
 
 fn loop(count : Int) : Unit receiving Msg = {
-    let count1 = receive {
+    let count = receive {
         Add(amount) ->
             count + amount
       | Get(reply) -> {
@@ -19,7 +19,7 @@ fn loop(count : Int) : Unit receiving Msg = {
             count
         }
     };
-    loop(count1)
+    loop(count)
 }
 
 /// Prints and then faults, a moment after it is spawned, so that a session

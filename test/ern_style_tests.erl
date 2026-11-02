@@ -63,6 +63,38 @@ line_length_test() ->
                               string:length(Line) > 100],
     ?assertEqual([], Long).
 
+%% docs/style.md, guide/style.md: no variable's name ends in a number in
+%% Ernest, since a value changing through a function is bound again under
+%% its name (report §5.4). A function's name is not read, `count2` of the
+%% tour's upgrade, nor a name the host writes, `utf8`, `sha1`, nor one whose
+%% number is the thing named, `year10000`
+numbered_name_test() ->
+    Patterns = ["src/stdlib/**/*.ern", "src/libs/**/*.ern", "src/shell/**/*.ern",
+                "examples/**/*.ern", "tools/*.ern", "tour/*/*.ern", "test/**/*.ern"],
+    Files = [File || File <- ern_repository:files(Patterns), not lists:prefix("test/build/", File)],
+    ?assert(length(Files) > 20),
+    ?assertEqual([], lists:append([numbered_names(File) || File <- Files])).
+
+numbered_names(File) ->
+    Text = ern_repository:read(File),
+    Code = re:replace(Text, "'(?:[^'\\\\]|\\\\.)'|\"(?:[^\"\\\\]|\\\\.)*\"|//[^\n]*", "",
+                      [global, {return, binary}]),
+    Functions = matches("\\bfn\\s+([a-z][A-Za-z0-9]*)", Code),
+    Host = ["utf8", "utf16", "sha1", "sha256", "base64", "atan2", "crc32", "md5", "int64"],
+    Meant = [<<"year10000">>, <<"yearMinus9999">>],
+    [{File, Name} || Name <- matches("\\b([a-z][A-Za-z]*[0-9]+)\\b", Code),
+                     not lists:member(Name, Functions ++ Meant),
+                     not lists:any(fun(Word) -> lists:suffix(Word, lowercase(Name)) end, Host)].
+
+lowercase(Name) ->
+    string:lowercase(binary_to_list(Name)).
+
+matches(Pattern, Text) ->
+    case re:run(Text, Pattern, [global, {capture, all_but_first, binary}]) of
+        {match, Found} -> [Name || [Name] <- Found];
+        nomatch -> []
+    end.
+
 %% docs/development.md, `make bench`: the programs part's parser,
 %% test/fixtures/bench/parser.ern, is examples/repl.ern's lexer, parser and
 %% evaluator, from `fn tokenize` on, its comments aside, and each of its
