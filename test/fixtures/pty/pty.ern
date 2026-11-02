@@ -3,8 +3,7 @@
 //
 // Runs a command under a terminal of its own, sends it bytes once the
 // screen shows that it is ready for them, and hands back what it wrote,
-// for test/ern_pty.erl, which builds it and runs it (report §12.1,
-// Appendix E.23):
+// for test/ern_pty.erl, which runs it (report §12.1, Appendix E.23):
 //
 //     ern run build/pty/pty.erc --timeout MS [--size ROWSxCOLUMNS] [--screen]
 //         [--steps FILE] -- COMMAND

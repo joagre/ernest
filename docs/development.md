@@ -58,8 +58,8 @@ test/              what spans applications: the integration, nodes, deployment g
                    ern_last_run, and the tests of the measuring machine and of that
                    memory, ern_measure_tests and ern_last_run_tests; the service
                    manager's checks; the pseudo-terminal's harness, ern_pty, which
-                   builds and runs the Ernest program of fixtures/pty/, and the watcher
-                   of a directory's changes, ern_changes.py; ern_grammar.erl, which
+                   runs the Ernest program of fixtures/pty/ that make builds, and the
+                   watcher of a directory's changes, ern_changes.py; ern_grammar.erl, which
                    reads Appendix A; ern_repository.erl, which the document and style
                    tests read the repository through; and ern_machine, ern_machine_node
                    and ern_machines, which run nodes on the machines of test/machines/,

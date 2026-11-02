@@ -10,7 +10,7 @@
 # the grammar with the programs generated from it, the well-typed programs
 # generated and run, and the shell and the terminal, driven through the
 # pseudo-terminal harness, the Ernest program fixtures/pty/pty.ern over
-# Os.startTerminal, which ern_pty builds and runs.
+# Os.startTerminal, which the pty target builds and ern_pty runs.
 # Beside them, the loads, the service manager's checks and the bench, which
 # a release runs, and the targets that write the catalog, the contents
 # lists and the layout anew.
@@ -62,7 +62,7 @@ EUNIT_SIDE_BY_SIDE = erl -noshell -pa ../erl/*/ebin -pa $(EBIN) \
 
 # The test modules and the build directory, which make test-full readies
 # before it runs the areas side by side.
-beams: $(BEAMS) prepare machines
+beams: $(BEAMS) prepare machines pty
 
 # ern_named, by which a test calls a unit's function by its Ernest name, is
 # a module of the runtime's tests (erl/runtime/test); the measure and the
@@ -91,7 +91,7 @@ integration: $(BEAMS) prepare measured named
 	$(call EUNIT,$(MEASURE) $(LAST_RUN_TESTS))
 
 # Nodes on one machine, with the machines' tools ern_machine_tests tests.
-nodes: $(BEAMS) prepare machines
+nodes: $(BEAMS) prepare machines pty
 	@$(call NODES_RUN,nodes,$(NODES))
 
 # The deployment guide run on nodes, through ern_nodes_tests' harness.
@@ -175,7 +175,7 @@ typed: $(BEAMS) named
 # The shell's and the terminal's tests make their homes, sources, inputs
 # and step files under one directory of the run's own, which is removed
 # when the run ends, whatever its outcome (ern_pty:run_dir/0).
-shell: $(BEAMS) prepare
+shell: $(BEAMS) prepare pty
 	@dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_shell_XXXXXX") && \
 	  ERN_TEST_DIR=$$dir $(call EUNIT_SIDE_BY_SIDE,$(SHELL_TESTS)); \
 	  status=$$?; rm -rf "$$dir"; exit $$status
@@ -184,6 +184,12 @@ shell: $(BEAMS) prepare
 # changed compiler changes (report §11.1).
 prepare:
 	@mkdir -p build
+
+# The pseudo-terminal harness, built once a target before the tests that
+# run it (ern_pty:run/3); a build that finds nothing changed does nothing
+# (report §11.1).
+pty: prepare
+	@../bin/ern build --source-root fixtures/pty --build-root build/pty fixtures/pty/pty.ern
 
 xref: $(EBIN)/ern_docs_tests.beam
 	erl -noshell -pa $(EBIN) -eval \
@@ -407,5 +413,5 @@ $(EBIN):
 	mkdir -p $(EBIN)
 
 .PHONY: integration nodes deployment tour manual install docs guide grammar typed shell prepare \
-	named measured benched xref load service bench $(addprefix bench-,$(BENCH_PARTS)) \
+	pty named measured benched xref load service bench $(addprefix bench-,$(BENCH_PARTS)) \
 	bench-release bench-machines bench-pick machines clean

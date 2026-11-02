@@ -1,7 +1,8 @@
 %% The pseudo-terminal harness, the Ernest program fixtures/pty/pty.ern,
-%% as the shell's and the terminal's tests call it, and the helpers both
-%% share: a command run with a terminal of its own and the steps it is
-%% sent, a command run without one, and a count of what a screen shows.
+%% which test/Makefile's pty target builds, as the shell's and the
+%% terminal's tests call it, and the helpers both share: a command run
+%% with a terminal of its own and the steps it is sent, a command run
+%% without one, and a count of what a screen shows.
 -module(ern_pty).
 
 -export([run/3, run_dir/0, sh/1, count/2]).
@@ -21,9 +22,9 @@
 %% an expect's and the program's end, is a step of the test's
 %% (ern_nodes_tests:step/2), bounded by the time for one wait
 %% (ern_nodes_tests:wait_ms/0), so that the session's bound is its steps'
-%% sum, to which the harness's run, its build among it, is held too
-%% (ern_nodes_tests:collected/2), and a step that fails is told by its own
-%% bound before the test's runs out.
+%% sum, to which the harness's run is held too (ern_nodes_tests:collected/2),
+%% and a step that fails is told by its own bound before the test's runs
+%% out.
 -spec run(string(), [tuple()], [option()]) -> {integer() | timeout, binary()}.
 run(Command, Steps, Options) ->
     File = steps_file(Steps),
@@ -72,22 +73,22 @@ status(Text) -> binary_to_integer(Text).
 %% it stands, a variable's setting before it among what it may hold.
 -spec sh(string()) -> {non_neg_integer(), binary()}.
 sh(Command) ->
-    ern_nodes_tests:collected(shell(["-c", Command]), 1).
+    ern_nodes_tests:collected(shell(Command), 1).
 
-%% The harness built and run with Arguments, the build doing nothing where
-%% nothing changed (report §11.1). The shell's `"$@"` hands the arguments
-%% on as they are, so that the command reaches the harness whole, a quote
-%% or a `;` among it, and the harness runs it under `/bin/sh -c`.
+%% The port of the harness run with Arguments, which reach it as they are,
+%% so that the command reaches it whole, a quote or a `;` among it, and
+%% the harness runs it under `/bin/sh -c`; its standard error beside its
+%% standard output.
 harness(Arguments) ->
-    shell(["-c", "../bin/ern build --source-root fixtures/pty --build-root build/pty "
-                 "fixtures/pty/pty.ern && exec ../bin/ern run build/pty/pty.erc \"$@\"",
-           "sh" | Arguments]).
+    open_port({spawn_executable, "../bin/ern"},
+              [{args, ["run", "build/pty/pty.erc" | Arguments]},
+               exit_status, stderr_to_stdout, binary]).
 
-%% The port of the host's shell run with Arguments, its standard error
-%% beside its standard output.
-shell(Arguments) ->
+%% The port of the host's shell running Command, its standard error beside
+%% its standard output.
+shell(Command) ->
     open_port({spawn_executable, "/bin/sh"},
-              [{args, Arguments}, exit_status, stderr_to_stdout, binary]).
+              [{args, ["-c", Command]}, exit_status, stderr_to_stdout, binary]).
 
 %% How many times Needle stands in Haystack.
 -spec count(binary(), binary()) -> non_neg_integer().
