@@ -24,7 +24,7 @@ Each line is read in Ernest's session: its program is run here, the log is searc
 
 ## The reply
 
-The reply is `docs/tmp/language_feedback_reply.md` here, untracked and never added to git, holding the pending lines alone under the application's own numbers, overwritten each round. Each item says what was reproduced, the verdict, the report section that states it, the log entry and paragraph to cite, and Ernest's number, with one sentence saying what that number is, since the application's session does not know. One closing sentence names the commit the next archive is to be made from. Nothing is lost when the file is overwritten: every verdict is in Ernest's log, and every citation in the application's.
+The reply is `language_feedback_reply.md` under `docs/tmp/` here, untracked and never added to git, holding the pending lines alone under the application's own numbers, overwritten each round. Each item says what was reproduced, the verdict, the report section that states it, the log entry and paragraph to cite, and Ernest's number, with one sentence saying what that number is, since the application's session does not know. One closing sentence names the commit the next archive is to be made from. Nothing is lost when the file is overwritten: every verdict is in Ernest's log, and every citation in the application's.
 
 The user hands the reply to the application's session, which checks each verdict against the new installation, drops a line the release answers, its log citing Ernest's number, and keeps one not agreed with, the verdict and the reason beneath it. It may answer a verdict with a new line, which is read the same way.
 
