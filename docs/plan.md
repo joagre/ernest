@@ -21,7 +21,9 @@ stability is made, and a change to the language, the standard library or the lib
 by a need met in use and recorded as `docs/language_feedback.md` records one.
 
 The pun is released, with what its day decided beside it: a `receive` always receives, an alarm
-can be canceled, and the checkout works toward 0.9.0. Next is ernest-httpd, then MVP 4.15, what the server taught, then the website and
+can be canceled, and the checkout works toward 0.9.0. ernest-httpd's first release serves the
+site since 2026-11-02, built against the checkout's archive (MVP 4.1, item 4). Next are the
+terminal tests over `Os.startTerminal` and Ernest 0.9.0, then MVP 4.15, what the server taught, then the website and
 the shell's second round (the log's *The Road to 1.0, Ordered*), and MVP 4.4 last, the promise, the cost, the full review and Ernest 1.0, where
 the road ends and a program begins (the log's *MVP 4.4, the Road's End*); the back end to BEAM's own instructions that closed the road is not built,
 decided 2026-10-30 (the log's *No Back End to BEAM's Own Instructions*). A finished milestone is a
@@ -73,40 +75,14 @@ server's CLAUDE.md carries the procedure its side follows.
 3. **The four libraries**, built 2026-11-01 with their sections of Appendix G, `base64`,
    `crypto`, `time` and `http`, `examples/web_server.ern` written over `libs/http` and
    `examples/fetch.ern` beside it (the log's *The Four Libraries*).
-4. **The server, ernest-httpd's milestone 1 whole**, by its own repository's plan, written once
-   item 1's sentences stand and built once items 2 and 3 do, against Ernest installed from
-   `make release`'s archive and never a checkout. How the two sessions work, the archive,
-   the lines and the reply, is `docs/clean_room.md`'s; an archive says the commit it was
-   made from (the log's *An Archive Says Its Commit*).
-
-   Four lines met
-   2026-11-02 and decided the same day: a path through a regular file or a loop of links
-   answers `NotFound`, a search of a `String` matches whole graphemes and a request target
-   is visible ASCII, `Io.show` writes a constructor by its name alone, `Path.join` writes a
-   segment as given, and `<<>>` as a last clause stands as decided (the log's *A Path Through
-   a File* and *Three Lines From the Server*).
-
-   Three more lines met 2026-11-02 and decided the same day: a call on a socket or a listener
-   another process closed keeps its fault, E.18 states how much a socket takes before a write
-   waits, and the caller of an `Os.exit` that began the end is neither told nor waited for
-   (§8.6), built the same day (the log's *A Close, an Exit and a Write*). Two lines on TLS
-   met 2026-11-02 and built the same day: a self-signed far end whose certificate the file
-   holds passes `Verified`, and a certificate, key or CA file the host cannot read answers as
-   `Fs` does, one it refuses `Other(text)` naming the file on one line (the log's *Two Lines
-   on TLS*).
-
-   Two lines on a program under a terminal met 2026-11-02 and built the same day: a program's
-   process lives on after its exit as a socket's does after its close, `run` killing the one
-   it ran, and a read whose caller has ended is dropped, on a program and on a socket; a fifth line
-   moved what a write to an exited program answers into `write`'s own paragraph (the
-   log's *A Program After Its Exit*).
-
-   Four lines from the deployment met 2026-11-02 (the log's *Four Lines From the
-   Deployment*): `Ernest` is a taken namespace and the shell stands under it as
-   `Ernest.Shell`, and an attach the node could not load says the node's reason, built
-   2026-11-02 after the cold reading; a listener takes its address's family alone, built the
-   same day; the deployment guide says how two users' nodes list each other; §10 says when
-   a dropped value is reclaimed; what the runtime does about it is MVP 4.15's first item.
+4. **The server, ernest-httpd's milestone 1 whole**, done 2026-11-02 with its release 0.1.0,
+   which serves https://ernest-lang.org from its machine, built by its own session against
+   Ernest installed from `make release`'s archive as `docs/clean_room.md` says; the seventeen
+   lines its build and its cold reader sent were decided and built the same days, each round
+   a new archive (the log's *A Path Through a File*, *Three Lines From the Server*, *A Close,
+   an Exit and a Write*, *An Archive Says Its Commit*, *Two Lines on TLS*, *A Program After
+   Its Exit*, *Four Lines From the Deployment* and *The Error's Place*, and for what it left
+   to MVP 4.15, *What the Server Taught*).
 5. **The terminal tests over `Os.startTerminal`**, dropping `test/ern_pty.py`, an item of its own
    once item 2 stands, opened 2026-11-02: the harness becomes an Ernest program over
    `Os.startTerminal`, run by `test/ern_pty.erl` as the Python was. First in it, a defect
