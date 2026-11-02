@@ -1336,7 +1336,7 @@ fn screenLoop(region : Ernest.Shell.Region.Region, showing : Showing) : Unit rec
             screenLoop(region, showing)
         }
       | Flush(reply) -> {
-            drained(showing.local);
+            drainLocal(showing.local);
             answer(reply, Unit);
             screenLoop(region, showing)
         }
@@ -1354,7 +1354,7 @@ fn painted(drawn : #(Ernest.Shell.Region.Region, String),
 
 // Report §11.2: once the local half has written everything the screen
 // sent it before, or `screenMs` has passed.
-fn drained(local : Address(LocalMsg)) : Unit = {
+fn drainLocal(local : Address(LocalMsg)) : Unit = {
     let _ = Address.call(local, Drain, screenMs);
     Unit
 }
@@ -1402,7 +1402,7 @@ fn plainLoop(showing : Showing) : Unit receiving ScreenMsg = {
             showing
         }
       | Flush(reply) -> {
-            drained(showing.local);
+            drainLocal(showing.local);
             answer(reply, Unit);
             showing
         }
@@ -1463,7 +1463,7 @@ fn place(destination : Optional(Path), screenPlace : String) : String =
 fn leave(state : State, screen : Address(ScreenMsg), text : String) : Unit receiving ShellMsg = {
     reportRemaining(state, screen, Noted);
     finish(screen, text);
-    detached(state)
+    detachNode(state)
 }
 
 // Report §11.2: an attached session's end, which leaves its node running:
@@ -1472,7 +1472,7 @@ fn leave(state : State, screen : Address(ScreenMsg), text : String) : Unit recei
 // life its units that declare a function or build a function value, and
 // lets the rest go as the purge allows (`detach`). A plain shell's ends
 // with its program.
-fn detached(state : State) : Unit =
+fn detachNode(state : State) : Unit =
     if state.attached then detach() else Unit
 
 // Report §11.2: every fault reported to the session until it ends: it
@@ -1899,7 +1899,7 @@ fn leaveLines(state : State, screen : Address(ScreenMsg)) : Unit receiving Shell
     send(screen, Said("\n"));
     reportRemaining(state, screen, saidLine);
     drain(screen);
-    detached(state)
+    detachNode(state)
 }
 
 // Report §11.2: in line mode the shell's own node reads each line, its
@@ -2026,7 +2026,7 @@ fn localHalf(attachment : Attachment) : Unit receiving LocalMsg = {
             let deadline = Clock.monotonic() + attachMs;
             match Peer.spawnMonitored(name, fn() = attached(desk), EntryEnded, attachMs) {
                 Right(_) -> attaching(Serving(..serving, peer = Some(name)), Some(deadline))
-              | Left(error) -> ended(1, refusal(name, error))
+              | Left(error) -> end(1, refusal(name, error))
             }
         }
     }
@@ -2105,9 +2105,9 @@ fn attaching(serving : Serving, deadline : Optional(Int)) : Unit receiving Local
               // report §11.2: the connection lost, or the node ended, before
               // the session started, which no connection gives
               | EntryEnded(down) ->
-                    ended(1, startRefusal(name, down.reason))
+                    end(1, startRefusal(name, down.reason))
               | after Int.max(0, ending - Clock.monotonic()) ->
-                    ended(1, refusal(name, Io.Timeout))
+                    end(1, refusal(name, Io.Timeout))
             }
       | _ ->
             receive {
@@ -2247,11 +2247,11 @@ fn sessionEnded(name : String, down : Down, ending : String) : Unit = {
     setNodeScreen(None);
     match down.reason {
         Returned ->
-            ended(0, "")
+            end(0, "")
       | reason -> {
             write(ending);
             let #(status, line) = nodeEnd(name, reason);
-            ended(status, line)
+            end(status, line)
         }
     }
 }
@@ -2259,7 +2259,7 @@ fn sessionEnded(name : String, down : Down, ending : String) : Unit = {
 // Report §11.2, §11.8, Appendix E.23: the shell's end with a status, its
 // line said first where it has one; `Os.exit` from the shell's own process
 // ends the shell as it ends a run of `ern run`.
-fn ended(status : Int, line : String) : Unit = {
+fn end(status : Int, line : String) : Unit = {
     if String.isEmpty(line) then Unit else sayEnd(line);
     Os.exit(status)
 }
