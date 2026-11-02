@@ -108,11 +108,14 @@ server's CLAUDE.md carries the procedure its side follows.
    same day; the deployment guide says how two users' nodes list each other; §10 says when
    a dropped value is reclaimed; what the runtime does about it is MVP 4.15's first item.
 5. **The terminal tests over `Os.startTerminal`**, dropping `test/ern_pty.py`, an item of its own
-   once item 2 stands. First in it, a defect seen on 2026-11-01 under a load average of 37
-   from four agents' runs, and again in the full run of 2026-11-02: `close_input_hangs_up_test`
-   read `Exited(1)` where the hangup gives 129, as if `sh` met the pipe's end before the
-   hangup reached it; diagnosed, with the order the host closes a master and signals the
-   session's leader in, before a test stands on it.
+   once item 2 stands, opened 2026-11-02: the harness becomes an Ernest program over
+   `Os.startTerminal`, run by `test/ern_pty.erl` as the Python was. First in it, a defect
+   seen on 2026-11-01 under a load average of 37 from four agents' runs, and again in the
+   full run of 2026-11-02, `close_input_hangs_up_test` reading `Exited(1)` where the hangup
+   gives 129, diagnosed and fixed 2026-11-02: the host ends a read the program waits in
+   before it sends the hangup, so `sh` could exit on its read's end first, 5 times in 300
+   under load and never idle; E.23 says so, and the test stands on a program that reads
+   nothing (the log's *The Hangup's Order*).
 6. **A release of Ernest**, 0.9.0, when the server first serves the site, carrying the libraries
    after their first real user has shaped them; 0.8.0 is the pun's. Before it, the deployment
    test `one_node`, whose watcher once answered that a line was never said, in the full run of

@@ -350,9 +350,26 @@ terminal_size_out_of_range_test() ->
     ?assertEqual({[Invalid, Invalid], [Invalid, Invalid, {'Right', 'Unit'}]}, wait(answers)).
 
 %% report Appendix E.23: `closeInput` hangs the terminal up: the program is
-%% sent the hangup, which ends `sh` waiting on a line with 128 and the
-%% hangup's number, and nothing more it writes arrives
+%% sent the hangup, which ends `sleep`, which reads nothing, with 128 and
+%% the hangup's number, and nothing more it writes arrives
 close_input_hangs_up_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Sleep} = start_terminal(<<"sh">>,
+                                                 [<<"-c">>, <<"echo ready; exec sleep 1000">>],
+                                                 ?SIZE),
+               _ = read_until(Sleep, <<"ready\r\n">>, <<>>),
+               Sleep ! 'CloseInput',
+               Self ! {ended, read_to_end(Sleep, <<>>)}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({<<>>, 129}, wait(ended)).
+
+%% report Appendix E.23: a read the program waits in ends before the hangup
+%% is sent, so `sh` waiting on a line ends either way, by the hangup or
+%% with 1 on its read's end, which under load it did 5 times in 300 (the
+%% log's *The Hangup's Order*); nothing it writes after arrives either way
+read_ends_before_the_hangup_test() ->
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
@@ -362,7 +379,9 @@ close_input_hangs_up_test() ->
                Sh ! 'CloseInput',
                Self ! {ended, read_to_end(Sh, <<>>)}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
-    ?assertEqual({<<>>, 129}, wait(ended)).
+    {Output, Status} = wait(ended),
+    ?assertEqual(<<>>, Output),
+    ?assert(lists:member(Status, [1, 129])).
 
 %% report Appendix E.23: a program under a terminal is killed with the
 %% processes still in its process group. Its `sleep` ignores the hangup,
