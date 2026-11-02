@@ -15,7 +15,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-11-02.** [A Path Through a File](#a-path-through-a-file-2026-11-02).
+**2026-11-02.** [A Path Through a File](#a-path-through-a-file-2026-11-02); [Three Lines From the Server](#three-lines-from-the-server-2026-11-02).
 
 **2026-11-01.** [The Release Review Before 0.8.0](#the-release-review-before-080-2026-11-01); [Ernest 0.8.0, a Small Release](#ernest-080-a-small-release-2026-11-01); [The Guide's Lines After the Release Review](#the-guides-lines-after-the-release-review-2026-11-01); [An Alarm Can Be Canceled](#an-alarm-can-be-canceled-2026-11-01); [A `receive` Always Receives](#a-receive-always-receives-2026-11-01); [`make version`, Appendix D Whole, the Settler's Restart](#make-version-appendix-d-whole-the-settlers-restart-2026-11-01); [TLS in `Tcp` and a Terminal in `Os`](#tls-in-tcp-and-a-terminal-in-os-2026-11-01); [WebSocket Is the Server's](#websocket-is-the-servers-2026-11-01); [The Four Libraries](#the-four-libraries-2026-11-01).
 
@@ -11216,3 +11216,19 @@ The server's build, MVP 4.1's item 4, met the first thing the libraries' first u
 The host gives the same error for a `list` of a regular file, which names something. That is `NotAFile`, E.1's error for a path that names what the function does not work on, stated for `list` now where it had answered the host's words; the runtime asks the host which of the two it met. The `Fs` page's example of an `Other` was this text, and is a link's loop now. Feedback 187, decided the day it was written, the next number 188.
 
 **Built 2026-11-02**, a library sentence and no rule of §3 to §9. The mapping is one line of `ern_io`'s table, which `Fs`, `Code` and `Tcp` share, and `list`'s second reading is in the file system's process. The test is a regression test, written with the code: each of the eighteen functions over the path, and `list` of the file.
+
+## Three Lines From the Server, 2026-11-02
+
+The server's session writes what it meets of Ernest into its own `language_feedback.md`, four lines on its first day, read here and decided one by one; the first was *A Path Through a File*, and the rest of it and the other three are here. Each is feedback 188 to 190, decided the day it was written, the next number 191.
+
+**A loop of links and a name too long.** The rest of the first line: a loop of links answered `Other("too many levels of symbolic links")` and a name of 300 characters `Other("file name too long")`. A loop leads to nothing, as a link that leads nowhere does, and that one already answered `NotFound`; the loop does now. A name longer than the host holds is not a path that leads nowhere but an argument the host cannot take whole, E.1's `Invalid`, beside U+0000, and E.1 names it. The `Fs` page's example of an `Other` moved once more, to a read-only file system.
+
+**A search matches whole graphemes.** `String.split(path, "/")` leaves a separator a combining mark follows unsplit, and `startsWith` and `indexOf` do not find it: E.5 counts and indexes in graphemes, and said nothing of what a search matches. The model stands, by principle 2: one `String`, one unit a reader sees as a letter, and a match that could begin inside a grapheme would have no index. E.5 states the search now, and that text a protocol frames by bytes is searched as `Bytes`. No code-point search joins the module, since two searches over one string would be the second way.
+
+The server's exposure closes in G.11, not E.5. RFC 9112 and RFC 3986 write a request target in the visible ASCII characters, and `Http` had accepted any UTF-8 in it, the host's own tolerance. A byte outside U+0021 to U+007E is `Malformed` now, so no combining mark stands beside a separator in a target, and a server that splits the target before it percent-decodes, as RFC 3986 asks, never meets the case. The escape the line described, a segment that is an absolute path, was not reproduced: `Path.join` with such a segment gave a path under the root.
+
+**`Io.show` and a constructor's name.** `show` writes a constructor by its name alone, `File` for `Fs.File`, in every module, and a record's fields by name in their declared order, which §3.5 sends the reader to E.1 for and E.1 did not say. It says it now, with an `Entry` as the example.
+
+**`<<>>` as a last clause** stands as *Bitstrings* decided it on 2026-09-18, weighed then against a length analysis: a bitstring pattern counts as matching no value, the error names the clause to add, and the comment a decoder writes beside its `_` is that decision's stated cost. It is reopened only on a count of such sites in a real program, never on the feel of one.
+
+**Built 2026-11-02**, the day they were decided, each a library sentence. Two lines of the shared host-error table, the target's check in the primitive, and three regression tests, written with the code: the loop and the long name, the target's bytes, and the sections' examples.

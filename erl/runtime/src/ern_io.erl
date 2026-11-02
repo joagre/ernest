@@ -30,9 +30,12 @@ debug(Value, Descriptor) ->
 %% that names it, or Other.
 -spec host_error(term(), fun((atom()) -> string())) -> term().
 host_error(enoent, _) -> 'NotFound';
-%% Report Appendix E.17, E.23: a path through what is no directory leads
-%% to nothing.
+%% Report Appendix E.17, E.23: a path through what is no directory, or
+%% through a loop of links, leads to nothing; a name longer than the host
+%% holds names nothing, as one with U+0000 does.
 host_error(enotdir, _) -> 'NotFound';
+host_error(eloop, _) -> 'NotFound';
+host_error(enametoolong, _) -> 'Invalid';
 host_error(eacces, _) -> 'Denied';
 host_error(eperm, _) -> 'Denied';
 host_error(econnrefused, _) -> 'Refused';

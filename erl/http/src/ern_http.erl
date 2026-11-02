@@ -70,7 +70,7 @@ packet_size(Line, _) -> Line.
 first(request, {http_request, _, _, {Major, Minor}}, Line) ->
     case words(Line, []) of
         [Method, Target, _] ->
-            case is_utf8(Target) of
+            case is_target(Target) of
                 true -> {ok, {'Request', Method, Target, {'Version', Major, Minor}}};
                 false -> malformed
             end;
@@ -157,5 +157,8 @@ trimmed(Value, Size) when Size > 0 ->
 trimmed(_, 0) ->
     <<>>.
 
-is_utf8(Bytes) ->
-    unicode:characters_to_binary(Bytes) =:= Bytes.
+%% Appendix G.11: a target is written in the visible ASCII characters, RFC
+%% 3986's, so a byte outside them, a raw UTF-8 one among them, is refused.
+is_target(<<Byte, Rest/binary>>) when Byte >= 16#21, Byte =< 16#7E -> is_target(Rest);
+is_target(<<>>) -> true;
+is_target(_) -> false.

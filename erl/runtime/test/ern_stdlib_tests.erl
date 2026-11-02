@@ -963,6 +963,30 @@ fs_path_through_file_test() ->
     ?assertEqual({ok, <<"hi">>}, file:read_file(filename:join(Dir, "plain"))),
     file:del_dir_r(Dir).
 
+%% report Appendix E.17, E.1: a path through a loop of links leads to
+%% nothing and is NotFound, as a link that leads nowhere is; a name longer
+%% than the host holds is Invalid, as one with U+0000 is. A regression
+%% test: the server's build read both as Other with the host's words
+fs_loop_and_long_name_test() ->
+    Self = self(),
+    Dir = scratch("ern_loop_"),
+    ok = filelib:ensure_path(Dir),
+    ok = file:make_symlink("loop", filename:join(Dir, "loop")),
+    InDir = fun(Name) -> {'Path', unicode:characters_to_binary(filename:join(Dir, Name))} end,
+    Fs = ern_named:functions('ern@fs'),
+    Long = InDir(lists:duplicate(300, $a)),
+    ?assertEqual(ok, ern_rt:run_main(
+                       fun() ->
+                           Self ! {fs, Fs(stat)(InDir("loop"), 1000)},
+                           Self ! {fs, Fs(read)(InDir("loop/x"), 1000)},
+                           Self ! {fs, Fs(stat)(Long, 1000)},
+                           Self ! {fs, Fs(write)(Long, <<"x">>, 1000)}
+                       end, <<"fs_loop_and_long_name_test">>, #{})),
+    ?assertEqual([{'Left', 'NotFound'}, {'Left', 'NotFound'},
+                  {'Left', 'Invalid'}, {'Left', 'Invalid'}],
+                 collect(fs, [])),
+    file:del_dir_r(Dir).
+
 %% report Appendix E.17: append writes a device, a terminal among them, and
 %% read, write and copy refuse one, as append refuses a directory; the
 %% device here is the null device, which every host has. A regression test

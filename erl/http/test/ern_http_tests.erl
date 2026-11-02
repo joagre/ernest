@@ -29,6 +29,16 @@ as_written_test() ->
                                            <<"CONNECT example.com:443 HTTP/1.1">>,
                                            <<"GET /a%20b HTTP/1.1">>]]).
 
+%% report Appendix G.11: a target is written in the visible ASCII
+%% characters, so one with a raw UTF-8 byte, a control or a delete is
+%% Malformed, and a percent-encoded one is read as written. A regression
+%% test: the server's build met a target the host's reading let through
+target_bytes_test() ->
+    ?assertEqual([], [Line || Line <- [<<"GET /\xcc\x81x HTTP/1.1">>, <<"GET /\x7f HTTP/1.1">>,
+                                       <<"GET /a\x01b HTTP/1.1">>, <<"GET /\xc3\xa9 HTTP/1.1">>],
+                              request(<<Line/binary, "\r\n\r\n">>) =/= {'Left', 'Malformed'}]),
+    ?assertEqual(<<"/%CC%81x">>, target(<<"GET /%CC%81x HTTP/1.1">>)).
+
 %% report Appendix G.11: a request line of no version, which the host reads
 %% as HTTP/0.9's, `GET  HTTP/1.1` with the target `HTTP/1.1` among them, and
 %% one of more than three words, whose rest the host drops

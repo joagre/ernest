@@ -77,14 +77,18 @@ server's CLAUDE.md carries the procedure its side follows.
    item 1's sentences stand and built once items 2 and 3 do, against Ernest installed from
    `make release`'s archive and never a checkout; what it meets of Ernest's, an attached shell at
    the server's node among it, comes here as a line of `language_feedback.md`, is fixed in the
-   checkout and the archive made again, with no public release between. The first, met
-   2026-11-02 and fixed the same day: a path through a regular file answers `NotFound` (the
-   log's *A Path Through a File*).
+   checkout and the archive made again, with no public release between. Four lines met
+   2026-11-02 and decided the same day: a path through a regular file or a loop of links
+   answers `NotFound`, a search of a `String` matches whole graphemes and a request target
+   is visible ASCII, `Io.show` writes a constructor by its name alone, and `<<>>` as a last
+   clause stands as decided (the log's *A Path Through a File* and *Three Lines From the
+   Server*).
 5. **The terminal tests over `Os.startTerminal`**, dropping `test/ern_pty.py`, an item of its own
-   once item 2 stands. First in it, a defect seen once on 2026-11-01 under a load average of 37
-   from four agents' runs: `close_input_hangs_up_test` read `Exited(1)` where the hangup gives
-   129, as if `sh` met the pipe's end before the hangup reached it; diagnosed, with the order the
-   host closes a master and signals the session's leader in, before a test stands on it.
+   once item 2 stands. First in it, a defect seen on 2026-11-01 under a load average of 37
+   from four agents' runs, and again in the full run of 2026-11-02: `close_input_hangs_up_test`
+   read `Exited(1)` where the hangup gives 129, as if `sh` met the pipe's end before the
+   hangup reached it; diagnosed, with the order the host closes a master and signals the
+   session's leader in, before a test stands on it.
 6. **A release of Ernest**, 0.9.0, when the server first serves the site, carrying the libraries
    after their first real user has shaped them; 0.8.0 is the pun's. Before it, the deployment
    test `one_node`, whose watcher once answered that a line was never said, in the full run of
