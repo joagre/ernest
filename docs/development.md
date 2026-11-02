@@ -57,11 +57,12 @@ test/              what spans applications: the integration, nodes, deployment g
                    loads and of the benchmark, with the benchmark's memory of its runs,
                    ern_last_run, and the tests of the measuring machine and of that
                    memory, ern_measure_tests and ern_last_run_tests; the service
-                   manager's checks; the pseudo-terminal, ern_pty, and the watcher of a
-                   directory's changes, ern_changes.py; ern_grammar.erl, which reads
-                   Appendix A; ern_repository.erl, which the document and style tests
-                   read the repository through; and ern_machine, ern_machine_node and
-                   ern_machines, which run nodes on the machines of test/machines/,
+                   manager's checks; the pseudo-terminal's harness, ern_pty, which
+                   builds and runs the Ernest program of fixtures/pty/, and the watcher
+                   of a directory's changes, ern_changes.py; ern_grammar.erl, which
+                   reads Appendix A; ern_repository.erl, which the document and style
+                   tests read the repository through; and ern_machine, ern_machine_node
+                   and ern_machines, which run nodes on the machines of test/machines/,
                    with their tests, ern_machine_tests
 test/fixtures/     what the tests read: target/, the hand-written target modules;
                    programs/, the programs the tests keep: the first test programs, a
@@ -69,7 +70,7 @@ test/fixtures/     what the tests read: target/, the hand-written target modules
                    echo measurement; expected/ and golden/, what programs/, hello,
                    services print, repl's session among
                    them, and the Erlang they compile to; and bench/, input/, layout/,
-                   load/, peers/, service/, session/, stdin/ and terminal/, the
+                   load/, peers/, pty/, service/, session/, stdin/ and terminal/, the
                    programs and inputs tests run
 test/machines/     machines.txt, the user's machines that make bench-machines, make
                    bench-pick and nodes.sh start nodes on, a line each: its name, the
@@ -125,7 +126,7 @@ A list that lives in two places is held equal by a test where one is cheap, whos
 
 ## Building
 
-Beyond what the README's *Installing* needs, `make test-full` needs python3, 3.9 or later, which opens the terminal tests' pseudo-terminal, signals `ern` in the tests of how it ends, and watches, through Linux's inotify, the files a program writes in the tests that wait for them, which therefore need Linux, and `make sanitize` needs clang. Emacs, man, and groff or mandoc are optional: where one is missing, the tests that need it say so and are skipped, and so are the Emacs mode's under an Emacs older than 29, which the mode needs.
+Beyond what the README's *Installing* needs, the tests need python3: `make test` for the runtime's test of `Os.resize`, whose program under a terminal says its size when told it changed, and `make test-full` besides to signal `ern` in the tests of how it ends and to watch, through Linux's inotify, the files a program writes in the tests that wait for them, which therefore need Linux. `make sanitize` needs clang. Emacs, man, and groff or mandoc are optional: where one is missing, the tests that need it say so and are skipped, and so are the Emacs mode's under an Emacs older than 29, which the mode needs.
 
 ```
 make              build the helper, compile every application into its ebin/, then

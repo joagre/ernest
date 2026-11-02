@@ -1,42 +1,46 @@
-%% The pseudo-terminal harness, ern_pty.py, as the shell's and the
-%% terminal's tests call it, and the helpers both share: a command run
-%% with a terminal of its own and the steps it is sent, a command run
-%% without one, and a count of what a screen shows.
+%% The pseudo-terminal harness, the Ernest program fixtures/pty/pty.ern,
+%% as the shell's and the terminal's tests call it, and the helpers both
+%% share: a command run with a terminal of its own and the steps it is
+%% sent, a command run without one, and a count of what a screen shows.
 -module(ern_pty).
 
 -export([run/3, run_dir/0, sh/1, count/2]).
 
 -include_lib("eunit/include/eunit.hrl").
 
-%% Command with a terminal of its own, under the harness's options Extra:
-%% {exit status, what the program wrote}, the status `timeout` where it did
-%% not end. The steps are the harness's, `{expect, Text}` before a
-%% `{send, Hex}` so that a program slower under load is waited for rather
-%% than raced; a step the harness could not meet fails the test. Each wait
-%% the harness runs, an expect's and the program's end, is a step of the
-%% test's (ern_nodes_tests:step/2), bounded by the time for one wait
-%% (ern_nodes_tests:wait_ms/0), so that the session's bound is its steps'
-%% sum, to which the harness's run is held too (ern_nodes_tests:collected/2),
-%% and a step that fails is told by its own bound before the test's runs
-%% out.
+-type option() :: {size, non_neg_integer(), non_neg_integer()} | screen.
+
+%% Command with a terminal of its own, under the harness's Options, the
+%% terminal's size, 24 rows and 80 columns where none is given, and
+%% `screen`: {exit status, what the program wrote, or with `screen` the
+%% screen as a reader sees it}, the status `timeout` where it did not end.
 %%
-%% The command is one word to the shell that starts the harness, since its
-%% own `;` and `|` belong to the shell inside the terminal; it may hold no
-%% single quote.
--spec run(string(), [tuple()], string()) -> {integer() | timeout, binary()}.
-run(Command, Steps, Extra) ->
-    nomatch = binary:match(unicode:characters_to_binary(Command), <<"'">>),
+%% The steps are the harness's, `{expect, Text}` before a `{send, Hex}` so
+%% that a program slower under load is waited for rather than raced; a step
+%% the harness could not meet fails the test. Each wait the harness runs,
+%% an expect's and the program's end, is a step of the test's
+%% (ern_nodes_tests:step/2), bounded by the time for one wait
+%% (ern_nodes_tests:wait_ms/0), so that the session's bound is its steps'
+%% sum, to which the harness's run, its build among it, is held too
+%% (ern_nodes_tests:collected/2), and a step that fails is told by its own
+%% bound before the test's runs out.
+-spec run(string(), [tuple()], [option()]) -> {integer() | timeout, binary()}.
+run(Command, Steps, Options) ->
     File = steps_file(Steps),
-    Seconds = ern_nodes_tests:wait_ms() div 1000,
-    Harness = shell("./ern_pty.py --timeout " ++ integer_to_list(Seconds) ++ " --steps " ++ File
-                    ++ Extra ++ " -- '" ++ Command ++ "'"),
-    {0, Output} = ern_nodes_tests:collected(Harness,
+    Arguments = ["--timeout", integer_to_list(ern_nodes_tests:wait_ms()), "--steps", File]
+                ++ lists:append([option(Option) || Option <- Options]) ++ ["--", Command],
+    {0, Output} = ern_nodes_tests:collected(harness(Arguments),
                                             length([Text || {expect, Text} <- Steps]) + 1),
     Lines = [Line || Line <- binary:split(Output, <<"\n">>, [global]), Line =/= <<>>],
     ?assertEqual([], [Line || <<"unmet ", _/binary>> = Line <- Lines]),
     [<<"status ", Status/binary>>] = [Line || <<"status ", _/binary>> = Line <- Lines],
     [<<"data ", Data/binary>>] = [Line || <<"data ", _/binary>> = Line <- Lines],
     {status(Status), base64:decode(Data)}.
+
+option({size, Rows, Columns}) ->
+    ["--size", integer_to_list(Rows) ++ "x" ++ integer_to_list(Columns)];
+option(screen) ->
+    ["--screen"].
 
 %% The directory a run of the tests makes what it needs under, its homes,
 %% sources, inputs and step files: the one `make` makes for the run and
@@ -45,8 +49,8 @@ run(Command, Steps, Extra) ->
 run_dir() ->
     os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")).
 
-%% The steps go in a file: one holds whatever the program prints, and a
-%% shell reading `>` would take it for a redirection.
+%% The steps go in a file, which the harness reads a step a line from: a
+%% step holds whatever the program prints.
 steps_file(Steps) ->
     File = filename:join(run_dir(), "steps-" ++ os:getpid() ++ "_"
                                     ++ integer_to_list(erlang:unique_integer([positive]))),
@@ -68,13 +72,22 @@ status(Text) -> binary_to_integer(Text).
 %% it stands, a variable's setting before it among what it may hold.
 -spec sh(string()) -> {non_neg_integer(), binary()}.
 sh(Command) ->
-    ern_nodes_tests:collected(shell(Command), 1).
+    ern_nodes_tests:collected(shell(["-c", Command]), 1).
 
-%% The port of the host's shell running Command, its standard error beside
-%% its standard output.
-shell(Command) ->
+%% The harness built and run with Arguments, the build doing nothing where
+%% nothing changed (report §11.1). The shell's `"$@"` hands the arguments
+%% on as they are, so that the command reaches the harness whole, a quote
+%% or a `;` among it, and the harness runs it under `/bin/sh -c`.
+harness(Arguments) ->
+    shell(["-c", "../bin/ern build --source-root fixtures/pty --build-root build/pty "
+                 "fixtures/pty/pty.ern && exec ../bin/ern run build/pty/pty.erc \"$@\"",
+           "sh" | Arguments]).
+
+%% The port of the host's shell run with Arguments, its standard error
+%% beside its standard output.
+shell(Arguments) ->
     open_port({spawn_executable, "/bin/sh"},
-              [{args, ["-c", Command]}, exit_status, stderr_to_stdout, binary]).
+              [{args, Arguments}, exit_status, stderr_to_stdout, binary]).
 
 %% How many times Needle stands in Haystack.
 -spec count(binary(), binary()) -> non_neg_integer().

@@ -1,8 +1,8 @@
 %% The terminal path of report §12.1, through the pseudo-terminal harness
-%% `ern_pty.py`: keys as they are pressed, nothing echoed, `Escape`
-%% delivered once no sequence can follow it, and line mode with echo
-%% restored when the program ends. Erlang cannot open a pseudo-terminal, so
-%% these tests drive one from outside.
+%% `ern_pty`: keys as they are pressed, nothing echoed, `Escape` delivered
+%% once no sequence can follow it, and line mode with echo restored when
+%% the program ends. The harness is an Ernest program that runs the program
+%% under test with `Os.startTerminal` (Appendix E.23).
 -module(ern_terminal_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -93,7 +93,7 @@ no_size() ->
     Steps = [{expect, "ready"}, {send, "1b"}, {expect, "escape"}],
     {0, Piped} = pty("../bin/ern run build/terminal/probe.erc | cat", Steps),
     ?assertEqual([<<"ready no size">>, <<"escape">>], lines(Piped)),
-    {0, Sizeless} = ern_pty:run("../bin/ern run build/terminal/probe.erc", Steps, " --size 0x0"),
+    {0, Sizeless} = ern_pty:run("../bin/ern run build/terminal/probe.erc", Steps, [{size, 0, 0}]),
     ?assertEqual([<<"ready no size">>, <<"escape">>], lines(Sizeless)).
 
 %% report §11.2: at a terminal a fault line is as the reader watches it
@@ -218,7 +218,7 @@ build(Source, SourceRoot) ->
 
 %% A command with a terminal of its own: {exit status, the screen}.
 pty(Command, Steps) ->
-    ern_pty:run(Command, Steps, "").
+    ern_pty:run(Command, Steps, []).
 
 lines(Screen) ->
     [Line || Line <- binary:split(modeless(Screen), <<"\r\n">>, [global]), Line =/= <<>>].

@@ -1,7 +1,7 @@
 %% The shell (report §11.2): sessions in line mode, a file of inputs against
 %% a file of expected output, which is what the design note calls a session
 %% golden test, and the keys, the region, completion and documentation
-%% driven through the pseudo-terminal harness, `test/ern_pty.py`.
+%% driven through the pseudo-terminal harness, `test/ern_pty.erl`.
 -module(ern_shell_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -123,7 +123,7 @@ foreign_type_listed() ->
                  {expect, "type Int"},
                  {send, "03"},
                  {send, "04"}],
-                " --size 60x90"),
+                [{size, 60, 90}]),
     ?assertEqual(nomatch, binary:match(Bytes, <<"foreign type Int">>)).
 
 %% report §11.2, §2.3: inside a call of a function whose name begins with
@@ -142,7 +142,7 @@ underscore_signature() ->
                  {expect, "_twice(n : Int) : Int"},
                  {send, "03"},
                  {send, "04"}],
-                " --size 60x90"),
+                [{size, 60, 90}]),
     ?assertMatch({_, _}, binary:match(Bytes, <<"_twice(n : Int) : Int">>)).
 
 %% report §11.2, Appendix E.0 shape rule 6: the brief of a declaration without a
@@ -181,7 +181,7 @@ brief_module_version() ->
                  {expect, "    Shape.quoted() : Int"},
                  {send, "03"},
                  {send, "04"}],
-                " --size 60x90"),
+                [{size, 60, 90}]),
     ?assertMatch({_, _}, binary:match(Bytes, <<"Orders points by their x.\r\nSince 0.4.0.">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"in its text.\r\nSince 0.4.0.">>)),
     [_, Page] = binary:split(Bytes, <<"    Shape.quoted() : Int">>),
@@ -277,7 +277,7 @@ program() ->
                      {expect, "Counter.main faulted: division by zero"},
                      {expect, "$Session1.input 5:1 faulted: division by zero"},
                      {send, "04"}],
-                    "60x100"),
+                    {60, 100}),
     %% what the program printed reached the screen
     ?assertMatch({_, _}, binary:match(Screen, <<"worker here">>)),
     %% the program's entry point and a process spawned at the prompt, each
@@ -749,7 +749,7 @@ shared_namespace() ->
                  {expect, "Main.Stack.push :"},
                  {send, "03"},
                  {send, "04"}],
-                " --size 30x100"),
+                [{size, 30, 100}]),
     ?assertEqual(nomatch, binary:match(Bytes, <<"Main.Stack.compare">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"Main.Stack.push : (Main.Stack, Int)">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"Main.Stack.size : (Main.Stack) -> Int">>)).
@@ -1189,7 +1189,7 @@ live_region() ->
                      {send, hex("2 + 2\r")},
                      {expect, "4 : Int"},
                      {send, "04"}],
-                    "30x60"),
+                    {30, 60}),
     Lines = [Line || Line <- binary:split(Screen, <<"\n">>, [global]), Line =/= <<>>],
     Text = iolist_to_binary(Lines),
     %% every line the program wrote reached the terminal, and in order
@@ -1227,7 +1227,7 @@ fault_while_typing() ->
                      {send, hex("\r")},
                      {expect, "unknown name abc"},
                      {send, "04"}],
-                    "30x80"),
+                    {30, 80}),
     Lines = binary:split(Screen, <<"\n">>, [global]),
     ?assert(lists:member(<<"> abc">>, Lines)),
     [Fault] = [Line || Line <- Lines, binary:match(Line, <<"division by zero">>) =/= nomatch],
@@ -1272,7 +1272,7 @@ reader_and_screen_ends() ->
                                     {expect, "processes : "},
                                     {send, hex(Ending("Ernest.Shell.keysRead"))},
                                     {expect, "stopped reading the keyboard"}],
-                                   " --size 30x120"),
+                                   [{size, 30, 120}]),
     ?assertMatch({_, _}, binary:match(ReaderEnded, <<"Ernest.Shell.keysRead">>)),
     {70, ScreenEnded} = ern_pty:run(alone("../bin/ern shell"),
                                     [{expect, "> "},
@@ -1282,7 +1282,7 @@ reader_and_screen_ends() ->
                                      {expect, "processes : "},
                                      {send, hex(Ending("Ernest.Shell.session:"))},
                                      {expect, "screen ended"}],
-                                    " --size 30x120"),
+                                    [{size, 30, 120}]),
     ?assertMatch({_, _}, binary:match(ScreenEnded, <<"fault: the shell's screen ended">>)).
 
 %% report §11.2, §9.3: the pure parts of the shell test themselves, the
@@ -1355,7 +1355,7 @@ clear() ->
                      {send, hex("\r")},
                      {expect, "14 : Int"},
                      {send, "04"}],
-                    "10x40"),
+                    {10, 40}),
     %% the line being typed survived the clear and ran
     ?assertMatch({_, _}, binary:match(Screen, <<"14 : Int">>)),
     %% what was on the screen before it is gone
@@ -1500,7 +1500,7 @@ multiline() ->
                      %% waiting out the harness's timeout
                      {send, "03"},
                      {send, "04"}],
-                    "30x60"),
+                    {30, 60}),
     Lines = [Line || Line <- binary:split(Screen, <<"\n">>, [global]), Line =/= <<>>],
     Text = iolist_to_binary(Lines),
     %% the hint is above the region and the prompt it was typed under stays
@@ -1537,7 +1537,7 @@ abandoned_line_kept() ->
                      {send, hex("\r")},
                      {expect, "41 : Int"},
                      {send, "04"}],
-                    "30x46"),
+                    {30, 46}),
     ?assertMatch({_, _}, binary:match(Screen, <<"41 : Int">>)),
     ?assertEqual(1, ern_pty:count(Screen, <<"41 : Int">>)),
     ?assertEqual([<<"40 + 1">>], history_lines(filename:join([Home, ".ernest", "history"]))).
@@ -1558,7 +1558,7 @@ paste() ->
                      {expect, "3 : Int"},
                      {expect, "> "},
                      {send, "04"}],
-                    "12x40"),
+                    {12, 40}),
     Lines = [Line || Line <- binary:split(Screen, <<"\n">>, [global]), Line =/= <<>>],
     Text = iolist_to_binary(Lines),
     %% the paste took a row for its second line rather than running the first
@@ -1608,7 +1608,7 @@ completion() ->
              {send, "03"},                            % the next key
              {expect, "> "},
              {send, "04"}],
-    Screen = screen(alone("../bin/ern shell"), Steps, "16x74"),
+    Screen = screen(alone("../bin/ern shell"), Steps, {16, 74}),
     Lines = [Line || Line <- binary:split(Screen, <<"\n">>, [global]), Line =/= <<>>],
     Text = iolist_to_binary(Lines),
     %% the completed name ran
@@ -1619,7 +1619,7 @@ completion() ->
     %% without it
     ?assertEqual(nomatch, binary:match(Text, <<"List.filterMap :">>)),
     %% it was painted under the line, the candidates with their types
-    Bytes = pty(alone("../bin/ern shell"), Steps, " --size 16x74"),
+    Bytes = pty(alone("../bin/ern shell"), Steps, [{size, 16, 74}]),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> List.filter\r\nList.filter : (List(a)">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nList.filterMap : (List(a)">>)).
 
@@ -1642,7 +1642,7 @@ field_of_two_types() ->
              {expect, "42 : Int"},
              {expect, "> "},
              {send, "04"}],
-    Bytes = pty(alone("../bin/ern shell"), Steps, " --size 16x74"),
+    Bytes = pty(alone("../bin/ern shell"), Steps, [{size, 16, 74}]),
     ?assertMatch({_, _}, binary:match(Bytes, <<"t.n">>)),
     ?assertEqual(nomatch, binary:match(Bytes, <<"t.x">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"42 : Int">>)).
@@ -1671,7 +1671,7 @@ field_completion() ->
              {send, "03"},
              {expect, "> "},
              {send, "04"}],
-    Bytes = pty(alone("../bin/ern shell"), Steps, " --size 16x74"),
+    Bytes = pty(alone("../bin/ern shell"), Steps, [{size, 16, 74}]),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\"a\" : String">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"q.p.count : Int">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"q.p.name : String">>)).
@@ -1694,7 +1694,7 @@ path_completion() ->
              {send, "03"},
              {expect, "> "},
              {send, "04"}],
-    Bytes = pty(alone("../bin/ern shell"), Steps, " --size 16x74"),
+    Bytes = pty(alone("../bin/ern shell"), Steps, [{size, 16, 74}]),
     ?assertMatch({_, _}, binary:match(Bytes, <<"indexed : Int">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"hits : Int">>)).
 
@@ -1713,7 +1713,7 @@ listing_at_once() ->
                  {expect, " more"},
                  {send, "03"},
                  {send, "04"}],
-                " --size 8x80"),
+                [{size, 8, 80}]),
     %% under the line, cut to the eight rows with the count last
     ?assertMatch({_, _}, binary:match(Bytes, <<"> :\r\n:bindings ">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nand 7 more">>)).
@@ -1752,7 +1752,7 @@ shift_tab() ->
                  {expect, ":processes      the live processes"},
                  {send, "03"},
                  {send, "04"}],
-                " --size 60x90"),
+                [{size, 60, 90}]),
     %% the brief under the line: the declaration, the sentence, the version
     ?assertMatch({_, _}, binary:match(Bytes, <<"> List.map\r\nList.map(list : List(a),"
                                                " f : (a) -> b receiving e) :"
@@ -1788,7 +1788,7 @@ load_completion_of_two_words() ->
                  {expect, "KvParser.Lexer"},
                  {send, "03"},
                  {send, "04"}],
-                " --size 30x80"),
+                [{size, 30, 80}]),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> :load KvParser.Lexer">>)).
 
 %% report §11.2: a command that takes an argument, completed whole, is
@@ -1865,7 +1865,7 @@ command_argument() ->
                  {expect, "> :output x"},
                  {send, "03"},
                  {send, "04"}],
-                " --size 30x80"),
+                [{size, 30, 80}]),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> :bindings\r\n:bindings       what the session"
                                                " declares, with their types">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> :browse \r\n:browse Module  the exports">>)),
@@ -1957,7 +1957,7 @@ tab_mid_row() ->
                  {send, hex("[1], fn(n) = n)\r")},
                  {expect, "[1] : List(Int)"},
                  {send, "04"}],
-                " --size 50x80"),
+                [{size, 50, 80}]),
     ?assertEqual(nomatch, binary:match(Bytes, <<"List.map(    ">>)),
     ?assertEqual(nomatch, binary:match(Bytes, <<"ArrowDown">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"module Bool\r\nmodule Bytes\r\n">>)),
@@ -1984,7 +1984,7 @@ session_constructors_listed() ->
                  {expect, "module Bool"},
                  {send, "03"},
                  {send, "04"}],
-                " --size 40x80"),
+                [{size, 40, 80}]),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nHeads : Coin">>)).
 
 %% report §11.2: after `:forget`, what completes is a name the session
@@ -2006,7 +2006,7 @@ forget_completion() ->
                  {expect, "bra"},
                  {send, "03"},
                  {send, "04"}],
-                " --size 60x100"),
+                [{size, 60, 100}]),
     ?assertEqual(2, ern_pty:count(Bytes, <<"zebra : Int">>)).
 
 %% report §11.2, §5.6: a constructor's fields complete with their types in
@@ -2032,7 +2032,7 @@ completion_fields() ->
          {expect, "Point(x = a, yval"},
          {send, "03"},
          {send, "04"}],
-        " --size 60x100").
+        [{size, 60, 100}]).
 
 %% report §11.2: a constructor that alone completes what is typed is
 %% listed with its type, as a value is. A regression test for a finding of
@@ -2047,7 +2047,7 @@ completion_lone_constructor() ->
          {expect, "Some : (a) -> Optional(a)"},
          {send, "03"},
          {send, "04"}],
-        " --size 60x100").
+        [{size, 60, 100}]).
 
 %% report §11.2: a name `:forget` removed no longer completes. A regression
 %% test for a finding of the shell's review: it was offered after
@@ -2073,7 +2073,7 @@ completion_after_forget() ->
                  {expect, "zz!"},
                  {send, "03"},
                  {send, "04"}],
-                " --size 60x100"),
+                [{size, 60, 100}]),
     ?assertEqual(1, ern_pty:count(Bytes, <<"zz : Int">>)).
 
 %% report §11.2: an input's module, which no program names, is not
@@ -2091,7 +2091,7 @@ completion_no_input_module() ->
                  {expect, "1 + Int"},
                  {send, "03"},
                  {send, "04"}],
-                " --size 60x100"),
+                [{size, 60, 100}]),
     ?assertEqual(nomatch, binary:match(Bytes, <<"Input">>)).
 
 %% report §11.2, §4.8: an operator member, used infix, is not offered after
@@ -2106,7 +2106,7 @@ completion_no_operator() ->
                  {expect, "String.toUpper"},
                  {send, "03"},
                  {send, "04"}],
-                " --size 60x100"),
+                [{size, 60, 100}]),
     ?assertEqual(nomatch, binary:match(Bytes, <<"String.<>">>)).
 
 %% report §11.2: a line wider than the screen wraps onto the rows below it
@@ -2125,7 +2125,7 @@ wide_input() ->
                      {expect, "789\"X"},
                      {send, "03"},
                      {send, "04"}],
-                    "12x40"),
+                    {12, 40}),
     Lines = [Line || Line <- binary:split(Screen, <<"\n">>, [global]), Line =/= <<>>],
     ?assert(lists:member(<<"> let longname = \"abcdefghijklmnopqrstuv">>, Lines)).
 
@@ -2673,7 +2673,7 @@ slot() ->
                      {expect, "z : Zebra"},
                      {expect, "> "},
                      {send, "04"}],
-                    "16x70"),
+                    {16, 70}),
     Lines = [Line || Line <- binary:split(Screen, <<"\n">>, [global]), Line =/= <<>>],
     Text = iolist_to_binary(Lines),
     %% the input the completions built ran and bound
@@ -2726,7 +2726,7 @@ bracket_shown() ->
                  {expect, "\e[6C"},
                  {send, "03"},
                  {send, "04"}],
-                " --size 24x80"),
+                [{size, 24, 80}]),
     %% the prompt and `f` are three columns, so the `(` is the fourth
     {Shown, _} = binary:match(Bytes, <<"> f(x)\r\e[3C">>),
     {Back, _} = binary:match(Bytes, <<"> f(x)\r\e[6C">>),
@@ -4225,7 +4225,7 @@ typing_ahead() ->
                      {expect, "1 : Int"},
                      {expect, "4 : Int"},
                      {send, "04"}],
-                    "20x60"),
+                    {20, 60}),
     Lines = [Line || Line <- binary:split(Screen, <<"\n">>, [global]), Line =/= <<>>],
     Answers = [Line || Line <- Lines, Line =:= <<"1 : Int">> orelse Line =:= <<"4 : Int">>],
     ?assertEqual([<<"1 : Int">>, <<"4 : Int">>], Answers).
@@ -5608,28 +5608,28 @@ hex(Text) ->
     lists:flatten([io_lib:format("~2.16.0b", [Char]) || Char <- Text]).
 
 pty(Command, Steps) ->
-    pty(Command, Steps, "").
+    pty(Command, Steps, []).
 
-%% The screen as a reader sees it, rather than every write: a shell that
-%% paints its panes writes a line many times over.
-screen(Command, Steps, Size) ->
-    pty(Command, Steps, " --screen --size " ++ Size).
+%% The screen of Rows and Columns as a reader sees it, rather than every
+%% write: a shell that paints its panes writes a line many times over.
+screen(Command, Steps, {Rows, Columns}) ->
+    pty(Command, Steps, [screen, {size, Rows, Columns}]).
 
 %% What the terminal was sent, as a reader sees it: the sequences that only
 %% color the text are left out. `raw/2` keeps them, for a test of the
 %% color itself.
-pty(Command, Steps, Extra) ->
-    re:replace(raw(Command, Steps, Extra), "\e\\[[0-9;]*m", "",
+pty(Command, Steps, Options) ->
+    re:replace(raw(Command, Steps, Options), "\e\\[[0-9;]*m", "",
                [global, {return, binary}]).
 
 raw(Command, Steps) ->
-    raw(Command, Steps, "").
+    raw(Command, Steps, []).
 
 %% Report §11.2: every terminal session ends as its test ends it, by
 %% `C-d` or a command, with status 0, so a shell that no longer ends, which
 %% the harness kills, fails its test.
-raw(Command, Steps, Extra) ->
-    {Status, Data} = ern_pty:run(Command, Steps, Extra),
+raw(Command, Steps, Options) ->
+    {Status, Data} = ern_pty:run(Command, Steps, Options),
     ?assertEqual(0, Status),
     Data.
 

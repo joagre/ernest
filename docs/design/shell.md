@@ -327,7 +327,7 @@ While a startup input runs, the session holds its file and line, which a refusal
 
 **The session** is tested by `test/ern_shell_tests.erl`. A golden test is a file of inputs run in line mode, `test/fixtures/session/basic.in`, against its expected output. A session that drives a program is not one, since where a fault report lands among the inputs depends on when the process faults; that test asserts what must be true of it instead.
 
-**The terminal** is tested through `test/ern_pty.py`, which gives the shell a pseudo-terminal and sends each key once the screen shows what the step waits for. With `--screen` it renders the writes onto a grid of the terminal's size, since a shell that repaints writes a line many times over, and what is painted is asserted on that grid.
+**The terminal** is tested through `test/ern_pty.erl`'s harness, the Ernest program `test/fixtures/pty/pty.ern`, which runs the shell under `Os.startTerminal` (Appendix E.23) and sends each key once the screen shows what the step waits for. With `--screen` it renders the writes onto a grid of the terminal's size, since a shell that repaints writes a line many times over, and what is painted is asserted on that grid.
 
 **The attached shell** is tested by `test/ern_nodes_tests.erl`, over the harness's nodes on one machine, its own node listed there without an address. A golden session is typed in line mode at a bare node, `test/fixtures/session/attached.in` against its expected output, as a plain shell's is.
 

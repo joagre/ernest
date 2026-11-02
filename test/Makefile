@@ -9,7 +9,8 @@
 # ern_install_tests), the documents and the style, the guide's examples,
 # the grammar with the programs generated from it, the well-typed programs
 # generated and run, and the shell and the terminal, driven through the
-# pseudo-terminal, which python3 opens since Erlang cannot (ern_pty.py).
+# pseudo-terminal harness, the Ernest program fixtures/pty/pty.ern over
+# Os.startTerminal, which ern_pty builds and runs.
 # Beside them, the loads, the service manager's checks and the bench, which
 # a release runs, and the targets that write the catalog, the contents
 # lists and the layout anew.

@@ -22,8 +22,8 @@ by a need met in use and recorded as `docs/language_feedback.md` records one.
 
 The pun is released, with what its day decided beside it: a `receive` always receives, an alarm
 can be canceled, and the checkout works toward 0.9.0. ernest-httpd's first release serves the
-site since 2026-11-02, built against the checkout's archive (MVP 4.1, item 4). Next are the
-terminal tests over `Os.startTerminal` and Ernest 0.9.0, then MVP 4.15, what the server taught, then the website and
+site since 2026-11-02, built against the checkout's archive (MVP 4.1, item 4). Next is Ernest
+0.9.0 (MVP 4.1, item 6), then MVP 4.15, what the server taught, then the website and
 the shell's second round (the log's *The Road to 1.0, Ordered*), and MVP 4.4 last, the promise, the cost, the full review and Ernest 1.0, where
 the road ends and a program begins (the log's *MVP 4.4, the Road's End*); the back end to BEAM's own instructions that closed the road is not built,
 decided 2026-10-30 (the log's *No Back End to BEAM's Own Instructions*). A finished milestone is a
@@ -83,15 +83,9 @@ server's CLAUDE.md carries the procedure its side follows.
    an Exit and a Write*, *An Archive Says Its Commit*, *Two Lines on TLS*, *A Program After
    Its Exit*, *Four Lines From the Deployment* and *The Error's Place*, and for what it left
    to MVP 4.15, *What the Server Taught*).
-5. **The terminal tests over `Os.startTerminal`**, dropping `test/ern_pty.py`, an item of its own
-   once item 2 stands, opened 2026-11-02: the harness becomes an Ernest program over
-   `Os.startTerminal`, run by `test/ern_pty.erl` as the Python was. First in it, a defect
-   seen on 2026-11-01 under a load average of 37 from four agents' runs, and again in the
-   full run of 2026-11-02, `close_input_hangs_up_test` reading `Exited(1)` where the hangup
-   gives 129, diagnosed and fixed 2026-11-02: the host ends a read the program waits in
-   before it sends the hangup, so `sh` could exit on its read's end first, 5 times in 300
-   under load and never idle; E.23 says so, and the test stands on a program that reads
-   nothing (the log's *The Hangup's Order*).
+5. **The terminal tests over `Os.startTerminal`**, done 2026-11-02: the harness is the Ernest program
+   `test/fixtures/pty/pty.ern`, and `test/ern_pty.py` is gone (the log's *The Hangup's Order* and
+   *The Harness in Ernest*).
 6. **A release of Ernest**, 0.9.0, when the server first serves the site, carrying the libraries
    after their first real user has shaped them; 0.8.0 is the pun's. Before it, the deployment
    test `one_node`, whose watcher once answered that a line was never said, in the full run of
