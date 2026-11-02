@@ -3232,10 +3232,10 @@ unit_bindings(Unit) ->
 %% modules were evaluated in, in order, each the root of the processes its
 %% evaluation started. Evaluators: those so far, the last first.
 %%
-%% Report §11.2: once the bindings have their values the evaluator lives on,
-%% so that what a binding opens, a listener or a running program, stays
-%% open as it does under `ern run` (Appendix E.18): to the program's end,
-%% and on a node a session detaches from, after the session, as the node's
+%% Report §11.2: once the bindings have their values the evaluator lives on
+%% while it owns what a binding opened, a listener or a running program, so
+%% that it stays open as it does under `ern run` (Appendix E.18, E.28), and
+%% on a node a session detaches from, after the session, as the node's
 %% (detach/0). No deadlock is found in the wait, since a session holds the
 %% terminal, waits on its next line or is a node (ern_rt's look).
 initialize(CompiledModules) ->

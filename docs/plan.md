@@ -94,6 +94,11 @@ server's CLAUDE.md carries the procedure its side follows.
    holds passes `Verified`, and a certificate, key or CA file the host cannot read answers as
    `Fs` does, one it refuses `Other(text)` naming the file on one line (the log's *Two Lines
    on TLS*).
+
+   Two lines on a program under a terminal met 2026-11-02 and built the same day: a program's
+   process lives on after its exit as a socket's does after its close, `run` killing the one
+   it ran, and a read whose caller has ended is dropped, on a program and on a socket (the
+   log's *A Program After Its Exit*).
 5. **The terminal tests over `Os.startTerminal`**, dropping `test/ern_pty.py`, an item of its own
    once item 2 stands. First in it, a defect seen on 2026-11-01 under a load average of 37
    from four agents' runs, and again in the full run of 2026-11-02: `close_input_hangs_up_test`

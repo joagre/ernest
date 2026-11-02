@@ -72,8 +72,9 @@
 /// The bindings are evaluated in the order `ern run` evaluates a program's
 /// before `main`, each in a body of mailbox type `Never` (report §8.5), in a
 /// process of the runtime's own, the load's evaluator, while the calling process
-/// waits. The evaluator lives on, as a shell's load's does, and keeps what a
-/// binding opened, a listener or a running program (report §11.2).
+/// waits. The evaluator lives on while it owns what a binding opened, a
+/// listener or a running program, and keeps it, as a shell's load's does
+/// (report §11.2, Appendix E.28).
 ///
 /// A file that is no `.erc` of this `ern`, one compiled against another
 /// interface than the node holds, a module of a cycle through the load path

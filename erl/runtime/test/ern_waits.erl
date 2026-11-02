@@ -1,14 +1,14 @@
 %% The waits the tests share, each on what it means rather than on a time
 %% (CLAUDE.md, *No fixed sleep*): a process in a state, blocked in a receive
-%% or in a call among them, a process having called a function or returned
-%% from it, the runtime's reaper having looked for a deadlock, and the
-%% deliveries to a process having ended. All but the last read what the
-%% host reports of a process by tracing it, and stop tracing when they
-%% return.
+%% or in a call, or watching another or no longer, among them, a process
+%% having called a function or returned from it, the runtime's reaper
+%% having looked for a deadlock, and the deliveries to a process having
+%% ended. All but the last read what the host reports of a process by
+%% tracing it, and stop tracing when they return.
 -module(ern_waits).
 
--export([until/2, waiting/1, running/1, calling/1, called/3, returned/3, looked/1,
-         delivered/1, forever/0]).
+-export([until/2, waiting/1, running/1, calling/1, watching/2, unwatched/2, called/3,
+         returned/3, looked/1, delivered/1, forever/0]).
 
 %% Until Test, asked of Pid's state, holds, or Pid has ended: Test is asked
 %% at first and again each time the host schedules Pid out, which is when
@@ -70,6 +70,24 @@ calling(Pid) ->
                        _ -> false
                    end
                end).
+
+%% Report §6.9: until Pid monitors Watched, or has ended.
+-spec watching(pid(), pid()) -> ok | ended.
+watching(Pid, Watched) ->
+    until(Pid, fun() -> is_watching(Pid, Watched) end).
+
+%% Until Pid no longer monitors Watched, or has ended. Where Watched has
+%% ended, the host has then put its `DOWN` in Pid's mailbox, ahead of every
+%% message sent to Pid after.
+-spec unwatched(pid(), pid()) -> ok | ended.
+unwatched(Pid, Watched) ->
+    until(Pid, fun() -> not is_watching(Pid, Watched) end).
+
+is_watching(Pid, Watched) ->
+    case erlang:process_info(Pid, monitors) of
+        {monitors, Monitors} -> lists:member({process, Watched}, Monitors);
+        undefined -> false
+    end.
 
 %% Until Pid has called Module:Function/Arity Count times from now, which
 %% the host shows by tracing its calls, local ones among them.

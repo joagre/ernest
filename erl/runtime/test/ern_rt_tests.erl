@@ -3,7 +3,8 @@
 %% boundary's proxies, and the end of a program.
 -module(ern_rt_tests).
 
--export([queued_input/2, evaluated/0, kept_table/0, closed_table/0, kept_proxy/0, ended_proxy/0]).
+-export([queued_input/2, evaluated/0, kept_table/0, closed_table/0, kept_proxy/0, ended_proxy/0,
+         ran_program/0, closed_listener/0, kept_listener/0]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include("ern_rt.hrl").
@@ -435,6 +436,88 @@ evaluator_owns_its_proxy_test() ->
     {{Alive, Owned}, Proxy, EndedAlive} = wait(owned),
     ?assertEqual({true, [Proxy], false}, {Alive, Owned, EndedAlive}).
 
+%% report Appendix E.28, E.23, E.18, §6.9: a load's evaluator whose binding
+%% ran `Os.run`, which kills the program it ran, ends once that program's
+%% process has ended, the kill being asynchronous, and so does one whose
+%% binding closed a listener: none of 200 loads of each leaves its
+%% evaluator. A regression test of the rule of 2026-11-02: the evaluator
+%% read what it owned once, as its last binding got its value, found the
+%% process still ending, and lived on for good, in 200 loads of 200 for
+%% `Os.run` and 199 for the listener
+evaluators_outlive_no_ending_process_test_() ->
+    {timeout, 60, fun evaluators_outlive_no_ending_process/0}.
+
+evaluators_outlive_no_ending_process() ->
+    Self = self(),
+    Units = [unit_calling('ern@zz_program_ran', ran_program),
+             unit_calling('ern@zz_listener_closed', closed_listener)],
+    try
+        ok = ern_rt:run_main(
+               fun() ->
+                   Self ! {living, [living([evaluated(Unit) || _ <- lists:seq(1, 200)])
+                                    || Unit <- Units]}
+               end, <<"main">>, #{stdout => fun(_) -> ok end})
+    after
+        [begin code:purge(Unit), code:delete(Unit) end || Unit <- Units]
+    end,
+    ?assertEqual([0, 0], receive {living, Living} -> Living end).
+
+%% The evaluator of a load of Unit, whose bindings have their values.
+evaluated(Unit) ->
+    {evaluated, Evaluator} = ern_rt:evaluate([Unit], <<"S.load:1">>),
+    Evaluator.
+
+%% How many of Evaluators live on, each watched until it ends; 5 seconds
+%% from the first wait bound a failure.
+living(Evaluators) ->
+    Deadline = erlang:monotonic_time(millisecond) + 5000,
+    length([Evaluator || Evaluator <- Evaluators, not is_ended(Evaluator, Deadline)]).
+
+is_ended(Evaluator, Deadline) ->
+    MonitorRef = erlang:monitor(process, Evaluator),
+    receive
+        {'DOWN', MonitorRef, process, Evaluator, _} -> true
+    after max(0, Deadline - erlang:monotonic_time(millisecond)) ->
+        erlang:demonitor(MonitorRef, [flush]),
+        false
+    end.
+
+%% report Appendix E.28, E.18, E.23: a load's evaluator that owns a
+%% listener a binding opened lives on until each process it owns has
+%% ended: a running program given to it meanwhile is found once the
+%% listener is closed, and it ends normally once that program is killed.
+%% A regression test of the rule of 2026-11-02, before which it lived on
+%% until the program's end; a socket given away from it, which it watches
+%% still, is not covered
+evaluator_ends_with_what_it_owns_test() ->
+    Self = self(),
+    Units = [unit_calling('ern@zz_listener_kept', kept_listener)],
+    Os = ern_named:functions('ern@os'),
+    try
+        ok = ern_rt:run_main(
+               fun() ->
+                   true = register(ern_rt_tests_main, erlang:self()),
+                   {evaluated, Evaluator} = ern_rt:evaluate(['ern@zz_listener_kept'],
+                                                            <<"S.load:1">>),
+                   Listener = receive {listener, L} -> L end,
+                   MonitorRef = erlang:monitor(process, Evaluator),
+                   {'Right', Cat} = (Os(start))({'Command', <<"cat">>, [], <<>>}),
+                   'Unit' = (Os(give))(Cat, Evaluator),
+                   ok = ern_waits:watching(Cat, Evaluator),
+                   ern_rt:send(Listener, 'CloseListener'),
+                   %% the evaluator has read what it owns again once it
+                   %% watches the program
+                   ok = ern_waits:watching(Evaluator, Cat),
+                   Lives = erlang:is_process_alive(Evaluator),
+                   ern_rt:kill(Cat),
+                   receive {'DOWN', MonitorRef, process, _, ExitReason} -> ok end,
+                   Self ! {ended, {Lives, ExitReason}}
+               end, <<"main">>, #{stdout => fun(_) -> ok end})
+    after
+        [begin code:purge(Unit), code:delete(Unit) end || Unit <- Units]
+    end,
+    ?assertEqual({true, normal}, wait(ended)).
+
 %% docs/memory.md, Appendix G.1, E.21: a process that makes and closes a
 %% thousand tables keeps, of the tables it made, fewer than the floor at
 %% which it drops those it no longer owns, and `Ets.owned` of it counts
@@ -500,6 +583,28 @@ ended_proxy() ->
     MonitorRef = erlang:monitor(process, Proxy),
     receive {'DOWN', MonitorRef, process, Proxy, _} -> ok end,
     'Unit' = ern_rt:ends_with_caller(Proxy),
+    ok.
+
+%% The bindings of evaluators_outlive_no_ending_process_test_'s units: the
+%% first runs a program to its end with `Os.run`, which kills its process
+%% then, and the second opens a listener with `Tcp.listen` and closes it.
+-spec ran_program() -> ok.
+ran_program() ->
+    {'Right', _} = (ern_named:function('ern@os', run))({'Command', <<"true">>, [], <<>>}, 5000),
+    ok.
+
+-spec closed_listener() -> ok.
+closed_listener() ->
+    {'Right', Listener} = (ern_named:function('ern@tcp', listen))(<<"127.0.0.1">>, 0),
+    'Unit' = (ern_named:function('ern@tcp', closeListener))(Listener),
+    ok.
+
+%% The binding of evaluator_ends_with_what_it_owns_test's unit: a listener
+%% opened, which the evaluator owns, told to the test's main process.
+-spec kept_listener() -> ok.
+kept_listener() ->
+    {'Right', Listener} = (ern_named:function('ern@tcp', listen))(<<"127.0.0.1">>, 0),
+    ern_rt_tests_main ! {listener, Listener},
     ok.
 
 %% report §8.6: a program's end ends every process the runtime started,

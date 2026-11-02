@@ -212,8 +212,10 @@ Tcp.accept(listener : Address(ListenerMsg), ms : Int) : Either(Io.Error, Address
 Waits at most `ms` milliseconds for the next connection to the listener, and
 answers its socket, which belongs to the caller. It answers `Left(Timeout)`
 where none comes in time, having taken none, and `Left(Closed)` where the
-listener is closed while it waits. On a listener over TLS the socket is
-answered before its handshake, which its first read or write waits for.
+listener is closed while it waits. An accept whose caller has ended takes
+its connection, whose socket is killed at once, as one given to a process
+that has ended is. On a listener over TLS the socket is answered before its
+handshake, which its first read or write waits for.
 
 ### Errors
 
@@ -338,7 +340,9 @@ Tcp.read(socket : Address(SocketMsg), ms : Int) : Either(Io.Error, Bytes)
 Waits at most `ms` milliseconds for bytes from the connection, and answers
 what has arrived, at least one byte. It answers `Left(Closed)` once the
 connection has closed and all that came before is read, and `Left(Timeout)`
-where nothing comes in time, having taken nothing.
+where nothing comes in time, having taken nothing. A read whose caller has
+ended before it is answered is dropped the same way, and what arrives waits
+for the next read.
 
 ### Errors
 

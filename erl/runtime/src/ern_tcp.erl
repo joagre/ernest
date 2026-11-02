@@ -38,7 +38,8 @@
 -record(connection, {transport, socket, writer, monitor_ref, waiting = [], writes = [],
                      buffer = <<>>, state = open}).
 
-%% A read waiting: its reference, its reply, its deadline and its timer.
+%% A read waiting: the reference of its caller's monitor, which names the
+%% read to its timer too, its reply, its deadline and its timer.
 -record(read, {ref, reply, deadline, timer}).
 
 %% A write the writer holds, oldest first in the connection: its reply, its
@@ -535,6 +536,10 @@ socket_loop(#connection{transport = Transport, socket = Socket, writer = Writer,
             stop_writer(Writer),
             close_socket(Transport, Socket),
             exit({ern, killed});
+        %% report Appendix E.18: a read whose caller has ended before it
+        %% was answered
+        {'DOWN', ReadRef, process, _, _} ->
+            socket_loop(dropped(ReadRef, Connection));
         'Close' ->
             #connection{writes = Writes} = closed('Closed', Connection),
             stop_writer(Writer),
@@ -687,9 +692,10 @@ written(#connection{writes = [#write{timer = Timer} | Rest]} = Connection) ->
 
 %% Report Appendix E.18: a read is answered the bytes no read has taken, or
 %% `Left(Closed)` once the connection has closed, or else waits, counted as
-%% a source, the host's socket asked for bytes when it is the first to wait
-%% on an open connection; one that waits for a handshake waits within its
-%% own milliseconds, and its `Left(Timeout)` leaves the handshake under way.
+%% a source, its caller watched, the host's socket asked for bytes when it
+%% is the first to wait on an open connection; one that waits for a
+%% handshake waits within its own milliseconds, and its `Left(Timeout)`
+%% leaves the handshake under way.
 read(Ms, Reply, #connection{waiting = Waiting, buffer = Buffer,
                             state = State} = Connection) ->
     case {Buffer, State} of
@@ -698,7 +704,7 @@ read(Ms, Reply, #connection{waiting = Waiting, buffer = Buffer,
             Connection;
         {<<>>, _} ->
             ern_rt:source_begin(),
-            Ref = make_ref(),
+            Ref = erlang:monitor(process, ern_rt:reply_process(Reply)),
             Deadline = ern_rt:deadline(Ms),
             Read = #read{ref = Ref, reply = Reply, deadline = Deadline,
                          timer = arm(Ref, Deadline)},
@@ -731,11 +737,10 @@ asked(Connection) ->
 %% is gone.
 read_timed_out(Ref, #connection{waiting = Waiting} = Connection) ->
     case lists:keytake(Ref, #read.ref, Waiting) of
-        {value, #read{reply = Reply, deadline = Deadline} = Read, Rest} ->
+        {value, #read{deadline = Deadline} = Read, Rest} ->
             case ern_rt:remaining(Deadline) of
                 0 ->
-                    ern_rt:answer(Reply, {'Left', 'Timeout'}),
-                    ern_rt:source_end(),
+                    answered_read(Read, {'Left', 'Timeout'}),
                     Connection#connection{waiting = Rest};
                 _ ->
                     Again = Read#read{timer = arm(Ref, Deadline)},
@@ -748,17 +753,46 @@ read_timed_out(Ref, #connection{waiting = Waiting} = Connection) ->
 %% Bytes that came: the oldest read waiting answered them, the host's
 %% socket asked again while another waits; where none waits, its read timed
 %% out as they came, and they wait for the next.
+%%
+%% Report Appendix E.18: the bytes go to a read whose caller lives as it is
+%% answered. A caller's `DOWN` comes after its end, ordered with nothing
+%% the host's socket sends, so the host is asked first, of a caller of this
+%% node, since the socket's address is bound to it (report §3.11); a read
+%% whose caller has ended is dropped as its `DOWN` would drop it, and the
+%% bytes go to the next.
 arrived(Bytes, #connection{waiting = Waiting, buffer = Buffer} = Connection) ->
     case Waiting of
-        [#read{reply = Reply, timer = Timer} | Rest] ->
-            erlang:cancel_timer(Timer, [{async, true}, {info, false}]),
-            ern_rt:answer(Reply, {'Right', Bytes}),
-            ern_rt:source_end(),
-            Rest =/= [] andalso asked(Connection),
-            Connection#connection{waiting = Rest};
+        [#read{ref = Ref, reply = Reply} = Read | Rest] ->
+            case erlang:is_process_alive(ern_rt:reply_process(Reply)) of
+                true ->
+                    answered_read(Read, {'Right', Bytes}),
+                    Rest =/= [] andalso asked(Connection),
+                    Connection#connection{waiting = Rest};
+                false ->
+                    arrived(Bytes, dropped(Ref, Connection))
+            end;
         [] ->
             Connection#connection{buffer = <<Buffer/binary, Bytes/binary>>}
     end.
+
+%% A read answered: its timer let go, its caller no longer watched, and its
+%% count as a source ended once it has its answer.
+answered_read(#read{ref = Ref, reply = Reply, timer = Timer}, Answer) ->
+    erlang:cancel_timer(Timer, [{async, true}, {info, false}]),
+    erlang:demonitor(Ref, [flush]),
+    ern_rt:answer(Reply, Answer),
+    ern_rt:source_end().
+
+%% Report Appendix E.18: a read whose caller has ended before it was
+%% answered is dropped as one that times out is: it has taken nothing, and
+%% bytes that arrive later wait for the next read. Its caller is no longer
+%% watched, a `DOWN` on its way among it.
+dropped(Ref, #connection{waiting = Waiting} = Connection) ->
+    {value, #read{timer = Timer}, Rest} = lists:keytake(Ref, #read.ref, Waiting),
+    erlang:cancel_timer(Timer, [{async, true}, {info, false}]),
+    erlang:demonitor(Ref, [flush]),
+    ern_rt:source_end(),
+    Connection#connection{waiting = Rest}.
 
 arm(Ref, Deadline) ->
     erlang:send_after(ern_rt:remaining(Deadline), erlang:self(), {deadline, {read, Ref}}).
@@ -771,11 +805,7 @@ write_limit(Reply, Deadline) ->
 %% answers `Left(Closed)`, or a failed handshake's `Left`, and each read
 %% after `Left(Closed)`, the socket living on until Close.
 closed(Error, #connection{waiting = Waiting} = Connection) ->
-    lists:foreach(fun(#read{reply = Reply, timer = Timer}) ->
-                      erlang:cancel_timer(Timer, [{async, true}, {info, false}]),
-                      ern_rt:answer(Reply, {'Left', Error}),
-                      ern_rt:source_end()
-                  end, Waiting),
+    lists:foreach(fun(Read) -> answered_read(Read, {'Left', Error}) end, Waiting),
     Connection#connection{waiting = [], state = closed}.
 
 endpoint(closed, _) ->

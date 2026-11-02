@@ -5,10 +5,13 @@
 %% pseudo-terminal for Os.startTerminal, and asks the helper for a piece of
 %% the program's output only for a read that waits, so that a program no
 %% one reads waits on its output. A read and a write each wait their own
-%% milliseconds (E.0 shape rule 8); the program runs until it exits, until
-%% its process is killed, since the port closing ends the helper, or until
-%% its owner dies (E.23). A running program is a source (report §8.6) from
-%% its start until it has exited or been killed.
+%% milliseconds (E.0 shape rule 8).
+%%
+%% The program runs until it exits, until its process is killed, since the
+%% port closing ends the helper, or until its owner dies (E.23). Its
+%% process lives on after the exit, as a socket's does after its close,
+%% until it is killed or its owner dies. A running program is a source
+%% (report §8.6) from its start until it has exited or been killed.
 -module(ern_os).
 
 -export([loop/0, helper_failed/0, helper/0, signal/2, locked/2, node_signaled/3, host/0, user/0,
@@ -221,21 +224,28 @@ starting(#program{helper = Helper} = Running, Reply) ->
             killed(Running)
     end.
 
-%% Waiting: the reads that wait, oldest first, each {Reply, Ref, Timer}. Owed: the
-%% pieces the helper owes, one asked for each read that came with nothing
-%% kept. Kept: the answers the helper gave while no read waited, which the
-%% next reads take, in order. The helper sends one piece of output for each
-%% piece it was asked for, and the exit status once the program has exited
-%% and both its outputs have ended, which it can learn only while a piece is
-%% owed.
+%% Waiting: the reads that wait, oldest first, each {Reply, MonitorRef,
+%% Timer}, MonitorRef the monitor of the read's caller, which names the
+%% read to its timer too. Owed: the pieces the helper owes, one asked for
+%% each read that came with nothing kept. Kept: the answers the helper gave
+%% while no read waited, which the next reads take, in order. The helper
+%% sends one piece of output for each piece it was asked for, and the exit
+%% status once the program has exited and both its outputs have ended,
+%% which it can learn only while a piece is owed.
 %%
 %% Report Appendix E.23: a read answers `Left(Timeout)` when its
 %% milliseconds pass, the program running on, and the piece asked for it is
-%% the next read's; a write is answered when the helper says the program has
-%% taken its bytes, `a`, or dropped them, `d`, one for each input in order,
-%% the replies kept in the program's `writes`, each {Reply, Timer}, or
+%% the next read's; a read whose caller has ended before it is answered is
+%% dropped, and the piece asked for it is the next read's the same way. The
+%% caller's end is known by its `DOWN`, and before a piece is answered by
+%% asking the host whether the caller lives (given/5).
+%%
+%% A write is answered when the helper says the program has taken its
+%% bytes, `a`, or dropped them, `d`, one for each input in order, the
+%% replies kept in the program's `writes`, each {Reply, Timer}, or
 %% `Left(Timeout)` first, which does not undo it and leaves `none` in its
-%% place. A request answered lets go of its timer.
+%% place. A request answered lets go of its timer, and a read of its
+%% caller's monitor.
 running(#program{helper = Helper, writes = Writes} = Running, Waiting, Owed, Kept) ->
     receive
         {'Read', Ms, Reply} ->
@@ -269,6 +279,8 @@ running(#program{helper = Helper, writes = Writes} = Running, Waiting, Owed, Kep
             failed(Running, Waiting);
         {'DOWN', MonitorRef, process, _, _} when MonitorRef =:= Running#program.monitor_ref ->
             killed(Running);
+        {'DOWN', MonitorRef, process, _, _} ->
+            running(Running, dropped(MonitorRef, Waiting), Owed, Kept);
         {timeout, _, {deadline, {write, Reply}, Deadline}} ->
             Rest = write_timed_out(Reply, Deadline, Writes),
             running(Running#program{writes = Rest}, Waiting, Owed, Kept);
@@ -282,11 +294,12 @@ running(#program{helper = Helper, writes = Writes} = Running, Waiting, Owed, Kep
 read(Ms, Reply, #program{helper = Helper} = Running, Waiting, Owed, Kept) ->
     case queue:out(Kept) of
         {{value, Answer}, Rest} ->
-            told(Running, Reply, Answer, Waiting, Owed, Rest);
+            ern_rt:answer(Reply, Answer),
+            running(Running, Waiting, Owed, Rest);
         {empty, _} ->
-            Ref = make_ref(),
-            Timer = arm({read, Ref}, ern_rt:deadline(Ms)),
-            Waiting1 = queue:in({Reply, Ref, Timer}, Waiting),
+            MonitorRef = erlang:monitor(process, ern_rt:reply_process(Reply)),
+            Timer = arm({read, MonitorRef}, ern_rt:deadline(Ms)),
+            Waiting1 = queue:in({Reply, MonitorRef, Timer}, Waiting),
             case Owed > queue:len(Waiting) of
                 true -> running(Running, Waiting1, Owed, Kept);
                 false -> command(Helper, <<"n">>), running(Running, Waiting1, Owed + 1, Kept)
@@ -299,47 +312,68 @@ failed(Running, Waiting) ->
     stop(Running),
     unwritten(Running, helper_failed()),
     ern_rt:source_end(),
-    lists:foreach(fun({Reply, _, Timer}) ->
-                      let_go(Timer),
-                      respond(Reply, helper_failed())
-                  end, queue:to_list(Waiting)),
+    lists:foreach(fun(Read) -> answered_read(Read, helper_failed()) end, queue:to_list(Waiting)),
     over(helper_failed(), Running).
 
 %% An answer of the helper's, to the oldest read that waits, or kept for the
-%% next read where none does.
+%% next read where none does. The exit status is the last answer, given to
+%% every read that waits, since the helper sends nothing more, and kept for
+%% every read to come; the reads that wait have it before the program's
+%% count as a source ends, as answered/2 says.
+%%
+%% Report Appendix E.23: a piece goes to a read whose caller lives as it is
+%% answered. A caller's `DOWN` comes after its end, ordered with nothing the
+%% port sends, so the host is asked first, of a caller of this node, since
+%% the program's address is bound to it (report §3.11); a read whose caller
+%% has ended is dropped as its `DOWN` would drop it, and the piece goes to
+%% the next.
+given(Running, {'Right', {'Exited', _}} = Answer, Waiting, _Owed, Kept) ->
+    lists:foreach(fun(Read) -> answered_read(Read, Answer) end, queue:to_list(Waiting)),
+    ern_rt:source_end(),
+    exited(queue:in(Answer, Kept), Running);
 given(Running, Answer, Waiting, Owed, Kept) ->
     case queue:out(Waiting) of
-        {{value, {Reply, _, Timer}}, Rest} ->
-            let_go(Timer),
-            told(Running, Reply, Answer, Rest, Owed, Kept);
+        {{value, {Reply, MonitorRef, _} = Read}, Rest} ->
+            case erlang:is_process_alive(ern_rt:reply_process(Reply)) of
+                true ->
+                    answered_read(Read, Answer),
+                    running(Running, Rest, Owed, Kept);
+                false ->
+                    given(Running, Answer, dropped(MonitorRef, Waiting), Owed, Kept)
+            end;
         {empty, _} ->
-            kept(Running, Answer, Waiting, Owed, queue:in(Answer, Kept))
+            running(Running, Waiting, Owed, queue:in(Answer, Kept))
     end.
 
-%% A read answered; the exit status is the last answer, after which the
-%% process returns.
-told(_Running, Reply, {'Right', {'Exited', _}} = Answer, _Waiting, _Owed, _Kept) ->
-    answered(Reply, Answer);
-told(Running, Reply, Answer, Waiting, Owed, Kept) ->
-    ern_rt:answer(Reply, Answer),
-    running(Running, Waiting, Owed, Kept).
+%% A read answered: its timer let go and its caller no longer watched.
+answered_read({Reply, MonitorRef, Timer}, Answer) ->
+    let_go(Timer),
+    erlang:demonitor(MonitorRef, [flush]),
+    respond(Reply, Answer).
 
-%% Where the exit status waits for a read, the program no longer runs: the
-%% process answers the reads to come from what is kept, and writes as to a
-%% program that has exited.
-kept(Running, {'Right', {'Exited', _}}, _Waiting, _Owed, Kept) ->
-    ern_rt:source_end(),
-    exited(Kept, Running);
-kept(Running, _Answer, Waiting, Owed, Kept) ->
-    running(Running, Waiting, Owed, Kept).
+%% Report Appendix E.23: a read whose caller has ended before it was
+%% answered is dropped, its timer let go and its caller no longer watched,
+%% a `DOWN` on its way among it; a piece the helper was asked for it is the
+%% next read's (given/5, read/6).
+dropped(MonitorRef, Waiting) ->
+    {value, {_, _, Timer}, Rest} = lists:keytake(MonitorRef, 2, queue:to_list(Waiting)),
+    let_go(Timer),
+    erlang:demonitor(MonitorRef, [flush]),
+    queue:from_list(Rest).
 
+%% Report Appendix E.23: the program has exited, and its process lives on,
+%% as a socket's does after its close, until it is killed or its owner
+%% dies. The reads take what is kept, in order, and the exit status last,
+%% which stays for every read after it; a write is answered as to a
+%% program that has exited, a resize sizes nothing, and `closeInput` does
+%% nothing.
 exited(Kept, #program{monitor_ref = MonitorRef} = Running) ->
     receive
         {'Read', _, Reply} ->
             {{value, Answer}, Rest} = queue:out(Kept),
             ern_rt:answer(Reply, Answer),
             case Answer of
-                {'Right', {'Exited', _}} -> ok;
+                {'Right', {'Exited', _}} -> exited(Kept, Running);
                 _ -> exited(Rest, Running)
             end;
         {'Write', _, _, Reply} ->
@@ -351,7 +385,7 @@ exited(Kept, #program{monitor_ref = MonitorRef} = Running) ->
         {'Give', Owner} ->
             exited(Kept, given_to(Owner, Running));
         {'DOWN', MonitorRef, process, _, _} ->
-            %% its owner died, and no read is to come
+            %% its owner died, which kills it
             exit({ern, killed});
         _ ->
             exited(Kept, Running)
@@ -386,6 +420,7 @@ read_timed_out(Ref, Deadline, Waiting) ->
 expired_read(Reply, Ref, Deadline) ->
     case ern_rt:remaining(Deadline) of
         0 ->
+            erlang:demonitor(Ref, [flush]),
             ern_rt:answer(Reply, {'Left', 'Timeout'}),
             [];
         _ ->

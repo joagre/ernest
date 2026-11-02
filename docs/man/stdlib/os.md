@@ -21,7 +21,9 @@ it is, so nothing is expanded or quoted; a program that wants a shell runs
 address, as `Tcp.connect` answers a socket's. `read` answers what it wrote, a
 piece at a time, `write` and `closeInput` feed its input, and `kill` and
 `monitor` work on it as on any process. It belongs to the process that
-started it, and is killed when that process dies (report Appendix E.23).
+started it, and is killed when that process dies. Its process lives on after
+the program has exited, as a socket's does after its connection closes,
+until it is killed or its owner dies (report Appendix E.23).
 
 ## Examples
 
@@ -381,10 +383,8 @@ has been hung up, or its program has exited, it sizes nothing and answers
 
 ### Errors
 
-Faults where the runtime's helper fails, as `start` does. Faults where the
-program's process has ended, as `read` does: with the cause `callee had
-ended`, or `callee returned without answering` where the call came as it
-ended.
+Faults where the runtime's helper fails, as `start` does, and where the
+program's process has ended, as `read` does.
 
 ### Examples
 
@@ -433,14 +433,18 @@ started every piece is `Stdout`, its two streams merged by the terminal.
 The host takes the program's output only while a read waits, so a program
 that no one reads waits on its output. Where `ms` milliseconds pass first
 the answer is `Left(Timeout)`, the program runs on, and what it writes
-meanwhile is the next read's. The program's process ends once it has
-answered the exit status.
+meanwhile is the next read's. A read whose caller has ended before it is
+answered is dropped, and what it would have taken is the next read's.
+
+Each read after the one that answered the exit status answers it again: the
+program's process lives on until it is killed or its owner dies.
 
 ### Errors
 
-Faults where the program's process has ended, as it does once a read has
-answered `Exited`: with the cause `callee had ended`, or `callee returned
-without answering` where the call came as it ended.
+Faults where the runtime's helper fails, as `start` does. Faults where the
+program's process has ended, killed or with its owner, as
+`Address.callForever` does: with the cause `callee had ended`, or `callee
+was killed` where it was killed as the call was made.
 
 ### Examples
 
@@ -471,16 +475,13 @@ the write.
 A program that stops reading its input holds its writer, and one whose output
 no one reads stops reading. So a program that both takes much input and
 writes much output is written to by one process and read by another. Bytes
-given after
-`closeInput`, or once the program has closed its input or exited, are
-dropped, and the answer is `Left(Closed)`.
+given after `closeInput`, or once the program has closed its input or
+exited, are dropped, and the answer is `Left(Closed)`.
 
 ### Errors
 
-Faults where the runtime's helper fails, as `start` does. Faults where the
-program's process has ended, as it does once a read has answered `Exited`:
-with the cause `callee had ended`, or `callee returned without answering`
-where the call came as it ended.
+Faults where the runtime's helper fails, as `start` does, and where the
+program's process has ended, as `read` does.
 
 ### Examples
 
@@ -558,7 +559,9 @@ Os.run(command : Command, ms : Int) : Either(Io.Error, Finished)
 
 Runs the program to its end and answers its exit status and all it wrote: it
 starts the program, ends its input after `command.input`, and reads it until
-it has exited, within `ms` milliseconds of its start.
+it has exited, within `ms` milliseconds of its start. Once it has read the
+exit status it kills the program's process, so that it leaves no process
+behind.
 
 It answers `Left` where the program did not run to its end, as `start` and
 `read` answer it: `Left(NotFound)`, `Left(Denied)`, `Left(Invalid)` or

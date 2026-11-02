@@ -78,7 +78,7 @@
                           end_with_program/0, waited_deliveries/1, tell_service_monitors/0,
                           say/2, waited_settler/2]}).
 -receives({ernest_wait, [waited_answer/3, call_forever/3, waited_evaluation/2,
-                         evaluated_lives/0, sleep_until/1]}).
+                         evaluated_lives/1, sleep_until/1]}).
 -receives({answered_at_once, [spawn_with_monitors/4, ask_monitor/2, demonitor/1, spawned/7,
                               kill_all/1, opened/3, asked_of_run/1, unwatched/2,
                               evaluator_ended/2]}).
@@ -4226,11 +4226,15 @@ site() ->
 %% Once the bindings have their values the evaluator ends, unless it owns
 %% what a binding opened, a listener, a socket, a running program, a table
 %% or a proxy, which would end with it (Appendix E.18, E.23, G.1, G.7): it
-%% then lives on until the program's end or until it is killed, as the
-%% entry process lives through a program (§8.5). The caller waits for an
-%% end it is told of, so that the load answers once the evaluator has
-%% gone; its screen's row stays, since what the evaluation started is the
-%% session's until the session ends (§12.1), which drops it.
+%% then lives on until each process it owns has ended, until the program's
+%% end where it owns a table, or until it is killed, as the entry process
+%% lives through a program (§8.5) (evaluated_lives/1).
+%%
+%% The caller waits for an end it is told of, so that the load answers once
+%% the evaluator has gone; for one that lives on the load answers at once,
+%% and its later end reaches the caller no more (unwatched/2). Its screen's
+%% row stays, since what the evaluation started is the session's until the
+%% session ends (§12.1), which drops it.
 %%
 %% One whose binding faults catches the fault, answers it and ends, and one
 %% ended from outside, killed or faulted by a deadlock in the caller's place
@@ -4364,7 +4368,7 @@ evaluator(Units, Site, Caller, Ref, Sink, Watchers) ->
                                end,
                      Caller ! {Ref, Outcome},
                      case Outcome of
-                         {evaluated, true} -> evaluated_lives();
+                         {evaluated, true} -> evaluated_lives(#{});
                          _ -> ended
                      end
                  end,
@@ -4428,11 +4432,38 @@ is_owner() ->
     Self = erlang:self(),
     owned(Self) =/= [] orelse owned_tables(Self) > 0.
 
-%% An evaluator that owns what a binding opened, which lives until it is
-%% ended: by the program's end, or as any process is.
--spec evaluated_lives() -> no_return().
-evaluated_lives() ->
-    receive after infinity -> ended end.
+%% Report Appendix E.28: an evaluator that owns what a binding opened,
+%% which lives on until each process it owns has ended, a listener, a
+%% socket, a running program or a proxy's, and ends then as one that owned
+%% nothing ends; one that owns a table lives until the program's end or
+%% until it is killed, since nothing tells a table's end.
+%%
+%% Watched holds a monitor of each process it has owned, by its reference.
+%% At each end among them it reads what it owns again, as is_owner/0 reads
+%% it, so that a process given to it meanwhile is found and watched too; a
+%% process given away from it stays watched, and the evaluator learns it
+%% owns it no more at that process's end or at another's.
+-spec evaluated_lives(#{reference() => pid()}) -> ended.
+evaluated_lives(Watched) ->
+    Self = erlang:self(),
+    case {owned(Self), owned_tables(Self)} of
+        {[], 0} ->
+            ended;
+        {Owned, 0} ->
+            Watching = watching(Owned, Watched),
+            receive
+                {'DOWN', MonitorRef, process, _, _} when is_map_key(MonitorRef, Watching) ->
+                    evaluated_lives(maps:remove(MonitorRef, Watching))
+            end;
+        _ ->
+            receive after infinity -> ended end
+    end.
+
+%% Watched, with a monitor of each of Owned it does not watch yet.
+watching(Owned, Watched) ->
+    Watching = maps:values(Watched),
+    maps:merge(Watched, maps:from_list([{erlang:monitor(process, Pid), Pid}
+                                        || Pid <- Owned, not lists:member(Pid, Watching)])).
 
 %% The caller's monitor of the evaluator that lives on ended, so that no
 %% end of it reaches the caller's mailbox: one the reaper told before the

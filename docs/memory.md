@@ -46,7 +46,7 @@ The loads show only what they exercise, so the code is read too, for what a long
 
 ## What is kept, and what lets it go
 
-Something may be kept as long as a program holds what it stands for: a socket until `Tcp.close`, a running program until it has answered its exit status, a checker (report §8.4) for as long as the process behind it (the log's *A Check at the Boundary Lasts as Long as Its Process*). What nothing can use again is a defect. A limit the report states, as §11.2's history of a thousand inputs, is a rule and not a cap.
+Something may be kept as long as a program holds what it stands for: a socket until `Tcp.close`, a running program until it is killed, `Os.run`'s once it has read the exit status, a checker (report §8.4) for as long as the process behind it (the log's *A Check at the Boundary Lasts as Long as Its Process*). What nothing can use again is a defect. A limit the report states, as §11.2's history of a thousand inputs, is a rule and not a cap.
 
 ### The host's code and atoms
 
@@ -116,7 +116,7 @@ Something may be kept as long as a program holds what it stands for: a socket un
 - A module loaded again, unchanged, makes no unit: its code is the node's, or a unit an earlier load made from the same forms (`ern_code:unit_beside/2`).
 - A load whose binding faulted keeps its units, out of reach, with their bindings' values erased and the processes it started killed (Appendix E.28).
 - The run's load path, which `Code.load` reads, is one persistent term, replaced at each run's start (`ern_cli:load_path/0`).
-- A load's evaluator, a process of the runtime's own with its row, ends once every binding has its value, unless it owns what a binding opened, a listener, a socket, a running program or a table, when it lives until it is killed or the node ends, as the entry process lives through a program, a shell's load's for each module alike; one whose binding faulted ends. The tables it made are in its own dictionary and go with it. A load of what the node holds evaluates nothing and starts none, so the evaluators that live on are bounded as the loads whose bindings open something are (Appendix E.28; the log's *Sites, Sessions and Their Names*). The caller's mark of the evaluator it waits for is in its own dictionary while it waits.
+- A load's evaluator, a process of the runtime's own with its row, ends once every binding has its value, unless it owns what a binding opened, a listener, a socket, a running program or a table, when it lives until each process it owns has ended, and where it owns a table until it is killed or the node ends, as the entry process lives through a program, a shell's load's for each module alike; one whose binding faulted ends. The tables it made are in its own dictionary and go with it. A load of what the node holds evaluates nothing and starts none, so the evaluators that live on are bounded as the loads whose bindings open something are (Appendix E.28; the log's *Sites, Sessions and Their Names*). The caller's mark of the evaluator it waits for is in its own dictionary while it waits.
 
 ## Tracing a growth
 

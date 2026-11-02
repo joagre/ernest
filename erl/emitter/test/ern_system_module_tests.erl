@@ -130,6 +130,30 @@ os_run_dies_with_its_caller_test() ->
     ok = file:del_dir_r(filename:dirname(Mark)),
     ?assertNot(Marked).
 
+%% Appendix E.23: run kills the program's process once it has read the
+%% exit status, so that it leaves no process behind: what the caller owns
+%% after it, if anything, is the process the kill is still ending. A
+%% regression test of the rule of 2026-11-02, the process living on after
+%% its exit; a run that times out kills it as before, which
+%% os_run_timeout_kills_test reads of the program
+os_run_leaves_no_process_test() ->
+    {ok, Output} = ern_emitter_tests:run(
+        "type Msg = Ended(Down)\n"
+        "fn ended(left : List(Process)) : Unit receiving Msg = match left {\n"
+        "    [] -> Unit\n"
+        "  | _ :: rest -> receive { Ended(_) -> ended(rest) }\n"
+        "}\n"
+        "export fn main() : Unit receiving Msg = {\n"
+        "    let command = Os.Command(program = \"true\", arguments = [], input = <<>>);\n"
+        "    let ran = Os.run(command, 5000);\n"
+        "    let left = Process.owned(Process.current());\n"
+        "    List.forEach(left, fn(p) = monitor(p, Ended));\n"
+        "    ended(left);\n"
+        "    let ownsNothing = List.isEmpty(Process.owned(Process.current()));\n"
+        "    Io.println(Io.show(#(Either.isRight(ran), ownsNothing)))\n"
+        "}\n"),
+    ?assertEqual(<<"#(true, true)\n">>, Output).
+
 %% report §8.6, Appendix E.23: a program running is a source, so a caller
 %% that only waits for it is in no deadlock
 os_run_is_a_source_test() ->
@@ -257,7 +281,8 @@ os_start_write_then_close_test() ->
 
 %% Appendix E.23, report §6.9: a running program is a process, which
 %% `monitor` watches and `kill` stops, the program and its process group
-%% with it; one that has answered its exit status has returned
+%% with it; one that has answered its exit status lives on, answering it
+%% again, until it is killed
 os_program_is_a_process_test() ->
     Dir = ern_emitter_tests:scratch(),
     Pids = filename:join(Dir, "pids"),
@@ -283,9 +308,11 @@ os_program_is_a_process_test() ->
         "    let quick = started(\"exit 0\");\n"
         "    monitor(Process.fromAddress(quick), Ended);\n"
         "    let _ = Os.read(quick, 5000);\n"
+        "    Io.println(Io.show(Os.read(quick, 5000)));\n"
+        "    kill(quick);\n"
         "    Io.println(reason())\n"
         "}\n"]),
-    ?assertEqual(<<"Killed\nReturned\n">>, Output),
+    ?assertEqual(<<"Killed\nRight(Exited(0))\nKilled\n">>, Output),
     {ok, Written} = file:read_file(Pids),
     ok = file:del_dir_r(Dir),
     [begin
@@ -627,7 +654,8 @@ paced(Setup) ->
          "    receive { Done -> true | after 0 -> false }\n"]).
 
 %% Appendix E.23: a program that stops reading its input, since no one
-%% reads its output, holds its writer, and a write after its end faults
+%% reads its output, holds its writer, and a write after its exit answers
+%% Left(Closed)
 os_write_waits_test() ->
     {ok, Output} = paced(
         "fn drain(p : Address(Os.ProgramMsg), n : Int) : Int = match Os.read(p, 5000) {\n"
@@ -658,15 +686,9 @@ os_write_waits_test() ->
         "    let n = drain(p, 0);\n"
         "    receive { Done -> Unit };\n"
         "    Io.println(Io.show(#(early, n)));\n"
-        "    let late = fn() = {\n"
-        "        let _ = Os.write(p, <<1>>, 5000);\n"
-        "        Unit\n"
-        "    };\n"
-        "    let _ = spawnMonitored(late, Ended);\n"
-        "    receive { Ended(Down(reason = r, site = _)) -> Io.println(Io.show(r)) }\n"
+        "    Io.println(Io.show(Os.write(p, <<1>>, 5000)))\n"
         "}\n"),
-    ?assertMatch({match, _}, re:run(Output, "^#\\(false, 4194304\\)\nFault\\(\"callee (had ended|"
-                                            "returned without answering)\"\\)\n$")).
+    ?assertEqual(<<"#(false, 4194304)\nLeft(Closed)\n">>, Output).
 
 %% Appendix E.18: a socket whose far end does not read holds its writer,
 %% and a write to a socket that has been closed faults

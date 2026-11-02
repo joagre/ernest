@@ -201,6 +201,81 @@ killed_socket_test() ->
     gen_tcp:close(Listen),
     ?assertMatch({fault, <<"deadlock">>, _}, Result).
 
+%% Appendix E.18, report §8.6: a read whose caller has ended before it is
+%% answered is dropped as one that times out is, the bytes that arrive
+%% after it the next read's, and its count as a source ends with it, so
+%% that the program is found deadlocked after. A regression test of the
+%% rule of 2026-11-02, before which the read took the bytes for its ended
+%% caller; a read that waits for a handshake, dropped the same way, and a
+%% caller that ends while the bytes are on their way, before the socket has
+%% its `DOWN`, are not covered
+read_of_an_ended_caller_dropped_test() ->
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Port} = inet:port(Listen),
+    Self = self(),
+    Peer = spawn(fun() ->
+                     {ok, Connection} = gen_tcp:accept(Listen),
+                     receive go -> ok end,
+                     ok = gen_tcp:send(Connection, <<"x">>),
+                     receive done -> gen_tcp:close(Connection) end
+                 end),
+    Result = ern_rt:run_main(
+               fun() ->
+                   {'Right', Socket} = connect(Port, 2000),
+                   Reader = ern_rt:spawn_monitored(fun() -> read(Socket, 60000) end,
+                                                   fun(Down) -> {reader, Down} end,
+                                                   <<"reader">>),
+                   Pid = ern_rt:process_of(Reader),
+                   ok = ern_waits:watching(Socket, Pid),
+                   ern_rt:kill(Reader),
+                   receive {reader, _} -> ok end,
+                   %% so that its `DOWN` comes before the bytes
+                   ok = ern_waits:unwatched(Socket, Pid),
+                   Peer ! go,
+                   Self ! {read, read(Socket, 2000)},
+                   ern_waits:forever()
+               end, <<"main">>, quiet()),
+    Peer ! done,
+    gen_tcp:close(Listen),
+    ?assertEqual({'Right', <<"x">>}, wait(read)),
+    ?assertMatch({fault, <<"deadlock">>, _}, Result).
+
+%% Appendix E.18: bytes that come for a read whose caller has ended,
+%% before the socket's process has the caller's `DOWN`, wait for the next
+%% read, the host asked whether the caller lives before they are answered.
+%% The window is made here: the socket's process is held still while the
+%% test gives it the message the host's socket would send, and the reader
+%% is killed, so that the bytes come before the `DOWN`. A regression test
+%% of the rule of 2026-11-02, before which the bytes went to the ended
+%% reader and the next read timed out; a caller that ends with its answer
+%% in its mailbox is every call's, and not covered
+bytes_ahead_of_the_down_kept_test() ->
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Port} = inet:port(Listen),
+    Self = self(),
+    Peer = spawn(fun() ->
+                     {ok, Connection} = gen_tcp:accept(Listen),
+                     receive done -> gen_tcp:close(Connection) end
+                 end),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Socket} = connect(Port, 2000),
+               HostSocket = host_socket(Socket),
+               Pid = ern_rt:process_of(Socket),
+               Reader = ern_rt:spawn_monitored(fun() -> read(Socket, 60000) end,
+                                               fun(Down) -> {reader, Down} end, <<"reader">>),
+               ok = ern_waits:watching(Pid, ern_rt:process_of(Reader)),
+               erlang:suspend_process(Pid),
+               Pid ! {tcp, HostSocket, <<"x">>},
+               ern_rt:kill(Reader),
+               receive {reader, _} -> ok end,
+               erlang:resume_process(Pid),
+               Self ! {read, read(Socket, 1000)}
+           end, <<"main">>, quiet()),
+    Peer ! done,
+    gen_tcp:close(Listen),
+    ?assertEqual({'Right', <<"x">>}, wait(read)).
+
 %% Appendix E.18, report §8.6: a port out of range is answered as an error,
 %% `Invalid`, by `listen` and `connect` alike, and the program is still found
 %% deadlocked after. A regression test: the host raised, the request was

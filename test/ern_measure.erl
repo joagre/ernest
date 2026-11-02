@@ -748,9 +748,12 @@ os_scenarios(Bytes) ->
     OsTermination = Os(termination),
     True = {'Command', <<"true">>, [], <<>>},
     Cat = {'Command', <<"cat">>, [], <<>>},
+    %% report Appendix E.23: a program read to its exit status, and its
+    %% process, which lives on after the exit, then killed, as Os.run kills
+    %% the one it ran, so that the rows' runs leave none behind
     Exited = fun Exited(Program) ->
                      case OsRead(Program, 5000) of
-                         {'Right', {'Exited', _}} -> ok;
+                         {'Right', {'Exited', _}} -> ern_rt:kill(Program);
                          {'Right', _} -> Exited(Program)
                      end
              end,

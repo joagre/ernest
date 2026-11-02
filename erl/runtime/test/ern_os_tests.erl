@@ -403,22 +403,101 @@ terminal_kill_test() ->
     ?assertMatch("Z" ++ _, string:trim(os:cmd("ps -o stat= -p " ++ integer_to_list(Sleep)))
                            ++ "Z").
 
-%% report Appendix E.23, §6.6: a resize after the program's process has
-%% ended faults as `Address.callForever` does, as a read does
-resize_after_the_end_test() ->
+%% report Appendix E.23, §6.6: a program's process lives on after the
+%% program has exited: each read after the one that answered `Exited`
+%% answers it again, a write `Left(Closed)`, a resize `Right(Unit)`, and
+%% `closeInput` does nothing; a monitor sees its end only at its kill,
+%% after which a resize faults as `Address.callForever` does on an ended
+%% process. A regression test of the rule of 2026-11-02, before which the
+%% process ended once a read had answered `Exited`; a give after the exit,
+%% and the owner's death then, are not covered
+exited_program_lives_on_test() ->
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                {'Right', True} = start_terminal(<<"true">>, [], ?SIZE),
                MonitorRef = erlang:monitor(process, ern_rt:process_of(True)),
                {<<>>, 0} = read_to_end(True, <<>>),
-               ern_rt:timed(),
-               receive {'DOWN', MonitorRef, process, _, _} -> ern_rt:untimed() end,
+               Answers = [read(True, 5000), write(True, <<"x">>, 5000), resize(True, ?SIZE)],
+               True ! 'CloseInput',
+               Self ! {after_the_exit, {Answers, read(True, 5000)}},
+               ern_rt:kill(True),
+               receive {'DOWN', MonitorRef, process, _, ExitReason} -> Self ! {ended, ExitReason}
+               end,
                _ = ern_rt:spawn_monitored(fun() -> resize(True, ?SIZE) end,
                                           fun(Down) -> {later, Down} end, <<"resizer">>),
                receive {later, Down} -> Self ! {later, Down} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({[{'Right', {'Exited', 0}}, {'Left', 'Closed'}, {'Right', 'Unit'}],
+                  {'Right', {'Exited', 0}}},
+                 wait(after_the_exit)),
+    ?assertEqual({ern, killed}, wait(ended)),
     ?assertMatch({'Down', _, {'Fault', <<"callee had ended">>}, _}, wait(later)).
+
+%% report Appendix E.23: a read whose caller has ended before it is
+%% answered is dropped, and what it would have taken is the next read's:
+%% the piece `cat` writes after a reader was killed in its read, and the
+%% exit status after a second was. A regression test of the rule of
+%% 2026-11-02, before which the read took the piece for its ended caller,
+%% and an `Exited` so taken ended the process; a caller that ends while
+%% the piece is on its way, before the process has its `DOWN`, is not
+%% covered
+read_of_an_ended_caller_dropped_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Cat} = start(<<"cat">>, []),
+               killed_in_a_read(Cat),
+               {'Right', 'Unit'} = write(Cat, <<"x\n">>, 5000),
+               Piece = read(Cat, 5000),
+               killed_in_a_read(Cat),
+               Cat ! 'CloseInput',
+               Self ! {reads, {Piece, read(Cat, 5000)}},
+               ern_rt:kill(Cat)
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({{'Right', {'Stdout', <<"x\n">>}}, {'Right', {'Exited', 0}}}, wait(reads)).
+
+%% report Appendix E.23: a piece that comes for a read whose caller has
+%% ended, before the program's process has the caller's `DOWN`, is kept
+%% for the next read, the host asked whether the caller lives before the
+%% piece is answered. The window is made here: the program's process is
+%% held still while the test gives it the frame the helper would send,
+%% `o` and the bytes, and the reader is killed, so that the frame comes
+%% before the `DOWN`. A regression test of the rule of 2026-11-02, before
+%% which the piece went to the ended reader and the next read timed out;
+%% a caller that ends with its answer in its mailbox is every call's, and
+%% not covered
+piece_ahead_of_the_down_kept_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Cat} = start(<<"cat">>, []),
+               {links, Links} = process_info(Cat, links),
+               [Helper] = [Link || Link <- Links, is_port(Link)],
+               Reader = ern_rt:spawn_monitored(fun() -> read(Cat, 60000) end,
+                                               fun(Down) -> {reader, Down} end, <<"reader">>),
+               ok = ern_waits:watching(Cat, ern_rt:process_of(Reader)),
+               erlang:suspend_process(Cat),
+               Cat ! {Helper, {data, <<"ox\n">>}},
+               ern_rt:kill(Reader),
+               receive {reader, _} -> ok end,
+               erlang:resume_process(Cat),
+               Self ! {read, read(Cat, 1000)},
+               ern_rt:kill(Cat)
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({'Right', {'Stdout', <<"x\n">>}}, wait(read)).
+
+%% A reader of Program killed while its read waits, once the program's
+%% process watches it, and returned from once that process no longer
+%% does, so that its `DOWN` comes before what the caller sends after.
+killed_in_a_read(Program) ->
+    Reader = ern_rt:spawn_monitored(fun() -> read(Program, 60000) end,
+                                    fun(Down) -> {reader, Down} end, <<"reader">>),
+    Pid = ern_rt:process_of(Reader),
+    ok = ern_waits:watching(Program, Pid),
+    ern_rt:kill(Reader),
+    receive {reader, _} -> ok end,
+    ok = ern_waits:unwatched(Program, Pid).
 
 %% report Appendix E.23: a terminal the host cannot open is the helper's
 %% to say, with a 't' frame and the host's reason, where 'f' would say the
