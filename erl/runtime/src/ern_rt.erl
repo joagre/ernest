@@ -4081,8 +4081,12 @@ arguments() ->
 %% Report §8.6, Appendix E.23: Os.exit ends the program with its status,
 %% the runner ending every process as it does at the entry process's end;
 %% the caller waits for its own end there, inside foreign code for the
-%% look, since the runner brings it (entered_foreign/0). In the shell and
-%% under `ern test` it faults the caller instead, and so it does in a
+%% look, since the runner brings it (entered_foreign/0), and its own
+%% subscription to the end goes first, since it is neither told nor
+%% waited for, a caller that never returns answering nothing.
+%%
+%% Report §11.2: in the shell and under `ern test` it faults the caller
+%% instead, and so it does in a
 %% process of a session's on a node a shell is attached to, the one a
 %% process of the runtime's own acts for among them (§11.2, screen_of/1);
 %% but a process of the shell's own in the shell's own run, a plain shell's
@@ -4103,6 +4107,7 @@ exit_program(Status) ->
             fault(format("exited with status ~B", [Status]));
         false ->
             {Runner, Launch} = launch_runner(),
+            true = ets:delete(?TERMINATING, erlang:self()),
             Runner ! {exit, Launch, Status},
             entered_foreign(),
             receive after infinity -> ok end

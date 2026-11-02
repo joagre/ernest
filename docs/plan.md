@@ -98,8 +98,7 @@ server's CLAUDE.md carries the procedure its side follows.
    Three more lines met 2026-11-02 and decided the same day: a call on a socket or a listener
    another process closed keeps its fault, E.18 states how much a socket takes before a write
    waits, and the caller of an `Os.exit` that began the end is neither told nor waited for
-   (§8.6), a rule of §8 built 2026-11-03 after its night (the log's *A Close, an Exit and a
-   Write*).
+   (§8.6), built the same day (the log's *A Close, an Exit and a Write*).
 5. **The terminal tests over `Os.startTerminal`**, dropping `test/ern_pty.py`, an item of its own
    once item 2 stands. First in it, a defect seen on 2026-11-01 under a load average of 37
    from four agents' runs, and again in the full run of 2026-11-02: `close_input_hangs_up_test`

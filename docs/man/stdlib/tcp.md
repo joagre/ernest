@@ -345,12 +345,14 @@ the call was made.
 Tcp.write(socket : Address(SocketMsg), bytes : Bytes, ms : Int) : Either(Io.Error, Unit)
 ```
 
-Writes `bytes` to the connection, and answers `Right(Unit)` once the socket
-has taken them, at most `ms` milliseconds. The socket takes a write whole,
-whatever its size, and holds what the far end has not taken; a write waits
-only behind earlier writes the host holds back, 8 KB or more of them not yet
-taken, so `ms` bounds that wait and never the far end's taking of the bytes.
-That the socket took them does not mean that the far end has them.
+Writes `bytes` to the connection by the host's send, and answers
+`Right(Unit)` once the host has taken them, at most `ms` milliseconds; what
+the host takes and holds back is what the socket does. The host takes a
+write whole, whatever its size, and holds what the far end has not taken; a
+write waits only behind earlier writes the host holds back, 8 KB or more of
+them not yet taken, so `ms` bounds that wait and never the far end's taking
+of the bytes. That the socket took them does not mean that the far end has
+them.
 
 It answers `Left(Timeout)` where the milliseconds pass first, which does not
 undo the write: the bytes may still be sent, after those written before. It

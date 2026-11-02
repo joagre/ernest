@@ -239,7 +239,9 @@ Tells the calling process of the program's end before it comes: at the end,
 `wrap(reply)` is put in its mailbox, and the program ends once the process
 has answered `reply`, or has ended. The end comes when the entry process
 ends, at `Os.exit`, or at a termination from outside, which the machine's
-service manager, `ern stop` and `kill -TERM` send (report §8.6).
+service manager, `ern stop` and `kill -TERM` send (report §8.6). A process
+that calls `Os.exit` itself is not told and not waited for: its
+subscription ends at the call.
 
 The process writes there what it is to keep, with `Fs`, in the form it
 chooses, and reads it at its next start; the runtime keeps nothing. Every

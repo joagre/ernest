@@ -327,6 +327,22 @@ screen_exit_test() ->
                  wait(exited)),
     ?assertEqual({exit, 4}, Outcome).
 
+%% report §8.6: the caller of an Os.exit that began the end is neither told
+%% nor waited for, its subscription ending at the call. A regression test,
+%% written with the sentence: the end waited for its own caller, which
+%% never returns, until a second termination
+exiting_subscriber_is_not_waited_for_test() ->
+    Self = self(),
+    Outcome = ern_rt:run_main(
+                fun() ->
+                    ern_rt:termination(ern_rt:adapted(ern_rt:self(),
+                                                      fun(Reply) -> {told, Reply} end)),
+                    ern_rt:exit_program(3)
+                end, <<"main">>, #{stdout => fun(_) -> ok end,
+                                   say => fun(Line) -> Self ! {said, iolist_to_binary(Line)} end}),
+    ?assertEqual({exit, 3}, Outcome),
+    ?assertEqual([], said()).
+
 %% report Appendix E.21, §11.2: Process.live() leaves out a session's own
 %% processes, each marked so by the session, and lists what they start.
 %% Written before the code; the unmarking went with the evaluators a
