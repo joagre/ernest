@@ -75,9 +75,20 @@ server's CLAUDE.md carries the procedure its side follows.
    `examples/fetch.ern` beside it (the log's *The Four Libraries*).
 4. **The server, ernest-httpd's milestone 1 whole**, by its own repository's plan, written once
    item 1's sentences stand and built once items 2 and 3 do, against Ernest installed from
-   `make release`'s archive and never a checkout; what it meets of Ernest's, an attached shell at
-   the server's node among it, comes here as a line of `language_feedback.md`, is fixed in the
-   checkout and the archive made again, with no public release between. Four lines met
+   `make release`'s archive and never a checkout.
+
+   What it meets of Ernest's, an attached shell
+   at the server's node among it, is a line of its own `language_feedback.md`, numbered there
+   from 1 and kept until Ernest answers. The line is read here, its program run, the log
+   searched for the decision it sharpens, and the verdict built at once: a library sentence
+   the same day, the line taking Ernest's feedback number as it is decided, its log entry
+   arguing it. The answer goes to `docs/tmp/language_feedback_reply.md`, untracked, the
+   pending lines alone under the server's own numbers, each naming the report section, the
+   log entry to cite and Ernest's number, with one sentence saying what that number is; the
+   user hands it to the server's session, which may answer a verdict with a new line, read
+   the same way. Then the archive is made again, with no public release between.
+
+   Four lines met
    2026-11-02 and decided the same day: a path through a regular file or a loop of links
    answers `NotFound`, a search of a `String` matches whole graphemes and a request target
    is visible ASCII, `Io.show` writes a constructor by its name alone, `Path.join` writes a
