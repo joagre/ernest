@@ -3930,7 +3930,7 @@ example.ern:3:20: the alternatives of a clause bind different variables: `x` is 
   | = help: bind each name in every alternative, as `Some(1) as x or Some(2) as x`
 ```
 
-### A `match` that misses a constructor (§5.10)
+### A `match` that misses a constructor (§5.9)
 
 ```ernest-rejected
 fn get(o : Optional(Int)) : Int =
@@ -3947,7 +3947,7 @@ example.ern:2:5: match on Optional(Int) is not exhaustive; missing None
   |     ^^^^^^^^^
 ```
 
-### A clause that can never match (§5.10)
+### A clause that can never match (§5.9)
 
 ```ernest-rejected
 fn get(o : Optional(Int)) : Int =
@@ -3966,6 +3966,26 @@ example.ern:4:9: this clause can never match
 4 |       | None -> 1
   |         ^^^^
   | = help: remove it, or move it above the patterns that cover it
+```
+
+### A clause whose guard is `false` (§5.9, §6.3)
+
+```ernest-rejected
+fn pause(ms : Int) : Unit receiving Int =
+    receive {
+        _ when false -> Unit
+      | after ms -> Unit
+    }
+```
+
+```console
+$ ern build example.ern
+example.ern:3:9: this clause can never match
+2 |     receive {
+3 |         _ when false -> Unit
+  |         ^
+  |                ----- this guard never holds
+  | = help: remove it
 ```
 
 ## Bitstrings (report §5.11)

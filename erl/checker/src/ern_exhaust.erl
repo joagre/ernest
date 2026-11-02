@@ -53,6 +53,18 @@ redundant(Clauses, Env) ->
 %% beside its pattern, once each of its alternatives is judged. A guarded
 %% clause adds none, since its guard may fail; the alternatives before one
 %% in its own clause cover what they match.
+%%
+%% Report §5.9: a clause whose guard is the literal `false` is redundant
+%% whatever its pattern, and is refused once, its alternatives unjudged; a
+%% guard of any other form is not read.
+rows_through(#clause{pattern = Pattern, guard = #e_literal{kind = bool, value = false} = Guard},
+             _Earlier, _Env) ->
+    throw({type_error,
+           #diagnostic{span = ern_diagnostic:span(ern_ast:span(Pattern)),
+                       message = "this clause can never match",
+                       labels = [{ern_diagnostic:span(ern_ast:span(Guard)),
+                                  "this guard never holds"}],
+                       help = "remove it"}});
 rows_through(#clause{pattern = Pattern, guard = Guard}, Earlier, Env) ->
     Alternatives = alternatives(Pattern),
     IsAlternative = length(Alternatives) > 1,

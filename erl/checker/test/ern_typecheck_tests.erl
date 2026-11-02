@@ -300,6 +300,48 @@ redundant_clause_test() ->
                    "with those before it, this one matches every value it would"}],
                  CoveredByAll#diagnostic.labels).
 
+%% report §5.9, §6.3: a clause whose guard is the literal `false` is
+%% redundant whatever its pattern, in `match` and in `receive`, and is
+%% refused once though it has alternatives; a guard of any other form is
+%% not read. A regression test, from the release review before 0.8.0
+%% (P2): a `receive` whose one clause such a guard held, its `after` doing
+%% the waiting, was accepted
+false_guard_test() ->
+    Refused = {"this clause can never match", "remove it"},
+    ?assertEqual(Refused,
+                 refusal_and_help("fn f(x : Optional(Int)) : Int ="
+                                  " match x { Some(n) when false -> n | Some(n) -> n"
+                                  " | None -> 0 }")),
+    %% the clause is refused, though the `after` waits; removed, it leaves
+    %% the `after` alone, which §6.3 refuses (ern_parser_tests'
+    %% receive_takes_a_message_test)
+    {error, [Waiting]} = check("fn f() : Unit receiving Int ="
+                               " receive { _ when false -> Unit | after 100 -> Unit }"),
+    ?assertEqual({"this clause can never match", "remove it",
+                  [{{1, 48, {1, 53}}, "this guard never holds"}]},
+                 {Waiting#diagnostic.message, Waiting#diagnostic.help,
+                  Waiting#diagnostic.labels}),
+    ?assertEqual({1, 41, {1, 42}}, Waiting#diagnostic.span),
+    %% parentheses make no node, so the literal parenthesized is the literal
+    ?assertEqual(Refused, refusal_and_help("fn f(x : Int) : Int = match x { 0 when (false) -> 1"
+                                           " | _ -> 0 }")),
+    %% a clause with alternatives is refused once, as the clause its guard
+    %% makes redundant, and not for the alternative its pattern does
+    ?assertEqual(["this clause can never match"],
+                 refusals("fn f(x : Optional(Int)) : Int ="
+                          " match x { Some(_) or Some(1) when false -> 1 | Some(n) -> n"
+                          " | None -> 0 }")),
+    %% no guard but the literal is read: not `true`, not `!true`, not a
+    %% name bound to `false`, and not one that is false for every value its
+    %% pattern binds
+    ?assertEqual(ok, ok("fn f(x : Int) : Int = match x { n when true -> n | _ -> 0 }")),
+    ?assertEqual(ok, ok("fn f(b : Bool) : Int = match b { x when x == false -> 1 | _ -> 0 }")),
+    ?assertEqual(ok, ok("fn f(x : Int) : Int = match x { n when !true -> n | _ -> 0 }")),
+    ?assertEqual(ok, ok("let off = false\n"
+                        "fn f(x : Int) : Int = match x { n when off -> n | _ -> 0 }")),
+    ?assertEqual(ok, ok("fn f() : Unit receiving Bool ="
+                        " receive { x when x == false -> Unit | after 100 -> Unit }")).
+
 %% report §4.7, §3.10, §9.2: a foreign type's parameter written `k=` puts
 %% the equality constraint on its argument wherever the type is written,
 %% as Map's key has it. A regression test: a table keyed by functions was
@@ -4431,19 +4473,21 @@ receive_guard_test() ->
                  " before the `receive` and compare that; or receive the message and `match`"
                  " it, which takes it out of the mailbox", Diagnostic#diagnostic.help).
 
-%% report §6.3: each form of a guard expression: `true`, `false`, a Bool
-%% operand, `!` before a guard expression, and a comparison whose operands
-%% are negative numeric literals and nullary constructors as well as
-%% variables and literals
+%% report §6.3, §5.9: each form of a guard expression: `true`, `false`, a
+%% Bool operand, `!` before a guard expression, and a comparison whose
+%% operands are negative numeric literals and nullary constructors as well
+%% as variables and literals; a guard that is `false` alone is a guard
+%% expression, and its clause is refused as redundant
 receive_guard_forms_test() ->
     Head = "type Msg = N(Int) | F(Float) | O(Ordering)\n"
            "fn loop(flag : Bool) : Unit receiving Msg = receive { ",
     Tail = " -> Unit | _ -> Unit }",
-    Accepted = ["N(_) when true", "N(_) when false", "N(_) when flag", "N(_) when !flag",
-                "N(k) when !(k > 1)", "N(k) when !(!(k == 1)) && !flag || !false",
-                "N(k) when k > -1", "F(y) when y < -1.5", "F(y) when -1.5 != y",
-                "O(o) when o == Less"],
-    [?assertEqual({Guard, ok}, {Guard, ok(Head ++ Guard ++ Tail)}) || Guard <- Accepted].
+    Accepted = ["N(_) when true", "N(_) when false || flag", "N(_) when flag",
+                "N(_) when !flag", "N(k) when !(k > 1)",
+                "N(k) when !(!(k == 1)) && !flag || !false", "N(k) when k > -1",
+                "F(y) when y < -1.5", "F(y) when -1.5 != y", "O(o) when o == Less"],
+    [?assertEqual({Guard, ok}, {Guard, ok(Head ++ Guard ++ Tail)}) || Guard <- Accepted],
+    ?assertEqual("this clause can never match", refusal(Head ++ "N(_) when false" ++ Tail)).
 
 %% report §6.3: a comparison's operands are operands, so a comparison, a
 %% negation, arithmetic, or a negated variable is not one; a top-level `let`
