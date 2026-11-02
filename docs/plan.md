@@ -75,18 +75,14 @@ server's CLAUDE.md carries the procedure its side follows.
    `examples/fetch.ern` beside it (the log's *The Four Libraries*).
 4. **The server, ernest-httpd's milestone 1 whole**, by its own repository's plan, written once
    item 1's sentences stand and built once items 2 and 3 do, against Ernest installed from
-   `make release`'s archive and never a checkout.
+   `make release`'s archive and never a checkout. How the two sessions work, the archive,
+   the lines and the reply, is `docs/clean_room.md`'s.
 
-   What it meets of Ernest's, an attached shell
-   at the server's node among it, is a line of its own `language_feedback.md`, numbered there
-   from 1 and kept until Ernest answers. The line is read here, its program run, the log
-   searched for the decision it sharpens, and the verdict built at once: a library sentence
-   the same day, the line taking Ernest's feedback number as it is decided, its log entry
-   arguing it. The answer goes to `docs/tmp/language_feedback_reply.md`, untracked, the
-   pending lines alone under the server's own numbers, each naming the report section, the
-   log entry to cite and Ernest's number, with one sentence saying what that number is; the
-   user hands it to the server's session, which may answer a verdict with a new line, read
-   the same way. Then the archive is made again, with no public release between.
+   An archive `make release` makes from the checkout says `0.9.0` alone, as a release would,
+   and its pages link to a tag that does not exist yet, so the application cannot tell which
+   archive it installed; the reply names the commit meanwhile. The archive is to say its
+   commit after the version where the checkout is not at the version's tag, the pages' links
+   following, in `tools/install.sh` and `ern_release`, built in the next round of lines.
 
    Four lines met
    2026-11-02 and decided the same day: a path through a regular file or a loop of links

@@ -47,6 +47,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 | [`assets/README.md`](assets/README.md) | the logo files |
 | [`tools/release/README.md`](tools/release/README.md) | what a reader of the release archive, or of an installation, needs first |
 | [`docs/language_feedback.md`](docs/language_feedback.md) | what writing Ernest has felt against the principles, each line until a plan item decides it |
+| [`docs/clean_room.md`](docs/clean_room.md) | how an application with a repository of its own is built against Ernest's release archive by a session of its own, and how its findings reach Ernest and the verdicts go back |
 | `findings.md` in `docs/`, while a review's findings are open | the findings, each line until a plan item decides it; it goes when every line is done, dropped or planned |
 
 **A new owner.** A kind of fact that lands in the log entry after entry with no document stating its present shape has no owner, and gets one: a component's design note under `docs/design/`, as the shell's and the runtime's are, proposed when its third entry is written and not when a reader asks. Such a note is written at the shape's altitude, what a reader must know to change the component without breaking a promise, the kind of fact that lives where and the rule a mechanism rests on, never what one function does, so that it changes with the design and not with a line of code; a list in it that could drift from the code is held equal by a test.
@@ -55,7 +56,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 
 Until a proposal is decided all of it is tentative, and nothing flows from it into the report, the plan or the log; nothing in it is ever authoritative, built or not.
 
-A program with a repository of its own is written only by its own sessions: a session here reads it and never edits, commits or builds in it. It holds its proposal there; what it asks of Ernest stays here under the program's name, the two citing each other by address. A proposal begun here before the repository exists is written whole, where the thinking happens, and split along that line in the commit that makes the repository.
+A program with a repository of its own is written only by its own sessions: a session here reads it and never edits, commits or builds in it; how the two sessions work is [`docs/clean_room.md`](docs/clean_room.md)'s. It holds its proposal there; what it asks of Ernest stays here under the program's name, the two citing each other by address. A proposal begun here before the repository exists is written whole, where the thinking happens, and split along that line in the commit that makes the repository.
 
 A built proposal is kept as the record of its design, its status line saying so, until its milestone's row names the log entries that argue it and nothing else cites the directory; then it goes, after a reading decided with the user of what it holds that no owner has yet, an experiment's finding or a table of what other systems do, which goes first to the design note or the log that keeps it.
 
