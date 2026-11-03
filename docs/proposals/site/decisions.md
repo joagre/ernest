@@ -141,7 +141,10 @@ The site's files as served.
   version the site is built from, "0BSD license", "Report a defect" for
   the issues, and "Served by ernest-httpd, written in Ernest" (decided
   2026-11-03).
-- Previous and next stand above the footer on a tour, guide or report page.
+- Previous and next stand above the footer on a tour, guide or report page,
+  and not at its top, where a reader has just arrived; there the book's
+  title above the chapter's heading links to its contents page (decided
+  2026-11-03).
 - On a narrow screen the header is the stoat with "Ernest" and a
   `<details>` menu holding its links, folded as the contents list is, by
   the browser and no script (decided 2026-11-03).
