@@ -1,9 +1,7 @@
 // What the script adds to a page: the shell panel and its two buttons,
-// beside and below, a code block's Copy and Paste, a transcript's Paste
-// for each input, its prompt the control, and the example's Start. The
-// page reads whole without it. In the mockup the panel's terminal is not
-// connected: a Paste shows its input there, and Start and Stop change
-// nothing but the panel's state.
+// beside and below, with its session over the server's WebSocket, a code
+// block's Copy and Paste, a transcript's Paste for each input, its prompt
+// the control, and the example's Try it. The page reads whole without it.
 
 const icons = new URL("../img/icons.svg", document.currentScript.src);
 
@@ -61,6 +59,8 @@ const panel = {
   terminal: null,
   state: null,
   buttons: {},
+  running: false,
+  onPage: false,
   opener: null,
 };
 
@@ -98,7 +98,7 @@ function openPanel(wanted) {
   showLayout(layout);
   remember("ernest.panel", layout);
   remember("ernest.panel.open", "yes");
-  panel.terminal.focus();
+  focusTerminal();
 }
 
 function closePanel() {
@@ -115,13 +115,180 @@ function toggle(layout) {
   }
 }
 
-// The session's state, as the panel's bar names it; the mockup's Start
-// and Stop move it between the two it can show without a server.
-function setState(running) {
-  panel.running = running;
-  panel.state.textContent = running ? "running · not connected in the mockup" : "not started";
-  panel.start.replaceChildren(icon(running ? "rotate-ccw" : "play"), running ? "Restart" : "Start");
-  panel.stop.disabled = !running;
+// The session: xterm.js over the server's WebSocket, as ernest-httpd's
+// design §11 has it. The terminal's bytes go each way as binary messages;
+// the page's own messages are text, one JSON object each: the terminal's
+// size at the open and at each change, which attaches the session, an
+// extend and a stop. The server's one text message is the warning of the
+// seconds left, and its close code says why a session ended. xterm.js is
+// loaded only when a session starts, so that a page read without the
+// shell fetches none of it.
+const here = document.currentScript.src;
+const shellPath = "/shell/session"; // the server's shell.path, which the generator will write
+const endings = {
+  4001: "expired",
+  4002: "taken over by another tab",
+  4003: "unavailable",
+  4004: "stopped",
+};
+const encoder = new TextEncoder();
+const session = { socket: null, terminal: null, fit: null, pastes: [], restarting: false };
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = src;
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.append(script);
+  });
+}
+
+let xtermLoaded = null;
+
+function loadXterm() {
+  if (xtermLoaded === null) {
+    const style = document.createElement("link");
+    style.rel = "stylesheet";
+    style.href = new URL("../css/xterm.css", here);
+    document.head.append(style);
+    xtermLoaded = loadScript(new URL("xterm.js", here))
+      .then(() => loadScript(new URL("addon-fit.js", here)));
+  }
+  return xtermLoaded;
+}
+
+function token(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+async function startSession() {
+  await loadXterm();
+  if (session.terminal === null) {
+    panel.terminal.replaceChildren();
+    const terminal = new Terminal({
+      screenReaderMode: true,
+      macOptionIsMeta: true,
+      fontFamily: token("--mono"),
+      fontSize: 14,
+      theme: { background: token("--terminal"), foreground: token("--terminal-ink") },
+    });
+    const fit = new FitAddon.FitAddon();
+    terminal.loadAddon(fit);
+    terminal.open(panel.terminal);
+    terminal.onData((data) => sendKeys(encoder.encode(data)));
+    terminal.onBinary((data) => sendKeys(Uint8Array.from(data, (char) => char.charCodeAt(0))));
+    terminal.onResize((size) => sendText({ resize: [size.rows, size.cols] }));
+    new ResizeObserver(() => {
+      if (!panel.element.hidden) {
+        fit.fit();
+      }
+    }).observe(panel.terminal);
+    Object.assign(session, { terminal, fit });
+  }
+  session.fit.fit();
+  connect();
+}
+
+function connect() {
+  const scheme = location.protocol === "https:" ? "wss://" : "ws://";
+  const socket = new WebSocket(scheme + location.host + shellPath);
+  socket.binaryType = "arraybuffer";
+  session.socket = socket;
+  setState("connecting");
+  socket.onopen = () => {
+    session.terminal.reset();
+    sendText({ resize: [session.terminal.rows, session.terminal.cols] });
+    setState("running");
+    focusTerminal();
+  };
+  socket.onmessage = (event) => {
+    if (event.data instanceof ArrayBuffer) {
+      session.terminal.write(new Uint8Array(event.data), pasteWaiting);
+    } else {
+      const message = JSON.parse(event.data);
+      if ("warning" in message) {
+        warn(message.warning);
+      }
+    }
+  };
+  socket.onclose = (event) => {
+    if (socket !== session.socket) {
+      return;
+    }
+    panel.warning.hidden = true;
+    setState(endings[event.code] ?? "disconnected");
+    if (session.restarting) {
+      session.restarting = false;
+      connect();
+    }
+  };
+}
+
+// What is sent while the socket is not open is dropped.
+function send(data) {
+  if (session.socket?.readyState === WebSocket.OPEN) {
+    session.socket.send(data);
+  }
+}
+
+function sendText(message) {
+  send(JSON.stringify(message));
+}
+
+// A key moves the session's end as an extend does, so it takes the
+// warning down.
+function sendKeys(bytes) {
+  panel.warning.hidden = true;
+  send(bytes);
+}
+
+function warn(seconds) {
+  panel.warningText.textContent = "The session ends in " + seconds + " seconds.";
+  panel.warning.hidden = false;
+}
+
+// A paste is one input, bracketed as the shell asks the terminal to, so
+// that nothing runs until Enter; one made before the shell has asked waits
+// for its prompt.
+function pasteWaiting() {
+  if (session.terminal.modes.bracketedPasteMode) {
+    for (const text of session.pastes.splice(0)) {
+      session.terminal.paste(text);
+    }
+  }
+}
+
+function stopSession() {
+  sendText({ stop: true });
+}
+
+// A restart stops the session and connects anew at the close, or at once
+// where no socket is open.
+function restartSession() {
+  if (session.socket === null || session.socket.readyState === WebSocket.CLOSED) {
+    startSession();
+  } else {
+    session.restarting = true;
+    stopSession();
+  }
+}
+
+function focusTerminal() {
+  if (session.terminal !== null) {
+    session.terminal.focus();
+  } else {
+    panel.terminal.focus();
+  }
+}
+
+// The session's state, as the panel's bar names it.
+function setState(state) {
+  panel.running = state === "connecting" || state === "running";
+  panel.state.textContent = state;
+  const started = session.socket !== null;
+  panel.start.replaceChildren(icon(started ? "rotate-ccw" : "play"), started ? "Restart" : "Start");
+  panel.stop.disabled = !panel.running;
   showWaiting();
 }
 
@@ -131,14 +298,16 @@ function pasteIntoShell(text) {
     location.assign("shell.html");
     return;
   }
-  if (panel.layout === null) {
+  if (panel.layout === null && !panel.onPage) {
     openPanel(remembered("ernest.panel", "beside"));
   }
-  const line = document.createElement("div");
-  line.textContent = "> " + text.trimEnd().replaceAll("\n", "\n  ");
-  panel.terminal.append(line);
-  panel.terminal.scrollTop = panel.terminal.scrollHeight;
-  panel.terminal.focus();
+  session.pastes.push(text.trimEnd());
+  if (!panel.running) {
+    startSession();
+  } else {
+    pasteWaiting();
+  }
+  focusTerminal();
 }
 
 // The handle on the panel's inner edge sets its width beside, or its
@@ -190,25 +359,41 @@ function addPanel() {
   const start = document.createElement("button");
   start.type = "button";
   start.className = "panel-button";
-  start.addEventListener("click", () => setState(true));
+  start.addEventListener("click", restartSession);
   const stop = document.createElement("button");
   stop.type = "button";
   stop.className = "panel-button";
   stop.append(icon("square"), "Stop");
-  stop.addEventListener("click", () => setState(false));
+  stop.addEventListener("click", stopSession);
   const hide = iconButton("panel-right", "Hide the shell; it keeps running", "icon-button", closePanel);
   bar.append(state, start, stop, hide);
+
+  // The warning before a session's end, a banner and no dialog.
+  const warning = document.createElement("div");
+  warning.className = "panel-warning";
+  warning.hidden = true;
+  const warningText = document.createElement("span");
+  const extend = document.createElement("button");
+  extend.type = "button";
+  extend.className = "panel-button";
+  extend.textContent = "Extend";
+  extend.addEventListener("click", () => {
+    warning.hidden = true;
+    sendText({ extend: true });
+    focusTerminal();
+  });
+  warning.append(warningText, extend);
 
   const terminal = document.createElement("div");
   terminal.className = "panel-terminal";
   terminal.tabIndex = 0;
   terminal.setAttribute("aria-label", "The shell's terminal");
-  terminal.textContent = "The shell is not connected in the mockup. A Paste shows its input here.";
+  terminal.textContent = "Start opens a session, or a Paste does.";
 
-  element.append(handle, bar, terminal);
+  element.append(handle, bar, warning, terminal);
   page.after(element);
-  Object.assign(panel, { element, terminal, state, start, stop, hide });
-  setState(false);
+  Object.assign(panel, { element, terminal, state, start, stop, hide, warning, warningText });
+  setState("not started");
 
   for (const dimension of ["width", "height"]) {
     const share = Number(remembered("ernest.panel." + dimension, ""));
@@ -277,12 +462,7 @@ function addStart(run) {
   button.type = "button";
   button.className = "button primary";
   button.append(icon("terminal"), "Try it");
-  button.addEventListener("click", () => {
-    if (!phone.matches && !panel.running) {
-      setState(true);
-    }
-    pasteIntoShell(code.textContent);
-  });
+  button.addEventListener("click", () => pasteIntoShell(code.textContent));
   run.replaceChildren(button);
 }
 
@@ -303,9 +483,18 @@ for (const run of document.querySelectorAll('[data-shell="start"]')) {
   addStart(run);
 }
 
-const waitingInput = remembered("ernest.paste", "");
-const frame = document.querySelector(".terminal-frame pre");
-if (waitingInput !== "" && frame !== null) {
-  frame.append("\n> " + waitingInput.trimEnd().replaceAll("\n", "\n  "));
-  remember("ernest.paste", "");
+// The shell's own page holds the panel in its frame, open, and takes an
+// input a phone's Paste left waiting.
+const frame = document.querySelector(".terminal-frame");
+if (frame !== null) {
+  panel.onPage = true;
+  document.querySelector(".panel-toggle").hidden = true;
+  frame.replaceChildren(panel.element);
+  panel.element.hidden = false;
+  panel.hide.hidden = true;
+  const waitingInput = remembered("ernest.paste", "");
+  if (waitingInput !== "") {
+    remember("ernest.paste", "");
+    pasteIntoShell(waitingInput);
+  }
 }
