@@ -500,7 +500,9 @@ The site's files as served.
   tested as transcripts, so every input offered is one the tests have run
   (decided 2026-10-27). A transcript whose session a bare shell cannot
   hold has Copy alone: one begun with a module loaded, `ern shell
-  words.erc`, one begun with `ern shell --config-dir`, a node's, or
+  words.erc`, one that loads a module by `:load`, whose file the panel's
+  shell does not have, so that the tour's sessions are followed at the
+  reader's own terminal, as the tour asks (decided 2026-11-03), one begun with `ern shell --config-dir`, a node's, or
   `--attach`, an operator's (§11.2 *The attached shell*), which the nodes
   chapters, the tour and the deployment guide show; the generator reads it
   from the session's first line (decided 2026-11-03).
