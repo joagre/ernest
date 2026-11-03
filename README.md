@@ -32,7 +32,7 @@ In a shell `:load` compiles it, `spawn` starts the loop in a process of its own,
 
 ```console
 $ ern shell
-Ernest 0.9.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.10.0, session 1. :help for the commands, :quit to leave.
 > :load Counter
 Counter, compiled from counter.ern
 > let counter = spawn(fn() = Counter.count(0))
@@ -82,7 +82,7 @@ Then, with `foo` running, `Peer.spawn` starts `count` on `foo`, its code crossin
 
 ```console
 $ ern shell --config-dir a
-Ernest 0.9.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.10.0, session 1. :help for the commands, :quit to leave.
 > :load Counter
 Counter, compiled from counter.ern
 > let far <- Peer.spawn("foo", fn() = Counter.count(0), 5000)
