@@ -23,7 +23,6 @@ MVP 4.2 is its items in build order since that day.
 What the prototype still lacks:
 
 - The generator's `foreign` declaration over the toolchain's lexer, which the coloring needs (decided 2026-10-30).
-- `CHANGES.md` holds no release yet; the release step writes its first section at the next release (2026-10-30).
 - The templates hold the first design, which `decisions.md` has moved past in
   the header's stoat, the favicon, the footer's rooms, the homepage's order and
   the shell's controls; the fragments for a list's items do not exist yet.

@@ -42,6 +42,7 @@ The site's files as served.
     /releases/                      CHANGES.md
     /assets/css/                    site.css, xterm's stylesheet
     /assets/js/                     xterm.js, its fit addon, the session client
+    /assets/img/icons/              the Lucide icons and their LICENSE
     /assets/<logo>                  the repository's logos, at their paths in assets/
 
 - A report page is one of the report's files, whole. A citation's first
@@ -69,8 +70,17 @@ The site's files as served.
   `#4.2` in the guide. A chapter's is its number or letter: `#6`, `#E`.
 - A declaration's anchor is its qualified name as `docs/man/`'s heading writes it:
   `#List.removeAt`, `#Address.call`, `#spawn`. An operator stays as written.
-- Only numbered headings and declarations have anchors. No anchor is made from
-  a heading's words.
+- In a document that numbers its headings, only numbered headings and
+  declarations have anchors, and no anchor is made from a heading's words.
+- In a document that numbers none, Why, the questions, Install and
+  Releases, a heading's anchor is its GitHub slug, computed as the
+  documents test computes it, so that a link written for GitHub holds on
+  the site: `#a-deadlock-is-found`. A reworded heading breaks a link from
+  outside; the build's check catches every link inside (decided
+  2026-11-03).
+- The questions' questions are `###` headings, not bold paragraphs, so
+  that each has an anchor and the page a sidebar; the guide changes so in
+  MVP 4.2 (decided 2026-11-03).
 - A citation becomes a link to its anchor, its page found as the documents test
   finds it: "§6.5" is `/report/language.html#6.5`, "Appendix E.17"
   `/report/library.html#E.17`, "guide §4.2" `/guide/4.html#4.2`, `List.sort`
@@ -103,7 +113,9 @@ The site's files as served.
   homepage's door to it is Try.
 - One footer, the homepage's too, in two lines. First the rooms the header
   leaves out: the questions, Deployment and Releases. Then
-  the page: its source file in the repository with its last commit date, the
+  the page: its source file in the repository with its last commit date at
+  the tag, which the checkout's `git log` gives since an export has no
+  history, the
   version the site is built from, the license, the issues, and "served by
   ernest-httpd, written in Ernest" once true.
 - Previous and next stand above the footer on a tour, guide or report page.
@@ -118,8 +130,7 @@ The site's files as served.
   notes under `releases/<version>.md`, which the release step never wrote).
 - The shell page: the terminal takes most of the space, with the panel's
   controls above it, Start or Restart and Stop, and the warning banner with
-  Extend when it comes (*The live shell*); no time remaining is shown, since
-  the server sends only the warning, and there is no Examples control, the
+  Extend when it comes (*The live shell*), and there is no Examples control, the
   pages' blocks being the examples (changed 2026-10-30). The session and its
   limits are explained beside it. A dropped connection and an expired session are
   told apart; nothing is erased silently on a reconnect; nothing runs but by
@@ -128,9 +139,10 @@ The site's files as served.
 ## The look, 2026-10-13
 
 - Semantic HTML and one shared stylesheet. No framework, font download or icon
-  runtime. No inline script and no inline style, since the server's
-  `Content-Security-Policy` allows only its own files (the server's proposal,
-  *Limits against a crowd*; 2026-10-30).
+  runtime. No inline script, since the server's `Content-Security-Policy`
+  allows only its own scripts (the server's design, *The deployment*), and no inline
+  style in the site's own pages; the policy allows inline style, which
+  xterm.js sets.
 - System sans-serif for prose, system monospace for code and the terminal.
 - The browser's light or dark preference. Neutral backgrounds, dark text, one
   accent color for links, active navigation and focus; the logo's brown and
@@ -201,7 +213,7 @@ The site's files as served.
   makes from the repository, rendered Markdown or code, navigation or a
   template's fragment, or from the server's configuration, the session's
   limits: `make site` is given the server's configuration file, from which
-  the generator reads the shell's lifetime, its warning, the shells at once
+  the generator reads the shell's path, its lifetime, its warning, the shells at once
   and the command's memory flag, so that the shell page says what the server
   enforces and nothing is written twice (decided 2026-10-30).
 - A list in a page, `contents_html`, `navigation_html` or `entries_html`, takes
@@ -212,7 +224,11 @@ The site's files as served.
 - One generator, `site.ern` in `tools/`, beside the manual tool, written in
   Ernest. It reads the repository, writes static files, and ends.
 - In the repository, `site/` holds `templates/` and `root/`; in the
-  prototype they stand in `docs/proposals/site/`.
+  prototype they stand in `docs/proposals/site/`. The site is this
+  repository's whole, its shell page among its pages: the generator reads
+  this repository's documents at a tag, and a test holds it to the
+  mockups. The `ernest-lang.org` repository holds the one page served
+  until the generated site goes live, and then goes (decided 2026-11-03).
 - Every page is generated from what the repository owns: two templates and
   two pages of their own, decided 2026-10-13, all four standing on
   `base.html` with its header and footer.
@@ -256,12 +272,9 @@ The site's files as served.
   copies `build/site/` to the host; it is never edited in place.
 - The pages are complete without JavaScript. The shell panel and the code
   blocks' buttons are the script's additions.
-- Where compression is decided, the generator writes `page.html.gz` beside
-  each page, which the server chooses between (the server's proposal, *HTTP/1.1*);
-  it writes none until then (2026-10-30).
 - No search: the report's whole pages serve the browser's find.
 - The site runs on ernest-httpd, a program under systemd and no node
-  (the server's proposal, *Under systemd*; corrected 2026-10-30).
+  (the server's design, *The deployment*).
 - `make install` ships no page of the site: the pages are the server's, their
   links absolute and the shell panel on each. An installation's documents stay
   each in the form its reader uses: the man pages as roff, the report and the
@@ -272,10 +285,12 @@ The site's files as served.
 
 ## The live shell, 2026-10-13
 
-- The server side of the shell, the pseudo-terminal, the container per visitor and its image, the session's timeouts and a second tab's takeover, is the server's, which has no pool, in the server's proposal's *The live shell's server side*, ernest-httpd's own page, https://github.com/joagre/ernest-httpd/blob/main/docs/proposals/basic/proposal.md (moved there 2026-10-26, and to the server's repository 2026-10-30); every citation of the server's proposal below is of that page.
+- The server side of the shell, the pseudo-terminal, the container per visitor and its image, the session's timeouts and a second tab's takeover, is the server's, which has no pool, in the server's design, ernest-httpd's design page, from *The WebSocket* to *The deployment*, https://github.com/joagre/ernest-httpd/blob/main/docs/design.md; every citation of the server's design below is of that page.
 - xterm.js, its stylesheet, a fit addon and a session client, self-hosted. A
-  WebSocket at `/shell/session` to a pseudo-terminal running `ern shell`
-  unchanged; the server behind it is ernest-httpd's (the server's proposal).
+  WebSocket at the configuration's `shell.path`, which the generator reads
+  from the server's configuration file, to a pseudo-terminal running
+  `ern shell` unchanged; the server behind it is ernest-httpd's (the
+  server's design, *The shell*).
   xterm.js and its addon get a row in `THIRD_PARTY_LICENSES` when they are
   vendored, as the Lucide icons have one (2026-10-30).
 - xterm.js keeps a scrollback, a scrollbar, the wheel and Shift+PageUp, in
@@ -285,19 +300,21 @@ The site's files as served.
   2026-10-26).
 - The client sends the panel's size as its first message and at each
   resize, which the server takes as the session's start and its terminal's
-  size; the messages' forms are the server's proposal's (2026-10-30).
+  size; the messages' forms are the server's design's, *The shell*.
 - Seven states, each announced once: connecting, running and disconnected,
   the page's own, and expired, taken over, unavailable and stopped, one for
-  each close code the server sends, 4001 to 4004 (the server's proposal;
+  each close code the server sends, 4001 to 4004 (the server's design, *The shell* and *The sessions*;
   seven since 2026-10-30, five before the close codes were decided).
 - A session's warning is a banner with Extend, shown when the server's
-  warning comes, and the banner is no dialog; a key or Extend keeps the
-  session, by the lifetime the server's proposal owns (decided 2026-10-27,
+  warning comes, and the banner is no dialog. It says once the seconds the
+  warning carries, as "ends in" and the seconds, and nothing counts down,
+  since a key moves the server's deadline without a word (decided
+  2026-11-03); a key or Extend keeps the session, by the lifetime the server's design owns, *The sessions* (decided 2026-10-27,
   the numbers left to their owner 2026-10-30).
 - A session that expires closes its panel and gives the page back its
-  width, a short line saying for a moment that the shell ended after five
-  quiet minutes and that opening it starts a new one; the layout kept in
-  local storage is unchanged, so the next Paste or Open shell opens the
+  width, a short line saying for a moment that the shell ended after the
+  configuration's lifetime without a key, which the generator reads, and
+  that opening it starts a new one; the layout kept in local storage is unchanged, so the next Paste or Open shell opens the
   panel as the visitor last had it. A takeover and *unavailable* show in
   the panel, where the visitor is present to read them (decided
   2026-10-27).
@@ -311,7 +328,7 @@ The site's files as served.
   with a tooltip and an accessible name, `Paste into the shell`, so that
   the layout stays plain and a screen reader says what each does (decided
   2026-10-27).
-- Stop ends the session, and Restart is a deliberate act that ends the old one; what they end, the container, is the server's (the server's proposal).
+- Stop ends the session, and Restart is a deliberate act that ends the old one; what they end, the container, is the server's (the server's design, *The sessions*).
 - The shell page carries a privacy line: no accounts, one cookie, the layout
   kept in the browser, what the server logs, nothing kept.
 - The shell panel is `base.html`'s, so every page has it, side by side or
@@ -322,11 +339,17 @@ The site's files as served.
   still serves.
 - No panel opens until the visitor asks. On a desktop, Try's Start opens the
   homepage's panel beside the example; on a phone, Try links to `/shell/`.
-- Only an `ernest` block, which the guide tests compile, has Paste or Load.
-  `ernest-fragment`, `ernest-rejected`, `ernest-prelude`, a console and another
-  language's block have Copy alone. An `ernest` block that cannot run in the
-  container is `ernest-shown`: the tests compile it as `ernest`, and it has
-  Copy alone. Copy is on every block.
+- Only an `ernest` block that runs alone in a bare shell has Paste or
+  Load: one the guide tests take as a module of its own. One joined with
+  the other blocks that name its file is a piece of a program and has Copy
+  alone. The generator decides it by the guide tests' own grouping, no mark
+  being written by hand, and a test runs every block given Paste or Load,
+  and every transcript input given Paste, in a bare shell (decided
+  2026-11-03).
+- `ernest-fragment`, `ernest-rejected`, `ernest-prelude`, a console that is
+  not a transcript, and another language's block have Copy alone; a
+  transcript is a console whose inputs are `> ` lines, below. Copy is on
+  every block.
 - A block with `export fn main` is Loaded: pasted as one declaring input,
   since an input may declare what a module may and every declaration is the
   session's (report §11.2), and then `main()` typed and not entered, so that
@@ -341,12 +364,13 @@ The site's files as served.
   input; a transcript is read input by input with what the shell answered,
   so no button pastes them all. The guide's and the tour's transcripts are
   tested as transcripts, so every input offered is one the tests have run
-  (decided 2026-10-27). A transcript of a session the container cannot hold,
-  one begun with `ern shell --config-dir`, a node's, or `--attach`, an
-  operator's (§11.2 *The attached shell*), which the nodes chapters, the tour and
-  the deployment guide show, has Copy alone, as an `ernest-shown` block has;
-  the generator reads it from the transcript's first line (decided
-  2026-10-30).
+  (decided 2026-10-27). A transcript whose session a bare shell cannot
+  hold has Copy alone: one begun with a module loaded, `ern shell
+  words.erc`, one begun with `ern shell --config-dir`, a node's, or
+  `--attach`, an operator's (§11.2 *The attached shell*), which the nodes
+  chapters, the tour and the deployment guide show; the generator reads it
+  from the session's first line (decided 2026-10-30, the module's case
+  2026-11-03).
 - A Paste or a Load is the visitor asking for the shell: where no panel is
   open, the click opens it, side by side or stacked by the window's width,
   and starts the session where none runs, the input arriving once the
