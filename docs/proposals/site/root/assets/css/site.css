@@ -52,6 +52,11 @@
   box-sizing: border-box;
 }
 
+/* What the script hides stays hidden, whatever its own display. */
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   background: var(--paper);
@@ -827,31 +832,6 @@ th {
 /* The shell page and the 404 page
    ---------------------------------------------------------------------- */
 
-.shell-heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.shell-heading h1 {
-  margin-bottom: .5rem;
-}
-
-.shell-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: .6rem;
-  margin: 1rem 0 .65rem;
-}
-
-.session-state {
-  margin-left: auto;
-  font-size: .85rem;
-  color: var(--muted);
-}
-
 .terminal-frame {
   min-height: min(56vh, 520px);
   padding: 1.2rem;
@@ -877,8 +857,22 @@ th {
   margin-top: 1rem;
 }
 
-.shell-notes summary {
-  cursor: pointer;
+.shell-notes h2 {
+  margin-top: 0;
+  font-size: 1.05rem;
+}
+
+.shell-notes ul {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.shell-notes li {
+  margin-bottom: .4rem;
+}
+
+.shell-page .lead {
+  margin-bottom: 1.25rem;
 }
 
 .error-page {
@@ -930,11 +924,6 @@ th {
 
   .door {
     gap: .5rem;
-  }
-
-  .session-state {
-    margin-left: 0;
-    width: 100%;
   }
 
   main {
@@ -1048,10 +1037,6 @@ body.panel-below .page {
   color: var(--terminal-ink);
 }
 
-.shell-panel[hidden] {
-  display: none;
-}
-
 body.panel-beside .shell-panel {
   border-left: 1px solid var(--line);
 }
@@ -1130,10 +1115,6 @@ body.panel-below .panel-handle {
   background: var(--terminal-warning);
   color: var(--terminal-ink);
   font-size: .85rem;
-}
-
-.panel-warning[hidden] {
-  display: none;
 }
 
 /* The shell's own page holds the panel in its frame. */

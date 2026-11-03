@@ -427,7 +427,12 @@ The site's files as served.
   2026-10-27).
 - Stop ends the session, and Restart is a deliberate act that ends the old one; what they end, the container, is the server's (the server's design, *The sessions*).
 - The shell page carries a privacy line: no accounts, one cookie, the layout
-  kept in the browser, what the server logs, nothing kept.
+  kept in the browser, what the server logs, nothing kept. It is the
+  heading, one line, the panel in the page's frame with no hide and no
+  header buttons, and beneath it two short columns, the session's limits
+  as a list and the privacy line; without the script the frame says to
+  install Ernest and run `ern shell`. Nothing starts until the visitor
+  presses Start or a Paste brings an input (decided 2026-11-03).
 - The shell panel is `base.html`'s, so every page has it, side by side or
   stacked, one toggle for every page, kept in the browser's local storage and
   never sent to the server; Paste and Load are a code block's, so a page
