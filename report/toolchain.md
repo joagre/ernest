@@ -1,6 +1,6 @@
 # Ernest Report: The Toolchain
 
-Revision of 3 November 2026.
+Revision of 4 November 2026.
 
 This file holds the report's §10 to §12 and Appendices C and H. §0 to §9 and Appendices A, B and F are in [`language.md`](language.md), and Appendices D, E and G in [`library.md`](library.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
@@ -295,7 +295,7 @@ A unit, once loaded, is held for the node's life, but for one `ern test` made ov
 
 A load or an arrival that would pass one of the host's limits on what it loads (above) fails as one the node cannot load (§8.7). Nothing of a node's code is on its disk but its build directory: a node restarted holds its build and is sent the rest again.
 
-**Startup and history.** At start the shell says `Ernest v, session n. :help for help.`, `v` the toolchain's version text (§11.7) and `n` the session's number on its node (**The attached shell**). After the file's entry point is spawned, it runs the inputs in `$HOME/.ernest/startup`, and then, where `--config-dir` names the configuration directory, those in its `startup`, neither file required. A file's inputs are taken from its lines as line mode takes them. A file both paths name is run once. Such an input is checked and run as a typed one, a command among them, and its value is not printed; one that fails is reported with the file and the line it came from, and the session goes on.
+**Startup and history.** At start the shell says `Ernest v, session n. :help for help.`, `v` the toolchain's version text (§11.7) and `n` the session's number on its node (**The attached shell**). Keys and a paste that arrive before the first prompt are kept, and are read after it as if typed there. After the file's entry point is spawned, it runs the inputs in `$HOME/.ernest/startup`, and then, where `--config-dir` names the configuration directory, those in its `startup`, neither file required. A file's inputs are taken from its lines as line mode takes them. A file both paths name is run once. Such an input is checked and run as a typed one, a command among them, and its value is not printed; one that fails is reported with the file and the line it came from, and the session goes on.
 
 A startup file that is not UTF-8 is reported and not run. So is one another user could change: a file, or the directory that holds it, that is not the user's own or the superuser's, or that anyone but its owner may write. A startup file is checked as it is found, before the shell changes a mode; `$HOME/.ernest` is then made its owner's alone to read, write and enter, where it is there, and the directory `--config-dir` names keeps its mode.
 

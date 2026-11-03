@@ -279,7 +279,8 @@ The site's files as served.
 - The HTML is written to be read, by hand in a template and by the
   generator in a page alike, so that a page's source reads as its
   template does (decided 2026-11-03). Each block element stands on a line
-  of its own, indented two spaces a level; inline content stays on its
+  of its own, indented four spaces a level, as `docs/style.md`'s *Every language* says
+  of every file, the CSS and the script among them (decided 2026-11-04); inline content stays on its
   block's line, a paragraph one line however long. A `<pre>` begins at its
   line's indentation and holds its body as shown, from the line's start.
 - HTML5 as written today: lower case, every attribute quoted, no `/>` on
@@ -455,11 +456,17 @@ The site's files as served.
   layout was, so that it covers nothing the visitor was reading: the
   sentence, an icon that opens the shell and one that closes the notice.
   It stays until the visitor clicks one of them or anywhere on the page,
-  no timer deciding when a person has read it, and is announced as a
-  polite live region (decided 2026-10-27).
+  or presses Escape outside the terminal, no timer deciding when a person
+  has read it, and is announced as a polite live region; the warning alone
+  is an alert, the one message with a deadline. Its open icon opens the
+  panel and starts a session, as its sentence says. `/shell/` shows no
+  notice, its frame holding the end's mark (decided 2026-10-27, the rest
+  2026-11-04).
 - Each input of a transcript ends in its own Paste, a small icon drawn
   bold, in the accent's color when pointed at or focused, visible without a hover, so that a touch
-  screen and a first look find it; the shell's output has none, and the
+  screen and a first look find it, and held at the block's visible right
+  edge where the input is longer than the block is wide (decided
+  2026-11-04); the shell's output has none, and the
   `>` stays text (decided 2026-11-03). A block's tools show on hover or focus where there is a
   fine pointer, a mouse, on the block's own color, and on a touch screen
   stand on a row of their own above the block, since a phone's browser may
@@ -483,13 +490,22 @@ The site's files as served.
   without code offers the panel and nothing to put in it (decided 2026-10-13).
   Stacked alone on a narrow screen; not offered on a phone, where `/shell/`
   still serves.
-- While the panel is open, a link to another page of the site fetches that
+- While the panel is open, or its session runs hidden, since Hide keeps
+  the session, a link to another page of the site fetches that
   page and puts its `<main>` and its title in place of the old, the
   address moved by the history, so that the panel, its socket and its
   screen stay; back, forward, the scroll, an anchor and focus behave as
   on a page loaded whole, which a test in a browser checks. With the panel
-  closed a link loads its page whole. Every page stays a whole file
-  (decided 2026-11-03).
+  closed a link loads its page whole, and on a phone, where no panel
+  stands, always; so does a page that names another script or stylesheet,
+  a newer site's. Every page stays a whole file (decided 2026-11-03).
+- The test in a browser is `make test-browser`, outside `make test` and a
+  step of the release review: Erlang under `test/` drives a headless
+  Chrome over its DevTools protocol, Chrome the one dependency it adds,
+  and serves the fixture's pages by OTP's `httpd`, with a stub socket
+  that speaks ernest-httpd's protocol for the session's states. A real
+  shell behind the socket stays the check by hand on a server before a
+  release (decided 2026-11-04).
 - The panel's toggle splits the window vertically or horizontally, the
   visitor's choice, kept in local storage with the panel's layout
   (decided 2026-11-03). It is two buttons in the header, beside and
@@ -520,7 +536,17 @@ The site's files as served.
   alone. The generator decides it by the guide tests' own grouping, no mark
   being written by hand, and a test runs every block given Paste or Load,
   and every transcript input given Paste, in a bare shell (decided
-  2026-11-03).
+  2026-11-03). Three more kinds have Copy alone (decided 2026-11-04):
+  - a block the shell cannot take as one input, a top-level `let` beside
+    another declaration, or declarations followed by an expression, which
+    the generator reads from the block's paragraphs (report §11.3);
+  - an example on the page of a library outside the standard library,
+    since the panel's shell is `ern shell` as the reader's own, which
+    reaches the library by `:load`, and no startup file loads it;
+  - a block the bare-shell test finds it cannot run, a program that needs
+    its own terminal or arguments: one file lists each by its page and its
+    first line, which the generator reads and the test holds equal to what
+    it finds, so that no source is marked.
 - `ernest-fragment`, `ernest-rejected`, `ernest-prelude`, a console that is
   not a transcript, and another language's block have Copy alone; a
   transcript is a console whose inputs are `> ` lines, below. Copy is on
@@ -556,7 +582,14 @@ The site's files as served.
   M-Enter, which its own hint names, works in the panel (decided
   2026-11-03).
 - Everything is reachable by keyboard. Focus lands in the shell after a Paste.
-  xterm.js's screen-reader mode is on.
+  xterm.js's screen-reader mode is on. The shell takes Tab, Shift-Tab and
+  Escape, so F6 in the terminal moves the focus to the panel's controls,
+  the client's own key, since §11.2's editor binds no function key, and
+  `/shell/`'s notes name it once (decided 2026-11-04).
+- A paste for a session that is starting waits for the session's first
+  output, as a person waits for the prompt: what the terminal echoes
+  before the shell claims it is the terminal's, which no shell can keep
+  from showing (decided 2026-11-04).
 
 ## The documents, 2026-10-13
 
