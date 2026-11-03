@@ -276,16 +276,14 @@ function addStart(run) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "button primary";
-  button.append(icon("terminal"), "Paste into the shell");
+  button.append(icon("terminal"), "Try it");
   button.addEventListener("click", () => {
     if (!phone.matches && !panel.running) {
       setState(true);
     }
     pasteIntoShell(code.textContent);
   });
-  const words = document.createElement("span");
-  words.textContent = "The code waits in the shell until you press Enter; then type the session's lines.";
-  run.replaceChildren(button, words);
+  run.replaceChildren(button);
 }
 
 addPanel();

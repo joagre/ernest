@@ -111,11 +111,11 @@ The site's files as served.
   a desktop without scrolling, which the mockup's homepage is checked for
   first; where they are not, the page is cut, not the rule (decided
   2026-11-03).
-- Under the example stands its button, "Paste into the shell", the name
-  of a block's Paste, since it is that Paste made the page's one action
-  and its one strong color; nothing runs until the visitor presses Enter,
-  which the sentence beside it says. It puts the example's code into the
-  shell, opening the panel and starting a session where needed, and its
+- Under the example stands its button, "Try it", alone, the page's one
+  action and its one strong color: a block's Paste made prominent, named
+  by what the visitor does, and promising nothing it does not do, since
+  the code waits in the shell for Enter. It puts the example's code into
+  the shell, opening the panel and starting a session where needed, and its
   label never changes: the header's buttons show and hide the panel, and
   the panel's bar starts and stops the session, each control one job. On
   a phone it opens `/shell/` with the code waiting, and without the script
