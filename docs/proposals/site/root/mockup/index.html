@@ -48,13 +48,13 @@
     <section class="home-intro" aria-labelledby="intro-title">
       <div class="opening">
         <h1 id="intro-title">Start a process on another node, and its code goes with it</h1>
-        <p class="lead">Start a process on another node, and the node is sent the code it lacks: each function is known by a hash of its definition, and nothing of the program is installed there first. Ernest is a functional language for concurrent programs, on the Erlang runtime. A process receives messages of one type, which the compiler checks every send against. Why it is so is <a href="why.html">the whole argument</a>.</p>
+        <p class="lead">The node is sent the code it lacks: each function is known by a hash of its definition, and nothing of the program is installed there first. Ernest is a functional language for concurrent programs, on the Erlang runtime. A process receives messages of one type, which the compiler checks every send against. Why it is so is <a href="why.html">the whole argument</a>.</p>
       </div>
       <div class="claims">
         <h2>What Ernest adds</h2>
         <ol>
-          <li><a href="why.html#the-mailbox-in-the-functions-type"><strong>The mailbox in the function's type.</strong> Every process receives messages of one type, which a function that receives names in its own type and a process's address carries.</a></li>
           <li><a href="why.html#code-known-by-its-hash"><strong>Code known by its hash.</strong> A function or a type is known by a hash of its definition, not by the name of the module it stands in.</a></li>
+          <li><a href="why.html#the-mailbox-in-the-functions-type"><strong>The mailbox in the function's type.</strong> Every process receives messages of one type, which a function that receives names in its own type and a process's address carries.</a></li>
           <li><a href="why.html#a-distribution-built-for-a-wan"><strong>A distribution built for a WAN.</strong> A node lists its peers in a file, each by name, public key and address, accepts a connection only from a key it lists, and opens one TLS connection to a peer when it first needs it.</a></li>
           <li><a href="why.html#abstract-types-and-requirements"><strong>Abstract types and requirements.</strong> A type declared abstract keeps its constructor to its own module, so the representation can change and no caller knows.</a></li>
           <li><a href="why.html#a-deadlock-is-found"><strong>A deadlock is found.</strong> A program in which every process waits for a message none can send ends with a fault and a trace under <code>ern run</code> and <code>ern test</code>, where the host would wait forever.</a></li>

@@ -98,7 +98,9 @@ The site's files as served.
   claims, which the documents test `claims_test` holds equal to the
   README's, each shown as its bold name and its first sentence alone, word
   for word, linking to its heading in Why, so that the list fits beside
-  the opening (decided 2026-11-03); a
+  the opening. Code known by its hash leads the list, as the opening
+  does, and Why and the README take that order when they are rewritten
+  (`todo.md`; decided 2026-11-03); a
   paragraph on intended use; and a small example with its output, which a
   test runs, so that Try prints what the page shows: a process started on
   the container's second node, its code typed into the shell and sent
