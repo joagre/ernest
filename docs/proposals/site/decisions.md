@@ -425,7 +425,17 @@ The site's files as served.
   (decided 2026-11-03).
 - The panel's toggle splits the window vertically or horizontally, the
   visitor's choice, kept in local storage with the panel's layout
-  (decided 2026-11-03).
+  (decided 2026-11-03). It is two buttons in the header, beside and
+  below: the open layout's is pressed, pressing it again closes the
+  panel, and pressing the other moves it. The header spans the window;
+  beside, the panel fills its right side below the header, at 45% of the
+  width, and the page scrolls in the rest; below, it takes 40% of the
+  height and the page scrolls above it. A handle on its inner edge
+  resizes it, the size kept with the layout. The panel's bar holds the
+  session's state, Start or Restart, Stop and a close; the session's
+  limits and the privacy line stay on `/shell/`. Below 1000 px only below
+  is offered. Opening moves focus into the terminal and closing returns
+  it to the button; Escape is the terminal's (decided 2026-11-03).
 - No panel opens until the visitor asks. On a desktop, the example's Start
   opens the homepage's panel beside the example; on a phone, it links to
   `/shell/`.

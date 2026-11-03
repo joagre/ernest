@@ -151,3 +151,30 @@ th { font-weight: 620; }
   .wrap { width: 100%; } .doc-layout { display: block; }
   pre { white-space: pre-wrap; overflow: visible; } .article { max-width: none; }
 }
+
+/* The shell panel: beside the page or below it, sharing the window. The
+   header spans the top; the page, its main and footer, scrolls on its own. */
+.panel-toggle [aria-pressed="true"] { color: var(--accent); border-color: var(--line); background: var(--panel); }
+body.panel-beside, body.panel-below { display: grid; height: 100vh; overflow: hidden; }
+body.panel-beside { grid-template-columns: minmax(0, 1fr) var(--panel-width, 45%); grid-template-rows: auto minmax(0, 1fr); }
+body.panel-below { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) var(--panel-height, 40%); }
+body.panel-beside .site-header { grid-column: 1 / -1; }
+body.panel-beside .page, body.panel-below .page { overflow: auto; min-height: 0; }
+.shell-panel { position: relative; display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--terminal); color: var(--terminal-ink); }
+.shell-panel[hidden] { display: none; }
+body.panel-beside .shell-panel { border-left: 1px solid var(--line); }
+body.panel-below .shell-panel { border-top: 1px solid var(--line); }
+.panel-handle { position: absolute; z-index: 1; touch-action: none; }
+body.panel-beside .panel-handle { top: 0; bottom: 0; left: -4px; width: 8px; cursor: col-resize; }
+body.panel-below .panel-handle { left: 0; right: 0; top: -4px; height: 8px; cursor: row-resize; }
+.panel-bar { display: flex; align-items: center; gap: .5rem; padding: .4rem .6rem; border-bottom: 1px solid #2c3338; font-size: .85rem; }
+.panel-state { margin-right: auto; color: #9aa4a0; }
+.panel-button { padding: .2rem .55rem; gap: .35rem; background: none; color: var(--terminal-ink); border-color: #3a4145; font-size: .85rem; }
+.panel-button:hover:not(:disabled) { border-color: #6b7570; }
+.panel-bar .icon-button { color: #9aa4a0; }
+.panel-bar .icon-button:hover { color: var(--terminal-ink); border-color: #3a4145; }
+.panel-terminal { flex: 1; min-height: 0; overflow: auto; padding: .75rem 1rem; font-family: ui-monospace, "Cascadia Code", "DejaVu Sans Mono", monospace; font-size: .9rem; line-height: 1.5; white-space: pre-wrap; }
+.panel-terminal:focus-visible { outline-offset: -3px; }
+@media (max-width: 999px) {
+  .panel-toggle .beside { display: none; }
+}
