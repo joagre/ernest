@@ -135,6 +135,9 @@ button:disabled {
   height: 1.05em;
   fill: none;
   stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
   vertical-align: -.15em;
 }
 
@@ -497,8 +500,8 @@ pre code {
   }
 }
 
-/* Each input of a transcript ends in its own Paste, muted until pointed at
-   or focused. */
+/* Each input of a transcript ends in its own Paste, drawn bold, in the
+   accent's color when pointed at or focused. */
 .line-paste {
   display: inline;
   margin-left: 1ch;
@@ -509,6 +512,10 @@ pre code {
   font: inherit;
   vertical-align: baseline;
   cursor: pointer;
+}
+
+.line-paste .icon {
+  stroke-width: 3;
 }
 
 .line-paste:hover,

@@ -407,8 +407,8 @@ The site's files as served.
   It stays until the visitor clicks one of them or anywhere on the page,
   no timer deciding when a person has read it, and is announced as a
   polite live region (decided 2026-10-27).
-- Each input of a transcript ends in its own Paste, a small icon, muted
-  until pointed at or focused, visible without a hover, so that a touch
+- Each input of a transcript ends in its own Paste, a small icon drawn
+  bold, in the accent's color when pointed at or focused, visible without a hover, so that a touch
   screen and a first look find it; the shell's output has none, and the
   `>` stays text (decided 2026-11-03). A block's tools show on hover or focus where there is a
   fine pointer, a mouse, on the block's own color, and on a touch screen

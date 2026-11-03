@@ -132,7 +132,13 @@ const endings = {
   4004: "stopped",
 };
 const encoder = new TextEncoder();
-const session = { socket: null, terminal: null, fit: null, pastes: [], restarting: false };
+const session = { socket: null, terminal: null, fit: null, pastes: [], restarting: false,
+                  rejoined: false };
+
+// Whether this browser's session lives on the server: noted as one runs,
+// and dropped at an end that ends it, so that a new page rejoining it asks
+// the shell to draw its prompt again, which the new terminal never saw.
+const ended = new Set([4001, 4003, 4004, 1001]);
 
 function loadScript(src) {
   return new Promise((resolve, reject) => {
@@ -199,6 +205,11 @@ function connect() {
   socket.onopen = () => {
     session.terminal.reset();
     sendText({ resize: [session.terminal.rows, session.terminal.cols] });
+    session.rejoined = remembered("ernest.session", "") === "live";
+    if (session.rejoined) {
+      send(new Uint8Array([12])); // C-l: the shell clears its screen and draws its line again
+    }
+    remember("ernest.session", "live");
     setState("running");
     focusTerminal();
   };
@@ -217,6 +228,9 @@ function connect() {
       return;
     }
     panel.warning.hidden = true;
+    if (ended.has(event.code)) {
+      remember("ernest.session", "");
+    }
     setState(endings[event.code] ?? "disconnected");
     if (session.restarting) {
       session.restarting = false;
@@ -250,11 +264,17 @@ function warn(seconds) {
 
 // A paste is one input, bracketed as the shell asks the terminal to, so
 // that nothing runs until Enter; one made before the shell has asked waits
-// for its prompt.
+// for its prompt. A rejoined session's shell asked an earlier terminal,
+// so its pastes are bracketed here, once its line is drawn again.
 function pasteWaiting() {
-  if (session.terminal.modes.bracketedPasteMode) {
+  const asked = session.terminal.modes.bracketedPasteMode;
+  if (asked || session.rejoined) {
     for (const text of session.pastes.splice(0)) {
-      session.terminal.paste(text);
+      if (asked) {
+        session.terminal.paste(text);
+      } else {
+        sendKeys(encoder.encode("\x1b[200~" + text + "\x1b[201~"));
+      }
     }
   }
 }
