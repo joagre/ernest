@@ -83,12 +83,7 @@ Ernest 0.9.0, session 1. :help for the commands, :quit to leave.</span>
 far : Address(CounterMsg)</span>
 <span class="input"><span class="prompt">&gt; </span>send(far, Inc(5))</span>
 <span class="input"><span class="prompt">&gt; </span>Address.call(far, Get, 1000)</span>
-<span class="tok-output">Some(5) : Optional(Int)</span>
-<span class="input"><span class="prompt">&gt; </span>send(far, "five")</span>
-<span class="tok-output">input 5:1:11: the argument does not fit send: expected CounterMsg, found String
-1 | send(far, "five")
-  | ---- send : (Address(a), a) -&gt; Unit
-  |           ^^^^^^</span></code></pre>
+<span class="tok-output">Some(5) : Optional(Int)</span></code></pre>
       </div>
     </section>
 
