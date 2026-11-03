@@ -8,9 +8,9 @@ This file holds the report's §10 to §12 and Appendices C and H. §0 to §9 and
 <!-- contents -->
 - [10. Runtime Requirements](#10-runtime-requirements)
 - [11. Toolchain](#11-toolchain)
-- [12. The runtime](#12-the-runtime)
+- [12. The Runtime](#12-the-runtime)
 - [Appendix C. Configuration](#appendix-c-configuration)
-- [Appendix H. The canonical form](#appendix-h-the-canonical-form)
+- [Appendix H. The Canonical Form](#appendix-h-the-canonical-form)
 <!-- /contents -->
 
 ## 10. Runtime Requirements
@@ -489,7 +489,7 @@ The shell exits with status 0 when it ends, whatever its inputs did; with the st
 
 A failure of `ern` itself exits with status 70. A job whose standard output or standard error can no longer be written exits with status 141, 128 plus the number of `SIGPIPE`. A job the host's termination or hangup ends, `ern run` among them once the runtime has stopped as §8.6 says, ends by that signal where the signal began the end, and with the status of what began it where the signal cut short an end already begun (§8.6), but for one that comes before the runtime can take signals (§12.4), and so does a job the host's interrupt ends, at once (§8.6): a shell reports its status as 130, 128 plus the number of `SIGINT`.
 
-## 12. The runtime
+## 12. The Runtime
 
 What the runtime does behind the rules of §7 to §9, which a program relies on through those sections alone and a toolchain promises whole: its system processes, the host's terms for Ernest's values, the causes it raises at its boundaries, how it ends a program, and the carrier between nodes with its frames, its exchange and its measure of a node's load. §10 states what every runtime must give, and this chapter how this one gives it; the keys of §12.1 and the causes of §12.3, which a program matches, bind every runtime as §10 does.
 
@@ -708,7 +708,7 @@ How a node measures how busy it is, which `Peer.utilization` answers and a telli
 
 The private key is in the same directory, `private-key.pem`, readable only by its owner, beside the certificate the node signs itself, `certificate.pem`, whose name is a constant and whose validity runs from 1970 to the end of 9999. A freshly created file lists no peer and no service.
 
-## Appendix H. The canonical form
+## Appendix H. The Canonical Form
 
 A definition's canonical form (§8.7, §11.1) is a term of the host's, and its hash is the SHA-256 of the bytes `term_to_binary(Term, [deterministic, {minor_version, 2}])` gives it: the host's external term format, as the major release of OTP the floor names documents it (§8.7). The term holds no map. This appendix states the term node by node.
 

@@ -10,7 +10,7 @@
 
 *The Importance of Being Ernest, a Trivial Comedy for Serious People*
 
-Ernest is a small functional language for concurrent programs, on the Erlang runtime. A process receives messages of one type, which the compiler checks every send against, and a process started on another node brings its code along: nothing is installed there first.
+Ernest is a small functional language for concurrent programs, on the Erlang runtime. A process started on another node brings its code along, and nothing is installed there first; and a process receives messages of one type, which the compiler checks every send against.
 
 `counter.ern` is the whole of a counter. Its mailbox type, `CounterMsg`, is in the type of `count`, the loop the process runs, so that every message sent to its address is checked against it. `Inc` is sent, and `Get` is a call. A `Reply(Int)` is where a call's answer goes: `Address.call` makes it, `Get` builds the request around it, and `answer` sends the total to it. The call waits 1000 milliseconds at most, and answers `None` where no answer comes in time:
 
@@ -128,11 +128,12 @@ On Linux, with Erlang/OTP 29 on your `PATH`, GNU make and a C compiler. On Debia
 git clone https://github.com/joagre/ernest.git
 cd ernest
 make
-sudo make install                  # into /usr/local
+sudo make install           # into /usr/local
 ern build examples/hello.ern
-ern run examples/hello.erc         # hello, world
-ern shell                          # :quit to leave
-man ern                            # the toolchain; man Ernest.List for a module
+ern run examples/hello.erc  # hello, world
+ern shell                   # :quit to leave
+man ern                     # the toolchain
+man Ernest.List             # a module
 ```
 
 OTP 29 is built from its source at [erlang.org/downloads](https://www.erlang.org/downloads), or installed by a version manager such as kerl, where a distribution's own packages hold an older release.

@@ -603,6 +603,14 @@ pre.rejected {
   overflow-y: auto;
 }
 
+/* On a desktop the sidebar is plainly the page's sections, and its label
+   says nothing; on a phone the label opens the fold. */
+@media (min-width: 761px) {
+  .contents summary {
+    display: none;
+  }
+}
+
 /* A second level, a chapter's sections, under it. */
 .contents ol ol a {
   padding-left: 1.25rem;

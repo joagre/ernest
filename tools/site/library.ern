@@ -113,10 +113,26 @@ fn moduleOf(index : String, item : List(Markdown.Block)) : Either(String, Module
 // A module's page
 //
 
+// A page's `since` line, the paragraph after its title that is emphasis
+// whole and begins `Since`, taken out of its text: the page shows it as its
+// metadata under the heading, as a report file shows its revision, so that
+// the module's purpose is the first sentence read.
+fn sinceOf(blocks : List(Markdown.Block)) : #(List(Markdown.Inline), List(Markdown.Block)) =
+    match blocks {
+        Markdown.Paragraph([Markdown.Emphasis(inlines)]) :: rest when isSince(inlines) ->
+            #(inlines, rest)
+      | _ ->
+            #([], blocks)
+    }
+
+fn isSince(inlines : List(Markdown.Inline)) : Bool =
+    String.startsWith(Site.Html.plain(inlines), "Since ")
+
 // A module's page, and the purpose it opens with.
 fn moduleWritten(run : Site.Run.Run, module : Module) : Either(String, Row) = {
     let document <- Site.Run.documentOf(run, module.path);
-    let #(_, rest) <- Site.Run.titleOf(module.path, document);
+    let #(_, titled) <- Site.Run.titleOf(module.path, document);
+    let #(since, rest) = sinceOf(titled);
     let #(blocks, source) = generated(module.path, rest);
     let page <- Site.Run.linkPage(run, module.path, module.address, blocks);
     let placed <- Site.Run.linkedAll(Site.Code.documented(blocks), page);
@@ -126,21 +142,28 @@ fn moduleWritten(run : Site.Run.Run, module : Module) : Either(String, Row) = {
                          "fragments/declarations.html",
                          module.name,
                          List.filterMap(shown, fn(#(_, entry, _)) = entry));
-    let titled <-
+    let book <-
         Site.Run.filled(run,
                         "fragments/book.html",
                         [#("href", Site.Template.Plain("/man/")),
                          #("book", Site.Template.Plain("Library"))]);
+    let sinceLine <- if since == [] then
+        Right([])
+    else
+        Site.Run.filled(run,
+                        "fragments/revision.html",
+                        [#("revision_html", Site.Run.inlined(since))]);
     let body =
-        Site.Html.body(List.map(shown, fn(#(each, _, _)) = each),
-                       0,
-                       List.filterMap(shown, fn(#(_, _, headed)) = headed));
+        sinceLine
+            <> Site.Html.body(List.map(shown, fn(#(each, _, _)) = each),
+                              0,
+                              List.filterMap(shown, fn(#(_, _, headed)) = headed));
     let main <-
         Site.Run.filled(run,
                         "page.html",
                         [#("layout", Site.Run.layout(sidebar)),
                          #("contents_html", Site.Template.Markup(sidebar)),
-                         #("book_html", Site.Template.Markup(titled)),
+                         #("book_html", Site.Template.Markup(book)),
                          #("heading_html",
                            Site.Run.headingHtml([Markdown.Text(module.name)], None)),
                          #("body_html", Site.Template.Markup(body)),

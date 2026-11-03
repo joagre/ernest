@@ -52,7 +52,10 @@ The site's files as served.
 - Every contents page is generated, from the headings or from `src/libs/*/`.
   No symlink, and no page at two addresses.
 - The `/man/` pages are rendered from `docs/man/`'s Markdown, which `make man`
-  writes. The site calls them Library. `/man/` lists the standard library's
+  writes. The site calls them Library. A module's page shows its `since`
+  line as its metadata under its heading, as a report file shows its
+  revision, so that the module's purpose is the first sentence read
+  (decided 2026-11-03, in the pass over the module page). `/man/` lists the standard library's
   modules and the libraries in two groups, a module a line, its name and
   the purpose its own page opens with, and ends with the toolchain's §11;
   `/man/stdlib/` and `/man/libs/` hold the same lists' halves, so that a
@@ -320,7 +323,9 @@ The site's files as served.
 - A page's sidebar lists its anchored headings, two levels deep. It stays
   in view, scrolling on its own where it is longer than the window, and
   the script marks the section being read and keeps it in the sidebar's
-  view (decided 2026-11-03).
+  view (decided 2026-11-03). Its label shows on a phone alone, where it
+  opens the fold, since on a desktop the list plainly is the page's
+  sections (decided 2026-11-03, in the pass over the chapter page).
 - The sources stay Markdown: the report, the guide, `docs/man/`, and the tour's
   document, `tour/README.md`. A source's opening logo
   and its contents block are dropped; the site has its own.

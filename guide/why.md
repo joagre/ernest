@@ -2,7 +2,7 @@
 
 The argument for the design, in six claims, four of them with a program, one with its configuration file and one with the report. [*Programming in Ernest*](language.md), the guide, teaches the language; this document says why it is as it is.
 
-Ernest is a small functional language for concurrent programs, on the Erlang runtime. A process receives messages of one type, which the compiler checks every send against, and a process started on another node brings its code along: nothing is installed there first. `ern` is its one command, which builds, runs and tests a program and opens its shell.
+Ernest is a small functional language for concurrent programs, on the Erlang runtime. A process started on another node brings its code along, and nothing is installed there first; and a process receives messages of one type, which the compiler checks every send against. `ern` is its one command, which builds, runs and tests a program and opens its shell.
 
 What Ernest adds is where the parts meet:
 
@@ -21,7 +21,35 @@ Ernest is for programs written in it from the start. An Ernest program is not an
 
 ### Code goes where it runs
 
-The hash is never written in a program. It is what tells two versions of a definition apart, and what a peer asks for. The door by which a counter replaces its own code is ordinary: a message of its type carries the new loop, and the process switches to it with a tail call, keeping its address and its state, as any language with closures in messages writes it; the old loop keeps running wherever a process still runs it. The hash is what finds the processes such a message is for: `Code.running(f)` lists, typed, the processes of the node that run `f`, by the hash of its definition and not by a name (the tour's chapter 8). `countTwice`, a loop of the same type that the guide's §4.6 writes, is sent as a value:
+The hash is never written in a program. It is what a peer asks for, and what tells two versions of a definition apart.
+
+A spawn names its function by hash, and a peer that lacks it is sent the definition with every definition it references, before the process starts. `foo` is a bare node, started from a configuration directory and no program. It stands on the same floor, one minor release of `ern` on one major release of OTP, and holds the standard library and the host's modules the program's foreign declarations name, and of the program nothing, and runs whichever version the spawn names:
+
+```ernest-fragment
+match Peer.spawn("foo", fn() = count(0), 5000) {
+    Right(counter) -> send(counter, Inc(5))
+  | Left(error) -> Io.println("no foo: " <> Io.show(error))
+}
+```
+
+`Peer.spawn` waits at most 5000 milliseconds for the peer, and answers `Left` with the reason where it cannot reach it. The tour's chapter 2 runs this spawn, on a bare node started for it, and shows what each terminal printed. What crosses is code and what the function captured, never a node's values: a top-level binding whose initializer is no constant has its value on the node that evaluated it alone, so a function that names one is not started on a bare node, the spawn answering `Left(Io.NotLoaded)` and the peer saying which binding, and nothing refuses it before the run (the guide's §8.1).
+
+So a counter whose messages carry no function may run on a peer that holds none of its code: a spawned function crosses as code, by its hash, where a function in a message would have to cross as a value, which none does (the guide's §8.4). A type that holds a function, a foreign type or a resource such as a socket is *bound to its node*, and `Peer.spawn` refuses before the run a function whose mailbox type is bound (report §3.11).
+
+A computation need not name a node at all. `Peer.compute(f, ms)` runs `f` on the less busy of two peers drawn at random from those that have told the node how busy they are, carrying its code there as the spawn does, and answers the value within `ms` milliseconds, or `Left` with the reason. A peer tells the node as it connects, and a connection opens when an operation reaches for the peer or the peer dials in, so where no peer has told it yet the compute answers `Left(Io.Unreachable)` (report §8.7, Appendix E.27).
+
+The draw spreads work among three peers or more with no central choice; with two peers it takes both each time, so a burst goes whole to the one that last reported itself less busy. A fault in `f` is the caller's, with `f`'s cause, and the line the caller's node writes of it names the peer `f` ran on, `, on the peer foo`:
+
+```ernest-fragment
+match Peer.compute(fn() = render(scene, row), 5000) {
+    Right(pixels) -> putRow(row, pixels)
+  | Left(error) -> Io.println("no peer: " <> Io.show(error))
+}
+```
+
+Nothing of the program was installed on the peer, and nothing names it: the node that ran `render` was the less busy of two peers drawn at random when the row was asked for, and `scene` and `row`, which the function captured, crossed with each call. The tour's chapter 7 runs such a compute three times between two bare nodes.
+
+On one node the hash finds the processes a new version is for. The door by which a counter replaces its own code is ordinary: a message of its type carries the new loop, and the process switches to it with a tail call, keeping its address and its state, as any language with closures in messages writes it; the old loop keeps running wherever a process still runs it. The hash is what finds the processes such a message is for: `Code.running(f)` lists, typed, the processes of the node that run `f`, by the hash of its definition and not by a name (the tour's chapter 8). `countTwice`, a loop of the same type that the guide's §4.6 writes, is sent as a value:
 
 ```ernest-fragment
 type CounterMsg =
@@ -46,7 +74,7 @@ send(counter, Upgrade(next = countTwice))
 
 `next` is of the counter's own type, `receiving CounterMsg`, so the type says that the loop a message may install reads this mailbox and no other, and such a message changes the loop and not the messages. A process keeps its mailbox type for life, so a change of the messages is a new process, started beside the old or in its place. A module compiled again with a changed message type is a new version of it, beside the old, as the shell session below shows.
 
-The next claim's counter runs under `restarting`, and a restart runs the function the process was started with, so a counter moved to `countTwice` runs `count` again after its next fault; how a service under `restarting` takes new code is the deployment guide's §5.3.
+A counter run under `restarting` restarts with the function its process was started with, so a counter moved to `countTwice` runs `count` again after its next fault; how a service under `restarting` takes new code is the deployment guide's §5.3.
 
 In the shell the versions are visible. `:reload` compiles again every module edited since it was loaded; a module so compiled is a new version beside the old, and a binding made under the old keeps it. Nothing is purged: every version a node has loaded stays for the node's life, so a node reloaded without end grows with its versions, and the deployment guide's §4.2 says when a node is restarted.
 
@@ -72,32 +100,6 @@ input 5:1:11: the argument does not fit send: expected Counter$1.CounterMsg, fou
 ```
 
 A version's name, `Counter$1`, is printed and cannot be written: the old version's types are gone from the session, so its process is reached only through a value bound while they were there, `old` here (the guide's §9.3).
-
-The next claim's counter, whose messages carry no function and so may cross to another node, runs on a peer that holds none of its code: a spawned function crosses as code, by its hash, where a function in a message would have to cross as a value, which none does (the guide's §8.4). A type that holds a function, a foreign type or a resource such as a socket is *bound to its node*, and `Peer.spawn` refuses before the run a function whose mailbox type is bound (report §3.11).
-
-A spawn names its function by hash, and a peer that lacks it is sent the definition with every definition it references, before the process starts. `foo` is a bare node, started from a configuration directory and no program. It stands on the same floor, one minor release of `ern` on one major release of OTP, and holds the standard library and the host's modules the program's foreign declarations name, and of the program nothing, and runs whichever version the spawn names:
-
-```ernest-fragment
-match Peer.spawn("foo", fn() = count(0), 5000) {
-    Right(counter) -> send(counter, Inc(5))
-  | Left(error) -> Io.println("no foo: " <> Io.show(error))
-}
-```
-
-`Peer.spawn` waits at most 5000 milliseconds for the peer, and answers `Left` with the reason where it cannot reach it. The tour's chapter 2 runs this spawn, on a bare node started for it, and shows what each terminal printed. What crosses is code and what the function captured, never a node's values: a top-level binding whose initializer is no constant has its value on the node that evaluated it alone, so a function that names one is not started on a bare node, the spawn answering `Left(Io.NotLoaded)` and the peer saying which binding, and nothing refuses it before the run (the guide's §8.1).
-
-A computation need not name a node at all. `Peer.compute(f, ms)` runs `f` on the less busy of two peers drawn at random from those that have told the node how busy they are, carrying its code there as the spawn does, and answers the value within `ms` milliseconds, or `Left` with the reason. A peer tells the node as it connects, and a connection opens when an operation reaches for the peer or the peer dials in, so where no peer has told it yet the compute answers `Left(Io.Unreachable)` (report §8.7, Appendix E.27).
-
-The draw spreads work among three peers or more with no central choice; with two peers it takes both each time, so a burst goes whole to the one that last reported itself less busy. A fault in `f` is the caller's, with `f`'s cause, and the line the caller's node writes of it names the peer `f` ran on, `, on the peer foo`:
-
-```ernest-fragment
-match Peer.compute(fn() = render(scene, row), 5000) {
-    Right(pixels) -> putRow(row, pixels)
-  | Left(error) -> Io.println("no peer: " <> Io.show(error))
-}
-```
-
-Nothing of the program was installed on the peer, and nothing names it: the node that ran `render` was the less busy of two peers drawn at random when the row was asked for, and `scene` and `row`, which the function captured, crossed with each call. The tour's chapter 7 runs such a compute three times between two bare nodes.
 
 ### The mailbox in the function's type
 

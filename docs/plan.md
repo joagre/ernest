@@ -198,9 +198,9 @@ attached shell, MVP 4.0, is the operator's alone.
    Once it writes every kind of page, each kind is read with the user against the five
    principles, as the homepage was in item 1: each element asked what it is for, said once,
    and kept only where a visitor would miss it; a reading's verdicts change the templates and
-   the decisions (decided 2026-11-03). The Why page's reading rewrites `guide/why.md` so that
-   the code a process takes to another node leads its opening and its argument, as its claims
-   lead with it, the README's list following under `claims_test`.
+   the decisions (decided 2026-11-03). The Why page's reading rewrote `guide/why.md` so that
+   the code a process takes to another node leads its opening and its first section, the
+   README's opening with it (done 2026-11-03).
 
    It reads the repository and writes static files: the pages of the report, the guide,
    the tour, Why, the questions, the deployment guide, the README's *Installing*, the release
