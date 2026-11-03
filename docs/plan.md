@@ -22,9 +22,12 @@ stability is made, and a change to the language, the standard library or the lib
 by a need met in use and recorded as `docs/language_feedback.md` records one.
 
 The server is released and so is what shaped Ernest on its way, and the checkout works toward
-0.10.0. MVP 4.2's first item, the site's look by hand, is done
-(the log's *The Site's Look, by Hand*); next is MVP 4.15, what the server taught, then the
-rest of the website and the shell's second round
+0.10.0.
+
+MVP 4.2's first item, the site's look by hand, is done
+(the log's *The Site's Look, by Hand*); next is its item 2, the generator, decided 2026-11-03
+to come before MVP 4.15 (the log's *The Generator Before MVP 4.15*); then MVP 4.15, what the
+server taught, the rest of the website and the shell's second round
 (the log's *The Road to 1.0, Ordered*), and MVP 4.4 last, the promise, the cost, the full review and Ernest 1.0, where
 the road ends and a program begins (the log's *MVP 4.4, the Road's End*); the back end to BEAM's own instructions that closed the road is not built,
 decided 2026-10-30 (the log's *No Back End to BEAM's Own Instructions*). A finished milestone is a
@@ -93,7 +96,8 @@ before the website (the log's *What the Server Taught*).
    first, since `Command(program, arguments, input)` stands at ten sites of the standard library
    alone (feedback 184).
 
-10. **The runtime at the host's limits**, defects found 2026-11-03, fixed by 2026-11-06. At a
+10. **The runtime at the host's limits**, defects found 2026-11-03, fixed by 2026-11-12, after
+    MVP 4.2's item 2 (the log's *The Generator Before MVP 4.15*). At a
     full process table the runtime's spawns on a request's behalf meet the host's
     `system_limit` uncaught: the reaper's `spawn_monitor`, the per-request spawns of the `Fs`,
     `Tcp` and `Os` system processes, and the runtime's own, a kept process, a kill and a
