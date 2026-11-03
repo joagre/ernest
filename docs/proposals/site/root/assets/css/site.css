@@ -589,10 +589,19 @@ pre.rejected {
   font-size: .9rem;
 }
 
-/* The sidebar stays in view beside a long chapter. */
+/* The sidebar stays in view beside a long chapter, and scrolls on its
+   own where it is longer than the window. */
 .contents details {
   position: sticky;
   top: 1rem;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+}
+
+/* A second level, a chapter's sections, under it. */
+.contents ol ol a {
+  padding-left: 1.25rem;
+  font-size: .85rem;
 }
 
 .contents summary {
@@ -669,6 +678,21 @@ h2:hover .anchor,
 
 .article li {
   margin-bottom: .4rem;
+}
+
+/* The guide's sections that teach a report section, under its heading. */
+.margin-line {
+  margin: -.35rem 0 .75rem;
+  font-size: .82rem;
+  color: var(--muted);
+}
+
+.margin-line a {
+  color: var(--muted);
+}
+
+.margin-line a:hover {
+  color: var(--accent);
 }
 
 .page-nav {
