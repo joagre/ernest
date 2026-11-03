@@ -35,7 +35,7 @@ row of the table at the end, its reasons in the log entries the row names.
 
 ---
 
-## MVP 4.15 (what the server taught), about three days
+## MVP 4.15 (what the server taught), about a week and a half
 
 What building and deploying ernest-httpd showed of Ernest, decided 2026-11-02 and built here
 before the website (the log's *What the Server Taught*).
@@ -117,7 +117,28 @@ before the website (the log's *What the Server Taught*).
     sites, and the site's generator writes a helper twice for the text after a prefix, which
     `String.startsWith` answers half of. One reading against E.0's rules decides both, the
     functions admitted named by the guide's style, and every site written with them (the
-    log's *The Generator's First Stage*).
+    log's *The Generator's First Stage*). The same reading decides feedback 215: `String.contains(x, "\r")`
+    finds no carriage return in `"\r\n"`, since E.5 searches by graphemes, and whether a
+    search by code points stands beside it.
+12. **A process owns what it opens**, feedback 208: `examples/fetch.ern` closes its socket only
+    on success, so it spawns a process for each fetch, whose end closes what it opened (§8.7),
+    and the guide's section on sockets says so in a sentence; no form of the language closes
+    on every way out of a block.
+13. **A worker's value or its end, and a test's scratch**, feedback 209 and 211: one reading
+    against E.0's rules of a `Process` function that runs a function monitored and answers its
+    value or its end, written by hand at five sites, of a temporary directory from `Fs`, and
+    of `Test.equal`'s failure marking where two values differ.
+14. **`libs/uri`**, feedback 210, decided with the user 2026-11-03: RFC 3986's authority and
+    percent-decoding as a library, the published specification being a library's work, with
+    `libs/http`'s target decoding and a cookie header's reading beside it, so that
+    `examples/fetch.ern` and `web_server.ern` parse neither by hand.
+15. **`kill` takes a `Process`**, feedback 213, as `monitor` does, so that a function of an
+    address passes it through `Process.fromAddress` once for both; Appendix E.21 first.
+16. **What a lambda's reach finds on a peer**, feedback 217, a named decision for the user: a
+    lambda naming `Ansi.clearScreen`, spawned on a bare node whose tree holds `libs/ansi`,
+    answers `Left(Io.NotLoaded)`, since a reach crosses as forms and §12.7 loads a
+    toolchain-owned unit only where the spawned function's own unit is the toolchain's;
+    discussed with the user against principle 1 before §8.7 or §12.7 changes.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
