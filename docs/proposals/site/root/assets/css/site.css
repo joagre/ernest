@@ -681,6 +681,32 @@ h2:hover .anchor,
   margin-bottom: .4rem;
 }
 
+/* A module page: a declaration's heading is its name, in code, and its
+   signature follows it, a block of its own with no tools. */
+.article h2.declaration {
+  margin-top: 2.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+  font-size: 1.2rem;
+}
+
+.article h2.declaration code {
+  padding: 0;
+  background: none;
+  font-size: 1em;
+}
+
+.article h3.examples {
+  font-size: .95rem;
+  color: var(--muted);
+}
+
+.contents .declarations code {
+  padding: 0;
+  background: none;
+  font-size: .85rem;
+}
+
 /* The guide's sections that teach a report section, under its heading. */
 .margin-line {
   margin: -.35rem 0 .75rem;

@@ -472,6 +472,10 @@ function addBlockTools(pre) {
   block.className = "block";
   pre.replaceWith(block);
   block.append(pre);
+  // A declaration's signature is read, not typed into a shell: no tools.
+  if (pre.dataset.tools === "none") {
+    return;
+  }
   const tools = document.createElement("div");
   tools.className = "block-tools";
   if (pre.dataset.shell === "paste" && pre.classList.contains("code")) {
@@ -532,7 +536,8 @@ function followReading() {
   const update = () => {
     pending = false;
     const line = window.innerHeight * 0.25;
-    let reading = headings[0];
+    // Before the first heading reaches the line, nothing is being read.
+    let reading = null;
     for (const heading of headings) {
       if (heading.getBoundingClientRect().top <= line) {
         reading = heading;
@@ -540,13 +545,16 @@ function followReading() {
         break;
       }
     }
-    const link = links.get(reading.id);
+    const link = reading === null ? null : links.get(reading.id);
     if (link === current) {
       return;
     }
     current?.removeAttribute("aria-current");
-    link.setAttribute("aria-current", "location");
     current = link;
+    if (link === null) {
+      return;
+    }
+    link.setAttribute("aria-current", "location");
     const box = sidebar.getBoundingClientRect();
     const at = link.getBoundingClientRect();
     if (at.top < box.top || at.bottom > box.bottom) {
