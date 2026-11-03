@@ -175,6 +175,75 @@ readme_shell(Base) ->
     Shell = started(Base, filename:join(Base, "shell"), ""),
     quit(session(Shell, inputs(Session))).
 
+%% site/example.md, the homepage's example (docs/proposals/site/decisions.md
+%% *The homepage*); report §8.7, §11.2, Appendix E.27: `a` and `foo` made
+%% and listed in each other's as the README's are, `foo` started bare, the
+%% shell started as `a`, its start line the release's as the example shows
+%% it, the example's code typed, each of its declarations an input as line
+%% mode reads one, the function's over lines the shell prompts `... ` for,
+%% and the console's inputs typed, each held to the lines the console shows
+%% after it, a peer's connection among them where the shell may print it;
+%% `foo` said where it listens, that `a` connected and, once the shell has
+%% quit, that it ended, and nothing else.
+%%
+%% A regression test, written after the example; what each declaration
+%% prints, which the example does not show, is written here. It does not
+%% cover the Paste of a browser, which brings the code as one input, nor
+%% the shell at a terminal. Its limit is the sum of its sixteen waits, each
+%% bounded by the harness's time for one wait: four `ern config` jobs,
+%% `foo`'s listening, the shell's start, two declarations, three inputs, the
+%% shell's end and what it said, the stop, `foo`'s end and what it said.
+home_example_test_() ->
+    ern_nodes_tests:nodes_test({waits, 16}, fun home_example/1).
+
+home_example(Base) ->
+    {ok, Text} = file:read_file("../site/example.md"),
+    Lines = binary:split(Text, <<"\n">>, [global]),
+    Code = fenced(<<"```ernest">>, Lines),
+    [_, Start | Session] = fenced(<<"```console">>, Lines),
+    ?assertEqual(readme_start(), Start),
+    Declared = [{Declaration, [lists:append(lists:duplicate(Continued, "... ")) ++ Printed]}
+                || {{Declaration, Continued}, Printed}
+                       <- lists:zip(declarations(Code),
+                                    ["type CounterMsg",
+                                     "count : (Int) -> Unit receiving CounterMsg"])],
+    PortFoo = ern_nodes_tests:free_port(),
+    AddressFoo = ern_nodes_tests:address(PortFoo),
+    [A, Foo] = [filename:join(Base, Name) || Name <- ["a", "foo"]],
+    created(Base, "config --config-dir a"),
+    created(Base, "config --config-dir foo --listen " ++ binary_to_list(AddressFoo)),
+    [?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "config --config-dir " ++ Words))
+     || Words <- ["a --peer-dir foo", "foo --peer-dir a"]],
+    WaitFoo = ern_nodes_tests:bare_started(Foo, []),
+    ern_deployment_tests:listens(Foo, PortFoo),
+    Shell = started(Base, A, " --config-dir a", []),
+    quit(session(Shell, Declared ++ inputs(Session))),
+    ?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "stop --config-dir foo")),
+    ?assertEqual(143, WaitFoo()),
+    {"", Err} = ern_nodes_tests:said(Foo),
+    ?assertEqual([<<"listening on ", AddressFoo/binary>>, <<"the peer a connected">>,
+                  <<"the peer a ended">>],
+                 stamped(Err)).
+
+%% The code's declarations, each a run of lines between blank ones, as
+%% one input, with the count of its lines after its first, for each of
+%% which line mode prompts `... ` (report §11.2).
+declarations(Lines) ->
+    case lists:dropwhile(fun(Line) -> Line =:= <<>> end, Lines) of
+        [] ->
+            [];
+        Rest ->
+            {Part, After} = lists:splitwith(fun(Line) -> Line =/= <<>> end, Rest),
+            [{binary_to_list(iolist_to_binary(lists:join(<<"\n">>, Part))), length(Part) - 1}
+             | declarations(After)]
+    end.
+
+%% The lines of the first fenced block whose fence is Fence.
+fenced(Fence, Lines) ->
+    {_, [_ | Rest]} = lists:splitwith(fun(Line) -> Line =/= Fence end, Lines),
+    {Block, _} = lists:splitwith(fun(Line) -> Line =/= <<"```">> end, Rest),
+    Block.
+
 %% The shell's start line as the README shows it, the release's version.
 readme_start() ->
     {ok, Version} = file:read_file("../VERSION"),

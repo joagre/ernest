@@ -221,6 +221,11 @@ The names are [`guide/style.md`](../guide/style.md)'s, with the spellings its gl
 And the names that recur across the site generator's modules, `Site` and those under it in `tools/site/`:
 
 - **Line**, **Verbatim**: a line of a page the generator writes, one a template's indentation reaches and one of a `<pre>`'s body, written from the line's start, `Site.Template.Line`. Not `Row`, which is a table's.
-- **Buttons**: the buttons a code block gets beside Copy, `Site.Code.Buttons`, `CopyAlone`, `Paste` or `Load`, a value of it `given`. Not `Shell`, the page's word for it, `data-shell`.
+- **Buttons**: the buttons a code block gets beside Copy, `Site.Code.Buttons`, `CopyAlone`, `Paste` or `Load`, or `Signature`, a declaration's, which gets not even Copy, a value of it `given`. Not `Shell`, the page's word for it, `data-shell`.
 - **Placed**: a document's top-level block with its buttons, `Site.Code.Placed`, a list of them `placed`.
 - **Page**: the page whose links are made, its source, its address, the tag and the anchors, `Site.Links.Page`. Not `Context`, which is the emitter's.
+- **Run**: what every page is written with, the repository's files, where the site goes, the release, the tag, the templates and the assets, `Site.Run.Run`, a value of it `run`.
+- **Output**: a page as it is written, its address, title, description, room, own part and source, `Site.Run.Output`. Not `Page`, which is the links'.
+- **Entry**, **Neighbor**: a heading of a page's sidebar, `Site.Run.Entry`, and a page before or after another in its book, `Site.Run.Neighbor`.
+- **Anchor**, **Headed**: a heading's anchor and the name of its link to itself, `Site.Html.Anchor`, and what a heading carries beside its text, its anchor and its class, `Site.Html.Headed`.
+- **Taught**: the report's sections the guide's sections cite, each with the guide's sections that cite it, a margin line's, `Site.Book.Taught`.

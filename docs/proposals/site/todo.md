@@ -1,8 +1,0 @@
-# Elsewhere
-
-What the site's discussion found should change outside this directory, each line until the change is made or the line is dropped. Like the rest of the proposal it is tentative: nothing here is made before the proposal is decided, unless a line says it was decided to be made at once.
-
-- `guide/why.md` and the README's list: rewritten so that the code a process takes to another node leads, the opening and the claims in that order, the claims led by code goes where it runs, the mailbox in the function's type, a distribution built for a WAN and a deadlock is found. The first claim named for what it gives, not its means: "**Code goes where it runs.** A process started on another node brings its code along, and a module keeps every version it has had: each function is known by a hash of its definition, not by the module it stands in." `claims_test` keeps the two equal (2026-11-03).
-- `guide/faq.md`: each question a `###` heading, not a bold paragraph, so that it has an anchor and the page a sidebar (*Anchors*, 2026-11-03).
-- `assets/README.md`: the full logo's rows no longer plan the site's homepage, which shows no full logo (*The look*, 2026-11-03).
-- The shell's banner, report §11.2 first, then `shell.ern` and every transcript that shows it: `Ernest v, session n. :help for help.`, about 40 columns, so that it fits a narrow block and a phone's terminal; `:help` lists `:quit`, and the M-Enter hint stays where §11.2 puts it, before the session's first input of two lines (2026-11-03).

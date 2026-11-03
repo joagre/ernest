@@ -1,8 +1,8 @@
 # Ernest Report: The Standard Library
 
-Revision of 2 November 2026.
+Revision of 3 November 2026.
 
-This file holds the report's Appendices D, E and G. §0 to §10 and Appendices A, B and F are in [`language.md`](language.md), and §11 and Appendices C and H in [`toolchain.md`](toolchain.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
+This file holds the report's Appendices D, E and G. §0 to §9 and Appendices A, B and F are in [`language.md`](language.md), and §10 to §12 and Appendices C and H in [`toolchain.md`](toolchain.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
 **Contents**
 <!-- contents -->
@@ -1093,6 +1093,8 @@ JSON text as RFC 8259 defines it, read into a value and written from one by the 
 An error says what the host found and where: `UnexpectedEnd` is a text that ends inside its value or holds none; `UnexpectedByte` is a byte that cannot stand where it is, the first of its character's, or the first that differs from the `true`, `false` or `null` the text breaks off, with its position; and `UnexpectedSequence` is an escape that writes no character, a surrogate's escape without its pair's and one broken off before its digits end among them, as the text writes it up to the byte that breaks it, or a number the host cannot hold, an integer too long or a real larger than a `Float` can hold, in the host's spelling of it, with its position. A position is the line and the column the byte or the sequence begins at, counted as a diagnostic's are (§11.5).
 
 `format` lays a value out over lines as the host's `json:format` does, two spaces to a level, and ends it with a line feed; it writes an object's members in the order of their names' code points, an order of the library's own, which the host's leaves to its caller. `parse` reads what `format` writes as the value it was written from.
+
+In a text `format` writes `"` and `\` as `\"` and `\\`; a line feed, a carriage return, a tab, a backspace and a form feed as `\n`, `\r`, `\t`, `\b` and `\f`; every other character below U+0020 as `\u` and four uppercase hexadecimal digits; and every other character as itself, U+007F and `/` among them.
 
 ```
 type Value = Null | Boolean(Bool) | Integer(Int) | Real(Float) | Text(String)

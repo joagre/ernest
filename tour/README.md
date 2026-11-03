@@ -69,7 +69,7 @@ input 6:1:38: Counter.count needs mailbox Counter.CounterMsg, and the mailbox he
 
 A counter is a process that holds a number, and `count` is its loop: it takes one message, `Inc` or `Get`, does what the message says, and calls itself with the total. Its type says what it takes, `receiving CounterMsg`; the type and the loop are exported so that the prompt can name `Counter.Inc` and `Counter.count` (the guide's §7.1). `spawn` starts a process on the loop and answers its address, whose type comes from the loop's. `send` puts a message in the mailbox and answers nothing. `Address.call` makes a `Reply`, gives it to `Get`, sends the request and waits up to 1000 milliseconds for the answer, which the counter gives with `answer`: `Some(5)`, where `None` would be an answer that did not come (§4.4).
 
-The last two inputs never run. The address carries the mailbox's type, and a `String` is not a `CounterMsg`; the refusal is placed at `input 5:1:15`, the session's fifth input, line 1, column 15. And `count` receives from its own process's mailbox, so a function whose mailbox takes a `String` cannot call it, though no address is in sight. A typed address alone refuses the first, as Gleam's `Subject` does; the second is the first claim of *Why Ernest*, the mistake a `Subject` lets through, since `process.receive(subject)` compiles wherever a subject is in hand and whose mailbox it reads is left to the run. The mailbox type is in the function's type, so `count` runs only in a process of that type, and a call of it anywhere else is refused before the program runs.
+The last two inputs never run. The address carries the mailbox's type, and a `String` is not a `CounterMsg`; the refusal is placed at `input 5:1:15`, the session's fifth input, line 1, column 15. And `count` receives from its own process's mailbox, so a function whose mailbox takes a `String` cannot call it, though no address is in sight. A typed address alone refuses the first, as Gleam's `Subject` does; the second is the second claim of *Why Ernest*, the mistake a `Subject` lets through, since `process.receive(subject)` compiles wherever a subject is in hand and whose mailbox it reads is left to the run. The mailbox type is in the function's type, so `count` runs only in a process of that type, and a call of it anywhere else is refused before the program runs.
 
 `:load` puts a module in scope: it compiles `counter.ern` from the shell's directory, or takes a compiled form where one was compiled from that source, and its line says which; `:quit` ends the shell. The guide's §1.2 has the rest of it.
 
@@ -508,7 +508,7 @@ Right(8) : Either(Io.Error, Int)
 
 The host's own code, Erlang's libraries and whatever else runs on the runtime, is *foreign code* to a program, reached through a `foreign fn` that declares the Ernest type of a host function; `erlang:system_info/1` takes an atom, so the question is passed as one (the guide's §8.3). The declaration promised an `Int` of the host, and the runtime checked the answer against it as it arrived; declared `: String`, the same call faults its caller at the crossing, `the return of foreign function erlang:system_info/1 does not match String`, naming the function and the type.
 
-That is the first claim of *Why Ernest* at its boundary: the type is checked, not trusted, and a wrong value from the host is a fault where it crosses, not a crash later in code that believed it. The shell connected to `bar` as the first compute on it needed to, and `bar`'s terminal says `the peer a connected`. With these two computes both peers are connected, and each has told the shell how busy it is, as a peer does as it connects, so the computes below that name no node have utilizations to draw by; before any peer has told it, such a compute answers `Left(Io.Unreachable)` (report Appendix E.27).
+That is the second claim of *Why Ernest* at its boundary: the type is checked, not trusted, and a wrong value from the host is a fault where it crosses, not a crash later in code that believed it. The shell connected to `bar` as the first compute on it needed to, and `bar`'s terminal says `the peer a connected`. With these two computes both peers are connected, and each has told the shell how busy it is, as a peer does as it connects, so the computes below that name no node have utilizations to draw by; before any peer has told it, such a compute answers `Left(Io.Unreachable)` (report Appendix E.27).
 
 Then the work, three times, naming no node:
 
@@ -531,7 +531,7 @@ Each compute printed `counting the primes below 200000` in the terminal of the n
 
 The number is written into each lambda, since a `let` typed at the prompt binds a name of the session's node, which no peer has, and a function that captures it is not started on a peer (the guide's §9.3): after `let below = 200000`, `Peer.compute(fn() = Counter.primes(below), 5000)` answers `Left(Io.NotLoaded)`, and the prompt says no more: the peer that drew it says why on its terminal, `the binding $Session1.below has no value here`.
 
-Nothing was installed on `foo` or `bar`, and nothing named either: that is the last sentence of the second claim of *Why Ernest*, a computation that names no node goes to the less busy of two peers drawn at random, and no program is deployed first.
+Nothing was installed on `foo` or `bar`, and nothing named either: that is the last sentence of the first claim of *Why Ernest*, a computation that names no node goes to the less busy of two peers drawn at random, and no program is deployed first.
 
 ## 8. The fix
 
@@ -577,7 +577,7 @@ Counter, compiled again
 
 `Client(Inc(=amount)) when amount < 0` names one field and guards the clause (the guide's §2.6). A negative amount is now passed over, and the tally stands.
 
-That is the second claim of *Why Ernest* at its peak: the same process, new code, its state kept, told by a message of its own type. `count` stays in the source unchanged, since it is how the counters still on it are found, until `Code.running(count)` is empty on every node and it may go; nothing a node has loaded is unloaded while it runs, so a node reloaded without end grows with its versions (the guide's §8.9, the deployment guide's §4.2).
+That is the first claim of *Why Ernest* at its peak: the same process, new code, its state kept, told by a message of its own type. `count` stays in the source unchanged, since it is how the counters still on it are found, until `Code.running(count)` is empty on every node and it may go; nothing a node has loaded is unloaded while it runs, so a node reloaded without end grows with its versions (the guide's §8.9, the deployment guide's §4.2).
 
 The fix is a new loop beside the old for the reason chapter 6 gave: a fix inside `count`'s reach, in `handle`, which it calls, would change `count`'s hash, and `Code.running(count)` would find none of the counters. `:processes` still lists such a counter by its site, and it is then moved only through an address of its own type the program kept, or ended by `Process.kill` (the guide's §8.9).
 

@@ -1,0 +1,319 @@
+//
+// The site's books (plan, MVP 4.2 item 2): the guide, guide/language.md,
+// and the tour, tour/README.md, each a contents page and a page for each
+// chapter, a second-level heading of its source, as
+// docs/proposals/site/decisions.md's *The generation* says. The guide's
+// contents list each chapter's sections; the tour's, each chapter with its
+// own line, as its opening lists them. The guide's blocks get the buttons
+// the guide tests' grouping gives them; the tour's Copy alone, since its
+// programs are the reader's files, which its sessions load, or run on
+// nodes, as ern_tour_tests runs them (decisions *The live shell*).
+//
+
+/// The report's sections the guide's sections cite, each by its anchor,
+/// `5.4`, with the numbers of the guide's sections that cite it, each once,
+/// in the guide's order: a report section's margin line.
+export type Taught = Taught(sections : Map(String, List(String)))
+
+// A book: its title, its source's path, its contents page's address, the
+// header's room it stands in, its opening, the paragraphs before its first
+// chapter, its chapters, and each chapter's own line, by its number, where
+// its opening lists them.
+type Book =
+    Book(title : String,
+         source : String,
+         home : String,
+         room : String,
+         opening : List(Site.Code.Placed),
+         chapters : List(Chapter),
+         lines : Map(String, List(Markdown.Inline)))
+
+// A book's chapter, a second-level heading of its source: its number, its
+// heading's text, and its blocks after the heading.
+type Chapter =
+    Chapter(number : String, heading : List(Markdown.Inline), blocks : List(Site.Code.Placed))
+
+/// The guide's contents page and its chapters' pages, and the report's
+/// sections its sections cite.
+export fn guide(run : Site.Run.Run) : Either(String, Taught) = {
+    let source = "guide/language.md";
+    let book <- booked(run, source, "/guide/", "Guide", Site.Code.placed);
+    let _ <- written(run, book);
+    Right(taught(book))
+}
+
+/// The tour's contents page and its chapters' pages.
+export fn tour(run : Site.Run.Run) : Either(String, Unit) = {
+    let book <- booked(run, "tour/README.md", "/tour/", "Tour", Site.Code.copied);
+    written(run, book)
+}
+
+fn written(run : Site.Run.Run, book : Book) : Either(String, Unit) = {
+    let _ <- contentsWritten(run, book);
+    let _ <-
+        List.tryMap(Site.Run.neighbored(book.chapters),
+                    fn(neighbors) = chapterWritten(run, book, neighbors));
+    Right(Unit)
+}
+
+// The book a document is: its title, the first-level heading; its
+// opening, the blocks up to its first chapter, without a list of its
+// chapters, which gives each its line; and its chapters; each block with
+// the buttons `placing` gives it, and with its citations and its links made
+// the site's, a chapter's on its own page.
+fn booked(run : Site.Run.Run,
+          source : String,
+          home : String,
+          room : String,
+          placing : (List(Markdown.Block)) -> List(Site.Code.Placed)) : Either(String, Book) = {
+    let document <- Site.Run.documentOf(run, source);
+    let #(title, blocks) <- Site.Run.titleOf(source, Site.Run.withoutContents(document));
+    let page <- Site.Run.linkPage(run, source, home, document);
+    let #(front, rest) =
+        List.span(placing(blocks), fn(each) = !Site.Run.isHeadingOf(2, each.block));
+    let chapters <- chaptered(source, rest);
+    let numbers = List.map(chapters, fn(chapter) = chapter.number);
+    let #(listing, kept) =
+        List.partition(front, fn(each) = Optional.isSome(chapterLines(numbers, each.block)));
+    let lines <-
+        List.tryMap(List.flatMap(listing,
+                                 fn(each) =
+                                     Optional.withDefault(chapterLines(numbers, each.block), [])),
+                    fn(#(found, line)) =
+                        Either.map(Site.Links.inlinesLinked(line, page),
+                                   fn(linked) = #(found, linked)));
+    let opening <- Site.Run.linkedAll(kept, page);
+    let linked <- List.tryMap(chapters, fn(chapter) = chapterLinked(home, page, chapter));
+    Right(Book(title = Site.Html.plain(title),
+               =source,
+               =home,
+               =room,
+               =opening,
+               chapters = linked,
+               lines = Map.fromList(lines)))
+}
+
+// A chapter with its heading's and its blocks' citations and links made
+// the site's, as its own page has them.
+fn chapterLinked(home : String,
+                 bookPage : Site.Links.Page,
+                 chapter : Chapter) : Either(String, Chapter) = {
+    let page = Site.Links.Page(..bookPage, address = home <> chapter.number <> ".html");
+    let heading <- Site.Links.headingLinked(chapter.heading, page);
+    let blocks <- Site.Run.linkedAll(chapter.blocks, page);
+    Right(Chapter(..chapter, =heading, =blocks))
+}
+
+// The lines of a list of the book's chapters, each item a link to its
+// chapter's heading and the chapter's own line after it, `[1. The
+// counter](#1-the-counter): a process with a typed mailbox`; none for any
+// other block.
+fn chapterLines(numbers : List(String),
+                block : Markdown.Block) : Optional(List(#(String, List(Markdown.Inline)))) =
+    match block {
+        Markdown.Items(=items) when items != [] -> {
+            let found = List.filterMap(items, fn(item) = chapterLine(numbers, item));
+            if List.size(found) == List.size(items) then Some(found) else None
+        }
+      | _ ->
+            None
+    }
+
+fn chapterLine(numbers : List(String),
+               item : List(Markdown.Block)) : Optional(#(String, List(Markdown.Inline))) =
+    match item {
+        [Markdown.Paragraph(Markdown.Link(=text, =url) :: Markdown.Text(following) :: rest)] ->
+            match #(Site.Links.number(Site.Html.plain(text)), String.splitOnce(following, ": ")) {
+                #(Some(found), Some(#("", line))) when String.startsWith(url, "#")
+                    && List.contains(numbers, found) -> Some(#(found, Markdown.Text(line) :: rest))
+              | _ -> None
+            }
+      | _ ->
+            None
+    }
+
+// The chapters, each a second-level heading and the blocks up to the next.
+fn chaptered(source : String, placed : List(Site.Code.Placed)) : Either(String, List(Chapter)) =
+    match placed {
+        [] ->
+            Right([])
+      | Site.Code.Placed(block = Markdown.Heading(=text)) :: rest -> {
+            let #(own, later) = List.span(rest, fn(each) = !Site.Run.isHeadingOf(2, each.block));
+            let found <-
+                Either.fromOptional(Site.Links.number(Site.Html.plain(text)),
+                                    source
+                                        <> ": the chapter \""
+                                        <> Site.Html.plain(text)
+                                        <> "\" has no number");
+            let others <- chaptered(source, later);
+            Right(Chapter(number = found, heading = text, blocks = own) :: others)
+        }
+      | _ ->
+            Left(source <> ": a chapter begins at its heading")
+    }
+
+// The contents page: the book's opening, then each chapter, with its
+// sections a line each, or with its own line where the opening lists one.
+fn contentsWritten(run : Site.Run.Run, book : Book) : Either(String, Unit) = {
+    let entries <- List.tryMap(book.chapters, fn(chapter) = chapterEntry(run, book, chapter));
+    let chapters <-
+        Site.Run.filled(run,
+                        "fragments/chapters.html",
+                        [#("entries_html", Site.Run.markup(entries))]);
+    let toc <-
+        Site.Run.filled(run,
+                        "toc.html",
+                        [#("heading_html", Site.Run.inlined([Markdown.Text(book.title)])),
+                         #("opening_html",
+                           Site.Template.Markup(Site.Html.body(book.opening, 1, []))),
+                         #("entries_html", Site.Template.Markup(chapters))]);
+    let description <-
+        Site.Run.described(book.source, List.map(book.opening, fn(each) = each.block));
+    Site.Run.pageWritten(run,
+                         Site.Run.Output(address = book.home,
+                                         title = Site.Run.titled(book.title),
+                                         =description,
+                                         room = Some(book.room),
+                                         main = toc,
+                                         source = None))
+}
+
+fn chapterEntry(run : Site.Run.Run,
+                book : Book,
+                chapter : Chapter) : Either(String, List(Site.Template.Line)) = {
+    let address = book.home <> chapter.number <> ".html";
+    match Map.get(book.lines, chapter.number) {
+        Some(line) ->
+            Site.Run.filled(run,
+                            "fragments/chapter-line.html",
+                            [#("href", Site.Template.Plain(address)),
+                             #("label_html", Site.Run.labeled(chapter.heading)),
+                             #("line_html", Site.Run.labeled(line))])
+      | None -> {
+            let lines <-
+                List.tryMap(List.filter(sections(chapter), fn(section) = section.level == 3),
+                            fn(section) =
+                                Site.Run.filled(run,
+                                                "fragments/section.html",
+                                                [#("href",
+                                                   Site.Template.Plain(address
+                                                                           <> "#"
+                                                                           <> section.anchor)),
+                                                 #("label_html", Site.Run.labeled(section.text))]));
+            let listed <- if lines == [] then
+                Right([])
+            else
+                Site.Run.filled(run,
+                                "fragments/sections.html",
+                                [#("entries_html", Site.Run.markup(lines))]);
+            Site.Run.filled(run,
+                            "fragments/chapter.html",
+                            [#("href", Site.Template.Plain(address)),
+                             #("label_html", Site.Run.labeled(chapter.heading)),
+                             #("sections_html", Site.Template.Markup(listed))])
+        }
+    }
+}
+
+// A chapter's page: the sidebar of its sections, the book's title above
+// its heading, its text, and the chapters before and after it. Its
+// description is its own line where the book's opening gives one, and its
+// first sentence otherwise.
+fn chapterWritten(run : Site.Run.Run,
+                  book : Book,
+                  neighbors : #(Optional(Chapter),
+                                Chapter,
+                                Optional(Chapter))) : Either(String, Unit) = {
+    let #(earlier, chapter, later) = neighbors;
+    let address = book.home <> chapter.number <> ".html";
+    let sidebar <-
+        Site.Run.sidebar(run, "fragments/contents.html", "On this page", sections(chapter));
+    let titled <-
+        Site.Run.filled(run,
+                        "fragments/book.html",
+                        [#("href", Site.Template.Plain(book.home)),
+                         #("book", Site.Template.Plain(book.title))]);
+    let navigation <-
+        Site.Run.pageNavigation(run,
+                                "Chapters",
+                                Optional.map(earlier, fn(each) = neighbor(book, each)),
+                                Optional.map(later, fn(each) = neighbor(book, each)));
+    let anchor = Site.Links.numberAnchor(Site.Html.plain(chapter.heading));
+    let main <-
+        Site.Run.filled(run,
+                        "page.html",
+                        [#("layout", Site.Run.layout(sidebar)),
+                         #("contents_html", Site.Template.Markup(sidebar)),
+                         #("book_html", Site.Template.Markup(titled)),
+                         #("heading_html", Site.Run.headingHtml(chapter.heading, anchor)),
+                         #("body_html",
+                           Site.Template.Markup(Site.Html.body(chapter.blocks,
+                                                               1,
+                                                               numberHeaded(chapter.blocks)))),
+                         #("page_nav_html", Site.Template.Markup(navigation))]);
+    let description <- match Map.get(book.lines, chapter.number) {
+        Some(line) -> Right(Site.Html.plain(line))
+      | None -> Site.Run.described(book.source, List.map(chapter.blocks, fn(each) = each.block))
+    };
+    Site.Run.pageWritten(run,
+                         Site.Run.Output(=address,
+                                         title = Site.Html.plain(chapter.heading)
+                                             <> " · "
+                                             <> book.title,
+                                         =description,
+                                         room = Some(book.room),
+                                         =main,
+                                         source = Some(book.source)))
+}
+
+fn neighbor(book : Book, chapter : Chapter) : Site.Run.Neighbor =
+    Site.Run.Neighbor(address = book.home <> chapter.number <> ".html", text = chapter.heading)
+
+// Each heading of the blocks anchored by its number, where it has one.
+fn numberHeaded(blocks : List(Site.Code.Placed)) : List(Site.Html.Headed) =
+    List.filterMap(blocks, fn(each) = match each.block {
+        Markdown.Heading(=text) ->
+            Some(Site.Html.Headed(anchor = Site.Links.numberAnchor(Site.Html.plain(text)),
+                                  class = None))
+      | _ ->
+            None
+    })
+
+// Each numbered heading under the chapter's, a section's or one under it,
+// as the sidebar and the contents list them.
+fn sections(chapter : Chapter) : List(Site.Run.Entry) =
+    List.filterMap(chapter.blocks, fn(each) = match each.block {
+        Markdown.Heading(=level, =text) when level == 3 || level == 4 ->
+            Optional.map(Site.Links.number(Site.Html.plain(text)),
+                         fn(found) = Site.Run.Entry(anchor = found, =level, =text))
+      | _ ->
+            None
+    })
+
+// The report's sections each of the guide's sections cites, the chapter's
+// own text before its first section counting as the chapter's.
+fn taught(book : Book) : Taught = {
+    let cited = List.flatMap(book.chapters, fn(chapter) = {
+        let #(_, pairs) = List.mapFold(chapter.blocks, chapter.number, fn(section, each) = {
+            let current = match each.block {
+                Markdown.Heading(=text) ->
+                    Optional.withDefault(Site.Links.number(Site.Html.plain(text)), section)
+              | _ ->
+                    section
+            };
+            #(current,
+              List.map(Site.Links.reportCited([each.block]), fn(anchor) = #(anchor, current)))
+        });
+        List.flatMap(pairs, fn(each) = each)
+    });
+    let table =
+        List.foldLeft(cited,
+                      Map.empty,
+                      fn(acc, #(anchor, section)) =
+                          Map.update(acc, anchor, fn(found) = match found {
+                              Some(listed) when List.contains(listed, section) -> listed
+                            | Some(listed) -> listed <> [section]
+                            | None -> [section]
+                          }));
+    Taught(sections = table)
+}

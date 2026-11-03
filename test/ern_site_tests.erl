@@ -1,13 +1,18 @@
 %% The site's generator, tools/site.ern (plan, MVP 4.2 item 2), run over a
-%% tree of its own: the fixture fixtures/site/language.md standing as the
-%% guide, beside the site's files, ../site/, and the logos. The pages it
-%% writes are held to the expected ones under fixtures/site/expected/,
+%% tree of its own: the documents under fixtures/site/tree/, each standing
+%% at the path of the document it plays, the guide, the tour, the report,
+%% the library's pages, Why, the questions, the deployment guide, the README
+%% and the release notes, beside the site's files, ../site/, and the logos,
+%% with fixtures/site/config.json as the server's configuration.
+%%
+%% The pages it writes are held to the expected ones under fixtures/site/expected/,
 %% their assets' digests aside, so that the look and the generation never
-%% drift; the assets, the links and the templates' tokens are held each by
-%% a test of its own. `make site-expected` writes the expected pages again
-%% after a change to the look that is meant (write_expected/0). Run from
-%% this directory by its Makefile, after `make`, which builds the generator
-%% into ../build/tools. Every test here was written after the generator, a
+%% drift; the assets, the links, the descriptions of the site's own pages,
+%% the refusals and the templates' tokens are held each by a test of its
+%% own. `make site-expected` writes the expected pages again after a change
+%% to the look that is meant (write_expected/0). Run from this directory by
+%% its Makefile, after `make`, which builds the generator into
+%% ../build/tools. Every test here was written after the generator, a
 %% regression test.
 -module(ern_site_tests).
 
@@ -15,14 +20,17 @@
 
 -export([write_expected/0]).
 
--define(FIXTURE, "fixtures/site/language.md").
+-define(TREE, "fixtures/site/tree").
+-define(CONFIG, "fixtures/site/config.json").
 -define(EXPECTED, "fixtures/site/expected").
 -define(SOURCE, "build/site/source").
 -define(OUT, "build/site/out").
-%% The release the pages name, and the tag their links to GitHub and their
-%% date name: guide/language.md's last commit at a tag stays as it is.
+%% The release the pages name, and the revision their links to GitHub and
+%% their dates name: a source's last commit at a commit stays as it is, and
+%% this one, the generator's first stage, holds every source the pages name,
+%% site/templates/ among them.
 -define(VERSION, "9.9.9").
--define(TAG, "v0.9.0").
+-define(TAG, "ebcc1ea855bc01ea87fc6f222d497dbf1b1633bd").
 %% The files whose names hold a digest of their content
 %% (docs/proposals/site/decisions.md *The generation*).
 -define(DIGESTED, ["assets/css/site.css", "assets/js/site.js", "assets/img/icons.svg"]).
@@ -31,21 +39,42 @@
 generated_test_() ->
     {setup, fun generated/0, fun(_) -> ok end,
      [{"pages", fun pages/0}, {"assets", fun assets/0}, {"links", fun links/0},
-      {"refused", {timeout, 30, fun refused/0}}]}.
+      {"described", fun described/0}, {"refused", {timeout, 30, fun refused/0}},
+      {"unconfigured", {timeout, 30, fun unconfigured/0}}]}.
 
-%% plan MVP 4.2 item 2, docs/proposals/site/decisions.md *Every page*,
-%% *Anchors*, *Links*, *The templates* and *The live shell*: the guide's
-%% contents page and a page for each chapter, as the expected pages show
-%% them: each numbered heading anchored by its number, a citation a link to
-%% its section, a link written for GitHub led to the site's page of its
-%% target, Ernest colored by the toolchain's lexer, each block's buttons as
-%% the guide tests group the blocks, the sidebar, the book's title, the
-%% chapters before and after, and the footer naming the source with its
-%% date, all in the readable form. It does not cover the browser's reading
-%% of a page, which the mockup's look was checked by.
+%% plan MVP 4.2 item 2, docs/proposals/site/decisions.md *The root*,
+%% *Anchors*, *The homepage*, *Every page*, *The other pages*, *Links*, *The
+%% templates*, *The generation* and *The live shell*: every page the site
+%% has, as the expected pages show them.
+%%
+%% The books' contents pages and
+%% chapters, the guide's with its sections, the tour's with each chapter's
+%% line; the report's three files whole, with their revisions, their
+%% sections' margin lines and their contents page; each module's page with
+%% its declarations anchored by name, its signatures and its examples, and
+%% the library's contents pages; Why, the questions, Install, Releases and
+%% the deployment guide, a heading anchored by its GitHub anchor or its
+%% number, a GitHub anchor of a heading holding `§` or sharing its digits
+%% with another's led to its number; the homepage, its claims and its
+%% example; the shell's page, its numbers the configuration's; and the 404
+%% page.
+%%
+%% Each with its citations made links, its links written for GitHub
+%% led to the site's pages, its code colored by the toolchain's lexer, each
+%% block's buttons as its document's tests give them, its sidebar, its
+%% previous and next, and its footer naming its source with its date, all in
+%% the readable form. It does not cover the browser's reading of a page,
+%% which the mockup's look was checked by.
 pages() ->
     Expected = files(?EXPECTED),
-    ?assertEqual(["guide/0.html", "guide/1.html", "guide/2.html", "guide/index.html"], Expected),
+    ?assertEqual(["404.html", "deployment/index.html", "faq/index.html", "guide/0.html",
+                  "guide/1.html", "guide/2.html", "guide/index.html", "index.html",
+                  "install/index.html", "man/index.html", "man/libs/index.html",
+                  "man/libs/markdown/index.html", "man/libs/markdown/markdown.html",
+                  "man/stdlib/index.html", "man/stdlib/list.html", "man/stdlib/prelude.html",
+                  "releases/index.html", "report/index.html", "report/language.html",
+                  "report/library.html", "report/toolchain.html", "shell/index.html",
+                  "tour/1.html", "tour/2.html", "tour/index.html", "why/index.html"], Expected),
     ?assertEqual(Expected, [File || File <- files(?OUT), filename:extension(File) =:= ".html"]),
     ?assertEqual([], [File || File <- Expected,
                               undigested(read(?EXPECTED, File)) =/= undigested(read(?OUT, File))]).
@@ -70,9 +99,9 @@ assets() ->
                               binary:match(Page, list_to_binary("\"/" ++ Name)) =:= nomatch]).
 
 %% docs/proposals/site/decisions.md *Links*: every link of a written page
-%% to a page or an anchor of the guide, or to an asset, leads to a file
-%% written and to an anchor it holds; the other pages are not written yet,
-%% and the site's check of every link is the build's (plan, MVP 4.2 item 5).
+%% to the site, to a page, an anchor of a page or an asset, leads to a file
+%% written and to an anchor it holds. The site's check of every link of the
+%% real site is the build's (plan, MVP 4.2 item 5).
 links() ->
     Pages = [File || File <- files(?OUT), filename:extension(File) =:= ".html"],
     Anchors = maps:from_list([{File, anchors(read(?OUT, File))} || File <- Pages]),
@@ -80,16 +109,41 @@ links() ->
     Written = Anchors#{IconsFile => icons(read(?OUT, IconsFile))},
     Unresolved = [{Page, Link} || Page <- Pages, Link <- hrefs(read(?OUT, Page)),
                                   not resolves(Page, Link, Written)],
-    ?assert(length(Pages) =:= 4),
+    ?assert(length(Pages) =:= 26),
     ?assertEqual([], Unresolved).
+
+%% docs/proposals/site/decisions.md *Links*: the site's own pages, the
+%% homepage, the shell's and the 404 page, are each described by the first
+%% sentence of their text, which the generator states for the two whose
+%% text a template holds, home.html's heading and shell.html's opening.
+described() ->
+    ?assertEqual([], [Page || Page <- ["index.html", "shell/index.html", "404.html"],
+                              not is_described(read(?OUT, Page))]).
+
+is_described(Page) ->
+    {match, [Description]} = re:run(Page, "<meta name=\"description\" content=\"([^\"]*)\">",
+                                     [{capture, all_but_first, binary}]),
+    [_, Main] = binary:split(Page, <<"<main">>),
+    Text = re:replace(Main, "<[^>]*>", "", [global, {return, binary}]),
+    binary:match(Text, string:trim(Description, trailing, ".")) =/= nomatch.
 
 %% plan MVP 4.2 item 2: the generator writes the site into a directory of
 %% its own, so that no page whose source is gone stays, and refuses one
 %% that is there already.
 refused() ->
-    {Status, Output} = ern_integration_tests:sh(generate()),
+    {Status, Output} = ern_integration_tests:sh(generate(?OUT, ?CONFIG)),
     ?assertEqual(1, Status),
     ?assertMatch({_, _}, binary:match(Output, <<"build/site/out is there already">>)).
+
+%% docs/proposals/site/decisions.md *The templates*: the shell's page says
+%% what the server enforces, so a configuration with no `shell`, a server
+%% that serves none, is refused, and no site is written.
+unconfigured() ->
+    Config = "build/site/plain.json",
+    ok = file:write_file(Config, <<"{\"listeners\": []}\n">>),
+    {Status, Output} = ern_integration_tests:sh(generate("build/site/plain", Config)),
+    ?assertEqual(1, Status),
+    ?assertMatch({_, _}, binary:match(Output, <<"build/site/plain.json has no shell">>)).
 
 %% docs/proposals/site/decisions.md *The templates*, site/templates/README.md:
 %% every template and fragment holds the tokens its row of the README lists,
@@ -104,22 +158,22 @@ templates_test() ->
                                               Held =/= Listed]).
 
 %% The site generated from the fixture's tree, the tree made afresh: the
-%% fixture as the guide, the site's files and the logos.
+%% fixture's documents at their paths, the site's files and the logos.
 generated() ->
     _ = file:del_dir_r("build/site"),
-    copied(?FIXTURE, ?SOURCE ++ "/guide/language.md"),
+    [copied(filename:join(?TREE, File), filename:join(?SOURCE, File)) || File <- files(?TREE)],
     [copied(filename:join("../site", File), filename:join(?SOURCE ++ "/site", File))
      || File <- files("../site")],
     [copied("../assets/" ++ Logo, ?SOURCE ++ "/assets/" ++ Logo) || Logo <- ?LOGOS],
-    ern_integration_tests:succeed(generate()).
+    ern_integration_tests:succeed(generate(?OUT, ?CONFIG)).
 
 copied(From, To) ->
     ok = filelib:ensure_dir(To),
     {ok, _} = file:copy(From, To).
 
-generate() ->
-    "../bin/ern run ../build/tools/site.erc " ++ ?SOURCE ++ " " ++ ?OUT ++ " " ++ ?VERSION ++ " "
-        ++ ?TAG.
+generate(Out, Config) ->
+    "../bin/ern run ../build/tools/site.erc " ++ ?SOURCE ++ " " ++ Out ++ " " ++ ?VERSION ++ " "
+        ++ ?TAG ++ " " ++ Config.
 
 %% make site-expected: the expected pages written again from the fixture,
 %% after a change to the look or the generation that is meant.
@@ -160,8 +214,8 @@ icons(Svg) ->
                             [global, {capture, all_but_first, list}]),
     [Icon || [Icon] <- Found].
 
-%% Whether a link of Page leads to a file written and an anchor it holds;
-%% a link elsewhere, to a page not written yet or another site, is not read.
+%% Whether a link of Page leads to a file written and an anchor it holds,
+%% each as its attribute writes it; a link to another site is not read.
 resolves(Page, "#" ++ Anchor, Anchors) ->
     lists:member(Anchor, maps:get(Page, Anchors));
 resolves(_, "/" ++ Link, Anchors) ->
@@ -174,10 +228,9 @@ resolves(_, "/" ++ Link, Anchors) ->
                false -> Path
            end,
     Written = filelib:is_regular(filename:join(?OUT, File)),
-    case lists:prefix("guide/", File) orelse lists:prefix("assets/", File) of
-        false -> true;
-        true when Anchor =:= none -> Written;
-        true -> Written andalso lists:member(Anchor, maps:get(File, Anchors, []))
+    case Anchor of
+        none -> Written;
+        _ -> Written andalso lists:member(Anchor, maps:get(File, Anchors, []))
     end;
 resolves(_, _, _) ->
     true.

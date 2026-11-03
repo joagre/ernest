@@ -106,9 +106,9 @@ The site's files as served.
   type, a distribution built for a WAN, and a deadlock is found. Each is
   shown as its bold name and its first sentence alone, word for word,
   linking to its heading in Why, so that the list fits beside the
-  opening; the rest is Why's. Why and the README take that order and the
-  first claim's name and sentence when they are rewritten (`todo.md`;
-  decided 2026-11-03); and a small example with its output, which a
+  opening; the rest is Why's. Why and the README hold that order and the
+  first claim's name and sentence, which `claims_test` keeps equal
+  (decided 2026-11-03); and a small example with its output, which a
   test runs, so that the example's button runs what the page shows: a process started on
   the container's second node, its code typed into the shell and sent
   there (decided 2026-11-03). The opening and the list are visible on
@@ -538,9 +538,10 @@ The site's files as served.
   raise.
 - Why's pieces are `guide/why.md`'s claims, found after its line "What
   Ernest adds is where the parts meet:" as the documents test `claims_test`
-  finds them and holds them equal to the README's, in their order: the mailbox
-  in the function's type; code known by its hash; a distribution built for a
-  WAN; abstract types and requirements; a deadlock is found; and little else.
+  finds them and holds them equal to the README's, in their order: code goes
+  where it runs; the mailbox in the function's type; a distribution built for
+  a WAN; a deadlock is found; abstract types and requirements; and little
+  else (the order and the first claim's name decided 2026-11-03).
   Four claims show a program, one its configuration file and one the
   report, and the site renders the list as it stands.
 - The walk through one real program is the tour itself, which grows one

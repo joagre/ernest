@@ -1,0 +1,26 @@
+{
+  "listeners": [
+    { "kind": "plain", "address": "127.0.0.1", "port": 8080 }
+  ],
+  "root": "build/site",
+  "canonical-host": "localhost",
+  "redirect-hosts": [],
+  "timeouts": { "head": 10000, "idle": 15000, "write": 30000, "file": 5000 },
+  "limits": {
+    "request-line": 8192, "headers": 16384,
+    "connections": 160, "connections-per-address": 16
+  },
+  "content-types": {},
+  "headers": {},
+  "access-log": "build/access.log",
+  "shell": {
+    "path": "/shell/session",
+    "origins": ["http://localhost:8080"],
+    "command": ["shell.sh", "-it", "--rm", "--network", "none", "--memory", "128m",
+                "--pids-limit", "128", "ernest-shell"],
+    "most-at-once": 6,
+    "starts": { "count": 10, "within": 3600000 },
+    "lifetime": 300000, "warning": 60000,
+    "message-limit": 65536, "hangup": 5000
+  }
+}

@@ -90,7 +90,7 @@ notes.ern:2:5: this statement's value is discarded: expected Unit, found Either(
   | = help: `let _ = ...` discards it on purpose
 ```
 
-These rules come from one design. [Why Ernest](why.md), beside this guide, argues what Ernest adds to the parts it takes from Erlang, ML and Unison; the first refusal above is its first claim at work, and the second is principle 3, that nothing is invisible, a failure least of all (§11).
+These rules come from one design. [Why Ernest](why.md), beside this guide, argues what Ernest adds to the parts it takes from Erlang, ML and Unison; the first refusal above is its second claim at work, and the second is principle 3, that nothing is invisible, a failure least of all (§11).
 
 Sections 1 to 8 are eight stages: run a program, compute with values, pass behavior, run a protocol, manage process lifetime, handle failure, organize code, and cross boundaries. Each builds on the ones before it and ends with an exercise, whose answer is in §12. A complete program is shown whole; a fragment is part of the program around it. After the stages come the tools (§9), a word for the Erlang programmer (§10), the design behind the rules (§11), the answers (§12), and further reading (§13).
 

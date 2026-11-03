@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>List · Ernest library</title>
+  <meta name="description" content="Lists: the fixture's module, whose page the site renders (report §5.4).">
+  <meta property="og:title" content="List · Ernest library">
+  <meta property="og:description" content="Lists: the fixture's module, whose page the site renders (report §5.4).">
+  <meta property="og:image" content="https://ernest-lang.org/assets/ernest-social-light.png">
+  <link rel="icon" href="/assets/ernest-avatar-64.png">
+  <link rel="stylesheet" href="/assets/css/site.4a8b6c5e.css">
+  <script src="/assets/js/site.e4c54511.js" data-icons="/assets/img/icons.c570876c.svg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="/"><img src="/assets/ernest-mark.svg" alt="" width="24" height="30">Ernest</a>
+      <nav class="site-nav" aria-label="Main navigation">
+        <a href="/why/">Why</a>
+        <a href="/tour/">Tour</a>
+        <a href="/guide/">Guide</a>
+        <a href="/report/">Report</a>
+        <a href="/man/" aria-current="page">Library</a>
+        <a href="/shell/">Shell</a>
+        <a href="/install/">Install</a>
+        <a href="https://github.com/joagre/ernest">Source <svg class="icon" aria-hidden="true"><use href="/assets/img/icons.c570876c.svg#external-link"></use></svg></a>
+      </nav>
+      <details class="site-menu">
+        <summary>Menu <svg class="icon" aria-hidden="true"><use href="/assets/img/icons.c570876c.svg#chevron-down"></use></svg></summary>
+        <nav aria-label="Main navigation">
+          <a href="/why/">Why</a>
+          <a href="/tour/">Tour</a>
+          <a href="/guide/">Guide</a>
+          <a href="/report/">Report</a>
+          <a href="/man/" aria-current="page">Library</a>
+          <a href="/shell/">Shell</a>
+          <a href="/install/">Install</a>
+          <a href="https://github.com/joagre/ernest">Source</a>
+        </nav>
+      </details>
+    </div>
+  </header>
+
+  <main id="main" class="wrap">
+    <div class="doc-layout">
+      <nav class="contents" aria-label="On this page">
+        <details open>
+          <summary>List</summary>
+          <ol class="declarations">
+            <li><a href="#Examples"><code>Examples</code></a></li>
+            <li><a href="#List.size"><code>size</code></a></li>
+            <li><a href="#List.&lt;&gt;"><code>&lt;&gt;</code></a></li>
+          </ol>
+        </details>
+      </nav>
+      <article class="article">
+        <p class="eyebrow"><a href="/man/">Library</a></p>
+        <h1>List</h1>
+        <p><em>Since 0.1.0.</em></p>
+        <p>Lists: the fixture's module, whose page the site renders (<a href="/report/language.html#5.4">report §5.4</a>).</p>
+        <h2 id="Examples" class="declaration"><code>Examples</code><a class="anchor" href="#Examples" aria-label="Link to Examples">#</a></h2>
+        <pre class="code signature" data-tools="none"><code><span class="tok-type">List</span>.size([1, 2])
+<span class="tok-comment">// =&gt; 2</span></code></pre>
+        <h2>See also</h2>
+        <p><code>Map</code> for a value looked up by its key.</p>
+        <h2 id="List.size" class="declaration"><code>List.size</code><a class="anchor" href="#List.size" aria-label="Link to List.size">#</a></h2>
+        <pre class="code signature" data-tools="none"><code><span class="tok-type">List</span>.size(list : <span class="tok-type">List</span>(a)) : <span class="tok-type">Int</span></code></pre>
+        <p>The number of elements.</p>
+        <h3 class="examples">Examples</h3>
+        <pre class="code" data-shell="paste"><code><span class="tok-type">List</span>.size([])
+<span class="tok-comment">// =&gt; 0</span></code></pre>
+        <h3>Errors</h3>
+        <p>None.</p>
+        <h2 id="List.&lt;&gt;" class="declaration"><code>List.&lt;&gt;</code><a class="anchor" href="#List.&lt;&gt;" aria-label="Link to List.&lt;&gt;">#</a></h2>
+        <pre class="code signature" data-tools="none"><code>list &lt;&gt; other : <span class="tok-type">List</span>(a)</code></pre>
+        <p>The elements of the first list, then those of the second.</p>
+      </article>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p class="footer-rooms"><a href="/faq/">Questions</a> · <a href="/deployment/">Deployment</a> · <a href="/releases/">Releases</a></p>
+      <p class="footer-page">This page: <a href="https://github.com/joagre/ernest/blob/ebcc1ea855bc01ea87fc6f222d497dbf1b1633bd/src/stdlib/list.ern">src/stdlib/list.ern</a>, 2026-11-01 · Ernest 9.9.9 · <a href="https://github.com/joagre/ernest/blob/ebcc1ea855bc01ea87fc6f222d497dbf1b1633bd/LICENSE">0BSD license</a> · <a href="https://github.com/joagre/ernest/issues">Report a defect</a> · Served by <a href="https://github.com/joagre/ernest-httpd">ernest-httpd</a>, written in Ernest</p>
+    </div>
+  </footer>
+</body>
+</html>

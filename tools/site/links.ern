@@ -12,8 +12,7 @@
 
 /// The page whose links are made: its source's path in the repository, its
 /// own address, the tag the site is built from, and the anchors of each
-/// document a link names a heading of, each by the heading's GitHub anchor
-/// (`anchors`).
+/// document a link names a heading of (`anchors`).
 export type Page =
     Page(source : String,
          address : String,
@@ -21,9 +20,11 @@ export type Page =
          anchors : Map(String, Map(String, String)))
 
 // A document the site shows: a book, whose chapters each have a page, by
-// the address of its contents; or a page, whose headings are anchored by
-// their numbers, or by their GitHub anchors where it numbers none.
-type Shown = Book(String) | Numbered(String) | Slugged(String)
+// the address of its contents; a page whose headings are anchored by their
+// numbers; one whose headings are anchored by their GitHub anchors, as a
+// document that numbers none; or one whose headings no link reaches, a
+// contents page or a module's page.
+type Shown = Book(String) | Numbered(String) | Slugged(String) | Whole(String)
 
 // Whose section a `§` names, as the words before it say.
 type Owner = Report | Guide | Deployment | Bare
@@ -42,66 +43,131 @@ fn shown(path : String) : Optional(Shown) =
       | "report/language.md" -> Some(Numbered("/report/language.html"))
       | "report/toolchain.md" -> Some(Numbered("/report/toolchain.html"))
       | "report/library.md" -> Some(Numbered("/report/library.html"))
+      | "report/README.md" -> Some(Whole("/report/"))
       | "guide/why.md" -> Some(Slugged("/why/"))
       | "guide/faq.md" -> Some(Slugged("/faq/"))
       | "README.md" -> Some(Slugged("/install/"))
       | "CHANGES.md" -> Some(Slugged("/releases/"))
-      | _ -> None
+      | "docs/man/README.md" -> Some(Whole("/man/"))
+      | "docs/man/stdlib/README.md" -> Some(Whole("/man/stdlib/"))
+      | "docs/man/libs/README.md" -> Some(Whole("/man/libs/"))
+      | _ -> Optional.map(manualPage(path), Whole)
     }
 
-/// The anchors of a document the site shows, each by the GitHub anchor of
-/// its heading: a numbered heading's number in a document that numbers its
-/// headings, and in one that numbers none the GitHub anchor itself; none
-/// for a document the site does not show. A heading is read from its line,
-/// outside a fenced block, as the documents' test reads one.
-export fn anchors(path : String, text : String) : Either(String, Map(String, String)) =
+// A module's page of docs/man/, `/man/stdlib/list.html` for
+// docs/man/stdlib/list.md, at its path there (decisions *The root*).
+fn manualPage(path : String) : Optional(String) =
+    match stripped(path, "docs/man/") {
+        Some(rest) when String.endsWith(rest, ".md") ->
+            Some("/man/" <> String.slice(rest, 0, String.size(rest) - 3) <> ".html")
+      | _ ->
+            None
+    }
+
+/// The address of the site's page of a document of the repository, by its
+/// path, `/guide/` for guide/language.md and `/man/stdlib/list.html` for
+/// docs/man/stdlib/list.md; none for a document the site does not show.
+export fn address(path : String) : Optional(String) =
+    Optional.map(shown(path), fn(showing) = addressOn(showing, None))
+
+/// The anchors of a document the site shows, each by the GitHub anchor a
+/// link written for GitHub names its heading by. In a document that
+/// numbers its headings a numbered heading is found by the digits its
+/// GitHub anchor begins with, its number without its dots, `11` for `1.1`
+/// and `appendix-e17` for `E.17`, so that a heading holding `§` never needs
+/// its GitHub anchor computed; where two headings' numbers give the same
+/// digits, `1.1` and `11`, each is found by its whole GitHub anchor. In a
+/// document that numbers none each heading is found by its GitHub anchor.
+/// A page whose headings no link reaches has none.
+export fn anchors(path : String,
+                  blocks : List(Markdown.Block)) : Either(String, Map(String, String)) =
     match shown(path) {
-        None ->
+        Some(Slugged(_)) ->
+            Either.map(slugged(path, headings(blocks)),
+                       fn(slugs) = Map.fromList(List.map(slugs, fn(slug) = #(slug, slug))))
+      | Some(Book(_)) ->
+            numbered(path, headings(blocks))
+      | Some(Numbered(_)) ->
+            numbered(path, headings(blocks))
+      | _ ->
             Right(Map.empty)
-      | Some(showing) -> {
-            let headings = headingTexts(String.lines(text), false);
-            let slugs <- slugged(path, headings);
-            let pairs = List.zip(slugs, headings);
-            Right(Map.fromList(List.filterMap(pairs, fn(#(slug, heading)) = match showing {
-                Slugged(_) -> Some(#(slug, slug))
-              | _ -> Optional.map(number(heading), fn(found) = #(slug, found))
-            })))
+    }
+
+/// Each top-level heading's anchor, in order, as its page shows it: in a
+/// document that numbers its headings a numbered heading's number, and none
+/// for one without; in one that numbers none each heading's GitHub anchor.
+export fn headingAnchors(path : String,
+                         blocks : List(Markdown.Block)) : Either(String,
+                                                                 List(Optional(Site.Html.Anchor))) =
+    match shown(path) {
+        Some(Slugged(_)) ->
+            Either.map(slugged(path, headings(blocks)),
+                       fn(slugs) =
+                           List.map(slugs,
+                                    fn(slug) =
+                                        Some(Site.Html.Anchor(id = slug,
+                                                              label = "Link to this section"))))
+      | _ ->
+            Right(List.map(headings(blocks), numberAnchor))
+    }
+
+/// A numbered heading's anchor, its number, and none for a heading that is
+/// not numbered (decisions *Anchors*).
+export fn numberAnchor(text : String) : Optional(Site.Html.Anchor) =
+    Optional.map(number(text),
+                 fn(found) = Site.Html.Anchor(id = found, label = "Link to " <> found))
+
+// The text of each top-level heading, as a GitHub anchor reads it.
+fn headings(blocks : List(Markdown.Block)) : List(String) =
+    List.filterMap(blocks, fn(block) = match block {
+        Markdown.Heading(=text) -> Some(Site.Html.plain(text))
+      | _ -> None
+    })
+
+// The numbered headings, each by the digits its number gives, or by its
+// whole GitHub anchor where another's number gives the same digits.
+fn numbered(path : String, texts : List(String)) : Either(String, Map(String, String)) = {
+    let found =
+        List.filterMap(texts,
+                       fn(text) =
+                           Optional.map(number(text), fn(each) = #(numberKey(each), each, text)));
+    let keys = List.map(found, fn(#(key, _, _)) = key);
+    let pairs <-
+        List.tryMap(found,
+                    fn(#(key, each, text)) =
+                        if List.size(List.filter(keys, fn(other) = other == key)) == 1 then
+                            Right(#(key, each))
+                        else
+                            Either.map(slugBase(path, text), fn(slug) = #(slug, each)));
+    Right(Map.fromList(pairs))
+}
+
+// The digits a numbered heading's GitHub anchor begins with: its number
+// without its dots, `11` of `1.1`, and an appendix's after `appendix-`,
+// `appendix-e17` of `E.17`.
+fn numberKey(found : String) : String = {
+    let digits = String.replace(found, ".", "");
+    match String.toList(found) {
+        first :: _ when isCapital(first) -> "appendix-" <> String.toLower(digits)
+      | _ -> digits
+    }
+}
+
+// The digits a GitHub anchor begins with, as numberKey gives a heading's.
+fn fragmentKey(fragment : String) : String =
+    match stripped(fragment, "appendix-") {
+        Some(rest) -> {
+            let #(run, _) = List.span(String.toList(rest), isAsciiLetterOrDigit);
+            "appendix-" <> String.fromList(run)
+        }
+      | None -> {
+            let #(run, _) = digitRun(String.toList(fragment));
+            String.fromList(run)
         }
     }
 
-// The text of each heading outside a fenced block, as `^(#{1,6}) +(.*?) *$`
-// reads it in the documents' test.
-fn headingTexts(lines : List(String), fenced : Bool) : List(String) =
-    match lines {
-        [] ->
-            []
-      | line :: rest when String.startsWith(line, "```") ->
-            headingTexts(rest, !fenced)
-      | _ :: rest when fenced ->
-            headingTexts(rest, fenced)
-      | line :: rest ->
-            match headingText(line) {
-                Some(text) -> text :: headingTexts(rest, fenced)
-              | None -> headingTexts(rest, fenced)
-            }
-    }
-
-fn headingText(line : String) : Optional(String) = {
-    let #(hashes, rest) = List.span(String.toList(line), fn(char) = char == '#');
-    let count = List.size(hashes);
-    match rest {
-        ' ' :: _ when count >= 1 && count <= 6 -> Some(String.fromList(trimmedSpaces(rest)))
-      | _ -> None
-    }
-}
-
-fn trimmedSpaces(chars : List(Char)) : List(Char) =
-    List.reverse(unspaced(List.reverse(unspaced(chars))))
-
-fn unspaced(chars : List(Char)) : List(Char) = {
-    let #(_, rest) = List.span(chars, fn(char) = char == ' ');
-    rest
-}
+fn isAsciiLetterOrDigit(char : Char) : Bool =
+    char >= 'a' && char <= 'z' || Char.isAsciiDigit(char)
 
 /// The section number a heading's text begins with: `1.1` of `1.1 The
 /// shell`, `1` of `1. Run a program`, `E.17` of `Appendix E.17. ...` and `A`
@@ -114,10 +180,10 @@ export fn number(text : String) : Optional(String) =
 
 fn sectionNumber(chars : List(Char)) : Optional(String) =
     match digits(chars) {
-        Some(#(number, rest)) ->
+        Some(#(found, rest)) ->
             match rest {
-                ' ' :: _ -> Some(number)
-              | '.' :: ' ' :: _ -> Some(number)
+                ' ' :: _ -> Some(found)
+              | '.' :: ' ' :: _ -> Some(found)
               | _ -> None
             }
       | None ->
@@ -167,8 +233,8 @@ fn isCapital(char : Char) : Bool =
 // lowercase, every character but a letter, a mark, a number, `_`, a space
 // and `-` dropped, a space written `-`, and a second heading of the same
 // anchor numbered `-1`, a third `-2`.
-fn slugged(path : String, headings : List(String)) : Either(String, List(String)) = {
-    let bases <- List.tryMap(headings, fn(heading) = slugBase(path, heading));
+fn slugged(path : String, texts : List(String)) : Either(String, List(String)) = {
+    let bases <- List.tryMap(texts, fn(text) = slugBase(path, text));
     let #(_, slugs) = List.mapFold(bases, Map.empty, fn(seen, base) = {
         let count = Optional.withDefault(Map.get(seen, base), 0);
         let slug = if count == 0 then base else base <> "-" <> Int.toString(count);
@@ -213,7 +279,7 @@ fn slugPiece(path : String, heading : String, char : Char) : Either(String, Stri
 export fn linked(block : Markdown.Block, page : Page) : Either(String, Markdown.Block) =
     match block {
         Markdown.Heading(=level, =text) ->
-            Either.map(inlinesLinked(text, page),
+            Either.map(headingLinked(text, page),
                        fn(linked) = Markdown.Heading(=level, text = linked))
       | Markdown.Paragraph(inlines) ->
             Either.map(inlinesLinked(inlines, page), Markdown.Paragraph)
@@ -241,8 +307,28 @@ export fn linked(block : Markdown.Block, page : Page) : Either(String, Markdown.
         }
     }
 
-fn inlinesLinked(inlines : List(Markdown.Inline),
-                 page : Page) : Either(String, List(Markdown.Inline)) =
+/// A heading's text linked, as `linked` links a heading: the appendix it
+/// names itself by, `Appendix E.17` of `Appendix E.17. ...`, no citation of
+/// its own.
+export fn headingLinked(text : List(Markdown.Inline),
+                        page : Page) : Either(String, List(Markdown.Inline)) =
+    match #(text, number(Site.Html.plain(text))) {
+        #(Markdown.Text(first) :: rest, Some(found)) ->
+            match stripped(first, "Appendix " <> found) {
+                Some(following) ->
+                    Either.map(inlinesLinked(Markdown.Text(following) :: rest, page),
+                               fn(linked) = Markdown.Text("Appendix " <> found) :: linked)
+              | None ->
+                    inlinesLinked(text, page)
+            }
+      | _ ->
+            inlinesLinked(text, page)
+    }
+
+/// The inlines with each citation made a link and each link led, as
+/// `linked` makes a block's.
+export fn inlinesLinked(inlines : List(Markdown.Inline),
+                        page : Page) : Either(String, List(Markdown.Inline)) =
     Either.map(List.tryMap(inlines, fn(inline) = inlineLinked(inline, page)),
                fn(pieces) = List.flatMap(pieces, fn(piece) = piece))
 
@@ -278,6 +364,14 @@ fn target(url : String, source : String) : Optional(String) =
       | _ ->
             None
     }
+
+/// The anchors of the report's sections the linked blocks' links reach,
+/// `5.4` of `/report/language.html#5.4`, each where it is linked.
+export fn reportCited(blocks : List(Markdown.Block)) : List(String) =
+    List.filterMap(List.flatMap(blocks, urls), fn(url) = match String.splitOnce(url, "#") {
+        Some(#(path, anchor)) when String.startsWith(path, "/report/") -> Some(anchor)
+      | _ -> None
+    })
 
 fn urls(block : Markdown.Block) : List(String) =
     match block {
@@ -329,8 +423,9 @@ fn mapped(url : String, page : Page) : Either(String, String) =
           | #(Some(showing), None) ->
                 Right(local(page, addressOn(showing, None)))
           | #(Some(showing), Some(slug)) ->
-                match Optional.andThen(Map.get(page.anchors, found),
-                                       fn(table) = Map.get(table, slug)) {
+                match headingOf(Optional.withDefault(Map.get(page.anchors, found), Map.empty),
+                                showing,
+                                slug) {
                     Some(anchor) ->
                         Right(local(page, addressOn(showing, Some(anchor))))
                   | None ->
@@ -340,6 +435,22 @@ fn mapped(url : String, page : Page) : Either(String, String) =
                                  <> ", a heading the site anchors none of")
                 }
         }
+    }
+
+// The anchor of the heading a GitHub anchor names, by the digits it begins
+// with in a document that numbers its headings, or by the whole of it
+// (`anchors`).
+fn headingOf(table : Map(String, String), showing : Shown, slug : String) : Optional(String) =
+    match showing {
+        Slugged(_) ->
+            Map.get(table, slug)
+      | Whole(_) ->
+            None
+      | _ ->
+            match Map.get(table, fragmentKey(slug)) {
+                Some(anchor) -> Some(anchor)
+              | None -> Map.get(table, slug)
+            }
     }
 
 // A shown document's address, and an anchor's on it: a book's anchor
@@ -352,14 +463,15 @@ fn addressOn(showing : Shown, anchor : Optional(String)) : String =
       | #(Numbered(whole), Some(found)) -> whole <> "#" <> found
       | #(Slugged(whole), None) -> whole
       | #(Slugged(whole), Some(found)) -> whole <> "#" <> found
+      | #(Whole(whole), _) -> whole
     }
 
 fn github(tag : String, path : String) : String =
     "https://github.com/joagre/ernest/blob/" <> tag <> "/" <> path
 
-// The repository's path a relative link names, read from its source's
-// directory, or why it leaves the repository.
-fn resolved(source : String, link : String) : Either(String, String) = {
+/// The repository's path a relative link names, read from its source's
+/// directory, or why it leaves the repository.
+export fn resolved(source : String, link : String) : Either(String, String) = {
     let directory = List.dropLast(String.split(source, "/"), 1);
     let walked <-
         List.tryFold(String.split(link, "/"),
@@ -426,11 +538,11 @@ fn cited(chars : List(Char),
             }
       | '§' :: rest ->
             match digits(rest) {
-                Some(#(number, later)) -> {
+                Some(#(found, later)) -> {
                     let #(owner, word, before) = sectionWord(pending);
                     citation(before,
-                             word <> "§" <> number,
-                             sectionAddress(owner, number, page),
+                             word <> "§" <> found,
+                             sectionAddress(owner, found, page),
                              later,
                              page)
                 }
@@ -506,18 +618,18 @@ fn sectionWord(pending : List(Char)) : #(Owner, String, List(Char)) = {
 // Where a `§` leads: a bare one is the guide's own in the guide and the
 // report's in every other document (docs/proposals/site/decisions.md
 // *Links*).
-fn sectionAddress(owner : Owner, number : String, page : Page) : Either(String, String) =
+fn sectionAddress(owner : Owner, found : String, page : Page) : Either(String, String) =
     match owner {
         Report ->
-            reportAnchor(number, page)
+            reportAnchor(found, page)
       | Guide ->
-            Right("/guide/" <> chapter(number) <> ".html#" <> number)
+            Right("/guide/" <> chapter(found) <> ".html#" <> found)
       | Deployment ->
-            Right("/deployment/#" <> number)
+            Right("/deployment/#" <> found)
       | Bare when page.source == "guide/language.md" ->
-            Right("/guide/" <> chapter(number) <> ".html#" <> number)
+            Right("/guide/" <> chapter(found) <> ".html#" <> found)
       | Bare ->
-            reportAnchor(number, page)
+            reportAnchor(found, page)
     }
 
 // A report section's address: its citation's first number or letter names
@@ -538,11 +650,11 @@ fn reportFile(first : String) : Optional(String) =
     else
         None
 
-// The chapter a section number is of, `6` of `6.5`.
-fn chapter(number : String) : String =
-    match String.splitOnce(number, ".") {
+/// The chapter a section number is of, `6` of `6.5`.
+export fn chapter(found : String) : String =
+    match String.splitOnce(found, ".") {
         Some(#(first, _)) -> first
-      | None -> number
+      | None -> found
     }
 
 // Whether the character list begins with the word's characters.

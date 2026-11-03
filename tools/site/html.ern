@@ -8,20 +8,43 @@
 // in its text shows as written.
 //
 
+/// A heading's anchor: the fragment a link reaches it by, `1.4`, and the
+/// name of the heading's link to itself, `Link to 1.4`.
+export type Anchor = Anchor(id : String, label : String)
+
+/// What a top-level heading carries beside its text: its anchor, where it
+/// has one, and its class, where its page gives it one.
+export type Headed = Headed(anchor : Optional(Anchor), class : Optional(String))
+
 /// The page's top-level blocks, each code block with the buttons the
 /// generator decided it gets (`Site.Code.placed`), a heading `shift` levels
-/// above the level its source writes.
-export fn body(blocks : List(Site.Code.Placed), shift : Int) : List(Site.Template.Line) =
-    List.flatMap(blocks, fn(each) = match each.block {
-        Markdown.Code(=info, =lines) -> Site.Code.html(info, lines, each.given)
-      | block -> html(block, shift)
-    })
+/// above the level its source writes and with what `headed` gives it, one
+/// for each heading in order; a heading past the list's end has neither an
+/// anchor nor a class.
+export fn body(blocks : List(Site.Code.Placed),
+               shift : Int,
+               headed : List(Headed)) : List(Site.Template.Line) = {
+    let #(_, pieces) = List.mapFold(blocks, headed, fn(left, each) = match each.block {
+        Markdown.Heading(=level, =text) -> {
+            let #(given, rest) = match left {
+                first :: later -> #(first, later)
+              | [] -> #(Headed(anchor = None, class = None), [])
+            };
+            #(rest, [Site.Template.Line(heading(level - shift, text, given))])
+        }
+      | Markdown.Code(=info, =lines) ->
+            #(left, Site.Code.html(info, lines, each.given))
+      | block ->
+            #(left, html(block, shift))
+    });
+    List.flatMap(pieces, fn(lines) = lines)
+}
 
 /// A block's lines; a code block in another block gets no button but Copy.
 export fn html(block : Markdown.Block, shift : Int) : List(Site.Template.Line) =
     match block {
         Markdown.Heading(=level, =text) ->
-            [Site.Template.Line(heading(level - shift, text))]
+            [Site.Template.Line(heading(level - shift, text, Headed(anchor = None, class = None)))]
       | Markdown.Paragraph(inlines) ->
             [Site.Template.Line("<p>" <> inlinesHtml(inlines) <> "</p>")]
       | Markdown.Code(=info, =lines) ->
@@ -88,27 +111,34 @@ export fn plain(inlines : List(Markdown.Inline)) : String =
                 }),
                 "")
 
-// A numbered heading is anchored by its number, with a link to itself
-// (docs/proposals/site/decisions.md *Anchors*); any other is its text.
-fn heading(level : Int, text : List(Markdown.Inline)) : String = {
+/// A heading's element, at its level, with its class, and with its anchor
+/// and a link to itself where it has one (docs/proposals/site/decisions.md
+/// *Anchors*).
+export fn heading(level : Int, text : List(Markdown.Inline), headed : Headed) : String = {
     let tag = "h" <> Int.toString(Int.min(Int.max(level, 1), 6));
-    match Site.Links.number(plain(text)) {
-        Some(number) ->
+    let class = match headed.class {
+        Some(name) -> " class=\"" <> name <> "\""
+      | None -> ""
+    };
+    match headed.anchor {
+        Some(Anchor(=id, =label)) ->
             "<"
                 <> tag
                 <> " id=\""
-                <> number
-                <> "\">"
+                <> Site.Template.escaped(id)
+                <> "\""
+                <> class
+                <> ">"
                 <> inlinesHtml(text)
                 <> "<a class=\"anchor\" href=\"#"
-                <> number
-                <> "\" aria-label=\"Link to "
-                <> number
+                <> Site.Template.escaped(id)
+                <> "\" aria-label=\""
+                <> Site.Template.escaped(label)
                 <> "\">#</a></"
                 <> tag
                 <> ">"
       | None ->
-            "<" <> tag <> ">" <> inlinesHtml(text) <> "</" <> tag <> ">"
+            "<" <> tag <> class <> ">" <> inlinesHtml(text) <> "</" <> tag <> ">"
     }
 }
 

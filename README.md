@@ -99,11 +99,11 @@ Its parts come from elsewhere: Erlang's processes, the types of ML, which Gleam 
 
 What Ernest adds is where the parts meet, six claims that [Why Ernest](guide/why.md) argues, four of them with a program, one with its configuration file and one with the report:
 
+- **[Code goes where it runs](guide/why.md#code-goes-where-it-runs).** A process started on another node brings its code along, and a module keeps every version it has had: each function is known by a hash of its definition, not by the module it stands in.
 - **[The mailbox in the function's type](guide/why.md#the-mailbox-in-the-functions-type).** A function that receives names its mailbox in its own type, so the compiler checks every send against the mailbox it will reach and refuses a function that receives in a process of another mailbox, which Gleam's `process.receive(subject)` compiles and leaves to the run.
-- **[Code known by its hash](guide/why.md#code-known-by-its-hash).** A module's versions run side by side, a running process moves to a new one when told, and a process spawned on another node brings its code along.
 - **[A distribution built for a WAN](guide/why.md#a-distribution-built-for-a-wan).** Two nodes are two configuration files, each naming the other by key and address, with one TLS connection between them and no cluster to join.
-- **[Abstract types and requirements](guide/why.md#abstract-types-and-requirements).** A type keeps its representation to its module, and a generic function names the operations it needs, from a closed set, which the compiler supplies at each call; no program declares a class, so nothing stands on one.
 - **[A deadlock is found](guide/why.md#a-deadlock-is-found).** Under `ern run` and `ern test` without `--config-dir`, a program in which every process waits for a message none can send ends with a fault and a trace; [Why Ernest](guide/why.md#a-deadlock-is-found) says where it cannot be found. Finding it costs a running program a message at each spawn and each monitor.
+- **[Abstract types and requirements](guide/why.md#abstract-types-and-requirements).** A type keeps its representation to its module, and a generic function names the operations it needs, from a closed set, which the compiler supplies at each call; no program declares a class, so nothing stands on one.
 - **[Little else](guide/why.md#little-else).** Functions and processes are the whole language, and a report of three files defines all of it.
 
 Ernest is for programs written in it from the start, not for an OTP application or a codebase of several languages; [Why Ernest](guide/why.md) says how it meets Erlang.

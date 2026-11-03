@@ -7,11 +7,13 @@
 // those tests run in a bare shell.
 //
 
-/// The buttons a code block gets beside Copy, which every block has: Paste,
-/// for a module that runs alone in a bare shell, or for a transcript whose
-/// session a bare shell holds, an input at a time; Load, for such a module
-/// that exports `main`; or none.
-export type Buttons = CopyAlone | Paste | Load
+/// The buttons a code block gets beside Copy, which every block but a
+/// signature has: Paste, for a module that runs alone in a bare shell, for
+/// a transcript whose session a bare shell holds, an input at a time, or
+/// for a module's example; Load, for such a module that exports `main`;
+/// none; or, for a declaration's signature, which is no example, not even
+/// Copy.
+export type Buttons = CopyAlone | Paste | Load | Signature
 
 /// A document's top-level block, with the buttons it gets.
 export type Placed = Placed(block : Markdown.Block, given : Buttons)
@@ -184,6 +186,37 @@ fn inputs(lines : List(String)) : List(String) =
 fn language(info : String) : String =
     Optional.withDefault(List.get(String.words(info), 0), "")
 
+/// The blocks, each with Copy alone: a document none of whose blocks a test
+/// runs in a bare shell, the tour's and the README's, whose programs are
+/// the reader's own files, which their sessions load or run on nodes as
+/// ern_tour_tests runs them, the deployment guide's, a node's, and the
+/// report's and the release notes'.
+export fn copied(blocks : List(Markdown.Block)) : List(Placed) =
+    List.map(blocks, fn(block) = Placed(=block, given = CopyAlone))
+
+/// A module's page's blocks, as `ern doc` writes it (report §11.4): the
+/// `ernest` block right after a declaration's heading, one of the second
+/// level, is the declaration's signature, which gets no button; every
+/// other `ernest` block is an example, which the library's tests run, and
+/// gets Paste; any other block gets none.
+export fn documented(blocks : List(Markdown.Block)) : List(Placed) = {
+    let #(_, placed) =
+        List.mapFold(blocks,
+                     None,
+                     fn(previous, block) =
+                         #(Some(block),
+                           Placed(=block, given = documentedButtons(previous, block))));
+    placed
+}
+
+fn documentedButtons(previous : Optional(Markdown.Block), block : Markdown.Block) : Buttons =
+    match #(previous, block) {
+        #(Some(Markdown.Heading(level = 2)), Markdown.Code(=info)) when language(info)
+            == "ernest" -> Signature
+      | #(_, Markdown.Code(=info)) when language(info) == "ernest" -> Paste
+      | _ -> CopyAlone
+    }
+
 //
 // The HTML
 //
@@ -195,7 +228,8 @@ fn language(info : String) : String =
 export fn html(info : String, lines : List(String), given : Buttons) : List(Site.Template.Line) = {
     let code = String.join(lines, "\n");
     match language(info) {
-        "ernest" -> pre("code", given, colored(code))
+        "ernest" when given == Signature -> pre("code signature", given, colored(code))
+      | "ernest" -> pre("code", given, colored(code))
       | "ernest-fragment" -> pre("code", given, colored(code))
       | "ernest-prelude" -> pre("code", given, colored(code))
       | "ernest-rejected" -> pre("code rejected", given, colored(code))
@@ -206,12 +240,14 @@ export fn html(info : String, lines : List(String), given : Buttons) : List(Site
 }
 
 // The `<pre>` begins at its line's indentation and holds its body from the
-// line's start (site/templates/README.md).
+// line's start (site/templates/README.md); a signature's says that the
+// script gives it no tools, not even Copy.
 fn pre(class : String, given : Buttons, body : String) : List(Site.Template.Line) = {
     let shell = match given {
         CopyAlone -> ""
       | Paste -> " data-shell=\"paste\""
       | Load -> " data-shell=\"load\""
+      | Signature -> " data-tools=\"none\""
     };
     let open = "<pre class=\"" <> class <> "\"" <> shell <> "><code>";
     match String.split(open <> body <> "</code></pre>", "\n") {

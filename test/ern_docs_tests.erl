@@ -26,7 +26,7 @@
 -define(CONTENTS, ?REPORT ++ ["guide/language.md"]).
 %% The document the site's generator renders as the guide in its test
 %% (ern_site_tests).
--define(SITE_FIXTURE, "test/fixtures/site/language.md").
+-define(SITE_FIXTURE, "test/fixtures/site/tree/guide/language.md").
 -define(BEGIN, <<"<!-- contents -->">>).
 -define(END, <<"<!-- /contents -->">>).
 

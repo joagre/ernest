@@ -2,7 +2,7 @@
 
 The questions a reader of [*Programming in Ernest*](language.md) brings, each answered by what Ernest does, with the section that states it. [Why Ernest](why.md) is the argument the answers rest on.
 
-**It looks like Gleam. What differs?**
+### It looks like Gleam. What differs?
 
 The process is the language, where Gleam's typed messaging is a library over the runtime's processes, well made too. What differs is how far the types reach: a function that receives names its mailbox's type, and a `receive` reads only the mailbox of its own process, the one that type names, so every spawn and every receive is one the compiler checks against the function's type (the guide's §4).
 
@@ -14,7 +14,7 @@ Nodes are the language too: a node lists its peers by their public keys, a spawn
 
 Ernest compiles to the Erlang runtime, OTP 29, and to nothing else. What Gleam has that Ernest lacks: a JavaScript target, packages from hex through `gleam add`, labeled arguments on a function, `use`, type aliases, a pattern on a string's prefix, `"inc " <> rest`, and a language server; its opaque type is Ernest's abstract type, and its record of functions the operations record. Gleam's author is named in the acknowledgments.
 
-**Where are `gen_server` and the supervisors?**
+### Where are `gen_server` and the supervisors?
 
 In the language, as what they were made of. A server is a `receive` loop that keeps its state in its arguments, and a request carries a `Reply`, which `Address.call` waits on with a deadline (the guide's §4.4).
 
@@ -32,13 +32,13 @@ A process replaces its own code while it runs, by a message of its type that car
 
 Failure arrives as a message: a `monitor` is given a function of the watcher's, `wrap`, that turns the watched process's end, a `Down` with its reason, into a message of the watcher's own type, and there are no links, no exit signals and no exceptions; a process is ended from outside by `kill`, which takes its address, or by `Process.kill`, which takes its identity, and by the program's end, and a worker that must end with its owner monitors it (the guide's §5.2, §5.3, the guide's §6). An Ernest program is not an OTP application, and the guide's §10 says, item by item, what an Erlang programmer finds in its place.
 
-**Is this Unison on the Erlang runtime?**
+### Is this Unison on the Erlang runtime?
 
 It began there. Ernest's core was taken from Unison's: types inferred, a signature optional but for a requirement, which is written and never inferred (the guide's §7.3), sums and products with exhaustive matching, an effect written in a function's type, of which Ernest keeps one, what the function receives, structural equality with none on functions, and a definition known by the hash of its form.
 
 What was left behind is Unison's concurrency, its abilities, its exceptions and its codebase manager, since Ernest keeps modules and files and takes Erlang's processes whole; the hash serves the exchange of code between nodes and a module's versions, not a store in place of files (the guide's §8, report §8.7, report §11.1). Unison runs a distributed program on Unison Cloud, its hosted service, or with its software on machines of your own; in Ernest the nodes are yours with no service between them, each listed in the other's `ernest.conf`. Unison's founders are named in the acknowledgments.
 
-**Why one mailbox per process, and not several typed channels?**
+### Why one mailbox per process, and not several typed channels?
 
 A process receives values of one type, so every clause of a `receive` is checked against that type, and a clause that can never match is refused. A `receive` takes the first message a clause matches and leaves the others in the mailbox (the guide's §4.3).
 
@@ -48,13 +48,13 @@ The process's protocol is one type, read in one place, and an Ernest process han
 
 Its cost is the library that waits on messages of its own: it runs a process of its own and is reached by a call, where a channel would be made in the caller's process (the guide's §4.4).
 
-**Why does a function that receives say `receiving M`, while one that only sends says nothing?**
+### Why does a function that receives say `receiving M`, while one that only sends says nothing?
 
 A `receive` reads the mailbox of the process the function runs in, and a mailbox takes messages of one type, so the function runs only in a process whose mailbox is of that type. `receiving M` is that fact in the function's type, and the compiler refuses to run the function anywhere else: as the function a `spawn` starts with a mailbox of another type, or as a guard, which runs while a message is selected (report §3.9, report §6.1).
 
 A send needs no such fact. What it sends is in the address, `Address(M)`, and it reads nothing of the sender's mailbox; neither does a spawn, an answer, or a call, which waits on its reply and not on the caller's mailbox. So a function that only sends runs in any process, stands wherever one receiving `M` is expected, and says nothing, since a type carries what keeps messages safe and nothing of what a function does (report §0, principle 5).
 
-**What does a typed mailbox catch, and what does it not?**
+### What does a typed mailbox catch, and what does it not?
 
 A message is checked at both ends against the mailbox's one type. A `receive` is checked against it, and a clause that cannot run is refused: in the counter of the guide's §4.1, `Inc(_) -> count(total)` after `Inc(amount)` is refused with `this clause can never match` (report §6.3). A `send` is checked against the type its address carries, and `send(counter, "increment")` is refused with `the argument does not fit send: expected CounterMsg, found String` (the guide's §0, report §6.5).
 
@@ -64,7 +64,7 @@ A `receive` need not cover its type, so a request of the mailbox's type that no 
 
 Whether a reply is answered is not checked; the caller's call bounds its wait. A request carries a `Reply`, which is answered once: a second answer is no error the compiler sees, and is dropped as it runs, the caller keeping the first (the guide's §4.2, report §6.6). An answer never made is the next question.
 
-**Is a forgotten answer caught?**
+### Is a forgotten answer caught?
 
 Not by the compiler: a reply is a value, kept, passed on or dropped as any value is (the guide's §4.2). What protects the caller is the call it chose. `Address.call` has a deadline, and answers `None` when it passes, which says that no answer came and nothing of why. Where the callee ends before it answers, the wait ends at once: `None` for `Address.call`, and for `Address.callForever` a fault, which ends the calling process with the callee's cause where the callee faulted, and otherwise with a cause that names how it ended; an answer that comes after the deadline is discarded (the guide's §6.3, report §6.6).
 
@@ -72,7 +72,7 @@ Where every process waits and nothing is in flight, the program ends with `Fault
 
 What nothing catches is `Address.callForever` on a callee that lives on and never answers: the caller waits for as long as the callee lives, which is why `callForever` is for a callee that always answers, a queue's `Take` among them (the guide's §4.4).
 
-**How does Ernest talk to Erlang, and to the other languages on the runtime?**
+### How does Ernest talk to Erlang, and to the other languages on the runtime?
 
 Through `foreign fn` and `foreign type`, which are the one door: a `foreign fn` names a function of the host's, in any language the runtime runs, a library from hex, the BEAM's package index, among them, built by its own tools and given to `ern run`, `ern test` or `ern shell` with `--libs-dir dir`, which puts each `dir/*/ebin` on the load path (report §11.2), and declares its Ernest type, with nothing generated from the other side; a `foreign type` names a value Ernest holds without looking inside (the guide's §8.3, report §4.7).
 
@@ -80,13 +80,13 @@ The foreign side promises the declared types. A return value that breaks the pro
 
 The standard library stands on the host through such declarations (the guide's §8.5), and an Ernest program is otherwise written in Ernest: it is not an OTP application, no Erlang or Elixir module is built with it, and foreign code reaches it only through what the program hands it, an address or a function (report §8.4).
 
-**What does "built for a WAN" mean?**
+### What does "built for a WAN" mean?
 
 That two nodes on two networks are the ordinary case. Nodes talk over Erlang's own distribution, set up one way and not through its options: a node knows a peer by a name, a public key and an address in its own configuration, accepts a connection from a listed key alone, under the name that key gives it, and opens one TLS connection to a peer when an operation first needs it (report §8.3, the guide's §8.1).
 
 A program's nodes talk where its configuration says and nowhere else, so there is no mesh; one port per node is opened, the node's own carrier finding a peer by its listed address, so there is no port mapper, which is also why a plain Erlang node, started without Ernest, cannot be a peer; and the key is the identity, so the configuration is the whole of what an operator reads to know who talks to whom ([the deployment guide](deployment.md)). The cookie a node's command line carries, which `ps` shows, is the digest of the floor, the same on every node of one and no secret, and grants nothing (the deployment guide's §2.2). A fleet moves to a new minor release of `ern`, or a new major release of OTP, whole, since nodes on two floors never connect (the deployment guide's §5.1).
 
-**How is code replaced in a running program, and why not old and new code?**
+### How is code replaced in a running program, and why not old and new code?
 
 A process replaces its own loop by a message in its type that carries the new function, and switches with a tail call, so the replacement is a line of the program and the type says when it may arrive (the guide's §4.6, report §6.10).
 
@@ -94,7 +94,7 @@ A module reloaded in the shell gets a version beside its earlier ones, each name
 
 Across nodes a definition is known by the hash of its form, so two nodes agree on a function by its content and not by a module's name, which in Erlang stands for whichever of its two loaded versions is current (report §8.7). A service's protocol evolves the same way: a service of a new message type is a new service, found by the new type's hash, and the old runs on for the finders built against it.
 
-**Is there a type class, an interface or a trait?**
+### Is there a type class, an interface or a trait?
 
 Not as a construct. A type's members are the functions declared under its name in its own module, `Int.compare`, so a type has one `compare`. A requirement names `compare`, `negate`, one of the six operators `+`, `-`, `*`, `/`, `%` and `<>`, or `show`, and nothing else. A function generic in `a` that needs it writes `needs a.compare`, and a call writes nothing, since the compiler supplies the type's own; code written once over several representations takes a record of functions the program declares, and `Operations(..Set)` fills each field from the declaration of its name in the module `Set` (the guide's §7.3).
 
@@ -102,7 +102,7 @@ The `needs` is written, never inferred, and a type's members are declared in its
 
 What sets a requirement apart from a class is that the operations it can name are a closed set no program adds to, so no abstraction stands on a class; *Abstract types and requirements* in [Why Ernest](why.md) says what the closed set rules out, and all three stand in code there, with the refusal of a type that lacks the member and the refusals of an operation outside the set and of a member declared outside its type's module.
 
-**Where are ETS, tracing, `observer`, back pressure and releases?**
+### Where are ETS, tracing, `observer`, back pressure and releases?
 
 A table is the library `Ets`, the host's table with Ernest types on it, owned by the process that made it and read and written by every process of its node (report Appendix G.1). A shell attached to a node is the operator's window, its inputs running on the node and `:processes` listing what runs there, each process by its spawn site and what it does (the deployment guide's §6); there is no tracing and no `observer`. A `foreign fn` declared at an attached prompt reaches any function of the host's on the node, the host's tracer among them, and nothing of Ernest's vouches for what it does there (report §11.2).
 
@@ -110,11 +110,11 @@ In place of `global`, a service has one holder on each node that offers it, and 
 
 A mailbox is unbounded, as Erlang's is, and back pressure is the program's, a credit the receiver grants or a call, since a full mailbox that held a sender would hold a caller waiting on that sender's reply, and the two would wait for good. A release of a program is its `.erc` files beside `ern`, which `ern build` writes and the deployment guide's §1 and §5 run.
 
-**Why `fn(x) = ...` for a lambda, and not `x -> ...`?**
+### Why `fn(x) = ...` for a lambda, and not `x -> ...`?
 
 It begins with `fn`, so a reader and the parser see a lambda begin at its first word. A function's number of arguments is part of its type, and `fn(x, y)` shows it where the lambda is written, in the form a declaration and a call already have (report §5.3).
 
-**Why is the compiler so strict, and why does it give no warnings?**
+### Why is the compiler so strict, and why does it give no warnings?
 
 A program builds or it does not, so that a program that builds meets every rule, and its reader knows which rules those are. A warning would be a rule the compiler states and does not hold, and a program built with warnings one whose author decided each, or did not, which its reader cannot tell.
 

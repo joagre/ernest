@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ernest</title>
+  <meta name="description" content="Start a process on another node, and its code goes with it.">
+  <meta property="og:title" content="Ernest">
+  <meta property="og:description" content="Start a process on another node, and its code goes with it.">
+  <meta property="og:image" content="https://ernest-lang.org/assets/ernest-social-light.png">
+  <link rel="icon" href="/assets/ernest-avatar-64.png">
+  <link rel="stylesheet" href="/assets/css/site.4a8b6c5e.css">
+  <script src="/assets/js/site.e4c54511.js" data-icons="/assets/img/icons.c570876c.svg" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="/"><img src="/assets/ernest-mark.svg" alt="" width="24" height="30">Ernest</a>
+      <nav class="site-nav" aria-label="Main navigation">
+        <a href="/why/">Why</a>
+        <a href="/tour/">Tour</a>
+        <a href="/guide/">Guide</a>
+        <a href="/report/">Report</a>
+        <a href="/man/">Library</a>
+        <a href="/shell/">Shell</a>
+        <a href="/install/">Install</a>
+        <a href="https://github.com/joagre/ernest">Source <svg class="icon" aria-hidden="true"><use href="/assets/img/icons.c570876c.svg#external-link"></use></svg></a>
+      </nav>
+      <details class="site-menu">
+        <summary>Menu <svg class="icon" aria-hidden="true"><use href="/assets/img/icons.c570876c.svg#chevron-down"></use></svg></summary>
+        <nav aria-label="Main navigation">
+          <a href="/why/">Why</a>
+          <a href="/tour/">Tour</a>
+          <a href="/guide/">Guide</a>
+          <a href="/report/">Report</a>
+          <a href="/man/">Library</a>
+          <a href="/shell/">Shell</a>
+          <a href="/install/">Install</a>
+          <a href="https://github.com/joagre/ernest">Source</a>
+        </nav>
+      </details>
+    </div>
+  </header>
+
+  <main id="main" class="wrap">
+    <section class="home-intro" aria-labelledby="intro-title">
+      <div class="opening">
+        <h1 id="intro-title">Start a process on another node, and its code goes with it</h1>
+        <p class="lead">The node is sent the code it lacks, and nothing of the program is installed there first. Ernest is a functional language for concurrent programs, on the Erlang runtime. It is for programs written in it from the start, a server, a service spread over machines, a tool, and it reaches Erlang's libraries through declarations that give them Ernest types. Why Ernest is made so is <a href="/why/">the whole argument</a>.</p>
+      </div>
+      <div class="claims">
+        <h2>What Ernest adds</h2>
+        <ol>
+          <li><a href="/why/#code-goes-where-it-runs"><strong>Code goes where it runs.</strong> The first claim's first sentence.</a></li>
+          <li><a href="/why/#the-mailbox-in-the-functions-type"><strong>The mailbox in the function's type.</strong> The second claim, with <code>code</code> in its sentence.</a></li>
+          <li><a href="/why/#a-distribution-built-for-a-wan"><strong>A distribution built for a WAN.</strong> The third claim.</a></li>
+          <li><a href="/why/#a-deadlock-is-found"><strong>A deadlock is found.</strong> The fourth claim, the homepage's last.</a></li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="home-use" aria-labelledby="use-title">
+      <h2 id="use-title">A counter on another node</h2>
+      <p>The counter's code is typed into the shell, and <code>foo</code> is a second node beside it that has none of that code:</p>
+      <div class="example">
+        <pre class="code" data-shell="paste"><code><span class="tok-keyword">type</span> <span class="tok-type">CounterMsg</span> = <span class="tok-type">Inc</span>(<span class="tok-type">Int</span>) | <span class="tok-type">Get</span>(<span class="tok-type">Reply</span>(<span class="tok-type">Int</span>))
+
+<span class="tok-keyword">fn</span> count(total : <span class="tok-type">Int</span>) : <span class="tok-type">Unit</span> <span class="tok-keyword">receiving</span> <span class="tok-type">CounterMsg</span> =
+    <span class="tok-keyword">receive</span> {
+        <span class="tok-type">Inc</span>(amount) -&gt;
+            count(total + amount)
+      | <span class="tok-type">Get</span>(reply) -&gt; {
+            answer(reply, total);
+            count(total)
+        }
+    }</code></pre>
+        <pre class="transcript" data-shell="paste"><code><span class="tok-output">$ ern shell --config-dir a</span>
+<span class="tok-output">Ernest 0.10.0, session 1. :help for the commands, :quit to leave.</span>
+<span class="input"><span class="prompt">&gt; </span>let far &lt;- Peer.spawn(&quot;foo&quot;, fn() = count(0), 5000)</span>
+<span class="tok-output">the peer foo connected</span>
+<span class="tok-output">far : Address(CounterMsg)</span>
+<span class="input"><span class="prompt">&gt; </span>send(far, Inc(5))</span>
+<span class="input"><span class="prompt">&gt; </span>Address.call(far, Get, 1000)</span>
+<span class="tok-output">Some(5) : Optional(Int)</span></code></pre>
+      </div>
+      <p class="run" data-shell="start"><a href="/shell/">Run it yourself in the shell</a></p>
+    </section>
+
+    <nav class="doors" aria-label="Where to begin">
+      <div class="door">
+        <a href="/tour/"><strong><svg class="icon" aria-hidden="true"><use href="/assets/img/icons.c570876c.svg#play"></use></svg>Tour</strong><span>Show me the language.</span><svg class="icon" aria-hidden="true"><use href="/assets/img/icons.c570876c.svg#arrow-right"></use></svg></a>
+      </div>
+      <div class="door">
+        <a href="/guide/"><strong><svg class="icon" aria-hidden="true"><use href="/assets/img/icons.c570876c.svg#book-open"></use></svg>Guide</strong><span>Help me write programs.</span><svg class="icon" aria-hidden="true"><use href="/assets/img/icons.c570876c.svg#arrow-right"></use></svg></a>
+      </div>
+      <div class="door">
+        <a href="/report/"><strong><svg class="icon" aria-hidden="true"><use href="/assets/img/icons.c570876c.svg#file-text"></use></svg>Report</strong><span>Tell me the rules.</span><svg class="icon" aria-hidden="true"><use href="/assets/img/icons.c570876c.svg#arrow-right"></use></svg></a>
+      </div>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p class="footer-rooms"><a href="/faq/">Questions</a> · <a href="/deployment/">Deployment</a> · <a href="/releases/">Releases</a></p>
+      <p class="footer-page">This page: <a href="https://github.com/joagre/ernest/blob/ebcc1ea855bc01ea87fc6f222d497dbf1b1633bd/site/templates/home.html">site/templates/home.html</a>, 2026-11-03 · Ernest 9.9.9 · <a href="https://github.com/joagre/ernest/blob/ebcc1ea855bc01ea87fc6f222d497dbf1b1633bd/LICENSE">0BSD license</a> · <a href="https://github.com/joagre/ernest/issues">Report a defect</a> · Served by <a href="https://github.com/joagre/ernest-httpd">ernest-httpd</a>, written in Ernest</p>
+    </div>
+  </footer>
+</body>
+</html>

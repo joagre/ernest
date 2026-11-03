@@ -1,0 +1,156 @@
+//
+// The documents of one page each (plan, MVP 4.2 item 2), as
+// docs/proposals/site/decisions.md's *The root* and *The other pages* say:
+// Why, guide/why.md, at /why/; the questions, guide/faq.md, at /faq/;
+// Install, the README's *Installing*, at /install/; Releases, CHANGES.md,
+// at /releases/; and the deployment guide, guide/deployment.md, at
+// /deployment/. A document that numbers none of its headings anchors each
+// by its GitHub anchor, a second heading of the same anchor numbered as
+// GitHub numbers it, and the deployment guide, which numbers them, by its
+// number (decisions *Anchors*). A page has a sidebar where it has two
+// headings for it or more.
+//
+
+// A document of one page: its source, the header's room it stands in,
+// where it stands in one, the heading the page shows where it is not the
+// source's own, the section the page shows alone, by its heading, where it
+// shows one, and whether the guide tests run its blocks in a bare shell,
+// which gives them their buttons.
+type Document =
+    Document(source : String,
+             room : Optional(String),
+             heading : Optional(String),
+             section : Optional(String),
+             tested : Bool)
+
+// A top-level block of the document with its buttons and, a heading, its
+// anchor.
+type Shown = Shown(placed : Site.Code.Placed, anchor : Optional(Site.Html.Anchor))
+
+/// The pages of Why, the questions, Install, Releases and the deployment
+/// guide. Install and Releases are headed by their rooms' names, as the
+/// header and the footer name them.
+export fn documents(run : Site.Run.Run) : Either(String, Unit) = {
+    let documents =
+        [Document(source = "guide/why.md",
+                  room = Some("Why"),
+                  heading = None,
+                  section = None,
+                  tested = true),
+         Document(source = "guide/faq.md",
+                  room = None,
+                  heading = None,
+                  section = None,
+                  tested = true),
+         Document(source = "README.md",
+                  room = Some("Install"),
+                  heading = Some("Install"),
+                  section = Some("Installing"),
+                  tested = false),
+         Document(source = "CHANGES.md",
+                  room = None,
+                  heading = Some("Releases"),
+                  section = None,
+                  tested = false),
+         Document(source = "guide/deployment.md",
+                  room = None,
+                  heading = None,
+                  section = None,
+                  tested = false)];
+    let _ <- List.tryMap(documents, fn(document) = documentWritten(run, document));
+    Right(Unit)
+}
+
+fn documentWritten(run : Site.Run.Run, document : Document) : Either(String, Unit) = {
+    let source = document.source;
+    let address <-
+        Either.fromOptional(Site.Links.address(source), source <> " has no page of the site");
+    let blocks <- Site.Run.documentOf(run, source);
+    let anchors <- Site.Links.headingAnchors(source, blocks);
+    let placed = if document.tested then Site.Code.placed(blocks) else Site.Code.copied(blocks);
+    let #(heading, level, own) <- sectionOf(source, document.section, paired(placed, anchors));
+    let page <- Site.Run.linkPage(run, source, address, blocks);
+    let linked <- Site.Run.linkedAll(List.map(own, fn(each) = each.placed), page);
+    let headed = List.filterMap(own, fn(each) = match each.placed.block {
+        Markdown.Heading() -> Some(Site.Html.Headed(anchor = each.anchor, class = None))
+      | _ -> None
+    });
+    let found = entries(level, own);
+    let sidebar <- if List.size(found) < 2 then
+        Right([])
+    else
+        Site.Run.sidebar(run, "fragments/contents.html", "On this page", found);
+    let shownHeading = match document.heading {
+        Some(name) -> [Markdown.Text(name)]
+      | None -> heading
+    };
+    let main <-
+        Site.Run.filled(run,
+                        "page.html",
+                        [#("layout", Site.Run.layout(sidebar)),
+                         #("contents_html", Site.Template.Markup(sidebar)),
+                         #("book_html", Site.Template.Markup([])),
+                         #("heading_html", Site.Run.headingHtml(shownHeading, None)),
+                         #("body_html",
+                           Site.Template.Markup(Site.Html.body(linked, level - 1, headed))),
+                         #("page_nav_html", Site.Template.Markup([]))]);
+    let description <- Site.Run.described(source, List.map(own, fn(each) = each.placed.block));
+    Site.Run.pageWritten(run,
+                         Site.Run.Output(=address,
+                                         title = Site.Run.titled(Site.Html.plain(shownHeading)),
+                                         =description,
+                                         room = document.room,
+                                         =main,
+                                         source = Some(source)))
+}
+
+// Each block with its anchor, a heading the next of the anchors, which
+// stand one for each heading in order.
+fn paired(placed : List(Site.Code.Placed),
+          anchors : List(Optional(Site.Html.Anchor))) : List(Shown) = {
+    let #(_, shown) = List.mapFold(placed, anchors, fn(left, each) = match #(each.block, left) {
+        #(Markdown.Heading(), anchor :: rest) -> #(rest, Shown(placed = each, =anchor))
+      | _ -> #(left, Shown(placed = each, anchor = None))
+    });
+    shown
+}
+
+// The heading the page shows, its level, and the blocks under it: the
+// document's title and all after it, or the section whose heading's text
+// is the one given, up to the next heading of its level or above.
+fn sectionOf(source : String,
+             section : Optional(String),
+             shown : List(Shown)) : Either(String, #(List(Markdown.Inline), Int, List(Shown))) = {
+    let #(_, from) = List.span(shown, fn(each) = match each.placed.block {
+        Markdown.Heading(=text, =level) -> !isShownHeading(section, text, level)
+      | _ -> true
+    });
+    match from {
+        Shown(placed = Site.Code.Placed(block = Markdown.Heading(=text, =level))) :: rest -> {
+            let #(own, _) = List.span(rest, fn(each) = match each.placed.block {
+                Markdown.Heading(level = inner) -> inner > level
+              | _ -> true
+            });
+            Right(#(text, level, if section == None then rest else own))
+        }
+      | _ ->
+            Left(source
+                     <> " has no heading "
+                     <> Optional.withDefault(section, "of the first level"))
+    }
+}
+
+fn isShownHeading(section : Optional(String), text : List(Markdown.Inline), level : Int) : Bool =
+    match section {
+        Some(name) -> Site.Html.plain(text) == name
+      | None -> level == 1
+    }
+
+// The page's anchored headings of the two levels below its own, as the
+// sidebar lists them.
+fn entries(level : Int, own : List(Shown)) : List(Site.Run.Entry) =
+    List.filterMap(own, fn(each) = match #(each.placed.block, each.anchor) {
+        #(Markdown.Heading(level = inner, =text), Some(anchor)) when inner == level + 1
+            || inner == level + 2 -> Some(Site.Run.Entry(anchor = anchor.id, level = inner, =text))
+      | _ -> None
+    })

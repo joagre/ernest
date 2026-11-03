@@ -168,16 +168,16 @@ man: all
 	} > docs/man/libs/README.md
 	@v=$$(cat VERSION); { \
 	  printf '# The manual pages\n\n'; \
-	  printf 'The pages `ern doc` wrote from `main` when `make man` last ran, the release '; \
-	  printf '`main` then worked toward being Ernest %s; a module or a declaration that ' "$$v"; \
-	  printf 'no release holds yet ends its doc block with the release that brings it. A page '; \
-	  printf 'holds a module'"'"'s doc block, then its declarations, each with its type and its '; \
-	  printf 'own doc block (report §11.4). Where Ernest is installed, `man Ernest.List` '; \
+	  printf 'A page holds a module'"'"'s doc block, then its declarations, each with its type '; \
+	  printf 'and its own doc block (report §11.4). Where Ernest is installed, `man Ernest.List` '; \
 	  printf 'shows a module'"'"'s page and `man ern` the toolchain'"'"'s.\n\n'; \
 	  printf -- '- [The prelude and the standard library](stdlib/README.md)\n'; \
 	  printf -- '- [The libraries under `src/libs/`](libs/README.md)\n'; \
 	  printf -- '- [`ern`, the toolchain and its shell](../../report/toolchain.md#11-toolchain), '; \
-	  printf 'the report'"'"'s §11, whose §11.2 gives the shell'"'"'s commands\n'; \
+	  printf 'the report'"'"'s §11, whose §11.2 gives the shell'"'"'s commands\n\n'; \
+	  printf 'The pages `ern doc` wrote from `main` when `make man` last ran, the release '; \
+	  printf '`main` then worked toward being Ernest %s; a module or a declaration that ' "$$v"; \
+	  printf 'no release holds yet ends its doc block with the release that brings it.\n'; \
 	} > docs/man/README.md
 
 # The installation (docs/design/install.md): the toolchain's tree under
@@ -216,11 +216,12 @@ version:
 
 # The programs of the build written in Ernest, tools/, compiled into
 # build/tools against the libraries they use: libs/markdown and libs/ansi,
-# which the manual page is written with, and libs/crypto, whose digest names
-# the site's assets. The site's generator reaches the toolchain's lexer
+# which the manual page is written with, libs/crypto, whose digest names
+# the site's assets, and libs/json, which reads the server's configuration
+# for the site's shell page. The site's generator reaches the toolchain's lexer
 # through its helper, tools/ern_site.erl, compiled beside it, where `ern
 # run` finds it on the load path (report §11.2).
-tools: lib-ansi lib-markdown lib-crypto build/tools/ern_site.beam
+tools: lib-ansi lib-markdown lib-crypto lib-json build/tools/ern_site.beam
 	@bin/ern build --verbose --build-root build/tools tools
 
 build/tools/ern_site.beam: tools/ern_site.erl

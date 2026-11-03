@@ -34,7 +34,8 @@ tour/              the tour, README.md, one program grown through eight chapters
                    test holds equal to the document's blocks
 site/              the website's own files, which tools/site.ern reads: templates/,
                    each page's template and its fragments, with README.md, the tokens
-                   each binds, and root/, the assets laid out as served
+                   each binds; root/, the assets laid out as served; and example.md,
+                   the homepage's example, which ern_tour_tests runs on two nodes
 assets/            the logos, which assets/README.md lists with where each is used
 docs/              every other document, which docs/README.md lists, this one and the
                    catalog of diagnostics among them
@@ -72,9 +73,11 @@ test/fixtures/     what the tests read: target/, the hand-written target modules
                    two-module tree, the module of docs/module_doc_template.md and the
                    echo measurement; expected/ and golden/, what programs/, hello,
                    services print, repl's session among
-                   them, and the Erlang they compile to; site/, the document the site's
-                   generator renders as the guide and, under expected/, the pages it
-                   writes; and bench/, input/, layout/, load/, peers/, pty/, service/,
+                   them, and the Erlang they compile to; site/, under tree/ the
+                   documents the site's generator renders, each at the path of the one
+                   it plays, config.json, the server's configuration it is given, and
+                   under expected/ the pages it writes; and bench/, input/, layout/,
+                   load/, peers/, pty/, service/,
                    session/, stdin/ and terminal/, the programs and inputs tests run
 test/machines/     machines.txt, the user's machines that make bench-machines, make
                    bench-pick and nodes.sh start nodes on, a line each: its name, the
@@ -96,9 +99,10 @@ src/shell/         the shell as Ernest source; its README.md guides a reader
 editors/emacs/     ernest-mode.el, the Emacs major mode, and its tests under test/
 tools/             the programs of the build: manual.ern writes ern(1) from the
                    report's §11, for make; site.ern, with site/ beside it and its
-                   helper ern_site.erl over the toolchain's lexer, writes the website's
-                   pages from the repository into a directory of their own, so far the
-                   guide's; unicode_width.escript writes Terminal.width's
+                   helper ern_site.erl over the toolchain's lexer, writes every page of
+                   the website from the repository into a directory of its own, the
+                   shell page's numbers from the server's configuration;
+                   unicode_width.escript writes Terminal.width's
                    table, for make unicode; install.sh, with strip.escript, stages,
                    installs and archives, for make install, uninstall and release;
                    paragraphs.sh lists the long paragraphs, for make paragraphs and make

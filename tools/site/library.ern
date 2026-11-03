@@ -1,0 +1,330 @@
+//
+// The library's pages (plan, MVP 4.2 item 2): each module's page of
+// docs/man/, which `make man` writes, at its path under /man/, and the
+// contents pages, as docs/proposals/site/decisions.md's *The root* says:
+// /man/ lists the standard library's modules and the libraries in two
+// groups, a module a line, its name and the purpose its own page opens
+// with, and ends with the toolchain's §11; /man/stdlib/ and /man/libs/
+// hold the two groups, and /man/libs/<name>/ a library's modules. A
+// module's page anchors each declaration by its qualified name as its
+// heading writes it, `#List.size`, lists the declarations by their short
+// names under the module's, gives a signature no tools and an example
+// Paste, and names the module's source in its footer, since docs/man/ is
+// itself generated.
+//
+
+// A module of the library: its name, `List`, its page's path in docs/man/,
+// its page's address, and the library it is of, `libs/markdown`, where it
+// is a library's.
+type Module = Module(name : String, path : String, address : String, library : Optional(String))
+
+// A group of /man/: its name, the id its heading is named by, its
+// contents page's address, and its modules.
+type Group =
+    Group(name : List(Markdown.Inline), id : String, address : String, modules : List(Module))
+
+// A module's line in a contents page: the module, and the purpose its page
+// opens with.
+type Row = Row(module : Module, purpose : List(Markdown.Inline))
+
+/// Every module's page, /man/ and each contents page under it.
+export fn library(run : Site.Run.Run) : Either(String, Unit) = {
+    let source = "docs/man/README.md";
+    let document <- Site.Run.documentOf(run, source);
+    let #(_, rest) <- Site.Run.titleOf(source, document);
+    let #(opening, listed) = List.span(rest, fn(block) = !isList(block));
+    let items <- match listed {
+        Markdown.Items(=items) :: _ -> Right(items)
+      | _ -> Left(source <> " lists no group of modules")
+    };
+    let page <- Site.Run.linkPage(run, source, "/man/", rest);
+    let groups <-
+        List.tryMap(List.filterMap(items, fn(item) = groupItem(source, item)),
+                    fn(#(name, path)) = groupRead(run, name, path));
+    let rows <-
+        List.tryMap(groups,
+                    fn(group) =
+                        List.tryMap(group.modules, fn(module) = moduleWritten(run, module)));
+    let grouped = List.zip(groups, rows);
+    let _ <- List.tryMap(grouped, fn(#(group, own)) = groupWritten(run, group, own));
+    let _ <- librariesWritten(run, List.flatMap(rows, fn(each) = each));
+    let lines = List.filter(items, fn(item) = groupItem(source, item) == None);
+    indexWritten(run, page, opening, grouped, lines)
+}
+
+fn isList(block : Markdown.Block) : Bool =
+    match block {
+        Markdown.Items() -> true
+      | _ -> false
+    }
+
+// An item of /man/'s list that names a group's README, the group's name and
+// the README's path.
+fn groupItem(source : String,
+             item : List(Markdown.Block)) : Optional(#(List(Markdown.Inline), String)) =
+    match item {
+        [Markdown.Paragraph([Markdown.Link(=text, =url)])] ->
+            match Either.toOptional(Site.Links.resolved(source, url)) {
+                Some(path) when String.endsWith(path, "/README.md") -> Some(#(text, path))
+              | _ -> None
+            }
+      | _ ->
+            None
+    }
+
+// A group read from its README: each module its list names, a module's
+// library after its link where it is a library's.
+fn groupRead(run : Site.Run.Run,
+             name : List(Markdown.Inline),
+             path : String) : Either(String, Group) = {
+    let document <- Site.Run.documentOf(run, path);
+    let items = List.flatMap(document, fn(block) = match block {
+        Markdown.Items(=items) -> items
+      | _ -> []
+    });
+    let modules <- List.tryMap(items, fn(item) = moduleOf(path, item));
+    let address <-
+        Either.fromOptional(Site.Links.address(path), path <> " has no page of the site");
+    let id <-
+        Either.fromOptional(List.last(List.dropLast(String.split(path, "/"), 1)),
+                            path <> " stands in no directory");
+    Right(Group(=name, =id, =address, =modules))
+}
+
+fn moduleOf(index : String, item : List(Markdown.Block)) : Either(String, Module) =
+    match item {
+        [Markdown.Paragraph(Markdown.Link(=text, =url) :: rest)] -> {
+            let path <- Site.Links.resolved(index, url);
+            let address <-
+                Either.fromOptional(Site.Links.address(path),
+                                    index <> " lists " <> url <> ", which is no module's page");
+            let library = List.get(List.filterMap(rest, fn(inline) = match inline {
+                                       Markdown.CodeSpan(code) -> Some(code)
+                                     | _ -> None
+                                   }),
+                                   0);
+            Right(Module(name = Site.Html.plain(text), =path, =address, =library))
+        }
+      | _ ->
+            Left(index <> ": a module's line is a link to its page")
+    }
+
+//
+// A module's page
+//
+
+// A module's page, and the purpose it opens with.
+fn moduleWritten(run : Site.Run.Run, module : Module) : Either(String, Row) = {
+    let document <- Site.Run.documentOf(run, module.path);
+    let #(_, rest) <- Site.Run.titleOf(module.path, document);
+    let #(blocks, source) = generated(module.path, rest);
+    let page <- Site.Run.linkPage(run, module.path, module.address, blocks);
+    let placed <- Site.Run.linkedAll(Site.Code.documented(blocks), page);
+    let shown = declared(module.name, placed);
+    let sidebar <-
+        Site.Run.sidebar(run,
+                         "fragments/declarations.html",
+                         module.name,
+                         List.filterMap(shown, fn(#(_, entry, _)) = entry));
+    let titled <-
+        Site.Run.filled(run,
+                        "fragments/book.html",
+                        [#("href", Site.Template.Plain("/man/")),
+                         #("book", Site.Template.Plain("Library"))]);
+    let body =
+        Site.Html.body(List.map(shown, fn(#(each, _, _)) = each),
+                       0,
+                       List.filterMap(shown, fn(#(_, _, headed)) = headed));
+    let main <-
+        Site.Run.filled(run,
+                        "page.html",
+                        [#("layout", Site.Run.layout(sidebar)),
+                         #("contents_html", Site.Template.Markup(sidebar)),
+                         #("book_html", Site.Template.Markup(titled)),
+                         #("heading_html",
+                           Site.Run.headingHtml([Markdown.Text(module.name)], None)),
+                         #("body_html", Site.Template.Markup(body)),
+                         #("page_nav_html", Site.Template.Markup([]))]);
+    let description <- Site.Run.described(module.path, blocks);
+    let _ <-
+        Site.Run.pageWritten(run,
+                             Site.Run.Output(address = module.address,
+                                             title = module.name <> " · Ernest library",
+                                             =description,
+                                             room = Some("Library"),
+                                             =main,
+                                             =source));
+    let opening =
+        Optional.withDefault(Site.Run.firstProse(List.map(placed, fn(each) = each.block)), []);
+    Right(Row(=module, purpose = Site.Run.firstSentence(opening)))
+}
+
+// The page's blocks without its last line, which names the `ern` that
+// wrote it and the module's source, `Generated by ern 0.10.0 from
+// src/stdlib/list.ern.`, and the rule above it; and the source its footer
+// names, that `.ern` file, or the page itself where the line names none,
+// as the prelude's does.
+fn generated(path : String,
+             blocks : List(Markdown.Block)) : #(List(Markdown.Block), Optional(String)) =
+    match List.reverse(blocks) {
+        Markdown.Paragraph(last) :: Markdown.Rule :: kept when isGenerated(last) -> {
+            let named = match String.splitOnce(Site.Html.plain(last), " from ") {
+                Some(#(_, rest)) when String.endsWith(rest, ".ern.") ->
+                    String.slice(rest, 0, String.size(rest) - 1)
+              | _ ->
+                    path
+            };
+            #(List.reverse(kept), Some(named))
+        }
+      | _ ->
+            #(blocks, Some(path))
+    }
+
+fn isGenerated(inlines : List(Markdown.Inline)) : Bool =
+    match inlines {
+        [Markdown.Text(line)] -> String.startsWith(line, "Generated by ern ")
+      | _ -> false
+    }
+
+// Each block with its sidebar entry and what its heading carries, where it
+// is a heading: a declaration's heading, one of the second level whose
+// next block is its signature, written as code, anchored by its qualified
+// name and listed by its short name, `size` of `List.size`; an `Examples`
+// of the third level marked so; any other heading as it is.
+fn declared(name : String,
+            placed : List(Site.Code.Placed)) : List(#(Site.Code.Placed,
+                                                      Optional(Site.Run.Entry),
+                                                      Optional(Site.Html.Headed))) =
+    List.map(Site.Run.neighbored(placed),
+             fn(#(_, each, following)) = match #(each.block, following) {
+                 #(Markdown.Heading(level = 2, =text),
+                   Some(Site.Code.Placed(given = Site.Code.Signature))) -> {
+                     let qualified = Site.Html.plain(text);
+                     let code = [Markdown.CodeSpan(qualified)];
+                     #(Site.Code.Placed(..each, block = Markdown.Heading(level = 2, text = code)),
+                       Some(Site.Run.Entry(anchor = qualified,
+                                           level = 2,
+                                           text = [Markdown.CodeSpan(shortName(name, qualified))])),
+                       Some(Site.Html.Headed(anchor = Some(Site.Html.Anchor(id = qualified,
+                                                                            label = "Link to "
+                                                                                <> qualified)),
+                                             class = Some("declaration"))))
+                 }
+               | #(Markdown.Heading(level = 3, text = [Markdown.Text("Examples")]), _) ->
+                     #(each, None, Some(Site.Html.Headed(anchor = None, class = Some("examples"))))
+               | #(Markdown.Heading(), _) ->
+                     #(each, None, Some(Site.Html.Headed(anchor = None, class = None)))
+               | _ ->
+                     #(each, None, None)
+             })
+
+// A declaration's name without its module's, `size` of `List.size`; a
+// prelude name, which no module's name heads, as it is.
+fn shortName(name : String, qualified : String) : String =
+    if String.startsWith(qualified, name <> ".") then
+        String.slice(qualified, String.size(name) + 1, String.size(qualified))
+    else
+        qualified
+
+//
+// The contents pages
+//
+
+// /man/: the opening of docs/man/README.md, each group under its name, and
+// the README's other lines, the toolchain's.
+fn indexWritten(run : Site.Run.Run,
+                page : Site.Links.Page,
+                opening : List(Markdown.Block),
+                grouped : List(#(Group, List(Row))),
+                lines : List(List(Markdown.Block))) : Either(String, Unit) = {
+    let linked <- Site.Run.linkedAll(Site.Code.copied(opening), page);
+    let sections <- List.tryMap(grouped, fn(#(group, rows)) = {
+        let list <- moduleList(run, rows);
+        Site.Run.filled(run,
+                        "fragments/modules.html",
+                        [#("id", Site.Template.Plain(group.id)),
+                         #("group_html", Site.Run.inlined(group.name)),
+                         #("list_html", Site.Template.Markup(list))])
+    });
+    let toolchain <- List.tryMap(List.flatMap(lines, fn(item) = item), fn(block) = match block {
+        Markdown.Paragraph(inlines) -> {
+            let line <- Site.Links.inlinesLinked(inlines, page);
+            Site.Run.filled(run,
+                            "fragments/toolchain.html",
+                            [#("line_html", Site.Run.inlined(line))])
+        }
+      | _ ->
+            Left("docs/man/README.md: a line of its list is a paragraph")
+    });
+    let description <- Site.Run.described("docs/man/README.md", opening);
+    contentsWritten(run,
+                    "/man/",
+                    [Markdown.Text("Library")],
+                    description,
+                    Site.Html.body(linked, 0, []),
+                    List.flatMap(sections <> toolchain, fn(each) = each))
+}
+
+// A group's contents page, its modules a line each.
+fn groupWritten(run : Site.Run.Run, group : Group, rows : List(Row)) : Either(String, Unit) = {
+    let list <- moduleList(run, rows);
+    contentsWritten(run, group.address, group.name, Site.Html.plain(group.name), [], list)
+}
+
+// Each library's contents page, its modules a line each, at its directory
+// under /man/libs/.
+fn librariesWritten(run : Site.Run.Run, rows : List(Row)) : Either(String, Unit) = {
+    let libraries =
+        List.unique(List.filterMap(rows,
+                                   fn(row) =
+                                       Optional.map(row.module.library,
+                                                    fn(library) =
+                                                        #(library,
+                                                          directoryOf(row.module.address)))));
+    let _ <- List.tryMap(libraries, fn(#(library, address)) = {
+        let own = List.filter(rows, fn(row) = row.module.library == Some(library));
+        let list <- moduleList(run, own);
+        contentsWritten(run, address, [Markdown.CodeSpan(library)], library, [], list)
+    });
+    Right(Unit)
+}
+
+// The address of the directory a page stands in, `/man/libs/markdown/` of
+// `/man/libs/markdown/markdown.html`.
+fn directoryOf(address : String) : String =
+    String.join(List.dropLast(String.split(address, "/"), 1), "/") <> "/"
+
+fn moduleList(run : Site.Run.Run, rows : List(Row)) : Either(String, List(Site.Template.Line)) = {
+    let lines <-
+        List.tryMap(rows,
+                    fn(row) =
+                        Site.Run.filled(run,
+                                        "fragments/module.html",
+                                        [#("href", Site.Template.Plain(row.module.address)),
+                                         #("name", Site.Template.Plain(row.module.name)),
+                                         #("purpose_html", Site.Run.inlined(row.purpose))]));
+    Site.Run.filled(run, "fragments/module-list.html", [#("rows_html", Site.Run.markup(lines))])
+}
+
+// A contents page of the library: its heading, its description, its
+// opening and its lists. One with no opening is described by its heading.
+fn contentsWritten(run : Site.Run.Run,
+                   address : String,
+                   heading : List(Markdown.Inline),
+                   description : String,
+                   opening : List(Site.Template.Line),
+                   entries : List(Site.Template.Line)) : Either(String, Unit) = {
+    let toc <-
+        Site.Run.filled(run,
+                        "toc.html",
+                        [#("heading_html", Site.Run.inlined(heading)),
+                         #("opening_html", Site.Template.Markup(opening)),
+                         #("entries_html", Site.Template.Markup(entries))]);
+    Site.Run.pageWritten(run,
+                         Site.Run.Output(=address,
+                                         title = Site.Run.titled(Site.Html.plain(heading)),
+                                         =description,
+                                         room = Some("Library"),
+                                         main = toc,
+                                         source = None))
+}

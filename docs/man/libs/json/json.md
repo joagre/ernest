@@ -177,13 +177,24 @@ Json.format(value : Value) : String
 
 `value` as JSON text, laid out over lines as the host's `json:format`
 lays it out, two spaces to a level, an object's members in the order of
-their names' code points, and ending in a line feed.
+their names' code points, and ending in a line feed. In a text it writes
+`"` and `\` as `\"` and `\\`; a line feed, a carriage return, a tab, a
+backspace and a form feed as `\n`, `\r`, `\t`, `\b` and `\f`; every
+other character below U+0020 as `\u` and four uppercase hexadecimal
+digits; and every other character as itself, U+007F and `/` among them.
 
 ### Examples
 
 ```ernest
 Json.format(Json.Array([Json.Integer(1), Json.Null]))
 // => "[1,null]\n"
+```
+
+A text's characters, U+0000 escaped and U+007F not:
+
+```ernest
+Json.format(Json.Text("a\u{0}\u{7f}\t/"))
+// => "\"a\\u0000\u{7F}\\t/\"\n"
 ```
 
 ---

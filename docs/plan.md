@@ -37,10 +37,37 @@ row of the table at the end, its reasons in the log entries the row names.
 
 ## MVP 4.15 (what the server taught), about a week and a half
 
-What building and deploying ernest-httpd showed of Ernest, decided 2026-11-02 and built here
-before the website (the log's *What the Server Taught*).
+What building and deploying ernest-httpd showed of Ernest, decided 2026-11-02 (the log's *What
+the Server Taught*), built after MVP 4.2's generator (the log's *The Generator Before MVP
+4.15*). The items stand in build order, set 2026-11-03, each group done with one look at its
+area: the runtime, the standard library's readings, the libraries, the nodes, and relative
+names last, since they sweep every site of Ernest once. The five decisions for the user, in
+items 8, 9, 13, 15 and 16, are discussed early, so that no build waits on them. When the
+milestone ends, its reply to ernest-httpd's lines 18 to 21, `docs/tmp/language_feedback_reply.md`,
+goes to that program's session, as `docs/clean_room.md` says.
 
-1. **The host's collection at the wait.** A process that drops a value and waits holds it until
+1. **The runtime at the host's limits**, defects found 2026-11-03, fixed by 2026-11-12, after
+   MVP 4.2's item 2 (the log's *The Generator Before MVP 4.15*). At a
+   full process table the runtime's spawns on a request's behalf meet the host's
+   `system_limit` uncaught: the reaper's `spawn_monitor`, the per-request spawns of the `Fs`,
+   `Tcp` and `Os` system processes, and the runtime's own, a kept process, a kill and a
+   delivery. Each dies, and the node hangs where §7.4 has the spawner fault with
+   `Fault("error:system_limit")`. At a full port table the first read of standard input,
+   which opens its port lazily, faults with the host's raw term, and the terminal's `stty`
+   ports are opened the same way.
+
+   One rule fixes them: every spawn and port the runtime
+   makes for a request answers its asker with `Fault("error:system_limit")`, the system
+   process living on, and standard input's port opens with the run's other streams. Whether
+   a full table must leave room for the runtime's own end is decided here. A test under a
+   node of 1024 processes, and one of 1024 ports, holds each (the log's *A Node's
+   Limits*). Beside them, feedback 222, ernest-httpd's 18: a
+   certificate or a key `Tcp.listenTls` cannot read, or that is not there, answers as a file
+   it refuses does, `Other` naming the file and the reason, `Other("cert.pem: Denied")`,
+   where it answers `Denied` or `NotFound` today, the answer a port refused gives; E.18
+   first.
+
+2. **The host's collection at the wait.** A process that drops a value and waits holds it until
    its next collection, which the host runs only as the process allocates (§10): the server's
    idle connection held its last response. The runtime moves the host's own collection to the
    wait: a `receive` that finds nothing to take asks the host, before it waits, for the
@@ -52,29 +79,14 @@ before the website (the log's *What the Server Taught*).
    memory falling, `make bench` measures a waiting receive before and after, and the server's
    measurement under its `measure/` shows the gain. Where the cost is more than a fraction of
    a wait, the design goes to the log with its number and the rule of §10 stands alone.
-2. **Memory shown.** `Process.status` and `:processes` show each process's memory, the host's
+3. **Memory shown.** `Process.status` and `:processes` show each process's memory, the host's
    count with its binaries (E.21, §11.2), read against E.0's rules first, so that an operator
    sees what an idle connection holds.
-3. **`libs/http`'s values**, feedback 186: a value for its ordinary limits and one for HTTP/1.1,
-   named by the guide's style, the examples and the pages using them.
-4. **An error across a library**, feedback 185: a block's `<-` takes one error type, so a
-   library whose error wraps the host's makes a program lift every `Tcp` call. A proposal under
-   `docs/proposals/errors_across_libraries/` argues the three ways, the library answering
-   `Io.Error` itself, a conversion declared at `<-`, or the form standing as the one way to lift
-   with the library reading and writing the socket for the program, the third recommended;
-   decided with the user, then built here or dropped.
-5. **The deployment guide says what a waiting process holds**, one sentence in its section 7,
-   pointing at §10 and item 1.
-6. **Relative names**, feedback 204, decided 2026-11-02: a qualified name resolves from the
-   writer's own namespace outward, as a relative path resolves from its directory, so that
-   `Command.parse` in `Ernest.Shell` names `Ernest.Shell.Command.parse` and `Region.Region` in
-   `Ernest.Shell.Complete` names its sibling's; a name written longer than its shortest
-   resolving form is an error whose help names the short one, as `Prelude.x` is (§4.2), and
-   Appendix H's canonical form keeps the full name. The lookup is C++'s and C#'s, with no
-   import; a proposal under `docs/proposals/relative_names/` first, with how far a short name
-   reaches, then §4.2 after the cold reading, the checker, the diagnostics, `ern doc`, the
-   shell's completion, and the shell's own sites written short.
-7. **Text from bytes that are not all UTF-8**, feedback 206, decided 2026-11-02, the policy
+4. **The deployment guide says what a waiting process holds**, one sentence in its section 7,
+   pointing at §10 and item 2.
+5. **`kill` takes a `Process`**, feedback 213, as `monitor` does, so that a function of an
+   address passes it through `Process.fromAddress` once for both; Appendix E.21 first.
+6. **Text from bytes that are not all UTF-8**, feedback 206, decided 2026-11-02, the policy
    §11.2 and §11.5 state for the shell's region and a diagnostic's source line: each byte that
    begins no character shows as U+FFFD. Two functions, `String.fromUtf8Lossy`, the bytes as
    text so, and `String.fromUtf8Piece`, the text of a piece of a stream and the bytes of a
@@ -83,62 +95,72 @@ before the website (the log's *What the Server Taught*).
    conversion, Ernest closing the difference around the host's decoder (rule 1), E.5 stating
    them. The shell's `foreign fn decoded` and the harness's own decoding go; the compiler's
    diagnostic keeps its Erlang, since the compiler calls no shim.
-8. **The libraries' shims read against E.0 rule 1**, from the release review before 0.9.0: `ern_http`
-   runs the whole head loop in Erlang, the limits' accounting, the words and the values, where
-   G.11 says a primitive reads a line and the rest is Ernest; `ern_json` computes a position, a
-   too-long number's offset and a lone surrogate's in Erlang; `Base64.decode`'s strictness scan
-   could be Ernest around an exact shim. Each measured first, and moved where the Ernest costs
-   less than three times the host's function (the findings E4-25 to E4-27).
+7. **A text after its prefix, and a slice to the end**, feedback 214 and 220, decided
+   2026-11-03: `String.slice(x, i, String.size(x))` and `Bytes.slice` to the end stand at 23
+   sites, and the site's generator writes a helper twice for the text after a prefix, which
+   `String.startsWith` answers half of. One reading against E.0's rules decides both, the
+   functions admitted named by the guide's style, and every site written with them (the
+   log's *The Generator's First Stage*). The same reading decides feedback 215: `String.contains(x, "\r")`
+   finds no carriage return in `"\r\n"`, since E.5 searches by graphemes, and whether a
+   search by code points stands beside it. And feedback 227, a text without its suffix,
+   written as a slice after `String.endsWith` at three sites of the site's generator, the
+   dual of 220.
+8. **A worker's value or its end, and a test's scratch**, feedback 209 and 211: one reading
+   against E.0's rules of a `Process` function that runs a function monitored and answers its
+   value or its end, written by hand at five sites, of a temporary directory from `Fs`, and
+   of `Test.equal`'s failure marking where two values differ. Feedback 226 joins them, `List.dropWhile`, the rest of a list after a run, written
+   `let #(_, rest) = List.span(list, test)` at seven sites.
+
+   With them two of ernest-httpd's lines: feedback 224, its 20,
+   `Json.encode`, a value as JSON on one line, the host's `json:encode`, read against E.0's
+   rules beside `format`'s layout; and feedback 225, its 21, a named decision for the user:
+   `ern test` cannot read what a case writes on standard error, so a test of a line the design
+   says a program writes there cannot check it, and the line stands among the passes, as four
+   of ernest-httpd's do at every run; a case's standard error captured, or a `Test` function
+   that runs a function and answers what it wrote, decided here first.
+
 9. **A program's environment and working directory**, feedback 207, decided 2026-11-03: `Os.Command`
    gains what the host's `exec` takes, an environment and a working directory, so that an editor
    under a terminal gets its `TERM` and a program its directory without `env` or `sh -c 'cd'`
    in the arguments; the form, which every program that starts a program writes, decided here
    first, since `Command(program, arguments, input)` stands at ten sites of the standard library
    alone (feedback 184).
-
-10. **The runtime at the host's limits**, defects found 2026-11-03, fixed by 2026-11-12, after
-    MVP 4.2's item 2 (the log's *The Generator Before MVP 4.15*). At a
-    full process table the runtime's spawns on a request's behalf meet the host's
-    `system_limit` uncaught: the reaper's `spawn_monitor`, the per-request spawns of the `Fs`,
-    `Tcp` and `Os` system processes, and the runtime's own, a kept process, a kill and a
-    delivery. Each dies, and the node hangs where §7.4 has the spawner fault with
-    `Fault("error:system_limit")`. At a full port table the first read of standard input,
-    which opens its port lazily, faults with the host's raw term, and the terminal's `stty`
-    ports are opened the same way.
-
-    One rule fixes them: every spawn and port the runtime
-    makes for a request answers its asker with `Fault("error:system_limit")`, the system
-    process living on, and standard input's port opens with the run's other streams. Whether
-    a full table must leave room for the runtime's own end is decided here. A test under a
-    node of 1024 processes, and one of 1024 ports, holds each (the log's *A Node's
-    Limits*).
-11. **A text after its prefix, and a slice to the end**, feedback 214 and 220, decided
-    2026-11-03: `String.slice(x, i, String.size(x))` and `Bytes.slice` to the end stand at 23
-    sites, and the site's generator writes a helper twice for the text after a prefix, which
-    `String.startsWith` answers half of. One reading against E.0's rules decides both, the
-    functions admitted named by the guide's style, and every site written with them (the
-    log's *The Generator's First Stage*). The same reading decides feedback 215: `String.contains(x, "\r")`
-    finds no carriage return in `"\r\n"`, since E.5 searches by graphemes, and whether a
-    search by code points stands beside it.
+10. **`libs/http`'s values**, feedback 186: a value for its ordinary limits and one for HTTP/1.1,
+    named by the guide's style, the examples and the pages using them.
+11. **`libs/uri`**, feedback 210, decided with the user 2026-11-03: RFC 3986's authority and
+    percent-decoding as a library, the published specification being a library's work, with
+    `libs/http`'s target decoding and a cookie header's reading beside it, so that
+    `examples/fetch.ern` and `web_server.ern` parse neither by hand.
 12. **A process owns what it opens**, feedback 208: `examples/fetch.ern` closes its socket only
     on success, so it spawns a process for each fetch, whose end closes what it opened (§8.7),
     and the guide's section on sockets says so in a sentence; no form of the language closes
     on every way out of a block.
-13. **A worker's value or its end, and a test's scratch**, feedback 209 and 211: one reading
-    against E.0's rules of a `Process` function that runs a function monitored and answers its
-    value or its end, written by hand at five sites, of a temporary directory from `Fs`, and
-    of `Test.equal`'s failure marking where two values differ.
-14. **`libs/uri`**, feedback 210, decided with the user 2026-11-03: RFC 3986's authority and
-    percent-decoding as a library, the published specification being a library's work, with
-    `libs/http`'s target decoding and a cookie header's reading beside it, so that
-    `examples/fetch.ern` and `web_server.ern` parse neither by hand.
-15. **`kill` takes a `Process`**, feedback 213, as `monitor` does, so that a function of an
-    address passes it through `Process.fromAddress` once for both; Appendix E.21 first.
-16. **What a lambda's reach finds on a peer**, feedback 217, a named decision for the user: a
+13. **An error across a library**, feedback 185: a block's `<-` takes one error type, so a
+    library whose error wraps the host's makes a program lift every `Tcp` call. A proposal, to be written under
+    `docs/proposals/errors_across_libraries/`, argues the three ways, the library answering
+    `Io.Error` itself, a conversion declared at `<-`, or the form standing as the one way to lift
+    with the library reading and writing the socket for the program, the third recommended;
+    decided with the user, then built here or dropped.
+14. **The libraries' shims read against E.0 rule 1**, from the release review before 0.9.0: `ern_http`
+    runs the whole head loop in Erlang, the limits' accounting, the words and the values, where
+    G.11 says a primitive reads a line and the rest is Ernest; `ern_json` computes a position, a
+    too-long number's offset and a lone surrogate's in Erlang; `Base64.decode`'s strictness scan
+    could be Ernest around an exact shim. Each measured first, and moved where the Ernest costs
+    less than three times the host's function (the findings E4-25 to E4-27).
+15. **What a lambda's reach finds on a peer**, feedback 217, a named decision for the user: a
     lambda naming `Ansi.clearScreen`, spawned on a bare node whose tree holds `libs/ansi`,
     answers `Left(Io.NotLoaded)`, since a reach crosses as forms and §12.7 loads a
     toolchain-owned unit only where the spawned function's own unit is the toolchain's;
     discussed with the user against principle 1 before §8.7 or §12.7 changes.
+16. **Relative names**, feedback 204, decided 2026-11-02: a qualified name resolves from the
+    writer's own namespace outward, as a relative path resolves from its directory, so that
+    `Command.parse` in `Ernest.Shell` names `Ernest.Shell.Command.parse` and `Region.Region` in
+    `Ernest.Shell.Complete` names its sibling's; a name written longer than its shortest
+    resolving form is an error whose help names the short one, as `Prelude.x` is (§4.2), and
+    Appendix H's canonical form keeps the full name. The lookup is C++'s and C#'s, with no
+    import; a proposal under `docs/proposals/relative_names/` first, with how far a short name
+    reaches, then §4.2 after the cold reading, the checker, the diagnostics, `ern doc`, the
+    shell's completion, and the shell's own sites written short.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
