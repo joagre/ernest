@@ -93,8 +93,10 @@ The site's files as served.
   and the homepage takes nothing from it (decided 2026-10-13). In order: an
   opening under its heading, both leading with what Ernest adds that no
   reader expects, a process started on another node bringing its code
-  along, and then what kind of language it is, stating what Ernest does
-  and never what another language lacks (decided 2026-11-03); Why's list
+  along, and then what kind of language it is and what it is for,
+  stating what Ernest does and never what another language lacks. Each
+  thing is said once on the page: the opening says the effect, the list
+  beside it the means (decided 2026-11-03); Why's list
   "What Ernest adds", four of `guide/why.md`'s claims, the ones a newcomer
   reads at once: code goes where it runs, the mailbox in the function's
   type, a distribution built for a WAN, and a deadlock is found. Each is
@@ -102,8 +104,7 @@ The site's files as served.
   linking to its heading in Why, so that the list fits beside the
   opening; the rest is Why's. Why and the README take that order and the
   first claim's name and sentence when they are rewritten (`todo.md`;
-  decided 2026-11-03); a
-  paragraph on intended use; and a small example with its output, which a
+  decided 2026-11-03); and a small example with its output, which a
   test runs, so that Try prints what the page shows: a process started on
   the container's second node, its code typed into the shell and sent
   there (decided 2026-11-03). The opening and the list are visible on

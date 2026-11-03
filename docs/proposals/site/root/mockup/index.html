@@ -48,7 +48,7 @@
     <section class="home-intro" aria-labelledby="intro-title">
       <div class="opening">
         <h1 id="intro-title">Start a process on another node, and its code goes with it</h1>
-        <p class="lead">The node is sent the code it lacks: each function is known by a hash of its definition, and nothing of the program is installed there first. Ernest is a functional language for concurrent programs, on the Erlang runtime. A process receives messages of one type, which the compiler checks every send against. Why it is so is <a href="why.html">the whole argument</a>.</p>
+        <p class="lead">The node is sent the code it lacks, and nothing of the program is installed there first. Ernest is a functional language for concurrent programs, on the Erlang runtime. It is for programs written in it from the start, a server, a service spread over machines, a tool, and it reaches Erlang's libraries through declarations that give them Ernest types. Why it is so is <a href="why.html">the whole argument</a>.</p>
       </div>
       <div class="claims">
         <h2>What Ernest adds</h2>
@@ -62,8 +62,8 @@
     </section>
 
     <section class="home-use" aria-labelledby="use-title">
-      <h2 id="use-title">For programs written in it</h2>
-      <p>Ernest is for programs written in it from the start: a server, a service spread over machines, a tool. A program reaches Erlang's libraries through declarations that give them Ernest types. Here a counter is started on <code>foo</code>, a second node beside the shell that has none of its code:</p>
+      <h2 id="use-title">A counter on another node</h2>
+      <p>The counter's code is typed into the shell, and <code>foo</code> is a second node beside it that has none of that code:</p>
       <div class="example">
         <pre class="code" data-shell="paste"><code><span class="tok-keyword">type</span> <span class="tok-type">CounterMsg</span> = <span class="tok-type">Inc</span>(<span class="tok-type">Int</span>) | <span class="tok-type">Get</span>(<span class="tok-type">Reply</span>(<span class="tok-type">Int</span>))
 
