@@ -290,11 +290,14 @@ function warn(seconds) {
 function pasteWaiting() {
   const asked = session.terminal.modes.bracketedPasteMode;
   if (asked || session.rejoined) {
-    for (const text of session.pastes.splice(0)) {
+    for (const { text, typed } of session.pastes.splice(0)) {
       if (asked) {
         session.terminal.paste(text);
       } else {
         sendKeys(encoder.encode("\x1b[200~" + text + "\x1b[201~"));
+      }
+      if (typed !== "") {
+        sendKeys(encoder.encode("\r" + typed));
       }
     }
   }
@@ -334,16 +337,17 @@ function setState(state) {
   showWaiting();
 }
 
-function pasteIntoShell(text) {
+function pasteIntoShell(text, typed = "") {
   if (phone.matches) {
     remember("ernest.paste", text);
+    remember("ernest.typed", typed);
     location.assign("shell.html");
     return;
   }
   if (panel.layout === null && !panel.onPage) {
     openPanel(remembered("ernest.panel", "beside"));
   }
-  session.pastes.push(text.trimEnd());
+  session.pastes.push({ text: text.trimEnd(), typed });
   if (!panel.running) {
     startSession();
   } else {
@@ -474,6 +478,12 @@ function addBlockTools(pre) {
     tools.append(iconButton("terminal", "Paste into the shell", "icon-button",
       () => pasteIntoShell(pre.textContent)));
   }
+  // A program's block is loaded: its declarations pasted as one input, and
+  // then `main()` typed, one Enter away.
+  if (pre.dataset.shell === "load") {
+    tools.append(iconButton("play", "Load into the shell", "icon-button",
+      () => pasteIntoShell(pre.textContent, "main()")));
+  }
   tools.append(iconButton("copy", "Copy", "icon-button", () => copy(pre.textContent)));
   block.prepend(tools);
 }
@@ -532,6 +542,6 @@ if (frame !== null) {
   const waitingInput = remembered("ernest.paste", "");
   if (waitingInput !== "") {
     remember("ernest.paste", "");
-    pasteIntoShell(waitingInput);
+    pasteIntoShell(waitingInput, remembered("ernest.typed", ""));
   }
 }
