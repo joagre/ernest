@@ -43,6 +43,7 @@ The site's files as served.
     /assets/css/                    site.css, xterm's stylesheet
     /assets/js/                     xterm.js, its fit addon, the session client
     /assets/img/icons/              the Lucide icons and their LICENSE
+    /assets/img/icons.svg           the same icons, one symbol each
     /assets/<logo>                  the logos the site shows, at their paths in assets/
 
 - A report page is one of the report's files, whole. A citation's first
@@ -216,6 +217,21 @@ The site's files as served.
   written, and fails on one that does not resolve.
 
 ## The templates, 2026-10-13
+
+- The HTML is written to be read, by hand in a template and by the
+  generator in a page alike, so that a page's source reads as its
+  template does (decided 2026-11-03). Each block element stands on a line
+  of its own, indented two spaces a level; inline content stays on its
+  block's line, a paragraph one line however long. A `<pre>` begins at its
+  line's indentation and holds its body as shown, from the line's start.
+- HTML5 as written today: lower case, every attribute quoted, no `/>` on
+  a void element, and every end tag written, `</p>` and `</li>` among
+  them, though the parser would supply it.
+- An icon is one line, a `<use>` of its symbol in `/assets/img/icons.svg`,
+  which `make site` gathers from the icon files; the prototype holds the
+  gathered file.
+- The stylesheet lays out with flex and grid and their gaps, so that the
+  whitespace between elements never shows.
 
 - Flat token files, cut at their tokens once and joined with the values. No
   templating language.

@@ -73,7 +73,6 @@ p { margin: 0 0 1rem; }
 .block { position: relative; }
 .block pre { margin: 0; }
 .block-tools { position: absolute; top: .35rem; right: .35rem; display: flex; gap: .15rem; }
-.transcript .line { display: block; white-space: pre; }
 .transcript .input { position: relative; }
 .transcript .line-paste { position: absolute; left: -2.1rem; top: -.2rem; opacity: 0; }
 .transcript .input:hover .line-paste, .transcript .line-paste:focus-visible { opacity: 1; }

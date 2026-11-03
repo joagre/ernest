@@ -102,10 +102,13 @@ authorization of the copyright holder.
 
 Lucide icons
 
-  Path:     docs/proposals/site/root/assets/img/icons/LICENSE, and the
-            SVG icons beside it
+  Path:     docs/proposals/site/root/assets/img/icons/LICENSE, the SVG
+            icons beside it, and docs/proposals/site/root/assets/img/icons.svg,
+            which gathers them
   Upstream: https://github.com/lucide-icons/lucide
-  Copied:   2026-10-10, with the website proposal's first design
+  Copied:   2026-10-10, with the website proposal's first design; copy,
+            panel-right and panel-bottom on 2026-11-03, from lucide-static
+            0.460.0
   License:  ISC License; the icons derived from Feather also under the MIT
             License
 
