@@ -70,7 +70,7 @@ p { margin: 0 0 1rem; }
 .home-use { border-top: 1px solid var(--line); padding-top: .5rem; }
 .home-use > p { max-width: 75ch; }
 .example { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.25rem; align-items: start; }
-.block { position: relative; }
+.block { position: relative; min-width: 0; }
 .block pre { margin: 0; }
 .block-tools { position: absolute; top: .35rem; right: .35rem; display: flex; gap: .15rem; }
 .transcript .input { position: relative; }
@@ -134,7 +134,7 @@ th { font-weight: 620; }
   .site-header .site-nav, .panel-toggle { display: none; }
   .site-menu { display: block; }
   .site-menu[open] { flex-basis: 100%; order: 3; }
-  .home-intro, .example, .doc-layout, .shell-notes { grid-template-columns: 1fr; gap: 1.25rem; }
+  .home-intro, .example, .doc-layout, .shell-notes { grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
   .contents { border-bottom: 1px solid var(--line); padding-bottom: 1rem; }
   .door { grid-template-columns: 100px 1fr auto; gap: .5rem; }
   .session-state { margin-left: 0; width: 100%; }
