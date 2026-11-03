@@ -311,7 +311,10 @@ The site's files as served.
 - A page's footer names the file it renders: `home.html` for the homepage, the
   README for Install, `CHANGES.md` for Releases, a document's Markdown, a module's `.ern` for a `/man/` page, since
   `docs/man/` is itself generated. A contents page and the 404 page name none.
-- A page's sidebar lists its anchored headings, two levels deep.
+- A page's sidebar lists its anchored headings, two levels deep. It stays
+  in view, scrolling on its own where it is longer than the window, and
+  the script marks the section being read and keeps it in the sidebar's
+  view (decided 2026-11-03).
 - The sources stay Markdown: the report, the guide, `docs/man/`, and the tour's
   document, `tour/README.md`. A source's opening logo
   and its contents block are dropped; the site has its own.

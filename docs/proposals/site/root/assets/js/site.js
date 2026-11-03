@@ -513,8 +513,58 @@ function addStart(run) {
   run.replaceChildren(button);
 }
 
+// The sidebar names the section being read: the last heading above the
+// window's upper part is the one read, and its link is kept in view in the
+// sidebar's own scroll. The page scrolls in the window, or in its own
+// column beside the shell panel, so a scroll of either moves it.
+function followReading() {
+  const sidebar = document.querySelector(".contents details");
+  if (sidebar === null) {
+    return;
+  }
+  const links = new Map();
+  for (const link of sidebar.querySelectorAll('a[href^="#"]')) {
+    links.set(decodeURIComponent(link.hash.slice(1)), link);
+  }
+  const headings = [...document.querySelectorAll(".article [id]")].filter((h) => links.has(h.id));
+  let current = null;
+  let pending = false;
+  const update = () => {
+    pending = false;
+    const line = window.innerHeight * 0.25;
+    let reading = headings[0];
+    for (const heading of headings) {
+      if (heading.getBoundingClientRect().top <= line) {
+        reading = heading;
+      } else {
+        break;
+      }
+    }
+    const link = links.get(reading.id);
+    if (link === current) {
+      return;
+    }
+    current?.removeAttribute("aria-current");
+    link.setAttribute("aria-current", "location");
+    current = link;
+    const box = sidebar.getBoundingClientRect();
+    const at = link.getBoundingClientRect();
+    if (at.top < box.top || at.bottom > box.bottom) {
+      sidebar.scrollTop += at.top - box.top - box.height / 3;
+    }
+  };
+  document.addEventListener("scroll", () => {
+    if (!pending) {
+      pending = true;
+      requestAnimationFrame(update);
+    }
+  }, true);
+  update();
+}
+
 addPanel();
 addPanelToggle();
+followReading();
 showLayout(null);
 if (remembered("ernest.panel.open", "no") === "yes" && !phone.matches) {
   showLayout(layoutFor(remembered("ernest.panel", "beside")));

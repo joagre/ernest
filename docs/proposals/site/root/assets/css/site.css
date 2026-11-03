@@ -628,7 +628,8 @@ pre.rejected {
   text-decoration: none;
 }
 
-.contents [aria-current="page"] {
+.contents [aria-current="page"],
+.contents [aria-current="location"] {
   border-color: var(--accent);
   background: var(--panel);
   color: var(--ink);
