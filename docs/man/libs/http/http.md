@@ -518,7 +518,8 @@ A head that would not read back as written is a program's own error,
 and faults the caller, its cause naming the header or the status: a
 header's name that is no token, one or more of the ASCII letters and
 digits and of ``!#$%&'*+-.^_`|~`` (RFC 9110, section 5.6.2), a header's
-value holding a carriage return, a line feed or U+0000, and a body that
+value holding a carriage return, a line feed or U+0000, a status that is
+not three digits, from 100 to 999 (RFC 9112, section 4), and a body that
 is not empty given with a status of 1xx, 204 or 304.
 
 ### Examples

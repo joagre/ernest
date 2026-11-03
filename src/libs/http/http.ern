@@ -772,7 +772,8 @@ fn isNamed(header : Header, lowered : String) : Bool =
 /// and faults the caller, its cause naming the header or the status: a
 /// header's name that is no token, one or more of the ASCII letters and
 /// digits and of ``!#$%&'*+-.^_`|~`` (RFC 9110, section 5.6.2), a header's
-/// value holding a carriage return, a line feed or U+0000, and a body that
+/// value holding a carriage return, a line feed or U+0000, a status that is
+/// not three digits, from 100 to 999 (RFC 9112, section 4), and a body that
 /// is not empty given with a status of 1xx, 204 or 304.
 ///
 /// ### Examples
@@ -789,6 +790,10 @@ fn isNamed(header : Header, lowered : String) : Bool =
 /// ```
 export fn renderResponse(response : Response, body : Bytes) : Bytes = {
     let Response(=version, =status, =headers) = response;
+    if status < 100 || status > 999 then
+        fault("the status " <> Int.toString(status) <> " is not three digits")
+    else
+        Unit;
     if isBodiless(status) && !Bytes.isEmpty(body) then
         fault("a response of status "
                   <> Int.toString(status)
@@ -1480,7 +1485,13 @@ let renderFaults =
                "the target \"/café\" holds a character outside U+0021 to U+007E"),
              #(fn() = renderRequest(Request(..request, target = ""), <<>>), "the target is empty"),
              #(fn() = renderResponse(Response(..response, status = 204), String.toUtf8("oops")),
-               "a response of status 204 has no body, and one of 4 bytes was given")];
+               "a response of status 204 has no body, and one of 4 bytes was given"),
+             #(fn() = renderResponse(Response(..response, status = 1000), <<>>),
+               "the status 1000 is not three digits"),
+             #(fn() = renderResponse(Response(..response, status = 99), <<>>),
+               "the status 99 is not three digits"),
+             #(fn() = renderResponse(Response(..response, status = -1), <<>>),
+               "the status -1 is not three digits")];
         Test.equal(List.map(faults, fn(#(write, cause)) = Test.faults(write, cause)),
                    List.repeat(Test.Passed, List.size(faults)))
     })
