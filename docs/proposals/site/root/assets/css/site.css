@@ -801,6 +801,47 @@ h2:hover .anchor,
 }
 
 
+/* The library's contents: a module a line, its name and its purpose. */
+.modules {
+  margin: 0 0 2rem;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.modules li {
+  display: grid;
+  grid-template-columns: 9rem minmax(0, 1fr);
+  gap: 1rem;
+  padding: .45rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.modules .module {
+  text-decoration: none;
+}
+
+.modules .module code {
+  padding: 0;
+  background: none;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.modules .module:hover code {
+  color: var(--accent);
+}
+
+.modules span {
+  color: var(--muted);
+  font-size: .95rem;
+}
+
+.toolchain {
+  color: var(--muted);
+}
+
+
 /* Tables
    ---------------------------------------------------------------------- */
 

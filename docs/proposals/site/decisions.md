@@ -52,7 +52,11 @@ The site's files as served.
 - Every contents page is generated, from the headings or from `src/libs/*/`.
   No symlink, and no page at two addresses.
 - The `/man/` pages are rendered from `docs/man/`'s Markdown, which `make man`
-  writes. The site calls them Library.
+  writes. The site calls them Library. `/man/` lists the standard library's
+  modules and the libraries in two groups, a module a line, its name and
+  the purpose its own page opens with, and ends with the toolchain's §11;
+  `/man/stdlib/` and `/man/libs/` hold the same lists' halves, so that a
+  page's address trimmed to its directory finds one (decided 2026-11-03).
 - The root holds the assets, laid out as served; no page is written by
   hand. The templates and their README stand beside it, in `templates/`.
 - A link names a directory by its own form, `/guide/`, never

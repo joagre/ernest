@@ -1,12 +1,19 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Ernest website template preview: Library.">
-<title>Library — Ernest</title>
-<link rel="icon" href="ernest-avatar-64.png">
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Library · Ernest</title>
+  <meta name="description" content="The standard library's modules and the libraries, each with its own page.">
+  <meta property="og:title" content="Library · Ernest">
+  <meta property="og:description" content="The standard library's modules and the libraries, each with its own page.">
+  <meta property="og:image" content="https://ernest-lang.org/assets/ernest-social-light.png">
+  <link rel="icon" href="ernest-avatar-64.png">
   <link rel="stylesheet" href="../assets/css/site.css">
-  <script src="../assets/js/site.js" defer></script></head><body>
-<a class="skip-link" href="#main">Skip to content</a>
+  <script src="../assets/js/site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
 
   <header class="site-header">
     <div class="wrap header-inner">
@@ -36,9 +43,62 @@
       </details>
     </div>
   </header>
-<main id="main" class="wrap index-page"><p class="eyebrow">Standard library</p><h1>Library</h1><p class="lead">Browse modules, their exported types and their operations.</p><p class="meta">Illustrative index; generate the real list from exported modules.</p>
-<ul class="index-list"><li><a href="module.html"><strong>Shapes</strong></a><p>A sample module showing how generated API documentation fits the site.</p></li></ul>
-<h2>Documentation format</h2><p>Render exported signatures and their documentation comments in source order. Each declaration receives a stable link.</p></main>
+
+  <main id="main" class="wrap">
+    <div class="index-page">
+      <h1>Library</h1>
+      <p>A page holds a module's opening, then its declarations, each with its type and its own description and examples. Where Ernest is installed, <code>man Ernest.List</code> shows the same page at the terminal.</p>
+      <section aria-labelledby="stdlib-title">
+        <h2 id="stdlib-title">The standard library</h2>
+        <ul class="modules">
+          <li><a class="module" href="module-prelude.html"><code>Prelude</code></a><span>The names every module has without writing a module&#x27;s name.</span></li>
+          <li><a class="module" href="module-bool.html"><code>Bool</code></a><span>Operations on <code>Bool</code>, the type of <code>true</code> and <code>false</code>.</span></li>
+          <li><a class="module" href="module-bytes.html"><code>Bytes</code></a><span>Sequences of bytes, as a file or a socket holds them.</span></li>
+          <li><a class="module" href="module-char.html"><code>Char</code></a><span>Characters: one Unicode scalar value each.</span></li>
+          <li><a class="module" href="module-clock.html"><code>Clock</code></a><span>The time, alarms, and the wait for a time.</span></li>
+          <li><a class="module" href="module-code.html"><code>Code</code></a><span>A node&#x27;s code after its start: a compiled module loaded by the program, a module&#x27;s definitions by their hashes, and the processes running a function.</span></li>
+          <li><a class="module" href="module-either.html"><code>Either</code></a><span>Operations on a value or the cause of its absence, <code>Either(e, a)</code>: <code>Right(a)</code>, the value, or <code>Left(e)</code>, the cause.</span></li>
+          <li><a class="module" href="module-float.html"><code>Float</code></a><span>Floating-point numbers, always finite.</span></li>
+          <li><a class="module" href="module-foreign.html"><code>Foreign</code></a><span>Values from foreign code: asking what a <code>Term</code> is, and making one.</span></li>
+          <li><a class="module" href="module-fs.html"><code>Fs</code></a><span>Files and directories.</span></li>
+          <li><a class="module" href="module-int.html"><code>Int</code></a><span>Integers of any size.</span></li>
+          <li><a class="module" href="module-io.html"><code>Io</code></a><span>Printing, and reading standard input.</span></li>
+          <li><a class="module" href="module.html"><code>List</code></a><span>Lists: values in order, the same type throughout.</span></li>
+          <li><a class="module" href="module-map.html"><code>Map</code></a><span>Finite maps from keys to values, the prelude&#x27;s type <code>Map(k=, v)</code>.</span></li>
+          <li><a class="module" href="module-optional.html"><code>Optional</code></a><span>Operations on a value that may be absent, <code>Optional(a)</code>: <code>Some(a)</code> or <code>None</code>.</span></li>
+          <li><a class="module" href="module-orderedmap.html"><code>OrderedMap</code></a><span>Maps whose entries are kept in the order of their keys, the order of the key type&#x27;s <code>compare</code>.</span></li>
+          <li><a class="module" href="module-orderedset.html"><code>OrderedSet</code></a><span>Sets whose elements are kept in order, the order of their type&#x27;s <code>compare</code>.</span></li>
+          <li><a class="module" href="module-os.html"><code>Os</code></a><span>The host: the program&#x27;s command line, its environment and exit status, and other programs run from it.</span></li>
+          <li><a class="module" href="module-path.html"><code>Path</code></a><span>File system paths: building them, and taking them apart.</span></li>
+          <li><a class="module" href="module-peer.html"><code>Peer</code></a><span>Other nodes: a service offered to this node&#x27;s peers, found on a peer, a process started on one, a function run on one for its value, and how busy each is.</span></li>
+          <li><a class="module" href="module-process.html"><code>Process</code></a><span>Processes as values: telling them apart, and seeing what the runtime runs.</span></li>
+          <li><a class="module" href="module-random.html"><code>Random</code></a><span>Pseudo-random numbers, drawn from a seed the program carries.</span></li>
+          <li><a class="module" href="module-set.html"><code>Set</code></a><span>Finite sets: each element once, in no order.</span></li>
+          <li><a class="module" href="module-string.html"><code>String</code></a><span>Text: Unicode strings, held as UTF-8.</span></li>
+          <li><a class="module" href="module-supervisor.html"><code>Supervisor</code></a><span>A group of processes, restarted together when one of them faults.</span></li>
+          <li><a class="module" href="module-tcp.html"><code>Tcp</code></a><span>TCP connections: listening for them, making them, and moving their bytes.</span></li>
+          <li><a class="module" href="module-terminal.html"><code>Terminal</code></a><span>The terminal read key by key, its size, and the columns text takes on it.</span></li>
+          <li><a class="module" href="module-test.html"><code>Test</code></a><span>Tests, which <code>ern test</code> runs.</span></li>
+        </ul>
+      </section>
+      <section aria-labelledby="libs-title">
+        <h2 id="libs-title">The libraries</h2>
+        <ul class="modules">
+          <li><a class="module" href="module-ansi.html"><code>Ansi</code></a><span>Styles and cursor movement for text written to a terminal.</span></li>
+          <li><a class="module" href="module-base64.html"><code>Base64</code></a><span>Bytes written as text in the base 64 encoding of RFC 4648, and the text read back as the bytes.</span></li>
+          <li><a class="module" href="module-crypto.html"><code>Crypto</code></a><span>The SHA-1 digest of bytes, and bytes from the host&#x27;s strong random source.</span></li>
+          <li><a class="module" href="module-ets.html"><code>Ets</code></a><span>Tables that live in the runtime, outside any one process.</span></li>
+          <li><a class="module" href="module-http.html"><code>Http</code></a><span>HTTP/1.1&#x27;s messages as RFC 9112 writes them: a request&#x27;s or a response&#x27;s head read from bytes or from a socket, the body after it, and a head and a body written, with RFC 9110&#x27;s dates and status phrases.</span></li>
+          <li><a class="module" href="module-json.html"><code>Json</code></a><span>JSON text, read into a value and written from one, as RFC 8259 defines it, by the host&#x27;s <code>json</code> module.</span></li>
+          <li><a class="module" href="module-markdown.html"><code>Markdown</code></a><span>Markdown documents, read and laid out as text for a terminal or as a manual page.</span></li>
+          <li><a class="module" href="module-proxy.html"><code>Proxy</code></a><span>A proxy for a service a peer offers: one address for the service across its end and its return.</span></li>
+          <li><a class="module" href="module-time.html"><code>Time</code></a><span>The civil calendar: the date and the time of day of a time, in UTC, and the time of a date and a time of day.</span></li>
+          <li><a class="module" href="module-utilization.html"><code>Utilization</code></a><span>How busy this node is, by the host&#x27;s measures: the processes waiting to run, the schedulers&#x27; time, and the processor, the memory and the disks the host&#x27;s services watch.</span></li>
+        </ul>
+      </section>
+      <p class="toolchain"><code>ern</code>, the toolchain and its shell, is the report's <a href="report-toolchain.html#11">§11</a>, which <code>man ern</code> shows.</p>
+    </div>
+  </main>
 
   <footer class="site-footer">
     <div class="wrap">
@@ -46,4 +106,5 @@
       <p class="footer-page">Ernest 0.9.0 · <a href="https://github.com/joagre/ernest/blob/v0.9.0/LICENSE">0BSD license</a> · <a href="https://github.com/joagre/ernest/issues">Report a defect</a> · Served by <a href="https://github.com/joagre/ernest-httpd">ernest-httpd</a>, written in Ernest</p>
     </div>
   </footer>
-</body></html>
+</body>
+</html>
