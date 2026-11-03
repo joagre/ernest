@@ -113,7 +113,8 @@ The site's files as served.
   2026-11-03).
 - Under the example stands its Start, "Run it yourself", the page's one
   action and its one strong color, which opens the shell beside the
-  example; without the script, and on a phone, it is a link to `/shell/`
+  example and starts a session; while one runs it reads "Show the shell"
+  and only brings the panel back, so that it always says what it does; without the script, and on a phone, it is a link to `/shell/`
   (decided 2026-11-03).
 - After it, three doors, in this order, each with its question and of one
   weight: Tour, "show me the language"; Guide, "help me write programs";

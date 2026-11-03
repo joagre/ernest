@@ -61,6 +61,7 @@ const panel = {
   terminal: null,
   state: null,
   buttons: {},
+  examples: [],
   opener: null,
 };
 
@@ -123,6 +124,7 @@ function setState(running) {
   panel.start.replaceChildren(icon(running ? "rotate-ccw" : "play"), running ? "Restart" : "Start");
   panel.stop.disabled = !running;
   showWaiting();
+  showExamples();
 }
 
 function pasteIntoShell(text) {
@@ -266,21 +268,34 @@ function addInputPastes(pre) {
 
 // On a phone no panel is offered, and the Start stays the link to the
 // shell's page.
+// The example's button says what it will do: Start where no session runs,
+// and Show the shell, which only brings the panel back, where one does.
 function addStart(run) {
-  if (window.matchMedia("(max-width: 760px)").matches) {
+  if (phone.matches) {
     return;
   }
   const start = document.createElement("button");
   start.type = "button";
   start.className = "button primary";
-  start.append(icon("play"), "Start");
   start.addEventListener("click", () => {
+    const running = panel.running;
     openPanel(remembered("ernest.panel", "beside"));
-    setState(true);
+    if (!running) {
+      setState(true);
+    }
   });
   const words = document.createElement("span");
   words.textContent = "Run it yourself, in a shell beside the page.";
   run.replaceChildren(start, words);
+  panel.examples.push(start);
+  showExamples();
+}
+
+function showExamples() {
+  for (const start of panel.examples) {
+    start.replaceChildren(icon(panel.running ? "terminal" : "play"),
+      panel.running ? "Show the shell" : "Start");
+  }
 }
 
 addPanel();
