@@ -91,9 +91,10 @@ The site's files as served.
 - It is `home.html`, its text the site's own; the README is the repository's,
   and the homepage takes nothing from it (decided 2026-10-13). In order: an
   opening paragraph; Why's list "What Ernest adds", `guide/why.md`'s six
-  claims word for word, which the documents test `claims_test` holds equal
-  to the README's, each item's bold name and first sentence linking to its
-  heading in Why; a
+  claims, which the documents test `claims_test` holds equal to the
+  README's, each shown as its bold name and its first sentence alone, word
+  for word, linking to its heading in Why, so that the list fits beside
+  the opening (decided 2026-11-03); a
   paragraph on
   intended use; and a small example with its output, which a test runs, so
   that Try prints what the page shows. The opening and the list are visible on
