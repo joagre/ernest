@@ -105,7 +105,7 @@ library's pages, and a live shell, a terminal in the visitor's browser connected
 `ern shell` behind a pseudo-terminal on the server, since no full BEAM runs in a browser.
 
 Its design is `docs/proposals/site/decisions.md`, begun 2026-10-13, read back on 2026-10-30 and
-ready the same day: the docroot, the anchors, the homepage, every page, the look, the links, the
+ready the same day: the root, the anchors, the homepage, every page, the look, the links, the
 templates, the generation, the live shell's page side and the documents; the first design's
 templates and mockup stand beside it. Its sandbox is the operating system's, one container per
 visitor running the plain shell, whose server side is the httpd proposal's; a sandbox of the
@@ -122,7 +122,7 @@ attached shell, MVP 4.0, is the operator's alone.
    The mockups are written over a fixture document in Lorem ipsum that carries every shape a page holds, prose,
    headings, a code block, a console transcript, a table, citations and a margin line, and one
    mockup over a real report section beside them, since Lorem never wraps a long title; `site/`
-   at the repository's root holding `templates/` and `docroot/`; xterm.js and its fit addon
+   at the repository's root holding `templates/` and `root/`; xterm.js and its fit addon
    vendored, with their row in `THIRD_PARTY_LICENSES`.
 2. **The generator**, `tools/site.ern` beside `tools/manual.ern`, in Ernest over `libs/markdown`'s
    tree, `Block` and `Inline`, an `html` function of one clause per constructor; the library

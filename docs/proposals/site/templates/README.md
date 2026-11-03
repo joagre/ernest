@@ -1,14 +1,14 @@
 # Ernest HTML templates
 
-A small, framework-free design proposal for ernest-lang.org. Open ../docroot/mockup/index.html or serve the docroot:
+A small, framework-free design proposal for ernest-lang.org. Open ../root/mockup/index.html or serve the root:
 
-    python3 -m http.server 8080 --directory ../docroot
+    python3 -m http.server 8080 --directory ../root
 
 Then visit http://localhost:8080/mockup/. The flat demo filenames keep the bundle browsable; the production addresses are [decisions.md](../decisions.md)'s. There is no build step, CDN, font download, icon JavaScript or application framework. Documentation examples are illustrative, not a replacement for current project documentation. The browser shell is an explicitly disconnected layout preview.
 
 ## Files and templates
 
-| Preview, in ../docroot/mockup/ | Page | Body template |
+| Preview, in ../root/mockup/ | Page | Body template |
 |---|---|---|
 | index.html | the homepage | home.html |
 | tour.html | a tour lesson | chapter.html |
@@ -21,7 +21,7 @@ Then visit http://localhost:8080/mockup/. The flat demo filenames keep the bundl
 | shell.html | the shell | shell.html |
 | 404.html | any unmatched path (HTTP 404) | error.html |
 
-The tour's, the guide's and the report's contents pages still need a layout. The shared wrapper is base.html, with header.html and footer.html fragments. Templates are renderer-neutral token files, not an executable templating language. Files under ../docroot/assets/ are self-hosted.
+The tour's, the guide's and the report's contents pages still need a layout. The shared wrapper is base.html, with header.html and footer.html fragments. Templates are renderer-neutral token files, not an executable templating language. Files under ../root/assets/ are self-hosted.
 
 ## Rendering contract
 
@@ -49,5 +49,5 @@ The shell's behavior is [decisions.md](../decisions.md)'s. The template reserves
 ## Licensing
 
 Lucide source: https://github.com/lucide-icons/lucide
-Icon license: ../docroot/assets/img/icons/LICENSE (ISC, with MIT notice for Feather-derived icons).
+Icon license: ../root/assets/img/icons/LICENSE (ISC, with MIT notice for Feather-derived icons).
 The supplied logo remains the user's asset. No new license is imposed on the template HTML/CSS.

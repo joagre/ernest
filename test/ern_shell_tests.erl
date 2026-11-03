@@ -3914,7 +3914,7 @@ doc_every_name_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun doc_every_name/0).
 
 doc_every_name() ->
-    SourceRoot = scratch("ern_docroot_"),
+    SourceRoot = scratch("ern_root_"),
     ok = file:write_file(filename:join(SourceRoot, "m.ern"),
                          "/// A little module.\n///\n/// since 0.1.0\n\n"
                          "/// A color.\nexport type Color = Red | Green\n"),

@@ -12,7 +12,7 @@ tree, and its findings applied the same day.
 - The site is ernest-lang.org. Every path on ernest-lang.se redirects to the
   same path there, and `sitemap.xml` names ernest-lang.org alone.
 
-## The docroot, 2026-10-13
+## The root, 2026-10-13
 
 The site's files as served.
 
@@ -51,7 +51,7 @@ The site's files as served.
   No symlink, and no page at two addresses.
 - The `/man/` pages are rendered from `docs/man/`'s Markdown, which `make man`
   writes. The site calls them Library.
-- The docroot holds the assets, laid out as served; no page is written by
+- The root holds the assets, laid out as served; no page is written by
   hand. The templates and their README stand beside it, in `templates/`.
 - A link names a directory by its own form, `/guide/`, never
   `/guide/index.html`.
@@ -141,14 +141,14 @@ The site's files as served.
   contents sidebar on a desktop, an expandable contents list on a phone.
 - Visible keyboard focus.
 - The logos are the repository's `assets/`, which `make site` copies to
-  `/assets/`, each at its path in the repository; the docroot holds no copy. A
+  `/assets/`, each at its path in the repository; the root holds no copy. A
   file the site takes from the repository keeps the repository's hierarchy, as
   `/man/` keeps `docs/man/`'s (decided 2026-10-13).
 - The full logo appears once, on the homepage, 230 px wide:
   `ernest-combined-light.svg`, and `ernest-combined-dark.svg` in dark mode,
   which `<picture>` selects. Every other page's header links home with the
   stoat, `ernest-mark.svg`, beside "Ernest". The favicon is
-  `ernest-avatar-64.png`, which every page names, and the docroot serves no
+  `ernest-avatar-64.png`, which every page names, and the root serves no
   `/favicon.ico` (decided 2026-10-16).
 
 ## Links, 2026-10-13
@@ -211,7 +211,7 @@ The site's files as served.
 
 - One generator, `site.ern` in `tools/`, beside the manual tool, written in
   Ernest. It reads the repository, writes static files, and ends.
-- In the repository, `site/` holds `templates/` and `docroot/`; in the
+- In the repository, `site/` holds `templates/` and `root/`; in the
   prototype they stand in `docs/proposals/site/`.
 - Every page is generated from what the repository owns: two templates and
   two pages of their own, decided 2026-10-13, all four standing on
@@ -231,7 +231,7 @@ The site's files as served.
   full-page shell; each is one page, not a template.
 
   A template is named for what it is;
-  what it is written as is the docroot's: a directory's page is its
+  what it is written as is the root's: a directory's page is its
   `index.html`, the homepage's, a contents page's, Why's and the shell's
   alike, and a chapter is its number, `/guide/3.html`.
 - A book's opening, its title and its paragraphs before its first chapter,
@@ -251,7 +251,7 @@ The site's files as served.
 - `make site` builds the site from a release's tag without a worktree. It
   exports the tag with `git archive` into `build/site-source/` and builds the
   toolchain there, the checkout untouched, and runs `make man` there. It wipes
-  `build/site/`, copies the docroot and the logos there, and writes every
+  `build/site/`, copies the root and the logos there, and writes every
   generated page beside them, so that a page whose source is gone goes. One step
   copies `build/site/` to the host; it is never edited in place.
 - The pages are complete without JavaScript. The shell panel and the code
