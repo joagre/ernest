@@ -447,7 +447,11 @@ The site's files as served.
   session's state, Start where no session runs and Restart while one
   does, Stop, and Hide, the icon of the
   header button that opened the panel, which hides it and keeps the
-  session; Stop alone ends one. A session that runs while the panel is
+  session; Stop alone ends one. A session's end is marked in the terminal, dim,
+  after its last output, in the bar's word for it, the screen staying to
+  be read and the terminal taking no keys until a new session starts. A
+  Start after an end begins below the ended screen; a Restart begins on a
+  clear one. A session that runs while the panel is
   hidden marks that header button with a dot. The session's limits and
   the privacy line stay on `/shell/`. Below 1000 px only below
   is offered. Opening moves focus into the terminal and closing returns

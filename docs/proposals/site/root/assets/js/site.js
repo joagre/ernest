@@ -133,7 +133,7 @@ const endings = {
 };
 const encoder = new TextEncoder();
 const session = { socket: null, terminal: null, fit: null, pastes: [], restarting: false,
-                  rejoined: false };
+                  rejoined: false, clear: false };
 
 // Whether this browser's session lives on the server: noted as one runs,
 // and dropped at an end that ends it, so that a new page rejoining it asks
@@ -203,7 +203,13 @@ function connect() {
   session.socket = socket;
   setState("connecting");
   socket.onopen = () => {
-    session.terminal.reset();
+    // A restart starts on a clear screen; a start after an end keeps the
+    // ended session's screen above the new one.
+    if (session.clear) {
+      session.terminal.reset();
+      session.clear = false;
+    }
+    session.terminal.options.disableStdin = false;
     sendText({ resize: [session.terminal.rows, session.terminal.cols] });
     session.rejoined = remembered("ernest.session", "") === "live";
     if (session.rejoined) {
@@ -231,12 +237,27 @@ function connect() {
     if (ended.has(event.code)) {
       remember("ernest.session", "");
     }
-    setState(endings[event.code] ?? "disconnected");
+    const ending = endings[event.code] ?? "disconnected";
+    setState(ending);
+    if (!session.restarting) {
+      markEnd(ending);
+    }
     if (session.restarting) {
       session.restarting = false;
+      session.clear = true;
       connect();
     }
   };
+}
+
+// A session's end is marked where its output ends, dim, and the terminal
+// takes no keys until a new one starts; its screen stays to be read.
+function markEnd(ending) {
+  const words = ending === "disconnected" ? "disconnected" : "the session " + (
+    ending === "taken over by another tab" ? "was taken over by another tab" :
+    ending === "unavailable" ? "could not start: the shell is unavailable" : ending);
+  session.terminal.write("\r\n\x1b[2m" + words + "\x1b[0m\r\n");
+  session.terminal.options.disableStdin = true;
 }
 
 // What is sent while the socket is not open is dropped.
