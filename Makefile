@@ -214,6 +214,38 @@ version:
 	@sh tools/version.sh "$(V)"
 	@$(MAKE) -s man
 
+# The website, build/site/, from the release a tag names (plan, MVP 4.2
+# item 5; docs/proposals/site/decisions.md *The generation*): the tag
+# exported by git archive into build/site-source/, the toolchain built there
+# and make man run there, the checkout untouched, and the tag's own
+# generator run over the export with the server's configuration, CONFIG,
+# writing build/site/ whole and refusing a site with a link that leads
+# nowhere. Everything comes from the tag, so a tag that holds no site/ is
+# refused. The version the pages name is the tag's VERSION; a page's date
+# is its source's last commit at the tag, which the checkout's history
+# gives. TAG may name any commit, HEAD among them, whose links to GitHub
+# then name the commit itself.
+site:
+	@test -n "$(TAG)" && test -n "$(CONFIG)" || { \
+	  echo "make site TAG=v0.x.y CONFIG=path/to/config.json: TAG names the release" \
+	    "the site is built from, CONFIG the server's configuration, whose shell" \
+	    "the shell's page states"; exit 2; }
+	@test -f "$(CONFIG)" || { echo "make site: $(CONFIG) is not there"; exit 2; }
+	@git rev-parse -q --verify "$(TAG)^{commit}" >/dev/null || { \
+	  echo "make site: git knows no commit $(TAG)"; exit 2; }
+	@git cat-file -e "$(TAG):site/templates" 2>/dev/null || { \
+	  echo "make site: $(TAG) holds no site/, and the site's generator and its" \
+	    "templates come from the tag the site is built from"; exit 2; }
+	@rm -rf build/site-source && mkdir -p build/site-source
+	@git archive "$(TAG)" | tar -x -C build/site-source
+	@$(MAKE) -s -C build/site-source all
+	@$(MAKE) -s -C build/site-source man
+	@rm -rf build/site
+	@named=$$(git rev-parse -q --verify "refs/tags/$(TAG)" >/dev/null && echo "$(TAG)" \
+	  || git rev-parse "$(TAG)^{commit}") && \
+	  build/site-source/bin/ern run build/site-source/build/tools/site.erc build/site-source \
+	  build/site $$(cat build/site-source/VERSION) "$$named" "$(CONFIG)"
+
 # The programs of the build written in Ernest, tools/, compiled into
 # build/tools against the libraries they use: libs/markdown and libs/ansi,
 # which the manual page is written with, libs/crypto, whose digest names
@@ -561,7 +593,7 @@ EMACS_CORPUS = $(ERNEST_SOURCES:%=../../%)
         test-emacs $(APP_TESTS) $(APP_PARTS) $(EMACS_ALL) \
         clean clean-emacs \
         sections coverage golden xref contents site-expected format doc install uninstall release \
-        version \
+        version site \
         unicode \
         paragraphs comments \
         dialyzer sanitize diagnostics

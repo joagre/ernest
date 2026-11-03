@@ -34,7 +34,8 @@ tour/              the tour, README.md, one program grown through eight chapters
                    test holds equal to the document's blocks
 site/              the website's own files, which tools/site.ern reads: templates/,
                    each page's template and its fragments, with README.md, the tokens
-                   each binds; root/, the assets laid out as served; and example.md,
+                   each binds; root/, the assets laid out as served, but the icons'
+                   file, which the generator gathers from the icons; and example.md,
                    the homepage's example, which ern_tour_tests runs on two nodes
 assets/            the logos, which assets/README.md lists with where each is used
 docs/              every other document, which docs/README.md lists, this one and the
@@ -74,9 +75,10 @@ test/fixtures/     what the tests read: target/, the hand-written target modules
                    echo measurement; expected/ and golden/, what programs/, hello,
                    services print, repl's session among
                    them, and the Erlang they compile to; site/, under tree/ the
-                   documents the site's generator renders, each at the path of the one
-                   it plays, config.json, the server's configuration it is given, and
-                   under expected/ the pages it writes; and bench/, input/, layout/,
+                   documents the site's generator renders and the log it links to, each
+                   at the path of the one it plays, config.json, the server's
+                   configuration it is given, and under expected/ the pages it writes;
+                   and bench/, input/, layout/,
                    load/, peers/, pty/, service/,
                    session/, stdin/ and terminal/, the programs and inputs tests run
 test/machines/     machines.txt, the user's machines that make bench-machines, make
@@ -101,7 +103,8 @@ tools/             the programs of the build: manual.ern writes ern(1) from the
                    report's §11, for make; site.ern, with site/ beside it and its
                    helper ern_site.erl over the toolchain's lexer, writes every page of
                    the website from the repository into a directory of its own, the
-                   shell page's numbers from the server's configuration;
+                   shell page's numbers from the server's configuration, and checks
+                   every link of it, for make site;
                    unicode_width.escript writes Terminal.width's
                    table, for make unicode; install.sh, with strip.escript, stages,
                    installs and archives, for make install, uninstall and release;
@@ -145,7 +148,8 @@ make              build the helper, compile every application into its ebin/, th
                   that is missing or older than what it is made from
 make test         build, then the unit tests of every application, the library's doc
                   examples, the document and style tests, and the site's generator over
-                  its fixture, side by side: the light run, about a minute
+                  its fixture and over an export of HEAD, side by side: the light run,
+                  about a minute
 make test-full    build, then two phases: first the guide's tests, the Emacs mode's, the unit
                   tests, the library's, the documents', the site's, the grammar's, the typed
                   programs' and the dialyzer's, which builds its PLT once, side by side;
@@ -179,8 +183,10 @@ make comments     list every comment block of the Erlang and the Ernest past abo
 make test-guide   the guide's examples, the report's, the README's, and the catalog of
                   diagnostics
 make test-site    the site's generator, tools/site.ern, run over its fixture, the pages it
-                  writes held to test/fixtures/site/expected/, and every template held to
-                  the tokens site/templates/README.md lists
+                  writes held to test/fixtures/site/expected/, every template held to the
+                  tokens site/templates/README.md lists, its check of the site's links
+                  refusing one that leads nowhere, and the generator run over an export of
+                  HEAD, the repository's own documents with the site's files as they stand
 make test-grammar  Appendix A read as data, and a thousand programs generated from it,
                   parsed, laid out and given as near misses; ERN_SEED=n runs a failing
                   seed again
@@ -299,6 +305,13 @@ make install      install under PREFIX, /usr/local by default, within DESTDIR if
 make uninstall    remove the installation under the same PREFIX and DESTDIR
 make release      write the release archive, build/release/ern-VERSION.tar.gz, which says its
                   commit after the version where the checkout is not at the release's tag
+make site TAG=v0.x.y CONFIG=path/to/config.json
+                  write the website into build/site/ from the release TAG names, given the
+                  server's configuration: the tag exported into build/site-source/, the
+                  toolchain built there and make man run there, then the tag's generator
+                  run over it, every link of the site checked; it refuses a tag that holds
+                  no site/; TAG=HEAD, or any commit, builds a site whose links to GitHub name
+                  the commit; about 35 seconds, nearly all of them the export's build
 make version V=x.y.z
                   set VERSION, the release the checkout works toward, and every line the
                   tests hold to it, the documents' start lines and the session fixtures',
@@ -347,6 +360,7 @@ While a change is worked on, it runs the targets of its kind; which run a commit
 | the language guide, the report, the README, `docs/diagnostics.md` or `docs/module_doc_template.md` | `make test`, `make test-guide`; report Appendix A `make test-grammar` too, report §11 `make test-manual` and `make test-shell` |
 | the tour, its document or a chapter's program | `make test`, which holds its blocks to its files, and `make test-tour`, which runs its sessions |
 | the site's templates, its assets or its generator | `make test-site`, then `make test` |
+| the site's build, `make site` | `make test-site`, then `make site TAG=HEAD CONFIG=test/fixtures/site/config.json` |
 | a proposal, or any other document | `make test-docs` |
 | a path `make bench` measures | the part of `make bench` that measures it, `make bench-<part>`, beside the targets of its kind |
 

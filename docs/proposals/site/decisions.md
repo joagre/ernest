@@ -225,7 +225,15 @@ The site's files as served.
   cites it is not listed, since a library page already links to the rule
   it follows (decided 2026-11-03). The mockup over a real section shows whether the line stays
   short.
-- A citation of the log links to the log on GitHub.
+- A citation of the log links to the log on GitHub, by the anchor the
+  log's own index gives the entry, which the documents test holds equal to
+  the heading's; the form is the log's *Title*, and in `CHANGES.md` an
+  entry's title alone, as the release step writes a change's line; a title
+  no entry or two entries hold is refused (decided 2026-11-03).
+- On a module's page a declaration's own name links nowhere within its own
+  section, where the link would lead to the heading above it; the code that
+  declares a type is a program's, a signature and a prelude block showing
+  the library's own (decided 2026-11-03).
 - Ernest code is colored when the site is generated, by `ern`'s own lexer,
   which the generator reaches by a `foreign` declaration over the toolchain's
   lexer module, as the shell's front end is foreign to the toolchain: the
@@ -257,8 +265,8 @@ The site's files as served.
   a void element, and every end tag written, `</p>` and `</li>` among
   them, though the parser would supply it.
 - An icon is one line, a `<use>` of its symbol in `/assets/img/icons.svg`,
-  which `make site` gathers from the icon files; `site/root/` holds the
-  gathered file.
+  which the generator gathers from the icon files as it writes the site;
+  `site/root/` holds the icon files alone.
 - The stylesheet lays out with flex and grid and their gaps, so that the
   whitespace between elements never shows.
 - No control the script works stands in the HTML: Copy, Paste and Load,
@@ -340,6 +348,10 @@ The site's files as served.
   `build/site/`, copies the root and the logos there, and writes every
   generated page beside them, so that a page whose source is gone goes. One step
   copies `build/site/` to the host; it is never edited in place.
+- `make site` takes any revision as its tag, a release's for the site and
+  `HEAD` for a look at the work in hand; a revision whose tree holds no
+  `site/templates/` is refused, since the generator comes from it (decided
+  2026-11-03).
 - Everything comes from the tag, the documents and the site's own files,
   its templates, its root and its generator, so the site is a release
   exactly, never a pairing the tests did not run; a fix to the site's look

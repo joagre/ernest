@@ -787,21 +787,27 @@ frames_sentence(File) ->
     [Sentence | _] = binary:split(Rest, <<". ">>),
     binary:replace(Sentence, <<"`">>, <<>>, [global]).
 
-%% docs/log.md: its index names every section by its title, the
-%% standing ones and the dated entries. A regression test, written after the
-%% index had missed thirty-eight entries (the log's *A Port Lost While It
-%% Starts*); it does not check an anchor, which the reader's renderer makes.
+%% docs/log.md: its index names every section by its title, the standing
+%% ones and the dated entries, and links each by the anchor a renderer gives
+%% its heading, which the site's generator links a citation of the log by
+%% (tools/site/links.ern). A regression test, written after the index had
+%% missed thirty-eight entries (the log's *A Port Lost While It Starts*),
+%% and after two of its anchors were found wrong as the generator's third
+%% stage was built; it reads the anchors as the contents lists' test does.
 log_index_names_every_section_test() ->
     Log = ern_repository:read("docs/log.md"),
     [_, AfterHeading] = binary:split(Log, <<"\n## Index\n">>),
     [Index, _] = binary:split(AfterHeading, <<"\n## ">>),
-    {match, Named} = re:run(Index, "\\[((?:[^][]|\\[[^]]*\\])+)\\]\\(#",
+    {match, Named} = re:run(Index, "\\[((?:[^][]|\\[[^]]*\\])+)\\]\\(#([^)]+)\\)",
                             [global, {capture, all_but_first, binary}]),
     {match, Heads} = re:run(Log, "^## (.+)$",
                             [global, multiline, {capture, all_but_first, binary}]),
     Titles = [hd(binary:split(Head, <<", 2026-">>)) || [Head] <- Heads, Head =/= <<"Index">>],
+    Anchors = [Anchor || {2, _, Anchor} <- anchored(heads(Log))],
     ?assert(length(Titles) > 500),
-    ?assertEqual([], Titles -- [Name || [Name] <- Named]).
+    ?assertEqual([], Titles -- [Name || [Name, _] <- Named]),
+    ?assertEqual([], [{Name, Anchor} || [Name, Anchor] <- Named,
+                                        not lists:member(Anchor, Anchors)]).
 
 %% A copyright in the first lines, an upstream author's header.
 borrowed(Text) ->

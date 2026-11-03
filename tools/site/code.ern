@@ -1,8 +1,9 @@
 //
 // A code block's HTML (plan, MVP 4.2 item 2): Ernest colored as the
-// toolchain's own lexer reads it, a console as written, a transcript with
-// each input marked, and the buttons each block of a document gets beside
-// Copy, decided by the guide tests' own grouping of its blocks
+// toolchain's own lexer reads it, each qualified name of the library in it
+// a link to its declaration, a console as written, a transcript with each
+// input marked, and the buttons each block of a document gets beside Copy,
+// decided by the guide tests' own grouping of its blocks
 // (test/ern_guide_tests.erl), so that a block offered to the shell is one
 // those tests run in a bare shell.
 //
@@ -15,12 +16,19 @@
 /// Copy.
 export type Buttons = CopyAlone | Paste | Load | Signature
 
-/// A document's top-level block, with the buttons it gets.
-export type Placed = Placed(block : Markdown.Block, given : Buttons)
+/// A document's top-level block, with the buttons it gets, and the
+/// declarations its code links, by their qualified names, each with the
+/// address it leads to from the block's page, which `Site.Run.linkedAll`
+/// gives it, none before.
+export type Placed = Placed(block : Markdown.Block, given : Buttons, links : Map(String, String))
 
 // A lexeme, as the generator's helper gives the lexer's token: its kind,
 // where it begins, and the place after its last character.
 type Lexeme = Lexeme(kind : Kind, at : Position, end : Position)
+
+// A lexeme as the code writes it: the text between it and the one before,
+// its kind, and its text.
+type Token = Token(before : String, kind : Kind, text : String)
 
 type Position = Position(line : Int, column : Int)
 
@@ -75,9 +83,9 @@ export fn placed(blocks : List(Markdown.Block)) : List(Placed) = {
     let start = Walk(heading = 0, nearest = None, sessions = Map.empty);
     let #(walk, roles) = List.mapFold(List.indexed(blocks), start, role);
     List.map(List.zip(blocks, roles), fn(#(block, found)) = match found {
-        Alone(given) -> Placed(=block, =given)
-      | Part(first) -> Placed(=block, given = sessionButtons(Map.get(walk.sessions, first)))
-      | Other -> Placed(=block, given = CopyAlone)
+        Alone(given) -> unlinked(block, given)
+      | Part(first) -> unlinked(block, sessionButtons(Map.get(walk.sessions, first)))
+      | Other -> unlinked(block, CopyAlone)
     })
 }
 
@@ -192,7 +200,7 @@ fn language(info : String) : String =
 /// ern_tour_tests runs them, the deployment guide's, a node's, and the
 /// report's and the release notes'.
 export fn copied(blocks : List(Markdown.Block)) : List(Placed) =
-    List.map(blocks, fn(block) = Placed(=block, given = CopyAlone))
+    List.map(blocks, fn(block) = unlinked(block, CopyAlone))
 
 /// A module's page's blocks, as `ern doc` writes it (report §11.4): the
 /// `ernest` block right after a declaration's heading, one of the second
@@ -204,8 +212,7 @@ export fn documented(blocks : List(Markdown.Block)) : List(Placed) = {
         List.mapFold(blocks,
                      None,
                      fn(previous, block) =
-                         #(Some(block),
-                           Placed(=block, given = documentedButtons(previous, block))));
+                         #(Some(block), unlinked(block, documentedButtons(previous, block))));
     placed
 }
 
@@ -217,22 +224,76 @@ fn documentedButtons(previous : Optional(Markdown.Block), block : Markdown.Block
       | _ -> CopyAlone
     }
 
+// A block with its buttons, before its page's links give it the
+// declarations its code links.
+fn unlinked(block : Markdown.Block, given : Buttons) : Placed =
+    Placed(=block, =given, links = Map.empty)
+
+//
+// The types a page declares
+//
+
+/// The types the blocks' code declares, each name a `type` declares, in
+/// the code the lexer reads: a program's, which may give a qualified name of
+/// the library another meaning (report §4.2). A signature and an
+/// `ernest-prelude` block show the library's own declarations, and declare
+/// none of the page's.
+export fn declared(placed : List(Placed)) : List(String) =
+    List.unique(List.flatMap(placed,
+                             fn(each) =
+                                 if each.given == Signature then [] else blockDeclared(each.block)))
+
+fn blockDeclared(block : Markdown.Block) : List(String) =
+    match block {
+        Markdown.Code(=info, =lines) when isProgram(info) ->
+            match tokens(String.join(lines, "\n")) {
+                Some(#(found, _)) -> typesDeclared(found)
+              | None -> []
+            }
+      | Markdown.Quote(blocks) ->
+            List.flatMap(blocks, blockDeclared)
+      | Markdown.Items(=items) ->
+            List.flatMap(items, fn(item) = List.flatMap(item, blockDeclared))
+      | _ ->
+            []
+    }
+
+// An Ernest block of a program's code, which the prelude's is not.
+fn isProgram(info : String) : Bool =
+    List.contains(["ernest", "ernest-fragment", "ernest-rejected"], language(info))
+
+// The name after each `type`, which a declaration of a type writes next
+// (report Appendix A).
+fn typesDeclared(found : List(Token)) : List(String) =
+    match found {
+        Token(kind = Reserved, text = "type") :: Token(kind = TypeName, =text) :: rest ->
+            text :: typesDeclared(rest)
+      | _ :: rest ->
+            typesDeclared(rest)
+      | [] ->
+            []
+    }
+
 //
 // The HTML
 //
 
 /// A code block's `<pre>`, its class saying what it holds and its
-/// `data-shell` the buttons it gets: an Ernest block colored, a block the
-/// compiler refuses marked so, a transcript with its inputs and the shell's
-/// output each marked, and a console or another language's block as written.
-export fn html(info : String, lines : List(String), given : Buttons) : List(Site.Template.Line) = {
+/// `data-shell` the buttons it gets: an Ernest block colored, with each
+/// qualified name of `links` a link, a block the compiler refuses marked
+/// so, a transcript with its inputs and the shell's output each marked, and
+/// a console or another language's block as written.
+export fn html(info : String,
+               lines : List(String),
+               given : Buttons,
+               links : Map(String, String)) : List(Site.Template.Line) = {
     let code = String.join(lines, "\n");
     match language(info) {
-        "ernest" when given == Signature -> pre("code signature", given, colored(code))
-      | "ernest" -> pre("code", given, colored(code))
-      | "ernest-fragment" -> pre("code", given, colored(code))
-      | "ernest-prelude" -> pre("code", given, colored(code))
-      | "ernest-rejected" -> pre("code rejected", given, colored(code))
+        "ernest" when given == Signature -> pre("code signature", given, colored(code, links))
+      | "ernest" -> pre("code", given, colored(code, links))
+      | "ernest-fragment" -> pre("code", given, colored(code, links))
+      | "ernest-prelude" -> pre("code", given, colored(code, links))
+      | "ernest-rejected" -> pre("code rejected", given, colored(code, links))
       | "console" when isTranscript(lines) -> pre("transcript", given, transcript(lines))
       | "console" -> pre("console", given, Site.Template.escaped(code))
       | _ -> pre("code", given, Site.Template.escaped(code))
@@ -279,22 +340,75 @@ fn transcriptLine(line : String) : String =
     }
 
 // The code with each lexeme of a class in a span of it, as the lexer reads
-// the code; code the lexer refuses, a fragment, is written as it is.
-fn colored(code : String) : String =
-    match lexed(code) {
-        Some(lexemes) -> spans(code, lexemes)
-      | None -> Site.Template.escaped(code)
+// the code, and each qualified name `links` holds a link; code the lexer
+// refuses, a fragment, is written as it is.
+fn colored(code : String, links : Map(String, String)) : String =
+    match tokens(code) {
+        Some(#(found, rest)) -> String.join(tokensHtml(found, links), "") <> written(rest)
+      | None -> written(code)
     }
 
-fn spans(code : String, lexemes : List(Lexeme)) : String = {
-    let start = #([], String.toList(code), Position(line = 1, column = 1));
-    let #(pieces, rest, _) = List.foldLeft(lexemes, start, fn(#(acc, chars, at), lexeme) = {
-        let #(before, from, begun) = taken(chars, at, lexeme.at);
-        let #(token, later, ended) = taken(from, begun, lexeme.end);
-        #(spanned(lexeme.kind, token) :: written(before) :: acc, later, ended)
-    });
-    String.join(List.reverse(written(rest) :: pieces), "")
-}
+// The tokens' HTML, a qualified name's in a link where `links` holds the
+// name: a type's or a module's name, then a `.` and a name, as many as
+// follow, nothing between them (report §4.2). A link begins after the text
+// before the name.
+fn tokensHtml(found : List(Token), links : Map(String, String)) : List(String) =
+    match found {
+        [] ->
+            []
+      | Token(kind = TypeName) :: _ -> {
+            let #(name, later) = qualified(found);
+            match #(name, Map.get(links, String.join(List.map(name, fn(each) = each.text), ""))) {
+                #(first :: rest, Some(address)) -> {
+                    let opened = written(first.before) <> "<a href=\"" <> written(address) <> "\">";
+                    let inside = List.map(Token(..first, before = "") :: rest, tokenHtml);
+                    [opened] <> inside <> ["</a>"] <> tokensHtml(later, links)
+                }
+              | _ ->
+                    List.map(name, tokenHtml) <> tokensHtml(later, links)
+            }
+        }
+      | token :: rest ->
+            tokenHtml(token) :: tokensHtml(rest, links)
+    }
+
+// The tokens of the name that begins the tokens, its first and each `.`
+// and name after it with nothing between, and the tokens after them.
+fn qualified(found : List(Token)) : #(List(Token), List(Token)) =
+    match found {
+        first :: dot :: next :: rest when isJoined(dot, next) -> {
+            let #(name, later) = qualified(next :: rest);
+            #(first :: dot :: name, later)
+        }
+      | first :: rest ->
+            #([first], rest)
+      | [] ->
+            #([], [])
+    }
+
+fn isJoined(dot : Token, next : Token) : Bool =
+    dot.kind == Symbol
+        && dot.text == "."
+        && dot.before == ""
+        && next.before == ""
+        && (next.kind == Name || next.kind == TypeName)
+
+// The lexer's tokens of the code, each with the text before it, and the
+// text after the last; none where the lexer refuses the code.
+fn tokens(code : String) : Optional(#(List(Token), String)) =
+    Optional.map(lexed(code), fn(lexemes) = {
+        let start = #([], String.toList(code), Position(line = 1, column = 1));
+        let #(found, rest, _) = List.foldLeft(lexemes, start, fn(#(acc, chars, at), lexeme) = {
+            let #(before, from, begun) = taken(chars, at, lexeme.at);
+            let #(token, later, ended) = taken(from, begun, lexeme.end);
+            let each =
+                Token(before = String.fromList(before),
+                      kind = lexeme.kind,
+                      text = String.fromList(token));
+            #(each :: acc, later, ended)
+        });
+        #(List.reverse(found), String.fromList(rest))
+    })
 
 // The characters from `at` up to `until`, the rest, and where the rest
 // begins; a line feed ends a line, and a column is a character, as the
@@ -324,20 +438,26 @@ fn advanced(at : Position, char : Char) : Position =
     else
         Position(line = at.line, column = at.column + 1)
 
-// A lexeme's text in the span of its class, a line feed that ends it, a doc
-// block's, after the span.
-fn spanned(kind : Kind, chars : List(Char)) : String =
-    match #(class(kind), List.reverse(chars)) {
-        #(Some(name), '\n' :: within) -> span(name, List.reverse(within)) <> "\n"
-      | #(Some(name), _) -> span(name, chars)
-      | #(None, _) -> written(chars)
+// A token's text after the text before it, in the span of its class, a
+// line feed that ends it, a doc block's, after the span.
+fn tokenHtml(token : Token) : String =
+    written(token.before) <> spanned(token.kind, token.text)
+
+fn spanned(kind : Kind, text : String) : String =
+    match class(kind) {
+        Some(name) when String.endsWith(text, "\n") ->
+            span(name, String.slice(text, 0, String.size(text) - 1)) <> "\n"
+      | Some(name) ->
+            span(name, text)
+      | None ->
+            written(text)
     }
 
-fn span(class : String, chars : List(Char)) : String =
-    "<span class=\"" <> class <> "\">" <> written(chars) <> "</span>"
+fn span(class : String, text : String) : String =
+    "<span class=\"" <> class <> "\">" <> written(text) <> "</span>"
 
-fn written(chars : List(Char)) : String =
-    Site.Template.escaped(String.fromList(chars))
+fn written(text : String) : String =
+    Site.Template.escaped(text)
 
 // The classes the stylesheet colors: the reserved words and `true` and
 // `false`, the types' and the constructors' names, the literals of text,

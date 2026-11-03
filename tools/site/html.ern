@@ -17,10 +17,10 @@ export type Anchor = Anchor(id : String, label : String)
 export type Headed = Headed(anchor : Optional(Anchor), class : Optional(String))
 
 /// The page's top-level blocks, each code block with the buttons the
-/// generator decided it gets (`Site.Code.placed`), a heading `shift` levels
-/// above the level its source writes and with what `headed` gives it, one
-/// for each heading in order; a heading past the list's end has neither an
-/// anchor nor a class.
+/// generator decided it gets (`Site.Code.placed`) and the declarations its
+/// code links, a heading `shift` levels above the level its source writes
+/// and with what `headed` gives it, one for each heading in order; a
+/// heading past the list's end has neither an anchor nor a class.
 export fn body(blocks : List(Site.Code.Placed),
                shift : Int,
                headed : List(Headed)) : List(Site.Template.Line) = {
@@ -33,29 +33,32 @@ export fn body(blocks : List(Site.Code.Placed),
             #(rest, [Site.Template.Line(heading(level - shift, text, given))])
         }
       | Markdown.Code(=info, =lines) ->
-            #(left, Site.Code.html(info, lines, each.given))
+            #(left, Site.Code.html(info, lines, each.given, each.links))
       | block ->
-            #(left, html(block, shift))
+            #(left, html(block, shift, each.links))
     });
     List.flatMap(pieces, fn(lines) = lines)
 }
 
-/// A block's lines; a code block in another block gets no button but Copy.
-export fn html(block : Markdown.Block, shift : Int) : List(Site.Template.Line) =
+/// A block's lines, its code's qualified names that `links` holds made
+/// links; a code block in another block gets no button but Copy.
+export fn html(block : Markdown.Block,
+               shift : Int,
+               links : Map(String, String)) : List(Site.Template.Line) =
     match block {
         Markdown.Heading(=level, =text) ->
             [Site.Template.Line(heading(level - shift, text, Headed(anchor = None, class = None)))]
       | Markdown.Paragraph(inlines) ->
             [Site.Template.Line("<p>" <> inlinesHtml(inlines) <> "</p>")]
       | Markdown.Code(=info, =lines) ->
-            Site.Code.html(info, lines, Site.Code.CopyAlone)
+            Site.Code.html(info, lines, Site.Code.CopyAlone, links)
       | Markdown.Quote(blocks) ->
             enclosed("<blockquote>",
-                     List.flatMap(blocks, fn(inner) = html(inner, shift)),
+                     List.flatMap(blocks, fn(inner) = html(inner, shift, links)),
                      "</blockquote>")
       | Markdown.Items(=start, =items) ->
             enclosed(listOpening(start),
-                     List.flatMap(items, fn(item) = listItem(item, shift)),
+                     List.flatMap(items, fn(item) = listItem(item, shift, links)),
                      if start == None then "</ul>" else "</ol>")
       | Markdown.Rule ->
             [Site.Template.Line("<hr>")]
@@ -152,16 +155,18 @@ fn listOpening(start : Optional(Int)) : String =
 // An item's first paragraph stands on the `<li>` line, as a tight list's
 // does: the tree keeps no list's looseness, and the site writes every list
 // tight.
-fn listItem(blocks : List(Markdown.Block), shift : Int) : List(Site.Template.Line) =
+fn listItem(blocks : List(Markdown.Block),
+            shift : Int,
+            links : Map(String, String)) : List(Site.Template.Line) =
     match blocks {
         [Markdown.Paragraph(inlines)] ->
             [Site.Template.Line("<li>" <> inlinesHtml(inlines) <> "</li>")]
       | Markdown.Paragraph(inlines) :: rest ->
             Site.Template.Line("<li>" <> inlinesHtml(inlines))
-                :: indented(List.flatMap(rest, fn(inner) = html(inner, shift)))
+                :: indented(List.flatMap(rest, fn(inner) = html(inner, shift, links)))
                     <> [Site.Template.Line("</li>")]
       | _ ->
-            enclosed("<li>", List.flatMap(blocks, fn(inner) = html(inner, shift)), "</li>")
+            enclosed("<li>", List.flatMap(blocks, fn(inner) = html(inner, shift, links)), "</li>")
     }
 
 // A table in the wrapper that scrolls one wider than the page; a column's

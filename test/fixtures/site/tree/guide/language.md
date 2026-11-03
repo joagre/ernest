@@ -163,6 +163,15 @@ A code block in a list is copied alone:
       value * 3
   ```
 
+### 1.6 Names of the library
+
+`List.size` and `Markdown.parse` link to their declarations, in code too, and so does `List.<>`, whose name is an operator. A bare name, `spawn`, is text, and so are `List.map`, which the library does not declare, and `List.size(list)`, which is more than a name. The reasons are the log's *The Fixture's Entry*.
+
+```ernest
+fn counted(list : List(Int)) : Int =
+    List.size(list) + Markdown.size
+```
+
 ### Notes
 
 A heading with no number has no anchor and no line in the sidebar.
@@ -171,4 +180,8 @@ A heading with no number has no anchor and no line in the sidebar.
 
 ### 2.1 Its one section
 
-The last chapter has no chapter after it.
+The last chapter has no chapter after it. Its code declares a type of its own, so `Markdown.parse` here is the type's, and text:
+
+```ernest
+type Markdown = Markdown(String)
+```

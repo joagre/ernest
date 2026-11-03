@@ -484,6 +484,13 @@ pre code {
   font-style: italic;
 }
 
+/* A qualified name in code links to its declaration: the code keeps its
+   colors, and the link is underlined in the muted color. */
+pre a {
+  color: inherit;
+  text-decoration-color: var(--muted);
+}
+
 /* A block the compiler refuses, which the guide shows to teach the
    refusal: marked at its edge, and offered to the shell by no button. */
 pre.rejected {

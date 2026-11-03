@@ -6,6 +6,8 @@ Lists: the fixture's module, whose page the site renders (report §5.4).
 
 ## Examples
 
+The size of a list of two:
+
 ```ernest
 List.size([1, 2])
 // => 2
@@ -13,7 +15,7 @@ List.size([1, 2])
 
 ## See also
 
-`Map` for a value looked up by its key.
+`List.size` for how many elements a list holds, and `Map` for a value looked up by its key.
 
 ## List.size
 

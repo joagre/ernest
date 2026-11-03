@@ -9,7 +9,7 @@
   <meta property="og:description" content="A chapter's prose, its first sentence the page's description.">
   <meta property="og:image" content="https://ernest-lang.org/assets/ernest-social-light.png">
   <link rel="icon" href="/assets/ernest-avatar-64.png">
-  <link rel="stylesheet" href="/assets/css/site.8a3f6ed0.css">
+  <link rel="stylesheet" href="/assets/css/site.fa91ccee.css">
   <script src="/assets/js/site.e4c54511.js" data-icons="/assets/img/icons.c570876c.svg" defer></script>
 </head>
 <body>
@@ -55,6 +55,7 @@
             <li><a href="#1.3">1.3 Lists, a quote and a table</a></li>
             <li><a href="#1.4">1.4 Code: <code>ernest</code> and the rest</a></li>
             <li><a href="#1.5">1.5 Sessions</a></li>
+            <li><a href="#1.6">1.6 Names of the library</a></li>
           </ol>
         </details>
       </nav>
@@ -163,6 +164,10 @@ answer() -&gt; 42.</code></pre>
     value * 3</code></pre>
           </li>
         </ul>
+        <h2 id="1.6">1.6 Names of the library<a class="anchor" href="#1.6" aria-label="Link to 1.6">#</a></h2>
+        <p><a href="/man/stdlib/list.html#List.size"><code>List.size</code></a> and <a href="/man/libs/markdown/markdown.html#Markdown.parse"><code>Markdown.parse</code></a> link to their declarations, in code too, and so does <a href="/man/stdlib/list.html#List.&lt;&gt;"><code>List.&lt;&gt;</code></a>, whose name is an operator. A bare name, <code>spawn</code>, is text, and so are <code>List.map</code>, which the library does not declare, and <code>List.size(list)</code>, which is more than a name. The reasons are the log's <a href="https://github.com/joagre/ernest/blob/ebcc1ea855bc01ea87fc6f222d497dbf1b1633bd/docs/log.md#the-fixtures-entry-2026-11-03"><em>The Fixture's Entry</em></a>.</p>
+        <pre class="code" data-shell="paste"><code><span class="tok-keyword">fn</span> counted(list : <span class="tok-type">List</span>(<span class="tok-type">Int</span>)) : <span class="tok-type">Int</span> =
+    <a href="/man/stdlib/list.html#List.size"><span class="tok-type">List</span>.size</a>(list) + <span class="tok-type">Markdown</span>.size</code></pre>
         <h2>Notes</h2>
         <p>A heading with no number has no anchor and no line in the sidebar.</p>
         <nav class="page-nav" aria-label="Chapters">

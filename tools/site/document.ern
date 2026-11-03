@@ -65,12 +65,13 @@ fn documentWritten(run : Site.Run.Run, document : Document) : Either(String, Uni
     let source = document.source;
     let address <-
         Either.fromOptional(Site.Links.address(source), source <> " has no page of the site");
-    let blocks <- Site.Run.documentOf(run, source);
+    let blocks <- Site.Run.documentOf(run.root, source);
     let anchors <- Site.Links.headingAnchors(source, blocks);
     let placed = if document.tested then Site.Code.placed(blocks) else Site.Code.copied(blocks);
     let #(heading, level, own) <- sectionOf(source, document.section, paired(placed, anchors));
-    let page <- Site.Run.linkPage(run, source, address, blocks);
-    let linked <- Site.Run.linkedAll(List.map(own, fn(each) = each.placed), page);
+    let shown = List.map(own, fn(each) = each.placed);
+    let page <- Site.Run.linkPage(run, source, address, shown);
+    let linked <- Site.Run.linkedAll(shown, page);
     let headed = List.filterMap(own, fn(each) = match each.placed.block {
         Markdown.Heading() -> Some(Site.Html.Headed(anchor = each.anchor, class = None))
       | _ -> None

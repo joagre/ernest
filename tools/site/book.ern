@@ -66,15 +66,16 @@ fn booked(run : Site.Run.Run,
           home : String,
           room : String,
           placing : (List(Markdown.Block)) -> List(Site.Code.Placed)) : Either(String, Book) = {
-    let document <- Site.Run.documentOf(run, source);
+    let document <- Site.Run.documentOf(run.root, source);
     let #(title, blocks) <- Site.Run.titleOf(source, Site.Run.withoutContents(document));
-    let page <- Site.Run.linkPage(run, source, home, document);
-    let #(front, rest) =
-        List.span(placing(blocks), fn(each) = !Site.Run.isHeadingOf(2, each.block));
+    let placed = placing(blocks);
+    let bookPage <- Site.Run.linkPage(run, source, home, placed);
+    let #(front, rest) = List.span(placed, fn(each) = !Site.Run.isHeadingOf(2, each.block));
     let chapters <- chaptered(source, rest);
     let numbers = List.map(chapters, fn(chapter) = chapter.number);
     let #(listing, kept) =
         List.partition(front, fn(each) = Optional.isSome(chapterLines(numbers, each.block)));
+    let page = Site.Links.Page(..bookPage, declared = Site.Code.declared(kept));
     let lines <-
         List.tryMap(List.flatMap(listing,
                                  fn(each) =
@@ -83,7 +84,7 @@ fn booked(run : Site.Run.Run,
                         Either.map(Site.Links.inlinesLinked(line, page),
                                    fn(linked) = #(found, linked)));
     let opening <- Site.Run.linkedAll(kept, page);
-    let linked <- List.tryMap(chapters, fn(chapter) = chapterLinked(home, page, chapter));
+    let linked <- List.tryMap(chapters, fn(chapter) = chapterLinked(home, bookPage, chapter));
     Right(Book(title = Site.Html.plain(title),
                =source,
                =home,
@@ -94,11 +95,15 @@ fn booked(run : Site.Run.Run,
 }
 
 // A chapter with its heading's and its blocks' citations and links made
-// the site's, as its own page has them.
+// the site's, as its own page has them, the types its own code declares
+// among them.
 fn chapterLinked(home : String,
                  bookPage : Site.Links.Page,
                  chapter : Chapter) : Either(String, Chapter) = {
-    let page = Site.Links.Page(..bookPage, address = home <> chapter.number <> ".html");
+    let page =
+        Site.Links.Page(..bookPage,
+                        address = home <> chapter.number <> ".html",
+                        declared = Site.Code.declared(chapter.blocks));
     let heading <- Site.Links.headingLinked(chapter.heading, page);
     let blocks <- Site.Run.linkedAll(chapter.blocks, page);
     Right(Chapter(..chapter, =heading, =blocks))

@@ -175,8 +175,8 @@ THE SOFTWARE.
 
 Lucide icons
 
-  Path:     site/root/assets/img/icons/LICENSE, the SVG icons beside it,
-            and site/root/assets/img/icons.svg, which gathers them
+  Path:     site/root/assets/img/icons/LICENSE and the SVG icons beside it,
+            which the site's generator gathers into one file, a symbol each
   Upstream: https://github.com/lucide-icons/lucide
   Copied:   2026-10-10, with the website proposal's first design; copy,
             panel-right and panel-bottom on 2026-11-03, from lucide-static

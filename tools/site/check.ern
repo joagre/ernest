@@ -1,0 +1,149 @@
+//
+// The site's check of its own links (plan, MVP 4.2 item 5): every page
+// written under the site's directory is read back, and each internal link
+// in it, made by the generator or written in a template, its `href` or its
+// `src`, leads to a file the site holds and, with a fragment, to an anchor
+// that file holds, an `id` of a page or a symbol of the icons' file, as
+// docs/proposals/site/decisions.md's *Links* says. A link with a scheme
+// leads off the site and is not read. A site with a link that leads nowhere
+// is refused, each such link named with its page.
+//
+
+// A page of the site as the check reads it: its path under the site's
+// directory, `guide/1.html`, and its links, each as its attribute writes
+// it.
+type Read = Read(file : String, links : List(String))
+
+/// Every internal link of the site under `out` resolved, or each that is
+/// not, with its page.
+export fn checked(out : Path) : Either(String, Unit) = {
+    let found <- filesUnder(out, "");
+    let files = List.sort(found);
+    let anchored = List.filter(files, fn(file) = isPage(file) || String.endsWith(file, ".svg"));
+    let read <-
+        List.tryMap(anchored,
+                    fn(file) =
+                        Either.map(Site.Run.bytesOf(out <> Path(file)),
+                                   fn(bytes) = #(file, bytes)));
+    let anchors =
+        Map.fromList(List.map(read,
+                              fn(#(file, bytes)) = #(file, Set.fromList(valuesOf(bytes, "id")))));
+    let pages =
+        List.filterMap(read,
+                       fn(#(file, bytes)) =
+                           if isPage(file) then
+                               Some(Read(=file,
+                                         links = List.unique(valuesOf(bytes, "href")
+                                                                 <> valuesOf(bytes, "src"))))
+                           else
+                               None);
+    let held = Set.fromList(files);
+    let unresolved =
+        List.flatMap(pages,
+                     fn(page) =
+                         List.filterMap(page.links,
+                                        fn(link) = unresolvedOf(page.file, link, held, anchors)));
+    if unresolved == [] then
+        Right(Unit)
+    else
+        Left(Path.toString(out)
+                 <> " holds links that lead nowhere:\n"
+                 <> String.join(unresolved, "\n"))
+}
+
+fn isPage(file : String) : Bool =
+    String.endsWith(file, ".html")
+
+// Why a link of a page leads nowhere, or none where it leads to a file the
+// site holds and an anchor of it: a link is read from the page's own
+// directory unless it begins with `/`, the site's, or `#`, the page's own.
+fn unresolvedOf(file : String,
+                link : String,
+                held : Set(String),
+                anchors : Map(String, Set(String))) : Optional(String) =
+    if Site.Links.isElsewhere(link) then
+        None
+    else {
+        let #(path, fragment) = match String.splitOnce(link, "#") {
+            Some(#(before, anchor)) -> #(before, Some(anchor))
+          | None -> #(link, None)
+        };
+        let target = targetOf(file, path);
+        match fragment {
+            _ when !Set.contains(held, target) ->
+                Some(said(file, link) <> ", which is no file of the site")
+          | Some(anchor) when !Set.contains(Optional.withDefault(Map.get(anchors, target),
+                                                                 Set.empty),
+                                            anchor) ->
+                Some(said(file, link) <> ", an anchor " <> addressOf(target) <> " does not hold")
+          | _ ->
+                None
+        }
+    }
+
+fn said(file : String, link : String) : String =
+    "  " <> addressOf(file) <> " links to " <> link
+
+// The file a link's path leads to from a page, a directory's its
+// `index.html`, as the server serves it.
+fn targetOf(file : String, path : String) : String = {
+    let walked = if path == "" then
+        file
+    else if String.startsWith(path, "/") then
+        String.slice(path, 1, String.size(path))
+    else
+        String.join(List.dropLast(String.split(file, "/"), 1) <> [path], "/");
+    let segments =
+        List.foldLeft(String.split(walked, "/"), [], fn(acc, segment) = match #(segment, acc) {
+            #("..", _ :: above) -> above
+          | #(".", _) -> acc
+          | _ -> segment :: acc
+        });
+    let joined = String.join(List.reverse(segments), "/");
+    if joined == "" || String.endsWith(joined, "/") then joined <> "index.html" else joined
+}
+
+// A page's address as a link names it, `/guide/` for guide/index.html
+// (decisions *The root*).
+fn addressOf(file : String) : String =
+    if file == "index.html" then
+        "/"
+    else if String.endsWith(file, "/index.html") then
+        "/" <> String.slice(file, 0, String.size(file) - String.size("index.html"))
+    else
+        "/" <> file
+
+// Each value of the attribute in a file's UTF-8, as the file writes it:
+// the generator escapes every `"` of a text and of a value, so the
+// attribute's name after a space, then `="`, begins an attribute and
+// nothing else, and its value runs to the next `"`. HTML reads its syntax a
+// character at a time, and each of these characters is one byte of UTF-8,
+// which no other character's bytes hold. The references the generator
+// writes are read back, so that a value is compared as it means.
+fn valuesOf(bytes : Bytes, attribute : String) : List(String) = {
+    let quote = String.toUtf8("\"");
+    List.filterMap(List.drop(Bytes.split(bytes, String.toUtf8(" " <> attribute <> "=\"")), 1),
+                   fn(piece) =
+                       Optional.andThen(Bytes.indexOf(piece, quote),
+                                        fn(end) =
+                                            String.fromUtf8(unescaped(Bytes.slice(piece, 0, end)))))
+}
+
+fn unescaped(value : Bytes) : Bytes =
+    List.foldLeft([#("&quot;", "\""), #("&lt;", "<"), #("&gt;", ">"), #("&amp;", "&")],
+                  value,
+                  fn(acc, #(reference, char)) =
+                      Bytes.replace(acc, String.toUtf8(reference), String.toUtf8(char)))
+
+// Every file under a directory, by its path there, `guide/1.html`.
+fn filesUnder(directory : Path, prefix : String) : Either(String, List(String)) = {
+    let entries <- Site.Run.listed(directory);
+    let found <- List.tryMap(entries, fn(entry) = {
+        let name = Optional.withDefault(Path.name(entry.path), "");
+        match entry.kind {
+            Fs.Directory -> filesUnder(entry.path, prefix <> name <> "/")
+          | _ -> Right([prefix <> name])
+        }
+    });
+    Right(List.flatMap(found, fn(each) = each))
+}

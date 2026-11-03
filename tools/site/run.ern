@@ -10,14 +10,18 @@
 
 /// What every page is written with: the repository's files, where the site
 /// goes, the release and the tag it is built from, the templates by their
-/// paths under site/templates/, and the assets' addresses.
+/// paths under site/templates/, the assets' addresses, each declaration of
+/// the library by its qualified name, and the log's entries by their
+/// titles with their GitHub anchors (`Site.Links.Page`).
 export type Run =
     Run(root : Path,
         out : Path,
         version : String,
         tag : String,
         templates : Map(String, Site.Template.Template),
-        assets : Assets)
+        assets : Assets,
+        declarations : Map(String, Site.Links.Declaration),
+        log : Map(String, List(String)))
 
 /// The addresses of the files whose names hold a digest of their content,
 /// so that a browser never runs a cached one against a newer page.
@@ -281,25 +285,36 @@ fn endsSentence(rest : List(Char), following : String) : Bool =
       | _ -> false
     }
 
-/// The blocks with their citations and their links made the site's.
+/// The blocks with their citations and their links made the site's, each
+/// with the declarations its code links.
 export fn linkedAll(placed : List(Site.Code.Placed),
-                    page : Site.Links.Page) : Either(String, List(Site.Code.Placed)) =
+                    page : Site.Links.Page) : Either(String, List(Site.Code.Placed)) = {
+    let links = Site.Links.named(page);
     List.tryMap(placed,
                 fn(each) =
                     Either.map(Site.Links.linked(each.block, page),
-                               fn(block) = Site.Code.Placed(..each, =block)))
+                               fn(block) = Site.Code.Placed(..each, =block, =links)))
+}
 
 /// The page whose links are made, its source's and its own address, with
-/// the anchors of each document its blocks link to a heading of.
+/// the anchors of each document its blocks link to a heading of and the
+/// types its blocks' code declares.
 export fn linkPage(run : Run,
                    source : String,
                    address : String,
-                   blocks : List(Markdown.Block)) : Either(String, Site.Links.Page) = {
+                   placed : List(Site.Code.Placed)) : Either(String, Site.Links.Page) = {
+    let blocks = List.map(placed, fn(each) = each.block);
     let read <- List.tryMap(Site.Links.targets(blocks, source), fn(path) = {
-        let found <- documentOf(run, path);
+        let found <- documentOf(run.root, path);
         Either.map(Site.Links.anchors(path, found), fn(table) = #(path, table))
     });
-    Right(Site.Links.Page(=source, =address, tag = run.tag, anchors = Map.fromList(read)))
+    Right(Site.Links.Page(=source,
+                          =address,
+                          tag = run.tag,
+                          anchors = Map.fromList(read),
+                          declarations = run.declarations,
+                          log = run.log,
+                          declared = Site.Code.declared(placed)))
 }
 
 /// The blocks without the contents list a source keeps for GitHub, its
@@ -372,9 +387,10 @@ export fn filled(run : Run,
 // The files
 //
 
-/// A document of the repository, by its path, read as Markdown.
-export fn documentOf(run : Run, path : String) : Either(String, List(Markdown.Block)) =
-    Either.map(textOf(run.root <> Path(path)), Markdown.parse)
+/// A document of the repository under its root, by its path, read as
+/// Markdown.
+export fn documentOf(root : Path, path : String) : Either(String, List(Markdown.Block)) =
+    Either.map(textOf(root <> Path(path)), Markdown.parse)
 
 /// A source's last commit date at the tag, from the checkout's history.
 export fn committed(tag : String, path : String) : Either(String, String) = {

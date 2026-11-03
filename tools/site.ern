@@ -1,13 +1,17 @@
 //
 // The website's generator (plan, MVP 4.2 item 2): it reads the
 // repository's documents and the site's own files, site/templates/ and
-// site/root/, fills the templates, writes the site as static files, and
-// ends, as docs/proposals/site/decisions.md's *The generation* says. It
-// writes the root's assets and the three logos the site shows; each kind
-// of page through the module that knows it, the guide and the tour
-// (Site.Book), the report (Site.Report), the library (Site.Library) and the
-// documents of a page each (Site.Document); and the site's own pages, the
-// homepage, the shell's and the 404 page.
+// site/root/, fills the templates, writes the site as static files, checks
+// every link of it, and ends, as docs/proposals/site/decisions.md's *The
+// generation* says. It writes the root's assets, the icons gathered into
+// one file, and the three logos the site shows; each kind of page through
+// the module that knows it, the guide and the tour (Site.Book), the report
+// (Site.Report), the library (Site.Library) and the documents of a page
+// each (Site.Document); and the site's own pages, the homepage, the shell's
+// and the 404 page. Every page's qualified names link to the library's
+// declarations, and its citations of the log to the log's entries, so the
+// two are read first; and the site's links are checked last
+// (Site.Check), so that a site with one that leads nowhere is refused.
 //
 // `ern run site.erc root out version tag config`: `root` holds the
 // repository's files, a checkout or a tag's export; `out`, which must not
@@ -36,6 +40,14 @@ let shellDescription : String =
 let notFoundText : String =
     "No page of the site has this address. The [homepage](/) leads to every part of it."
 
+// The attributes of an icon's `svg` element its symbol keeps, and those it
+// leaves: the namespace to the icons' file, the size to the page, and the
+// line to the stylesheet's `.icon`.
+let symbolKept : List(String) = ["viewBox", "fill"]
+
+let symbolLeft : List(String) =
+    ["xmlns", "width", "height", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin"]
+
 export fn main() : Unit =
     match Os.arguments {
         [root, out, version, tag, config] ->
@@ -55,17 +67,31 @@ fn generated(root : Path,
     let _ <- absent(out);
     let limits <- limitsRead(config);
     let templates <- templatesRead(root <> Path("site/templates"));
+    let library <- Site.Library.read(root);
+    let logText <- Site.Run.textOf(root <> Path("docs/log.md"));
+    let log <- Site.Links.logEntries(logText);
     let assets <- rootCopied(root <> Path("site/root"), out);
     let _ <- logosCopied(root, out);
-    let run = Site.Run.Run(=root, =out, =version, =tag, =templates, =assets);
+    let run =
+        Site.Run.Run(=root,
+                     =out,
+                     =version,
+                     =tag,
+                     =templates,
+                     =assets,
+                     declarations = Site.Library.declarations(library),
+                     =log);
+    // The library's pages are written first, so that the pages it read go
+    // then, which every later collection of the run would otherwise copy.
+    let _ <- Site.Library.library(run, library);
     let taught <- Site.Book.guide(run);
     let _ <- Site.Book.tour(run);
     let _ <- Site.Report.report(run, taught);
-    let _ <- Site.Library.library(run);
     let _ <- Site.Document.documents(run);
     let _ <- homeWritten(run);
     let _ <- shellWritten(run, limits);
-    notFoundWritten(run)
+    let _ <- notFoundWritten(run);
+    Site.Check.checked(out)
 }
 
 //
@@ -79,7 +105,7 @@ fn generated(root : Path,
 // homepage*). Its footer names home.html, its text the site's own.
 fn homeWritten(run : Site.Run.Run) : Either(String, Unit) = {
     let source = "guide/why.md";
-    let blocks <- Site.Run.documentOf(run, source);
+    let blocks <- Site.Run.documentOf(run.root, source);
     let anchors <- Site.Links.headingAnchors(source, blocks);
     let headings = List.filterMap(blocks, fn(block) = match block {
         Markdown.Heading(=text) -> Some(Site.Html.plain(text))
@@ -100,16 +126,18 @@ fn homeWritten(run : Site.Run.Run) : Either(String, Unit) = {
                          #("name", Site.Template.Plain(name)),
                          #("sentence_html", Site.Run.labeled(sentence))])
     });
-    let example <- Site.Run.documentOf(run, "site/example.md");
-    let shown = List.flatMap(example, fn(block) = match block {
-        Markdown.Code(=info, =lines) -> Site.Code.html(info, lines, Site.Code.Paste)
-      | _ -> []
+    let example <- Site.Run.documentOf(run.root, "site/example.md");
+    let code = List.filterMap(Site.Code.copied(example), fn(each) = match each.block {
+        Markdown.Code() -> Some(Site.Code.Placed(..each, given = Site.Code.Paste))
+      | _ -> None
     });
+    let page <- Site.Run.linkPage(run, "site/example.md", "/", code);
+    let shown <- Site.Run.linkedAll(code, page);
     let main <-
         Site.Run.filled(run,
                         "home.html",
                         [#("claims_html", Site.Run.markup(lines)),
-                         #("example_html", Site.Template.Markup(shown)),
+                         #("example_html", Site.Template.Markup(Site.Html.body(shown, 0, []))),
                          #("icons", Site.Template.Plain(run.assets.icons))]);
     Site.Run.pageWritten(run,
                          Site.Run.Output(address = "/",
@@ -356,14 +384,16 @@ fn htmlFiles(directory : Path, prefix : String) : Either(String, List(#(String, 
 }
 
 // The root copied, laid out as served, but the files whose names hold a
-// digest of their content, written under those names (the stylesheet, the
-// script and the icons' file); the vendored files keep their names.
+// digest of their content, written under those names: the stylesheet, the
+// script, and the icons' file, which the icons are gathered into. The
+// vendored files keep their names.
 fn rootCopied(from : Path, out : Path) : Either(String, Site.Run.Assets) = {
-    let digested = ["assets/css/site.css", "assets/js/site.js", "assets/img/icons.svg"];
+    let digested = ["assets/css/site.css", "assets/js/site.js"];
     let _ <- treeCopied(from, out, [], digested);
     let stylesheet <- digestCopied(from, out, "assets/css/site.css");
     let script <- digestCopied(from, out, "assets/js/site.js");
-    let icons <- digestCopied(from, out, "assets/img/icons.svg");
+    let gathered <- iconsGathered(from <> Path("assets/img/icons"));
+    let icons <- digestWritten(out, "assets/img/icons.svg", String.toUtf8(gathered));
     Right(Site.Run.Assets(=stylesheet, =script, =icons))
 }
 
@@ -391,6 +421,10 @@ fn treeCopied(from : Path,
 // names it by.
 fn digestCopied(from : Path, out : Path, relative : String) : Either(String, String) = {
     let bytes <- Site.Run.bytesOf(from <> Path(relative));
+    digestWritten(out, relative, bytes)
+}
+
+fn digestWritten(out : Path, relative : String, bytes : Bytes) : Either(String, String) = {
     let digest = String.slice(String.toLower(Bytes.toHex(Crypto.sha1(bytes))), 0, 8);
     let named =
         Path.toString(Path.withoutExtension(Path(relative)))
@@ -400,6 +434,76 @@ fn digestCopied(from : Path, out : Path, relative : String) : Either(String, Str
             <> Optional.withDefault(Path.extension(Path(relative)), "");
     let _ <- Site.Run.fileWritten(out <> Path(named), bytes);
     Right("/" <> named)
+}
+
+// The icons' file, one symbol for each icon of the directory, by its
+// file's name, `<symbol id="copy">` of copy.svg, in the order of their
+// names, so that a page names an icon by one line, a `<use>` of its symbol
+// (decisions *The templates*). A symbol keeps its icon's `viewBox` and
+// `fill`, and its children as they are; its line is the stylesheet's
+// `.icon`, which its `stroke` attributes leave to, and its size the page's.
+fn iconsGathered(directory : Path) : Either(String, String) = {
+    let entries <- Site.Run.listed(directory);
+    let icons =
+        List.sortBy(List.filter(entries,
+                                fn(entry) =
+                                    entry.kind == Fs.File
+                                        && Path.extension(entry.path) == Some("svg")),
+                    fn(entry) = Path.toString(entry.path));
+    let symbols <- List.tryMap(icons, fn(entry) = {
+        let text <- Site.Run.textOf(entry.path);
+        let id = Optional.withDefault(Path.name(Path.withoutExtension(entry.path)), "");
+        symbolOf(Path.toString(entry.path), id, text)
+    });
+    Right(String.join(["<svg xmlns=\"http://www.w3.org/2000/svg\">",
+                       "  <!-- Lucide icons, ISC License: icons/LICENSE. Gathered from icons/, one"
+                           <> " symbol each; their line is the stylesheet's .icon. -->"]
+                          <> List.flatMap(symbols, fn(lines) = lines)
+                          <> ["</svg>", ""],
+                      "\n"))
+}
+
+// An icon's symbol, from its file as Lucide writes it: the `<svg` line, its
+// attributes a line each up to the line `>`, then its children, a line
+// each, and the `</svg>` line.
+fn symbolOf(named : String, id : String, text : String) : Either(String, List(String)) = {
+    let #(head, body) = List.span(String.lines(text), fn(line) = line != ">");
+    let attributes <- match head {
+        "<svg" :: rest -> List.tryMap(rest, fn(line) = attributeOf(named, line))
+      | _ -> Left(named <> " does not begin with the line <svg, as Lucide writes an icon")
+    };
+    let children <- match List.reverse(body) {
+        "</svg>" :: inner -> Right(List.drop(List.reverse(inner), 1))
+      | _ -> Left(named <> " does not end with the line </svg> after its children")
+    };
+    let kept = List.filter(attributes, fn(#(name, _)) = List.contains(symbolKept, name));
+    let written = List.map(kept, fn(#(name, value)) = " " <> name <> "=\"" <> value <> "\"");
+    Right(["  <symbol id=\"" <> id <> "\"" <> String.join(written, "") <> ">"]
+              <> List.map(children, fn(child) = "  " <> child)
+              <> ["  </symbol>"])
+}
+
+// An attribute of an icon's `svg` element, its name and its value; one its
+// symbol neither keeps nor leaves to another is refused.
+fn attributeOf(named : String, line : String) : Either(String, #(String, String)) = {
+    let found = match String.splitOnce(String.trim(line), "=\"") {
+        Some(#(name, rest)) when String.endsWith(rest, "\"") ->
+            Some(#(name, String.slice(rest, 0, String.size(rest) - 1)))
+      | _ ->
+            None
+    };
+    match found {
+        Some(#(name, value)) when List.contains(symbolKept <> symbolLeft, name) ->
+            Right(#(name, value))
+      | Some(#(name, _)) ->
+            Left(named
+                     <> " gives its svg element "
+                     <> name
+                     <> ", which its symbol has no place for")
+      | None ->
+            Left(named
+                     <> ": an attribute of its svg element is name=\"value\" on a line of its own")
+    }
 }
 
 // The logos the site shows, at their paths in the repository's assets/:

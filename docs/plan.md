@@ -67,6 +67,13 @@ goes to that program's session, as `docs/clean_room.md` says.
    where it answers `Denied` or `NotFound` today, the answer a port refused gives; E.18
    first.
 
+   Found the same day, under `make test`'s parallel load, once in four runs of the runtime's
+   tests: `ern_os_tests`' `read_ends_before_the_hangup_test` saw its run fault with the host's
+   `epipe`, where E.23 has a read the program waits in end before the hangup, its status 1 or
+   129. The hangup can reach a program that has already ended, and the write of it to the
+   helper's pipe faults instead of ending the read (the log's *The Hangup's Order*); fixed here,
+   the test run under load a hundred times to hold it.
+
 2. **The host's collection at the wait.** A process that drops a value and waits holds it until
    its next collection, which the host runs only as the process allocates (§10): the server's
    idle connection held its last response. The runtime moves the host's own collection to the
@@ -117,7 +124,10 @@ goes to that program's session, as `docs/clean_room.md` says.
    `ern test` cannot read what a case writes on standard error, so a test of a line the design
    says a program writes there cannot check it, and the line stands among the passes, as four
    of ernest-httpd's do at every run; a case's standard error captured, or a `Test` function
-   that runs a function and answers what it wrote, decided here first.
+   that runs a function and answers what it wrote, decided here first. And feedback 228, a listed entry's
+   name: `Fs.list` answers each entry by its path, so the site's generator writes
+   `Optional.withDefault(Path.name(entry.path), "")` at three sites; whether `Fs.Entry` carries
+   its name is read against E.0's rules with E.17.
 
 9. **A program's environment and working directory**, feedback 207, decided 2026-11-03: `Os.Command`
    gains what the host's `exec` takes, an environment and a working directory, so that an editor
@@ -184,36 +194,12 @@ language's was weighed and set aside on 2026-10-13 (the log's *ehttpd and the We
 attached shell, MVP 4.0, is the operator's alone.
 
 1. **The look, by hand**, done 2026-11-03 (the log's *The Site's Look, by Hand*).
-2. **The generator**, `tools/site.ern` beside `tools/manual.ern`, in Ernest over `libs/markdown`'s
-   tree, `Block` and `Inline`, an `html` function of one clause per constructor; the library
-   renders to its tree and to the terminal alone, and nothing of the site enters it (decided
-   2026-10-10), `roff` moving to `tools/manual.ern`, its one user, when something next touches the
-   library. It begins by moving the prototype's `templates/` and `root/` to `site/` at the
-   repository's root, the mockups staying in the proposal as the record of the look. Its first
-   job is item 1's mockups, rendered through the templates from a fixture document beside its
-   test that carries every shape a page holds, a table and the report's grammar among them,
-   with a test holding what it writes equal to the committed pages, so that the look decided by
-   hand and the generation never drift; a test holds each template to its tokens the same way.
-
-   Once it writes every kind of page, each kind is read with the user against the five
-   principles, as the homepage was in item 1: each element asked what it is for, said once,
-   and kept only where a visitor would miss it; a reading's verdicts change the templates and
-   the decisions (decided 2026-11-03). The Why page's reading rewrote `guide/why.md` so that
-   the code a process takes to another node leads its opening and its first section, the
-   README's opening with it (done 2026-11-03).
-
-   It reads the repository and writes static files: the pages of the report, the guide,
-   the tour, Why, the questions, the deployment guide, the README's *Installing*, the release
-   notes and `docs/man/`'s Markdown; the contents pages; the anchors, the citations' links and a
-   report section's margin line; Ernest code colored by a `foreign` declaration over the
-   toolchain's lexer; which buttons a block gets, Copy alone for a transcript the container
-   cannot hold, a node's or an attached session's, read from its first line; the shell page's
-   limits read from the server's configuration; each page's sidebar, title, description and
-   footer.
-3. **The document the site lacks**: the root `CONTRIBUTING.md`, written 2026-11-03, saying
-   that Ernest takes no contribution before 1.0, a defect found going to the repository's
-   issues and nothing else; the Releases page is `CHANGES.md`, which the release step writes from the next release
-   on (the log's *A Release Carries No History*, sharpened 2026-10-30).
+2. **The generator**, done 2026-11-03 (the log's *The Generator's First Stage*, *The Generator's
+   Second Stage*, *The Generator's Third Stage* and *The Pages Read Against the Principles*).
+   `roff` moves from `libs/markdown` to `tools/manual.ern`, its one user, when something next
+   touches the library (decided 2026-10-10).
+3. **The document the site lacks**, `CONTRIBUTING.md`, written 2026-11-03; the Releases page is
+   `CHANGES.md` (the log's *A Release Carries No History*).
 4. **The live shell's page side**, the session client in JavaScript over ernest-httpd's socket:
    the panel's size sent first and at each resize, the seven states, the panel on every page with
    its layout in local storage, Copy, Paste and Load on a code block, Load pasting the block as
@@ -223,10 +209,19 @@ attached shell, MVP 4.0, is the operator's alone.
    `Ernest v, session n. :help for help.`, about 40 columns, so that it fits a narrow block and
    a phone's terminal, report §11.2 first, then `shell.ern` and every transcript that shows it;
    `:help` lists `:quit` (decided 2026-11-03).
-5. **The build and the deployment**: `make site` from a release's tag by `git archive`, given the
-   server's configuration file, the toolchain built there and `make man` run, the check of every internal link and anchor, the
-   copy of `build/site/` to the host, and the site live at ernest-lang.org with the smoke test
-   against it.
+5. **The build and the deployment**: `make site` from a tag by `git archive`, given the
+   server's configuration file, with the check of every internal link and anchor, built
+   2026-11-03 (the log's *The Generator's Third Stage*); the copy of `build/site/` to the host,
+   and the site live at ernest-lang.org with the smoke test against it, which wait on
+   ernest-httpd's container with its two nodes and a release of Ernest holding the site.
+6. **The Emacs mode's indentation of a `match` in a list that is a call's argument**, a defect
+   found 2026-11-03, fixed by 2026-11-05, before the next `make test-full`: the mode steps the
+   clauses in from the line where `Right([match x {` stands, where `ern format` steps them
+   from the list's column, report §11.6's item standing after its bracket, so `make
+   test-emacs` fails on `tools/site/links.ern` meanwhile. The fix is `ernest--brace-base`'s
+   climb, taking an enclosing bracket's item that is itself a bracket standing right after it
+   as beginning a line at its own column, with `typing.el`'s helper not assuming the bracket
+   closes after the cut, and a case of the mode's tests.
 
 ## MVP 4.3 (`:trace f`), about a week
 

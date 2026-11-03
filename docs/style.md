@@ -222,10 +222,12 @@ And the names that recur across the site generator's modules, `Site` and those u
 
 - **Line**, **Verbatim**: a line of a page the generator writes, one a template's indentation reaches and one of a `<pre>`'s body, written from the line's start, `Site.Template.Line`. Not `Row`, which is a table's.
 - **Buttons**: the buttons a code block gets beside Copy, `Site.Code.Buttons`, `CopyAlone`, `Paste` or `Load`, or `Signature`, a declaration's, which gets not even Copy, a value of it `given`. Not `Shell`, the page's word for it, `data-shell`.
-- **Placed**: a document's top-level block with its buttons, `Site.Code.Placed`, a list of them `placed`.
+- **Placed**: a document's top-level block with its buttons and the declarations its code links, `Site.Code.Placed`, its `links`, a list of them `placed`.
 - **Page**: the page whose links are made, its source, its address, the tag and the anchors, `Site.Links.Page`. Not `Context`, which is the emitter's.
 - **Run**: what every page is written with, the repository's files, where the site goes, the release, the tag, the templates and the assets, `Site.Run.Run`, a value of it `run`.
 - **Output**: a page as it is written, its address, title, description, room, own part and source, `Site.Run.Output`. Not `Page`, which is the links'.
 - **Entry**, **Neighbor**: a heading of a page's sidebar, `Site.Run.Entry`, and a page before or after another in its book, `Site.Run.Neighbor`.
 - **Anchor**, **Headed**: a heading's anchor and the name of its link to itself, `Site.Html.Anchor`, and what a heading carries beside its text, its anchor and its class, `Site.Html.Headed`.
 - **Taught**: the report's sections the guide's sections cite, each with the guide's sections that cite it, a margin line's, `Site.Book.Taught`.
+- **Declaration**: a declaration of the library a qualified name links to, a heading of a module's page in `docs/man/`, its namespace, its page and its anchor, `Site.Links.Declaration`, the run's and the page's `declarations`; the types a page's own code declares, whose members it links to none of, are its `declared`. Not `Entry`, which is a sidebar's.
+- **Library**: `docs/man/` as the generator reads it, its contents' opening and lines and each group's modules with their pages, `Site.Library.Library`.

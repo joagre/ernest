@@ -1,6 +1,6 @@
 # The site's templates
 
-The token files the generator, [`tools/site.ern`](../../tools/site.ern), fills. Each is HTML written to be read, as the site's [decisions](../../docs/proposals/site/decisions.md) say in *The templates*, with tokens `{{name}}` where the generator puts its values. The pages it writes stand under `build/site/`; serve that directory to see them, `python3 -m http.server 8080 --directory build/site` or ernest-httpd, since a page opened as a file finds neither its stylesheet nor its icons. The mockup's pages, under `docs/proposals/site/root/mockup/`, are the look as it was settled by hand.
+The token files the generator, [`tools/site.ern`](../../tools/site.ern), fills. Each is HTML written to be read, as the site's [decisions](../../docs/proposals/site/decisions.md) say in *The templates*, with tokens `{{name}}` where the generator puts its values. The pages it writes stand under `build/site/`, which `make site` writes from a release's tag; serve that directory to see them, `python3 -m http.server 8080 --directory build/site` or ernest-httpd, since a page opened as a file finds neither its stylesheet nor its icons. The mockup's pages, under `docs/proposals/site/root/mockup/`, are the look as it was settled by hand.
 
 ## The templates
 
@@ -49,4 +49,6 @@ A test, `test/ern_site_tests.erl`, holds each file here to the tokens its row li
 - `heading_html` is the page's `h1` whole, its anchor its number where it has one.
 - A value of several lines stands alone on its token's line, and is indented as that line is, so that the page reads as its template does; a fragment's last line feed is dropped. A `<pre>`'s body is written as it is, from the line's start.
 - A link names a directory by its own form, `/guide/`. `stylesheet`, `script` and `icons` are the files' names with their digests, `/assets/js/site.3f9a2c1e.js`, and the script finds the icons' name on its own element, `data-icons`.
+- An icon is a `<use>` of its symbol in the icons' file, `{{icons}}#copy`. The generator gathers the file from `site/root/assets/img/icons/`, a symbol for each icon by its file's name, with the icon's `viewBox` and `fill` and its children as they are; the stylesheet's `.icon` gives its line and its size.
+- Every internal link of a page, a template's among them, leads to a page, an anchor, an asset or an icon the site holds, or the generator refuses the site, naming the link and its page.
 - No control the script works stands in a template: the panel, its buttons and a block's tools are the script's, and `data-shell` marks what the generator decided.

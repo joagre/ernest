@@ -8,7 +8,8 @@ The second release, which cites §5.4.
 
 ### The library
 
-- A change.
+- A change: §5.4; *The Fixture's Entry*, *`<-` at the Prompt*.
+- A shell's change: §11.2 *Faults*; the log's *The Fixture's Entry*.
 
 ## 0.1.0, 2026-11-01
 
