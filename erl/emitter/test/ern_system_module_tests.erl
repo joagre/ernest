@@ -87,10 +87,11 @@ os_run_signal_status_test() ->
 %% program could be given. A regression test of the empty name, which
 %% faulted as the helper's failure
 os_run_refusals_test() ->
-    ?assertEqual({ok, <<"NotFound\n">>}, os_run("\"no-such-program-ern\"", "[]", "<<>>", "5000")),
-    ?assertEqual({ok, <<"NotFound\n">>}, os_run("\"\"", "[]", "<<>>", "5000")),
-    ?assertEqual({ok, <<"Denied\n">>}, os_run("\"/dev/null\"", "[]", "<<>>", "5000")),
-    ?assertEqual({ok, <<"Invalid\n">>},
+    ?assertEqual({ok, <<"Io.NotFound\n">>},
+                 os_run("\"no-such-program-ern\"", "[]", "<<>>", "5000")),
+    ?assertEqual({ok, <<"Io.NotFound\n">>}, os_run("\"\"", "[]", "<<>>", "5000")),
+    ?assertEqual({ok, <<"Io.Denied\n">>}, os_run("\"/dev/null\"", "[]", "<<>>", "5000")),
+    ?assertEqual({ok, <<"Io.Invalid\n">>},
                  os_run("\"echo\"", "[\"a\\u{0}b\"]", "<<>>", "5000")).
 
 %% Appendix E.23: Timeout when the time runs out first, and the program,
@@ -101,7 +102,7 @@ os_run_refusals_test() ->
 os_run_timeout_kills_test() ->
     Mark = filename:join(ern_emitter_tests:scratch(), "mark"),
     {ok, Output} = os_run("\"sh\"", "[\"-c\", \"sleep 1; touch " ++ Mark ++ "\"]", "<<>>", "200"),
-    ?assertEqual(<<"Timeout\n">>, Output),
+    ?assertEqual(<<"Io.Timeout\n">>, Output),
     timer:sleep(1000),
     Marked = filelib:is_file(Mark),
     ok = file:del_dir_r(filename:dirname(Mark)),
@@ -277,7 +278,7 @@ os_start_write_then_close_test() ->
         "    }\n"
         "  | Left(e) -> Io.println(Io.show(e))\n"
         "}\n"]),
-    ?assertEqual(<<"#(Right(Unit), Left(Closed), Some(\"ab\"))\n">>, Output).
+    ?assertEqual(<<"#(Right(Unit), Left(Io.Closed), Some(\"ab\"))\n">>, Output).
 
 %% Appendix E.23, report §6.9: a running program is a process, which
 %% `monitor` watches and `kill` stops, the program and its process group
@@ -312,7 +313,7 @@ os_program_is_a_process_test() ->
         "    kill(quick);\n"
         "    Io.println(reason())\n"
         "}\n"]),
-    ?assertEqual(<<"Killed\nRight(Exited(0))\nKilled\n">>, Output),
+    ?assertEqual(<<"Killed\nRight(Os.Exited(0))\nKilled\n">>, Output),
     {ok, Written} = file:read_file(Pids),
     ok = file:del_dir_r(Dir),
     [begin
@@ -334,7 +335,8 @@ os_read_time_limit_test() ->
         "    }\n"
         "  | Left(e) -> Io.println(Io.show(e))\n"
         "}\n"),
-    ?assertEqual(<<"Left(Timeout)\nRight(Stdout(<<108, 97, 116, 101, 10>>))\nRight(Exited(0))\n">>,
+    ?assertEqual(<<"Left(Io.Timeout)\nRight(Os.Stdout(<<108, 97, 116, 101, 10>>))\n"
+                   "Right(Os.Exited(0))\n">>,
                  Output).
 
 %% Appendix E.23, report §8.6: Os.exit ends the program with its status,
@@ -383,7 +385,7 @@ fs_path_with_nul_test() ->
     {ok, Output} = ern_emitter_tests:run(
         "export fn main() : Unit =\n"
         "    Io.println(Io.show(Fs.read(Path(\"a\\u{0}b\"), 1000)))\n"),
-    ?assertEqual(<<"Left(Invalid)\n">>, Output).
+    ?assertEqual(<<"Left(Io.Invalid)\n">>, Output).
 
 %% Appendix E.17, §12.1: a name in a directory that is not UTF-8 makes
 %% Fs.list answer NotUtf8 with its bytes; a regression test for the host's
@@ -401,7 +403,7 @@ fs_list_names_a_name_not_utf8_test() ->
          "  | Left(e) -> Io.println(Io.show(e))\n"
          "}\n"]),
     ok = file:del_dir_r(Dir),
-    ?assertEqual(<<"NotUtf8(<<99, 97, 102, 233>>)\n">>, Output).
+    ?assertEqual(<<"Io.NotUtf8(<<99, 97, 102, 233>>)\n">>, Output).
 
 %%
 %% Report Appendix E.18: Tcp.
@@ -513,7 +515,7 @@ tcp_tls_test() ->
          "    Io.println(refused(Tcp.connectTls(\"127.0.0.1\", 1, Tcp.Unverified, 1000)))\n"
          "}\n"]),
     ?assertEqual(<<"Right(#(<<112, 105, 110, 103>>, [\"Tcp.listenTls\", \"Tcp.connectTls\"]))\n"
-                   "NotFound\nRefused\n">>, Output).
+                   "Io.NotFound\nIo.Refused\n">>, Output).
 
 %% Appendix E.18, E.21, E.23: a listener, a socket and a running program are
 %% processes of the program's: Process.live lists them, and Process.status
@@ -630,7 +632,7 @@ tcp_write_answers_closed_test() ->
         "    }\n"
         "  | Left(e) -> Io.println(Io.show(e))\n"
         "}\n"]),
-    ?assertEqual(<<"#(Right(Unit), Left(Closed), Left(Closed))\n">>, Output).
+    ?assertEqual(<<"#(Right(Unit), Left(Io.Closed), Left(Io.Closed))\n">>, Output).
 
 %%
 %% Report §12.1, Appendix E.18, E.23: a write returns once its stream has
@@ -688,7 +690,7 @@ os_write_waits_test() ->
         "    Io.println(Io.show(#(early, n)));\n"
         "    Io.println(Io.show(Os.write(p, <<1>>, 5000)))\n"
         "}\n"),
-    ?assertEqual(<<"#(false, 4194304)\nLeft(Closed)\n">>, Output).
+    ?assertEqual(<<"#(false, 4194304)\nLeft(Io.Closed)\n">>, Output).
 
 %% Appendix E.18: a socket whose far end does not read holds its writer,
 %% and a write to a socket that has been closed faults

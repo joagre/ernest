@@ -1372,6 +1372,65 @@ private_value_named_by_a_dependent_test() ->
                                                   Source ++ "fn more() : Int = 2\n"),
     ?assertEqual(ern_interface:hash(Interface), ern_interface:hash(More)).
 
+%% report §11.5: a mismatch at a call names a variable of the callee's
+%% instance as the label's signature names it, by its declaration's name,
+%% the prelude's or the module's own. A regression test: `spawnMonitored`'s
+%% wrap printed `(Down) -> a` under the label's `(Down) -> m`; it does not
+%% cover a callee that is no name, whose label is its inferred type
+argument_mismatch_names_variables_as_the_label_test() ->
+    Refused = fun(Text) ->
+                  {error, [#diagnostic{message = Message, labels = [{_, Label}]} | _]} =
+                      check(Text),
+                  {Message, Label}
+              end,
+    ?assertEqual({"the argument does not fit spawnMonitored: expected (Down) -> m,"
+                  " found (Int) -> Msg",
+                  "spawnMonitored : (() -> Unit receiving n, (Down) -> m) -> Address(n)"
+                  " receiving m"},
+                 Refused("type Msg = Done(Int)\n"
+                         "export fn main() : Unit receiving Msg = {\n"
+                         "    let me = self();\n"
+                         "    let _ = spawnMonitored(fn() = send(me, Done(1)), Done);\n"
+                         "    Unit\n"
+                         "}\n")),
+    ?assertEqual({"the argument does not fit pick: expected (Int) -> v, found (String) -> String",
+                  "pick : (k, (k) -> v) -> v"},
+                 Refused("fn pick(key : k, f : (k) -> v) : v = f(key)\n"
+                         "fn g() : String = pick(1, fn(text : String) = text)\n")).
+
+%% report §4.2: a name under `Ernest` is the toolchain's own and no
+%% program's: a module outside `Ernest` that names a value, a type or a
+%% constructor there, or fills from a namespace there, is refused as naming
+%% an unknown one, the message saying why, though the module's interface is
+%% given, and is offered no module to load; a module under `Ernest`, the
+%% shell's, names it. A regression test: a program whose load path held the
+%% shell's build named its functions; it does not cover the shell's prompt
+toolchains_own_names_test() ->
+    {ok, _, Interface, _} =
+        ern_typecheck:check_string(['Ernest', 'Shell', 'Style'],
+                                   "export type Mode = Quiet | Loud\n"
+                                   "export fn quiet() : Int = 1\n"),
+    Checked = fun(Namespace, Text) ->
+                  {ok, Named} = ern_parser:parse_string(Text),
+                  case ern_typecheck:check(Namespace, Named, [Interface]) of
+                      {error, [#diagnostic{message = Message, unknown_namespace = Unknown}]} ->
+                          {Message, Unknown};
+                      {ok, _, _, _} ->
+                          ok
+                  end
+              end,
+    Why = ": a name under Ernest is the toolchain's own, and no program's",
+    ?assertEqual({"unknown name Ernest.Shell.Style.quiet" ++ Why, undefined},
+                 Checked(['Main'], "fn f() : Int = Ernest.Shell.Style.quiet()\n")),
+    ?assertEqual({"unknown type Ernest.Shell.Style.Mode" ++ Why, undefined},
+                 Checked(['Main'], "fn f(mode : Ernest.Shell.Style.Mode) : Int = 1\n")),
+    ?assertEqual({"unknown constructor Ernest.Shell.Style.Loud" ++ Why, undefined},
+                 Checked(['Main'], "fn f() = Ernest.Shell.Style.Loud\n")),
+    ?assertEqual({"unknown name Ernest.Shell.Style.quiet" ++ Why, undefined},
+                 Checked(['Main'], "type P = P(quiet : () -> Int)\n"
+                                   "fn f() : P = P(..Ernest.Shell.Style)\n")),
+    ?assertEqual(ok, Checked(['Ernest', 'Shell'], "fn f() : Int = Ernest.Shell.Style.quiet()\n")).
+
 %% report §8.7, §11.1, §11.2: an interface given after another of its
 %% module, a reload's version, takes the place of what the first held of
 %% each of its values, a function's reach among it, which the interface

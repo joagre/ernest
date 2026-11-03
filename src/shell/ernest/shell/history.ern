@@ -57,7 +57,7 @@ export fn read() : Either(Unkept, List(String)) =
             Right([])
       | Some(path) -> {
             let _ <- Either.mapLeft(makeDirectory(path), Unreadable);
-            let there <- held(path);
+            let there <- inspect(path);
             if there then Either.mapLeft(readFile(path), Unreadable) else Right([])
         }
     }
@@ -66,7 +66,7 @@ export fn read() : Either(Unkept, List(String)) =
 // link, or anything but a regular file of the user's own, unkept, so that
 // what is typed goes nowhere but the directory made its owner's alone. No
 // file yet is a first session's.
-fn held(path : Path) : Either(Unkept, Bool) =
+fn inspect(path : Path) : Either(Unkept, Bool) =
     match Fs.readLink(path, fileMs) {
         Left(Io.NotFound) ->
             Right(false)
@@ -92,7 +92,7 @@ fn readFile(path : Path) : Either(Io.Error, List(String)) =
             Left(error)
       | Right(bytes) -> {
             let decoded <- inputs(bytes);
-            trimmed(path, decoded)
+            trim(path, decoded)
         }
     }
 
@@ -123,7 +123,7 @@ fn inputs(bytes : Bytes) : Either(Io.Error, List(String)) =
 
 // Newest first is the order the editor walks; the file is oldest first,
 // as a person reading it expects.
-fn trimmed(path : Path, inputs : List(String)) : Either(Io.Error, List(String)) = {
+fn trim(path : Path, inputs : List(String)) : Either(Io.Error, List(String)) = {
     let extra = List.size(inputs) - kept;
     if extra <= 0 then
         Right(List.reverse(inputs))

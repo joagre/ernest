@@ -12,6 +12,12 @@
 -type error() :: 'UnexpectedEnd' | {'UnexpectedByte', byte(), position()}
                | {'UnexpectedSequence', binary(), position()}.
 
+%% A byte that may stand in a number, which a number outside a string is a
+%% run of.
+-define(IS_NUMBER_BYTE(Byte), ((Byte >= $0 andalso Byte =< $9) orelse Byte =:= $. orelse
+                               Byte =:= $e orelse Byte =:= $E orelse Byte =:= $+ orelse
+                               Byte =:= $-)).
+
 %% Appendix G.6: the value the text writes, or the host's error and where.
 %% `json:decode/3` raises the three errors its page lists, and calls the
 %% decoders given to build each value, in the order of the text: a number,
@@ -32,12 +38,14 @@
 %% longer than the host holds, on which `binary_to_integer/1` raises
 %% `system_limit`, is an unexpected sequence, as a real larger than a
 %% `Float` is; and so is a high surrogate's escape that no low one's
-%% follows, which the host answers otherwise (lone_surrogate/2).
+%% follows, which the host answers otherwise (lone_surrogate/2). A literal
+%% or an escape the text breaks off is answered by the byte that breaks it,
+%% which the host answers otherwise too (broken/2).
 -spec parse(binary()) -> {'Right', value()} | {'Left', error()}.
 parse(Text) ->
     try json:decode(Text, ok, decoders()) of
         {Term, ok, Rest} ->
-            case white_space(Rest) of
+            case after_white_space(Rest) of
                 <<>> ->
                     {'Right', value(Term)};
                 <<Byte, _/binary>> = After ->
@@ -47,18 +55,22 @@ parse(Text) ->
         throw:{too_long, Digits} ->
             {'Left', {'UnexpectedSequence', Digits, at(Text, number_offset(Text, Digits))}};
         error:unexpected_end ->
-            {'Left', lone_surrogate(Text, 'UnexpectedEnd')};
+            {'Left', lone_surrogate(Text, broken(Text, 'UnexpectedEnd'))};
         error:{invalid_byte, Byte}:Trace ->
             Offset = position(Trace),
-            {'Left', lone_surrogate(Text, {'UnexpectedByte', Byte, at(Text, Offset)}, Offset)};
+            Found = {'UnexpectedByte', Byte, at(Text, Offset)},
+            {'Left', lone_surrogate(Text, broken_literal(Text, Found, Offset), Offset)};
         error:{unexpected_sequence, Bytes}:Trace ->
-            {'Left', {'UnexpectedSequence', Bytes, at(Text, position(Trace))}}
+            Offset = position(Trace),
+            Found = {'UnexpectedSequence', Bytes, at(Text, Offset)},
+            {'Left', broken_escape(Text, Found, Offset, Bytes)}
     end.
 
 %% The text after its JSON white space.
-white_space(<<Byte, Rest/binary>>) when Byte =:= $\s; Byte =:= $\t; Byte =:= $\n; Byte =:= $\r ->
-    white_space(Rest);
-white_space(Rest) ->
+after_white_space(<<Byte, Rest/binary>>)
+  when Byte =:= $\s; Byte =:= $\t; Byte =:= $\n; Byte =:= $\r ->
+    after_white_space(Rest);
+after_white_space(Rest) ->
     Rest.
 
 %% The line and the column the byte at Offset begins, counted as a
@@ -68,23 +80,49 @@ at(Text, Offset) ->
     Lines = binary:split(binary:part(Text, 0, Offset), <<"\n">>, [global]),
     {'Position', length(Lines), 1 + length(unicode:characters_to_list(lists:last(Lines)))}.
 
-%% The offset of the number Digits writes: its first occurrence outside a
-%% string, since an earlier number holding the digits would be as long and
-%% would have been thrown on first.
+%% The offset of the integer Digits writes: the first number outside a
+%% string that begins with the digits and goes on with no digit, point or
+%% exponent, since an earlier integer of the digits would have been thrown
+%% on first, and a real that holds them is no integer. A number is compared
+%% only where it begins, and passed whole where it is not the one, so the
+%% text is read once.
 number_offset(Text, Digits) ->
-    number_offset(Text, Digits, byte_size(Digits), 0, false).
+    number_offset(Text, Text, Digits).
 
-number_offset(<<$\\, _, Rest/binary>>, Digits, Size, Offset, true) ->
-    number_offset(Rest, Digits, Size, Offset + 2, true);
-number_offset(<<$", Rest/binary>>, Digits, Size, Offset, InString) ->
-    number_offset(Rest, Digits, Size, Offset + 1, not InString);
-number_offset(<<_, Rest/binary>> = Text, Digits, Size, Offset, false) ->
-    case Text of
-        <<Digits:Size/binary, _/binary>> -> Offset;
-        _ -> number_offset(Rest, Digits, Size, Offset + 1, false)
+number_offset(Text, <<$", Rest/binary>>, Digits) ->
+    number_offset(Text, after_string(Rest), Digits);
+number_offset(Text, <<Byte, _/binary>> = Here, Digits) when ?IS_NUMBER_BYTE(Byte) ->
+    case is_written(Here, Digits) of
+        true -> byte_size(Text) - byte_size(Here);
+        false -> number_offset(Text, after_number(Here), Digits)
     end;
-number_offset(<<_, Rest/binary>>, Digits, Size, Offset, true) ->
-    number_offset(Rest, Digits, Size, Offset + 1, true).
+number_offset(Text, <<_, Rest/binary>>, Digits) ->
+    number_offset(Text, Rest, Digits).
+
+%% Whether the number the bytes begin with is the integer Digits writes.
+is_written(Here, Digits) ->
+    Size = byte_size(Digits),
+    case Here of
+        <<Digits:Size/binary, Byte, _/binary>> ->
+            not (Byte >= $0 andalso Byte =< $9) andalso Byte =/= $. andalso Byte =/= $e
+                andalso Byte =/= $E;
+        <<Digits:Size/binary>> ->
+            true;
+        _ ->
+            false
+    end.
+
+after_number(<<Byte, Rest/binary>>) when ?IS_NUMBER_BYTE(Byte) ->
+    after_number(Rest);
+after_number(Rest) ->
+    Rest.
+
+%% The text after a string, from the byte after its opening quote: a
+%% backslash escapes the byte after it, a quote among them.
+after_string(<<$\\, _, Rest/binary>>) -> after_string(Rest);
+after_string(<<$", Rest/binary>>) -> Rest;
+after_string(<<_, Rest/binary>>) -> after_string(Rest);
+after_string(_) -> <<>>.
 
 decoders() ->
     #{array_push => fun(Element, Acc) -> [value(Element) | Acc] end,
@@ -127,8 +165,8 @@ lone_surrogate(Text, Found, Offset) ->
         _ -> Found
     end.
 
-%% The first lone high surrogate's escape outside, and the offset of the
-%% byte after it, or none.
+%% The first lone high surrogate's escape inside a string, and the offset
+%% of the byte after it, or none.
 lone_escape(<<$", Rest/binary>>, Offset) -> in_string(Rest, Offset + 1);
 lone_escape(<<_, Rest/binary>>, Offset) -> lone_escape(Rest, Offset + 1);
 lone_escape(<<>>, _) -> none.
@@ -172,6 +210,107 @@ surrogate(Hex) ->
     catch
         error:badarg -> neither
     end.
+
+%% Appendix G.6: a literal, `true`, `false` or `null`, that the text breaks
+%% off before its end is the first byte that differs from it, and an escape
+%% `\u` broken off before its four hexadecimal digits end is the escape as
+%% the text writes it up to the byte that breaks it.
+%%
+%% The host answers a literal by the count of bytes after its first, the
+%% text's end where no more follow than the rest of the literal's and the
+%% byte after its first where more do; and an escape by the count after its
+%% `u`, the text's end where fewer than four follow and the six bytes from
+%% its backslash, past the string's end among them, where more do.
+%%
+%% So where the host answers so, the text is read for the first literal or
+%% escape a byte breaks (first_broken/2), and the host's answer stands
+%% where there is none, or where it is not the one the host stopped at: the
+%% byte the host names is not the one after the literal's first, or the
+%% escape is not among the sequence the host names.
+broken(Text, Found) ->
+    case first_broken(Text, Text) of
+        {_, _, Error} -> Error;
+        none -> Found
+    end.
+
+broken_literal(Text, Found, Offset) ->
+    case first_broken(Text, Text) of
+        {literal, Start, Error} when Start + 1 =:= Offset -> Error;
+        _ -> Found
+    end.
+
+broken_escape(Text, Found, Offset, Sequence) ->
+    case first_broken(Text, Text) of
+        {escape, Start, Error} when Start >= Offset, Start < Offset + byte_size(Sequence) -> Error;
+        _ -> Found
+    end.
+
+%% The first literal outside a string that a byte of the text differs from,
+%% or the first escape `\u` inside one that a byte breaks before its four
+%% hexadecimal digits: which, the offset it begins at, and the error it is,
+%% or none. Outside a string a `t`, an `f` or an `n` begins a literal and
+%% nothing else, and a literal or an escape the text ends inside is broken
+%% by no byte.
+first_broken(Text, <<$", Rest/binary>>) ->
+    broken_in_string(Text, Rest);
+first_broken(Text, <<Byte, _/binary>> = Here) when Byte =:= $t; Byte =:= $f; Byte =:= $n ->
+    Literal = literal(Byte),
+    case common(Here, Literal) of
+        whole ->
+            first_broken(Text, binary:part(Here, byte_size(Literal),
+                                           byte_size(Here) - byte_size(Literal)));
+        ended ->
+            none;
+        {differs, Index} ->
+            Start = byte_size(Text) - byte_size(Here),
+            {literal, Start, {'UnexpectedByte', binary:at(Here, Index), at(Text, Start + Index)}}
+    end;
+first_broken(Text, <<_, Rest/binary>>) ->
+    first_broken(Text, Rest);
+first_broken(_, <<>>) ->
+    none.
+
+broken_in_string(Text, <<$", Rest/binary>>) ->
+    first_broken(Text, Rest);
+broken_in_string(Text, <<"\\u", Rest/binary>> = Here) ->
+    case hex_digits(Rest, 0) of
+        4 ->
+            broken_in_string(Text, binary:part(Rest, 4, byte_size(Rest) - 4));
+        Count when Count =:= byte_size(Rest) ->
+            none;
+        Count ->
+            Start = byte_size(Text) - byte_size(Here),
+            Escape = binary:part(Here, 0, 2 + Count),
+            {escape, Start, {'UnexpectedSequence', Escape, at(Text, Start)}}
+    end;
+broken_in_string(Text, <<$\\, _, Rest/binary>>) ->
+    broken_in_string(Text, Rest);
+broken_in_string(Text, <<_, Rest/binary>>) ->
+    broken_in_string(Text, Rest);
+broken_in_string(_, _) ->
+    none.
+
+%% How the bytes begin against the literal: with it whole, ended inside
+%% it, or with a byte that differs from it, at its index.
+common(Here, Literal) ->
+    Common = binary:longest_common_prefix([Here, Literal]),
+    if
+        Common =:= byte_size(Literal) -> whole;
+        Common =:= byte_size(Here) -> ended;
+        true -> {differs, Common}
+    end.
+
+%% How many of an escape's four digits the bytes begin with.
+hex_digits(<<Byte, Rest/binary>>, Count)
+  when Count < 4, (Byte >= $0 andalso Byte =< $9 orelse Byte >= $a andalso Byte =< $f
+                   orelse Byte >= $A andalso Byte =< $F) ->
+    hex_digits(Rest, Count + 1);
+hex_digits(_, Count) ->
+    Count.
+
+literal($t) -> <<"true">>;
+literal($f) -> <<"false">>;
+literal($n) -> <<"null">>.
 
 %% A string and a boolean as `Json.Value`'s; every other value a decoder
 %% built already is one.

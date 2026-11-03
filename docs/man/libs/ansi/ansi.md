@@ -50,7 +50,7 @@ The eight colors of ECMA-48.
 
 ```ernest
 Ansi.Foreground(Ansi.Red)
-// => Foreground(Red)
+// => Ansi.Foreground(Ansi.Red)
 ```
 
 ## Ansi.Style

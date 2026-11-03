@@ -918,17 +918,20 @@ tcp_scenarios(Bytes) ->
      {<<"Tcp.remote">>, {fun() -> TcpRemote(Client) end, fun() -> inet:peername(HostClient) end}},
      {<<"Tcp.local">>, {fun() -> TcpLocal(Client) end, fun() -> inet:sockname(HostClient) end}}].
 
-%% Appendix G.11: each reader over a loopback pair of its own, the client
-%% writing a head or a body of 5 bytes and the server reading it, beside the
-%% host's send and receive of the same bytes and, for a head, the host's
-%% decode_packet reading it a line at a time, which the primitive stands
-%% on.
+%% Appendix G.11: the four readers over one loopback pair, which they
+%% share since each reads all the client wrote for it, the client writing a
+%% head or a body of 5 bytes and the server reading it, beside the host's
+%% send and receive of the same bytes over a pair of the host's own and,
+%% for a head, the host's decode_packet reading it a line at a time, which
+%% the primitive stands on.
 http_scenarios() ->
     Http = ern_named:functions('ern@http'),
     HttpReadRequest = Http(readRequest),
     HttpReadRequestBody = Http(readRequestBody),
     HttpReadResponse = Http(readResponse),
     HttpReadResponseBody = Http(readResponseBody),
+    HttpRenderRequest = Http(renderRequest),
+    HttpRenderResponse = Http(renderResponse),
     Tcp = ern_named:functions('ern@tcp'),
     TcpWrite = Tcp(write),
     Loopback = <<"127.0.0.1">>,
@@ -972,7 +975,15 @@ http_scenarios() ->
        HostRead(Body, fun(Received) -> Received end)}},
      {<<"Http.readResponseBody">>,
       {Read(Body, fun() -> HttpReadResponseBody(Server, <<>>, Response, 1000, 1000) end),
-       HostRead(Body, fun(Received) -> Received end)}}].
+       HostRead(Body, fun(Received) -> Received end)}},
+     %% a head rendered from a request or a response that is whole, since a
+     %% drawn method or target is empty, which the renderer faults on (G.11)
+     {<<"Http.renderRequest">>,
+      {fun() -> HttpRenderRequest(Request, Body) end,
+       fun() -> iolist_to_binary([RequestText, Body]) end}},
+     {<<"Http.renderResponse">>,
+      {fun() -> HttpRenderResponse(Response, Body) end,
+       fun() -> iolist_to_binary([ResponseText, Body]) end}}].
 
 %% A head read by the host's decode_packet, its first line and then its
 %% header lines to the empty one.

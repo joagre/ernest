@@ -54,7 +54,7 @@ peer, the find answers `NotListed`:
     }));
     Peer.find(service, 1000)
 }
-// => Left(NotListed)
+// => Left(Io.NotListed)
 ```
 
 A worker started on the peer named `worker`, which a program that is no node
@@ -62,14 +62,14 @@ does not list:
 
 ```ernest
 Peer.spawn("worker", fn() = Io.println("working"), 5000)
-// => Left(NotListed)
+// => Left(Io.NotListed)
 ```
 
 A value computed on a peer the node picks, and on the peer named `worker`:
 
 ```ernest
 #(Peer.compute(fn() = 6 * 7, 5000), Peer.computeAt("worker", fn() = 6 * 7, 5000))
-// => #(Left(NotListed), Left(NotListed))
+// => #(Left(Io.NotListed), Left(Io.NotListed))
 ```
 
 ## See also
@@ -96,7 +96,7 @@ an unbound type does.
     let service : Peer.Service(Int) = Peer.service("squares");
     Peer.find(service, 0)
 }
-// => Left(NotListed)
+// => Left(Io.NotListed)
 ```
 
 ## Peer.service
@@ -117,7 +117,7 @@ type has one hash whichever module writes the service.
     let service : Peer.Service(String) = Peer.service("names");
     Peer.find(service, 0)
 }
-// => Left(NotListed)
+// => Left(Io.NotListed)
 ```
 
 ## Peer.name
@@ -226,7 +226,7 @@ reach. A spawn that fails leaves no monitor.
 
 ```ernest
 Peer.spawnMonitored("worker", fn() = Unit, fn(down) = down, 5000)
-// => Left(NotListed)
+// => Left(Io.NotListed)
 ```
 
 ## Peer.compute
@@ -295,7 +295,7 @@ it, and the peer reports nothing of it.
 
 ```ernest
 Peer.computeAt("worker", fn() = 6 * 7, 5000)
-// => Left(NotListed)
+// => Left(Io.NotListed)
 ```
 
 ## Peer.utilization
@@ -318,7 +318,7 @@ peers last told; it meets `NotListed`, `Unreachable` and `Timeout`.
 
 ```ernest
 Peer.utilization("worker", 1000)
-// => Left(NotListed)
+// => Left(Io.NotListed)
 ```
 
 ## Peer.peers

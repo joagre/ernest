@@ -178,7 +178,7 @@ word_count() ->
                  lists:sort(binary:split(Hashed, <<", ">>, [global]))),
     ?assertEqual(<<"most frequent: the, on">>, Frequent),
     ?assertEqual({2, <<"usage: word_count file\n">>}, sh("../bin/ern run build/word_count.erc")),
-    ?assertEqual({1, <<"word_count: fixtures/input/absent.txt: NotFound\n">>},
+    ?assertEqual({1, <<"word_count: fixtures/input/absent.txt: Io.NotFound\n">>},
                  sh("../bin/ern run build/word_count.erc fixtures/input/absent.txt")).
 
 %% report §6.10, §8.7, §11.1, Appendix E.28: the upgrade example's two
@@ -898,7 +898,7 @@ terminal_program() ->
     0 = build("--source-root build/sized/src --build-root build/sized build/sized/src"),
     ?assertEqual({0, <<"Os.startTerminal\nRight(Unit)\nRight(Unit)\n"
                        "Right(#(Some(\"hi\\r\\n30 100 hi\\r\\n\"), 3))\n"
-                       "Left(NotATerminal)\nInvalid\n">>},
+                       "Left(Io.NotATerminal)\nIo.Invalid\n">>},
                  sh("../bin/ern run build/sized/sized.erc")).
 
 %% report §11, Appendix E.23: `PWD` reaches a program as the launcher's
@@ -1398,17 +1398,16 @@ signal_end() ->
 %% Os.exit while the end waits gives its status, and a stream that could
 %% no longer be written while it waited gives 141. Where an Os.exit or
 %% main's return began the end, what began it stands: a termination that
-%% comes while the end waits counts, and a second cuts the wait short with
-%% the status of what began it.
+%% comes while the end waits cuts the wait short, with the status of what
+%% began it. One signal is sent there, since a second could reach a runner
+%% already gone and end it by itself.
 %%
-%% Two signals are sent there, a termination and a hangup, which is a
-%% termination for a program that is no node, since nothing shows when the
-%% first has reached the runner. A wait cut short, by the subscriber's
-%% Os.exit or by the second termination, says on standard error whom it
-%% left unanswered (§11.2). A regression test, written after the fix: once
-%% a termination had come, `ern` ended by it whatever ended the program;
-%% the cut-short line, written after the code. Its steps: the build, and
-%% for each of the five runs the wait for its line and its end.
+%% A wait cut short, by the subscriber's Os.exit or by a termination, says
+%% on standard error whom it left unanswered (§11.2). A regression test,
+%% written after the fix: once a termination had come, `ern` ended by it
+%% whatever ended the program; the cut-short line, written after the code.
+%% Its steps: the build, and for each of the five runs the wait for its
+%% line and its end.
 end_status_test_() ->
     ern_nodes_tests:counted_test({waits, 11}, fun end_status/0).
 
@@ -1487,8 +1486,8 @@ end_status() ->
              "run('answered', 'answer', 'termination', b'running', [signal.SIGTERM])\n"
              "run('exited', 'exit', 'termination', b'running', [signal.SIGTERM])\n"
              "run('gone', 'answer', 'termination', b'running', [signal.SIGTERM], True)\n"
-             "run('exit began', 'hold', 'exit', b'told', [signal.SIGTERM, signal.SIGHUP])\n"
-             "run('return began', 'hold', 'return', b'told', [signal.SIGTERM, signal.SIGHUP])\n",
+             "run('exit began', 'hold', 'exit', b'told', [signal.SIGTERM])\n"
+             "run('return began', 'hold', 'return', b'told', [signal.SIGTERM])\n",
     ok = file:write_file(Dir ++ "/statuses.py", Python),
     Cut = "the end was cut short, 1 subscriber unanswered: Told.main:6",
     ?assertEqual({0, iolist_to_binary(["answered -15\n",
@@ -1863,7 +1862,7 @@ private_mailbox_spawned_test_() ->
     ern_nodes_tests:counted_test({waits, 2}, fun private_mailbox_spawned/0).
 
 private_mailbox_spawned() ->
-    ?assertEqual({0, <<"NotListed\n">>}, private_mailbox_printed("spawned")).
+    ?assertEqual({0, <<"Io.NotListed\n">>}, private_mailbox_printed("spawned")).
 
 %% What a program of fixtures/programs/private_mailbox printed, and its
 %% status, the directory built under a root of the program's own, so that

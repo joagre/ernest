@@ -838,13 +838,19 @@ show(false) -> <<"false">>;
 show(unit) -> <<"Unit">>;
 show(List) when is_list(List) -> iolist_to_binary(["[", shown(List), "]"]);
 show({tuple, Values}) -> iolist_to_binary(["#(", shown(Values), ")"]);
-show({con, Name, none}) -> atom_to_binary(Name);
+show({con, Name, none}) -> constructor_text(Name);
 show({con, Name, {positional, Value}}) ->
-    iolist_to_binary([atom_to_list(Name), "(", show(Value), ")"]);
+    iolist_to_binary([constructor_text(Name), "(", show(Value), ")"]);
 show({con, Name, {named, Fields}}) ->
-    iolist_to_binary([atom_to_list(Name), "(",
+    iolist_to_binary([constructor_text(Name), "(",
                       lists:join(", ", [[atom_to_list(Field), " = ", show(Value)]
                                         || {Field, Value} <- Fields]), ")"]).
+
+%% Report Appendix E.1: the prelude's constructor by its name alone, and
+%% one of the generated module's types under its namespace.
+constructor_text(Name) when Name =:= 'Some'; Name =:= 'None' -> atom_to_binary(Name);
+constructor_text(Name) ->
+    iolist_to_binary([ern_namespace:text(?MODULE_NAMESPACE), ".", atom_to_list(Name)]).
 
 shown(Values) ->
     lists:join(", ", [show(Value) || Value <- Values]).

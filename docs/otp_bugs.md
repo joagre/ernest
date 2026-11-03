@@ -478,3 +478,56 @@ OTP 29, erts 17.1, ssl 11.7.6, on Linux x86_64.
 **Additional context**
 
 The two waits are `?DEFAULT_TIMEOUT` of `ssl_internal.hrl`. A program that closes a connection whose far end has stopped reading, a server dropping a stalled client, holds the closing process for 10 seconds per connection, which it can escape only by closing from another process or by `ssl:shutdown/2` and a close of the transport socket behind ssl's back.
+
+## 11. `json:decode` answers a broken literal by the count of bytes after it, not by the byte that differs
+
+Not filed. Found on 2026-11-02 by the release review before 0.9.0 (its finding E4-2); `erl/json/src/ern_json.erl`'s `broken_literal/2` reads the text for the byte that differs instead.
+
+**Title:** json:decode/1,3: a broken `true`, `false` or `null` raises unexpected_end, or invalid_byte at the byte after its first, whichever byte differs
+
+**Describe the bug**
+
+A value that begins with `t`, `f` or `n` but is not the literal is answered by how many bytes follow its first byte, not by which byte differs. Where fewer bytes follow than the rest of the literal has, `true/6`, `false/6` and `null/6` hand `unexpected/8` the literal's length, and it answers as if the input were cut short, which `decode/1` and `decode/3` raise as `unexpected_end` though the input holds the byte that differs. Where more follow, it raises `{invalid_byte, Byte}` at the byte after the literal's first, which may be a byte of the literal itself. The position is wrong in the second case and missing in the first, and a program that reports where a document is broken points at the wrong place.
+
+**To Reproduce**
+
+```sh
+erl -noshell -eval '
+    Show = fun(Text) ->
+        try json:decode(Text) of Value -> io:format("~s: ~p~n", [Text, Value])
+        catch error:Error:Stack ->
+            [{json, _, _, Info} | _] = Stack,
+            Where = case proplists:get_value(error_info, Info) of
+                        #{cause := #{position := Position}} -> [{position, Position}];
+                        undefined -> []
+                    end,
+            io:format("~s: ~p ~p~n", [Text, Error, Where])
+        end
+    end,
+    [Show(Text) || Text <- [<<"[t]">>, <<"[nul]">>, <<"trux">>, <<"[tru, 1]">>, <<"[falsy]">>,
+                            <<"[true]">>]],
+    halt().'
+```
+
+The output:
+
+```
+[t]: unexpected_end []
+[nul]: unexpected_end []
+trux: unexpected_end []
+[tru, 1]: {invalid_byte,114} [{position,2}]
+[falsy]: {invalid_byte,97} [{position,2}]
+[true]: [true]
+```
+
+**Expected behavior**
+
+The first byte that differs from the literal is the invalid one, at its own position: `{invalid_byte, $]}` at 2 for `[t]`, at 4 for `[nul]`, `{invalid_byte, $x}` at 3 for `trux`, `{invalid_byte, $,}` at 4 for `[tru, 1]` and `{invalid_byte, $y}` at 5 for `[falsy]`; `unexpected_end` only where the input ends inside the literal, `[tru` or `fals`. `decode_start/3` may still answer `continue` where the bytes it has match the literal so far.
+
+**Affected versions**
+
+OTP 29, erts 17.1, stdlib 8.1, on Linux x86_64.
+
+**Additional context**
+
+An escape meets the same rule: `["\u12"]` raises `{unexpected_sequence, <<"\\u12\"]">>}`, the six bytes from the backslash, past the string's end, and `["\u1"]` raises `unexpected_end`, where the escape's first byte that is no hexadecimal digit is the one that cannot stand.

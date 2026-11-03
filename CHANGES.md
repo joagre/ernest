@@ -2,6 +2,61 @@
 
 Each release's note, newest first, from the release after 0.6.0 on; the release step writes a release's section before its tag and copies it to the release on GitHub, so that the note is written once (`docs/release_review.md`). A section says what the release is and lists each change on one line naming where it is read, the report section, the library's entry or the log's entry that owns it, and restates nothing: the report of the release is what holds, and the log's entries since the last release say why.
 
+## 0.9.0, 2026-11-03
+
+Ernest 0.9.0 is the release of the first program built against an installed Ernest by a repository of its own: ernest-httpd, which serves ernest-lang.org over TLS since 2026-11-02, and what it asked of Ernest on its way, TLS in `Tcp`, a program under a pseudo-terminal in `Os`, four libraries, `base64`, `crypto`, `time` and `http`, and seventeen lines of feedback decided the days they came. With it come what the release review before it decided, a constructor shown with its module's name, a read given no time that has run out as it begins, and the report's sentences for every silence its readers found.
+
+A program written for 0.8.0 changes these things. Its modules are built again, since `ern run`, `ern test` and `Code.load` refuse a compiled form another build of `ern` wrote. A node of 0.9.0 and one of 0.8.0 do not connect, as two minor releases never do. `Io.show` writes a constructor outside the prelude with its module's name, `Io.Timeout` for what was `Timeout`, so a program that reads `show`'s text, or a test that compares against it, sees the name. `Tcp.read` and `Os.read` given no time answer `Left(Timeout)` whatever has arrived, as every wait does; a poll gives them a millisecond.
+
+`Json.parse`'s `UnexpectedByte` and `UnexpectedSequence` carry where they begin, `at = Position(line, column)`, and the sequence is a `String`. `Http.render` is `Http.renderResponse`, `Time.civil` is `Time.toCivil`, and `Time.weekday` takes a `Civil`. A module named `ernest.ern`, or under `ernest/`, is refused, the namespace being the toolchain's own. A clause whose guard is the literal `false` is refused as a redundant clause.
+
+Until 1.0 a release may refuse a program the previous release accepted, as the plan says. The report of this release is what holds. What changed since 0.8.0 is the report's diff, `git diff v0.8.0 v0.9.0 -- report/`, and why is the decision log's entries after *The Release Review Before 0.8.0* in `docs/log.md`.
+
+What changed:
+
+### The language and the report
+
+- `Ernest` a taken namespace, the shell standing under it as `Ernest.Shell`: §4.2, §11.1, §12.7; the log's *Four Lines From the Deployment*.
+- A clause whose guard is the literal `false` redundant: §5.9; *The Release Review Before 0.8.0*.
+- The caller of `Os.exit` neither told nor waited for, a termination once the end has begun cutting the wait short, and a program under a terminal counting as a computation: §8.6; *A Program After Its Exit*, *The Release Review Before 0.9.0*.
+- A value reclaimed by its process's collection, in the host's two generations: §10; *Four Lines From the Deployment*, *The Release Review Before 0.9.0*.
+- An archive's version text naming its commit: §11.7; *An Archive Says Its Commit*.
+- A listener's family, and a node's: §12.5, Appendix E.18; *Four Lines From the Deployment*.
+- The toolchain's own units listed, and an attach refused by a node that could not load them: §11.2, §12.7; *Four Lines From the Deployment*, *The Release Review Before 0.9.0*.
+
+### The toolchain and the shell
+
+- An IPv4-mapped `listen` refused by `ern config` and the node: §12.5; *The Release Review Before 0.9.0*.
+- `ernest.pid` made for its owner alone, and `ern stop` and `ern reload` checking the directory as the node does: §12.5; *The Release Review Before 0.9.0*.
+- The shell's modules under `src/shell/ernest/`, `Ernest.Shell`: §11.2; *Four Lines From the Deployment*.
+- The terminal tests' harness an Ernest program over `Os.startTerminal`: *The Harness in Ernest*.
+
+### The library
+
+- `Tcp.listenTls` and `Tcp.connectTls`, one socket over TLS or not, `Verified(caFile)` and `Unverified`: Appendix E.18; *TLS in `Tcp` and a Terminal in `Os`*, *Two Lines on TLS*.
+- `Os.startTerminal`, `Os.resize`, `closeInput` as a hangup, a program's process living on after its exit, `Os.user`, `Os.exit`'s caller: Appendix E.23; *TLS in `Tcp` and a Terminal in `Os`*, *A Program After Its Exit*, *The Hangup's Order*.
+- `Tcp.write` as the host's send, the endpoints of a closed connection, a read or an accept whose caller ended: Appendix E.18; *A Close, an Exit and a Write*, *Three Flakes Read*.
+- `libs/base64`, `libs/crypto`, `libs/time` and `libs/http`: Appendix G.8 to G.11; *The Four Libraries*.
+- `Json`'s errors carrying a `Position`, a broken literal or escape named at the byte that breaks it, and a too-long number found in one pass: Appendix G.6; *The Error's Place*, *The Release Review Before 0.9.0*.
+- `Io.show` writing a constructor outside the prelude with its module's name: Appendix E.1; *The Release Review Before 0.9.0*.
+- A read given no time having run out as it begins, in `Tcp` and `Os` as everywhere: Appendix E.0 shape rule 8, E.18; *The Release Review Before 0.9.0*.
+- `Fs.setMode`, a path through a file, a loop of links and a long name: Appendix E.17; *A Path Through a File*.
+- `Io.writeError`, `Terminal.width`, `Supervisor.child`, `Random.nextFloat`'s bounds: Appendix E.1, E.19, E.21, E.12; *Three Lines From the Server*.
+- `Path.join` writing its segments as given: Appendix E.14; *A Path Through a File*.
+- `Http`'s response readers reading a fold and a body to the close as RFC 9112 has a client read them, its renderers faulting on a value that would break the message, a status of three digits, one empty line before a request skipped: Appendix G.11; *The Release Review Before 0.9.0*.
+
+### The runtime
+
+- A program's process group killed when the program is reaped, a pinned certificate taken sent alone or at a chain's end, and a CA file read before the dial: Appendix E.23, E.18; *The Release Review Before 0.9.0*.
+- A fault's trace keeping its callers' frames, which the host's type pass had cut: §7.3, Appendix E.21; *The Release Review Before 0.9.0*.
+- `ernest.pid` made for its owner alone, and a termination once the end has begun cutting the wait short: §12.5, §8.6; *The Release Review Before 0.9.0*.
+- `resize` answering `Closed` after the exit or the hangup: Appendix E.23; *The Release Review Before 0.9.0*.
+- A load's evaluator counting a running program and an open connection only: Appendix E.28; *The Release Review Before 0.9.0*.
+
+What the review did not run: the service manager's checks under launchd, since no Mac was at hand; on macOS the archive is expected to work and is not yet verified.
+
+The newcomer's program is `pindex`, a parallel inverted-index builder in four modules of 409 lines: a crawler runs a monitored worker for each file, at most a given number at once, an index process keeps each word's files and answers lookups by a call, the index is written to a file and renamed over it, and the command line answers a word a line from standard input with the files it is in; its tests cover the tokenizer, the index, a killed index and a crawl with an unreadable and a broken file. It built at the first try, its nine tests passed, and it ran; it is published beside the archive.
+
 ## 0.8.0, 2026-11-01
 
 Ernest 0.8.0 is the release of the pun: a field given or matched by the variable of its own name is written once, `Desk(=local)`. With it come what its day decided, a `receive` that always receives with `Clock.sleep` as the one wait for a time, an alarm that can be canceled, a `receive` guard that reads a field, a doc example run at its own mailbox type, and what the release review before it decided. Its row in the plan is https://github.com/joagre/ernest/blob/v0.8.0/docs/plan.md, and what Ernest is and why is https://github.com/joagre/ernest/blob/v0.8.0/guide/why.md.

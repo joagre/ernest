@@ -39,7 +39,7 @@ A test run by hand, as `ern test` runs it:
     let adds = Test.Case(name = "adds", run = fn() = Test.equal(1 + 1, 2));
     adds.run()
 }
-// => Passed
+// => Test.Passed
 ```
 
 ## Test.Case
@@ -57,7 +57,7 @@ open, and runs with `Never`.
 ```ernest
 Test.Case(name = "the empty list is empty",
           run = fn() = if List.isEmpty([]) then Test.Passed else Test.Failed("not empty"))
-// => Case(name = "the empty list is empty", run = <function>)
+// => Test.Case(name = "the empty list is empty", run = <function>)
 ```
 
 ## Test.Result
@@ -72,7 +72,7 @@ A test's answer: `Passed`, or `Failed` with what went wrong.
 
 ```ernest
 if 1 + 1 == 2 then Test.Passed else Test.Failed("1 + 1 is not 2")
-// => Passed
+// => Test.Passed
 ```
 
 ## Test.equal
@@ -92,7 +92,7 @@ needs `a.show`, which a call at a known type supplies without writing it
 
 ```ernest
 #(Test.equal(List.size([1, 2]), 2), Test.equal(1 + 1, 3))
-// => #(Passed, Failed("expected 3, got 2"))
+// => #(Test.Passed, Test.Failed("expected 3, got 2"))
 ```
 
 ## Test.faults
@@ -119,17 +119,17 @@ a process `faults` started, since the test's answer carries it (report
 
 ```ernest
 Test.faults(fn() = 1 / 0, "division by zero")
-// => Passed
+// => Test.Passed
 ```
 
 ```ernest
 Test.faults(fn() = 1 + 1, "division by zero")
-// => Failed("expected the fault division by zero, got a return")
+// => Test.Failed("expected the fault division by zero, got a return")
 ```
 
 ```ernest
 Test.faults(fn() = 1.0 / 0.0, "division by zero")
-// => Failed("expected the fault division by zero, got the fault float arithmetic error")
+// => Test.Failed("expected the fault division by zero, got the fault float arithmetic error")
 ```
 
 ## Test.until
@@ -156,12 +156,12 @@ the runtime delivered it (report §6.9).
 
 ```ernest
 Test.until(fn() = Test.equal(1 + 1, 2), 1000)
-// => Passed
+// => Test.Passed
 ```
 
 ```ernest
 Test.until(fn() = Test.equal(1 + 1, 3), 10)
-// => Failed("expected 3, got 2")
+// => Test.Failed("expected 3, got 2")
 ```
 
 ---

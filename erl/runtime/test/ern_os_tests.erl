@@ -172,6 +172,52 @@ read_times_out_and_the_piece_is_kept_test() ->
                   {'Right', {'Stdout', <<"there\n">>}}, {'Right', {'Exited', 0}}],
                  wait(reads)).
 
+%% Appendix E.23, E.0 shape rule 8: a read given no time, 0 or below, has
+%% run out as it begins and answers `Left(Timeout)`, whatever has arrived,
+%% the exit status the runtime holds among it, and takes nothing: the
+%% reads with time after each take what came. A regression test of the
+%% rule of 2026-11-03, before which a read given no time answered what had
+%% arrived; a piece kept for the next read while the program runs is not
+%% covered apart, its read taking the same first clause
+read_given_no_time_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Echo} = start(<<"echo">>, [<<"hi">>]),
+               Running = read(Echo, 0),
+               Piece = read(Echo, 5000),
+               Exited = read(Echo, 5000),
+               Self ! {reads, [Running, Piece, Exited, read(Echo, 0), read(Echo, -5),
+                               read(Echo, 5000)]}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    Timeout = {'Left', 'Timeout'},
+    ?assertEqual([Timeout, {'Right', {'Stdout', <<"hi\n">>}}, {'Right', {'Exited', 0}}, Timeout,
+                  Timeout, {'Right', {'Exited', 0}}],
+                 wait(reads)).
+
+%% Appendix E.23, E.0 shape rule 8: a write given no time, 0 or below, has
+%% run out as it begins, answers `Left(Timeout)` and gives the program
+%% nothing: `cat` writes back the one write that had time, and once it has
+%% exited a write given no time answers `Left(Timeout)` still, where one
+%% with time answers `Left(Closed)`. A regression test of the rule of
+%% 2026-11-03, before which the bytes went to the program and the write
+%% answered whichever came first, its time or the program's taking them
+write_given_no_time_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Cat} = start(<<"cat">>, []),
+               Writes = [write(Cat, <<"x\n">>, 0), write(Cat, <<"y\n">>, -1),
+                         write(Cat, <<"z\n">>, 5000)],
+               Cat ! 'CloseInput',
+               Ran = read_to_end(Cat, <<>>),
+               Self ! {ran, {Writes, Ran, write(Cat, <<"w">>, 0), write(Cat, <<"w">>, 5000)}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    Timeout = {'Left', 'Timeout'},
+    ?assertEqual({[Timeout, Timeout, {'Right', 'Unit'}], {<<"z\n">>, 0}, Timeout,
+                  {'Left', 'Closed'}},
+                 wait(ran)).
+
 %% Appendix E.23, E.0 shape rule 8: a write to a program that takes no input
 %% answers `Left(Timeout)` when its milliseconds pass, more than a pipe holds
 %% being given. A regression test of the rule, before which the write
@@ -349,6 +395,41 @@ terminal_size_out_of_range_test() ->
     Invalid = {'Left', 'Invalid'},
     ?assertEqual({[Invalid, Invalid], [Invalid, Invalid, {'Right', 'Unit'}]}, wait(answers)).
 
+%% report Appendix E.23: a resize's answers in their order: a program
+%% `start` started answers `Left(NotATerminal)` whatever the size and once
+%% it has exited, then a size the host cannot take answers
+%% `Left(Invalid)`, then a terminal hung up or a program exited answers
+%% `Left(Closed)`, as a write does. The program hung up ignores the
+%% hangup, which its `sleep` inherits, so that it runs on after it. A
+%% regression test of the rule of 2026-11-03, before which a resize after
+%% the hangup or the exit answered `Right(Unit)`; a resize once the helper
+%% has failed is not covered
+resize_answers_in_order_test() ->
+    Self = self(),
+    Wrong = {'Size', 65536, 80},
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Cat} = start(<<"cat">>, []),
+               Cat ! 'CloseInput',
+               {<<>>, 0} = read_to_end(Cat, <<>>),
+               {'Right', Held} = start_terminal(<<"sh">>,
+                                                [<<"-c">>, <<"trap '' HUP; echo ready;"
+                                                             " exec sleep 1000">>], ?SIZE),
+               _ = read_until(Held, <<"ready\r\n">>, <<>>),
+               Held ! 'CloseInput',
+               HungUp = [resize(Held, Wrong), resize(Held, ?SIZE)],
+               ern_rt:kill(Held),
+               {'Right', True} = start_terminal(<<"true">>, [], ?SIZE),
+               {<<>>, 0} = read_to_end(True, <<>>),
+               Self ! {answers, {[resize(Cat, Wrong), resize(Cat, ?SIZE)], HungUp,
+                                 [resize(True, Wrong), resize(True, ?SIZE)]}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    NotATerminal = {'Left', 'NotATerminal'},
+    Invalid = {'Left', 'Invalid'},
+    Closed = {'Left', 'Closed'},
+    ?assertEqual({[NotATerminal, NotATerminal], [Invalid, Closed], [Invalid, Closed]},
+                 wait(answers)).
+
 %% report Appendix E.23: `closeInput` hangs the terminal up: the program is
 %% sent the hangup, which ends `sleep`, which reads nothing, with 128 and
 %% the hangup's number, and nothing more it writes arrives
@@ -422,13 +503,56 @@ terminal_kill_test() ->
     ?assertMatch("Z" ++ _, string:trim(os:cmd("ps -o stat= -p " ++ integer_to_list(Sleep)))
                            ++ "Z").
 
+%% report Appendix E.23: a program that exits by itself is reaped with the
+%% processes still in its process group killed, so that `run` leaves no
+%% process behind: the shell leaves a `sleep` in the background, its output
+%% on a named pipe the test reads and not on the program's, so that the
+%% program's outputs end with the shell, and the pipe's end shows that
+%% `sleep` has ended once the run has its exit status. A regression test,
+%% written after the code (C1-1): the helper reaped the program and left
+%% its group running; a member under a terminal that ignores the hangup is
+%% terminal_kill_test's at a kill, and not covered at an exit. The run's
+%% own limit stands past the wait's 5 seconds, which bound a failure, so
+%% that a `sleep` left running is killed by its number
+exited_program_leaves_no_group_test_() ->
+    {timeout, 60, fun exited_program_leaves_no_group/0}.
+
+exited_program_leaves_no_group() ->
+    Fifo = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
+                         "ern_os_group_" ++ os:getpid()),
+    "" = os:cmd("mkfifo " ++ Fifo),
+    Reader = open_port({spawn_executable, os:find_executable("cat")},
+                       [{args, [Fifo]}, exit_status, binary]),
+    {os_pid, ReaderNumber} = erlang:port_info(Reader, os_pid),
+    Self = self(),
+    %% the shell opens the pipe itself before it starts `sleep`, as
+    %% terminal_kill_test's does, so that a writer holds it from the start
+    Script = <<"exec 3> ", (list_to_binary(Fifo))/binary, "; sleep 300 >&3 2>&3 & echo $!">>,
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Sh} = start(<<"sh">>, [<<"-c">>, Script]),
+               {Number, Status} = read_to_end(Sh, <<>>),
+               Self ! {sleep, {binary_to_integer(string:trim(Number)), Status}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    {Sleep, 0} = wait(sleep),
+    Ended = receive
+                {Reader, {exit_status, ReaderStatus}} -> ReaderStatus
+            after 5000 ->
+                _ = os:cmd("kill -KILL " ++ integer_to_list(Sleep) ++ " "
+                           ++ integer_to_list(ReaderNumber)),
+                running
+            end,
+    ok = file:delete(Fifo),
+    ?assertEqual(0, Ended).
+
 %% report Appendix E.23, §6.6: a program's process lives on after the
 %% program has exited: each read after the one that answered `Exited`
-%% answers it again, a write `Left(Closed)`, a resize `Right(Unit)`, and
-%% `closeInput` does nothing; a monitor sees its end only at its kill,
+%% answers it again, a write `Left(Closed)`, a resize `Left(Closed)` too,
+%% and `closeInput` does nothing; a monitor sees its end only at its kill,
 %% after which a resize faults as `Address.callForever` does on an ended
 %% process. A regression test of the rule of 2026-11-02, before which the
-%% process ended once a read had answered `Exited`; a give after the exit,
+%% process ended once a read had answered `Exited`, and of 2026-11-03's,
+%% before which the resize answered `Right(Unit)`; a give after the exit,
 %% and the owner's death then, are not covered
 exited_program_lives_on_test() ->
     Self = self(),
@@ -447,7 +571,7 @@ exited_program_lives_on_test() ->
                                           fun(Down) -> {later, Down} end, <<"resizer">>),
                receive {later, Down} -> Self ! {later, Down} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
-    ?assertEqual({[{'Right', {'Exited', 0}}, {'Left', 'Closed'}, {'Right', 'Unit'}],
+    ?assertEqual({[{'Right', {'Exited', 0}}, {'Left', 'Closed'}, {'Left', 'Closed'}],
                   {'Right', {'Exited', 0}}},
                  wait(after_the_exit)),
     ?assertEqual({ern, killed}, wait(ended)),
@@ -481,11 +605,12 @@ read_of_an_ended_caller_dropped_test() ->
 %% for the next read, the host asked whether the caller lives before the
 %% piece is answered. The window is made here: the program's process is
 %% held still while the test gives it the frame the helper would send,
-%% `o` and the bytes, and the reader is killed, so that the frame comes
-%% before the `DOWN`. A regression test of the rule of 2026-11-02, before
-%% which the piece went to the ended reader and the next read timed out;
-%% a caller that ends with its answer in its mailbox is every call's, and
-%% not covered
+%% `o` and the bytes, and the reader is killed once the frame stands in
+%% the process's mailbox, so that the `DOWN`, which the kill causes, comes
+%% behind it whatever the senders. A regression test of the rule of
+%% 2026-11-02, before which the piece went to the ended reader and the
+%% next read timed out; a caller that ends with its answer in its mailbox
+%% is every call's, and not covered
 piece_ahead_of_the_down_kept_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -497,7 +622,10 @@ piece_ahead_of_the_down_kept_test() ->
                                                fun(Down) -> {reader, Down} end, <<"reader">>),
                ok = ern_waits:watching(Cat, ern_rt:process_of(Reader)),
                erlang:suspend_process(Cat),
-               Cat ! {Helper, {data, <<"ox\n">>}},
+               Frame = {Helper, {data, <<"ox\n">>}},
+               Cat ! Frame,
+               {messages, Messages} = erlang:process_info(Cat, messages),
+               true = lists:member(Frame, Messages),
                ern_rt:kill(Reader),
                receive {reader, _} -> ok end,
                erlang:resume_process(Cat),
@@ -630,6 +758,68 @@ sleep(Ms) ->
 
 wait(Tag) ->
     receive {Tag, Value} -> Value after 5000 -> timeout end.
+
+%% report §12.5: a node's ernest.pid is made writable by its owner alone,
+%% whatever the mask, and never through a link; and a signal to the node
+%% that holds it is refused, nothing sent, where others than its owner may
+%% write the file, since another could then have written its number. The
+%% number is this host's, which the signal 0 asks after. A regression
+%% test, written after the code (S1, S3): the file was made 0666 under the
+%% mask, group-writable under Ubuntu's 002, and a link was followed; a
+%% file another user owns, which a test run as one user cannot make, is
+%% not covered
+node_file_test() ->
+    Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
+                        "ern_os_node_" ++ os:getpid()),
+    ok = filelib:ensure_path(Dir),
+    PidFile = filename:join(Dir, "ernest.pid"),
+    Number = list_to_integer(os:getpid()),
+    Self = self(),
+    Holder = spawn(fun() ->
+                       Self ! {locked, ern_os:locked(PidFile, Number)},
+                       receive stop -> ok end
+                   end),
+    ?assertEqual(locked, wait(locked)),
+    {ok, #file_info{mode = Mode}} = file:read_file_info(PidFile),
+    ?assertEqual(8#644 band bnot ern_os:umask(), Mode band 8#777),
+    ?assertEqual(sent, ern_os:node_signaled(PidFile, 0, false)),
+    ok = file:change_mode(PidFile, 8#664),
+    ?assertEqual({failed, "may be written by others than its owner"},
+                 ern_os:node_signaled(PidFile, 0, false)),
+    MonitorRef = erlang:monitor(process, Holder),
+    Holder ! stop,
+    receive {'DOWN', MonitorRef, process, Holder, _} -> ok end,
+    Link = filename:join(Dir, "linked.pid"),
+    ok = file:make_symlink(PidFile, Link),
+    Followed = {failed, "too many levels of symbolic links"},
+    ?assertEqual({Followed, Followed},
+                 {ern_os:locked(Link, Number), ern_os:node_signaled(Link, 0, false)}).
+
+%% report §12.5: a node's ernest.pid that an earlier node left, which others
+%% may write, as one made under the mask 002 before 0.9.0 is, is made its
+%% owner's alone to write once the node holds its lock, its other bits as
+%% they were, and is then signaled as the node's. A regression test of the
+%% rule of 2026-11-03, before which the node took the file as it found it
+%% and `ern stop` refused it
+found_node_file_test() ->
+    Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
+                        "ern_os_found_" ++ os:getpid()),
+    ok = filelib:ensure_path(Dir),
+    PidFile = filename:join(Dir, "ernest.pid"),
+    ok = file:write_file(PidFile, <<"999999\n">>),
+    ok = file:change_mode(PidFile, 8#664),
+    Self = self(),
+    Holder = spawn(fun() ->
+                       Self ! {locked, ern_os:locked(PidFile, list_to_integer(os:getpid()))},
+                       receive stop -> ok end
+                   end),
+    ?assertEqual(locked, wait(locked)),
+    {ok, #file_info{mode = Mode}} = file:read_file_info(PidFile),
+    Signaled = ern_os:node_signaled(PidFile, 0, false),
+    MonitorRef = erlang:monitor(process, Holder),
+    Holder ! stop,
+    receive {'DOWN', MonitorRef, process, Holder, _} -> ok end,
+    ?assertEqual({8#644, sent}, {Mode band 8#777, Signaled}).
 
 %% report §12.5: the helper sends a process a signal and says how it went,
 %% the signal 0 asking whether the process lives: this host's process

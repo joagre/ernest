@@ -305,7 +305,7 @@ upgrade(Base) ->
     {_, Again} = node(Base, Tool),
     ?assertEqual(0, Again()),
     {Out, _} = ern_nodes_tests:said(A),
-    ern_nodes_tests:has(Out, "\nc: Unreachable\n"),
+    ern_nodes_tests:has(Out, "\nc: Io.Unreachable\n"),
     ern_nodes_tests:stop(B, WaitB).
 
 %%
@@ -499,7 +499,11 @@ four_fifths() ->
 %% guide/deployment.md, sections 7, 4.3 and 6: every line the guide quotes
 %% there is held to a node's or a shell's by a check that names it, beside
 %% the test that provokes the line, in this module or in ern_nodes_tests,
-%% and each check names one line
+%% and each check names one line; but one, which no test provokes: the
+%% attach refused as `ern shell: the node b could not start the shell:`,
+%% where the session's root ends before the session's `Attached` call
+%% reaches the local half (report §11.2), which no input a test controls
+%% causes
 catalog_test() ->
     Quoted = quoted(),
     ?assert(length(Quoted) >= 26),
@@ -508,10 +512,13 @@ catalog_test() ->
                 [Line || {In, Line, _} <- Quoted, In =:= Section,
                          string:find(Line, Fragment) =/= nomatch]
             end,
+    Unprovoked = [{"6", "ern shell: the node b could not start the shell: ..."}],
     Checked = [{Section, Line} || {Section, Fragment} <- Checks,
-                                  Line <- Named(Section, Fragment)],
+                                  Line <- Named(Section, Fragment)] ++ Unprovoked,
     ?assertEqual([], [{Section, Line} || {Section, Line, _} <- Quoted,
                                          not lists:member({Section, Line}, Checked)]),
+    ?assertEqual(Unprovoked, [{Section, Line} || {Section, Line, _} <- Quoted,
+                                                 lists:member({Section, Line}, Unprovoked)]),
     ?assertEqual([], [Check || {Section, Fragment} = Check <- Checks,
                                length(Named(Section, Fragment)) =/= 1]).
 
@@ -581,7 +588,9 @@ part(Part, Names) -> ["\\Q", proplists:get_value(Part, Names, Part), "\\E"].
 %% its colon, a span after the first in its cell or its item continuing the
 %% one before it; and each span of section 6's prose that is a line an
 %% attached shell writes at its end or at a refused attach, `the node b
-%% ended`, `ern shell: the peer b is unreachable`, each a whole line.
+%% ended`, `ern shell: the peer b is unreachable`, each a whole line, one
+%% the prose ends at its colon, `ern shell: the node b could not load the
+%% shell:` followed by the node's reason, with any text after it.
 quoted() ->
     Lines = guide_lines(),
     [{"7", Span, Whole}
@@ -590,12 +599,18 @@ quoted() ->
         ++ [{"4.3", Span, Whole}
             || "- `" ++ _ = Item <- section(Lines, "### 4.3"),
                {Span, Whole} <- spans(hd(string:split(Item, "`: ")) ++ "`")]
-        ++ [{"6", Span, true}
+        ++ [{"6", reason_after(Span), true}
             || Line <- section(Lines, "## 6."),
                {match, Spans} <- [re:run(Line, "`([^`]*)`",
                                          [global, {capture, all_but_first, list}])],
                [Span] <- Spans,
                lists:prefix("ern shell: ", Span) orelse lists:prefix("the node ", Span)].
+
+reason_after(Span) ->
+    case lists:suffix(":", Span) of
+        true -> Span ++ " ...";
+        false -> Span
+    end.
 
 spans(Text) ->
     {match, Spans} = re:run(Text, "`([^`]*)`", [global, {capture, all_but_first, list}]),

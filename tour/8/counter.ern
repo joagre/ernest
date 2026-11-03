@@ -34,15 +34,15 @@ fn handle(tally : Tally.Tally(String), message : ClientMsg) : Tally.Tally(String
         }
     }
 
-export fn count2(tally : Tally.Tally(String)) : Unit receiving CounterMsg =
+export fn countGuarded(tally : Tally.Tally(String)) : Unit receiving CounterMsg =
     receive {
-        Client(Inc(=amount)) when amount < 0 -> count2(tally)
-      | Client(message) -> count2(handle(tally, message))
+        Client(Inc(=amount)) when amount < 0 -> countGuarded(tally)
+      | Client(message) -> countGuarded(handle(tally, message))
       | Upgrade(=next) -> next(tally)
     }
 
 export fn move() : Unit =
-    List.forEach(Code.running(count), fn(counter) = send(counter, Upgrade(next = count2)))
+    List.forEach(Code.running(count), fn(counter) = send(counter, Upgrade(next = countGuarded)))
 
 export fn watch(counter : Address(ClientMsg)) : Unit receiving WatchMsg = {
     monitor(Process.fromAddress(counter), Ended);

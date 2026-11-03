@@ -12,8 +12,9 @@
 // - Each connection is a socket, itself a process, which the server reads
 //   and writes through its address (Tcp, report Appendix E.18).
 // - The request is read from the socket by `Http.readRequest`, and the
-//   response written by `Http.render`, which adds its `Content-Length` and
-//   its status's phrase (libs/http, report Appendix G.11).
+//   response written by `Http.renderResponse`, which adds its
+//   `Content-Length` and its status's phrase (libs/http, report Appendix
+//   G.11).
 // - A session id is sixteen bytes drawn at random, which a client cannot
 //   guess (libs/crypto, report Appendix G.9).
 // - The session store forgets its sessions every ten minutes, by an alarm
@@ -100,12 +101,13 @@ fn handle(sessions : Address(SessionMsg), socket : Address(Tcp.SocketMsg)) : Uni
             let body = String.toUtf8("Visit number " <> Int.toString(visits));
             let setCookie = "sid=" <> sessionIdText(id) <> "; path=/";
             let headers = Http.Header(name = "Set-Cookie", value = setCookie) :: closingHeaders();
-            let _ = Tcp.write(socket, Http.render(response(200, headers), body), 5000);
+            let _ = Tcp.write(socket, Http.renderResponse(response(200, headers), body), 5000);
             Tcp.close(socket)
         }
       | Left(Http.Protocol(_)) -> {
             // the connection is closed whether the far end took it or not
-            let _ = Tcp.write(socket, Http.render(response(400, closingHeaders()), <<>>), 5000);
+            let _ =
+                Tcp.write(socket, Http.renderResponse(response(400, closingHeaders()), <<>>), 5000);
             Tcp.close(socket)
         }
       | Left(Http.Socket(_)) ->
@@ -140,8 +142,8 @@ fn cookieValue(parts : List(String), name : String) : Optional(String) =
         [] ->
             None
       | part :: rest ->
-            match String.split(String.trim(part), "=") {
-                key :: value :: _ when key == name -> Some(value)
+            match String.splitOnce(String.trim(part), "=") {
+                Some(#(key, value)) when key == name -> Some(value)
               | _ -> cookieValue(rest, name)
             }
     }

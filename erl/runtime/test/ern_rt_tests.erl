@@ -4,7 +4,8 @@
 -module(ern_rt_tests).
 
 -export([queued_input/2, evaluated/0, kept_table/0, closed_table/0, kept_proxy/0, ended_proxy/0,
-         ran_program/0, closed_listener/0, kept_listener/0]).
+         ran_program/0, closed_listener/0, kept_listener/0, exited_program/0,
+         closed_connection/1]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include("ern_rt.hrl").
@@ -344,6 +345,42 @@ exiting_subscriber_is_not_waited_for_test() ->
     ?assertEqual({exit, 3}, Outcome),
     ?assertEqual([], said()).
 
+%% report §8.6, §11.2: a termination once the end has begun cuts its wait
+%% short, whoever began the end: here an Os.exit began it and a subscriber
+%% holds its reply, and one termination ends the program with the exit's
+%% status, the runtime saying whom the wait left unanswered. The
+%% termination comes as the end says it waits, as the host's signal
+%% handler would send it then. A regression test of the rule of
+%% 2026-11-03, before which a first termination after an Os.exit was
+%% counted and only a second cut the wait short; an end that main's return
+%% began, which a termination cuts short the same way, is not covered
+termination_cuts_an_exit_short_test() ->
+    Self = self(),
+    Say = fun(Line) ->
+              Said = iolist_to_binary(Line),
+              Self ! {said, Said},
+              case Said of
+                  <<"the end waits for ", _/binary>> -> ok = ern_rt:signal(sigterm);
+                  _ -> ok
+              end
+          end,
+    Outcome = ern_rt:run_main(
+                fun() ->
+                    Main = erlang:self(),
+                    _ = ern_rt:spawn(fun() ->
+                                         ern_rt:termination(
+                                           ern_rt:adapted(ern_rt:self(),
+                                                          fun(Reply) -> {told, Reply} end)),
+                                         Main ! subscribed,
+                                         receive {told, _} -> receive never -> ok end end
+                                     end, <<"Main.holder:2">>),
+                    receive subscribed -> ok end,
+                    ern_rt:exit_program(3)
+                end, <<"main">>, #{stdout => fun(_) -> ok end, say => Say}),
+    ?assertEqual({exit, 3}, Outcome),
+    ?assertEqual([<<"the end waits for 1 subscriber: Main.holder:2">>,
+                  <<"the end was cut short, 1 subscriber unanswered: Main.holder:2">>], said()).
+
 %% report Appendix E.21, §11.2: Process.live() leaves out a session's own
 %% processes, each marked so by the session, and lists what they start.
 %% Written before the code; the unmarking went with the evaluators a
@@ -518,6 +555,49 @@ evaluator_ends_with_what_it_owns_test() ->
     end,
     ?assertEqual({true, normal}, wait(ended)).
 
+%% report Appendix E.28, E.23, E.18: a load's evaluator that owns a running
+%% program whose program has exited, or a socket whose connection has
+%% closed, owns nothing that keeps it alive, and ends; each then ends as
+%% what an owner that died owned. The bindings start `true` and read its
+%% `Exited`, and connect to a far end that accepts and closes and read
+%% `Left(Closed)`. A regression test of the rule of 2026-11-03, before
+%% which the evaluator and what it owned kept each other alive until the
+%% program's end, a pair for each load; what it owns that is spent once it
+%% lives on, which the same word wakes, is not covered. 5 seconds from the
+%% first wait bound a failure, within the run's own limit
+evaluator_ends_once_what_it_owns_is_spent_test_() ->
+    {timeout, 60, fun evaluator_ends_once_what_it_owns_is_spent/0}.
+
+evaluator_ends_once_what_it_owns_is_spent() ->
+    Self = self(),
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {ip, {127, 0, 0, 1}}]),
+    {ok, Port} = inet:port(Listen),
+    FarEnd = spawn(fun() ->
+                       {ok, Accepted} = gen_tcp:accept(Listen),
+                       ok = gen_tcp:close(Accepted),
+                       receive stop -> ok end
+                   end),
+    Units = [unit_calling('ern@zz_program_exited', exited_program, []),
+             unit_calling('ern@zz_connection_closed', closed_connection, [Port])],
+    try
+        ok = ern_rt:run_main(
+               fun() ->
+                   true = register(ern_rt_tests_main, erlang:self()),
+                   Loaded = [{evaluated(Unit),
+                              receive {owned, Address} -> ern_rt:process_of(Address) end}
+                             || Unit <- Units],
+                   Deadline = erlang:monotonic_time(millisecond) + 5000,
+                   Ended = [{is_ended(Evaluator, Deadline), is_ended(Owned, Deadline)}
+                            || {Evaluator, Owned} <- Loaded],
+                   Self ! {ended, Ended}
+               end, <<"main">>, #{stdout => fun(_) -> ok end})
+    after
+        FarEnd ! stop,
+        gen_tcp:close(Listen),
+        [begin code:purge(Unit), code:delete(Unit) end || Unit <- Units]
+    end,
+    ?assertEqual([{true, true}, {true, true}], wait(ended)).
+
 %% docs/memory.md, Appendix G.1, E.21: a process that makes and closes a
 %% thousand tables keeps, of the tables it made, fewer than the floor at
 %% which it drops those it no longer owns, and `Ets.owned` of it counts
@@ -541,12 +621,16 @@ kept_tables_stay_bounded_test() ->
     receive {'DOWN', MonitorRef, process, Maker, _} -> ok end,
     ?assertEqual({0, []}, {ern_rt:owned_tables(Maker), ern_rt:owned(Maker)}).
 
-%% A unit whose bindings call Function of this module, loaded.
+%% A unit whose bindings call Function of this module, with Arguments
+%% where it is given them, loaded.
 unit_calling(Unit, Function) ->
+    unit_calling(Unit, Function, []).
+
+unit_calling(Unit, Function, Arguments) ->
+    Call = {call, 1, {remote, 1, {atom, 1, ?MODULE}, {atom, 1, Function}},
+            [erl_parse:abstract(Argument) || Argument <- Arguments]},
     Forms = [{attribute, 1, module, Unit}, {attribute, 1, export, [{'$init', 0}]},
-             {function, 1, '$init', 0,
-              [{clause, 1, [], [], [{call, 1, {remote, 1, {atom, 1, ?MODULE}, {atom, 1, Function}},
-                                     []}]}]}],
+             {function, 1, '$init', 0, [{clause, 1, [], [], [Call]}]}],
     {ok, Unit, Beam} = compile:forms(Forms),
     {module, Unit} = code:load_binary(Unit, atom_to_list(Unit) ++ ".erl", Beam),
     Unit.
@@ -605,6 +689,26 @@ closed_listener() ->
 kept_listener() ->
     {'Right', Listener} = (ern_named:function('ern@tcp', listen))(<<"127.0.0.1">>, 0),
     ern_rt_tests_main ! {listener, Listener},
+    ok.
+
+%% The bindings of evaluator_ends_once_what_it_owns_is_spent_test's units,
+%% each telling the test's main process what the evaluator owns: a running
+%% program whose program has exited, `true`'s, its exit read, and a socket
+%% whose connection the far end on Port has closed, its close read.
+-spec exited_program() -> ok.
+exited_program() ->
+    Os = ern_named:functions('ern@os'),
+    {'Right', True} = (Os(start))({'Command', <<"true">>, [], <<>>}),
+    {'Right', {'Exited', 0}} = (Os(read))(True, 5000),
+    ern_rt_tests_main ! {owned, True},
+    ok.
+
+-spec closed_connection(inet:port_number()) -> ok.
+closed_connection(Port) ->
+    Tcp = ern_named:functions('ern@tcp'),
+    {'Right', Socket} = (Tcp(connect))(<<"127.0.0.1">>, Port, 5000),
+    {'Left', 'Closed'} = (Tcp(read))(Socket, 5000),
+    ern_rt_tests_main ! {owned, Socket},
     ok.
 
 %% report §8.6: a program's end ends every process the runtime started,

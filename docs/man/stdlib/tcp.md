@@ -10,7 +10,8 @@ move bytes over a connection, and `close` ends it, over TLS or not. A
 connection carries bytes, and a program frames its messages with bitstrings
 (report §5.11); there are no socket options.
 
-**A socket is a process.** `accept` and `connect` answer a socket's address.
+**A socket is a process.** `accept`, `connect` and `connectTls` answer a
+socket's address.
 It can be sent in a message and killed like any other, and
 `monitor(Process.fromAddress(socket), wrap)` tells when it ends. A listener
 is a process too.
@@ -153,7 +154,7 @@ certificate, self-signed or not, and for naming the host connected to;
 
 ```ernest
 Tcp.Verified(Path("/etc/ssl/certs/ca-certificates.crt"))
-// => Verified(Path("/etc/ssl/certs/ca-certificates.crt"))
+// => Tcp.Verified(Path("/etc/ssl/certs/ca-certificates.crt"))
 ```
 
 ## Tcp.listen
@@ -238,7 +239,7 @@ No connection comes within 10 milliseconds:
     Tcp.closeListener(listener);
     accepted
 }
-// => Left(Timeout)
+// => Left(Io.Timeout)
 ```
 
 ## Tcp.connect
@@ -274,12 +275,15 @@ A socket `accept` answers on the listener shakes hands as it is first read
 or written, within that read's or write's milliseconds: one that times out
 leaves the handshake under way. A handshake that fails closes the
 connection: the read or write waiting answers `Left(Other(text))`, in the
-host's words, and each later one `Left(Closed)`.
+host's words, and each later one `Left(Closed)`. A handshake the far end
+closes before it is done answers `Left(Closed)`.
 
-It answers `Left(NotFound)` or `Left(Denied)` for a file it cannot read, as
-`Fs` does, `Left(Other(text))` for one it refuses, the file's name and what
-is wrong on one line, `cert.pem: no certificate`, `key.pem: not one key`,
-and otherwise as `listen` does.
+It answers `Left(NotFound)`, `Left(Denied)` or `Left(NotAFile)` for a file
+it cannot read, as `Fs` answers for the path, `Left(Other(text))` for one it
+refuses, the file's name and what is wrong on one line, `cert.pem: no
+certificate`, `key.pem: not one key`, and otherwise as `listen` does. A key
+that is not the certificate's is not refused here, and fails each
+handshake.
 
 ### Examples
 
@@ -313,11 +317,12 @@ leading to one the file holds or the far end's own certificate held there,
 and for naming `host`; `Unverified` checks nothing.
 
 It answers `Left(Other(text))` where the handshake fails, a check of the
-certificate among it, in the host's words, for a file of certificates it
-cannot read or refuses what `listenTls` answers for its files, and otherwise
-as `connect` does:
-`Left(Timeout)` where the connection and its handshake are not done in time,
-and `Left(Refused)` where nothing listens there.
+certificate among it, in the host's words. For a file of certificates it
+cannot read or refuses it answers what `listenTls` answers for its files,
+reading the file before it dials, so that the answer comes whatever the far
+end does. Otherwise it answers as `connect` does: `Left(Timeout)` where the
+connection and its handshake are not done in time, and `Left(Refused)` where
+nothing listens there.
 
 ### Examples
 
@@ -361,12 +366,13 @@ Tcp.write(socket : Address(SocketMsg), bytes : Bytes, ms : Int) : Either(Io.Erro
 ```
 
 Writes `bytes` to the connection by the host's send, and answers
-`Right(Unit)` once the host has taken them, at most `ms` milliseconds; what
-the host takes and holds back is what the socket does. The host takes a
-write whole, whatever its size, and holds what the far end has not taken; a
-write waits only behind earlier writes the host holds back, 8 KB or more of
-them not yet taken, so `ms` bounds that wait and never the far end's taking
-of the bytes. That the socket took them does not mean that the far end has
+`Right(Unit)` once the host has taken them, at most `ms` milliseconds. The
+host takes a write whole, whatever its size, and holds what the far end has
+not taken. Once it holds 8 KB or more of earlier writes past the kernel's
+buffer for the socket, it holds the next write back until it holds under
+4 KB, so `ms` bounds a write's wait behind earlier writes and never the far
+end's taking of its own bytes, and a write that waits holds up no read of
+the socket. That the host took the bytes does not mean that the far end has
 them.
 
 It answers `Left(Timeout)` where the milliseconds pass first, which does not
@@ -387,8 +393,16 @@ the call was made.
 Tcp.close(socket : Address(SocketMsg)) : Unit
 ```
 
-Closes the connection and ends the socket's process. On a socket that has
-ended already it does nothing.
+Closes the connection and ends the socket's process, a read or a write the
+socket holds waiting answering `Left(Closed)`. On a socket that has ended
+already it does nothing.
+
+The bytes the socket has taken that the far end has not are sent on while
+the far end takes them. Those it has not taken 5 seconds after the close,
+or after the last bytes it took, or 3 minutes after the close, are dropped
+and the connection is reset. Over TLS the reset comes up to 10 seconds
+later, and a close that waits behind bytes the far end has not taken waits
+until it takes them or the program ends (report Appendix E.18).
 
 ## Tcp.give
 

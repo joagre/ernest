@@ -6,6 +6,111 @@
 
 -export([pki/0]).
 
+%% Report Appendix E.18: the window in which a socket that has ended may
+%% send what the far end has not taken with nothing taken, and the time
+%% the host's ssl takes to close a connection, in two waits of 5 seconds
+%% of its own.
+-define(LINGER_IDLE, 5000).
+-define(TLS_CLOSE, 10000).
+
+%% Appendix E.18, E.0 shape rule 8: a read given no time, 0 or below, has
+%% run out as it begins and answers `Left(Timeout)`, whatever has arrived,
+%% and takes nothing: the far end's bytes go to the read with time after
+%% it, and its close to the next, and once the connection has closed a
+%% read given no time answers `Left(Timeout)` still. A regression test of
+%% the rule of 2026-11-03, before which a read given no time answered the
+%% bytes that had arrived
+read_given_no_time_test() ->
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Port} = inet:port(Listen),
+    Self = self(),
+    Peer = spawn(fun() ->
+                     {ok, Accepted} = gen_tcp:accept(Listen),
+                     ok = gen_tcp:send(Accepted, <<"x">>),
+                     receive close -> gen_tcp:close(Accepted) end
+                 end),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Socket} = connect(Port, 2000),
+               Before = [read(Socket, 0), read(Socket, -5)],
+               Bytes = read(Socket, 5000),
+               Peer ! close,
+               Closed = read(Socket, 5000),
+               Self ! {reads, {Before, Bytes, Closed, read(Socket, 0)}}
+           end, <<"main">>, quiet()),
+    gen_tcp:close(Listen),
+    Timeout = {'Left', 'Timeout'},
+    ?assertEqual({[Timeout, Timeout], {'Right', <<"x">>}, {'Left', 'Closed'}, Timeout},
+                 wait(reads)).
+
+%% Appendix E.18, E.0 shape rule 8: a write given no time, 0 or below, has
+%% run out as it begins, answers `Left(Timeout)` and gives the host
+%% nothing: the far end reads the one write that had time, and nothing
+%% before it. A regression test of the rule of 2026-11-03, before which the
+%% bytes went to the host and the write answered whichever came first, its
+%% time or the host's taking them
+write_given_no_time_test() ->
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Port} = inet:port(Listen),
+    Self = self(),
+    _ = spawn(fun() ->
+                  {ok, Accepted} = gen_tcp:accept(Listen),
+                  Self ! {far_end, gen_tcp:recv(Accepted, 0, 5000)},
+                  gen_tcp:close(Accepted)
+              end),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Socket} = connect(Port, 2000),
+               Self ! {writes, [write(Socket, <<"x">>, 0), write(Socket, <<"y">>, -1),
+                                write(Socket, <<"z">>, 5000)]}
+           end, <<"main">>, quiet()),
+    gen_tcp:close(Listen),
+    Timeout = {'Left', 'Timeout'},
+    ?assertEqual([Timeout, Timeout, {'Right', 'Unit'}], wait(writes)),
+    ?assertEqual({ok, <<"z">>}, wait(far_end)).
+
+%% Appendix E.18, E.0 shape rule 8: an accept given no time has run out as
+%% it begins, answers `Left(Timeout)` and takes nothing, a connection the
+%% host holds among it: the accept with time after it takes that
+%% connection. A regression test of the rule of 2026-11-03, before which
+%% the host's own accept given no time took a connection it held
+accept_given_no_time_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Listener} = listen(0),
+               {'Right', Port} = port(Listener),
+               %% the host holds the connection once its connect returns,
+               %% a wait in the host's code, the look's foreign code
+               {ok, Client} = gen_tcp:connect("127.0.0.1", Port, [binary, {active, false}]),
+               Before = [accept(Listener, 0), accept(Listener, -1)],
+               Self ! {accepts, {Before, side(accept(Listener, 5000))}},
+               gen_tcp:close(Client)
+           end, <<"main">>, quiet()),
+    Timeout = {'Left', 'Timeout'},
+    ?assertEqual({[Timeout, Timeout], 'Right'}, wait(accepts)).
+
+%% Appendix E.18, E.0 shape rule 8: a connect given no time, over TCP and
+%% over TLS, has run out as it begins and answers `Left(Timeout)`, to a
+%% port where a listener waits; one with time then connects. Written with
+%% the rule of 2026-11-03: before it the host was given the connect with
+%% no time, and answered `Timeout` here as well, so the test holds the
+%% answer and not that the host is asked nothing
+connect_given_no_time_test() ->
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {ip, {127, 0, 0, 1}}]),
+    {ok, Port} = inet:port(Listen),
+    Self = self(),
+    ok = quietly(
+           fun() ->
+               NoTime = [connect(Port, 0), connect(Port, -1),
+                         connect_tls(<<"127.0.0.1">>, Port, 'Unverified', 0),
+                         connect_tls(<<"127.0.0.1">>, Port, 'Unverified', -1)],
+               Self ! {connects, {NoTime, side(connect(Port, 2000))}}
+           end),
+    gen_tcp:close(Listen),
+    Timeout = {'Left', 'Timeout'},
+    ?assertEqual({[Timeout, Timeout, Timeout, Timeout], 'Right'}, wait(connects)).
+
 %% Appendix E.18, report §6.6: a read that timed out leaves the socket
 %% delivering to the reads after it. A regression test: the socket asked
 %% for one packet per read that found nothing waiting, and the packet went
@@ -1097,17 +1202,19 @@ tls_slow_handshake_test() ->
     ?assertEqual({'Left', 'Timeout'}, wait(first)),
     ?assertEqual({'Right', <<"slow">>}, wait(first_later)).
 
-%% report Appendix E.1, E.18: `listenTls` answers a certificate or key
-%% file the host cannot read as `Fs` answers the path, `Left(NotFound)`
-%% for one missing and `Left(Denied)` for one it may not read; one the
+%% report Appendix E.1, E.17, E.18: `listenTls` answers a certificate or
+%% key file the host cannot read as `Fs` answers the path, `Left(NotFound)`
+%% for one missing, `Left(Denied)` for one it may not read and
+%% `Left(NotAFile)` for a directory; one the
 %% host refuses `Left(Other(text))`, the file's name and what is wrong on
 %% one line, `not one key` for a file with no key in it and `no
 %% certificate` for one with no certificate; and `Left(Invalid)` for a
 %% path that holds U+0000. A regression test: the host's term stood in
 %% `Other(text)`, pretty-printed over two lines, and a missing file was
-%% not `NotFound`. It does not cover a key that does not match its
-%% certificate, which the host takes as it listens and refuses at each
-%% handshake, nor a key of a kind the host does not take, `not a key`
+%% not `NotFound`, and a directory was the host's words (K2). It does not
+%% cover a key that does not match its certificate, which the host takes
+%% as it listens and refuses at each handshake, nor a key of a kind the
+%% host does not take, `not a key`
 listen_tls_refused_test() ->
     #{dir := Dir, server := {Certificate, Key}} = pki(),
     Unreadable = filename:join(Dir, "unreadable.key"),
@@ -1125,24 +1232,36 @@ listen_tls_refused_test() ->
                         || Missing <- [filename:join(Dir, "missing.key"), Unreadable, Garbage]]
                        ++ [listen_tls(0, {filename:join(Dir, "missing.pem"), Key}),
                            listen_tls(0, {Empty, Key}),
-                           listen_tls(0, {Certificate, Key ++ [0]})]}
+                           listen_tls(0, {Certificate, Key ++ [0]}),
+                           listen_tls(0, {Dir, Key}),
+                           listen_tls(0, {Certificate, Dir})]}
            end),
     ?assertEqual([{'Left', 'NotFound'},
                   {'Left', 'Denied'},
                   {'Left', {'Other', list_to_binary(Garbage ++ ": not one key")}},
                   {'Left', 'NotFound'},
                   {'Left', {'Other', list_to_binary(Empty ++ ": no certificate")}},
-                  {'Left', 'Invalid'}],
+                  {'Left', 'Invalid'},
+                  {'Left', 'NotAFile'},
+                  {'Left', 'NotAFile'}],
                  wait(listened)).
 
-%% report Appendix E.18: `connectTls` to a port where nothing listens
+%% report Appendix E.17, E.18: `connectTls` to a port where nothing listens
 %% answers `Left(Refused)`, as `connect` does; to one whose far end does
 %% not shake hands within its milliseconds `Left(Timeout)`; a file of
 %% certificates whose path holds U+0000 `Left(Invalid)`; and one that is
-%% missing `Left(NotFound)`, as `listenTls`'s files answer. Written after
-%% the code, a regression test
+%% missing `Left(NotFound)`, a directory `Left(NotAFile)` and one that
+%% holds no certificate `Left(Other(text))`, as `listenTls`'s files
+%% answer, read before the dial, so that each answers so towards the port
+%% where nothing listens too. Written after the code, a regression test;
+%% the file read before the dial, and its directory and its want of a
+%% certificate, after the code too (K1, K2): the file was the host's to
+%% read as it shook hands, so a closed port answered `Refused`
 connect_tls_refused_test() ->
     #{ca := Ca, dir := Dir} = pki(),
+    NoCertificate = filename:join(Dir, "no_certificate.pem"),
+    ok = file:write_file(NoCertificate, <<"no certificate here\n">>),
+    Missing = filename:join(Dir, "missing_ca.pem"),
     {ok, Held} = gen_tcp:listen(0, [{ip, {127, 0, 0, 1}}]),
     {ok, Closed} = inet:port(Held),
     ok = gen_tcp:close(Held),
@@ -1156,15 +1275,17 @@ connect_tls_refused_test() ->
                Self ! {timeout, connect_tls(<<"127.0.0.1">>, SilentPort, 'Unverified', 100)},
                Self ! {invalid, connect_tls(<<"127.0.0.1">>, SilentPort,
                                             verified(Ca ++ [0]), 2000)},
-               Self ! {missing, connect_tls(<<"127.0.0.1">>, SilentPort,
-                                            verified(filename:join(Dir, "missing_ca.pem")),
-                                            2000)}
+               Self ! {files, [connect_tls(<<"127.0.0.1">>, Port, verified(File), 2000)
+                               || Port <- [SilentPort, Closed],
+                                  File <- [Missing, Dir, NoCertificate]]}
            end),
     gen_tcp:close(Silent),
     ?assertEqual({'Left', 'Refused'}, wait(refused)),
     ?assertEqual({'Left', 'Timeout'}, wait(timeout)),
     ?assertEqual({'Left', 'Invalid'}, wait(invalid)),
-    ?assertEqual({'Left', 'NotFound'}, wait(missing)).
+    Refused = [{'Left', 'NotFound'}, {'Left', 'NotAFile'},
+               {'Left', {'Other', list_to_binary(NoCertificate ++ ": no certificate")}}],
+    ?assertEqual(Refused ++ Refused, wait(files)).
 
 %% report Appendix E.18: `Verified` takes a far end whose own certificate
 %% the file holds, self-signed, a CA or not, as it takes one whose chain
@@ -1189,6 +1310,59 @@ tls_verified_takes_a_held_certificate_test() ->
     ?assertEqual('Right', wait(leaf)),
     ?assertMatch({'Left', {'Other', _}}, wait(not_held)),
     ?assertMatch({'Left', {'Other', _}}, wait(elsewhere)).
+
+%% report Appendix E.18: `Verified` takes a far end whose own certificate
+%% the file holds, as sent, where an authority the file lacks signed it:
+%% sent alone, and sent with its chain after it, which the file need not
+%% hold, the chain with its authority and without it; and one whose chain
+%% leads to a certificate of the file that is no authority, the
+%% intermediate the far end sends, with the authority and without it. The
+%% file of the authority takes the chain with the authority too. The name
+%% is checked still, of a certificate sent alone and of one sent with its
+%% chain, with its authority and without it.
+%%
+%% A regression test, written after the code (C1-2): the host refused each
+%% before it looked in the file, and a far end was taken by its own
+%% certificate only where it was self-signed. A chain of more than one
+%% intermediate is not covered.
+tls_verified_takes_a_pinned_certificate_test() ->
+    #{dir := Dir, ca := Ca, server := {Chain, _} = Server,
+      server_alone := {Alone, _} = ServerAlone, elsewhere := {ElsewhereChain, _} = Elsewhere,
+      elsewhere_alone := {ElsewhereLone, _} = ElsewhereAlone} = pki(),
+    Leaf = certificate(Dir, Chain, 1),
+    Intermediate = certificate(Dir, Chain, 2),
+    ElsewhereLeaf = certificate(Dir, ElsewhereChain, 1),
+    Rooted = with_authority(Dir, Server, Ca),
+    ElsewhereRooted = with_authority(Dir, Elsewhere, Ca),
+    Self = self(),
+    ok = quietly(
+           fun() ->
+               Self ! {taken, [side(connected(ServerAlone, <<"localhost">>, verified(Alone)))
+                               | [side(connected(Sent, <<"localhost">>, verified(File)))
+                                  || Sent <- [Server, Rooted], File <- [Leaf, Intermediate]]]
+                              ++ [side(connected(Rooted, <<"localhost">>, verified(Ca)))]},
+               Self ! {refused, [connected(ElsewhereAlone, <<"localhost">>,
+                                           verified(ElsewhereLone))
+                                 | [connected(Sent, <<"localhost">>, verified(ElsewhereLeaf))
+                                    || Sent <- [Elsewhere, ElsewhereRooted]]]}
+           end),
+    ?assertEqual(lists:duplicate(6, 'Right'), wait(taken)),
+    ?assertMatch([{'Left', {'Other', _}}, {'Left', {'Other', _}}, {'Left', {'Other', _}}],
+                 wait(refused)).
+
+%% A file of its own holding the Nth certificate of File, in PEM.
+certificate(Dir, File, N) ->
+    {ok, Pem} = file:read_file(File),
+    Name = filename:basename(File, ".pem") ++ "_" ++ integer_to_list(N) ++ ".pem",
+    pem_entries(Dir, Name, [lists:nth(N, public_key:pem_decode(Pem))]).
+
+%% A server's files whose chain holds the authority's certificate after its
+%% intermediate, which the far end then sends too.
+with_authority(Dir, {Chain, Key}, Authority) ->
+    {ok, Pem} = file:read_file(Chain),
+    {ok, AuthorityPem} = file:read_file(Authority),
+    Name = filename:basename(Chain, ".pem") ++ "_with_authority.pem",
+    {pem_entries(Dir, Name, public_key:pem_decode(<<Pem/binary, AuthorityPem/binary>>)), Key}.
 
 %% A connectTls to a listener over the server's files, which accepts once,
 %% and what it answers.
@@ -1282,7 +1456,12 @@ tls_closed_socket_sends_what_it_took() ->
     ?assertEqual({'Right', 'Unit'}, wait(written)),
     HostSockets = wait(host_sockets),
     ?assertEqual({Size, {error, closed}}, receive {taken, Taken} -> Taken after 20000 -> none end),
-    ?assertEqual(HostSockets, gone(HostSockets, 9000)).
+    %% the host's socket goes once ssl's close has run, which begins as the
+    %% closer, looking a fifth of the idle window apart, finds the bytes
+    %% taken, and lasts up to TLS_CLOSE; the idle window again bounds a
+    %% failure on a loaded host
+    Bound = ?LINGER_IDLE div 5 + ?TLS_CLOSE + ?LINGER_IDLE,
+    ?assertEqual(HostSockets, gone(HostSockets, Bound)).
 
 %% Every byte the far end over TLS reads, and how the connection then ends.
 tls_taken(Connection, Count) ->
@@ -1327,11 +1506,14 @@ accepting(Listener, Count) ->
 
 %% Report Appendix E.18: the certificates a test over TLS uses, PEM files of
 %% a directory of its own made by the host's test data: an authority's,
-%% `ca`, another's, `other_ca`, and two servers' certificates, each its
+%% `ca`, another's, `other_ca`, and three servers' certificates, each its
 %% chain of one intermediate after it, with their keys, which `ca` signed:
-%% `server`, which names localhost by name and by address, `elsewhere`,
-%% which names another host, and `wildcard`, which names the hosts under
-%% example.test through a wildcard; and three self-signed certificates,
+%% `server`, which names localhost by name and by
+%% address, `elsewhere`, which names another host, and `wildcard`, which
+%% names the hosts under example.test through a wildcard; `server_alone`
+%% and `elsewhere_alone`,
+%% which name localhost and another host, each its certificate alone, which
+%% `ca` signed with no intermediate; and three self-signed certificates,
 %% each a file of its own with its key: `self_signed`, a CA naming
 %% localhost by name and by address, `self_signed_leaf`, no CA, naming
 %% localhost, and `self_signed_elsewhere`, naming another host.
@@ -1348,7 +1530,10 @@ pki() ->
       other_ca => pem(Dir, "other_ca.pem", [maps:get(cert, Other)]),
       server => server(Dir, "server", Root, [{dNSName, "localhost"},
                                              {iPAddress, <<127, 0, 0, 1>>}]),
+      server_alone => server(Dir, "server_alone", Root, [], [{dNSName, "localhost"}]),
       elsewhere => server(Dir, "elsewhere", Root, [{dNSName, "elsewhere.example"}]),
+      elsewhere_alone => server(Dir, "elsewhere_alone", Root, [],
+                                [{dNSName, "elsewhere.example"}]),
       wildcard => server(Dir, "wildcard", Root, [{dNSName, "*.example.test"}]),
       self_signed => self_signed(Dir, "self_signed", true,
                                  [{dNSName, "localhost"}, {iPAddress, <<127, 0, 0, 1>>}]),
@@ -1369,17 +1554,23 @@ self_signed(Dir, Name, Ca, AltNames) ->
      pem_entries(Dir, Name ++ ".key", [public_key:pem_entry_encode(element(1, Key), Key)])}.
 
 %% A server's certificate file, its intermediate after it, and its key's
-%% file, its certificate naming AltNames.
+%% file, its certificate naming AltNames; or, given no intermediates, its
+%% certificate alone, which Root signed. The host's test data gives Root
+%% among the chain's authorities, which the far end does not send.
 server(Dir, Name, Root, AltNames) ->
+    server(Dir, Name, Root, [key_options()], AltNames).
+
+server(Dir, Name, Root, Intermediates, AltNames) ->
     Names = #'Extension'{extnID = ?'id-ce-subjectAltName', critical = false,
                          extnValue = AltNames},
     Configuration = public_key:pkix_test_data(#{root => Root,
-                                                intermediates => [key_options()],
+                                                intermediates => Intermediates,
                                                 peer => [{extensions, [Names]}
                                                          | key_options()]}),
     Certificate = proplists:get_value(cert, Configuration),
     {KeyType, Key} = proplists:get_value(key, Configuration),
-    Chain = proplists:get_value(cacerts, Configuration) -- [maps:get(cert, Root)],
+    Chain = [Der || Der <- proplists:get_value(cacerts, Configuration),
+                    not public_key:pkix_is_self_signed(Der)],
     {pem(Dir, Name ++ ".pem", [Certificate | Chain]),
      pem_entries(Dir, Name ++ ".key", [{KeyType, Key, not_encrypted}])}.
 
@@ -1460,7 +1651,10 @@ accept(Listener, Ms) ->
     ern_rt:call_forever(Listener, fun(Reply) -> {'Accept', Ms, Owner, Reply} end).
 
 write(Socket, Bytes) ->
-    ern_rt:call_forever(Socket, fun(Reply) -> {'Write', Bytes, 60000, Reply} end).
+    write(Socket, Bytes, 60000).
+
+write(Socket, Bytes, Ms) ->
+    ern_rt:call_forever(Socket, fun(Reply) -> {'Write', Bytes, Ms, Reply} end).
 
 read(Socket, Ms) ->
     ern_rt:call_forever(Socket, fun(Reply) -> {'Read', Ms, Reply} end).

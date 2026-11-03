@@ -1616,6 +1616,19 @@ example.ern:1:16: unknown name List.count
   |                ^^^^^^^^^^
 ```
 
+### A name under `Ernest`, the toolchain's own (§4.2)
+
+```ernest-rejected
+export fn main() : Unit = Ernest.Shell.main()
+```
+
+```console
+$ ern build example.ern
+example.ern:1:27: unknown name Ernest.Shell.main: a name under Ernest is the toolchain's own, and no program's
+1 | export fn main() : Unit = Ernest.Shell.main()
+  |                           ^^^^^^^^^^^^^^^^^
+```
+
 ### A member's name called (§4.5)
 
 ```ernest-rejected

@@ -43,10 +43,12 @@ A path's last part, and its extension:
 Path.join(segments : List(String)) : Path
 ```
 
-The path of those segments, the inverse of `split`. A root first stays a
-root, and one separator stands between the others. A segment is written
-as given: one that holds a separator is read as the segments it holds,
-so a segment from outside the program can leave the path; `Path.under`
+The path of those segments, the inverse of `split` for segments that are
+neither empty nor hold a separator. A root first stays a root, and one
+separator stands between the others. A segment is written as given: an
+empty first segment makes the path absolute, one that holds a separator
+is read as the segments it holds, and `..` names the directory above, so
+a segment from outside the program can leave the path; `Path.under`
 refuses a path that would leave its root.
 
 ### Examples
@@ -55,6 +57,11 @@ refuses a path that would leave its root.
 #(Path.toString(Path.join(Path.split(Path("/etc//hosts")))),
   Path.toString(Path.join(["/x", "etc"])))
 // => #("/etc/hosts", "/x/etc")
+```
+
+```ernest
+#(Path.toString(Path.join(["", "b"])), Path.toString(Path.join(["a", "..", "b"])))
+// => #("/b", "a/../b")
 ```
 
 ## Path.split

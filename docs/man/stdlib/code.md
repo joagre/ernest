@@ -23,7 +23,7 @@ the processes that run that function at the moment of the call (report
 ## Examples
 
 Every process that runs `count` sent the message by which it moves to
-`count2`, which counts each `Inc` twice, its total kept; here no process
+`countTwice`, which counts each `Inc` twice, its total kept; here no process
 runs `count`, and none is sent one:
 
 ```ernest
@@ -42,18 +42,18 @@ fn count(total : Int) : Unit receiving CounterMsg =
       | Upgrade(=migrate, =next) -> next(migrate(total))
     }
 
-fn count2(total : Int) : Unit receiving CounterMsg =
+fn countTwice(total : Int) : Unit receiving CounterMsg =
     receive {
-        Inc(amount) -> count2(total + 2 * amount)
+        Inc(amount) -> countTwice(total + 2 * amount)
       | Get(reply) -> {
             answer(reply, total);
-            count2(total)
+            countTwice(total)
         }
       | Upgrade(=migrate, =next) -> next(migrate(total))
     }
 
 List.forEach(Code.running(count),
-             fn(process) = send(process, Upgrade(migrate = fn(n) = n, next = count2)))
+             fn(process) = send(process, Upgrade(migrate = fn(n) = n, next = countTwice)))
 // => Unit
 ```
 
@@ -81,7 +81,10 @@ The bindings are evaluated in the order `ern run` evaluates a program's
 before `main`, each in a body of mailbox type `Never` (report §8.5), in a
 process of the runtime's own, the load's evaluator, while the calling process
 waits. The evaluator lives on while it owns what a binding opened, a
-listener or a running program, and keeps it, as a shell's load's does
+listener, a socket, a running program, a table or a proxy, and keeps it, as
+a shell's load's does: until each process among them has ended, a program's
+once the program has exited and a socket's once its connection has closed
+counting as ended, and until the program's end where it owns a table
 (report §11.2, Appendix E.28).
 
 A file that is no `.erc` of this `ern`, one compiled against another
@@ -103,7 +106,7 @@ waits faults the evaluator and not the caller, and refuses the load so
 
 ```ernest
 Code.load(Path("nowhere/counter.erc"))
-// => Left(NotFound)
+// => Left(Io.NotFound)
 ```
 
 ## Code.hashes
@@ -122,7 +125,7 @@ names no file `Left(NotFound)`.
 
 ```ernest
 Code.hashes(Path("nowhere/counter.erc"))
-// => Left(NotFound)
+// => Left(Io.NotFound)
 ```
 
 ## Code.running

@@ -50,7 +50,7 @@
 ///     }));
 ///     Peer.find(service, 1000)
 /// }
-/// // => Left(NotListed)
+/// // => Left(Io.NotListed)
 /// ```
 ///
 /// A worker started on the peer named `worker`, which a program that is no node
@@ -58,14 +58,14 @@
 ///
 /// ```ernest
 /// Peer.spawn("worker", fn() = Io.println("working"), 5000)
-/// // => Left(NotListed)
+/// // => Left(Io.NotListed)
 /// ```
 ///
 /// A value computed on a peer the node picks, and on the peer named `worker`:
 ///
 /// ```ernest
 /// #(Peer.compute(fn() = 6 * 7, 5000), Peer.computeAt("worker", fn() = 6 * 7, 5000))
-/// // => #(Left(NotListed), Left(NotListed))
+/// // => #(Left(Io.NotListed), Left(Io.NotListed))
 /// ```
 ///
 /// ## See also
@@ -88,7 +88,7 @@
 ///     let service : Peer.Service(Int) = Peer.service("squares");
 ///     Peer.find(service, 0)
 /// }
-/// // => Left(NotListed)
+/// // => Left(Io.NotListed)
 /// ```
 export abstract type Service(m) = Service(name : String, hash : Bytes)
 
@@ -104,7 +104,7 @@ export abstract type Service(m) = Service(name : String, hash : Bytes)
 ///     let service : Peer.Service(String) = Peer.service("names");
 ///     Peer.find(service, 0)
 /// }
-/// // => Left(NotListed)
+/// // => Left(Io.NotListed)
 /// ```
 export foreign fn service(name : String) : Service(m) =
     "ern_peer:service/1"
@@ -195,7 +195,7 @@ export foreign fn spawn(name : String,
 ///
 /// ```ernest
 /// Peer.spawnMonitored("worker", fn() = Unit, fn(down) = down, 5000)
-/// // => Left(NotListed)
+/// // => Left(Io.NotListed)
 /// ```
 export foreign fn spawnMonitored(name : String,
                                  f : () -> Unit receiving m,
@@ -259,7 +259,7 @@ export foreign fn compute(f : () -> a receiving m, ms : Int) : Either(Io.Error, 
 ///
 /// ```ernest
 /// Peer.computeAt("worker", fn() = 6 * 7, 5000)
-/// // => Left(NotListed)
+/// // => Left(Io.NotListed)
 /// ```
 export foreign fn computeAt(name : String,
                             f : () -> a receiving m,
@@ -280,7 +280,7 @@ export foreign fn computeAt(name : String,
 ///
 /// ```ernest
 /// Peer.utilization("worker", 1000)
-/// // => Left(NotListed)
+/// // => Left(Io.NotListed)
 /// ```
 export foreign fn utilization(name : String, ms : Int) : Either(Io.Error, Float) =
     "ern_peer:utilization/2"

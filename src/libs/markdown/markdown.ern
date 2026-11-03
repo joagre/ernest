@@ -76,7 +76,7 @@
 ///
 /// ```ernest
 /// Markdown.Link(url = "https://example.org", text = [Markdown.Text("home")])
-/// // => Link(text = [Text("home")], url = "https://example.org")
+/// // => Markdown.Link(text = [Markdown.Text("home")], url = "https://example.org")
 /// ```
 export type Inline =
     /// Text as it reads.
@@ -98,7 +98,7 @@ export type Inline =
 ///
 /// ```ernest
 /// Markdown.Heading(level = 2, text = [Markdown.Text("Usage")])
-/// // => Heading(level = 2, text = [Text("Usage")])
+/// // => Markdown.Heading(level = 2, text = [Markdown.Text("Usage")])
 /// ```
 export type Block =
     /// A heading, its level from 1 to 6.
@@ -126,8 +126,11 @@ export type Block =
 /// ### Examples
 ///
 /// ```ernest
-/// Markdown.parse("| a |\n| - |")
-/// // => [Table(columns = [Column(text = [Text("a")], alignment = LeftAligned)], rows = [])]
+/// match Markdown.parse("| a |\n| - |") {
+///     [Markdown.Table(=columns)] -> columns
+///   | _ -> []
+/// }
+/// // => [Markdown.Column(text = [Markdown.Text("a")], alignment = Markdown.LeftAligned)]
 /// ```
 ///
 /// since 0.4.0
@@ -143,7 +146,7 @@ export type Column = Column(text : List(Inline), alignment : Alignment)
 ///     [Markdown.Table(=columns)] -> List.map(columns, fn(column) = column.alignment)
 ///   | _ -> []
 /// }
-/// // => [Centered, RightAligned]
+/// // => [Markdown.Centered, Markdown.RightAligned]
 /// ```
 ///
 /// since 0.4.0
@@ -211,8 +214,8 @@ type Font = Roman | Bold | Italic | BoldItalic
 /// ### Examples
 ///
 /// ```ernest
-/// Markdown.parse("## Usage\n\nRun `ern`")
-/// // => [Heading(level = 2, text = [Text("Usage")]), Paragraph([Text("Run "), CodeSpan("ern")])]
+/// Markdown.parse("Run `ern`\n\n---")
+/// // => [Markdown.Paragraph([Markdown.Text("Run "), Markdown.CodeSpan("ern")]), Markdown.Rule]
 /// ```
 export fn parse(text : String) : List(Block) =
     blocks(String.lines(lineFeeds(text)))
@@ -1668,7 +1671,7 @@ fn escapedChar(char : Char) : String =
 ///
 /// ```ernest
 /// Markdown.firstSentence(Markdown.parse("# Title\n\nOne `a`. Two."))
-/// // => [Text("One "), CodeSpan("a"), Text(".")]
+/// // => [Markdown.Text("One "), Markdown.CodeSpan("a"), Markdown.Text(".")]
 /// ```
 export fn firstSentence(blocks : List(Block)) : List(Inline) =
     match List.find(blocks, isParagraph) {

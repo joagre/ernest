@@ -378,7 +378,7 @@ The type of an exported declaration, and the field types of an exported type tha
 
 **Taken namespaces.** A module namespace may not coincide with a namespace of the prelude or the standard library, nor stand under one. The prelude's namespaces are `Prelude` and the name of every type whose namespace §9 fills, as `Int` and `Address`: `address.ern` at the source root is an error, and so is `io.ern`, a namespace of the standard library, and `fs/entry.ern` under one. A prelude type without members takes no namespace: `down.ern` at the source root provides the namespace `Down`, and the type `Down` is still the prelude's.
 
-`Ernest` is taken too, with every namespace under it; the toolchain's own Ernest stands there, the shell as `Ernest.Shell` (§11.2, §12.7). `ernest.ern` at the source root and `ernest/shell.ern` under it are errors as `io.ern` is. The toolchain's own source roots are the exception, the standard library's and the shell's: their files provide those namespaces. A file under one is compiled with it as the source root (§11.1); another source root is an error.
+`Ernest` is taken too, with every namespace under it; the toolchain's own Ernest stands there, the shell as `Ernest.Shell` (§11.2, §12.7). `ernest.ern` at the source root and `ernest/shell.ern` under it are errors as `io.ern` is, and a program names nothing under `Ernest`: `Ernest.Shell.main` is an unknown name, said so. The toolchain's own source roots are the exception: the standard library's provides the prelude's namespaces and its own, and the shell's provides `Ernest` and what stands under it, each root's files providing its namespaces alone, built to `build/stdlib` and `build/shell` (§11.1). A file under one is compiled with it as the source root (§11.1); another source root is an error.
 
 The namespace of a library of the toolchain's own (Appendix G) is not taken: a program's module of its name hides the library, which stands last on the load path (§11.2).
 
@@ -639,7 +639,9 @@ A `match`, like a `receive` (§6.3) and a block, ends at its own `}` and may sta
 
 The value is matched against the clauses' patterns in order; the first clause whose pattern matches and whose guard holds is evaluated. A clause may list several patterns separated by `or`, an *or-pattern*, and matches when any of them does: for `type Player = Player(alive : Bool, body : List(Int))`, `Player(alive = false) or Player(body = []) -> 0` matches a player that is not alive or has no body. Every alternative binds the same variables at the same types; the guard and the body see them. Alternatives that bind different variables are a type error.
 
-The clauses together must cover the type, and a `match` that does not is a type error; guards do not count toward coverage. `true` and `false` together cover `Bool`. A clause, or an alternative of one, is *redundant* when it can match no value the clauses and alternatives before it leave unmatched, and a redundant clause is a type error: `n -> n | 0 -> 1`. A clause whose guard is the literal `false` is redundant whatever its pattern; a guard of any other form is not read for redundancy. For redundancy, a bitstring pattern in an earlier clause is taken to match no value, and one in the clause being judged to match any value. A guarded clause before the one being judged is taken to match no value, so `n when n > 0 -> 1 | n -> 0` is not redundant.
+The clauses together must cover the type, and a `match` that does not is a type error; guards do not count toward coverage. `true` and `false` together cover `Bool`. A clause, or an alternative of one, is *redundant* when it can match no value the clauses and alternatives before it leave unmatched, and a redundant clause is a type error: `n -> n | 0 -> 1`. A clause whose guard is the literal `false`, in parentheses or not, is redundant whatever its pattern; a guard of any other form, `!true` among them, is not read for redundancy.
+
+For redundancy, a bitstring pattern in an earlier clause is taken to match no value, and one in the clause being judged to match any value. A guarded clause before the one being judged is taken to match no value, so `n when n > 0 -> 1 | n -> 0` is not redundant.
 
 A guard is a `Bool` expression that receives nothing and sees the pattern's variables and the enclosing scope. A guard that is `false` falls through to the next clause; a guard that faults faults the process. A `receive` guard falls through likewise, and is restricted further (§6.3).
 
@@ -849,9 +851,9 @@ fn count(total : Int) : Unit receiving CounterMsg =
     }
 ```
 
-An `Upgrade`, which holds functions, does not cross nodes (§3.11). A process on another node is sent its `Upgrade` by a process spawned on that node, whose function captures nothing bound and names the service and the new functions by their declarations; the service there is the peer's, and a function the peer lacks crosses with the spawn (§8.7): `let _ = Peer.spawn(name, fn() = send(Counter.service, Counter.Upgrade(migrate = Counter.double, next = Counter.count2)), 5000)`.
+An `Upgrade`, which holds functions, does not cross nodes (§3.11). A process on another node is sent its `Upgrade` by a process spawned on that node, whose function captures nothing bound and names the service and the new functions by their declarations; the service there is the peer's, and a function the peer lacks crosses with the spawn (§8.7): `let _ = Peer.spawn(name, fn() = send(Counter.service, Counter.Upgrade(migrate = Counter.double, next = Counter.countAloud)), 5000)`.
 
-`Code.running(f)` lists the processes running a function (Appendix E.28): `List.forEach(Code.running(Counter.count), fn(p) = send(p, Counter.Upgrade(migrate = fn(n) = n, next = Counter.count2)))`, written where the processes run, moves every process on `count`.
+`Code.running(f)` lists the processes running a function (Appendix E.28): `List.forEach(Code.running(Counter.count), fn(p) = send(p, Counter.Upgrade(migrate = fn(n) = n, next = Counter.countAloud)))`, written where the processes run, moves every process on `count`.
 
 A type that carries `Upgrade` holds a function and is bound to its node (§3.11). A process reached from another node, a service or one spawned on a peer, is offered through an adapted address (§6.5) of a type without it, and its upgrade is sent on its own node.
 
@@ -955,7 +957,7 @@ Before it ends by any of these, or by termination, the runtime tells the process
 
 Every process runs while the end waits, and a peer finds, calls and sends to the node as before (§8.7). A subscription made while the end waits is told at once. The end goes on without a subscriber that faults, whether it ends or restarts (§6.9). A process that waits with nothing in flight while the end waits is no deadlock. While the end waits, what began it stands: the entry process's end and a stream that can no longer be written change nothing.
 
-An `Os.exit` once the end has begun ends the program at once, with its status. The host's interrupt, and a second termination, end the program at once; a hangup is a termination here where the program is no node. Under `ern test` and in the shell the subscribers are told as under `ern run`. Live local processes then die with the reason `ProgramEnd`, and the runtime flushes the system processes' pending output before it stops.
+An `Os.exit` once the end has begun ends the program at once, with its status. The host's interrupt, and a termination once the end has begun, whoever began it, end the program at once, with the status of what began the end: an `Os.exit`'s, the entry process's where its return or its fault began it, and the signal's where a termination did; a hangup is a termination here where the program is no node. Under `ern test` and in the shell the subscribers are told as under `ern run`. Live local processes then die with the reason `ProgramEnd`, and the runtime flushes the system processes' pending output before it stops.
 
 While the end waits, a fault is the process's own, reported as any fault is (§7.3). Once the wait is over, and from the entry process's death where no subscriber waits, a process that faults before it is ended, as an `accept` whose listener its owner's death closed, dies with the reason `ProgramEnd` too, and its fault is not reported (§11.2). Where a stream can then no longer be written, that ends the program (§12.1), in place of what ended it.
 
@@ -1377,6 +1379,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **equality constraint** — the restriction on a type variable compared with `==`, or on a foreign type's parameter written `k=`. §3.10, §4.7.
 - **evaluator** — the process of the runtime's own in which a load evaluates a module's bindings, which ends with them unless it owns what a binding opened. §11.2, Appendix E.28.
 - **exchange** — the frames by which a spawn or a compute carries to a peer the definitions of its function's reach that the peer lacks: the request for a reach, the reach, the lacks and the code frames. §8.7, §12.7.
+- **family** — of an address, IPv4 or IPv6; a listener takes connections of its own address's, and a node runs over its listener's. §12.5, Appendix E.18.
 - **fault** — the end of a process with the reason `Fault(cause)`, or its restart where it restarts (§6.9). §7.3, §7.4.
 - **field selection** — `e.f`, the named field `f` of `e`, where every constructor of the type has it. §3.5.
 - **fill** — `C(..N)`, a construction whose fields not given are the declarations of their names in the namespace `N`. §5.6.
@@ -1392,6 +1395,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **guard** — a `when` expression on a `match` or `receive` clause. §5.9.
 - **guard expression** — the form of a `receive` guard. §6.3.
 - **handshake** — the opening of a connection, in which each node proves its key and the floor before anything passes. §12.5.
+- **hangup** — the host's signal `SIGHUP`: to the Ernest program, a reload on a node and a termination elsewhere; to a program under a pseudo-terminal, sent when the terminal is closed, as `Os.closeInput` sends it. §8.6, §12.5, Appendix E.23.
 - **hash** — the SHA-256 of a definition's canonical form, its identity on every node, or of a type's, which a service carries. §8.7, §11.1, Appendix H.
 - **Hindley-Milner** — the type system Ernest uses; inference asks for an annotation only where §3.9 says. §3.9.
 - **identity** — what a reference to a definition names: a function's or a type's hash, a binding's qualified name with its definition's hash. §8.7.
@@ -1433,6 +1437,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **process** — an execution of a function with a mailbox. §6.
 - **`Process`** — the identity of a process, with equality; nothing can be sent to it. §6.5, Appendix E.21.
 - **process-only** — a function whose effect variable is never none: one whose own `receive`, outside its lambdas and local `fn`s, fixes no type for what it takes, matching anything, a foreign function receiving a variable of its own, or a function that calls such a function. §3.9.
+- **pseudo-terminal** — a terminal the runtime opens for a program `Os.startTerminal` starts, its standard input, standard output and standard error together. Appendix E.23.
 - **pun** — `=f` for `f = f`: in a construction the field `f` given what `f` names in scope, in a pattern the field `f` binding a variable `f`. §5.6, §5.10.
 - **qualified name** — a name with a dotted namespace prefix, `Net.Http.parse`. §2.3, §4.2.
 - **raw string** — a `String` literal between backquotes, its text taken as written. §2.5.
@@ -1440,7 +1445,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **`receive`** — a match over the mailbox. §6.3.
 - **receiving** — the one mark on a function type, `(A) -> B receiving M`: the function's own process's mailbox, of type `M`, is involved. §6.1.
 - **record update** — `C(..p, f = v)`, a construction whose unlisted fields are `p`'s; `f.g = v` reaches a field of a field through a *path*. §5.6.
-- **redundant** — of a clause or an alternative: able to match no value those before it leave. §5.9.
+- **redundant** — of a clause or an alternative: able to match no value those before it leave, or guarded by the literal `false`. §5.9.
 - **remote computation** — work on a peer: a process spawned there, or a function run there for its value. §6.7.
 - **`Reply(a)`** — a one-shot address for the answer to a request. §3.7, §6.6.
 - **request-reply** — `Address.call` sends a request that carries a `Reply`, and the callee answers it with `answer`. §6.6.
@@ -1474,14 +1479,14 @@ Every technical term this report introduces, with a gloss and the section that d
 - **strategy** — what a `Supervisor`'s group restarts when a child faults. Appendix E.22.
 - **structural equality** — the meaning of `==`: two values are equal when they are built by the same constructor from equal parts, and a foreign type's and a `Process`'s equality is exact. §3.10.
 - **subscriber** — a process that asked to be told: of the program's end, by `Os.termination`, told and waited for at the end; of the terminal's events; of faults. §8.6, §12.1, Appendix E.21, E.23.
-- **subscription** — a process's standing request to be told of the terminal's events, of faults, or of the program's end, ended when the process dies or restarts. §6.9, §12.1, Appendix E.21, E.23.
+- **subscription** — a process's standing request to be told of the terminal's events, of faults, or of the program's end, ended when the process dies or restarts, or at its own call of `Os.exit`. §6.9, §8.6, §12.1, Appendix E.21, E.23.
 - **sum type** — a type with one or more constructors. §3.5.
 - **supervisor** — a process that restarts a group of processes, its children, together; the standard library's `Supervisor`. Appendix E.22.
 - **system module** — the standard library module that holds a system reference, through which a program uses it. §8.2, Appendix E.0.
 - **system process** — a process the runtime starts and keeps, its implementation foreign, its address a system reference. §8.2, §8.4.
 - **system reference** — a system process's address, a private top-level binding of its system module that the runtime binds. §8.2.
 - **tail position** — a function's body, and the branches, clause bodies, last block expressions, right operands of `&&` and `||`, and pipes' calls within it. §10.
-- **taken namespace** — a namespace of the prelude or the standard library, which no other module may provide or stand under. §4.2.
+- **taken namespace** — a namespace of the prelude, of the standard library or of the toolchain's own `Ernest`, which no other module may provide or stand under. §4.2.
 - **telling** — the frame a node sends each peer every `utilization-interval` with how busy it is, which the peer holds to draw a peer for `Peer.compute`. §8.7, Appendix E.27.
 - **tick** — a sign of life the host sends a peer where nothing else was sent for 15 seconds. §12.6.
 - **toolchain's own units** — the units of the toolchain, the shell's among them, which a node loads from its own tree where a spawn names one it lacks, and which cross to no peer. §8.7, §12.7.

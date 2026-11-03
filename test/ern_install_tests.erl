@@ -246,13 +246,19 @@ version() ->
 %% tag says the commit after the version, and `.dirty` where the tree had
 %% uncommitted changes, its links going to that commit (report §11.7):
 %% written with the code, and read from the checkout as it stands, since a
-%% test run is at the tag only on a release's day.
+%% test run is at the tag only on a release's day. The checkout is read
+%% before the archive is made and after, and the archive may say either
+%% reading, since a commit or an edit while the tests run moves the
+%% checkout between the two.
 release() ->
     Base = filename:absname("build/release"),
     ok = ern_integration_tests:del(Base),
     ok = filelib:ensure_path(Base ++ "/work"),
-    _ = ern_integration_tests:succeed("make -s -C .. release"),
     {ok, Version} = file:read_file("../VERSION"),
+    Tag = "v" ++ string:trim(binary_to_list(Version)),
+    Before = made_from(Tag),
+    _ = ern_integration_tests:succeed("make -s -C .. release"),
+    After = made_from(Tag),
     Name = "ern-" ++ string:trim(binary_to_list(Version)),
     Archive = "../build/release/" ++ Name ++ ".tar.gz",
     {0, Listing} = ern_integration_tests:sh("tar -tzf " ++ Archive),
@@ -273,16 +279,18 @@ release() ->
     ?assertEqual([], dead_links(Documents)),
     %% the README beside the archive shows the logo it carries there
     ?assertEqual([], dead_links(Unpacked ++ "/")),
-    Tag = "v" ++ string:trim(binary_to_list(Version)),
-    {Mark, Ref} = made_from(Tag),
     kept_links(Documents),
-    ?assert(links_to(Documents ++ "guide/language.md",
-                     "/blob/" ++ Ref ++ "/docs/module_doc_template.md")),
     Ern = Base ++ "/p/bin/ern",
     %% report §11.7, §12.5: a release's version text is VERSION's alone,
-    %% and an archive made elsewhere says its commit
-    ?assertEqual({0, iolist_to_binary(["ern ", string:trim(Version), Mark, "\n"])},
-                 ern_integration_tests:sh(Ern ++ " --version", [{cd, Base ++ "/work"}])),
+    %% and an archive made elsewhere says its commit, its links going to
+    %% the ref of the same reading
+    {0, VersionText} = ern_integration_tests:sh(Ern ++ " --version", [{cd, Base ++ "/work"}]),
+    Made = [Linked || {Mark, Linked} <- lists:usort([Before, After]),
+                      VersionText =:= iolist_to_binary(["ern ", string:trim(Version), Mark, "\n"])],
+    ?assertMatch({[_], _}, {Made, VersionText}),
+    [Ref] = Made,
+    ?assert(links_to(Documents ++ "guide/language.md",
+                     "/blob/" ++ Ref ++ "/docs/module_doc_template.md")),
     ok = file:write_file(Base ++ "/work/hi.ern", runs_echo()),
     _ = ern_integration_tests:succeed(Ern ++ " build hi.ern", [{cd, Base ++ "/work"}]),
     ?assertEqual({0, <<"hi\n">>},

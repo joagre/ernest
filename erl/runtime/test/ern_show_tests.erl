@@ -22,10 +22,29 @@ by_type_test() ->
     ?assertEqual(<<"\"hi\"">>, ern_show:show(string, <<"hi">>)),
     ?assertEqual(<<"<<104, 105>>">>, ern_show:show(bytes, <<"hi">>)),
     ?assertEqual(<<"#(1, true)">>, ern_show:show({tuple, [int, bool]}, {1, true})),
-    Snap = {con, [{'Snap', [string, int], [dir, seen]}]},
-    ?assertEqual(<<"Snap(dir = \"x\", seen = 2)">>, ern_show:show(Snap, {'Snap', <<"x">>, 2})),
-    ?assertEqual(<<"<abstract>">>, ern_show:show({abstract, {con, []}}, {'Stack', []})),
+    Snap = {con, <<"Probe">>, [{'Snap', [string, int], [dir, seen]}]},
+    ?assertEqual(<<"Probe.Snap(dir = \"x\", seen = 2)">>,
+                 ern_show:show(Snap, {'Snap', <<"x">>, 2})),
+    ?assertEqual(<<"<abstract>">>,
+                 ern_show:show({abstract, {con, <<"Probe">>, []}}, {'Stack', []})),
     ?assertEqual(<<"<foreign>">>, ern_show:show(foreign, 1)).
+
+%% report Appendix E.1: a constructor outside the prelude is written as code
+%% outside its module writes it, under its module's namespace, at any
+%% depth, and the prelude's by its name alone. A regression test, written
+%% after the code: every constructor was its name alone, which `Timeout`
+%% cannot be typed back as; it does not cover the descriptors the emitter
+%% and the shell's describer make, which their own tests read
+qualified_constructor_test() ->
+    Error = {con, <<"Io">>, [{'Timeout', []}, {'Other', [string]}]},
+    Optional = {con, none, [{'None', []}, {'Some', [Error]}]},
+    ?assertEqual(<<"Io.Timeout">>, ern_show:show(Error, 'Timeout')),
+    ?assertEqual(<<"Some(Io.Other(\"x\"))">>,
+                 ern_show:show(Optional, {'Some', {'Other', <<"x">>}})),
+    ?assertEqual(<<"None">>, ern_show:show(Optional, 'None')),
+    Nested = {con, <<"Net.Http">>, [{'Pair', [Error, Error], [left, right]}]},
+    ?assertEqual(<<"Net.Http.Pair(left = Io.Timeout, right = Io.Timeout)">>,
+                 ern_show:show(Nested, {'Pair', 'Timeout', 'Timeout'})).
 
 %% report Appendix E.1, E.21: a process by its number, and an address by
 %% the number of the process behind it, through every adapted address

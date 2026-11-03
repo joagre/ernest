@@ -49,10 +49,10 @@
          kill_started/1, kill_all/1, processes/0, own/1, own_input/1,
          screen/2, drop_screens/1, root_of/1, status/1, faults/1, termination/1,
          expected/1, checker_for/3, checker_forget/2, source_begin/0, source_begin/1, source_end/0,
-         opened/3, forget_opened/1, timed/0, untimed/0, deadline/1, remaining/1, sleep/1, now/0,
-         monotonic/0, monotonic_micros/0, entered_foreign/0, left_foreign/0, undefined_function/3,
-         undefined_lambda/3, met/3, fault/1, fault/2, trace/1, failure_trace/1,
-         system_process/1, hold_terminal/1, terminal_holder/0, shell_holds/0,
+         opened/3, forget_opened/1, spent/1, timed/0, untimed/0, deadline/1, remaining/1, sleep/1,
+         now/0, monotonic/0, monotonic_micros/0, entered_foreign/0, left_foreign/0,
+         undefined_function/3, undefined_lambda/3, met/3, fault/1, fault/2, trace/1,
+         failure_trace/1, system_process/1, hold_terminal/1, terminal_holder/0, shell_holds/0,
          is_kept_from_terminal/1, own_terminal/1,
          input_not_utf8/0, by_input/1, read_input/1, run_main/3, say/2, say_later/2,
          wait_for_later/0, tables/0, arguments/0,
@@ -85,7 +85,7 @@
 -receives({own_process, [said_later/0, wait_for_later/0, kept_loop/2, reaper_loop/2, settler/4,
                          wait_for_ends/1, ended_program/0, counted_link/3, delivery_ended/1,
                          write_loop/1, stream_loop/2, dropping/0, stdin_loop/2, read_input/1,
-                         clock_loop/1, waited/5, told_how/3, entry_end/2, end_program/4,
+                         clock_loop/1, waited/4, told_how/3, entry_end/2, end_program/4,
                          sink_flushed/1, stop/1, stopped_in_order/1, told_once_delivered/2]}).
 
 -define(UNIT, 'Unit').
@@ -204,8 +204,9 @@
 %% Report §9.3: the descriptor of the prelude's Reason, by which a
 %% compute's answer writes the Reason of a process that ended before it
 %% answered as `Io.show` writes it (Appendix E.27).
--define(REASON, {con, [{'Returned', []}, {'Killed', []}, {'ProgramEnd', []}, {'Fault', [string]},
-                       {'Unknown', []}, {'Unreachable', []}, {'Restarted', []}]}).
+-define(REASON, {con, none, [{'Returned', []}, {'Killed', []}, {'ProgramEnd', []},
+                             {'Fault', [string]}, {'Unknown', []}, {'Unreachable', []},
+                             {'Restarted', []}]}).
 %% The longest wait the host's `receive ... after` takes, in milliseconds.
 -define(SLICE, 16#FFFFFFFF).
 %% How long the reaper waits without a message before it looks for a
@@ -2618,9 +2619,26 @@ opened(Pid, Site, Owner) ->
 forget_opened(Pid) ->
     try
         ets:delete(?HELD, {opened, Pid}),
+        ets:delete(?HELD, {spent, Pid}),
         ets:delete(?HELD, {source, Pid})
     catch _:_ ->
         true
+    end,
+    ok.
+
+%% Report Appendix E.28: the calling process, a running program's whose
+%% program has exited or a socket's whose connection has closed, is spent:
+%% it lives on, owned by Owner, as E.18 and E.23 say, but keeps Owner's
+%% evaluator alive no longer, so that the two do not keep each other alive
+%% until the program's end. It is marked so, and an evaluator that owns it
+%% is told, which reads what it owns again (evaluated_lives/1).
+-spec spent(pid()) -> ok.
+spent(Owner) ->
+    Self = erlang:self(),
+    try ets:insert(?HELD, {{spent, Self}}) catch _:_ -> true end,
+    case ets_lookup(?PROCESSES, Owner) of
+        [#process_row{own = evaluator}] -> Owner ! {spent, Self};
+        _ -> ok
     end,
     ok.
 
@@ -2631,6 +2649,10 @@ opened() ->
 %% module opened (opened/3).
 is_opened(Pid) ->
     try ets:member(?HELD, {opened, Pid}) catch error:badarg -> false end.
+
+%% Whether Pid is spent (spent/1).
+is_spent(Pid) ->
+    try ets:member(?HELD, {spent, Pid}) catch error:badarg -> false end.
 
 %% Report §8.6, §6.3: a receive with a deadline, the compiler's, a call's
 %% and a sleep's, puts TIMED in the process's dictionary before it waits
@@ -2858,7 +2880,7 @@ host_cause(Class, Error) ->
 %% Report §7.4, §9.6: a fault with the cause given, every fault the
 %% runtime raises and the prelude's `fault` taken as a value, whose trace
 %% is the stack of the throw (met/3); a call of `fault` the
-%% code raises in place as this does (ern_emitter:raised/1).
+%% code raises through this, in a try that keeps the caller's frame (ern_emitter:raised/2).
 -spec fault(binary()) -> no_return().
 fault(Cause) ->
     throw({ern, fault, Cause}).
@@ -3584,8 +3606,9 @@ run_main(EntryPoint, Site, Options) ->
 %% is told (Appendix E.23), and the end waits until each has answered,
 %% ended or restarted, nothing of the runtime's own timing the wait. While
 %% it waits, what began the end stands, but for an Os.exit, which ends the
-%% program at once with its status, and a second termination, which ends
-%% it at once; no deadlock is found, a subscriber's subscription standing
+%% program at once with its status, and a termination, which ends it at
+%% once with what began the end, whoever began it, a termination that did
+%% among them; no deadlock is found, a subscriber's subscription standing
 %% (look/0), and a fault is the process's own (is_program_ending/1). A
 %% subscription made while it waits is told at once (termination/1), a
 %% restarted run's among them, since a restart ends the subscription with
@@ -3608,12 +3631,8 @@ told(Outcome, Launch, Say) ->
         Untold ->
             Sites = [Site || {_, _, Site} <- Untold],
             Say(["the end waits for ", counted(Sites), ": ", lists:join(", ", Sites)]),
-            waited(Outcome, Launch, Say, tell_all(Launch, Untold, #{}), terminations(Outcome))
+            waited(Outcome, Launch, Say, tell_all(Launch, Untold, #{}))
     end.
-
-%% The terminations the program has had: one where one began the end.
-terminations({signal, _}) -> 1;
-terminations(_) -> 0.
 
 %% The end's wait, Waiting holding each subscriber told and not yet heard
 %% of (#waited_for{}). A word, a teller's or a new subscription's, reads
@@ -3627,15 +3646,15 @@ terminations(_) -> 0.
 %% subscriber, whose answer would reach no one, and the end goes on
 %% without it. Where none is waited for, the
 %% wait is over once a last read finds no one to tell.
-waited(Outcome, Launch, Say, Waiting, Terminations) when map_size(Waiting) =:= 0 ->
+waited(Outcome, Launch, Say, Waiting) when map_size(Waiting) =:= 0 ->
     case last_read() of
         [] ->
             Outcome;
         Untold ->
             true = ets:insert(?LAUNCH, {ending, erlang:self(), Launch}),
-            waited(Outcome, Launch, Say, tell_late(Launch, Say, Untold, Waiting), Terminations)
+            waited(Outcome, Launch, Say, tell_late(Launch, Say, Untold, Waiting))
     end;
-waited(Outcome, Launch, Say, Waiting, Terminations) ->
+waited(Outcome, Launch, Say, Waiting) ->
     receive
         {said, Launch, Subscriber, How} ->
             #waited_for{site = Site, monitor_ref = MonitorRef} = maps:get(Subscriber, Waiting),
@@ -3643,24 +3662,22 @@ waited(Outcome, Launch, Say, Waiting, Terminations) ->
             Say(["the subscriber ", Site, " ", How]),
             Waiting1 = maps:remove(Subscriber, Waiting),
             Untold = untold(subscription(Subscriber), Waiting1),
-            waited(Outcome, Launch, Say, tell_late(Launch, Say, Untold, Waiting1), Terminations);
+            waited(Outcome, Launch, Say, tell_late(Launch, Say, Untold, Waiting1));
         {{teller, Launch, Subscriber}, _, process, _, _} ->
             #waited_for{site = Site} = maps:get(Subscriber, Waiting),
             Say(["the subscriber ", Site, " is no longer waited for"]),
             Waiting1 = maps:remove(Subscriber, Waiting),
             Untold = untold(subscription(Subscriber), Waiting1),
-            waited(Outcome, Launch, Say, tell_late(Launch, Say, Untold, Waiting1), Terminations);
+            waited(Outcome, Launch, Say, tell_late(Launch, Say, Untold, Waiting1));
         {subscribed, Launch, Subscriber} ->
             Untold = untold(subscription(Subscriber), Waiting),
-            waited(Outcome, Launch, Say, tell_late(Launch, Say, Untold, Waiting), Terminations);
+            waited(Outcome, Launch, Say, tell_late(Launch, Say, Untold, Waiting));
         {exit, Launch, Status} ->
             cut_short(Say, Waiting),
             {exit, Status};
-        {signal, Launch, _} when Terminations >= 1 ->
-            cut_short(Say, Waiting),
-            Outcome;
         {signal, Launch, _} ->
-            waited(Outcome, Launch, Say, Waiting, Terminations + 1)
+            cut_short(Say, Waiting),
+            Outcome
     end.
 
 %% The subscribers a last read finds, the mark gone first: a process that
@@ -3704,7 +3721,7 @@ untold(Subscriptions, Waiting) ->
 %% delivery of its own (tell/4), and the reaper holds it as it holds a
 %% delivery (reaper_held/2), so that its end ends nothing else and it ends
 %% with the program; the runner monitors it, so that a teller that ends
-%% before its word holds up no end (waited/5).
+%% before its word holds up no end (waited/4).
 tell_all(Launch, Untold, Waiting) ->
     Runner = erlang:self(),
     Reaper = launch_reaper(),
@@ -3747,7 +3764,7 @@ counted(Sites) -> [integer_to_list(length(Sites)), " subscribers"].
 %% answering; a restart reports its fault before it ends the calls waiting
 %% on it (restarts/4). A delivery foreign code kills before it arrives
 %% gives no word: the teller ends without one, and the runner, which
-%% monitors it, waits for the subscriber no longer (waited/5). Once the
+%% monitors it, waits for the subscriber no longer (waited/4). Once the
 %% teller has its word it ends, and its monitor goes with it, as the reaper
 %% that holds it sees it end (held_ended/3), so that a subscriber that
 %% restarts at each telling is told by a teller each time.
@@ -3819,7 +3836,7 @@ told_run(Subscriber, Told, Reply, Teller) ->
         _ -> erlang:is_process_alive(Subscriber) andalso (Teller ! {left_run, Reply})
     end.
 
-%% Where an Os.exit or a second termination cuts the wait short: the
+%% Where an Os.exit or a termination cuts the wait short: the
 %% subscribers still waited for said, in the order their processes were
 %% spawned (report §11.2), their tellers ended, and the mark gone. The
 %% host's interrupt cuts it short too, but halts the host at once (bin/ern
@@ -4425,35 +4442,45 @@ waited_evaluation(Evaluator, Ref) ->
 %% owner from before its address is given out, and stops when it is given
 %% to another (Appendix E.18, E.23), a process it started to end with it,
 %% a proxy's (G.7), or a table it made that it still owns (G.1): what
-%% `Process.owned` and `Ets.owned` answer of it (owned/1, owned_tables/1).
-%% What watches it and what it keeps are its own, so the question reads
-%% no other process's state.
+%% `Process.owned` and `Ets.owned` answer of it (owned/1, owned_tables/1),
+%% but a running program whose program has exited and a socket whose
+%% connection has closed, which are spent (spent/1). What watches it and
+%% what it keeps are its own, and what is spent the runtime's table says,
+%% so the question reads no other process's state.
 is_owner() ->
     Self = erlang:self(),
-    owned(Self) =/= [] orelse owned_tables(Self) > 0.
+    kept_alive_by(Self) =/= [] orelse owned_tables(Self) > 0.
+
+%% What the evaluator Pid owns that keeps it alive: what it owns, but what
+%% is spent.
+kept_alive_by(Pid) ->
+    [Owned || Owned <- owned(Pid), not is_spent(Owned)].
 
 %% Report Appendix E.28: an evaluator that owns what a binding opened,
-%% which lives on until each process it owns has ended, a listener, a
-%% socket, a running program or a proxy's, and ends then as one that owned
-%% nothing ends; one that owns a table lives until the program's end or
-%% until it is killed, since nothing tells a table's end.
+%% which lives on until each process it owns has ended or is spent, a
+%% listener, a socket, a running program or a proxy's, and ends then as
+%% one that owned nothing ends; one that owns a table lives until the
+%% program's end or until it is killed, since nothing tells a table's end.
 %%
 %% Watched holds a monitor of each process it has owned, by its reference.
-%% At each end among them it reads what it owns again, as is_owner/0 reads
-%% it, so that a process given to it meanwhile is found and watched too; a
-%% process given away from it stays watched, and the evaluator learns it
-%% owns it no more at that process's end or at another's.
+%% At each end among them, and as one tells it it is spent, it reads what
+%% it owns again, as is_owner/0 reads it, so that a process given to it
+%% meanwhile is found and watched too; a process given away from it stays
+%% watched, and the evaluator learns it owns it no more at that process's
+%% end or at another's.
 -spec evaluated_lives(#{reference() => pid()}) -> ended.
 evaluated_lives(Watched) ->
     Self = erlang:self(),
-    case {owned(Self), owned_tables(Self)} of
+    case {kept_alive_by(Self), owned_tables(Self)} of
         {[], 0} ->
             ended;
         {Owned, 0} ->
             Watching = watching(Owned, Watched),
             receive
                 {'DOWN', MonitorRef, process, _, _} when is_map_key(MonitorRef, Watching) ->
-                    evaluated_lives(maps:remove(MonitorRef, Watching))
+                    evaluated_lives(maps:remove(MonitorRef, Watching));
+                {spent, _} ->
+                    evaluated_lives(Watching)
             end;
         _ ->
             receive after infinity -> ended end

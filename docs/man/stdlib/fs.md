@@ -25,7 +25,7 @@ directory, a named pipe, a device or a socket they answer
 `Left(Io.NotAFile)`, and so does `list` for anything but a directory.
 A path that leads through a regular file, `index.html/x`, leads to
 nothing and is `Left(Io.NotFound)`, as a path that names nothing is,
-and so does a path through a loop of links.
+and so is a path through a loop of links.
 
 A function follows symbolic links, but not in a path's last name where
 the function is about the link itself: `list` describes a link as a
@@ -54,7 +54,7 @@ A file that is not there:
 
 ```ernest
 Fs.read(Path("no-such-file"), 5000)
-// => Left(NotFound)
+// => Left(Io.NotFound)
 ```
 
 ## See also
@@ -94,8 +94,8 @@ belongs to, as `Os.user` is the program's (report Appendix E.17).
 ### Examples
 
 ```ernest
-Fs.Entry(path = Path("a.txt"), modified = 0, size = 5, kind = Fs.File, mode = 0o644, user = 0)
-// => Entry(path = Path("a.txt"), modified = 0, size = 5, kind = File, mode = 420, user = 0)
+Fs.Entry(path = Path("a"), modified = 0, size = 5, kind = Fs.File, mode = 0o644, user = 0)
+// => Fs.Entry(path = Path("a"), modified = 0, size = 5, kind = Fs.File, mode = 420, user = 0)
 ```
 
 ```ernest
@@ -202,7 +202,7 @@ a link is a `Link`, whatever it leads to.
     Either.map(Fs.list(Path("kinds"), 5000),
                fn(entries) = List.map(entries, fn(entry) = entry.kind))
 }
-// => Right([Link])
+// => Right([Fs.Link])
 ```
 
 ## Fs.stat
@@ -251,7 +251,7 @@ what it leads to.
     let _ <- Fs.remove(Path("gone.txt"), 5000);
     Fs.read(Path("gone.txt"), 5000)
 }
-// => Left(NotFound)
+// => Left(Io.NotFound)
 ```
 
 ## Fs.rename
@@ -390,7 +390,7 @@ file or a temporary file needs.
     let second = Fs.makeFile(Path("claimed.txt"), String.toUtf8("yours"), 5000);
     #(first, second)
 }
-// => #(Right(Unit), Left(Exists))
+// => #(Right(Unit), Left(Io.Exists))
 ```
 
 ## Fs.setModified

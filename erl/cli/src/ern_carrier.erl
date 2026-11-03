@@ -95,6 +95,10 @@ interface({Address, _}) ->
     ["-kernel", "inet_dist_use_interface", lists:flatten(io_lib:format("~w", [Address]))];
 interface(none) -> [].
 
+%% Report §12.5: the kernel's options for the carrier's listener,
+%% `inet_dist_listen_options`, which the host takes as it boots: its family
+%% alone where the listener is IPv6's (family_alone/1), and none, the host's
+%% defaults, for an IPv4 listener or a node without one.
 listen_options(Listen) ->
     case family_alone(Listen) of
         [] -> [];
@@ -106,7 +110,6 @@ listen_options(Listen) ->
 %% alone, IPv6's the host's IPV6_V6ONLY, as a program's does (Appendix
 %% E.18), so that a node on `::` takes no IPv4 peer as ::ffff:a.b.c.d and a
 %% listener on `0.0.0.0` stands beside it on its port.
-family_alone(none) -> [];
 family_alone(Listen) ->
     case ern_node:family(Listen) of
         inet6 -> [{ipv6_v6only, true}];
@@ -228,7 +231,7 @@ not_started({Address, Port} = Listen, Reason) when Port =/= 0 ->
     case gen_tcp:listen(Port, [ern_node:family(Listen), {ip, Address}, {reuseaddr, true}
                                | family_alone(Listen)]) of
         {error, eaddrinuse} ->
-            ["its listen address ", listen_text(Listen), " is in use"];
+            ["its listen address ", ern_node:listen_text(Listen), " is in use"];
         {ok, Socket} ->
             ok = gen_tcp:close(Socket),
             io_lib:format("~0p", [Reason]);
@@ -237,13 +240,6 @@ not_started({Address, Port} = Listen, Reason) when Port =/= 0 ->
     end;
 not_started(_, Reason) ->
     io_lib:format("~0p", [Reason]).
-
-%% Report §12.5: a listen address as `listen` writes it, an IPv6 address in
-%% brackets.
-listen_text({{_, _, _, _} = Address, Port}) ->
-    [inet:ntoa(Address), ":", integer_to_list(Port)];
-listen_text({Address, Port}) ->
-    ["[", inet:ntoa(Address), "]:", integer_to_list(Port)].
 
 %% Report §12.5: the configuration the node runs by, and its peer table,
 %% which the rule, the port map and the lines read, each peer by the host

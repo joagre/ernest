@@ -467,16 +467,18 @@ module_of(File, SourceRoot, Mode) ->
                                             ErlangModule)),
     %% report §4.2: a module namespace is never a taken namespace, the
     %% prelude's, the standard library's or the toolchain's, nor under one,
-    %% but in the toolchain's own source root that provides it; the message
-    %% names whose it is, the prelude's where two take it
+    %% but in the toolchain's own source root that provides it, and the
+    %% shell's root provides `Ernest` alone; the message names whose it is,
+    %% the prelude's where two take it
     [First | Under] = Namespace,
     Taken = case Under of
-                [] -> " takes the ";
-                _ -> " stands under the "
+                [] -> " takes ";
+                _ -> " stands under "
             end,
-    case taken_by(First, SourceRoot) of
-        none -> ok;
-        Whose -> fail(Shown ++ Taken ++ Whose ++ " namespace " ++ atom_to_list(First))
+    case provided(First, SourceRoot) of
+        provided -> ok;
+        {taken, Whose} -> fail(Shown ++ Taken ++ Whose ++ " namespace " ++ atom_to_list(First));
+        not_ernest -> fail(Shown ++ " is in the shell's source root, which provides Ernest alone")
     end,
     #build_module{namespace = Namespace, file = File, relative = Relative}.
 
@@ -825,10 +827,14 @@ interface_members(Parent, Type, DependencyRoots, SourceRoot) ->
 %% TypeMembers says its exported type T has a member of that name, and
 %% M.T's otherwise.
 dependencies(Declarations, SourceRoot, DependencyRoots, TypeMembers) ->
-    %% in the standard library's root its own namespaces are dependencies
-    Skip = case is_stdlib_root(SourceRoot) of
-               true -> [];
-               false -> taken_namespaces()
+    %% in the standard library's root its own namespaces are dependencies,
+    %% and in the shell's root `Ernest`'s; report §4.2: elsewhere a source
+    %% names nothing under `Ernest`, which the checker says, and no
+    %% dependency is looked for there
+    Skip = case {is_stdlib_root(SourceRoot), is_shell_root(SourceRoot)} of
+               {true, _} -> ['Ernest'];
+               {false, true} -> given_namespaces();
+               {false, false} -> ['Ernest' | given_namespaces()]
            end,
     IsModule = fun(Relative) ->
                    is_source(filename:join(SourceRoot, Relative ++ ".ern"))
@@ -841,10 +847,11 @@ dependencies(Declarations, SourceRoot, DependencyRoots, TypeMembers) ->
 %% source: a module is its compiled form under a root of LoadPath, and a
 %% type's members are read from its interface; the prelude's and the
 %% standard library's namespaces aside, which every check is given, and
-%% which are read once for every example it answers (ern_examples).
+%% which are read once for every example it answers (ern_examples), and
+%% `Ernest`, under which an example names nothing (report §4.2).
 -spec compiled_dependencies([file:filename()]) -> fun(([tuple()]) -> [[atom()]]).
 compiled_dependencies(LoadPath) ->
-    Skip = taken_namespaces(),
+    Skip = ['Ernest' | given_namespaces()],
     IsModule = fun(Relative) -> is_compiled(Relative, LoadPath) end,
     TypeMembers = fun(Parent, Type) -> interface_members(Parent, Type, LoadPath, none) end,
     fun(Declarations) -> named_modules(Declarations, Skip, IsModule, TypeMembers) end.
@@ -919,15 +926,17 @@ source_root(Options, Path, Default) ->
     end.
 
 %% Report §11.1: the build directory is --build-root; without it, the source
-%% root, and `build/stdlib` for the standard library's own root, where the
-%% Makefile builds it.
+%% root, and for the toolchain's own roots their builds beside it,
+%% `build/stdlib` for the standard library's and `build/shell` for the
+%% shell's, where the Makefile builds them.
 -spec build_root([term()], file:filename()) -> file:filename().
 build_root(Options, SourceRoot) ->
     case proplists:get_value(build_root, Options) of
         undefined ->
-            case is_stdlib_root(SourceRoot) of
-                true -> ern_tree:build("stdlib");
-                false -> SourceRoot
+            case {is_stdlib_root(SourceRoot), is_shell_root(SourceRoot)} of
+                {true, _} -> ern_tree:build("stdlib");
+                {false, true} -> ern_tree:build("shell");
+                {false, false} -> SourceRoot
             end;
         Given -> absolute(Given)
     end.
@@ -951,6 +960,9 @@ put_back(kept) -> kept.
 is_stdlib_root(SourceRoot) ->
     absolute(SourceRoot) =:= stdlib_root().
 
+is_shell_root(SourceRoot) ->
+    absolute(SourceRoot) =:= shell_root().
+
 %% Report §4.2: the standard library's source root, `src/stdlib/` in the
 %% toolchain's tree.
 stdlib_root() ->
@@ -966,30 +978,36 @@ shell_root() ->
 own_roots() ->
     [{stdlib_root(), "the standard library's"}, {shell_root(), "the shell's"}].
 
-%% Report §4.2: whose taken namespace a module's first segment names, where
-%% its source root does not provide it, or none: the standard library's own
-%% root provides every taken namespace, and the shell's provides the
-%% toolchain's, `Ernest`.
-taken_by(First, SourceRoot) ->
-    case is_stdlib_root(SourceRoot) of
-        true ->
-            none;
-        false ->
-            case {lists:member(First, prelude_namespaces()),
-                  lists:member(First, stdlib_namespaces()),
-                  First =:= 'Ernest' andalso absolute(SourceRoot) =/= shell_root()} of
-                {true, _, _} -> "prelude";
-                {false, true, _} -> "standard library";
-                {false, false, true} -> "toolchain's";
-                {false, false, false} -> none
-            end
+%% Report §4.2: whether a module's source root provides the namespace its
+%% first segment, First, names: the standard library's provides the
+%% prelude's and its own, every one but the toolchain's, `Ernest`; the
+%% shell's provides `Ernest` alone; and any other root every namespace
+%% that is not taken. A taken one is named with whose it is, the prelude's
+%% where two take it.
+provided(First, SourceRoot) ->
+    case {is_stdlib_root(SourceRoot), is_shell_root(SourceRoot), First} of
+        {true, _, 'Ernest'} -> {taken, "the toolchain's"};
+        {true, _, _} -> provided;
+        {false, true, 'Ernest'} -> provided;
+        {false, true, _} -> not_ernest;
+        {false, false, _} -> taken_by(First)
+    end.
+
+taken_by(First) ->
+    case {lists:member(First, prelude_namespaces()), lists:member(First, stdlib_namespaces()),
+          First =:= 'Ernest'} of
+        {true, _, _} -> {taken, "the prelude's"};
+        {false, true, _} -> {taken, "the standard library's"};
+        {false, false, true} -> {taken, "the toolchain's"};
+        {false, false, false} -> provided
     end.
 
 %% Report §4.2: the prelude's and the standard library's namespaces, which a
 %% module may not take and every check is given, so that no dependency is
-%% looked for under them; `Ernest`, the toolchain's, is taken too, and its
-%% modules are found as any module is.
-taken_namespaces() ->
+%% looked for under them. `Ernest`, the toolchain's, is taken too and given
+%% to no check: the shell's modules are found under it as any module is,
+%% and a program looks for none there (dependencies/4).
+given_namespaces() ->
     lists:usort(prelude_namespaces() ++ stdlib_namespaces()).
 
 %% The prelude's own: `Prelude`, the name of the prelude itself, and each

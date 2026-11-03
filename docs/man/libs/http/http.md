@@ -8,10 +8,10 @@ body written, with RFC 9110's dates and status phrases.
 
 Use it to serve HTTP over `Tcp`, or to speak it to a server. A server
 reads a request's head with `readRequest` and its body with
-`readRequestBody`, and writes its response with `render`; a client writes
-its request with `renderRequest` and reads the response with
-`readResponse` and `readResponseBody`. `parseRequest` and `parseResponse`
-read a head from bytes a program already holds.
+`readRequestBody`, and writes its response with `renderResponse`; a
+client writes its request with `renderRequest` and reads the response
+with `readResponse` and `readResponseBody`. `parseRequest` and
+`parseResponse` read a head from bytes a program already holds.
 
 The library stands on every job's load path, so a program names it with
 no option (report Appendix G).
@@ -34,10 +34,10 @@ sends a byte a second meets them.
 
 **A body.** The head's headers frame it: the chunked coding, else
 `Content-Length`. Where they carry neither, a request has no body, and a
-response's runs to the connection's close. A response of status 1xx, 204
-or 304 has no body, whatever its headers. Nor has one to a `HEAD`
-request, which its reader cannot know: a client that sent `HEAD` reads
-no body.
+response's runs to the connection's close, as it does where its last
+transfer coding is not chunked. A response of status 1xx, 204 or 304 has
+no body, whatever its headers. Nor has one to a `HEAD` request, which
+its reader cannot know: a client that sent `HEAD` reads no body.
 
 ## Examples
 
@@ -64,7 +64,7 @@ A response written, its `Content-Length` added:
         Http.Response(version = Http.Version(major = 1, minor = 1),
                       status = 200,
                       headers = [Http.Header(name = "Content-Type", value = "text/plain")]);
-    String.fromUtf8(Http.render(response, String.toUtf8("Hello")))
+    String.fromUtf8(Http.renderResponse(response, String.toUtf8("Hello")))
 }
 // => Some("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 5\r\n\r\nHello")
 ```
@@ -85,7 +85,7 @@ A version of HTTP, `HTTP/1.1` being `Version(major = 1, minor = 1)`.
 
 ```ernest
 Http.Version(major = 1, minor = 1)
-// => Version(major = 1, minor = 1)
+// => Http.Version(major = 1, minor = 1)
 ```
 
 - `Version`
@@ -104,7 +104,7 @@ A header: its name, which a reader keeps as written, and its value.
 
 ```ernest
 Http.Header(name = "Content-Type", value = "text/html")
-// => Header(name = "Content-Type", value = "text/html")
+// => Http.Header(name = "Content-Type", value = "text/html")
 ```
 
 - `Header`
@@ -131,7 +131,7 @@ in their order.
                      headers = [Http.Header(name = "Host", value = "example.com")]);
     #(request.method, request.target, request.headers)
 }
-// => #("GET", "/", [Header(name = "Host", value = "example.com")])
+// => #("GET", "/", [Http.Header(name = "Host", value = "example.com")])
 ```
 
 - `Request`
@@ -154,7 +154,7 @@ order. The status line's phrase is the status's, which `reason` gives.
 
 ```ernest
 Http.Response(version = Http.Version(major = 1, minor = 1), status = 404, headers = [])
-// => Response(version = Version(major = 1, minor = 1), status = 404, headers = [])
+// => Http.Response(version = Http.Version(major = 1, minor = 1), status = 404, headers = [])
 ```
 
 - `Response`
@@ -175,7 +175,7 @@ among them, and of its header lines together, theirs among them.
 
 ```ernest
 Http.Limits(line = 8192, headers = 65536)
-// => Limits(line = 8192, headers = 65536)
+// => Http.Limits(line = 8192, headers = 65536)
 ```
 
 - `Limits`
@@ -194,13 +194,15 @@ Why a head or a body is refused.
 
 ```ernest
 Http.parseRequest(String.toUtf8("GET /\r\n\r\n"), Http.Limits(line = 8192, headers = 65536))
-// => Left(Malformed)
+// => Left(Http.Malformed)
 ```
 
 - `Malformed`: A first line that is no request line or no status line, a request
-line with no version among them; a header line with no name or no
-`:`; a header value holding a carriage return, a line feed or a NUL,
-or bytes that are not UTF-8; or a body whose framing cannot be read.
+line with no version and a status line whose status is not three
+digits among them; a header line with no name or no `:`; a header
+value holding a carriage return, a line feed or a NUL, a request's
+header folded over two lines among them, or bytes that are not UTF-8;
+or a body whose framing cannot be read.
 - `LineTooLong`: A first line past the limit of a line.
 - `HeadersTooLarge`: A header line past the limit of a line, or header lines past the
 limit of the headers together.
@@ -220,7 +222,7 @@ before the head does, else the head and the bytes after it.
 ```ernest
 Http.parseRequest(String.toUtf8("GET / HTTP/1.1\r\n"),
                   Http.Limits(line = 8192, headers = 65536))
-// => Right(Incomplete)
+// => Right(Http.Incomplete)
 ```
 
 - `Incomplete`: The bytes end before the head's empty line.
@@ -239,7 +241,7 @@ was read, `Socket` for the socket's error.
 
 ```ernest
 Http.Socket(Io.Timeout)
-// => Socket(Timeout)
+// => Http.Socket(Io.Timeout)
 ```
 
 - `Protocol`: The head or the body read is refused.
@@ -255,10 +257,13 @@ Http.parseRequest(bytes : Bytes, limits : Limits) : Either(Error, Parsed(Request
 The request whose head `bytes` begin with, and the bytes after the head,
 or `Incomplete` where they end before the head's empty line.
 
-The request line is three words, between spaces or tabs: the method, the
-target and the version, which is read as written, `HTTP/2.0` as
-`Version(major = 2, minor = 0)`. A line without a version, as HTTP/0.9
-wrote it, is `Malformed`, and so is a status line.
+The request line is three words parted at runs of spaces and tabs: the
+method, the target and the version, `HTTP/`, a digit, `.` and a digit,
+which is read as written, `HTTP/2.0` as `Version(major = 2, minor = 0)`.
+A line without a version, as HTTP/0.9 wrote it, or whose third word is
+no version, `HTTP/1.10` among them, is `Malformed`, and so is a status
+line. One empty line before the request line is skipped, as RFC 9112,
+section 2.2 has a server skip it, and a second is `Malformed`.
 
 A first line past `limits.line` bytes is `LineTooLong`. A header line past
 it, and header lines past `limits.headers` bytes together, are
@@ -292,7 +297,11 @@ The response whose head `bytes` begin with, and the bytes after the head,
 or `Incomplete` where they end before the head's empty line, read as
 `parseRequest` reads a request's.
 
-The status line's phrase is dropped. A request line is `Malformed`.
+The status is three digits, and a status line whose status is not is
+`Malformed`, as a request line is; the line's phrase is dropped. A
+header folded over two lines is read with each fold, a line break and
+the white space around it, replaced by one space (RFC 9112, section
+5.2), where `parseRequest` refuses it.
 
 ### Examples
 
@@ -304,7 +313,7 @@ The status line's phrase is dropped. A request line is `Malformed`.
       | _ -> #(0, [])
     }
 }
-// => #(404, [Header(name = "Content-Length", value = "0")])
+// => #(404, [Http.Header(name = "Content-Length", value = "0")])
 ```
 
 ## Http.readRequest
@@ -321,7 +330,8 @@ the socket is read only where it holds no whole head. The milliseconds
 bound the whole head and not each read. `Socket(Timeout)` is the
 milliseconds passed before the head ended, `Socket(Closed)` the
 connection closed before it, and `Protocol(error)` the head refused, as
-`parseRequest` refuses it.
+`parseRequest` refuses it, at the bytes that pass the limits, though no
+line feed comes after them.
 
 ### Examples
 
@@ -334,7 +344,8 @@ A server that reads one request and answers its target:
     let limits = Http.Limits(line = 8192, headers = 65536);
     let #(request, _) <- Http.readRequest(socket, <<>>, limits, 10000);
     let response = Http.Response(version = request.version, status = 200, headers = []);
-    let written = Tcp.write(socket, Http.render(response, String.toUtf8(request.target)), 5000);
+    let body = String.toUtf8(request.target);
+    let written = Tcp.write(socket, Http.renderResponse(response, body), 5000);
     Tcp.close(socket);
     Either.mapLeft(written, Http.Socket)
 }
@@ -349,6 +360,10 @@ Http.readResponse(socket : Address(Tcp.SocketMsg), carried : Bytes, limits : Lim
 The response whose head `socket` sends after the bytes `carried`, read
 within `ms` milliseconds, and the bytes read after its head, as
 `readRequest` reads a request's.
+
+A response of status 1xx is an interim one, which a server may send
+before its final response: a client that reads one reads again, given
+the bytes this read answers as `carried`, for the response after it.
 
 ### Examples
 
@@ -385,12 +400,18 @@ read within `ms` milliseconds, and the bytes read after it; at most
 
 Where `Transfer-Encoding` names `chunked` last, the chunks are decoded,
 each chunk's extensions and the trailers after the last chunk dropped;
-where it names another coding last, the body is `Protocol(Malformed)`.
-Otherwise `Content-Length` gives the body's size: one that is no decimal
-number, or two that name different numbers, are `Protocol(Malformed)` (RFC
-9112, section 6.3). Where the headers carry neither, the request has no
-body: the answer is an empty body and `carried` as it was, and the socket
-is not read.
+where it names another coding last, names `chunked` twice or stands
+beside a `Content-Length`, the body is `Protocol(Malformed)` (RFC 9112,
+sections 6.1 and 6.3). Otherwise `Content-Length` gives the body's size:
+one that is no decimal number, or two that name different numbers, are
+`Protocol(Malformed)`. Where the headers carry neither, the request has
+no body: the answer is an empty body and `carried` as it was, and the
+socket is not read.
+
+A client whose request carries `Expect: 100-continue` may hold its body
+back until the server answers with status 100 (RFC 9110, section
+10.1.1): a server that reads such a body writes a response of status 100
+first, or the read waits on the client.
 
 `carried` is what the head's reader took past the head, and is read
 first. The milliseconds bound the whole body and not each read.
@@ -416,7 +437,7 @@ size:
     let #(body, _) <- Http.readRequestBody(socket, carried, request, 1000000, 10000);
     let response = Http.Response(version = request.version, status = 200, headers = []);
     let size = String.toUtf8(Int.toString(Bytes.size(body)));
-    let written = Tcp.write(socket, Http.render(response, size), 5000);
+    let written = Tcp.write(socket, Http.renderResponse(response, size), 5000);
     Tcp.close(socket);
     Either.mapLeft(written, Http.Socket)
 }
@@ -438,7 +459,9 @@ not read. Nor has a response to a `HEAD` request, which the reader
 cannot know: a client that sent `HEAD` reads no body.
 
 Where the headers carry neither `Transfer-Encoding` nor `Content-Length`,
-the body runs to the connection's close, and no bytes come after it.
+or `Transfer-Encoding` names a coding other than `chunked` last, the body
+runs to the connection's close, and no bytes come after it (RFC 9112,
+section 6.3).
 
 ## Http.header
 
@@ -475,10 +498,10 @@ Http.headers([Http.Header(name = "Set-Cookie", value = "a=1"),
 // => ["a=1", "b=2"]
 ```
 
-## Http.render
+## Http.renderResponse
 
 ```ernest
-Http.render(response : Response, body : Bytes) : Bytes
+Http.renderResponse(response : Response, body : Bytes) : Bytes
 ```
 
 The response's head and `body` after it, as bytes to write: the status
@@ -491,6 +514,13 @@ phrase for it. Where the headers carry neither `Content-Length` nor
 `Content-Length` of the body's size is written after them (RFC 9110,
 section 8.6). A header's value is written as given.
 
+A head that would not read back as written is a program's own error,
+and faults the caller, its cause naming the header or the status: a
+header's name that is no token, one or more of the ASCII letters and
+digits and of ``!#$%&'*+-.^_`|~`` (RFC 9110, section 5.6.2), a header's
+value holding a carriage return, a line feed or U+0000, and a body that
+is not empty given with a status of 1xx, 204 or 304.
+
 ### Examples
 
 A response of no content, which carries no `Content-Length`:
@@ -499,7 +529,7 @@ A response of no content, which carries no `Content-Length`:
 {
     let response =
         Http.Response(version = Http.Version(major = 1, minor = 1), status = 204, headers = []);
-    String.fromUtf8(Http.render(response, <<>>))
+    String.fromUtf8(Http.renderResponse(response, <<>>))
 }
 // => Some("HTTP/1.1 204 No Content\r\n\r\n")
 ```
@@ -510,13 +540,21 @@ A response of no content, which carries no `Content-Length`:
 Http.renderRequest(request : Request, body : Bytes) : Bytes
 ```
 
-The request's head and `body` after it, as bytes to write, as `render`
-writes a response's: the request line, its method, its target and its
-version, then the headers, an empty line and the body.
+The request's head and `body` after it, as bytes to write, as
+`renderResponse` writes a response's: the request line, its method, its
+target and its version, then the headers, an empty line and the body.
 
 Where the body is not empty and the headers carry neither
 `Content-Length` nor `Transfer-Encoding`, a `Content-Length` of the
-body's size is written after them.
+body's size is written after them; a body is written whatever the
+method.
+
+A header faults the caller as `renderResponse` says, and so do a
+method and a target `parseRequest` would refuse, its cause naming the
+word: a method that is no token, an empty one among them, and a target
+that is empty or holds a character outside U+0021 to U+007E, the
+visible ASCII characters RFC 3986 writes a target in, `/café` among
+them, whose `é` a client writes `%C3%A9`.
 
 ### Examples
 
@@ -586,9 +624,9 @@ form's case and spacing alone, and its day of the week must be its
 date's. A date or a time of day the calendar has not, a 60th second
 among them, is `None`.
 
-RFC 850's year of two digits is the one of the current century, read by
-`Clock.now`, or of the century before where that is more than 50 years
-after the current year.
+RFC 850's year of two digits is the latest year with those digits in
+which the text's date and time of day are not more than 50 years after
+`Clock.now` (RFC 9110, section 5.6.7).
 
 ### Examples
 

@@ -47,7 +47,7 @@
 ///
 /// ```ernest
 /// Template.Point(x = 1, y = 2)
-/// // => Point(x = 1, y = 2)
+/// // => Template.Point(x = 1, y = 2)
 /// ```
 export type Point = Point(
     /// The horizontal coordinate, growing to the right.
@@ -61,7 +61,7 @@ export type Point = Point(
 ///
 /// ```ernest
 /// Template.Circle(center = Template.Point(x = 0, y = 0), radius = 1)
-/// // => Circle(center = Point(x = 0, y = 0), radius = 1)
+/// // => Template.Circle(center = Template.Point(x = 0, y = 0), radius = 1)
 /// ```
 export type Shape =
     /// A point alone; its area is zero.

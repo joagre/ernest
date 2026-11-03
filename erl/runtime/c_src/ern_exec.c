@@ -33,17 +33,18 @@
  *   error, each answering one 'n', so that a program no one asks waits on
  *   its output;
  *   'x' and a 4-byte big-endian status, once it has exited and both its
- *   output and its standard error have ended. A status is the program's
- *   exit code, or 128 and the signal's number for a program a signal ended.
+ *   output and its standard error have ended, the processes still in its
+ *   process group killed as it is reaped. A status is the program's exit
+ *   code, or 128 and the signal's number for a program a signal ended.
  *
  * Run with the arguments `terminal`, a count of rows and one of columns,
  * each from 0 to 65535, the helper runs the program so under a
  * pseudo-terminal of that size, in the mode the host gives a new one: the
  * program its session's leader, and the terminal its controlling terminal
  * and its standard input, output and error. 't' and an error's name says
- * the terminal could not be opened, where 'f' would say the program did
- * not start. The program's output and its standard error come merged
- * through the terminal, as 'o' alone and never 'r'.
+ * the terminal could not be opened or made the program's, where 'f' would
+ * say the program did not start. The program's output and its standard
+ * error come merged through the terminal, as 'o' alone and never 'r'.
  *
  *   Under a terminal, 'w' and its rows and its columns, each in 2 bytes,
  *   big-endian, sets the terminal's size, which the host tells the
@@ -77,10 +78,13 @@
  *
  * With the arguments `lock`, a path and a process number, the helper is a
  * node's hold on its ernest.pid (report §12.5), which the host has no word
- * for: it opens the file, made where it is not there, and takes the node's
- * lock on it without waiting. Where another holds that lock, it writes an
- * 'h' frame, the number the file holds, and exits. Where it took the lock,
- * it writes the number and a line feed as the file's whole content, then
+ * for: it opens the file, made where it is not there, writable by its
+ * owner alone, and never through a link, and takes the node's lock on it
+ * without waiting. Where another holds that lock, it writes an 'h' frame,
+ * the number the file holds, and exits. Where it took the lock, it takes
+ * the write bits of the file's group and of others off a file it found
+ * there, so that the file is its owner's alone to write as one it makes
+ * is, writes the number and a line feed as the file's whole content, then
  * an 'l' frame, and holds the lock until fd 0 ends, which the host ends
  * with the node however the node ends; it ignores the signals a terminal
  * or a service manager sends the node's process group, so that the lock
@@ -92,11 +96,14 @@
  * the path, the process the file names, and exits 0; given `wait` after
  * them, it exits 0 once the lock has gone with the node, so that `ern
  * stop` returns once the node has ended (report §11.2). It exits 1 where
- * there is no such file, 2 where no node holds it, 3 where it names no
- * process, 4 where the process it names has ended, and 5 where that
- * process is not this user's to signal; an error is an 'f' frame and its
- * name, and 6. A signal reaches only a node so, and never a process whose
- * number a file no node holds names by chance.
+ * there is no such file, 2 where no node holds it, 8 where the file is
+ * another user's and 9 where others than its owner may write it, 3 where
+ * it names no process, 4 where the process it names has ended, and 5
+ * where that process is not this user's to signal; an error is an 'f'
+ * frame and its name, and 6. A signal reaches only a node so, never a
+ * process whose number a file no node holds names by chance, and never
+ * one whose number another user could have written (report §12.5). The
+ * file is opened through no link.
  *
  * The locks are POSIX's record locks, which a process holds until it
  * closes the file or ends, and which another can ask after without taking
@@ -261,7 +268,7 @@ static void frame(unsigned char tag, const unsigned char *data, size_t size)
 
 /* The name Erlang gives an error, which the runtime describes as it does
    the file system's other errors; the host's own words where Erlang has no
-   name for it. Both jobs send it, so that one error has one text. */
+   name for it. Every job sends it, so that one error has one text. */
 static const char *posix_name(int error)
 {
     switch (error) {
@@ -269,9 +276,7 @@ static const char *posix_name(int error)
     case ENOTDIR: return "enotdir";
     case EACCES: return "eacces";
     case EPERM: return "eperm";
-    case ENOTEMPTY: return "enotempty";
     case EISDIR: return "eisdir";
-    case EBUSY: return "ebusy";
     case EROFS: return "erofs";
     case ELOOP: return "eloop";
     case EIO: return "eio";
@@ -286,35 +291,33 @@ static const char *posix_name(int error)
     }
 }
 
-/* The program did not start: the host's reason, in an 'f' frame, which ends
-   the helper's work (report Appendix E.23: start answers the host's
-   reason). */
-static int not_started(int error)
+/* A job that failed: the frame Tag names and the host's reason, which ends
+   the job's work, and the status it exits with. Report Appendix E.23: 'f'
+   says the program did not start, which start answers with the host's
+   reason, and 't' that its terminal could not be opened or made the
+   program's, which start answers as a reason of the host's, the program
+   neither missing nor denied; a job of a node's file says 'f' of its
+   error (report §12.5). */
+static int fail(unsigned char tag, int error, int status)
 {
     const char *name = posix_name(error);
-    frame('f', (const unsigned char *)name, strlen(name));
-    return 0;
+    frame(tag, (const unsigned char *)name, strlen(name));
+    return status;
 }
 
-/* The program's child could not become the program: the host's reason,
-   through the pipe the exec would have closed, which not_started sends. */
-static void child_failed(int fd)
+/* The program's child could not become the program: the tag of the frame
+   that says so, 't' where its terminal could not be made its own and 'f'
+   where it did not start, and the host's reason, through the pipe the
+   exec would have closed, which the helper then sends (fail). */
+static void child_failed(int fd, unsigned char tag)
 {
-    int error = errno;
-    ssize_t ignored = write(fd, &error, sizeof error);
+    int failure[2];
+    ssize_t ignored;
+    failure[0] = tag;
+    failure[1] = errno;
+    ignored = write(fd, failure, sizeof failure);
     (void)ignored;
     _exit(127);
-}
-
-/* The run's terminal could not be opened: the host's reason, in a 't'
-   frame, which ends the helper's work (report Appendix E.23: start
-   answers it as a reason of the host's, the program neither missing nor
-   denied). */
-static int no_terminal(int error)
-{
-    const char *name = posix_name(error);
-    frame('t', (const unsigned char *)name, strlen(name));
-    return 0;
 }
 
 /* Report Appendix E.23: the terminal's size, set on its master, which
@@ -545,14 +548,6 @@ static void user_frame(void)
     frame('u', bytes, sizeof bytes);
 }
 
-/* An 'f' frame and the error's name, which ends a job of a node's file. */
-static int failed(int error, int status)
-{
-    const char *name = posix_name(error);
-    frame('f', (const unsigned char *)name, strlen(name));
-    return status;
-}
-
 /* The bytes of a node's file that are locked (above): the number's, and
    the node's. */
 #define NUMBER_BYTE 0
@@ -591,11 +586,16 @@ static long number_held(int fd)
 
 /* `lock PATH NUMBER`: the node's hold on its ernest.pid (above). The
    signals are ignored before the lock is taken, so that none ends the hold
-   while the node lives. */
+   while the node lives. Report §12.5: a file it makes is writable by its
+   owner alone, whatever the mask, which takes bits away and adds none; a
+   file it finds, an earlier node's that others may write among them, is
+   made so once the lock is held, its other bits as they were; and one at
+   the path that is a link is refused, not followed. */
 static int hold_lock(int argc, char **argv)
 {
     static const int ignored[] = {SIGHUP, SIGINT, SIGQUIT, SIGTERM};
     struct flock lock;
+    struct stat status;
     unsigned char buffer[64];
     char text[16];
     long number;
@@ -606,14 +606,14 @@ static int hold_lock(int argc, char **argv)
         return 7;
     for (index = 0; index < sizeof ignored / sizeof ignored[0]; index++)
         signal(ignored[index], SIG_IGN);
-    fd = open(argv[2], O_RDWR | O_CREAT | O_CLOEXEC, 0666);
+    fd = open(argv[2], O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0644);
     if (fd < 0 || byte_lock(fd, F_SETLKW, F_WRLCK, NUMBER_BYTE, &lock) < 0)
-        return failed(errno, 1);
+        return fail('f', errno, 1);
     if (byte_lock(fd, F_SETLK, F_WRLCK, NODE_BYTE, &lock) < 0) {
         long held;
         if ((errno != EACCES && errno != EAGAIN)
             || byte_lock(fd, F_GETLK, F_WRLCK, NODE_BYTE, &lock) < 0)
-            return failed(errno, 1);
+            return fail('f', errno, 1);
         if (lock.l_type == F_WRLCK) {
             held = number_held(fd);
             length = held < 0 ? 0 : snprintf(text, sizeof text, "%ld", held);
@@ -624,12 +624,16 @@ static int hold_lock(int argc, char **argv)
            which lets it go at once; no node can take it meanwhile, since
            this one holds the number's byte */
         if (byte_lock(fd, F_SETLKW, F_WRLCK, NODE_BYTE, &lock) < 0)
-            return failed(errno, 1);
+            return fail('f', errno, 1);
     }
+    if (fstat(fd, &status) < 0
+        || ((status.st_mode & (S_IWGRP | S_IWOTH))
+            && fchmod(fd, status.st_mode & 07777 & ~(mode_t)(S_IWGRP | S_IWOTH)) < 0))
+        return fail('f', errno, 1);
     length = snprintf(text, sizeof text, "%ld\n", number);
     if (ftruncate(fd, 0) < 0 || pwrite(fd, text, (size_t)length, 0) != length
         || byte_lock(fd, F_SETLK, F_UNLCK, NUMBER_BYTE, &lock) < 0)
-        return failed(errno, 1);
+        return fail('f', errno, 1);
     frame('l', NULL, 0);
     for (;;) {
         ssize_t got = read(0, buffer, sizeof buffer);
@@ -638,48 +642,67 @@ static int hold_lock(int argc, char **argv)
     }
 }
 
+/* Report §12.5: whether the file at fd names a process this user may
+   signal as its node: 0 where it is this user's own and none but its owner
+   may write it, 8 where it is another user's and this user is not the
+   superuser, 9 where others may write it,
+   and 6 where the host cannot say, its error in an 'f' frame. */
+static int own_file(int fd)
+{
+    struct stat status;
+    if (fstat(fd, &status) < 0)
+        return fail('f', errno, 6);
+    if (status.st_uid != geteuid() && geteuid() != 0)
+        return 8;
+    if (status.st_mode & (S_IWGRP | S_IWOTH))
+        return 9;
+    return 0;
+}
+
 /* `node PATH SIGNAL [wait]`: the signal sent to the node that holds the
    node's lock on the file (above). A node holds it for writing; held for
    reading, it is another `ern stop`'s, waiting, and no node's. The number
-   is read while its byte is held, and the lock waited for once it is let
-   go. */
+   is read while its byte is held, from a file none but this user may have
+   written, and the lock waited for once it is let go. */
 static int signal_node(int argc, char **argv)
 {
     struct flock lock;
     long number, process;
-    int fd;
+    int fd, owned;
 
     if (argc < 4 || argc > 5 || (argc == 5 && strcmp(argv[4], "wait") != 0))
         return 7;
     number = number_of(argv[3]);
     if (number < 0 || number > SIGNALS)
         return 7;
-    fd = open(argv[2], O_RDONLY | O_CLOEXEC);
+    fd = open(argv[2], O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
     if (fd < 0)
-        return errno == ENOENT ? 1 : failed(errno, 6);
+        return errno == ENOENT ? 1 : fail('f', errno, 6);
     if (byte_lock(fd, F_SETLKW, F_RDLCK, NUMBER_BYTE, &lock) < 0)
-        return failed(errno, 6);
+        return fail('f', errno, 6);
     if (byte_lock(fd, F_GETLK, F_WRLCK, NODE_BYTE, &lock) < 0)
-        return failed(errno, 6);
+        return fail('f', errno, 6);
     if (lock.l_type != F_WRLCK)
         return 2;
+    if ((owned = own_file(fd)) != 0)
+        return owned;
     process = number_held(fd);
     if (process == -2)
-        return failed(errno, 6);
+        return fail('f', errno, 6);
     if (process < 1)
         return 3;
     if (byte_lock(fd, F_SETLK, F_UNLCK, NUMBER_BYTE, &lock) < 0)
-        return failed(errno, 6);
+        return fail('f', errno, 6);
     if (kill((pid_t)process, (int)number) < 0)
         return errno == EPERM ? 5 : 4;
     if (argc == 5 && byte_lock(fd, F_SETLKW, F_RDLCK, NODE_BYTE, &lock) < 0)
-        return failed(errno, 6);
+        return fail('f', errno, 6);
     return 0;
 }
 
 int main(int argc, char **argv)
 {
-    int in[2], out[2], err[2], failed[2];
+    int in[2], out[2], err[2], start_failure[2];
     int terminal = 0, master = -1, input = -1, slave = -1;
     int program_in, program_out, program_err;
     unsigned rows = 0, columns = 0;
@@ -727,17 +750,17 @@ int main(int argc, char **argv)
        page leaves its work unspecified */
     if (terminal) {
         if (open_terminal(rows, columns, &master, &input, &slave) < 0)
-            return no_terminal(errno);
+            return fail('t', errno, 0);
     } else if (pipe(in) < 0 || pipe(out) < 0 || pipe(err) < 0) {
-        return not_started(errno);
+        return fail('f', errno, 0);
     }
-    if (pipe(failed) < 0 || watch_exit() < 0)
-        return not_started(errno);
-    fcntl(failed[1], F_SETFD, FD_CLOEXEC);
+    if (pipe(start_failure) < 0 || watch_exit() < 0)
+        return fail('f', errno, 0);
+    fcntl(start_failure[1], F_SETFD, FD_CLOEXEC);
 
     program = fork();
     if (program < 0)
-        return not_started(errno);
+        return fail('f', errno, 0);
     if (program == 0) {
         /* the program starts with the signals as a shell would give them:
            a signal the host or this helper ignores, and a blocked one,
@@ -751,27 +774,26 @@ int main(int argc, char **argv)
         if (terminal) {
             /* Report Appendix E.23: the program its session's leader, and so
                its process group's, with the terminal as its controlling
-               terminal, which TIOCSCTTY makes it where opening it did not */
-            if (setsid() < 0 || ioctl(slave, TIOCSCTTY, 0) < 0)
-                child_failed(failed[1]);
-            dup2(slave, 0);
-            dup2(slave, 1);
-            dup2(slave, 2);
+               terminal, which TIOCSCTTY makes it where opening it did not,
+               and as its standard input, output and error; a step the host
+               refuses is the terminal's failure */
+            if (setsid() < 0 || ioctl(slave, TIOCSCTTY, 0) < 0 || dup2(slave, 0) < 0
+                || dup2(slave, 1) < 0 || dup2(slave, 2) < 0)
+                child_failed(start_failure[1], 't');
             if (slave > 2)
                 close(slave);
             close(master); close(input);
         } else {
             setpgid(0, 0);
-            dup2(in[0], 0);
-            dup2(out[1], 1);
-            dup2(err[1], 2);
+            if (dup2(in[0], 0) < 0 || dup2(out[1], 1) < 0 || dup2(err[1], 2) < 0)
+                child_failed(start_failure[1], 'f');
             close(in[0]); close(in[1]);
             close(out[0]); close(out[1]);
             close(err[0]); close(err[1]);
         }
-        close(failed[0]);
+        close(start_failure[0]);
         execvp(program_command[0], program_command);
-        child_failed(failed[1]);
+        child_failed(start_failure[1], 'f');
     }
     /* a program under a terminal makes its own group as it makes its
        session, which a group made here first would refuse */
@@ -787,20 +809,20 @@ int main(int argc, char **argv)
         program_out = out[0];
         program_err = err[0];
     }
-    close(failed[1]);
+    close(start_failure[1]);
 
     {
-        int error;
+        int failure[2];
         ssize_t received;
         do
-            received = read(failed[0], &error, sizeof error);
+            received = read(start_failure[0], failure, sizeof failure);
         while (received < 0 && errno == EINTR);
-        close(failed[0]);
-        if (received == (ssize_t)sizeof error) {
+        close(start_failure[0]);
+        if (received == (ssize_t)sizeof failure) {
             while (waitpid(program, NULL, 0) < 0 && errno == EINTR)
                 ;
             program = -1;
-            return not_started(error);
+            return fail((unsigned char)failure[0], failure[1], 0);
         }
     }
     frame('s', NULL, 0);
@@ -992,11 +1014,21 @@ int main(int argc, char **argv)
         for (;;) {
             int status, highest = 0;
             fd_set woken;
-            pid_t done = waitpid(program, &status, WNOHANG);
-            if (done == program) {
+            siginfo_t ended;
+            /* Report Appendix E.23: the program's exit seen and the program
+               not yet reaped, so that its number still names its process
+               group, whose processes are killed before it is reaped and its
+               status sent, as a kill would kill them */
+            memset(&ended, 0, sizeof ended);
+            if (waitid(P_PID, (id_t)program, &ended, WEXITED | WNOHANG | WNOWAIT) == 0
+                && ended.si_pid == program) {
                 unsigned char code[4];
-                uint32_t value = WIFSIGNALED(status) ? 128u + (uint32_t)WTERMSIG(status)
-                                                     : (uint32_t)WEXITSTATUS(status);
+                uint32_t value;
+                kill(-program, SIGKILL);
+                while (waitpid(program, &status, 0) < 0 && errno == EINTR)
+                    ;
+                value = WIFSIGNALED(status) ? 128u + (uint32_t)WTERMSIG(status)
+                                            : (uint32_t)WEXITSTATUS(status);
                 code[0] = (unsigned char)(value >> 24);
                 code[1] = (unsigned char)(value >> 16);
                 code[2] = (unsigned char)(value >> 8);

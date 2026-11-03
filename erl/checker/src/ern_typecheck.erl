@@ -912,6 +912,7 @@ lookup_type_name(Span, ['Prelude'], Name, #env{types = Types, local_types = Loca
 lookup_type_name(Span, ['Prelude' | _] = Namespace, Name, _Env) ->
     prelude_one(Span, Namespace, Name);
 lookup_type_name(Span, Namespace, Name, #env{namespace = OwnNamespace, types = Types} = Env) ->
+    ernest_qualified(Span, "type", Namespace, Name, Env),
     Namespace =:= OwnNamespace andalso written_plain(Span, Namespace, [Name]),
     QualifiedName = Namespace ++ [Name],
     case Types of
@@ -3759,8 +3760,10 @@ filled(#e_constructor{span = Span, namespace = ConstructorNamespace, name = Name
                 FieldSets ++ Filled, #fill{written = Written, namespace = Namespace,
                                            filled = Missing, binder = Binder}, Env1).
 
-%% A field filled from the namespace, which must declare its name.
+%% A field filled from the namespace, which must declare its name; one
+%% under `Ernest` is refused as the toolchain's own (report §4.2).
 fill_field(Span, Written, Namespace, Field, Env) ->
+    ernest_qualified(Span, "name", Namespace, Field, Env),
     Declared = try lookup_value(Span, Namespace, Field, Env) of
                    {_, _, Env1} -> {ok, Env1}
                catch
@@ -4579,18 +4582,23 @@ rigid_annotation_variables(Span, Rigid, #env{type_state = TypeState}) ->
 
 %% Report §11.5: a callee's type for the label at its call: a name's as its
 %% declaration writes it, under the declaration's own variable names, as
-%% `:type` prints it; any other callee's as inferred, with the requirement
-%% it carries.
-callee_text(#e_var{namespace = Namespace, name = Name}, TypedCallee, CalleeType, Env)
+%% `:type` prints it, with those names by the ids of the variables of the
+%% callee's instance that stand for them, under which a mismatch at the
+%% call prints; any other callee's as inferred, with the requirement it
+%% carries, its variables printed as the mismatch prints them.
+callee_signature(#e_var{namespace = Namespace, name = Name}, TypedCallee, CalleeType, Env)
   when Name =/= undefined ->
     case declared_scheme(Namespace, Name, Env) of
-        {ok, Scheme} -> ern_types:format_scheme(Scheme, Env#env.type_state);
-        error -> ern_types:format_with_requirement(CalleeType, requirement_of(TypedCallee),
-                                                   Env#env.type_state)
+        {ok, Scheme} ->
+            {ern_types:format_scheme(Scheme, Env#env.type_state),
+             ern_types:instance_names(Scheme, CalleeType, Env#env.type_state)};
+        error ->
+            {ern_types:format_with_requirement(CalleeType, requirement_of(TypedCallee),
+                                               Env#env.type_state), #{}}
     end;
-callee_text(_, TypedCallee, CalleeType, Env) ->
-    ern_types:format_with_requirement(CalleeType, requirement_of(TypedCallee),
-                                      Env#env.type_state).
+callee_signature(_, TypedCallee, CalleeType, Env) ->
+    {ern_types:format_with_requirement(CalleeType, requirement_of(TypedCallee),
+                                       Env#env.type_state), #{}}.
 
 %% Report §11.2: the type of a name as its declaration writes it, for the
 %% shell's input that is one name; the scheme keeps the declaration's
@@ -4710,10 +4718,11 @@ infer(#e_call{span = Span, callee = Callee, args = Args} = Expr, Env) ->
                                       length(Args)]),
                  [], arity_help(Name, ParamTypes, Args, Env1));
         {tfn, ParamTypes, Effect, ResultType} ->
-            %% report §11.5: the callee's type ends in its requirement
-            Origin = {ern_ast:span(Callee), Name ++ " : " ++ callee_text(Callee, TypedCallee,
-                                                                       CalleeType, Env1)},
-            Rule = argument_rule(Name, TypedCallee, Env1),
+            %% report §11.5: the callee's type ends in its requirement, and
+            %% a mismatch names its variables as the label does
+            {Signature, Named} = callee_signature(Callee, TypedCallee, CalleeType, Env1),
+            Origin = {ern_ast:span(Callee), Name ++ " : " ++ Signature},
+            Rule = {named, argument_rule(Name, TypedCallee, Env1), Named},
             CalleeSpan = ern_diagnostic:span(ern_ast:span(Callee)),
             Check = fun({Index, Arg, ParamType}, Acc) ->
                         {TypedArg, _, Acc1} = check_expr(Arg, ParamType, Rule, Origin, Acc),
@@ -6854,6 +6863,7 @@ lookup_value(Span, ['Prelude' | _] = Namespace, Name, _Env) ->
     prelude_one(Span, Namespace, Name);
 lookup_value(Span, Namespace, Name,
              #env{namespace = OwnNamespace, local_values = LocalValues} = Env) ->
+    ernest_qualified(Span, "name", Namespace, Name, Env),
     %% report §4.2: a dotted name's first segment is a namespace, a member
     %% standing in no expression (no_member_written/3); a module may name
     %% its own declarations qualified where a binding hides the plain name
@@ -6864,6 +6874,20 @@ lookup_value(Span, Namespace, Name,
         _ ->
             lookup_global(Span, Namespace, Name, Env)
     end.
+
+%% Report §4.2: a name under `Ernest` is the toolchain's own, which no
+%% program names: one a module outside `Ernest` writes is unknown, the
+%% message saying why, before it is looked for, so that a load path that
+%% holds a build of the toolchain's own lends a program none of it, and the
+%% shell offers no `:load` for it. What is the toolchain's own stands under
+%% `Ernest` itself, the shell's modules.
+ernest_qualified(_Span, _What, ['Ernest' | _], _Name, #env{namespace = ['Ernest' | _]}) ->
+    ok;
+ernest_qualified(Span, What, ['Ernest' | _] = Namespace, Name, _Env) ->
+    fail(Span, ["unknown ", What, " ", ern_namespace:text(Namespace ++ [Name]),
+                ": a name under Ernest is the toolchain's own, and no program's"]);
+ernest_qualified(_Span, _What, _Namespace, _Name, _Env) ->
+    ok.
 
 %% Report §4.2: a module's own qualified name is written where a binding
 %% hides the plain name, and nowhere else, as `Prelude.` is.
@@ -7092,6 +7116,7 @@ lookup_constructor(Span, ['Prelude' | _] = Namespace, Name, _Env) ->
 lookup_constructor(Span, Namespace, Name,
                    #env{namespace = OwnNamespace, constructors = Constructors, types = Types,
                         local_types = LocalTypes} = Env) ->
+    ernest_qualified(Span, "constructor", Namespace, Name, Env),
     Namespace =:= OwnNamespace andalso written_plain(Span, Namespace, [Name]),
     QualifiedName = Namespace ++ [Name],
     case Constructors of
@@ -7370,15 +7395,13 @@ bound(Expected, Actual, #env{type_state = TypeState} = Env) ->
 %% rigid (§3.9), so a unification that binds one to a type, or two to one
 %% another, is the mismatch.
 %% Rule, which the message opens with, may carry its own help line,
-%% {help, Text, Help}, as a recursive call's does, or the names a pattern
-%% binds, {pattern, Text, Bound}, which the types printed do not use.
+%% {help, Text, Help}, as a recursive call's does, the names a pattern
+%% binds, {pattern, Text, Bound}, which the types printed do not use, or
+%% the names a callee's declaration gives the variables of its instance,
+%% {named, Rule, Named}, under which the types print (callee_signature/4).
 unify_at(Span, Expected, Actual, #env{type_state = TypeState, rigid = Rigid} = Env, Rule,
          Origin) ->
-    {RuleText, RuleHelp, Taken} = case Rule of
-                                      {help, Text, TextHelp} -> {Text, TextHelp, []};
-                                      {pattern, Text, Bound} -> {Text, undefined, Bound};
-                                      _ -> {Rule, undefined, []}
-                                  end,
+    {RuleText, RuleHelp, Taken, Named} = rule_parts(Rule),
     case ern_types:unify(Expected, Actual, TypeState) of
         {ok, TypeState1} ->
             case {rigid_kept(Rigid, TypeState), rigid_kept(Rigid, TypeState1)} of
@@ -7389,19 +7412,27 @@ unify_at(Span, Expected, Actual, #env{type_state = TypeState, rigid = Rigid} = E
                            end,
                     Reason = rigid_reason(Rigid, Expected, Actual, TypeState, TypeState1),
                     fail(Span, unify_message(RuleText, Reason, Expected, Actual, Taken,
-                                             TypeState),
+                                             ern_types:named_as_declared(Named, TypeState)),
                          labels(Origin), Help);
                 _ ->
                     settle(Span, TypeState, Env#env{type_state = TypeState1})
             end;
         {error, Reason} ->
+            Printing = ern_types:named_as_declared(Named, TypeState),
             Help = case RuleHelp of
-                       undefined -> differing_help(Reason, Expected, Actual, TypeState);
+                       undefined -> differing_help(Reason, Expected, Actual, Printing);
                        _ -> RuleHelp
                    end,
-            fail(Span, unify_message(RuleText, Reason, Expected, Actual, Taken, TypeState),
+            fail(Span, unify_message(RuleText, Reason, Expected, Actual, Taken, Printing),
                  labels(Origin), Help)
     end.
+
+rule_parts({named, Rule, Named}) ->
+    {Text, Help, Taken, _} = rule_parts(Rule),
+    {Text, Help, Taken, Named};
+rule_parts({help, Text, Help}) -> {Text, Help, [], #{}};
+rule_parts({pattern, Text, Bound}) -> {Text, undefined, Bound, #{}};
+rule_parts(Text) -> {Text, undefined, [], #{}}.
 
 %% Report §11.5: the names a pattern binds, which a type the message prints
 %% beside it does not give its variables.

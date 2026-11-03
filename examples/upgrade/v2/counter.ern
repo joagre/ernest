@@ -6,7 +6,7 @@
 // that run the old loop, and each is sent the Upgrade by which it switches
 // to the new one with a tail call. This file is the counter's second build,
 // the same module, Counter, as its first, ../v1/counter.ern: `count` stands
-// as the first build wrote it, and `count2`, which says each Inc, and the
+// as the first build wrote it, and `countAloud`, which says each Inc, and the
 // tool, `main`, are new. Nothing of the runtime orders the upgrade: the list
 // is the program's, and so is the order it sends in.
 //
@@ -18,7 +18,7 @@
 //   E.28).
 // - `moving` spawns on a peer a process that moves the peer's counters and
 //   tells the tool how many it moved. The spawn carries to a peer of the
-//   first build what its function names that the peer lacks, `count2`,
+//   first build what its function names that the peer lacks, `countAloud`,
 //   `moved` and `ToolMsg` among it (report §8.7).
 // - A peer the tool could not start on is said with its failure, a value,
 //   and passed over.
@@ -81,15 +81,15 @@ fn count(total : Int) : Unit receiving CounterMsg =
     }
 
 // The second build's loop, which says each Inc.
-fn count2(total : Int) : Unit receiving CounterMsg =
+fn countAloud(total : Int) : Unit receiving CounterMsg =
     receive {
         Inc(amount) -> {
             Io.println("inc " <> Int.toString(amount));
-            count2(total + amount)
+            countAloud(total + amount)
         }
       | Get(reply) -> {
             answer(reply, total);
-            count2(total)
+            countAloud(total)
         }
       | Upgrade(=migrate, =next) ->
             next(migrate(total))
@@ -98,7 +98,7 @@ fn count2(total : Int) : Unit receiving CounterMsg =
 // Every process of this node that runs count sent its Upgrade, and how many there were.
 export fn moved() : Int = {
     let old = Code.running(count);
-    List.forEach(old, fn(process) = send(process, Upgrade(migrate = fn(n) = n, next = count2)));
+    List.forEach(old, fn(process) = send(process, Upgrade(migrate = fn(n) = n, next = countAloud)));
     List.size(old)
 }
 

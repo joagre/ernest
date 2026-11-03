@@ -34,7 +34,7 @@
 ///
 /// ```ernest
 /// Optional.map(Process.status(Process.current()), fn(status) = status.activity)
-/// // => Some(Running)
+/// // => Some(Process.Running)
 /// ```
 ///
 /// since 0.4.0
@@ -47,7 +47,7 @@ export type Status = Status(site : String, queued : Int, activity : Activity)
 ///
 /// ```ernest
 /// Process.Receiving
-/// // => Receiving
+/// // => Process.Receiving
 /// ```
 export type Activity = Running | Receiving | Calling
 

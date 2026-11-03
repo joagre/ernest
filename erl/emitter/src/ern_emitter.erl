@@ -319,7 +319,7 @@ lacked_functions(#unit{lacked = Lacked}) ->
     [erl_syntax:function(erl_syntax:atom(Function),
                          [erl_syntax:clause([erl_syntax:underscore() || _ <- lists:seq(1, Arity)],
                                             none,
-                                            [thrown_fault(string_binary(Text))])])
+                                            [raised(none, string_binary(Text))])])
      || {Function, Arity, Text} <- Lacked].
 
 %% The unit's own definitions and foreign functions, each definition's form
@@ -1826,12 +1826,18 @@ call_remote(HostModule, HostFunction, Args) ->
                            Args).
 
 %% Report §7.3, §7.4: a fault with the cause CauseForm, raised where it is
-%% met as ern_rt:fault/1 raises it, by the host's throw, so that the
-%% host's stack, the fault's trace (Appendix E.21), holds the function
-%% that meets it where the fault is the last thing the function does.
-thrown_fault(CauseForm) ->
-    call_remote(erlang, throw, [erl_syntax:tuple([erl_syntax:atom(ern), erl_syntax:atom(fault),
-                                                  CauseForm])]).
+%% met, at Source, by a call of ern_rt:fault/1 in a `try` with an empty
+%% `after`, so that the host's stack, the fault's trace (Appendix E.21),
+%% holds the function that meets it and each caller beneath. The `try`
+%% keeps the call from being the function's last, which would lose that
+%% function's frame, and its value is the call's, of a type the host's
+%% compiler cannot know. The host's throw written in place, or a value of a
+%% type it knows after the call, would let it infer that a function whose
+%% every way out faults never returns, and make the call of it its
+%% caller's last, the caller's frame gone.
+raised(Source, CauseForm) ->
+    Call = at(Source, call_remote(ern_rt, fault, [CauseForm])),
+    at(Source, erl_syntax:try_expr([Call], [], [], [erl_syntax:atom(ok)])).
 
 %%
 %% The prelude, report §9
@@ -1865,8 +1871,8 @@ prelude_call(_, ['Address', callForever], _, ArgForms, Callee, Context) ->
     reply_call(call_forever, ArgForms, answer_of(Callee), Context);
 prelude_call(_, [restarting], _, ArgForms, _, Context) ->
     {call_remote(ern_rt, restarting, ArgForms), Context};
-prelude_call(_, [fault], _, [CauseForm], _, Context) ->
-    {thrown_fault(CauseForm), Context};
+prelude_call(Source, [fault], _, [CauseForm], _, Context) ->
+    {raised(Source, CauseForm), Context};
 prelude_call(_, ['Int', Operator], _, [LeftForm, RightForm], _, Context)
   when Operator =:= '+'; Operator =:= '-'; Operator =:= '*'; Operator =:= '/';
        Operator =:= '%' ->
@@ -2274,7 +2280,7 @@ check_form(Source, Type, Form, Cause, Context) ->
             {Form, Context};
         unit ->
             UnitForm = erl_syntax:atom('Unit'),
-            Fault = at(Source, thrown_fault(Text)),
+            Fault = raised(Source, Text),
             {erl_syntax:case_expr(Form, [erl_syntax:clause([UnitForm], none, [UnitForm]),
                                          erl_syntax:clause([erl_syntax:atom(ok)], none,
                                                            [UnitForm]),
@@ -2290,7 +2296,7 @@ check_form(Source, Type, Form, Cause, Context) ->
                                                        erl_syntax:float(0.0));
                         _ -> VariableForm
                     end,
-            Fault = at(Source, thrown_fault(Text)),
+            Fault = raised(Source, Text),
             {erl_syntax:case_expr(Form, [erl_syntax:clause([VariableForm], Test, [Value]),
                                          erl_syntax:clause([erl_syntax:underscore()], none,
                                                            [Fault])]), Context1};
@@ -2519,13 +2525,14 @@ described({applied, Reference, Args} = Type, Seen, {_, Abstract} = Scope, Contex
                     %% report §8.4, Appendix E.1: unchecked, as a type
                     %% variable is, and shown as `<foreign>`
                     foreign;
-                {_, {_, Constructors}} ->
+                {QualifiedName, {_, Constructors}} ->
                     Id = map_size(Seen) + 1,
-                    Sum = {con, [constructor_descriptor(Name, Fields,
-                                                        all_described(field_types(Fields, Args),
-                                                                      Seen#{Type => Id}, Scope,
-                                                                      Context))
-                                 || {Name, Fields} <- Constructors]},
+                    Sum = {con, ern_descriptor:constructor_namespace(QualifiedName),
+                           [constructor_descriptor(Name, Fields,
+                                                   all_described(field_types(Fields, Args),
+                                                                 Seen#{Type => Id}, Scope,
+                                                                 Context))
+                            || {Name, Fields} <- Constructors]},
                     Descriptor = case refers(Sum, Id) of
                                      true -> {mu, Id, Sum};
                                      false -> Sum

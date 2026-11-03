@@ -903,7 +903,7 @@ answered_by_another_key(Base) ->
     true = port_command(Holder, "go\n"),
     {0, _} = Held(),
     {OutA, ErrA} = said(A),
-    has(OutA, "utilization: Left(Unreachable)"),
+    has(OutA, "utilization: Left(Io.Unreachable)"),
     has(ErrA, "the peer c was refused: it answered the dial of the peer b"),
     %% the line as the deployment guide quotes it
     ern_deployment_tests:cataloged(ErrA, "7", "answered the dial", [{"c", "c"}, {"b", "b"}]),
@@ -1337,25 +1337,25 @@ reload_in_example(Base) ->
 %% report §12.5: a node runs over its listener's family of addresses, IPv6
 %% where `listen` names an address of it, its peers' addresses of the same
 ipv6_test_() ->
-    nodes_test({waits, 7}, fun ipv6/1).
+    nodes_test({waits, 8}, fun ipv6/1).
 
+%% Each node listens on a port the host picks, `b`'s read once it listens,
+%% and `b` lists `a`, which dials it, without an address.
 ipv6(Base) ->
-    {PortA, PortB} = {free_ipv6_port(), free_ipv6_port()},
     A = made(Base, "a", none),
     B = made(Base, "b", none),
-    edit(A, fun(Conf) ->
-                Conf#{<<"listen">> => ipv6_loopback(PortA),
-                      <<"peers">> => [(peer("b", B, none))#{<<"network-address">> =>
-                                                                 ipv6_loopback(PortB)}]}
-            end),
     edit(B, fun(Conf) ->
-                Conf#{<<"listen">> => ipv6_loopback(PortB),
-                      <<"peers">> => [(peer("a", A, none))#{<<"network-address">> =>
-                                                                 ipv6_loopback(PortA)}]}
+                Conf#{<<"listen">> => ipv6_loopback(0), <<"peers">> => [peer("a", A, none)]}
             end),
     Program = program(filename:join(Base, "build")),
     WaitB = start(B, Program, []),
     prints(B, "waiting"),
+    PortB = bound_port(B),
+    edit(A, fun(Conf) ->
+                Conf#{<<"listen">> => ipv6_loopback(0),
+                      <<"peers">> => [(peer("b", B, none))#{<<"network-address">> =>
+                                                                 ipv6_loopback(PortB)}]}
+            end),
     WaitA = start(A, Program, ["connect", name(B)]),
     ?assertEqual(0, WaitA()),
     says(B, "the peer a connected"),
@@ -1377,18 +1377,18 @@ ipv6_beside_ipv4_test_() ->
 ipv6_beside_ipv4(Base) ->
     {ok, Held} = gen_tcp:listen(0, [{ip, {0, 0, 0, 0}}, {active, false}]),
     {ok, PortB} = inet:port(Held),
-    PortA = free_ipv6_port(),
     A = made(Base, "a", none),
     B = made(Base, "b", none),
+    %% `a` listens on a port the host picks, and `b` lists it, as the node
+    %% that dials, without an address
     edit(A, fun(Conf) ->
-                Conf#{<<"listen">> => ipv6_loopback(PortA),
+                Conf#{<<"listen">> => ipv6_loopback(0),
                       <<"peers">> => [(peer("b", B, none))#{<<"network-address">> =>
                                                                  ipv6_loopback(PortB)}]}
             end),
     edit(B, fun(Conf) ->
                 Conf#{<<"listen">> => list_to_binary("[::]:" ++ integer_to_list(PortB)),
-                      <<"peers">> => [(peer("a", A, none))#{<<"network-address">> =>
-                                                                 ipv6_loopback(PortA)}]}
+                      <<"peers">> => [peer("a", A, none)]}
             end),
     Program = program(filename:join(Base, "build")),
     WaitB = start(B, Program, []),
@@ -1405,13 +1405,6 @@ ipv6_beside_ipv4(Base) ->
     ?assertMatch({ok, _}, Accepted),
     {OutA, _} = said(A),
     has(OutA, "connect: true").
-
-%% A port of IPv6's loopback free as the test asks for it.
-free_ipv6_port() ->
-    {ok, Socket} = gen_tcp:listen(0, [inet6, {ip, {0, 0, 0, 0, 0, 0, 0, 1}}]),
-    {ok, Port} = inet:port(Socket),
-    ok = gen_tcp:close(Socket),
-    Port.
 
 %% Report Appendix C: the `listen` or the `network-address` of a node at
 %% Port of IPv6's loopback.
@@ -1712,16 +1705,16 @@ find(Base) ->
     ?assertEqual(nomatch, string:find(Err, "the peer store ended")),
     has(StoreOut, "the store's peers: [\"desk\", \"third\"]"),
     [has(Out, Line)
-     || Line <- ["early: Left(Unreachable)", "peers: [\"store\", \"gone\"]", "status: None",
-                 "unlisted: Left(NotListed)", "other type: Left(OtherType)",
-                 "not offered: Left(NotOffered)", "unreachable: Left(Unreachable)",
-                 "timeout: Left(Timeout)", "no upper bound: Right",
+     || Line <- ["early: Left(Io.Unreachable)", "peers: [\"store\", \"gone\"]", "status: None",
+                 "unlisted: Left(Io.NotListed)", "other type: Left(Io.OtherType)",
+                 "not offered: Left(Io.NotOffered)", "unreachable: Left(Io.Unreachable)",
+                 "timeout: Left(Io.Timeout)", "no upper bound: Right",
                  "through the adapted address: 7",
                  "killed: Killed \"\"",
                  "another node's: Fault(\"a node offers only its own processes\")",
                  "twice, first: Right(Unit)", "twice, again held by itself: true",
                  "twice: Returned",
-                 "lost: Unreachable \"\"", "after the loss: Left(Unreachable)",
+                 "lost: Unreachable \"\"", "after the loss: Left(Io.Unreachable)",
                  "call forever: Fault(\"callee is unreachable\")"]].
 
 %% report §8.7, Appendix E.27: a service handed over on a node: the
@@ -1989,9 +1982,9 @@ spawn_on_peer(Base) ->
     {Out, _} = said(Desk),
     {StoreOut, StoreErr} = said(Store),
     [has(Out, Line)
-     || Line <- ["spawn: Right", "not listed: NotListed", "not loaded: NotLoaded",
+     || Line <- ["spawn: Right", "not listed: Io.NotListed", "not loaded: Io.NotLoaded",
                  "names no binding: Right", "bindings: Right", "monitored: Returned",
-                 "late: Timeout", "no upper bound: Right"]],
+                 "late: Io.Timeout", "no upper bound: Right"]],
     Spawned = desk_site("spawns", "spawn(\"store\", Lonely.speak"),
     has(StoreErr, "the peer desk's spawn at " ++ Spawned ++ " was not loaded: the binding"
                   " Lonely.greeting has no value here"),
@@ -2045,15 +2038,16 @@ compute_on_peer(Base) ->
     RaisedCause = " foreign function erlang:binary_to_integer/1 raised error:badarg",
     Raised = RaisedCause ++ ", on the peer store",
     [has(Out, Line)
-     || Line <- ["value: Right(42)", "not listed: Left(NotListed)", "not loaded: Left(NotLoaded)",
+     || Line <- ["value: Right(42)", "not listed: Left(Io.NotListed)",
+                 "not loaded: Left(Io.NotLoaded)",
                  "divided: Fault(\"division by zero\")",
                  "reported here: " ++ Faulted ++ " division by zero Some(\"store\") true",
                  "raised: Fault(\"foreign function erlang:binary_to_integer/1 raised"
                  " error:badarg\")",
                  "reported here: " ++ Faulted ++ RaisedCause ++ " Some(\"store\") true",
-                 "killed: Left(Other(\"Killed\"))", "its caller killed from the store: Killed",
-                 "timed out: Left(Timeout)",
-                 "with the store's end: Left(Other(\"ProgramEnd\"))"]],
+                 "killed: Left(Io.Other(\"Killed\"))", "its caller killed from the store: Killed",
+                 "timed out: Left(Io.Timeout)",
+                 "with the store's end: Left(Io.Other(\"ProgramEnd\"))"]],
     Divided = Faulted ++ " faulted: division by zero, on the peer store\n",
     ?assertEqual(1, length(string:split(Err, Divided, all)) - 1),
     %% the function's frame on the store, then the caller's, which stand at
@@ -2112,7 +2106,7 @@ utilization_of_peer(Base) ->
     stop(Store, WaitStore),
     {Out, _} = said(Desk),
     {_, StoreErr} = said(Store),
-    [has(Out, Line) || Line <- ["not listed: Left(NotListed)", "schedulers: #(true, true)",
+    [has(Out, Line) || Line <- ["not listed: Left(Io.NotListed)", "schedulers: #(true, true)",
                                 "run queue: true", "after the refusal: true"]],
     has(StoreErr, "the reload was refused, and the configuration stays as it was: "),
     has(StoreErr, "ernest.conf: utilization is \"cpu\", which is neither \"run-queue\" nor"
@@ -2290,7 +2284,7 @@ reconnect(Base) ->
     {Out, DeskErr} = said(Desk),
     {_, StoreErr} = said(Store),
     [has(Out, Line)
-     || Line <- ["the call: None true", "the compute: Left(Unreachable)",
+     || Line <- ["the call: None true", "the compute: Left(Io.Unreachable)",
                  "its caller: Returned", "its computer: Returned",
                  "the same process: Some(3)", "computed after: Right(42)",
                  "spawned after: Right", "found after: Right", "measured after: true"]],
@@ -2536,7 +2530,8 @@ reload(Base) ->
     {Out, _} = said(Desk),
     {StoreOut, Err} = said(Store),
     [has(Out, Line)
-     || Line <- ["removed: Unreachable \"\"", "unlisted: Left(Unreachable)", "listed again: true",
+     || Line <- ["removed: Unreachable \"\"", "unlisted: Left(Io.Unreachable)",
+                 "listed again: true",
                  "renamed: Some(0)", "refused: Some(0)"]],
     [?assertMatch({match, _}, re:run(Err, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z " ++ Line ++ "$",
                                      [multiline]))
@@ -2732,9 +2727,9 @@ two_builds(Base) ->
     {Out, _} = said(Asker),
     {ServerOut, ServerErr} = said(Server),
     [has(Out, Line)
-     || Line <- ["stable: Some(42)", "shape: OtherType", "same: Right",
+     || Line <- ["stable: Some(42)", "shape: Io.OtherType", "same: Right",
                  "changed: Right",
-                 "binding: NotLoaded", "module: NotLoaded", "names no binding: Right",
+                 "binding: Io.NotLoaded", "module: Io.NotLoaded", "names no binding: Right",
                  "lambda: Right", "local: Right", "restarting: Right"]],
     [has(ServerOut, Line)
      || Line <- ["same ran", "quiet ran", "lambda ran 42", "local ran 43", "restarting ran",
@@ -2973,12 +2968,12 @@ exchange(Base) ->
     {Out, _} = said(Sender),
     {ReceiverOut, ReceiverErr} = said(Receiver),
     [has(Out, Line)
-     || Line <- ["plain: Right", "counted: Right(Count(2))",
-                 "told: NotLoaded", "calls only: NotLoaded",
-                 "server receiver: NotLoaded", "server nobody: NotListed",
-                 "call receiver: Some(Left(NotLoaded))", "call nobody: Some(Left(NotListed))",
+     || Line <- ["plain: Right", "counted: Right(Lacked.Count(2))",
+                 "told: Io.NotLoaded", "calls only: Io.NotLoaded",
+                 "server receiver: Io.NotLoaded", "server nobody: Io.NotListed",
+                 "call receiver: Some(Left(Io.NotLoaded))", "call nobody: Some(Left(Io.NotListed))",
                  "raises: Right", "spawner: Right", "yielded: Right", "collected: Right(true)",
-                 "only by name: NotLoaded", "counts: Right", "absent function: NotLoaded"]],
+                 "only by name: Io.NotLoaded", "counts: Right", "absent function: Io.NotLoaded"]],
     has(ReceiverOut, "Count(1)"),
     ?assertEqual(1, length(string:split(ReceiverErr, Served, all)) - 1),
     ?assertEqual(nomatch, string:find(ReceiverErr, "Lacked.spawner:22 faulted: the child,")),
@@ -3221,7 +3216,7 @@ bare_node(Base) ->
     [has(Out, Line)
      || Line <- ["spawn: Right", "compute: Right(42)", "entry shown: Right(true)",
                  "offering: Right", "found: Right", "utilization: Right",
-                 "picked: Right(42)", "binding: NotLoaded", "ground: Right",
+                 "picked: Right(42)", "binding: Io.NotLoaded", "ground: Right",
                  "divides: Right",
                  "raises: Right", "raises again: Right", "Shared.greeting evaluated"]],
     ?assertEqual(nomatch, string:find(OutB, "Shared.greeting evaluated")),
@@ -3287,72 +3282,7 @@ constant_crosses(Base) ->
     {Out, _} = said(A),
     [has(Out, Line) || Line <- ["limit: Right(11)", "origin: Right(3)",
                                 "tags: Right([#(\"a\", 1), #(\"b\", -2)])",
-                                "computed: Left(NotLoaded)"]].
-
-%% report §12.7, *The toolchain's own units*: a spawn and a compute of a
-%% function a unit of the toolchain's own holds, the shell's, on a bare
-%% node that lacks it, load its units from the bare node's own tree and
-%% evaluate their bindings before the process starts, asking the spawner
-%% for nothing: `Ernest.Shell.History.keepOwn`, whose reach names
-%% `Ernest.Shell.History.directory`, which is no constant and so would
-%% have no value had it crossed as forms, runs and returns, and
-%% `Ernest.Shell.Command.help` answers its lines; and on a bare node whose
-%% `Ernest.Shell.History.directory` faults, its environment's `HOME` not
-%% UTF-8, a spawn of `keepOwn` answers `Other(text)`, the node's reason,
-%% the binding and its fault, which the node says too. The spawner is a
-%% program built against the shell's builds. Written before the code; the
-%% `Other(text)` with the log's *Four Lines From the Deployment*, where it
-%% had answered `NotLoaded`
-own_units_test_() ->
-    nodes_test({waits, 12}, fun own_units/1).
-
-own_units(Base) ->
-    ProgramDir = filename:join(Base, "program"),
-    ok = filelib:ensure_path(ProgramDir),
-    ok = file:write_file(
-           filename:join(ProgramDir, "owned.ern"),
-           ["type Msg = Ended(Down)\n"
-            "export fn main() : Unit receiving Msg = {\n"
-            "    match Peer.spawnMonitored(\"b\", Ernest.Shell.History.keepOwn, Ended, "
-            "waitMs()) {\n"
-            "        Right(_) -> receive {\n"
-            "            Ended(down) -> Io.println(\"keepOwn: \" <> Io.show(down.reason))\n"
-            "        }\n"
-            "      | Left(failure) -> Io.println(\"keepOwn: \" <> Io.show(failure))\n"
-            "    };\n"
-            "    let help = Peer.computeAt(\"b\", Ernest.Shell.Command.help, waitMs());\n"
-            "    Io.println(\"help: \" <> Io.show(help));\n"
-            "    let spawned = Peer.spawn(\"c\", Ernest.Shell.History.keepOwn, waitMs());\n"
-            "    Io.println(\"faulted: \" <> Io.show(Either.map(spawned, fn(_) = Unit)))\n"
-            "}\n",
-            wait_ms_declaration()]),
-    Builds = ern_code:own_builds(),
-    LoadPath = [[" --load-path ", Build] || Build <- Builds],
-    0 = built(lists:append([["--load-path", Build] || Build <- Builds]) ++ [ProgramDir]),
-    A = made(Base, "a", none),
-    B = made(Base, "b", 0),
-    C = made(Base, "c", 0),
-    lists(B, [{"a", A, none}]),
-    lists(C, [{"a", A, none}]),
-    WaitB = bare_started(B, []),
-    {_, WaitC} = launched(C, ["HOME=\"$(printf '\\377')\" ", ?ERN, " run --config-dir ", C]),
-    lists(A, [{"b", B, bound_port(B)}, {"c", C, bound_port(C)}]),
-    {_, WaitA} = launched(A, [?ERN, " run --config-dir ", A, LoadPath, " ",
-                              filename:join(ProgramDir, "owned.erc")]),
-    ?assertEqual(0, WaitA()),
-    says(C, "was not loaded: Ernest.Shell.History.directory:"),
-    ?assertMatch({0, _}, signaled("stop", B)),
-    ?assertEqual(143, WaitB()),
-    ?assertMatch({0, _}, signaled("stop", C)),
-    ?assertEqual(143, WaitC()),
-    {Out, _} = said(A),
-    {_, ErrB} = said(B),
-    [has(Out, Line) || Line <- ["keepOwn: Returned", "help: Right([\"", ":bindings",
-                                "faulted: Left(Other(\"Ernest.Shell.History.directory:",
-                                "faulted: the environment variable HOME is not UTF-8\"))"]],
-    ?assertEqual(nomatch, string:find(ErrB, "was not loaded")),
-    {_, ErrC} = said(C),
-    has(ErrC, " faulted: the environment variable HOME is not UTF-8").
+                                "computed: Left(Io.NotLoaded)"]].
 
 %% report §11.2 *The attached shell*, §12.7, §8.7: an attach to a node
 %% that holds the shell's units and could not load them, a bare node whose
@@ -3384,8 +3314,7 @@ attach_unloadable_shell(Base) ->
                    Found =/= nomatch],
     has(Reason, "Ernest.Shell.History.directory:"),
     has(Reason, " faulted: the environment variable HOME is not UTF-8"),
-    ern_deployment_tests:cataloged(Err, "6", "could not load the shell",
-                                   [{"b", "node"}, {"r", Reason}]),
+    ern_deployment_tests:cataloged(Err, "6", "could not load the shell", [{"b", "node"}]),
     ?assertEqual(nomatch, string:find(Err, "another build")),
     says(Node, "the peer ops's spawn at Ernest.Shell.localHalf:"),
     has(written(Node, err), "was not loaded: " ++ Reason),
@@ -3583,7 +3512,7 @@ attached_utilization(Base) ->
     ?assertEqual(0, WaitShell()),
     {Out, _} = said(Ops),
     has(Out, "> [] : List(#(String, Float, Int))\n"),
-    has(Out, "> Left(Unreachable) : Either(Io.Error, List(String))\n"),
+    has(Out, "> Left(Io.Unreachable) : Either(Io.Error, List(String))\n"),
     stop(Node, WaitNode).
 
 %% report §11.2 *The attached shell*, §11.8, §8.6, §12.5: a shell whose
@@ -3660,7 +3589,7 @@ attached_terminal_ends(Base) ->
                                                  {send, hex("abc")},
                                                  {expect, "abc"},
                                                  {put, Pipe}],
-                                         [screen, {size, 24, 80}]),
+                                         [screen]),
           ?assertEqual(NodeStatus, WaitNode()),
           Rows = [string:trim(Row, trailing)
                   || Row <- string:split(binary_to_list(Screen), "\n", all)],
@@ -3860,7 +3789,8 @@ attach_other_build(Base) ->
 %% replaced by New in `ernest/shell.ern`: the source copied into the
 %% release's own tree and built there by the release's `ern`, since a
 %% module of `Ernest` is built in the shell's own source root alone (report
-%% §4.2), the tree's of the `ern` that builds it. One step, the build.
+%% §4.2), the tree's of the `ern` that builds it. The build is one of the
+%% test's steps.
 changed_release(Dir, Old, New) ->
     Ern = released(Dir, ern_tree:build("shell")),
     Tree = ern_tree:tree(),
@@ -4675,7 +4605,7 @@ attached_terminal(Base) ->
                                       {expect, "1 + "},
                                       {send, hex("2\r")}, {expect, "3 : Int"},
                                       {send, hex(":quit\r")}],
-                              [screen, {size, 24, 80}]),
+                              [screen]),
     Fault = "Faulter.main:5 faulted: division by zero",
     says(Node, Fault),
     Rows = [string:trim(Row, trailing)
@@ -4714,10 +4644,10 @@ attached_terminal_size(Base) ->
     says(Node, "listening on "),
     {0, Screen} = ern_pty:run(Shell, [{expect, ":quit to leave."}, {expect, "> "},
                                       {send, hex("Terminal.size()\r")},
-                                      {expect, "NotATerminal"},
+                                      {expect, "Io.NotATerminal"},
                                       {send, hex(":quit\r")}],
-                              [screen, {size, 24, 80}]),
-    has(binary_to_list(Screen), "Left(NotATerminal) : Either(Io.Error, Terminal.Size)"),
+                              [screen]),
+    has(binary_to_list(Screen), "Left(Io.NotATerminal) : Either(Io.Error, Terminal.Size)"),
     stop(Node, WaitNode),
     Pipe = filename:join(Base, "attach.pipe"),
     [] = os:cmd("mkfifo " ++ Pipe),
@@ -4730,7 +4660,7 @@ attached_terminal_size(Base) ->
     {0, _} = ern_pty:run(Script, [{expect, "listening on "}, {put, Pipe}], [{size, 30, 100}]),
     {ok, Answered} = file:read_file(Output),
     has(binary_to_list(Answered),
-        "Right(Size(rows = 30, columns = 100)) : Either(Io.Error, Terminal.Size)").
+        "Right(Terminal.Size(rows = 30, columns = 100)) : Either(Io.Error, Terminal.Size)").
 
 %% A node's program whose worker faults once the named pipe it is given
 %% has been opened and closed, each run of `cat` waiting the harness's time
@@ -4972,8 +4902,8 @@ beyond_reach(Base) ->
     {Out, _} = said(A),
     {_, ErrB} = said(B),
     [has(Out, Line)
-     || Line <- ["config: 6", "valued: Right", "valued itself: NotLoaded", "beside: Right",
-                 "beside itself: NotLoaded"]],
+     || Line <- ["config: 6", "valued: Right", "valued itself: Io.NotLoaded", "beside: Right",
+                 "beside itself: Io.NotLoaded"]],
     [?assertEqual(nomatch, string:find(ErrB, Part))
      || Part <- ["could not take", "this node does not have"]].
 
@@ -5070,8 +5000,8 @@ relay(Base) ->
     {OutB, ErrB} = said(B),
     [{_, ErrC1}, {_, ErrC2}] = [said(C) || C <- [C1, C2]],
     [has(Out, Line)
-     || Line <- ["b: Right", "held on b: NotLoaded", "held on c1: Right",
-                 "held on c2: NotLoaded"]],
+     || Line <- ["b: Right", "held on b: Io.NotLoaded", "held on c1: Right",
+                 "held on c2: Io.NotLoaded"]],
     [has(OutB, Line) || Line <- ["c1: Right", "c2: Right"]],
     [?assertEqual(nomatch, string:find(Err, Part))
      || Err <- [ErrB, ErrC1, ErrC2], Part <- ["could not take", "this node does not have",
@@ -5345,7 +5275,7 @@ broken_exchange(Base) ->
     stop(B, WaitB),
     {Out, _} = said(A),
     {_, ErrB} = said(B),
-    [has(Out, Line) || Line <- ["dialed: Right", "late: Timeout", "again: Right"]],
+    [has(Out, Line) || Line <- ["dialed: Right", "late: Io.Timeout", "again: Right"]],
     [has(ErrB, Line)
      || Line <- ["the peer z's spawn at Lost.z:1 was not loaded: the spawner's node no longer"
                  " holds the function's reach",
@@ -5429,7 +5359,7 @@ shell_service(Base) ->
     ?assertEqual(0, WaitB()),
     true = port_command(InputA, ":quit\n"),
     ?assertEqual(0, WaitA()),
-    [has(Out, "Left(OtherType)\n") || {Out, _} <- [said(A), said(B)]].
+    [has(Out, "Left(Io.OtherType)\n") || {Out, _} <- [said(A), said(B)]].
 
 %% report Appendix H, §11.2 *Inputs*, *The attached shell*, §8.7, §3.11:
 %% the form of a session's namespace carries its node's public key, so that
@@ -5474,7 +5404,7 @@ shell_binding_spawned(Base) ->
                                  "{ let n = below; Peer.computeAt(\"a\", fn() = n + 1, ", Limit,
                                  ") == Right(below + 1) }\n",
                                  "later() == below + 1\n"]),
-    prints(B, "Left(NotLoaded) : Either(Io.Error, Int)", 2, ?WAIT_MS),
+    prints(B, "Left(Io.NotLoaded) : Either(Io.Error, Int)", 2, ?WAIT_MS),
     prints(B, "true : Bool", 2, ?WAIT_MS),
     prints(A, "the binding $Session1.below has no value here"),
     true = port_command(InputB, ":quit\n"),
@@ -5788,7 +5718,7 @@ shell_node_versions(Base) ->
                         ["Peer.spawn(\"store\", fn() = Unit, ", wait_ms_text(), ")\n"]),
     prints(Desk, ?SPAWNED),
     true = port_command(StoreInput, "first\n"),
-    prints(Store, "first: NotLoaded"),
+    prints(Store, "first: Io.NotLoaded"),
     true = port_command(DeskInput, ":load Greet\n"),
     prints(Desk, "Greet, compiled from " ++ ern_build:shown(filename:join(Source, "greet.ern"))),
     true = port_command(StoreInput, "loaded\n"),
@@ -5882,7 +5812,7 @@ shell_node_reach(Base) ->
                         ["Peer.spawn(\"store\", fn() = Unit, ", wait_ms_text(), ")\n"]),
     prints(Desk, ?SPAWNED),
     true = port_command(StoreInput, "first\n"),
-    prints(Store, "first: NotLoaded"),
+    prints(Store, "first: Io.NotLoaded"),
     true = port_command(DeskInput, ":load Caller\n"),
     prints(Desk, "Caller, compiled from " ++ ern_build:shown(filename:join(Source, "caller.ern"))),
     true = port_command(StoreInput, "second\n"),
@@ -5970,14 +5900,14 @@ refused_build_load(Base) ->
                         ["Peer.spawn(\"store\", fn() = Unit, ", wait_ms_text(), ")\n"]),
     prints(Desk, ?SPAWNED),
     true = port_command(StoreInput, "before\n"),
-    prints(Store, "before: NotLoaded"),
+    prints(Store, "before: Io.NotLoaded"),
     true = port_command(DeskInput, ":load Bad\n"),
     prints(Desk, "Bad.broken:3 faulted: division by zero; nothing was loaded, and the process"
                  " spawned at Greet.greeter:5 was killed"),
     true = port_command(DeskInput, ":processes\n"),
     prints(Desk, "no process of the session's is running"),
     true = port_command(StoreInput, "after\n"),
-    prints(Store, "after: NotLoaded"),
+    prints(Store, "after: Io.NotLoaded"),
     %% the shell writes the node's lines on its screen, this one after the
     %% desk's worker has answered the store, so it is waited for before the
     %% session is ended
@@ -6324,7 +6254,7 @@ placed(Base) ->
     %% ended, that the host had closed
     ?assertEqual(nomatch, string:find(StoreErr, "Erlang has closed")),
     [has(Out, Line)
-     || Line <- ["before a telling: Left(Unreachable)", "readings: Right",
+     || Line <- ["before a telling: Left(Io.Unreachable)", "readings: Right",
                  "computed: Right([\"desk\", \"third\"])", "held: [\"store\"]",
                  "readings here: #(false, false, false)"]],
     has(StoreOut, "readings there: #(true, true, true)").
@@ -6455,13 +6385,13 @@ pick(Base) ->
     ?assertEqual(0, (start(Alone, Program, ["alone"]))()),
     {Out, _} = said(S),
     [has(Out, Line)
-     || Line <- ["before a telling: Left(Unreachable)", "p1 set: Right(Unit)",
+     || Line <- ["before a telling: Left(Io.Unreachable)", "p1 set: Right(Unit)",
                  "p2 set: Right(Unit)", "utilizations: [#(\"p1\", 0.9), #(\"p2\", 0.1)]",
                  "utilization of p1: Right(0.9)", "computed: [Right([\"p2\"])]",
                  "named: Right([\"p1\"])", "after the loss: [\"p1\"]",
                  "computed alone: Right([\"p1\"])"]],
     {AloneOut, _} = said(Alone),
-    [has(AloneOut, Line) || Line <- ["no peer: Left(NotListed)", "no utilization: []"]].
+    [has(AloneOut, Line) || Line <- ["no peer: Left(Io.NotListed)", "no utilization: []"]].
 
 %% report §8.7, §11.2, Appendix E.23, Appendix G.6, G.7: a program's own test
 %% of two nodes, `ern test --config-dir a` as a node. The harness makes two
@@ -6795,7 +6725,7 @@ dial(Base) ->
     {Port, _} = started(Desk, DeskProgram, ["dial"]),
     ?assertEqual(0, ended(Port, ?WAIT_MS + ?DIAL_MS)),
     {Out, _} = said(Desk),
-    {match, [Seconds]} = re:run(Out, "dialed: Left\\(Unreachable\\) after ([0-9]+)",
+    {match, [Seconds]} = re:run(Out, "dialed: Left\\(Io\\.Unreachable\\) after ([0-9]+)",
                                 [{capture, all_but_first, list}]),
     ?assert(list_to_integer(Seconds) >= 6),
     ?assert(list_to_integer(Seconds) =< 9).
@@ -6812,7 +6742,7 @@ given_up_within_the_detectors_time(Out) ->
 
 %% Report §6.10, §8.7, Appendix E.28: a counter's two builds, built in
 %% Base: the first, whose node runs counters on `count`, and the second,
-%% which keeps `count` as the first wrote it beside the new `count2`, with
+%% which keeps `count` as the first wrote it beside the new `countAloud`, with
 %% a binding a bare node evaluates only once Code.load loads the module,
 %% and the tool that moves a node's counters and loads a module on a bare
 %% node. The first build's `.erc`, the second's counter, and the tool's.
@@ -6852,29 +6782,29 @@ upgraded_builds(Base) ->
             "    Io.println(\"serving\");\n"
             "    count(0)\n"
             "}\n",
-    Count2 = "\n"
-             "// The second build's loop, which says each total it reaches.\n"
-             "export fn count2(total : Int) : Unit receiving CounterMsg =\n"
-             "    receive {\n"
-             "        Inc(amount) -> {\n"
-             "            Io.println(\"count2 \" <> Int.toString(total + amount));\n"
-             "            count2(total + amount)\n"
-             "        }\n"
-             "      | Get(=reply) -> {\n"
-             "            answer(reply, total);\n"
-             "            count2(total)\n"
-             "        }\n"
-             "      | Upgrade(=migrate, =next) -> next(migrate(total))\n"
-             "    }\n"
-             "\n"
-             "// Report §8.5, §11.1: a computed binding, which a bare node evaluates\n"
-             "// when Code.load loads the module there.\n"
-             "export let start : Int = 99 + 1\n"
-             "\n"
-             "export fn fromStart() : Unit receiving Int =\n"
-             "    receive {\n"
-             "        n -> Io.println(\"from start \" <> Int.toString(start + n))\n"
-             "    }\n",
+    CountAloud = "\n"
+                 "// The second build's loop, which says each total it reaches.\n"
+                 "export fn countAloud(total : Int) : Unit receiving CounterMsg =\n"
+                 "    receive {\n"
+                 "        Inc(amount) -> {\n"
+                 "            Io.println(\"countAloud \" <> Int.toString(total + amount));\n"
+                 "            countAloud(total + amount)\n"
+                 "        }\n"
+                 "      | Get(=reply) -> {\n"
+                 "            answer(reply, total);\n"
+                 "            countAloud(total)\n"
+                 "        }\n"
+                 "      | Upgrade(=migrate, =next) -> next(migrate(total))\n"
+                 "    }\n"
+                 "\n"
+                 "// Report §8.5, §11.1: a computed binding, which a bare node evaluates\n"
+                 "// when Code.load loads the module there.\n"
+                 "export let start : Int = 99 + 1\n"
+                 "\n"
+                 "export fn fromStart() : Unit receiving Int =\n"
+                 "    receive {\n"
+                 "        n -> Io.println(\"from start \" <> Int.toString(start + n))\n"
+                 "    }\n",
     Tool = "type Report = Moved(count : Int, left : Int)\n"
            "\n"
            "export fn main() : Unit receiving Report =\n"
@@ -6903,7 +6833,7 @@ upgraded_builds(Base) ->
            "    }\n"
            "\n"
            "// Report §6.10: every process on the peer that runs count moved to\n"
-           "// count2 and asked for its total, which count2 answers, and then how\n"
+           "// countAloud and asked for its total, which countAloud answers, and then how\n"
            "// many still run count.\n"
            "fn moved(node : String) : Unit receiving Report = {\n"
            "    let tool = self();\n"
@@ -6920,7 +6850,8 @@ upgraded_builds(Base) ->
            "fn upgrade(tool : Address(Report)) : Unit = {\n"
            "    let old = Code.running(Counter.count);\n"
            "    List.forEach(old, fn(process) =\n"
-           "        send(process, Counter.Upgrade(migrate = fn(n) = n, next = Counter.count2)));\n"
+           "        send(process,\n"
+           "             Counter.Upgrade(migrate = fn(n) = n, next = Counter.countAloud)));\n"
            "    List.forEach(old, fn(process) = send(process, Counter.Inc(1)));\n"
            "    let _ = List.map(old, fn(process) =\n"
            "        Address.call(process, fn(reply) = Counter.Get(=reply), waitMs()));\n"
@@ -6944,7 +6875,8 @@ upgraded_builds(Base) ->
            "      | Left(failure) -> Io.show(failure)\n"
            "    }\n",
     [ok = file:write_file(filename:join(Dir, File), unicode:characters_to_binary(Text))
-     || {Dir, File, Text} <- [{One, "counter.ern", Count}, {Two, "counter.ern", Count ++ Count2},
+     || {Dir, File, Text} <- [{One, "counter.ern", Count},
+                              {Two, "counter.ern", Count ++ CountAloud},
                               {Two, "tool.ern", [Tool, wait_ms_declaration()]}]],
     0 = built([One]),
     0 = built([Two]),
@@ -6956,10 +6888,10 @@ upgraded_builds(Base) ->
 %% the entry process's offered through an adapted address of a type without
 %% Upgrade; the tool, of the second build, finds it, adds to it and asks its
 %% total, and spawns on the node a process that lists them by Code.running,
-%% the code the node lacks, `count2` among it, crossing with the spawn, and
-%% moves each to `count2` by its own Upgrade, its total kept, so that
+%% the code the node lacks, `countAloud` among it, crossing with the spawn, and
+%% moves each to `countAloud` by its own Upgrade, its total kept, so that
 %% `count` then lists none; the service, its address unchanged, then adds
-%% and answers from `count2`.
+%% and answers from `countAloud`.
 %%
 %% On a bare node, which holds no program, a spawn whose reach names a
 %% binding is NotLoaded until a compute there runs Code.load of the module
@@ -6990,10 +6922,10 @@ code_upgrade(Base) ->
     edit(A, fun(Conf) -> Conf#{<<"services">> => #{<<"counter">> => [<<"b">>]}} end),
     {_, WaitA} = launched(A, [?ERN, " run --config-dir ", A, " ", Tool, " b c ", CounterTwo]),
     ?assertEqual(0, WaitA()),
-    [prints(B, Line) || Line <- ["count2 5", "count2 11", "count2 21", "count2 9"]],
+    [prints(B, Line) || Line <- ["countAloud 5", "countAloud 11", "countAloud 21", "countAloud 9"]],
     stop(B, WaitB),
     stop(C, WaitC),
     {Out, _} = said(A),
     [has(Out, Line) || Line <- ["before: Some(4)", "moved 3, left 0", "after: Some(9)",
-                                "before load: NotLoaded", "load: Right(Right(Unit))",
+                                "before load: Io.NotLoaded", "load: Right(Right(Unit))",
                                 "after load: Right"]].

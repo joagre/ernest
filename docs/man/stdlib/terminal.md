@@ -51,7 +51,7 @@ The terminal's window, in rows and columns, as the terminal reports it.
 
 ```ernest
 Terminal.Size(rows = 24, columns = 80)
-// => Size(rows = 24, columns = 80)
+// => Terminal.Size(rows = 24, columns = 80)
 ```
 
 ## Terminal.Event

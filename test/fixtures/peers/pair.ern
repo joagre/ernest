@@ -46,7 +46,8 @@ let twoNodes =
 // another type.
 let twoBuilds =
     Test.Case(name = "a second node of another build, started with Os, offers at another type",
-              run = fn() = Test.equal(withSecondNode("second-build"), Right(#("OtherType", 143))))
+              run = fn() =
+                  Test.equal(withSecondNode("second-build"), Right(#("Io.OtherType", 143))))
 
 // Appendix G.7: a proxy for the service, where the second node
 // offers it at another type, faults at the first message, which finds the

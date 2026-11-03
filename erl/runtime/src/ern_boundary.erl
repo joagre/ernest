@@ -47,7 +47,8 @@
                     | {address, descriptor(), binary()} | {reply, descriptor(), binary()}
                     | {'fun', non_neg_integer(), descriptor(), ern_descriptor:named_cause(), fun(),
                        fun()}
-                    | {con, [{atom(), [descriptor()]} | {atom(), [descriptor()], [atom()]}]}
+                    | {con, binary() | none,
+                       [{atom(), [descriptor()]} | {atom(), [descriptor()], [atom()]}]}
                     | {mu, pos_integer(), descriptor()} | {abstract, descriptor()}.
 
 %% Report §12.3: an exception foreign function HostModule:HostFunction/Arity
@@ -222,7 +223,7 @@ arm({tuple, ElementDescriptors}, Value, Bound) ->
                           <- lists:zip(ElementDescriptors, tuple_to_list(Value))]);
 arm({map, _, ValueDescriptor}, Value, Bound) ->
     maps:map(fun(_, Item) -> arm(ValueDescriptor, Item, Bound) end, Value);
-arm({con, Constructors}, Value, Bound) when is_tuple(Value) ->
+arm({con, _, Constructors}, Value, Bound) when is_tuple(Value) ->
     [Tag | Fields] = tuple_to_list(Value),
     Descriptors = constructor_fields(Tag, Constructors),
     list_to_tuple([Tag | [arm(FieldDescriptor, Item, Bound)
@@ -262,7 +263,7 @@ zero({map, KeyDescriptor, ValueDescriptor}, Value, Bound) when is_map(Value) ->
 zero({set, ElementDescriptor}, {set, Members}, Bound) when is_map(Members) ->
     {set, maps:from_list([{zero(ElementDescriptor, Item, Bound), []}
                           || Item <- maps:keys(Members)])};
-zero({con, Constructors}, Value, Bound) when is_tuple(Value), tuple_size(Value) > 1 ->
+zero({con, _, Constructors}, Value, Bound) when is_tuple(Value), tuple_size(Value) > 1 ->
     [Tag | Fields] = tuple_to_list(Value),
     case constructor_fields(Tag, Constructors) of
         Descriptors when is_list(Descriptors), length(Descriptors) =:= length(Fields) ->
@@ -336,9 +337,9 @@ matches({set, ElementDescriptor}, {set, Members}, Bound) ->
                                       end, true, Members);
 matches({set, _}, _, _) ->
     false;
-matches({con, Constructors}, Value, _) when is_atom(Value) ->
+matches({con, _, Constructors}, Value, _) when is_atom(Value) ->
     constructor_fields(Value, Constructors) =:= [];
-matches({con, Constructors}, Value, Bound)
+matches({con, _, Constructors}, Value, Bound)
   when is_tuple(Value), tuple_size(Value) > 1, is_atom(element(1, Value)) ->
     [Tag | Fields] = tuple_to_list(Value),
     case constructor_fields(Tag, Constructors) of
@@ -347,7 +348,7 @@ matches({con, Constructors}, Value, Bound)
         _ ->
             false
     end;
-matches({con, _}, _, _) -> false;
+matches({con, _, _}, _, _) -> false;
 matches({abstract, Descriptor}, Value, Bound) -> matches(Descriptor, Value, Bound);
 matches({mu, Id, Descriptor}, Value, Bound) -> matches(Descriptor, Value, Bound#{Id => Descriptor});
 matches({ref, Id}, Value, Bound) -> matches(maps:get(Id, Bound), Value, Bound).
@@ -405,7 +406,7 @@ expose({tuple, ElementDescriptors}, Value, Bound)
                           <- lists:zip(ElementDescriptors, tuple_to_list(Value))]);
 expose({map, _, ValueDescriptor}, Value, Bound) when is_map(Value) ->
     maps:map(fun(_, Item) -> expose(ValueDescriptor, Item, Bound) end, Value);
-expose({con, Constructors}, Value, Bound) when is_tuple(Value), tuple_size(Value) > 1 ->
+expose({con, _, Constructors}, Value, Bound) when is_tuple(Value), tuple_size(Value) > 1 ->
     [Tag | Fields] = tuple_to_list(Value),
     case constructor_fields(Tag, Constructors) of
         Descriptors when is_list(Descriptors), length(Descriptors) =:= length(Fields) ->

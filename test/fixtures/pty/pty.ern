@@ -6,11 +6,11 @@
 // for test/ern_pty.erl, which runs it (report §12.1, Appendix E.23):
 //
 //     ern run build/pty/pty.erc --timeout MS [--size ROWSxCOLUMNS] [--screen]
-//         [--steps FILE] -- COMMAND
+//         [--step STEP]... -- COMMAND
 //
 // COMMAND runs as `/bin/sh -c COMMAND`, under `Os.startTerminal` of the
-// size, 24x80 where none is given. FILE holds one step a line, run in
-// order, a blank line and one that begins with `#` skipped:
+// size, 24x80 where none is given. Each STEP is one argument, the steps
+// run in the order given:
 //
 //     expect:TEXT   wait until TEXT shows, after what the previous expect
 //                   matched; a color sequence, ESC [ ... m, is no part of
@@ -44,11 +44,7 @@
 type Step = Expect(Bytes) | Send(Bytes) | Resize(Terminal.Size) | Put(String)
 
 type Options =
-    Options(ms : Optional(Int),
-            size : Terminal.Size,
-            screen : Bool,
-            steps : Optional(String),
-            command : List(String))
+    Options(size : Terminal.Size, screen : Bool, steps : List(Step), command : List(String))
 
 // What the harness is told: by the reader, a piece the program wrote, its
 // exit status, or a read the runtime refused; by a put, whether it opened
@@ -74,6 +70,11 @@ type Run =
 // A step taken, met or not, with the run as the step left it.
 type Stepped = Met(Run) | Unmet(Run)
 
+// A control sequence's parameters as its bytes begin with them, the digits
+// and `;`s: the first two read as numbers, each None where it is not
+// written, and the bytes after them all.
+type Parameters = Parameters(first : Optional(Int), second : Optional(Int), rest : Bytes)
+
 // A screen as the writes leave it: its size; the characters written, each
 // line's by its column, the lines by their number from the first the
 // screen showed, its top row showing the line `top`; and the cursor's row
@@ -82,40 +83,45 @@ type Grid =
     Grid(size : Terminal.Size, cells : Map(Int, Map(Int, Char)), top : Int, row : Int, column : Int)
 
 export fn main() : Unit receiving HarnessMsg =
-    match parsed(Os.arguments, defaults) {
-        Some(Options(ms = Some(ms)) as options) -> drive(options, ms, stepsIn(options.steps, ms))
-      | _ -> fail(usage)
+    match parsed(Os.arguments, None, defaults) {
+        Some(#(ms, options)) -> drive(options, ms)
+      | None -> fail(usage)
     }
 
 let defaults =
-    Options(ms = None,
-            size = Terminal.Size(rows = 24, columns = 80),
-            screen = false,
-            steps = None,
-            command = [])
+    Options(size = Terminal.Size(rows = 24, columns = 80), screen = false, steps = [], command = [])
 
 let usage =
-    "usage: ern run pty.erc --timeout MS [--size ROWSxCOLUMNS] [--screen] [--steps FILE] -- COMMAND"
+    "usage: ern run pty.erc --timeout MS [--size ROWSxCOLUMNS] [--screen] [--step STEP]..."
+        <> " -- COMMAND, a STEP expect:TEXT, send:HEX, resize:RxC or put:PATH"
 
-// The options the command line gives, the words after `--` the command;
-// None for a command line that is no harness's. The caller gives each wait
+// The milliseconds of one wait, which `--timeout` gives, and the options
+// the rest of the command line gives, the steps in the order given and the
+// words after `--` the command; None for a command line that is no
+// harness's, one without `--timeout` among them. The caller gives each wait
 // its time, which the harness does not choose.
-fn parsed(arguments : List(String), options : Options) : Optional(Options) =
+fn parsed(arguments : List(String),
+          timeout : Optional(Int),
+          options : Options) : Optional(#(Int, Options)) =
     match arguments {
         "--timeout" :: text :: rest -> {
             let ms <- String.toInt(text);
-            parsed(rest, Options(..options, ms = Some(ms)))
+            parsed(rest, Some(ms), options)
         }
       | "--size" :: text :: rest -> {
             let size <- sizeOf(text);
-            parsed(rest, Options(..options, =size))
+            parsed(rest, timeout, Options(..options, =size))
         }
       | "--screen" :: rest ->
-            parsed(rest, Options(..options, screen = true))
-      | "--steps" :: file :: rest ->
-            parsed(rest, Options(..options, steps = Some(file)))
-      | "--" :: command ->
-            Some(Options(..options, =command))
+            parsed(rest, timeout, Options(..options, screen = true))
+      | "--step" :: text :: rest -> {
+            let step <- stepOf(text);
+            parsed(rest, timeout, Options(..options, steps = options.steps <> [step]))
+        }
+      | "--" :: command -> {
+            let ms <- timeout;
+            Some(#(ms, Options(..options, =command)))
+        }
       | _ ->
             None
     }
@@ -128,39 +134,9 @@ fn sizeOf(text : String) : Optional(Terminal.Size) = {
     Some(Terminal.Size(=rows, =columns))
 }
 
-// The steps the file holds, none where no file is named. A file that
-// cannot be read, and a line that is no step, end the harness.
-fn stepsIn(file : Optional(String), ms : Int) : List(Step) =
-    match file {
-        None ->
-            []
-      | Some(path) ->
-            match Fs.read(Path(path), ms) {
-                Left(error) ->
-                    fail("the steps cannot be read: " <> Io.show(error))
-              | Right(bytes) ->
-                    match String.fromUtf8(bytes) {
-                        Some(text) -> stepsOf(text)
-                      | None -> fail("the steps are not UTF-8")
-                    }
-            }
-    }
-
-fn stepsOf(text : String) : List(Step) =
-    String.lines(text) |> List.filter(isStep) |> List.map(stepOf)
-
-// A line that is a step's: neither blank nor beginning with `#`.
-fn isStep(line : String) : Bool =
-    !String.isEmpty(String.trim(line)) && !String.startsWith(line, "#")
-
-fn stepOf(line : String) : Step =
-    match parsedStep(line) {
-        Some(step) -> step
-      | None -> fail("a step is expect:TEXT, send:HEX, resize:RxC or put:PATH: " <> line)
-    }
-
-fn parsedStep(line : String) : Optional(Step) =
-    match String.splitOnce(line, ":") {
+// The step an argument names, its kind, `:` and what it takes.
+fn stepOf(argument : String) : Optional(Step) =
+    match String.splitOnce(argument, ":") {
         Some(#("expect", text)) -> Some(Expect(String.toUtf8(text)))
       | Some(#("send", hex)) -> Optional.map(Bytes.fromHex(hex), Send)
       | Some(#("resize", size)) -> Optional.map(sizeOf(size), Resize)
@@ -184,7 +160,7 @@ fn fail(text : String) : a = {
 // has not exited within the wait is killed, and with it the processes
 // still in its process group, the reader first, whose read would fault on
 // the killed program.
-fn drive(options : Options, ms : Int, steps : List(Step)) : Unit receiving HarnessMsg = {
+fn drive(options : Options, ms : Int) : Unit receiving HarnessMsg = {
     let command =
         Os.Command(program = "/bin/sh",
                    arguments = ["-c", String.join(options.command, " ")],
@@ -197,8 +173,8 @@ fn drive(options : Options, ms : Int, steps : List(Step)) : Unit receiving Harne
             let reader = spawn(fn() = forward(program, harness, ms));
             let screen = Screen(seen = <<>>, plain = <<>>, partial = <<>>, cursor = 0);
             let run = Run(=program, =ms, deadline = Clock.monotonic() + ms, =screen, status = None);
-            let #(run, unmet) = stepped(run, steps);
-            let run = ended(run);
+            let #(run, unmet) = takeSteps(run, options.steps);
+            let run = awaitEnd(run);
             let status = match run.status {
                 Some(status) ->
                     Int.toString(status)
@@ -234,21 +210,21 @@ fn forward(program : Address(Os.ProgramMsg), harness : Address(HarnessMsg), ms :
 // The steps taken in order until one is not met, the program has ended,
 // or the wait in progress has; the run as they left it, and the steps
 // left.
-fn stepped(run : Run, steps : List(Step)) : #(Run, List(Step)) receiving HarnessMsg =
+fn takeSteps(run : Run, steps : List(Step)) : #(Run, List(Step)) receiving HarnessMsg =
     match steps {
         step :: rest when Optional.isNone(run.status) && remaining(run) > 0 ->
-            match taken(run, step) {
-                Met(run) -> stepped(run, rest)
+            match take(run, step) {
+                Met(run) -> takeSteps(run, rest)
               | Unmet(run) -> #(run, steps)
             }
       | _ ->
             #(run, steps)
     }
 
-fn taken(run : Run, step : Step) : Stepped receiving HarnessMsg =
+fn take(run : Run, step : Step) : Stepped receiving HarnessMsg =
     match step {
         Expect(text) ->
-            expected(run, text)
+            awaitText(run, text)
       | Send(bytes) ->
             match Os.write(run.program, bytes, remaining(run)) {
                 Right(_) -> Met(run)
@@ -262,20 +238,20 @@ fn taken(run : Run, step : Step) : Stepped receiving HarnessMsg =
       | Put(path) -> {
             let harness = self();
             let ms = remaining(run);
-            opened(run, spawn(fn() = openPipe(path, harness, ms)))
+            awaitPut(run, spawn(fn() = openPipe(path, harness, ms)))
         }
     }
 
 // An expect: the text found after the cursor, which moves past it, and the
 // next wait begun; until then each piece the program writes is taken,
 // until the program has ended or the wait has.
-fn expected(run : Run, text : Bytes) : Stepped receiving HarnessMsg =
+fn awaitText(run : Run, text : Bytes) : Stepped receiving HarnessMsg =
     match found(run.screen, text) {
         Some(screen) ->
             Met(Run(..run, =screen, deadline = Clock.monotonic() + run.ms))
       | None ->
             receive {
-                Wrote(bytes) -> expected(Run(..run, screen = shown(run.screen, bytes)), text)
+                Wrote(bytes) -> awaitText(Run(..run, screen = shown(run.screen, bytes)), text)
               | Ended(status) -> Unmet(Run(..run, status = Some(status)))
               | Unread(error) -> failRead(error)
               | after remaining(run) -> Unmet(run)
@@ -285,14 +261,14 @@ fn expected(run : Run, text : Bytes) : Stepped receiving HarnessMsg =
 // A put: the answer of its process, each piece the program writes taken
 // meanwhile; the process is killed, and its `sh` with it, where the
 // program ends or the wait does first.
-fn opened(run : Run, putter : Address(Never)) : Stepped receiving HarnessMsg =
+fn awaitPut(run : Run, putter : Address(Never)) : Stepped receiving HarnessMsg =
     receive {
         Opened ->
             Met(run)
       | Unopened ->
             Unmet(run)
       | Wrote(bytes) ->
-            opened(Run(..run, screen = shown(run.screen, bytes)), putter)
+            awaitPut(Run(..run, screen = shown(run.screen, bytes)), putter)
       | Ended(status) -> {
             kill(putter);
             Unmet(Run(..run, status = Some(status)))
@@ -321,22 +297,23 @@ fn openPipe(path : String, harness : Address(HarnessMsg), ms : Int) : Unit = {
 
 // The program's end: each piece it writes taken until it has exited, or
 // the wait in progress has ended.
-fn ended(run : Run) : Run receiving HarnessMsg =
+fn awaitEnd(run : Run) : Run receiving HarnessMsg =
     match run.status {
         Some(_) ->
             run
       | None ->
             receive {
-                Wrote(bytes) -> ended(Run(..run, screen = shown(run.screen, bytes)))
+                Wrote(bytes) -> awaitEnd(Run(..run, screen = shown(run.screen, bytes)))
               | Ended(status) -> Run(..run, status = Some(status))
               | Unread(error) -> failRead(error)
               | after remaining(run) -> run
             }
     }
 
-// The milliseconds left of the wait in progress.
+// The milliseconds left of the wait in progress, below 0 once it has
+// passed, which a wait takes as none (report §7.4).
 fn remaining(run : Run) : Int =
-    Int.max(0, run.deadline - Clock.monotonic())
+    run.deadline - Clock.monotonic()
 
 fn failRead(error : Io.Error) : a =
     fail("the program cannot be read: " <> Io.show(error))
@@ -365,7 +342,7 @@ fn kindOf(step : Step) : String =
 // The text a reader sees
 //
 
-let escape = <<0x1B>>
+let escape = <<'\u{1B}':utf8>>
 
 // The screen with the bytes shown: every byte seen, and the text a reader
 // sees, a sequence the bytes end inside held until the next piece.
@@ -388,7 +365,7 @@ fn cutAt(chunk : Bytes) : Int =
 
 fn isCut(sequence : Bytes) : Bool =
     match sequence {
-        <<'[':utf8, parameters:bytes>> -> Bytes.isEmpty(afterParameters(parameters))
+        <<'[':utf8, control:bytes>> -> Bytes.isEmpty(parametersOf(control).rest)
       | _ -> Bytes.isEmpty(sequence)
     }
 
@@ -404,8 +381,8 @@ fn uncolored(text : Bytes) : Bytes =
 // both where the part begins the rest of a color sequence.
 fn colorless(part : Bytes) : Bytes =
     match part {
-        <<'[':utf8, sequence:bytes>> ->
-            match afterParameters(sequence) {
+        <<'[':utf8, control:bytes>> ->
+            match parametersOf(control).rest {
                 <<'m':utf8, text:bytes>> -> text
               | _ -> escape <> part
             }
@@ -413,15 +390,31 @@ fn colorless(part : Bytes) : Bytes =
             escape <> part
     }
 
-// What follows the parameters the bytes begin with, the digits and `;`s
-// of a control sequence.
-fn afterParameters(bytes : Bytes) : Bytes =
+// The parameters a control sequence's bytes begin with, the one reader of
+// both the text a reader sees and the screen.
+fn parametersOf(bytes : Bytes) : Parameters = {
+    let size = parametersSize(bytes);
+    let numbers = Bytes.split(Bytes.slice(bytes, 0, size), <<';':utf8>>) |> List.map(numberOf);
+    let #(first, second) = match numbers {
+        first :: second :: _ -> #(first, second)
+      | [first] -> #(first, None)
+      | [] -> #(None, None)
+    };
+    Parameters(=first, =second, rest = Bytes.slice(bytes, size, Bytes.size(bytes)))
+}
+
+// How many bytes the parameters take, digits and `;`s.
+fn parametersSize(bytes : Bytes) : Int =
     match bytes {
         <<char:utf8, rest:bytes>> when Char.isAsciiDigit(char) || char == ';' ->
-            afterParameters(rest)
+            1 + parametersSize(rest)
       | _ ->
-            bytes
+            0
     }
+
+// A parameter's digits as a number, None where none is written.
+fn numberOf(digits : Bytes) : Optional(Int) =
+    Optional.andThen(String.fromUtf8(digits), String.toInt)
 
 // The screen with its cursor past the text's first occurrence after the
 // cursor; None where the text has not shown there yet.
@@ -441,66 +434,53 @@ fn found(screen : Screen, text : Bytes) : Optional(Screen) = {
 // on a pane. A byte that begins no UTF-8 character shows as U+FFFD.
 fn rendered(bytes : Bytes, size : Terminal.Size) : String = {
     let blank = Grid(=size, cells = Map.empty, top = 0, row = 0, column = 0);
-    let grid = painted(blank, characters(bytes, []));
+    let grid = painted(blank, bytes);
     List.range(0, size.rows - 1) |> List.map(fn(row) = rowText(grid, row)) |> String.join("\n")
 }
-
-fn characters(bytes : Bytes, acc : List(Char)) : List(Char) =
-    match bytes {
-        <<char:utf8, rest:bytes>> -> characters(rest, char :: acc)
-      | <<_, rest:bytes>> -> characters(rest, '\u{FFFD}' :: acc)
-      | _ -> List.reverse(acc)
-    }
 
 // The text's characters played onto the screen: a carriage return moves
 // the cursor to the row's first column, a line feed a row down, an escape
 // begins a sequence, and any other character is written.
-fn painted(grid : Grid, text : List(Char)) : Grid =
+fn painted(grid : Grid, text : Bytes) : Grid =
     match text {
-        [] ->
-            grid
-      | '\u{1B}' :: sequence -> {
+        <<'\u{1B}':utf8, sequence:bytes>> -> {
             let #(grid, rest) = escaped(grid, sequence);
             painted(grid, rest)
         }
-      | '\r' :: rest ->
+      | <<'\r':utf8, rest:bytes>> ->
             painted(Grid(..grid, column = 0), rest)
-      | '\n' :: rest ->
+      | <<'\n':utf8, rest:bytes>> ->
             painted(lineFed(grid), rest)
-      | char :: rest ->
+      | <<char:utf8, rest:bytes>> ->
             painted(written(grid, char), rest)
+      | <<_, rest:bytes>> ->
+            painted(written(grid, '\u{FFFD}'), rest)
+      | _ ->
+            grid
     }
 
 // What the sequence after an escape does to the screen, and the text
-// after it: a private mode, `[?`, digits and `h` or `l`, shows nothing; a
-// control sequence, `[`, a number, `;` and a number, each optional, and a
-// letter, moves the cursor or erases; and any other escape is dropped
-// alone.
-fn escaped(grid : Grid, text : List(Char)) : #(Grid, List(Char)) =
-    match text {
-        '[' :: '?' :: mode ->
-            match List.span(mode, Char.isAsciiDigit) {
-                #(_ :: _, 'h' :: rest) or #(_ :: _, 'l' :: rest) -> #(grid, rest)
-              | _ -> #(grid, text)
+// after it: a private mode, `[?`, parameters and `h` or `l`, shows
+// nothing; a control sequence, `[`, parameters and a letter, moves the
+// cursor or erases; and any other escape is dropped alone.
+fn escaped(grid : Grid, sequence : Bytes) : #(Grid, Bytes) =
+    match sequence {
+        <<'[':utf8, '?':utf8, mode:bytes>> ->
+            match parametersOf(mode).rest {
+                <<'h':utf8, rest:bytes>> or <<'l':utf8, rest:bytes>> -> #(grid, rest)
+              | _ -> #(grid, sequence)
             }
-      | '[' :: sequence ->
-            controlled(grid, sequence, text)
+      | <<'[':utf8, control:bytes>> ->
+            controlled(grid, parametersOf(control), sequence)
       | _ ->
-            #(grid, text)
+            #(grid, sequence)
     }
 
-fn controlled(grid : Grid, sequence : List(Char), text : List(Char)) : #(Grid, List(Char)) = {
-    let #(first, afterFirst) = List.span(sequence, Char.isAsciiDigit);
-    let afterSemicolon = match afterFirst {
-        ';' :: rest -> rest
-      | _ -> afterFirst
-    };
-    let #(second, afterSecond) = List.span(afterSemicolon, Char.isAsciiDigit);
-    match afterSecond {
-        final :: rest when isLetter(final) -> #(moved(grid, first, second, final), rest)
-      | _ -> #(grid, text)
+fn controlled(grid : Grid, parameters : Parameters, sequence : Bytes) : #(Grid, Bytes) =
+    match parameters.rest {
+        <<final:utf8, rest:bytes>> when isLetter(final) -> #(moved(grid, parameters, final), rest)
+      | _ -> #(grid, sequence)
     }
-}
 
 fn isLetter(char : Char) : Bool =
     char >= 'A' && char <= 'Z' || char >= 'a' && char <= 'z'
@@ -509,24 +489,23 @@ fn isLetter(char : Char) : Bool =
 // row and a column counted from 1, `A`, `B`, `C` and `D` move it up, down,
 // right and left within the screen, `K` erases the row from the cursor,
 // and `J` the screen from the cursor, or with a number other than 0 the
-// whole screen, the cursor going home. A number not written is 1.
-fn moved(grid : Grid, first : List(Char), second : List(Char), final : Char) : Grid = {
-    let count = parameter(first);
+// whole screen, the cursor going home. A number not written is 1, and 0
+// for `J`.
+fn moved(grid : Grid, parameters : Parameters, final : Char) : Grid = {
+    let count = Optional.withDefault(parameters.first, 1);
+    let column = Optional.withDefault(parameters.second, 1);
     match final {
-        'H' -> Grid(..grid, row = count - 1, column = parameter(second) - 1)
+        'H' -> Grid(..grid, row = count - 1, column = column - 1)
       | 'A' -> Grid(..grid, row = Int.max(0, grid.row - count))
       | 'B' -> Grid(..grid, row = Int.min(grid.size.rows - 1, grid.row + count))
       | 'C' -> Grid(..grid, column = Int.min(grid.size.columns - 1, grid.column + count))
       | 'D' -> Grid(..grid, column = Int.max(0, grid.column - count))
       | 'K' -> rowErased(grid)
-      | 'J' when first == [] || first == ['0'] -> belowErased(rowErased(grid))
+      | 'J' when Optional.withDefault(parameters.first, 0) == 0 -> belowErased(rowErased(grid))
       | 'J' -> Grid(..grid, cells = Map.empty, row = 0, column = 0)
       | _ -> grid
     }
 }
-
-fn parameter(digits : List(Char)) : Int =
-    Optional.withDefault(String.toInt(String.fromList(digits)), 1)
 
 // The cursor's row erased from the cursor to its end.
 fn rowErased(grid : Grid) : Grid =

@@ -123,7 +123,7 @@ foreign_type_listed() ->
                  {expect, "type Int"},
                  {send, "03"},
                  {send, "04"}],
-                [{size, 60, 90}]),
+                {60, 90}),
     ?assertEqual(nomatch, binary:match(Bytes, <<"foreign type Int">>)).
 
 %% report §11.2, §2.3: inside a call of a function whose name begins with
@@ -142,7 +142,7 @@ underscore_signature() ->
                  {expect, "_twice(n : Int) : Int"},
                  {send, "03"},
                  {send, "04"}],
-                [{size, 60, 90}]),
+                {60, 90}),
     ?assertMatch({_, _}, binary:match(Bytes, <<"_twice(n : Int) : Int">>)).
 
 %% report §11.2, Appendix E.0 shape rule 6: the brief of a declaration without a
@@ -181,7 +181,7 @@ brief_module_version() ->
                  {expect, "    Shape.quoted() : Int"},
                  {send, "03"},
                  {send, "04"}],
-                [{size, 60, 90}]),
+                {60, 90}),
     ?assertMatch({_, _}, binary:match(Bytes, <<"Orders points by their x.\r\nSince 0.4.0.">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"in its text.\r\nSince 0.4.0.">>)),
     [_, Page] = binary:split(Bytes, <<"    Shape.quoted() : Int">>),
@@ -268,7 +268,7 @@ program() ->
                      {send, hex("Address.call(c, Counter.Get, 1000)\r")},
                      {expect, "Some(7) : Optional(Int)"},
                      {send, hex(":browse Counter\r")},
-                     {expect, "Counter.start() : Address(Counter.Msg)\n"},
+                     {expect, "Counter.start() : Address(Counter.Msg)"},
                      {send, hex("spawn(fn() = Counter.boom())\r")},
                      {expect, "$Session1.input 5:1 faulted: division by zero"},
                      {send, hex(":processes\r")},
@@ -749,7 +749,7 @@ shared_namespace() ->
                  {expect, "Main.Stack.push :"},
                  {send, "03"},
                  {send, "04"}],
-                [{size, 30, 100}]),
+                {30, 100}),
     ?assertEqual(nomatch, binary:match(Bytes, <<"Main.Stack.compare">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"Main.Stack.push : (Main.Stack, Int)">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"Main.Stack.size : (Main.Stack) -> Int">>)).
@@ -1106,7 +1106,7 @@ expected_fault_not_reported() ->
     InputFile = filename:join(Dir, "session.in"),
     ok = file:write_file(InputFile, "Test.faults(fn() = 1 / 0, \"division by zero\")\n:faults\n"),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
-    ?assertMatch({_, _}, binary:match(Output, <<"> Passed : Test.Result\n"
+    ?assertMatch({_, _}, binary:match(Output, <<"> Test.Passed : Test.Result\n"
                                                 "> no process has faulted\n">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"faulted:">>)).
 
@@ -1270,10 +1270,10 @@ reader_and_screen_ends() ->
                                     {expect, "stop : "},
                                     {send, hex(Processes)},
                                     {expect, "processes : "},
-                                    {send, hex(Ending("Ernest.Shell.keysRead"))},
+                                    {send, hex(Ending("Ernest.Shell.startReader"))},
                                     {expect, "stopped reading the keyboard"}],
                                    [{size, 30, 120}]),
-    ?assertMatch({_, _}, binary:match(ReaderEnded, <<"Ernest.Shell.keysRead">>)),
+    ?assertMatch({_, _}, binary:match(ReaderEnded, <<"Ernest.Shell.startReader">>)),
     {70, ScreenEnded} = ern_pty:run(alone("../bin/ern shell"),
                                     [{expect, "> "},
                                      {send, hex(Stop)},
@@ -1619,7 +1619,7 @@ completion() ->
     %% without it
     ?assertEqual(nomatch, binary:match(Text, <<"List.filterMap :">>)),
     %% it was painted under the line, the candidates with their types
-    Bytes = pty(alone("../bin/ern shell"), Steps, [{size, 16, 74}]),
+    Bytes = pty(alone("../bin/ern shell"), Steps, {16, 74}),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> List.filter\r\nList.filter : (List(a)">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nList.filterMap : (List(a)">>)).
 
@@ -1642,7 +1642,7 @@ field_of_two_types() ->
              {expect, "42 : Int"},
              {expect, "> "},
              {send, "04"}],
-    Bytes = pty(alone("../bin/ern shell"), Steps, [{size, 16, 74}]),
+    Bytes = pty(alone("../bin/ern shell"), Steps, {16, 74}),
     ?assertMatch({_, _}, binary:match(Bytes, <<"t.n">>)),
     ?assertEqual(nomatch, binary:match(Bytes, <<"t.x">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"42 : Int">>)).
@@ -1671,7 +1671,7 @@ field_completion() ->
              {send, "03"},
              {expect, "> "},
              {send, "04"}],
-    Bytes = pty(alone("../bin/ern shell"), Steps, [{size, 16, 74}]),
+    Bytes = pty(alone("../bin/ern shell"), Steps, {16, 74}),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\"a\" : String">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"q.p.count : Int">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"q.p.name : String">>)).
@@ -1694,7 +1694,7 @@ path_completion() ->
              {send, "03"},
              {expect, "> "},
              {send, "04"}],
-    Bytes = pty(alone("../bin/ern shell"), Steps, [{size, 16, 74}]),
+    Bytes = pty(alone("../bin/ern shell"), Steps, {16, 74}),
     ?assertMatch({_, _}, binary:match(Bytes, <<"indexed : Int">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"hits : Int">>)).
 
@@ -1713,7 +1713,7 @@ listing_at_once() ->
                  {expect, " more"},
                  {send, "03"},
                  {send, "04"}],
-                [{size, 8, 80}]),
+                {8, 80}),
     %% under the line, cut to the eight rows with the count last
     ?assertMatch({_, _}, binary:match(Bytes, <<"> :\r\n:bindings ">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nand 7 more">>)).
@@ -1752,7 +1752,7 @@ shift_tab() ->
                  {expect, ":processes      the live processes"},
                  {send, "03"},
                  {send, "04"}],
-                [{size, 60, 90}]),
+                {60, 90}),
     %% the brief under the line: the declaration, the sentence, the version
     ?assertMatch({_, _}, binary:match(Bytes, <<"> List.map\r\nList.map(list : List(a),"
                                                " f : (a) -> b receiving e) :"
@@ -1788,7 +1788,7 @@ load_completion_of_two_words() ->
                  {expect, "KvParser.Lexer"},
                  {send, "03"},
                  {send, "04"}],
-                [{size, 30, 80}]),
+                {30, 80}),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> :load KvParser.Lexer">>)).
 
 %% report §11.2: a command that takes an argument, completed whole, is
@@ -1865,7 +1865,7 @@ command_argument() ->
                  {expect, "> :output x"},
                  {send, "03"},
                  {send, "04"}],
-                [{size, 30, 80}]),
+                {30, 80}),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> :bindings\r\n:bindings       what the session"
                                                " declares, with their types">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> :browse \r\n:browse Module  the exports">>)),
@@ -1957,7 +1957,7 @@ tab_mid_row() ->
                  {send, hex("[1], fn(n) = n)\r")},
                  {expect, "[1] : List(Int)"},
                  {send, "04"}],
-                [{size, 50, 80}]),
+                {50, 80}),
     ?assertEqual(nomatch, binary:match(Bytes, <<"List.map(    ">>)),
     ?assertEqual(nomatch, binary:match(Bytes, <<"ArrowDown">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"module Bool\r\nmodule Bytes\r\n">>)),
@@ -1984,7 +1984,7 @@ session_constructors_listed() ->
                  {expect, "module Bool"},
                  {send, "03"},
                  {send, "04"}],
-                [{size, 40, 80}]),
+                {40, 80}),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nHeads : Coin">>)).
 
 %% report §11.2: after `:forget`, what completes is a name the session
@@ -2006,7 +2006,7 @@ forget_completion() ->
                  {expect, "bra"},
                  {send, "03"},
                  {send, "04"}],
-                [{size, 60, 100}]),
+                {60, 100}),
     ?assertEqual(2, ern_pty:count(Bytes, <<"zebra : Int">>)).
 
 %% report §11.2, §5.6: a constructor's fields complete with their types in
@@ -2032,7 +2032,7 @@ completion_fields() ->
          {expect, "Point(x = a, yval"},
          {send, "03"},
          {send, "04"}],
-        [{size, 60, 100}]).
+        {60, 100}).
 
 %% report §11.2: a constructor that alone completes what is typed is
 %% listed with its type, as a value is. A regression test for a finding of
@@ -2047,7 +2047,7 @@ completion_lone_constructor() ->
          {expect, "Some : (a) -> Optional(a)"},
          {send, "03"},
          {send, "04"}],
-        [{size, 60, 100}]).
+        {60, 100}).
 
 %% report §11.2: a name `:forget` removed no longer completes. A regression
 %% test for a finding of the shell's review: it was offered after
@@ -2073,7 +2073,7 @@ completion_after_forget() ->
                  {expect, "zz!"},
                  {send, "03"},
                  {send, "04"}],
-                [{size, 60, 100}]),
+                {60, 100}),
     ?assertEqual(1, ern_pty:count(Bytes, <<"zz : Int">>)).
 
 %% report §11.2: an input's module, which no program names, is not
@@ -2091,7 +2091,7 @@ completion_no_input_module() ->
                  {expect, "1 + Int"},
                  {send, "03"},
                  {send, "04"}],
-                [{size, 60, 100}]),
+                {60, 100}),
     ?assertEqual(nomatch, binary:match(Bytes, <<"Input">>)).
 
 %% report §11.2, §4.8: an operator member, used infix, is not offered after
@@ -2106,7 +2106,7 @@ completion_no_operator() ->
                  {expect, "String.toUpper"},
                  {send, "03"},
                  {send, "04"}],
-                [{size, 60, 100}]),
+                {60, 100}),
     ?assertEqual(nomatch, binary:match(Bytes, <<"String.<>">>)).
 
 %% report §11.2: a line wider than the screen wraps onto the rows below it
@@ -2725,8 +2725,7 @@ bracket_shown() ->
                  {expect, "\e[3C"},
                  {expect, "\e[6C"},
                  {send, "03"},
-                 {send, "04"}],
-                [{size, 24, 80}]),
+                 {send, "04"}]),
     %% the prompt and `f` are three columns, so the `(` is the fourth
     {Shown, _} = binary:match(Bytes, <<"> f(x)\r\e[3C">>),
     {Back, _} = binary:match(Bytes, <<"> f(x)\r\e[6C">>),
@@ -3977,7 +3976,7 @@ session_names() ->
                                      Receiving, ":processes\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"> 1 : Int\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"> Passed : Test.Result\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> Test.Passed : Test.Result\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"$Session1.input 5:1 receiving\n"
                                               "$Session1.start:1 receiving\n">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"Input">>)).
@@ -4108,7 +4107,7 @@ node_shell() ->
                  <<"Greet, compiled again\n> \"hello\" : String\n">>,
                  <<"help: :load Other puts it in scope">>,
                  <<"[] : List(String)">>,
-                 <<"Left(NotListed) : Either(Io.Error, Address(Never))">>,
+                 <<"Left(Io.NotListed) : Either(Io.Error, Address(Never))">>,
                  <<"service : Peer.Service(T)\n">>,
                  <<"boxed : Peer.Service(List(Optional(T)))\n">>,
                  <<"plain : Peer.Service(List(Int))">>]],
@@ -5607,20 +5606,24 @@ startup_file(File, Text) ->
 hex(Text) ->
     lists:flatten([io_lib:format("~2.16.0b", [Char]) || Char <- Text]).
 
+%% What the terminal was sent, as a reader sees it: the sequences that only
+%% color the text are left out. `raw/2` keeps them, for a test of the
+%% color itself. The terminal is the harness's size, 24 rows and 80
+%% columns, where no size is given, and a size is {Rows, Columns}, as
+%% screen/3 takes it.
 pty(Command, Steps) ->
-    pty(Command, Steps, []).
+    uncolored(raw(Command, Steps, [])).
+
+pty(Command, Steps, {Rows, Columns}) ->
+    uncolored(raw(Command, Steps, [{size, Rows, Columns}])).
 
 %% The screen of Rows and Columns as a reader sees it, rather than every
 %% write: a shell that paints its panes writes a line many times over.
 screen(Command, Steps, {Rows, Columns}) ->
-    pty(Command, Steps, [screen, {size, Rows, Columns}]).
+    raw(Command, Steps, [screen, {size, Rows, Columns}]).
 
-%% What the terminal was sent, as a reader sees it: the sequences that only
-%% color the text are left out. `raw/2` keeps them, for a test of the
-%% color itself.
-pty(Command, Steps, Options) ->
-    re:replace(raw(Command, Steps, Options), "\e\\[[0-9;]*m", "",
-               [global, {return, binary}]).
+uncolored(Bytes) ->
+    re:replace(Bytes, "\e\\[[0-9;]*m", "", [global, {return, binary}]).
 
 raw(Command, Steps) ->
     raw(Command, Steps, []).

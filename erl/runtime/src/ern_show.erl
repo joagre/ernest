@@ -61,7 +61,7 @@ by_type({abstract, _}, _, _, _) -> "<abstract>";
 by_type({mu, Id, Descriptor}, Value, Bound, Limits) ->
     by_type(Descriptor, Value, Bound#{Id => Descriptor}, Limits);
 by_type({ref, Id}, Value, Bound, Limits) -> by_type(maps:get(Id, Bound), Value, Bound, Limits);
-by_type({con, _}, Value, _, _) when is_atom(Value) -> atom_to_list(Value);
+by_type({con, Namespace, _}, Value, _, _) when is_atom(Value) -> constructor(Namespace, Value);
 by_type(_, _, _, #limits{depth = 0}) -> "...";
 by_type({list, ElementDescriptor}, Value, Bound, Limits) ->
     Show = fun(Item) -> by_type(ElementDescriptor, Item, Bound, deeper(Limits)) end,
@@ -79,7 +79,7 @@ by_type({map, KeyDescriptor, ValueDescriptor}, Value, Bound, Limits) ->
 by_type({set, ElementDescriptor}, {set, Members}, Bound, Limits) ->
     Show = fun(Item) -> by_type(ElementDescriptor, Item, Bound, deeper(Limits)) end,
     ["Set.fromList([", join(parts(lists:sort(maps:keys(Members)), Limits, Show)), "])"];
-by_type({con, Constructors}, Value, Bound, Limits) when is_tuple(Value) ->
+by_type({con, Namespace, Constructors}, Value, Bound, Limits) when is_tuple(Value) ->
     [Tag | Fields] = tuple_to_list(Value),
     Parts = case lists:keyfind(Tag, 1, Constructors) of
                 {_, Descriptors} ->
@@ -90,7 +90,16 @@ by_type({con, Constructors}, Value, Bound, Limits) when is_tuple(Value) ->
                       by_type(FieldDescriptor, Item, Bound, deeper(Limits))]
                      || {Name, FieldDescriptor, Item} <- lists:zip3(Names, Descriptors, Fields)]
             end,
-    [atom_to_list(Tag), "(", join(Parts), ")"].
+    [constructor(Namespace, Tag), "(", join(Parts), ")"].
+
+%% Report Appendix E.1: a constructor as code outside its module writes it,
+%% under its module's namespace, `Io.Timeout`, the one form that reads back
+%% as the same constructor from any module, since a value shown has no
+%% module of its own to resolve a shorter name from; the prelude's, and a
+%% shell session's own, by its name alone, as the descriptor's none says
+%% (ern_descriptor).
+constructor(none, Tag) -> atom_to_list(Tag);
+constructor(Namespace, Tag) -> [Namespace, ".", atom_to_list(Tag)].
 
 %% Report Appendix E.1: an address by the process behind it, which grants
 %% nothing, and a process by the number the host gives it.

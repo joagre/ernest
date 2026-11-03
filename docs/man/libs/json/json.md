@@ -5,6 +5,10 @@
 JSON text, read into a value and written from one, as RFC 8259 defines
 it, by the host's `json` module.
 
+Use it where a program reads or writes JSON, a file of settings or what
+a web service sends: `parse` reads a text into a `Value`, and `format`
+writes a `Value` as text, laid out over lines.
+
 The library stands on every job's load path, so a program names it with
 no option (report Appendix G).
 
@@ -22,6 +26,12 @@ values. Where a text names a member twice, the last is kept, as
 order of their names' code points, an order of this library's, which the
 host's `json:format` leaves to its caller.
 
+**Errors.** A text that holds no value is an `Error`: the text ends
+inside its value, a byte stands where none may, or a sequence writes no
+character or a number the host cannot hold. A byte and a sequence carry
+their `Position`, the line and the column they begin at, counted as a
+diagnostic counts them (report §11.5).
+
 **Reading back.** `parse` reads what `format` writes as the value it was
 written from.
 
@@ -34,7 +44,7 @@ match Json.parse("{\"name\": \"desk\", \"port\": 4001}") {
     Right(Json.Object(members)) -> Map.get(members, "port")
   | _ -> None
 }
-// => Some(Integer(4001))
+// => Some(Json.Integer(4001))
 ```
 
 An object written:
@@ -44,6 +54,11 @@ Json.format(Json.Object(Map.fromList([#("port", Json.Integer(4001)),
                                       #("name", Json.Text("desk"))])))
 // => "{\n  \"name\": \"desk\",\n  \"port\": 4001\n}\n"
 ```
+
+## See also
+
+`Map` for an object's members, `String` for the text a value is read from
+and written to.
 
 ## Json.Value
 
@@ -64,8 +79,13 @@ an object.
 ### Examples
 
 ```ernest
-Json.parse("[null, true, 2, 2.5, \"x\", []]")
-// => Right(Array([Null, Boolean(true), Integer(2), Real(2.5), Text("x"), Array([])]))
+Json.parse("[null, true, 2]")
+// => Right(Json.Array([Json.Null, Json.Boolean(true), Json.Integer(2)]))
+```
+
+```ernest
+Json.parse("[2.5, \"x\", []]")
+// => Right(Json.Array([Json.Real(2.5), Json.Text("x"), Json.Array([])]))
 ```
 
 ## Json.Position
@@ -84,7 +104,7 @@ column a code point.
 
 ```ernest
 Json.parse("{\n  \"é\": x\n}")
-// => Left(UnexpectedByte(byte = 120, at = Position(line = 2, column = 8)))
+// => Left(Json.UnexpectedByte(byte = 120, at = Json.Position(line = 2, column = 8)))
 ```
 
 ## Json.Error
@@ -93,24 +113,39 @@ Json.parse("{\n  \"é\": x\n}")
 type Error =
     UnexpectedEnd
   | UnexpectedByte(byte : Int, at : Position)
-  | UnexpectedSequence(bytes : Bytes, at : Position)
+  | UnexpectedSequence(text : String, at : Position)
 ```
 
 Why a text holds no JSON value, as the host's `json` finds it, and where.
 `UnexpectedEnd` is a text that ends inside its value or holds none.
 `UnexpectedByte` is a byte that cannot stand where it is, the first of
-its character's, a second value, a comma before a closing bracket, or a
-character no value begins with, and its position. `UnexpectedSequence`
-is an escape that writes no character, a surrogate's escape without its
-pair's among them, or a number the host cannot hold, an integer too long
-or a real larger than a `Float` can hold, in the host's spelling of it,
-and its position.
+its character's, a second value, a comma before a closing bracket, a
+character no value begins with, or the first that differs from the
+`true`, `false` or `null` it breaks off, and its position.
+
+`UnexpectedSequence` is an escape that writes no character, a
+surrogate's escape without its pair's and one broken off before its four
+digits among them, or a number the host cannot hold, an integer too long
+or a real larger than a `Float` can hold, and its position.
+
+The sequence is the host's spelling of it: an escape as the text writes
+it, up to the byte that breaks it where one does, `\u12` of `"\u12"`;
+an integer as the text writes it, and a real with a fraction too; but a
+real with an exponent and no fraction with `.0` before the exponent and
+its `e` in lower case, `1.0e400` for `1E400`.
 
 ### Examples
 
 ```ernest
 Json.parse("[1, 2,]")
-// => Left(UnexpectedByte(byte = 93, at = Position(line = 1, column = 7)))
+// => Left(Json.UnexpectedByte(byte = 93, at = Json.Position(line = 1, column = 7)))
+```
+
+A real larger than a `Float` can hold, in the host's spelling:
+
+```ernest
+Json.parse("[1E400]")
+// => Left(Json.UnexpectedSequence(text = "1.0e400", at = Json.Position(line = 1, column = 2)))
 ```
 
 ## Json.parse
@@ -126,12 +161,12 @@ before the value and after it, and nothing else may.
 
 ```ernest
 Json.parse(" 4001 ")
-// => Right(Integer(4001))
+// => Right(Json.Integer(4001))
 ```
 
 ```ernest
 Json.parse("4001 4002")
-// => Left(UnexpectedByte(byte = 52, at = Position(line = 1, column = 6)))
+// => Left(Json.UnexpectedByte(byte = 52, at = Json.Position(line = 1, column = 6)))
 ```
 
 ## Json.format

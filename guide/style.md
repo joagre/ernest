@@ -16,7 +16,9 @@ Shape rule 6 says what a module's documentation holds, which `ern doc` writes as
 
 ## What the standard library does
 
-A value's name is camelCase and a type's PascalCase, `parseHeader`, `OrderedSet`, and a yes-or-no reads as the question, `isEmpty`. A name says what its value is or what its function does, in the words of the domain: a function that does something is a verb, `parse`, and one that gives a value is that value, a noun or an adjective, `size`, `sorted`; a type or a constructor names what it holds, a type as a noun, `Line(String)`, not `L`. A value that changes through a function is bound again under its name, `let #(draw, seed) = splitMix(seed)`, which the language guide's §5.4 provides, where the earlier value is never used again; where it is, the later value has a name of its own. No variable's name ends in a number: `seed1` is a second name for the one seed.
+A value's name is camelCase and a type's PascalCase, `parseHeader`, `OrderedSet`, and a yes-or-no reads as the question, `isEmpty`. A name says what its value is or what its function does, in the words of the domain. A function that does something is a verb whatever it answers, as `Fs.read` and `Tcp.connect` are; one that only computes its value is that value, a noun or an adjective, `size`, `sorted`, or the verb E.0 shape rule 2 gives its operation, `sort`, `parse`; and a receive loop is named for the state it serves, as a counter's `count` is. A type or a constructor names what it holds, a type as a noun, `Line(String)`, not `L`.
+
+A value that changes through a function is bound again under its name, `let #(draw, seed) = splitMix(seed)`, which the language guide's §2.2 provides, where the earlier value is never used again; where it is, the later value has a name of its own. No variable's name ends in a number: `seed1` is a second name for the one seed. A function's name is no exception: a loop's successor is named for what changed, `countAloud` beside `count`, not `count2`.
 
 No abbreviation a reader must guess: a well-known acronym is fine, `TCP`, `URL`, `UTF-8`, `JSON`, and so is one the host, the Erlang runtime Ernest runs on, writes, `Pid`, `Ref`, `Fd`. One letter only where the whole scope is one line that shows what it is, `fn(x) = x + 1`, and `xs` and `f` only where nothing more can be said. One concept, one name, in every module.
 
@@ -34,7 +36,8 @@ The names that recur in a program, one for each concept, in every module. The re
 - A **callback** is named for its role: `keep` for a predicate that keeps, `test` for one asked of each element, as `any`, `all`, `find`, `span` and `partition` ask it, `step` for what a fold or a `try` function, `List.tryMap`, runs over each element (E.0 rule 2), `wrap` for the function a caller gives to make its own message from what arrives later, a `Down`, an alarm (E.0 shape rule 8); `f` only where nothing more can be said. Not `p`, `g`.
 - **acc**: what a fold or a recursion carries. Not `done`.
 - **reply**: a `Reply`. Not `r`.
-- **index**: a position in a sequence (E.2, E.5); a place in a file is an `offset` (E.17). Not `at`, `i`, `from`, `start`.
+- **index**: a place in a sequence, counted from 0 (E.2, E.5); a place in a file is an `offset` (E.17). Not `i`, `from`, `start`.
+- **position**: a line and a column, counted from 1 as report §11.5 counts them (report Appendix G.6), and `at` the field that holds one, `at : Position`. Not `pos`, `location`.
 - **end**: the index a slice stops before, which it leaves out, `String.slice(text, index, end)` (E.5, E.20). Not `to`, `stop`.
 - **count**: how many. Not `n`, `length`.
 - **ms**: milliseconds (E.0 shape rule 8); a moment is a `time`. Not `wait`, `t`.

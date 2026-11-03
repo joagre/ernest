@@ -35,7 +35,7 @@
 ///     let adds = Test.Case(name = "adds", run = fn() = Test.equal(1 + 1, 2));
 ///     adds.run()
 /// }
-/// // => Passed
+/// // => Test.Passed
 /// ```
 ///
 /// since 0.2.0
@@ -49,7 +49,7 @@
 /// ```ernest
 /// Test.Case(name = "the empty list is empty",
 ///           run = fn() = if List.isEmpty([]) then Test.Passed else Test.Failed("not empty"))
-/// // => Case(name = "the empty list is empty", run = <function>)
+/// // => Test.Case(name = "the empty list is empty", run = <function>)
 /// ```
 export type Case(m) = Case(name : String, run : () -> Result receiving m)
 
@@ -59,7 +59,7 @@ export type Case(m) = Case(name : String, run : () -> Result receiving m)
 ///
 /// ```ernest
 /// if 1 + 1 == 2 then Test.Passed else Test.Failed("1 + 1 is not 2")
-/// // => Passed
+/// // => Test.Passed
 /// ```
 export type Result = Passed | Failed(String)
 
@@ -78,7 +78,7 @@ type JudgeMsg = Judge(Reply(Result)) | Ended(Down) | CallerEnded(Down)
 ///
 /// ```ernest
 /// #(Test.equal(List.size([1, 2]), 2), Test.equal(1 + 1, 3))
-/// // => #(Passed, Failed("expected 3, got 2"))
+/// // => #(Test.Passed, Test.Failed("expected 3, got 2"))
 /// ```
 ///
 /// since 0.3.0
@@ -104,17 +104,17 @@ export fn equal(actual : a, expected : a) : Result needs a.show =
 ///
 /// ```ernest
 /// Test.faults(fn() = 1 / 0, "division by zero")
-/// // => Passed
+/// // => Test.Passed
 /// ```
 ///
 /// ```ernest
 /// Test.faults(fn() = 1 + 1, "division by zero")
-/// // => Failed("expected the fault division by zero, got a return")
+/// // => Test.Failed("expected the fault division by zero, got a return")
 /// ```
 ///
 /// ```ernest
 /// Test.faults(fn() = 1.0 / 0.0, "division by zero")
-/// // => Failed("expected the fault division by zero, got the fault float arithmetic error")
+/// // => Test.Failed("expected the fault division by zero, got the fault float arithmetic error")
 /// ```
 ///
 /// since 0.5.0
@@ -180,12 +180,12 @@ fn verdict(reason : Reason, cause : String) : Result = {
 ///
 /// ```ernest
 /// Test.until(fn() = Test.equal(1 + 1, 2), 1000)
-/// // => Passed
+/// // => Test.Passed
 /// ```
 ///
 /// ```ernest
 /// Test.until(fn() = Test.equal(1 + 1, 3), 10)
-/// // => Failed("expected 3, got 2")
+/// // => Test.Failed("expected 3, got 2")
 /// ```
 ///
 /// since 0.7.0

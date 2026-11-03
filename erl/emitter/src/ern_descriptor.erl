@@ -7,7 +7,7 @@
 %% printer reads. A recursive type refers back to its mu.
 -module(ern_descriptor).
 
--export([describe/3]).
+-export([describe/3, constructor_namespace/1]).
 
 -export_type([descriptor/0, named_cause/0]).
 
@@ -20,9 +20,9 @@
 %% parts. mu binds Id for each `{ref, Id}` inside it, which is how a
 %% recursive type is described once; a hole stands for a descriptor a
 %% requirement passes in; an abstract type seen from outside its module is
-%% wrapped, and a named constructor carries its fields' names, both for
-%% printing. A check's cause is none in a descriptor the shell prints by,
-%% which no check reads.
+%% wrapped, and a sum carries its type's namespace and a named
+%% constructor its fields' names, all three for printing. A check's cause
+%% is none in a descriptor the shell prints by, which no check reads.
 -type descriptor() :: any | int | float | bool | char | string | bytes | process | never
                     | unit | foreign
                     | {hole, integer()} | {ref, pos_integer()}
@@ -32,7 +32,8 @@
                     | {reply, descriptor(), binary() | none}
                     | {function, non_neg_integer(), descriptor(), named_cause() | none,
                        [descriptor()], [named_cause()] | none}
-                    | {con, [{atom(), [descriptor()]} | {atom(), [descriptor()], [atom()]}]}
+                    | {con, binary() | none,
+                       [{atom(), [descriptor()]} | {atom(), [descriptor()], [atom()]}]}
                     | {mu, pos_integer(), descriptor()} | {abstract, descriptor()}.
 
 %% Report §12.3, §8.4: the cause a function value's check faults with, the
@@ -96,8 +97,8 @@ descriptor({tcon, QualifiedName, Args} = Type, Seen, #scope{env = Env} = Scope) 
                     foreign;
                 #type_info{constructors = Constructors, abstract = Abstract} ->
                     Id = map_size(Seen) + 1,
-                    Sum = {con, constructor_descriptors(Constructors, Args, Seen#{Type => Id},
-                                                        Scope)},
+                    Sum = {con, constructor_namespace(QualifiedName),
+                           constructor_descriptors(Constructors, Args, Seen#{Type => Id}, Scope)},
                     Descriptor = case refers(Sum, Id) of
                                      true -> {mu, Id, Sum};
                                      false -> Sum
@@ -109,6 +110,21 @@ descriptor({tcon, QualifiedName, Args} = Type, Seen, #scope{env = Env} = Scope) 
                         false -> Descriptor
                     end
             end
+    end.
+
+%% Report Appendix E.1: the namespace `Io.show` writes a constructor of the
+%% type QualifiedName names under, as code outside its module writes it,
+%% `Io` for `Io.Timeout`; none for the prelude's, written by its name
+%% alone, and for a type a shell session declares, which prints
+%% unqualified (report §11.2) and whose namespace no source writes. The
+%% emitter's descriptors and the shell's take it from here.
+-spec constructor_namespace([atom() | binary()]) -> binary() | none.
+constructor_namespace([_]) ->
+    none;
+constructor_namespace([First | _] = QualifiedName) ->
+    case ern_namespace:text_segment(First) of
+        <<"$", _/binary>> -> none;
+        _ -> unicode:characters_to_binary(ern_namespace:text(lists:droplast(QualifiedName)))
     end.
 
 %% Each constructor's descriptor at the type's arguments, a named one's

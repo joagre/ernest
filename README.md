@@ -43,7 +43,7 @@ counter : Address(Counter.CounterMsg)
 Some(8) : Optional(Int)
 ```
 
-A function that receives runs only in a process whose mailbox takes what it receives, so `count` called by a `main` whose mailbox takes another type is refused before the program runs:
+A function that receives runs only in a process whose mailbox takes what it receives, so `count` called by a `main` whose mailbox takes another type is refused before the program runs. This is the mistake a Gleam `Subject` lets through: `process.receive(subject)` compiles wherever a subject is in hand, and whose mailbox it reads is left to the run:
 
 ```ernest-rejected
 type CounterMsg = Inc(Int)
@@ -99,11 +99,11 @@ Its parts come from elsewhere: Erlang's processes, the types of ML, which Gleam 
 
 What Ernest adds is where the parts meet, six claims that [Why Ernest](guide/why.md) argues, four of them with a program, one with its configuration file and one with the report:
 
-- **[The mailbox in the function's type](guide/why.md#the-mailbox-in-the-functions-type).** A function that receives says what it receives, and the compiler checks every message against the mailbox it will reach.
+- **[The mailbox in the function's type](guide/why.md#the-mailbox-in-the-functions-type).** A function that receives names its mailbox in its own type, so the compiler checks every send against the mailbox it will reach and refuses a function that receives in a process of another mailbox, which Gleam's `process.receive(subject)` compiles and leaves to the run.
 - **[Code known by its hash](guide/why.md#code-known-by-its-hash).** A module's versions run side by side, a running process moves to a new one when told, and a process spawned on another node brings its code along.
 - **[A distribution built for a WAN](guide/why.md#a-distribution-built-for-a-wan).** Two nodes are two configuration files, each naming the other by key and address, with one TLS connection between them and no cluster to join.
-- **[Abstract types and requirements](guide/why.md#abstract-types-and-requirements).** A type keeps its representation to its module, and a generic function names the operations it needs, which the compiler supplies at each call.
-- **[A deadlock is found](guide/why.md#a-deadlock-is-found).** Under `ern run` and `ern test` without `--config-dir`, a program in which every process waits for a message none can send ends with a fault and a trace; [Why Ernest](guide/why.md#a-deadlock-is-found) says where it cannot be found. Finding it costs a running program almost nothing.
+- **[Abstract types and requirements](guide/why.md#abstract-types-and-requirements).** A type keeps its representation to its module, and a generic function names the operations it needs, from a closed set, which the compiler supplies at each call; no program declares a class, so nothing stands on one.
+- **[A deadlock is found](guide/why.md#a-deadlock-is-found).** Under `ern run` and `ern test` without `--config-dir`, a program in which every process waits for a message none can send ends with a fault and a trace; [Why Ernest](guide/why.md#a-deadlock-is-found) says where it cannot be found. Finding it costs a running program a message at each spawn and each monitor.
 - **[Little else](guide/why.md#little-else).** Functions and processes are the whole language, and a report of three files defines all of it.
 
 Ernest is for programs written in it from the start, not for an OTP application or a codebase of several languages; [Why Ernest](guide/why.md) says how it meets Erlang.
@@ -118,11 +118,11 @@ The counter above is the first three claims at work, and the rest of the argumen
 
 ## Where it stands
 
-It is young. Programs run on one node and across nodes, and 0.8.0 is the latest release. Where the project stands is "Where we are" in the [plan](docs/plan.md), and what the toolchain does not do yet is a table in [`docs/development.md`](docs/development.md). Until 1.0 a release may refuse a program the previous release accepted, as the plan says; each release's notes, on the [releases page](https://github.com/joagre/ernest/releases), say where to read what changed.
+It is young. Programs run on one node and across nodes, and 0.9.0 is the latest release. Where the project stands is "Where we are" in the [plan](docs/plan.md), and what the toolchain does not do yet is a table in [`docs/development.md`](docs/development.md). Until 1.0 a release may refuse a program the previous release accepted, as the plan says; each release's notes, on the [releases page](https://github.com/joagre/ernest/releases), say where to read what changed.
 
 ## Installing
 
-On Linux, with Erlang/OTP 29 on your `PATH`, GNU make and a C compiler, which on Debian and Ubuntu are the packages `make` and `gcc`, with OTP 29 as below since their own `erlang` package is older; macOS is expected to work the same way, and is not yet verified:
+On Linux, with Erlang/OTP 29 on your `PATH`, GNU make and a C compiler. On Debian and Ubuntu the last two are the packages `make` and `gcc`, and OTP 29 is installed as below, since their own `erlang` package is older. macOS is expected to work the same way, and is not yet verified:
 
 ```
 git clone https://github.com/joagre/ernest.git

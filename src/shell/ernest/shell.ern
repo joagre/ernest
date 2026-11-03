@@ -244,7 +244,7 @@ export fn main() : Unit receiving ShellMsg = {
     monitor(Process.fromAddress(local), LocalEnded);
     receive {
         Begun(desk) -> session(desk)
-      | LocalEnded(down) -> localFault(down)
+      | LocalEnded(down) -> faultWithLocal(down)
     }
 }
 
@@ -270,7 +270,7 @@ type EntryMsg = SessionDown(Down)
 // returns; one that ends otherwise, by a fault, detaches here, where its
 // end is learned, so that it leaves what an orderly leave leaves.
 fn attached(desk : Desk) : Unit receiving EntryMsg = {
-    ownMarked();
+    markSelfOwn();
     let started = spawn(fn() = session(desk));
     monitor(Process.fromAddress(started), SessionDown);
     receive {
@@ -303,7 +303,7 @@ fn session(desk : Desk) : Unit receiving ShellMsg = {
     // screen's end is the session's
     let screenProcess = Process.fromAddress(screen);
     monitor(screenProcess, ScreenDied);
-    let reader = Optional.map(size, fn(given) = keysRead(shell, screen, desk, given));
+    let reader = Optional.map(size, fn(given) = startReader(shell, screen, desk, given));
     // report §11.2: the session, the screen and the reader are the shell's
     // own, whose faults are not news, and which `Process.live()` leaves out
     // (Appendix E.21), and so is a plain shell's local half, beside them; an
@@ -377,10 +377,10 @@ fn session(desk : Desk) : Unit receiving ShellMsg = {
 
 // Report §11.2: at a terminal, the reader the local half's events go to,
 // which edits the line and sends the session what is entered.
-fn keysRead(shell : Address(ShellMsg),
-            screen : Address(ScreenMsg),
-            desk : Desk,
-            size : Terminal.Size) : Address(ReaderMsg) =
+fn startReader(shell : Address(ShellMsg),
+               screen : Address(ScreenMsg),
+               desk : Desk,
+               size : Terminal.Size) : Address(ReaderMsg) =
     spawn(fn() =
               readLoop(shell,
                        screen,
@@ -396,7 +396,7 @@ fn keysRead(shell : Address(ShellMsg),
 // end a failure of the shell's own, but for a fault its standard input
 // gave it, which ends the shell as that fault (`the shell ends: its
 // standard input is not UTF-8`).
-fn localFault(down : Down) : a =
+fn faultWithLocal(down : Down) : a =
     match down {
         Down(reason = Fault(cause)) -> fault(cause)
       | other -> fault("the shell's local half ended: " <> downLine(other))
@@ -404,8 +404,8 @@ fn localFault(down : Down) : a =
 
 // Report §11.2: the local half's end, which an attached session takes as
 // it takes `:quit`, and which faults a plain shell (localFault).
-fn localEnded(state : State, down : Down) : Unit =
-    if state.attached then Unit else localFault(down)
+fn endWithLocal(state : State, down : Down) : Unit =
+    if state.attached then Unit else faultWithLocal(down)
 
 // Report §11.2: the shell colors what it says at a terminal, where the
 // environment's `NO_COLOR` is unset or empty, as that convention asks.
@@ -415,7 +415,7 @@ let colorAllowed = Optional.withDefault(Os.environment("NO_COLOR"), "") == ""
 // history file takes what is typed, and what to say of it: a history that
 // cannot be read is said once, and not written, and so is a `HOME` that
 // names no place for it, unset or relative.
-fn history() : #(List(String), Bool, List(String)) =
+fn readHistory() : #(List(String), Bool, List(String)) =
     match Ernest.Shell.History.file {
         None -> {
             let why = match Os.environment("HOME") {
@@ -476,10 +476,10 @@ fn fromWorkingDirectory(path : Path) : String = {
 // run, and what to say of one that is not: one another user could change
 // is said and not run. A path without a directory is a file of the working
 // directory.
-fn ownInputs(file : String) : #(List(#(String, Int, String)), List(String)) = {
+fn readOwnInputs(file : String) : #(List(#(String, Int, String)), List(String)) = {
     let path = Path(file);
     if isUsersOwn(path) && isUsersOwn(Optional.withDefault(Path.parent(path), Path("."))) then
-        fileInputs(file)
+        readFileInputs(file)
     else
         #([], [file <> " could be changed by another user, and is not run"])
 }
@@ -498,7 +498,7 @@ fn isUsersOwn(path : Path) : Bool =
 
 // A file that is not there is no error; one that cannot be read is said
 // and the session goes on. Each input carries the line it is on.
-fn fileInputs(file : String) : #(List(#(String, Int, String)), List(String)) =
+fn readFileInputs(file : String) : #(List(#(String, Int, String)), List(String)) =
     match Fs.read(Path(file), fileMs) {
         Left(Io.NotFound) ->
             #([], [])
@@ -577,17 +577,17 @@ fn trouble(error : Io.Error) : String =
 // creating a file that is not there; `-` is the screen's own place for it
 // again, the live region or, in line mode, standard output, and nothing
 // says where it goes now, which the screen holds.
-fn output(local : Address(LocalMsg),
-          screen : Address(ScreenMsg),
-          argument : String) : Either(String, String) =
+fn redirectOutput(local : Address(LocalMsg),
+                  screen : Address(ScreenMsg),
+                  argument : String) : Either(String, String) =
     if String.isEmpty(argument) then
-        located(screen)
+        locate(screen)
     else if argument == "-" then {
         send(screen, Redirect(None));
-        located(screen)
+        locate(screen)
     } else {
         let path = Path(argument);
-        match outputTried(local, path) {
+        match tryOutput(local, path) {
             Left(error) ->
                 Left(cannotWrite(path, error))
           | Right(_) -> {
@@ -598,7 +598,7 @@ fn output(local : Address(LocalMsg),
     }
 
 // Where the screen says what programs write goes.
-fn located(screen : Address(ScreenMsg)) : Either(String, String) =
+fn locate(screen : Address(ScreenMsg)) : Either(String, String) =
     match Address.call(screen, Locate, screenMs) {
         Some(place) -> Right("output goes to " <> place)
       | None -> Left("the screen did not say where output goes")
@@ -608,19 +608,15 @@ fn located(screen : Address(ScreenMsg)) : Either(String, String) =
 // append of nothing to a file of the shell's own node, as `Fs.append`
 // answers there, the one path it appends what programs write to from then
 // on, or `Timeout` where no answer comes.
-fn outputTried(local : Address(LocalMsg), path : Path) : Either(Io.Error, Unit) =
-    match Address.call(local, fn(reply) = Output(=path, =reply), localMs) {
-        Some(tried) -> tried
-      | None -> Left(Io.Timeout)
-    }
+fn tryOutput(local : Address(LocalMsg), path : Path) : Either(Io.Error, Unit) =
+    Optional.withDefault(Address.call(local, fn(reply) = Output(=path, =reply), localMs),
+                         Left(Io.Timeout))
 
 // Report §11.2: what the local half appends to the path `:output` took, as
 // `Fs.append` answers there, or `Timeout` where no answer comes.
-fn appendedThere(local : Address(LocalMsg), path : Path, bytes : Bytes) : Either(Io.Error, Unit) =
-    match Address.call(local, fn(reply) = Append(=path, =bytes, =reply), localMs) {
-        Some(appended) -> appended
-      | None -> Left(Io.Timeout)
-    }
+fn appendThere(local : Address(LocalMsg), path : Path, bytes : Bytes) : Either(Io.Error, Unit) =
+    Optional.withDefault(Address.call(local, fn(reply) = Append(=path, =bytes, =reply), localMs),
+                         Left(Io.Timeout))
 
 // Report §11.2: a path that names no terminal, other device or file, a
 // named pipe among them, is refused, as the file system refuses it (Appendix E.17);
@@ -713,7 +709,7 @@ fn await(state : State,
                 sayTime(screen, state.settings, started)
             } else
                 Unit;
-            letGoSaid(screen);
+            sayAndLetGo(screen);
             Continue(State(..state, =session))
         }
       | Done(Faulted(=cause, =trace, =callee, =peer, =serial)) when serial == current -> {
@@ -721,7 +717,7 @@ fn await(state : State,
             if printing then sayTime(screen, state.settings, started) else Unit;
             // report §11.2: the input's unit, which holds nothing, is let go
             let session = collect(state.session, None);
-            letGoSaid(screen);
+            sayAndLetGo(screen);
             Continue(State(..state, =session))
         }
       // the outcome of an input `Interrupted` killed, which came after the
@@ -739,12 +735,12 @@ fn await(state : State,
             Leave
         }
       | ScreenDied(down) ->
-            screenDied(down)
+            endWithScreen(down)
       // report §11.2: the local half's end ends the session, the input
       // that runs among what ends
       | LocalEnded(down) -> {
             kill(inputProcess);
-            localEnded(state, down);
+            endWithLocal(state, down);
             Leave
         }
       // report §11.2: an input's own fault is its answer; the input catches
@@ -759,7 +755,7 @@ fn await(state : State,
                 if printing then sayTime(screen, state.settings, started) else Unit;
                 Continue(state)
             } else
-                await(reported(state, screen, report, saidLine),
+                await(reportFault(state, screen, report, saidLine),
                       screen,
                       checked,
                       inputProcess,
@@ -811,7 +807,7 @@ fn printResult(state : State,
 // Report §11.2 *Inputs*: what each input's process that a collection set
 // to go owned, said by its site, a line each, and then those processes let
 // go: each is asked while it lives, since what it owned ends with it.
-fn letGoSaid(screen : Address(ScreenMsg)) : Unit = {
+fn sayAndLetGo(screen : Address(ScreenMsg)) : Unit = {
     printLines(screen, List.flatMap(going(), fn(#(binder, names)) = endedLines(binder, names)));
     letGo()
 }
@@ -852,15 +848,15 @@ fn keyLoop(state : State, screen : Address(ScreenMsg)) : Unit receiving ShellMsg
       // above the region, leaving the line being typed where it is, as a
       // reload by another session does
       | Reported(report) ->
-            keyLoop(reported(state, screen, report, Noted), screen)
+            keyLoop(reportFault(state, screen, report, Noted), screen)
       | Reloaded(=by, =modules) ->
-            keyLoop(reloadSaid(state, screen, by, modules, Noted), screen)
+            keyLoop(sayReload(state, screen, by, modules, Noted), screen)
       | ReaderDied(down) ->
             leave(state, screen, readerEnd(state.color, down))
       | ScreenDied(down) ->
-            screenDied(down)
+            endWithScreen(down)
       | LocalEnded(down) -> {
-            localEnded(state, down);
+            endWithLocal(state, down);
             leave(state, screen, "")
         }
       // the end of a run that `Interrupted` killed, which `await` no longer
@@ -918,7 +914,7 @@ fn readerEnd(color : Markdown.Output, down : Down) : String =
 
 // Report §11.2, §11.8: the screen's end leaves the session nothing to show
 // itself on, so it faults, a failure of the shell's own.
-fn screenDied(down : Down) : a =
+fn endWithScreen(down : Down) : a =
     fault("the shell's screen ended: " <> downLine(down))
 
 // Report §11.2: a process that faults is reported with its spawn site and
@@ -927,10 +923,10 @@ fn screenDied(down : Down) : a =
 // is told of to no one (report Appendix E.24). The report goes to the
 // screen wrapped as the caller says: `Said` where the session says it,
 // `Noted` where a prompt is pending.
-fn reported(state : State,
-            screen : Address(ScreenMsg),
-            report : Process.FaultReport,
-            wrap : (String) -> ScreenMsg) : State =
+fn reportFault(state : State,
+               screen : Address(ScreenMsg),
+               report : Process.FaultReport,
+               wrap : (String) -> ScreenMsg) : State =
     if Set.contains(state.own, report.process) then
         state
     else {
@@ -946,11 +942,11 @@ fn reported(state : State,
 // session's own reload names it; the session takes the node's modules as
 // they stand (`reloadedBy`). One that comes while an input runs waits in
 // the mailbox for the prompt.
-fn reloadSaid(state : State,
-              screen : Address(ScreenMsg),
-              by : Int,
-              modules : List(String),
-              wrap : (String) -> ScreenMsg) : State = {
+fn sayReload(state : State,
+             screen : Address(ScreenMsg),
+             by : Int,
+             modules : List(String),
+             wrap : (String) -> ScreenMsg) : State = {
     let #(session, lines) = reloadedBy(state.session, by, modules);
     send(screen, wrap(String.join(lines, "\n")));
     State(..state, =session)
@@ -1076,7 +1072,7 @@ fn printLines(screen : Address(ScreenMsg), lines : List(String)) : Unit =
 // written as its escape, as a fault's cause is.
 fn perform(state : State, screen : Address(ScreenMsg), input : String) : Next =
     match Ernest.Shell.Command.parse(input) {
-        Left(text) -> refused(state, screen, escaped(text))
+        Left(text) -> refuseCommand(state, screen, escaped(text))
       | Right(#(action, argument)) -> obey(state, screen, action, argument, argumentColumn(input))
     }
 
@@ -1102,68 +1098,70 @@ fn obey(state : State,
         Ernest.Shell.Command.Quit ->
             Leave
       | Ernest.Shell.Command.Help ->
-            answered(state, screen, Ernest.Shell.Command.help())
+            answerCommand(state, screen, Ernest.Shell.Command.help())
       | Ernest.Shell.Command.Bindings ->
             match bindings(session) {
-                [] -> answered(state, screen, ["the session declares nothing yet"])
-              | lines -> answered(state, screen, lines)
+                [] -> answerCommand(state, screen, ["the session declares nothing yet"])
+              | lines -> answerCommand(state, screen, lines)
             }
       | Ernest.Shell.Command.Type ->
             match declaredType(session, argument) {
-                Some(text) -> answered(state, screen, [argument <> " : " <> text])
+                Some(text) -> answerCommand(state, screen, [argument <> " : " <> text])
               | None -> typeOf(state, screen, argument, column)
             }
       | Ernest.Shell.Command.Forget ->
             match forget(session, argument) {
                 Left(text) ->
-                    refused(state, screen, text)
+                    refuseCommand(state, screen, text)
               | Right(session) -> {
-                    letGoSaid(screen);
+                    sayAndLetGo(screen);
                     Continue(State(..state, =session))
                 }
             }
       | Ernest.Shell.Command.Browse ->
             match browse(session, argument) {
-                Left(text) -> refused(state, screen, text)
-              | Right(lines) -> answered(state, screen, lines)
+                Left(text) -> refuseCommand(state, screen, text)
+              | Right(lines) -> answerCommand(state, screen, lines)
             }
       | Ernest.Shell.Command.Doc ->
             match doc(session, argument) {
-                Left(text) -> refused(state, screen, text)
-              | Right(text) -> answered(state, screen, rendered(text, columnsOf(screen), color))
+                Left(text) ->
+                    refuseCommand(state, screen, text)
+              | Right(text) ->
+                    answerCommand(state, screen, rendered(text, columnsOf(screen), color))
             }
       | Ernest.Shell.Command.Output ->
-            match output(state.local, screen, argument) {
-                Left(text) -> refused(state, screen, text)
-              | Right(text) -> answered(state, screen, [text])
+            match redirectOutput(state.local, screen, argument) {
+                Left(text) -> refuseCommand(state, screen, text)
+              | Right(text) -> answerCommand(state, screen, [text])
             }
       | Ernest.Shell.Command.Settings ->
             Continue(State(..state, settings = set(state, screen, argument)))
       | Ernest.Shell.Command.Processes ->
             match sessionProcesses() {
-                [] -> answered(state, screen, ["no process of the session's is running"])
-              | sites -> answered(state, screen, sites)
+                [] -> answerCommand(state, screen, ["no process of the session's is running"])
+              | sites -> answerCommand(state, screen, sites)
             }
       // report §11.2: `:faults` lists each fault's line, its time first as
       // `ern run` stamps a line, without its trace
       | Ernest.Shell.Command.Faults ->
             match List.reverse(state.faults) {
                 [] ->
-                    answered(state, screen, ["no process has faulted"])
+                    answerCommand(state, screen, ["no process has faulted"])
               | reports ->
-                    answered(state,
-                             screen,
-                             List.map(reports, fn(report) = stampedLine(report, color)))
+                    answerCommand(state,
+                                  screen,
+                                  List.map(reports, fn(report) = stampedLine(report, color)))
             }
       | Ernest.Shell.Command.Load ->
             match load(session, argument) {
-                Left(text) -> diagnosed(state, screen, placed(state, text))
-              | Right(#(session, line)) -> answered(State(..state, =session), screen, [line])
+                Left(text) -> diagnoseCommand(state, screen, placed(state, text))
+              | Right(#(session, line)) -> answerCommand(State(..state, =session), screen, [line])
             }
       | Ernest.Shell.Command.Reload ->
             match reload(session) {
-                Left(text) -> diagnosed(state, screen, placed(state, text))
-              | Right(#(session, lines)) -> answered(State(..state, =session), screen, lines)
+                Left(text) -> diagnoseCommand(state, screen, placed(state, text))
+              | Right(#(session, lines)) -> answerCommand(State(..state, =session), screen, lines)
             }
     }
 }
@@ -1173,31 +1171,33 @@ fn obey(state : State,
 fn typeOf(state : State, screen : Address(ScreenMsg), argument : String, column : Int) : Next =
     match checkType(state.session, origin(state, column), argument) {
         Left(text) ->
-            diagnosed(state, screen, text)
+            diagnoseCommand(state, screen, text)
       | Right(#(session, checked)) ->
             if isExpression(checked) then
-                answered(State(..state, =session), screen, [argument <> " : " <> typeText(checked)])
+                answerCommand(State(..state, =session),
+                              screen,
+                              [argument <> " : " <> typeText(checked)])
             else
                 // report §11.2: `:type` takes an expression
-                refused(state,
-                        screen,
-                        ":type takes an expression, and a `let` or a declaration is not one")
+                refuseCommand(state,
+                              screen,
+                              ":type takes an expression, and a `let` or a declaration is not one")
     }
 
 // What a command answers, a line each, and the session after it.
-fn answered(state : State, screen : Address(ScreenMsg), lines : List(String)) : Next = {
+fn answerCommand(state : State, screen : Address(ScreenMsg), lines : List(String)) : Next = {
     printLines(screen, lines);
     Continue(state)
 }
 
 // Report §11.2: a command refused leaves the session as it was.
-fn refused(state : State, screen : Address(ScreenMsg), text : String) : Next = {
+fn refuseCommand(state : State, screen : Address(ScreenMsg), text : String) : Next = {
     refuse(state, screen, text);
     Continue(state)
 }
 
 // Report §11.2: so does a command whose input or module does not compile.
-fn diagnosed(state : State, screen : Address(ScreenMsg), text : String) : Next = {
+fn diagnoseCommand(state : State, screen : Address(ScreenMsg), text : String) : Next = {
     diagnose(screen, state.color, text);
     Continue(state)
 }
@@ -1289,42 +1289,42 @@ type Showing = Showing(destination : Optional(Path), local : Address(LocalMsg), 
 fn screenLoop(region : Ernest.Shell.Region.Region, showing : Showing) : Unit receiving ScreenMsg =
     receive {
         Said(text) ->
-            painted(Ernest.Shell.Region.said(region, text), showing)
+            paint(Ernest.Shell.Region.said(region, text), showing)
       | Noted(text) ->
-            painted(Ernest.Shell.Region.noted(region, text), showing)
+            paint(Ernest.Shell.Region.noted(region, text), showing)
       | Wrote(bytes) -> {
             let #(text, cut) = decoded(showing.cut, bytes);
             let showing = Showing(..showing, =cut);
             match showing.destination {
                 None ->
-                    painted(Ernest.Shell.Region.wrote(region, text), showing)
+                    paint(Ernest.Shell.Region.wrote(region, text), showing)
               | Some(path) ->
-                    match appended(showing.local, path, text, "the live region") {
+                    match appendOutput(showing.local, path, text, "the live region") {
                         Right(_) ->
                             screenLoop(region, showing)
                       | Left(why) -> {
                             let #(region, said) = Ernest.Shell.Region.said(region, why);
                             send(showing.local,
                                  Write(text = said, ending = Ernest.Shell.Region.ending(region)));
-                            painted(Ernest.Shell.Region.wrote(region, text),
-                                    Showing(..showing, destination = None))
+                            paint(Ernest.Shell.Region.wrote(region, text),
+                                  Showing(..showing, destination = None))
                         }
                     }
             }
         }
       | ShowInput(=text, =cursor, =offered) ->
-            painted(Ernest.Shell.Region.edited(region, text, cursor, offered), showing)
+            paint(Ernest.Shell.Region.edited(region, text, cursor, offered), showing)
       | Entered ->
-            painted(Ernest.Shell.Region.entered(region), showing)
+            paint(Ernest.Shell.Region.entered(region), showing)
       | Taken ->
-            painted(Ernest.Shell.Region.taken(region), showing)
+            paint(Ernest.Shell.Region.taken(region), showing)
       // the size the event carries, the terminal's on the shell's own node
       | Resized(size) ->
-            painted(Ernest.Shell.Region.resized(region, size), showing)
+            paint(Ernest.Shell.Region.resized(region, size), showing)
       | Clear ->
-            painted(Ernest.Shell.Region.cleared(region), showing)
+            paint(Ernest.Shell.Region.cleared(region), showing)
       | SetRows(rows) ->
-            painted(Ernest.Shell.Region.rowsSized(region, rows), showing)
+            paint(Ernest.Shell.Region.rowsSized(region, rows), showing)
       | Redirect(destination) ->
             screenLoop(region, Showing(..showing, =destination))
       | Locate(reply) -> {
@@ -1345,8 +1345,8 @@ fn screenLoop(region : Ernest.Shell.Region.Region, showing : Showing) : Unit rec
 // What the region answered written, by the local half, with what ends the
 // region where it stands, and the screen goes on with the region it
 // became.
-fn painted(drawn : #(Ernest.Shell.Region.Region, String),
-           showing : Showing) : Unit receiving ScreenMsg = {
+fn paint(drawn : #(Ernest.Shell.Region.Region, String),
+         showing : Showing) : Unit receiving ScreenMsg = {
     let #(region, bytes) = drawn;
     send(showing.local, Write(text = bytes, ending = Ernest.Shell.Region.ending(region)));
     screenLoop(region, showing)
@@ -1364,29 +1364,29 @@ fn drainLocal(local : Address(LocalMsg)) : Unit = {
 fn plainLoop(showing : Showing) : Unit receiving ScreenMsg = {
     let showing = receive {
         Said(text) -> {
-            lineWritten(showing.local, text);
+            writeLine(showing.local, text);
             showing
         }
       | Wrote(bytes) -> {
             let #(text, cut) = decoded(showing.cut, bytes);
             match showing.destination {
                 None -> {
-                    lineWritten(showing.local, text);
+                    writeLine(showing.local, text);
                     Showing(..showing, =cut)
                 }
               | Some(path) ->
-                    match appended(showing.local, path, text, "standard output") {
+                    match appendOutput(showing.local, path, text, "standard output") {
                         Right(_) ->
                             Showing(..showing, =cut)
                       | Left(why) -> {
-                            lineWritten(showing.local, why <> text);
+                            writeLine(showing.local, why <> text);
                             Showing(..showing, destination = None, =cut)
                         }
                     }
             }
         }
       | Noted(text) -> {
-            lineWritten(showing.local, text <> "\n");
+            writeLine(showing.local, text <> "\n");
             showing
         }
       | Redirect(destination) ->
@@ -1426,7 +1426,7 @@ fn plainLoop(showing : Showing) : Unit receiving ScreenMsg = {
 // ends it where it leaves the line: a line feed after a line it leaves
 // unended, a prompt among them, and nothing after one it ends. Nothing is
 // sent of no text, which leaves the line as it was.
-fn lineWritten(local : Address(LocalMsg), text : String) : Unit =
+fn writeLine(local : Address(LocalMsg), text : String) : Unit =
     if String.isEmpty(text) then
         Unit
     else
@@ -1435,11 +1435,11 @@ fn lineWritten(local : Address(LocalMsg), text : String) : Unit =
 // Report §11.2: what a program wrote, appended where `:output` sent it, on
 // the shell's own node; where that fails, why, and what programs write goes
 // back to the screen's own place for it, `screenPlace`.
-fn appended(local : Address(LocalMsg),
-            path : Path,
-            text : String,
-            screenPlace : String) : Either(String, Unit) =
-    match appendedThere(local, path, String.toUtf8(text)) {
+fn appendOutput(local : Address(LocalMsg),
+                path : Path,
+                text : String,
+                screenPlace : String) : Either(String, Unit) =
+    match appendThere(local, path, String.toUtf8(text)) {
         Right(_) ->
             Right(Unit)
       | Left(error) ->
@@ -1459,7 +1459,7 @@ fn place(destination : Optional(Path), screenPlace : String) : String =
 // input, or where its reader or its local half stops, and before it ends
 // it writes every fault reported to it until then, a prompt pending. In a
 // plain shell a process that still runs ends with the program, which is no
-// fault; an attached session leaves its node running (detached).
+// fault; an attached session leaves its node running (detachNode).
 fn leave(state : State, screen : Address(ScreenMsg), text : String) : Unit receiving ShellMsg = {
     reportRemaining(state, screen, Noted);
     finish(screen, text);
@@ -1477,7 +1477,7 @@ fn detachNode(state : State) : Unit =
 
 // Report §11.2: every fault reported to the session until it ends: it
 // waits until each report on its way to it has arrived, and says those its
-// mailbox holds, wrapped as `reported` says.
+// mailbox holds, wrapped as `reportFault` says.
 fn reportRemaining(state : State,
                    screen : Address(ScreenMsg),
                    wrap : (String) -> ScreenMsg) : Unit receiving ShellMsg = {
@@ -1693,7 +1693,7 @@ fn remember(screen : Address(ScreenMsg),
     let line = Ernest.Shell.Editor.text(editing);
     if !keeping || !Ernest.Shell.Editor.keeps(editing) then
         keeping
-    else match remembered(local, line) {
+    else match addToHistory(local, line) {
         Right(_) ->
             true
       | Left(error) -> {
@@ -1707,11 +1707,9 @@ fn remember(screen : Address(ScreenMsg),
 // Report §11.2: the local half's append of an input to the history, as
 // `Ernest.Shell.History.add` answers on the shell's own node, or `Timeout` where
 // no answer comes.
-fn remembered(local : Address(LocalMsg), input : String) : Either(Io.Error, Unit) =
-    match Address.call(local, fn(reply) = Remember(=input, =reply), localMs) {
-        Some(added) -> added
-      | None -> Left(Io.Timeout)
-    }
+fn addToHistory(local : Address(LocalMsg), input : String) : Either(Io.Error, Unit) =
+    Optional.withDefault(Address.call(local, fn(reply) = Remember(=input, =reply), localMs),
+                         Left(Io.Timeout))
 
 // Report §11.2: `Tab` completes the word before the cursor; a second
 // `Tab` lists what it could still be, under the line, until the next
@@ -1730,18 +1728,18 @@ fn completing(shell : Address(ShellMsg),
         showing(shell, screen, reading, Ernest.Shell.Editor.insert(editing, indent))
     else {
         let #(completion, typedWord) =
-            Ernest.Shell.Complete.completion(line, cursor, fn(path) = listed(reading.local, path));
+            Ernest.Shell.Complete.completion(line,
+                                             cursor,
+                                             fn(path) = listEntries(reading.local, path));
         offering(shell, screen, reading, completion, typedWord, editing)
     }
 }
 
 // Report §11.2: a directory of the source root, listed by the local half,
 // which holds the operator's files, or `Timeout` where no answer comes.
-fn listed(local : Address(LocalMsg), path : Path) : Either(Io.Error, List(Fs.Entry)) =
-    match Address.call(local, fn(reply) = ListEntries(=path, =reply), localMs) {
-        Some(entries) -> entries
-      | None -> Left(Io.Timeout)
-    }
+fn listEntries(local : Address(LocalMsg), path : Path) : Either(Io.Error, List(Fs.Entry)) =
+    Optional.withDefault(Address.call(local, fn(reply) = ListEntries(=path, =reply), localMs),
+                         Left(Io.Timeout))
 
 // Report §11.2: what `Tab` puts in where it indents.
 let indent = "    "
@@ -1914,17 +1912,17 @@ fn nextLine(state : State) : Optional(String) receiving ShellMsg = {
         Line(line) ->
             line
       | LocalEnded(down) -> {
-            localEnded(state, down);
+            endWithLocal(state, down);
             None
         }
       | ScreenDied(down) ->
-            screenDied(down)
+            endWithScreen(down)
     }
 }
 
 // Report §11.2: what faulted while the session was reading, each report in
-// the mailbox said wrapped as `reported` says, and each reload by another
-// session as `reloadSaid` says. In line mode the session waits for its next
+// the mailbox said wrapped as `reportFault` says, and each reload by another
+// session as `sayReload` says. In line mode the session waits for its next
 // line, so a fault is reported once the line has come, before the line
 // runs, and before the next prompt, and as the session ends
 // (`leaveLines`); §6.4 leaves every other message in the mailbox.
@@ -1933,11 +1931,11 @@ fn reportPending(state : State,
                  wrap : (String) -> ScreenMsg) : State receiving ShellMsg =
     receive {
         Reported(report) ->
-            reportPending(reported(state, screen, report, wrap), screen, wrap)
+            reportPending(reportFault(state, screen, report, wrap), screen, wrap)
       | Reloaded(=by, =modules) ->
-            reportPending(reloadSaid(state, screen, by, modules, wrap), screen, wrap)
+            reportPending(sayReload(state, screen, by, modules, wrap), screen, wrap)
       | ScreenDied(down) ->
-            screenDied(down)
+            endWithScreen(down)
       | after 0 ->
             state
     }
@@ -1969,8 +1967,8 @@ fn moreLines(state : State,
 // writes what the screen writes, and reads and appends the operator's
 // files for the session, until the session ends.
 fn localHalf(attachment : Attachment) : Unit receiving LocalMsg = {
-    ownMarked();
-    let size = keysHeld();
+    markSelfOwn();
+    let size = holdKeys();
     // report §11.2: in line mode a reader of lines of its own holds the
     // terminal and reads each line the session asks for, so that the local
     // half writes while a line is awaited
@@ -1978,7 +1976,7 @@ fn localHalf(attachment : Attachment) : Unit receiving LocalMsg = {
         Some(_) ->
             None
       | None -> {
-            let reader = spawn(fn() = linesRead());
+            let reader = spawn(fn() = readLines());
             monitor(Process.fromAddress(reader), LinesEnded);
             Some(reader)
         }
@@ -1988,10 +1986,10 @@ fn localHalf(attachment : Attachment) : Unit receiving LocalMsg = {
     // found, and the person's directory is then made its owner's alone,
     // before the history makes it so at a terminal
     let startup = startupFiles();
-    let read = List.map(startup, ownInputs);
+    let read = List.map(startup, readOwnInputs);
     Ernest.Shell.History.keepOwn();
     let #(earlier, keeping, historyNotes) = match size {
-        Some(_) -> history()
+        Some(_) -> readHistory()
       | None -> #([], false, [])
     };
     let desk =
@@ -2044,7 +2042,7 @@ fn isAttaching(attachment : Attachment) : Bool =
 // the interrupt reaches it as a key, and a granted subscription means the
 // terminal no longer echoes, so nothing typed at an earlier prompt is read
 // as a line.
-fn keysHeld() : Optional(Terminal.Size) receiving LocalMsg =
+fn holdKeys() : Optional(Terminal.Size) receiving LocalMsg =
     match Terminal.size() {
         Left(_) ->
             None
@@ -2064,7 +2062,6 @@ fn keysHeld() : Optional(Terminal.Size) receiving LocalMsg =
 // says as it is.
 fn refusal(name : String, error : Io.Error) : String = {
     let peer = "ern shell: the peer " <> name;
-    let node = "ern shell: the node " <> name;
     match error {
         Io.NotListed ->
             peer <> " is not listed"
@@ -2073,9 +2070,9 @@ fn refusal(name : String, error : Io.Error) : String = {
       | Io.Timeout ->
             peer <> " did not answer in time"
       | Io.NotLoaded ->
-            node <> " runs another build of ern than this shell; attach with its release"
+            nodeRefusal(name, "runs another build of ern than this shell; attach with its release")
       | Io.Other(text) ->
-            node <> " could not load the shell: " <> text
+            nodeRefusal(name, "could not load the shell: " <> text)
       | other ->
             peer <> ": " <> trouble(other)
     }
@@ -2087,10 +2084,14 @@ fn refusal(name : String, error : Io.Error) : String = {
 // the shell says as the start's reason.
 fn startRefusal(name : String, reason : Reason) : String =
     match reason {
-        Unreachable -> refusal(name, Io.Unreachable)
-      | ProgramEnd -> refusal(name, Io.Unreachable)
-      | other -> "ern shell: the peer " <> name <> " could not start the shell: " <> Io.show(other)
+        Unreachable or ProgramEnd -> refusal(name, Io.Unreachable)
+      | other -> nodeRefusal(name, "could not start the shell: " <> Io.show(other))
     }
+
+// Report §11.2: a refusal of what the node itself did, `words` after its
+// name.
+fn nodeRefusal(name : String, words : String) : String =
+    "ern shell: the node " <> name <> " " <> words
 
 // Report §11.2: until the session has its screen, the terminal's events
 // waiting meanwhile; an attached shell, `deadline` the moment its wait
@@ -2101,29 +2102,29 @@ fn attaching(serving : Serving, deadline : Optional(Int)) : Unit receiving Local
         #(Some(name), Some(ending)) ->
             receive {
                 Attached(=session, =keys, =screen, =reply) ->
-                    served(attachedTo(serving, session, keys, screen, reply))
+                    served(joinSession(serving, session, keys, screen, reply))
               // report §11.2: the connection lost, or the node ended, before
               // the session started, which no connection gives
               | EntryEnded(down) ->
                     end(1, startRefusal(name, down.reason))
-              | after Int.max(0, ending - Clock.monotonic()) ->
+              | after ending - Clock.monotonic() ->
                     end(1, refusal(name, Io.Timeout))
             }
       | _ ->
             receive {
                 Attached(=session, =keys, =screen, =reply) ->
-                    served(attachedTo(serving, session, keys, screen, reply))
+                    served(joinSession(serving, session, keys, screen, reply))
             }
     }
 
 // Report §11.2: the session has its screen: what the shell's own node
 // writes goes there from now on, and an attached shell's local half and
 // its session monitor each other.
-fn attachedTo(serving : Serving,
-              session : Process,
-              keys : Optional(Address(Terminal.Event)),
-              screen : Process,
-              reply : Reply(Unit)) : Serving receiving LocalMsg = {
+fn joinSession(serving : Serving,
+               session : Process,
+               keys : Optional(Address(Terminal.Event)),
+               screen : Process,
+               reply : Reply(Unit)) : Serving receiving LocalMsg = {
     setNodeScreen(Some(screen));
     if Optional.isSome(serving.peer) then monitor(session, SessionEnded) else Unit;
     answer(reply, Unit);
@@ -2198,7 +2199,7 @@ fn served(serving : Serving) : Unit receiving LocalMsg =
       // report §11.2: the session is monitored where it is attached alone
       | SessionEnded(down) ->
             match serving.peer {
-                Some(name) -> sessionEnded(name, down, serving.ending)
+                Some(name) -> endWithSession(name, down, serving.ending)
               | None -> served(serving)
             }
       // the root of the session's chain, which ends with the session, whose
@@ -2243,7 +2244,7 @@ fn isUnder(root : Path, path : Path) : Bool = {
 // gone with the session, or with its node, so what the shell's own node
 // writes from now on goes to its own standard output, and the end's drain
 // asks no node that may be lost (§8.6).
-fn sessionEnded(name : String, down : Down, ending : String) : Unit = {
+fn endWithSession(name : String, down : Down, ending : String) : Unit = {
     setNodeScreen(None);
     match down.reason {
         Returned ->
@@ -2280,8 +2281,8 @@ fn nodeEnd(name : String, reason : Reason) : #(Int, String) =
 // which holds the terminal, so that a process that asks for the keys or a
 // line faults rather than taking them, and reads the next line each time
 // the session asks.
-fn linesRead() : Unit receiving LinesMsg = {
-    ownMarked();
+fn readLines() : Unit receiving LinesMsg = {
+    markSelfOwn();
     holdTerminal(self());
     nextRead()
 }
@@ -2505,7 +2506,7 @@ foreign fn markOwn(processes : List(Process)) : Unit =
 // Report §11.2, Appendix E.21: the calling process, one of the session's
 // own: the local half, its reader of lines, and the root of an attached
 // session's chain.
-fn ownMarked() : Unit =
+fn markSelfOwn() : Unit =
     markOwn([Process.fromAddress(self())])
 
 // Report §11.2: waits until each delivery of the runtime's own on its way

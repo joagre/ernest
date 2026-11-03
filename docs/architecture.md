@@ -131,7 +131,7 @@ Each construct's function says how it is written:
 - a top-level `let`, a getter over `persistent_term` that its initializer fills, a function of its own, `initializer_function/2`, exported and called by the unit's name from `'$init'/0` in dependency order, a call the host's type pass does not follow (`init_function/2`, §8.5, §11.1); one whose initializer is a ground term, `ground/2`, is read as its value, `term_form/1`, in its module and, through the interface's `terms` and a `#linked{}`'s `term`, in a dependent, and `'$init'/0` gives it its value before any initializer runs (§11.1);
 - a spawn on a peer, `spawned/2`, its captures, `captures/1`, and a service's hash, `service_hash/1` (§8.7, §12.6);
 - a spawn's site, `site_name/2`, written by `ern_namespace:site_text/2` as a frame of a trace is (§6.9, E.21);
-- a fault the code meets, `thrown_fault/1`, the host's throw where it is met, so that the trace holds the function that met it (§7.3);
+- a fault the code meets, `raised/2`, a call of `ern_rt:fault/1` in a `try` with an empty `after`, so that the trace holds the function that met it and its callers, which a throw in place lost to the host's type pass (§7.3);
 - a requirement's members, `supply_form/2` and `enclosing_members/3` (§4.9);
 - a call of a foreign function of the standard library's, `shim_call/4`, the host's function its declaration names, which the interface's `shims` and a `#linked{}`'s `shim` give a dependent, inside the `try` that names it but for a host function `raiseless/0` lists, a private one the library's unit calls only so having no function of its own (`foreign_kept/4`), and `compare` at a prelude type, `host_compare/4` (§11.1, §12.3);
 - a `Float` operation, `float_operation/4`, the host's own operation with no `try`, whose fault the runtime reads, and a float segment's variable, `variable_form/1` (§3.1, §7.4);
@@ -196,7 +196,7 @@ Each chunk is read through `ern_chunk`. A name a shell session declares is writt
 | a courier | the terminal | a link to the terminal | applies one subscriber's wrap to its keys (E.16) |
 | a request's worker | `fs` | | does one `Fs` request (E.17) |
 | a listener's or a socket's process | `tcp` (`opened/4`) | `ern_held`, as opened | a listener or a socket (E.18) |
-| a connect's or an accept's worker | `tcp` (`counted/1`) | `ern_held`, as a source | one connect or accept (E.18) |
+| a connect's or an accept's worker | `tcp` (`spawn_counted/1`) | `ern_held`, as a source | one connect or accept (E.18) |
 | a closer | a socket (`lingering/4`) | | closes a host socket once the far end has taken its bytes (E.18) |
 | a running program's process | `os` | `ern_held`, as opened | owns the program's `ern_exec` port (E.23) |
 | the code table's holder | `ern_code`, at the table's first use | | holds `ern_code` and `ern_code_sums` for the host's life |

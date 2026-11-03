@@ -90,7 +90,7 @@ A span of text inside a block.
 
 ```ernest
 Markdown.Link(url = "https://example.org", text = [Markdown.Text("home")])
-// => Link(text = [Text("home")], url = "https://example.org")
+// => Markdown.Link(text = [Markdown.Text("home")], url = "https://example.org")
 ```
 
 - `Text`: Text as it reads.
@@ -120,7 +120,7 @@ A block of a document.
 
 ```ernest
 Markdown.Heading(level = 2, text = [Markdown.Text("Usage")])
-// => Heading(level = 2, text = [Text("Usage")])
+// => Markdown.Heading(level = 2, text = [Markdown.Text("Usage")])
 ```
 
 - `Heading`: A heading, its level from 1 to 6.
@@ -148,8 +148,11 @@ A table's column: its heading's text, and how its cells are aligned.
 ### Examples
 
 ```ernest
-Markdown.parse("| a |\n| - |")
-// => [Table(columns = [Column(text = [Text("a")], alignment = LeftAligned)], rows = [])]
+match Markdown.parse("| a |\n| - |") {
+    [Markdown.Table(=columns)] -> columns
+  | _ -> []
+}
+// => [Markdown.Column(text = [Markdown.Text("a")], alignment = Markdown.LeftAligned)]
 ```
 
 ## Markdown.Alignment
@@ -170,7 +173,7 @@ match Markdown.parse("| a | b |\n| :-: | --: |") {
     [Markdown.Table(=columns)] -> List.map(columns, fn(column) = column.alignment)
   | _ -> []
 }
-// => [Centered, RightAligned]
+// => [Markdown.Centered, Markdown.RightAligned]
 ```
 
 - `LeftAligned`: To the left, where the delimiter cell has no colon or one at its start.
@@ -236,8 +239,8 @@ The blocks of `text`, in order.
 ### Examples
 
 ```ernest
-Markdown.parse("## Usage\n\nRun `ern`")
-// => [Heading(level = 2, text = [Text("Usage")]), Paragraph([Text("Run "), CodeSpan("ern")])]
+Markdown.parse("Run `ern`\n\n---")
+// => [Markdown.Paragraph([Markdown.Text("Run "), Markdown.CodeSpan("ern")]), Markdown.Rule]
 ```
 
 ## Markdown.render
@@ -329,7 +332,7 @@ nothing where the document has no paragraph.
 
 ```ernest
 Markdown.firstSentence(Markdown.parse("# Title\n\nOne `a`. Two."))
-// => [Text("One "), CodeSpan("a"), Text(".")]
+// => [Markdown.Text("One "), Markdown.CodeSpan("a"), Markdown.Text(".")]
 ```
 
 ---

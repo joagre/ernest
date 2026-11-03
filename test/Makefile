@@ -172,9 +172,9 @@ grammar: $(BEAMS)
 typed: $(BEAMS) named
 	$(call EUNIT,$(TYPED))
 
-# The shell's and the terminal's tests make their homes, sources, inputs
-# and step files under one directory of the run's own, which is removed
-# when the run ends, whatever its outcome (ern_pty:run_dir/0).
+# The shell's and the terminal's tests make their homes, sources and inputs
+# under one directory of the run's own, which is removed when the run ends,
+# whatever its outcome (ern_pty:run_dir/0).
 shell: $(BEAMS) prepare pty
 	@dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_shell_XXXXXX") && \
 	  ERN_TEST_DIR=$$dir $(call EUNIT_SIDE_BY_SIDE,$(SHELL_TESTS)); \

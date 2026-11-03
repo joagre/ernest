@@ -50,10 +50,8 @@ exactly_written_test_() ->
 exactly_written() ->
     Characters = <<"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/= ">>,
     Texts = [<<"Q", X, Y, Z>> || <<X>> <= Characters, <<Y>> <= Characters, <<Z>> <= Characters],
-    %% a fold, whose stack does not grow with the texts: the host's raise
-    %% on a refused text costs time as the stack is deep, which a
-    %% comprehension deepens at each text, and the run took some 15
-    %% seconds so where the fold's takes one
+    %% a fold, whose stack does not grow with the texts, since the host's
+    %% raise on a refused text costs time as the stack is deep
     Read = lists:foldl(fun(Text, Acc) ->
                            case ern_base64:decode(Text) of
                                {'Some', Bytes} -> [{Text, Bytes} | Acc];

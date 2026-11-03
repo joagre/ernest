@@ -25,15 +25,20 @@
 %% process that is no program's: the job's, as a node starts or `ern
 %% config` reads a directory, and the carrier's at a reload (§12.5).
 -receives({foreign_wait, [host_read/1, variables/2]}).
--receives({own_process, [serve/1, spawned/5, signal/2, locked/2, node_signaled/3, ended/1,
-                         starting/2, running/4, exited/2, over/2, user/0]}).
+-receives({own_process, [serve/1, spawn_program/5, signal/2, locked/2, node_signaled/3,
+                         ended/1, starting/2, running/4, exited/2, over/2, user/0]}).
 
 %% Report Appendix E.23: a running program's own, beside the reads that
-%% wait and what the helper owes them (running/4): the helper's port, the
-%% monitor of its owner, the writes the helper has yet to answer, and
-%% whether it runs under a terminal, which a resize needs.
--record(program, {helper :: port(), monitor_ref :: reference(), writes :: queue:queue(),
-                  terminal :: boolean()}).
+%% wait and what the helper owes them (running/4): the helper's port, its
+%% owner and the owner's monitor, the writes the helper has yet to answer,
+%% whether it runs under a terminal, which a resize needs, and whether that
+%% terminal is hung up.
+-record(program, {helper :: port(), owner :: pid(), monitor_ref :: reference(),
+                  writes :: queue:queue(), terminal :: boolean(), hung_up = false :: boolean()}).
+
+%% A read waiting: its reply, the reference of its caller's monitor, which
+%% names the read to its timer too, and its timer.
+-record(read, {reply, monitor_ref :: reference(), timer :: reference()}).
 
 %% Report §8.6: every program's process is linked to this one, which the
 %% runtime kills when the program ends, so that none outlives it; this
@@ -47,10 +52,10 @@ loop() ->
 serve(Os) ->
     receive
         {'Start', Command, Owner, Reply} ->
-            spawned(Os, Command, pipes, Owner, Reply),
+            spawn_program(Os, Command, pipes, Owner, Reply),
             serve(Os);
         {'StartTerminal', Command, Size, Owner, Reply} ->
-            spawned(Os, Command, {terminal, Size}, Owner, Reply),
+            spawn_program(Os, Command, {terminal, Size}, Owner, Reply),
             serve(Os);
         {'EXIT', Pid, _} ->
             ern_rt:forget_opened(Pid),
@@ -59,7 +64,7 @@ serve(Os) ->
 
 %% Report §6.9, Appendix E.23: the program's process, its site the function
 %% that started it, known to the runtime before it starts the program.
-spawned(Os, Command, Kind, Owner, Reply) ->
+spawn_program(Os, Command, Kind, Owner, Reply) ->
     Pid = erlang:spawn(fun() ->
                            link(Os),
                            receive go -> start(Command, Kind, Owner, Reply) end
@@ -78,9 +83,9 @@ site({terminal, _}) -> <<"Os.startTerminal">>.
 %% are `Left(Invalid)`.
 start({'Command', Program, Arguments, Input}, Kind, Owner, Reply) ->
     case lists:any(fun(Word) -> binary:match(Word, <<0>>) =/= nomatch end, [Program | Arguments])
-         orelse not is_taken(Kind) of
+         orelse not is_size_taken(Kind) of
         true ->
-            answered(Reply, {'Left', 'Invalid'});
+            end_source(Reply, {'Left', 'Invalid'});
         false ->
             try open(helper_arguments(Kind)) of
                 Helper ->
@@ -89,14 +94,16 @@ start({'Command', Program, Arguments, Input}, Kind, Owner, Reply) ->
                     %% for the host is the program's failure to start
                     Parts = << <<Part/binary, 0>> || Part <- [Program | Arguments] >>,
                     command(Helper, <<"c", Parts/binary>>),
-                    started(Helper, Input, Kind =/= pipes, Owner, Reply)
+                    wait_for_start(Helper, Input, Kind =/= pipes, Owner, Reply)
             catch
-                error:_ -> answered(Reply, helper_failed())
+                error:_ -> end_source(Reply, helper_failed())
             end
     end.
 
-is_taken(pipes) -> true;
-is_taken({terminal, Size}) -> is_size(Size).
+%% Whether the host takes the size a kind of run begins with: a run under
+%% pipes has none.
+is_size_taken(pipes) -> true;
+is_size_taken({terminal, Size}) -> is_size(Size).
 
 %% Report Appendix E.23: a size the host takes, each count from 0 to 65535.
 is_size({'Size', Rows, Columns}) ->
@@ -111,13 +118,15 @@ open(Args) ->
     erlang:open_port({spawn_executable, helper()},
                      [{args, Args}, {packet, 4}, binary, exit_status]).
 
-started(Helper, Input, Terminal, Owner, Reply) ->
+%% The program's input given, its owner watched, and the helper's word on
+%% its start waited for.
+wait_for_start(Helper, Input, Terminal, Owner, Reply) ->
     command(Helper, <<"i", Input/binary>>),
     MonitorRef = erlang:monitor(process, Owner),
     %% the input given at the start is answered by the helper as a write is,
     %% with no one waiting for it
     Writes = queue:in(none, queue:new()),
-    starting(#program{helper = Helper, monitor_ref = MonitorRef, writes = Writes,
+    starting(#program{helper = Helper, owner = Owner, monitor_ref = MonitorRef, writes = Writes,
                       terminal = Terminal}, Reply).
 
 %% Report §7.4, Appendix E.23: the helper's failure is the runtime's own,
@@ -126,8 +135,8 @@ started(Helper, Input, Terminal, Owner, Reply) ->
 helper_failed() ->
     {fault, <<"the runtime's helper ern_exec failed">>}.
 
-%% The helper beside the runtime's modules: erl/runtime/priv/ern_exec, whose
-%% jobs are Os's programs and Fs's removal of a tree.
+%% The helper beside the runtime's modules: erl/runtime/priv/ern_exec, which
+%% runs Os's programs and holds and signals a node's ernest.pid (§12.5).
 -spec helper() -> file:filename().
 helper() ->
     filename:join([filename:dirname(code:which(?MODULE)), "..", "priv", "ern_exec"]).
@@ -172,7 +181,9 @@ locked(PidFile, ProcessNumber) ->
 %% when the node ends: `sent`; `no_file`; `no_node` where no node holds the
 %% file; `no_process` where the file names none; `none` where the process
 %% it names has ended; `others` where that process is another user's; or
-%% `{failed, Text}`.
+%% `{failed, Text}`, a file that is another user's or that others than its
+%% owner may write among the ways, whose number names no node of this
+%% user's, since another could have written it.
 -spec node_signaled(file:filename(), non_neg_integer(), boolean()) ->
           sent | no_file | no_node | no_process | none | others | {failed, string()}.
 node_signaled(PidFile, Number, Wait) ->
@@ -185,6 +196,9 @@ node_signaled(PidFile, Number, Wait) ->
         {Helper, {exit_status, 3}} -> no_process;
         {Helper, {exit_status, 4}} -> none;
         {Helper, {exit_status, 5}} -> others;
+        {Helper, {exit_status, 8}} ->
+            {failed, "is another user's, and names no node of this user's"};
+        {Helper, {exit_status, 9}} -> {failed, "may be written by others than its owner"};
         {Helper, {exit_status, _}} -> {failed, helper_failed_text()}
     end.
 
@@ -213,32 +227,37 @@ starting(#program{helper = Helper} = Running, Reply) ->
             running(Running, queue:new(), 0, queue:new());
         {Helper, {data, <<"f", Name/binary>>}} ->
             stop(Running),
-            answered(Reply, {'Left', not_started(Name)});
+            %% report Appendix E.23: the host's reason, a path through
+            %% something that is no directory finding no program
+            %% (ern_io:host_error/2)
+            end_source(Reply, {'Left', ern_io:helper_error(Name)});
         {Helper, {data, <<"t", Name/binary>>}} ->
             stop(Running),
-            answered(Reply, {'Left', no_terminal(Name)});
+            end_source(Reply, {'Left', no_terminal(Name)});
         {Helper, {exit_status, _}} ->
             stop(Running),
-            answered(Reply, helper_failed());
+            end_source(Reply, helper_failed());
         {'DOWN', _, process, _, _} ->
-            killed(Running)
+            die_with_owner(Running)
     end.
 
-%% Waiting: the reads that wait, oldest first, each {Reply, MonitorRef,
-%% Timer}, MonitorRef the monitor of the read's caller, which names the
-%% read to its timer too. Owed: the pieces the helper owes, one asked for
-%% each read that came with nothing kept. Kept: the answers the helper gave
-%% while no read waited, which the next reads take, in order. The helper
-%% sends one piece of output for each piece it was asked for, and the exit
-%% status once the program has exited and both its outputs have ended,
-%% which it can learn only while a piece is owed.
+%% Waiting: the reads that wait, oldest first, each a #read{}. Owed: the
+%% pieces the helper owes, one asked for each read that came with nothing
+%% kept. Kept: the answers the helper gave while no read waited, which the
+%% next reads take, in order. The helper sends one piece of output for
+%% each piece it was asked for, and the exit status once the program has
+%% exited and both its outputs have ended, which it can learn only while a
+%% piece is owed.
 %%
 %% Report Appendix E.23: a read answers `Left(Timeout)` when its
 %% milliseconds pass, the program running on, and the piece asked for it is
 %% the next read's; a read whose caller has ended before it is answered is
 %% dropped, and the piece asked for it is the next read's the same way. The
 %% caller's end is known by its `DOWN`, and before a piece is answered by
-%% asking the host whether the caller lives (given/5).
+%% asking the host whether the caller lives (given/5). E.0 shape rule 8: a
+%% read given no time has run out as it begins, whatever has arrived, and
+%% takes nothing; a write given no time has too, and gives the program
+%% nothing.
 %%
 %% A write is answered when the helper says the program has taken its
 %% bytes, `a`, or dropped them, `d`, one for each input in order, the
@@ -248,8 +267,14 @@ starting(#program{helper = Helper} = Running, Reply) ->
 %% caller's monitor.
 running(#program{helper = Helper, writes = Writes} = Running, Waiting, Owed, Kept) ->
     receive
+        {'Read', Ms, Reply} when Ms =< 0 ->
+            ern_rt:answer(Reply, {'Left', 'Timeout'}),
+            running(Running, Waiting, Owed, Kept);
         {'Read', Ms, Reply} ->
             read(Ms, Reply, Running, Waiting, Owed, Kept);
+        {'Write', _, Ms, Reply} when Ms =< 0 ->
+            ern_rt:answer(Reply, {'Left', 'Timeout'}),
+            running(Running, Waiting, Owed, Kept);
         {'Write', Bytes, Ms, Reply} ->
             command(Helper, <<"i", Bytes/binary>>),
             Timer = arm({write, Reply}, ern_rt:deadline(Ms)),
@@ -260,11 +285,13 @@ running(#program{helper = Helper, writes = Writes} = Running, Waiting, Owed, Kep
             answered_write(Write, written(Tag)),
             running(Running#program{writes = Rest}, Waiting, Owed, Kept);
         {'Resize', Size, Reply} ->
-            resize(Size, Reply, Running, {'Right', 'Unit'}),
+            resize(Size, Reply, Running, sized),
             running(Running, Waiting, Owed, Kept);
+        %% report Appendix E.23: under a terminal the end of the input is
+        %% the terminal's hangup, which the helper makes at once
         'CloseInput' ->
             command(Helper, <<"e">>),
-            running(Running, Waiting, Owed, Kept);
+            running(Running#program{hung_up = Running#program.terminal}, Waiting, Owed, Kept);
         {'Give', Owner} ->
             running(given_to(Owner, Running), Waiting, Owed, Kept);
         {Helper, {data, <<"x", Status:32>>}} ->
@@ -278,7 +305,7 @@ running(#program{helper = Helper, writes = Writes} = Running, Waiting, Owed, Kep
         {Helper, {exit_status, _}} ->
             failed(Running, Waiting);
         {'DOWN', MonitorRef, process, _, _} when MonitorRef =:= Running#program.monitor_ref ->
-            killed(Running);
+            die_with_owner(Running);
         {'DOWN', MonitorRef, process, _, _} ->
             running(Running, dropped(MonitorRef, Waiting), Owed, Kept);
         {timeout, _, {deadline, {write, Reply}, Deadline}} ->
@@ -299,7 +326,8 @@ read(Ms, Reply, #program{helper = Helper} = Running, Waiting, Owed, Kept) ->
         {empty, _} ->
             MonitorRef = erlang:monitor(process, ern_rt:reply_process(Reply)),
             Timer = arm({read, MonitorRef}, ern_rt:deadline(Ms)),
-            Waiting1 = queue:in({Reply, MonitorRef, Timer}, Waiting),
+            Waiting1 = queue:in(#read{reply = Reply, monitor_ref = MonitorRef, timer = Timer},
+                                Waiting),
             case Owed > queue:len(Waiting) of
                 true -> running(Running, Waiting1, Owed, Kept);
                 false -> command(Helper, <<"n">>), running(Running, Waiting1, Owed + 1, Kept)
@@ -307,11 +335,13 @@ read(Ms, Reply, #program{helper = Helper} = Running, Waiting, Owed, Kept) ->
     end.
 
 %% The helper ended with no status to send: it failed, and each write and
-%% each read waiting is answered so.
-failed(Running, Waiting) ->
+%% each read waiting is answered so. Report Appendix E.28: the program is
+%% no longer known to run, and the process is spent.
+failed(#program{owner = Owner} = Running, Waiting) ->
     stop(Running),
     unwritten(Running, helper_failed()),
     ern_rt:source_end(),
+    ern_rt:spent(Owner),
     lists:foreach(fun(Read) -> answered_read(Read, helper_failed()) end, queue:to_list(Waiting)),
     over(helper_failed(), Running).
 
@@ -319,21 +349,24 @@ failed(Running, Waiting) ->
 %% next read where none does. The exit status is the last answer, given to
 %% every read that waits, since the helper sends nothing more, and kept for
 %% every read to come; the reads that wait have it before the program's
-%% count as a source ends, as answered/2 says.
+%% count as a source ends, as end_source/2 says.
 %%
 %% Report Appendix E.23: a piece goes to a read whose caller lives as it is
 %% answered. A caller's `DOWN` comes after its end, ordered with nothing the
 %% port sends, so the host is asked first, of a caller of this node, since
 %% the program's address is bound to it (report §3.11); a read whose caller
 %% has ended is dropped as its `DOWN` would drop it, and the piece goes to
-%% the next.
-given(Running, {'Right', {'Exited', _}} = Answer, Waiting, _Owed, Kept) ->
+%% the next. Report Appendix E.28: once the program has exited, the process
+%% is spent.
+given(#program{owner = Owner} = Running, {'Right', {'Exited', _}} = Answer, Waiting, _Owed,
+      Kept) ->
     lists:foreach(fun(Read) -> answered_read(Read, Answer) end, queue:to_list(Waiting)),
     ern_rt:source_end(),
+    ern_rt:spent(Owner),
     exited(queue:in(Answer, Kept), Running);
 given(Running, Answer, Waiting, Owed, Kept) ->
     case queue:out(Waiting) of
-        {{value, {Reply, MonitorRef, _} = Read}, Rest} ->
+        {{value, #read{reply = Reply, monitor_ref = MonitorRef} = Read}, Rest} ->
             case erlang:is_process_alive(ern_rt:reply_process(Reply)) of
                 true ->
                     answered_read(Read, Answer),
@@ -346,7 +379,7 @@ given(Running, Answer, Waiting, Owed, Kept) ->
     end.
 
 %% A read answered: its timer let go and its caller no longer watched.
-answered_read({Reply, MonitorRef, Timer}, Answer) ->
+answered_read(#read{reply = Reply, monitor_ref = MonitorRef, timer = Timer}, Answer) ->
     let_go(Timer),
     erlang:demonitor(MonitorRef, [flush]),
     respond(Reply, Answer).
@@ -356,7 +389,8 @@ answered_read({Reply, MonitorRef, Timer}, Answer) ->
 %% a `DOWN` on its way among it; a piece the helper was asked for it is the
 %% next read's (given/5, read/6).
 dropped(MonitorRef, Waiting) ->
-    {value, {_, _, Timer}, Rest} = lists:keytake(MonitorRef, 2, queue:to_list(Waiting)),
+    {value, #read{timer = Timer}, Rest} =
+        lists:keytake(MonitorRef, #read.monitor_ref, queue:to_list(Waiting)),
     let_go(Timer),
     erlang:demonitor(MonitorRef, [flush]),
     queue:from_list(Rest).
@@ -364,11 +398,14 @@ dropped(MonitorRef, Waiting) ->
 %% Report Appendix E.23: the program has exited, and its process lives on,
 %% as a socket's does after its close, until it is killed or its owner
 %% dies. The reads take what is kept, in order, and the exit status last,
-%% which stays for every read after it; a write is answered as to a
-%% program that has exited, a resize sizes nothing, and `closeInput` does
-%% nothing.
+%% which stays for every read after it, a read given no time excepted; a
+%% write and a resize are answered as to a program that has exited, a
+%% write given no time excepted, and `closeInput` does nothing.
 exited(Kept, #program{monitor_ref = MonitorRef} = Running) ->
     receive
+        {'Read', Ms, Reply} when Ms =< 0 ->
+            ern_rt:answer(Reply, {'Left', 'Timeout'}),
+            exited(Kept, Running);
         {'Read', _, Reply} ->
             {{value, Answer}, Rest} = queue:out(Kept),
             ern_rt:answer(Reply, Answer),
@@ -376,11 +413,14 @@ exited(Kept, #program{monitor_ref = MonitorRef} = Running) ->
                 {'Right', {'Exited', _}} -> exited(Kept, Running);
                 _ -> exited(Rest, Running)
             end;
+        {'Write', _, Ms, Reply} when Ms =< 0 ->
+            ern_rt:answer(Reply, {'Left', 'Timeout'}),
+            exited(Kept, Running);
         {'Write', _, _, Reply} ->
             ern_rt:answer(Reply, {'Left', 'Closed'}),
             exited(Kept, Running);
         {'Resize', Size, Reply} ->
-            resize(Size, Reply, Running, {'Right', 'Unit'}),
+            resize(Size, Reply, Running, {'Left', 'Closed'}),
             exited(Kept, Running);
         {'Give', Owner} ->
             exited(Kept, given_to(Owner, Running));
@@ -411,20 +451,22 @@ expired_write(Reply, Deadline) ->
             {Reply, arm({write, Reply}, Deadline)}
     end.
 
-read_timed_out(Ref, Deadline, Waiting) ->
+read_timed_out(MonitorRef, Deadline, Waiting) ->
     queue:from_list(lists:append([case Read of
-                                      {Reply, Ref, _} -> expired_read(Reply, Ref, Deadline);
-                                      _ -> [Read]
+                                      #read{monitor_ref = MonitorRef} ->
+                                          expired_read(Read, Deadline);
+                                      _ ->
+                                          [Read]
                                   end || Read <- queue:to_list(Waiting)])).
 
-expired_read(Reply, Ref, Deadline) ->
+expired_read(#read{reply = Reply, monitor_ref = MonitorRef} = Read, Deadline) ->
     case ern_rt:remaining(Deadline) of
         0 ->
-            erlang:demonitor(Ref, [flush]),
+            erlang:demonitor(MonitorRef, [flush]),
             ern_rt:answer(Reply, {'Left', 'Timeout'}),
             [];
         _ ->
-            [{Reply, Ref, arm({read, Ref}, Deadline)}]
+            [Read#read{timer = arm({read, MonitorRef}, Deadline)}]
     end.
 
 %% A request's timer, which names the request and its deadline.
@@ -464,28 +506,43 @@ unwritten(#program{writes = Writes}, Answer) ->
 piece($o, Bytes) -> {'Stdout', Bytes};
 piece($r, Bytes) -> {'Stderr', Bytes}.
 
-%% Report Appendix E.23: a program `start` started has no terminal, and
-%% answers `Left(NotATerminal)`, and a size the host cannot take answers
-%% `Left(Invalid)`, whatever the program's state. Otherwise the size goes
-%% to the helper, which drops it once the terminal is hung up or its
-%% program has exited, a port that has closed dropping it too, and Answer
-%% is given: `Right(Unit)`, or the helper's failure once it has failed.
+%% Report Appendix E.23: a resize's answers, in their order, whatever the
+%% program's state, each but the size's answered here, without the helper:
+%% a program `start` started has no terminal, and answers
+%% `Left(NotATerminal)`, whatever the size; a size the host cannot take
+%% answers `Left(Invalid)`; once the terminal is hung up or the program has
+%% exited, `Left(Closed)`, as a write answers; and once the helper has
+%% failed, its failure. Answer is the last of these the program's state
+%% gives, or `sized`, where the size goes to the helper, a port that has
+%% closed dropping it, and the resize answers `Right(Unit)`.
 resize(_Size, Reply, #program{terminal = false}, _Answer) ->
     ern_rt:answer(Reply, {'Left', 'NotATerminal'});
-resize({'Size', Rows, Columns} = Size, Reply, #program{helper = Helper}, Answer) ->
-    case is_size(Size) of
-        true ->
+resize(Size, Reply, Running, Answer) ->
+    case {is_size(Size), Running, Answer} of
+        {false, _, _} ->
+            ern_rt:answer(Reply, {'Left', 'Invalid'});
+        {true, #program{hung_up = true}, sized} ->
+            ern_rt:answer(Reply, {'Left', 'Closed'});
+        {true, #program{helper = Helper}, sized} ->
+            {'Size', Rows, Columns} = Size,
             command(Helper, <<"w", Rows:16, Columns:16>>),
-            respond(Reply, Answer);
-        false ->
-            ern_rt:answer(Reply, {'Left', 'Invalid'})
+            ern_rt:answer(Reply, {'Right', 'Unit'});
+        {true, _, _} ->
+            respond(Reply, Answer)
     end.
 
 %% A program whose helper failed: each read and write to come faults its
-%% caller, and each resize of its terminal. Its owner may still die first,
-%% which ends this process as it would have ended the program.
+%% caller, one given no time excepted, and each resize of its terminal
+%% whose size the host takes. Its owner may still die first, which ends
+%% this process as it would have ended the program.
 over(Answer, #program{monitor_ref = MonitorRef} = Running) ->
     receive
+        {'Read', Ms, Reply} when Ms =< 0 ->
+            ern_rt:answer(Reply, {'Left', 'Timeout'}),
+            over(Answer, Running);
+        {'Write', _, Ms, Reply} when Ms =< 0 ->
+            ern_rt:answer(Reply, {'Left', 'Timeout'}),
+            over(Answer, Running);
         {'Read', _, Reply} -> respond(Reply, Answer), over(Answer, Running);
         {'Write', _, _, WriteReply} -> respond(WriteReply, Answer), over(Answer, Running);
         {'Resize', Size, ResizeReply} ->
@@ -501,16 +558,16 @@ over(Answer, #program{monitor_ref = MonitorRef} = Running) ->
 %% that ends at once.
 given_to(Owner, #program{monitor_ref = MonitorRef} = Running) ->
     erlang:demonitor(MonitorRef, [flush]),
-    Running#program{monitor_ref = erlang:monitor(process, Owner)}.
+    Running#program{owner = Owner, monitor_ref = erlang:monitor(process, Owner)}.
 
 %% The helper's port closed, which ends the helper and kills the program if
 %% it runs. The monitor of its owner stays.
 stop(#program{helper = Helper}) ->
     try erlang:port_close(Helper) catch error:badarg -> closed end.
 
-%% The last answer while the program counts as a source, given before the
-%% count ends, so that no deadlock is found between the two (report §8.6).
-answered(Reply, Answer) ->
+%% The program's end as a source, its last answer given before its count
+%% ends, so that no deadlock is found between the two (report §8.6).
+end_source(Reply, Answer) ->
     respond(Reply, Answer),
     ern_rt:source_end().
 
@@ -518,18 +575,12 @@ answered(Reply, Answer) ->
 respond(Reply, {fault, Cause}) -> ern_rt:refuse(Reply, Cause);
 respond(Reply, Answer) -> ern_rt:answer(Reply, Answer).
 
-%% The program's owner died: the program is killed with
-%% this process, which ends as a killed process does.
-killed(Running) ->
+%% The program's owner died: the program is killed with this process,
+%% which ends as a killed process does.
+die_with_owner(Running) ->
     stop(Running),
     ern_rt:source_end(),
     exit({ern, killed}).
-
-%% Report Appendix E.23: why a program did not start, by the error's name
-%% the helper sends; a path through something that is no directory finds
-%% no program.
-not_started(<<"enotdir">>) -> 'NotFound';
-not_started(Name) -> ern_io:helper_error(Name).
 
 %% Report Appendix E.23: why the program's terminal could not be opened, by
 %% the error's name the helper sends, a reason of the host's for which the

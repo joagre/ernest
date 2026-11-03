@@ -706,6 +706,40 @@ trace_names_functions_test() ->
                   <<"Traced.helper:8">>, <<"Traced.main:11">>],
                  frames(Trace)).
 
+%% report §7.3, Appendix E.21: a fault's trace holds the frame of the
+%% function that meets it and of each caller beneath, as a host error's
+%% does, though the function's every way out for that argument faults:
+%% the workers of the probe call `first([])` as an argument and as an
+%% operand, and `average(1, 0)` divides by zero. A regression test: `fault`
+%% was the host's throw written in place, from which the host's compiler
+%% took the call of `first` for one that never returns and made it the
+%% caller's last, the worker's frame gone; it does not cover a call of
+%% `fault` in a lambda, whose frame is its declaration's as any frame is
+fault_keeps_its_callers_frames_test() ->
+    Declarations = "fn first(list : List(Int)) : Int =\n"
+                   "    match list {\n"
+                   "        x :: _ -> x\n"
+                   "      | [] -> fault(\"first of an empty list\")\n"
+                   "    }\n"
+                   "fn average(total : Int, count : Int) : Int =\n"
+                   "    total / count\n"
+                   "fn worker() : Unit =\n"
+                   "    Io.println(Int.toString(first([])))\n"
+                   "fn worker2() : Unit =\n"
+                   "    Io.println(Int.toString(average(1, 0)))\n"
+                   "fn worker3() : Unit =\n"
+                   "    Io.println(Int.toString(first([]) + 1))\n",
+    Traced = fun(Worker) ->
+                 Main = "export fn main() : Unit = {\n    " ++ Worker ++ "();\n    Unit\n}\n",
+                 {{fault, _, Trace}, _} = run(['Tr2'], Declarations ++ Main, #{}),
+                 frames(Trace)
+             end,
+    ?assertEqual([<<"Tr2.first:4">>, <<"Tr2.worker:9">>, <<"Tr2.main:15">>], Traced("worker")),
+    ?assertEqual([<<"erlang:'div'/2">>, <<"Tr2.average:7">>, <<"Tr2.worker2:11">>,
+                  <<"Tr2.main:15">>],
+                 Traced("worker2")),
+    ?assertEqual([<<"Tr2.first:4">>, <<"Tr2.worker3:13">>, <<"Tr2.main:15">>], Traced("worker3")).
+
 %% Appendix E.21, report §8.5, §11.2: a fault in a top-level binding's
 %% initializer is reported under the binding's site and traced by the
 %% binding's name and the frame's line, beneath the frames of what it
@@ -1607,10 +1641,10 @@ io_debug_test() ->
         "    let _ = List.map(['x'], Io.debug);\n"
         "    Unit\n"
         "}\n"),
-    ?assertEqual(<<"4\n5\n[Circle(-3), Dot]\n#(1.5, \"a\\nb\", true, Unit)\n"
-                   "Snap(seen = 2, dir = \"x\")\n"
+    ?assertEqual(<<"4\n5\n[M.Circle(-3), M.Dot]\n#(1.5, \"a\\nb\", true, Unit)\n"
+                   "M.Snap(seen = 2, dir = \"x\")\n"
                    "Map.fromList([#(\"k\", [1])])\nSet.fromList([1, 2])\n<function>\n"
-                   "#(true, false)\n\"é中\"\n#('a', '\\'', Some('\\n'))\n#(Ready, 1)\n"
+                   "#(true, false)\n\"é中\"\n#('a', '\\'', Some('\\n'))\n#(M.Ready, 1)\n"
                    "<<104, 105>>\n'x'\n"/utf8>>, Output).
 
 %% report Appendix E.1: Io.show writes a value by its type at the call, as
@@ -1624,7 +1658,7 @@ show_test() ->
         "    Io.println(pure('a'));\n"
         "    Io.println(String.join(List.map([<<1>>, <<2, 3>>], Io.show), \" \"))\n"
         "}\n"),
-    ?assertEqual(<<"Snap(seen = 2, dir = \"x\")\nSome('a')\n<<1>> <<2, 3>>\n">>, Output).
+    ?assertEqual(<<"M.Snap(seen = 2, dir = \"x\")\nSome('a')\n<<1>> <<2, 3>>\n">>, Output).
 
 %% report §6.6, Appendix E.1: a server keeps the replies it cannot answer
 %% yet as it keeps any value, in a list, in a map and captured by a lambda
@@ -2211,8 +2245,8 @@ float_fault_everywhere_test() ->
                    "    Io.println(Io.show(Test.faults(fn() = 1 / zero(),"
                    " \"float arithmetic error\")))\n"
                    "}\n"),
-    ?assertEqual(<<"Passed\nFailed(\"expected the fault float arithmetic error, got the fault"
-                   " division by zero\")\n">>, Judged),
+    ?assertEqual(<<"Test.Passed\nTest.Failed(\"expected the fault float arithmetic error, got"
+                   " the fault division by zero\")\n">>, Judged),
     {{fault, <<"float arithmetic error">>, Called}, Printed} =
         run("foreign fn each(f : (a) -> Unit receiving m, xs : List(a)) : Unit receiving m ="
             " \"lists:foreach/2\"\n"
@@ -2358,7 +2392,8 @@ let_order_through_supplied_member_test() ->
         "let scale = 1\n"
         "export fn main() : Unit =\n"
         "    Io.println(Io.show(#(sorted, filled, derived)))\n"),
-    ?assertEqual(<<"#([T(1), T(2)], [T(3), T(4)], [P(t = T(5)), P(t = T(6))])\n">>, Output).
+    ?assertEqual(<<"#([M.T(1), M.T(2)], [M.T(3), M.T(4)], [M.P(t = M.T(5)), M.P(t = M.T(6))])\n">>,
+                 Output).
 
 %% report §8.5: a top-level let is evaluated after the lets it depends
 %% on, and otherwise in the order the module declares it. A regression
@@ -2501,7 +2536,7 @@ callback_restart_passes_through_test() ->
         "    receive { s -> Io.println(s) };\n"
         "    receive { s -> Io.println(s) }\n"
         "}\n"),
-    ?assertEqual(<<"First\nAsked\n">>, Output).
+    ?assertEqual(<<"M.First\nM.Asked\n">>, Output).
 
 %% report §3.1, §5.10: there is no negative zero, so the pattern `-0.0`
 %% matches the zero, however it was made. A regression test: the pattern
@@ -3586,7 +3621,7 @@ field_order_test() ->
         "    Unit\n"
         "}\n"),
     ?assertEqual(<<"m\nz\na\nbase\nm\na\n"
-                   "#(Snap(z = 1, a = 2, m = 3), Snap(z = 1, a = 5, m = 4))\n">>, Output).
+                   "#(M.Snap(z = 1, a = 2, m = 3), M.Snap(z = 1, a = 5, m = 4))\n">>, Output).
 
 %% report §5.3, §5.8: lambdas capture, if is an expression
 lambda_if_test() ->
@@ -4456,7 +4491,7 @@ requirement_supplied_test() ->
             "    Io.println(Io.show(sorted([\"c\", \"a\", \"b\"])));\n"
             "    Io.println(shown([1, 2]));\n"
             "    Io.println(Io.show(OrderedSet.toList(putAll([2, 1, 2]))))\n}\n"),
-    ?assertEqual(<<"Money(3)\nMoney(-3)\nSome(9)\n[\"a\", \"b\", \"c\"]\n1 2\n[1, 2]\n">>,
+    ?assertEqual(<<"M.Money(3)\nM.Money(-3)\nSome(9)\n[\"a\", \"b\", \"c\"]\n1 2\n[1, 2]\n">>,
                  Output).
 
 %% report §9.4, §4.9, Appendix E.1: under `needs a.show`, Io.show writes a
@@ -4479,8 +4514,8 @@ show_composed_test() ->
         "    Io.println(twice([Some(1.5)]))\n"
         "}\n"),
     ?assertEqual(<<"[1, 2]\nSome(#(\"hi\", 1))\n"
-                   "Node(left = Leaf, item = Some(Node(left = Leaf, item = 'c', right = Leaf)),"
-                   " right = Leaf)\n"
+                   "M.Node(left = M.Leaf, item = Some(M.Node(left = M.Leaf, item = 'c',"
+                   " right = M.Leaf)), right = M.Leaf)\n"
                    "[[Some(1.5)], [Some(1.5)]]\n">>, Output).
 
 %% report §2.4, §4.9, §3.5: `needs`, `derives`, `compare`, `negate` and
@@ -4509,7 +4544,7 @@ words_by_position_test() ->
         "    Io.println(Int.toString(compare));\n"
         "    Io.println(Io.show(largest([Pair(left = 1, right = 2), Pair(left = 1, right = 3)])))\n"
         "}\n"),
-    ?assertEqual(<<"-2\nSome(Pair(left = 1, right = 3))\n">>, Output).
+    ?assertEqual(<<"-2\nSome(M.Pair(left = 1, right = 3))\n">>, Output).
 
 %% report §3.5, §4.9: a derived compare orders by constructor in declaration
 %% order, then field by field from the left, its parameters' members
@@ -4542,7 +4577,7 @@ derived_compare_test() ->
             "    let leaf = Node(left = Leaf, value = 2, right = Leaf);\n"
             "    Io.println(Io.show(leaf > Node(left = Leaf, value = 1, right = Leaf)));\n"
             "    Io.println(Io.show(compare(one, one)))\n}\n"),
-    ?assertEqual(<<"[Dot, Circle(2), Circle(3), Rect(w = 1, h = 1), Rect(w = 1, h = 2)]\n"
+    ?assertEqual(<<"[M.Dot, M.Circle(2), M.Circle(3), M.Rect(w = 1, h = 1), M.Rect(w = 1, h = 2)]\n"
                    "true\ntrue\nEqual\n">>, Output).
 
 %% report §5.6, §4.9: a record filled from a namespace holds its
@@ -4582,12 +4617,12 @@ update_path_test() ->
             "                     name = { Io.println(\"b\"); \"r\" },\n"
             "                     stats.hits = { Io.println(\"c\"); 3 });\n"
             "    Io.println(Io.show(shown))\n}\n"),
-    ?assertEqual(<<"Pool(name = \"p\", stats = Stats(indexed = 1, hits = 0))\n"
-                   "Pool(name = \"q\", stats = Stats(indexed = 1, hits = 2))\n"
-                   "Site(pool = Pool(name = \"p\", stats = Stats(indexed = 0, hits = 5)),"
+    ?assertEqual(<<"M.Pool(name = \"p\", stats = M.Stats(indexed = 1, hits = 0))\n"
+                   "M.Pool(name = \"q\", stats = M.Stats(indexed = 1, hits = 2))\n"
+                   "M.Site(pool = M.Pool(name = \"p\", stats = M.Stats(indexed = 0, hits = 5)),"
                    " visits = 1)\n"
                    "base\na\nb\nc\n"
-                   "Pool(name = \"r\", stats = Stats(indexed = 1, hits = 3))\n">>, Output).
+                   "M.Pool(name = \"r\", stats = M.Stats(indexed = 1, hits = 3))\n">>, Output).
 
 %% report §8.7, Appendix E.27: a service holds the name it was made with,
 %% which `Peer.name` answers, and the hash of its message type, which the

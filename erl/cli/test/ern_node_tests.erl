@@ -165,6 +165,9 @@ read_refusals_test() ->
          {#{<<"listen">> => <<"node.example:8654">>},
           "listen names no address: \"node.example:8654\""},
          {#{<<"listen">> => <<"0.0.0.0:65536">>}, "listen is not address:port: \"0.0.0.0:65536\""},
+         %% an IPv4-mapped address, named as a listen address is written
+         {#{<<"listen">> => <<"[::FFFF:7f00:1]:8654">>},
+          "listen names an IPv4-mapped address, [::ffff:127.0.0.1]:8654, which no listener takes"},
          {#{<<"public-key">> => One}, "public-key is not the key of private-key.pem"},
          {#{<<"public-key">> => <<"key">>}, "public-key is not one public key in PEM"},
          {#{<<"peers">> => #{}}, "peers is not a JSON array"},

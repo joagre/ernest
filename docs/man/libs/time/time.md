@@ -6,11 +6,11 @@ The civil calendar: the date and the time of day of a time, in UTC, and the
 time of a date and a time of day.
 
 Use it where a program reads or writes a date. A time is milliseconds since
-the epoch, as `Clock.now` answers it (report Appendix E.15): `civil` reads
-its date and time of day, `fromCivil` makes the time from them, and
-`weekday` names its day. A text form of a date is its format's, written
-over `civil`: `Clock.toString` writes RFC 3339's, and `libs/http` RFC
-9110's (report Appendix G.11).
+the epoch, as `Clock.now` answers it (report Appendix E.15): `toCivil`
+reads its date and time of day, `fromCivil` makes the time from them, and
+`weekday` names the day of a date. A text form of a date is its format's,
+written over `toCivil`: `Clock.toString` writes RFC 3339's, and
+`libs/http` RFC 9110's (report Appendix G.11).
 
 The library stands on every job's load path, so a program names it with
 no option (report Appendix G).
@@ -20,19 +20,26 @@ years kept before 1582 too, in UTC, with no time zone and no leap second.
 A year before 1 is numbered as astronomers number it: 0 is the year before
 1, and -1 the year before 0. No time is outside the calendar.
 
-**Seconds.** `civil` drops the milliseconds within the second, and
+**Seconds.** `toCivil` drops the milliseconds within the second, and
 `fromCivil` answers the time at which the second begins, so
-`fromCivil(civil(time))` is `time` rounded down to its second. A time
+`fromCivil(toCivil(time))` is `time` rounded down to its second. A time
 before the epoch is held by the second that begins at or before it: `-1`
 is in the last second of 1969.
 
 ## Examples
 
-The epoch, its date and time of day and its day of the week:
+The epoch's date and time of day:
 
 ```ernest
-#(Time.civil(0), Time.weekday(0))
-// => #(Civil(year = 1970, month = 1, day = 1, hour = 0, minute = 0, second = 0), Thursday)
+Time.toCivil(0)
+// => Time.Civil(year = 1970, month = 1, day = 1, hour = 0, minute = 0, second = 0)
+```
+
+The epoch's day of the week:
+
+```ernest
+Time.weekday(Time.toCivil(0))
+// => Some(Time.Thursday)
 ```
 
 A date and a time of day, made into a time:
@@ -58,14 +65,14 @@ type Civil = Civil(year : Int, month : Int, day : Int, hour : Int, minute : Int,
 ```
 
 A date and a time of day of the civil calendar, in UTC, to the second.
-One that `civil` answers is a date and a time of day the calendar has; one
+One that `toCivil` answers is a date and a time of day the calendar has; one
 a program builds may not be, and `fromCivil` answers `None` for it.
 
 ### Examples
 
 ```ernest
-Time.civil(1709210096789)
-// => Civil(year = 2024, month = 2, day = 29, hour = 12, minute = 34, second = 56)
+Time.toCivil(1709210096789)
+// => Time.Civil(year = 2024, month = 2, day = 29, hour = 12, minute = 34, second = 56)
 ```
 
 - `Civil`
@@ -87,14 +94,14 @@ A day of the week, Monday to Sunday.
 ### Examples
 
 ```ernest
-Time.weekday(-1)
-// => Wednesday
+Time.weekday(Time.toCivil(-1))
+// => Some(Time.Wednesday)
 ```
 
-## Time.civil
+## Time.toCivil
 
 ```ernest
-Time.civil(time : Int) : Civil
+Time.toCivil(time : Int) : Civil
 ```
 
 The civil date and time of day, in UTC, of the second that holds `time`,
@@ -107,8 +114,8 @@ year before 0 is negative.
 ### Examples
 
 ```ernest
-Time.civil(-1)
-// => Civil(year = 1969, month = 12, day = 31, hour = 23, minute = 59, second = 59)
+Time.toCivil(-1)
+// => Time.Civil(year = 1969, month = 12, day = 31, hour = 23, minute = 59, second = 59)
 ```
 
 ## Time.fromCivil
@@ -134,16 +141,18 @@ Time.fromCivil(Time.Civil(year = 2023, month = 2, day = 29, hour = 0, minute = 0
 ## Time.weekday
 
 ```ernest
-Time.weekday(time : Int) : Weekday
+Time.weekday(civil : Civil) : Optional(Weekday)
 ```
 
-The day of the week of the civil date that holds `time`, in UTC.
+The day of the week of `civil`'s date, its time of day not read; `None`
+for a date the calendar has not, a 30th of February or a 13th month, as
+`fromCivil` answers it.
 
 ### Examples
 
 ```ernest
-Time.weekday(1793524863000)
-// => Sunday
+Time.weekday(Time.Civil(year = 2026, month = 11, day = 1, hour = 9, minute = 21, second = 3))
+// => Some(Time.Sunday)
 ```
 
 ---

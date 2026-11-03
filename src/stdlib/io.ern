@@ -244,6 +244,11 @@ export fn writeError(bytes : Bytes) : Unit =
 /// declared order, an address as `<address 84>`, and a function as
 /// `<function>`.
 ///
+/// A constructor of the prelude's is written by its name alone, `Some`, and any
+/// other under its module's namespace, `Io.Timeout`, as code outside the module
+/// writes it: the full name is the one form that reads back as the same
+/// constructor from any module.
+///
 /// `show` writes a value by its type, which the compiler knows at a call:
 /// `Io.show([1, 2])` writes a `List(Int)`. In a function generic in a type `a`,
 /// the function declares `needs a.show`, and can then write `a` and any type
@@ -255,6 +260,11 @@ export fn writeError(bytes : Bytes) : Unit =
 /// ```ernest
 /// Io.show(#('a', Some([1, 2]), <<104, 105>>))
 /// // => "#('a', Some([1, 2]), <<104, 105>>)"
+/// ```
+///
+/// ```ernest
+/// Io.show(Some(Io.Timeout))
+/// // => "Some(Io.Timeout)"
 /// ```
 export foreign fn show(value : a) : String =
     "ern_io:show/1"

@@ -65,9 +65,12 @@ line_length_test() ->
 
 %% docs/style.md, guide/style.md: no variable's name ends in a number in
 %% Ernest, since a value changing through a function is bound again under
-%% its name (report §5.4). A function's name is not read, `count2` of the
-%% tour's upgrade, nor a name the host writes, `utf8`, `sha1`, nor one whose
-%% number is the thing named, `year10000`
+%% its name (report §5.4), and no function's, a loop's successor named for
+%% what changed, `countGuarded` beside `count`; but for a name the host
+%% writes, `utf8`, `sha1`, and one whose number is the thing named,
+%% `year10000`, an RFC's format, `rfc850`. A regression test for the
+%% function's name, which it did not read before 0.9.0, when `count2` stood
+%% in the tour's upgrade
 numbered_name_test() ->
     Patterns = ["src/stdlib/**/*.ern", "src/libs/**/*.ern", "src/shell/**/*.ern",
                 "examples/**/*.ern", "tools/*.ern", "tour/*/*.ern", "test/**/*.ern"],
@@ -79,11 +82,10 @@ numbered_names(File) ->
     Text = ern_repository:read(File),
     Code = re:replace(Text, "'(?:[^'\\\\]|\\\\.)'|\"(?:[^\"\\\\]|\\\\.)*\"|//[^\n]*", "",
                       [global, {return, binary}]),
-    Functions = matches("\\bfn\\s+([a-z][A-Za-z0-9]*)", Code),
     Host = ["utf8", "utf16", "sha1", "sha256", "base64", "atan2", "crc32", "md5", "int64"],
-    Meant = [<<"year10000">>, <<"yearMinus9999">>],
+    Meant = [<<"year10000">>, <<"yearMinus9999">>, <<"rfc850">>, <<"rfc3339">>],
     [{File, Name} || Name <- matches("\\b([a-z][A-Za-z]*[0-9]+)\\b", Code),
-                     not lists:member(Name, Functions ++ Meant),
+                     not lists:member(Name, Meant),
                      not lists:any(fun(Word) -> lists:suffix(Word, lowercase(Name)) end, Host)].
 
 lowercase(Name) ->

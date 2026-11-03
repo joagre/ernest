@@ -1436,7 +1436,7 @@ prelude_namespace_test() ->
     write(PreludeDir, "src/prelude.ern", "export fn f() : Int = 1\n"),
     ?assertEqual(1, build_err(["--build-root", PreludeDir ++ "/build", PreludeDir ++ "/src"])),
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
-                                      <<"takes the prelude namespace Prelude">>)).
+                                      <<"takes the prelude's namespace Prelude">>)).
 
 %% report §4.2, Appendix E.27: the refusal names whose namespace a file at
 %% the source root takes: `Address`, a prelude type with members, is the
@@ -1452,14 +1452,14 @@ taken_namespace_names_owner_test() ->
       end, ["address.ern", "io.ern", "test.ern", "peer.ern"]),
     Output = iolist_to_binary(?capturedOutput),
     ?assertMatch({_, _},
-                 binary:match(Output, <<"address.ern takes the prelude namespace Address">>)),
+                 binary:match(Output, <<"address.ern takes the prelude's namespace Address">>)),
     ?assertMatch({_, _},
-                 binary:match(Output, <<"io.ern takes the standard library namespace Io">>)),
+                 binary:match(Output, <<"io.ern takes the standard library's namespace Io">>)),
     ?assertMatch({_, _},
-                 binary:match(Output, <<"test.ern takes the standard library namespace Test">>)),
+                 binary:match(Output, <<"test.ern takes the standard library's namespace Test">>)),
     ?assertMatch({_, _},
-                 binary:match(Output, <<"peer.ern takes the standard library namespace Peer">>)),
-    ?assertEqual(nomatch, binary:match(Output, <<"prelude namespace Io">>)),
+                 binary:match(Output, <<"peer.ern takes the standard library's namespace Peer">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"prelude's namespace Io">>)),
     %% report §9.7: the prelude binds no system reference, so `Sys` is free
     Dir = tmp(),
     write(Dir, "src/sys.ern", "export fn f() : Int = 1\n"),
@@ -1481,9 +1481,9 @@ module_under_taken_namespace_test() ->
           "export fn main() : Unit = Io.println(Int.toString(Down.X.f()))\n"),
     ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
     Output = iolist_to_binary(?capturedOutput),
-    ?assertMatch({_, _}, binary:match(Output, <<"fs/entry.ern stands under the standard library"
+    ?assertMatch({_, _}, binary:match(Output, <<"fs/entry.ern stands under the standard library's"
                                                 " namespace Fs\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"int/parse.ern stands under the prelude"
+    ?assertMatch({_, _}, binary:match(Output, <<"int/parse.ern stands under the prelude's"
                                                 " namespace Int\n">>)),
     ?assertNot(filelib:is_regular(Dir ++ "/build/fs/entry.erc")),
     ?assertNot(filelib:is_regular(Dir ++ "/build/int/parse.erc")),
@@ -1493,7 +1493,7 @@ module_under_taken_namespace_test() ->
     ?assertEqual(1, build_err(["--source-root", Dir ++ "/src", "--build-root", Dir ++ "/alone",
                                Dir ++ "/src/fs/entry.ern"])),
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
-                                      <<"fs/entry.ern stands under the standard library"
+                                      <<"fs/entry.ern stands under the standard library's"
                                         " namespace Fs\n">>)).
 
 %% report §4.2: a prelude type without members takes no namespace, so a
@@ -1569,7 +1569,7 @@ shared_namespace_test() ->
           "}\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/user.erc"])),
-    ?assertEqual(<<"Less\nStack(items = [2, 1])\n2\n">>,
+    ?assertEqual(<<"Less\nMain.Stack(items = [2, 1])\n2\n">>,
                  iolist_to_binary(?capturedOutput)).
 
 %% report §4.2, §4.5, §11.1: a module that names a member of a type
@@ -1610,7 +1610,7 @@ parent_calls_its_child_test() ->
     write(Dir, "src/epx/window.ern", "export fn open() : Int = 42\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/epx.erc"])),
-    ?assertEqual(<<"Window(id = 42)\n">>, iolist_to_binary(?capturedOutput)).
+    ?assertEqual(<<"Epx.Window(id = 42)\n">>, iolist_to_binary(?capturedOutput)).
 
 %% report §4.2, §11.5: a value the module of a type's name exports under
 %% the name of a member of the exported type, a function or a top-level
@@ -1895,6 +1895,76 @@ ernest_namespace_taken_test() ->
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
                                       <<"style.ern is in the shell's source root;"
                                         " omit --source-root">>)).
+
+%% report §11.1: a path under one of the toolchain's own source roots, with
+%% no --source-root, takes that root, and with no --build-root that root's
+%% build beside the toolchain, `build/stdlib` for the standard library's and
+%% `build/shell` for the shell's; any other root builds into itself, and
+%% --build-root names another for every root. Read by the functions the
+%% build asks, so that nothing is built into the tree. Written with the code
+own_roots_build_roots_test() ->
+    Tree = ern_tree:tree(),
+    Style = filename:join([Tree, "src", "shell", "ernest", "shell", "style.ern"]),
+    List = filename:join([Tree, "src", "stdlib", "list.ern"]),
+    Roots = fun(Options, Path) ->
+                ern_build:build_root(Options, ern_build:source_root(Options, Path, "."))
+            end,
+    ?assertEqual(ern_tree:build("shell"), Roots([], Style)),
+    ?assertEqual(ern_tree:build("stdlib"), Roots([], List)),
+    Dir = tmp(),
+    ?assertEqual(ern_build:absolute(Dir), Roots([{source_root, Dir}], Dir ++ "/main.ern")),
+    [?assertEqual(ern_build:absolute(Dir ++ "/out"), Roots([{build_root, Dir ++ "/out"}], Path))
+     || Path <- [Style, List]].
+
+%% report §4.2: each of the toolchain's own source roots provides its own
+%% namespaces alone: the standard library's the prelude's and its own, so
+%% that `ernest.ern` and `ernest/shell.ern` under it are refused as under
+%% any root, and the shell's `Ernest` alone, so that a file outside
+%% `Ernest` under it is refused, a namespace of the standard library's
+%% among them. Each is read by its path alone, which names a file that
+%% nothing writes into the tree. Written with the code
+own_roots_provide_their_namespaces_test() ->
+    Stdlib = filename:join([ern_tree:tree(), "src", "stdlib"]),
+    Shell = filename:join([ern_tree:tree(), "src", "shell"]),
+    Refusal = fun(Root, Relative) ->
+                  try ern_build:module_of(filename:join(Root, Relative), Root, file) of
+                      _ -> accepted
+                  catch
+                      throw:{cli_error, Message} -> lists:last(string:split(Message, "/src/"))
+                  end
+              end,
+    ?assertEqual("stdlib/ernest.ern takes the toolchain's namespace Ernest",
+                 Refusal(Stdlib, "ernest.ern")),
+    ?assertEqual("stdlib/ernest/shell.ern stands under the toolchain's namespace Ernest",
+                 Refusal(Stdlib, "ernest/shell.ern")),
+    ?assertEqual(accepted, Refusal(Stdlib, "list.ern")),
+    ?assertEqual(accepted, Refusal(Stdlib, "int.ern")),
+    ?assertEqual("shell/io.ern is in the shell's source root, which provides Ernest alone",
+                 Refusal(Shell, "io.ern")),
+    ?assertEqual("shell/tool/main.ern is in the shell's source root, which provides Ernest"
+                 " alone",
+                 Refusal(Shell, "tool/main.ern")),
+    ?assertEqual(accepted, Refusal(Shell, "ernest/shell/style.ern")).
+
+%% report §4.2: a program names nothing under `Ernest`, the toolchain's
+%% own: a name there is unknown, the message saying why, though the load
+%% path holds a build of the shell's, and no dependency is looked for
+%% under it. A regression test: `Ernest.Shell.Style.quiet` built where the
+%% load path held the shell's build, and a build without one advised
+%% compiling `Ernest` first; it does not cover the shell's prompt, whose
+%% inputs the checker reads by the same function
+program_names_nothing_under_ernest_test() ->
+    Dir = tmp(),
+    Style = "../../../src/shell/ernest/shell/style.ern",
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/shell", Style])),
+    write(Dir, "src/main.ern", "export fn main() : Unit = Io.println(Ernest.Shell.Style.quiet)\n"),
+    [begin
+         ?assertEqual(1, build_err(LoadPath ++ ["--build-root", Dir ++ "/build", Dir ++ "/src"])),
+         ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
+                                           <<"unknown name Ernest.Shell.Style.quiet: a name under"
+                                             " Ernest is the toolchain's own, and no program's">>))
+     end || LoadPath <- [[], ["--load-path", Dir ++ "/shell"]]],
+    ?assertEqual(nomatch, binary:match(iolist_to_binary(?capturedOutput), <<"compile ">>)).
 
 %% report §11.2: a failed test's text prints as it was written (a
 %% regression test: text outside ASCII printed as its UTF-8 bytes)
@@ -2203,7 +2273,7 @@ doc_example_directory_test() ->
           "///\n"
           "/// ```ernest\n"
           "/// Fs.stat(Path(\"note.txt\"), 5000)\n"
-          "/// // => Left(NotFound)\n"
+          "/// // => Left(Io.NotFound)\n"
           "/// ```\n"
           "export fn note() : Either(Io.Error, Unit) =\n"
           "    Fs.makeFile(Path(\"note.txt\"), String.toUtf8(\"note\"), 5000)\n"
@@ -2305,7 +2375,7 @@ private_doc_example_test() ->
              "///\n"
              "/// ```ernest\n"
              "/// Box(twice(3))\n"
-             "/// // => Box(6)\n"
+             "/// // => Doubles.Box(6)\n"
              "/// ```\n"
              "type Box = Box(Int)\n"
              "\n"
@@ -2710,14 +2780,14 @@ doc_example_program_ends_test() ->
     ?assertEqual([{"", 1}, {"", 1}, {"", 1}], Errors),
     Output = iolist_to_binary(?capturedOutput),
     ?assertEqual(<<"sized: passed\n"
-                   "Configs.size example 1: faulted: config.txt cannot be read: NotFound\n"
+                   "Configs.size example 1: faulted: config.txt cannot be read: Io.NotFound\n"
                    "Configs.size example 2: compiled\n"
                    "Kills.nothing example 1: killed\n"
                    "Kills.nothing example 2: compiled\n"
                    "Divides.divide example 1: faulted: division by zero\n"
                    "Divides.divide example 2: passed\n">>,
                  untraced(Output)),
-    ?assertMatch({_, _}, binary:match(Output, <<"NotFound\n    Configs.config:3\n"
+    ?assertMatch({_, _}, binary:match(Output, <<"Io.NotFound\n    Configs.config:3\n"
                                                 "Configs.size example 2">>)),
     %% report §11.2, Appendix E.21: the example's frame names its case and
     %% the line of the source its code stands on, and no frame of the
@@ -3053,8 +3123,9 @@ test_equal_test() ->
     ?assertEqual(1, ern_cli:ern(["test", filename:join(Dir, "equals.erc")])),
     Output = iolist_to_binary(?capturedOutput),
     ?assertMatch({_, _}, binary:match(Output, <<"sums: failed: expected 3, got 2\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"points: failed: expected Point(x = 1, y = 3),"
-                                                " got Point(x = 1, y = 2)\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"points: failed: expected "
+                                                "Equals.Point(x = 1, y = 3), "
+                                                "got Equals.Point(x = 1, y = 2)\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"itself: passed\n">>)).
 
 %% report Appendix E.24, §11.2: `Test.faults` passes where the call faults
@@ -3239,7 +3310,7 @@ test_until_runs_until_passed_test() ->
 
 %% report §11.2, Appendix E.24: no job reports a fault `Test.faults`
 %% expects: under `ern run` a `main` whose call of it passes prints
-%% `Passed` and writes nothing on standard error, as `ern test` writes
+%% `Test.Passed` and writes nothing on standard error, as `ern test` writes
 %% nothing. A regression test, written after the code; the shell's is
 %% test/ern_shell_tests.erl's
 run_reports_no_expected_fault_test() ->
@@ -3249,7 +3320,7 @@ run_reports_no_expected_fault_test() ->
                  "    Io.println(Io.show(Test.faults(fn() = 1 / 0, \"division by zero\")))\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
     ?assertEqual({"", 0}, standard_error_of(["run", filename:join(Dir, "expects.erc")])),
-    ?assertEqual(<<"Passed\n">>, iolist_to_binary(?capturedOutput)).
+    ?assertEqual(<<"Test.Passed\n">>, iolist_to_binary(?capturedOutput)).
 
 %% report §11.2, §11.8: given a directory, `ern test` runs the tests of every
 %% `.erc` under it in the order of their paths, a name that begins with a
@@ -3978,7 +4049,7 @@ ground_binding_test() ->
     write(Dir, "src/consts.ern", Consts("5")),
     ?assertEqual(0, ern_cli:ern(Build)),
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
-    Rest = <<"> \nPoint(x = 0, y = 0)\n[#(1, \"a\")]\n0.0\n1048576\n7\n">>,
+    Rest = <<"> \nConsts.Point(x = 0, y = 0)\n[#(1, \"a\")]\n0.0\n1048576\n7\n">>,
     ?assertEqual(<<"16777216\n", Rest/binary, "17825792\n5\n", Rest/binary, "1048581\n">>,
                  iolist_to_binary(?capturedOutput)).
 
@@ -5665,9 +5736,10 @@ config_peer_test() ->
     #{<<"peers">> := [_, ListedOps]} = conf_of(A),
     ?assertEqual([<<"name">>, <<"public-key">>], lists:sort(maps:keys(ListedOps))).
 
-%% report §11.3, §11.7: `--listen` gives the directory's `listen`, any a
-%% node takes, port 0 among them; one a node refuses is refused before
-%% the directory is made, and so is a directory that exists
+%% report §11.3, §11.7, §12.5: `--listen` gives the directory's `listen`,
+%% any a node takes, port 0 among them; one a node refuses, an IPv4-mapped
+%% address among them, is refused before the directory is made, and so is
+%% a directory that exists
 config_listen_test() ->
     Dir = tmp(),
     Six = filename:join(Dir, "six"),
@@ -5675,7 +5747,10 @@ config_listen_test() ->
     ?assertMatch(#{<<"listen">> := <<"[::]:0">>}, conf_of(Six)),
     ?assertEqual(1, ern_err(["config", "--config-dir", Six, "--listen", "127.0.0.1:8655"])),
     Refused = [{"localhost:8655", "--listen names no address: localhost:8655"},
-               {"8655", "--listen is not address:port: 8655"}],
+               {"8655", "--listen is not address:port: 8655"},
+               {"[::ffff:127.0.0.1]:0",
+                "--listen names an IPv4-mapped address, [::ffff:127.0.0.1]:0, which no listener"
+                " takes"}],
     [begin
          Made = filename:join(Dir, "refused"),
          ?assertEqual(1, ern_err(["config", "--config-dir", Made, "--listen", Listen])),

@@ -120,12 +120,12 @@ load_test() ->
     ?assertEqual([<<"Greet's bindings evaluated">>,
                   <<"Right(Unit)">>,
                   <<"Right(Unit)">>,
-                  <<"Left(Other(\"Plug.Bad.broken:6 faulted: division by zero\"))">>,
+                  <<"Left(Io.Other(\"Plug.Bad.broken:6 faulted: division by zero\"))">>,
                   <<"1">>,
-                  <<"Left(Other(\"Plug.Bad.broken:6 faulted: division by zero\"))">>,
-                  <<"Left(NotFound)">>,
-                  <<"Left(NotFound)">>,
-                  <<"Left(Invalid)">>],
+                  <<"Left(Io.Other(\"Plug.Bad.broken:6 faulted: division by zero\"))">>,
+                  <<"Left(Io.NotFound)">>,
+                  <<"Left(Io.NotFound)">>,
+                  <<"Left(Io.Invalid)">>],
                  ran(filename:rootname(Main) ++ ".erc")),
     %% report §11.2, Appendix E.28: the faulting load's unit stays, and the
     %% load refused again made no other
@@ -166,7 +166,7 @@ load_deadlock_test() ->
     Output = binary:part(captured_output(), Before, byte_size(captured_output()) - Before),
     Device ! {done, self()},
     Said = receive {said, Text} -> unicode:characters_to_binary(Text) end,
-    ?assertEqual(<<"Left(Other(\"Plug.Stuck.stuck:8 faulted: deadlock\"))\n1\n">>, Output),
+    ?assertEqual(<<"Left(Io.Other(\"Plug.Stuck.stuck:8 faulted: deadlock\"))\n1\n">>, Output),
     %% report §8.6, Appendix E.28: the load's answer is the fault's one report
     ?assertEqual(<<>>, Said).
 
@@ -399,7 +399,7 @@ load_takes_no_message_test() ->
                  "    }\n"
                  "}\n"),
     built(Dir, "main.ern"),
-    ?assertEqual([<<"Left(Other(\"Grab.shown:3 faulted: deadlock\"))">>, <<"41">>],
+    ?assertEqual([<<"Left(Io.Other(\"Grab.shown:3 faulted: deadlock\"))">>, <<"41">>],
                  ran(filename:rootname(Main) ++ ".erc")).
 
 %% Appendix E.28, E.18, E.21: the evaluator lives on after the load and
@@ -534,7 +534,7 @@ load_float_fault_test() ->
                  "export fn main() : Unit =\n"
                  "    Io.println(Io.show(Code.load(Path(\"" ++ Lib ++ "/plug/floats.erc\"))))\n"),
     built(Dir, "main.ern"),
-    ?assertEqual([<<"Left(Other(\"Plug.Floats.broken:3 faulted: float arithmetic error\"))">>],
+    ?assertEqual([<<"Left(Io.Other(\"Plug.Floats.broken:3 faulted: float arithmetic error\"))">>],
                  ran(filename:rootname(Main) ++ ".erc")).
 
 %% Appendix E.28, report §6.9, §11.2: a load whose binding faults while a
@@ -608,7 +608,7 @@ load_under_a_running_wrap_test() ->
                  "    called()\n"
                  "}\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, "--load-path", Lib, Main])),
-    Refused = <<"Left(Other(\"Plug.Watch.broken:25 faulted: division by zero\"))">>,
+    Refused = <<"Left(Io.Other(\"Plug.Watch.broken:25 faulted: division by zero\"))">>,
     ?assertEqual([Refused, <<"42">>, <<"a later monitor told">>, Refused, <<"42">>],
                  ran(filename:rootname(Main) ++ ".erc", ["--load-path", Lib])),
     ?assert(erlang:module_loaded('ern@plug@watch')),
@@ -651,7 +651,7 @@ load_kills_what_a_wrap_spawned_test() ->
                  "    Io.println(Int.toString(List.size(Process.live())))\n"
                  "}\n"),
     built(Dir, "main.ern"),
-    ?assertEqual([<<"Left(Other(\"Plug.Helped.broken:22 faulted: division by zero\"))">>,
+    ?assertEqual([<<"Left(Io.Other(\"Plug.Helped.broken:22 faulted: division by zero\"))">>,
                   <<"1">>],
                  ran(filename:rootname(Main) ++ ".erc")).
 
@@ -676,7 +676,7 @@ load_in_a_wrap_test() ->
                  "    Io.println(Int.toString(List.size(Process.live())))\n"
                  "}\n"),
     built(Dir, "main.ern"),
-    ?assertEqual([<<"Left(Other(\"Plug.Bad.broken:6 faulted: division by zero\"))">>, <<"1">>],
+    ?assertEqual([<<"Left(Io.Other(\"Plug.Bad.broken:6 faulted: division by zero\"))">>, <<"1">>],
                  ran(filename:rootname(Main) ++ ".erc")).
 
 %% Appendix E.28, report §11.2: a module compiled against another
@@ -695,7 +695,7 @@ other_interface_test() ->
                  "export fn main() : Unit =\n"
                  "    Io.println(Io.show(Code.load(Path(\"" ++ Lib ++ "/plug/user.erc\"))))\n"),
     built(Dir, "main.ern"),
-    ?assertEqual([<<"Left(Invalid)">>], ran(filename:rootname(Main) ++ ".erc")).
+    ?assertEqual([<<"Left(Io.Invalid)">>], ran(filename:rootname(Main) ++ ".erc")).
 
 %% Appendix E.28, report §11.1: a compiled form another build of `ern`
 %% wrote is Invalid, the module loaded and a module it uses alike, and the
@@ -717,10 +717,10 @@ another_build_test() ->
     built(Dir, "main.ern"),
     Program = filename:rootname(Main) ++ ".erc",
     ok = file:write_file(User, forge(UserBeam, Another)),
-    ?assertEqual([<<"Left(Invalid)">>], ran(Program)),
+    ?assertEqual([<<"Left(Io.Invalid)">>], ran(Program)),
     ok = file:write_file(User, UserBeam),
     ok = file:write_file(Base, forge(BaseBeam, Another)),
-    ?assertEqual([<<"Left(Invalid)">>], ran(Program)),
+    ?assertEqual([<<"Left(Io.Invalid)">>], ran(Program)),
     ok = file:write_file(Base, BaseBeam),
     ?assertEqual([<<"Right(Unit)">>], ran(Program)).
 
@@ -747,7 +747,7 @@ load_path_cycle_test() ->
                  "    Io.println(Io.show(Code.load(Path(\"" ++ Lib ++ "/plug/b.erc\"))))\n"
                  "}\n"),
     built(Dir, "main.ern"),
-    ?assertEqual([<<"Left(Invalid)">>, <<"Left(Invalid)">>],
+    ?assertEqual([<<"Left(Io.Invalid)">>, <<"Left(Io.Invalid)">>],
                  ran(filename:rootname(Main) ++ ".erc", ["--load-path", Lib, "--load-path", App])).
 
 %% Appendix E.28, report §11.2: a module the node holds other code of

@@ -44,7 +44,7 @@ site names it, how many messages wait in its mailbox, and what it is doing.
 
 ```ernest
 Optional.map(Process.status(Process.current()), fn(status) = status.activity)
-// => Some(Running)
+// => Some(Process.Running)
 ```
 
 ## Process.Activity
@@ -60,7 +60,7 @@ What a live process is doing: running, waiting in a `receive` or in
 
 ```ernest
 Process.Receiving
-// => Receiving
+// => Process.Receiving
 ```
 
 ## Process.FaultReport

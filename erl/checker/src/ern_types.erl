@@ -9,7 +9,8 @@
          resolve/2, substitute/2, unify/3, free_variables/2,
          monomorphic/1, generalize/2, generalize/3, instantiate/2, instance/2,
          unknown_instance/2, value_positions_marked/2, replace_variables/2,
-         mismatch_pair/3, format/2, format_annotation/2, format_pair/4,
+         mismatch_pair/3, format/2, format_annotation/2, format_pair/4, instance_names/3,
+         named_as_declared/2,
          value_variables/2, value_args/3, args_in_value/3, set_scope/5, printing/1,
          printed_scope/1, set_effect_params/2,
          format_scheme/2, format_with_requirement/3, format_call/4, format_error/1]).
@@ -612,6 +613,59 @@ format_pair(Expected, Actual, Taken, TypeState) ->
     {ExpectedText, Names1} = format_type(ElidedExpected, TypeState, Names),
     {ActualText, _} = format_type(ElidedActual, TypeState, Names1),
     {lists:flatten(ExpectedText), lists:flatten(ActualText)}.
+
+%% Report §11.5: the names Scheme's declaration gives its variables, by the
+%% ids of the variables of Instance, an instance of the scheme's type, that
+%% stand in their places; a variable the declaration leaves unnamed is not
+%% among them.
+-spec instance_names(#scheme{}, type(), type_state()) -> #{id() => atom()}.
+instance_names(#scheme{type = Type, names = Names}, Instance, TypeState) ->
+    aligned(Type, substitute(Instance, TypeState), Names, #{}).
+
+aligned({tvar, Id}, {tvar, InstanceId}, Names, Acc) ->
+    case Names of
+        #{Id := Name} -> Acc#{InstanceId => Name};
+        _ -> Acc
+    end;
+aligned({tcon, QualifiedName, Args}, {tcon, QualifiedName, InstanceArgs}, Names, Acc) ->
+    aligned_list(Args, InstanceArgs, Names, Acc);
+aligned({ttuple, Elements}, {ttuple, InstanceElements}, Names, Acc) ->
+    aligned_list(Elements, InstanceElements, Names, Acc);
+aligned({tfn, Params, Effect, Result}, {tfn, InstanceParams, InstanceEffect, InstanceResult},
+        Names, Acc) ->
+    aligned_list([Effect, Result | Params], [InstanceEffect, InstanceResult | InstanceParams],
+                 Names, Acc);
+aligned(_Type, _Instance, _Names, Acc) ->
+    Acc.
+
+aligned_list([Type | Types], [Instance | Instances], Names, Acc) ->
+    aligned_list(Types, Instances, Names, aligned(Type, Instance, Names, Acc));
+aligned_list(_Types, _Instances, _Names, Acc) ->
+    Acc.
+
+%% Report §11.5: the state a message prints under where its label shows a
+%% declaration's type beside an instance of it: each variable of the
+%% instance, by its id in Named, that is still a variable no annotation
+%% names takes the name the declaration gives the variable it stands for,
+%% so that the message and its label name one variable alike. The state
+%% serves the printing alone, since an instance's variables carry no names
+%% of their own (instantiate/2).
+-spec named_as_declared(#{id() => atom()}, type_state()) -> type_state().
+named_as_declared(Named, #type_state{variables = Variables} = TypeState) ->
+    Name = fun(Id, Given, Acc) ->
+               case resolve({tvar, Id}, TypeState) of
+                   {tvar, Representative} ->
+                       case Acc of
+                           #{Representative := #type_variable{name = undefined} = Variable} ->
+                               Acc#{Representative => Variable#type_variable{name = Given}};
+                           _ ->
+                               Acc
+                       end;
+                   _ ->
+                       Acc
+               end
+           end,
+    TypeState#type_state{variables = maps:fold(Name, Variables, Named)}.
 
 %% Variables that occur in no value position are named e, e1, ...: those
 %% after `receiving`, and those only in a type argument that is no value

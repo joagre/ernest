@@ -11,9 +11,12 @@
 // and the size. Run with other arguments, it says how it is called and ends
 // with status 2.
 //
-// The URL is read as `https://host:port/path`, the port 443 and the path
-// `/` where either is left out, and a fragment after `#` dropped; an
-// `http://` URL is refused, since the tool shows TLS.
+// The URL is read as `https://host:port/path?query`, the port 443 and the
+// path `/` where either is left out, the host an IPv6 address in brackets
+// where it is one, `https://[::1]:8443/`, and a fragment after `#`
+// dropped; the host and the port end at the first `/`, `?` or `#`. An
+// `http://` URL is refused, since the tool shows TLS, and so is one that
+// holds a space or a control character, which no URL holds.
 //
 // What to look at:
 //
@@ -42,7 +45,7 @@ type Target = Target(host : String, port : Int, authority : String, path : Strin
 export fn main() : Unit =
     match Os.arguments {
         [url, caFile] ->
-            match fetched(url, Path(caFile)) {
+            match fetch(url, Path(caFile)) {
                 Right(#(response, body)) -> report(response, body)
               | Left(cause) -> fail(cause)
             }
@@ -63,12 +66,11 @@ fn fail(cause : String) : Unit = {
 //
 
 // The response to a GET of the URL, and its body.
-fn fetched(url : String, caFile : Path) : Either(String, #(Http.Response, Bytes)) = {
+fn fetch(url : String, caFile : Path) : Either(String, #(Http.Response, Bytes)) = {
     let target <- targetOf(url);
     let socket <-
         Either.mapLeft(Tcp.connectTls(target.host, target.port, Tcp.Verified(caFile), 10000),
-                       fn(error) =
-                           "cannot connect to " <> target.authority <> ": " <> errorText(error));
+                       fn(error) = connectErrorText(error, target, caFile));
     let request =
         Http.Request(method = "GET",
                      target = target.path,
@@ -85,7 +87,7 @@ fn fetched(url : String, caFile : Path) : Either(String, #(Http.Response, Bytes)
         Either.mapLeft(Http.readResponse(socket, <<>>, limits, 10000),
                        fn(error) = "cannot read the response's head: " <> readErrorText(error));
     let #(body, _) <-
-        Either.mapLeft(Http.readResponseBody(socket, carried, response, 10000000, 30000),
+        Either.mapLeft(Http.readResponseBody(socket, carried, response, bodyLimit, 30000),
                        fn(error) = "cannot read the response's body: " <> readErrorText(error));
     Tcp.close(socket);
     Right(#(response, body))
@@ -94,22 +96,28 @@ fn fetched(url : String, caFile : Path) : Either(String, #(Http.Response, Bytes)
 // The most bytes of the response's status line, and of its headers together.
 let limits = Http.Limits(line = 8192, headers = 65536)
 
-// The host, the port and the path of an `https://` URL, and the host and
-// the port as the URL writes them, which the `Host` header carries.
+// The most bytes of the response's body.
+let bodyLimit = 10000000
+
+// The host, the port and the path of an `https://` URL, the path with its
+// query, and the host and the port as the URL writes them, which the `Host`
+// header carries. A URL is written in visible ASCII, U+0021 to U+007E, the
+// rest percent-encoded (RFC 3986, section 2), and the request line could
+// carry nothing else (libs/http, report Appendix G.11), so one that holds
+// another character is refused here.
 fn targetOf(url : String) : Either(String, Target) =
     match String.splitOnce(url, "://") {
-        Some(#("https", rest)) -> {
+        _ when !isVisibleAscii(url) ->
+            Left("a URL is written in visible ASCII, the rest percent-encoded: " <> Io.show(url))
+      | Some(#("https", rest)) -> {
             let located = match String.splitOnce(rest, "#") {
                 Some(#(before, _)) -> before
               | None -> rest
             };
-            let #(authority, path) = match String.indexOf(located, "/") {
-                Some(index) ->
-                    #(String.slice(located, 0, index),
-                      String.slice(located, index, String.size(located)))
-              | None ->
-                    #(located, "/")
-            };
+            let end = authorityEnd(located);
+            let authority = String.slice(located, 0, end);
+            let written = String.slice(located, end, String.size(located));
+            let path = if String.startsWith(written, "/") then written else "/" <> written;
             let #(host, port) <- hostAndPort(authority);
             Right(Target(=host, =port, =authority, =path))
         }
@@ -119,15 +127,46 @@ fn targetOf(url : String) : Either(String, Target) =
             Left("not an https:// URL: " <> url)
     }
 
-fn hostAndPort(authority : String) : Either(String, #(String, Int)) =
-    match String.splitOnce(authority, ":") {
-        Some(#(host, digits)) ->
-            match String.toInt(digits) {
-                Some(port) when host != "" -> Right(#(host, port))
-              | _ -> Left("not a host and a port: " <> authority)
+// Whether the text holds a space or a control character, U+0000 to U+0020
+// or U+007F to U+009F.
+fn isVisibleAscii(text : String) : Bool =
+    List.all(String.toList(text), fn(char) = {
+        let code = Char.toCodePoint(char);
+        code >= 33 && code <= 126
+    })
+
+// Where the host and the port end, the URL's fragment dropped: at the first
+// `/` or `?`, else at the end (RFC 3986 §3.2).
+fn authorityEnd(located : String) : Int =
+    List.filterMap([String.indexOf(located, "/"), String.indexOf(located, "?")], fn(index) = index)
+        |> List.foldLeft(String.size(located), Int.min)
+
+// The host and the port the URL names, `host:port`, or `host` for port 443;
+// an IPv6 address stands in brackets, its port after the `]`, `[::1]:8443`.
+fn hostAndPort(authority : String) : Either(String, #(String, Int)) = {
+    let #(host, port) = match String.splitOnce(authority, "]") {
+        Some(#(bracketed, portText)) when String.startsWith(bracketed, "[") ->
+            #(String.slice(bracketed, 1, String.size(bracketed)), portAfter(portText))
+      | _ ->
+            match String.splitOnce(authority, ":") {
+                Some(#(name, digits)) -> #(name, String.toInt(digits))
+              | None -> #(authority, Some(443))
             }
-      | None ->
-            if authority == "" then Left("no host in the URL") else Right(#(authority, 443))
+    };
+    if host == "" then
+        Left("no host in the URL")
+    else
+        Either.fromOptional(Optional.map(port, fn(number) = #(host, number)),
+                            "not a host and a port: " <> authority)
+}
+
+// The port after an IPv6 address's `]`, `:` and its digits, or 443 where
+// none is written.
+fn portAfter(portText : String) : Optional(Int) =
+    match String.splitOnce(portText, ":") {
+        Some(#("", digits)) -> String.toInt(digits)
+      | Some(_) -> None
+      | None -> if portText == "" then Some(443) else None
     }
 
 //
@@ -202,6 +241,17 @@ fn counted(count : Int, noun : String) : String =
 //
 // Errors
 //
+
+// Why the connection was not made: the file of certificates, which
+// `connectTls` reads before it dials, that cannot be read, or what the dial
+// or the handshake met (report Appendix E.18).
+fn connectErrorText(error : Io.Error, target : Target, caFile : Path) : String =
+    match error {
+        Io.NotFound or Io.Denied or Io.NotAFile ->
+            "cannot read the certificates in " <> Path.toString(caFile)
+      | _ ->
+            "cannot connect to " <> target.authority <> ": " <> errorText(error)
+    }
 
 fn readErrorText(error : Http.ReadError) : String =
     match error {

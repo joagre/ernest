@@ -97,9 +97,10 @@ let tickMs = 100
 
 // Each tick is due at a deadline on the monotonic clock, and its alarm
 // waits what is left of it, so that the time a tick's work takes does not
-// put off the ticks after it (report Appendix E.15).
+// put off the ticks after it; a tick already late waits none (report
+// Appendix E.0 shape rule 8, E.15).
 fn game(world : World, deadline : Int) : Unit receiving GameMsg = {
-    let _ = Clock.alarm(Int.max(deadline - Clock.monotonic(), 0), fn(_) = Ticked);
+    let _ = Clock.alarm(deadline - Clock.monotonic(), fn(_) = Ticked);
     receive {
         Ticked -> {
             let world = step(drain(world, 64));

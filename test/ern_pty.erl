@@ -27,8 +27,8 @@
 %% out.
 -spec run(string(), [tuple()], [option()]) -> {integer() | timeout, binary()}.
 run(Command, Steps, Options) ->
-    File = steps_file(Steps),
-    Arguments = ["--timeout", integer_to_list(ern_nodes_tests:wait_ms()), "--steps", File]
+    Arguments = ["--timeout", integer_to_list(ern_nodes_tests:wait_ms())]
+                ++ lists:append([["--step", step(Step)] || Step <- Steps])
                 ++ lists:append([option(Option) || Option <- Options]) ++ ["--", Command],
     {0, Output} = ern_nodes_tests:collected(harness(Arguments),
                                             length([Text || {expect, Text} <- Steps]) + 1),
@@ -44,22 +44,19 @@ option(screen) ->
     ["--screen"].
 
 %% The directory a run of the tests makes what it needs under, its homes,
-%% sources, inputs and step files: the one `make` makes for the run and
-%% removes when it ends, or the host's for a run of a test by itself.
+%% sources and inputs: the one `make` makes for the run and removes when it
+%% ends, or the host's for a run of a test by itself.
 -spec run_dir() -> file:filename().
 run_dir() ->
     os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")).
 
-%% The steps go in a file, which the harness reads a step a line from: a
-%% step holds whatever the program prints.
-steps_file(Steps) ->
-    File = filename:join(run_dir(), "steps-" ++ os:getpid() ++ "_"
-                                    ++ integer_to_list(erlang:unique_integer([positive]))),
-    ok = filelib:ensure_dir(File),
-    ok = file:write_file(File, [[step(Step), "\n"] || Step <- Steps]),
-    File.
-
-step({expect, Text}) -> "expect:" ++ Text;
+%% A step as the harness's argument, which reaches it whole (harness/1).
+%% An expect's text holds no line feed: the terminal writes a program's
+%% line feed as a carriage return and a line feed, so such a text could
+%% never be met, and a step that is refused tells the test's own mistake.
+step({expect, Text}) ->
+    not lists:member($\n, Text) orelse error({expect_holds_a_line_feed, Text}),
+    "expect:" ++ Text;
 step({resize, Size}) -> "resize:" ++ Size;
 step({send, Hex}) -> "send:" ++ Hex;
 step({put, Path}) -> "put:" ++ Path.
@@ -76,9 +73,9 @@ sh(Command) ->
     ern_nodes_tests:collected(shell(Command), 1).
 
 %% The port of the harness run with Arguments, which reach it as they are,
-%% so that the command reaches it whole, a quote or a `;` among it, and
-%% the harness runs it under `/bin/sh -c`; its standard error beside its
-%% standard output.
+%% so that a step and the command reach it whole, a quote or a `;` among
+%% them, and the harness runs the command under `/bin/sh -c`; its standard
+%% error beside its standard output.
 harness(Arguments) ->
     open_port({spawn_executable, "../bin/ern"},
               [{args, ["run", "build/pty/pty.erc" | Arguments]},

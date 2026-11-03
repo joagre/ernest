@@ -14,86 +14,19 @@ and a feature declined in a dated entry of the log; nothing stands between.
 
 ## Where we are
 
-**Ernest 0.8.0 is the last release**, of 2026-11-01, the pun's: the release review before it read
-a day's diff, its 92 findings decided and built (the log's *The Release Review Before 0.8.0* and
-the entries its row names). No promise of
+**Ernest 0.9.0 is the last release**, of 2026-11-03, the server's: what ernest-httpd asked of
+Ernest on its way to serving the site, and the release review before it, which read two days'
+diff, its 112 lines fixed and 23 decided (the log's *The Release Review Before 0.9.0* and the
+entries MVP 4.1's row names). No promise of
 stability is made, and a change to the language, the standard library or the libraries is driven
 by a need met in use and recorded as `docs/language_feedback.md` records one.
 
-The pun is released, with what its day decided beside it: a `receive` always receives, an alarm
-can be canceled, and the checkout works toward 0.9.0. ernest-httpd's first release serves the
-site since 2026-11-02, built against the checkout's archive (MVP 4.1, item 4).
-
-Next is Ernest 0.9.0 (MVP 4.1, item 6), then MVP 4.15, what the server taught, then the website and
-the shell's second round (the log's *The Road to 1.0, Ordered*), and MVP 4.4 last, the promise, the cost, the full review and Ernest 1.0, where
+The server is released and so is what shaped Ernest on its way, and the checkout works toward
+0.10.0. Next is MVP 4.15, what the server taught, then the website and the shell's second round
+(the log's *The Road to 1.0, Ordered*), and MVP 4.4 last, the promise, the cost, the full review and Ernest 1.0, where
 the road ends and a program begins (the log's *MVP 4.4, the Road's End*); the back end to BEAM's own instructions that closed the road is not built,
 decided 2026-10-30 (the log's *No Back End to BEAM's Own Instructions*). A finished milestone is a
 row of the table at the end, its reasons in the log entries the row names.
-
----
-
-## MVP 4.1 (ernest-httpd, and the libraries it wants)
-
-**ernest-httpd**, an HTTP/1.1 server written in Ernest, in a repository of its own, decided with
-the user on 2026-10-10 (the log's *ehttpd and the Website*): the base of Ernest's own website, MVP
-4.2, and the first program built against an installed Ernest by a build of its own, which the
-examples cannot be.
-
-What it asks of Ernest is `docs/proposals/httpd/proposal.md`, begun 2026-10-26 as the server's
-whole proposal, read back on 2026-10-30 and ready the same day, and split that day when the
-server's repository was made: TLS in `Tcp`, a pseudo-terminal in `Os`, the four libraries with
-their shapes, the installation and the release stay here, WebSocket's frames the server's own
-module since 2026-11-01 (the log's *WebSocket Is the Server's*); the server itself, what of HTTP/1.1 and
-WebSocket it implements, its sessions, its limits, its configuration, its log and its life under
-systemd, is its repository's own proposal and plan. This plan records what it asks of Ernest,
-written as it asks, in the proposal's order.
-
-What it lacks is added where it belongs and never worked around in Erlang or behind a `foreign
-fn`: a function the standard library lacks enters by E.0's admission rules, our need the occasion
-and the rules deciding the function; a format or a protocol is a library's; what the prelude or the
-language lacks goes to `language_feedback.md` first, as any Ernest written here, and is discussed
-before any code goes around it (decided with the user on 2026-10-10, with the site's generator,
-MVP 4.2).
-
-Before its items, written in §5.9 on 2026-11-01, built 2026-11-02 after its night (the log's
-*The Release Review Before 0.8.0*, its *Built* line) and shipped with 0.9.0: §5.9 makes a guard that is the literal `false` a redundant clause, with the redundancy
-error, so that a `receive` left with its `after` alone meets §6.3's help; decided 2026-11-01 (the
-log's *The Release Review Before 0.8.0*, P2), since principle 3 refuses a clause the text alone
-shows cannot run, and the literal alone, since evaluating guards is a slope the report does not
-start down.
-
-The work goes in three steps, decided 2026-10-30: items 1 to 3 here, closing with an archive;
-then the server's milestone 1 whole in its repository, item 4, which is that milestone and no
-item of this one; then items 5 and 6 here, the libraries reshaped by their first user. The
-server's CLAUDE.md carries the procedure its side follows.
-
-1. **The report first**, done 2026-11-01: E.18 and E.23 with item 2 and G.8 to G.11 with item
-   3, each section's sentences written before its code and landing in its commit, since the
-   prelude test holds every listing to its compiled interface (the log's *TLS in `Tcp` and a
-   Terminal in `Os`*).
-2. **The runtime's two additions**, TLS in `Tcp` and the terminal in `Os`, built 2026-11-01
-   with their sentences of E.18 and E.23 (the log's *TLS in `Tcp` and a Terminal in `Os`*).
-3. **The four libraries**, built 2026-11-01 with their sections of Appendix G, `base64`,
-   `crypto`, `time` and `http`, `examples/web_server.ern` written over `libs/http` and
-   `examples/fetch.ern` beside it (the log's *The Four Libraries*).
-4. **The server, ernest-httpd's milestone 1 whole**, done 2026-11-02 with its release 0.1.0,
-   which serves https://ernest-lang.org from its machine, built by its own session against
-   Ernest installed from `make release`'s archive as `docs/clean_room.md` says; the seventeen
-   lines its build and its cold reader sent were decided and built the same days, each round
-   a new archive (the log's *A Path Through a File*, *Three Lines From the Server*, *A Close,
-   an Exit and a Write*, *An Archive Says Its Commit*, *Two Lines on TLS*, *A Program After
-   Its Exit*, *Four Lines From the Deployment* and *The Error's Place*, and for what it left
-   to MVP 4.15, *What the Server Taught*).
-5. **The terminal tests over `Os.startTerminal`**, done 2026-11-02: the harness is the Ernest program
-   `test/fixtures/pty/pty.ern`, and `test/ern_pty.py` is gone (the log's *The Hangup's Order* and
-   *The Harness in Ernest*).
-6. **A release of Ernest**, 0.9.0, when the server first serves the site, carrying the libraries
-   after their first real user has shaped them; 0.8.0 is the pun's. The three tests that failed
-   once under load were read first, two races in the TLS tests fixed and the nodes harness
-   made to say what a node that ended unheard said (the log's *Three Flakes Read*).
-
-The site's content, MVP 4.2, runs beside any of it, since its generator needs nothing of the
-server.
 
 ---
 
@@ -145,6 +78,18 @@ before the website (the log's *What the Server Taught*).
    conversion, Ernest closing the difference around the host's decoder (rule 1), E.5 stating
    them. The shell's `foreign fn decoded` and the harness's own decoding go; the compiler's
    diagnostic keeps its Erlang, since the compiler calls no shim.
+8. **The libraries' shims read against E.0 rule 1**, from the release review before 0.9.0: `ern_http`
+   runs the whole head loop in Erlang, the limits' accounting, the words and the values, where
+   G.11 says a primitive reads a line and the rest is Ernest; `ern_json` computes a position, a
+   too-long number's offset and a lone surrogate's in Erlang; `Base64.decode`'s strictness scan
+   could be Ernest around an exact shim. Each measured first, and moved where the Ernest costs
+   less than three times the host's function (the findings E4-25 to E4-27).
+9. **A program's environment and working directory**, feedback 207, decided 2026-11-03: `Os.Command`
+   gains what the host's `exec` takes, an environment and a working directory, so that an editor
+   under a terminal gets its `TERM` and a program its directory without `env` or `sh -c 'cd'`
+   in the arguments; the form, which every program that starts a program writes, decided here
+   first, since `Command(program, arguments, input)` stands at ten sites of the standard library
+   alone (feedback 184).
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
@@ -310,7 +255,8 @@ the website and the operator's prompt have used. After 1.0 the road is a program
 | MVP 4.0 | a shell attached to a running node: each input run on the node, its processes listed and its code loaded and reloaded from the prompt, as `erl -remsh` attaches, its proposal `docs/proposals/shell/attached.md` as it stood at `facbd285`; and the release review before 0.7.0, eight readers over what changed since 0.6.0, its fix lines and its eight batches decided and built | 2026-10-31 | tag `v0.7.0` | *The Attached Shell's Cut*, *The Attached Shell's Sentences*, *The Session's Screen and the Toolchain's Units, Built*, *The Attached Shell, Built*, *The Guides Over the Attached Shell*, *The Attached Shell, Tested*, *The End's Lines Reach the Screen*, *A Line-Mode Input's Cost*, *The Attached Shell's Last Row*, *The Attached Shell's Own Node, Quiet*, *An Expression's One Unit, and an Input's Cost Flat*, *The Detach Keeps What Declares a Function*, *The Release Review Before 0.7.0*, *The Release Review's Code Fixes*, *The Argument's Four Decisions*, *Sites, Sessions and Their Names*, *The Input's Process*, *One Word to Leave*, *The Shell's Own Node*, *Reload, Services and Tests*, *The Library's Lines*, *The Claims, the README and the Tour* |
 | The pun | a field given or matched by the variable of its own name written once, `Desk(=local)`, swept over 874 sites with the style test holding it; the round that opened it, ten feedback lines decided and three rules built, a guard's field read, the shell's line by site, and the timed wait's effect, superseded the same day by a `receive` that always receives and `Clock.sleep`; an alarm that can be canceled; `make version`, Appendix D whole, the settler's restart tested, the guide's lines after the release review read; the three outside programs on floor 0.8 | 2026-11-01 | the release after 0.7.0 | *The Pun*, *The Pun's Opening Round*, *A `receive` Always Receives*, *An Alarm Can Be Canceled*, *`make version`, Appendix D Whole, the Settler's Restart*, *The Guide's Lines After the Release Review* |
 | Ernest 0.8.0 | a small release, the pun's: a doc example run at its own mailbox type, a census of forms over the repository's Ernest, a one-field request's reply declared positional and passed bare, and the release review before it, 92 findings | 2026-11-01 | tag `v0.8.0` | the log's *Ernest 0.8.0, a Small Release*, *The Release Review Before 0.8.0* |
-| MVP 4.1 | ernest-httpd, an HTTP/1.1 server in Ernest in a repository of its own, and the libraries it wants | | | above |
+| MVP 4.1 | ernest-httpd, an HTTP/1.1 server in Ernest in a repository of its own, which serves ernest-lang.org since 2026-11-02, and what it asked of Ernest: TLS in `Tcp`, a program under a pseudo-terminal in `Os`, the libraries `base64`, `crypto`, `time` and `http`, seventeen lines of feedback decided the days they came, the terminal tests' harness in Ernest, and the release | 2026-11-03 | ernest-httpd 0.1.0, tag `v0.1.0` in its repository; Ernest 0.9.0 | the proposal `docs/proposals/httpd/`, gone with this row, the server's own at https://github.com/joagre/ernest-httpd/blob/main/docs/proposals/basic/proposal.md; the log's *TLS in `Tcp` and a Terminal in `Os`*, *WebSocket Is the Server's*, *The Four Libraries*, *A Path Through a File*, *Three Lines From the Server*, *No Numbered Variables*, *A Close, an Exit and a Write*, *An Archive Says Its Commit*, *Two Lines on TLS*, *A Program After Its Exit*, *Four Lines From the Deployment*, *What the Server Taught*, *The Hangup's Order*, *The Error's Place*, *The Harness in Ernest*, *Three Flakes Read* |
+| Ernest 0.9.0 | the server's release: what ernest-httpd asked of Ernest, and the release review before it, 112 lines fixed and 23 decided | 2026-11-03 | tag `v0.9.0` | the log's *The Release Review Before 0.9.0* |
 | MVP 4.2 | the website, served by ernest-httpd: what Ernest is, its characteristics, the three doors, and a live shell in the browser | | | above |
 | MVP 4.3 | the shell's second round | | | above |
 | MVP 4.4 | the promise of 1.x, the cost analysis, the full review and Ernest 1.0.0, Linux | | | above |

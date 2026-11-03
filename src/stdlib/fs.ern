@@ -21,7 +21,7 @@
 /// `Left(Io.NotAFile)`, and so does `list` for anything but a directory.
 /// A path that leads through a regular file, `index.html/x`, leads to
 /// nothing and is `Left(Io.NotFound)`, as a path that names nothing is,
-/// and so does a path through a loop of links.
+/// and so is a path through a loop of links.
 ///
 /// A function follows symbolic links, but not in a path's last name where
 /// the function is about the link itself: `list` describes a link as a
@@ -50,7 +50,7 @@
 ///
 /// ```ernest
 /// Fs.read(Path("no-such-file"), 5000)
-/// // => Left(NotFound)
+/// // => Left(Io.NotFound)
 /// ```
 ///
 /// ## See also
@@ -81,8 +81,8 @@ export type Kind = File | Directory | Link | Other
 /// ### Examples
 ///
 /// ```ernest
-/// Fs.Entry(path = Path("a.txt"), modified = 0, size = 5, kind = Fs.File, mode = 0o644, user = 0)
-/// // => Entry(path = Path("a.txt"), modified = 0, size = 5, kind = File, mode = 420, user = 0)
+/// Fs.Entry(path = Path("a"), modified = 0, size = 5, kind = Fs.File, mode = 0o644, user = 0)
+/// // => Fs.Entry(path = Path("a"), modified = 0, size = 5, kind = Fs.File, mode = 420, user = 0)
 /// ```
 ///
 /// ```ernest
@@ -197,7 +197,7 @@ export fn append(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) 
 ///     Either.map(Fs.list(Path("kinds"), 5000),
 ///                fn(entries) = List.map(entries, fn(entry) = entry.kind))
 /// }
-/// // => Right([Link])
+/// // => Right([Fs.Link])
 /// ```
 export fn list(path : Path, ms : Int) : Either(Io.Error, List(Entry)) =
     answered(Address.call(reference, fn(reply) = ListEntries(=path, =reply), ms))
@@ -234,7 +234,7 @@ export fn makeDir(path : Path, ms : Int) : Either(Io.Error, Unit) =
 ///     let _ <- Fs.remove(Path("gone.txt"), 5000);
 ///     Fs.read(Path("gone.txt"), 5000)
 /// }
-/// // => Left(NotFound)
+/// // => Left(Io.NotFound)
 /// ```
 export fn remove(path : Path, ms : Int) : Either(Io.Error, Unit) =
     answered(Address.call(reference, fn(reply) = Remove(=path, =reply), ms))
@@ -351,7 +351,7 @@ export fn readLink(path : Path, ms : Int) : Either(Io.Error, Optional(Path)) =
 ///     let second = Fs.makeFile(Path("claimed.txt"), String.toUtf8("yours"), 5000);
 ///     #(first, second)
 /// }
-/// // => #(Right(Unit), Left(Exists))
+/// // => #(Right(Unit), Left(Io.Exists))
 /// ```
 ///
 /// since 0.2.0

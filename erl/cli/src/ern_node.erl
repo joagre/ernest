@@ -10,7 +10,7 @@
 -module(ern_node).
 
 -export([create/2, public_pem/1, add_peer/2, start/1, start/2, stop/1, file/2,
-         read/1, measures_changed/3, signaled/2, stopped/1, family/1]).
+         read/1, measures_changed/3, signaled/2, stopped/1, listen_text/1, family/1]).
 
 -include_lib("public_key/include/public_key.hrl").
 -include_lib("kernel/include/file.hrl").
@@ -87,7 +87,8 @@ listening(Listen) ->
     case listener(Text) of
         {ok, _} -> [{<<"listen">>, Text}];
         not_endpoint -> ern_build:fail("--listen is not address:port: " ++ Listen);
-        no_address -> ern_build:fail("--listen names no address: " ++ Listen)
+        no_address -> ern_build:fail("--listen names no address: " ++ Listen);
+        {mapped, Mapped} -> ern_build:fail("--listen names " ++ mapped_text(Mapped))
     end.
 
 %% Report Appendix C: an object whose fields keep the order given, as
@@ -567,22 +568,40 @@ listen(ConfigDir, Text) when is_binary(Text) ->
     case listener(Text) of
         {ok, Listen} -> Listen;
         not_endpoint -> fail(ConfigDir, ?CONF, "listen is not address:port: " ++ json_quoted(Text));
-        no_address -> fail(ConfigDir, ?CONF, "listen names no address: " ++ json_quoted(Text))
+        no_address -> fail(ConfigDir, ?CONF, "listen names no address: " ++ json_quoted(Text));
+        {mapped, Mapped} -> fail(ConfigDir, ?CONF, "listen names " ++ mapped_text(Mapped))
     end;
 listen(ConfigDir, _) ->
     fail(ConfigDir, ?CONF, "listen is not a string").
 
-%% The interface and the port a `listen` names, or what it lacks.
+%% The interface and the port a `listen` names, or what it lacks. Report
+%% §12.5: an IPv4-mapped address, `::ffff:a.b.c.d`, is none a listener
+%% takes, as `Tcp.listen` refuses it (Appendix E.18).
 listener(Text) ->
     case endpoint(Text) of
         {ok, Host, Port} ->
             case inet:parse_strict_address(Host) of
+                {ok, {0, 0, 0, 0, 0, 16#ffff, _, _} = Address} -> {mapped, {Address, Port}};
                 {ok, Address} -> {ok, {Address, Port}};
                 {error, _} -> no_address
             end;
         error ->
             not_endpoint
     end.
+
+%% The refusal of a mapped listen address, which names it as a listen
+%% address is written (listen_text/1), so that an address given in hex,
+%% `[::ffff:7f00:1]:0`, shows the IPv4 address it maps.
+mapped_text(Listen) ->
+    lists:flatten(["an IPv4-mapped address, ", listen_text(Listen), ", which no listener takes"]).
+
+%% Report §12.5: a listen address as `listen` writes it, an IPv6 address in
+%% brackets.
+-spec listen_text({inet:ip_address(), inet:port_number()}) -> iolist().
+listen_text({{_, _, _, _} = Address, Port}) ->
+    [inet:ntoa(Address), ":", integer_to_list(Port)];
+listen_text({Address, Port}) ->
+    ["[", inet:ntoa(Address), "]:", integer_to_list(Port)].
 
 %% Host and port of `host:port`, an IPv6 address in brackets, the port
 %% from 0 to 65535.

@@ -29,12 +29,13 @@
             Held_5 = '$18'(Stock_1, Key_2),
             case Held_5 + By_3 < 0 of
                 true ->
-                    erlang:throw({ern,
-                                  fault,
-                                  <<Key_2/binary, ": cannot take ",
-                                    (erlang:integer_to_binary(-By_3))/binary,
-                                    " of ",
-                                    (erlang:integer_to_binary(Held_5))/binary>>});
+                    try ern_rt:fault(<<Key_2/binary, ": cannot take ",
+                                       (erlang:integer_to_binary(-By_3))/binary,
+                                       " of ",
+                                       (erlang:integer_to_binary(Held_5))/binary>>)
+                    after
+                        ok
+                    end;
                 false ->
                     ern_rt:answer(Reply_4, Held_5 + By_3),
                     '$7'(ern@map:'$4'(Stock_1, Key_2, Held_5 + By_3))

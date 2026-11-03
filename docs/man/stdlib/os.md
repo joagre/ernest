@@ -38,7 +38,9 @@ Either.map(Os.run(Os.Command(program = "sh", arguments = ["-c", "exit 3"], input
 ## See also
 
 `String.fromUtf8` for output that is text, `Io.Error` for why a program
-did not run, `Tcp` for the other process a program talks to in bytes.
+did not run, `Tcp` for the other process a program talks to in bytes, and
+`Terminal` for the size of the terminal `startTerminal` starts a program
+under.
 
 ## Os.Command
 
@@ -78,7 +80,7 @@ status:
     let second <- Os.read(program, 5000);
     Right(#(first, second))
 }
-// => Right(#(Stdout(<<104, 105, 10>>), Exited(0)))
+// => Right(#(Os.Stdout(<<104, 105, 10>>), Os.Exited(0)))
 ```
 
 ## Os.Finished
@@ -295,6 +297,11 @@ death kills it, and with it the programs it started in turn that are still
 in its Unix process group. To limit how long it runs, set a `Clock.alarm`
 and `kill` it when the alarm comes; `Os.run` takes a limit of its own.
 
+Its process lives on after the program has exited, answering each `read`
+with the exit status again, until it is killed or its owner dies: once
+`read` has answered `Exited`, `kill` it, as `Os.run` does, so that it leaves
+no process behind.
+
 ### Errors
 
 Faults with the cause `the runtime's helper ern_exec failed` where
@@ -310,7 +317,7 @@ is a fault of the installation, not of the command.
     Os.closeInput(cat);
     Os.read(cat, 5000)
 }
-// => Right(Stdout(<<104, 105>>))
+// => Right(Os.Stdout(<<104, 105>>))
 ```
 
 ## Os.startTerminal
@@ -328,9 +335,10 @@ start, as `start` answers it.
 The terminal is the program's standard input, standard output and standard
 error, and the program is its session's leader and in its foreground, as a
 shell a terminal window starts is. The terminal begins in the host's
-ordinary mode, echoing what `write` gives it and giving the program a line
-at a time, which the program changes as it would any terminal's. `TERM` is
-not set: the program inherits the environment as under `start`.
+ordinary mode, echoing its input, `command.input` and what `write` gives
+it, and giving the program a line at a time, which the program changes as
+it would any terminal's. The runtime sets no `TERM`: the program inherits
+the environment as under `start`.
 
 Its standard output and standard error come merged through the terminal, so
 `read` answers `Stdout` alone, and a line feed the program writes arrives
@@ -361,7 +369,7 @@ as its status:
                          Terminal.Size(rows = 24, columns = 80));
     Os.read(sh, 5000)
 }
-// => Right(Exited(80))
+// => Right(Os.Exited(80))
 ```
 
 ## Os.resize
@@ -376,10 +384,10 @@ Sets the size of the terminal a program `startTerminal` started runs under,
 and tells the program's foreground, as a terminal window resized tells its
 shell: the host sends it `SIGWINCH`.
 
-It answers `Left(NotATerminal)` for a program `start` started, and
-`Left(Invalid)` for rows or columns below 0 or above 65535. Once the terminal
-has been hung up, or its program has exited, it sizes nothing and answers
-`Right(Unit)`.
+It answers the first of these that holds: `Left(NotATerminal)` for a program
+`start` started, whatever the size; `Left(Invalid)` for rows or columns below
+0 or above 65535; and `Left(Closed)` once the terminal has been hung up or
+its program has exited, as `write` does.
 
 ### Errors
 
@@ -405,7 +413,7 @@ before the line has set; the terminal echoes the line feed as it reads it:
     let last <- Os.read(sh, 5000);
     Right(#(echoed, last))
 }
-// => Right(#(Stdout(<<13, 10>>), Exited(30)))
+// => Right(#(Os.Stdout(<<13, 10>>), Os.Exited(30)))
 ```
 
 A program `start` started has no terminal:
@@ -415,7 +423,7 @@ A program `start` started has no terminal:
     let cat <- Os.start(Os.Command(program = "cat", arguments = [], input = <<>>));
     Os.resize(cat, Terminal.Size(rows = 24, columns = 80))
 }
-// => Left(NotATerminal)
+// => Left(Io.NotATerminal)
 ```
 
 ## Os.read
@@ -456,9 +464,10 @@ was killed` where it was killed as the call was made.
                             input = <<>>));
     let first <- Os.read(sh, 5000);
     let last <- Os.read(sh, 5000);
+    kill(sh);
     Right(#(first, last))
 }
-// => Right(#(Stderr(<<110, 111, 10>>), Exited(1)))
+// => Right(#(Os.Stderr(<<110, 111, 10>>), Os.Exited(1)))
 ```
 
 ## Os.write
@@ -491,7 +500,7 @@ program's process has ended, as `read` does.
     let _ <- Os.write(cat, String.toUtf8("hi"), 5000);
     Os.read(cat, 5000)
 }
-// => Right(Stdout(<<104, 105>>))
+// => Right(Os.Stdout(<<104, 105>>))
 ```
 
 ## Os.closeInput
@@ -506,7 +515,9 @@ program that reads to the end of its input then sees the end.
 On a program `startTerminal` started it hangs the terminal up at once, as
 closing a terminal window does: the program is sent the hangup, what it was
 given and has not taken is dropped, nothing more it writes arrives, and
-`read` answers its exit once it has exited.
+`read` answers its exit once it has exited. A read of the terminal the
+program is waiting in ends before the hangup is sent, so a program that
+exits when its input ends may exit so and never take the hangup.
 
 ### Examples
 
