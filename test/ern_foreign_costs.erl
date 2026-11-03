@@ -162,8 +162,8 @@ checked(N) ->
 %% constructor's, a string's, and a value with fields through ern_boundary.
 operations() ->
     %% the descriptors ern_descriptor gives the two types
-    Ordering = {con, [{'Less', []}, {'Equal', []}, {'Greater', []}]},
-    Some = {con, [{'None', []}, {'Some', [int]}]},
+    Ordering = {con, none, [{'Less', []}, {'Equal', []}, {'Greater', []}]},
+    Some = {con, none, [{'None', []}, {'Some', [int]}]},
     [{Name, ern_costs:launched(fun(Count) -> operated(Operation, Count) end)}
      || {Name, Operation} <-
             [{"the loop alone", fun(_) -> ok end},
