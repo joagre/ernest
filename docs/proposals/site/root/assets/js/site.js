@@ -61,7 +61,6 @@ const panel = {
   terminal: null,
   state: null,
   buttons: {},
-  examples: [],
   opener: null,
 };
 
@@ -124,7 +123,6 @@ function setState(running) {
   panel.start.replaceChildren(icon(running ? "rotate-ccw" : "play"), running ? "Restart" : "Start");
   panel.stop.disabled = !running;
   showWaiting();
-  showExamples();
 }
 
 function pasteIntoShell(text) {
@@ -268,34 +266,26 @@ function addInputPastes(pre) {
 
 // On a phone no panel is offered, and the Start stays the link to the
 // shell's page.
-// The example's button says what it will do: Start where no session runs,
-// and Show the shell, which only brings the panel back, where one does.
+// The example's button is the example's alone: it puts the example's code
+// into the shell, opening the panel and starting a session where needed,
+// and its label never changes. The header shows and hides the panel, and
+// the panel's bar starts and stops the session. On a phone the code waits
+// on the shell's own page.
 function addStart(run) {
-  if (phone.matches) {
-    return;
-  }
-  const start = document.createElement("button");
-  start.type = "button";
-  start.className = "button primary";
-  start.addEventListener("click", () => {
-    const running = panel.running;
-    openPanel(remembered("ernest.panel", "beside"));
-    if (!running) {
+  const code = run.closest("section").querySelector("pre.code");
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "button primary";
+  button.append(icon("play"), "Run the example");
+  button.addEventListener("click", () => {
+    if (!phone.matches && !panel.running) {
       setState(true);
     }
+    pasteIntoShell(code.textContent);
   });
   const words = document.createElement("span");
-  words.textContent = "Run it yourself, in a shell beside the page.";
-  run.replaceChildren(start, words);
-  panel.examples.push(start);
-  showExamples();
-}
-
-function showExamples() {
-  for (const start of panel.examples) {
-    start.replaceChildren(icon(panel.running ? "terminal" : "play"),
-      panel.running ? "Show the shell" : "Start");
-  }
+  words.textContent = "Puts the counter's code into the shell; then type the session's lines.";
+  run.replaceChildren(button, words);
 }
 
 addPanel();

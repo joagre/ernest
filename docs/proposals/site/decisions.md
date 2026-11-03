@@ -105,17 +105,19 @@ The site's files as served.
   opening; the rest is Why's. Why and the README take that order and the
   first claim's name and sentence when they are rewritten (`todo.md`;
   decided 2026-11-03); and a small example with its output, which a
-  test runs, so that the Start runs what the page shows: a process started on
+  test runs, so that the example's button runs what the page shows: a process started on
   the container's second node, its code typed into the shell and sent
   there (decided 2026-11-03). The opening and the list are visible on
   a desktop without scrolling, which the mockup's homepage is checked for
   first; where they are not, the page is cut, not the rule (decided
   2026-11-03).
-- Under the example stands its Start, "Run it yourself", the page's one
-  action and its one strong color, which opens the shell beside the
-  example and starts a session; while one runs it reads "Show the shell"
-  and only brings the panel back, so that it always says what it does; without the script, and on a phone, it is a link to `/shell/`
-  (decided 2026-11-03).
+- Under the example stands its button, "Run the example", the page's one
+  action and its one strong color. It puts the example's code into the
+  shell, opening the panel and starting a session where needed, and its
+  label never changes: the header's buttons show and hide the panel, and
+  the panel's bar starts and stops the session, each control one job. On
+  a phone it opens `/shell/` with the code waiting, and without the script
+  it is a link to `/shell/` (decided 2026-11-03).
 - After it, three doors, in this order, each with its question and of one
   weight: Tour, "show me the language"; Guide, "help me write programs";
   Report, "tell me the rules" (decided 2026-11-03).
@@ -127,7 +129,7 @@ The site's files as served.
 
 - The header: Why, Tour, Guide, Report, Library, Shell, Install, and Source,
   the GitHub link. The terminal is labeled Shell, as `ern shell` names it; the
-  homepage's way to it is the example's Start.
+  homepage's way to it is the example's button.
 - One footer, the homepage's too, in two lines. First the rooms the header
   leaves out: the questions, Deployment and Releases. Then
   the page, "This page:" and its source file's path in the repository,
@@ -248,10 +250,10 @@ The site's files as served.
 - The stylesheet lays out with flex and grid and their gaps, so that the
   whitespace between elements never shows.
 - No control the script works stands in the HTML: Copy, Paste and Load,
-  a transcript's Paste for each input, the example's Start and the panel's toggle
+  a transcript's Paste for each input, the example's button and the panel's toggle
   are made by the script, so that a page without it shows none. The HTML
   holds what the generator decided, a block's `data-shell="paste"` or
-  `"load"` and the Start's `data-shell="start"`, and the script reads it
+  `"load"` and the example button's `data-shell="start"`, and the script reads it
   (decided 2026-11-03).
 
 - Flat token files, cut at their tokens once and joined with the values. No
@@ -440,8 +442,8 @@ The site's files as served.
   the privacy line stay on `/shell/`. Below 1000 px only below
   is offered. Opening moves focus into the terminal and closing returns
   it to the button; Escape is the terminal's (decided 2026-11-03).
-- No panel opens until the visitor asks. On a desktop, the example's Start
-  opens the homepage's panel beside the example; on a phone, it links to
+- No panel opens until the visitor asks. On a desktop, the example's button
+  opens the homepage's panel beside the example; on a phone, it opens
   `/shell/`.
 - Only an `ernest` block that runs alone in a bare shell has Paste or
   Load: one the guide tests take as a module of its own. One joined with
