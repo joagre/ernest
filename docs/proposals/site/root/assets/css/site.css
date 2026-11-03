@@ -710,6 +710,32 @@ h2:hover .anchor,
   color: var(--muted);
 }
 
+.index-list .chapter {
+  font-weight: 620;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.index-list .chapter:hover {
+  color: var(--accent);
+}
+
+/* A chapter's sections under it, one wrapping line of small links. */
+.index-list .sections {
+  font-size: .85rem;
+  line-height: 1.6;
+}
+
+.index-list .sections a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.index-list .sections a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
 
 /* Tables
    ---------------------------------------------------------------------- */
