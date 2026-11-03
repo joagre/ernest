@@ -1,10 +1,10 @@
 # Ernest HTML templates
 
-A small, framework-free design proposal for ernest-lang.org. Open ../root/mockup/index.html or serve the root:
+A small, framework-free design proposal for ernest-lang.org. Serve the root, as the site is served:
 
     python3 -m http.server 8080 --directory ../root
 
-Then visit http://localhost:8080/mockup/. The flat demo filenames keep the bundle browsable; the production addresses are [decisions.md](../decisions.md)'s. There is no build step, CDN, font download, icon JavaScript or application framework. Documentation examples are illustrative, not a replacement for current project documentation. The browser shell is an explicitly disconnected layout preview.
+Then visit http://localhost:8080/mockup/. A page opened as a file shows no icons, and so no icon's button, since a browser takes no `<use>` of another file there. The flat demo filenames keep the bundle browsable; the production addresses are [decisions.md](../decisions.md)'s. There is no build step, CDN, font download, icon JavaScript or application framework. Documentation examples are illustrative, not a replacement for current project documentation. The browser shell is an explicitly disconnected layout preview.
 
 ## Files and templates
 
