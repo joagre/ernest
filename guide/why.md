@@ -376,7 +376,7 @@ A requirement names nothing outside that set, and a member is declared in its ty
 
 ```console
 $ ern shell
-Ernest 0.10.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.10.0, session 1. :help for help.
 > fn hashed(x : a) : Int needs a.hash = 0
 input 1:1:30: `hash` is not a member: a requirement names `+`, `-`, `*`, `/`, `%`, `<>`, `compare`, `negate` or `show`
 1 | fn hashed(x : a) : Int needs a.hash = 0
@@ -421,7 +421,7 @@ What sets a requirement apart from a class, an interface or a trait is that it n
 
 ### Little else
 
-No program shows this claim. Its evidence is the report under `report/`: the language, the toolchain and the library, a file each, which state everything the programs above rely on.
+No program shows this claim. Its evidence is the report under [`report/`](../report/): the language, the toolchain and the library, a file each, which state everything the programs above rely on.
 
 ## Reading on
 

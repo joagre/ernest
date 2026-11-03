@@ -248,7 +248,7 @@ fenced(Fence, Lines) ->
 readme_start() ->
     {ok, Version} = file:read_file("../VERSION"),
     <<"Ernest ", (string:trim(Version))/binary,
-      ", session 1. :help for the commands, :quit to leave.">>.
+      ", session 1. :help for help.">>.
 
 %% The lines of the README's console whose first line is Command, the
 %% command first.
@@ -649,7 +649,7 @@ started(Base, Dir, Options, Said) ->
     ern_nodes_tests:prints(Dir, "> "),
     Started = written(Dir),
     Start = iolist_to_binary(["Ernest ", ern_release:version_text(),
-                              ", session 1. :help for the commands, :quit to leave.\n> "]),
+                              ", session 1. :help for help.\n> "]),
     Before = byte_size(Started) - byte_size(Start),
     ?assertEqual({Said, Start}, {stamped(binary:part(Started, 0, Before)),
                                  binary:part(Started, Before, byte_size(Start))}),

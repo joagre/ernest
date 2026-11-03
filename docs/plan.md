@@ -205,10 +205,8 @@ attached shell, MVP 4.0, is the operator's alone.
    its layout in local storage, Copy, Paste and Load on a code block, Load pasting the block as
    declarations with `main()` typed, a transcript's Paste for each input, the warning banner with Extend,
    the snackbar at a session's end, and everything reachable by keyboard with xterm.js's
-   screen-reader mode on. The shell's banner shortened to
-   `Ernest v, session n. :help for help.`, about 40 columns, so that it fits a narrow block and
-   a phone's terminal, report §11.2 first, then `shell.ern` and every transcript that shows it;
-   `:help` lists `:quit` (decided 2026-11-03).
+   screen-reader mode on. The shell's start line shortened, done 2026-11-03 (the log's *The Start
+   Line's Length*).
 5. **The build and the deployment**: `make site` from a tag by `git archive`, given the
    server's configuration file, with the check of every internal link and anchor, built
    2026-11-03 (the log's *The Generator's Third Stage*); the copy of `build/site/` to the host,

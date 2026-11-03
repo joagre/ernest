@@ -2,12 +2,12 @@
 # VERSION, the release the checkout works toward, set to the one given,
 # x.y.z, with every line a test holds to it (docs/release_review.md, step
 # 5): a shell's start line in a tracked document, the log and the proposals
-# aside, `Ernest x.y.z, session 1. :help for the commands, :quit to
-# leave.`, and the session fixtures' start line, which names the version
-# text of a build that is no release, `x.y.z-dev` (ern_release). Each line
-# is matched whole, so that a `since` line and a sentence naming a release
-# stay as they are. The pages make man writes name the version text too,
-# and make version writes them after this script.
+# aside, `Ernest x.y.z, session 1. :help for help.`, and the session
+# fixtures' start line, which names the version text of a build that is no
+# release, `x.y.z-dev` (ern_release). Each line is matched whole, so that
+# a `since` line and a sentence naming a release stay as they are. The
+# pages make man writes name the version text too, and make version writes
+# them after this script.
 #
 # Given a directory, the checkout's files are rewritten under it instead,
 # as ern_docs_tests' version_test does. VERSION is written last, so that a
@@ -30,8 +30,8 @@ is_version "$old" || { echo "version.sh: $dir/VERSION holds no x.y.z" >&2; exit 
 [ "$new" != "$old" ] || exit 0
 
 was=$(printf '%s' "$old" | sed 's/\./\\./g')
-start=', session \([1-9][0-9]*\)\. :help for the commands, :quit to leave\.$'
-rest=', session \1. :help for the commands, :quit to leave.'
+start=', session \([1-9][0-9]*\)\. :help for help\.$'
+rest=', session \1. :help for help.'
 
 # File, under dir, rewritten by the sed script Script, its mode kept.
 rewrite() {

@@ -18,7 +18,7 @@ fn count(total : Int) : Unit receiving CounterMsg =
 
 ```console
 $ ern shell --config-dir a
-Ernest 0.10.0, session 1. :help for the commands, :quit to leave.
+Ernest 0.10.0, session 1. :help for help.
 > let far <- Peer.spawn("foo", fn() = count(0), 5000)
 the peer foo connected
 far : Address(CounterMsg)

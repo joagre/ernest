@@ -345,7 +345,7 @@ fn session(desk : Desk) : Unit receiving ShellMsg = {
                                   =reply),
                      screenMs);
     let greeting = "Ernest " <> version() <> ", session " <> Int.toString(number(state.session));
-    send(screen, Said(greeting <> ". :help for the commands, :quit to leave.\n"));
+    send(screen, Said(greeting <> ". :help for help.\n"));
     // report §11.2: a process that faults is news at the prompt, whichever
     // it is, and the session hears of it as any subscriber does, from
     // before the program's entry point runs

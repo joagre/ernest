@@ -467,9 +467,9 @@ loads_listed_test() ->
     ?assertEqual(lists:sort(["shell" | Programs]), lists:sort(Listed)).
 
 %% report §11.2, docs/release_review.md: a shell's start line a tracked
-%% document shows, `Ernest 0.5.0, session 1. :help for the commands, :quit
-%% to leave.`, in every shell (report §11.2 *Startup and history*), names
-%% the release VERSION holds, in every document but the log, which is
+%% document shows, `Ernest 0.5.0, session 1. :help for help.`, in every
+%% shell (report §11.2 *Startup and history*), names the release VERSION
+%% holds, in every document but the log, which is
 %% history, and a proposal, so that a release that forgets one is told; the
 %% session's number is the one the session had where the document's session
 %% ran. The guide's and the catalog's sessions are held to it as they run
@@ -483,7 +483,7 @@ start_lines_test() ->
     Found = [{File, Line} || File <- start_line_documents(),
                              Line <- binary:split(ern_repository:read(File), <<"\n">>, [global]),
                              binary:match(Line, <<"Ernest ">>) =:= {0, 7},
-                             binary:match(Line, <<". :help for the commands">>) =/= nomatch],
+                             binary:match(Line, <<". :help for help.">>) =/= nomatch],
     ?assert(length(lists:usort([File || {File, _} <- Found])) >= 3),
     ?assertEqual([], [Each || {_, Line} = Each <- Found, re:run(Line, Expected) =:= nomatch]).
 
@@ -541,8 +541,9 @@ version_test() ->
                       Was =/= Is],
         {Held, Moved} = lists:partition(fun({File, _, _}) -> lists:member(File, Documents) end,
                                         Changed),
-        Fixture = fun(Text) -> iolist_to_binary(["Ernest ", Text, "-dev, session 1. :help for"
-                                                 " the commands, :quit to leave."]) end,
+        Fixture = fun(Text) ->
+                          iolist_to_binary(["Ernest ", Text, "-dev, session 1. :help for help."])
+                  end,
         ?assertEqual([{"VERSION", Version, <<"9.8.7">>}
                       | [{File, Fixture(Version), Fixture("9.8.7")} || File <- Fixtures]],
                      Moved),
@@ -567,8 +568,7 @@ start_line_documents() ->
 
 %% A shell's start line naming Version, as a pattern (report §11.2).
 start_line(Version) ->
-    ["^Ernest \\Q", Version, "\\E, session [1-9][0-9]*\\. :help for the commands,"
-     " :quit to leave\\.$"].
+    ["^Ernest \\Q", Version, "\\E, session [1-9][0-9]*\\. :help for help\\.$"].
 
 %% A file's lines, the empty one after its last newline among them.
 lines(Text) ->
