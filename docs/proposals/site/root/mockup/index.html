@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Ernest</title>
-  <meta name="description" content="Ernest is a functional language for concurrent programs, on the Erlang runtime.">
+  <meta name="description" content="Start a process on another node, and the node is sent the code it lacks.">
   <meta property="og:title" content="Ernest">
-  <meta property="og:description" content="Ernest is a functional language for concurrent programs, on the Erlang runtime.">
+  <meta property="og:description" content="Start a process on another node, and the node is sent the code it lacks.">
   <meta property="og:image" content="https://ernest-lang.org/assets/ernest-social-light.png">
   <link rel="icon" href="ernest-avatar-64.png">
   <link rel="stylesheet" href="../assets/css/site.css">
@@ -47,8 +47,8 @@
   <main id="main" class="wrap">
     <section class="home-intro" aria-labelledby="intro-title">
       <div class="opening">
-        <h1 id="intro-title">Typed processes, on the Erlang runtime</h1>
-        <p class="lead">Ernest is a functional language for concurrent programs. A process receives messages of one type, which the compiler checks every send against, and a process started on another node brings its code along. Functions and processes are the whole language, and a report of three files defines it. Why it is so is <a href="why.html">the whole argument</a>.</p>
+        <h1 id="intro-title">Start a process on another node, and its code goes with it</h1>
+        <p class="lead">Start a process on another node, and the node is sent the code it lacks: each function is known by a hash of its definition, and nothing of the program is installed there first. Ernest is a functional language for concurrent programs, on the Erlang runtime. A process receives messages of one type, which the compiler checks every send against. Why it is so is <a href="why.html">the whole argument</a>.</p>
       </div>
       <div class="claims">
         <h2>What Ernest adds</h2>
@@ -65,7 +65,7 @@
 
     <section class="home-use" aria-labelledby="use-title">
       <h2 id="use-title">For programs written in it</h2>
-      <p>Ernest is for programs written in it from the start: a server, a service spread over machines, a tool. A program reaches Erlang's libraries through declarations that give them Ernest types. A counter, its mailbox in the type of the loop it runs:</p>
+      <p>Ernest is for programs written in it from the start: a server, a service spread over machines, a tool. A program reaches Erlang's libraries through declarations that give them Ernest types. Here a counter is started on <code>foo</code>, a second node beside the shell that has none of its code:</p>
       <div class="example">
         <pre class="code" data-shell="paste"><code><span class="tok-keyword">type</span> <span class="tok-type">CounterMsg</span> = <span class="tok-type">Inc</span>(<span class="tok-type">Int</span>) | <span class="tok-type">Get</span>(<span class="tok-type">Reply</span>(<span class="tok-type">Int</span>))
 
@@ -78,18 +78,19 @@
             count(total)
         }
     }</code></pre>
-        <pre class="transcript" data-shell="paste"><code><span class="tok-output">$ ern shell
+        <pre class="transcript" data-shell="paste"><code><span class="tok-output">$ ern shell --config-dir a
 Ernest 0.9.0, session 1. :help for the commands, :quit to leave.</span>
-<span class="input"><span class="prompt">&gt; </span>let counter = spawn(fn() = count(0))</span>
-<span class="tok-output">counter : Address(CounterMsg)</span>
-<span class="input"><span class="prompt">&gt; </span>send(counter, Inc(5))</span>
-<span class="input"><span class="prompt">&gt; </span>Address.call(counter, Get, 1000)</span>
+<span class="input"><span class="prompt">&gt; </span>let far &lt;- Peer.spawn("foo", fn() = count(0), 5000)</span>
+<span class="tok-output">the peer foo connected
+far : Address(CounterMsg)</span>
+<span class="input"><span class="prompt">&gt; </span>send(far, Inc(5))</span>
+<span class="input"><span class="prompt">&gt; </span>Address.call(far, Get, 1000)</span>
 <span class="tok-output">Some(5) : Optional(Int)</span>
-<span class="input"><span class="prompt">&gt; </span>send(counter, "five")</span>
-<span class="tok-output">input 5:1:15: the argument does not fit send: expected CounterMsg, found String
-1 | send(counter, "five")
+<span class="input"><span class="prompt">&gt; </span>send(far, "five")</span>
+<span class="tok-output">input 5:1:11: the argument does not fit send: expected CounterMsg, found String
+1 | send(far, "five")
   | ---- send : (Address(a), a) -&gt; Unit
-  |               ^^^^^^</span></code></pre>
+  |           ^^^^^^</span></code></pre>
       </div>
     </section>
 
