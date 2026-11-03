@@ -214,6 +214,10 @@ attached shell, MVP 4.0, is the operator's alone.
    ernest-httpd's container with its two nodes and a release of Ernest holding the site.
 6. **The Emacs mode's indentation of a brace in a bracket's item**, done 2026-11-03 (the log's
    *The Mode's Brackets*).
+7. **Projects**, the page of the libraries and programs written in Ernest in repositories of
+   their own, `/projects/` from `site/projects.md`, reached from the footer and Why's *Reading
+   on*, decided 2026-11-03 (the log's *Projects, a Page of Their Own*; the design's *The other
+   pages*). Built after item 4, which works in the same generator, by 2026-11-06.
 
 ## MVP 4.3 (`:trace f`), about a week
 
