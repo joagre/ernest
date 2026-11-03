@@ -155,7 +155,9 @@ attached shell, MVP 4.0, is the operator's alone.
    Once it writes every kind of page, each kind is read with the user against the five
    principles, as the homepage was in item 1: each element asked what it is for, said once,
    and kept only where a visitor would miss it; a reading's verdicts change the templates and
-   the decisions (decided 2026-11-03).
+   the decisions (decided 2026-11-03). The Why page's reading rewrites `guide/why.md` so that
+   the code a process takes to another node leads its opening and its argument, as its claims
+   lead with it, the README's list following under `claims_test`.
 
    It reads the repository and writes static files: the pages of the report, the guide,
    the tour, Why, the questions, the deployment guide, the README's *Installing*, the release
@@ -174,7 +176,10 @@ attached shell, MVP 4.0, is the operator's alone.
    its layout in local storage, Copy, Paste and Load on a code block, Load pasting the block as
    declarations with `main()` typed, a transcript's Paste for each input, the warning banner with Extend,
    the snackbar at a session's end, and everything reachable by keyboard with xterm.js's
-   screen-reader mode on.
+   screen-reader mode on. The shell's banner shortened to
+   `Ernest v, session n. :help for help.`, about 40 columns, so that it fits a narrow block and
+   a phone's terminal, report §11.2 first, then `shell.ern` and every transcript that shows it;
+   `:help` lists `:quit` (decided 2026-11-03).
 5. **The build and the deployment**: `make site` from a release's tag by `git archive`, given the
    server's configuration file, the toolchain built there and `make man` run, the check of every internal link and anchor, the
    copy of `build/site/` to the host, and the site live at ernest-lang.org with the smoke test
