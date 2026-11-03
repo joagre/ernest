@@ -720,10 +720,18 @@ h2:hover .anchor,
   color: var(--accent);
 }
 
-/* A chapter's sections under it, one wrapping line of small links. */
+/* A chapter's sections under it, a small link a line. */
 .index-list .sections {
-  font-size: .85rem;
-  line-height: 1.6;
+  margin: .35rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: .88rem;
+  line-height: 1.7;
+}
+
+.index-list .sections li {
+  padding: 0;
+  border: 0;
 }
 
 .index-list .sections a {
