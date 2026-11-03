@@ -448,6 +448,9 @@ The site's files as served.
   prompt does; a visitor who never noticed the shell meets it so. On a
   phone, where no panel is offered, the click opens `/shell/` with the
   input waiting there (decided 2026-10-27).
+- xterm.js takes Alt, and Option on a Mac, as Meta, so that the shell's
+  M-Enter, which its own hint names, works in the panel (decided
+  2026-11-03).
 - Everything is reachable by keyboard. Focus lands in the shell after a Paste.
   xterm.js's screen-reader mode is on.
 
