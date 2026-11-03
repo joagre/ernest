@@ -152,6 +152,11 @@ attached shell, MVP 4.0, is the operator's alone.
    with a test holding what it writes equal to the committed pages, so that the look decided by
    hand and the generation never drift; a test holds each template to its tokens the same way.
 
+   Once it writes every kind of page, each kind is read with the user against the five
+   principles, as the homepage was in item 1: each element asked what it is for, said once,
+   and kept only where a visitor would miss it; a reading's verdicts change the templates and
+   the decisions (decided 2026-11-03).
+
    It reads the repository and writes static files: the pages of the report, the guide,
    the tour, Why, the questions, the deployment guide, the README's *Installing*, the release
    notes and `docs/man/`'s Markdown; the contents pages; the anchors, the citations' links and a
