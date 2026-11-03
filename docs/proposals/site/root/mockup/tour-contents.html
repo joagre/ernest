@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The tour · Ernest</title>
+  <meta name="description" content="Ernest in an evening: one program, a counter, grown through eight chapters.">
+  <meta property="og:title" content="The tour · Ernest">
+  <meta property="og:description" content="Ernest in an evening: one program, a counter, grown through eight chapters.">
+  <meta property="og:image" content="https://ernest-lang.org/assets/ernest-social-light.png">
+  <link rel="icon" href="ernest-avatar-64.png">
+  <link rel="stylesheet" href="../assets/css/site.css">
+  <script src="../assets/js/site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="index.html"><img src="ernest-mark.svg" alt="" width="24" height="30">Ernest</a>
+      <nav class="site-nav" aria-label="Main navigation">
+        <a href="why.html">Why</a>
+        <a href="tour-contents.html" aria-current="page">Tour</a>
+        <a href="guide-contents.html">Guide</a>
+        <a href="report.html">Report</a>
+        <a href="library.html">Library</a>
+        <a href="shell.html">Shell</a>
+        <a href="install.html">Install</a>
+        <a href="https://github.com/joagre/ernest">Source <svg class="icon" aria-hidden="true"><use href="../assets/img/icons.svg#external-link"></use></svg></a>
+      </nav>
+      <details class="site-menu">
+        <summary>Menu <svg class="icon" aria-hidden="true"><use href="../assets/img/icons.svg#chevron-down"></use></svg></summary>
+        <nav aria-label="Main navigation">
+          <a href="why.html">Why</a>
+          <a href="tour-contents.html" aria-current="page">Tour</a>
+          <a href="guide-contents.html">Guide</a>
+          <a href="report.html">Report</a>
+          <a href="library.html">Library</a>
+          <a href="shell.html">Shell</a>
+          <a href="install.html">Install</a>
+          <a href="https://github.com/joagre/ernest">Source</a>
+        </nav>
+      </details>
+    </div>
+  </header>
+
+  <main id="main" class="wrap">
+    <div class="index-page">
+      <h1>The tour</h1>
+      <p><em>The Importance of Being Ernest, a Trivial Comedy for Serious People</em></p>
+      <p>Ernest in an evening: one program, a counter, grown through eight chapters from a process with a typed mailbox to the same counter on a node started with none of its code, moved to new code there. It is for the programmer who has used a functional language and will read neither the report nor the guide first. Every rule the tour meets is the guide's, <a href="../guide/language.md"><em>Programming in Ernest</em></a>, or the <a href="../guide/deployment.md">deployment guide</a>'s where the operator's world is met, and the tour names the section, or the report's where no guide states the rule. What the program has just done that your language cannot, the tour says where it happens, naming the claim of <a href="../guide/why.md"><em>Why Ernest</em></a> it meets.</p>
+      <p>An hour to read, and about three to do along, with <code>ern</code> installed as the <a href="install.html">README</a> says and five terminals: your own, the shell's, from chapter 2 one for each of two nodes, and in chapter 8 one for a shell attached to a node. Each chapter is a change to the program, then what was typed and what was printed, then a few sentences.</p>
+      <p>The directories <code>tour/1/</code> to <code>tour/8/</code> hold the program as it stands at the end of each chapter, each a program of its own, so a chapter's build and tests run from its directory alone. Work in a directory of your own, make the nodes' directories in it, and copy a chapter's files into it as the chapter begins. From chapter 2 on the shell you started runs to the end: the sessions of chapters 2 to 8 are one session, chapter 8's attached shell beside it, so a reader who starts at chapter 5 types chapters 2 to 4 first.</p>
+      <nav aria-label="Chapters">
+        <ol class="index-list">
+          <li>
+            <a class="chapter" href="tour.html">1. The counter</a>
+            <p>a process with a typed mailbox, and a wrong message and a wrong mailbox refused</p>
+          </li>
+          <li>
+            <a class="chapter" href="tour-2.html">2. Two bare nodes</a>
+            <p>the same counter on a node that holds none of its code</p>
+          </li>
+          <li>
+            <a class="chapter" href="tour-3.html">3. The client</a>
+            <p>a function that reads a line, and a quiet reload</p>
+          </li>
+          <li>
+            <a class="chapter" href="tour-4.html">4. A fault</a>
+            <p>a process ended, a restart that keeps the address, a watcher told</p>
+          </li>
+          <li>
+            <a class="chapter" href="tour-5.html">5. Per key</a>
+            <p>an abstract type with a requirement, a test, a deadlock found, and a protocol refused across versions</p>
+          </li>
+          <li>
+            <a class="chapter" href="tour-6.html">6. The door</a>
+            <p>the message by which new code will reach the counter</p>
+          </li>
+          <li>
+            <a class="chapter" href="tour-7.html">7. Work anywhere</a>
+            <p>a host question checked at the crossing, and work placed on whichever node has room</p>
+          </li>
+          <li>
+            <a class="chapter" href="tour-8.html">8. The fix</a>
+            <p>the counters moved to new code with their tallies kept, <code>foo</code>&#x27;s from a shell attached to it, and a node&#x27;s end</p>
+          </li>
+        </ol>
+      </nav>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p class="footer-rooms"><a href="faq.html">Questions</a> · <a href="deployment.html">Deployment</a> · <a href="changes.html">Releases</a></p>
+      <p class="footer-page">This page: <a href="https://github.com/joagre/ernest/blob/v0.9.0/tour/README.md">tour/README.md</a>, 2026-11-03 · Ernest 0.9.0 · <a href="https://github.com/joagre/ernest/blob/v0.9.0/LICENSE">0BSD license</a> · <a href="https://github.com/joagre/ernest/issues">Report a defect</a> · Served by <a href="https://github.com/joagre/ernest-httpd">ernest-httpd</a>, written in Ernest</p>
+    </div>
+  </footer>
+</body>
+</html>
