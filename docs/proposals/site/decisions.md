@@ -1,8 +1,8 @@
 # Decisions
 
 What the discussion has settled, tersely. A decision changes here, with its
-date. Read back on 2026-10-30 against the httpd proposal, the report and the
-tree, and its findings applied the same day.
+date. Read back on 2026-11-03 against the repository and the server's
+design, and its findings applied the same day.
 
 ## Purpose, 2026-10-13
 
@@ -43,7 +43,7 @@ The site's files as served.
     /assets/css/                    site.css, xterm's stylesheet
     /assets/js/                     xterm.js, its fit addon, the session client
     /assets/img/icons/              the Lucide icons and their LICENSE
-    /assets/<logo>                  the repository's logos, at their paths in assets/
+    /assets/<logo>                  the logos the site shows, at their paths in assets/
 
 - A report page is one of the report's files, whole. A citation's first
   number or letter names its page.
@@ -93,11 +93,13 @@ The site's files as served.
   opening paragraph; Why's list "What Ernest adds", `guide/why.md`'s six
   claims word for word, which the documents test `claims_test` holds equal
   to the README's, each item's bold name and first sentence linking to its
-  heading in Why (corrected 2026-10-30, from "the guide's §0 list"); a
+  heading in Why; a
   paragraph on
   intended use; and a small example with its output, which a test runs, so
   that Try prints what the page shows. The opening and the list are visible on
-  a desktop without scrolling.
+  a desktop without scrolling, which the mockup's homepage is checked for
+  first; where they are not, the page is cut, not the rule (decided
+  2026-11-03).
 - After the example, its rows are four doors, in this order, each with its
   question: Try, "let me see it run", the shell's entry with Start; Tour, "show
   me the language"; Guide, "help me write programs"; Report, "tell me the
@@ -119,6 +121,9 @@ The site's files as served.
   version the site is built from, the license, the issues, and "served by
   ernest-httpd, written in Ernest" once true.
 - Previous and next stand above the footer on a tour, guide or report page.
+- On a narrow screen the header is the stoat with "Ernest" and a
+  `<details>` menu holding its links, folded as the contents list is, by
+  the browser and no script (decided 2026-11-03).
 
 ## The other pages, 2026-10-13
 
@@ -126,12 +131,11 @@ The site's files as served.
   platforms, the installation, its verification and the first command.
 - Releases is `CHANGES.md` rendered as it stands, newest first, each
   release's note as the release step writes it there and copies it to
-  GitHub, from the release after 0.6.0 on (changed 2026-10-30, from the
-  notes under `releases/<version>.md`, which the release step never wrote).
+  GitHub, from the release after 0.6.0 on (decided 2026-10-30).
 - The shell page: the terminal takes most of the space, with the panel's
   controls above it, Start or Restart and Stop, and the warning banner with
   Extend when it comes (*The live shell*), and there is no Examples control, the
-  pages' blocks being the examples (changed 2026-10-30). The session and its
+  pages' blocks being the examples (decided 2026-10-30). The session and its
   limits are explained beside it. A dropped connection and an expired session are
   told apart; nothing is erased silently on a reconnect; nothing runs but by
   the visitor's act.
@@ -152,14 +156,18 @@ The site's files as served.
 - Prose 70 to 80 characters wide, code and the terminal wider. A narrow
   contents sidebar on a desktop, an expandable contents list on a phone.
 - Visible keyboard focus.
-- The logos are the repository's `assets/`, which `make site` copies to
-  `/assets/`, each at its path in the repository; the root holds no copy. A
+- The logos are the repository's `assets/`, of which `make site` copies
+  the three the site shows to `/assets/`, each at its path in the
+  repository; the root holds no copy. A
   file the site takes from the repository keeps the repository's hierarchy, as
   `/man/` keeps `docs/man/`'s (decided 2026-10-13).
-- The full logo appears once, on the homepage, 230 px wide:
-  `ernest-combined-light.svg`, and `ernest-combined-dark.svg` in dark mode,
-  which `<picture>` selects. Every other page's header links home with the
-  stoat, `ernest-mark.svg`, beside "Ernest". The favicon is
+- The site shows no full logo: the wordmark would write the name a second
+  time, as a picture, in the space the homepage's opening needs. Every
+  page's header, the homepage's too, links home with the stoat,
+  `ernest-mark.svg`, beside "Ernest" in text, and the homepage opens with
+  its paragraph under a heading in text (decided 2026-11-03). The full
+  logo stays where no header stands: the READMEs and the image a shared
+  link shows. The favicon is
   `ernest-avatar-64.png`, which every page names, and the root serves no
   `/favicon.ico` (decided 2026-10-16).
 
@@ -181,8 +189,11 @@ The site's files as served.
   only where a section cannot be placed otherwise. A link from outside, made
   before a renumbering, may land on the section that took its number; nothing
   redirects it, since a fragment never reaches the server.
-- A report section carries a computed margin line naming the pages that cite
-  it: "taught in guide §4.2; used by `List.sort`".
+- A report section carries a computed margin line naming the guide's
+  sections that cite it, each once: "taught in guide §4.2". What else
+  cites it is not listed, since a library page already links to the rule
+  it follows (decided 2026-11-03). The mockup over a real section shows whether the line stays
+  short.
 - A citation of the log links to the log on GitHub.
 - Ernest code is colored when the site is generated, by `ern`'s own lexer,
   which the generator reaches by a `foreign` declaration over the toolchain's
@@ -230,7 +241,7 @@ The site's files as served.
   mockups. The `ernest-lang.org` repository holds the one page served
   until the generated site goes live, and then goes (decided 2026-11-03).
 - Every page is generated from what the repository owns: two templates and
-  two pages of their own, decided 2026-10-13, all four standing on
+  two pages of their own, all four standing on
   `base.html` with its header and footer.
 
   `page.html` is a Markdown document
@@ -257,12 +268,12 @@ The site's files as served.
   `docs/man/` is itself generated. A contents page and the 404 page name none.
 - A page's sidebar lists its anchored headings, two levels deep.
 - The sources stay Markdown: the report, the guide, `docs/man/`, and the tour's
-  document, `tour/README.md` (written 2026-10-24). A source's opening logo
+  document, `tour/README.md`. A source's opening logo
   and its contents block are dropped; the site has its own.
 - A chapter of the guide or the tour is a second-level heading.
   Previous and next follow their order; the report's pages run language,
   toolchain, library.
-- `libs/markdown` has tables, since 2026-10-13. A test parses the report and the
+- `libs/markdown` has tables. A test parses the report and the
   guide whole and renders them back before any template meets them.
 - `make site` builds the site from a release's tag without a worktree. It
   exports the tag with `git archive` into `build/site-source/` and builds the
@@ -270,8 +281,16 @@ The site's files as served.
   `build/site/`, copies the root and the logos there, and writes every
   generated page beside them, so that a page whose source is gone goes. One step
   copies `build/site/` to the host; it is never edited in place.
-- The pages are complete without JavaScript. The shell panel and the code
-  blocks' buttons are the script's additions.
+- Everything comes from the tag, the documents and the site's own files,
+  its templates, its root and its generator, so the site is a release
+  exactly, never a pairing the tests did not run; a fix to the site's look
+  or its generator goes live with the next release. It is weighed again
+  when releases come seldom, after 1.0, with the fix that waited in hand
+  (decided 2026-11-03).
+- A page's text, links and navigation are complete in its HTML, and read
+  without a script. A script adds to a page, the shell panel, the
+  navigation that keeps it and the code blocks' buttons, and never holds
+  what the page says (decided 2026-11-03).
 - No search: the report's whole pages serve the browser's find.
 - The site runs on ernest-httpd, a program under systemd and no node
   (the server's design, *The deployment*).
@@ -303,20 +322,20 @@ The site's files as served.
   size; the messages' forms are the server's design's, *The shell*.
 - Seven states, each announced once: connecting, running and disconnected,
   the page's own, and expired, taken over, unavailable and stopped, one for
-  each close code the server sends, 4001 to 4004 (the server's design, *The shell* and *The sessions*;
-  seven since 2026-10-30, five before the close codes were decided).
+  each close code the server sends, 4001 to 4004 (the server's design, *The shell* and *The sessions*).
 - A session's warning is a banner with Extend, shown when the server's
   warning comes, and the banner is no dialog. It says once the seconds the
   warning carries, as "ends in" and the seconds, and nothing counts down,
   since a key moves the server's deadline without a word (decided
-  2026-11-03); a key or Extend keeps the session, by the lifetime the server's design owns, *The sessions* (decided 2026-10-27,
-  the numbers left to their owner 2026-10-30).
+  2026-11-03). A key or Extend keeps the session, by the lifetime the
+  server's design owns, *The sessions* (decided 2026-10-27).
 - A session that expires closes its panel and gives the page back its
   width, a short line saying for a moment that the shell ended after the
   configuration's lifetime without a key, which the generator reads, and
-  that opening it starts a new one; the layout kept in local storage is unchanged, so the next Paste or Open shell opens the
-  panel as the visitor last had it. A takeover and *unavailable* show in
-  the panel, where the visitor is present to read them (decided
+  that opening it starts a new one; the layout kept in local storage is
+  unchanged, so the next Paste or Open shell opens the panel as the
+  visitor last had it. A takeover and *unavailable* show in the panel,
+  where the visitor is present to read them (decided
   2026-10-27).
 - The line is a snackbar, a slim notice at the window's bottom edge, whatever the
   layout was, so that it covers nothing the visitor was reading: the
@@ -337,6 +356,16 @@ The site's files as served.
   without code offers the panel and nothing to put in it (decided 2026-10-13).
   Stacked alone on a narrow screen; not offered on a phone, where `/shell/`
   still serves.
+- While the panel is open, a link to another page of the site fetches that
+  page and puts its `<main>` and its title in place of the old, the
+  address moved by the history, so that the panel, its socket and its
+  screen stay; back, forward, the scroll, an anchor and focus behave as
+  on a page loaded whole, which a test in a browser checks. With the panel
+  closed a link loads its page whole. Every page stays a whole file
+  (decided 2026-11-03).
+- The panel's toggle splits the window vertically or horizontally, the
+  visitor's choice, kept in local storage with the panel's layout
+  (decided 2026-11-03).
 - No panel opens until the visitor asks. On a desktop, Try's Start opens the
   homepage's panel beside the example; on a phone, Try links to `/shell/`.
 - Only an `ernest` block that runs alone in a bare shell has Paste or
@@ -354,9 +383,8 @@ The site's files as served.
   since an input may declare what a module may and every declaration is the
   session's (report §11.2), and then `main()` typed and not entered, so that
   it is one Enter away. Any other is Pasted. No file is written and nothing
-  crosses the socket but the terminal's bytes (decided 2026-10-30, in place
-  of a file in the scratch directory and a `:load`, which no message of the
-  socket's could write).
+  crosses the socket but the terminal's bytes, since no message of the
+  socket's could write a file (decided 2026-10-30).
 - A Paste arrives as one input, as bracketed paste does. Nothing runs until
   Enter.
 - In a block that shows a shell session, each `> ` line has a Paste of its
@@ -369,8 +397,7 @@ The site's files as served.
   words.erc`, one begun with `ern shell --config-dir`, a node's, or
   `--attach`, an operator's (§11.2 *The attached shell*), which the nodes
   chapters, the tour and the deployment guide show; the generator reads it
-  from the session's first line (decided 2026-10-30, the module's case
-  2026-11-03).
+  from the session's first line (decided 2026-11-03).
 - A Paste or a Load is the visitor asking for the shell: where no panel is
   open, the click opens it, side by side or stacked by the window's width,
   and starts the session where none runs, the input arriving once the
@@ -387,11 +414,10 @@ The site's files as served.
   rule? The report. What does this function do? The library's pages. How do I
   run it? The deployment guide. What does this command do? `man ern`, and on
   the site the report's §11. Let me try it: the shell. What is in each release? The release notes.
-- Why is `guide/why.md`, written 2026-10-15 as the README's list of four with a
-  program for each, and the questions are `guide/faq.md`; the guide tests run
-  their examples. Features, the inventory, was dropped the same day: what it
-  would list is the README's claims, the guide's contents and the manual pages'
-  index, and a fourth list would drift from them.
+- Why is `guide/why.md`, and the questions are `guide/faq.md`; the guide
+  tests run their examples. No Features page: what it would list is the
+  README's claims, the guide's contents and the manual pages' index, and a
+  fourth list would drift from them.
 - A section of Why states the rule, names its price before its gain, shows a
   program and the compiler's line about it, compiled before it is quoted, and
   points to the guide and the report. No sentence describes another language;
@@ -402,13 +428,10 @@ The site's files as served.
   finds them and holds them equal to the README's, in their order: the mailbox
   in the function's type; code known by its hash; a distribution built for a
   WAN; abstract types and requirements; a deadlock is found; and little else.
-
-  The claims have been six since 2026-10-24, four until then; checked replies and purity in the type
-  were pieces until 2026-10-15, when MVP 3.26 was decided. The list is written,
-  four claims with a program, one with its configuration file and one with the
-  report, and the site renders it as it stands (changed 2026-10-25).
+  Four claims show a program, one its configuration file and one the
+  report, and the site renders the list as it stands.
 - The walk through one real program is the tour itself, which grows one
-  program through every chapter (`tour/README.md`, written 2026-10-24).
+  program through every chapter, `tour/README.md`.
 - No comparison page: `guide/faq.md`, at `/faq/`, answers "it looks like Gleam" and
   "where are the supervisors", and the guide's §10 answers the Erlang programmer.
 - A root `CONTRIBUTING.md`, written before the site goes live. Not a site page.
