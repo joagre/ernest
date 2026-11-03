@@ -217,7 +217,9 @@ attached shell, MVP 4.0, is the operator's alone.
 7. **Projects**, the page of the libraries and programs written in Ernest in repositories of
    their own, `/projects/` from `site/projects.md`, reached from the footer and Why's *Reading
    on*, decided 2026-11-03 (the log's *Projects, a Page of Their Own*; the design's *The other
-   pages*). Built after item 4, which works in the same generator, by 2026-11-06.
+   pages*), each line led by the project's own icon, the `icon.png` in its repository's `assets`. Built
+   after item 4, which works in the same generator, by 2026-11-06; a project whose icon has
+   not come by then is listed when it comes.
 
 ## MVP 4.3 (`:trace f`), about a week
 

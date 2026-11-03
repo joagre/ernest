@@ -173,7 +173,12 @@ The site's files as served.
   README's, since it moves with every release on both sides. A project is
   listed once it has a tagged release whose floor is a released Ernest, so
   that the page holds evidence and no promise; ernest-template is a
-  starting point and is not listed. The file owns the list, with its row in
+  starting point and is not listed. Each line opens with the project's
+  icon, the `icon.png` in its own repository's `assets` directory, 128 × 128, opaque and square,
+  shown at 40 × 40 with the site's rounded corners and copied byte for byte
+  into `/assets/img/projects/<project>.png`; the image is the project's,
+  never Ernest's stoat, which the header shows as Ernest's own, and a
+  project without an icon is not yet listed. The file owns the list, with its row in
   CLAUDE.md's table, and a test holds each line to its form. Library does
   not lead to it, since many projects are no libraries and `/man/` is what
   `man` shows; the footer does, and one sentence of Why's *Reading on*,
