@@ -140,7 +140,7 @@ attached shell, MVP 4.0, is the operator's alone.
    renders to its tree and to the terminal alone, and nothing of the site enters it (decided
    2026-10-10), `roff` moving to `tools/manual.ern`, its one user, when something next touches the
    library. It begins by moving the prototype's `templates/` and `root/` to `site/` at the
-   repository's root, the mockups staying in the proposal as its test's expected pages. Its first
+   repository's root, the mockups staying in the proposal as the record of the look. Its first
    job is item 1's mockups, rendered through the templates from a fixture document beside its
    test that carries every shape a page holds, a table and the report's grammar among them,
    with a test holding what it writes equal to the committed pages, so that the look decided by

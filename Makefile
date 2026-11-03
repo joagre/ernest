@@ -17,7 +17,7 @@ ERNEST_SOURCES = src/stdlib/*.ern src/shell/ernest/*.ern src/shell/ernest/shell/
 		examples/upgrade/*/*.ern \
 		test/fixtures/*/*.ern test/fixtures/programs/modules/*.ern \
 		test/fixtures/programs/modules/*/*.ern \
-		src/libs/*/*.ern tools/*.ern
+		src/libs/*/*.ern tools/*.ern tools/*/*.ern
 
 # The Ernest trees, src/stdlib/, src/libs/, src/shell/ and tools/, are built by `ern build`
 # every time, and its own rule decides what in each to compile again, by the
@@ -214,10 +214,18 @@ version:
 	@sh tools/version.sh "$(V)"
 	@$(MAKE) -s man
 
-# The programs of the build written in Ernest, tools/*.ern, compiled into
-# build/tools against libs/markdown and libs/ansi, which it writes with.
-tools: lib-ansi lib-markdown
+# The programs of the build written in Ernest, tools/, compiled into
+# build/tools against the libraries they use: libs/markdown and libs/ansi,
+# which the manual page is written with, and libs/crypto, whose digest names
+# the site's assets. The site's generator reaches the toolchain's lexer
+# through its helper, tools/ern_site.erl, compiled beside it, where `ern
+# run` finds it on the load path (report §11.2).
+tools: lib-ansi lib-markdown lib-crypto build/tools/ern_site.beam
 	@bin/ern build --verbose --build-root build/tools tools
+
+build/tools/ern_site.beam: tools/ern_site.erl
+	@mkdir -p $(@D)
+	@erlc +debug_info -Werror -o $(@D) $<
 
 # Terminal.width's table in src/stdlib/terminal.ern, from the Unicode
 # data of the version the host's grapheme segmentation follows: UC_SPEC is
@@ -229,13 +237,14 @@ unicode:
 
 # The tests by area (plan, MVP 2.6), in two runs (MVP 3.9). `make test` is
 # the light run, for every commit: the applications' unit tests, the
-# library's examples, and the tests of the documents and the style. `make
-# test-full` is every area, for the commit that closes a plan item and for
-# a release. The light run and the full run's first phase run their jobs
-# side by side, as many at once as the host has cores, each job's output
-# together as it ends. One make runs each phase, since a make started with
-# a -j of its own runs apart from the count, and takes `all` as made (-o),
-# since the run made it before the phase. In the full run the unit tests
+# library's examples, the tests of the documents and the style, and the
+# site's generator over its fixture. `make test-full` is every area, for
+# the commit that closes a plan item and for a release. The light run and
+# the full run's first phase run their jobs side by side, as many at once
+# as the host has cores, each job's output together as it ends. One make
+# runs each phase, since a make started with a -j of its own runs apart
+# from the count, and takes `all` as made (-o), since the run made it
+# before the phase. In the full run the unit tests
 # run first, with the jobs that start no host: EUnit gives a test with no
 # time of its own five seconds, which the load of the areas that start
 # hosts would take from them. Make starts those jobs in the order given, so
@@ -251,13 +260,13 @@ unicode:
 # (docs/development.md, *Building*).
 test: all
 	@for a in $(SPLIT_APPS); do $(MAKE) -s -C erl/$$a/src beams || exit 1; done
-	@$(MAKE) -s -j$(JOBS) -O -o all $(APP_JOBS) test-library test-docs
+	@$(MAKE) -s -j$(JOBS) -O -o all $(APP_JOBS) test-library test-docs test-site
 
 test-full: all
 	@$(MAKE) -s -C test beams
 	@for a in $(SPLIT_APPS); do $(MAKE) -s -C erl/$$a/src beams || exit 1; done
 	@$(MAKE) -s -j$(JOBS) -O -o all test-guide $(EMACS_JOBS) $(APP_JOBS) test-library \
-	  test-docs test-grammar test-typed dialyzer
+	  test-docs test-site test-grammar test-typed dialyzer
 	@$(MAKE) -s -j1 -k -o all test-shell $(PROGRAM_PARTS)
 
 # The unit tests of the applications under erl/, side by side, or of one
@@ -343,6 +352,8 @@ comments:
 	@sh tools/comments.sh
 test-guide: all
 	@$(MAKE) -C test guide
+test-site: all
+	@$(MAKE) -C test site
 test-grammar: all
 	@$(MAKE) -C test grammar
 test-typed: all
@@ -494,6 +505,12 @@ xref:
 diagnostics: all
 	@$(MAKE) -s -C test diagnostics
 
+# Rewrite test/fixtures/site/expected/, the pages the site's generator
+# writes from its fixture, after an intended change to the look or to the
+# generation; test-site holds them.
+site-expected: all
+	@$(MAKE) -s -C test site-expected
+
 # Rewrite the contents lists of the report and the guide from their headings;
 # a test in test/ fails while one differs.
 contents:
@@ -537,12 +554,13 @@ EMACS_CORPUS = $(ERNEST_SOURCES:%=../../%)
 .PHONY: all $(APP_BUILDS) stdlib libs $(LIB_BUILDS) shell tools manual $(MANUALS) \
         man $(PAGES) \
         test test-full test-erl \
-        test-programs $(PROGRAM_PARTS) test-library test-docs test-guide test-grammar \
+        test-programs $(PROGRAM_PARTS) test-library test-docs test-guide test-site test-grammar \
         test-typed test-shell \
         load service bench bench-release \
         test-emacs $(APP_TESTS) $(APP_PARTS) $(EMACS_ALL) \
         clean clean-emacs \
-        sections coverage golden xref contents format doc install uninstall release version \
+        sections coverage golden xref contents site-expected format doc install uninstall release \
+        version \
         unicode \
         paragraphs comments \
         dialyzer sanitize diagnostics

@@ -102,8 +102,8 @@ authorization of the copyright holder.
 
 xterm.js
 
-  Path:     docs/proposals/site/root/assets/js/xterm.js.LICENSE.txt, the
-            license of docs/proposals/site/root/assets/js/xterm.js beside it
+  Path:     site/root/assets/js/xterm.js.LICENSE.txt, the license of
+            site/root/assets/js/xterm.js beside it
   Upstream: https://github.com/xtermjs/xterm.js
   Copied:   2026-11-03, @xterm/xterm 5.5.0 from its npm archive, as
             ernest-httpd's example pins it
@@ -135,7 +135,7 @@ THE SOFTWARE.
 
 xterm.js's stylesheet
 
-  Path:     docs/proposals/site/root/assets/css/xterm.css
+  Path:     site/root/assets/css/xterm.css
   Upstream: https://github.com/xtermjs/xterm.js
   Copied:   2026-11-03, @xterm/xterm 5.5.0 from its npm archive
   License:  MIT License, as xterm.js above
@@ -144,9 +144,8 @@ xterm.js's stylesheet
 
 xterm.js's fit addon
 
-  Path:     docs/proposals/site/root/assets/js/addon-fit.js.LICENSE.txt, the
-            license of docs/proposals/site/root/assets/js/addon-fit.js beside
-            it
+  Path:     site/root/assets/js/addon-fit.js.LICENSE.txt, the license of
+            site/root/assets/js/addon-fit.js beside it
   Upstream: https://github.com/xtermjs/xterm.js
   Copied:   2026-11-03, @xterm/addon-fit 0.10.0 from its npm archive, as
             ernest-httpd's example pins it
@@ -176,9 +175,8 @@ THE SOFTWARE.
 
 Lucide icons
 
-  Path:     docs/proposals/site/root/assets/img/icons/LICENSE, the SVG
-            icons beside it, and docs/proposals/site/root/assets/img/icons.svg,
-            which gathers them
+  Path:     site/root/assets/img/icons/LICENSE, the SVG icons beside it,
+            and site/root/assets/img/icons.svg, which gathers them
   Upstream: https://github.com/lucide-icons/lucide
   Copied:   2026-10-10, with the website proposal's first design; copy,
             panel-right and panel-bottom on 2026-11-03, from lucide-static

@@ -217,3 +217,10 @@ The names are [`guide/style.md`](../guide/style.md)'s, with the spellings its gl
 - **ending**: the bytes that end what the screen drew where its last write left it, which an attached shell's local half writes at its node's end, in `Ernest.Shell` and `Ernest.Shell.Region`: the region's `ending`, and the field of `Write` and of `Serving`. Not `finish`, which is the session's end with its screen.
 - **rows**: the rows the live region's tail is given, which `:set rows n` sets, in `Ernest.Shell` and `Ernest.Shell.Region`: the setting, the region's field, `SetRows` and `rowsSized`. Not `height`, `outputRows`.
 - **typedWord**: the word typed before the cursor, which completion completes, in `Ernest.Shell` and `Ernest.Shell.Complete`.
+
+And the names that recur across the site generator's modules, `Site` and those under it in `tools/site/`:
+
+- **Line**, **Verbatim**: a line of a page the generator writes, one a template's indentation reaches and one of a `<pre>`'s body, written from the line's start, `Site.Template.Line`. Not `Row`, which is a table's.
+- **Buttons**: the buttons a code block gets beside Copy, `Site.Code.Buttons`, `CopyAlone`, `Paste` or `Load`, a value of it `given`. Not `Shell`, the page's word for it, `data-shell`.
+- **Placed**: a document's top-level block with its buttons, `Site.Code.Placed`, a list of them `placed`.
+- **Page**: the page whose links are made, its source, its address, the tag and the anchors, `Site.Links.Page`. Not `Context`, which is the emitter's.

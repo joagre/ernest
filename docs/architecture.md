@@ -344,6 +344,15 @@ The shell is an Ernest program over `Terminal`: `src/shell/ernest/shell.ern`, th
 - An attached session's detach leaves what it started to the node, keeps for the node's life its units that declare a function or build a function value, with what they need (`lasting/3`, `kept_for_life/1`), and lets the rest go as the purge allows, at a leave or, where the session faulted, from the root of its chain (`detach/0`, `released/4`, `collect_detached/0`).
 - `Shift-Tab` is `documentation/1` or `signature/1`, which prints through `ern_types:format_call/4`. `:doc` is `ern_page`'s `declaration/3`, `session_declaration/3` or `module_head/1`.
 
+### The site's generator
+
+`tools/site.ern`, the module `Site`, writes the website as static files (plan, MVP 4.2): `main` takes the root that holds the repository's files, the directory to write, which must not be there, the version and the tag; it copies `site/root/`, naming the stylesheet, the script and the icons' file by a digest of their content, and the logos, and writes each book's pages. The modules beneath it:
+
+- `Site.Template` cuts a token file of `site/templates/` once and fills it, a value of several lines indented as its token's line but a `<pre>`'s body.
+- `Site.Html` is the HTML of `libs/markdown`'s tree, `html` a clause for each `Block` and `inline` one for each `Inline`.
+- `Site.Code` writes a code block, Ernest colored through `ern_site:lexed/1`, the helper over `ern_lexer` in `tools/ern_site.erl`, and decides the buttons each block gets by the guide tests' grouping.
+- `Site.Links` makes a citation a link and leads a link the source writes for GitHub to the site's page of its target.
+
 ## Tests
 
 `make test-full` runs every kind below but the last subsection's; the targets, the light `make test` among them, are [`development.md`](development.md)'s.
@@ -365,6 +374,7 @@ The shell is an Ernest program over `Terminal`: `src/shell/ernest/shell.ern`, th
 - **The examples**: `ern test` is their one checker. `make test-library` runs it over `build/stdlib` and `build/libs`, and `ern_doc_tests` over a build of the template and over the prelude's page, whose examples it writes into a module's doc block, since no `.erc` holds them.
 - **Style**: `test/ern_style_tests.erl` checks `docs/style.md`'s tested rules, `ern format`'s layout over every module and every Ernest block of the report and the guide, and the Emacs mode's word lists against the lexer and the parser.
 - **Citations**: `test/ern_docs_tests.erl` (`make xref`) resolves every section citation, holds the contents lists equal to the headings and a list that lives in two places to its other place, where that is cheap ([`development.md`](development.md)'s *Lists in two places*), and checks the backticked paths of the documents that say where things are and the paths the toolchain's comments name. It and the style tests read the repository through `test/ern_repository.erl`.
+- **The site**: `test/ern_site_tests.erl` runs the generator over `test/fixtures/site/language.md` standing as the guide and holds its pages to `test/fixtures/site/expected/`, the assets' digests aside, and each template to the tokens `site/templates/README.md` lists.
 - **The guide and the report**: `test/ern_guide_tests.erl` compiles every `ernest` block, runs every program a console shows, checks every `ernest-rejected` block's error, and replays every shell session, in the guide, the report and the README. It checks `docs/diagnostics.md` the same way.
 
 ### Nodes, the shell and waits

@@ -1,0 +1,185 @@
+//
+// The HTML of a document's tree (plan, MVP 4.2 item 2): `html`, one clause
+// for each of libs/markdown's blocks, and `inline`, one for each of its
+// inlines, written to be read as site/templates/README.md says. A block
+// element stands on a line of its own, indented two spaces a level, and its
+// inline content on its line; a `<pre>`'s body is written from the line's
+// start. Text is escaped whole, so an entity or a tag that a source writes
+// in its text shows as written.
+//
+
+/// The page's top-level blocks, each code block with the buttons the
+/// generator decided it gets (`Site.Code.placed`), a heading `shift` levels
+/// above the level its source writes.
+export fn body(blocks : List(Site.Code.Placed), shift : Int) : List(Site.Template.Line) =
+    List.flatMap(blocks, fn(each) = match each.block {
+        Markdown.Code(=info, =lines) -> Site.Code.html(info, lines, each.given)
+      | block -> html(block, shift)
+    })
+
+/// A block's lines; a code block in another block gets no button but Copy.
+export fn html(block : Markdown.Block, shift : Int) : List(Site.Template.Line) =
+    match block {
+        Markdown.Heading(=level, =text) ->
+            [Site.Template.Line(heading(level - shift, text))]
+      | Markdown.Paragraph(inlines) ->
+            [Site.Template.Line("<p>" <> inlinesHtml(inlines) <> "</p>")]
+      | Markdown.Code(=info, =lines) ->
+            Site.Code.html(info, lines, Site.Code.CopyAlone)
+      | Markdown.Quote(blocks) ->
+            enclosed("<blockquote>",
+                     List.flatMap(blocks, fn(inner) = html(inner, shift)),
+                     "</blockquote>")
+      | Markdown.Items(=start, =items) ->
+            enclosed(listOpening(start),
+                     List.flatMap(items, fn(item) = listItem(item, shift)),
+                     if start == None then "</ul>" else "</ol>")
+      | Markdown.Rule ->
+            [Site.Template.Line("<hr>")]
+      | Markdown.Raw(lines) ->
+            List.map(lines, Site.Template.Verbatim)
+      | Markdown.Table(=columns, =rows) ->
+            table(columns, rows)
+    }
+
+/// An inline's HTML.
+export fn inline(inline : Markdown.Inline) : String =
+    match inline {
+        Markdown.Text(text) ->
+            Site.Template.escaped(text)
+      | Markdown.CodeSpan(code) ->
+            "<code>" <> Site.Template.escaped(code) <> "</code>"
+      | Markdown.Emphasis(inlines) ->
+            "<em>" <> inlinesHtml(inlines) <> "</em>"
+      | Markdown.Strong(inlines) ->
+            "<strong>" <> inlinesHtml(inlines) <> "</strong>"
+      | Markdown.Link(=text, =url) ->
+            "<a href=\"" <> Site.Template.escaped(url) <> "\">" <> inlinesHtml(text) <> "</a>"
+      | Markdown.Break ->
+            "<br>"
+    }
+
+/// The inlines' HTML, one after another.
+export fn inlinesHtml(inlines : List(Markdown.Inline)) : String =
+    String.join(List.map(inlines, inline), "")
+
+/// The inlines' HTML with each link written as its text, for a label that
+/// stands in a link of its own, a sidebar's entry or a chapter's.
+export fn label(inlines : List(Markdown.Inline)) : String =
+    inlinesHtml(unlinked(inlines))
+
+fn unlinked(inlines : List(Markdown.Inline)) : List(Markdown.Inline) =
+    List.flatMap(inlines, fn(inline) = match inline {
+        Markdown.Link(=text) -> unlinked(text)
+      | Markdown.Emphasis(inner) -> [Markdown.Emphasis(unlinked(inner))]
+      | Markdown.Strong(inner) -> [Markdown.Strong(unlinked(inner))]
+      | _ -> [inline]
+    })
+
+/// The inlines as text, a code span's code among it, a break a space.
+export fn plain(inlines : List(Markdown.Inline)) : String =
+    String.join(List.map(inlines, fn(inline) = match inline {
+                    Markdown.Text(text) -> text
+                  | Markdown.CodeSpan(code) -> code
+                  | Markdown.Emphasis(inner) -> plain(inner)
+                  | Markdown.Strong(inner) -> plain(inner)
+                  | Markdown.Link(=text) -> plain(text)
+                  | Markdown.Break -> " "
+                }),
+                "")
+
+// A numbered heading is anchored by its number, with a link to itself
+// (docs/proposals/site/decisions.md *Anchors*); any other is its text.
+fn heading(level : Int, text : List(Markdown.Inline)) : String = {
+    let tag = "h" <> Int.toString(Int.min(Int.max(level, 1), 6));
+    match Site.Links.number(plain(text)) {
+        Some(number) ->
+            "<"
+                <> tag
+                <> " id=\""
+                <> number
+                <> "\">"
+                <> inlinesHtml(text)
+                <> "<a class=\"anchor\" href=\"#"
+                <> number
+                <> "\" aria-label=\"Link to "
+                <> number
+                <> "\">#</a></"
+                <> tag
+                <> ">"
+      | None ->
+            "<" <> tag <> ">" <> inlinesHtml(text) <> "</" <> tag <> ">"
+    }
+}
+
+fn listOpening(start : Optional(Int)) : String =
+    match start {
+        None -> "<ul>"
+      | Some(1) -> "<ol>"
+      | Some(first) -> "<ol start=\"" <> Int.toString(first) <> "\">"
+    }
+
+// An item's first paragraph stands on the `<li>` line, as a tight list's
+// does: the tree keeps no list's looseness, and the site writes every list
+// tight.
+fn listItem(blocks : List(Markdown.Block), shift : Int) : List(Site.Template.Line) =
+    match blocks {
+        [Markdown.Paragraph(inlines)] ->
+            [Site.Template.Line("<li>" <> inlinesHtml(inlines) <> "</li>")]
+      | Markdown.Paragraph(inlines) :: rest ->
+            Site.Template.Line("<li>" <> inlinesHtml(inlines))
+                :: indented(List.flatMap(rest, fn(inner) = html(inner, shift)))
+                    <> [Site.Template.Line("</li>")]
+      | _ ->
+            enclosed("<li>", List.flatMap(blocks, fn(inner) = html(inner, shift)), "</li>")
+    }
+
+// A table in the wrapper that scrolls one wider than the page; a column's
+// alignment is a class of its cells, since the site's pages hold no style.
+fn table(columns : List(Markdown.Column),
+         rows : List(List(List(Markdown.Inline)))) : List(Site.Template.Line) = {
+    let classes = List.map(columns, fn(column) = alignment(column.alignment));
+    let head =
+        enclosed("<thead>",
+                 row("th", classes, List.map(columns, fn(column) = column.text)),
+                 "</thead>");
+    let rest = if rows == [] then
+        []
+    else
+        enclosed("<tbody>", List.flatMap(rows, fn(cells) = row("td", classes, cells)), "</tbody>");
+    enclosed("<div class=\"table-scroll\">",
+             enclosed("<table>", head <> rest, "</table>"),
+             "</div>")
+}
+
+fn row(tag : String,
+       classes : List(String),
+       cells : List(List(Markdown.Inline))) : List(Site.Template.Line) =
+    enclosed("<tr>",
+             List.map(List.zip(classes, cells),
+                      fn(#(class, cell)) =
+                          Site.Template.Line("<"
+                                                 <> tag
+                                                 <> class
+                                                 <> ">"
+                                                 <> inlinesHtml(cell)
+                                                 <> "</"
+                                                 <> tag
+                                                 <> ">")),
+             "</tr>")
+
+fn alignment(aligned : Markdown.Alignment) : String =
+    match aligned {
+        Markdown.LeftAligned -> ""
+      | Markdown.Centered -> " class=\"center\""
+      | Markdown.RightAligned -> " class=\"right\""
+    }
+
+// An element's lines between its tags, a level in.
+fn enclosed(open : String,
+            inner : List(Site.Template.Line),
+            close : String) : List(Site.Template.Line) =
+    Site.Template.Line(open) :: indented(inner) <> [Site.Template.Line(close)]
+
+fn indented(lines : List(Site.Template.Line)) : List(Site.Template.Line) =
+    List.map(lines, fn(line) = Site.Template.indented("  ", line))

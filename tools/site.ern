@@ -1,0 +1,611 @@
+//
+// The website's generator (plan, MVP 4.2 item 2): it reads the
+// repository's documents and the site's own files, site/templates/ and
+// site/root/, fills the templates, writes the site as static files, and
+// ends, as docs/proposals/site/decisions.md's *The generation* says. It
+// writes the root's assets, the three logos the site shows, and the
+// guide's pages: its contents and a page for each chapter.
+//
+// `ern run site.erc root out version tag`: `root` holds the repository's
+// files, a checkout or a tag's export; `out`, which must not be there yet,
+// is where the site is written, so that a page whose source is gone goes;
+// `version` is the release the site shows, and `tag` the revision its
+// links to GitHub name and its pages' dates are read at. A page's date is
+// its source's last commit at the tag, which git gives in the working
+// directory, a checkout, since an export has no history.
+//
+
+// What every page is written with: the repository's files, where the site
+// goes, the release and the tag it is built from, the templates by their
+// paths under site/templates/, and the assets' addresses.
+type Run =
+    Run(root : Path,
+        out : Path,
+        version : String,
+        tag : String,
+        templates : Map(String, Site.Template.Template),
+        assets : Assets)
+
+// The addresses of the files whose names hold a digest of their content,
+// so that a browser never runs a cached one against a newer page.
+type Assets = Assets(stylesheet : String, script : String, icons : String)
+
+// A book: its title, its source's path, its contents page's address, its
+// opening, the paragraphs before its first chapter, and its chapters.
+type Book =
+    Book(title : String,
+         source : String,
+         home : String,
+         opening : List(Site.Code.Placed),
+         chapters : List(Chapter))
+
+// A book's chapter, a second-level heading of its source: its number, its
+// heading's text, and its blocks after the heading.
+type Chapter =
+    Chapter(number : String, heading : List(Markdown.Inline), blocks : List(Site.Code.Placed))
+
+// A numbered heading under a chapter's, which the sidebar and the contents
+// list: its number, its level, and its text.
+type Section = Section(number : String, level : Int, text : List(Markdown.Inline))
+
+export fn main() : Unit =
+    match Os.arguments {
+        [root, out, version, tag] ->
+            match generated(Path(root), Path(out), version, tag) {
+                Right(_) -> Unit
+              | Left(message) -> quit(message)
+            }
+      | _ ->
+            quit("usage: site root out version tag")
+    }
+
+fn generated(root : Path, out : Path, version : String, tag : String) : Either(String, Unit) = {
+    let _ <- absent(out);
+    let templates <- templatesRead(root <> Path("site/templates"));
+    let assets <- rootCopied(root <> Path("site/root"), out);
+    let _ <- logosCopied(root, out);
+    guide(Run(=root, =out, =version, =tag, =templates, =assets))
+}
+
+//
+// The guide
+//
+
+// The guide's contents page and its chapters' pages, from
+// guide/language.md.
+fn guide(run : Run) : Either(String, Unit) = {
+    let source = "guide/language.md";
+    let text <- textOf(run.root <> Path(source));
+    let blocks = Markdown.parse(text);
+    let book <- booked(source, "/guide/", blocks);
+    let anchors <- anchorsRead(run, Site.Links.targets(blocks, source));
+    let date <- committed(run.tag, source);
+    let _ <- made(run.out <> Path("guide"));
+    let _ <- contentsWritten(run, book, anchors);
+    let previous = None :: List.map(List.dropLast(book.chapters, 1), Some);
+    let next = List.map(List.drop(book.chapters, 1), Some) <> [None];
+    let _ <-
+        List.tryMap(List.zip(List.zip(previous, book.chapters), next),
+                    fn(#(#(earlier, chapter), later)) =
+                        chapterWritten(run, book, anchors, date, #(earlier, chapter, later)));
+    Right(Unit)
+}
+
+// The book a document is: its title, the first-level heading, and before it
+// the source's opening logo, which the site leaves out; its opening, the
+// blocks up to its first chapter, its contents block left out too; and
+// its chapters.
+fn booked(source : String, home : String, blocks : List(Markdown.Block)) : Either(String, Book) = {
+    let placed = Site.Code.placed(blocks);
+    let #(front, rest) = List.span(placed, fn(each) = !isHeadingOf(2, each.block));
+    let #(_, titled) = List.span(front, fn(each) = !isHeadingOf(1, each.block));
+    match titled {
+        Site.Code.Placed(block = Markdown.Heading(=text)) :: opening -> {
+            let chapters <- chaptered(source, rest);
+            Right(Book(title = Site.Html.plain(text),
+                       =source,
+                       =home,
+                       opening = withoutContents(opening),
+                       =chapters))
+        }
+      | _ ->
+            Left(source <> " has no title, a first-level heading")
+    }
+}
+
+fn isHeadingOf(wanted : Int, block : Markdown.Block) : Bool =
+    match block {
+        Markdown.Heading(=level) -> level == wanted
+      | _ -> false
+    }
+
+// The blocks without the contents list a source keeps for GitHub, its
+// `**Contents**` and the list between `<!-- contents -->` and `<!--
+// /contents -->`; the site has its own.
+fn withoutContents(placed : List(Site.Code.Placed)) : List(Site.Code.Placed) =
+    match placed {
+        first :: second :: rest when opensContents(first.block, second.block) -> afterContents(rest)
+      | each :: rest -> each :: withoutContents(rest)
+      | [] -> []
+    }
+
+fn opensContents(title : Markdown.Block, marker : Markdown.Block) : Bool =
+    title == Markdown.Paragraph([Markdown.Strong([Markdown.Text("Contents")])])
+        && marker == Markdown.Raw(["<!-- contents -->"])
+
+fn afterContents(placed : List(Site.Code.Placed)) : List(Site.Code.Placed) =
+    match placed {
+        Site.Code.Placed(block = Markdown.Raw(["<!-- /contents -->"])) :: rest -> rest
+      | _ :: rest -> afterContents(rest)
+      | [] -> []
+    }
+
+// The chapters, each a second-level heading and the blocks up to the next.
+fn chaptered(source : String, placed : List(Site.Code.Placed)) : Either(String, List(Chapter)) =
+    match placed {
+        [] ->
+            Right([])
+      | Site.Code.Placed(block = Markdown.Heading(=text)) :: rest -> {
+            let #(own, later) = List.span(rest, fn(each) = !isHeadingOf(2, each.block));
+            let number <-
+                Either.fromOptional(Site.Links.number(Site.Html.plain(text)),
+                                    source
+                                        <> ": the chapter \""
+                                        <> Site.Html.plain(text)
+                                        <> "\" has no number");
+            let others <- chaptered(source, later);
+            Right(Chapter(=number, heading = text, blocks = own) :: others)
+        }
+      | _ ->
+            Left(source <> ": a chapter begins at its heading")
+    }
+
+// The anchors of each document a link of the book names a heading of.
+fn anchorsRead(run : Run, paths : List(String)) : Either(String, Map(String, Map(String, String))) =
+    Either.map(List.tryMap(paths, fn(path) = {
+                   let text <- textOf(run.root <> Path(path));
+                   Either.map(Site.Links.anchors(path, text), fn(table) = #(path, table))
+               }),
+               Map.fromList)
+
+// The contents page: the book's opening, then each chapter with its
+// sections a line each.
+fn contentsWritten(run : Run,
+                   book : Book,
+                   anchors : Map(String, Map(String, String))) : Either(String, Unit) = {
+    let page = Site.Links.Page(source = book.source, address = book.home, tag = run.tag, =anchors);
+    let opening <- linkedAll(book.opening, page);
+    let entries <- List.tryMap(book.chapters, fn(chapter) = chapterEntry(run, book, chapter));
+    let chapters <- filled(run, "fragments/chapters.html", [#("entries_html", markup(entries))]);
+    let toc <-
+        filled(run,
+               "toc.html",
+               [#("heading", Site.Template.Plain(book.title)),
+                #("opening_html", Site.Template.Markup(Site.Html.body(opening, 1))),
+                #("entries_html", Site.Template.Markup(chapters))]);
+    let description <- described(book.source, book.opening);
+    let text <- pageText(run, book.title, description, "Guide", toc, []);
+    written(run.out <> Path("guide/index.html"), String.toUtf8(text))
+}
+
+fn chapterEntry(run : Run,
+                book : Book,
+                chapter : Chapter) : Either(String, List(Site.Template.Line)) = {
+    let address = book.home <> chapter.number <> ".html";
+    let lines <-
+        List.tryMap(List.filter(sections(chapter), fn(section) = section.level == 3),
+                    fn(section) =
+                        filled(run,
+                               "fragments/section.html",
+                               [#("href", Site.Template.Plain(address <> "#" <> section.number)),
+                                #("label_html", labelled(section.text))]));
+    let listed <- if lines == [] then
+        Right([])
+    else
+        filled(run, "fragments/sections.html", [#("entries_html", markup(lines))]);
+    filled(run,
+           "fragments/chapter.html",
+           [#("href", Site.Template.Plain(address)),
+            #("label_html", labelled(chapter.heading)),
+            #("sections_html", Site.Template.Markup(listed))])
+}
+
+// A chapter's page: the sidebar of its sections, the book's title above
+// its heading, its text, and the chapters before and after it.
+fn chapterWritten(run : Run,
+                  book : Book,
+                  anchors : Map(String, Map(String, String)),
+                  date : String,
+                  neighbors : #(Optional(Chapter),
+                                Chapter,
+                                Optional(Chapter))) : Either(String, Unit) = {
+    let #(earlier, chapter, later) = neighbors;
+    let address = book.home <> chapter.number <> ".html";
+    let page = Site.Links.Page(source = book.source, =address, tag = run.tag, =anchors);
+    let heading <- Site.Links.linked(Markdown.Heading(level = 2, text = chapter.heading), page);
+    let blocks <- linkedAll(chapter.blocks, page);
+    let sidebar <- contentsHtml(run, sections(chapter));
+    let titled <-
+        filled(run,
+               "fragments/book.html",
+               [#("href", Site.Template.Plain(book.home)),
+                #("book", Site.Template.Plain(book.title))]);
+    let navigation <- chapterNavigation(run, book, earlier, later);
+    let main <-
+        filled(run,
+               "page.html",
+               [#("layout",
+                  Site.Template.Plain(if sidebar == [] then "doc-single" else "doc-layout")),
+                #("contents_html", Site.Template.Markup(sidebar)),
+                #("book_html", Site.Template.Markup(titled)),
+                #("heading_html", Site.Template.Markup(Site.Html.html(heading, 1))),
+                #("body_html", Site.Template.Markup(Site.Html.body(blocks, 1))),
+                #("page_nav_html", Site.Template.Markup(navigation))]);
+    let source <-
+        filled(run,
+               "fragments/source.html",
+               [#("tag", Site.Template.Plain(run.tag)),
+                #("path", Site.Template.Plain(book.source)),
+                #("date", Site.Template.Plain(date))]);
+    let description <- described(book.source, chapter.blocks);
+    let title = Site.Html.plain(chapter.heading) <> " · " <> book.title;
+    let text <- pageText(run, title, description, "Guide", main, source);
+    written(run.out <> Path("guide") <> Path(chapter.number <> ".html"), String.toUtf8(text))
+}
+
+// Each numbered heading under the chapter's, a section's or one under it.
+fn sections(chapter : Chapter) : List(Section) =
+    List.filterMap(chapter.blocks, fn(each) = match each.block {
+        Markdown.Heading(=level, =text) when level == 3 || level == 4 ->
+            Optional.map(Site.Links.number(Site.Html.plain(text)),
+                         fn(number) = Section(=number, =level, =text))
+      | _ ->
+            None
+    })
+
+// The sidebar: a page's anchored headings, two levels deep, each of the
+// second level in a group under the first before it; none where the page
+// has no heading under its own.
+fn contentsHtml(run : Run, found : List(Section)) : Either(String, List(Site.Template.Line)) =
+    if found == [] then
+        Right([])
+    else {
+        let entries <- sidebarEntries(run, found);
+        filled(run,
+               "fragments/contents.html",
+               [#("summary", Site.Template.Plain("On this page")),
+                #("entries_html", markup(entries))])
+    }
+
+fn sidebarEntries(run : Run,
+                  found : List(Section)) : Either(String, List(List(Site.Template.Line))) =
+    match found {
+        [] ->
+            Right([])
+      | section :: rest -> {
+            let #(under, later) = List.span(rest, fn(next) = next.level > section.level);
+            let values =
+                [#("anchor", Site.Template.Plain(section.number)),
+                 #("label_html", labelled(section.text))];
+            let entry <- if under == [] then
+                filled(run, "fragments/contents-entry.html", values)
+            else {
+                let inner <- sidebarEntries(run, under);
+                filled(run,
+                       "fragments/contents-group.html",
+                       #("entries_html", markup(inner)) :: values)
+            };
+            let others <- sidebarEntries(run, later);
+            Right(entry :: others)
+        }
+    }
+
+// Previous and next at a chapter's end, each naming its chapter's number
+// and title; none for a book of one chapter.
+fn chapterNavigation(run : Run,
+                     book : Book,
+                     earlier : Optional(Chapter),
+                     later : Optional(Chapter)) : Either(String, List(Site.Template.Line)) =
+    if earlier == None && later == None then
+        Right([])
+    else {
+        let previous <- neighborHtml(run, book, "fragments/previous.html", earlier);
+        let next <- neighborHtml(run, book, "fragments/next.html", later);
+        filled(run,
+               "fragments/page-nav.html",
+               [#("label", Site.Template.Plain("Chapters")),
+                #("previous_html", Site.Template.Markup(previous)),
+                #("next_html", Site.Template.Markup(next))])
+    }
+
+fn neighborHtml(run : Run,
+                book : Book,
+                fragment : String,
+                neighbor : Optional(Chapter)) : Either(String, List(Site.Template.Line)) =
+    match neighbor {
+        None ->
+            Right([])
+      | Some(chapter) ->
+            filled(run,
+                   fragment,
+                   [#("href", Site.Template.Plain(book.home <> chapter.number <> ".html")),
+                    #("label_html", labelled(chapter.heading)),
+                    #("icons", Site.Template.Plain(run.assets.icons))])
+    }
+
+//
+// Every page
+//
+
+// The page whole: its head, the header with the room it is in marked, its
+// own part, and the footer naming its source where it has one.
+fn pageText(run : Run,
+            title : String,
+            description : String,
+            room : String,
+            main : List(Site.Template.Line),
+            source : List(Site.Template.Line)) : Either(String, String) = {
+    let navigation <- navigationHtml(run, room);
+    let lines <-
+        filled(run,
+               "base.html",
+               [#("title", Site.Template.Plain(title)),
+                #("description", Site.Template.Plain(description)),
+                #("stylesheet", Site.Template.Plain(run.assets.stylesheet)),
+                #("script", Site.Template.Plain(run.assets.script)),
+                #("icons", Site.Template.Plain(run.assets.icons)),
+                #("navigation_html", Site.Template.Markup(navigation)),
+                #("main_html", Site.Template.Markup(main)),
+                #("source_html", Site.Template.Markup(source)),
+                #("version", Site.Template.Plain(run.version)),
+                #("tag", Site.Template.Plain(run.tag))]);
+    Right(Site.Template.text(lines))
+}
+
+// The header's rooms, the page's own marked current
+// (docs/proposals/site/decisions.md *Every page*).
+fn navigationHtml(run : Run, room : String) : Either(String, List(Site.Template.Line)) = {
+    let rooms =
+        [#("Why", "/why/"),
+         #("Tour", "/tour/"),
+         #("Guide", "/guide/"),
+         #("Report", "/report/"),
+         #("Library", "/man/"),
+         #("Shell", "/shell/"),
+         #("Install", "/install/")];
+    let links <-
+        List.tryMap(rooms,
+                    fn(#(name, address)) =
+                        filled(run,
+                               if name == room then
+                                   "fragments/navigation-current.html"
+                               else
+                                   "fragments/navigation.html",
+                               [#("href", Site.Template.Plain(address)),
+                                #("name", Site.Template.Plain(name))]));
+    Right(List.flatMap(links, fn(lines) = lines))
+}
+
+// A page's description, the first sentence of its first paragraph: its
+// text up to the first `.`, `?` or `!` of prose that a space or the
+// paragraph's end follows, a code span's dots no end.
+fn described(source : String, placed : List(Site.Code.Placed)) : Either(String, String) =
+    match List.find(placed, fn(each) = match each.block {
+        Markdown.Paragraph(_) -> true
+      | _ -> false
+    }) {
+        Some(Site.Code.Placed(block = Markdown.Paragraph(inlines))) ->
+            Right(String.trim(String.fromList(sentence(proseChars(inlines)))))
+      | _ ->
+            Left(source <> ": a page has a paragraph, whose first sentence describes it")
+    }
+
+// The inlines' characters, each marked whether it is prose, a code span's
+// not.
+fn proseChars(inlines : List(Markdown.Inline)) : List(#(Char, Bool)) =
+    List.flatMap(inlines, fn(inline) = match inline {
+        Markdown.Text(text) -> List.map(String.toList(text), fn(char) = #(char, true))
+      | Markdown.CodeSpan(code) -> List.map(String.toList(code), fn(char) = #(char, false))
+      | Markdown.Emphasis(inner) -> proseChars(inner)
+      | Markdown.Strong(inner) -> proseChars(inner)
+      | Markdown.Link(=text) -> proseChars(text)
+      | Markdown.Break -> [#(' ', true)]
+    })
+
+fn sentence(chars : List(#(Char, Bool))) : List(Char) =
+    match chars {
+        [] -> []
+      | #(char, true) :: rest when (char == '.' || char == '?' || char == '!')
+            && endsSentence(rest) -> [char]
+      | #(char, _) :: rest -> char :: sentence(rest)
+    }
+
+fn endsSentence(rest : List(#(Char, Bool))) : Bool =
+    match rest {
+        [] -> true
+      | #(' ', _) :: _ -> true
+      | _ -> false
+    }
+
+// The blocks with their citations and their links made the site's.
+fn linkedAll(placed : List(Site.Code.Placed),
+             page : Site.Links.Page) : Either(String, List(Site.Code.Placed)) =
+    List.tryMap(placed,
+                fn(each) =
+                    Either.map(Site.Links.linked(each.block, page),
+                               fn(block) = Site.Code.Placed(..each, =block)))
+
+// A heading's text as a label's value, its links written as their text,
+// since the label stands in a link of its own.
+fn labelled(text : List(Markdown.Inline)) : Site.Template.Value =
+    Site.Template.Markup([Site.Template.Line(Site.Html.label(text))])
+
+fn markup(lines : List(List(Site.Template.Line))) : Site.Template.Value =
+    Site.Template.Markup(List.flatMap(lines, fn(each) = each))
+
+fn filled(run : Run,
+          name : String,
+          values : List(#(String,
+                          Site.Template.Value))) : Either(String, List(Site.Template.Line)) =
+    match Map.get(run.templates, name) {
+        Some(template) -> Site.Template.fill(template, values)
+      | None -> Left("site/templates/" <> name <> " is not there")
+    }
+
+//
+// The files
+//
+
+// The site is written whole into a directory of its own.
+fn absent(out : Path) : Either(String, Unit) =
+    match Fs.stat(out, 10000) {
+        Left(Io.NotFound) ->
+            Right(Unit)
+      | Right(_) ->
+            Left(Path.toString(out)
+                     <> " is there already; the site is written into a new directory")
+      | Left(error) ->
+            Left("cannot read " <> Path.toString(out) <> ": " <> Io.show(error))
+    }
+
+// Every template and fragment under site/templates/, by its path there.
+fn templatesRead(directory : Path) : Either(String, Map(String, Site.Template.Template)) = {
+    let pages <- htmlFiles(directory, "");
+    let fragments <- htmlFiles(directory <> Path("fragments"), "fragments/");
+    let read <- List.tryMap(pages <> fragments, fn(#(name, path)) = {
+        let text <- textOf(path);
+        Either.map(Site.Template.parse("site/templates/" <> name, text),
+                   fn(template) = #(name, template))
+    });
+    Right(Map.fromList(read))
+}
+
+fn htmlFiles(directory : Path, prefix : String) : Either(String, List(#(String, Path))) = {
+    let entries <- listed(directory);
+    Right(List.filterMap(entries,
+                         fn(entry) =
+                             match #(entry.kind,
+                                     Path.name(entry.path),
+                                     Path.extension(entry.path)) {
+                                 #(Fs.File, Some(name), Some("html")) ->
+                                     Some(#(prefix <> name, entry.path))
+                               | _ ->
+                                     None
+                             }))
+}
+
+// The root copied, laid out as served, but the files whose names hold a
+// digest of their content, written under those names (the stylesheet, the
+// script and the icons' file); the vendored files keep their names.
+fn rootCopied(from : Path, out : Path) : Either(String, Assets) = {
+    let digested = ["assets/css/site.css", "assets/js/site.js", "assets/img/icons.svg"];
+    let _ <- treeCopied(from, out, [], digested);
+    let stylesheet <- digestCopied(from, out, "assets/css/site.css");
+    let script <- digestCopied(from, out, "assets/js/site.js");
+    let icons <- digestCopied(from, out, "assets/img/icons.svg");
+    Right(Assets(=stylesheet, =script, =icons))
+}
+
+fn treeCopied(from : Path,
+              to : Path,
+              under : List(String),
+              left : List(String)) : Either(String, Unit) = {
+    let entries <- listed(from);
+    let _ <- made(to);
+    let _ <- List.tryMap(entries, fn(entry) = {
+        let name = Optional.withDefault(Path.name(entry.path), "");
+        let relative = under <> [name];
+        match entry.kind {
+            Fs.Directory -> treeCopied(entry.path, to <> Path(name), relative, left)
+          | Fs.File when List.contains(left, String.join(relative, "/")) -> Right(Unit)
+          | Fs.File -> copied(entry.path, to <> Path(name))
+          | _ -> Left(Path.toString(entry.path) <> " is neither a file nor a directory")
+        }
+    });
+    Right(Unit)
+}
+
+// A file written under a name that holds the first eight hexadecimal
+// digits of its SHA-1 digest, `site.3f9a2c1e.js`, and the address a page
+// names it by.
+fn digestCopied(from : Path, out : Path, relative : String) : Either(String, String) = {
+    let bytes <- bytesOf(from <> Path(relative));
+    let digest = String.slice(String.toLower(Bytes.toHex(Crypto.sha1(bytes))), 0, 8);
+    let named =
+        Path.toString(Path.withoutExtension(Path(relative)))
+            <> "."
+            <> digest
+            <> "."
+            <> Optional.withDefault(Path.extension(Path(relative)), "");
+    let _ <- written(out <> Path(named), bytes);
+    Right("/" <> named)
+}
+
+// The logos the site shows, at their paths in the repository's assets/:
+// the stoat in the header, the favicon, and the image a shared link shows
+// (docs/proposals/site/decisions.md *The look*).
+fn logosCopied(root : Path, out : Path) : Either(String, Unit) = {
+    let _ <- made(out <> Path("assets"));
+    let _ <-
+        List.tryMap(["ernest-mark.svg", "ernest-avatar-64.png", "ernest-social-light.png"],
+                    fn(name) =
+                        copied(root <> Path("assets") <> Path(name),
+                               out <> Path("assets") <> Path(name)));
+    Right(Unit)
+}
+
+// A source's last commit date at the tag, from the checkout's history.
+fn committed(tag : String, path : String) : Either(String, String) = {
+    let command =
+        Os.Command(program = "git",
+                   arguments = ["log", "-1", "--format=%cs", tag, "--", ":(top)" <> path],
+                   input = <<>>);
+    let finished <-
+        Either.mapLeft(Os.run(command, 10000), fn(error) = "cannot run git: " <> Io.show(error));
+    let date = String.trim(Optional.withDefault(String.fromUtf8(finished.stdout), ""));
+    if finished.status == 0 && date != "" then
+        Right(date)
+    else
+        Left("git knows no commit of "
+                 <> path
+                 <> " at "
+                 <> tag
+                 <> ": "
+                 <> String.trim(Optional.withDefault(String.fromUtf8(finished.stderr), "")))
+}
+
+fn textOf(path : Path) : Either(String, String) = {
+    let bytes <- bytesOf(path);
+    Either.fromOptional(String.fromUtf8(bytes), Path.toString(path) <> " is not UTF-8")
+}
+
+fn bytesOf(path : Path) : Either(String, Bytes) =
+    Either.mapLeft(Fs.read(path, 10000),
+                   fn(error) = "cannot read " <> Path.toString(path) <> ": " <> Io.show(error))
+
+fn listed(path : Path) : Either(String, List(Fs.Entry)) =
+    Either.mapLeft(Fs.list(path, 10000),
+                   fn(error) = "cannot list " <> Path.toString(path) <> ": " <> Io.show(error))
+
+fn made(path : Path) : Either(String, Unit) =
+    Either.mapLeft(Fs.makeDir(path, 10000),
+                   fn(error) = "cannot make " <> Path.toString(path) <> ": " <> Io.show(error))
+
+fn copied(from : Path, to : Path) : Either(String, Unit) =
+    Either.mapLeft(Fs.copy(from, to, 10000),
+                   fn(error) =
+                       "cannot copy "
+                           <> Path.toString(from)
+                           <> " to "
+                           <> Path.toString(to)
+                           <> ": "
+                           <> Io.show(error))
+
+fn written(path : Path, contents : Bytes) : Either(String, Unit) =
+    Either.mapLeft(Fs.write(path, contents, 10000),
+                   fn(error) = "cannot write " <> Path.toString(path) <> ": " <> Io.show(error))
+
+fn quit(message : String) : Unit = {
+    Io.printlnError("site: " <> message);
+    Os.exit(1)
+}

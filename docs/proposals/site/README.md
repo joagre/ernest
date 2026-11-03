@@ -9,19 +9,17 @@ discussion has settled meanwhile.
 |---|---|---|
 | [`decisions.md`](decisions.md) | what the discussion has settled, tersely: the purpose, the root, the anchors, the pages, the look, the links, the templates, the generation, the live shell and the documents | current; begun 2026-10-13, from the design the removed `site.md` and `documents.md` held; read back 2026-10-30 with its findings applied |
 | [`todo.md`](todo.md) | what the discussion found should change outside this directory, each line until it is made or dropped | current; begun 2026-11-03 |
-| `templates/` | the templates and their fragments, each a token file of readable HTML, with the tokens each binds in `templates/README.md` | current; written 2026-11-03 from the mockup's pages |
-| `root/` | the assets, laid out as served, and under `mockup/` a page of each kind in the settled look, flat, to serve and open in a browser | current; the look settled 2026-11-03 |
-| `tools/`, `Makefile`, `build/` | the prototype's generator, the rules that build and run it, and what they make: the compiled generator, and the served tree in `build/site/`, which git ignores | not written |
+| `root/mockup/` | a page of each kind in the settled look, flat; the assets it named moved to `site/root/assets/` on 2026-11-03, so a page here no longer finds `../assets` | the record of item 1; the look settled 2026-11-03 |
 
-The milestone is MVP 4.2. Its first item, the look by hand, is done (the log's *The Site's Look, by Hand*): the mockup holds a page of each kind in the settled look, and the templates are written. Next is its item 2, the generator.
+The milestone is MVP 4.2. Its first item, the look by hand, is done (the log's *The Site's Look, by Hand*): the mockup holds a page of each kind in the settled look, and the templates are written. Its item 2, the generator, is `tools/site.ern`, which reads the templates and the assets from `site/` at the repository's root, where they moved from this directory on 2026-11-03.
 
 ## Prototyping
 
-The site is prototyped in this directory, its generator and its pages, as
+The site was prototyped in this directory, its templates and its pages, as
 `decisions.md` lays them out. The proposal was ready on 2026-10-30, and the plan's
 MVP 4.2 is its items in build order since that day.
 
-What the prototype still lacks:
+What the site still lacks:
 
-- The generator, item 2, with its `foreign` declaration over the toolchain's lexer, which the coloring needs. The mockup's pages were rendered by throwaway scripts, outside the repository, and the generator replaces them.
+- The generator's pages beyond the guide's, item 2. The mockup's pages were rendered by throwaway scripts, outside the repository, and the generator replaces them.
 - The session client's remaining pieces, item 4: the snackbar at a session's end, the navigation that keeps the panel across pages, and the server's attach word in place of the client's own note.

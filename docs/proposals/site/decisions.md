@@ -254,7 +254,7 @@ The site's files as served.
   a void element, and every end tag written, `</p>` and `</li>` among
   them, though the parser would supply it.
 - An icon is one line, a `<use>` of its symbol in `/assets/img/icons.svg`,
-  which `make site` gathers from the icon files; the prototype holds the
+  which `make site` gathers from the icon files; `site/root/` holds the
   gathered file.
 - The stylesheet lays out with flex and grid and their gaps, so that the
   whitespace between elements never shows.
@@ -283,11 +283,13 @@ The site's files as served.
 
 - One generator, `site.ern` in `tools/`, beside the manual tool, written in
   Ernest. It reads the repository, writes static files, and ends.
-- In the repository, `site/` holds `templates/` and `root/`; in the
-  prototype they stand in `docs/proposals/site/`. The site is this
+- In the repository, `site/` holds `templates/` and `root/`, which stood
+  in `docs/proposals/site/` while the site was prototyped and moved on
+  2026-11-03. The site is this
   repository's whole, its shell page among its pages: the generator reads
-  this repository's documents at a tag, and a test holds it to the
-  mockups. The `ernest-lang.org` repository holds the one page served
+  this repository's documents at a tag, and a test holds it to pages
+  written from a fixture document beside it, the mockups staying as the
+  record of the look. The `ernest-lang.org` repository holds the one page served
   until the generated site goes live, and then goes (decided 2026-11-03).
 - Every page is generated from what the repository owns: two templates and
   two pages of their own, all four standing on
@@ -376,9 +378,9 @@ The site's files as served.
   visitor and its six at once on its 2 GB host, its numbers the server's;
   the host grows only when its log shows visitors turned away (decided
   2026-11-03).
-- Whether a node transcript of the guide or the tour, whose `foo` matches
-  the container's, gets Paste is decided with the generator's rules, the
-  plan's MVP 4.2 item 2.
+- A node transcript of the guide or the tour has Copy alone, as the
+  bullet above says: its nodes are the reader's own, made as its chapter
+  makes them (decided 2026-11-03).
 - xterm.js, its stylesheet, a fit addon and a session client, self-hosted. A
   WebSocket at the configuration's `shell.path`, which the generator reads
   from the server's configuration file, to a pseudo-terminal running

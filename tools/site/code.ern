@@ -1,0 +1,334 @@
+//
+// A code block's HTML (plan, MVP 4.2 item 2): Ernest colored as the
+// toolchain's own lexer reads it, a console as written, a transcript with
+// each input marked, and the buttons each block of a document gets beside
+// Copy, decided by the guide tests' own grouping of its blocks
+// (test/ern_guide_tests.erl), so that a block offered to the shell is one
+// those tests run in a bare shell.
+//
+
+/// The buttons a code block gets beside Copy, which every block has: Paste,
+/// for a module that runs alone in a bare shell, or for a transcript whose
+/// session a bare shell holds, an input at a time; Load, for such a module
+/// that exports `main`; or none.
+export type Buttons = CopyAlone | Paste | Load
+
+/// A document's top-level block, with the buttons it gets.
+export type Placed = Placed(block : Markdown.Block, given : Buttons)
+
+// A lexeme, as the generator's helper gives the lexer's token: its kind,
+// where it begins, and the place after its last character.
+type Lexeme = Lexeme(kind : Kind, at : Position, end : Position)
+
+type Position = Position(line : Int, column : Int)
+
+// A token's kind, the lexer's category (report §2): a reserved word, an
+// operator or a delimiter, a name, a type's or a constructor's name, a
+// literal of each type, a comment, and a doc block.
+type Kind =
+    Reserved
+  | Symbol
+  | Name
+  | TypeName
+  | IntLiteral
+  | FloatLiteral
+  | CharLiteral
+  | StringLiteral
+  | BoolLiteral
+  | Comment
+  | DocBlock
+
+// What a top-level block is to the guide tests: a module of its own, with
+// the buttons that gives it; a console of a session, the session named by
+// the place of its first console; or anything else.
+type Role = Alone(Buttons) | Part(Int) | Other
+
+// A session at the shell: whether it began bare, `$ ern shell` with
+// nothing after it, and its inputs, across every console that continues it.
+type Session = Session(bare : Bool, inputs : List(String))
+
+// The walk over a document's blocks: the count of the headings so far, the
+// nearest console, and the sessions, each by the place of its first
+// console.
+type Walk = Walk(heading : Int, nearest : Optional(Console), sessions : Map(Int, Session))
+
+// A console: the heading it stands under, by its count, and the session it
+// holds, where it holds a `$ ern shell` command, which a console that
+// begins with an input continues.
+type Console = Console(heading : Int, session : Optional(Int))
+
+//
+// The buttons
+//
+
+/// A document's top-level blocks, each with its buttons, none for a block
+/// that is no code. A module the guide tests take as one of its own,
+/// an `ernest` block whose first line names no file, gets Paste, or Load
+/// where it exports `main`; a session begun bare whose inputs load no module
+/// by `:load` gets Paste on each of its consoles; every other block gets
+/// none: a block joined with the others that name its file, a session begun
+/// with a module, a node's or an attached one, and an `ernest-rejected`,
+/// `ernest-fragment` or `ernest-prelude` block or another language's.
+export fn placed(blocks : List(Markdown.Block)) : List(Placed) = {
+    let start = Walk(heading = 0, nearest = None, sessions = Map.empty);
+    let #(walk, roles) = List.mapFold(List.indexed(blocks), start, role);
+    List.map(List.zip(blocks, roles), fn(#(block, found)) = match found {
+        Alone(given) -> Placed(=block, =given)
+      | Part(first) -> Placed(=block, given = sessionButtons(Map.get(walk.sessions, first)))
+      | Other -> Placed(=block, given = CopyAlone)
+    })
+}
+
+// A block's role, as the guide tests group the blocks (ern_guide_tests's
+// continued/2 and group/2).
+fn role(walk : Walk, indexed : #(Int, Markdown.Block)) : #(Walk, Role) = {
+    let #(index, block) = indexed;
+    match block {
+        Markdown.Heading() ->
+            #(Walk(..walk, heading = walk.heading + 1), Other)
+      | Markdown.Code(=info, =lines) when language(info) == "ernest" ->
+            #(walk, Alone(moduleButtons(lines)))
+      | Markdown.Code(=info, =lines) when language(info) == "console" ->
+            consoleRole(walk, index, lines)
+      | _ ->
+            #(walk, Other)
+    }
+}
+
+// A console that begins with an input continues the session of the nearest
+// console before it under its heading, where that one holds a session; one
+// that holds a `$ ern shell` command begins a session; any other is none.
+fn consoleRole(walk : Walk, index : Int, lines : List(String)) : #(Walk, Role) =
+    match continued(walk, lines) {
+        Some(begun) -> {
+            let sessions = Map.update(walk.sessions, begun, fn(found) = continuedBy(found, lines));
+            #(Walk(..walk, =sessions), Part(begun))
+        }
+      | None when List.any(lines, isShellCommand) -> {
+            let begun =
+                Session(bare = List.take(lines, 1) == ["$ ern shell"], inputs = inputs(lines));
+            let nearest = Console(heading = walk.heading, session = Some(index));
+            #(Walk(..walk,
+                   nearest = Some(nearest),
+                   sessions = Map.put(walk.sessions, index, begun)),
+              Part(index))
+        }
+      | None ->
+            #(Walk(..walk, nearest = Some(Console(heading = walk.heading, session = None))), Other)
+    }
+
+// The session a console continues, by its first console's place.
+fn continued(walk : Walk, lines : List(String)) : Optional(Int) =
+    match walk.nearest {
+        Some(Console(=heading, session = Some(begun))) when heading == walk.heading
+            && beginsWithInput(lines) -> Some(begun)
+      | _ -> None
+    }
+
+// The session with a console's inputs added; one the walk has not found,
+// which no console continues, offers nothing.
+fn continuedBy(found : Optional(Session), lines : List(String)) : Session =
+    match found {
+        Some(session) -> Session(..session, inputs = session.inputs <> inputs(lines))
+      | None -> Session(bare = false, inputs = inputs(lines))
+    }
+
+// A module of its own, which names no file on its first line, as
+// `// net/http.ern` does, runs alone; one that exports `main` is loaded.
+fn moduleButtons(lines : List(String)) : Buttons =
+    match lines {
+        first :: _ when namesFile(first) -> CopyAlone
+      | _ when List.any(lines, fn(line) = String.startsWith(line, "export fn main(")) -> Load
+      | _ -> Paste
+    }
+
+// A first line that places its block in a file, `// net/http.ern`, the
+// file's path lowercase words, digits and `_` between `/`s (report §11.1).
+fn namesFile(line : String) : Bool =
+    match Optional.andThen(stripped(line, "// "), fn(rest) = String.splitOnce(rest, ".ern")) {
+        Some(#(path, _)) ->
+            path != ""
+                && List.all(String.toList(path),
+                            fn(char) =
+                                char >= 'a' && char <= 'z'
+                                    || Char.isAsciiDigit(char)
+                                    || char == '_'
+                                    || char == '/')
+      | None ->
+            false
+    }
+
+fn sessionButtons(session : Optional(Session)) : Buttons =
+    match session {
+        Some(Session(bare = true, =inputs)) when !List.any(inputs, isLoad) -> Paste
+      | _ -> CopyAlone
+    }
+
+fn isLoad(input : String) : Bool =
+    String.startsWith(input, ":load")
+
+fn isShellCommand(line : String) : Bool =
+    line == "$ ern shell" || String.startsWith(line, "$ ern shell ")
+
+fn beginsWithInput(lines : List(String)) : Bool =
+    match lines {
+        first :: _ -> String.startsWith(first, "> ")
+      | [] -> false
+    }
+
+// A session's inputs are its `> ` lines.
+fn inputs(lines : List(String)) : List(String) =
+    List.filterMap(lines, fn(line) = stripped(line, "> "))
+
+// The block's language, the first word of its info string.
+fn language(info : String) : String =
+    Optional.withDefault(List.get(String.words(info), 0), "")
+
+//
+// The HTML
+//
+
+/// A code block's `<pre>`, its class saying what it holds and its
+/// `data-shell` the buttons it gets: an Ernest block colored, a block the
+/// compiler refuses marked so, a transcript with its inputs and the shell's
+/// output each marked, and a console or another language's block as written.
+export fn html(info : String, lines : List(String), given : Buttons) : List(Site.Template.Line) = {
+    let code = String.join(lines, "\n");
+    match language(info) {
+        "ernest" -> pre("code", given, colored(code))
+      | "ernest-fragment" -> pre("code", given, colored(code))
+      | "ernest-prelude" -> pre("code", given, colored(code))
+      | "ernest-rejected" -> pre("code rejected", given, colored(code))
+      | "console" when isTranscript(lines) -> pre("transcript", given, transcript(lines))
+      | "console" -> pre("console", given, Site.Template.escaped(code))
+      | _ -> pre("code", given, Site.Template.escaped(code))
+    }
+}
+
+// The `<pre>` begins at its line's indentation and holds its body from the
+// line's start (site/templates/README.md).
+fn pre(class : String, given : Buttons, body : String) : List(Site.Template.Line) = {
+    let shell = match given {
+        CopyAlone -> ""
+      | Paste -> " data-shell=\"paste\""
+      | Load -> " data-shell=\"load\""
+    };
+    let open = "<pre class=\"" <> class <> "\"" <> shell <> "><code>";
+    match String.split(open <> body <> "</code></pre>", "\n") {
+        first :: rest -> Site.Template.Line(first) :: List.map(rest, Site.Template.Verbatim)
+      | [] -> []
+    }
+}
+
+// A console that shows a session at the shell: one that holds its `$ ern
+// shell` command, or that continues one with its inputs.
+fn isTranscript(lines : List(String)) : Bool =
+    List.any(lines, isShellCommand) || beginsWithInput(lines)
+
+// Each input, its prompt marked, and each line the shell printed; a console
+// is plain monospace, its colors the live shell's alone.
+fn transcript(lines : List(String)) : String =
+    String.join(List.map(lines, transcriptLine), "\n")
+
+fn transcriptLine(line : String) : String =
+    match stripped(line, "> ") {
+        Some(input) ->
+            "<span class=\"input\"><span class=\"prompt\">&gt; </span>"
+                <> Site.Template.escaped(input)
+                <> "</span>"
+      | None when line == "" ->
+            ""
+      | None ->
+            "<span class=\"tok-output\">" <> Site.Template.escaped(line) <> "</span>"
+    }
+
+// The code with each lexeme of a class in a span of it, as the lexer reads
+// the code; code the lexer refuses, a fragment, is written as it is.
+fn colored(code : String) : String =
+    match lexed(code) {
+        Some(lexemes) -> spans(code, lexemes)
+      | None -> Site.Template.escaped(code)
+    }
+
+fn spans(code : String, lexemes : List(Lexeme)) : String = {
+    let start = #([], String.toList(code), Position(line = 1, column = 1));
+    let #(pieces, rest, _) = List.foldLeft(lexemes, start, fn(#(acc, chars, at), lexeme) = {
+        let #(before, from, begun) = taken(chars, at, lexeme.at);
+        let #(token, later, ended) = taken(from, begun, lexeme.end);
+        #(spanned(lexeme.kind, token) :: written(before) :: acc, later, ended)
+    });
+    String.join(List.reverse(written(rest) :: pieces), "")
+}
+
+// The characters from `at` up to `until`, the rest, and where the rest
+// begins; a line feed ends a line, and a column is a character, as the
+// lexer counts them (report §11.5).
+fn taken(chars : List(Char),
+         at : Position,
+         until : Position) : #(List(Char), List(Char), Position) =
+    takenInto(chars, at, until, [])
+
+fn takenInto(chars : List(Char),
+             at : Position,
+             until : Position,
+             acc : List(Char)) : #(List(Char), List(Char), Position) =
+    match chars {
+        char :: rest when isBefore(at, until) ->
+            takenInto(rest, advanced(at, char), until, char :: acc)
+      | _ ->
+            #(List.reverse(acc), chars, at)
+    }
+
+fn isBefore(at : Position, until : Position) : Bool =
+    at.line < until.line || at.line == until.line && at.column < until.column
+
+fn advanced(at : Position, char : Char) : Position =
+    if char == '\n' then
+        Position(line = at.line + 1, column = 1)
+    else
+        Position(line = at.line, column = at.column + 1)
+
+// A lexeme's text in the span of its class, a line feed that ends it, a doc
+// block's, after the span.
+fn spanned(kind : Kind, chars : List(Char)) : String =
+    match #(class(kind), List.reverse(chars)) {
+        #(Some(name), '\n' :: within) -> span(name, List.reverse(within)) <> "\n"
+      | #(Some(name), _) -> span(name, chars)
+      | #(None, _) -> written(chars)
+    }
+
+fn span(class : String, chars : List(Char)) : String =
+    "<span class=\"" <> class <> "\">" <> written(chars) <> "</span>"
+
+fn written(chars : List(Char)) : String =
+    Site.Template.escaped(String.fromList(chars))
+
+// The classes the stylesheet colors: the reserved words and `true` and
+// `false`, the types' and the constructors' names, the literals of text,
+// and the comments.
+fn class(kind : Kind) : Optional(String) =
+    match kind {
+        Reserved -> Some("tok-keyword")
+      | BoolLiteral -> Some("tok-keyword")
+      | TypeName -> Some("tok-type")
+      | StringLiteral -> Some("tok-string")
+      | CharLiteral -> Some("tok-string")
+      | Comment -> Some("tok-comment")
+      | DocBlock -> Some("tok-comment")
+      | Symbol -> None
+      | Name -> None
+      | IntLiteral -> None
+      | FloatLiteral -> None
+    }
+
+// The lexer's tokens of the code, or none where it refuses the code: the
+// lexer is the toolchain's, which the helper reaches (tools/ern_site.erl).
+foreign fn lexed(code : String) : Optional(List(Lexeme)) =
+    "ern_site:lexed/1"
+
+// The text after `prefix`, where the text begins with it.
+fn stripped(text : String, prefix : String) : Optional(String) =
+    if String.startsWith(text, prefix) then
+        Optional.map(String.splitOnce(text, prefix), fn(#(_, rest)) = rest)
+    else
+        None

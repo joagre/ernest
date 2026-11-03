@@ -50,8 +50,8 @@ line_length_test() ->
     Patterns = ["erl/*/src/*.erl", "erl/*/test/*.erl", "erl/*/c_src/*.c", "test/*.erl",
                 "test/fixtures/**/*.erl", "src/stdlib/**/*.ern", "examples/**/*.ern",
                 "src/shell/**/*.ern", "test/**/*.ern", "test/*.py", "editors/emacs/*.el",
-                "editors/emacs/test/*.el", "src/libs/**/*.ern", "tools/*.ern", "tour/*/*.ern",
-                "tools/*.sh", "test/machines/*.sh", "tools/*.escript", "bin/ern",
+                "editors/emacs/test/*.el", "src/libs/**/*.ern", "tools/**/*.ern", "tools/*.erl",
+                "tour/*/*.ern", "tools/*.sh", "test/machines/*.sh", "tools/*.escript", "bin/ern",
                 "erl/*/include/*.hrl", "Makefile", "test/Makefile", "erl/*/src/Makefile",
                 "erl/app.mk", "tools/release/Makefile"],
     Files = [File || File <- ern_repository:files(Patterns),
@@ -73,7 +73,7 @@ line_length_test() ->
 %% in the tour's upgrade
 numbered_name_test() ->
     Patterns = ["src/stdlib/**/*.ern", "src/libs/**/*.ern", "src/shell/**/*.ern",
-                "examples/**/*.ern", "tools/*.ern", "tour/*/*.ern", "test/**/*.ern"],
+                "examples/**/*.ern", "tools/**/*.ern", "tour/*/*.ern", "test/**/*.ern"],
     Files = [File || File <- ern_repository:files(Patterns), not lists:prefix("test/build/", File)],
     ?assert(length(Files) > 20),
     ?assertEqual([], lists:append([numbered_names(File) || File <- Files])).
@@ -146,8 +146,8 @@ no_tab_test() ->
                 "examples/**/*.ern", "src/shell/**/*.ern", "test/**/*.ern", "test/*.py",
                 "editors/emacs/*.el", "editors/emacs/test/*.el",
                 "editors/emacs/test/broken/*.ern", "src/libs/**/*.ern", "src/libs/*/*.md",
-                "tools/*.ern", "tour/*/*.ern", "tools/*.sh", "test/machines/*.sh", "bin/ern",
-                "*.md", "docs/*.md"],
+                "tools/**/*.ern", "tools/*.erl", "tour/*/*.ern", "tools/*.sh", "test/machines/*.sh",
+                "bin/ern", "*.md", "docs/*.md"],
     Files = [File || File <- ern_repository:files(Patterns),
                      filename:basename(File) =/= "getopt.erl",
                      not lists:prefix("test/build/", File)],
@@ -265,7 +265,7 @@ words(Line, HostNames, Word) ->
 %% of order and one had lost its specs; the tests' modules were read from
 %% 2026-10-24, when the nodes harness's exports had none
 exports_test() ->
-    Files = [File || File <- ern_repository:files(["erl/*/src/*.erl", "test/*.erl"]),
+    Files = [File || File <- ern_repository:files(["erl/*/src/*.erl", "test/*.erl", "tools/*.erl"]),
                      filename:basename(File) =/= "getopt.erl"],
     ?assert(length(Files) > 20),
     ?assertEqual([],
@@ -469,7 +469,7 @@ write_formatted() ->
 %% The modules the Ernest style guide governs.
 modules() ->
     Patterns = ["src/stdlib/**/*.ern", "examples/**/*.ern", "src/shell/**/*.ern",
-                "src/libs/**/*.ern", "tools/*.ern", "tour/*/*.ern", "test/**/*.ern"],
+                "src/libs/**/*.ern", "tools/**/*.ern", "tour/*/*.ern", "test/**/*.ern"],
     Modules = [File || File <- ern_repository:files(Patterns),
                        not lists:prefix("test/build/", File)],
     ?assert(length(Modules) > 20),
@@ -707,7 +707,8 @@ moved(Token, Offset) ->
 %% repository, and a module compiled from an Ernest source is ern@<namespace>;
 %% the one exception is a vendored file, which THIRD_PARTY_LICENSES names
 module_name_test() ->
-    ErlangFiles = ern_repository:files(["erl/*/src/*.erl", "erl/*/test/*.erl", "test/*.erl"]),
+    ErlangFiles = ern_repository:files(["erl/*/src/*.erl", "erl/*/test/*.erl", "test/*.erl",
+                                        "tools/*.erl"]),
     ?assert(length(ErlangFiles) > 20),
     Names = [filename:basename(File, ".erl") || File <- ErlangFiles],
     ?assertEqual([], [Name || Name <- Names, string:prefix(Name, "ern_") =:= nomatch,

@@ -32,6 +32,9 @@ guide/             the guides: language.md, the language guide; deployment.md,
 tour/              the tour, README.md, one program grown through eight chapters, and
                    1/ to 8/, the program as it stands at each chapter's end, which a
                    test holds equal to the document's blocks
+site/              the website's own files, which tools/site.ern reads: templates/,
+                   each page's template and its fragments, with README.md, the tokens
+                   each binds, and root/, the assets laid out as served
 assets/            the logos, which assets/README.md lists with where each is used
 docs/              every other document, which docs/README.md lists, this one and the
                    catalog of diagnostics among them
@@ -52,8 +55,8 @@ erl/               the toolchain, as Erlang applications: shared, the four modul
                    but json, base64 and http include/, and the runtime also c_src/,
                    the helper ern_exec's C source, and priv/, where make builds it
 test/              what spans applications: the integration, nodes, deployment guide,
-                   tour, installation, manual pages', document, style, guide, grammar,
-                   generated-program, shell and terminal tests; the harnesses of the
+                   tour, installation, manual pages', document, style, guide, site,
+                   grammar, generated-program, shell and terminal tests; the harnesses of the
                    loads and of the benchmark, with the benchmark's memory of its runs,
                    ern_last_run, and the tests of the measuring machine and of that
                    memory, ern_measure_tests and ern_last_run_tests; the service
@@ -69,9 +72,10 @@ test/fixtures/     what the tests read: target/, the hand-written target modules
                    two-module tree, the module of docs/module_doc_template.md and the
                    echo measurement; expected/ and golden/, what programs/, hello,
                    services print, repl's session among
-                   them, and the Erlang they compile to; and bench/, input/, layout/,
-                   load/, peers/, pty/, service/, session/, stdin/ and terminal/, the
-                   programs and inputs tests run
+                   them, and the Erlang they compile to; site/, the document the site's
+                   generator renders as the guide and, under expected/, the pages it
+                   writes; and bench/, input/, layout/, load/, peers/, pty/, service/,
+                   session/, stdin/ and terminal/, the programs and inputs tests run
 test/machines/     machines.txt, the user's machines that make bench-machines, make
                    bench-pick and nodes.sh start nodes on, a line each: its name, the
                    host ssh takes and its peers dial, and its clone of the repository
@@ -91,7 +95,10 @@ src/shell/         the shell as Ernest source; its README.md guides a reader
                    through the code
 editors/emacs/     ernest-mode.el, the Emacs major mode, and its tests under test/
 tools/             the programs of the build: manual.ern writes ern(1) from the
-                   report's §11, for make; unicode_width.escript writes Terminal.width's
+                   report's §11, for make; site.ern, with site/ beside it and its
+                   helper ern_site.erl over the toolchain's lexer, writes the website's
+                   pages from the repository into a directory of their own, so far the
+                   guide's; unicode_width.escript writes Terminal.width's
                    table, for make unicode; install.sh, with strip.escript, stages,
                    installs and archives, for make install, uninstall and release;
                    paragraphs.sh lists the long paragraphs, for make paragraphs and make
@@ -133,11 +140,12 @@ make              build the helper, compile every application into its ebin/, th
                   src/stdlib/, src/libs/, src/shell/ and tools/, and write each manual page
                   that is missing or older than what it is made from
 make test         build, then the unit tests of every application, the library's doc
-                  examples, and the document and style tests, side by side: the light
-                  run, about a minute
+                  examples, the document and style tests, and the site's generator over
+                  its fixture, side by side: the light run, about a minute
 make test-full    build, then two phases: first the guide's tests, the Emacs mode's, the unit
-                  tests, the library's, the documents', the grammar's, the typed programs' and
-                  the dialyzer's, which builds its PLT once, side by side; then the shell's and the six program parts, one after another,
+                  tests, the library's, the documents', the site's, the grammar's, the typed
+                  programs' and the dialyzer's, which builds its PLT once, side by side;
+                  then the shell's and the six program parts, one after another,
                   each running its own tests as many at once as the host has schedulers: the
                   whole suite
 make test-erl     the unit tests of every application under erl/, side by side;
@@ -166,6 +174,9 @@ make comments     list every comment block of the Erlang and the Ernest past abo
                   words the same way; the style tests hold both at 150 words
 make test-guide   the guide's examples, the report's, the README's, and the catalog of
                   diagnostics
+make test-site    the site's generator, tools/site.ern, run over its fixture, the pages it
+                  writes held to test/fixtures/site/expected/, and every template held to
+                  the tokens site/templates/README.md lists
 make test-grammar  Appendix A read as data, and a thousand programs generated from it,
                   parsed, laid out and given as near misses; ERN_SEED=n runs a failing
                   seed again
@@ -304,6 +315,9 @@ make golden       rewrite test/fixtures/golden/, the Erlang the compiler emits f
 make diagnostics  rewrite the outputs of docs/diagnostics.md, the errors the lexer, the
                   parser, the checker and the build give, from what ern build prints
 make contents     rewrite the contents lists of the report and the guide from their headings
+make site-expected  rewrite test/fixtures/site/expected/, the pages the site's generator
+                  writes from its fixture, after a change to the look or the generation
+                  that is meant
 make format       lay out every Ernest module, and the Ernest blocks of the report and the
                   guide, as ern format does (report §11.6)
 make unicode UC_SPEC=dir
@@ -328,6 +342,7 @@ While a change is worked on, it runs the targets of its kind; which run a commit
 | the Emacs mode | `make test-emacs` |
 | the language guide, the report, the README, `docs/diagnostics.md` or `docs/module_doc_template.md` | `make test`, `make test-guide`; report Appendix A `make test-grammar` too, report §11 `make test-manual` and `make test-shell` |
 | the tour, its document or a chapter's program | `make test`, which holds its blocks to its files, and `make test-tour`, which runs its sessions |
+| the site's templates, its assets or its generator | `make test-site`, then `make test` |
 | a proposal, or any other document | `make test-docs` |
 | a path `make bench` measures | the part of `make bench` that measures it, `make bench-<part>`, beside the targets of its kind |
 

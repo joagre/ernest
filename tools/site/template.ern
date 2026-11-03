@@ -1,0 +1,174 @@
+//
+// The site's token files (plan, MVP 4.2 item 2): a template or a fragment
+// under site/templates/, cut at its tokens once and joined with the values,
+// so that a page reads as its template does, as site/templates/README.md
+// says. There is no templating language: a token is `{{name}}`, a plain
+// token's value is escaped, and a `*_html` token's is the generator's own
+// HTML, lines of it.
+//
+
+/// A line of a page: one that a template's indentation reaches, or one of a
+/// `<pre>`'s body, written from the line's start.
+export type Line = Line(String) | Verbatim(String)
+
+/// What a token is given: text, which is escaped, or HTML the generator
+/// made, for a token whose name ends in `_html`, a value of several lines
+/// only where the token stands alone on its line.
+export type Value = Plain(String) | Markup(List(Line))
+
+/// A token file cut at its tokens: its name, as the errors say it, and its
+/// lines, each its pieces in order.
+export abstract type Template = Template(name : String, lines : List(List(Piece)))
+
+// A piece of a template's line: text as written, or a token's name.
+type Piece = Literal(String) | Token(String)
+
+/// The template the text is, or why it is none: a `{{` that no `}}` closes,
+/// or a token's name that is not lowercase words joined by `_`.
+export fn parse(name : String, text : String) : Either(String, Template) =
+    Either.map(List.tryMap(String.lines(text), fn(line) = pieces(name, line)),
+               fn(lines) = Template(=name, =lines))
+
+fn pieces(name : String, line : String) : Either(String, List(Piece)) =
+    match String.splitOnce(line, "{{") {
+        None ->
+            Right(literal(line))
+      | Some(#(before, opened)) ->
+            match String.splitOnce(opened, "}}") {
+                Some(#(token, rest)) when isTokenName(token) ->
+                    Either.map(pieces(name, rest),
+                               fn(later) = literal(before) <> (Token(token) :: later))
+              | _ ->
+                    Left(name
+                             <> ": a token is {{name}}, a name of lowercase words joined by _: "
+                             <> line)
+            }
+    }
+
+fn literal(text : String) : List(Piece) =
+    if text == "" then [] else [Literal(text)]
+
+fn isTokenName(text : String) : Bool =
+    text != ""
+        && List.all(String.toList(text), fn(char) = char >= 'a' && char <= 'z' || char == '_')
+
+/// The names of the template's tokens, each once, in order of their names.
+export fn tokens(template : Template) : List(String) =
+    List.sort(List.unique(List.flatMap(template.lines, fn(line) = List.filterMap(line, tokenOf))))
+
+fn tokenOf(piece : Piece) : Optional(String) =
+    match piece {
+        Token(name) -> Some(name)
+      | Literal(_) -> None
+    }
+
+/// The template's lines with each token given its value, or why it cannot
+/// be filled: a token given no value or a value given no token, a plain
+/// value for a `*_html` token or HTML for a plain one, or a value of several
+/// lines for a token that does not stand alone on its line. A line that
+/// holds only a token whose value is empty is left out.
+export fn fill(template : Template,
+               values : List(#(String, Value))) : Either(String, List(Line)) = {
+    let given = List.sort(List.map(values, fn(#(name, _)) = name));
+    let _ <- if given == tokens(template) then
+        Right(Unit)
+    else
+        Left(template.name
+                 <> " holds the tokens "
+                 <> String.join(tokens(template), ", ")
+                 <> ", and was given "
+                 <> String.join(given, ", "));
+    let _ <- List.tryMap(values, fn(#(name, value)) = kindHeld(template, name, value));
+    let table = Map.fromList(values);
+    Either.map(List.tryMap(template.lines, fn(line) = filledLine(template, line, table)),
+               fn(filled) = List.flatMap(filled, fn(lines) = lines))
+}
+
+// A `*_html` token takes HTML and any other text (site/templates/README.md).
+fn kindHeld(template : Template, name : String, value : Value) : Either(String, Unit) =
+    match value {
+        Markup(_) when String.endsWith(name, "_html") -> Right(Unit)
+      | Plain(_) when !String.endsWith(name, "_html") -> Right(Unit)
+      | _ -> Left(template.name <> ": " <> name <> " was given a value of the other kind")
+    }
+
+// A line of the template filled. A token alone on its line, after its
+// indentation, takes a value of any number of lines, each indented as the
+// token's line is but a `<pre>`'s body; one beside other text takes one
+// line at most.
+fn filledLine(template : Template,
+              line : List(Piece),
+              values : Map(String, Value)) : Either(String, List(Line)) =
+    match line {
+        [Token(name)] ->
+            Right(alone("", valueOf(values, name)))
+      | [Literal(indent), Token(name)] when isIndentation(indent) ->
+            Right(alone(indent, valueOf(values, name)))
+      | _ ->
+            Either.map(List.tryMap(line, fn(piece) = inline(template, piece, values)),
+                       fn(texts) = [Line(String.join(texts, ""))])
+    }
+
+fn alone(indent : String, value : Value) : List(Line) =
+    match value {
+        Plain("") -> []
+      | Plain(text) -> [Line(indent <> escaped(text))]
+      | Markup(lines) -> List.map(lines, fn(line) = indented(indent, line))
+    }
+
+fn inline(template : Template,
+          piece : Piece,
+          values : Map(String, Value)) : Either(String, String) =
+    match piece {
+        Literal(text) ->
+            Right(text)
+      | Token(name) ->
+            match valueOf(values, name) {
+                Plain(text) ->
+                    Right(escaped(text))
+              | Markup([]) ->
+                    Right("")
+              | Markup([Line(text)]) ->
+                    Right(text)
+              | Markup(_) ->
+                    Left(template.name
+                             <> ": "
+                             <> name
+                             <> " was given several lines where it stands beside other text")
+            }
+    }
+
+// fill checked first that every token has a value.
+fn valueOf(values : Map(String, Value), name : String) : Value =
+    Optional.withDefault(Map.get(values, name), Plain(""))
+
+fn isIndentation(text : String) : Bool =
+    List.all(String.toList(text), fn(char) = char == ' ')
+
+/// The line placed `indent` further in, an empty line and a `<pre>`'s body
+/// as they are.
+export fn indented(indent : String, line : Line) : Line =
+    match line {
+        Line("") -> Line("")
+      | Line(text) -> Line(indent <> text)
+      | Verbatim(text) -> Verbatim(text)
+    }
+
+/// The text with `&`, `<`, `>` and `"` written as HTML's references, so
+/// that it reads as itself in a page's text and in an attribute's value.
+export fn escaped(text : String) : String =
+    String.replace(String.replace(String.replace(String.replace(text, "&", "&amp;"), "<", "&lt;"),
+                                  ">",
+                                  "&gt;"),
+                   "\"",
+                   "&quot;")
+
+/// The page's text: its lines, each ended by a line feed.
+export fn text(lines : List(Line)) : String =
+    String.join(List.map(lines, fn(line) = lineText(line) <> "\n"), "")
+
+fn lineText(line : Line) : String =
+    match line {
+        Line(written) -> written
+      | Verbatim(written) -> written
+    }

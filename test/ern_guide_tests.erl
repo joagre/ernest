@@ -636,7 +636,7 @@ parts(Named, Seen) ->
 
 before(Name, Named, Seen) ->
     [First | _] = [Code || {BlockName, Code} <- Named, BlockName =:= Name],
-    case re:run(hd(First), "^// [a-z0-9/]+\\.ern, continued") of
+    case re:run(hd(First), "^// [a-z0-9_/]+\\.ern, continued") of
         {match, _} -> maps:get(Name, Seen);
         nomatch -> <<>>
     end.
@@ -644,7 +644,7 @@ before(Name, Named, Seen) ->
 %% `// net/http.ern  (namespace Net.Http)` names net/http.ern, and
 %% `-module(store_helper).` names store_helper.erl.
 named([First | _]) ->
-    case re:run(First, "^// ([a-z0-9/]+\\.ern)", [{capture, all_but_first, list}]) of
+    case re:run(First, "^// ([a-z0-9_/]+\\.ern)", [{capture, all_but_first, list}]) of
         {match, [Path]} ->
             Path;
         nomatch ->
@@ -674,7 +674,7 @@ launch([#block{info = <<"console">>, code = Lines} | _]) ->
                    {match, [Piped, Job, Flags, CompiledFile, Words]}
                        <- [re:run(Command,
                                   "^\\$ (?:printf '([^']*)' \\| )?ern (run|test|shell) "
-                                  "((?:--[a-z]+ \\S+ )*)(?:\\S*/)?([a-z0-9]+\\.erc)"
+                                  "((?:--[a-z]+ \\S+ )*)(?:\\S*/)?([a-z0-9_]+\\.erc)"
                                   "((?: +[^#\\s]\\S*)*) *(?:#.*)?$",
                                   [{capture, all_but_first, list}])]],
     case Launches of

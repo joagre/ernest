@@ -3,7 +3,9 @@
 // block's Copy and Paste, a transcript's Paste for each input, its prompt
 // the control, and the example's Try it. The page reads whole without it.
 
-const icons = new URL("../img/icons.svg", document.currentScript.src);
+// The icons' file, which the page names on this script's element, since
+// its name holds a digest of its content, as this script's does.
+const icons = new URL(document.currentScript.dataset.icons, document.baseURI);
 
 function icon(name) {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");

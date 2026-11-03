@@ -24,6 +24,9 @@
 
 %% The documents with a contents list, and the lines that bound it.
 -define(CONTENTS, ?REPORT ++ ["guide/language.md"]).
+%% The document the site's generator renders as the guide in its test
+%% (ern_site_tests).
+-define(SITE_FIXTURE, "test/fixtures/site/language.md").
 -define(BEGIN, <<"<!-- contents -->">>).
 -define(END, <<"<!-- /contents -->">>).
 
@@ -51,21 +54,27 @@
 %% bare `§x.y`, the report's, until 2026-10-13, and for `the deployment
 %% guide's §x.y`, read as the language guide's until 2026-10-25; it does
 %% not read a curly apostrophe, which no document writes before a `§`, nor
-%% a citation whose words a line break parts.
+%% a citation whose words a line break parts. The site's fixture stands as
+%% the guide where the site's generator renders it (ern_site_tests), so its
+%% bare citations are its own sections, as the guide's are.
 citations_resolve_test() ->
     Guide = ern_repository:read("guide/language.md"),
+    Fixture = ern_repository:read(?SITE_FIXTURE),
     Sections = #{report => section_numbers(report()), guide => section_numbers(Guide),
-                 deployment => section_numbers(ern_repository:read("guide/deployment.md"))},
+                 deployment => section_numbers(ern_repository:read("guide/deployment.md")),
+                 fixture => section_numbers(Fixture)},
     %% a review's findings, `findings.md` beside the plan while they are
     %% open, cite each document as their readers did, the guide's sections
     %% bare beside the report's, and the list goes when its plan item is done
-    Live = (documents() -- ["docs/findings.md"])
+    Live = (documents() -- ["docs/findings.md", ?SITE_FIXTURE])
         ++ examples() ++ stdlib() ++ shell() ++ tools() ++ toolchain(),
     Dangling =
         [{File, Citation} || File <- Live, Citation <- cites(ern_repository:read(File)),
                              not resolves(Citation, report, Sections)]
         %% a console of the guide quotes the toolchain, whose citations are
         %% the report's (report §11.5), held to it by docs/diagnostics.md
+        ++ [{?SITE_FIXTURE, Citation} || Citation <- cites(without_consoles(Fixture)),
+                                         not resolves(Citation, fixture, Sections)]
         ++ [{"guide/language.md", Citation}
             || Citation <- cites(without_consoles(Guide)),
                not resolves(Citation, guide, Sections)],
@@ -817,10 +826,10 @@ examples() ->
 shell() ->
     ern_repository:files(["src/shell/**/*.ern"]).
 
-%% The programs of the build written in Ernest, whose comments cite the
-%% report too.
+%% The programs of the build written in Ernest, and the site generator's
+%% helper in Erlang, whose comments cite the report too.
 tools() ->
-    ern_repository:files(["tools/*.ern"]).
+    ern_repository:files(["tools/**/*.ern", "tools/*.erl"]).
 
 %% The toolchain's own code, whose comments cite the report as its rules
 %% ask: the Erlang sources, includes and tests, the helper in C, the tests

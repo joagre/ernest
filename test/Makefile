@@ -7,13 +7,14 @@
 # ern_deployment_tests; the tour run on them, ern_tour_tests; the manual
 # pages, ern_manual_tests; and the installation and the release,
 # ern_install_tests), the documents and the style, the guide's examples,
-# the grammar with the programs generated from it, the well-typed programs
-# generated and run, and the shell and the terminal, driven through the
+# the site's generator over its fixture, the grammar with the programs
+# generated from it, the well-typed programs generated and run, and the
+# shell and the terminal, driven through the
 # pseudo-terminal harness, the Ernest program fixtures/pty/pty.ern over
 # Os.startTerminal, which the pty target builds and ern_pty runs.
 # Beside them, the loads, the service manager's checks and the bench, which
 # a release runs, and the targets that write the catalog, the contents
-# lists and the layout anew.
+# lists, the layout and the site's expected pages anew.
 
 EBIN = ebin
 ERLC_FLAGS = +debug_info -Werror
@@ -35,11 +36,13 @@ MANUAL = ern_manual_tests
 INSTALL = ern_install_tests
 DOCS = ern_docs_tests ern_style_tests
 GUIDE = ern_guide_tests
+SITE = ern_site_tests
 GRAMMAR = ern_grammar_tests ern_grammar_programs_tests
 TYPED = ern_typed_programs_tests
 SHELL_TESTS = ern_terminal_tests ern_shell_tests
 BEAMS = $(patsubst %,$(EBIN)/%.beam,$(INTEGRATION) $(MEASURE) $(LAST_RUN_TESTS) $(NODES) \
-	  $(DEPLOYMENT) $(TOUR) $(MANUAL) $(INSTALL) $(DOCS) $(GUIDE) $(GRAMMAR) ern_grammar $(TYPED) \
+	  $(DEPLOYMENT) $(TOUR) $(MANUAL) $(INSTALL) $(DOCS) $(GUIDE) $(SITE) $(GRAMMAR) ern_grammar \
+	  $(TYPED) \
 	  $(SHELL_TESTS) ern_pty ern_repository ern_measure)
 
 # A host with the toolchain and the modules here on its code path, which
@@ -162,6 +165,12 @@ guide: $(BEAMS) prepare
 	  ERN_TEST_DIR=$$dir $(call EUNIT,$(GUIDE)); \
 	  status=$$?; rm -rf "$$dir"; exit $$status
 
+# The site's generator, built by `make` into ../build/tools, run over the
+# fixture's tree under build/site, which starts no node (plan, MVP 4.2
+# item 2).
+site: $(BEAMS) prepare
+	$(call EUNIT,$(SITE))
+
 # Appendix A read as data, and the programs generated from it (MVP 2.99c
 # item 1), whose seed ERN_SEED gives again.
 grammar: $(BEAMS)
@@ -201,6 +210,9 @@ diagnostics: $(EBIN)/ern_guide_tests.beam $(EBIN)/ern_pty.beam
 
 contents: $(EBIN)/ern_docs_tests.beam
 	erl -noshell -pa $(EBIN) -eval 'ern_docs_tests:write_contents(), halt().'
+
+site-expected: $(BEAMS) prepare
+	erl -noshell -pa ../erl/*/ebin -pa $(EBIN) -eval 'ern_site_tests:write_expected(), halt().'
 
 format: $(EBIN)/ern_style_tests.beam
 	erl -noshell -pa ../erl/*/ebin -pa $(EBIN) -eval 'ern_style_tests:write_formatted(), halt().'
@@ -412,6 +424,7 @@ $(EBIN)/%.beam: %.erl | $(EBIN)
 $(EBIN):
 	mkdir -p $(EBIN)
 
-.PHONY: integration nodes deployment tour manual install docs guide grammar typed shell prepare \
+.PHONY: integration nodes deployment tour manual install docs guide site site-expected grammar \
+	typed shell prepare \
 	pty named measured benched xref load service bench $(addprefix bench-,$(BENCH_PARTS)) \
 	bench-release bench-machines bench-pick machines clean

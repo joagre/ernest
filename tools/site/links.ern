@@ -1,0 +1,582 @@
+//
+// A page's links (plan, MVP 4.2 item 2): a citation in the text made a link
+// to the section it names, and a link the source writes for GitHub led to
+// the page the site shows its target on, as
+// docs/proposals/site/decisions.md's *Anchors* and *Links* say. A citation
+// is a form the documents' test reads (test/ern_docs_tests.erl): `§x.y`,
+// alone or after the report, the guide or the deployment guide, an
+// appendix or one of its sections, and `E.n`. A section's anchor is its
+// number, `#6.5`, `#E.17`; a heading of a document that numbers none has
+// its GitHub anchor.
+//
+
+/// The page whose links are made: its source's path in the repository, its
+/// own address, the tag the site is built from, and the anchors of each
+/// document a link names a heading of, each by the heading's GitHub anchor
+/// (`anchors`).
+export type Page =
+    Page(source : String,
+         address : String,
+         tag : String,
+         anchors : Map(String, Map(String, String)))
+
+// A document the site shows: a book, whose chapters each have a page, by
+// the address of its contents; or a page, whose headings are anchored by
+// their numbers, or by their GitHub anchors where it numbers none.
+type Shown = Book(String) | Numbered(String) | Slugged(String)
+
+// Whose section a `§` names, as the words before it say.
+type Owner = Report | Guide | Deployment | Bare
+
+//
+// The documents the site shows
+//
+
+// The site's page of a document of the repository, by its path
+// (docs/proposals/site/decisions.md *The root*).
+fn shown(path : String) : Optional(Shown) =
+    match path {
+        "guide/language.md" -> Some(Book("/guide/"))
+      | "tour/README.md" -> Some(Book("/tour/"))
+      | "guide/deployment.md" -> Some(Numbered("/deployment/"))
+      | "report/language.md" -> Some(Numbered("/report/language.html"))
+      | "report/toolchain.md" -> Some(Numbered("/report/toolchain.html"))
+      | "report/library.md" -> Some(Numbered("/report/library.html"))
+      | "guide/why.md" -> Some(Slugged("/why/"))
+      | "guide/faq.md" -> Some(Slugged("/faq/"))
+      | "README.md" -> Some(Slugged("/install/"))
+      | "CHANGES.md" -> Some(Slugged("/releases/"))
+      | _ -> None
+    }
+
+/// The anchors of a document the site shows, each by the GitHub anchor of
+/// its heading: a numbered heading's number in a document that numbers its
+/// headings, and in one that numbers none the GitHub anchor itself; none
+/// for a document the site does not show. A heading is read from its line,
+/// outside a fenced block, as the documents' test reads one.
+export fn anchors(path : String, text : String) : Either(String, Map(String, String)) =
+    match shown(path) {
+        None ->
+            Right(Map.empty)
+      | Some(showing) -> {
+            let headings = headingTexts(String.lines(text), false);
+            let slugs <- slugged(path, headings);
+            let pairs = List.zip(slugs, headings);
+            Right(Map.fromList(List.filterMap(pairs, fn(#(slug, heading)) = match showing {
+                Slugged(_) -> Some(#(slug, slug))
+              | _ -> Optional.map(number(heading), fn(found) = #(slug, found))
+            })))
+        }
+    }
+
+// The text of each heading outside a fenced block, as `^(#{1,6}) +(.*?) *$`
+// reads it in the documents' test.
+fn headingTexts(lines : List(String), fenced : Bool) : List(String) =
+    match lines {
+        [] ->
+            []
+      | line :: rest when String.startsWith(line, "```") ->
+            headingTexts(rest, !fenced)
+      | _ :: rest when fenced ->
+            headingTexts(rest, fenced)
+      | line :: rest ->
+            match headingText(line) {
+                Some(text) -> text :: headingTexts(rest, fenced)
+              | None -> headingTexts(rest, fenced)
+            }
+    }
+
+fn headingText(line : String) : Optional(String) = {
+    let #(hashes, rest) = List.span(String.toList(line), fn(char) = char == '#');
+    let count = List.size(hashes);
+    match rest {
+        ' ' :: _ when count >= 1 && count <= 6 -> Some(String.fromList(trimmedSpaces(rest)))
+      | _ -> None
+    }
+}
+
+fn trimmedSpaces(chars : List(Char)) : List(Char) =
+    List.reverse(unspaced(List.reverse(unspaced(chars))))
+
+fn unspaced(chars : List(Char)) : List(Char) = {
+    let #(_, rest) = List.span(chars, fn(char) = char == ' ');
+    rest
+}
+
+/// The section number a heading's text begins with: `1.1` of `1.1 The
+/// shell`, `1` of `1. Run a program`, `E.17` of `Appendix E.17. ...` and `A`
+/// of `Appendix A. Grammar`; none for a heading that is not numbered.
+export fn number(text : String) : Optional(String) =
+    match stripped(text, "Appendix ") {
+        Some(rest) -> appendixNumber(String.toList(rest))
+      | None -> sectionNumber(String.toList(text))
+    }
+
+fn sectionNumber(chars : List(Char)) : Optional(String) =
+    match digits(chars) {
+        Some(#(number, rest)) ->
+            match rest {
+                ' ' :: _ -> Some(number)
+              | '.' :: ' ' :: _ -> Some(number)
+              | _ -> None
+            }
+      | None ->
+            None
+    }
+
+fn appendixNumber(chars : List(Char)) : Optional(String) =
+    match chars {
+        letter :: '.' :: rest when isCapital(letter) ->
+            match digitRun(rest) {
+                #([], _) -> Some(Char.toString(letter))
+              | #(run, '.' :: _) -> Some(Char.toString(letter) <> "." <> String.fromList(run))
+              | _ -> None
+            }
+      | _ ->
+            None
+    }
+
+// A section number at the characters' start, `6` or `6.5`, and what
+// follows it.
+fn digits(chars : List(Char)) : Optional(#(String, List(Char))) =
+    match digitRun(chars) {
+        #([], _) ->
+            None
+      | #(whole, '.' :: rest) ->
+            match digitRun(rest) {
+                #([], _) ->
+                    Some(#(String.fromList(whole), '.' :: rest))
+              | #(part, later) ->
+                    Some(#(String.fromList(whole) <> "." <> String.fromList(part), later))
+            }
+      | #(whole, rest) ->
+            Some(#(String.fromList(whole), rest))
+    }
+
+fn digitRun(chars : List(Char)) : #(List(Char), List(Char)) =
+    List.span(chars, Char.isAsciiDigit)
+
+fn isCapital(char : Char) : Bool =
+    char >= 'A' && char <= 'Z'
+
+//
+// GitHub's anchors
+//
+
+// Each heading's GitHub anchor, as the documents' test computes it:
+// lowercase, every character but a letter, a mark, a number, `_`, a space
+// and `-` dropped, a space written `-`, and a second heading of the same
+// anchor numbered `-1`, a third `-2`.
+fn slugged(path : String, headings : List(String)) : Either(String, List(String)) = {
+    let bases <- List.tryMap(headings, fn(heading) = slugBase(path, heading));
+    let #(_, slugs) = List.mapFold(bases, Map.empty, fn(seen, base) = {
+        let count = Optional.withDefault(Map.get(seen, base), 0);
+        let slug = if count == 0 then base else base <> "-" <> Int.toString(count);
+        #(Map.put(seen, base, count + 1), slug)
+    });
+    Right(slugs)
+}
+
+// A character outside ASCII that is not a letter or a decimal digit may be
+// a mark or another number, which the anchor keeps, or anything else, which
+// it drops; `Char` answers neither question, so such a heading is refused
+// rather than anchored wrongly.
+fn slugBase(path : String, heading : String) : Either(String, String) =
+    Either.map(List.tryMap(String.toList(String.toLower(heading)),
+                           fn(char) = slugPiece(path, heading, char)),
+               fn(pieces) = String.join(pieces, ""))
+
+fn slugPiece(path : String, heading : String, char : Char) : Either(String, String) =
+    if char == ' ' then
+        Right("-")
+    else if Char.isAlpha(char) || Char.isDigit(char) || char == '_' || char == '-' then
+        Right(Char.toString(char))
+    else if Char.toCodePoint(char) < 128 then
+        Right("")
+    else
+        Left(path
+                 <> ": the heading \""
+                 <> heading
+                 <> "\" holds "
+                 <> Char.toString(char)
+                 <> ", whose Unicode category its GitHub anchor turns on, which Char does not give")
+
+//
+// The links
+//
+
+/// The block with each citation in its text made a link to the section it
+/// names, and each link its source writes led to the site's page of its
+/// target, or why one cannot be: a citation of a report section no report
+/// page holds, a link that leaves the repository, or one to a heading the
+/// site anchors none of.
+export fn linked(block : Markdown.Block, page : Page) : Either(String, Markdown.Block) =
+    match block {
+        Markdown.Heading(=level, =text) ->
+            Either.map(inlinesLinked(text, page),
+                       fn(linked) = Markdown.Heading(=level, text = linked))
+      | Markdown.Paragraph(inlines) ->
+            Either.map(inlinesLinked(inlines, page), Markdown.Paragraph)
+      | Markdown.Code() ->
+            Right(block)
+      | Markdown.Quote(blocks) ->
+            Either.map(List.tryMap(blocks, fn(inner) = linked(inner, page)), Markdown.Quote)
+      | Markdown.Items(=start, =items) ->
+            Either.map(List.tryMap(items,
+                                   fn(item) = List.tryMap(item, fn(inner) = linked(inner, page))),
+                       fn(linkedItems) = Markdown.Items(=start, items = linkedItems))
+      | Markdown.Rule ->
+            Right(block)
+      | Markdown.Raw(_) ->
+            Right(block)
+      | Markdown.Table(=columns, =rows) -> {
+            let headed <-
+                List.tryMap(columns,
+                            fn(column) =
+                                Either.map(inlinesLinked(column.text, page),
+                                           fn(text) = Markdown.Column(..column, =text)));
+            let cells <-
+                List.tryMap(rows, fn(row) = List.tryMap(row, fn(cell) = inlinesLinked(cell, page)));
+            Right(Markdown.Table(columns = headed, rows = cells))
+        }
+    }
+
+fn inlinesLinked(inlines : List(Markdown.Inline),
+                 page : Page) : Either(String, List(Markdown.Inline)) =
+    Either.map(List.tryMap(inlines, fn(inline) = inlineLinked(inline, page)),
+               fn(pieces) = List.flatMap(pieces, fn(piece) = piece))
+
+fn inlineLinked(inline : Markdown.Inline, page : Page) : Either(String, List(Markdown.Inline)) =
+    match inline {
+        Markdown.Text(text) ->
+            cited(String.toList(text), [], page)
+      | Markdown.CodeSpan(_) ->
+            Right([inline])
+      | Markdown.Emphasis(inlines) ->
+            Either.map(inlinesLinked(inlines, page), fn(linked) = [Markdown.Emphasis(linked)])
+      | Markdown.Strong(inlines) ->
+            Either.map(inlinesLinked(inlines, page), fn(linked) = [Markdown.Strong(linked)])
+      | Markdown.Link(=text, =url) ->
+            Either.map(mapped(url, page), fn(address) = [Markdown.Link(=text, url = address)])
+      | Markdown.Break ->
+            Right([inline])
+    }
+
+/// The repository's paths of the documents the site shows that a link of
+/// the blocks names a heading of, which `anchors` reads.
+export fn targets(blocks : List(Markdown.Block), source : String) : List(String) =
+    List.unique(List.filterMap(List.flatMap(blocks, urls), fn(url) = target(url, source)))
+
+fn target(url : String, source : String) : Optional(String) =
+    match String.splitOnce(url, "#") {
+        Some(#("", _)) ->
+            Some(source)
+      | Some(#(path, _)) when !String.contains(url, "://") ->
+            Optional.andThen(Either.toOptional(resolved(source, path)),
+                             fn(found) =
+                                 if Optional.isSome(shown(found)) then Some(found) else None)
+      | _ ->
+            None
+    }
+
+fn urls(block : Markdown.Block) : List(String) =
+    match block {
+        Markdown.Heading(=text) ->
+            inlineUrls(text)
+      | Markdown.Paragraph(inlines) ->
+            inlineUrls(inlines)
+      | Markdown.Code() ->
+            []
+      | Markdown.Quote(blocks) ->
+            List.flatMap(blocks, urls)
+      | Markdown.Items(=items) ->
+            List.flatMap(items, fn(item) = List.flatMap(item, urls))
+      | Markdown.Rule ->
+            []
+      | Markdown.Raw(_) ->
+            []
+      | Markdown.Table(=columns, =rows) ->
+            List.flatMap(columns, fn(column) = inlineUrls(column.text))
+                <> List.flatMap(rows, fn(row) = List.flatMap(row, inlineUrls))
+    }
+
+fn inlineUrls(inlines : List(Markdown.Inline)) : List(String) =
+    List.flatMap(inlines, fn(inline) = match inline {
+        Markdown.Link(=text, =url) -> url :: inlineUrls(text)
+      | Markdown.Emphasis(inner) -> inlineUrls(inner)
+      | Markdown.Strong(inner) -> inlineUrls(inner)
+      | _ -> []
+    })
+
+// A link the source writes for GitHub, led to the page the site shows its
+// target on, by a heading's GitHub anchor to the heading's own; a link to a
+// file the site does not show, `examples/` or `docs/`, to the file on
+// GitHub at the tag; and any link with a scheme as it is.
+fn mapped(url : String, page : Page) : Either(String, String) =
+    if String.contains(url, "://") || String.startsWith(url, "mailto:") then
+        Right(url)
+    else {
+        let #(path, fragment) = match String.splitOnce(url, "#") {
+            Some(#(before, anchor)) -> #(before, Some(anchor))
+          | None -> #(url, None)
+        };
+        let found <- if path == "" then Right(page.source) else resolved(page.source, path);
+        match #(shown(found), fragment) {
+            #(None, None) ->
+                Right(github(page.tag, found))
+          | #(None, Some(anchor)) ->
+                Right(github(page.tag, found) <> "#" <> anchor)
+          | #(Some(showing), None) ->
+                Right(local(page, addressOn(showing, None)))
+          | #(Some(showing), Some(slug)) ->
+                match Optional.andThen(Map.get(page.anchors, found),
+                                       fn(table) = Map.get(table, slug)) {
+                    Some(anchor) ->
+                        Right(local(page, addressOn(showing, Some(anchor))))
+                  | None ->
+                        Left(page.source
+                                 <> " links to "
+                                 <> url
+                                 <> ", a heading the site anchors none of")
+                }
+        }
+    }
+
+// A shown document's address, and an anchor's on it: a book's anchor
+// stands on its chapter's page.
+fn addressOn(showing : Shown, anchor : Optional(String)) : String =
+    match #(showing, anchor) {
+        #(Book(home), None) -> home
+      | #(Book(home), Some(found)) -> home <> chapter(found) <> ".html#" <> found
+      | #(Numbered(whole), None) -> whole
+      | #(Numbered(whole), Some(found)) -> whole <> "#" <> found
+      | #(Slugged(whole), None) -> whole
+      | #(Slugged(whole), Some(found)) -> whole <> "#" <> found
+    }
+
+fn github(tag : String, path : String) : String =
+    "https://github.com/joagre/ernest/blob/" <> tag <> "/" <> path
+
+// The repository's path a relative link names, read from its source's
+// directory, or why it leaves the repository.
+fn resolved(source : String, link : String) : Either(String, String) = {
+    let directory = List.dropLast(String.split(source, "/"), 1);
+    let walked <-
+        List.tryFold(String.split(link, "/"),
+                     List.reverse(directory),
+                     fn(acc, segment) = match #(segment, acc) {
+                         #("..", _ :: above) ->
+                             Right(above)
+                       | #("..", []) ->
+                             Left(source <> " links to " <> link <> ", outside the repository")
+                       | #(".", _) ->
+                             Right(acc)
+                       | #("", _) ->
+                             Right(acc)
+                       | _ ->
+                             Right(segment :: acc)
+                     });
+    Right(String.join(List.reverse(walked), "/"))
+}
+
+// An address on the page being written is its anchor alone.
+fn local(page : Page, led : String) : String =
+    match String.splitOnce(led, "#") {
+        Some(#(before, anchor)) when before == page.address -> "#" <> anchor
+      | _ -> led
+    }
+
+//
+// The citations
+//
+
+// The text, each citation in it a link: the characters read so far stand
+// in `pending`, last first, since a `§`'s owner is the word before it.
+fn cited(chars : List(Char),
+         pending : List(Char),
+         page : Page) : Either(String, List(Markdown.Inline)) =
+    match chars {
+        [] ->
+            Right(flushed(pending, []))
+      | _ when begins(chars, "Appendix ") ->
+            match appendix(charsAfter(chars, "Appendix ")) {
+                Some(#(anchor, rest)) -> {
+                    let #(word, before) = reportWord(pending);
+                    citation(before,
+                             word <> "Appendix " <> anchor,
+                             reportAnchor(anchor, page),
+                             rest,
+                             page)
+                }
+              | None ->
+                    cited(charsAfter(chars, "Appendix "),
+                          List.reverse(String.toList("Appendix ")) <> pending,
+                          page)
+            }
+      | 'E' :: '.' :: rest when isBoundary(pending) ->
+            match digitRun(rest) {
+                #([], _) ->
+                    cited(rest, '.' :: 'E' :: pending, page)
+              | #(run, later) when isBoundary(later) -> {
+                    let anchor = "E." <> String.fromList(run);
+                    citation(pending, anchor, Right("/report/library.html#" <> anchor), later, page)
+                }
+              | _ ->
+                    cited(rest, '.' :: 'E' :: pending, page)
+            }
+      | '§' :: rest ->
+            match digits(rest) {
+                Some(#(number, later)) -> {
+                    let #(owner, word, before) = sectionWord(pending);
+                    citation(before,
+                             word <> "§" <> number,
+                             sectionAddress(owner, number, page),
+                             later,
+                             page)
+                }
+              | None ->
+                    cited(rest, '§' :: pending, page)
+            }
+      | char :: rest ->
+            cited(rest, char :: pending, page)
+    }
+
+fn citation(pending : List(Char),
+            label : String,
+            led : Either(String, String),
+            rest : List(Char),
+            page : Page) : Either(String, List(Markdown.Inline)) = {
+    let found <- led;
+    let later <- cited(rest, [], page);
+    let link = Markdown.Link(text = [Markdown.Text(label)], url = local(page, found));
+    Right(flushed(pending, link :: later))
+}
+
+fn flushed(pending : List(Char), later : List(Markdown.Inline)) : List(Markdown.Inline) =
+    if pending == [] then later else Markdown.Text(String.fromList(List.reverse(pending))) :: later
+
+// An appendix's letter and the section after it, `E` or `E.17`, where no
+// letter follows the letter.
+fn appendix(chars : List(Char)) : Optional(#(String, List(Char))) =
+    match chars {
+        letter :: '.' :: rest when isCapital(letter) ->
+            match digitRun(rest) {
+                #([], _) ->
+                    Some(#(Char.toString(letter), '.' :: rest))
+              | #(run, later) ->
+                    Some(#(Char.toString(letter) <> "." <> String.fromList(run), later))
+            }
+      | letter :: rest when isCapital(letter) && isBoundary(rest) ->
+            Some(#(Char.toString(letter), rest))
+      | _ ->
+            None
+    }
+
+// The words before an appendix that name the report, `report ` or `the
+// report's `, which the link takes in.
+fn reportWord(pending : List(Char)) : #(String, List(Char)) =
+    match List.find(["report's ", "Report's ", "report ", "Report "],
+                    fn(word) = endsIn(pending, word)) {
+        Some(word) -> #(word, charsAfter(pending, word))
+      | None -> #("", pending)
+    }
+
+// The words before a `§` that name its owner, as the documents' test reads
+// them: the report, the guide or the deployment guide, with `'s`, a comma
+// and a space after it or not; none for a bare `§`.
+fn sectionWord(pending : List(Char)) : #(Owner, String, List(Char)) = {
+    let owners =
+        [#("deployment guide", Deployment),
+         #("Deployment guide", Deployment),
+         #("report", Report),
+         #("Report", Report),
+         #("guide", Guide),
+         #("Guide", Guide)];
+    let forms =
+        List.flatMap(owners,
+                     fn(#(word, owner)) =
+                         List.map(["'s, ", "'s,", "'s ", "'s", ", ", ",", " ", ""],
+                                  fn(tail) = #(word <> tail, owner)));
+    match List.find(forms, fn(#(form, _)) = endsIn(pending, form)) {
+        Some(#(form, owner)) -> #(owner, form, charsAfter(pending, form))
+      | None -> #(Bare, "", pending)
+    }
+}
+
+// Where a `§` leads: a bare one is the guide's own in the guide and the
+// report's in every other document (docs/proposals/site/decisions.md
+// *Links*).
+fn sectionAddress(owner : Owner, number : String, page : Page) : Either(String, String) =
+    match owner {
+        Report ->
+            reportAnchor(number, page)
+      | Guide ->
+            Right("/guide/" <> chapter(number) <> ".html#" <> number)
+      | Deployment ->
+            Right("/deployment/#" <> number)
+      | Bare when page.source == "guide/language.md" ->
+            Right("/guide/" <> chapter(number) <> ".html#" <> number)
+      | Bare ->
+            reportAnchor(number, page)
+    }
+
+// A report section's address: its citation's first number or letter names
+// its page (report §0).
+fn reportAnchor(anchor : String, page : Page) : Either(String, String) =
+    match reportFile(chapter(anchor)) {
+        Some(file) -> Right("/report/" <> file <> ".html#" <> anchor)
+      | None -> Left(page.source <> " cites " <> anchor <> ", which no page of the report holds")
+    }
+
+fn reportFile(first : String) : Optional(String) =
+    if List.contains(["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "F"], first) then
+        Some("language")
+    else if List.contains(["10", "11", "12", "C", "H"], first) then
+        Some("toolchain")
+    else if List.contains(["D", "E", "G"], first) then
+        Some("library")
+    else
+        None
+
+// The chapter a section number is of, `6` of `6.5`.
+fn chapter(number : String) : String =
+    match String.splitOnce(number, ".") {
+        Some(#(first, _)) -> first
+      | None -> number
+    }
+
+// Whether the character list begins with the word's characters.
+fn begins(chars : List(Char), word : String) : Bool = {
+    let wanted = String.toList(word);
+    List.take(chars, List.size(wanted)) == wanted
+}
+
+// The characters after as many as the word has, a word's beginning them,
+// or the read ones, last first, ending in it.
+fn charsAfter(chars : List(Char), word : String) : List(Char) =
+    List.drop(chars, List.size(String.toList(word)))
+
+// Whether the characters read so far, last first, end in the word.
+fn endsIn(pending : List(Char), word : String) : Bool =
+    begins(pending, String.fromList(List.reverse(String.toList(word))))
+
+// Whether a word ends before the characters, last first or next first: the
+// one beside is no ASCII letter, digit or `_`, as a regular expression's
+// `\b` reads a word in the documents' test.
+fn isBoundary(beside : List(Char)) : Bool =
+    match beside {
+        char :: _ ->
+            !(char >= 'a' && char <= 'z'
+                  || isCapital(char)
+                  || Char.isAsciiDigit(char)
+                  || char == '_')
+      | [] ->
+            true
+    }
+
+// The text after `prefix`, where the text begins with it.
+fn stripped(text : String, prefix : String) : Optional(String) =
+    if String.startsWith(text, prefix) then
+        Optional.map(String.splitOnce(text, prefix), fn(#(_, rest)) = rest)
+    else
+        None

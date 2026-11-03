@@ -747,6 +747,11 @@ h2:hover .anchor,
   gap: .5rem;
 }
 
+/* The next chapter at the right, where a first chapter has no previous. */
+.page-nav [rel="next"] {
+  margin-left: auto;
+}
+
 
 /* A contents page
    ---------------------------------------------------------------------- */
@@ -867,6 +872,17 @@ td {
 
 th {
   font-weight: 620;
+}
+
+/* A column its delimiter row aligns to the center or to the right. */
+th.center,
+td.center {
+  text-align: center;
+}
+
+th.right,
+td.right {
+  text-align: right;
 }
 
 /* The generator's wrapper of a table wider than the page. */
