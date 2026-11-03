@@ -9,8 +9,8 @@ discussion has settled meanwhile.
 |---|---|---|
 | [`decisions.md`](decisions.md) | what the discussion has settled, tersely: the purpose, the root, the anchors, the pages, the look, the links, the templates, the generation, the live shell and the documents | current; begun 2026-10-13, from the design the removed `site.md` and `documents.md` held; read back 2026-10-30 with its findings applied |
 | [`todo.md`](todo.md) | what the discussion found should change outside this directory, each line until it is made or dropped | current; begun 2026-11-03 |
-| `templates/` | the templates, early versions of the design, with their rendering contract in `templates/README.md` | a first design |
-| `root/` | the assets, laid out as served, and under `mockup/` the first design's pages, flat, to open in a browser, with the logos they show | a first design |
+| `templates/` | the templates and their fragments, each a token file of readable HTML, with the tokens each binds in `templates/README.md` | current; written 2026-11-03 from the mockup's pages |
+| `root/` | the assets, laid out as served, and under `mockup/` a page of each kind in the settled look, flat, to serve and open in a browser | current; the look settled 2026-11-03 |
 | `tools/`, `Makefile`, `build/` | the prototype's generator, the rules that build and run it, and what they make: the compiled generator, and the served tree in `build/site/`, which git ignores | not written |
 
 The milestone is MVP 4.2, whose first item brings the templates and the mockups to the decisions by hand, in a browser, before the generator is written (decided 2026-10-30).

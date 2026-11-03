@@ -1,13 +1,22 @@
-<div class="shell-heading"><h1>Ernest shell</h1><span class="meta">Server session</span></div>
-<p>Try Ernest in a temporary isolated environment. Session contents are discarded when the session ends.</p>
-<div class="shell-toolbar" role="group" aria-label="Session controls">
-<button id="session-start" type="button" disabled>Start session</button>
-<button id="session-restart" type="button" disabled>Restart</button>
-<button id="session-stop" type="button" disabled>Stop</button>
-<span id="session-state" class="session-state" role="status">Not connected</span></div>
-<section id="terminal" class="terminal-frame" aria-label="Ernest terminal"></section>
-<div class="shell-notes"><div>{{session_limits_html}}</div>
-<details><summary>Examples</summary>{{examples_html}}</details></div>
-<noscript><p>The live shell requires JavaScript. All documentation remains available.</p></noscript>
-<!-- Load locally hosted xterm.js, its stylesheet, fit addon and your session client here.
-     Only enable Start after the client initializes. Do not allocate a session on page load. -->
+<div class="shell-page">
+  <h1>Shell</h1>
+  <p class="lead">An Ernest shell of your own, in this page, with a second node, <code>foo</code>, beside it.</p>
+  <div class="terminal-frame">
+    <p>The shell runs in the page with JavaScript. Without it, <a href="/install/">install Ernest</a> and run <code>ern shell</code>.</p>
+  </div>
+  <div class="shell-notes">
+    <section aria-labelledby="session-title">
+      <h2 id="session-title">The session</h2>
+      <ul>
+        <li>It ends after {{lifetime}} minutes without a key. When {{warning}} remains, the panel says so and offers Extend.</li>
+        <li>It runs in a container of its own, with {{memory}} MB of memory and no network, and the container is removed when the session ends.</li>
+        <li>At most {{at_once}} sessions run at once, and an address starts at most {{starts}} an hour; past either, the shell says it is unavailable.</li>
+        <li>Another tab of this browser takes the session over, and this one says so.</li>
+      </ul>
+    </section>
+    <section aria-labelledby="privacy-title">
+      <h2 id="privacy-title">Privacy</h2>
+      <p>No account, and one cookie, which ties this browser to its session. The panel's layout is kept in this browser and never sent. The server logs each request, your address, the time, the page asked for, its status and its size, and nothing you type.</p>
+    </section>
+  </div>
+</div>
