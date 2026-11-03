@@ -91,14 +91,18 @@ The site's files as served.
 
 - It is `home.html`, its text the site's own; the README is the repository's,
   and the homepage takes nothing from it (decided 2026-10-13). In order: an
-  opening paragraph; Why's list "What Ernest adds", `guide/why.md`'s six
+  opening under its heading, both leading with what Ernest adds that no
+  reader expects, a process started on another node bringing its code
+  along, and then what kind of language it is, stating what Ernest does
+  and never what another language lacks (decided 2026-11-03); Why's list "What Ernest adds", `guide/why.md`'s six
   claims, which the documents test `claims_test` holds equal to the
   README's, each shown as its bold name and its first sentence alone, word
   for word, linking to its heading in Why, so that the list fits beside
   the opening (decided 2026-11-03); a
-  paragraph on
-  intended use; and a small example with its output, which a test runs, so
-  that Try prints what the page shows. The opening and the list are visible on
+  paragraph on intended use; and a small example with its output, which a
+  test runs, so that Try prints what the page shows: a process started on
+  the container's second node, its code typed into the shell and sent
+  there (decided 2026-11-03). The opening and the list are visible on
   a desktop without scrolling, which the mockup's homepage is checked for
   first; where they are not, the page is cut, not the rule (decided
   2026-11-03).
@@ -328,6 +332,18 @@ The site's files as served.
 ## The live shell, 2026-10-13
 
 - The server side of the shell, the pseudo-terminal, the container per visitor and its image, the session's timeouts and a second tab's takeover, is the server's, which has no pool, in the server's design, ernest-httpd's design page, from *The WebSocket* to *The deployment*, https://github.com/joagre/ernest-httpd/blob/main/docs/design.md; every citation of the server's design below is of that page.
+- The visitor's container runs two nodes, so that a visitor tries the
+  homepage's claim and is not only told it: `foo`, started with no
+  program, and the shell, started with `--config-dir a`, the two listing
+  each other's keys, made when the image is built. A probe on 2026-11-03
+  sent a counter typed into the shell to `foo`; a bare shell held 85 MB,
+  the shell as a node 101 MB and `foo` 102 MB, its prompt after 1.3 s
+  against 0.6 s. The server is asked for a cap of 256 MB a visitor and
+  four at once on its 2 GB host, its numbers the server's; the host grows
+  only when its log shows visitors turned away (decided 2026-11-03).
+- Whether a node transcript of the guide or the tour, whose `foo` matches
+  the container's, gets Paste is decided with the generator's rules, the
+  plan's MVP 4.2 item 2.
 - xterm.js, its stylesheet, a fit addon and a session client, self-hosted. A
   WebSocket at the configuration's `shell.path`, which the generator reads
   from the server's configuration file, to a pseudo-terminal running
