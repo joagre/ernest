@@ -40,6 +40,7 @@ The site's files as served.
     /shell/                         the full-page shell
     /install/
     /releases/                      CHANGES.md
+    /projects/                      site/projects.md
     /assets/css/                    site.css, xterm's stylesheet
     /assets/js/                     xterm.js, its fit addon, the session client
     /assets/img/icons/              the Lucide icons and their LICENSE
@@ -140,7 +141,7 @@ The site's files as served.
   the GitHub link. The terminal is labeled Shell, as `ern shell` names it; the
   homepage's way to it is the example's button.
 - One footer, the homepage's too, in two lines. First the rooms the header
-  leaves out: the questions, Deployment and Releases. Then
+  leaves out: the questions, Deployment, Releases and Projects. Then
   the page, "This page:" and its source file's path in the repository,
   with its last commit date at
   the tag, which the checkout's `git log` gives since an export has no
@@ -163,6 +164,20 @@ The site's files as served.
 - Releases is `CHANGES.md` rendered as it stands, newest first, each
   release's note as the release step writes it there and copies it to
   GitHub, from the release after 0.6.0 on (decided 2026-10-30).
+- Projects is `site/projects.md`: the libraries and programs written in
+  Ernest in repositories of their own, ernest-epx and ernest-httpd first.
+  Its opening says that they are not installed with Ernest. A line holds a
+  project's name, linked to its repository, in the text's face since it
+  names a repository and no module, and its purpose in one sentence, a
+  fragment of its own; the release of Ernest a project builds on is its own
+  README's, since it moves with every release on both sides. A project is
+  listed once it has a tagged release whose floor is a released Ernest, so
+  that the page holds evidence and no promise; ernest-template is a
+  starting point and is not listed. The file owns the list, with its row in
+  CLAUDE.md's table, and a test holds each line to its form. Library does
+  not lead to it, since many projects are no libraries and `/man/` is what
+  `man` shows; the footer does, and one sentence of Why's *Reading on*,
+  since the projects are evidence (decided 2026-11-03).
 - The shell page: the terminal takes most of the space, with the panel's
   controls above it, Start or Restart and Stop, and the warning banner with
   Extend when it comes (*The live shell*), and there is no Examples control, the
