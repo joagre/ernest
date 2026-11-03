@@ -276,7 +276,7 @@ function addStart(run) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "button primary";
-  button.append(icon("play"), "Run the example");
+  button.append(icon("terminal"), "Paste into the shell");
   button.addEventListener("click", () => {
     if (!phone.matches && !panel.running) {
       setState(true);
@@ -284,7 +284,7 @@ function addStart(run) {
     pasteIntoShell(code.textContent);
   });
   const words = document.createElement("span");
-  words.textContent = "Puts the counter's code into the shell; then type the session's lines.";
+  words.textContent = "The code waits in the shell until you press Enter; then type the session's lines.";
   run.replaceChildren(button, words);
 }
 
