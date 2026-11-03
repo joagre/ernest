@@ -105,16 +105,19 @@ The site's files as served.
   opening; the rest is Why's. Why and the README take that order and the
   first claim's name and sentence when they are rewritten (`todo.md`;
   decided 2026-11-03); and a small example with its output, which a
-  test runs, so that Try prints what the page shows: a process started on
+  test runs, so that the Start runs what the page shows: a process started on
   the container's second node, its code typed into the shell and sent
   there (decided 2026-11-03). The opening and the list are visible on
   a desktop without scrolling, which the mockup's homepage is checked for
   first; where they are not, the page is cut, not the rule (decided
   2026-11-03).
-- After the example, its rows are four doors, in this order, each with its
-  question: Try, "let me see it run", the shell's entry with Start; Tour, "show
-  me the language"; Guide, "help me write programs"; Report, "tell me the
-  rules".
+- Under the example stands its Start, "Run it yourself", the page's one
+  action and its one strong color, which opens the shell beside the
+  example; without the script, and on a phone, it is a link to `/shell/`
+  (decided 2026-11-03).
+- After it, three doors, in this order, each with its question and of one
+  weight: Tour, "show me the language"; Guide, "help me write programs";
+  Report, "tell me the rules" (decided 2026-11-03).
 - Why is the link ending the introduction's paragraph, "the whole argument".
 - Deployment is reached from Install, from the guide's running chapter, from
   Why's code by its hash and from the footer, never from the homepage's body.
@@ -123,7 +126,7 @@ The site's files as served.
 
 - The header: Why, Tour, Guide, Report, Library, Shell, Install, and Source,
   the GitHub link. The terminal is labeled Shell, as `ern shell` names it; the
-  homepage's door to it is Try.
+  homepage's way to it is the example's Start.
 - One footer, the homepage's too, in two lines. First the rooms the header
   leaves out: the questions, Deployment and Releases. Then
   the page: its source file in the repository with its last commit date at
@@ -242,10 +245,10 @@ The site's files as served.
 - The stylesheet lays out with flex and grid and their gaps, so that the
   whitespace between elements never shows.
 - No control the script works stands in the HTML: Copy, Paste and Load,
-  a transcript's Paste for each input, Try's Start and the panel's toggle
+  a transcript's Paste for each input, the example's Start and the panel's toggle
   are made by the script, so that a page without it shows none. The HTML
   holds what the generator decided, a block's `data-shell="paste"` or
-  `"load"` and Try's `data-shell="start"`, and the script reads it
+  `"load"` and the Start's `data-shell="start"`, and the script reads it
   (decided 2026-11-03).
 
 - Flat token files, cut at their tokens once and joined with the values. No
@@ -387,6 +390,12 @@ The site's files as served.
   It stays until the visitor clicks one of them or anywhere on the page,
   no timer deciding when a person has read it, and is announced as a
   polite live region (decided 2026-10-27).
+- A transcript's input is pasted by its own prompt: on hover or focus the
+  `>` becomes the paste icon, so that no gutter stands beside the
+  transcript. A block's tools show on hover or focus where there is a
+  pointer, on the block's own color, and on a touch screen stand on a row
+  of their own above the block, so that they never cover its code
+  (decided 2026-11-03).
 - Copy, Paste, Load and the shell's own controls are small icons, each
   with a tooltip and an accessible name, `Paste into the shell`, so that
   the layout stays plain and a screen reader says what each does (decided
@@ -410,8 +419,9 @@ The site's files as served.
 - The panel's toggle splits the window vertically or horizontally, the
   visitor's choice, kept in local storage with the panel's layout
   (decided 2026-11-03).
-- No panel opens until the visitor asks. On a desktop, Try's Start opens the
-  homepage's panel beside the example; on a phone, Try links to `/shell/`.
+- No panel opens until the visitor asks. On a desktop, the example's Start
+  opens the homepage's panel beside the example; on a phone, it links to
+  `/shell/`.
 - Only an `ernest` block that runs alone in a bare shell has Paste or
   Load: one the guide tests take as a module of its own. One joined with
   the other blocks that name its file is a piece of a program and has Copy

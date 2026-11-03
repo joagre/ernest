@@ -72,11 +72,15 @@ p { margin: 0 0 1rem; }
 .example { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.25rem; align-items: start; }
 .block { position: relative; min-width: 0; }
 .block pre { margin: 0; }
-.block-tools { position: absolute; top: .35rem; right: .35rem; display: flex; gap: .15rem; }
-.transcript .input { position: relative; }
-.transcript .line-paste { position: absolute; left: -2.1rem; top: -.2rem; opacity: 0; }
-.transcript .input:hover .line-paste, .transcript .line-paste:focus-visible { opacity: 1; }
-.transcript { padding-left: 2.4rem; }
+.block-tools { display: flex; justify-content: flex-end; gap: .15rem; margin-bottom: .25rem; }
+@media (hover: hover) {
+  .block-tools { position: absolute; top: .35rem; right: .35rem; margin: 0; background: var(--panel); opacity: 0; }
+  .block:hover .block-tools, .block:focus-within .block-tools { opacity: 1; }
+}
+.prompt-paste { display: inline; padding: 0; border: 0; background: none; color: var(--muted); font: inherit; cursor: pointer; }
+.prompt-paste .icon { display: none; width: 2ch; }
+.prompt-paste:hover .prompt, .prompt-paste:focus-visible .prompt { display: none; }
+.prompt-paste:hover .icon, .prompt-paste:focus-visible .icon { display: inline-block; color: var(--accent); }
 .prompt { color: var(--muted); }
 .tok-keyword { color: var(--accent); font-weight: 600; }
 .tok-type { color: var(--brown); }
@@ -86,9 +90,10 @@ pre { padding: 1rem 1.15rem; background: var(--panel); overflow-x: auto; border:
 pre code { font-size: inherit; }
 :not(pre) > code { background: var(--panel); padding: .08em .22em; border-radius: 2px; }
 .doors { border-top: 1px solid var(--line); margin-top: 1.5rem; }
+.run { display: flex; align-items: center; gap: 1rem; margin: 1.25rem 0 0; }
+.run span { color: var(--muted); }
 .door { display: flex; align-items: center; gap: 1rem; border-bottom: 1px solid var(--line); }
 .door a { flex: 1; display: grid; grid-template-columns: 120px 1fr auto; align-items: center; gap: 1rem; padding: .85rem 0; text-decoration: none; }
-.door .button { margin-left: auto; }
 .door strong { display: flex; align-items: center; gap: .6rem; color: var(--ink); }
 .door span { color: var(--muted); }
 .site-footer { border-top: 1px solid var(--line); padding-block: 1rem; font-size: .8rem; color: var(--muted); }

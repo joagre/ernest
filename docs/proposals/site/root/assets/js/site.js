@@ -1,6 +1,6 @@
 // What the script adds to a page: the shell panel's toggle, a code
-// block's Copy and Paste, a transcript's Paste for each input, and Try's
-// Start. The page reads whole without it. In the mockup the shell is not
+// block's Copy and Paste, a transcript's Paste for each input, its prompt
+// the control, and the example's Start. The page reads whole without it. In the mockup the shell is not
 // connected, so Paste, Start and the toggle do nothing yet; Copy copies.
 
 const icons = new URL("../img/icons.svg", document.currentScript.src);
@@ -61,21 +61,32 @@ function addBlockTools(pre) {
   block.prepend(tools);
 }
 
+// The input's prompt becomes its Paste: the `> ` shows until hover or
+// focus, and then the icon in its place.
 function addInputPastes(pre) {
   for (const input of pre.querySelectorAll(".input")) {
+    const prompt = input.querySelector(".prompt");
     const text = input.textContent.replace(/^> /, "");
-    input.prepend(iconButton("terminal", "Paste into the shell", "icon-button line-paste",
-      () => pasteIntoShell(text)));
+    const button = iconButton("terminal", "Paste into the shell", "prompt-paste",
+      () => pasteIntoShell(text));
+    button.prepend(prompt.cloneNode(true));
+    prompt.replaceWith(button);
   }
 }
 
-function addStart(door) {
+// On a phone no panel is offered, and the Start stays the link to the
+// shell's page.
+function addStart(run) {
+  if (window.matchMedia("(max-width: 760px)").matches) {
+    return;
+  }
   const start = document.createElement("button");
   start.type = "button";
   start.className = "button primary";
   start.append(icon("play"), "Start");
-  door.querySelector("a > .icon:last-child").remove();
-  door.append(start);
+  const words = document.createElement("span");
+  words.textContent = "Run it yourself, in a shell beside the page.";
+  run.replaceChildren(start, words);
 }
 
 addPanelToggle();
@@ -85,6 +96,6 @@ for (const pre of document.querySelectorAll("main pre")) {
     addInputPastes(pre);
   }
 }
-for (const door of document.querySelectorAll('[data-shell="start"]')) {
-  addStart(door);
+for (const run of document.querySelectorAll('[data-shell="start"]')) {
+  addStart(run);
 }
