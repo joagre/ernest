@@ -10,6 +10,7 @@
   <meta property="og:image" content="https://ernest-lang.org/assets/ernest-social-light.png">
   <link rel="icon" href="ernest-avatar-64.png">
   <link rel="stylesheet" href="../assets/css/site.css">
+  <script src="../assets/js/site.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -40,10 +41,6 @@
           <a href="https://github.com/joagre/ernest">Source</a>
         </nav>
       </details>
-      <div class="panel-toggle" role="group" aria-label="The shell panel">
-        <button class="icon-button" type="button" title="Open the shell beside the page" aria-label="Open the shell beside the page"><svg class="icon" aria-hidden="true"><use href="../assets/img/icons.svg#panel-right"></use></svg></button>
-        <button class="icon-button" type="button" title="Open the shell below the page" aria-label="Open the shell below the page"><svg class="icon" aria-hidden="true"><use href="../assets/img/icons.svg#panel-bottom"></use></svg></button>
-      </div>
     </div>
   </header>
 
@@ -70,12 +67,7 @@
       <h2 id="use-title">For programs written in it</h2>
       <p>Ernest is for programs written in it from the start: a server, a service spread over machines, a tool. A program reaches Erlang's libraries through declarations that give them Ernest types. A counter, its mailbox in the type of the loop it runs:</p>
       <div class="example">
-        <div class="block">
-          <div class="block-tools">
-            <button class="icon-button" type="button" title="Paste into the shell" aria-label="Paste into the shell"><svg class="icon" aria-hidden="true"><use href="../assets/img/icons.svg#terminal"></use></svg></button>
-            <button class="icon-button" type="button" title="Copy" aria-label="Copy"><svg class="icon" aria-hidden="true"><use href="../assets/img/icons.svg#copy"></use></svg></button>
-          </div>
-          <pre class="code"><code><span class="tok-keyword">type</span> <span class="tok-type">CounterMsg</span> = <span class="tok-type">Inc</span>(<span class="tok-type">Int</span>) | <span class="tok-type">Get</span>(<span class="tok-type">Reply</span>(<span class="tok-type">Int</span>))
+        <pre class="code" data-shell="paste"><code><span class="tok-keyword">type</span> <span class="tok-type">CounterMsg</span> = <span class="tok-type">Inc</span>(<span class="tok-type">Int</span>) | <span class="tok-type">Get</span>(<span class="tok-type">Reply</span>(<span class="tok-type">Int</span>))
 
 <span class="tok-keyword">fn</span> count(total : <span class="tok-type">Int</span>) : <span class="tok-type">Unit</span> <span class="tok-keyword">receiving</span> <span class="tok-type">CounterMsg</span> =
     <span class="tok-keyword">receive</span> {
@@ -86,31 +78,24 @@
             count(total)
         }
     }</code></pre>
-        </div>
-        <div class="block">
-          <div class="block-tools">
-            <button class="icon-button" type="button" title="Copy" aria-label="Copy"><svg class="icon" aria-hidden="true"><use href="../assets/img/icons.svg#copy"></use></svg></button>
-          </div>
-          <pre class="transcript"><code><span class="tok-output">$ ern shell
+        <pre class="transcript" data-shell="paste"><code><span class="tok-output">$ ern shell
 Ernest 0.9.0, session 1. :help for the commands, :quit to leave.</span>
-<span class="input"><button class="icon-button line-paste" type="button" title="Paste into the shell" aria-label="Paste into the shell"><svg class="icon" aria-hidden="true"><use href="../assets/img/icons.svg#terminal"></use></svg></button><span class="prompt">&gt; </span>let counter = spawn(fn() = count(0))</span>
+<span class="input"><span class="prompt">&gt; </span>let counter = spawn(fn() = count(0))</span>
 <span class="tok-output">counter : Address(CounterMsg)</span>
-<span class="input"><button class="icon-button line-paste" type="button" title="Paste into the shell" aria-label="Paste into the shell"><svg class="icon" aria-hidden="true"><use href="../assets/img/icons.svg#terminal"></use></svg></button><span class="prompt">&gt; </span>send(counter, Inc(5))</span>
-<span class="input"><button class="icon-button line-paste" type="button" title="Paste into the shell" aria-label="Paste into the shell"><svg class="icon" aria-hidden="true"><use href="../assets/img/icons.svg#terminal"></use></svg></button><span class="prompt">&gt; </span>Address.call(counter, Get, 1000)</span>
+<span class="input"><span class="prompt">&gt; </span>send(counter, Inc(5))</span>
+<span class="input"><span class="prompt">&gt; </span>Address.call(counter, Get, 1000)</span>
 <span class="tok-output">Some(5) : Optional(Int)</span>
-<span class="input"><button class="icon-button line-paste" type="button" title="Paste into the shell" aria-label="Paste into the shell"><svg class="icon" aria-hidden="true"><use href="../assets/img/icons.svg#terminal"></use></svg></button><span class="prompt">&gt; </span>send(counter, "five")</span>
+<span class="input"><span class="prompt">&gt; </span>send(counter, "five")</span>
 <span class="tok-output">input 5:1:15: the argument does not fit send: expected CounterMsg, found String
 1 | send(counter, "five")
   | ---- send : (Address(a), a) -&gt; Unit
   |               ^^^^^^</span></code></pre>
-        </div>
       </div>
     </section>
 
     <nav class="doors" aria-label="Where to begin">
-      <div class="door">
-        <a href="shell.html"><strong><svg class="icon" aria-hidden="true"><use href="../assets/img/icons.svg#terminal"></use></svg>Try</strong><span>Let me see it run.</span></a>
-        <button class="button primary" type="button"><svg class="icon" aria-hidden="true"><use href="../assets/img/icons.svg#play"></use></svg>Start</button>
+      <div class="door" data-shell="start">
+        <a href="shell.html"><strong><svg class="icon" aria-hidden="true"><use href="../assets/img/icons.svg#terminal"></use></svg>Try</strong><span>Let me see it run.</span><svg class="icon" aria-hidden="true"><use href="../assets/img/icons.svg#arrow-right"></use></svg></a>
       </div>
       <div class="door">
         <a href="tour.html"><strong><svg class="icon" aria-hidden="true"><use href="../assets/img/icons.svg#play"></use></svg>Tour</strong><span>Show me the language.</span><svg class="icon" aria-hidden="true"><use href="../assets/img/icons.svg#arrow-right"></use></svg></a>

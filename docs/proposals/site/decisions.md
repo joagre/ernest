@@ -232,6 +232,12 @@ The site's files as served.
   gathered file.
 - The stylesheet lays out with flex and grid and their gaps, so that the
   whitespace between elements never shows.
+- No control the script works stands in the HTML: Copy, Paste and Load,
+  a transcript's Paste for each input, Try's Start and the panel's toggle
+  are made by the script, so that a page without it shows none. The HTML
+  holds what the generator decided, a block's `data-shell="paste"` or
+  `"load"` and Try's `data-shell="start"`, and the script reads it
+  (decided 2026-11-03).
 
 - Flat token files, cut at their tokens once and joined with the values. No
   templating language.
