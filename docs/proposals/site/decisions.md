@@ -207,7 +207,8 @@ The site's files as served.
 - A source's own link, written for GitHub, is mapped by the generator: to the
   page of a document the site shows, `library.md` to `/report/library.html`; by
   a heading's GitHub slug to that heading's number anchor, as the documents
-  test computes the slug; and to the file on GitHub, at the tag the site is
+  test computes the slug; a directory as its `README.md`, by which GitHub
+  shows it, `report/` to `/report/` (decided 2026-11-03); and to the file on GitHub, at the tag the site is
   built from, where the site does not show its target, `examples/` or `docs/`.
 - A static page or a template links by hand, to a page's directory form.
 - A citation is a form the documents test reads: `§x.y`, alone or after "report"

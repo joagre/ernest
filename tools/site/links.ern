@@ -434,9 +434,10 @@ fn inlineUrls(inlines : List(Markdown.Inline)) : List(String) =
     })
 
 // A link the source writes for GitHub, led to the page the site shows its
-// target on, by a heading's GitHub anchor to the heading's own; a link to a
-// file the site does not show, `examples/` or `docs/`, to the file on
-// GitHub at the tag; and any link with a scheme as it is.
+// target on, by a heading's GitHub anchor to the heading's own, a link to a
+// directory as one to the README.md GitHub shows it by; a link to a file the
+// site does not show, `examples/` or `docs/`, to the file on GitHub at the
+// tag; and any link with a scheme as it is.
 fn mapped(url : String, page : Page) : Either(String, String) =
     if isElsewhere(url) then
         Right(url)
@@ -445,7 +446,8 @@ fn mapped(url : String, page : Page) : Either(String, String) =
             Some(#(before, anchor)) -> #(before, Some(anchor))
           | None -> #(url, None)
         };
-        let found <- if path == "" then Right(page.source) else resolved(page.source, path);
+        let written <- if path == "" then Right(page.source) else resolved(page.source, path);
+        let found = namedFile(written);
         match #(shown(found), fragment) {
             #(None, None) ->
                 Right(github(page.tag, found))
@@ -467,6 +469,13 @@ fn mapped(url : String, page : Page) : Either(String, String) =
                 }
         }
     }
+
+// The file a link to Path names: a directory's README.md where the site
+// shows that and not the directory, as GitHub shows a directory by it.
+fn namedFile(path : String) : String = {
+    let readme = path <> "/README.md";
+    if Optional.isNone(shown(path)) && Optional.isSome(shown(readme)) then readme else path
+}
 
 // The anchor of the heading a GitHub anchor names, by the digits it begins
 // with in a document that numbers its headings, or by the whole of it
