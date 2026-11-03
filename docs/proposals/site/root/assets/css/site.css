@@ -497,31 +497,22 @@ pre code {
   }
 }
 
-/* A transcript's input is pasted by its own prompt, which shows the paste
-   icon in its place while pointed at or focused. */
-.prompt-paste {
+/* Each input of a transcript ends in its own Paste, muted until pointed at
+   or focused. */
+.line-paste {
   display: inline;
+  margin-left: 1ch;
   padding: 0;
   border: 0;
   background: none;
   color: var(--muted);
   font: inherit;
+  vertical-align: baseline;
   cursor: pointer;
 }
 
-.prompt-paste .icon {
-  display: none;
-  width: 2ch;
-}
-
-.prompt-paste:hover .prompt,
-.prompt-paste:focus-visible .prompt {
-  display: none;
-}
-
-.prompt-paste:hover .icon,
-.prompt-paste:focus-visible .icon {
-  display: inline-block;
+.line-paste:hover,
+.line-paste:focus-visible {
   color: var(--accent);
 }
 

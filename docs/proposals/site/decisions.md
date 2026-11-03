@@ -407,9 +407,10 @@ The site's files as served.
   It stays until the visitor clicks one of them or anywhere on the page,
   no timer deciding when a person has read it, and is announced as a
   polite live region (decided 2026-10-27).
-- A transcript's input is pasted by its own prompt: on hover or focus the
-  `>` becomes the paste icon, so that no gutter stands beside the
-  transcript. A block's tools show on hover or focus where there is a
+- Each input of a transcript ends in its own Paste, a small icon, muted
+  until pointed at or focused, visible without a hover, so that a touch
+  screen and a first look find it; the shell's output has none, and the
+  `>` stays text (decided 2026-11-03). A block's tools show on hover or focus where there is a
   fine pointer, a mouse, on the block's own color, and on a touch screen
   stand on a row of their own above the block, since a phone's browser may
   say it hovers, so that they never cover its code

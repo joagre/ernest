@@ -436,21 +436,16 @@ function addBlockTools(pre) {
   block.prepend(tools);
 }
 
-// The input's prompt becomes its Paste: the `> ` shows until hover or
-// focus, and then the icon in its place.
+// Each input of a transcript ends in its own Paste, visible and muted,
+// which puts that input into the shell; the shell's output has none.
 function addInputPastes(pre) {
   for (const input of pre.querySelectorAll(".input")) {
-    const prompt = input.querySelector(".prompt");
     const text = input.textContent.replace(/^> /, "");
-    const button = iconButton("terminal", "Paste into the shell", "prompt-paste",
-      () => pasteIntoShell(text));
-    button.prepend(prompt.cloneNode(true));
-    prompt.replaceWith(button);
+    input.append(iconButton("terminal", "Paste into the shell", "line-paste",
+      () => pasteIntoShell(text)));
   }
 }
 
-// On a phone no panel is offered, and the Start stays the link to the
-// shell's page.
 // The example's button is the example's alone: it puts the example's code
 // into the shell, opening the panel and starting a session where needed,
 // and its label never changes. The header shows and hides the panel, and
