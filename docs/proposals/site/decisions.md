@@ -333,6 +333,12 @@ The site's files as served.
   without a script. A script adds to a page, the shell panel, the
   navigation that keeps it and the code blocks' buttons, and never holds
   what the page says (decided 2026-11-03).
+- A stylesheet, a script or the icons' file is written under a name that
+  holds a digest of its content, `site.3f9a2c1e.js`, and every page names
+  it so, so that a browser never runs a cached file against a newer page;
+  the server sends no `Cache-Control`, and a browser keeps a file as long
+  as it guesses. The vendored files keep their own names inside it
+  (decided 2026-11-03).
 - No search: the report's whole pages serve the browser's find.
 - The site runs on ernest-httpd, a program under systemd and no node
   (the server's design, *The deployment*).
