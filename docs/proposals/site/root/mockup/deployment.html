@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Running Ernest · Ernest</title>
+  <meta name="description" content="How a program is run on nodes.">
+  <meta property="og:title" content="Running Ernest · Ernest">
+  <meta property="og:description" content="How a program is run on nodes.">
+  <meta property="og:image" content="https://ernest-lang.org/assets/ernest-social-light.png">
+  <link rel="icon" href="ernest-avatar-64.png">
+  <link rel="stylesheet" href="../assets/css/site.css">
+  <script src="../assets/js/site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="index.html"><img src="ernest-mark.svg" alt="" width="24" height="30">Ernest</a>
+      <nav class="site-nav" aria-label="Main navigation">
+        <a href="why.html">Why</a>
+        <a href="tour-contents.html">Tour</a>
+        <a href="guide-contents.html">Guide</a>
+        <a href="report.html">Report</a>
+        <a href="library.html">Library</a>
+        <a href="shell.html">Shell</a>
+        <a href="install.html">Install</a>
+        <a href="https://github.com/joagre/ernest">Source <svg class="icon" aria-hidden="true"><use href="../assets/img/icons.svg#external-link"></use></svg></a>
+      </nav>
+      <details class="site-menu">
+        <summary>Menu <svg class="icon" aria-hidden="true"><use href="../assets/img/icons.svg#chevron-down"></use></svg></summary>
+        <nav aria-label="Main navigation">
+          <a href="why.html">Why</a>
+          <a href="tour-contents.html">Tour</a>
+          <a href="guide-contents.html">Guide</a>
+          <a href="report.html">Report</a>
+          <a href="library.html">Library</a>
+          <a href="shell.html">Shell</a>
+          <a href="install.html">Install</a>
+          <a href="https://github.com/joagre/ernest">Source</a>
+        </nav>
+      </details>
+    </div>
+  </header>
+
+  <main id="main" class="wrap">
+    <div class="doc-layout">
+      <nav class="contents" aria-label="On this page">
+        <details open>
+          <summary>On this page</summary>
+          <ol>
+            <li><a href="#1-one-node">1. One node</a>
+              <ol>
+                <li><a href="#11-the-directory">1.1 The directory</a></li>
+                <li><a href="#12-the-configuration">1.2 The configuration</a></li>
+                <li><a href="#13-starting-reloading-and-stopping">1.3 Starting, reloading and stopping</a></li>
+                <li><a href="#14-exit-statuses-and-the-two-streams">1.4 Exit statuses and the two streams</a></li>
+                <li><a href="#15-under-a-service-manager">1.5 Under a service manager</a></li>
+              </ol>
+            </li>
+            <li><a href="#2-two-nodes">2. Two nodes</a>
+              <ol>
+                <li><a href="#21-listing-each-other">2.1 Listing each other</a></li>
+                <li><a href="#22-the-connection">2.2 The connection</a></li>
+                <li><a href="#23-a-lost-peer">2.3 A lost peer</a></li>
+              </ol>
+            </li>
+            <li><a href="#3-services-and-placement-as-the-configuration-sees-them">3. Services and placement, as the configuration sees them</a>
+              <ol>
+                <li><a href="#31-services">3.1 Services</a></li>
+                <li><a href="#32-how-busy-a-node-is">3.2 How busy a node is</a></li>
+                <li><a href="#33-the-hosts-measures">3.3 The host's measures</a></li>
+                <li><a href="#34-a-bare-node">3.4 A bare node</a></li>
+              </ol>
+            </li>
+            <li><a href="#4-code-across-nodes-as-the-operator-meets-it">4. Code across nodes, as the operator meets it</a>
+              <ol>
+                <li><a href="#41-what-crosses-and-when">4.1 What crosses, and when</a></li>
+                <li><a href="#42-what-a-node-keeps-and-when-to-restart">4.2 What a node keeps, and when to restart</a></li>
+                <li><a href="#43-the-lines-a-spawn-can-leave">4.3 The lines a spawn can leave</a></li>
+              </ol>
+            </li>
+            <li><a href="#5-builds">5. Builds</a>
+              <ol>
+                <li><a href="#51-several-builds-on-one-floor">5.1 Several builds on one floor</a></li>
+                <li><a href="#52-a-fix-from-a-shell">5.2 A fix from a shell</a></li>
+                <li><a href="#53-a-service-moved-to-new-code">5.3 A service moved to new code</a></li>
+              </ol>
+            </li>
+            <li><a href="#6-looking-in">6. Looking in</a>
+            </li>
+            <li><a href="#7-what-a-node-says-and-what-to-do">7. What a node says, and what to do</a>
+            </li>
+            <li><a href="#8-a-deployment-end-to-end">8. A deployment, end to end</a>
+            </li>
+          </ol>
+        </details>
+      </nav>
+      <article class="article">
+        <h1>Running Ernest</h1>
+        <p>This guide is for the operator: the person who runs Ernest programs as <em>nodes</em>, programs started so that they talk with one another (section 1), reads what they write on standard error, and decides when to restart one. It assumes nothing of the language beyond what a program's author tells you about it, and it teaches only what happens at the machine: directories, commands, lines, and the move each line asks for.</p>
+        <p>A node runs on the Erlang runtime, OTP, which this guide calls the host; the host picks a port, compiles and loads what a peer sends, and counts what it holds. <code>ern</code> is Ernest's one command, whose first word is its job: <code>ern build</code> compiles a program, <code>ern run</code> runs it, and <code>ern config</code>, <code>ern reload</code>, <code>ern stop</code> and <code>ern shell --attach</code> are this guide's. A <em>process</em> in what follows is one of the program's own, thousands of which run inside one node, which is the operating system's one process; a process's <em>address</em> is where the program sends it messages, and a <code>network-address</code> is a peer's on the wire.</p>
+        <p>How a program is written to be found, placed and upgraded across nodes is the language guide's chapter 8, <a href="language.md"><em>Programming in Ernest</em></a>, which this guide points at and does not repeat. The rules themselves are <a href="../report/README.md">the report's</a>, Ernest's definition, §8.7, §11 and §12 above all, and every section here names the section that owns what it teaches.</p>
+        <p>The commands of sections 1, 5.3 and 8 and the shell sessions of sections 5.3, 6 and 8 are run as shown, with other directories and ports, each time Ernest is tested; the service manager's unit and the <code>kill</code> lines are shown and not run. The numbers quoted were measured in October 2026, on one machine, eight cores, and across three machines wired on one LAN, and each says which.</p>
+        <h2 id="1-one-node">1. One node<a class="anchor" href="#1-one-node" aria-label="Link to this section">#</a></h2>
+        <p>A program becomes a node by being started with a configuration directory, and nothing else: <code>prog.erc</code> is the compiled program, which <code>ern build</code> writes; <code>ern run --config-dir dir prog.erc</code> is a node, and <code>ern run prog.erc</code> is not (report §8.3). The directory is the node's identity, and it is made once.</p>
+        <h3 id="11-the-directory">1.1 The directory<a class="anchor" href="#11-the-directory" aria-label="Link to this section">#</a></h3>
+        <pre class="console"><code>$ ern config --config-dir /etc/counter/b --listen 0.0.0.0:8654
+-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEA...
+-----END PUBLIC KEY-----</code></pre>
+        <p><code>ern config</code> creates the directory, which only its owner can open, and in it three files (report §11.3): <code>private-key.pem</code>, the node's ed25519 key, readable only by its owner; <code>certificate.pem</code>, which the node signs itself and whose dates mean nothing to a node; and <code>ernest.conf</code>, which lists nothing yet and listens where <code>--listen</code> says, here at port 8654 on every interface; section 1.2 says what goes in it. It prints the public key, which is what another node's configuration will list. It fails where the directory exists, empty or not; only <code>--peer-dir</code>, section 2.1, writes into one that exists.</p>
+        <p>The directory is made for one machine and never copied: a copied key gives two nodes one identity, which a third node cannot tell apart. A node also refuses a configuration that lists its own key under <code>peers</code>, <code>a peer has this node's own key, and a node is no peer of itself</code>.</p>
+        <p>The directory belongs to the user who runs the node. A node refuses to start from a directory, or a file of it the node reads, that is neither its user's own nor the superuser's, or that anyone but its owner may write, and from one whose private key any but its owner may read or write, and says so.</p>
+        <h3 id="12-the-configuration">1.2 The configuration<a class="anchor" href="#12-the-configuration" aria-label="Link to this section">#</a></h3>
+        <p><code>ernest.conf</code> is JSON, and Appendix C of the report shows it whole. Its entries, in the order you will meet them:</p>
+        <ul>
+        <li><code>listen</code>: the address the node's listener binds to, what <code>ern config --listen</code> gave, an address of one interface, or <code>0.0.0.0</code> or <code>::</code> for every interface of its family, and a port, and none where it gave none. Port <code>0</code> lets the host pick one. At every start the node says on standard error the address and the port it listens on, <code>listening on 127.0.0.1:51204</code>. Two words recur from here: a node <em>listens</em> for connections from its peers, and it <em>dials</em> a peer when it opens the connection itself, at the address its configuration lists for that peer (report §12.5). A node without <code>listen</code> does not listen and only dials; a bare node (section 3.4) must listen.</li>
+        <li><code>public-key</code>: this node's, as <code>ern config</code> printed it. It cannot change while the node runs.</li>
+        <li><code>peers</code>: a list, each peer with a <code>name</code> you choose, which the program uses, its <code>public-key</code>, and a <code>network-address</code>, <code>host:port</code>, which is left out where this node never dials that peer. A host name is resolved at each dial, not when the file is read.</li>
+        <li><code>services</code>: a service is a process a program offers under a name, which a program on another node looks up, a <em>find</em>, to get its address; under each service's name, the peers that may offer it, in the order a find asks them. A service not listed here is found nowhere from this node.</li>
+        <li><code>measures</code>, <code>utilization</code> and <code>utilization-interval</code>: what the node measures of itself, how busy it is on one scale among it, and tells its peers, section 3.</li>
+        <li><code>limits</code>: the most processes and ports the node holds, <code>processes</code> and <code>ports</code>, each rounded up to a power of two; a node left without them holds the host's own, a table for 1048576 processes and one for 65536 ports or more, reserved as it starts. A small node, one of many on a machine, states smaller ones: <code>&quot;limits&quot;: {&quot;processes&quot;: 65536, &quot;ports&quot;: 4096}</code> (report §12.5).</li>
+        <li>The node runs over one family of addresses, IPv4 or IPv6, its listener's, or IPv4 where it has no listener; a peer's address of the other family is refused when the file is read, and a host name's family is checked at each dial, which fails where the name resolves only to the other.</li>
+        </ul>
+        <p>A file is refused before anything runs, with a line that names the fault (report §12.5, <em>Its configuration</em>), where it:</p>
+        <ul>
+        <li>is not JSON;</li>
+        <li>names a field the node does not know;</li>
+        <li>names a field twice;</li>
+        <li>holds a number too large for the host to read;</li>
+        <li>names a peer twice;</li>
+        <li>names a service twice;</li>
+        <li>gives two peers one key;</li>
+        <li>lists this node's own key as a peer's;</li>
+        <li>names a peer with an empty name;</li>
+        <li>holds a <code>certificate.pem</code> that certifies another key or names another host;</li>
+        <li>names under a service a peer it does not list;</li>
+        <li>gives <code>utilization</code> a value that is neither of its two;</li>
+        <li>gives <code>utilization-interval</code> one that is no whole number of at least one;</li>
+        <li>gives <code>limits</code> a field other than <code>processes</code> and <code>ports</code>, or one that is no whole number from 1024 to 67108864;</li>
+        <li>gives a <code>public-key</code> that is not the node's private key's.</li>
+        </ul>
+        <h3 id="13-starting-reloading-and-stopping">1.3 Starting, reloading and stopping<a class="anchor" href="#13-starting-reloading-and-stopping" aria-label="Link to this section">#</a></h3>
+        <pre class="console"><code>$ ern run --config-dir /etc/counter/b --main Counter.serve /srv/counter/build/counter.erc</code></pre>
+        <p><code>--main Counter.serve</code> names the function the node runs first, its <em>entry point</em>, <code>serve</code> in the module <code>Counter</code>; without it the node runs the program's <code>main</code>, and the process that runs it is the <em>entry process</em>.</p>
+        <p>At its start a node computes the values of the program's top-level bindings, the named values a module declares outside any function, as any program does, and only once all have their values does it listen and dial (report §8.5, §8.7). It reads at its start every module of its load path, the program's root and every directory beneath it among them, where <code>ern run</code> without a configuration reads the modules the program uses alone, and refuses to start where an <code>.erc</code> there holds a module of another namespace than its path gives (section 5.1).</p>
+        <p>It writes its process number to <code>ernest.pid</code> in its directory and holds the file locked for its life; a second node started from the same directory finds the lock and refuses, and the <code>ern run</code> command, not a node, says <code>ern run: dir is the configuration directory of the running node N, which ernest.pid names</code>. The host releases the lock however the node ends, so a stale file from a crash is overwritten at the next start.</p>
+        <p><code>ern reload --config-dir dir</code> sends the node the hangup signal, and the node reads <code>ernest.conf</code> again (report §12.5, <em>A reload</em>). A peer added is listed and nothing more happens until the program reaches for it, by a send, a call, a find, a spawn or a compute, or until it dials in. A send is a message to a process there, and a <em>call</em> a send that waits for its answer. A find looks up a service the peer offers, a spawn starts a process there, and a compute runs a function there for its value.</p>
+        <p>A peer removed, or one whose key changed, has its connection ended, and both nodes treat it as lost (section 2.3); a peer whose address changed keeps its connection, and the next dial uses the new address; a change to <code>measures</code>, <code>utilization</code> or <code>utilization-interval</code> holds from the node's next measure of itself and its next report to its peers (section 3); and a change to <code>limits</code> holds from the node's next start, which the node says.</p>
+        <p>The node says <code>ernest.conf was read again</code> and a line for each peer added, removed or renamed.</p>
+        <p><code>listen</code> and <code>public-key</code> cannot change while the node runs: a file that changes either, or breaks a rule of section 1.2, is refused with <code>the reload was refused, and the configuration stays as it was: ...</code>, and the old configuration stays. <code>ern reload</code> first reads the directory as the node would, and refuses a configuration the node would refuse with status 1, before it signals, but for a changed <code>listen</code> or key, which it signals with status 0 and the node alone refuses, saying so on its standard error. <code>kill -HUP</code> by the number in <code>ernest.pid</code> signals without reading, and the node then refuses such a file itself; the service manager's reload, section 1.5, runs <code>ern reload</code>.</p>
+        <p><code>ern stop --config-dir dir</code> sends the node the termination signal and returns once the node has ended, which it waits for on the lock (report §11.2). Termination is orderly: the processes that asked to be told of the end, its <em>subscribers</em>, are told and the end waits for each to answer, saying <code>the end waits for 1 subscriber: Keeper.main</code> while it waits, so that what a program keeps is written; then the node tells each connected peer that it ends and waits for each peer's answer, so that the peer says <code>ended</code> and not <code>lost</code>, and exits; a peer that has fallen silent holds the end until it is lost, 45 to 75 seconds (report §8.7, §12.6).</p>
+        <p>A second <code>ern stop</code> while the first waits is a second termination, which ends the node at once. <code>kill -TERM</code> by the number in <code>ernest.pid</code> signals without waiting.</p>
+        <p>Both <code>ern stop</code> and <code>ern reload</code> fail where no node holds the file, <code>ern stop: dir/ernest.pid: no node holds it: no node runs from the directory</code>, or <code>no such file</code> where an orderly stop removed it, so that no signal reaches a process whose number the file names by chance.</p>
+        <p>A bare node, <code>ern run --config-dir dir</code> with no program, ends by termination alone, since it has no entry point to return (report §8.7); section 3.4 says what it is for.</p>
+        <p>A program that is no node faults with <code>deadlock</code> where every process waits and nothing can deliver. A node detects no deadlock, and in that state waits on until it is stopped (report §8.6).</p>
+        <h3 id="14-exit-statuses-and-the-two-streams">1.4 Exit statuses and the two streams<a class="anchor" href="#14-exit-statuses-and-the-two-streams" aria-label="Link to this section">#</a></h3>
+        <p>A process <em>faults</em> when it meets an error it did not expect, a division by zero among them. A node exits with (report §11.8):</p>
+        <ul>
+        <li>0 when its entry point returns;</li>
+        <li>the status the program itself chose, where it calls <code>Os.exit</code>;</li>
+        <li>1 when its entry process faults or is killed, and when the program exhausts the host's memory;</li>
+        <li>the termination signal itself when termination ends it, which a shell shows as 143 and a service manager counts as a clean stop;</li>
+        <li>141 when its output can no longer be written, because what read it has ended.</li>
+        </ul>
+        <p>A service manager that restarts on failure restarts every exit status but 0 and no clean stop, so a node stopped by <code>ern stop</code> is not restarted and one that crashed is.</p>
+        <p>Standard output is the program's own, and the node never changes it. Standard error is the node's: every fault, as <code>Counter.serve:14 faulted: division by zero</code>, and every line of section 7. Where standard error is a file or a pipe, and not a terminal or a service manager's journal (section 1.5), each line begins with its time in UTC, <code>2026-10-13T14:22:11.836Z the peer a connected</code>, so that a file of them is a log (report §11.2). The two streams together are the node's record; keep both.</p>
+        <h3 id="15-under-a-service-manager">1.5 Under a service manager<a class="anchor" href="#15-under-a-service-manager" aria-label="Link to this section">#</a></h3>
+        <p>A node is run in the foreground and left to the operating system's service manager, which starts it, restarts it and keeps what it writes; <code>ern</code> has no mode of its own for it. A unit for systemd, running the counter's node, saved as <code>/etc/systemd/system/counter-b.service</code>:</p>
+        <pre class="console"><code>[Unit]
+Description=The counter, node b
+
+[Service]
+ExecStart=/usr/local/bin/ern run --config-dir /etc/counter/b --main Counter.serve /srv/counter/build/counter.erc
+ExecReload=/usr/local/bin/ern reload --config-dir /etc/counter/b
+WorkingDirectory=/srv/counter
+Restart=on-failure
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target</code></pre>
+        <p>systemd keeps both streams in its journal, which stamps every line, and <code>journalctl -u counter-b</code> reads them. <code>systemctl reload counter-b</code> runs the reload, and <code>systemctl stop counter-b</code> sends the termination signal and waits <code>TimeoutStopSec</code> for the orderly end, after which it kills what still runs; set it longer than the slowest subscriber's answer. <code>Restart=on-failure</code> starts the node again after a crash and after an <code>Os.exit</code> with a status other than 0, and not after <code>ern stop</code>.</p>
+        <p>Without a service manager, <code>nohup ern run --config-dir b ... &gt;&gt; b.log 2&gt;&amp;1 &amp;</code> keeps a node running once its terminal has closed, with the two streams in one file, stamped.</p>
+        <h2 id="2-two-nodes">2. Two nodes<a class="anchor" href="#2-two-nodes" aria-label="Link to this section">#</a></h2>
+        <h3 id="21-listing-each-other">2.1 Listing each other<a class="anchor" href="#21-listing-each-other" aria-label="Link to this section">#</a></h3>
+        <p>Each node is made on its own machine with <code>ern config</code>, and the two then list each other: node <code>a</code>'s <code>ernest.conf</code> names <code>b</code> with <code>b</code>'s public key and <code>b</code>'s address, and <code>b</code>'s names <code>a</code> with <code>a</code>'s key, and <code>a</code>'s address only where <code>b</code> is ever to dial <code>a</code>. A peer listed without an address is never dialed, and is out of reach until it dials in; a node that is to be reached must listen. Nothing is shared but the keys, by whatever means you move text between machines; the directories are never copied.</p>
+        <pre class="console"><code>{
+  &quot;listen&quot;: &quot;0.0.0.0:8654&quot;,
+  &quot;public-key&quot;: &quot;&lt;a&#x27;s key&gt;&quot;,
+  &quot;peers&quot;: [
+    { &quot;name&quot;: &quot;b&quot;, &quot;network-address&quot;: &quot;b.example:8654&quot;, &quot;public-key&quot;: &quot;&lt;b&#x27;s key&gt;&quot; }
+  ],
+  &quot;services&quot;: { &quot;counter&quot;: [&quot;b&quot;] }
+}</code></pre>
+        <p>Two nodes on one machine list each other without an edit. <code>ern config --config-dir b --listen 127.0.0.1:8655</code> makes <code>b</code> on a port of its own, since the two cannot share one, and <code>ern config --config-dir a --peer-dir b</code> lists <code>b</code> in <code>a</code>'s file under the name <code>b</code>, with the key <code>b</code>'s certificate holds and <code>b</code>'s <code>listen</code> as its address, <code>127.0.0.1</code> for <code>0.0.0.0</code> (report §11.3); <code>--peer-dir a</code> does the same the other way. <code>services</code> is written by hand, on one machine or two.</p>
+        <h3 id="22-the-connection">2.2 The connection<a class="anchor" href="#22-the-connection" aria-label="Link to this section">#</a></h3>
+        <p>Two nodes hold at most one connection, opened by the first operation that needs it and over TLS 1.3 with a certificate on each side (report §12.5, <em>Connections</em>).</p>
+        <p>A node accepts a connection only from a peer whose key its configuration lists, and only under the name that key gives it: a node's name on the wire holds a digest of its key and its certificate carries that name, so a certificate that names another host than its key gives is refused. So is a dialed node that answers with another listed peer's key, as a listed key beside the wrong address makes one do. The dialing node then says <code>the peer c was refused: it answered the dial of the peer b</code>, and the answering node nothing. Two nodes started from one copied directory have one key, and are one node to their peers (section 7's <code>replaced</code> row).</p>
+        <p>The refusing node says why, <code>a node with the key ... was refused: no peer has its key</code>, naming an unlisted node by its key's digest since it has no name here.</p>
+        <p>Connections are not transitive: that <code>a</code> knows <code>b</code> and <code>b</code> knows <code>c</code> connects <code>a</code> and <code>c</code> in no way, and each pair lists each other.</p>
+        <p>Two nodes connect only where they stand on one <em>floor</em>: one major and minor release of <code>ern</code> on one major release of OTP, which the handshake proves before anything passes (report §12.5). A patch release stands on the floor of its minor, so <code>0.4.0</code> and <code>0.4.1</code> connect, and <code>0.4.x</code> and <code>0.5.0</code> do not, each saying <code>the peer b was refused: it stands on another floor, another release or build of ern or another major release of OTP</code>.</p>
+        <p>A build of <code>ern</code> that is no release stands on the floor of its own code's digest, so two development builds connect only where they are the same build. Nodes of different builds of the <em>program</em> connect, and agree on the code they share by a hash of each definition (section 5): a <em>definition</em> is one function or type of the program, and its <em>hash</em> a number computed from its text, which changes when the text does.</p>
+        <p>The handshake proves the floor by its <em>cookie</em>, the digest of the protocol's version, the form's version, <code>ern</code>'s major and minor and OTP's major release, or of a development build's own code, which every node's command line carries and <code>ps</code> shows, <code>-setcookie</code> and the digest. It is the same on every node of one floor, is no secret, and grants nothing: a connection is accepted by its key alone (report §12.5).</p>
+        <p>The node says <code>the peer b connected</code> as the connection opens, <code>the peer b ended</code> when <code>b</code> stopped in order, and <code>the peer b's connection was replaced by another from the same node</code> where <code>b</code> dialed anew while the old connection was alive, as after <code>b</code>'s restart.</p>
+        <h3 id="23-a-lost-peer">2.3 A lost peer<a class="anchor" href="#23-a-lost-peer" aria-label="Link to this section">#</a></h3>
+        <p>A connection is lost when the network breaks it, when the node's own detector finds the peer silent, or when a faulty <em>frame</em>, one unit of what two nodes send each other, arrives (report §8.7, <em>A loss</em>). Any traffic is a sign of life; where nothing else was sent for 15 seconds a tick goes, and a peer from which nothing came in four such intervals is lost, so a silence is found between 45 and 75 seconds after the last traffic, as the host states it, while a peer that closes is found at once.</p>
+        <p>The node says <code>the peer b was lost: it fell silent</code> or <code>the peer b was lost: it closed</code>.</p>
+        <p>What the program sees is the loss run on this node: every process here that watches one of <code>b</code>'s processes, through a monitor, is told so, a <code>Down</code> message with the reason <code>Unreachable</code>, where a peer that stopped in order gives <code>ProgramEnd</code> instead (the language guide's §5.2), every call waiting on one of them ends, and a process waiting forever on one faults. Nothing else ends.</p>
+        <p>A restart here of a process that one of <code>b</code>'s processes monitors or calls waits for <code>b</code>'s answer, at the latest until the loss or <code>b</code>'s end (report §6.9, §8.7). While <code>b</code> is silent that service is down: its fault's line says <code>restarted</code> at once, and its new run begins at <code>the peer b was lost</code>. The window is the protocol's and fixed, since no setting of <code>ernest.conf</code> changes it (report §12.6, Appendix C), and nothing at this node shortens it; meanwhile the operator looks at the network and at <code>b</code>'s machine, as section 7's table says.</p>
+        <p>The connection is opened again by the next operation that needs it, never in the background: a node that is lost stays lost until an operation that needs it reaches for it, a send, a find, a spawn, a compute or an ask of its utilization (section 3.2), or until it dials in, and a dial that nothing answers is given up after 7 seconds. A peer that cannot be dialed, listed without an address, is reached again only when it dials in.</p>
+        <p>A <code>send</code> to a process of a lost peer returns at once, unless what waits for that peer fills the host's buffer for it, 1 MB, when the sender waits until it drains (report §8.7). The message waits behind the dial, and is sent where the connection opens and dropped where it does not. The window in which a silence is found is the host's, and no entry of <code>ernest.conf</code> sets it.</p>
+        <p>The move: look at <code>b</code>'s machine. If <code>b</code> stopped in order you would have read <code>ended</code>; <code>lost</code> means the network or the process. <code>b</code> restarting shows as <code>connected</code> again on <code>a</code>, or as <code>replaced</code> where <code>a</code> still believed the old connection alive.</p>
+        <h2 id="3-services-and-placement-as-the-configuration-sees-them">3. Services and placement, as the configuration sees them<a class="anchor" href="#3-services-and-placement-as-the-configuration-sees-them" aria-label="Link to this section">#</a></h2>
+        <p>How a program offers a service, finds one, places a computation and sets its own utilization is the language guide's §8.1 and §8.2. Here is the operator's half: the entries that govern them.</p>
+        <h3 id="31-services">3.1 Services<a class="anchor" href="#31-services" aria-label="Link to this section">#</a></h3>
+        <p><code>services</code> lists, under a name, the peers that may offer it, in the order a find asks them (report §8.7). A find asks the first; where it holds the service the address comes back; where it does not, or is unreachable, the next is asked, and so on within the find's time; a name not listed answers <code>Io.NotListed</code> without asking anyone. The order is the preference you give the program, and a reload changes it live.</p>
+        <p>A service carries a hash of its message type, the type of the messages its process takes. A peer that offers the name at another type answers <code>Io.OtherType</code>: two builds of the program disagree on the protocol, and no retry mends it. The move is to align the builds (section 5), or to let the program's author know the type changed under a service that peers still find by its old shape.</p>
+        <h3 id="32-how-busy-a-node-is">3.2 How busy a node is<a class="anchor" href="#32-how-busy-a-node-is" aria-label="Link to this section">#</a></h3>
+        <p>A node measures how busy it is on one scale: 1.0 is every scheduler busy, below it room and above it work waiting (report §12.8). A scheduler is one of the host's threads that run processes, one for each core as a rule. <code>utilization</code> in <code>ernest.conf</code> says how: <code>&quot;run-queue&quot;</code>, the default, divides the processes running or ready by the number of schedulers, an instant reading and not an average; <code>&quot;schedulers&quot;</code> gives the fraction of the schedulers' time spent running since the number was last read, which never passes 1.0 and smooths a spiky load.</p>
+        <p>A program may set the number itself, when it knows its load better than the host does; then this entry is the default it starts from.</p>
+        <p>A node that lists peers tells each of them its utilization, a <em>telling</em>, every <code>utilization-interval</code> milliseconds, 5000 where the entry is absent, and once as a peer connects; an attached shell's own node tells none, so that no compute that names no node runs on it (report §11.2, <em>The attached shell</em>). Each node holds the last number heard from each peer, and <code>Peer.compute</code>, the function a program runs a compute with when it names no peer, picks the less busy of two peers drawn from them; a number older than twice the interval of the peer that sent it is not used, and a peer never heard from is not chosen. Where a program places work by its own rule, the language guide's §8.1 shows it over <code>Peer.utilizations()</code>.</p>
+        <p>The cost of the telling is one small frame per peer per interval, which replaces the host's own idle ticks rather than adding to them: three idle nodes exchanged about 1.2 packets a second at the default interval, on one machine and across machines alike, each connection carrying two packets a telling. A shorter interval buys fresher numbers for more frames; a longer one the reverse.</p>
+        <h3 id="33-the-hosts-measures">3.3 The host's measures<a class="anchor" href="#33-the-hosts-measures" aria-label="Link to this section">#</a></h3>
+        <p><code>measures</code> turns on the host's own monitors of the machine, <code>cpu</code>, <code>memory</code> and <code>disk</code>, each with the host's parameters under it, <code>check-interval</code> and <code>almost-full</code>; a program reads them through the <code>Utilization</code> library (report Appendix G.4), and they change nothing of section 3.2's number. None runs where the section is absent, and a reload starts or stops them. They cost what the host's monitors cost and nothing of Ernest's.</p>
+        <h3 id="34-a-bare-node">3.4 A bare node<a class="anchor" href="#34-a-bare-node" aria-label="Link to this section">#</a></h3>
+        <p><code>ern run --config-dir dir</code> with no <code>.erc</code> starts a bare node (report §8.7): it holds no program of its own, evaluates the standard library, the modules every Ernest program has and a node holds from its start, and waits, listening for what its peers spawn and compute on it. The code it needs crosses with the first spawn or compute of each function (section 4), and it offers what the processes spawned on it offer, so a bare node is a worker that any listed peer on its floor can give work to by its name.</p>
+        <p>It must listen, or no peer could reach it, and it ends by termination alone. Its first spawn is the slow one: about 250 milliseconds on a machine of eight cores and 650 on one of two, most of it the host's compiler starting, against the exchange's own cost for every spawn after (section 4.1).</p>
+        <h2 id="4-code-across-nodes-as-the-operator-meets-it">4. Code across nodes, as the operator meets it<a class="anchor" href="#4-code-across-nodes-as-the-operator-meets-it" aria-label="Link to this section">#</a></h2>
+        <h3 id="41-what-crosses-and-when">4.1 What crosses, and when<a class="anchor" href="#41-what-crosses-and-when" aria-label="Link to this section">#</a></h3>
+        <p>Code crosses between nodes with a spawn and a compute, and nowhere else: not with a message and not with a find; the report calls the crossing <em>the exchange</em> (report §8.7, <em>The exchange</em>). When a program spawns a function on a peer that lacks it, the peer asks for the definitions it lacks among the function and everything the function uses, directly or through others, its <em>reach</em>, each known by the hash of its definition, verifies each as it arrives, compiles them together as one module of the host's and loads it whole before the process starts. Nothing compiled ever crosses, and nothing of it runs before all of it is loaded.</p>
+        <p>A definition that arrived is kept, so the second spawn of the same function ships nothing. On one machine, a spawn whose code crosses costs about 7 milliseconds for one definition, 9 for five and 23 for twenty, against a third of a millisecond for a function the peer already holds; across a wire to a machine of two cores, 17, 27 and 72, most of it that machine's compiler, against about a millisecond and a half, the wire's round trip, for a function it holds.</p>
+        <p>Two things never cross: the value of a top-level binding a node evaluates, which each node computes from its own program at its start, and a module of the host's that the program calls directly, through a foreign declaration, which a node finds on its load path (section 4.3). A spawn whose function needs either on a node that lacks it is not started, and the node says so (section 4.3). A binding whose initializer is a <em>constant</em>, a literal, or a constructor, a tuple or a list of constants, is evaluated nowhere, and crosses with the code that names it (report §4.6).</p>
+        <p>A shell attached to a node sends it a module's source as text, which the node compiles as its own (section 6); there too nothing compiled crosses.</p>
+        <h3 id="42-what-a-node-keeps-and-when-to-restart">4.2 What a node keeps, and when to restart<a class="anchor" href="#42-what-a-node-keeps-and-when-to-restart" aria-label="Link to this section">#</a></h3>
+        <p>A node keeps every <em>unit</em> of code it loads, one module as the host counts them, its build's modules, the ones it was sent and the ones a program or a shell attached to it loaded, for its life (report §11.2, <em>What a node holds</em>). An input's unit at an attached prompt goes as section 6 says; what it added to the counts stays. The host counts what they add, in four tables it fills and never empties, module names, exported functions, defined functions and <em>atoms</em>, its interned names, which every new name in received code adds to, and never gives one back, so a node that is sent new code without end slowly uses the counts up.</p>
+        <p>The limits are the host's, 65,536 module names, 524,288 export entries, 524,288 function entries and 1,048,576 atoms, and a node says once, at four fifths of one, <code>the host has used 52429 of its 65536 module names, which it never gives back</code>. Past a limit the node runs on and serves what it holds; a spawn or a load that would pass it fails, and the program is given the error <code>Io.Other</code> as a <code>Left</code>, Ernest's failed result.</p>
+        <p>How fast the counts move is a question of how much new code a node is sent, not of how long it runs or how much work it does. A node that runs the same build as its peers is sent almost nothing.</p>
+        <p>One that developers spawn their edits onto, whose program loads new code into itself often, with <code>Code.load</code> (section 5.3), or at whose prompt an operator types often, each input a unit (section 6), moves them: on one machine, a small definition spawned costs one module name, about five exports, a function entry per <em>lambda</em>, a function written in place without a name, and an atom, so two hundred such spawns a day reach four fifths of module names after about 260 such days; a program of twenty modules upgraded whole through <code>Code.load</code> reaches four fifths of function entries after about 416 upgrades.</p>
+        <p>The move is a restart at a time of your choosing: a restarted node holds its build and is sent the rest again as its peers need it, and nothing is lost but what was in its memory, which a node never promises to keep.</p>
+        <h3 id="43-the-lines-a-spawn-can-leave">4.3 The lines a spawn can leave<a class="anchor" href="#43-the-lines-a-spawn-can-leave" aria-label="Link to this section">#</a></h3>
+        <p>A spawn or a compute a peer asked for that this node did not start is said on this node's standard error, naming the peer, the site in the program where the spawn is written, and what was lacking (report §12.5, <em>What it says</em>):</p>
+        <ul>
+        <li><code>the peer a's spawn at Counter.main:13 was not loaded: the binding Counter.config has no value here</code>: the function reads a top-level binding whose value lives only where the program that declares it was started. Run that program on this node, or place the work with a compute on a node that runs it.</li>
+        <li><code>the peer a's spawn at Counter.main:15 was not loaded: the module counter_host, which Counter.tick calls, is not here</code>, or <code>has no function tick/0 here</code>: the program calls a module of the host's directly, through a foreign declaration, and this node finds no such module among the directories it loads code from, its load path, to which <code>--load-path</code> adds a directory and <code>--libs-dir</code> the <code>ebin</code> of each of the host's applications under one. Install the module there, or the right version of it.</li>
+        <li><code>the peer a's spawn at Counter.main:17 was not loaded: this node could not take the code it received: ...</code>: the host refused to compile or load what arrived, a count of section 4.2 passed among the reasons. Restart the node.</li>
+        <li><code>the peer a's spawn at Counter.main:19 was not loaded: the spawner's node no longer holds the function's reach</code>: the spawning side let go of the code between asking and sending. Nothing to do here; the spawner sees <code>Io.Other</code>.</li>
+        </ul>
+        <p>The program on the spawning side sees each of these as a failed result, a <code>Left</code>, with <code>Io.NotLoaded</code> for the first two and <code>Io.Other</code> for the rest.</p>
+        <p>The list is a selection: report §12.5, <em>What it says</em>, names every line a spawn or a compute can leave, a compute's lines beside these and the exchange's time run out among them.</p>
+        <h2 id="5-builds">5. Builds<a class="anchor" href="#5-builds" aria-label="Link to this section">#</a></h2>
+        <h3 id="51-several-builds-on-one-floor">5.1 Several builds on one floor<a class="anchor" href="#51-several-builds-on-one-floor" aria-label="Link to this section">#</a></h3>
+        <p>Nodes of different builds of a program connect, as long as they stand on one floor of <code>ern</code> (section 2.2), and they agree on what they share by hash: a service names its message type by the hash of its definition, a spawn names its function by the hash of its definition, and a definition that did not change hashes the same in both builds.</p>
+        <p>A definition's hash covers the hashes of the definitions it uses, so a fix to one function changes its hash and the hashes of the functions that use it; those cross to a node at the old build, and nothing else; two versions of a type are two types, and a service offered at one is not found at the other, which <code>Io.OtherType</code> says (section 3.1).</p>
+        <p>Nodes on two floors never connect (section 2.2). A fleet moves to a new minor release of <code>ern</code>, or a new major release of OTP, whole, every node stopped and started again on the new floor, or as a second fleet beside the first, with directories of their own, its programs found or placed there and the first fleet stopped once nothing needs it.</p>
+        <p>A node reads at its start every module in its program's directory and every directory beneath it, and refuses to start where an <code>.erc</code> there holds a module of another namespace than its path gives, one built from another source root: <code>ern run: old/counter.erc holds Counter, not Old.Counter; remove it, and build Old.Counter from its source root</code>.</p>
+        <p>A build written into the directory a running node was started from, where <code>ern build</code> put its <code>.erc</code>, reaches the node at its next start and nothing before; code reaches a running node from disk through <code>Code.load</code> (section 5.3, report Appendix E.28), or through <code>:load</code> at a shell attached to it, which takes the node's own compiled form where its load path holds one (section 6). Put each build in a directory of its own, and point the service manager's unit at the one you mean.</p>
+        <h3 id="52-a-fix-from-a-shell">5.2 A fix from a shell<a class="anchor" href="#52-a-fix-from-a-shell" aria-label="Link to this section">#</a></h3>
+        <p>A fix reaches a running node from a shell attached to it (section 6). At the node's prompt, <code>:reload</code> compiles again a module of the node's whose source under the shell's source root has changed, and <code>:load</code> loads a module the node does not hold; the node compiles each from the source the shell sends as text, and the module's next version is the one the node's prompts use from then on (report §11.2).</p>
+        <p>A running process keeps its code until a message of its own type hands it the new, so a fix reaches only a service written to take that message, which section 5.3 sends at the node's prompt. The node keeps the code for its life, and a restart from the old build is the old build again. The shell's own commands are its <code>:help</code>.</p>
+        <h3 id="53-a-service-moved-to-new-code">5.3 A service moved to new code<a class="anchor" href="#53-a-service-moved-to-new-code" aria-label="Link to this section">#</a></h3>
+        <p>A running service is moved to new code by the program's own message, never by the runtime: the service is written to take a message that hands it its new function, and a function of the new build lists the processes running the old function and sends each of them that message (report §6.10, Appendix E.28). How a service is written to take it is the language guide's §8.9; the operator calls the function at the node's prompt.</p>
+        <p>A service under <code>restarting</code>, started so that the runtime restarts it at a fault, is moved so only until its next fault, when the restart runs the function the service was started with, the old code (report §6.9). Such a service takes new code as a new service, started when the new build's binding is evaluated, by <code>Code.load</code>, the program loading a build into itself (below), or a shell's <code>:reload</code>, which loads a module's new source in place of the old, and the old service runs on beside it (report §11.2, Appendix E.28).</p>
+        <p>So a reload starts the module's services again beside the old, unless the binding offers its service and, finding it held, waits for the holder to end (report Appendix E.27). The old version's processes are listed under the site their version gave them, the build's plain and a reload's with the version's number, by <code>:processes</code> and <code>Process.status</code> (section 6), which find them where their function can no longer be named, a fix in a callee having changed its hash. Each is ended by <code>Process.kill</code>. It is moved by a message of its own type only where the program kept an address of that type, since a <code>Process</code> takes no message.</p>
+        <p>The example <code>examples/upgrade/</code> is one module, <code>Counter</code>, in two builds: the first, <a href="../examples/upgrade/v1/counter.ern"><code>v1/counter.ern</code></a>, is the counter alone, which section 8 starts on the peers, and the second, <a href="../examples/upgrade/v2/counter.ern"><code>v2/counter.ern</code></a>, the counter with a new loop, <code>countAloud</code>, a function <code>moved</code> that moves its node's counters to the new loop and answers how many it moved, and a tool. Run from <code>examples/</code>, with a counter of the first build on <code>b</code> as section 8 starts it, a shell attached to <code>b</code> from <code>ops</code> (section 6), its source root the second build's directory, moves it:</p>
+        <pre class="console"><code>$ ern shell --config-dir ops --attach b --source-root upgrade/v2
+the peer b connected
+Ernest 0.10.0, session 1. :help for the commands, :quit to leave.
+&gt; :reload
+Counter, compiled again
+&gt; Counter.moved()
+1 : Int
+&gt; Counter.moved()
+0 : Int
+&gt; :quit</code></pre>
+        <p><code>:reload</code> finds that the source of <code>b</code>'s <code>Counter</code> has changed, and <code>b</code> compiles the second build from the text the shell sends. <code>Counter.moved()</code> runs on <code>b</code>, and the shell prints its value with its type: <code>Code.running</code> lists the processes running the old loop, <code>count</code>, by the hash of its definition, which both builds write alike, here the counter <code>serve</code> started, and <code>moved</code> sends each the <code>Upgrade</code> that hands it <code>countAloud</code>. Asked again, it finds none.</p>
+        <p>The tool, the second build's <code>main</code>, makes the move from a node of its own, for every peer at once: it moves a counter of its own first, then spawns on each peer a process that moves the peer's counters and tells it how many, one line a peer; the spawn carries <code>countAloud</code> to a peer at the first build, which lacks it and keeps it. Section 8 runs it, and a peer it could not start on is a line with the failure, <code>c: Io.Unreachable</code>.</p>
+        <p>A program may also load a build itself at run time, <code>Code.load</code> from its own load path, and list what runs an old function with <code>Code.running</code>, which <code>moved</code> uses (report Appendix E.28).</p>
+        <h2 id="6-looking-in">6. Looking in<a class="anchor" href="#6-looking-in" aria-label="Link to this section">#</a></h2>
+        <p>A shell attached to a node is the operator's window: <code>ern shell --config-dir ops --attach b</code> runs a session on <code>b</code>, each input checked against <code>b</code>'s modules, compiled on <code>b</code> and run in a process there, while the terminal, the history and the files the session reads stay with <code>ops</code>, the node the shell starts from (report §11.2, <em>The attached shell</em>). Every module of <code>b</code>'s build is in scope at the prompt. A file, <code>--main</code>, <code>--load-path</code> and <code>--libs-dir</code> are refused with <code>--attach</code>, since the program and the load path are the node's.</p>
+        <p><code>ops</code> is a directory of its own, made with <code>ern config</code> and no <code>--listen</code>, since the shell dials in. It lists <code>b</code> with its address, and <code>b</code> lists it without one, and on one machine <code>ern config --peer-dir</code> lists each in the other (section 2.1). Every peer <code>b</code> lists may attach to it, as every one may spawn on it. Where <code>b</code> runs as a service's user and the operator is another, neither can open the other's directory, so the superuser makes both, lists each in the other with <code>--peer-dir</code>, and gives each directory with its files to its user, <code>chown -R</code>, which section 1.1 allows; a later <code>--peer-dir</code> into either directory, and an <code>ern reload</code> of <code>b</code>, as section 8's reload step runs them, are then that directory's user's or the superuser's too.</p>
+        <p>A session on section 8's <code>b</code>, whose counter <code>--main Counter.serve</code> started:</p>
+        <pre class="console"><code>$ ern shell --config-dir ops --attach b
+the peer b connected
+Ernest 0.10.0, session 1. :help for the commands, :quit to leave.
+&gt; :processes
+Counter.serve receiving
+&gt; List.map(Process.live(), Process.status)
+[Some(Process.Status(site = &quot;Counter.serve&quot;, queued = 0, activity = Process.Receiving))] : List(Optional(Process.Status))
+&gt; Peer.peers()
+[&quot;a&quot;, &quot;ops&quot;] : List(String)
+&gt; :browse Counter
+Counter.serve() : Unit receiving Counter.CounterMsg
+&gt; :quit</code></pre>
+        <p><code>the peer b connected</code> is said by <code>ops</code> as the shell dials, and <code>b</code> says <code>the peer ops connected</code>. The shell prints each value with its type. <code>:processes</code> lists <code>b</code>'s live processes, each by its spawn site and what it does, <code>running</code>, <code>receiving</code> or <code>calling</code>, here the counter waiting for a message; a process in <code>Clock.sleep</code> is <code>receiving</code> too (report Appendix E.21). <code>Process.live()</code> and <code>Process.status</code> answer for <code>b</code> at its prompt, and <code>Process.live()</code>, as <code>:processes</code>, leaves out every session's own processes, this one's and another's (report Appendix E.21). <code>Peer.peers()</code> is <code>b</code>'s configuration, and a binding of the program read at the prompt is <code>b</code>'s value, as a function of the program called there runs on <code>b</code>.</p>
+        <p>A process's site is the declaration its spawn is written in, with the spawn's line, <code>Counter.main:59</code> for the counter the second build's tool spawns. The entry process, which no spawn starts, has the entry point's name and no line, <code>Counter.serve</code> above (report §6.9). A site carries the number of the version that spawned it, fixed at the spawn: plain for the build and the first load, and with the version's number for a reload's, <code>Counter$2.main:59</code> for that spawn in the module's first reload. A site of a process a session started carries the session, <code>$Session2.input 3:1</code>, in every shell's lines and on the node's standard error alike (report §11.2, <em>Faults</em>).</p>
+        <p>A type's number works the other way: the current version prints plain, and a number names a previous one (report §11.2, <em>Loading and reloading</em>).</p>
+        <p>What a process the session started writes is shown at the prompt, and what the node's program writes stays on the node's standard output. Every fault on <code>b</code>, the program's among them, is said at the prompt of each shell attached to it and on <code>b</code>'s standard error, and <code>:faults</code> lists those said since the session attached; a fault of an input's own process is said at its prompt alone. A fault's trace names each function by the name its program gives it, code that arrived from a peer among it, and the fault's line says <code>, spawned by the peer a</code> where a peer spawned the process (report §11.2).</p>
+        <p><code>:load</code> reads a module's source under the shell's source root, its working directory or the directory <code>--source-root</code> names, sends it to <code>b</code> as text, and <code>b</code> compiles it as its own, or takes its own compiled form where its load path holds one built from that source; a module of <code>b</code>'s own build is refused by <code>:load</code> and compiled again by <code>:reload</code> where its source has changed (section 5.2). A module so loaded stays on <code>b</code> for its life (section 4.2).</p>
+        <p><code>:quit</code> leaves, as <code>C-d</code> on an empty line does, and the shell exits with status 0. What the session started stays on <code>b</code>: a process an input spawned runs on, and writes to <code>b</code>'s standard output from then on. Once the session has ended, an <code>Os.exit</code> in such a process ends the node; while the session runs, it faults its caller (report §11.2). <code>b</code> says <code>the peer ops ended</code>. Several shells may attach to one node at once, each from a directory of its own, each a session of its own.</p>
+        <p>A session ends with its node: where <code>b</code> ends, by <code>ern stop</code> or by its program's end, the shell says <code>the node b ended</code> under its last prompt and exits with status 0, as section 8's stop shows, and where the connection is lost, it says <code>the node b is lost</code> and exits with status 1 (report §11.8).</p>
+        <p>An attach that fails is refused with status 1 and a line that names why: <code>ern shell: the peer b is unreachable</code> where no connection opens, <code>ern shell: the peer b did not answer in time</code> where a connection opens and no session starts within twice a dial's 7 seconds, <code>ern shell: the peer b is not listed</code> where <code>ops</code> lists no <code>b</code>, and <code>ern shell: the node b could not start the shell:</code> followed by the reason where the session's root on <code>b</code> ends before the session starts.</p>
+        <p>A shell attaches with the node's own release of <code>ern</code>, since the session runs the toolchain's own code, which the node loads from its own installation (report §12.7): a node of another build on the shell's floor answers <code>ern shell: the node b runs another build of ern than this shell; attach with its release</code>, one that holds that code and could not load it <code>ern shell: the node b could not load the shell:</code> followed by the node's reason, and one on another floor refuses the connection, as section 2.2 says.</p>
+        <p>An attach takes about a second on an idle machine of eight cores, and longer under load, as a shell that is a node takes to start. Each input after it is a unit <code>b</code> compiles and loads, which the counts of section 4.2 count. <code>b</code> lets an input's code go as report §11.2 says: once its answer is in, where the input neither declares nor builds a function value; when a later expression replaces <code>it</code>; and at the session's end. A unit a process still runs is kept while it does, and one that declares a function or builds a function value is kept for the node's life. The host never gives its counts back.</p>
+        <h2 id="7-what-a-node-says-and-what-to-do">7. What a node says, and what to do<a class="anchor" href="#7-what-a-node-says-and-what-to-do" aria-label="Link to this section">#</a></h2>
+        <p>Every line below is written once, on the node's standard error, with its time where that is a file or a pipe. Two are written by the <code>ern run</code> or <code>ern stop</code> command instead of a node, and name the directory as the command line gave it. The table is a selection: report §12.5, <em>What it says</em>, and §11.2 name every line a node writes, the end's lines, a frame it cannot read and a dial refused for its family among them.</p>
+        <p>The first column is the line as it is written, with the peer's name from <code>ernest.conf</code>, or <code>the node</code> and its key's digest where it is not listed; <code>Site</code> stands for a place in the program, <code>Module.function:line</code>, <code>Q</code> for a name in the program, <code>Module.name</code>, <code>M</code> for a module and <code>N</code> for a number.</p>
+        <div class="table-scroll"><table>
+        <thead>
+        <tr>
+        <th>The line</th>
+        <th>What happened</th>
+        <th>The move</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+        <td><code>listening on 127.0.0.1:51204</code></td>
+        <td>The node listens; the port is the host's where <code>listen</code> had port 0.</td>
+        <td>Tell the peers that dial it, where they do not know the port.</td>
+        </tr>
+        <tr>
+        <td><code>the peer b connected</code></td>
+        <td>A connection opened, dialed by either side.</td>
+        <td>None.</td>
+        </tr>
+        <tr>
+        <td><code>the peer b ended</code></td>
+        <td><code>b</code> stopped in order; a process here that monitored one of <code>b</code>'s was told <code>ProgramEnd</code>.</td>
+        <td>None; expected at <code>b</code>'s stop.</td>
+        </tr>
+        <tr>
+        <td><code>the peer b was lost: it closed</code></td>
+        <td>The connection broke at once: <code>b</code>'s process died or its machine closed the socket.</td>
+        <td>Look at <code>b</code>'s machine and journal.</td>
+        </tr>
+        <tr>
+        <td><code>the peer b was lost: it fell silent</code></td>
+        <td>Nothing came from <code>b</code> for 45 to 75 seconds: network, or a frozen machine. A restart here of a process that <code>b</code> monitored or called waited until this line, and so did this node's own end, where it had begun.</td>
+        <td>Look at the network between them; <code>b</code> reconnects at the next operation.</td>
+        </tr>
+        <tr>
+        <td><code>the peer b's connection was replaced by another from the same node</code></td>
+        <td><code>b</code> dialed anew while the old connection was believed alive, as after a restart.</td>
+        <td>None.</td>
+        </tr>
+        <tr>
+        <td><code>a node with the key ... was refused: no peer has its key</code></td>
+        <td>A node dialed in whose key this node's <code>peers</code> does not list, named by its key's digest; or this node's own dial of a listed address reached a stranger, named the same way.</td>
+        <td>Add its key under <code>peers</code>, then <code>ern reload</code>; or ignore a stranger.</td>
+        </tr>
+        <tr>
+        <td><code>a node named ... was refused: its key gives another name</code></td>
+        <td>A node dialed in under a name that is not the one its key gives, named as it named itself.</td>
+        <td>Check which key is listed beside which address on the dialing node; a copied directory is not the cause, since a copy has the same key and shows as <code>replaced</code>.</td>
+        </tr>
+        <tr>
+        <td><code>the peer c was refused: it answered the dial of the peer b</code></td>
+        <td>This node dialed the address listed for <code>b</code>, and the node there holds <code>c</code>'s key.</td>
+        <td>Check which address is listed beside which key on this node; a copied directory is not the cause, since a copy has the same key and shows as <code>replaced</code>.</td>
+        </tr>
+        <tr>
+        <td><code>the peer b was refused: its certificate names another host than its key gives</code></td>
+        <td><code>b</code>'s certificate and key disagree: a copied or edited directory.</td>
+        <td>Make <code>b</code>'s directory again with <code>ern config</code> on <code>b</code>'s machine.</td>
+        </tr>
+        <tr>
+        <td><code>the peer b was refused: it stands on another floor, another release or build of ern or another major release of OTP</code></td>
+        <td>The two run different minor releases of <code>ern</code>, different development builds, or different major releases of OTP.</td>
+        <td>Install one release of each on both.</td>
+        </tr>
+        <tr>
+        <td><code>ernest.conf was read again</code></td>
+        <td>A reload succeeded.</td>
+        <td>None; the peer lines that follow say what changed.</td>
+        </tr>
+        <tr>
+        <td><code>the peer b was added</code> / <code>was removed</code> / <code>is now named c</code></td>
+        <td>What the reload changed.</td>
+        <td>None.</td>
+        </tr>
+        <tr>
+        <td><code>the reload was refused, and the configuration stays as it was: ...</code></td>
+        <td>The new file breaks a rule, or changes <code>listen</code> or <code>public-key</code>.</td>
+        <td>Fix the file and reload again; for <code>listen</code> or the key, restart.</td>
+        </tr>
+        <tr>
+        <td><code>the peer a's spawn at Site was not loaded: the binding Q has no value here</code></td>
+        <td>A spawned function needs a binding only the declaring program evaluates.</td>
+        <td>Run that program here, or compute on a node that does.</td>
+        </tr>
+        <tr>
+        <td><code>the peer a's spawn at Site was not loaded: the module M, which Q calls, is not here</code></td>
+        <td>A foreign declaration's host module is missing on this node.</td>
+        <td>Install the module on the load path.</td>
+        </tr>
+        <tr>
+        <td><code>the peer a's spawn at Site was not loaded: this node could not take the code it received: ...</code></td>
+        <td>The host refused to compile or load the arrival, a count among the reasons.</td>
+        <td>Restart the node when convenient.</td>
+        </tr>
+        <tr>
+        <td><code>the host has used N of its M module names, which it never gives back</code></td>
+        <td>Four fifths of a host count, from the code the node was sent or loaded.</td>
+        <td>Plan a restart at a quiet time; the node runs on meanwhile.</td>
+        </tr>
+        <tr>
+        <td><code>Counter.serve:14 faulted: division by zero, spawned by the peer a</code></td>
+        <td>A process a peer spawned here faulted; its trace follows.</td>
+        <td>The program's author's; the site says where.</td>
+        </tr>
+        <tr>
+        <td><code>the end waits for 1 subscriber: Keeper.main</code></td>
+        <td>Termination has told a subscriber and waits for its answer.</td>
+        <td>Wait, or a second <code>ern stop</code> ends at once, losing what it was writing.</td>
+        </tr>
+        <tr>
+        <td><code>ern run: dir is the configuration directory of the running node N, which ernest.pid names</code></td>
+        <td>A second start from a directory whose <code>ernest.pid</code> a running node holds; the <code>ern run</code> command writes it, not a node.</td>
+        <td>Stop the first, or you meant another directory.</td>
+        </tr>
+        <tr>
+        <td><code>ern stop: dir/ernest.pid: no node holds it: no node runs from the directory</code></td>
+        <td><code>ern stop</code> or <code>ern reload</code> with no running node there; <code>no such file</code> where an orderly stop removed the file. The command writes it.</td>
+        <td>None; the node is already down.</td>
+        </tr>
+        <tr>
+        <td><code>ern run: the node's carrier did not start: ...</code></td>
+        <td>The part of the node that listens for and dials its peers could not start, its port taken among the reasons; the node ended before its program ran, with status 1, as a job that cannot start, <code>ern shell:</code> for a shell's own node.</td>
+        <td>Free the port or change <code>listen</code>, and start again.</td>
+        </tr>
+        </tbody>
+        </table></div>
+        <p>Lines that begin with a site and <code>faulted</code>, with no peer named, are the program's own faults, as on one node, and so is one with <code>, on the peer b</code> after the cause: a compute this node ran on <code>b</code> faulted there, and faulted its caller here with its cause, the trace that crossed beneath it and the caller's frame last. The language guide's §6 and §8.1 teach what they mean to the program's author.</p>
+        <h2 id="8-a-deployment-end-to-end">8. A deployment, end to end<a class="anchor" href="#8-a-deployment-end-to-end" aria-label="Link to this section">#</a></h2>
+        <p>Three nodes on one machine, a counter served on two of them and a tool that moves both to new code while they run, all from the two builds of section 5.3's example, <code>upgrade/v1</code>, whose <code>serve</code> is the counter's old loop, and <code>upgrade/v2</code>, whose <code>main</code> is the tool. Every step is run from <code>examples/</code> and shows the command and what each node says; the move when a step fails is in section 7.</p>
+        <p><strong>Make the directories.</strong> On one machine <code>b</code> and <code>c</code> take ports of their own, since two nodes on one machine cannot share one; across machines each may listen on the same port on its own machine.</p>
+        <pre class="console"><code>$ ern config --config-dir a
+$ ern config --config-dir b --listen 127.0.0.1:8655
+$ ern config --config-dir c --listen 127.0.0.1:8656</code></pre>
+        <p>Each prints its key. Make a fourth, <code>ops</code>, for the shell a later step attaches, as <code>a</code> was made, with no <code>--listen</code>, since <code>a</code> and <code>ops</code> only dial.</p>
+        <p>Then <code>--peer-dir</code> lists each node where it is to be known (section 2.1). <code>ern config --config-dir a --peer-dir b</code> and <code>--peer-dir c</code> list <code>b</code> and <code>c</code> in <code>a</code>'s file with their keys and addresses, and the same two commands with <code>--config-dir ops</code> list them in <code>ops</code>'s. <code>ern config --config-dir b --peer-dir a</code> and <code>--peer-dir ops</code> list <code>a</code> and <code>ops</code> in <code>b</code>'s file with their keys and no address, since neither listens, and the same two with <code>--config-dir c</code> list them in <code>c</code>'s. Each node then lists exactly who may connect to it and whom it may reach.</p>
+        <p><strong>Build and start the counters.</strong> The first build is the counter alone, and its <code>serve</code> runs the counter's loop, <code>count</code>, as the node's own process:</p>
+        <pre class="console"><code>$ ern build upgrade/v1
+$ ern run --config-dir b --main Counter.serve upgrade/v1/counter.erc &amp;
+$ ern run --config-dir c --main Counter.serve upgrade/v1/counter.erc &amp;</code></pre>
+        <p>Each says the address and the port it listens on, <code>listening on 127.0.0.1:8655</code> from <code>b</code>, and nothing more until a peer connects. The counters wait.</p>
+        <p><strong>Check from a shell.</strong> In a terminal of its own, attach a shell to <code>b</code> from <code>ops</code>, which lists <code>b</code> and <code>c</code> with their addresses and which they list without one (section 6), and look at <code>b</code>:</p>
+        <pre class="console"><code>$ ern shell --config-dir ops --attach b
+the peer b connected
+Ernest 0.10.0, session 1. :help for the commands, :quit to leave.
+&gt; :processes
+Counter.serve receiving</code></pre>
+        <p><code>b</code> says <code>the peer ops connected</code> as the shell dials it, and <code>:processes</code> lists the counter by its site, the entry point <code>--main</code> named, waiting for a message. Leave the shell attached.</p>
+        <p><strong>Reload a configuration.</strong> Make a directory <code>d</code> as <code>ops</code> was made, with no <code>--listen</code>, list it in <code>b</code>'s file with <code>ern config --config-dir b --peer-dir d</code>, and reload:</p>
+        <pre class="console"><code>$ ern reload --config-dir b</code></pre>
+        <p><code>b</code> says <code>ernest.conf was read again</code> and <code>the peer d was added</code>. Nothing connects until an operation reaches for <code>d</code>.</p>
+        <p><strong>Move the counters to new code.</strong> Build the second, which adds the new loop, <code>countAloud</code>, <code>moved</code> and the tool, and run the tool on <code>a</code>:</p>
+        <pre class="console"><code>$ ern build upgrade/v2
+$ ern run --config-dir a upgrade/v2/counter.erc
+here: 1 moved
+inc 3
+total: Some(5)
+b: 1 moved
+c: 1 moved</code></pre>
+        <p><code>a</code> moves a counter of its own first, which on its new loop says each increment message it takes, an <code>Inc</code>, as <code>inc 3</code>, and answers its total when asked, <code>total: Some(5)</code>, <code>Some</code> being how Ernest prints a value that is there; then it dials <code>b</code> and <code>c</code>, each saying <code>the peer a connected</code>; on each it spawns a process that lists the counters on the old loop and sends each its message, and the spawn carries <code>countAloud</code>, which the peers at the first build lack, with it. The two peers' lines come in the order they answer, each saying that it moved its one counter to the new code, and <code>a</code> ends with status 0, each peer saying <code>the peer a ended</code>.</p>
+        <p><strong>Stop in order.</strong></p>
+        <pre class="console"><code>$ ern stop --config-dir b
+$ ern stop --config-dir c</code></pre>
+        <p>Neither writes a <code>the end waits for</code> line, since the counter subscribed to no termination; each tells every connected peer that it ends and exits by the termination signal, status 143 in a shell. The shell attached to <code>b</code> ends with it and exits with status 0 (section 6), its last prompt left as it stood and the shell's line under it:</p>
+        <pre class="console"><code>&gt; 
+the node b ended</code></pre>
+        <p><code>b</code> and <code>c</code> never connected to each other, and <code>a</code> has ended, so no node hears <code>c</code>'s end.</p>
+        <p><strong>When a step fails.</strong> A <code>refused</code> line at the first connection is a key or a floor, section 7's <code>refused</code> rows; a <code>not loaded</code> line at the tool's spawn is a binding or a host module the peer lacks, section 4.3; a peer's line that shows a failure in place of a count, <code>c: Io.Unreachable</code>, is a peer the tool could not start on, and its reason. Nothing of the above changes the nodes' directories: a deployment that goes wrong is stopped, the files fixed, and started again.</p>
+        
+      </article>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p class="footer-rooms"><a href="faq.html">Questions</a> · <a href="deployment.html">Deployment</a> · <a href="changes.html">Releases</a></p>
+      <p class="footer-page">This page: <a href="https://github.com/joagre/ernest/blob/v0.9.0/guide/deployment.md">guide/deployment.md</a>, 2026-11-03 · Ernest 0.9.0 · <a href="https://github.com/joagre/ernest/blob/v0.9.0/LICENSE">0BSD license</a> · <a href="https://github.com/joagre/ernest/issues">Report a defect</a> · Served by <a href="https://github.com/joagre/ernest-httpd">ernest-httpd</a>, written in Ernest</p>
+    </div>
+  </footer>
+</body>
+</html>

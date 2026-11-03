@@ -22,9 +22,9 @@ stability is made, and a change to the language, the standard library or the lib
 by a need met in use and recorded as `docs/language_feedback.md` records one.
 
 The server is released and so is what shaped Ernest on its way, and the checkout works toward
-0.10.0. Next is MVP 4.2's first item, the site's look by hand, decided 2026-11-03 to come
-before MVP 4.15, since it needs slow rounds with the user; then MVP 4.15, what the server
-taught, the rest of the website and the shell's second round
+0.10.0. MVP 4.2's first item, the site's look by hand, is done
+(the log's *The Site's Look, by Hand*); next is MVP 4.15, what the server taught, then the
+rest of the website and the shell's second round
 (the log's *The Road to 1.0, Ordered*), and MVP 4.4 last, the promise, the cost, the full review and Ernest 1.0, where
 the road ends and a program begins (the log's *MVP 4.4, the Road's End*); the back end to BEAM's own instructions that closed the road is not built,
 decided 2026-10-30 (the log's *No Back End to BEAM's Own Instructions*). A finished milestone is a
@@ -130,23 +130,15 @@ visitor running the plain shell, whose server side is the httpd proposal's; a sa
 language's was weighed and set aside on 2026-10-13 (the log's *ehttpd and the Website*), and the
 attached shell, MVP 4.0, is the operator's alone.
 
-1. **The look, by hand, before any generation**, decided 2026-10-30, at least a day: the
-   templates and the mockup pages read against the decisions in a browser, each kind of page
-   for its look, its navigation, its icons and its feel, held consistent with every other kind, `page.html`,
-   `toc.html`, `home.html` and `shell.html` on `base.html`, the fragments for a list's items,
-   the stoat in the header, the favicon, the footer's rooms, the homepage's order and the
-   panel's controls, no inline script or style under the server's policy.
-
-   The mockups are written over a fixture document in Lorem ipsum that carries every shape a page holds, prose,
-   headings, a code block, a console transcript, a table, citations and a margin line, and one
-   mockup over a real report section beside them, since Lorem never wraps a long title; `site/`
-   at the repository's root holding `templates/` and `root/`; xterm.js and its fit addon
-   vendored, with their row in `THIRD_PARTY_LICENSES`.
+1. **The look, by hand**, done 2026-11-03 (the log's *The Site's Look, by Hand*).
 2. **The generator**, `tools/site.ern` beside `tools/manual.ern`, in Ernest over `libs/markdown`'s
    tree, `Block` and `Inline`, an `html` function of one clause per constructor; the library
    renders to its tree and to the terminal alone, and nothing of the site enters it (decided
    2026-10-10), `roff` moving to `tools/manual.ern`, its one user, when something next touches the
-   library. Its first job is item 1's mockups, rendered from the fixture through the templates,
+   library. It begins by moving the prototype's `templates/` and `root/` to `site/` at the
+   repository's root, the mockups staying in the proposal as its test's expected pages. Its first
+   job is item 1's mockups, rendered through the templates from a fixture document beside its
+   test that carries every shape a page holds, a table and the report's grammar among them,
    with a test holding what it writes equal to the committed pages, so that the look decided by
    hand and the generation never drift; a test holds each template to its tokens the same way.
 

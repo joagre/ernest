@@ -13,7 +13,7 @@ discussion has settled meanwhile.
 | `root/` | the assets, laid out as served, and under `mockup/` a page of each kind in the settled look, flat, to serve and open in a browser | current; the look settled 2026-11-03 |
 | `tools/`, `Makefile`, `build/` | the prototype's generator, the rules that build and run it, and what they make: the compiled generator, and the served tree in `build/site/`, which git ignores | not written |
 
-The milestone is MVP 4.2, whose first item brings the templates and the mockups to the decisions by hand, in a browser, before the generator is written (decided 2026-10-30).
+The milestone is MVP 4.2. Its first item, the look by hand, is done (the log's *The Site's Look, by Hand*): the mockup holds a page of each kind in the settled look, and the templates are written. Next is its item 2, the generator.
 
 ## Prototyping
 
@@ -23,9 +23,5 @@ MVP 4.2 is its items in build order since that day.
 
 What the prototype still lacks:
 
-- The generator's `foreign` declaration over the toolchain's lexer, which the coloring needs (decided 2026-10-30).
-- The templates hold the first design, which `decisions.md` has moved past in
-  the header's stoat, the favicon, the footer's rooms, the homepage's order and
-  the shell's controls; the fragments for a list's items do not exist yet.
-- The tour's pages: its document, `tour/README.md`, is written (2026-10-24), and the
-  prototype does not render it yet.
+- The generator, item 2, with its `foreign` declaration over the toolchain's lexer, which the coloring needs. The mockup's pages were rendered by throwaway scripts, outside the repository, and the generator replaces them.
+- The session client's remaining pieces, item 4: the snackbar at a session's end, the navigation that keeps the panel across pages, and the server's attach word in place of the client's own note.
