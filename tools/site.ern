@@ -198,7 +198,7 @@ fn chapterEntry(run : Run,
                         filled(run,
                                "fragments/section.html",
                                [#("href", Site.Template.Plain(address <> "#" <> section.number)),
-                                #("label_html", labelled(section.text))]));
+                                #("label_html", labeled(section.text))]));
     let listed <- if lines == [] then
         Right([])
     else
@@ -206,7 +206,7 @@ fn chapterEntry(run : Run,
     filled(run,
            "fragments/chapter.html",
            [#("href", Site.Template.Plain(address)),
-            #("label_html", labelled(chapter.heading)),
+            #("label_html", labeled(chapter.heading)),
             #("sections_html", Site.Template.Markup(listed))])
 }
 
@@ -286,7 +286,7 @@ fn sidebarEntries(run : Run,
             let #(under, later) = List.span(rest, fn(next) = next.level > section.level);
             let values =
                 [#("anchor", Site.Template.Plain(section.number)),
-                 #("label_html", labelled(section.text))];
+                 #("label_html", labeled(section.text))];
             let entry <- if under == [] then
                 filled(run, "fragments/contents-entry.html", values)
             else {
@@ -329,7 +329,7 @@ fn neighborHtml(run : Run,
             filled(run,
                    fragment,
                    [#("href", Site.Template.Plain(book.home <> chapter.number <> ".html")),
-                    #("label_html", labelled(chapter.heading)),
+                    #("label_html", labeled(chapter.heading)),
                     #("icons", Site.Template.Plain(run.assets.icons))])
     }
 
@@ -437,7 +437,7 @@ fn linkedAll(placed : List(Site.Code.Placed),
 
 // A heading's text as a label's value, its links written as their text,
 // since the label stands in a link of its own.
-fn labelled(text : List(Markdown.Inline)) : Site.Template.Value =
+fn labeled(text : List(Markdown.Inline)) : Site.Template.Value =
     Site.Template.Markup([Site.Template.Line(Site.Html.label(text))])
 
 fn markup(lines : List(List(Site.Template.Line))) : Site.Template.Value =

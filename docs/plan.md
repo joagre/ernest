@@ -112,6 +112,12 @@ before the website (the log's *What the Server Taught*).
     a full table must leave room for the runtime's own end is decided here. A test under a
     node of 1024 processes, and one of 1024 ports, holds each (the log's *A Node's
     Limits*).
+11. **A text after its prefix, and a slice to the end**, feedback 214 and 220, decided
+    2026-11-03: `String.slice(x, i, String.size(x))` and `Bytes.slice` to the end stand at 23
+    sites, and the site's generator writes a helper twice for the text after a prefix, which
+    `String.startsWith` answers half of. One reading against E.0's rules decides both, the
+    functions admitted named by the guide's style, and every site written with them (the
+    log's *The Generator's First Stage*).
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
