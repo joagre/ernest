@@ -444,7 +444,8 @@ The site's files as served.
   width, and the page scrolls in the rest; below, it takes 40% of the
   height and the page scrolls above it. A handle on its inner edge
   resizes it, the size kept with the layout. The panel's bar holds the
-  session's state, Start or Restart, Stop, and Hide, the icon of the
+  session's state, Start where no session runs and Restart while one
+  does, Stop, and Hide, the icon of the
   header button that opened the panel, which hides it and keeps the
   session; Stop alone ends one. A session that runs while the panel is
   hidden marks that header button with a dot. The session's limits and

@@ -306,8 +306,9 @@ function focusTerminal() {
 function setState(state) {
   panel.running = state === "connecting" || state === "running";
   panel.state.textContent = state;
-  const started = session.socket !== null;
-  panel.start.replaceChildren(icon(started ? "rotate-ccw" : "play"), started ? "Restart" : "Start");
+  // Restart only while a session runs: after an end there is none to restart.
+  panel.start.replaceChildren(icon(panel.running ? "rotate-ccw" : "play"),
+    panel.running ? "Restart" : "Start");
   panel.stop.disabled = !panel.running;
   showWaiting();
 }
