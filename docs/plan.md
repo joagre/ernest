@@ -206,7 +206,26 @@ attached shell, MVP 4.0, is the operator's alone.
    declarations with `main()` typed, a transcript's Paste for each input, the warning banner with Extend,
    the snackbar at a session's end, and everything reachable by keyboard with xterm.js's
    screen-reader mode on. The shell's start line shortened, done 2026-11-03 (the log's *The Start
-   Line's Length*).
+   Line's Length*). The client was built on 2026-11-03 and is not yet committed: the panel kept
+   across links, the seven states and four close codes, Paste and Load, the warning and the
+   notice at an expiry, and `/shell/` with one scrollbar. What closes the item, by 2026-11-05:
+   - **Keys before the first prompt**, a defect: a paste that comes as a session starts is drawn
+     above the start line, so every Try it on a fresh session shows it. §11.2 gains the sentence
+     that what is typed or pasted before the first prompt waits for it and is drawn after it;
+     then the shell holds it.
+   - **Which blocks get Paste and Load**, a design question decided with the user: 109 of the 552
+     blocks offered them fail in a bare shell. Module-shaped blocks, with top-level `let`s beside
+     declarations, and those that need a terminal or arguments get Copy alone. Whether a
+     visitor's shell has the libraries loaded at its start, by a startup file in ernest-httpd's
+     container, decides the 86 examples of the libraries' pages. The decided test that runs every
+     offered block in a bare shell is built with the rule.
+   - **Named decisions, each recommended:** the client's seven choices kept as built; F6 moves
+     the focus out of the terminal to the panel's controls, the client's own key, since §11.2's
+     table binds no function key; `make test-browser` over headless Chrome, outside `make test`
+     and run before a release; ernest-httpd builds its plan's milestone 2 items 3 and 4, the
+     attach word, so that a page joining a live session is drawn without a key; the site's HTML,
+     CSS and JavaScript indent by four, as `docs/style.md`'s *Every language* says; and a long
+     transcript input keeps its Paste in view in a narrow column.
 5. **The build and the deployment**: `make site` from a tag by `git archive`, given the
    server's configuration file, with the check of every internal link and anchor, built
    2026-11-03 (the log's *The Generator's Third Stage*); the copy of `build/site/` to the host,
