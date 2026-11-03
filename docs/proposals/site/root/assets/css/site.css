@@ -73,7 +73,7 @@ p { margin: 0 0 1rem; }
 .block { position: relative; min-width: 0; }
 .block pre { margin: 0; }
 .block-tools { display: flex; justify-content: flex-end; gap: .15rem; margin-bottom: .25rem; }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .block-tools { position: absolute; top: .35rem; right: .35rem; margin: 0; background: var(--panel); opacity: 0; }
   .block:hover .block-tools, .block:focus-within .block-tools { opacity: 1; }
 }

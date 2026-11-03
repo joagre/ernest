@@ -348,9 +348,13 @@ The site's files as served.
   each other's keys, made when the image is built. A probe on 2026-11-03
   sent a counter typed into the shell to `foo`; a bare shell held 85 MB,
   the shell as a node 101 MB and `foo` 102 MB, its prompt after 1.3 s
-  against 0.6 s. The server is asked for a cap of 256 MB a visitor and
-  four at once on its 2 GB host, its numbers the server's; the host grows
-  only when its log shows visitors turned away (decided 2026-11-03).
+  against 0.6 s. Most of that was the host's tables, reserved for a
+  million processes and 65,536 ports; each node's `ernest.conf` states
+  `"limits": {"processes": 65536, "ports": 4096}` (report §12.5), which
+  brings a node to 37 MB, so that the two fit the server's 128 MB a
+  visitor and its six at once on its 2 GB host, its numbers the server's;
+  the host grows only when its log shows visitors turned away (decided
+  2026-11-03).
 - Whether a node transcript of the guide or the tour, whose `foo` matches
   the container's, gets Paste is decided with the generator's rules, the
   plan's MVP 4.2 item 2.
@@ -395,8 +399,9 @@ The site's files as served.
 - A transcript's input is pasted by its own prompt: on hover or focus the
   `>` becomes the paste icon, so that no gutter stands beside the
   transcript. A block's tools show on hover or focus where there is a
-  pointer, on the block's own color, and on a touch screen stand on a row
-  of their own above the block, so that they never cover its code
+  fine pointer, a mouse, on the block's own color, and on a touch screen
+  stand on a row of their own above the block, since a phone's browser may
+  say it hovers, so that they never cover its code
   (decided 2026-11-03).
 - Copy, Paste, Load and the shell's own controls are small icons, each
   with a tooltip and an accessible name, `Paste into the shell`, so that
