@@ -1,12 +1,19 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Ernest website template preview: Install Ernest.">
-<title>Install Ernest — Ernest</title>
-<link rel="icon" href="ernest-avatar-64.png">
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Install · Ernest</title>
+  <meta name="description" content="On Linux, with Erlang/OTP 29 on your PATH, GNU make and a C compiler.">
+  <meta property="og:title" content="Install · Ernest">
+  <meta property="og:description" content="On Linux, with Erlang/OTP 29 on your PATH, GNU make and a C compiler.">
+  <meta property="og:image" content="https://ernest-lang.org/assets/ernest-social-light.png">
+  <link rel="icon" href="ernest-avatar-64.png">
   <link rel="stylesheet" href="../assets/css/site.css">
-  <script src="../assets/js/site.js" defer></script></head><body>
-<a class="skip-link" href="#main">Skip to content</a>
+  <script src="../assets/js/site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
 
   <header class="site-header">
     <div class="wrap header-inner">
@@ -36,40 +43,28 @@
       </details>
     </div>
   </header>
-<main id="main" class="wrap "><div class="doc-layout"><aside class="contents"><details open><summary>On this page</summary><nav aria-label="Page contents"><ol><li><a href="#platforms">Platforms</a></li><li><a href="#steps">Installation</a></li><li><a href="#next">Next step</a></li></ol></nav></details></aside>
-<article class="article"><p class="eyebrow">Install</p><h1>Install Ernest</h1><p class="lead">Run the language locally.</p>
-<p class="meta">Template preview · illustrative content</p><section id="platforms"><h2>Supported platforms</h2><p>State the platforms and Erlang/OTP versions supported by the published release. Avoid a command that assumes an unverified distribution mechanism.</p></section>
-<section id="steps"><h2>Install Ernest</h2><ol><li>Obtain the release or follow the source build instructions.</li><li>Verify the installation using the documented version command.</li><li>Start the shell.</li></ol><pre><code>ern shell</code></pre><p><a href="https://github.com/joagre/ernest">Source and current project instructions</a></p></section>
-<section id="next"><h2>Next step</h2><p>Continue with the <a href="tour.html">tour</a> or the <a href="guide.html">programming guide</a>.</p></section>
-<nav class="page-nav" aria-label="Chapter navigation"><a href="index.html" class=""><svg class="icon" aria-hidden="true" focusable="false"
-  xmlns="http://www.w3.org/2000/svg"
-  
-  
-  viewBox="0 0 24 24"
-  fill="none"
-  stroke="currentColor"
-  stroke-width="2"
-  stroke-linecap="round"
-  stroke-linejoin="round"
->
-  <path d="m12 19-7-7 7-7" />
-  <path d="M19 12H5" />
-</svg>
-Previous</a><a href="tour.html" class=""><svg class="icon" aria-hidden="true" focusable="false"
-  xmlns="http://www.w3.org/2000/svg"
-  
-  
-  viewBox="0 0 24 24"
-  fill="none"
-  stroke="currentColor"
-  stroke-width="2"
-  stroke-linecap="round"
-  stroke-linejoin="round"
->
-  <path d="M5 12h14" />
-  <path d="m12 5 7 7-7 7" />
-</svg>
-Next</a></nav></article></div></main>
+
+  <main id="main" class="wrap">
+    <div class="doc-single">
+      <article class="article">
+        <h1>Install</h1>
+        <p>On Linux, with Erlang/OTP 29 on your <code>PATH</code>, GNU make and a C compiler. On Debian and Ubuntu the last two are the packages <code>make</code> and <code>gcc</code>, and OTP 29 is installed as below, since their own <code>erlang</code> package is older. macOS is expected to work the same way, and is not yet verified:</p>
+        <pre class="console"><code>git clone https://github.com/joagre/ernest.git
+cd ernest
+make
+sudo make install                  # into /usr/local
+ern build examples/hello.ern
+ern run examples/hello.erc         # hello, world
+ern shell                          # :quit to leave
+man ern                            # the toolchain; man Ernest.List for a module</code></pre>
+        <p>OTP 29 is built from its source at <a href="https://www.erlang.org/downloads">erlang.org/downloads</a>, or installed by a version manager such as kerl, where a distribution's own packages hold an older release.</p>
+        <p>Or from a release: download <code>ern-&lt;version&gt;.tar.gz</code> from the <a href="https://github.com/joagre/ernest/releases">releases page</a>, and in the directory it unpacks to run <code>make</code> and <code>sudo make install</code>, as its own README says; the archive holds the source, which <code>make</code> compiles, with OTP 29 as above.</p>
+        <p>Two nodes on one machine take four more commands: <code>ern config --config-dir</code> makes each node's directory with its key, <code>ern config --peer-dir</code> lists one node in the other's file, <code>ern run --config-dir</code> starts a node, and <code>ern stop --config-dir</code> ends it; <a href="deployment.html">the deployment guide</a> walks through them.</p>
+        <p><code>make install PREFIX=$HOME/.local</code> installs Ernest for you alone, with no <code>sudo</code>, where <code>~/.local/bin</code> is on your <code>PATH</code>. <code>make uninstall</code>, with the same <code>PREFIX</code>, removes it. Without installing, the checkout's <code>bin/ern</code> runs in place. The Emacs mode is installed with the rest, as <code>share/emacs/site-lisp/ernest-mode.el</code>, and <a href="https://github.com/joagre/ernest/blob/v0.9.0/editors/emacs/README.md"><code>editors/emacs/README.md</code></a> says how to turn it on.</p>
+        
+      </article>
+    </div>
+  </main>
 
   <footer class="site-footer">
     <div class="wrap">
@@ -77,4 +72,5 @@ Next</a></nav></article></div></main>
       <p class="footer-page">This page: <a href="https://github.com/joagre/ernest/blob/v0.9.0/README.md">README.md</a>, 2026-11-03 · Ernest 0.9.0 · <a href="https://github.com/joagre/ernest/blob/v0.9.0/LICENSE">0BSD license</a> · <a href="https://github.com/joagre/ernest/issues">Report a defect</a> · Served by <a href="https://github.com/joagre/ernest-httpd">ernest-httpd</a>, written in Ernest</p>
     </div>
   </footer>
-</body></html>
+</body>
+</html>

@@ -645,6 +645,11 @@ pre.rejected {
   max-width: 78ch;
 }
 
+/* A document too short for a sidebar: its text alone. */
+.doc-single .article {
+  margin-inline: 0;
+}
+
 .article section {
   scroll-margin-top: 1rem;
 }
