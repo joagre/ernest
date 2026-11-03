@@ -50,8 +50,10 @@ function remember(key, value) {
   }
 }
 
-// Beside needs a wide window; on a narrower one the panel goes below.
+// Beside needs a wide window; on a narrower one the panel goes below, and
+// on a phone there is none: the shell is its own page.
 const wide = window.matchMedia("(min-width: 1000px)");
+const phone = window.matchMedia("(max-width: 760px)");
 
 const panel = {
   layout: null,
@@ -74,6 +76,20 @@ function showLayout(layout) {
   }
   panel.element.hidden = layout === null;
   panel.layout = layout;
+  if (layout !== null) {
+    panel.hide.replaceChildren(icon(layout === "beside" ? "panel-right" : "panel-bottom"));
+  }
+  showWaiting();
+}
+
+// A session that runs while the panel is hidden marks the button that
+// brings it back.
+function showWaiting() {
+  const waiting = panel.running && panel.layout === null;
+  const last = remembered("ernest.panel", "beside");
+  for (const [name, button] of Object.entries(panel.buttons)) {
+    button.classList.toggle("waiting", waiting && name === layoutFor(last));
+  }
 }
 
 function openPanel(wanted) {
@@ -102,12 +118,19 @@ function toggle(layout) {
 // The session's state, as the panel's bar names it; the mockup's Start
 // and Stop move it between the two it can show without a server.
 function setState(running) {
+  panel.running = running;
   panel.state.textContent = running ? "running · not connected in the mockup" : "not started";
   panel.start.replaceChildren(icon(running ? "rotate-ccw" : "play"), running ? "Restart" : "Start");
   panel.stop.disabled = !running;
+  showWaiting();
 }
 
 function pasteIntoShell(text) {
+  if (phone.matches) {
+    remember("ernest.paste", text);
+    location.assign("shell.html");
+    return;
+  }
   if (panel.layout === null) {
     openPanel(remembered("ernest.panel", "beside"));
   }
@@ -173,7 +196,8 @@ function addPanel() {
   stop.className = "panel-button";
   stop.append(icon("square"), "Stop");
   stop.addEventListener("click", () => setState(false));
-  bar.append(state, start, stop, iconButton("x", "Close the shell", "icon-button", closePanel));
+  const hide = iconButton("panel-right", "Hide the shell; it keeps running", "icon-button", closePanel);
+  bar.append(state, start, stop, hide);
 
   const terminal = document.createElement("div");
   terminal.className = "panel-terminal";
@@ -183,7 +207,7 @@ function addPanel() {
 
   element.append(handle, bar, terminal);
   page.after(element);
-  Object.assign(panel, { element, terminal, state, start, stop });
+  Object.assign(panel, { element, terminal, state, start, stop, hide });
   setState(false);
 
   for (const dimension of ["width", "height"]) {
@@ -262,7 +286,7 @@ function addStart(run) {
 addPanel();
 addPanelToggle();
 showLayout(null);
-if (remembered("ernest.panel.open", "no") === "yes" && !window.matchMedia("(max-width: 760px)").matches) {
+if (remembered("ernest.panel.open", "no") === "yes" && !phone.matches) {
   showLayout(layoutFor(remembered("ernest.panel", "beside")));
 }
 // A block of the page, not the mockup's still picture of a terminal.
@@ -274,4 +298,11 @@ for (const pre of document.querySelectorAll("main pre:not(.terminal-frame pre)")
 }
 for (const run of document.querySelectorAll('[data-shell="start"]')) {
   addStart(run);
+}
+
+const waitingInput = remembered("ernest.paste", "");
+const frame = document.querySelector(".terminal-frame pre");
+if (waitingInput !== "" && frame !== null) {
+  frame.append("\n> " + waitingInput.trimEnd().replaceAll("\n", "\n  "));
+  remember("ernest.paste", "");
 }

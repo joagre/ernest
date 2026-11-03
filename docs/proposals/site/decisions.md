@@ -432,8 +432,11 @@ The site's files as served.
   width, and the page scrolls in the rest; below, it takes 40% of the
   height and the page scrolls above it. A handle on its inner edge
   resizes it, the size kept with the layout. The panel's bar holds the
-  session's state, Start or Restart, Stop and a close; the session's
-  limits and the privacy line stay on `/shell/`. Below 1000 px only below
+  session's state, Start or Restart, Stop, and Hide, the icon of the
+  header button that opened the panel, which hides it and keeps the
+  session; Stop alone ends one. A session that runs while the panel is
+  hidden marks that header button with a dot. The session's limits and
+  the privacy line stay on `/shell/`. Below 1000 px only below
   is offered. Opening moves focus into the terminal and closing returns
   it to the button; Escape is the terminal's (decided 2026-11-03).
 - No panel opens until the visitor asks. On a desktop, the example's Start
