@@ -210,9 +210,9 @@ attached shell, MVP 4.0, is the operator's alone.
    cannot hold, a node's or an attached session's, read from its first line; the shell page's
    limits read from the server's configuration; each page's sidebar, title, description and
    footer.
-3. **The document the site lacks**: the root `CONTRIBUTING.md`, written before the site goes
-   live, saying that Ernest takes no contribution before 1.0, a defect found going to the
-   repository's issues and nothing else (decided 2026-10-30); the Releases page is `CHANGES.md`, which the release step writes from the next release
+3. **The document the site lacks**: the root `CONTRIBUTING.md`, written 2026-11-03, saying
+   that Ernest takes no contribution before 1.0, a defect found going to the repository's
+   issues and nothing else; the Releases page is `CHANGES.md`, which the release step writes from the next release
    on (the log's *A Release Carries No History*, sharpened 2026-10-30).
 4. **The live shell's page side**, the session client in JavaScript over ernest-httpd's socket:
    the panel's size sent first and at each resize, the seven states, the panel on every page with

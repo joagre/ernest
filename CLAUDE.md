@@ -28,6 +28,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 | [`guide/README.md`](guide/README.md) | what each guide is, for whom, and how long |
 | [`tour/README.md`](tour/README.md) | the tour: one program grown through eight chapters, each chapter's program under `tour/1/` to `tour/8/`, which a test holds equal to the document's blocks |
 | [`examples/README.md`](examples/README.md) | the example programs, by topic, with what each shows |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | how one takes part before 1.0: no contribution, a defect to the repository's issues |
 | [`ACKNOWLEDGMENTS.md`](ACKNOWLEDGMENTS.md) | the people Ernest stands on, by name alone |
 | [`CHANGES.md`](CHANGES.md) | each release's note, newest first, from the release after 0.6.0 on: what the release is and one line a change naming where it is read, restating nothing; the release step writes it and copies it to the release on GitHub |
 | [`docs/development.md`](docs/development.md) | the layout, the commands, and what the toolchain does not do yet |

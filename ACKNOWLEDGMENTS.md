@@ -2,6 +2,13 @@
 
 Ernest stands on the work of the people named here, each by name alone, in the order of their surnames, and on the work of many more. To everyone I have left out or misspelled: forgive me. The fault is mine alone; tell me, and I will put it right.
 
+## Ernest
+
+The people without whom Ernest would not be.
+
+- Cons Åhs
+- Tony Rogvall
+
 ## Erlang and OTP
 
 Everyone thanked in the acknowledgments of Joe Armstrong's *A History of Erlang* (HOPL III, 2007) and of Bjarne Däcker's licentiate thesis *Concurrent Functional Programming for Telecommunications* (KTH, 2000):
