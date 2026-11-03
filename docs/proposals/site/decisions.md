@@ -129,11 +129,13 @@ The site's files as served.
   homepage's way to it is the example's Start.
 - One footer, the homepage's too, in two lines. First the rooms the header
   leaves out: the questions, Deployment and Releases. Then
-  the page: its source file in the repository with its last commit date at
+  the page, "This page:" and its source file's path in the repository,
+  with its last commit date at
   the tag, which the checkout's `git log` gives since an export has no
   history, the
-  version the site is built from, the license, the issues, and "served by
-  ernest-httpd, written in Ernest" once true.
+  version the site is built from, "0BSD license", "Report a defect" for
+  the issues, and "Served by ernest-httpd, written in Ernest" (decided
+  2026-11-03).
 - Previous and next stand above the footer on a tour, guide or report page.
 - On a narrow screen the header is the stoat with "Ernest" and a
   `<details>` menu holding its links, folded as the contents list is, by

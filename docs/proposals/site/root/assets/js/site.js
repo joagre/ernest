@@ -90,7 +90,8 @@ function addStart(run) {
 }
 
 addPanelToggle();
-for (const pre of document.querySelectorAll("main pre")) {
+// A block of the page, not the mockup's still picture of a terminal.
+for (const pre of document.querySelectorAll("main pre:not(.terminal-frame pre)")) {
   addBlockTools(pre);
   if (pre.dataset.shell === "paste" && pre.classList.contains("transcript")) {
     addInputPastes(pre);
