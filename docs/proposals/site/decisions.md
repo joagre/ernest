@@ -94,13 +94,15 @@ The site's files as served.
   opening under its heading, both leading with what Ernest adds that no
   reader expects, a process started on another node bringing its code
   along, and then what kind of language it is, stating what Ernest does
-  and never what another language lacks (decided 2026-11-03); Why's list "What Ernest adds", `guide/why.md`'s six
-  claims, which the documents test `claims_test` holds equal to the
-  README's, each shown as its bold name and its first sentence alone, word
-  for word, linking to its heading in Why, so that the list fits beside
-  the opening. Code known by its hash leads the list, as the opening
-  does, and Why and the README take that order when they are rewritten
-  (`todo.md`; decided 2026-11-03); a
+  and never what another language lacks (decided 2026-11-03); Why's list
+  "What Ernest adds", four of `guide/why.md`'s claims, the ones a newcomer
+  reads at once: code goes where it runs, the mailbox in the function's
+  type, a distribution built for a WAN, and a deadlock is found. Each is
+  shown as its bold name and its first sentence alone, word for word,
+  linking to its heading in Why, so that the list fits beside the
+  opening; the rest is Why's. Why and the README take that order and the
+  first claim's name and sentence when they are rewritten (`todo.md`;
+  decided 2026-11-03); a
   paragraph on intended use; and a small example with its output, which a
   test runs, so that Try prints what the page shows: a process started on
   the container's second node, its code typed into the shell and sent
