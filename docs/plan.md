@@ -22,7 +22,9 @@ stability is made, and a change to the language, the standard library or the lib
 by a need met in use and recorded as `docs/language_feedback.md` records one.
 
 The server is released and so is what shaped Ernest on its way, and the checkout works toward
-0.10.0. Next is MVP 4.15, what the server taught, then the website and the shell's second round
+0.10.0. Next is MVP 4.2's first item, the site's look by hand, decided 2026-11-03 to come
+before MVP 4.15, since it needs slow rounds with the user; then MVP 4.15, what the server
+taught, the rest of the website and the shell's second round
 (the log's *The Road to 1.0, Ordered*), and MVP 4.4 last, the promise, the cost, the full review and Ernest 1.0, where
 the road ends and a program begins (the log's *MVP 4.4, the Road's End*); the back end to BEAM's own instructions that closed the road is not built,
 decided 2026-10-30 (the log's *No Back End to BEAM's Own Instructions*). A finished milestone is a
