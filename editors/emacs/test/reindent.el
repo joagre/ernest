@@ -42,6 +42,6 @@
                                (string-trim-left a))))
         (unless (= was moved) (setq dirty (1+ dirty))))))
   (message "%d of %d lines moved, %d of %d files touched" moved total dirty files)
-  (unless (zerop moved) (kill-emacs 1)))
+  (kill-emacs (if (zerop moved) 0 1)))
 
 ;;; reindent.el ends here

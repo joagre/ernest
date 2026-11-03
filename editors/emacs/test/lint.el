@@ -32,6 +32,6 @@
 (message "%s" (if (zerop ernest-lint--failures)
                   "lint: all checks passed"
                 (format "lint: %d checks failed" ernest-lint--failures)))
-(unless (zerop ernest-lint--failures) (kill-emacs 1))
+(kill-emacs (if (zerop ernest-lint--failures) 0 1))
 
 ;;; lint.el ends here

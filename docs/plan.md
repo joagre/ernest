@@ -214,14 +214,8 @@ attached shell, MVP 4.0, is the operator's alone.
    2026-11-03 (the log's *The Generator's Third Stage*); the copy of `build/site/` to the host,
    and the site live at ernest-lang.org with the smoke test against it, which wait on
    ernest-httpd's container with its two nodes and a release of Ernest holding the site.
-6. **The Emacs mode's indentation of a `match` in a list that is a call's argument**, a defect
-   found 2026-11-03, fixed by 2026-11-05, before the next `make test-full`: the mode steps the
-   clauses in from the line where `Right([match x {` stands, where `ern format` steps them
-   from the list's column, report §11.6's item standing after its bracket, so `make
-   test-emacs` fails on `tools/site/links.ern` meanwhile. The fix is `ernest--brace-base`'s
-   climb, taking an enclosing bracket's item that is itself a bracket standing right after it
-   as beginning a line at its own column, with `typing.el`'s helper not assuming the bracket
-   closes after the cut, and a case of the mode's tests.
+6. **The Emacs mode's indentation of a brace in a bracket's item**, done 2026-11-03 (the log's
+   *The Mode's Brackets*).
 
 ## MVP 4.3 (`:trace f`), about a week
 

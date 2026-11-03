@@ -1,0 +1,3 @@
+fn linked(x : Int) : Optional(List(Int)) =
+    Some([match x {
+             1 -> 2

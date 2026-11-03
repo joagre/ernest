@@ -460,6 +460,8 @@ test-emacs: all
 	$(MAKE) -s -j $(EMACS_ALL)
 
 # One Emacs test, each in an Emacs of its own, so they run side by side.
+# Each ends its Emacs itself, with its verdict, since a batch Emacs
+# visits every file left on its command line once the test has loaded.
 $(EMACS_TESTS:%=emacs-test-%): emacs-test-%:
 	@cd editors/emacs && $(EMACS) -Q -batch -l test/$*.el $(EMACS_CORPUS)
 

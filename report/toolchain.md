@@ -434,7 +434,7 @@ The layout indents by steps of four spaces, and fits a line within 100 columns w
 
 - **A line stands a step in from the line on which the innermost construct open around it began**: a bracket, a brace, an expression an operator carries on, or a body after a `=`, `->`, `then` or `else` that ends a line.
 
-  A line that opens with a closing bracket or brace, or with `else`, stands at its construct's line. An item standing after its bracket counts as beginning a line there.
+  A line that opens with a closing bracket or brace, or with `else`, stands at its construct's line. An item standing after its bracket counts as beginning a line there, and so does an expression standing after its opening parenthesis.
 
   A further clause, and a further line of a type's alternatives, opens with its bar two columns to the left, so that what follows the bar stands at the step.
 
@@ -447,6 +447,8 @@ The layout indents by steps of four spaces, and fits a line within 100 columns w
 
   A comment or a doc block before the first item puts that item on a line of its own, and the items a step in.
 - **A last item that opens a brace keeps the items on the bracket's line** where that line fits up to the brace, as a lambda whose body is a `match` does. The brace and the bracket close together.
+
+  An item opens a brace when it is a `match`, a `receive` or a block, or a lambda, a call or a constructor whose body, last argument or last field opens one. A list, a tuple, a bitstring, a parenthesized expression, an operation and an `if` open none, and neither does an item that goes on past its brace, a bitstring's segment with a size or a type among them.
 - **An `if` stays on one line when it fits, and otherwise breaks at every `then` and `else`.** A branch whose first line ends in a brace or a `then` stays beside its `then` or `else` when that fits: `then {`, `} else {`, `else match x {`, and `else if` are each written on one line.
 - **The clauses of a `match` or a `receive` are laid out alike.** Where every clause's body fits whole on its `->`'s line, each stays there. Otherwise every body of the construct begins the line after its `->`, a body that is a block opening its brace at the end of the `->`'s line. A `receive`'s `after` clause is a clause.
 - **The body after a lambda's `=`, or a `let`'s `=` or `<-`, stays on its line when it fits**, whole or up to a brace that ends its first line, and a `let`'s up to a `then` that ends its first line too. Otherwise it begins the next line. A lambda and a `let` have no other rule of their own.

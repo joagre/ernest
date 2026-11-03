@@ -93,6 +93,6 @@ fn largest(list : List(a)) : Optional(a) needs a.compare = List.last(list)
 (message "%s" (if (zerop ernest-color--failures)
                   "color: all checks passed"
                 (format "color: %d checks failed" ernest-color--failures)))
-(unless (zerop ernest-color--failures) (kill-emacs 1))
+(kill-emacs (if (zerop ernest-color--failures) 0 1))
 
 ;;; color.el ends here

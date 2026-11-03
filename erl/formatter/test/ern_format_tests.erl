@@ -106,6 +106,26 @@ hug_test() ->
                   <<"})">>],
                  laid(["let s = spawn(fn() = { tick(); s })"])).
 
+%% report §11.6: a bitstring is a bracket, so its last segment that opens a
+%% brace keeps the segments on the bracket's line, but a segment with a size
+%% or a type goes on past its brace, and the segments stand aligned. A
+%% regression test, written after the code, which aligned a bitstring's
+%% segments always; it does not cover a bitstring pattern, whose segments
+%% open no brace
+bitstring_hug_test() ->
+    ?assertEqual([<<"fn f(x) =">>,
+                  <<"    <<match x {">>,
+                  <<"        1 -> 2">>,
+                  <<"      | _ -> 3">>,
+                  <<"    }>>">>],
+                 laid(["fn f(x) = <<match x { 1 -> 2 | _ -> 3 }>>"])),
+    ?assertEqual([<<"fn f(x) =">>,
+                  <<"    <<match x {">>,
+                  <<"          1 -> 2">>,
+                  <<"        | _ -> 3">>,
+                  <<"      }:size(8)>>">>],
+                 laid(["fn f(x) = <<match x { 1 -> 2 | _ -> 3 }:size(8)>>"])).
+
 %% report §11.6: a match, a receive and a block run over lines however
 %% short, a clause a line, a further one led by its bar
 brace_test() ->

@@ -1,0 +1,206 @@
+//
+// Layouts the Emacs mode is held to, beside the repository's sources: `ern
+// format` lays this file out, and the mode's corpus tests reindent it
+// unchanged (docs/design/emacs_mode.md). A brace in a bracket's first item
+// steps in from that item where the bracket aligns its items, the item
+// counting as beginning a line there, and from the line where every
+// bracket around it on that line hugs it (report §11.6).
+//
+
+type Box = Box(value : Int)
+
+type Boxes = Boxes(values : List(Int))
+
+// A list, a tuple or a bitstring standing in a bracket's item is aligned
+// there, and a brace it hugs steps in from the item.
+fn listInCall(x : Int) : Optional(List(Int)) =
+    Some([match x {
+             1 -> 2
+           | _ -> 3
+         }])
+
+fn listInListInCall(x : Int) : Optional(List(List(Int))) =
+    Some([[match x {
+              1 -> 2
+            | _ -> 3
+          }]])
+
+fn listInList(x : Int) : List(List(Int)) =
+    [[match x {
+         1 -> 2
+       | _ -> 3
+     }]]
+
+fn listInCallInCall(x : Int) : Optional(Int) =
+    Some(wrapped(List.size([match x {
+                               1 -> 2
+                             | _ -> 3
+                           }])))
+
+fn tupleInCall(x : Int) : Optional(#(Int, Int)) =
+    Some(#(1, match x {
+             1 -> 2
+           | _ -> 3
+         }))
+
+fn bitstringInCall(x : Int) : Optional(Bytes) =
+    Some(<<match x {
+             1 -> 2
+           | _ -> 3
+         }>>)
+
+fn lastInListInCall(x : Int) : Optional(List(Int)) =
+    Some([1, match x {
+             1 -> 2
+           | _ -> 3
+         }])
+
+fn listInField(x : Int) : Boxes =
+    Boxes(values = [match x {
+              1 -> 2
+            | _ -> 3
+          }])
+
+fn lambdaInListInCall(x : Int) : Optional(List((Int) -> Int)) =
+    Some([fn(y) = match y {
+             1 -> 2
+           | _ -> x
+         }])
+
+fn blockInListInCall(x : Int) : Optional(List(Int)) =
+    Some([{
+             let y = x + 1;
+             y * 2
+         }])
+
+fn callInListInCall(x : Int) : Optional(List(Int)) =
+    Some([wrapped(match x {
+             1 -> 2
+           | _ -> 3
+         })])
+
+// A parenthesized expression aligns what it holds always.
+fn parenthesizedInCall(x : Int) : Optional(Int) =
+    Some((match x {
+              1 -> 2
+            | _ -> 3
+          }))
+
+fn parenthesizedInList(x : Int) : List(Int) =
+    [(match x {
+          1 -> 2
+        | _ -> 3
+      })]
+
+fn parenthesizedInBitstringInCall(x : Int) : Optional(Bytes) =
+    Some(<<(match x {
+                1 -> 2
+              | _ -> 3
+            })>>)
+
+// So does a bracket whose item is an operation or an `if`, or goes on past
+// the bracket or brace that holds the brace, as a bitstring's segment with
+// a size does.
+fn negatedInCall(x : Int) : Optional(Int) =
+    Some(-match x {
+             1 -> 2
+           | _ -> 3
+         })
+
+fn notInCall(flag : Bool) : Optional(Bool) =
+    Some(!match flag {
+             true -> false
+           | false -> true
+         })
+
+fn ifInCall(x : Int) : Optional(Int) =
+    Some(if x == 1 then match x {
+             1 -> 2
+           | _ -> 3
+         } else
+             4)
+
+fn selectedInCall(x : Int) : Optional(Int) =
+    Some(boxed(match x {
+             1 -> 2
+           | _ -> 3
+         }).value)
+
+fn addedInCall(x : Int) : Optional(Int) =
+    Some(match x {
+             1 -> 2
+           | _ -> 3
+         }
+             + 1)
+
+fn sizedInBitstring(x : Int) : Bytes =
+    <<match x {
+          1 -> 2
+        | _ -> 3
+      }:size(8)>>
+
+// A first item with a further one is aligned where its comma ends the
+// line, and hugged where the further item follows the comma.
+fn firstInList(x : Int) : Optional(List(Int)) =
+    Some([match x {
+              1 -> 2
+            | _ -> 3
+          },
+          4])
+
+fn firstInTuple(x : Int) : Optional(#(Int, Int)) =
+    Some(#(match x {
+               1 -> 2
+             | _ -> 3
+           },
+           1))
+
+fn firstBesideLambda(x : Int) : Int =
+    applied(match x {
+        1 -> 2
+      | _ -> 3
+    }, fn(y) = match y {
+        1 -> 2
+      | _ -> 3
+    })
+
+// A brace that every bracket around it on its line hugs steps in from the
+// line, and so does one in a list that begins a line of its own.
+fn callInList(x : Int) : List(Int) =
+    [wrapped(match x {
+        1 -> 2
+      | _ -> 3
+    })]
+
+fn matchInBitstring(x : Int) : Bytes =
+    <<match x {
+        1 -> 2
+      | _ -> 3
+    }>>
+
+fn listAsLaterItem(x : Int) : List(Int) =
+    prefixed(1,
+             [match x {
+                 1 -> 2
+               | _ -> 3
+             }])
+
+fn listInLet(x : Int) : List(Int) = {
+    let values = [match x {
+        1 -> 2
+      | _ -> 3
+    }];
+    values <> [x]
+}
+
+fn wrapped(x : Int) : Int =
+    x
+
+fn boxed(x : Int) : Box =
+    Box(value = x)
+
+fn applied(x : Int, f : (Int) -> Int) : Int =
+    f(x)
+
+fn prefixed(x : Int, values : List(Int)) : List(Int) =
+    [x] <> values

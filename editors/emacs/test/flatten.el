@@ -36,6 +36,6 @@
                                                  line a))))))
   (message "%d of %d lines misplaced from column zero%s" moved total
            (if last-moved (concat "\n  last: " last-moved) ""))
-  (unless (zerop moved) (kill-emacs 1)))
+  (kill-emacs (if (zerop moved) 0 1)))
 
 ;;; flatten.el ends here

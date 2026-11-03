@@ -23,6 +23,7 @@
     ("comment.ern" . "0")               ; a comment before a closing brace
     ("constructor.ern" . "0")           ; constructors spelled as reserved words
     ("equals.ern" . "4")                ; a line ending in =
+    ("list.ern" . "13")                 ; a match in a list in a call
     ("minus.ern" . "15")                ; a negative element after a comma
     ("pipe.ern" . "4")                  ; lines an operator carries on
     ("prose.ern" . "0")                 ; an apostrophe in a comment
@@ -87,6 +88,6 @@ which is the answer inside an unclosed string or comment.")
 (message "%s" (if (zerop ernest-broken--failures)
                   "broken: all checks passed"
                 (format "broken: %d checks failed" ernest-broken--failures)))
-(unless (zerop ernest-broken--failures) (kill-emacs 1))
+(kill-emacs (if (zerop ernest-broken--failures) 0 1))
 
 ;;; broken.el ends here

@@ -139,6 +139,6 @@
 (message "%s" (if (zerop ernest-format--failures)
                   "format: all checks passed"
                 (format "format: %d checks failed" ernest-format--failures)))
-(unless (zerop ernest-format--failures) (kill-emacs 1))
+(kill-emacs (if (zerop ernest-format--failures) 0 1))
 
 ;;; format.el ends here

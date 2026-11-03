@@ -109,6 +109,7 @@ An entry gives the name, what it names and where the code holds it. The mechanis
 - **Declaration, Statement, Element, Segment, Alternative**: whole words. Not `Decl`, `Stmt`, `Elem`, `Seg`, `Alt`.
 - **Doc**: §2.2's doc block, and nothing else; the pretty printer's document is named for what it lays out.
 - **Fence**: a fenced code block of a doc block (§2.2), as CommonMark fences it, `#fence{}` (`ern_fence.hrl`), which `ern_parser:fenced/1` finds and the formatter and `ern test` read; its `language` is `ernest` for an example.
+- **Hug**: a bracket's keeping its items on its line beside a last item that opens a brace (§11.6), the last field of the formatter's `{bracket, ...}` template, which `ern_format:bracket/5` sets, and the Emacs mode's `ernest--hugs-p`. Not `Keep`, `Inline`.
 
 **The runtime and the command line**
 

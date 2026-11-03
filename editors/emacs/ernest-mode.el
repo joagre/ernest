@@ -496,11 +496,12 @@ closed on it, and what it closes began on the line the bracket opened on."
   "The column the contents of the brace at BRACE step in from.
 It is the base of the line the construct holding the brace began on,
 past a bracket closed before the brace, as a match's scrutinee broken
-over lines, and past a clause's guard broken over lines.  A bracket opened
-on that line whose first item holds the brace, and which holds a further
-item, aligns its items, and the brace steps from its first item; one
-whose last item holds the brace hugs it, and the brace steps from the
-line.  Where nothing follows the brace yet it is taken as hugged."
+over lines, and past a clause's guard broken over lines.  Of the
+brackets opened on that line around the brace, the innermost whose
+first item holds the brace and which aligns its items gives the column
+of that item, which counts as beginning a line there (report section
+11.6), and the brace steps from it (`ernest--aligns-p'); where none does,
+the brace steps from the line."
   (save-excursion
     (goto-char brace)
     (let ((open (nth 1 (syntax-ppss brace)))
@@ -509,11 +510,103 @@ line.  Where nothing follows the brace yet it is taken as hugged."
           (base nil))
       (ernest--climb open)
       (while (and (null base) open (ernest--opened-here-p open))
-        (if (and (ernest--first-item-p open inner) (ernest--more-items-p open inner))
-            (setq base (ernest--first-item-column open)))
+        (when (and (ernest--first-item-p open inner) (ernest--aligns-p open inner))
+          (setq base (ernest--first-item-column open)))
         (setq inner open
               open (nth 1 (syntax-ppss open))))
       (or base (ernest--anchor-base (ernest--clause-line-p depth))))))
+
+(defun ernest--aligns-p (open inner)
+  "Whether the bracket at OPEN aligns its items, its first holding INNER.
+INNER is the brace being placed, or a bracket around it opened on OPEN's
+line.  A parenthesized expression's `(' aligns what it holds always, and
+a brace aligns nothing.  Any other bracket that
+holds a further item hugs where its second item stands on the line of
+the comma before it, and otherwise aligns; one that holds no further item
+hugs where its item ends its first line at the brace
+\(`ernest--hugs-p'), and otherwise aligns (report section 11.6).  Where
+nothing follows INNER yet the item is taken as the only one."
+  (let ((kind (ernest--bracket-kind open)))
+    (cond ((eq kind 'brace) nil)
+          ((eq kind 'alone) t)
+          (t (let* ((closed (ignore-errors (scan-lists inner 1 0)))
+                    (comma (and closed
+                                (ernest--comma-between
+                                 open closed (or (ignore-errors (scan-lists closed 1 1))
+                                                 (point-max))))))
+               (if comma
+                   (ernest--ends-line-p comma)
+                 (not (ernest--hugs-p open inner closed))))))))
+
+(defun ernest--bracket-kind (pos)
+  "How the bracket at POS lays out its items: `brace', `alone', `list' or `call'.
+A brace holds statements or clauses.  A parenthesized expression's `('
+is `alone', aligning what it holds and hugging nothing.  A list's `[', a
+tuple's `#(' and a bitstring's `<<' are a `list'.  A `(' after a name or
+a closing bracket is a `call', a call's, a constructor's or a lambda's
+parameters'."
+  (let ((before (char-before pos)))
+    (cond ((eq (char-after pos) ?{) 'brace)
+          ((memq (char-after pos) '(?\[ ?<)) 'list)
+          ((eq before ?#) 'list)
+          ((and before (or (memq (char-syntax before) '(?w ?_))
+                           (memq before '(?\) ?\] ?\}))))
+           'call)
+          (t 'alone))))
+
+(defun ernest--hugs-p (open inner closed)
+  "Whether the item at OPEN holding INNER ends its first line at the brace.
+Such an item is the brace's own `match', `receive' or block, a lambda
+whose body ends so, or a call, a constructor or a field whose last
+argument or value ends so, INNER being the brace or such a call's
+parenthesis.  A list, a tuple, a bitstring and a parenthesized
+expression are not, nor is an operation or an `if', nor an item that
+goes on past INNER's closing bracket, which ends before CLOSED (report
+section 11.6)."
+  (and (memq (ernest--bracket-kind inner) '(brace call))
+       (not (ernest--operation-before-p open inner))
+       (not (and closed (ernest--carried-past-p closed)))))
+
+(defconst ernest--operation-re
+  "\\_<\\(?:if\\|match\\|receive\\)\\_>\\|->\\|[-+*%!<>=&|:]+\\|/[^/*]"
+  "A token that `ernest--operation-before-p' reads.
+It is a word that opens an expression, a function type's `->', or an
+operator.")
+
+(defun ernest--operation-before-p (open inner)
+  "Whether the item of the bracket at OPEN is an operation, read before INNER.
+An operator of report section 2.6, a prefix `-' or `!', or an `if',
+outside every bracket of the item, makes it one; a lambda's or a
+field's `=', an annotation's `:' and a function type's `->' do not.  The
+reading stops at a `match' or a `receive', whose own the rest is."
+  (save-excursion
+    (goto-char (+ open (if (eq (char-after open) ?<) 2 1)))
+    (let ((found nil) (done nil))
+      (while (and (not done) (re-search-forward ernest--operation-re inner t))
+        ;; the token is read before `syntax-ppss', which may propertize
+        ;; and so change the match data
+        (let ((token (match-string 0))
+              (state (save-excursion (syntax-ppss (match-beginning 0)))))
+          (unless (or (nth 8 state) (not (eql (nth 1 state) open)))
+            (cond ((member token '("match" "receive")) (setq done t))
+                  ((member token '("=" ":" "->")))
+                  (t (setq found t done t))))))
+      found)))
+
+(defun ernest--carried-past-p (closed)
+  "Whether code other than a closing bracket follows CLOSED.
+CLOSED is where a bracket's closing ends.  A selection, an operator or a
+call there carries on the item the bracket stands in, as `f(x).y' does."
+  (save-excursion
+    (goto-char closed)
+    (forward-comment (buffer-size))
+    (not (or (eobp) (eq (syntax-class (syntax-after (point))) 5)))))
+
+(defun ernest--ends-line-p (pos)
+  "Whether no code follows the character at POS on its line."
+  (save-excursion
+    (goto-char pos)
+    (<= (ernest--code-line-end) (1+ pos))))
 
 (defun ernest--clause-line-p (depth)
   "Whether the line point is on holds a clause's `->' at bracket DEPTH.
@@ -532,25 +625,20 @@ from its own line."
             (setq found t))))
       found)))
 
-(defun ernest--comma-between-p (open from to)
-  "Whether a comma of the bracket at OPEN stands between FROM and TO."
+(defun ernest--comma-between (open from to)
+  "The first comma of the bracket at OPEN between FROM and TO, or nil."
   (save-excursion
     (let ((found nil))
       (goto-char from)
       (while (and (not found) (re-search-forward "," to t))
         (let ((state (save-excursion (syntax-ppss (match-beginning 0)))))
           (when (and (not (nth 8 state)) (eql (nth 1 state) open))
-            (setq found t))))
+            (setq found (match-beginning 0)))))
       found)))
 
 (defun ernest--first-item-p (open pos)
   "Whether POS lies in the first item of the bracket at OPEN."
-  (not (ernest--comma-between-p open (1+ open) pos)))
-
-(defun ernest--more-items-p (open pos)
-  "Whether the bracket at OPEN holds a further item after POS."
-  (ernest--comma-between-p open pos
-                           (or (ignore-errors (scan-lists open 1 0)) (point-max))))
+  (not (ernest--comma-between open (1+ open) pos)))
 
 (defun ernest--first-item-column (open)
   "The column of the first item after the bracket at OPEN, or nil.

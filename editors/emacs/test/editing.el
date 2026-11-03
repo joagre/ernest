@@ -104,6 +104,6 @@
 (message "%s" (if (zerop ernest-editing--failures)
                   "editing: all checks passed"
                 (format "editing: %d checks failed" ernest-editing--failures)))
-(unless (zerop ernest-editing--failures) (kill-emacs 1))
+(kill-emacs (if (zerop ernest-editing--failures) 0 1))
 
 ;;; editing.el ends here
