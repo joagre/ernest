@@ -6,6 +6,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("kernel/include/file.hrl").
 -include_lib("public_key/include/public_key.hrl").
+-include("../include/ern_node.hrl").
 
 tmp() ->
     Base = os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
@@ -96,8 +97,9 @@ create_test() ->
     Again = fun() -> ern_node:create(Dir, none) end,
     ?assertEqual(<<"node exists">>,
                  iolist_to_binary(lists:last(string:split(refusal(Again), "/", trailing)))),
-    %% what it makes, a node reads, its tellings every 5000 ms
-    ?assertMatch({configuration, _, {{0, 0, 0, 0}, 8654}, _, [], #{}, #{}, run_queue, 5000},
+    %% what it makes, a node reads, its tellings every 5000 ms and the
+    %% host's own limits
+    ?assertMatch({configuration, _, {{0, 0, 0, 0}, 8654}, _, [], #{}, #{}, run_queue, 5000, #{}},
                  ern_node:read(Dir)).
 
 %% report §8.7, §12.5, Appendix C: what ernest.conf may say, read whole: a
@@ -120,7 +122,7 @@ read_test() ->
                                     <<"disk">> => #{<<"check-interval">> => 500}},
                 <<"utilization">> => <<"schedulers">>,
                 <<"utilization-interval">> => 2000}),
-    {configuration, _, Listen, _, Peers, Services, Measures, Utilization, Interval} =
+    {configuration, _, Listen, _, Peers, Services, Measures, Utilization, Interval, _} =
         ern_node:read(Dir),
     ?assertEqual(schedulers, Utilization),
     ?assertEqual(2000, Interval),
@@ -135,10 +137,28 @@ read_test() ->
     with(Dir, #{<<"peers">> => [#{<<"name">> => <<"store">>, <<"public-key">> => One,
                                   <<"network-address">> => <<"localhost:8654">>}]}),
     ?assertMatch({configuration, _, none, _, [{peer, <<"store">>, _, {"localhost", 8654}}], _, _,
-                  run_queue, 5000},
+                  run_queue, 5000, _},
                  ern_node:read(Dir)),
     with(Dir, #{<<"utilization">> => <<"run-queue">>, <<"utilization-interval">> => 1}),
-    ?assertMatch({configuration, _, _, _, _, _, _, run_queue, 1}, ern_node:read(Dir)).
+    ?assertMatch({configuration, _, _, _, _, _, _, run_queue, 1, _}, ern_node:read(Dir)).
+
+%% report §12.5, Appendix C: `limits` read, each field the number given,
+%% 1024 and 67108864 among them, a field left out absent, and none where
+%% the section is absent, the host's own; the power of two the node holds
+%% is ern_carrier_tests' and ern_nodes_tests'. A regression test, written
+%% after the code
+limits_test() ->
+    Dir = made(),
+    Limits = fun(Fields) ->
+                 with(Dir, Fields),
+                 (ern_node:read(Dir))#configuration.limits
+             end,
+    ?assertEqual(#{}, Limits(#{})),
+    ?assertEqual(#{}, Limits(#{<<"limits">> => #{}})),
+    ?assertEqual(#{processes => 65536, ports => 4096},
+                 Limits(#{<<"limits">> => #{<<"processes">> => 65536, <<"ports">> => 4096}})),
+    ?assertEqual(#{processes => 1024}, Limits(#{<<"limits">> => #{<<"processes">> => 1024}})),
+    ?assertEqual(#{ports => 67108864}, Limits(#{<<"limits">> => #{<<"ports">> => 67108864}})).
 
 %% report §12.5, Appendix C: what ernest.conf may not say, each refused when
 %% the file is read, naming the file and why
@@ -218,7 +238,28 @@ read_refusals_test() ->
          {#{<<"utilization-interval">> => 2500.5},
           "utilization-interval is not a count of milliseconds above 0"},
          {#{<<"utilization-interval">> => <<"5000">>},
-          "utilization-interval is not a count of milliseconds above 0"}],
+          "utilization-interval is not a count of milliseconds above 0"},
+         %% `limits`, a regression test written after the code
+         {#{<<"limits">> => []}, "limits is not a JSON object"},
+         {#{<<"limits">> => 65536}, "limits is not a JSON object"},
+         {#{<<"limits">> => #{<<"atoms">> => 1048576}}, "limits has the unknown field atoms"},
+         {fun() ->
+              conf(Dir, ["{\"public-key\": ", json:encode(Own),
+                         ", \"limits\": {\"ports\": 4096, \"ports\": 8192}}"])
+          end,
+          "limits gives ports twice"},
+         {#{<<"limits">> => #{<<"processes">> => 1023}},
+          "limits' processes is not a whole number from 1024 to 67108864"},
+         {#{<<"limits">> => #{<<"processes">> => 67108865}},
+          "limits' processes is not a whole number from 1024 to 67108864"},
+         {#{<<"limits">> => #{<<"ports">> => 134217728}},
+          "limits' ports is not a whole number from 1024 to 67108864"},
+         {#{<<"limits">> => #{<<"ports">> => 4096.0}},
+          "limits' ports is not a whole number from 1024 to 67108864"},
+         {#{<<"limits">> => #{<<"ports">> => <<"4096">>}},
+          "limits' ports is not a whole number from 1024 to 67108864"},
+         {#{<<"limits">> => #{<<"ports">> => -4096}},
+          "limits' ports is not a whole number from 1024 to 67108864"}],
     Ends = fun(Message, Expected) ->
                case is_list(Message) andalso ends(Message, Expected) of
                    true -> ok;
@@ -257,7 +298,7 @@ name_not_resolved_test() ->
                                       <<"network-address">> => <<"only6.ernest.invalid:8654">>}]}),
         ?assertMatch({configuration, _, _, _,
                       [{peer, <<"store">>, _, {"no.such.host.invalid", 8654}},
-                       {peer, <<"desk">>, _, {"only6.ernest.invalid", 8654}}], _, _, _, _},
+                       {peer, <<"desk">>, _, {"only6.ernest.invalid", 8654}}], _, _, _, _, _},
                      ern_node:read(Dir))
     after
         ok = inet_db:set_lookup(Lookup),

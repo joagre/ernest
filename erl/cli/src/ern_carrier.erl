@@ -1,6 +1,6 @@
 %% Report §12.5: a node's carrier, Erlang's own distribution over TLS with
 %% what hurts in it turned off. The flags the host boots with, which the
-%% launcher asks for before it starts the host (boot_flags/2); the node's
+%% launcher asks for before it starts the host (boot_flags/1); the node's
 %% name on the carrier, a constant at its key's digest (name/1, host/1);
 %% the floor's digest, which is the host's cookie (cookie/0); the rule
 %% that accepts a peer by its listed key, under the name that key gives
@@ -55,15 +55,16 @@ dial_ms() ->
 %%
 
 %% Report §12.5: the flags a node's host boots with, since the host takes its
-%% carrier only as it boots: TLS 1.3 with the node's certificate and key on
-%% each side and the rule as the verification, over the listener's family
-%% of addresses; no port-mapper daemon, a module of the runtime's answering
-%% from the configuration in its place; no mesh; the detector's times and
-%% the buffer; and the floor's digest as the cookie. The listener's
+%% carrier and its limits only as it boots: TLS 1.3 with the node's
+%% certificate and key on each side and the rule as the verification, over
+%% the listener's family of addresses; no port-mapper daemon, a module of
+%% the runtime's answering from the configuration in its place; no mesh;
+%% the detector's times and the buffer; the floor's digest as the cookie;
+%% and the limits `limits` names (limit_flags/1). The listener's
 %% interface, where it is one, is the kernel's to bind, and so is its
 %% family alone (family_alone/1).
 -spec boot_flags(#configuration{}) -> [string()].
-boot_flags(#configuration{config_dir = ConfigDir, listen = Listen}) ->
+boot_flags(#configuration{config_dir = ConfigDir, listen = Listen, limits = Limits}) ->
     Certificate = ern_node:file(filename:absname(ConfigDir), certificate),
     Key = ern_node:file(filename:absname(ConfigDir), key),
     Proto = case ern_node:family(Listen) of
@@ -78,7 +79,20 @@ boot_flags(#configuration{config_dir = ConfigDir, listen = Listen}) ->
             "-kernel", "net_ticktime", ?TICK_TIME, "-kernel", "net_setuptime",
             integer_to_list(dial_ms() div 1000),
             "+zdbbl", ?BUFFER, "-setcookie", cookie()]
-        ++ interface(Listen) ++ listen_options(Listen).
+        ++ interface(Listen) ++ listen_options(Listen) ++ limit_flags(Limits).
+
+%% Report §12.5: the host's limits of processes, `+P`, and of ports, `+Q`,
+%% each the least power of two at or above the number `limits` gives, and
+%% none where it gives none, the host's own. The power is the node's, given
+%% to the host whole, since the host's page leaves its own rounding open.
+limit_flags(Limits) ->
+    lists:append([[Flag, integer_to_list(power_of_two(Count, 1))]
+                   || {Name, Flag} <- [{processes, "+P"}, {ports, "+Q"}],
+                      #{Name := Count} <- [Limits]]).
+
+%% The least power of two at or above Count, from Power up.
+power_of_two(Count, Power) when Power >= Count -> Power;
+power_of_two(Count, Power) -> power_of_two(Count, Power * 2).
 
 %% Report §12.5: the TLS options of one side: the node's own certificate as
 %% the one the host trusts, so that a peer's is checked by the rule alone,
@@ -253,7 +267,7 @@ list(#configuration{peers = Peers, services = Services} = Configuration) ->
     ern_peer:configure([{Name, name(Key)} || #peer{name = Name, public_key = Key} <- Peers],
                        Services).
 
-%% Whether the host was booted with the carrier's flags (boot_flags/2),
+%% Whether the host was booted with the carrier's flags (boot_flags/1),
 %% which a node needs; a host booted otherwise cannot carry one.
 -spec booted() -> boolean().
 booted() ->
@@ -302,13 +316,16 @@ tells() ->
 %% the measures, the utilization and its interval are the new file's, the
 %% utilization holding from the next ask and the interval from the next
 %% telling (ern_gateway:reloaded/0), and a peer removed, or listed under
-%% another key, has its connection ended, both nodes running the loss.
+%% another key, has its connection ended, both nodes running the loss. A
+%% changed `limits` is read and checked, and the node keeps the limits it
+%% booted with until its next start, and says so.
 %%
-%% The node says that it read the file, and each peer added, removed or
-%% renamed, or why the file was refused. Whatever fails as the file is read
-%% and checked refuses the reload, the host's reason named where it is not
-%% a refusal, so that the signal handler, in whose process this runs, never
-%% fails and the node takes every later signal; the measures, the one
+%% The node says that it read the file, each peer added, removed or
+%% renamed, and that a change to `limits` holds from its next start, or why
+%% the file was refused. Whatever fails as the file is read and checked
+%% refuses the reload, the host's reason named where it is not a refusal,
+%% so that the signal handler, in whose process this runs, never fails and
+%% the node takes every later signal; the measures, the one
 %% change made before the checks end, are restored where theirs fails
 %% (ern_node:measures_changed/3).
 -spec reload() -> ok.
@@ -326,16 +343,16 @@ refuse(Refusal) ->
     say_later(["the reload was refused, and the configuration stays as it was: ", Refusal]).
 
 changed(#configuration{config_dir = ConfigDir, public_key = Key, listen = Listen, peers = Peers,
-                       measures = Measures},
+                       measures = Measures, limits = Limits},
         #configuration{public_key = NewKey, listen = NewListen, peers = NewPeers,
-                       measures = NewMeasures} = New) ->
+                       measures = NewMeasures, limits = NewLimits} = New) ->
     Conf = ern_build:shown(ern_node:file(ConfigDir, conf)),
     NewKey =:= Key orelse ern_build:fail(Conf ++ ": public-key cannot change while the node runs"),
     NewListen =:= Listen
         orelse ern_build:fail(Conf ++ ": listen cannot change while the node runs"),
     ern_node:measures_changed(ConfigDir, Measures, NewMeasures),
     ok = allow([Added || #peer{public_key = Added} <- NewPeers]),
-    ok = list(New),
+    ok = list(New#configuration{limits = Limits}),
     ok = ern_gateway:reloaded(),
     Removed = [Peer || #peer{public_key = Old} = Peer <- Peers,
                        not lists:keymember(Old, #peer.public_key, NewPeers)],
@@ -347,7 +364,8 @@ changed(#configuration{config_dir = ConfigDir, public_key = Key, listen = Listen
         ++ [["the peer ", Name, " is now named ", NewName]
             || #peer{name = Name, public_key = Same} <- Peers,
                #peer{name = NewName, public_key = Same2} <- NewPeers,
-               Same =:= Same2, Name =/= NewName].
+               Same =:= Same2, Name =/= NewName]
+        ++ ["the change to limits holds from the node's next start" || NewLimits =/= Limits].
 
 %% Report §8.7, §12.6: a node stops in order, so that every Down already on its
 %% way crosses before its connections close, and tells each peer still

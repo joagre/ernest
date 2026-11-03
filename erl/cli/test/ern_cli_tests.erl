@@ -3573,6 +3573,37 @@ launcher_run_options_test() ->
     ?assertEqual(lists:sort([Name || [Name] <- Usage, Name =/= "config-dir"]),
                  lists:sort([Name || "--" ++ Name <- string:split(Line, " | ", all)])).
 
+%% bin/ern, report §12.5, §11.2: the launcher's first start, run as the
+%% launcher runs it, answers the flags a node's host boots with for each
+%% job that makes a node, `ern run`, `ern test` and `ern shell` given
+%% `--config-dir`, and the limits `ernest.conf` names are among them, `+P`
+%% the processes and `+Q` the ports, each the least power of two at or
+%% above the number given. A regression test, written after the code; what
+%% the host then holds is ern_nodes_tests' limits/1
+node_limit_flags_test() ->
+    Dir = tmp(),
+    Node = filename:join(Dir, "node"),
+    ?assertEqual(0, ern_err(["config", "--config-dir", Node])),
+    Conf = filename:join(Node, "ernest.conf"),
+    ok = file:write_file(Conf, json:encode((conf_of(Node))#{<<"limits">> =>
+                                                                 #{<<"processes">> => 50000,
+                                                                   <<"ports">> => 4097}})),
+    write(Dir, "src/waits.ern", "export fn main() : Unit = Unit\n"),
+    ?assertEqual(0, ern_err(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    Erc = Dir ++ "/build/waits.erc",
+    First = fun(Words) ->
+                os:cmd("erl +B -boot no_dot_erlang -noshell -noinput -pa ../../../erl/*/ebin"
+                       " -run ern_cli node_flags -extra " ++ Words ++ " < /dev/null")
+            end,
+    [begin
+         Flags = First(Words),
+         ?assertMatch({Words, "ern-node-flags '-proto_dist'" ++ _}, {Words, Flags}),
+         ?assertNotEqual({Words, nomatch}, {Words, string:find(Flags, "'+P' '65536'")}),
+         ?assertNotEqual({Words, nomatch}, {Words, string:find(Flags, "'+Q' '8192'")})
+     end || Words <- ["run --config-dir " ++ Node ++ " " ++ Erc,
+                      "test --config-dir " ++ Node ++ " " ++ Erc,
+                      "shell --config-dir " ++ Node]].
+
 %% report §4.2: a module may not take a namespace of a standard library
 %% module written in Ernest
 stdlib_namespace_test() ->
@@ -5729,7 +5760,7 @@ config_peer_test() ->
                   <<"      \"public-key\": ", _/binary>>, <<"    }">>, <<"  ],">>,
                   <<"  \"services\": {}">>, <<"}">>, <<>>],
                  binary:split(Text, <<"\n">>, [global])),
-    [?assertMatch({configuration, _, _, _, [{peer, _, _, {{127, 0, 0, 1}, _}}], _, _, _, _},
+    [?assertMatch({configuration, _, _, _, [{peer, _, _, {{127, 0, 0, 1}, _}}], _, _, _, _, _},
                   ern_node:read(Node)) || Node <- [A, Foo]],
     [?assertEqual(0, ern_err(["config", "--config-dir" | Words]))
      || Words <- [[Ops], [A, "--peer-dir", Ops]]],
@@ -5778,12 +5809,14 @@ config_peer_address_test() ->
                   {<<"silent">>, none}],
                  [{Name, maps:get(<<"network-address">>, Peer, none)}
                   || #{<<"name">> := Name} = Peer <- Listed]),
-    ?assertMatch({configuration, _, _, _, [_, _, {peer, <<"silent">>, _, none}], _, _, _, _},
+    ?assertMatch({configuration, _, _, _, [_, _, {peer, <<"silent">>, _, none}], _, _, _, _, _},
                  ern_node:read(A)).
 
 %% report §11.3: `--peer-dir` writes `ernest.conf` again with every other field
 %% as it was, in its order, the peers listed before it kept, and the peer
-%% listed last; a link to the file is followed, and stays a link
+%% listed last; a link to the file is followed, and stays a link. `limits`
+%% among the fields kept, its own in their order, is a regression test,
+%% written after the code
 config_peer_keeps_fields_test() ->
     Dir = tmp(),
     [A, B, C] = [filename:join(Dir, Name) || Name <- ["a", "b", "c"]],
@@ -5797,7 +5830,8 @@ config_peer_keeps_fields_test() ->
                          ["{\"utilization-interval\": 2000, \"public-key\": ", json:encode(KeyA),
                           ", \"peers\": [{\"public-key\": ", json:encode(KeyB),
                           ", \"name\": \"b\"}], \"services\": {\"counter\": [\"b\"]},"
-                          " \"listen\": \"127.0.0.1:8654\", \"measures\": {\"cpu\": {}}}"]),
+                          " \"listen\": \"127.0.0.1:8654\", \"measures\": {\"cpu\": {}},"
+                          " \"limits\": {\"ports\": 4096, \"processes\": 65536}}"]),
     %% report §12.5: written by none but its owner, whatever the umask
     ok = file:change_mode(Elsewhere, 8#644),
     Conf = filename:join(A, "ernest.conf"),
@@ -5809,13 +5843,14 @@ config_peer_keeps_fields_test() ->
     InOrder = fun(Acc, Outer) -> {lists:reverse(Acc), Outer} end,
     {Value, ok, <<>>} = json:decode(Text, ok, #{object_finish => InOrder}),
     ?assertEqual([<<"utilization-interval">>, <<"public-key">>, <<"peers">>, <<"services">>,
-                  <<"listen">>, <<"measures">>], [Name || {Name, _} <- Value]),
+                  <<"listen">>, <<"measures">>, <<"limits">>], [Name || {Name, _} <- Value]),
     ?assertMatch([{<<"utilization-interval">>, 2000}, _,
                   {<<"peers">>, [[{<<"name">>, <<"b">>}, {<<"public-key">>, KeyB}],
                                  [{<<"name">>, <<"c">>},
                                   {<<"network-address">>, <<"127.0.0.1:8656">>}, _]]},
                   {<<"services">>, [{<<"counter">>, [<<"b">>]}]}, _,
-                  {<<"measures">>, [{<<"cpu">>, []}]}], Value).
+                  {<<"measures">>, [{<<"cpu">>, []}]},
+                  {<<"limits">>, [{<<"ports">>, 4096}, {<<"processes">>, 65536}]}], Value).
 
 %% report §11.3: `--peer-dir` is refused where `--listen` is given with it,
 %% where the peer's directory holds this node's own key, the directory

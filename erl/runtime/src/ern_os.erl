@@ -80,7 +80,10 @@ site({terminal, _}) -> <<"Os.startTerminal">>.
 %% declared order (report §3.5), and Kind `pipes`, or `{terminal, Size}`
 %% with Size `Terminal.Size(rows, columns)`. Report Appendix E.23: a word
 %% that holds U+0000, and a count of rows or columns the host cannot take,
-%% are `Left(Invalid)`.
+%% are `Left(Invalid)`. Report §12.5, Appendix E.23: a host that holds as
+%% many ports as its limit refuses the helper's, and the start answers that
+%% refusal in the host's words, as Tcp answers its own; any other failure
+%% to open the helper is the helper's.
 start({'Command', Program, Arguments, Input}, Kind, Owner, Reply) ->
     case lists:any(fun(Word) -> binary:match(Word, <<0>>) =/= nomatch end, [Program | Arguments])
          orelse not is_size_taken(Kind) of
@@ -96,7 +99,11 @@ start({'Command', Program, Arguments, Input}, Kind, Owner, Reply) ->
                     command(Helper, <<"c", Parts/binary>>),
                     wait_for_start(Helper, Input, Kind =/= pipes, Owner, Reply)
             catch
-                error:_ -> end_source(Reply, helper_failed())
+                error:system_limit ->
+                    end_source(Reply, {'Left', ern_io:host_error(system_limit,
+                                                                 fun file:format_error/1)});
+                error:_ ->
+                    end_source(Reply, helper_failed())
             end
     end.
 

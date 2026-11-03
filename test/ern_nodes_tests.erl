@@ -1334,6 +1334,146 @@ reload_in_example(Base) ->
     has(Out, "Slow.typed example 1: passed"),
     ?assertEqual(nomatch, string:find(Err, "refused")).
 
+%% report §12.5, Appendix C: a node holds the limits `limits` names, each
+%% the least power of two at or above the number given, as its host boots;
+%% a reload of a changed `limits` is not refused, changes nothing and says
+%% that the change holds from the node's next start, and that start holds
+%% the new limits; with the section left out the node holds the host's
+%% own, a bare `erl`'s; and a number out of range refuses the start,
+%% naming the file and the rule. The
+%% program answers each line of its standard input with the host's limits,
+%% read through a `foreign fn` of the host's, and ends at `end`. A
+%% regression test, written after the code; it does not cover `ern test`
+%% and `ern shell`, whose first start answers the same flags
+%% (ern_cli_tests' node_limit_flags_test), nor a spawn or a port beyond a
+%% limit
+limits_test_() ->
+    nodes_test({waits, 14}, fun limits/1).
+
+limits(Base) ->
+    Node = made(Base, "node", none),
+    Source = filename:join(Base, "src"),
+    ok = filelib:ensure_path(Source),
+    ok = file:write_file(filename:join(Source, "limits.ern"), <<"
+foreign fn systemInfo(item : Foreign.Term) : Int = \"erlang:system_info/1\"
+
+// Each line of standard input answered with the host's limits, until `end`.
+export fn main() : Unit =
+    match Io.readLine() {
+        Some(\"end\") -> Unit
+      | Some(_) -> {
+            Io.println(Io.show(#(systemInfo(Foreign.atom(\"process_limit\")),
+                                 systemInfo(Foreign.atom(\"port_limit\")))));
+            main()
+        }
+      | None -> Unit
+    }
+">>),
+    0 = built(["--build-root", filename:join(Base, "build"), Source]),
+    Program = filename:join([Base, "build", "limits.erc"]),
+    Limits = fun(Given) -> edit(Node, fun(Conf) -> Conf#{<<"limits">> => Given} end) end,
+    Limits(#{<<"processes">> => 50000, <<"ports">> => 4097}),
+    {Input, Wait} = started(Node, Program, []),
+    true = port_command(Input, "limits\n"),
+    prints(Node, "#(65536, 8192)\n"),
+    Limits(#{<<"processes">> => 2000, <<"ports">> => 2000}),
+    ?assertMatch({0, _}, signaled("reload", Node)),
+    says(Node, "ernest.conf was read again"),
+    says(Node, "the change to limits holds from the node's next start"),
+    true = port_command(Input, "limits\nend\n"),
+    prints(Node, "#(65536, 8192)\n", 2, ?WAIT_MS),
+    ?assertEqual(0, Wait()),
+    {_, Err} = said(Node),
+    ?assertEqual(nomatch, string:find(Err, "refused")),
+    {Again, WaitAgain} = started(Node, Program, []),
+    true = port_command(Again, "limits\nend\n"),
+    prints(Node, "#(2048, 2048)\n"),
+    ?assertEqual(0, WaitAgain()),
+    edit(Node, fun(Conf) -> maps:remove(<<"limits">>, Conf) end),
+    {0, Own} = finished("env -u ERL_AFLAGS -u ERL_FLAGS -u ERL_ZFLAGS erl -noshell -eval"
+                        " 'io:format(\"#(~B, ~B)~n\", [erlang:system_info(process_limit),"
+                        " erlang:system_info(port_limit)]), halt().'"),
+    {Unlimited, WaitUnlimited} = started(Node, Program, []),
+    true = port_command(Unlimited, "limits\nend\n"),
+    prints(Node, Own),
+    ?assertEqual(0, WaitUnlimited()),
+    Limits(#{<<"processes">> => 1000}),
+    ?assertEqual({1, "ern run: " ++ ern_build:shown(filename:join(Node, "ernest.conf"))
+                     ++ ": limits' processes is not a whole number from 1024 to 67108864\n"},
+                 finished([?ERN, " run --config-dir ", Node, " ", Program, " 2>&1"])).
+
+%% report §12.5, Appendix E.23, E.18: at a full table of ports, which a
+%% node's `limits` makes small, `Tcp.listen` answers the host's refusal,
+%% and `Os.start`, `Os.startTerminal` and `Os.run` answer it in the same
+%% words, `Left(Other("a system limit was hit, probably not enough
+%% ports"))`; a listener closed and ended gives a port back, and the next
+%% run starts.
+%% A regression test, written after the fix: `Os.start` took the host's
+%% refusal for its helper's failure, and faulted. It does not cover
+%% `Tcp.connect` or `Tcp.accept` at a full table, nor a first read of
+%% standard input there
+full_port_table_test_() ->
+    nodes_test({waits, 4}, fun full_port_table/1).
+
+full_port_table(Base) ->
+    Node = made(Base, "node", none),
+    edit(Node, fun(Conf) -> Conf#{<<"limits">> => #{<<"ports">> => 1024}} end),
+    Source = filename:join(Base, "src"),
+    ok = filelib:ensure_path(Source),
+    ok = file:write_file(filename:join(Source, "full.ern"), [<<"
+// Listeners opened until the host refuses one, which is said, each kept, so
+// that the node's table of ports stays full.
+fn filled(listeners : List(Address(Tcp.ListenerMsg))) : List(Address(Tcp.ListenerMsg)) =
+    match Tcp.listen(\"127.0.0.1\", 0) {
+        Right(listener) -> filled(listener :: listeners)
+      | Left(error) -> {
+            Io.println(\"listen: \" <> Io.show(error));
+            listeners
+        }
+    }
+
+// What a start answered, its program's process left out.
+fn started(answer : Either(Io.Error, Address(Os.ProgramMsg))) : Either(Io.Error, Unit) =
+    Either.map(answer, fn(_) = Unit)
+
+// What a run answered, its program's status alone.
+fn ran(answer : Either(Io.Error, Os.Finished)) : Either(Io.Error, Int) =
+    Either.map(answer, fn(finished) = finished.status)
+
+// The listener closed and its end waited for, which gives its port back.
+fn closed(listener : Address(Tcp.ListenerMsg)) : Unit receiving Down = {
+    monitor(Process.fromAddress(listener), fn(down) = down);
+    Tcp.closeListener(listener);
+    receive { _ -> Unit }
+}
+
+export fn main() : Unit receiving Down = {
+    let listeners = filled([]);
+    let command = Os.Command(program = \"true\", arguments = [], input = <<>>);
+    Io.println(\"start: \" <> Io.show(started(Os.start(command))));
+    let size = Terminal.Size(rows = 24, columns = 80);
+    Io.println(\"startTerminal: \" <> Io.show(started(Os.startTerminal(command, size))));
+    Io.println(\"run: \" <> Io.show(ran(Os.run(command, waitMs()))));
+    match listeners {
+        listener :: _ -> {
+            closed(listener);
+            Io.println(\"after a close: \" <> Io.show(ran(Os.run(command, waitMs()))))
+        }
+      | [] -> Unit
+    }
+}
+">>, wait_ms_declaration()]),
+    0 = built(["--build-root", filename:join(Base, "build"), Source]),
+    Wait = start(Node, filename:join([Base, "build", "full.erc"]), []),
+    prints(Node, "after a close: Right(0)\n"),
+    ?assertEqual(0, Wait()),
+    {Out, _} = said(Node),
+    Refused = "Io.Other(\"a system limit was hit, probably not enough ports\")",
+    ?assertEqual(["listen: " ++ Refused, "start: Left(" ++ Refused ++ ")",
+                  "startTerminal: Left(" ++ Refused ++ ")", "run: Left(" ++ Refused ++ ")",
+                  "after a close: Right(0)", ""],
+                 string:split(Out, "\n", all)).
+
 %% report §12.5: a node runs over its listener's family of addresses, IPv6
 %% where `listen` names an address of it, its peers' addresses of the same
 ipv6_test_() ->
@@ -2541,6 +2681,8 @@ reload(Base) ->
     has(Err, "peer \"broken\"'s public-key is not one public key in PEM"),
     has(Err, "listen cannot change while the node runs"),
     ?assertEqual(nomatch, string:find(Err, "the peer front was lost")),
+    %% report §12.5: no reload here changed `limits`, and none says so
+    ?assertEqual(nomatch, string:find(Err, "the change to limits")),
     ?assertEqual(nomatch, string:find(StoreOut, "WARNING REPORT")),
     %% the line as the deployment guide quotes it
     ern_deployment_tests:cataloged(Err, "7", "was removed", []),

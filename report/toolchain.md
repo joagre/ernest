@@ -1,6 +1,6 @@
 # Ernest Report: The Toolchain
 
-Revision of 2 November 2026.
+Revision of 3 November 2026.
 
 This file holds the report's §10 to §12 and Appendices C and H. §0 to §9 and Appendices A, B and F are in [`language.md`](language.md), and Appendices D, E and G in [`library.md`](library.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
@@ -343,7 +343,7 @@ The peer's directory, its `ernest.conf` and its `certificate.pem` are read as a 
 
 `--listen` with `--peer-dir` is refused, `--listen and --peer-dir are not given together: --peer-dir creates no directory`. `--peer-dir` is refused where `dir` holds this node's own key, `a has this node's own key, and a node is no peer of itself`; where a peer of its name is listed, `a/ernest.conf: a peer is named "foo" already`; where a listed peer has its key, `a/ernest.conf: the peer "b" has the key of foo already`; where its `listen` names port 0, which the host picks as the peer starts; and where the peer's entry breaks a rule of **Its configuration** (§12.5), an address of the other family among them. A refusal writes nothing.
 
-`ernest.conf` holds the node's `listen`, its public key, its peers, each with a name, a public key and a network address, its `services`, its `measures`, its `utilization` and its `utilization-interval`, as §12.5 says and Appendix C shows; a freshly created file lists no peer and no service. The directory is made for one machine and never copied (§12.5). The node writes `ernest.pid` there at its start (§12.5), and the shell runs the inputs of its `startup` file (§11.2).
+`ernest.conf` holds the node's `listen`, its public key, its peers, each with a name, a public key and a network address, its `services`, its `measures`, its `utilization`, its `utilization-interval` and its `limits`, as §12.5 says and Appendix C shows; a freshly created file lists no peer and no service. The directory is made for one machine and never copied (§12.5). The node writes `ernest.pid` there at its start (§12.5), and the shell runs the inputs of its `startup` file (§11.2).
 
 ### 11.4 Documentation extraction
 
@@ -593,13 +593,17 @@ The carrier of §8.7 as a node runs it: its configuration read, its files, its s
 
 As it starts, a node refuses a configuration directory, or a file of it that the node reads, that is neither its user's own nor the superuser's, or that anyone but its owner may write, as the shell's startup files are refused (§11.2), and a key that any but its owner may read or write.
 
-**Its configuration.** `ernest.conf` (Appendix C) holds the node's `listen`, its public key, its peers, its `services`, its `measures`, its `utilization` and its `utilization-interval`. `listen` is what the node's listener binds to, an address of one interface, or `0.0.0.0` or `::` for every interface of its family, and a port, or port 0, at which the host picks one; a node without `listen` does not listen, and only dials. An IPv4-mapped address as `listen`, `[::ffff:a.b.c.d]:port`, is refused when the configuration is read and by `ern config --listen` (§11.3), as `Tcp.listen` refuses it (Appendix E.18).
+**Its configuration.** `ernest.conf` (Appendix C) holds the node's `listen`, its public key, its peers, its `services`, its `measures`, its `utilization`, its `utilization-interval` and its `limits`. `listen` is what the node's listener binds to, an address of one interface, or `0.0.0.0` or `::` for every interface of its family, and a port, or port 0, at which the host picks one; a node without `listen` does not listen, and only dials. An IPv4-mapped address as `listen`, `[::ffff:a.b.c.d]:port`, is refused when the configuration is read and by `ern config --listen` (§11.3), as `Tcp.listen` refuses it (Appendix E.18).
 
 A peer has a name, which is not empty, a public key and a `network-address`, `host:port`, the host a name or an address, an IPv6 address in brackets; a name is resolved by the host at each dial, and not when the configuration is read. A peer listed without an address is never dialed, and is out of reach until it opens a connection itself.
 
 A node runs over one family of addresses, IPv4 or IPv6, its listener's, or IPv4 where it has no listener. A peer whose address is an address of the other family is refused when the configuration is read, with an error that names the peer and the one case that gives the node its family: `peer "store"'s network-address "127.0.0.1:8654" is IPv4, and this node runs over IPv6, its listener's family`, and for a node with no listener `..., and this node runs over IPv4, since it has no listener`. A name's family is checked at each dial, where the host resolves it: a dial to a name that resolves only to the other family fails as a refused dial does, and the node says why on its standard error.
 
 `measures` is an object that names which of the host's measures run on the node, `cpu`, `memory` and `disk`, each with the host's parameters under it, named by their meaning: `check-interval`, in milliseconds, and for `memory` a multiple of 60000, and `almost-full`, a fraction from 0 to 1; `cpu` takes none, and none runs where the section is absent.
+
+`limits` is an object that names the most of the host's processes and of its ports the node holds, `processes` and `ports`, each a whole number from 1024 to 67108864. The node's limit is the least power of two at or above the number given. Where the field or the section is absent the limit is the host's own: 1048576 processes, and 65536 ports or, where the operating system lets the node open more files, the least power of two at or above that count.
+
+The runtime's processes count among the processes. A socket, a listener, a program the node starts, the node's listener, each connection to a peer and the runtime's own streams hold a port. A spawn beyond the limit of processes faults as §7.4 says, and an operation that would open a port beyond the limit of ports answers the host's refusal, `Left(Other(text))` (Appendix E.1). A node without a configuration directory holds the host's limits.
 
 A node refuses to start where `ernest.conf` is not JSON, gives a field it does not know or one twice, holds a number too large for the host to read, names a peer or an entry of `services` twice, gives two peers one public key, lists its own key as a peer's, names under a service of `services` a peer it does not list, gives `utilization` a value that is neither of its two, gives `utilization-interval` a value that is no whole number of at least one, or breaks a rule of **Its configuration**. Its key is `private-key.pem`'s: a `public-key` in `ernest.conf` that is not that key's is refused, and so is a `certificate.pem` that certifies another key or names another host than that key gives (**Connections**). A refusal names the file and the rule.
 
@@ -615,7 +619,9 @@ A dial answered by another listed peer than the one dialed is refused by the dia
 
 **A reload.** `ern reload --config-dir dir` sends the node named by `ernest.pid` the hangup signal, which `kill -HUP` sends as well (§8.6, §11.2), and the node reads `ernest.conf` again.
 
-A peer added is listed, and nothing else happens until an operation dials it or it dials in. A peer removed, or one whose key changed, has its connection ended: both nodes run the loss, and the addresses a program holds of its processes are those of a node not listed. A peer whose address changed keeps an open connection, and the next dial uses the new address. A peer whose name changed under the same key keeps its connection; only the name a program uses changes. A change to `measures` starts or stops the host's services it names, and a change to `utilization` holds from the next ask, and one to `utilization-interval` from the next telling.
+A peer added is listed, and nothing else happens until an operation dials it or it dials in. A peer removed, or one whose key changed, has its connection ended: both nodes run the loss, and the addresses a program holds of its processes are those of a node not listed. A peer whose address changed keeps an open connection, and the next dial uses the new address. A peer whose name changed under the same key keeps its connection; only the name a program uses changes.
+
+A change to `measures` starts or stops the host's services it names, and a change to `utilization` holds from the next ask, and one to `utilization-interval` from the next telling. A change to `limits` holds from the node's next start, since the host takes its limits only as it boots, and the node says so: `the change to limits holds from the node's next start`.
 
 The node's own key and `listen` cannot change while it runs: a file that breaks a rule of **Its configuration**, or that changes either, is refused, and the old configuration stays. The node says on its standard error that it read `ernest.conf` again and each peer added, removed or renamed, or why the file was refused; the signal carries nothing back.
 
@@ -696,7 +702,9 @@ How a node measures how busy it is, which `Peer.utilization` answers and a telli
 }
 ```
 
-`listen` is what this node's listener binds to, and is left out on a node that only dials; a peer's `network-address` is left out where the peer is never dialed (§12.5). `services` lists, under a service's name, the peers that may offer it, in the order a find asks them. `measures`, absent here, names the host's measures that run on the node, `cpu`, `memory` and `disk`, each with the host's parameters under it by their meaning, `check-interval`, `almost-full` (§12.5): `"measures": {"cpu": {}, "memory": {"check-interval": 60000, "almost-full": 0.8}, "disk": {"check-interval": 1800000, "almost-full": 0.9}}`. `utilization`, absent here, says how the node measures how busy it is for its peers, `"run-queue"`, the default, or `"schedulers"` (§12.8): `"utilization": "schedulers"`. `utilization-interval`, absent here, is the milliseconds between a node's tellings of how busy it is to its peers (Appendix E.27), 5000 where it is left out: `"utilization-interval": 2000`.
+`listen` is what this node's listener binds to, and is left out on a node that only dials; a peer's `network-address` is left out where the peer is never dialed (§12.5). `services` lists, under a service's name, the peers that may offer it, in the order a find asks them.
+
+`measures`, absent here, names the host's measures that run on the node, `cpu`, `memory` and `disk`, each with the host's parameters under it by their meaning, `check-interval`, `almost-full` (§12.5): `"measures": {"cpu": {}, "memory": {"check-interval": 60000, "almost-full": 0.8}, "disk": {"check-interval": 1800000, "almost-full": 0.9}}`. `utilization`, absent here, says how the node measures how busy it is for its peers, `"run-queue"`, the default, or `"schedulers"` (§12.8): `"utilization": "schedulers"`. `utilization-interval`, absent here, is the milliseconds between a node's tellings of how busy it is to its peers (Appendix E.27), 5000 where it is left out: `"utilization-interval": 2000`. `limits`, absent here, names the most processes and ports the node holds, the host's own where it is left out (§12.5): `"limits": {"processes": 65536, "ports": 4096}`.
 
 The private key is in the same directory, `private-key.pem`, readable only by its owner, beside the certificate the node signs itself, `certificate.pem`, whose name is a constant and whose validity runs from 1970 to the end of 9999. A freshly created file lists no peer and no service.
 

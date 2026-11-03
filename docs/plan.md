@@ -93,6 +93,22 @@ before the website (the log's *What the Server Taught*).
    first, since `Command(program, arguments, input)` stands at ten sites of the standard library
    alone (feedback 184).
 
+10. **The runtime at the host's limits**, defects found 2026-11-03, fixed by 2026-11-06. At a
+    full process table the runtime's spawns on a request's behalf meet the host's
+    `system_limit` uncaught: the reaper's `spawn_monitor`, the per-request spawns of the `Fs`,
+    `Tcp` and `Os` system processes, and the runtime's own, a kept process, a kill and a
+    delivery. Each dies, and the node hangs where §7.4 has the spawner fault with
+    `Fault("error:system_limit")`. At a full port table the first read of standard input,
+    which opens its port lazily, faults with the host's raw term, and the terminal's `stty`
+    ports are opened the same way.
+
+    One rule fixes them: every spawn and port the runtime
+    makes for a request answers its asker with `Fault("error:system_limit")`, the system
+    process living on, and standard input's port opens with the run's other streams. Whether
+    a full table must leave room for the runtime's own end is decided here. A test under a
+    node of 1024 processes, and one of 1024 ports, holds each (the log's *A Node's
+    Limits*).
+
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
 
@@ -107,7 +123,9 @@ library's pages, and a live shell, a terminal in the visitor's browser connected
 Its design is `docs/proposals/site/decisions.md`, begun 2026-10-13, read back on 2026-10-30 and
 ready the same day: the root, the anchors, the homepage, every page, the look, the links, the
 templates, the generation, the live shell's page side and the documents; the first design's
-templates and mockup stand beside it. Its sandbox is the operating system's, one container per
+templates and mockup stand beside it. Built ahead of its items on 2026-11-03: a node's `limits`
+in `ernest.conf`, report §12.5, so that the two nodes of a visitor's container fit the
+server's memory (the log's *A Node's Limits*). Its sandbox is the operating system's, one container per
 visitor running the plain shell, whose server side is the httpd proposal's; a sandbox of the
 language's was weighed and set aside on 2026-10-13 (the log's *ehttpd and the Website*), and the
 attached shell, MVP 4.0, is the operator's alone.

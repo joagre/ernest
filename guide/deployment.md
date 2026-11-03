@@ -44,6 +44,7 @@ The directory belongs to the user who runs the node. A node refuses to start fro
 - `peers`: a list, each peer with a `name` you choose, which the program uses, its `public-key`, and a `network-address`, `host:port`, which is left out where this node never dials that peer. A host name is resolved at each dial, not when the file is read.
 - `services`: a service is a process a program offers under a name, which a program on another node looks up, a *find*, to get its address; under each service's name, the peers that may offer it, in the order a find asks them. A service not listed here is found nowhere from this node.
 - `measures`, `utilization` and `utilization-interval`: what the node measures of itself, how busy it is on one scale among it, and tells its peers, section 3.
+- `limits`: the most processes and ports the node holds, `processes` and `ports`, each rounded up to a power of two; a node left without them holds the host's own, a table for 1048576 processes and one for 65536 ports or more, reserved as it starts. A small node, one of many on a machine, states smaller ones: `"limits": {"processes": 65536, "ports": 4096}` (report §12.5).
 - The node runs over one family of addresses, IPv4 or IPv6, its listener's, or IPv4 where it has no listener; a peer's address of the other family is refused when the file is read, and a host name's family is checked at each dial, which fails where the name resolves only to the other.
 
 A file is refused before anything runs, with a line that names the fault (report §12.5, *Its configuration*), where it:
@@ -61,6 +62,7 @@ A file is refused before anything runs, with a line that names the fault (report
 - names under a service a peer it does not list;
 - gives `utilization` a value that is neither of its two;
 - gives `utilization-interval` one that is no whole number of at least one;
+- gives `limits` a field other than `processes` and `ports`, or one that is no whole number from 1024 to 67108864;
 - gives a `public-key` that is not the node's private key's.
 
 ### 1.3 Starting, reloading and stopping
@@ -77,7 +79,7 @@ It writes its process number to `ernest.pid` in its directory and holds the file
 
 `ern reload --config-dir dir` sends the node the hangup signal, and the node reads `ernest.conf` again (report §12.5, *A reload*). A peer added is listed and nothing more happens until the program reaches for it, by a send, a call, a find, a spawn or a compute, or until it dials in. A send is a message to a process there, and a *call* a send that waits for its answer. A find looks up a service the peer offers, a spawn starts a process there, and a compute runs a function there for its value.
 
-A peer removed, or one whose key changed, has its connection ended, and both nodes treat it as lost (section 2.3); a peer whose address changed keeps its connection, and the next dial uses the new address; a change to `measures`, `utilization` or `utilization-interval` holds from the node's next measure of itself and its next report to its peers (section 3).
+A peer removed, or one whose key changed, has its connection ended, and both nodes treat it as lost (section 2.3); a peer whose address changed keeps its connection, and the next dial uses the new address; a change to `measures`, `utilization` or `utilization-interval` holds from the node's next measure of itself and its next report to its peers (section 3); and a change to `limits` holds from the node's next start, which the node says.
 
 The node says `ernest.conf was read again` and a line for each peer added, removed or renamed.
 

@@ -8,12 +8,14 @@
 %% the order a find asks them; measures: the host's measures to start, each
 %% to its parameters; utilization: run_queue or schedulers, how the node
 %% measures how busy it is for its peers; utilization_interval: the
-%% milliseconds between its tellings of it to its peers; config_dir: the
-%% configuration directory, whose key and certificate the carrier's TLS
-%% takes.
+%% milliseconds between its tellings of it to its peers; limits: the most
+%% of the host's processes and of its ports the node holds, `processes`
+%% and `ports` each to the number given, where it is given, which the host
+%% takes as it boots; config_dir: the configuration directory, whose key
+%% and certificate the carrier's TLS takes.
 -record(configuration, {config_dir, listen = none, public_key, peers = [], services = #{},
                         measures = #{}, utilization = run_queue,
-                        utilization_interval = 5000}).
+                        utilization_interval = 5000, limits = #{}}).
 
 %% A peer as listed: address none, or {Host, Port}, Host a name or an
 %% address the host resolves at each dial.

@@ -30,7 +30,7 @@
 
 %% Report §12.5, Appendix E.27: what `ernest.conf` may say.
 -define(FIELDS, [<<"listen">>, <<"public-key">>, <<"peers">>, <<"services">>, <<"measures">>,
-                 <<"utilization">>, <<"utilization-interval">>]).
+                 <<"utilization">>, <<"utilization-interval">>, <<"limits">>]).
 -define(PEER_FIELDS, [<<"name">>, <<"public-key">>, <<"network-address">>]).
 
 %%
@@ -519,7 +519,8 @@ configuration(ConfigDir) ->
                                              maps:get(<<"utilization">>, Fields, <<"run-queue">>)),
                    utilization_interval =
                        utilization_interval(ConfigDir,
-                                            maps:get(<<"utilization-interval">>, Fields, 5000))}.
+                                            maps:get(<<"utilization-interval">>, Fields, 5000)),
+                   limits = limits(ConfigDir, maps:get(<<"limits">>, Fields, none))}.
 
 %% `ernest.conf` as one JSON value, each object in it `{object, Pairs}`,
 %% its fields in the file's order, twice where the file gives one twice.
@@ -813,6 +814,24 @@ utilization_interval(_ConfigDir, Ms) when is_integer(Ms), Ms > 0 ->
     Ms;
 utilization_interval(ConfigDir, _) ->
     fail(ConfigDir, ?CONF, "utilization-interval is not a count of milliseconds above 0").
+
+%% Report §12.5: `limits`, the most of the host's processes and of its ports
+%% the node holds, `processes` and `ports`, each a whole number from 1024 to
+%% 67108864, kept as given: the node's limit is the least power of two at or
+%% above it, which the host takes as it boots (ern_carrier:boot_flags/1);
+%% none where the section is absent, the host's own.
+limits(_ConfigDir, none) ->
+    #{};
+limits(ConfigDir, Item) ->
+    Fields = object(ConfigDir, "limits", Item, [<<"processes">>, <<"ports">>]),
+    maps:from_list([{binary_to_atom(Name), limit(ConfigDir, Name, Count)}
+                    || {Name, Count} <- maps:to_list(Fields)]).
+
+limit(_ConfigDir, _Name, Count) when is_integer(Count), Count >= 1024, Count =< 67108864 ->
+    Count;
+limit(ConfigDir, Name, _) ->
+    fail(ConfigDir, ?CONF, "limits' " ++ binary_to_list(Name) ++ " is not a whole number from"
+                           " 1024 to 67108864").
 
 %%
 %% Utilities

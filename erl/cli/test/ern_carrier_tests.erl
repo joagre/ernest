@@ -140,6 +140,25 @@ boot_flags_test() ->
     ?assertNot(lists:member("inet_dist_use_interface", Dialing)),
     ?assertNot(lists:member("inet_dist_listen_options", Dialing)).
 
+%% report §12.5: a node's host boots with the limits `limits` names, `+P`
+%% the processes and `+Q` the ports, each the least power of two at or
+%% above the number given, the least and the most a field takes among
+%% them, and with neither flag where a field or the section is absent, the
+%% host's own. A regression test, written after the code; what the host
+%% then holds is ern_nodes_tests' limits/1
+limit_flags_test() ->
+    Configuration = configured(),
+    Flags = fun(Limits) -> ern_carrier:boot_flags(Configuration#configuration{limits = Limits}) end,
+    Both = Flags(#{processes => 50000, ports => 4097}),
+    ?assert(contains(Both, ["+P", "65536"])),
+    ?assert(contains(Both, ["+Q", "8192"])),
+    [?assert(contains(Flags(#{processes => Given}), ["+P", Power]))
+     || {Given, Power} <- [{1024, "1024"}, {1025, "2048"}, {65536, "65536"},
+                           {33554433, "67108864"}, {67108864, "67108864"}]],
+    Processes = Flags(#{processes => 65536}),
+    ?assertNot(lists:member("+Q", Processes)),
+    [?assertNot(lists:member(Flag, Flags(#{}))) || Flag <- ["+P", "+Q"]].
+
 contains(List, Part) ->
     lists:prefix(Part, List) orelse (List =/= [] andalso contains(tl(List), Part)).
 
