@@ -3449,10 +3449,15 @@ asked_monitor_goes_with_its_asker() ->
 %%
 %% Here the reporter holds the reaper in the first report until the entry
 %% process has ended, so that the reaper learns of the others' ends after
-%% it. A regression test, written after the code: the reaper took a fault
-%% it learned of after the entry's end for one the program's end caused,
-%% and dropped it; and again for the cause carried unchanged, written after
-%% that code too
+%% it; the chain begins once the entry process has made its last spawn,
+%% which the reaper answers, so that the reaper is held only where the
+%% entry process asks nothing more of it. A regression test, written after
+%% the code: the reaper took a fault it learned of after the entry's end
+%% for one the program's end caused, and dropped it; and again for the
+%% cause carried unchanged, written after that code too; and of the test,
+%% whose chain began at its second spawn, so that a fault met before the
+%% entry's last spawn was answered held the reaper from that spawn, and the
+%% run waited for ever, once in five runs of `make test`
 faults_before_the_end_are_reported_test() ->
     Self = self(),
     Zero = zero(),
@@ -3466,8 +3471,10 @@ faults_before_the_end_are_reported_test() ->
                 fun() ->
                     C = ern_rt:spawn(fun() -> receive {ask, _} -> 1 div Zero end end,
                                      <<"Main.main:3">>),
-                    B = ern_rt:spawn(Next(C), <<"Main.main:4">>),
+                    B = ern_rt:spawn(fun() -> receive go -> (Next(C))() end end,
+                                     <<"Main.main:4">>),
                     A = ern_rt:spawn(Next(B), <<"Main.main:5">>),
+                    B ! go,
                     (Next(A))()
                 end, <<"main">>, #{stdout => fun(_) -> ok end, faults => Reporter}),
     Cause = <<"division by zero">>,

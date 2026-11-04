@@ -7,7 +7,7 @@
 -module(ern_cli).
 
 -export([start/0, node_flags/0, ern/1, ern/2, stamp/1, is_stamped/0, error_line/1, load_path/0,
-         say_limits/0]).
+         limit_filter/2, say_limits/0]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("checker/include/ern_types.hrl").
@@ -1564,9 +1564,22 @@ quiet_signals() ->
     ok = ern_signals:install(),
     %% the host logs its own note about a signal at notice level, and a
     %% program's output is not to be mixed with it; a warning or an error
-    %% from the host still comes through.
+    %% from the host still comes through, but its report of a spawn beyond
+    %% its limit of processes (limit_filter/2)
     _ = logger:set_handler_config(default, level, warning),
+    _ = logger:add_primary_filter(?MODULE, {fun ?MODULE:limit_filter/2, []}),
     ok.
+
+%% Report §12.1, §7.4, §12.5: the host's own report of a spawn beyond its
+%% limit of processes, which its handler writes to standard output among
+%% what the program wrote there, is dropped: the spawn faults its asker,
+%% whose fault's line says it (§11.2).
+-spec limit_filter(logger:log_event(), term()) -> logger:filter_return().
+limit_filter(#{msg := {"~s~n", ["Too many processes\n"]},
+               meta := #{error_logger := #{emulator := true}}}, _) ->
+    stop;
+limit_filter(_Event, _) ->
+    ignore.
 
 %% Report §11.2: the status a running program ends `ern` with, and what it
 %% prints of its entry process's end, whose site is Site: nothing when it

@@ -1203,18 +1203,21 @@ tls_slow_handshake_test() ->
     ?assertEqual({'Right', <<"slow">>}, wait(first_later)).
 
 %% report Appendix E.1, E.17, E.18: `listenTls` answers a certificate or
-%% key file the host cannot read as `Fs` answers the path, `Left(NotFound)`
-%% for one missing, `Left(Denied)` for one it may not read and
-%% `Left(NotAFile)` for a directory; one the
-%% host refuses `Left(Other(text))`, the file's name and what is wrong on
-%% one line, `not one key` for a file with no key in it and `no
-%% certificate` for one with no certificate; and `Left(Invalid)` for a
-%% path that holds U+0000. A regression test: the host's term stood in
-%% `Other(text)`, pretty-printed over two lines, and a missing file was
-%% not `NotFound`, and a directory was the host's words (K2). It does not
-%% cover a key that does not match its certificate, which the host takes
-%% as it listens and refuses at each handshake, nor a key of a kind the
-%% host does not take, `not a key`
+%% key file it cannot read or refuses `Left(Other(text))`, the file's name
+%% and what is wrong on one line: for one it cannot read, what `Fs`
+%% answers for the path, `NotFound` for one missing, `Denied` for one it
+%% may not read and `NotAFile` for a directory; for one the host refuses,
+%% `not one key` for a file with no key in it and `no certificate` for one
+%% with no certificate; and `Left(Invalid)` for a path that holds U+0000.
+%%
+%% A regression test: the host's term stood in `Other(text)`,
+%% pretty-printed over two lines, and a missing file was not `NotFound`,
+%% and a directory was the host's words (K2); and of feedback 222, written
+%% after the code, where a file it could not read answered `Fs`'s answer
+%% bare, as a port refused answers, naming no file. It does not cover a
+%% key that does not match its certificate, which the host takes as it
+%% listens and refuses at each handshake, nor a key of a kind the host
+%% does not take, `not a key`
 listen_tls_refused_test() ->
     #{dir := Dir, server := {Certificate, Key}} = pki(),
     Unreadable = filename:join(Dir, "unreadable.key"),
@@ -1236,27 +1239,29 @@ listen_tls_refused_test() ->
                            listen_tls(0, {Dir, Key}),
                            listen_tls(0, {Certificate, Dir})]}
            end),
-    ?assertEqual([{'Left', 'NotFound'},
-                  {'Left', 'Denied'},
-                  {'Left', {'Other', list_to_binary(Garbage ++ ": not one key")}},
-                  {'Left', 'NotFound'},
-                  {'Left', {'Other', list_to_binary(Empty ++ ": no certificate")}},
+    Refused = fun(File, What) -> {'Left', {'Other', list_to_binary([File, ": ", What])}} end,
+    ?assertEqual([Refused(filename:join(Dir, "missing.key"), "NotFound"),
+                  Refused(Unreadable, "Denied"),
+                  Refused(Garbage, "not one key"),
+                  Refused(filename:join(Dir, "missing.pem"), "NotFound"),
+                  Refused(Empty, "no certificate"),
                   {'Left', 'Invalid'},
-                  {'Left', 'NotAFile'},
-                  {'Left', 'NotAFile'}],
+                  Refused(Dir, "NotAFile"),
+                  Refused(Dir, "NotAFile")],
                  wait(listened)).
 
 %% report Appendix E.17, E.18: `connectTls` to a port where nothing listens
 %% answers `Left(Refused)`, as `connect` does; to one whose far end does
 %% not shake hands within its milliseconds `Left(Timeout)`; a file of
 %% certificates whose path holds U+0000 `Left(Invalid)`; and one that is
-%% missing `Left(NotFound)`, a directory `Left(NotAFile)` and one that
-%% holds no certificate `Left(Other(text))`, as `listenTls`'s files
-%% answer, read before the dial, so that each answers so towards the port
-%% where nothing listens too. Written after the code, a regression test;
-%% the file read before the dial, and its directory and its want of a
-%% certificate, after the code too (K1, K2): the file was the host's to
-%% read as it shook hands, so a closed port answered `Refused`
+%% missing, a directory and one that holds no certificate
+%% `Left(Other(text))`, as `listenTls`'s files answer, `NotFound`,
+%% `NotAFile` and `no certificate` after the file's name, read before the
+%% dial, so that each answers so towards the port where nothing listens
+%% too. Written after the code, a regression test; the file read before
+%% the dial, and its directory and its want of a certificate, after the
+%% code too (K1, K2): the file was the host's to read as it shook hands, so
+%% a closed port answered `Refused`; and the file named, feedback 222
 connect_tls_refused_test() ->
     #{ca := Ca, dir := Dir} = pki(),
     NoCertificate = filename:join(Dir, "no_certificate.pem"),
@@ -1283,8 +1288,9 @@ connect_tls_refused_test() ->
     ?assertEqual({'Left', 'Refused'}, wait(refused)),
     ?assertEqual({'Left', 'Timeout'}, wait(timeout)),
     ?assertEqual({'Left', 'Invalid'}, wait(invalid)),
-    Refused = [{'Left', 'NotFound'}, {'Left', 'NotAFile'},
-               {'Left', {'Other', list_to_binary(NoCertificate ++ ": no certificate")}}],
+    Refused = [{'Left', {'Other', list_to_binary([File, ": ", What])}}
+               || {File, What} <- [{Missing, "NotFound"}, {Dir, "NotAFile"},
+                                   {NoCertificate, "no certificate"}]],
     ?assertEqual(Refused ++ Refused, wait(files)).
 
 %% report Appendix E.18: `Verified` takes a far end whose own certificate

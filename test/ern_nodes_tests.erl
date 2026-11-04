@@ -1404,14 +1404,14 @@ export fn main() : Unit =
 
 %% report §12.5, Appendix E.23, E.18: at a full table of ports, which a
 %% node's `limits` makes small, `Tcp.listen` answers the host's refusal,
-%% and `Os.start`, `Os.startTerminal` and `Os.run` answer it in the same
-%% words, `Left(Other("a system limit was hit, probably not enough
-%% ports"))`; a listener closed and ended gives a port back, and the next
-%% run starts.
+%% and `Tcp.connect`, `Tcp.accept`, `Os.start`, `Os.startTerminal` and
+%% `Os.run` answer it in the same words, `Left(Other("a system limit was
+%% hit, probably not enough ports"))`; listeners closed and ended give
+%% their ports back, and the next connect, accept and run open theirs.
 %% A regression test, written after the fix: `Os.start` took the host's
-%% refusal for its helper's failure, and faulted. It does not cover
-%% `Tcp.connect` or `Tcp.accept` at a full table, nor a first read of
-%% standard input there
+%% refusal for its helper's failure, and faulted; `Tcp.connect` and
+%% `Tcp.accept` written after the code. It does not cover a read of
+%% standard input there, nor the terminal's subscription
 full_port_table_test_() ->
     nodes_test({waits, 4}, fun full_port_table/1).
 
@@ -1447,21 +1447,44 @@ fn closed(listener : Address(Tcp.ListenerMsg)) : Unit receiving Down = {
     receive { _ -> Unit }
 }
 
-export fn main() : Unit receiving Down = {
+// What an open answered, its socket left out.
+fn opened(answer : Either(Io.Error, Address(Tcp.SocketMsg))) : Either(Io.Error, Unit) =
+    Either.map(answer, fn(_) = Unit)
+
+// A connection to the door, which waits there to be accepted, made before
+// the table is full, and then the requests at the full table.
+fn knocked(door : Address(Tcp.ListenerMsg), port : Int) : Unit receiving Down = {
+    Io.println(\"client: \" <> Io.show(opened(Tcp.connect(\"127.0.0.1\", port, waitMs()))));
     let listeners = filled([]);
+    Io.println(\"connect: \" <> Io.show(opened(Tcp.connect(\"127.0.0.1\", port, waitMs()))));
+    Io.println(\"accept: \" <> Io.show(opened(Tcp.accept(door, waitMs()))));
     let command = Os.Command(program = \"true\", arguments = [], input = <<>>);
     Io.println(\"start: \" <> Io.show(started(Os.start(command))));
     let size = Terminal.Size(rows = 24, columns = 80);
     Io.println(\"startTerminal: \" <> Io.show(started(Os.startTerminal(command, size))));
     Io.println(\"run: \" <> Io.show(ran(Os.run(command, waitMs()))));
     match listeners {
-        listener :: _ -> {
-            closed(listener);
+        first :: second :: third :: _ -> {
+            closed(first);
+            closed(second);
+            closed(third);
+            Io.println(\"after a close: \"
+                       <> Io.show(opened(Tcp.connect(\"127.0.0.1\", port, waitMs()))));
+            Io.println(\"after a close: \" <> Io.show(opened(Tcp.accept(door, waitMs()))));
             Io.println(\"after a close: \" <> Io.show(ran(Os.run(command, waitMs()))))
         }
-      | [] -> Unit
+      | _ -> Unit
     }
 }
+
+export fn main() : Unit receiving Down =
+    match Tcp.listen(\"127.0.0.1\", 0) {
+        Right(door) -> match Tcp.port(door) {
+            Right(port) -> knocked(door, port)
+          | Left(error) -> Io.println(Io.show(error))
+        }
+      | Left(error) -> Io.println(Io.show(error))
+    }
 ">>, wait_ms_declaration()]),
     0 = built(["--build-root", filename:join(Base, "build"), Source]),
     Wait = start(Node, filename:join([Base, "build", "full.erc"]), []),
@@ -1469,10 +1492,237 @@ export fn main() : Unit receiving Down = {
     ?assertEqual(0, Wait()),
     {Out, _} = said(Node),
     Refused = "Io.Other(\"a system limit was hit, probably not enough ports\")",
-    ?assertEqual(["listen: " ++ Refused, "start: Left(" ++ Refused ++ ")",
-                  "startTerminal: Left(" ++ Refused ++ ")", "run: Left(" ++ Refused ++ ")",
-                  "after a close: Right(0)", ""],
+    ?assertEqual(["client: Right(Unit)", "listen: " ++ Refused,
+                  "connect: Left(" ++ Refused ++ ")", "accept: Left(" ++ Refused ++ ")",
+                  "start: Left(" ++ Refused ++ ")", "startTerminal: Left(" ++ Refused ++ ")",
+                  "run: Left(" ++ Refused ++ ")", "after a close: Right(Unit)",
+                  "after a close: Right(Unit)", "after a close: Right(0)", ""],
                  string:split(Out, "\n", all)).
+
+%% report §7.4, §12.1, §12.5: at a full table of ports, a read of standard
+%% input, which opens the input for the read alone, faults its reader with
+%% `Fault("error:system_limit")`, and standard input lives on: once a
+%% listener is closed and ended, giving its port back, the next read takes
+%% the line the first could not. A regression test, written after the fix:
+%% the standard input's process died of the host's `system_limit`. It does
+%% not cover a read of bytes, which opens the input as a line's does, nor
+%% the keys, the terminal's tests'
+full_port_table_input_test_() ->
+    nodes_test({waits, 3}, fun full_port_table_input/1).
+
+full_port_table_input(Base) ->
+    Node = made(Base, "node", none),
+    edit(Node, fun(Conf) -> Conf#{<<"limits">> => #{<<"ports">> => 1024}} end),
+    Source = filename:join(Base, "src"),
+    ok = filelib:ensure_path(Source),
+    ok = file:write_file(filename:join(Source, "input.ern"), <<"
+// Listeners opened until the host refuses one, each kept, so that the
+// node's table of ports stays full.
+fn filled(listeners : List(Address(Tcp.ListenerMsg))) : List(Address(Tcp.ListenerMsg)) =
+    match Tcp.listen(\"127.0.0.1\", 0) {
+        Right(listener) -> filled(listener :: listeners)
+      | Left(_) -> listeners
+    }
+
+// The listener closed and its end waited for, which gives its port back.
+fn closed(listener : Address(Tcp.ListenerMsg)) : Unit receiving Down = {
+    monitor(Process.fromAddress(listener), fn(down) = down);
+    Tcp.closeListener(listener);
+    receive { _ -> Unit }
+}
+
+// A line of standard input read and said.
+fn read() : Unit = Io.println(\"read: \" <> Io.show(Io.readLine()))
+
+export fn main() : Unit receiving Down = {
+    let listeners = filled([]);
+    let _ = spawnMonitored(fn() = read(), fn(down) = down);
+    receive {
+        Down(process = _, =reason, site = _) -> Io.println(\"reader: \" <> Io.show(reason))
+    };
+    match listeners {
+        listener :: _ -> {
+            closed(listener);
+            read()
+        }
+      | [] -> Unit
+    }
+}
+">>),
+    0 = built(["--build-root", filename:join(Base, "build"), Source]),
+    {Input, Wait} = started(Node, filename:join([Base, "build", "input.erc"]), []),
+    true = port_command(Input, "first\n"),
+    ?assertEqual(0, Wait()),
+    {Out, Err} = said(Node),
+    ?assertEqual(["reader: Fault(\"error:system_limit\")", "read: Some(\"first\")", ""],
+                 string:split(Out, "\n", all)),
+    has(Err, "Input.main:22 faulted: error:system_limit").
+
+%% report §7.4, §12.5, §7.3: at a full table of processes, which a node's
+%% `limits` makes small, every spawn the runtime makes for a request
+%% answers its asker with `Fault("error:system_limit")`, the process that
+%% took the request living on: the reaper's spawn, the per-request
+%% processes of `Fs`, `Tcp` and `Os`, and the clock's delivery of an
+%% alarm, whose recipient faults at its wait. A probe takes each step at
+%% the full table, asking the entry process for it, and faults, and
+%% `restarting` runs it again in the same process, so that the table stays
+%% full; each kind is asked twice, the process that took it answering
+%% again. Report §10: a `kill` needs no room, so a kill at the full table
+%% makes room, and once the killed process has ended, which a call on it
+%% shows, a spawn takes its place.
+%%
+%% Report §8.6, §11.2: a program that fills its table and faults ends with
+%% its fault reported, its end telling its subscriber of `Os.termination`
+%% by a delivery that cannot be made, so that the subscriber faults and is
+%% waited for no longer. Report §12.1: the host's own report of each spawn
+%% refused is not written, the fault's line saying it.
+%%
+%% A regression test, written after the fix: the reaper and the system
+%% processes died of the host's `system_limit`, and the node hung; and a
+%% kill faulted where the table was full. It does
+%% not cover a listener's accept, whose worker is made as a connect's is, a
+%% process kept for an adapted address, which needs a peer, the terminal's
+%% subscription, or a deadlock at a full table, which a node does not look
+%% for
+full_process_table_test_() ->
+    nodes_test({waits, 4}, fun full_process_table/1).
+
+full_process_table(Base) ->
+    Node = made(Base, "node", none),
+    edit(Node, fun(Conf) -> Conf#{<<"limits">> => #{<<"processes">> => 1024}} end),
+    Source = filename:join(Base, "src"),
+    ok = filelib:ensure_path(Source),
+    ok = file:write_file(filename:join(Source, "full.ern"), [<<"
+foreign fn systemInfo(item : Foreign.Term) : Int = \"erlang:system_info/1\"
+
+// What the probe asks the entry process: the step its run is to take.
+type StepMsg = Next(Reply(Int))
+
+// What a held process takes, a call it never answers.
+type HeldMsg = Hold(Reply(Unit))
+
+// The steps the probe takes at the full table, each kind of request twice
+// and then a kill.
+let steps : Int = 13
+
+// The table filled once the probe waits for its first step, and each step
+// answered in turn.
+export fn main() : Unit receiving StepMsg = {
+    let entry = self();
+    let held = spawn(fn() = holding());
+    let _ = spawn(restarting(Unlimited, fn() = probed(entry, held)));
+    filled(systemInfo(Foreign.atom(\"process_limit\"))
+           - systemInfo(Foreign.atom(\"process_count\")));
+    stepped(0)
+}
+
+// Count processes spawned, each waiting for ever.
+fn filled(count : Int) : Unit =
+    if count > 0 then {
+        let _ = spawn(fn() = waited());
+        filled(count - 1)
+    } else
+        Unit
+
+// A process that waits for nothing that comes.
+fn waited() : Unit receiving Int = receive { _ -> Unit }
+
+// A process that answers no call, until it is killed.
+fn holding() : Unit receiving HeldMsg = receive { Hold(_) -> holding() }
+
+// Each step the probe asks for answered in turn, the last past the steps,
+// which ends the probe.
+fn stepped(next : Int) : Unit receiving StepMsg =
+    receive {
+        Next(reply) -> {
+            answer(reply, next);
+            if next < steps then stepped(next + 1) else Unit
+        }
+    }
+
+// A run of the probe: each step the entry process names, said and taken.
+fn probed(entry : Address(StepMsg), held : Address(HeldMsg)) : Unit receiving Int =
+    match Address.call(entry, Next, waitMs()) {
+        Some(step) ->
+            if step < steps then {
+                Io.println(\"step \" <> Int.toString(step));
+                requested(step, held);
+                probed(entry, held)
+            } else
+                Unit
+      | None -> Io.println(\"no step\")
+    }
+
+// A step's request, each needing a process the runtime makes, but the
+// kill; its answer printed where it does not fault.
+fn requested(step : Int, held : Address(HeldMsg)) : Unit receiving Int =
+    match step / 2 {
+        0 -> Io.println(Io.show(spawn(fn() = Unit)))
+      | 1 -> Io.println(Io.show(Fs.read(Path(\"full.txt\"), waitMs())))
+      | 2 -> Io.println(Io.show(Tcp.connect(\"127.0.0.1\", 1, waitMs())))
+      | 3 -> Io.println(Io.show(Tcp.listen(\"127.0.0.1\", 0)))
+      | 4 -> Io.println(Io.show(Os.start(Os.Command(program = \"true\", arguments = [],
+                                                    input = <<>>))))
+      | 5 -> {
+            let _ = Clock.alarm(0, fn(time) = time);
+            receive { time -> Io.println(Int.toString(time)) }
+        }
+      | _ -> {
+            kill(held);
+            Io.println(\"after the kill: \" <> Io.show(Address.call(held, Hold, waitMs())));
+            let _ = spawn(fn() = waited());
+            Io.println(\"spawned\")
+        }
+    }
+">>, wait_ms_declaration()]),
+    ok = file:write_file(filename:join(Source, "ending.ern"), <<"
+// The subscriber of the program's end, which answers once told.
+fn subscribed() : Unit receiving Reply(Unit) = {
+    Os.termination(fn(reply) = reply);
+    receive { reply -> answer(reply, Unit) }
+}
+
+// Processes spawned until the host refuses one, each waiting, which faults
+// the entry process.
+fn filled() : Unit = {
+    let _ = spawn(fn() = waited());
+    filled()
+}
+
+// A process that waits for nothing that comes.
+fn waited() : Unit receiving Int = receive { _ -> Unit }
+
+export fn main() : Unit = {
+    let _ = spawn(fn() = subscribed());
+    filled()
+}
+">>),
+    0 = built(["--build-root", filename:join(Base, "build"), Source]),
+    ?assertEqual(0, (start(Node, filename:join([Base, "build", "full.erc"]), []))()),
+    {Out, Err} = said(Node),
+    ?assertEqual(["step " ++ integer_to_list(Step) || Step <- lists:seq(0, 12)]
+                 ++ ["after the kill: None", "spawned", ""],
+                 string:split(Out, "\n", all)),
+    Faults = [Line || Line <- string:split(Err, "\n", all),
+                      string:find(Line, "faulted") =/= nomatch],
+    ?assertEqual(lists:duplicate(12, "Full.main:19 faulted, restarted: error:system_limit"),
+                 [string:find(Line, "Full.") || Line <- Faults]),
+    ?assertEqual(nomatch, string:find(Err, "Too many processes")),
+    ?assertEqual({1, ["Ending.main faulted: error:system_limit",
+                      "the end waits for 1 subscriber: Ending.main:19",
+                      "Ending.main:19 faulted: error:system_limit",
+                      "the subscriber Ending.main:19 ended without answering"]},
+                 lines_said(finished([?ERN, " run --config-dir ", Node, " ",
+                                      filename:join([Base, "build", "ending.erc"]), " 2>&1"]))).
+
+%% A finished command's status, and the lines of its output that are no
+%% trace's, each from where its time ends, a node's lines being stamped.
+lines_said({Status, Output}) ->
+    {Status, [case string:split(Line, "Z ") of
+                  [_, Said] -> Said;
+                  [Said] -> Said
+              end || Line <- string:split(Output, "\n", all), Line =/= "",
+                     not lists:prefix("    ", Line)]}.
 
 %% report §12.5: a node runs over its listener's family of addresses, IPv6
 %% where `listen` names an address of it, its peers' addresses of the same

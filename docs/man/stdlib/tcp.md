@@ -278,12 +278,12 @@ connection: the read or write waiting answers `Left(Other(text))`, in the
 host's words, and each later one `Left(Closed)`. A handshake the far end
 closes before it is done answers `Left(Closed)`.
 
-It answers `Left(NotFound)`, `Left(Denied)` or `Left(NotAFile)` for a file
-it cannot read, as `Fs` answers for the path, `Left(Other(text))` for one it
-refuses, the file's name and what is wrong on one line, `cert.pem: no
-certificate`, `key.pem: not one key`, and otherwise as `listen` does. A key
-that is not the certificate's is not refused here, and fails each
-handshake.
+For a file it cannot read or refuses it answers `Left(Other(text))`, the
+file's name and what is wrong on one line: for one it cannot read, what `Fs`
+answers for the path, `cert.pem: NotFound`, `cert.pem: Denied` or
+`cert.pem: NotAFile`, and for one it refuses, `cert.pem: no certificate` or
+`key.pem: not one key`. Otherwise it answers as `listen` does. A key that
+is not the certificate's is not refused here, and fails each handshake.
 
 ### Examples
 

@@ -1,0 +1,30 @@
+//
+// A program whose host is killed while it holds the terminal for keys, for
+// the terminal tests (report §12.1): it subscribes, says so, and at the
+// first key kills its own host, whose number ERN_HOST gives, by `kill -KILL`.
+//
+
+type Msg = Key(Terminal.Event)
+
+export fn main() : Unit receiving Msg =
+    match Terminal.subscribe(Key) {
+        Right(_) -> {
+            Io.println("ready");
+            receive {
+                _ -> killed()
+            }
+        }
+      | Left(error) ->
+            Io.println(Io.show(error))
+    }
+
+// The host killed, which ends the program before anything more it does.
+fn killed() : Unit =
+    match Os.environment("ERN_HOST") {
+        Some(host) -> {
+            let command = Os.Command(program = "kill", arguments = ["-KILL", host], input = <<>>);
+            Io.println(Io.show(Os.run(command, 30000)))
+        }
+      | None ->
+            Io.println("no host")
+    }

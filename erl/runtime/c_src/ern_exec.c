@@ -36,6 +36,8 @@
  *   output and its standard error have ended, the processes still in its
  *   process group killed as it is reaped. A status is the program's exit
  *   code, or 128 and the signal's number for a program a signal ended.
+ *   After 'x', 'f' or 't', the run's last frame, the helper drops what the
+ *   runtime sends until fd 0 ends, and then ends.
  *
  * Run with the arguments `terminal`, a count of rows and one of columns,
  * each from 0 to 65535, the helper runs the program so under a
@@ -303,6 +305,22 @@ static int fail(unsigned char tag, int error, int status)
     const char *name = posix_name(error);
     frame(tag, (const unsigned char *)name, strlen(name));
     return status;
+}
+
+/* A run's last frame sent, 'x', 'f' or 't': what the runtime sends after
+   it is read and dropped until the runtime lets go of the run, the end of
+   fd 0, and the helper then exits with Status. The runtime may send a frame
+   before it has read the last, a request for output or the hangup among
+   them, and a frame written to a pipe whose reader has gone fails, which
+   the host takes for the port's failure. */
+static int wait_for_let_go(int status)
+{
+    unsigned char buffer[CHUNK];
+    for (;;) {
+        ssize_t got = read(0, buffer, sizeof buffer);
+        if (got == 0 || (got < 0 && errno != EINTR))
+            return status;
+    }
 }
 
 /* The program's child could not become the program: the tag of the frame
@@ -750,17 +768,17 @@ int main(int argc, char **argv)
        page leaves its work unspecified */
     if (terminal) {
         if (open_terminal(rows, columns, &master, &input, &slave) < 0)
-            return fail('t', errno, 0);
+            return wait_for_let_go(fail('t', errno, 0));
     } else if (pipe(in) < 0 || pipe(out) < 0 || pipe(err) < 0) {
-        return fail('f', errno, 0);
+        return wait_for_let_go(fail('f', errno, 0));
     }
     if (pipe(start_failure) < 0 || watch_exit() < 0)
-        return fail('f', errno, 0);
+        return wait_for_let_go(fail('f', errno, 0));
     fcntl(start_failure[1], F_SETFD, FD_CLOEXEC);
 
     program = fork();
     if (program < 0)
-        return fail('f', errno, 0);
+        return wait_for_let_go(fail('f', errno, 0));
     if (program == 0) {
         /* the program starts with the signals as a shell would give them:
            a signal the host or this helper ignores, and a blocked one,
@@ -822,7 +840,7 @@ int main(int argc, char **argv)
             while (waitpid(program, NULL, 0) < 0 && errno == EINTR)
                 ;
             program = -1;
-            return fail((unsigned char)failure[0], failure[1], 0);
+            return wait_for_let_go(fail((unsigned char)failure[0], failure[1], 0));
         }
     }
     frame('s', NULL, 0);
@@ -1035,7 +1053,7 @@ int main(int argc, char **argv)
                 code[3] = (unsigned char)value;
                 program = -1;
                 frame('x', code, sizeof code);
-                return 0;
+                return wait_for_let_go(0);
             }
             /* the program has not ended yet: wait for its exit, or for the
                runtime to let go, with no timer, by select(2) as above */

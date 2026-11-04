@@ -50,44 +50,8 @@ rehearsal of the switch (MVP 4.4's item 6): `make site` from the release's tag, 
 configuration ernest-httpd will serve it with, writes it to `build/site/`, the tag naming the
 commit that made it.
 
-1. **The runtime at the host's limits**, defects found 2026-11-03, fixed by 2026-11-12, after
-   the site's generator (the log's *The Generator Before MVP 4.15*). At a
-   full process table the runtime's spawns on a request's behalf meet the host's
-   `system_limit` uncaught: the reaper's `spawn_monitor`, the per-request spawns of the `Fs`,
-   `Tcp` and `Os` system processes, and the runtime's own, a kept process, a kill and a
-   delivery. Each dies, and the node hangs where §7.4 has the spawner fault with
-   `Fault("error:system_limit")`. At a full port table the first read of standard input,
-   which opens its port lazily, faults with the host's raw term, and the terminal's `stty`
-   ports are opened the same way.
-
-   One rule fixes them: every spawn and port the runtime
-   makes for a request answers its asker with `Fault("error:system_limit")`, the system
-   process living on, and standard input's port opens with the run's other streams. A full
-   table leaves no room for the runtime's own end, decided 2026-11-04: everything the end
-   uses exists from the run's start, so a node's limit is the one `limits` states; a step
-   that cannot move there comes back to the user. A test under a
-   node of 1024 processes, and one of 1024 ports, holds each (the log's *A Node's
-   Limits*). Beside them, feedback 222, ernest-httpd's 18: a
-   certificate or a key `Tcp.listenTls` cannot read, or that is not there, answers as a file
-   it refuses does, `Other` naming the file and the reason, `Other("cert.pem: Denied")`,
-   where it answers `Denied` or `NotFound` today, the answer a port refused gives; E.18
-   first.
-
-   Found the same day, under `make test`'s parallel load, once in four runs of the runtime's
-   tests: `ern_os_tests`' `read_ends_before_the_hangup_test` saw its run fault with the host's
-   `epipe`, where E.23 has a read the program waits in end before the hangup, its status 1 or
-   129. The hangup can reach a program that has already ended, and the write of it to the
-   helper's pipe faults instead of ending the read (the log's *The Hangup's Order*); fixed here,
-   the test run under load a hundred times to hold it. A second, found 2026-11-04 under the
-   same load, once in five runs that day and not alone: `ern_rt_tests`'
-   `faults_before_the_end_are_reported_test` timed out in `ern_rt:entry_end/2`, its program's
-   entry waiting for the reaper's word of its end while the test's reporter held the reaper
-   until that end. Not yet diagnosed; diagnosed and fixed here, held the same way.
-
-   Feedback 231, ernest-httpd's 24, built 2026-11-04 (the log's *A Node's Schedulers*): every
-   host the launcher starts is sized by the processors it may run on. ernest-httpd's two-node
-   container measures again on the next archive, and the container's caps and CPU share are
-   decided from that.
+1. **The runtime at the host's limits**, done 2026-11-04 (the log's *A Node's Limits*, *A Node's
+   Schedulers*, *The Hangup's Order* and *ernest-httpd's Lines 18 to 21*).
 
 2. **The host's collection at the wait.** A process that drops a value and waits holds it until
    its next collection, which the host runs only as the process allocates (§10): the server's
@@ -204,6 +168,12 @@ commit that made it.
     unchecked. Each answers or faults as item 1's rule says, or exists from its node's start
     as the closer can, and each frame a peer is sent at a full table is decided with its
     item (the log's *A Node's Limits*).
+19. **A keys read that fails**, found 2026-11-04 by item 1, decided and built by 2026-11-12: a
+    read of the terminal's keys that the host answers with an error closes the keys and faults
+    nothing, where §12.1 has a standard input that cannot be read fault the entry process. A
+    terminal's hangup may come that way, as `eio`, beside the hangup's signal, which §8.6 ends
+    the program by, so faulting there would turn the hangup's end into a fault. Whether the
+    error is told from a hangup, or §12.1 says the keys end at one, is decided first.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.

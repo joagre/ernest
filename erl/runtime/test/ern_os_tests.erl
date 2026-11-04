@@ -98,12 +98,12 @@ helper_says_input_was_dropped_test() ->
     port_close(Helper).
 
 %% Appendix E.23: a program the host cannot start, here for want of a file
-%% descriptor for its pipes, is answered with the host's reason. A
-%% regression test: the helper ended without a word, and `start` answered
-%% only that the helper failed. Under `make sanitize`
-%% the leak checker, which needs descriptors of its own as the helper
-%% ends, is off for this run alone; the release review found it starved,
-%% and the helper hung as it failed
+%% descriptor for its pipes, is answered with the host's reason, the run's
+%% last frame, after which the helper waits to be let go. A regression
+%% test: the helper ended without a word, and `start` answered only that
+%% the helper failed. Under `make sanitize` the leak checker, which needs
+%% descriptors of its own as the helper ends, is off for this run alone;
+%% the release review found it starved, and the helper hung as it failed
 helper_gives_the_hosts_reason_test() ->
     Helper = open_port({spawn, "sh -c \"ulimit -n 7; ASAN_OPTIONS=$ASAN_OPTIONS:detect_leaks=0"
                         " exec " ++ helper_path() ++ " run\""},
@@ -111,7 +111,7 @@ helper_gives_the_hosts_reason_test() ->
     true = port_command(Helper, command(["true"])),
     ?assertEqual(<<"femfile">>,
                  receive {Helper, {data, Frame}} -> Frame after 5000 -> none end),
-    ?assertEqual(0, receive {Helper, {exit_status, Status}} -> Status after 5000 -> none end).
+    port_close(Helper).
 
 %% report §8.6, Appendix E.23: a program whose helper ended waits for a read
 %% to fault, and holds nothing the check for a deadlock would read as work.
@@ -464,6 +464,38 @@ read_ends_before_the_hangup_test() ->
     ?assertEqual(<<>>, Output),
     ?assert(lists:member(Status, [1, 129])).
 
+%% Appendix E.23: after a run's last frame, 'x', the helper keeps its input
+%% open until the runtime closes it, so that a frame the runtime sends
+%% before it has read the last, a read's request or the hangup, is dropped
+%% and ends nothing: the helper lives on after the frame, and the port ends
+%% at the close alone. A regression test, written after the fix: the helper ended
+%% with its last frame, and a frame written after that ended the port, and
+%% the program's process with it, with the host's `epipe` (the log's *The
+%% Hangup's Order*); it failed five runs of five on the old helper, which
+%% had ended before the signal asked after it
+helper_waits_to_be_let_go_test() ->
+    process_flag(trap_exit, true),
+    Helper = helper(["true"]),
+    true = port_command(Helper, <<"i">>),
+    receive {Helper, {data, <<"s">>}} -> ok after 5000 -> erlang:error(no_start) end,
+    true = port_command(Helper, <<"e">>),
+    ok = exited(Helper),
+    {os_pid, OsPid} = erlang:port_info(Helper, os_pid),
+    true = port_command(Helper, <<"n">>),
+    ?assertEqual(sent, ern_os:signal(0, OsPid)),
+    port_close(Helper),
+    %% the close's own end of the port, and no other before it
+    ?assertEqual(normal, receive {'EXIT', Helper, Reason} -> Reason end).
+
+%% The helper asked for the program's output until it says the program has
+%% exited.
+exited(Helper) ->
+    true = port_command(Helper, <<"n">>),
+    receive
+        {Helper, {data, <<"x", _/binary>>}} -> ok;
+        {Helper, {data, _}} -> exited(Helper)
+    end.
+
 %% report Appendix E.23: a program under a terminal is killed with the
 %% processes still in its process group. Its `sleep` ignores the hangup,
 %% which the terminal's end would send it, so that the kill alone ends it;
@@ -649,8 +681,9 @@ killed_in_a_read(Program) ->
 %% report Appendix E.23: a terminal the host cannot open is the helper's
 %% to say, with a 't' frame and the host's reason, where 'f' would say the
 %% program did not start: here for want of a file descriptor for the
-%% terminal itself. Under `make sanitize` the leak checker is off for this
-%% run alone, as helper_gives_the_hosts_reason_test says
+%% terminal itself; the run's last frame, after which the helper waits to
+%% be let go. Under `make sanitize` the leak checker is off for this run
+%% alone, as helper_gives_the_hosts_reason_test says
 helper_says_the_terminal_could_not_be_opened_test() ->
     Helper = open_port({spawn, "sh -c \"ulimit -n 5; ASAN_OPTIONS=$ASAN_OPTIONS:detect_leaks=0"
                         " exec " ++ helper_path() ++ " terminal 24 80\""},
@@ -658,7 +691,7 @@ helper_says_the_terminal_could_not_be_opened_test() ->
     true = port_command(Helper, command(["true"])),
     ?assertEqual(<<"temfile">>,
                  receive {Helper, {data, Frame}} -> Frame after 5000 -> none end),
-    ?assertEqual(0, receive {Helper, {exit_status, Status}} -> Status after 5000 -> none end).
+    port_close(Helper).
 
 %% Appendix E.23: a program's exit is reported as it happens, once its
 %% outputs have ended. A regression test: the helper asked for the exit as
@@ -680,7 +713,7 @@ exit_reported_after_input_ends() ->
     true = port_command(Helper, <<"e">>),
     receive {Helper, {data, <<"x", _:32>>}} -> ok after 5000 -> erlang:error(no_exit) end,
     Elapsed = erlang:monotonic_time(millisecond) - Start,
-    receive {Helper, {exit_status, _}} -> ok after 5000 -> erlang:error(no_end) end,
+    port_close(Helper),
     Elapsed.
 
 %% The helper run on a command, as ern_os runs it: the command comes as the

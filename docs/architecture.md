@@ -236,14 +236,14 @@ The runner's `init` is `ern_rt:init_modules/1` over the modules it loaded, order
 
 At the end the runner tells the subscribers of `Os.termination` (`told/3`, §8.6), ends every process with `ProgramEnd`, and flushes `stdout` and `stderr` (`sink_flushed/1`). `ern_cli:report_outcome/2` makes the outcome §11.8's status.
 
-A reference tags each launch, held with its runner, its reaper, its standard error process and what its options give in the launch's row of `ern_launch`, `#launch{}`, which goes with the table at the end (`launch/0`). Each adapted address its processes make holds it (§8.7, §11.2).
+A reference tags each launch, held with its runner, its reaper, its killer, its standard error process and what its options give in the launch's row of `ern_launch`, `#launch{}`, which goes with the table at the end (`launch/0`). Each adapted address its processes make holds it (§8.7, §11.2).
 
 ### The system processes
 
 - `stdout` and `stderr` write through a function or a port on a descriptor, `{fd, N}`, which learns when the stream has gone (§12.1). `stdin` is a port on descriptor 0, opened for each request. All three are `ern_rt`'s, and so is the clock.
 - A write by a process whose root has a row of `ern_screens` goes through that row's sink instead (`ern_rt:screen/2`, `drop_screens/1`, `screen_of/1`), and the same row keeps the process from `stdin` and the terminal (`is_kept_from_terminal/1`) and has its `Os.exit` fault it (`exit_program/1`, §12.1, §11.2). A session marks its own processes in their rows, which `processes/0` leaves out (`own/1`, `disown/1`, E.21).
 - `ern_fs`, `ern_tty` and `ern_tcp` are the processes behind `Fs`, `Terminal` and `Tcp` (E.17, E.16, E.18), each speaking its module's message types.
-- The terminal reads keys through standard input in `stty`'s raw mode. `ern_tty_signal`, added to OTP's signal server at the first subscription, sends it each `SIGWINCH`.
+- The terminal reads keys through standard input in `stty`'s raw mode, which a shell the first subscription opens sets and holds, the settings it found kept until the end or the host's, when it gives them back. `ern_tty_signal`, added to OTP's signal server at the first subscription, sends it each `SIGWINCH`.
 - A socket is a process over its `gen_tcp` port, alive until `Tcp.close`. One whose bytes the far end has not taken hands its host socket to a closer, `lingering/4`.
 - `ern_os` (E.23) answers `Start` and `StartTerminal` with the program's process, which owns a port of `ern_exec` (`erl/runtime/c_src/ern_exec.c`), its `run` mode with pipes or its `terminal` mode under a pseudo-terminal. Run with no program, the helper answers `ern_os:host/0`, for `Os.user` and `Os.environment`.
 - `ern_exec` also holds a node's lock on `ernest.pid`, its `lock` mode, and signals the node that holds one, its `node` mode (§12.5, §11.2).

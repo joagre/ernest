@@ -469,10 +469,11 @@ socket_owner_test() ->
 %% report Appendix E.18: over TLS from Ernest, `listenTls` and `connectTls`
 %% answer the addresses `listen` and `connect` answer, which `accept`,
 %% `port`, `read`, `write` and `close` take, each opened at its function's
-%% site; a missing key answers `Left(NotFound)`, as `Fs` answers the path,
-%% and a `connectTls` where nothing listens `Left(Refused)`. Written after the
-%% code, a regression test of the requests the module sends TCP's process;
-%% the cases of the runtime's own are ern_tcp_tests'
+%% site; a missing key answers `Left(Other(text))`, the file's name and
+%% `NotFound`, as `Fs` answers the path, and a `connectTls` where nothing
+%% listens `Left(Refused)`. Written after the code, a regression test of the
+%% requests the module sends TCP's process, the file named after the code
+%% too, feedback 222; the cases of the runtime's own are ern_tcp_tests'
 tcp_tls_test() ->
     #{dir := Dir, ca := Ca, server := {Certificate, Key}} = ern_tcp_tests:pki(),
     {ok, Output} = ern_emitter_tests:run(
@@ -503,7 +504,7 @@ tcp_tls_test() ->
          "    Right(#(received, sites))\n"
          "}\n"
          "fn refused(answer : Either(Io.Error, a)) : String = match answer {\n"
-         "    Left(Io.Other(_)) -> \"other\"\n"
+         "    Left(Io.Other(text)) -> text\n"
          "  | Left(error) -> Io.show(error)\n"
          "  | Right(_) -> \"right\"\n"
          "}\n"
@@ -514,8 +515,10 @@ tcp_tls_test() ->
          "    Io.println(refused(Tcp.listenTls(\"127.0.0.1\", 0, served, missing)));\n"
          "    Io.println(refused(Tcp.connectTls(\"127.0.0.1\", 1, Tcp.Unverified, 1000)))\n"
          "}\n"]),
-    ?assertEqual(<<"Right(#(<<112, 105, 110, 103>>, [\"Tcp.listenTls\", \"Tcp.connectTls\"]))\n"
-                   "Io.NotFound\nIo.Refused\n">>, Output).
+    ?assertEqual(iolist_to_binary(["Right(#(<<112, 105, 110, 103>>, [\"Tcp.listenTls\","
+                                   " \"Tcp.connectTls\"]))\n",
+                                   filename:join(Dir, "missing.key"), ": NotFound\nIo.Refused\n"]),
+                 Output).
 
 %% Appendix E.18, E.21, E.23: a listener, a socket and a running program are
 %% processes of the program's: Process.live lists them, and Process.status

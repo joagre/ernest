@@ -64,14 +64,21 @@ serve(Os) ->
 
 %% Report §6.9, Appendix E.23: the program's process, its site the function
 %% that started it, known to the runtime before it starts the program.
+%% Report §7.4, §12.5: where the host's table of processes is full, it
+%% cannot be made, and the caller faults with the host's class and reason,
+%% `Fault("error:system_limit")`, this process living on.
 spawn_program(Os, Command, Kind, Owner, Reply) ->
-    Pid = erlang:spawn(fun() ->
-                           link(Os),
-                           receive go -> start(Command, Kind, Owner, Reply) end
-                       end),
-    ern_rt:opened(Pid, site(Kind), Owner),
-    ern_rt:source_begin(Pid),
-    Pid ! go.
+    try erlang:spawn(fun() ->
+                         link(Os),
+                         receive go -> start(Command, Kind, Owner, Reply) end
+                     end) of
+        Pid ->
+            ern_rt:opened(Pid, site(Kind), Owner),
+            ern_rt:source_begin(Pid),
+            Pid ! go
+    catch
+        error:system_limit -> ern_rt:refuse(Reply, ern_rt:host_cause(error, system_limit))
+    end.
 
 site(pipes) -> <<"Os.start">>;
 site({terminal, _}) -> <<"Os.startTerminal">>.

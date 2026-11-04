@@ -23,12 +23,12 @@
 %% Report Appendix E.18: a listener's and a socket's loops end only in the
 %% exit that tells a waiting call the socket was closed or its owner died,
 %% so the fun `opened` spawns never returns, which Dialyzer would report.
--dialyzer({nowarn_function, opened/6}).
+-dialyzer({nowarn_function, opened/7}).
 
 %% Report §8.6: each receive that can wait, by its kind (docs/style.md).
--receives({own_process, [serve/2, spawn_counted/1, opened/6, listener_loop/4, writing/3,
-                         handshake_failed/2, socket_loop/1, stop_writer/1, close_socket/2,
-                         lingering/5]}).
+-receives({own_process, [serve/2, counted_request/2, opened/7, listener_loop/4, socket_process/6,
+                         writing/3, handshake_failed/2, socket_loop/1, stop_writer/1,
+                         close_socket/2, lingering/5]}).
 
 %% A socket's process: its transport, the host's socket, the writer that
 %% writes to it, its owner and the owner's monitor, the reads with no bytes
@@ -80,29 +80,28 @@ serve(Tcp, Tls) ->
             ern_rt:answer(Reply, {'Left', 'Timeout'}),
             serve(Tcp, Tls);
         {'Listen', Host, Port, Owner, Reply} ->
-            erlang:spawn(fun() -> listen(Tcp, Host, Port, plain, Owner, Reply) end),
+            requested(fun() -> listen(Tcp, Host, Port, plain, Owner, Reply) end, Reply),
             serve(Tcp, Tls);
         {'ListenTls', Host, Port, Certificate, Key, Owner, Reply} ->
             Kind = {tls, Certificate, Key},
-            serve(Tcp, with_ssl(Tls, Reply, fun() ->
-                                                erlang:spawn(fun() ->
-                                                                 listen(Tcp, Host, Port, Kind,
-                                                                        Owner, Reply)
-                                                             end)
-                                            end));
+            serve(Tcp, with_ssl(Tls, Reply,
+                                fun() ->
+                                    requested(fun() -> listen(Tcp, Host, Port, Kind, Owner, Reply)
+                                              end, Reply)
+                                end));
         {'Connect', Host, Port, Ms, Owner, Reply} ->
-            spawn_counted(fun() ->
-                              connect(Tcp, Host, Port, plain, ern_rt:deadline(Ms), Owner, Reply)
-                          end),
+            counted_request(fun() ->
+                                connect(Tcp, Host, Port, plain, ern_rt:deadline(Ms), Owner, Reply)
+                            end, Reply),
             serve(Tcp, Tls);
         {'ConnectTls', Host, Port, Verification, Ms, Owner, Reply} ->
             Kind = {tls, Verification},
             serve(Tcp, with_ssl(Tls, Reply,
                                 fun() ->
-                                    spawn_counted(fun() ->
-                                                      connect(Tcp, Host, Port, Kind,
-                                                              ern_rt:deadline(Ms), Owner, Reply)
-                                                  end)
+                                    counted_request(fun() ->
+                                                        connect(Tcp, Host, Port, Kind,
+                                                                ern_rt:deadline(Ms), Owner, Reply)
+                                                    end, Reply)
                                 end));
         {'EXIT', Pid, _} ->
             ern_rt:forget_opened(Pid),
@@ -126,31 +125,67 @@ with_ssl(unstarted, Reply, Request) ->
             unstarted
     end.
 
-%% A worker whose request waits, counted as a source before it starts, so
-%% that its answer cannot come before its count; it ends the count itself.
-spawn_counted(Work) ->
-    Worker = erlang:spawn(fun() -> receive go -> Work() end end),
-    ern_rt:source_begin(Worker),
-    Worker ! go.
+%% A worker of its own for a request, which Work carries out and answers.
+%% Report §7.4, §12.5: where the host's table of processes is full, it
+%% cannot be made, and the request's caller faults with the host's class
+%% and reason, `Fault("error:system_limit")`, the process that took the
+%% request living on.
+requested(Work, Reply) ->
+    try erlang:spawn(Work)
+    catch error:system_limit -> answered(Reply, limited())
+    end.
+
+%% The same for a request that waits, its worker counted as a source before
+%% it starts, so that its answer cannot come before its count; it ends the
+%% count itself.
+counted_request(Work, Reply) ->
+    try erlang:spawn(fun() -> receive go -> Work() end end) of
+        Worker ->
+            ern_rt:source_begin(Worker),
+            Worker ! go
+    catch
+        error:system_limit -> answered(Reply, limited())
+    end.
+
+%% Report §7.4, §12.5: the answer of a request whose process the host's
+%% full table of processes keeps from being made.
+limited() ->
+    {fault, ern_rt:host_cause(error, system_limit)}.
+
+%% An answer, or the caller faulted (limited/0).
+answered(Reply, {fault, Cause}) -> ern_rt:refuse(Reply, Cause);
+answered(Reply, Answer) -> ern_rt:answer(Reply, Answer).
 
 %% A listener or a socket, linked to the TCP process and recorded as opened
 %% before its address is given out (report §8.6), under the function that
 %% opened it, and as started by its owner (Appendix E.18), whom it watches
 %% from before then too, so that what an owner holds is what watches it
-%% (ern_rt:evaluate/2); Loop is given the monitor once the host's socket
-%% is the process's. It traps exits from its start, so that however it
-%% ends, by a kill, with the program or with the TCP process, it closes
-%% its host's socket itself (close_socket/2).
-opened(Tcp, Transport, Socket, Loop, Site, Owner) ->
+%% (ern_rt:evaluate/2); Loop is given the monitor, and what Made made in
+%% the process before its address is given out, a socket's writer, once the
+%% host's socket is the process's. It traps exits from its start, so that
+%% however it ends, by a kill, with the program or with the TCP process, it
+%% closes its host's socket itself (close_socket/2). Report §7.4, §12.5:
+%% where the host's table of processes is full, so that the process or what
+%% Made makes cannot be made, the host's error is raised here, before the
+%% address is given out (held_open/3).
+opened(Tcp, Transport, Socket, Made, Loop, Site, Owner) ->
     Opener = erlang:self(),
     Pid = erlang:spawn(fun() ->
                            process_flag(trap_exit, true),
                            link(Tcp),
                            MonitorRef = erlang:monitor(process, Owner),
-                           Opener ! {erlang:self(), watching},
-                           receive go -> Loop(MonitorRef) end
+                           try Made() of
+                               Held ->
+                                   Opener ! {erlang:self(), watching},
+                                   receive go -> Loop(MonitorRef, Held) end
+                           catch
+                               error:system_limit -> Opener ! {erlang:self(), system_limit}
+                           end
                        end),
-    receive {Pid, watching} -> ok end,
+    receive
+        {Pid, watching} -> ok;
+        {Pid, system_limit} -> erlang:error(system_limit)
+    end,
     ern_rt:opened(Pid, Site, Owner),
     _ = Transport:controlling_process(Socket, Pid),
     Pid ! go,
@@ -179,15 +214,32 @@ listen(Tcp, Host, Port, Kind, Owner, Reply) ->
                          {ok, Socket} ->
                              %% report §6.9, Appendix E.18: owned by the
                              %% process that opened it, with which it ends
-                             Loop = fun(MonitorRef) ->
+                             Loop = fun(MonitorRef, none) ->
                                         listener_loop(Tcp, Transport, Socket, MonitorRef)
                                     end,
-                             {'Right', opened(Tcp, Transport, Socket, Loop, Site, Owner)};
+                             Open = fun(Listening) ->
+                                        opened(Tcp, Transport, Listening, fun() -> none end,
+                                               Loop, Site, Owner)
+                                    end,
+                             held_open(Open, Transport, Socket);
                          {error, Error} ->
                              {'Left', io_error(Transport, Error)}
                      end
              end,
-    ern_rt:answer(Reply, Answer).
+    answered(Reply, Answer).
+
+%% What Open answers with the listener or the socket it opens over the
+%% host's Socket. Report §7.4, §12.5: where the host's table of processes
+%% is full, so that its process cannot be made (opened/7), the host's
+%% socket is closed, and the request's caller faults with the host's class
+%% and reason.
+held_open(Open, Transport, Socket) ->
+    try {'Right', Open(Socket)}
+    catch
+        error:system_limit ->
+            Transport:close(Socket),
+            limited()
+    end.
 
 %% Report Appendix E.18: what a listener's kind adds, its transport, its
 %% site and, over TLS, the server's certificate, its chain after it, and
@@ -205,15 +257,16 @@ listening({tls, {'Path', Certificate}, {'Path', Key}}) ->
 %% Report Appendix E.18, E.17: a file of a listener's or a check's, by the
 %% name the host's ssl takes, found a regular file as Fs finds the file it
 %% reads: `Invalid` where its path holds U+0000, which names no file, and
-%% what Fs answers for the path where the host cannot reach it or it is no
-%% regular file, `NotAFile` for a directory among them.
+%% where the host cannot reach it or it is no regular file, what Fs answers
+%% for the path with the file's name, `cert.pem: NotAFile` for a directory
+%% among them (file_error/2).
 regular_file(Path) ->
     case binary:match(Path, <<0>>) of
         nomatch ->
             File = unicode:characters_to_list(Path),
             case file:read_file_info(File, [raw]) of
                 {ok, #file_info{type = regular}} -> {ok, File};
-                {ok, _} -> {error, 'NotAFile'};
+                {ok, _} -> {error, file_other(File, atom_to_binary('NotAFile'))};
                 {error, Error} -> {error, file_error(File, Error)}
             end;
         _ ->
@@ -508,7 +561,7 @@ held(File) ->
 attempt(Transport, Try, Open, Deadline, Reply) ->
     Answer = case Try() of
                  {ok, Socket} ->
-                     {'Right', Open(Socket)};
+                     held_open(Open, Transport, Socket);
                  {error, timeout} ->
                      case ern_rt:remaining(Deadline) of
                          0 -> {'Left', 'Timeout'};
@@ -527,7 +580,7 @@ attempt(Transport, Try, Open, Deadline, Reply) ->
 %% The answer to a request counted as a source, given before its count
 %% ends, so that no deadlock is found between the two (report §8.6).
 end_source(Reply, Answer) ->
-    ern_rt:answer(Reply, Answer),
+    answered(Reply, Answer),
     ern_rt:source_end().
 
 %% A listener answers each Accept by a worker of its own, so that a slow
@@ -541,9 +594,9 @@ listener_loop(Tcp, Transport, Socket, MonitorRef) ->
             ern_rt:answer(Reply, {'Left', 'Timeout'}),
             listener_loop(Tcp, Transport, Socket, MonitorRef);
         {'Accept', Ms, Owner, Reply} ->
-            spawn_counted(fun() ->
-                              accept(Tcp, Transport, Socket, ern_rt:deadline(Ms), Owner, Reply)
-                          end),
+            counted_request(fun() ->
+                                accept(Tcp, Transport, Socket, ern_rt:deadline(Ms), Owner, Reply)
+                            end, Reply),
             listener_loop(Tcp, Transport, Socket, MonitorRef);
         {'Port', Reply} ->
             ern_rt:answer(Reply, case port(Transport, Socket) of
@@ -609,13 +662,18 @@ accepted(Result) ->
 %% it until one is given it, and is killed when its owner dies; a monitor of
 %% an owner that has already ended fires at once.
 socket_process(Tcp, Transport, Socket, State, Owner, Site) ->
-    Loop = fun(MonitorRef) ->
-               Self = erlang:self(),
-               Writer = erlang:spawn_link(fun() -> writer(Transport, Socket, Self, State) end),
+    Writing = fun() ->
+                  Self = erlang:self(),
+                  erlang:spawn_link(fun() ->
+                                        receive go -> writer(Transport, Socket, Self, State) end
+                                    end)
+              end,
+    Loop = fun(MonitorRef, Writer) ->
+               Writer ! go,
                socket_loop(#connection{transport = Transport, socket = Socket, writer = Writer,
                                        owner = Owner, monitor_ref = MonitorRef, state = State})
            end,
-    opened(Tcp, Transport, Socket, Loop, Site, Owner).
+    opened(Tcp, Transport, Socket, Writing, Loop, Site, Owner).
 
 %% Report Appendix E.18: a socket's writes, one after another in the order
 %% they came, in a process of their own, so that a write the far end holds
@@ -1024,10 +1082,11 @@ io_error(ssl, Error) ->
     {'Other', unicode:characters_to_binary(string:trim(ssl:format_error(Error), trailing))}.
 
 %% Report Appendix E.1, E.18: a certificate's, a key's or a CA file's
-%% failure, answered for a file the host cannot read as Fs answers the
-%% path, by the host's code, and for one it refuses as Other(text), the
-%% file's name and what is wrong on one line: Ernest's words for the
-%% reasons the host names, and else the host's reason as it writes it.
+%% failure, Other(text), the file's name and what is wrong on one line: for
+%% a file the host cannot read, the answer Fs gives for the path, by the
+%% host's code, `cert.pem: Denied`, so that it is told from the port's;
+%% for one it refuses, Ernest's words for the reasons the host names, and
+%% else the host's reason as it writes it.
 file_error(File, {error, Reason}) ->
     file_error(File, Reason);
 file_error(File, no_certs) ->
@@ -1039,7 +1098,7 @@ file_error(File, {unexpected_content, _}) ->
 file_error(File, Reason) when is_atom(Reason) ->
     case ern_io:host_error(Reason, fun file:format_error/1) of
         {'Other', Text} -> file_other(File, Text);
-        Named -> Named
+        Named -> file_other(File, atom_to_binary(Named))
     end;
 file_error(File, Reason) ->
     file_other(File, io_lib:format("~0p", [Reason])).

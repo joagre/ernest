@@ -1,0 +1,43 @@
+//
+// The terminal at a full table of ports, for the terminal tests (report
+// §12.1, §12.5): a node whose `limits` makes the table small fills it with
+// listeners, and its subscription is refused with the host's words; once a
+// listener is closed, the next is granted, its holder taking the port given
+// back, and the first read of the keys finds none to open.
+//
+
+type Msg = Key(Terminal.Event) | Ended(Down)
+
+// Listeners opened until the host refuses one, each kept, so that the
+// node's table of ports stays full.
+fn filled(listeners : List(Address(Tcp.ListenerMsg))) : List(Address(Tcp.ListenerMsg)) =
+    match Tcp.listen("127.0.0.1", 0) {
+        Right(listener) -> filled(listener :: listeners)
+      | Left(_) -> listeners
+    }
+
+// The listener closed and its end waited for, which gives its port back.
+fn closed(listener : Address(Tcp.ListenerMsg)) : Unit receiving Msg = {
+    monitor(Process.fromAddress(listener), Ended);
+    Tcp.closeListener(listener);
+    receive {
+        Ended(_) -> Unit
+      | Key(_) -> Unit
+    }
+}
+
+export fn main() : Unit receiving Msg = {
+    let listeners = filled([]);
+    Io.println(Io.show(Terminal.subscribe(Key)));
+    match listeners {
+        listener :: _ -> {
+            closed(listener);
+            Io.println(Io.show(Terminal.subscribe(Key)));
+            receive {
+                _ -> Unit
+            }
+        }
+      | [] ->
+            Unit
+    }
+}

@@ -1,6 +1,6 @@
 # Ernest Report: The Language
 
-Revision of 2 November 2026.
+Revision of 4 November 2026.
 
 *Dedicated to the memory of Joe Armstrong, 1950–2019.*
 
@@ -891,7 +891,9 @@ A count or a duration below 0 is none, and a window below 1 is 1 (§6.9, Appendi
 - `fault(c)`, which compiles at any type: `Fault(c)`.
 - `Address.callForever` whose callee has ended, or ends or restarts before it answers (§6.6): the callee's cause, the fault's report naming the callee's site after it (§11.2), `Fault("callee was killed")`, `Fault("callee returned without answering")`, `Fault("callee was closed")`, `Fault("callee was restarted")`, `Fault("callee had ended")`, `Fault("callee ended with its program")` where the callee's node ended in order, or `Fault("callee is unreachable")` where the callee's node went out of reach (§8.7).
 
-Beside the list, these faults are raised. A failure in the runtime faults the process that meets it with the host's class and reason, as a spawn beyond the host's limit of processes does with `Fault("error:system_limit")`. A fault in a function adapting an address faults the target with its own cause (§6.5). A restarting function called where the runtime applies a function for another process faults with `Fault("restart in a function the runtime applies")` (§6.9). The causes the runtime raises at its boundaries, a foreign function's raise or a value that does not match its declared type, a terminal claimed the other way or held by the shell, and a standard input that is not UTF-8 or cannot be read, are §12.3's.
+Beside the list, these faults are raised. A failure in the runtime faults the process that meets it with the host's class and reason, as a spawn beyond the host's limit of processes does with `Fault("error:system_limit")`. A message or a delivery the runtime has no room to make, through an adapted address, a wrap, a fault report or the end's telling of a subscriber, faults the process it is for with `Fault("error:system_limit")` at its next wait, as a fault in a function adapting an address faults its target.
+
+A fault in a function adapting an address faults the target with its own cause (§6.5). A restarting function called where the runtime applies a function for another process faults with `Fault("restart in a function the runtime applies")` (§6.9). The causes the runtime raises at its boundaries, a foreign function's raise or a value that does not match its declared type, a terminal claimed the other way or held by the shell, and a standard input that is not UTF-8 or cannot be read, are §12.3's.
 
 A deadlock faults the entry process with `Fault("deadlock")`, or in its place a load's evaluator that waits (§8.6, Appendix E.28) or, under `ern test`, the process of the test that runs (§11.2). A use of a binding a faulting reload left without a value faults its reader with `Fault("the binding has no value, since one before it faulted")` (§11.2).
 
@@ -955,7 +957,7 @@ The program ends when the entry process dies, whatever the reason (§6.9), a fau
 
 Before it ends by any of these, or by termination, the runtime tells the processes that subscribed with `Os.termination` (Appendix E.23): each is sent `wrap(reply)` in its own mailbox type, delivered as a monitor's `Down` is (§6.9), and the end waits until every reply is answered or its subscriber has ended or restarted; nothing of the runtime's own times the wait. The caller of an `Os.exit` that began the end is neither told nor waited for: its subscription ends at the call. A subscriber whose delivery foreign code kills before it arrives is waited for no longer. What the runtime says of the wait is §11.2's.
 
-Every process runs while the end waits, and a peer finds, calls and sends to the node as before (§8.7). A subscription made while the end waits is told at once. The end goes on without a subscriber that faults, whether it ends or restarts (§6.9). A process that waits with nothing in flight while the end waits is no deadlock. While the end waits, what began it stands: the entry process's end and a stream that can no longer be written change nothing.
+Every process runs while the end waits, and a peer finds, calls and sends to the node as before (§8.7). A subscription made while the end waits is told at once. The end goes on without a subscriber that faults, whether it ends or restarts (§6.9), one the end cannot tell for want of room among them (§7.4). A process that waits with nothing in flight while the end waits is no deadlock. While the end waits, what began it stands: the entry process's end and a stream that can no longer be written change nothing.
 
 An `Os.exit` once the end has begun ends the program at once, with its status. The host's interrupt, and a termination once the end has begun, whoever began it, end the program at once, with the status of what began the end: an `Os.exit`'s, the entry process's where its return or its fault began it, and the signal's where a termination did; a hangup is a termination here where the program is no node. Under `ern test` and in the shell the subscribers are told as under `ern run`. Live local processes then die with the reason `ProgramEnd`, and the runtime flushes the system processes' pending output before it stops.
 

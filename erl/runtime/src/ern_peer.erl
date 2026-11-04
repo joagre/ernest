@@ -562,12 +562,13 @@ frame(From, {answer, Ref, {failed, {'Other', Text}} = Answer})
 frame(_From, {adapted, {adapted, Function, _Target, Maker, Launch} = Address, Message})
   when is_function(Function, 1), is_pid(Maker), node(Maker) =:= node(), is_reference(Launch) ->
     {adapted, Address, Message};
+%% report §6.9, §12.6: a peer's kill, carried out as the runtime's own,
+%% which no full table of the host's stops (ern_rt:killed/2)
 frame(_From, {kill, Pid}) when is_pid(Pid), node(Pid) =:= node() ->
     case ern_rt:is_started(Pid) of
-        true -> 'Unit' = ern_rt:kill(Pid);
-        false -> 'Unit'
-    end,
-    ok;
+        true -> ern_rt:killed(Pid, {ern, killed});
+        false -> ok
+    end;
 %% report §8.7, *A restart*: "Each node told delivers `Restarted` through
 %% the wraps of the service monitors it holds and answers once every
 %% delivery has ended, at once where it holds none": the restart of From,
@@ -638,8 +639,9 @@ watchers_told({Alias, MonitorRef}) ->
 %% progress holds the value of every binding its reach names, each as the
 %% code of the unit that runs it reads it (ern_code:called/1), its row
 %% keeping the peer's node, which its fault's line names (§11.2); else
-%% `NotLoaded` and what this node lacked, the first met, or `Unreachable`
-%% where no run is in progress to start it.
+%% `NotLoaded` and what this node lacked, the first met, `Unreachable`
+%% where no run is in progress to start it, or `Other` with the host's
+%% class and reason where its table of processes is full (limited/0).
 spawned_here({found, Function, Unit, {Bindings, Foreigns}}, Ref, From, Monitored, Site) ->
     case absent_module(Unit, Foreigns) of
         none ->
@@ -647,6 +649,7 @@ spawned_here({found, Function, Unit, {Bindings, Foreigns}}, Ref, From, Monitored
             case ern_rt:asked_of_run({spawn, Held, Unit, Bindings, Site, node(From)}) of
                 {answered, Pid} when is_pid(Pid) -> {{spawned, Pid}, ok};
                 {answered, {absent, Binding}} -> not_loaded(spawn, Site, absent(Binding));
+                {answered, system_limit} -> {{failed, limited()}, ok};
                 none -> {{failed, 'Unreachable'}, ok}
             end;
         Lacked ->
@@ -659,7 +662,8 @@ spawned_here({found, Function, Unit, {Bindings, Foreigns}}, Ref, From, Monitored
 %% what this node lacked, or `Unreachable` where no run is in progress to
 %% start it, or where the compute's note has gone before its process could
 %% start, its caller no longer waiting, or never was written, the compute
-%% having come between two runs (ern_rt:asked_of_run/1).
+%% having come between two runs (ern_rt:asked_of_run/1), or `Other` where
+%% its table of processes is full (limited/0).
 computed_here({found, Function, Unit, {Bindings, Foreigns}}, Alias, From, Site) ->
     case absent_module(Unit, Foreigns) of
         none ->
@@ -668,11 +672,19 @@ computed_here({found, Function, Unit, {Bindings, Foreigns}}, Alias, From, Site) 
                 {answered, Pid} when is_pid(Pid) -> {started, ok};
                 {answered, over} -> {{failed, 'Unreachable'}, ok};
                 {answered, {absent, Binding}} -> not_loaded(compute, Site, absent(Binding));
+                {answered, system_limit} -> {{failed, limited()}, ok};
                 none -> {{failed, 'Unreachable'}, ok}
             end;
         Lacked ->
             not_loaded(compute, Site, Lacked)
     end.
+
+%% Report §7.4, §12.5, Appendix E.27: a spawn or a compute this node could
+%% not start, its table of processes full, answered as a spawn of its own
+%% faults, with the host's class and reason: a peer's spawn faults for
+%% nothing the peer does.
+limited() ->
+    {'Other', ern_rt:host_cause(error, system_limit)}.
 
 %% Report §8.7, §12.5, §11.2: `NotLoaded`, and what the gateway says of the spawn
 %% or the compute, the site the caller's words as they came, read as UTF-8

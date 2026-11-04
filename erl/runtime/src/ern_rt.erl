@@ -51,11 +51,11 @@
          expected/1, checker_for/3, checker_forget/2, source_begin/0, source_begin/1, source_end/0,
          opened/3, forget_opened/1, spent/1, timed/0, untimed/0, deadline/1, remaining/1, sleep/1,
          now/0, monotonic/0, monotonic_micros/0, entered_foreign/0, left_foreign/0,
-         undefined_function/3, undefined_lambda/3, met/3, fault/1, fault/2, trace/1,
+         undefined_function/3, undefined_lambda/3, met/3, host_cause/2, fault/1, fault/2, trace/1,
          failure_trace/1, system_process/1, hold_terminal/1, terminal_holder/0, shell_holds/0,
          is_kept_from_terminal/1, own_terminal/1,
-         input_not_utf8/0, by_input/1, read_input/1, run_main/3, say/2, say_later/2,
-         wait_for_later/0, tables/0, arguments/0,
+         input_not_utf8/0, input_unreadable/1, by_input/1, read_input/1, run_main/3, say/2,
+         say_later/2, wait_for_later/0, tables/0, arguments/0,
          exit_program/1, refused/1, deadlock_victim/1, entry_process/0, signal/1,
          initializing/1, site/0,
          evaluate/2, evaluate_load/2, made_table/1, ends_with_caller/1, owned/1, owned_tables/1,
@@ -83,8 +83,9 @@
                               kill_all/1, opened/3, asked_of_run/1, unwatched/2,
                               evaluator_ended/2]}).
 -receives({own_process, [said_later/0, wait_for_later/0, kept_loop/2, reaper_loop/2, settler/4,
-                         wait_for_ends/1, ended_program/0, counted_link/3, delivery_ended/1,
-                         write_loop/1, stream_loop/2, dropping/0, stdin_loop/2, read_input/1,
+                         killer/0, wait_for_ends/1, ended_program/0, counted_link/3,
+                         delivery_ended/1,
+                         write_loop/1, stream_loop/2, dropping/0, stdin_loop/2, taken/1,
                          clock_loop/1, waited/4, told_how/3, entry_end/2, end_program/4,
                          sink_flushed/1, stop/1, stopped_in_order/1, told_once_delivered/2]}).
 
@@ -282,17 +283,19 @@
 %% table, made as it begins and gone with the table at its end
 %% (launched/1, end_program/4): its runner; the reference that tags it,
 %% which the runner's messages carry; its reaper, none until it is started;
-%% its standard error process while it takes the toolchain's own lines,
-%% none before it starts and once the end has written the program's output
-%% (say/2, §12.5); and what the options give the run.
+%% its killer, which carries out every kill (killed/2), none
+%% until it is started; its standard error process while it takes the
+%% toolchain's own lines, none before it starts and once the end has
+%% written the program's output (say/2, §12.5); and what the options give
+%% the run.
 %%
 %% The launch is a row and not a persistent term, since each update of one
 %% waits for every scheduler of the host, and the end's erase of one of
 %% more than a word sets every process scanning its heap, which the next
 %% launch's updates wait for (the log's *The Sitting on §8.6's
 %% Bookkeeping*, its *Measured* paragraphs on the launch's start).
--record(launch, {runner, tag, reaper = none, stderr = none, reporter = none, arguments = [],
-                 exit = program, node = false}).
+-record(launch, {runner, tag, reaper = none, killer = none, stderr = none, reporter = none,
+                 arguments = [], exit = program, node = false}).
 
 %% A subscriber the end has told and waits for (report §8.6): its spawn
 %% order and its spawn site, which the end's lines name it by (§11.2), its
@@ -410,6 +413,11 @@ sent({Pid, Message}) ->
 %% (is_of_this_launch/1); the message is dropped then, its function not
 %% applied. A process whose run ends as it starts ends at once, the
 %% messages handed to it dropped so.
+%%
+%% Report §6.5, §7.3, §12.5: where the host's table of processes is full,
+%% none can be kept, and the fault is met on the message's way: the target
+%% faults with the host's class and reason, `Fault("error:system_limit")`,
+%% as at a fault in the address's function, and the message is dropped.
 -spec kept(address()) -> pid() | none.
 kept({adapted, _, _, _, Launch} = Address) ->
     Worker = erlang:self(),
@@ -419,10 +427,15 @@ kept({adapted, _, _, _, Launch} = Address) ->
         false ->
             none;
         true ->
-            reaper_held(Reaper, fun() ->
-                                    acting_for(process_of(Address)),
-                                    kept_loop(Address, Worker)
-                                end)
+            try reaper_held(Reaper, fun() ->
+                                        acting_for(process_of(Address)),
+                                        kept_loop(Address, Worker)
+                                    end)
+            catch
+                error:system_limit:Stack ->
+                    sent({fault, process_of(Address), met(error, system_limit, Stack)}),
+                    none
+            end
     end.
 
 %% Report §6.5, §6.9, §8.6: a process of the runtime's own that runs Work,
@@ -604,12 +617,17 @@ spawn_monitored_root(Function, Wrap, Site) ->
 %% the runtime's own acts for (current/0); root, where it is its own; or
 %% evaluator, where it is its own and the process is a load's evaluator
 %% (evaluate/2).
+%%
+%% Report §7.4, §12.5: a spawn beyond the host's limit of processes faults
+%% the spawner with the host's class and reason, `Fault("error:system_limit")`,
+%% the reaper living on (spawned/7).
 spawn_with_monitors(Function, Site, Monitors, chained) ->
     spawn_with_monitors(Function, Site, Monitors, {chained, current()});
 spawn_with_monitors(Function, Site, Monitors, Chain) ->
     Ref = make_ref(),
     launch_reaper() ! {spawn, erlang:self(), Ref, Function, Site, Monitors, Chain},
     receive
+        {Ref, system_limit} -> erlang:error(system_limit);
         {Ref, Pid} -> Pid
     end.
 
@@ -1109,11 +1127,11 @@ demonitor(Process) ->
     launch_reaper() ! {demonitor, process_of(Process), current(), erlang:self(), Ref},
     receive {Ref, demonitored} -> ?UNIT end.
 
-%% Report §6.9, §8.7, §12.6: the prelude's kill, which a peer's frame asks of this
-%% node too (ern_peer:frame/2). A process of this node is ended by
-%% killed/2; one of another node by its own node, asked by a frame to that
-%% node's gateway, which is sent as a send is and vanishes where the node
-%% is out of reach. Report §6.9, §6.5: a process of the runtime's own that
+%% Report §6.9, §8.7, §12.6: the prelude's kill. A process of this node is
+%% ended by killed/2; one of another node by its own node, asked by a frame
+%% to that node's gateway, which is sent as a send is and vanishes where
+%% the node is out of reach, and which that node carries out as its own
+%% kill (ern_peer:frame/2). Report §6.9, §6.5: a process of the runtime's own that
 %% kills the process it acts for ends there, as that process would had it
 %% killed itself, so that nothing its function does after the kill is
 %% done, a delivery's message delivered among it; it ends as one that
@@ -1142,43 +1160,64 @@ kill(Address) ->
 %% finds in it, whose trace is its stack as it is found (§7.3). Every end
 %% the runtime gives from outside to a process that may be in a call comes
 %% here but the program's end, which ends every process and the tables with
-%% them: the prelude's kill and a peer's (kill/1), a delivery ended with
-%% its recipient (abandoned/1), an end's teller cut short (cut_short/2), a
-%% compute's process its second note ends (drop_note/1), the terminal's
-%% courier (ern_tty), and a deadlock's fault or a system process's given to
-%% the entry process (found_fault/2).
+%% them: the prelude's kill and a peer's (kill/1, ern_peer:frame/2), a
+%% delivery ended with its recipient (abandoned/1), an end's teller cut
+%% short (cut_short/2), a compute's process its second note ends
+%% (drop_note/1), the terminal's courier (ern_tty), what a refused load
+%% started (kill_all/1), and a deadlock's fault or a system process's
+%% given to the entry process (found_fault/2).
 %%
 %% A process ended so runs no `after`, so the call it waits in is ended
-%% here: it is suspended, so that it cannot end its call and begin another
-%% meanwhile, its CALL key is read, the call's records are dropped as its
-%% own end of the call drops them (uncalled/2), and then it is ended. A
-%% process of its own does that, which no process can name, and so none can
+%% first (killing/2), by a process no process can name, and so none can
 %% suspend: two processes that kill each other at once would otherwise each
-%% be suspended by the other for ever, a hang the look cannot see, and a
-%% process of the runtime's own would wait on each process it suspends.
-%% The suspension ends with that process. Report §8.6: it is a source while
-%% it works, since the look sees neither it nor the end it brings.
+%% be suspended by the other for ever, a hang the look cannot see. It is
+%% the launch's killer, which carries the kills out one after another and
+%% is there from the run's start, so that a full table of the host's stops
+%% none of them, a program's kill that makes room and the end's among them
+%% (killer/0, §10). Report §8.6: the kill is a source until it is done,
+%% since the look sees neither the killer's work nor the end it brings.
 %%
 %% A process that kills itself, by the prelude's kill, waits in no call as
 %% it kills, since a call's request and an adapted address's functions are
-%% made before the call is noted (call/4), so it ends at once; any other
-%% end, a fault found among them, comes from a process of its own.
+%% made before the call is noted (call/4), so it ends at once.
 -spec killed(pid(), term()) -> ok.
 killed(Pid, {ern, killed} = ExitReason) when Pid =:= erlang:self() ->
     exit(Pid, ExitReason),
     ok;
 killed(Pid, How) ->
     %% report §6.9: a kill of a process that has ended does nothing
-    case erlang:is_process_alive(Pid) of
-        true ->
+    case {erlang:is_process_alive(Pid), launch_field(#launch.killer, none)} of
+        {false, _} ->
+            ok;
+        {true, none} ->
+            %% no run is in progress, and so no call's records are there to
+            %% drop: a spawn's answer that comes between two runs ends the
+            %% process it names so (ern_peer)
+            exit(Pid, How),
+            ok;
+        {true, Killer} ->
             Kill = make_ref(),
             source_begin(Kill),
-            _ = erlang:spawn(fun() -> try killing(Pid, How) after source_end(Kill) end end),
-            ok;
-        false ->
+            Killer ! {kill, Pid, How, Kill},
             ok
     end.
 
+%% Report §6.9, §8.6, §10: the launch's killer, a process of the runtime's
+%% own that no process can name, which carries out every kill, one after
+%% another (killed/2). It is started with the run and held by the reaper,
+%% so that it ends with the run (reaper_held/2).
+killer() ->
+    receive
+        {kill, Pid, How, Kill} ->
+            try killing(Pid, How) after source_end(Kill) end,
+            killer()
+    end.
+
+%% A kill carried out: Pid suspended, so that it cannot end its call and
+%% begin another meanwhile, its CALL key read, the call's records dropped
+%% as its own end of the call drops them (uncalled/2), and then ended; the
+%% suspension ends once the exit is on its way, which Pid takes before it
+%% runs again.
 killing(Pid, How) ->
     try erlang:suspend_process(Pid) of
         true ->
@@ -1188,7 +1227,9 @@ killing(Pid, How) ->
                     exit(Pid, exit_reason(Pid, How, Stack));
                 undefined ->
                     ok
-            end
+            end,
+            _ = try erlang:resume_process(Pid) catch error:badarg -> false end,
+            ok
     catch
         %% it had ended, or ended as it was being suspended, killed by
         %% another kill among the ways
@@ -1226,7 +1267,7 @@ reason(Other) -> {'Fault', format("~p", [Other])}.
 %% monitor made after the end answers Unknown, and the deliveries to it
 %% end with it (abandoned/1). Report §6.5, §6.9, §8.6, §12.6: it holds the
 %% runtime's own processes, each delivery it starts, each process kept for
-%% an adapted address (kept/1) and each of the end's tellers (tell_all/3),
+%% an adapted address (kept/1) and each of the end's tellers (tell_all/4),
 %% linked to it, so that each ends with the run as the reaper is stopped
 %% (end_program/4); it traps their exits, so that one that ends otherwise
 %% than it returns, killed from foreign code among the ways, ends nothing
@@ -1347,9 +1388,24 @@ watched(Pid, #reaper{watched = Watched} = Reaper) ->
 %% which its fault's line names (§11.2), and so does a peer's compute,
 %% {compute, Node, Caller, Alias}, whose process starts only once its note
 %% names it (is_noted/2), and otherwise never runs, answered `over`.
+%%
+%% Report §7.4, §12.5: where the host's table of processes is full, nothing
+%% is spawned, and the asker is answered `system_limit`, which faults a
+%% spawner of this node (spawn_with_monitors/4) and answers a peer's spawn
+%% or compute `Other` (ern_peer:spawned_here/5); the reaper lives on.
 spawned(From, Ref, Function, Site, SpawnMonitors, Chain, Reaper) ->
     Started = fun() -> receive Ref -> run(Function) end end,
-    {Pid, _MonitorRef} = erlang:spawn_monitor(Started),
+    try erlang:spawn_monitor(Started) of
+        {Pid, _MonitorRef} -> rowed(Pid, From, Ref, Site, SpawnMonitors, Chain, Reaper)
+    catch
+        error:system_limit ->
+            From ! {Ref, system_limit},
+            Reaper
+    end.
+
+%% A process spawned on request given its row, let go where its chain
+%% lets it run, and monitored as the spawn asked (spawned/7).
+rowed(Pid, From, Ref, Site, SpawnMonitors, Chain, Reaper) ->
     {Root, Peer} = case Chain of
                        {chained, Parent} -> {root(Parent, Pid), none};
                        root -> {Pid, none};
@@ -1545,7 +1601,9 @@ new_run(Pid, Ref, Reaper) ->
 %% monitors canceled before (new_run/3); a monitor that is no service
 %% monitor is told nothing. Report §8.7: so too for a process of another
 %% node, which its node tells this one of (peer_restarted/2), its site
-%% empty, since a process's site is its node's record (§6.9).
+%% empty, since a process's site is its node's record (§6.9). The answer is
+%% the deliveries made, none for one a full table kept from being made,
+%% whose watcher faults instead (counted_link/3).
 delivered_restart(Pid, #reaper{monitors = Monitors}) ->
     case service_monitors_of(Pid, Monitors) of
         [] ->
@@ -1556,7 +1614,8 @@ delivered_restart(Pid, #reaper{monitors = Monitors}) ->
                        [] -> <<>>
                    end,
             Down = {'Down', Pid, 'Restarted', Site},
-            [wrapped(Caller, Wrap, Down) || {Caller, Wrap} <- ServiceMonitors]
+            [Delivery || {Caller, Wrap} <- ServiceMonitors,
+                         Delivery <- [wrapped(Caller, Wrap, Down)], is_pid(Delivery)]
     end.
 
 %% Report §6.9, §8.7: a restart of Pid, a process of another node, which
@@ -1923,23 +1982,36 @@ wrapped(Caller, Wrap, {'Down', Of, _, _} = Down) ->
 %% of after the look finds it. A delivery of a Down names the process that
 %% ended or restarted, Of, which a demonitor reads (demonitored/5), and any
 %% other none.
+%%
+%% Report §7.3, §7.4, §12.5: where the host's table of processes is full,
+%% the delivery cannot be made, and the fault is met on the message's way:
+%% the recipient faults with the host's class and reason,
+%% `Fault("error:system_limit")`, at the wait that reaches it, as at a
+%% fault in an adapted address's function (§6.5), its starter living on.
+%% The delivery is then none.
 counted_link(Address, Work) ->
     counted_link(Address, Work, none).
 
 counted_link(Address, Work, Of) ->
     Recipient = process_of(Address),
     Starter = erlang:self(),
-    Pid = erlang:spawn_link(fun() ->
-                                acting_for(Recipient),
-                                receive go -> Work(), delivered(Recipient, Starter) end
-                            end),
-    try ets:insert(?DELIVERIES, {{Recipient, Starter, Pid}, Of}) catch _:_ -> true end,
-    source_begin(Pid),
-    case node(Recipient) =:= node() andalso not erlang:is_process_alive(Recipient) of
-        true -> abandoned(Recipient);
-        false -> Pid ! go
-    end,
-    Pid.
+    try erlang:spawn_link(fun() ->
+                              acting_for(Recipient),
+                              receive go -> Work(), delivered(Recipient, Starter) end
+                          end) of
+        Pid ->
+            try ets:insert(?DELIVERIES, {{Recipient, Starter, Pid}, Of}) catch _:_ -> true end,
+            source_begin(Pid),
+            case node(Recipient) =:= node() andalso not erlang:is_process_alive(Recipient) of
+                true -> abandoned(Recipient);
+                false -> Pid ! go
+            end,
+            Pid
+    catch
+        error:system_limit:Stack ->
+            sent({fault, Recipient, met(error, system_limit, Stack)}),
+            none
+    end.
 
 delivered(Recipient, Starter) ->
     try ets:delete(?DELIVERIES, {Recipient, Starter, erlang:self()}) catch _:_ -> true end,
@@ -2873,7 +2945,10 @@ arithmetic_cause([Frame | _]) ->
 arithmetic_cause([]) ->
     failure.
 
-%% A failure of the runtime's as a cause, the host's class and reason.
+%% A failure of the runtime's as a cause, the host's class and reason, the
+%% cause a system process faults its caller with where the host's table of
+%% processes is full, `error:system_limit` (report §7.4, §12.5).
+-spec host_cause(error | exit | throw, term()) -> binary().
 host_cause(Class, Error) ->
     format("~p:~p", [Class, Error]).
 
@@ -3147,7 +3222,10 @@ end_with_fault(Cause) ->
 %% test), opened for a request and closed once it is answered, so that no
 %% more is read than a request needs and a program slower than what writes
 %% to it holds the writer back. Report §7.3: a read that fails is a failure
-%% of the runtime, and ends the program with a fault that names it.
+%% of the runtime, and ends the program with a fault that names it. Report
+%% §7.4, §12.5: a request whose input cannot be opened, the host's table of
+%% ports full, faults its asker with the host's class and reason,
+%% `Fault("error:system_limit")`, this process living on with what it holds.
 stdin_loop(Open) ->
     erlang:process_flag(trap_exit, true),
     stdin_loop(Open, <<>>).
@@ -3190,7 +3268,8 @@ read_line(Reply, Open, Buffer) ->
                {eof, Left} -> answer(Reply, 'None'), Left;
                {{line, Line}, Left} -> answer_line(Reply, without_return(Line)), Left;
                {{last, Line}, Left} -> answer_line(Reply, Line), Left;
-               {{error, Error}, Left} -> unreadable(Error), Left
+               {{error, Error}, Left} -> unreadable(Error), Left;
+               {limited, Left} -> limited(Reply), Left
            end,
     source_end(),
     Rest.
@@ -3206,6 +3285,11 @@ read_bytes(Reply, Open, Buffer) ->
     source_end(),
     <<>>.
 
+%% Report §7.4, §12.5: a read whose input the host's full table of ports
+%% kept from being opened, its asker faulted.
+limited(Reply) ->
+    refuse(Reply, host_cause(error, system_limit)).
+
 %% The next line and the bytes after it: the bytes before the first line
 %% feed at or after Offset, reading more while there is none. A last line
 %% without a line feed is a line, `last`.
@@ -3219,7 +3303,8 @@ line(Open, Buffer, Offset) ->
                 {data, Bytes} -> line(Open, <<Buffer/binary, Bytes/binary>>, byte_size(Buffer));
                 eof when Buffer =:= <<>> -> {eof, <<>>};
                 eof -> {{last, Buffer}, <<>>};
-                {error, Error} -> {{error, Error}, Buffer}
+                {error, Error} -> {{error, Error}, Buffer};
+                limited -> {limited, Buffer}
             end
     end.
 
@@ -3242,7 +3327,8 @@ answer_line(Reply, Text) ->
 %% Report §12.1: what has arrived, at least one byte, or None at the end.
 bytes(Reply, {data, Bytes}) -> answer(Reply, {'Some', Bytes});
 bytes(Reply, eof) -> answer(Reply, 'None');
-bytes(_, {error, Error}) -> unreadable(Error).
+bytes(_, {error, Error}) -> unreadable(Error);
+bytes(Reply, limited) -> limited(Reply).
 
 unreadable(Error) ->
     end_with_fault(<<(unreadable())/binary, (format("~p", [Error]))/binary>>).
@@ -3259,6 +3345,14 @@ not_utf8() ->
 input_not_utf8() ->
     end_with_fault(not_utf8()).
 
+%% Report §12.1, §7.4: keys that cannot be read end the program with the
+%% fault of its entry process, Error the host's reason, since no process
+%% asked for them: where their input cannot be opened, the host's table of
+%% ports full, `system_limit` (read_input/1).
+-spec input_unreadable(term()) -> ok.
+input_unreadable(Error) ->
+    unreadable(Error).
+
 %% Report §12.3, §11.8: whether a fault's cause is one of standard input's,
 %% which ends a shell as it ends a run, by its input and not by a defect.
 -spec by_input(binary()) -> boolean().
@@ -3272,10 +3366,19 @@ by_input(Cause) ->
 %% The input as it arrives, for one request: at least one byte, eof, or
 %% {error, Error}. The input is open from the request to its first answer,
 %% and what arrived with that answer is taken with it. An exit from a link
-%% other than the input's own is the end of the process that reads.
--spec read_input(fun(() -> port() | pid())) -> {data, binary()} | eof | {error, term()}.
+%% other than the input's own is the end of the process that reads. Report
+%% §7.4, §12.5: `limited` where the host's table of ports, or of processes
+%% for a test's input, is full, so that the input cannot be opened.
+-spec read_input(fun(() -> port() | pid())) ->
+          {data, binary()} | eof | {error, term()} | limited.
 read_input(Open) ->
-    Input = Open(),
+    try Open() of
+        Input -> taken(Input)
+    catch
+        error:system_limit -> limited
+    end.
+
+taken(Input) ->
     First = receive
                 {Input, {data, Bytes}} -> {data, Bytes};
                 {Input, eof} -> eof;
@@ -3580,7 +3683,14 @@ run_main(EntryPoint, Site, Options) ->
     _ = erlang:system_flag(backtrace_depth, 64),
     Launch = launched(Options),
     Reaper = erlang:spawn(fun reaper/0),
-    true = ets:update_element(?LAUNCH, launch, {#launch.reaper, Reaper}),
+    %% report §8.6, §12.5: what the end uses is there from the run's start,
+    %% so that a full table of the host's cannot stop it: the reaper, the
+    %% killer of every kill, the sayer of the lines said later
+    %% and the system processes (the log's *A Node's Limits*)
+    Killer = reaper_held(Reaper, fun killer/0),
+    true = ets:update_element(?LAUNCH, launch, [{#launch.reaper, Reaper},
+                                                {#launch.killer, Killer}]),
+    _ = later_sayer(),
     System = started_system(Options),
     Encodings = bytes_out(),
     %% report §11.2: the runner's own lines, through standard error's process
@@ -3631,7 +3741,7 @@ told(Outcome, Launch, Say) ->
         Untold ->
             Sites = [Site || {_, _, Site} <- Untold],
             Say(["the end waits for ", counted(Sites), ": ", lists:join(", ", Sites)]),
-            waited(Outcome, Launch, Say, tell_all(Launch, Untold, #{}))
+            waited(Outcome, Launch, Say, tell_all(Launch, Say, Untold, #{}))
     end.
 
 %% The end's wait, Waiting holding each subscriber told and not yet heard
@@ -3722,26 +3832,37 @@ untold(Subscriptions, Waiting) ->
 %% delivery (reaper_held/2), so that its end ends nothing else and it ends
 %% with the program; the runner monitors it, so that a teller that ends
 %% before its word holds up no end (waited/4).
-tell_all(Launch, Untold, Waiting) ->
+%%
+%% Report §7.3, §7.4, §12.5: where the host's table of processes is full, a
+%% teller cannot be made, and its subscriber faults as a delivery's
+%% recipient does (counted_link/3), the end waiting for it no longer, which
+%% is said as for a teller that ends before its word (§11.2).
+tell_all(Launch, Say, Untold, Waiting) ->
     Runner = erlang:self(),
     Reaper = launch_reaper(),
     lists:foldl(fun({Order, Subscriber, Site}, Acc) ->
                     Told = make_ref(),
                     _ = ets:update_element(?TERMINATING, Subscriber, {3, Told}),
-                    Teller = reaper_held(Reaper, fun() ->
-                                                     tell(Runner, Launch, Subscriber, Told)
-                                                 end),
-                    MonitorRef = erlang:monitor(process, Teller,
-                                                [{tag, {teller, Launch, Subscriber}}]),
-                    Acc#{Subscriber => #waited_for{order = Order, site = Site, teller = Teller,
-                                                   monitor_ref = MonitorRef}}
+                    try reaper_held(Reaper, fun() -> tell(Runner, Launch, Subscriber, Told) end) of
+                        Teller ->
+                            MonitorRef = erlang:monitor(process, Teller,
+                                                        [{tag, {teller, Launch, Subscriber}}]),
+                            Acc#{Subscriber => #waited_for{order = Order, site = Site,
+                                                           teller = Teller,
+                                                           monitor_ref = MonitorRef}}
+                    catch
+                        error:system_limit:Stack ->
+                            sent({fault, Subscriber, met(error, system_limit, Stack)}),
+                            Say(["the subscriber ", Site, " is no longer waited for"]),
+                            Acc
+                    end
                 end, Waiting, Untold).
 
 %% Report §11.2: subscribers told once the wait has been said, each said
 %% as it is told.
 tell_late(Launch, Say, Untold, Waiting) ->
     lists:foreach(fun({_, _, Site}) -> Say(["the end waits for ", Site, " too"]) end, Untold),
-    tell_all(Launch, Untold, Waiting).
+    tell_all(Launch, Say, Untold, Waiting).
 
 %% Report §11.2: how many subscribers the sites name.
 counted([_]) -> "1 subscriber";
@@ -4306,6 +4427,10 @@ evaluate_load(Units, Site) ->
     MonitorRef = erlang:monitor(process, Settler),
     entered_foreign(),
     Evaluator = try waited_settler(Word, MonitorRef) after left_foreign() end,
+    %% report §7.4, §12.5: an evaluator the host's full table of processes
+    %% kept the settler from spawning faults the caller as its own spawn
+    %% would (spawn_with_monitors/4)
+    is_pid(Evaluator) orelse erlang:error(Evaluator),
     Waited = evaluation_waited(Evaluator, Ref),
     case Waited of
         {interrupted, _} -> unwatched(Evaluator, Ref);
@@ -4328,20 +4453,26 @@ waited_settler(Word, MonitorRef) ->
 
 %% The settler: the caller watched, the evaluator spawned, watched by both,
 %% and named to the caller, and the load settled as the caller's wait came
-%% to, or undone where the caller ends first.
+%% to, or undone where the caller ends first; or, where the host's table of
+%% processes is full, `system_limit` named to the caller in the
+%% evaluator's place, nothing loaded.
 settler(Caller, {Word, Ref}, Spawn, Units) ->
     MonitorRef = erlang:monitor(process, Caller),
     Tag = make_ref(),
-    Evaluator = Spawn([{Caller, Ref}, {erlang:self(), Tag}]),
-    Caller ! {Word, Evaluator},
-    Settled = receive
-                  {Word, Waited} ->
-                      erlang:demonitor(MonitorRef, [flush]),
-                      load_settled(Waited, Evaluator, Tag, Units);
-                  {'DOWN', MonitorRef, process, Caller, _} ->
-                      load_settled({interrupted, ended}, Evaluator, Tag, Units)
-              end,
-    Caller ! {Word, Settled}.
+    try Spawn([{Caller, Ref}, {erlang:self(), Tag}]) of
+        Evaluator ->
+            Caller ! {Word, Evaluator},
+            Settled = receive
+                          {Word, Waited} ->
+                              erlang:demonitor(MonitorRef, [flush]),
+                              load_settled(Waited, Evaluator, Tag, Units);
+                          {'DOWN', MonitorRef, process, Caller, _} ->
+                              load_settled({interrupted, ended}, Evaluator, Tag, Units)
+                      end,
+            Caller ! {Word, Settled}
+    catch
+        error:system_limit -> Caller ! {Word, system_limit}
+    end.
 
 %% A load made whole, its units marked initialized, the settler's monitor of
 %% an evaluator that lives on ended; or undone, as where a binding faults
@@ -4973,12 +5104,15 @@ end_program(Launch, Reaper, System, Encodings) ->
     {Streams, Others} = lists:partition(fun({Name, _}) -> lists:member(Name, [stdout, stderr]) end,
                                         System),
     lists:foreach(fun({_, Pid}) -> stopped_in_order(Pid) end, Streams),
-    %% each ended before the table goes, which the reaper reads
-    lists:foreach(fun stop/1, [Pid || {_, Pid} <- Others] ++ [Reaper]),
+    %% report §12.1: the terminal given back by its process, whose holder
+    %% of the settings the program found is there from the subscription,
+    %% so that the end opens nothing (ern_tty:restore/1)
     case ets:lookup(?LAUNCH, reading) of
-        [{reading, keys}] -> ern_tty:restore();
+        [{reading, keys}] -> ern_tty:restore(proplists:get_value(terminal, System));
         _ -> ok
     end,
+    %% each ended before the table goes, which the reaper reads
+    lists:foreach(fun stop/1, [Pid || {_, Pid} <- Others] ++ [Reaper]),
     %% the launch's row goes with its table, so that a signal after the run
     %% has nothing to end (signal/1), and an adapted address the run made
     %% is dead (adapted_way/2)

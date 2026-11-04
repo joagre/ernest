@@ -158,6 +158,58 @@ settings_kept() ->
     ?assertMatch({match, _}, re:run(Screen, "(^|[ \t])tostop([ \t;\r\n]|$)")),
     ?assertEqual(nomatch, re:run(Screen, "-tostop", [{capture, none}])).
 
+%% report §12.1: the settings the program found are given back by the
+%% holder the first subscription opens, which outlives a host that is
+%% killed, `kill -KILL`, and gives them back as its input ends with the
+%% host, so that the terminal is never left without echo or line mode. The
+%% program's output goes through a pipe, whose end waits for the holder's,
+%% so that the terminal is described once the holder has ended. A
+%% regression test, written after the fix: the end gave the settings back,
+%% and a host killed left the terminal raw
+killed_host_restored_test_() ->
+    ern_nodes_tests:counted_test({waits, 3}, fun killed_host_restored/0).
+
+killed_host_restored() ->
+    ok = build("fixtures/terminal/killed.ern", "fixtures/terminal"),
+    {0, Screen} = pty("stty -a; sh -c 'ERN_HOST=$$ exec ../bin/ern run build/terminal/killed.erc'"
+                      " | cat; stty -a",
+                      [{expect, "ready"}, {send, "78"}]),
+    ?assertEqual(1, ern_pty:count(Screen, <<"ready">>)),
+    ?assertEqual(nomatch, re:run(Screen, "(^|[ \t])-(echo|icanon)([ \t;\r\n]|$)",
+                                 [{capture, none}])),
+    ?assert(ern_pty:count(Screen, <<"speed">>) >= 2).
+
+%% report §12.1, §12.5: at a full table of ports, which a node's `limits`
+%% makes small, a subscription answers the host's refusal,
+%% `Left(Other(text))`, and claims nothing; once a port is given back the
+%% next is granted, its holder taking the port, and the keys' first read,
+%% which finds no port to open, faults the entry process as an input that
+%% cannot be read; the terminal is given back at the end. A regression
+%% test, written after the code: the terminal's process died of the host's
+%% `system_limit` as it opened `stty`, and so did the keys' reader as it
+%% opened its input
+full_port_table_test_() ->
+    ern_nodes_tests:counted_test({waits, 3}, fun full_port_table/0).
+
+full_port_table() ->
+    ok = build("fixtures/terminal/limited.ern", "fixtures/terminal"),
+    Base = filename:join(ern_pty:run_dir(), "terminal_limited_" ++ os:getpid()),
+    ok = filelib:ensure_path(Base),
+    Node = ern_nodes_tests:made(Base, "node", none),
+    ern_nodes_tests:edit(Node, fun(Conf) -> Conf#{<<"limits">> => #{<<"ports">> => 1024}} end),
+    {0, Screen} = pty("../bin/ern run --config-dir " ++ Node
+                      ++ " build/terminal/limited.erc; echo status $?; stty -a",
+                      [{expect, "Right(Unit)"}]),
+    [Refused, Granted, Faulted | _] = lines(Screen),
+    ?assertEqual(<<"Left(Io.Other(\"a system limit was hit, probably not enough ports\"))">>,
+                 Refused),
+    ?assertEqual(<<"Right(Unit)">>, Granted),
+    ?assertEqual(<<"Limited.main faulted: the standard input could not be read: system_limit">>,
+                 Faulted),
+    ?assertEqual(1, ern_pty:count(Screen, <<"status 1">>)),
+    ?assertEqual(nomatch, re:run(Screen, "(^|[ \t])-(echo|icanon)([ \t;\r\n]|$)",
+                                 [{capture, none}])).
+
 %% report §12.1, Appendix E.16: the game is played by the arrows, `Escape`
 %% leaves, and the board's rows each start at the left, which full raw mode
 %% would have broken
