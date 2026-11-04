@@ -79,5 +79,7 @@ A rename of a document changes, in its own commit, CLAUDE.md's owner row and `do
 - [ ] The first claim renamed "Code travels": `guide/why.md`, its anchor `#code-travels`, the homepage, the site's fixture `test/fixtures/site/tree/guide/why.md` with its expected pages, and the homepage rule of `docs/proposals/site/decisions.md`, live while MVP 4.2 is open
 - [x] Gleam's `process.receive` checked 2026-11-04 against `gleam_erlang` v1.3.0's documentation: the call is `receive(from subject, within timeout)`, and a process that does not own a non-named subject panics when it receives with it. The drafts write `process.receive(subject, 1000)`, which "compiles wherever a subject is in hand, and panics at run time in a process that does not own it"; `guide/faq.md`'s two sentences, the typed send and the reply `Subject`, stand as they are
 - [ ] `tools/release/README.md`'s first sentence: the new README's
+- [ ] Before it, the harvest: the four repositories' CLAUDE.md read side by side, a sibling's clearer wording or applicable rule taken into Ernest's draft (`temp-other-repos.md`, item 5)
+- [ ] A standing rule in Ernest's CLAUDE.md and the template's: a good rule found in an application goes to the template, and to Ernest's where it applies, and from the template to the other copies
 - [ ] CLAUDE.md redrafted rule for rule: the owner table's `docs/` rows to one, the plain register; then every old rule mapped to a new sentence
 - [ ] `SECURITY.md`'s content, decided with the user when this is planned
