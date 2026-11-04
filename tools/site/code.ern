@@ -144,13 +144,70 @@ fn continuedBy(found : Optional(Session), lines : List(String)) : Session =
     }
 
 // A module of its own, which names no file on its first line, as
-// `// net/http.ern` does, runs alone; one that exports `main` is loaded.
+// `// net/http.ern` does, runs alone where the shell takes it as one
+// input; one that exports `main` is loaded.
 fn moduleButtons(lines : List(String)) : Buttons =
     match lines {
         first :: _ when namesFile(first) -> CopyAlone
+      | _ when !isOneInput(lines) -> CopyAlone
       | _ when List.any(lines, fn(line) = String.startsWith(line, "export fn main(")) -> Load
       | _ -> Paste
     }
+
+// A paragraph of a block, its lines between blank lines, as report §11.3
+// reads an example's: a declaration where its first token is `type`,
+// `abstract`, `foreign` or `export`, or `fn` followed by a name; a `let`
+// followed by a name, `export let` among them, which is a declaration too;
+// or the body, any other.
+type Paragraph = Declaration | LetDeclaration | Body
+
+// Whether the shell takes the block as one input (report §11.2): a `let`
+// at the prompt stands alone in its input, so a top-level `let` beside
+// another declaration is more than one, and so are declarations followed
+// by an expression.
+fn isOneInput(lines : List(String)) : Bool = {
+    let kinds = List.map(paragraphs(lines), paragraphKind);
+    let declarations = List.size(List.filter(kinds, fn(kind) = kind != Body));
+    let lets = List.size(List.filter(kinds, fn(kind) = kind == LetDeclaration));
+    let #(_, afterFirst) = List.span(kinds, fn(kind) = kind == Body);
+    (lets == 0 || declarations == 1) && !List.contains(afterFirst, Body)
+}
+
+// The block's paragraphs, each its lines, none empty.
+fn paragraphs(lines : List(String)) : List(List(String)) = {
+    let #(last, done) =
+        List.foldLeft(lines,
+                      #([], []),
+                      fn(#(current, acc), line) =
+                          if String.trim(line) == "" then
+                              #([], if current == [] then acc else List.reverse(current) :: acc)
+                          else
+                              #(line :: current, acc));
+    List.reverse(if last == [] then done else List.reverse(last) :: done)
+}
+
+// A paragraph's kind by its first two tokens, its comments aside, which no
+// token of the grammar's is.
+fn paragraphKind(lines : List(String)) : Paragraph = {
+    let found = match tokens(String.join(lines, "\n")) {
+        Some(#(all, _)) ->
+            List.filter(all, fn(token) = token.kind != Comment && token.kind != DocBlock)
+      | None ->
+            []
+    };
+    match List.map(List.take(found, 2), fn(token) = #(token.kind, token.text)) {
+        [#(Reserved, "export"), #(Reserved, "let")] -> LetDeclaration
+      | [#(Reserved, "let"), #(Name, _)] -> LetDeclaration
+      | [#(Reserved, "fn"), #(Name, _)] -> Declaration
+      | [#(Reserved, "fn"), #(TypeName, _)] -> Declaration
+      | #(Reserved, word) :: _ when List.contains(declaring, word) -> Declaration
+      | _ -> Body
+    }
+}
+
+// The words a declaration of report §11.3's begins with, beside `let` and
+// `fn` followed by a name.
+let declaring : List(String) = ["type", "abstract", "foreign", "export"]
 
 // A first line that places its block in a file, `// net/http.ern`, the
 // file's path lowercase words, digits and `_` between `/`s (report §11.1).
@@ -206,22 +263,41 @@ export fn copied(blocks : List(Markdown.Block)) : List(Placed) =
 /// `ernest` block right after a declaration's heading, one of the second
 /// level, is the declaration's signature, which gets no button; every
 /// other `ernest` block is an example, which the library's tests run, and
-/// gets Paste; any other block gets none.
-export fn documented(blocks : List(Markdown.Block)) : List(Placed) = {
+/// gets `offered`, Paste for a module of the standard library's and Copy
+/// alone for a library's, which a bare shell reaches only by `:load`, or
+/// Copy alone where the shell cannot take it as one input; any other block
+/// gets none.
+export fn documented(blocks : List(Markdown.Block), offered : Buttons) : List(Placed) = {
     let #(_, placed) =
         List.mapFold(blocks,
                      None,
                      fn(previous, block) =
-                         #(Some(block), unlinked(block, documentedButtons(previous, block))));
+                         #(Some(block),
+                           unlinked(block, documentedButtons(previous, block, offered))));
     placed
 }
 
-fn documentedButtons(previous : Optional(Markdown.Block), block : Markdown.Block) : Buttons =
+fn documentedButtons(previous : Optional(Markdown.Block),
+                     block : Markdown.Block,
+                     offered : Buttons) : Buttons =
     match #(previous, block) {
         #(Some(Markdown.Heading(level = 2)), Markdown.Code(=info)) when language(info)
-            == "ernest" -> Signature
-      | #(_, Markdown.Code(=info)) when language(info) == "ernest" -> Paste
-      | _ -> CopyAlone
+            == "ernest" ->
+            Signature
+      | #(_, Markdown.Code(=info, =lines)) when language(info) == "ernest" ->
+            if isOneInput(lines) then offered else CopyAlone
+      | _ ->
+            CopyAlone
+    }
+
+/// The line a block offered to the shell is known by, where it is
+/// offered: its first, a transcript's its first input.
+export fn firstOffered(placed : Placed) : Optional(String) =
+    match placed.block {
+        Markdown.Code(=info, =lines) when placed.given == Paste || placed.given == Load ->
+            if language(info) == "console" then List.get(inputs(lines), 0) else List.get(lines, 0)
+      | _ ->
+            None
     }
 
 // A block with its buttons, before its page's links give it the

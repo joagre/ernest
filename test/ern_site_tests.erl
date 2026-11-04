@@ -21,7 +21,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
--export([write_expected/0]).
+-export([fixture_site/1, write_expected/0]).
 
 -define(TREE, "fixtures/site/tree").
 -define(CONFIG, "fixtures/site/config.json").
@@ -65,15 +65,17 @@ generated_test_() ->
 %% the deployment guide, a heading anchored by its GitHub anchor or its
 %% number, a GitHub anchor of a heading holding `§` or sharing its digits
 %% with another's led to its number; the homepage, its claims and its
-%% example; the shell's page, its numbers the configuration's; and the 404
-%% page.
+%% example; the shell's page, its numbers the configuration's; every
+%% page's script told the shell's path and the session's lifetime, the
+%% configuration's too; and the 404 page.
 %%
 %% Each with its citations made links, its links written for GitHub
 %% led to the site's pages, its code colored by the toolchain's lexer, each
 %% block's buttons as its document's tests give them, its sidebar, its
 %% previous and next, and its footer naming its source with its date, all in
-%% the readable form. It does not cover the browser's reading of a page,
-%% which the mockup's look was checked by.
+%% the readable form; a block a bare shell cannot run, which the fixture's
+%% site/unrunnable.md lists, has Copy alone. It does not cover the
+%% browser's reading of a page, which test/ern_browser_tests.erl drives.
 pages() ->
     Expected = files(?EXPECTED),
     ?assertEqual(["404.html", "deployment/index.html", "faq/index.html", "guide/0.html",
@@ -201,14 +203,23 @@ refused() ->
     ?assertMatch({_, _}, binary:match(Output, <<"build/site/out is there already">>)).
 
 %% docs/proposals/site/decisions.md *The templates*: the shell's page says
-%% what the server enforces, so a configuration with no `shell`, a server
-%% that serves none, is refused, and no site is written.
+%% what the server enforces, and every page's script opens the session's
+%% socket at the shell's path, so a configuration with no `shell`, a
+%% server that serves none, is refused, and so is one whose shell has no
+%% path; no site is written.
 unconfigured() ->
     Config = "build/site/plain.json",
     ok = file:write_file(Config, <<"{\"listeners\": []}\n">>),
     {Status, Output} = ern_integration_tests:sh(generate("build/site/plain", Config)),
     ?assertEqual(1, Status),
-    ?assertMatch({_, _}, binary:match(Output, <<"build/site/plain.json has no shell">>)).
+    ?assertMatch({_, _}, binary:match(Output, <<"build/site/plain.json has no shell">>)),
+    {ok, Fixture} = file:read_file(?CONFIG),
+    Pathless = "build/site/pathless.json",
+    ok = file:write_file(Pathless, binary:replace(Fixture, <<"\"path\": \"/shell/session\",">>,
+                                                  <<>>)),
+    {Refused, Said} = ern_integration_tests:sh(generate("build/site/pathless", Pathless)),
+    ?assertEqual(1, Refused),
+    ?assertMatch({_, _}, binary:match(Said, <<"pathless.json: the shell's path is a string">>)).
 
 %% docs/proposals/site/decisions.md *Links*: a citation of the log that
 %% names no entry of the log's index, or a title two entries hold, is
@@ -318,14 +329,26 @@ templates_test() ->
                                               Held =/= Listed]).
 
 %% The site generated from the fixture's tree, the tree made afresh: the
-%% fixture's documents at their paths, the site's files and the logos.
+%% fixture's documents at their paths, the site's files and the logos; the
+%% blocks a bare shell cannot run are the fixture's own list, which names
+%% the fixture's pages, rather than the site's.
 generated() ->
     _ = file:del_dir_r("build/site"),
-    [copied(filename:join(?TREE, File), filename:join(?SOURCE, File)) || File <- files(?TREE)],
-    [copied(filename:join("../site", File), filename:join(?SOURCE ++ "/site", File))
-     || File <- files("../site")],
-    [copied("../assets/" ++ Logo, ?SOURCE ++ "/assets/" ++ Logo) || Logo <- ?LOGOS],
-    ern_integration_tests:succeed(generate(?OUT, ?CONFIG)).
+    fixture_site("build/site").
+
+%% The fixture's site written under Base, its tree made afresh at
+%% Base/source and the pages at Base/out, which the browser's test serves
+%% too (ern_browser_tests): the pages' directory.
+-spec fixture_site(file:filename()) -> file:filename().
+fixture_site(Base) ->
+    Source = filename:join(Base, "source"),
+    Out = filename:join(Base, "out"),
+    [copied(filename:join(?TREE, File), filename:join(Source, File)) || File <- files(?TREE)],
+    [copied(filename:join("../site", File), filename:join(Source ++ "/site", File))
+     || File <- files("../site"), File =/= "unrunnable.md"],
+    [copied("../assets/" ++ Logo, Source ++ "/assets/" ++ Logo) || Logo <- ?LOGOS],
+    ern_integration_tests:succeed(generate(Source, Out, ?CONFIG)),
+    Out.
 
 copied(From, To) ->
     ok = filelib:ensure_dir(To),

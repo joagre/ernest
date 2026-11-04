@@ -140,7 +140,7 @@ A list that lives in two places is held equal by a test where one is cheap, whos
 
 ## Building
 
-Beyond what the README's *Installing* needs, the tests need python3: `make test` for the runtime's test of `Os.resize`, whose program under a terminal says its size when told it changed, and `make test-full` besides to signal `ern` in the tests of how it ends and to watch, through Linux's inotify, the files a program writes in the tests that wait for them, which therefore need Linux. `make sanitize` needs clang. Emacs, man, and groff or mandoc are optional: where one is missing, the tests that need it say so and are skipped, and so are the Emacs mode's under an Emacs older than 29, which the mode needs.
+Beyond what the README's *Installing* needs, the tests need python3: `make test` for the runtime's test of `Os.resize`, whose program under a terminal says its size when told it changed, and `make test-full` besides to signal `ern` in the tests of how it ends and to watch, through Linux's inotify, the files a program writes in the tests that wait for them, which therefore need Linux. `make sanitize` needs clang, and `make test-browser` Chrome or Chromium, which it says it lacks, with the status 2, where none is found. Emacs, man, and groff or mandoc are optional: where one is missing, the tests that need it say so and are skipped, and so are the Emacs mode's under an Emacs older than 29, which the mode needs.
 
 ```
 make              build the helper, compile every application into its ebin/, then
@@ -153,7 +153,8 @@ make test         build, then the unit tests of every application, the library's
 make test-full    build, then two phases: first the guide's tests, the Emacs mode's, the unit
                   tests, the library's, the documents', the site's, the grammar's, the typed
                   programs' and the dialyzer's, which builds its PLT once, side by side;
-                  then the shell's and the six program parts, one after another,
+                  then the shell's, the site's blocks in a bare shell and the six program
+                  parts, one after another,
                   each running its own tests as many at once as the host has schedulers: the
                   whole suite
 make test-erl     the unit tests of every application under erl/, side by side;
@@ -187,6 +188,14 @@ make test-site    the site's generator, tools/site.ern, run over its fixture, th
                   tokens site/templates/README.md lists, its check of the site's links
                   refusing one that leads nowhere, and the generator run over an export of
                   HEAD, the repository's own documents with the site's files as they stand
+make test-site-shell  every block the site's pages offer the shell, and every one
+                  site/unrunnable.md lists, pasted into a bare ern shell under the
+                  pseudo-terminal, and the file held to those that do not run; part of
+                  make test-full, about 45 seconds
+make test-browser  the site's client in a headless Chrome over its DevTools protocol, the
+                  fixture's pages served by OTP's httpd and a stub speaking
+                  ernest-httpd's protocol at the shell's path; not part of make
+                  test-full, a step of docs/release_review.md
 make test-grammar  Appendix A read as data, and a thousand programs generated from it,
                   parsed, laid out and given as near misses; ERN_SEED=n runs a failing
                   seed again
@@ -335,6 +344,9 @@ make contents     rewrite the contents lists of the report and the guide from th
 make site-expected  rewrite test/fixtures/site/expected/, the pages the site's generator
                   writes from its fixture, after a change to the look or the generation
                   that is meant
+make site-unrunnable  rewrite site/unrunnable.md, the blocks the site's pages offer the
+                  shell that a bare shell cannot run, which the generator gives Copy
+                  alone, saying what the shell answered each; test-site-shell holds it
 make format       lay out every Ernest module, and the Ernest blocks of the report and the
                   guide, as ern format does (report §11.6)
 make unicode UC_SPEC=dir
@@ -359,7 +371,8 @@ While a change is worked on, it runs the targets of its kind; which run a commit
 | the Emacs mode | `make test-emacs` |
 | the language guide, the report, the README, `docs/diagnostics.md` or `docs/module_doc_template.md` | `make test`, `make test-guide`; report Appendix A `make test-grammar` too, report §11 `make test-manual` and `make test-shell` |
 | the tour, its document or a chapter's program | `make test`, which holds its blocks to its files, and `make test-tour`, which runs its sessions |
-| the site's templates, its assets or its generator | `make test-site`, then `make test` |
+| the site's templates, its assets or its generator | `make test-site`, then `make test`; which blocks get Paste and Load `make test-site-shell` too, and the client in `site/root/assets/js/` `make test-browser` |
+| a document's blocks that the site offers the shell, the guide's, Why's and the library's pages | `make test-site-shell`, and `make site-unrunnable` where a block a bare shell cannot run is meant |
 | the site's build, `make site` | `make test-site`, then `make site TAG=HEAD CONFIG=test/fixtures/site/config.json` |
 | a proposal, or any other document | `make test-docs` |
 | a path `make bench` measures | the part of `make bench` that measures it, `make bench-<part>`, beside the targets of its kind |

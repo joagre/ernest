@@ -24,7 +24,7 @@ The shell runs as four processes, the session, the reader, the screen and the lo
 
 It reads and appends those files alone: a file under the source root, read or listed, and a startup file it ran, read again for a diagnostic, each refused `Denied` outside them, a path that steps out with `..` among it; and an append to the path `:output` took, which it tries itself, refused to any other (§11.2 *The attached shell*; the log's *The Release Review's Code Fixes, 2026-10-31*). A process of the node that finds its address asks no more of it than the session does.
 
-**The reader** edits the line at a terminal. Each event the local half forwards goes through `Ernest.Shell.Editor.edit`, and the reader sends the screen the line to show and the session what was entered. It draws nothing, and it stays live while an input runs.
+**The reader** edits the line at a terminal. Each event the local half forwards goes through `Ernest.Shell.Editor.edit`, and the reader sends the screen the line to show and the session what was entered. It draws nothing, and it stays live while an input runs. It takes no event before the session tells it the first prompt is drawn, so that keys and a paste that came earlier wait in its mailbox and are read after that prompt as if typed there (§11.2 *Startup and history*, the log's *The Client's Questions*).
 
 **The screen** is the only process that draws. It holds an `Ernest.Shell.Region.Region` and sends the local half the bytes the region answers, which the local half writes. In line mode it sends what it is sent as it comes.
 
@@ -58,7 +58,7 @@ The runner, `ern_cli`, loads the file and its dependencies and runs their initia
 4. The session spawns its screen and, at a terminal, its reader, marks its own processes, and starts the front end's session, which writes the screen's row. It then tells the local half its process and the addresses the keys and the shell's own node's output go to, a call, so that the output is routed before the next step.
 5. It says the greeting, subscribes to `Process.faults`, and only then spawns the file's entry point, so that a fault in the entry point is reported; then it says what the local half had to say of the files it read.
 6. It monitors the reader. The reader's end is the session's, and an input running then is killed with it, since no key can interrupt that input any more; so is the local half's.
-7. It runs the startup inputs, and writes the first prompt, which drains the screen first, as before every prompt.
+7. It runs the startup inputs, and writes the first prompt, which drains the screen first, as before every prompt, and tells the reader the prompt is drawn.
 
 `finish` takes the region away, leaves the cursor on a fresh line, and drains the screen. When a plain shell's session returns, every process it spawned ends with `ProgramEnd` (§8.6), its local half among them; an attached session detaches.
 

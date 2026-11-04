@@ -17,8 +17,3 @@ The milestone is MVP 4.2. Its first item, the look by hand, is done (the log's *
 The site was prototyped in this directory, its templates and its pages, as
 `decisions.md` lays them out. The proposal was ready on 2026-10-30, and the plan's
 MVP 4.2 is its items in build order since that day.
-
-What the site still lacks:
-
-- The generator's pages beyond the guide's, item 2. The mockup's pages were rendered by throwaway scripts, outside the repository, and the generator replaces them.
-- The session client's remaining pieces, item 4: the snackbar at a session's end, the navigation that keeps the panel across pages, and the server's attach word in place of the client's own note.

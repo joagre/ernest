@@ -124,8 +124,8 @@ type ScreenMsg =
   | Flush(Reply(Unit))
 
 // What the reader is told: a key, which the local half forwards from the
-// terminal (report §11.2).
-type ReaderMsg = Key(Terminal.Event)
+// terminal, and, once, that the first prompt is drawn (report §11.2).
+type ReaderMsg = Key(Terminal.Event) | Prompted
 
 // What the reader carries between keys: the line being edited, whether
 // the history file still takes what is typed, whether this session has
@@ -361,6 +361,7 @@ fn session(desk : Desk) : Unit receiving ShellMsg = {
             match fromFiles(state, screen, desk.startup) {
                 Continue(state) -> {
                     prompt(screen);
+                    send(given, Prompted);
                     keyLoop(state, screen)
                 }
               | Leave ->
@@ -382,15 +383,26 @@ fn startReader(shell : Address(ShellMsg),
                desk : Desk,
                size : Terminal.Size) : Address(ReaderMsg) =
     spawn(fn() =
-              readLoop(shell,
-                       screen,
-                       Reading(editing = Ernest.Shell.Editor.start(desk.earlier),
-                               keeping = desk.keeping,
-                               hinted = false,
-                               last = Ordinary,
-                               color = desk.color,
-                               local = desk.local,
-                               columns = size.columns)))
+              firstPrompt(shell,
+                          screen,
+                          Reading(editing = Ernest.Shell.Editor.start(desk.earlier),
+                                  keeping = desk.keeping,
+                                  hinted = false,
+                                  last = Ordinary,
+                                  color = desk.color,
+                                  local = desk.local,
+                                  columns = size.columns)))
+
+// Report §11.2: keys and a paste that arrive before the first prompt are
+// kept, and read after it as if typed there, so the reader takes none
+// until the session has drawn that prompt; they wait in its mailbox in
+// the order they came.
+fn firstPrompt(shell : Address(ShellMsg),
+               screen : Address(ScreenMsg),
+               reading : Reading) : Unit receiving ReaderMsg =
+    receive {
+        Prompted -> readLoop(shell, screen, reading)
+    }
 
 // Report §11.2, §11.8: a plain shell's local half is part of it, and its
 // end a failure of the shell's own, but for a fault its standard input

@@ -19,7 +19,8 @@
 // is gone goes; `version` is the release the site shows, and `tag` the
 // revision its links to GitHub name and its pages' dates are read at; and
 // `config` the server's configuration file, whose `shell` gives the shell
-// page its numbers (decisions *The templates*). A page's date is its
+// page its numbers, and every page's script the shell's path and its
+// lifetime (decisions *The templates*). A page's date is its
 // source's last commit at the tag, which git gives in the working
 // directory, a checkout, since an export has no history.
 //
@@ -65,11 +66,12 @@ fn generated(root : Path,
              tag : String,
              config : Path) : Either(String, Unit) = {
     let _ <- absent(out);
-    let limits <- limitsRead(config);
+    let shell <- shellRead(config);
     let templates <- templatesRead(root <> Path("site/templates"));
     let library <- Site.Library.read(root);
     let logText <- Site.Run.textOf(root <> Path("docs/log.md"));
     let log <- Site.Links.logEntries(logText);
+    let unrunnable <- Site.Run.unrunnableRead(root);
     let assets <- rootCopied(root <> Path("site/root"), out);
     let _ <- logosCopied(root, out);
     let run =
@@ -80,7 +82,10 @@ fn generated(root : Path,
                      =templates,
                      =assets,
                      declarations = Site.Library.declarations(library),
-                     =log);
+                     =log,
+                     shellPath = shell.path,
+                     lifetime = spoken(shell.lifetime),
+                     =unrunnable);
     // The library's pages are written first, so that the pages it read go
     // then, which every later collection of the run would otherwise copy.
     let _ <- Site.Library.library(run, library);
@@ -89,7 +94,7 @@ fn generated(root : Path,
     let _ <- Site.Report.report(run, taught);
     let _ <- Site.Document.documents(run);
     let _ <- homeWritten(run);
-    let _ <- shellWritten(run, limits);
+    let _ <- shellWritten(run, shell);
     let _ <- notFoundWritten(run);
     Site.Check.checked(out)
 }
@@ -132,7 +137,7 @@ fn homeWritten(run : Site.Run.Run) : Either(String, Unit) = {
       | _ -> None
     });
     let page <- Site.Run.linkPage(run, "site/example.md", "/", code);
-    let shown <- Site.Run.linkedAll(code, page);
+    let shown <- Site.Run.linkedAll(run, code, page);
     let main <-
         Site.Run.filled(run,
                         "home.html",
@@ -187,27 +192,34 @@ fn isClaimsLead(block : Markdown.Block) : Bool =
 // The shell's page
 //
 
-// The session's limits as the server enforces them, from its
-// configuration's `shell` (ernest-httpd's design, *The configuration*):
-// the lifetime without a key and the warning before its end, the most
-// sessions at once, the starts an address may make within a window, all
-// in milliseconds but the counts, and the memory a container is given, in
-// megabytes, which the shell's command gives by `--memory`.
-type Limits =
-    Limits(lifetime : Int, warning : Int, atOnce : Int, starts : Int, within : Int, memory : Int)
+// The shell the server serves, from its configuration's `shell`
+// (ernest-httpd's design, *The configuration*): the path of its socket,
+// which every page's script opens, and the session's limits as the server
+// enforces them, the lifetime without a key and the warning before its
+// end, the most sessions at once, the starts an address may make within a
+// window, all in milliseconds but the counts, and the memory a container
+// is given, in megabytes, which the shell's command gives by `--memory`.
+type Shell =
+    Shell(path : String,
+          lifetime : Int,
+          warning : Int,
+          atOnce : Int,
+          starts : Int,
+          within : Int,
+          memory : Int)
 
 // The shell's page, shell.html, its numbers the configuration's, so that
 // it says what the server enforces (decisions *The templates*).
-fn shellWritten(run : Site.Run.Run, limits : Limits) : Either(String, Unit) = {
+fn shellWritten(run : Site.Run.Run, shell : Shell) : Either(String, Unit) = {
     let main <-
         Site.Run.filled(run,
                         "shell.html",
-                        [#("lifetime", Site.Template.Plain(spoken(limits.lifetime))),
-                         #("warning", Site.Template.Plain(spoken(limits.warning))),
-                         #("memory", Site.Template.Plain(Int.toString(limits.memory))),
-                         #("at_once", Site.Template.Plain(Int.toString(limits.atOnce))),
-                         #("starts", Site.Template.Plain(Int.toString(limits.starts))),
-                         #("within", Site.Template.Plain(spoken(limits.within)))]);
+                        [#("lifetime", Site.Template.Plain(spoken(shell.lifetime))),
+                         #("warning", Site.Template.Plain(spoken(shell.warning))),
+                         #("memory", Site.Template.Plain(Int.toString(shell.memory))),
+                         #("at_once", Site.Template.Plain(Int.toString(shell.atOnce))),
+                         #("starts", Site.Template.Plain(Int.toString(shell.starts))),
+                         #("within", Site.Template.Plain(spoken(shell.within)))]);
     Site.Run.pageWritten(run,
                          Site.Run.Output(address = "/shell/",
                                          title = Site.Run.titled("Shell"),
@@ -233,10 +245,10 @@ fn spoken(ms : Int) : String = {
     }
 }
 
-// The configuration's `shell` read, or why the shell's page cannot be
-// written: a file that is no JSON, or one with no `shell`, a server that
-// serves no shell.
-fn limitsRead(config : Path) : Either(String, Limits) = {
+// The configuration's `shell` read, or why the site cannot be written: a
+// file that is no JSON, or one with no `shell`, a server that serves no
+// shell.
+fn shellRead(config : Path) : Either(String, Shell) = {
     let named = Path.toString(config);
     let text <- Site.Run.textOf(config);
     let value <-
@@ -246,6 +258,10 @@ fn limitsRead(config : Path) : Either(String, Limits) = {
                             named
                                 <> " has no shell, whose limits the shell's page states; the site"
                                 <> " is built with the configuration of a server that serves one");
+    let path <- match member(shell, "path") {
+        Some(Json.Text(found)) -> Right(found)
+      | _ -> Left(named <> ": the shell's path is a string")
+    };
     let lifetime <- integer(named, shell, "lifetime");
     let warning <- integer(named, shell, "warning");
     let atOnce <- integer(named, shell, "most-at-once");
@@ -262,7 +278,7 @@ fn limitsRead(config : Path) : Either(String, Limits) = {
             Left(named <> " has no shell.command")
     };
     let memory <- memoryOf(named, command);
-    Right(Limits(=lifetime, =warning, =atOnce, starts = count, =within, =memory))
+    Right(Shell(=path, =lifetime, =warning, =atOnce, starts = count, =within, =memory))
 }
 
 fn member(value : Json.Value, name : String) : Optional(Json.Value) =

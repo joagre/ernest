@@ -133,6 +133,13 @@ $ ern shell
 names : List(String)
 ```
 
+An input longer than its block is wide keeps its Paste at the block's visible edge:
+
+```console
+> List.map(["Ada", "Grace", "Barbara", "Margaret", "Frances", "Hedy", "Radia"], fn(name) = String.toUpper(name))
+["ADA", "GRACE", "BARBARA", "MARGARET", "FRANCES", "HEDY", "RADIA"] : List(String)
+```
+
 A session that loads a module, one begun with a module, and a node's are copied alone:
 
 ```console

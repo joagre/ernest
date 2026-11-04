@@ -2,7 +2,7 @@
 // The HTML of a document's tree (plan, MVP 4.2 item 2): `html`, one clause
 // for each of libs/markdown's blocks, and `inline`, one for each of its
 // inlines, written to be read as site/templates/README.md says. A block
-// element stands on a line of its own, indented two spaces a level, and its
+// element stands on a line of its own, indented four spaces a level, and its
 // inline content on its line; a `<pre>`'s body is written from the line's
 // start. Text is escaped whole, so an entity or a tag that a source writes
 // in its text shows as written.
@@ -217,4 +217,4 @@ fn enclosed(open : String,
     Site.Template.Line(open) :: indented(inner) <> [Site.Template.Line(close)]
 
 fn indented(lines : List(Site.Template.Line)) : List(Site.Template.Line) =
-    List.map(lines, fn(line) = Site.Template.indented("  ", line))
+    List.map(lines, fn(line) = Site.Template.indented("    ", line))

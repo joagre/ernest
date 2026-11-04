@@ -1568,6 +1568,60 @@ paste() ->
     %% nothing ran before the paste was whole: `1 +` alone is an error
     ?assertEqual(nomatch, binary:match(Text, <<"expected an expression">>)).
 
+%% report §11.2: keys and a paste that arrive before the first prompt are
+%% kept, and read after it as if typed there: the start line comes first,
+%% then the prompt with the keys on it, and a two-line paste's hint stands
+%% under the start line rather than above it. The keys are sent as the
+%% shell starts, before it claims the terminal, which echoes them as it
+%% echoes any keys it is sent unclaimed; the shell's first line paints over
+%% that. A regression test, written after the fix, whose cause was the
+%% reader taking keys before the session had drawn its prompt.
+early_keys_test_() ->
+    ern_nodes_tests:counted_test({waits, 3}, fun early_keys/0).
+
+early_keys() ->
+    Screen = screen(alone("../bin/ern shell"),
+                    [{send, hex("1 + 1")},
+                     {expect, "> 1 + 1"},
+                     {send, hex("\r")},
+                     {expect, "2 : Int"},
+                     {send, "04"}],
+                    {12, 60}),
+    [Start, Typed | _] = screen_lines(Screen),
+    ?assert(is_start(Start)),
+    ?assertEqual(<<"> 1 + 1">>, Typed),
+    ?assertEqual(1, ern_pty:count(Screen, <<"2 : Int">>)).
+
+early_paste_test_() ->
+    ern_nodes_tests:counted_test({waits, 3}, fun early_paste/0).
+
+early_paste() ->
+    %% \e[200~ type T = A <CR> <CR> fn f() : T = A \e[201~
+    Paste = "1b5b3230307e" ++ hex("type T = A\r\rfn f() : T = A") ++ "1b5b3230317e",
+    Screen = screen(alone("../bin/ern shell"),
+                    [{send, Paste},
+                     {expect, "... fn f() : T = A"},
+                     {send, hex("\r")},
+                     {expect, "f : () -> T"},
+                     {send, "04"}],
+                    {12, 60}),
+    %% the terminal echoed the paste's first line feeds unclaimed, above
+    %% the start line, which no shell can keep from showing
+    [_, Hint, Pasted | _] = lists:dropwhile(fun(Line) -> not is_start(Line) end,
+                                             screen_lines(Screen)),
+    ?assertEqual(<<"Enter runs a finished input, M-Enter adds a line.">>, Hint),
+    ?assertEqual(<<"> type T = A">>, Pasted),
+    %% the paste is one input, its brackets no control characters
+    ?assertEqual(nomatch, binary:match(Screen, <<"control character">>)).
+
+is_start(Line) ->
+    binary:match(Line, <<", session 1. :help for help.">>) =/= nomatch.
+
+%% The screen's rows that hold anything, their trailing spaces dropped.
+screen_lines(Screen) ->
+    [string:trim(Line, trailing) || Line <- binary:split(Screen, <<"\n">>, [global]),
+                                    string:trim(Line, trailing) =/= <<>>].
+
 %% report §11.2: a tab is painted as the spaces to the next stop, so
 %% that the cursor is placed by the columns the row takes and not by the
 %% characters in it; what is committed keeps the tab the person typed

@@ -179,8 +179,8 @@ Lucide icons
             which the site's generator gathers into one file, a symbol each
   Upstream: https://github.com/lucide-icons/lucide
   Copied:   2026-10-10, with the website proposal's first design; copy,
-            panel-right and panel-bottom on 2026-11-03, from lucide-static
-            0.460.0
+            panel-right, panel-bottom and x on 2026-11-03, from
+            lucide-static 0.460.0
   License:  ISC License; the icons derived from Feather also under the MIT
             License
 

@@ -37,11 +37,14 @@ INSTALL = ern_install_tests
 DOCS = ern_docs_tests ern_style_tests
 GUIDE = ern_guide_tests
 SITE = ern_site_tests
+SITE_SHELL = ern_site_shell_tests
+BROWSER = ern_browser_tests
 GRAMMAR = ern_grammar_tests ern_grammar_programs_tests
 TYPED = ern_typed_programs_tests
 SHELL_TESTS = ern_terminal_tests ern_shell_tests
 BEAMS = $(patsubst %,$(EBIN)/%.beam,$(INTEGRATION) $(MEASURE) $(LAST_RUN_TESTS) $(NODES) \
-	  $(DEPLOYMENT) $(TOUR) $(MANUAL) $(INSTALL) $(DOCS) $(GUIDE) $(SITE) $(GRAMMAR) ern_grammar \
+	  $(DEPLOYMENT) $(TOUR) $(MANUAL) $(INSTALL) $(DOCS) $(GUIDE) $(SITE) $(SITE_SHELL) \
+	  $(BROWSER) $(GRAMMAR) ern_grammar \
 	  $(TYPED) \
 	  $(SHELL_TESTS) ern_pty ern_repository ern_measure)
 
@@ -171,6 +174,24 @@ guide: $(BEAMS) prepare
 site: $(BEAMS) prepare
 	$(call EUNIT,$(SITE))
 
+# The blocks the site offers the shell, each pasted into a bare `ern
+# shell` through the pseudo-terminal harness, and site/unrunnable.md held
+# to those it cannot run (plan, MVP 4.2 item 4), under a directory of the
+# run's own for the shells' homes.
+site-shell: $(BEAMS) prepare pty
+	@dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_site_shell_XXXXXX") && \
+	  ERN_TEST_DIR=$$dir $(call EUNIT,$(SITE_SHELL)); \
+	  status=$$?; rm -rf "$$dir"; exit $$status
+
+# The site's client in a headless Chrome over its DevTools protocol, the
+# fixture's pages served by OTP's httpd and a stub at the shell's path
+# (plan, MVP 4.2 item 4); it says so and stops where no Chrome is found.
+browser: $(BEAMS) prepare
+	@dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_browser_XXXXXX") && \
+	  ERN_TEST_DIR=$$dir erl -noshell -pa ../erl/*/ebin -pa $(EBIN) \
+	    -eval 'ern_browser_tests:run().'; \
+	  status=$$?; rm -rf "$$dir"; exit $$status
+
 # Appendix A read as data, and the programs generated from it (MVP 2.99c
 # item 1), whose seed ERN_SEED gives again.
 grammar: $(BEAMS)
@@ -213,6 +234,12 @@ contents: $(EBIN)/ern_docs_tests.beam
 
 site-expected: $(BEAMS) prepare
 	erl -noshell -pa ../erl/*/ebin -pa $(EBIN) -eval 'ern_site_tests:write_expected(), halt().'
+
+site-unrunnable: $(BEAMS) prepare pty
+	@dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_site_shell_XXXXXX") && \
+	  ERN_TEST_DIR=$$dir erl -noshell -pa ../erl/*/ebin -pa $(EBIN) \
+	    -eval 'ern_site_shell_tests:write_unrunnable(), halt().'; \
+	  status=$$?; rm -rf "$$dir"; exit $$status
 
 format: $(EBIN)/ern_style_tests.beam
 	erl -noshell -pa ../erl/*/ebin -pa $(EBIN) -eval 'ern_style_tests:write_formatted(), halt().'
@@ -424,7 +451,8 @@ $(EBIN)/%.beam: %.erl | $(EBIN)
 $(EBIN):
 	mkdir -p $(EBIN)
 
-.PHONY: integration nodes deployment tour manual install docs guide site site-expected grammar \
+.PHONY: integration nodes deployment tour manual install docs guide site site-shell browser \
+	site-expected site-unrunnable grammar \
 	typed shell prepare \
 	pty named measured benched xref load service bench $(addprefix bench-,$(BENCH_PARTS)) \
 	bench-release bench-machines bench-pick machines clean

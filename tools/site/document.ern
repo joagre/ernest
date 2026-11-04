@@ -71,7 +71,7 @@ fn documentWritten(run : Site.Run.Run, document : Document) : Either(String, Uni
     let #(heading, level, own) <- sectionOf(source, document.section, paired(placed, anchors));
     let shown = List.map(own, fn(each) = each.placed);
     let page <- Site.Run.linkPage(run, source, address, shown);
-    let linked <- Site.Run.linkedAll(shown, page);
+    let linked <- Site.Run.linkedAll(run, shown, page);
     let headed = List.filterMap(own, fn(each) = match each.placed.block {
         Markdown.Heading() -> Some(Site.Html.Headed(anchor = each.anchor, class = None))
       | _ -> None

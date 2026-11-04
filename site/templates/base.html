@@ -1,46 +1,46 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{title}}</title>
-  <meta name="description" content="{{description}}">
-  <meta property="og:title" content="{{title}}">
-  <meta property="og:description" content="{{description}}">
-  <meta property="og:image" content="https://ernest-lang.org/assets/ernest-social-light.png">
-  <link rel="icon" href="/assets/ernest-avatar-64.png">
-  <link rel="stylesheet" href="{{stylesheet}}">
-  <script src="{{script}}" data-icons="{{icons}}" defer></script>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{title}}</title>
+    <meta name="description" content="{{description}}">
+    <meta property="og:title" content="{{title}}">
+    <meta property="og:description" content="{{description}}">
+    <meta property="og:image" content="https://ernest-lang.org/assets/ernest-social-light.png">
+    <link rel="icon" href="/assets/ernest-avatar-64.png">
+    <link rel="stylesheet" href="{{stylesheet}}">
+    <script src="{{script}}" data-icons="{{icons}}" data-shell-path="{{shell_path}}" data-lifetime="{{lifetime}}" defer></script>
 </head>
 <body>
-  <a class="skip-link" href="#main">Skip to content</a>
+    <a class="skip-link" href="#main">Skip to content</a>
 
-  <header class="site-header">
-    <div class="wrap header-inner">
-      <a class="brand" href="/"><img src="/assets/ernest-mark.svg" alt="" width="24" height="30">Ernest</a>
-      <nav class="site-nav" aria-label="Main navigation">
-        {{navigation_html}}
-        <a href="https://github.com/joagre/ernest">Source <svg class="icon" aria-hidden="true"><use href="{{icons}}#external-link"></use></svg></a>
-      </nav>
-      <details class="site-menu">
-        <summary>Menu <svg class="icon" aria-hidden="true"><use href="{{icons}}#chevron-down"></use></svg></summary>
-        <nav aria-label="Main navigation">
-          {{navigation_html}}
-          <a href="https://github.com/joagre/ernest">Source</a>
-        </nav>
-      </details>
-    </div>
-  </header>
+    <header class="site-header">
+        <div class="wrap header-inner">
+            <a class="brand" href="/"><img src="/assets/ernest-mark.svg" alt="" width="24" height="30">Ernest</a>
+            <nav class="site-nav" aria-label="Main navigation">
+                {{navigation_html}}
+                <a href="https://github.com/joagre/ernest">Source <svg class="icon" aria-hidden="true"><use href="{{icons}}#external-link"></use></svg></a>
+            </nav>
+            <details class="site-menu">
+                <summary>Menu <svg class="icon" aria-hidden="true"><use href="{{icons}}#chevron-down"></use></svg></summary>
+                <nav aria-label="Main navigation">
+                    {{navigation_html}}
+                    <a href="https://github.com/joagre/ernest">Source</a>
+                </nav>
+            </details>
+        </div>
+    </header>
 
-  <main id="main" class="wrap">
-    {{main_html}}
-  </main>
+    <main id="main" class="wrap">
+        {{main_html}}
+    </main>
 
-  <footer class="site-footer">
-    <div class="wrap">
-      <p class="footer-rooms"><a href="/faq/">Questions</a> · <a href="/deployment/">Deployment</a> · <a href="/releases/">Releases</a></p>
-      <p class="footer-page">{{source_html}}Ernest {{version}} · <a href="https://github.com/joagre/ernest/blob/{{tag}}/LICENSE">0BSD license</a> · <a href="https://github.com/joagre/ernest/issues">Report a defect</a> · Served by <a href="https://github.com/joagre/ernest-httpd">ernest-httpd</a>, written in Ernest</p>
-    </div>
-  </footer>
+    <footer class="site-footer">
+        <div class="wrap">
+            <p class="footer-rooms"><a href="/faq/">Questions</a> · <a href="/deployment/">Deployment</a> · <a href="/releases/">Releases</a></p>
+            <p class="footer-page">{{source_html}}Ernest {{version}} · <a href="https://github.com/joagre/ernest/blob/{{tag}}/LICENSE">0BSD license</a> · <a href="https://github.com/joagre/ernest/issues">Report a defect</a> · Served by <a href="https://github.com/joagre/ernest-httpd">ernest-httpd</a>, written in Ernest</p>
+        </div>
+    </footer>
 </body>
 </html>

@@ -72,7 +72,8 @@ export fn declarations(library : Library) : Map(String, Site.Links.Declaration) 
 // A module's declarations, each by its qualified name.
 fn moduleDeclarations(module : Module) : List(#(String, Site.Links.Declaration)) = {
     let names =
-        List.filterMap(Site.Run.neighbored(Site.Code.documented(module.blocks)),
+        List.filterMap(Site.Run.neighbored(Site.Code.documented(module.blocks,
+                                                                Site.Code.CopyAlone)),
                        fn(#(_, each, following)) = declarationOf(each, following));
     List.filterMap(names,
                    fn(name) =
@@ -179,9 +180,12 @@ fn isSince(inlines : List(Markdown.Inline)) : Bool =
 fn moduleWritten(run : Site.Run.Run, module : Module) : Either(String, Row) = {
     let #(since, rest) = sinceOf(module.blocks);
     let #(blocks, source) = generated(module.path, rest);
-    let documented = Site.Code.documented(blocks);
+    // decisions *The live shell*: a library's examples need `:load` in a
+    // bare shell, which the panel's is
+    let offered = if module.library == None then Site.Code.Paste else Site.Code.CopyAlone;
+    let documented = Site.Code.documented(blocks, offered);
     let page <- Site.Run.linkPage(run, module.path, module.address, documented);
-    let linked <- Site.Run.linkedAll(documented, page);
+    let linked <- Site.Run.linkedAll(run, documented, page);
     let placed = ownUnlinked(linked);
     let shown = declared(module.name, placed);
     let sidebar <-
@@ -332,7 +336,7 @@ fn indexWritten(run : Site.Run.Run,
                 opening : List(Markdown.Block),
                 grouped : List(#(Group, List(Row))),
                 lines : List(List(Markdown.Block))) : Either(String, Unit) = {
-    let linked <- Site.Run.linkedAll(Site.Code.copied(opening), page);
+    let linked <- Site.Run.linkedAll(run, Site.Code.copied(opening), page);
     let sections <- List.tryMap(grouped, fn(#(group, rows)) = {
         let list <- moduleList(run, rows);
         Site.Run.filled(run,

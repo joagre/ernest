@@ -7,41 +7,41 @@
    ---------------------------------------------------------------------- */
 
 :root {
-  color-scheme: light dark;
+    color-scheme: light dark;
 
-  --paper: #faf9f6;
-  --ink: #24282a;
-  --muted: #61666a;
-  --line: #dadbd6;
-  --panel: #f0f0eb;
-  --accent: #17685b;
-  --brown: #8b6d55;
+    --paper: #faf9f6;
+    --ink: #24282a;
+    --muted: #61666a;
+    --line: #dadbd6;
+    --panel: #f0f0eb;
+    --accent: #17685b;
+    --brown: #8b6d55;
 
-  --terminal: #171c20;
-  --terminal-ink: #e5e9e6;
-  --terminal-muted: #9aa4a0;
-  --terminal-line: #2c3338;
-  --terminal-edge: #3a4145;
-  --terminal-edge-hover: #6b7570;
-  --terminal-warning: #3a3320;
+    --terminal: #171c20;
+    --terminal-ink: #e5e9e6;
+    --terminal-muted: #9aa4a0;
+    --terminal-line: #2c3338;
+    --terminal-edge: #3a4145;
+    --terminal-edge-hover: #6b7570;
+    --terminal-warning: #3a3320;
 
-  --mono: ui-monospace, "Cascadia Code", "DejaVu Sans Mono", monospace;
+    --mono: ui-monospace, "Cascadia Code", "DejaVu Sans Mono", monospace;
 
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 16px;
-  line-height: 1.55;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 16px;
+    line-height: 1.55;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --paper: #171b1e;
-    --ink: #e9e7e2;
-    --muted: #a7afaf;
-    --line: #3a4145;
-    --panel: #22282c;
-    --accent: #83cbb8;
-    --brown: #c9ab8f;
-  }
+    :root {
+        --paper: #171b1e;
+        --ink: #e9e7e2;
+        --muted: #a7afaf;
+        --line: #3a4145;
+        --panel: #22282c;
+        --accent: #83cbb8;
+        --brown: #c9ab8f;
+    }
 }
 
 
@@ -49,54 +49,54 @@
    ---------------------------------------------------------------------- */
 
 * {
-  box-sizing: border-box;
+    box-sizing: border-box;
 }
 
 /* What the script hides stays hidden, whatever its own display. */
 [hidden] {
-  display: none !important;
+    display: none !important;
 }
 
 body {
-  margin: 0;
-  background: var(--paper);
-  color: var(--ink);
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
 }
 
 a {
-  color: var(--accent);
-  text-underline-offset: .18em;
+    color: var(--accent);
+    text-underline-offset: .18em;
 }
 
 a:hover {
-  text-decoration-thickness: 2px;
+    text-decoration-thickness: 2px;
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 4px;
+    outline: 2px solid var(--accent);
+    outline-offset: 4px;
 }
 
 .wrap {
-  width: min(100% - 3rem, 1120px);
-  margin-inline: auto;
+    width: min(100% - 3rem, 1120px);
+    margin-inline: auto;
 }
 
 .skip-link {
-  position: absolute;
-  left: 1rem;
-  top: -5rem;
-  z-index: 2;
-  padding: .5rem;
-  background: var(--paper);
+    position: absolute;
+    left: 1rem;
+    top: -5rem;
+    z-index: 2;
+    padding: .5rem;
+    background: var(--paper);
 }
 
 .skip-link:focus {
-  top: .5rem;
+    top: .5rem;
 }
 
 main {
-  padding-block: 2rem 3rem;
+    padding-block: 2rem 3rem;
 }
 
 
@@ -105,57 +105,57 @@ main {
 
 button,
 select {
-  font: inherit;
+    font: inherit;
 }
 
 button,
 .button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: .5rem;
-  padding: .45rem .8rem;
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  background: var(--paper);
-  color: var(--ink);
-  text-decoration: none;
-  cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    padding: .45rem .8rem;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background: var(--paper);
+    color: var(--ink);
+    text-decoration: none;
+    cursor: pointer;
 }
 
 button:disabled {
-  opacity: .55;
-  cursor: not-allowed;
+    opacity: .55;
+    cursor: not-allowed;
 }
 
 .button.primary {
-  background: var(--accent);
-  color: var(--paper);
-  border-color: var(--accent);
+    background: var(--accent);
+    color: var(--paper);
+    border-color: var(--accent);
 }
 
 .icon {
-  flex: none;
-  width: 1.05em;
-  height: 1.05em;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  vertical-align: -.15em;
+    flex: none;
+    width: 1.05em;
+    height: 1.05em;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    vertical-align: -.15em;
 }
 
 .icon-button {
-  padding: .3rem;
-  border-color: transparent;
-  background: none;
-  color: var(--muted);
+    padding: .3rem;
+    border-color: transparent;
+    background: none;
+    color: var(--muted);
 }
 
 .icon-button:hover {
-  color: var(--ink);
-  border-color: var(--line);
+    color: var(--ink);
+    border-color: var(--line);
 }
 
 
@@ -163,98 +163,98 @@ button:disabled {
    ---------------------------------------------------------------------- */
 
 .site-header {
-  border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
 }
 
 .header-inner {
-  display: flex;
-  align-items: center;
-  gap: 2rem;
-  min-height: 60px;
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    min-height: 60px;
 }
 
 .brand {
-  display: inline-flex;
-  align-items: center;
-  gap: .5rem;
-  font-size: 1.18rem;
-  font-weight: 650;
-  color: var(--ink);
-  text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    font-size: 1.18rem;
+    font-weight: 650;
+    color: var(--ink);
+    text-decoration: none;
 }
 
 .brand img {
-  display: block;
-  width: 24px;
-  height: 30px;
+    display: block;
+    width: 24px;
+    height: 30px;
 }
 
 .site-nav {
-  display: flex;
-  flex: 1;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 1.25rem;
-  font-size: .9rem;
+    display: flex;
+    flex: 1;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1.25rem;
+    font-size: .9rem;
 }
 
 .site-nav a {
-  color: var(--muted);
-  text-decoration: none;
+    color: var(--muted);
+    text-decoration: none;
 }
 
 .site-nav a:hover,
 .site-nav [aria-current="page"] {
-  color: var(--ink);
+    color: var(--ink);
 }
 
 .site-nav [aria-current="page"] {
-  text-decoration: underline;
-  text-decoration-color: var(--accent);
-  text-decoration-thickness: 2px;
+    text-decoration: underline;
+    text-decoration-color: var(--accent);
+    text-decoration-thickness: 2px;
 }
 
 /* Source, the last link, stands apart at the right. */
 .site-nav a:last-child {
-  margin-left: auto;
+    margin-left: auto;
 }
 
 /* The phone's menu, which the narrow screen shows in the navigation's place. */
 .site-menu {
-  display: none;
-  margin-left: auto;
+    display: none;
+    margin-left: auto;
 }
 
 .site-menu summary {
-  display: inline-flex;
-  align-items: center;
-  gap: .35rem;
-  list-style: none;
-  color: var(--muted);
-  font-size: .9rem;
-  cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    list-style: none;
+    color: var(--muted);
+    font-size: .9rem;
+    cursor: pointer;
 }
 
 .site-menu summary::-webkit-details-marker {
-  display: none;
+    display: none;
 }
 
 .site-menu nav {
-  display: flex;
-  flex-direction: column;
-  gap: .5rem;
-  padding: .75rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    padding: .75rem 0;
 }
 
 .site-menu nav a {
-  color: var(--ink);
-  text-decoration: none;
+    color: var(--ink);
+    text-decoration: none;
 }
 
 /* The shell panel's two buttons, beside and below. */
 .panel-toggle {
-  display: inline-flex;
-  gap: .25rem;
+    display: inline-flex;
+    gap: .25rem;
 }
 
 
@@ -264,49 +264,49 @@ button:disabled {
 h1,
 h2,
 h3 {
-  line-height: 1.2;
-  font-weight: 620;
-  letter-spacing: -.025em;
+    line-height: 1.2;
+    font-weight: 620;
+    letter-spacing: -.025em;
 }
 
 h1 {
-  margin: .25rem 0 1rem;
-  font-size: clamp(1.8rem, 3vw, 2.4rem);
+    margin: .25rem 0 1rem;
+    font-size: clamp(1.8rem, 3vw, 2.4rem);
 }
 
 h2 {
-  margin: 2rem 0 .75rem;
-  font-size: 1.4rem;
+    margin: 2rem 0 .75rem;
+    font-size: 1.4rem;
 }
 
 h3 {
-  margin: 1.25rem 0 .5rem;
-  font-size: 1.05rem;
+    margin: 1.25rem 0 .5rem;
+    font-size: 1.05rem;
 }
 
 p {
-  margin: 0 0 1rem;
+    margin: 0 0 1rem;
 }
 
 .eyebrow,
 .meta {
-  color: var(--muted);
+    color: var(--muted);
 }
 
 .eyebrow {
-  margin-bottom: .5rem;
-  font-size: .78rem;
-  letter-spacing: .08em;
-  text-transform: uppercase;
+    margin-bottom: .5rem;
+    font-size: .78rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
 }
 
 .meta {
-  font-size: .85rem;
+    font-size: .85rem;
 }
 
 .lead {
-  max-width: 65ch;
-  font-size: 1.15rem;
+    max-width: 65ch;
+    font-size: 1.15rem;
 }
 
 
@@ -314,55 +314,55 @@ p {
    ---------------------------------------------------------------------- */
 
 .home-intro {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
-  gap: 3rem;
-  padding-bottom: 1.5rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    gap: 3rem;
+    padding-bottom: 1.5rem;
 }
 
 .home-intro h1 {
-  margin-top: 0;
-  font-size: 1.8rem;
+    margin-top: 0;
+    font-size: 1.8rem;
 }
 
 .claims h2 {
-  margin: .4rem 0 .6rem;
-  font-size: .78rem;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  color: var(--muted);
+    margin: .4rem 0 .6rem;
+    font-size: .78rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
 }
 
 .claims ol {
-  margin: 0;
-  padding: 0;
-  list-style: none;
+    margin: 0;
+    padding: 0;
+    list-style: none;
 }
 
 .claims li {
-  border-top: 1px solid var(--line);
+    border-top: 1px solid var(--line);
 }
 
 .claims li:last-child {
-  border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
 }
 
 .claims a {
-  display: block;
-  padding: .5rem 0;
-  font-size: .92rem;
-  line-height: 1.45;
-  color: var(--muted);
-  text-decoration: none;
+    display: block;
+    padding: .5rem 0;
+    font-size: .92rem;
+    line-height: 1.45;
+    color: var(--muted);
+    text-decoration: none;
 }
 
 .claims a strong {
-  color: var(--ink);
-  font-weight: 620;
+    color: var(--ink);
+    font-weight: 620;
 }
 
 .claims a:hover strong {
-  color: var(--accent);
+    color: var(--accent);
 }
 
 
@@ -370,62 +370,62 @@ p {
    ---------------------------------------------------------------------- */
 
 .home-use {
-  padding-top: .5rem;
+    padding-top: .5rem;
 }
 
 .home-use > p {
-  max-width: 75ch;
+    max-width: 75ch;
 }
 
 .example {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 1.25rem;
-  align-items: start;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 1.25rem;
+    align-items: start;
 }
 
 .run {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin: 1.25rem 0 0;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin: 1.25rem 0 0;
 }
 
 .run span {
-  color: var(--muted);
+    color: var(--muted);
 }
 
 .doors {
-  border-top: 1px solid var(--line);
-  margin-top: 1.5rem;
+    border-top: 1px solid var(--line);
+    margin-top: 1.5rem;
 }
 
 .door {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    border-bottom: 1px solid var(--line);
 }
 
 .door a {
-  flex: 1;
-  display: grid;
-  grid-template-columns: 120px 1fr auto;
-  align-items: center;
-  gap: 1rem;
-  padding: .85rem 0;
-  text-decoration: none;
+    flex: 1;
+    display: grid;
+    grid-template-columns: 120px 1fr auto;
+    align-items: center;
+    gap: 1rem;
+    padding: .85rem 0;
+    text-decoration: none;
 }
 
 .door strong {
-  display: flex;
-  align-items: center;
-  gap: .6rem;
-  color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    color: var(--ink);
 }
 
 .door span {
-  color: var(--muted);
+    color: var(--muted);
 }
 
 
@@ -434,125 +434,129 @@ p {
 
 pre,
 code {
-  font-family: var(--mono);
-  font-size: .9em;
+    font-family: var(--mono);
+    font-size: .9em;
 }
 
 pre {
-  margin: .75rem 0 1rem;
-  padding: 1rem 1.15rem;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  line-height: 1.6;
-  overflow-x: auto;
+    margin: .75rem 0 1rem;
+    padding: 1rem 1.15rem;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    line-height: 1.6;
+    overflow-x: auto;
 }
 
 pre code {
-  font-size: inherit;
+    font-size: inherit;
 }
 
 :not(pre) > code {
-  padding: .08em .22em;
-  border-radius: 2px;
-  background: var(--panel);
+    padding: .08em .22em;
+    border-radius: 2px;
+    background: var(--panel);
 }
 
 .tok-keyword {
-  color: var(--accent);
-  font-weight: 600;
+    color: var(--accent);
+    font-weight: 600;
 }
 
 .tok-type {
-  color: var(--brown);
+    color: var(--brown);
 }
 
 .tok-string {
-  color: var(--accent);
+    color: var(--accent);
 }
 
 .tok-comment {
-  color: var(--muted);
-  font-style: italic;
+    color: var(--muted);
+    font-style: italic;
 }
 
 /* A qualified name in code links to its declaration: the code keeps its
    colors, and the link is underlined in the muted color. */
 pre a {
-  color: inherit;
-  text-decoration-color: var(--muted);
+    color: inherit;
+    text-decoration-color: var(--muted);
 }
 
 /* A block the compiler refuses, which the guide shows to teach the
    refusal: marked at its edge, and offered to the shell by no button. */
 pre.rejected {
-  border-left: 3px solid var(--brown);
+    border-left: 3px solid var(--brown);
 }
 
 .tok-output,
 .prompt {
-  color: var(--muted);
+    color: var(--muted);
 }
 
 /* A block's Copy and Paste: on their own row above it on a touch screen,
    and over its corner, while pointed at, under a mouse. */
 .block {
-  position: relative;
-  min-width: 0;
-  margin: .75rem 0 1.25rem;
+    position: relative;
+    min-width: 0;
+    margin: .75rem 0 1.25rem;
 }
 
 .example .block {
-  margin: 0;
+    margin: 0;
 }
 
 .block pre {
-  margin: 0;
+    margin: 0;
 }
 
 .block-tools {
-  display: flex;
-  justify-content: flex-end;
-  gap: .15rem;
-  margin-bottom: .25rem;
+    display: flex;
+    justify-content: flex-end;
+    gap: .15rem;
+    margin-bottom: .25rem;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .block-tools {
-    position: absolute;
-    top: .35rem;
-    right: .35rem;
-    margin: 0;
-    background: var(--panel);
-    opacity: 0;
-  }
+    .block-tools {
+        position: absolute;
+        top: .35rem;
+        right: .35rem;
+        margin: 0;
+        background: var(--panel);
+        opacity: 0;
+    }
 
-  .block:hover .block-tools,
-  .block:focus-within .block-tools {
-    opacity: 1;
-  }
+    .block:hover .block-tools,
+    .block:focus-within .block-tools {
+        opacity: 1;
+    }
 }
 
 /* Each input of a transcript ends in its own Paste, drawn bold, in the
-   accent's color when pointed at or focused. */
+   accent's color when pointed at or focused, and held at the block's
+   visible right edge, on the block's own color, where the input is longer
+   than the block is wide. */
 .line-paste {
-  display: inline;
-  margin-left: 1ch;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--muted);
-  font: inherit;
-  vertical-align: baseline;
-  cursor: pointer;
+    position: sticky;
+    right: 0;
+    display: inline-block;
+    margin-left: 1ch;
+    padding: 0 0 0 .5ch;
+    border: 0;
+    background: var(--panel);
+    color: var(--muted);
+    font: inherit;
+    vertical-align: baseline;
+    cursor: pointer;
 }
 
 .line-paste .icon {
-  stroke-width: 3;
+    stroke-width: 3;
 }
 
 .line-paste:hover,
 .line-paste:focus-visible {
-  color: var(--accent);
+    color: var(--accent);
 }
 
 
@@ -560,22 +564,22 @@ pre.rejected {
    ---------------------------------------------------------------------- */
 
 .site-footer {
-  border-top: 1px solid var(--line);
-  padding-block: 1rem;
-  font-size: .8rem;
-  color: var(--muted);
+    border-top: 1px solid var(--line);
+    padding-block: 1rem;
+    font-size: .8rem;
+    color: var(--muted);
 }
 
 .site-footer p {
-  margin: .2rem 0;
+    margin: .2rem 0;
 }
 
 .site-footer a {
-  color: var(--muted);
+    color: var(--muted);
 }
 
 .footer-rooms a {
-  color: var(--ink);
+    color: var(--ink);
 }
 
 
@@ -583,179 +587,179 @@ pre.rejected {
    ---------------------------------------------------------------------- */
 
 .doc-layout {
-  display: grid;
-  grid-template-columns: 205px minmax(0, 1fr);
-  gap: 3rem;
+    display: grid;
+    grid-template-columns: 205px minmax(0, 1fr);
+    gap: 3rem;
 }
 
 .contents {
-  font-size: .9rem;
+    font-size: .9rem;
 }
 
 /* The sidebar stays in view beside a long chapter, and scrolls on its
    own where it is longer than the window. */
 .contents details {
-  position: sticky;
-  top: 1rem;
-  max-height: calc(100vh - 2rem);
-  overflow-y: auto;
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
 }
 
 /* On a desktop the sidebar is plainly the page's sections, and its label
    says nothing; on a phone the label opens the fold. */
 @media (min-width: 761px) {
-  .contents summary {
-    display: none;
-  }
+    .contents summary {
+        display: none;
+    }
 }
 
 /* A second level, a chapter's sections, under it. */
 .contents ol ol a {
-  padding-left: 1.25rem;
-  font-size: .85rem;
+    padding-left: 1.25rem;
+    font-size: .85rem;
 }
 
 .contents summary {
-  margin-bottom: .65rem;
-  font-weight: 620;
-  cursor: pointer;
+    margin-bottom: .65rem;
+    font-weight: 620;
+    cursor: pointer;
 }
 
 .contents ol {
-  margin: 0;
-  padding: 0;
-  list-style: none;
+    margin: 0;
+    padding: 0;
+    list-style: none;
 }
 
 .contents li {
-  margin: 0;
+    margin: 0;
 }
 
 .contents a {
-  display: block;
-  padding: .35rem .5rem;
-  border-left: 2px solid transparent;
-  color: var(--muted);
-  text-decoration: none;
+    display: block;
+    padding: .35rem .5rem;
+    border-left: 2px solid transparent;
+    color: var(--muted);
+    text-decoration: none;
 }
 
 .contents [aria-current="page"],
 .contents [aria-current="location"] {
-  border-color: var(--accent);
-  background: var(--panel);
-  color: var(--ink);
+    border-color: var(--accent);
+    background: var(--panel);
+    color: var(--ink);
 }
 
 .article {
-  min-width: 0;
-  max-width: 78ch;
+    min-width: 0;
+    max-width: 78ch;
 }
 
 /* A document too short for a sidebar: its text alone. */
 .doc-single .article {
-  margin-inline: 0;
+    margin-inline: 0;
 }
 
 .article section {
-  scroll-margin-top: 1rem;
+    scroll-margin-top: 1rem;
 }
 
 .article h1 {
-  margin-top: .25rem;
+    margin-top: .25rem;
 }
 
 .article h2 {
-  margin-top: 2.25rem;
+    margin-top: 2.25rem;
 }
 
 /* A numbered heading's own link, shown when the heading is pointed at or
    the link is focused, so that a reader can copy a link to the section. */
 .anchor {
-  margin-left: .4em;
-  color: var(--muted);
-  font-weight: 400;
-  text-decoration: none;
-  opacity: 0;
+    margin-left: .4em;
+    color: var(--muted);
+    font-weight: 400;
+    text-decoration: none;
+    opacity: 0;
 }
 
 h1:hover .anchor,
 h2:hover .anchor,
 .anchor:focus-visible {
-  opacity: 1;
+    opacity: 1;
 }
 
 :target {
-  scroll-margin-top: 1rem;
+    scroll-margin-top: 1rem;
 }
 
 .article ul,
 .article ol {
-  padding-left: 1.4rem;
+    padding-left: 1.4rem;
 }
 
 .article li {
-  margin-bottom: .4rem;
+    margin-bottom: .4rem;
 }
 
 /* A module page: a declaration's heading is its name, in code, and its
    signature follows it, a block of its own with no tools. */
 .article h2.declaration {
-  margin-top: 2.5rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--line);
-  font-size: 1.2rem;
+    margin-top: 2.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+    font-size: 1.2rem;
 }
 
 .article h2.declaration code {
-  padding: 0;
-  background: none;
-  font-size: 1em;
+    padding: 0;
+    background: none;
+    font-size: 1em;
 }
 
 .article h3.examples {
-  font-size: .95rem;
-  color: var(--muted);
+    font-size: .95rem;
+    color: var(--muted);
 }
 
 .contents .declarations code {
-  padding: 0;
-  background: none;
-  font-size: .85rem;
+    padding: 0;
+    background: none;
+    font-size: .85rem;
 }
 
 /* The guide's sections that teach a report section, under its heading. */
 .margin-line {
-  margin: -.35rem 0 .75rem;
-  font-size: .82rem;
-  color: var(--muted);
+    margin: -.35rem 0 .75rem;
+    font-size: .82rem;
+    color: var(--muted);
 }
 
 .margin-line a {
-  color: var(--muted);
+    color: var(--muted);
 }
 
 .margin-line a:hover {
-  color: var(--accent);
+    color: var(--accent);
 }
 
 .page-nav {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-top: 2rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--line);
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
 }
 
 .page-nav a {
-  display: inline-flex;
-  align-items: center;
-  gap: .5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
 }
 
 /* The next chapter at the right, where a first chapter has no previous. */
 .page-nav [rel="next"] {
-  margin-left: auto;
+    margin-left: auto;
 }
 
 
@@ -763,98 +767,98 @@ h2:hover .anchor,
    ---------------------------------------------------------------------- */
 
 .index-page {
-  max-width: 85ch;
+    max-width: 85ch;
 }
 
 .index-list {
-  padding: 0;
-  list-style: none;
-  border-top: 1px solid var(--line);
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--line);
 }
 
 .index-list li {
-  padding: .9rem 0;
-  border-bottom: 1px solid var(--line);
+    padding: .9rem 0;
+    border-bottom: 1px solid var(--line);
 }
 
 .index-list p {
-  margin: .25rem 0 0;
-  color: var(--muted);
+    margin: .25rem 0 0;
+    color: var(--muted);
 }
 
 .index-list .chapter {
-  font-weight: 620;
-  color: var(--ink);
-  text-decoration: none;
+    font-weight: 620;
+    color: var(--ink);
+    text-decoration: none;
 }
 
 .index-list .chapter:hover {
-  color: var(--accent);
+    color: var(--accent);
 }
 
 /* A chapter's sections under it, a small link a line. */
 .index-list .sections {
-  margin: .35rem 0 0;
-  padding: 0;
-  list-style: none;
-  font-size: .88rem;
-  line-height: 1.7;
+    margin: .35rem 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: .88rem;
+    line-height: 1.7;
 }
 
 .index-list .sections li {
-  padding: 0;
-  border: 0;
+    padding: 0;
+    border: 0;
 }
 
 .index-list .sections a {
-  color: var(--muted);
-  text-decoration: none;
+    color: var(--muted);
+    text-decoration: none;
 }
 
 .index-list .sections a:hover {
-  color: var(--accent);
-  text-decoration: underline;
+    color: var(--accent);
+    text-decoration: underline;
 }
 
 
 /* The library's contents: a module a line, its name and its purpose. */
 .modules {
-  margin: 0 0 2rem;
-  padding: 0;
-  list-style: none;
-  border-top: 1px solid var(--line);
+    margin: 0 0 2rem;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--line);
 }
 
 .modules li {
-  display: grid;
-  grid-template-columns: 9rem minmax(0, 1fr);
-  gap: 1rem;
-  padding: .45rem 0;
-  border-bottom: 1px solid var(--line);
+    display: grid;
+    grid-template-columns: 9rem minmax(0, 1fr);
+    gap: 1rem;
+    padding: .45rem 0;
+    border-bottom: 1px solid var(--line);
 }
 
 .modules .module {
-  text-decoration: none;
+    text-decoration: none;
 }
 
 .modules .module code {
-  padding: 0;
-  background: none;
-  font-weight: 600;
-  color: var(--ink);
+    padding: 0;
+    background: none;
+    font-weight: 600;
+    color: var(--ink);
 }
 
 .modules .module:hover code {
-  color: var(--accent);
+    color: var(--accent);
 }
 
 .modules span {
-  color: var(--muted);
-  font-size: .95rem;
+    color: var(--muted);
+    font-size: .95rem;
 }
 
 .toolchain {
-  color: var(--muted);
+    color: var(--muted);
 }
 
 
@@ -862,38 +866,38 @@ h2:hover .anchor,
    ---------------------------------------------------------------------- */
 
 table {
-  width: 100%;
-  margin: 1rem 0;
-  border-collapse: collapse;
-  font-size: .92rem;
+    width: 100%;
+    margin: 1rem 0;
+    border-collapse: collapse;
+    font-size: .92rem;
 }
 
 th,
 td {
-  padding: .65rem .5rem;
-  border-bottom: 1px solid var(--line);
-  text-align: left;
-  vertical-align: top;
+    padding: .65rem .5rem;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    vertical-align: top;
 }
 
 th {
-  font-weight: 620;
+    font-weight: 620;
 }
 
 /* A column its delimiter row aligns to the center or to the right. */
 th.center,
 td.center {
-  text-align: center;
+    text-align: center;
 }
 
 th.right,
 td.right {
-  text-align: right;
+    text-align: right;
 }
 
 /* The generator's wrapper of a table wider than the page. */
 .table-scroll {
-  overflow-x: auto;
+    overflow-x: auto;
 }
 
 
@@ -901,51 +905,56 @@ td.right {
    ---------------------------------------------------------------------- */
 
 .terminal-frame {
-  min-height: min(56vh, 520px);
-  padding: 1.2rem;
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  background: var(--terminal);
-  color: var(--terminal-ink);
+    min-height: min(56vh, 520px);
+    padding: 1.2rem;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background: var(--terminal);
+    color: var(--terminal-ink);
 }
 
 .terminal-frame pre {
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  white-space: pre-wrap;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    white-space: pre-wrap;
 }
 
 .shell-notes {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2rem;
-  margin-top: 1rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-top: 1rem;
+    font-size: .9rem;
 }
 
 .shell-notes h2 {
-  margin-top: 0;
-  font-size: 1.05rem;
+    margin: 0 0 .4rem;
+    font-size: 1rem;
 }
 
 .shell-notes ul {
-  margin: 0;
-  padding-left: 1.2rem;
+    margin: 0;
+    padding-left: 1.2rem;
 }
 
 .shell-notes li {
-  margin-bottom: .4rem;
+    margin-bottom: .25rem;
+}
+
+.shell-notes p {
+    margin: 0;
 }
 
 .shell-page .lead {
-  margin-bottom: 1.25rem;
+    margin-bottom: 1.25rem;
 }
 
 .error-page {
-  max-width: 65ch;
-  padding-block: 4rem;
+    max-width: 65ch;
+    padding-block: 4rem;
 }
 
 
@@ -953,50 +962,50 @@ td.right {
    ---------------------------------------------------------------------- */
 
 @media (max-width: 760px) {
-  .wrap {
-    width: min(100% - 2rem, 1120px);
-  }
+    .wrap {
+        width: min(100% - 2rem, 1120px);
+    }
 
-  .header-inner {
-    flex-wrap: wrap;
-    gap: .6rem 1rem;
-    padding-block: .6rem;
-  }
+    .header-inner {
+        flex-wrap: wrap;
+        gap: .6rem 1rem;
+        padding-block: .6rem;
+    }
 
-  .site-header .site-nav,
-  .panel-toggle {
-    display: none;
-  }
+    .site-header .site-nav,
+    .panel-toggle {
+        display: none;
+    }
 
-  .site-menu {
-    display: block;
-  }
+    .site-menu {
+        display: block;
+    }
 
-  .site-menu[open] {
-    flex-basis: 100%;
-    order: 3;
-  }
+    .site-menu[open] {
+        flex-basis: 100%;
+        order: 3;
+    }
 
-  .home-intro,
-  .example,
-  .doc-layout,
-  .shell-notes {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 1.25rem;
-  }
+    .home-intro,
+    .example,
+    .doc-layout,
+    .shell-notes {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 1.25rem;
+    }
 
-  .contents {
-    border-bottom: 1px solid var(--line);
-    padding-bottom: 1rem;
-  }
+    .contents {
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 1rem;
+    }
 
-  .door {
-    gap: .5rem;
-  }
+    .door {
+        gap: .5rem;
+    }
 
-  main {
-    padding-top: 1.5rem;
-  }
+    main {
+        padding-top: 1.5rem;
+    }
 }
 
 
@@ -1004,39 +1013,39 @@ td.right {
    ---------------------------------------------------------------------- */
 
 @media print {
-  :root {
-    --paper: white;
-    --ink: black;
-    --muted: #444;
-    --line: #bbb;
-    --panel: #f6f6f6;
-    --accent: black;
-  }
+    :root {
+        --paper: white;
+        --ink: black;
+        --muted: #444;
+        --line: #bbb;
+        --panel: #f6f6f6;
+        --accent: black;
+    }
 
-  .site-header,
-  .site-footer,
-  .contents,
-  .page-nav,
-  .block-tools {
-    display: none;
-  }
+    .site-header,
+    .site-footer,
+    .contents,
+    .page-nav,
+    .block-tools {
+        display: none;
+    }
 
-  .wrap {
-    width: 100%;
-  }
+    .wrap {
+        width: 100%;
+    }
 
-  .doc-layout {
-    display: block;
-  }
+    .doc-layout {
+        display: block;
+    }
 
-  .article {
-    max-width: none;
-  }
+    .article {
+        max-width: none;
+    }
 
-  pre {
-    white-space: pre-wrap;
-    overflow: visible;
-  }
+    pre {
+        white-space: pre-wrap;
+        overflow: visible;
+    }
 }
 
 
@@ -1046,173 +1055,271 @@ td.right {
    ---------------------------------------------------------------------- */
 
 .panel-toggle [aria-pressed="true"] {
-  border-color: var(--line);
-  background: var(--panel);
-  color: var(--accent);
+    border-color: var(--line);
+    background: var(--panel);
+    color: var(--accent);
 }
 
 /* A session that runs while the panel is hidden: a dot on the button that
    brings it back. */
 .panel-toggle .waiting {
-  position: relative;
+    position: relative;
 }
 
 .panel-toggle .waiting::after {
-  content: "";
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent);
+    content: "";
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
 }
 
 body.panel-beside,
 body.panel-below {
-  display: grid;
-  height: 100vh;
-  overflow: hidden;
+    display: grid;
+    height: 100vh;
+    overflow: hidden;
 }
 
 body.panel-beside {
-  grid-template-columns: minmax(0, 1fr) var(--panel-width, 45%);
-  grid-template-rows: auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) var(--panel-width, 45%);
+    grid-template-rows: auto minmax(0, 1fr);
 }
 
 body.panel-below {
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr) var(--panel-height, 40%);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) var(--panel-height, 40%);
 }
 
 body.panel-beside .site-header {
-  grid-column: 1 / -1;
+    grid-column: 1 / -1;
 }
 
 body.panel-beside .page,
 body.panel-below .page {
-  min-height: 0;
-  overflow: auto;
+    min-height: 0;
+    overflow: auto;
 }
 
 .shell-panel {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-  background: var(--terminal);
-  color: var(--terminal-ink);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    background: var(--terminal);
+    color: var(--terminal-ink);
+    color-scheme: dark;
 }
 
 body.panel-beside .shell-panel {
-  border-left: 1px solid var(--line);
+    border-left: 1px solid var(--line);
 }
 
 body.panel-below .shell-panel {
-  border-top: 1px solid var(--line);
+    border-top: 1px solid var(--line);
 }
 
 /* The handle on the panel's inner edge, which a drag resizes it by. */
 .panel-handle {
-  position: absolute;
-  z-index: 1;
-  touch-action: none;
+    position: absolute;
+    z-index: 1;
+    touch-action: none;
 }
 
 body.panel-beside .panel-handle {
-  top: 0;
-  bottom: 0;
-  left: -4px;
-  width: 8px;
-  cursor: col-resize;
+    top: 0;
+    bottom: 0;
+    left: -4px;
+    width: 8px;
+    cursor: col-resize;
 }
 
 body.panel-below .panel-handle {
-  top: -4px;
-  left: 0;
-  right: 0;
-  height: 8px;
-  cursor: row-resize;
+    top: -4px;
+    left: 0;
+    right: 0;
+    height: 8px;
+    cursor: row-resize;
+}
+
+.panel-handle:focus-visible {
+    outline-offset: -2px;
 }
 
 /* The panel's bar: the session's state, Start or Restart, Stop and close. */
 .panel-bar {
-  display: flex;
-  align-items: center;
-  gap: .5rem;
-  padding: .4rem .6rem;
-  border-bottom: 1px solid var(--terminal-line);
-  font-size: .85rem;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .4rem .6rem;
+    border-bottom: 1px solid var(--terminal-line);
+    font-size: .85rem;
 }
 
 .panel-state {
-  margin-right: auto;
-  color: var(--terminal-muted);
+    margin-right: auto;
+    color: var(--terminal-muted);
 }
 
 .panel-button {
-  gap: .35rem;
-  padding: .2rem .55rem;
-  border-color: var(--terminal-edge);
-  background: none;
-  color: var(--terminal-ink);
-  font-size: .85rem;
+    gap: .35rem;
+    padding: .2rem .55rem;
+    border-color: var(--terminal-edge);
+    background: none;
+    color: var(--terminal-ink);
+    font-size: .85rem;
 }
 
 .panel-button:hover:not(:disabled) {
-  border-color: var(--terminal-edge-hover);
+    border-color: var(--terminal-edge-hover);
 }
 
 .panel-bar .icon-button {
-  color: var(--terminal-muted);
+    color: var(--terminal-muted);
 }
 
 .panel-bar .icon-button:hover {
-  border-color: var(--terminal-edge);
-  color: var(--terminal-ink);
+    border-color: var(--terminal-edge);
+    color: var(--terminal-ink);
 }
 
 /* The warning before a session's end, with Extend: a banner, no dialog. */
 .panel-warning {
-  display: flex;
-  align-items: center;
-  gap: .75rem;
-  padding: .4rem .6rem;
-  border-bottom: 1px solid var(--terminal-line);
-  background: var(--terminal-warning);
-  color: var(--terminal-ink);
-  font-size: .85rem;
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: .4rem .6rem;
+    border-bottom: 1px solid var(--terminal-line);
+    background: var(--terminal-warning);
+    color: var(--terminal-ink);
+    font-size: .85rem;
 }
 
-/* The shell's own page holds the panel in its frame. */
-.terminal-frame:has(.shell-panel) {
-  padding: 0;
-  overflow: hidden;
-}
-
-.terminal-frame .shell-panel {
-  height: min(70vh, 640px);
-}
-
+/* The terminal fills what the bar and the banner leave. Its margin is
+   xterm.js's element's padding, which the fit addon takes from the room it
+   measures; a padding of its parent would be counted as room, and the
+   screen would overflow the panel by it. */
 .panel-terminal {
-  flex: 1;
-  min-height: 0;
-  padding: .5rem .75rem;
-  font-family: var(--mono);
-  font-size: .9rem;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  overflow: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+.panel-terminal .xterm {
+    padding: .5rem .75rem;
+}
+
+.panel-note {
+    margin: 0;
+    padding: .5rem .75rem;
+    font-family: var(--mono);
+    font-size: .9rem;
 }
 
 .panel-terminal:focus-visible {
-  outline-offset: -3px;
+    outline-offset: -3px;
+}
+
+/* The shell's own page holds the panel in its frame. The terminal takes
+   the height the header, the heading, the notes and the footer leave, so
+   that it never scrolls the page; on a window too short for them all it
+   keeps room for a dozen lines, and the page scrolls to the notes. */
+body:has(.terminal-frame .shell-panel) {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+}
+
+body:has(.terminal-frame .shell-panel) .page,
+body:has(.terminal-frame .shell-panel) main,
+.shell-page:has(.shell-panel) {
+    display: flex;
+    flex: 1 0 auto;
+    flex-direction: column;
+}
+
+body:has(.terminal-frame .shell-panel) main {
+    padding-block: 1.25rem 1.5rem;
+}
+
+.shell-page:has(.shell-panel) h1 {
+    margin-bottom: .5rem;
+}
+
+.shell-page:has(.shell-panel) .lead {
+    margin-bottom: .75rem;
+}
+
+.terminal-frame:has(.shell-panel) {
+    display: flex;
+    flex: 1 0 0;
+    min-height: 12rem;
+    padding: 0;
+}
+
+.terminal-frame .shell-panel {
+    flex: 1;
+    border-radius: inherit;
+}
+
+/* On a phone the terminal takes most of the first screen, and the notes
+   follow beneath it. */
+@media (max-width: 760px) {
+    .terminal-frame:has(.shell-panel) {
+        min-height: 60dvh;
+    }
+}
+
+/* The notice at a session's end: a slim line at the window's bottom edge,
+   over whatever the layout was. Empty, it shows nothing, and stays in the
+   page as the live region it is. */
+.notice {
+    position: fixed;
+    left: 50%;
+    bottom: .75rem;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    width: max-content;
+    max-width: calc(100% - 2rem);
+    padding: .35rem .4rem .35rem .9rem;
+    border-radius: 3px;
+    background: var(--ink);
+    color: var(--paper);
+    font-size: .9rem;
+    transform: translateX(-50%);
+}
+
+.notice:empty {
+    padding: 0;
+}
+
+.notice .icon-button {
+    color: inherit;
+}
+
+.notice .icon-button:hover {
+    border-color: currentColor;
+}
+
+/* What only a screen reader says: the title of a page put in place of
+   another. */
+.announcer {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
 }
 
 /* Beside needs a wide window; below 1000 px the panel goes below. */
 @media (max-width: 999px) {
-  .panel-toggle .beside {
-    display: none;
-  }
+    .panel-toggle .beside {
+        display: none;
+    }
 }

@@ -5,7 +5,7 @@
 %% without one, and a count of what a screen shows.
 -module(ern_pty).
 
--export([run/3, run_dir/0, sh/1, count/2]).
+-export([run/3, tried/3, run_dir/0, sh/1, count/2]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -27,16 +27,25 @@
 %% out.
 -spec run(string(), [tuple()], [option()]) -> {integer() | timeout, binary()}.
 run(Command, Steps, Options) ->
+    {Status, Data, Unmet} = tried(Command, Steps, Options),
+    ?assertEqual([], Unmet),
+    {Status, Data}.
+
+%% As run/3, for a test that judges a run whose steps were not all met, a
+%% program that never answered among them: the harness stops at the first
+%% step it cannot meet (fixtures/pty/pty.ern), and `Unmet` holds its line
+%% naming the steps left, none where it met them all.
+-spec tried(string(), [tuple()], [option()]) -> {integer() | timeout, binary(), [binary()]}.
+tried(Command, Steps, Options) ->
     Arguments = ["--timeout", integer_to_list(ern_nodes_tests:wait_ms())]
                 ++ lists:append([["--step", step(Step)] || Step <- Steps])
                 ++ lists:append([option(Option) || Option <- Options]) ++ ["--", Command],
     {0, Output} = ern_nodes_tests:collected(harness(Arguments),
                                             length([Text || {expect, Text} <- Steps]) + 1),
     Lines = [Line || Line <- binary:split(Output, <<"\n">>, [global]), Line =/= <<>>],
-    ?assertEqual([], [Line || <<"unmet ", _/binary>> = Line <- Lines]),
     [<<"status ", Status/binary>>] = [Line || <<"status ", _/binary>> = Line <- Lines],
     [<<"data ", Data/binary>>] = [Line || <<"data ", _/binary>> = Line <- Lines],
-    {status(Status), base64:decode(Data)}.
+    {status(Status), base64:decode(Data), [Line || <<"unmet ", _/binary>> = Line <- Lines]}.
 
 option({size, Rows, Columns}) ->
     ["--size", integer_to_list(Rows) ++ "x" ++ integer_to_list(Columns)];

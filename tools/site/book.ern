@@ -83,8 +83,8 @@ fn booked(run : Site.Run.Run,
                     fn(#(found, line)) =
                         Either.map(Site.Links.inlinesLinked(line, page),
                                    fn(linked) = #(found, linked)));
-    let opening <- Site.Run.linkedAll(kept, page);
-    let linked <- List.tryMap(chapters, fn(chapter) = chapterLinked(home, bookPage, chapter));
+    let opening <- Site.Run.linkedAll(run, kept, page);
+    let linked <- List.tryMap(chapters, fn(chapter) = chapterLinked(run, home, bookPage, chapter));
     Right(Book(title = Site.Html.plain(title),
                =source,
                =home,
@@ -97,7 +97,8 @@ fn booked(run : Site.Run.Run,
 // A chapter with its heading's and its blocks' citations and links made
 // the site's, as its own page has them, the types its own code declares
 // among them.
-fn chapterLinked(home : String,
+fn chapterLinked(run : Site.Run.Run,
+                 home : String,
                  bookPage : Site.Links.Page,
                  chapter : Chapter) : Either(String, Chapter) = {
     let page =
@@ -105,7 +106,7 @@ fn chapterLinked(home : String,
                         address = home <> chapter.number <> ".html",
                         declared = Site.Code.declared(chapter.blocks));
     let heading <- Site.Links.headingLinked(chapter.heading, page);
-    let blocks <- Site.Run.linkedAll(chapter.blocks, page);
+    let blocks <- Site.Run.linkedAll(run, chapter.blocks, page);
     Right(Chapter(..chapter, =heading, =blocks))
 }
 

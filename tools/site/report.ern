@@ -71,7 +71,7 @@ fn fileWritten(run : Site.Run.Run,
     let #(earlier, file, later) = neighbors;
     let copied = Site.Code.copied(file.blocks);
     let page <- Site.Run.linkPage(run, file.source, file.address, copied);
-    let placed <- Site.Run.linkedAll(copied, page);
+    let placed <- Site.Run.linkedAll(run, copied, page);
     let lines <- List.tryMap(placed, fn(each) = blockLines(run, taught, each));
     let sidebar <-
         Site.Run.sidebar(run, "fragments/contents.html", "On this page", entries(file.blocks));
@@ -184,7 +184,7 @@ fn contentsWritten(run : Site.Run.Run, files : List(File)) : Either(String, Unit
     });
     let copied = Site.Code.copied(opening);
     let page <- Site.Run.linkPage(run, source, "/report/", copied);
-    let linked <- Site.Run.linkedAll(copied, page);
+    let linked <- Site.Run.linkedAll(run, copied, page);
     let rows <- List.tryMap(files, fn(file) = fileEntry(run, file));
     let chapters <-
         Site.Run.filled(run, "fragments/chapters.html", [#("entries_html", Site.Run.markup(rows))]);

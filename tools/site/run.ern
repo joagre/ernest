@@ -11,8 +11,12 @@
 /// What every page is written with: the repository's files, where the site
 /// goes, the release and the tag it is built from, the templates by their
 /// paths under site/templates/, the assets' addresses, each declaration of
-/// the library by its qualified name, and the log's entries by their
-/// titles with their GitHub anchors (`Site.Links.Page`).
+/// the library by its qualified name, the log's entries by their titles
+/// with their GitHub anchors (`Site.Links.Page`), what every page's script
+/// is told of the server's shell, the path of its socket and the session's
+/// lifetime as a page says it, `5 minutes`, and the blocks a bare shell
+/// cannot run, each by its page's address and its first line, a
+/// transcript's its first input (`unrunnableRead`).
 export type Run =
     Run(root : Path,
         out : Path,
@@ -21,7 +25,10 @@ export type Run =
         templates : Map(String, Site.Template.Template),
         assets : Assets,
         declarations : Map(String, Site.Links.Declaration),
-        log : Map(String, List(String)))
+        log : Map(String, List(String)),
+        shellPath : String,
+        lifetime : String,
+        unrunnable : Set(#(String, String)))
 
 /// The addresses of the files whose names hold a digest of their content,
 /// so that a browser never runs a cached one against a newer page.
@@ -76,6 +83,8 @@ export fn pageWritten(run : Run, output : Output) : Either(String, Unit) = {
                 #("stylesheet", Site.Template.Plain(run.assets.stylesheet)),
                 #("script", Site.Template.Plain(run.assets.script)),
                 #("icons", Site.Template.Plain(run.assets.icons)),
+                #("shell_path", Site.Template.Plain(run.shellPath)),
+                #("lifetime", Site.Template.Plain(run.lifetime)),
                 #("navigation_html", Site.Template.Markup(navigation)),
                 #("main_html", Site.Template.Markup(output.main)),
                 #("source_html", Site.Template.Markup(source)),
@@ -286,14 +295,48 @@ fn endsSentence(rest : List(Char), following : String) : Bool =
     }
 
 /// The blocks with their citations and their links made the site's, each
-/// with the declarations its code links.
-export fn linkedAll(placed : List(Site.Code.Placed),
+/// with the declarations its code links, and Copy alone for a block the
+/// bare shell cannot run (decisions *The live shell*).
+export fn linkedAll(run : Run,
+                    placed : List(Site.Code.Placed),
                     page : Site.Links.Page) : Either(String, List(Site.Code.Placed)) = {
     let links = Site.Links.named(page);
     List.tryMap(placed,
                 fn(each) =
                     Either.map(Site.Links.linked(each.block, page),
-                               fn(block) = Site.Code.Placed(..each, =block, =links)))
+                               fn(block) =
+                                   Site.Code.Placed(..each,
+                                                    =block,
+                                                    =links,
+                                                    given = runnable(run, page.address, each))))
+}
+
+// A block's buttons, Copy alone where site/unrunnable.md lists it.
+fn runnable(run : Run, address : String, each : Site.Code.Placed) : Site.Code.Buttons =
+    match Site.Code.firstOffered(each) {
+        Some(line) when Set.contains(run.unrunnable, #(address, line)) -> Site.Code.CopyAlone
+      | _ -> each.given
+    }
+
+/// The blocks a bare shell cannot run, which `test/ern_site_shell_tests.erl`
+/// finds and holds site/unrunnable.md equal to: each item of the file's
+/// list, its page's address and its first line, two code spans.
+export fn unrunnableRead(root : Path) : Either(String, Set(#(String, String))) = {
+    let source = "site/unrunnable.md";
+    let blocks <- documentOf(root, source);
+    let items = List.flatMap(blocks, fn(block) = match block {
+        Markdown.Items(=items) -> items
+      | _ -> []
+    });
+    let listed <- List.tryMap(items, fn(item) = match item {
+        [Markdown.Paragraph([Markdown.CodeSpan(address),
+                             Markdown.Text(" "),
+                             Markdown.CodeSpan(line)])] ->
+            Right(#(address, line))
+      | _ ->
+            Left(source <> ": an item is a page's address and a block's first line, two code spans")
+    });
+    Right(Set.fromList(listed))
 }
 
 /// The page whose links are made, its source's and its own address, with

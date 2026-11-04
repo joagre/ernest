@@ -300,7 +300,7 @@ test-full: all
 	@for a in $(SPLIT_APPS); do $(MAKE) -s -C erl/$$a/src beams || exit 1; done
 	@$(MAKE) -s -j$(JOBS) -O -o all test-guide $(EMACS_JOBS) $(APP_JOBS) test-library \
 	  test-docs test-site test-grammar test-typed dialyzer
-	@$(MAKE) -s -j1 -k -o all test-shell $(PROGRAM_PARTS)
+	@$(MAKE) -s -j1 -k -o all test-shell test-site-shell $(PROGRAM_PARTS)
 
 # The unit tests of the applications under erl/, side by side, or of one
 # with APP=checker. The runtime's tests are compiled first, since the
@@ -387,6 +387,12 @@ test-guide: all
 	@$(MAKE) -C test guide
 test-site: all
 	@$(MAKE) -C test site
+test-site-shell: all
+	@$(MAKE) -C test site-shell
+# The site's client in a browser: outside make test and make test-full,
+# a step of the release review (docs/release_review.md).
+test-browser: all
+	@$(MAKE) -C test browser
 test-grammar: all
 	@$(MAKE) -C test grammar
 test-typed: all
@@ -546,6 +552,12 @@ diagnostics: all
 site-expected: all
 	@$(MAKE) -s -C test site-expected
 
+# Rewrite site/unrunnable.md, the blocks the site's pages offer the shell
+# that a bare shell cannot run, which the generator gives Copy alone, after
+# a change to the documents that is meant; test-site-shell holds it.
+site-unrunnable: all
+	@$(MAKE) -s -C test site-unrunnable
+
 # Rewrite the contents lists of the report and the guide from their headings;
 # a test in test/ fails while one differs.
 contents:
@@ -590,11 +602,12 @@ EMACS_CORPUS = $(ERNEST_SOURCES:%=../../%)
         man $(PAGES) \
         test test-full test-erl \
         test-programs $(PROGRAM_PARTS) test-library test-docs test-guide test-site test-grammar \
-        test-typed test-shell \
+        test-typed test-shell test-site-shell test-browser \
         load service bench bench-release \
         test-emacs $(APP_TESTS) $(APP_PARTS) $(EMACS_ALL) \
         clean clean-emacs \
-        sections coverage golden xref contents site-expected format doc install uninstall release \
+        sections coverage golden xref contents site-expected site-unrunnable format doc install \
+        uninstall release \
         version site \
         unicode \
         paragraphs comments \

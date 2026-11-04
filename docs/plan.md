@@ -72,7 +72,11 @@ goes to that program's session, as `docs/clean_room.md` says.
    `epipe`, where E.23 has a read the program waits in end before the hangup, its status 1 or
    129. The hangup can reach a program that has already ended, and the write of it to the
    helper's pipe faults instead of ending the read (the log's *The Hangup's Order*); fixed here,
-   the test run under load a hundred times to hold it.
+   the test run under load a hundred times to hold it. A second, found 2026-11-04 under the
+   same load, once in five runs that day and not alone: `ern_rt_tests`'
+   `faults_before_the_end_are_reported_test` timed out in `ern_rt:entry_end/2`, its program's
+   entry waiting for the reaper's word of its end while the test's reporter held the reaper
+   until that end. Not yet diagnosed; diagnosed and fixed here, held the same way.
 
    Feedback 231, ernest-httpd's 24, found 2026-11-04: the host makes a scheduler thread, and a
    dirty CPU scheduler, for each processor a machine could have, so a node on a VM of 32
@@ -209,31 +213,8 @@ attached shell, MVP 4.0, is the operator's alone.
    touches the library (decided 2026-10-10).
 3. **The document the site lacks**, `CONTRIBUTING.md`, written 2026-11-03; the Releases page is
    `CHANGES.md` (the log's *A Release Carries No History*).
-4. **The live shell's page side**, the session client in JavaScript over ernest-httpd's socket:
-   the panel's size sent first and at each resize, the seven states, the panel on every page with
-   its layout in local storage, Copy, Paste and Load on a code block, Load pasting the block as
-   declarations with `main()` typed, a transcript's Paste for each input, the warning banner with Extend,
-   the snackbar at a session's end, and everything reachable by keyboard with xterm.js's
-   screen-reader mode on. The shell's start line shortened, done 2026-11-03 (the log's *The Start
-   Line's Length*).
-
-   The client was built on 2026-11-03 and is not yet committed: the panel kept across links, the seven states and four close codes, Paste and Load, the warning and the
-   notice at an expiry, and `/shell/` with one scrollbar. What closes the item, by 2026-11-05,
-   each decided 2026-11-04 (the log's *The Client's Questions*; the design's *The live shell*):
-   - **Keys before the first prompt**, a defect of the shell: keys typed ahead are kept but not
-     drawn at the first prompt, and a paste typed ahead is read as text, its brackets refused as
-     control characters. §11.2 now says they are read after the prompt as if typed there, and
-     the shell holds it; the client sends a paste for a starting session after its first
-     output.
-   - **Which blocks get Paste and Load**: Copy alone for a block the shell cannot take as one
-     input, read from its paragraphs; for an example on a library's page outside the standard
-     library; and for a block the bare-shell test cannot run, listed in one file the test holds.
-     The bare-shell test is built with the rule.
-   - **The rest**: F6 moves the focus out of the terminal; `make test-browser` in Erlang over
-     headless Chrome, outside `make test`, a step of the release review; the site's HTML, CSS
-     and script indent by four; a long transcript input's Paste held at the block's right
-     edge. ernest-httpd builds the attach word, the restart at the cap, the two nodes and the
-     CPU cap, asked 2026-11-04.
+4. **The live shell's page side**, done 2026-11-04 (the log's *The Start Line's Length* and *The
+   Client's Questions*).
 5. **The build and the deployment**: `make site` from a tag by `git archive`, given the
    server's configuration file, with the check of every internal link and anchor, built
    2026-11-03 (the log's *The Generator's Third Stage*); the copy of `build/site/` to the host,
