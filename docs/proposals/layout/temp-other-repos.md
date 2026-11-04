@@ -17,7 +17,16 @@ Ernest's change 1 then keeps its Ernest tools in `tools/`, a source root as an a
 1. **Every build product under `build/`.** The template's `.gitignore` and Makefile build each source root beside its source, `tools/build/`, `test/build/` and `examples/build/`, beside the top-level `build/`. They become `build/tools/`, `build/test/` and `build/examples/`, as Ernest's change 4 puts everything under `build/`.
 2. **`erl/` stays where an application has one.** In `ernest-epx` it holds host applications put on `--libs-dir`, its submodules, so the name is its role. No change.
 3. **`SECURITY.md`.** The template gains one, saying where to report a security hole privately. `ernest-httpd`, which serves the site and its live shell, needs it most; `ernest-epx` takes the template's for consistency.
-4. **The README's shape.** What the program is and where to begin, central links only, no argument the program's own documents make. The template's README and the guidance in `TEMPLATE.md` say so; each application's README is read against it.
+4. **The README's shape.** What the program is and where to begin, central links only, no argument the program's own documents make. The template's README and the guidance in `TEMPLATE.md` say so; each application's README is read against it. Read 2026-11-04: the three READMEs are 703 to 808 words, open by saying what the program is, and argue no design, so they need less than Ernest's did. One change for all three:
+   - Their *The documents* lists every working document, design, plan, log, release, proposals, language feedback, CLAUDE.md, and in `ernest-epx` its bugs file, its third-party licenses and its acknowledgments, most of them for work on the repository and not for its user. The full list moves to a `docs/README.md` in each, which then owns what each document is, as Ernest's does.
+   - The README keeps what its reader needs: the template, the program's entry points and a link to `docs/README.md`; `ernest-epx`, a library, *Using it*, the manual pages, `examples/` with its pictures, and `docs/README.md`; `ernest-httpd`, a server, `deploy/README.md` for the operator, `examples/` for the example site, and `docs/README.md`.
+
+   And per repository:
+   - The template's placeholder opening, "What the program does, in a paragraph", carries the guidance in `TEMPLATE.md`: what the program is for its reader, then where to begin, no argument its documents make.
+   - `ernest-epx`'s opening sentence carries the library, epx, the repository's own URL, the pixmaps, the window and what it takes nothing back from. The URL links the repository to itself and goes, and the sentence splits in two.
+   - `ernest-httpd`'s opening stays: one sentence of what it serves, one of what it implements.
+
+   *Building*, *Running* or *Using it*, and *License* stay in all three.
 5. **CLAUDE.md.**
    - The kept-proposals rule: a proposal refused or not taken up stays, its README's status line saying which; only a built one goes.
    - The owner table names `docs/README.md`, or the docs, once, not each document twice.
