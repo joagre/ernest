@@ -47,6 +47,13 @@ Ernest's change 1 then keeps its Ernest tools in `tools/`, a source root as an a
 
 8. **The clean room by messages** (Ernest's `docs/clean_room.md`, 2026-11-04). The template's CLAUDE.md and README say a line is "carried to Ernest" without how, rightly, since the template serves a stranger too, whose channel is Ernest's tracker. One clause makes it exact for both: carried to Ernest by its issue tracker, or, for an application built in Ernest's clean room, by a message to Ernest's session. `ernest-httpd`'s `docs/language_feedback.md` header names the reply file under Ernest's `docs/tmp/`, which is gone: the verdict comes by message, as the clean room now says. `ernest-epx` names neither.
 
+9. **A full review** (the log's *The Applications' Full Review*, 2026-11-05). The template gains `docs/full_review.md` beside `docs/release.md`, cut from Ernest's as its CLAUDE.md is, with its row in the owner table:
+   - It runs only when the user says so, and not while its last findings are open.
+   - Its readers read the whole repository: a cold reader who uses the program, a code reader, a documents reader, and a security reader where the program takes input from outside.
+   - What a reader finds of Ernest's goes to `docs/language_feedback.md`, and the rest is sorted as `docs/release.md`'s findings are.
+
+   Each copy takes it and adds what it alone has: `ernest-epx`, its window tried on a screen; `ernest-httpd`, the security reader over its live shell.
+
 ## Not carried
 
 - Ernest's own: the role-named `src/` directories (toolchain, shared, runtime, nodes), the shims beside their libraries, `release/`, the examples' and tests' renames, `docs/reviews/`, `code_style.md` and `memory_checks.md`, the "Code travels" claim and the Gleam line. An application has none of these parts.

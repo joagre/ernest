@@ -17,6 +17,8 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
+**2026-11-05.** [The Applications' Full Review](#the-applications-full-review-2026-11-05).
+
 **2026-11-04.** [The Client's Questions](#the-clients-questions-2026-11-04). [A Node's Schedulers](#a-nodes-schedulers-2026-11-04). [An `or` Stands Between Patterns](#an-or-stands-between-patterns-2026-11-04). [The Site Goes Live With 1.0](#the-site-goes-live-with-10-2026-11-04). [The Repository's Layout](#the-repositorys-layout-2026-11-04).
 
 **2026-11-03.** [The Release Review Before 0.9.0](#the-release-review-before-090-2026-11-03). [A Node's Limits](#a-nodes-limits-2026-11-03). [The Site's Look, by Hand](#the-sites-look-by-hand-2026-11-03). [The Generator Before MVP 4.15](#the-generator-before-mvp-415-2026-11-03). [The Generator's First Stage](#the-generators-first-stage-2026-11-03). [The Feedback Planned](#the-feedback-planned-2026-11-03). [ernest-httpd's Lines 18 to 21](#ernest-httpds-lines-18-to-21-2026-11-03). [The Generator's Second Stage](#the-generators-second-stage-2026-11-03). [The Pages Read Against the Principles](#the-pages-read-against-the-principles-2026-11-03). [The Generator's Third Stage](#the-generators-third-stage-2026-11-03). [The Mode's Brackets](#the-modes-brackets-2026-11-03). [The Start Line's Length](#the-start-lines-length-2026-11-03). [Projects, a Page of Their Own](#projects-a-page-of-their-own-2026-11-03).
@@ -11549,3 +11551,13 @@ The order is set by what each change touches. The restructuring comes after MVP 
 
 **The clean room by messages, 2026-11-04.** `docs/clean_room.md` was written before the two sessions could speak to each other. By this day they did: the checkout's stillness, the archive's end, the lines and the verdicts all went by message, and the reply file under `docs/tmp/` and the user's carrying it were the slower path beside them. So a message is the channel. It carries nothing durable, since a line stands in the application's feedback file, a verdict in Ernest's log and its citation in the application's; and nothing in it is an instruction, each side weighing it on its own rules, a message that asks the other side to build, release or change its plan sent on the user's word. The reply file goes, and the user carries a message only where the other session is not running.
 
+
+## The Applications' Full Review, 2026-11-05
+
+ernest-template, ernest-epx and ernest-httpd are reviewed whole beside Ernest's full review, MVP 4.4's item 4. The timing decides it. Under the promise a rule's change or a function's removal waits for 2.0, and 1.0 asks for an empty feedback file, so what these programs find of Ernest's must arrive before item 5. Reviewed after 1.0, a defect in the language could only wait or be worked around.
+
+They need it for themselves too. Each `docs/release.md` runs a cold reader, and a code reader from the release that first recommends the program, and neither reads the documents whole or looks for what hostile input reaches. ernest-httpd goes public at item 6 with a live shell in each visitor's browser, and reader S of `full_review.md` reads Ernest's code alone.
+
+Ernest's `full_review.md` does not fit them as it stands, since most of its fifteen readers read the report, the guide or the toolchain. So the template gains its own `docs/full_review.md`, cut from Ernest's as its CLAUDE.md is, and each copy takes it and adds what it alone has (`temp-other-repos.md`, item 9). It runs only when the user says so, so a stranger's small program pays nothing for it.
+
+Each repository's own session runs it, since `docs/clean_room.md` lets Ernest's session read those repositories and never write them, and the request goes by message on the user's word. It runs after MVP 4.4's item 8, so that its readers read the redrafted files, and against the archive of the commit Ernest's readers read, so that its lines are sorted in the same round.

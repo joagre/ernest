@@ -292,6 +292,12 @@ the website and the operator's prompt have used. After 1.0 the road is a program
 4. **The full review**, as `full_review.md` says, the principles review inside it, over the swept
    form after the pun and with the three programs written since 0.7.0; its findings sorted and
    worked as it says, the batches' sentences read cold before the build.
+
+   Beside it, on the user's word, ernest-template, ernest-epx and ernest-httpd are each reviewed
+   whole by their own sessions, by the `docs/full_review.md` of item 8, against the archive of the
+   commit the readers read; ernest-httpd's review has a security reader, since it goes public at
+   item 6. What they find of Ernest's comes as lines of their feedback files and is sorted in this
+   round, before the promise binds at item 5 (the log's *The Applications' Full Review*).
 5. **Ernest 1.0.0**, by `docs/release_review.md`'s step, on Linux: macOS unverified and said so
    in the README's installing sentence and the note; the three application repositories' floors
    raised to 1.0 the same week; the feedback file and the findings file empty.
@@ -317,7 +323,8 @@ the website and the operator's prompt have used. After 1.0 the road is a program
    sentence, the renames and additions of its group 4, and CLAUDE.md redrafted after a harvest
    of the four repositories' files; then the template's, and from it ernest-epx's and
    ernest-httpd's, by their own sessions (its groups 4 to 6 and `temp-other-repos.md`; the
-   log's *The Repository's Layout*).
+   log's *The Repository's Layout*). The template gains a `docs/full_review.md` the same way,
+   and each copy takes it.
 
 ---
 
