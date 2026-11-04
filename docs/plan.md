@@ -42,9 +42,13 @@ the Server Taught*), built after the site's generator (the log's *The Generator 
 4.15*). The items stand in build order, set 2026-11-03, each group done with one look at its
 area: the runtime, the standard library's readings, the libraries, the nodes, and relative
 names last, since they sweep every site of Ernest once. The five decisions for the user, in
-items 8, 9, 13, 15 and 16, are discussed early, so that no build waits on them. When the
-milestone ends, its reply to ernest-httpd's lines 18 to 21, `docs/tmp/language_feedback_reply.md`,
-goes to that program's session, as `docs/clean_room.md` says.
+items 8, 9, 13, 15 and 16, are discussed early, so that no build waits on them.
+
+When the milestone ends, its reply to ernest-httpd's lines 18 to 21, `docs/tmp/language_feedback_reply.md`,
+goes to that program's session, as `docs/clean_room.md` says, and so does the site for its
+rehearsal of the switch (MVP 4.4's item 6): `make site` from the release's tag, given the
+configuration ernest-httpd will serve it with, writes it to `build/site/`, the tag naming the
+commit that made it.
 
 1. **The runtime at the host's limits**, defects found 2026-11-03, fixed by 2026-11-12, after
    the site's generator (the log's *The Generator Before MVP 4.15*). At a
