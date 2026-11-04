@@ -297,7 +297,10 @@ the website and the operator's prompt have used. After 1.0 the road is a program
    raised to 1.0 the same week; the feedback file and the findings file empty.
 6. **The site live at ernest-lang.org**, moved from MVP 4.2 on 2026-11-04 (the log's *The Site
    Goes Live With 1.0*): `make site` from 1.0.0's tag, the copy of `build/site/` to the host,
-   and the smoke test against the live site. ernest-httpd rehearses the switch on the machine,
+   the smoke test against the live site, and the address set as the Website of the repository's
+   About on GitHub.
+
+   ernest-httpd rehearses the switch on the machine,
    under a second unit on scratch ports, with the archive of MVP 4.15's release, so that the
    switch at 1.0 swaps one archive for another on a path already walked; then it raises its
    floor to 1.0, makes a release with its readers, and switches once, the machine serving its
