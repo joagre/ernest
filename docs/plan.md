@@ -25,8 +25,11 @@ The server is released and so is what shaped Ernest on its way, and the checkout
 0.10.0.
 
 MVP 4.2, the website, is built but for its item 8, a flake of its browser test, and closes
-with it; the site goes live with Ernest 1.0.0, MVP 4.4's item 6 (the log's *The Site Goes Live
-With 1.0*). Next is MVP 4.15, what the server taught, then MVP 4.3, the shell's second round
+with it; then the repository's layout, between MVP 4.15's items 1 and 2, its independent reader
+first (the log's *The Repository's Layout*); the site goes live with Ernest 1.0.0, MVP 4.4's item 6 (the log's *The Site Goes Live
+With 1.0*).
+
+Next is MVP 4.15, what the server taught, then MVP 4.3, the shell's second round
 (the log's *The Road to 1.0, Ordered*), and MVP 4.4 last, the promise, the cost, the full
 review and Ernest 1.0, where the road ends and a program begins (the log's *MVP 4.4, the Road's
 End*); the back end to BEAM's own instructions that closed the road is not built, decided
@@ -49,6 +52,13 @@ goes to that program's session, as `docs/clean_room.md` says, and so does the si
 rehearsal of the switch (MVP 4.4's item 6): `make site` from the release's tag, given the
 configuration ernest-httpd will serve it with, writes it to `build/site/`, the tag naming the
 commit that made it.
+
+Between items 1 and 2 stands the repository's layout, the proposal `docs/proposals/layout/`
+of 2026-11-04, its checklist `temp-suggestions.md`'s groups 0 to 3. First an independent
+reader, who has not heard its reasoning, reads the checklist and the tree, and its findings
+are decided with the user; then the restructuring is built in one commit, after MVP 4.2
+closes, so that items 2 to 20 build in the layout that stays and the archive ernest-httpd
+rehearses on holds it (the log's *The Repository's Layout*).
 
 1. **The runtime at the host's limits**, done 2026-11-04 (the log's *A Node's Limits*, *A Node's
    Schedulers*, *The Hangup's Order* and *ernest-httpd's Lines 18 to 21*).
@@ -293,6 +303,17 @@ the website and the operator's prompt have used. After 1.0 the road is a program
    one page meanwhile. Its container with its two nodes was built 2026-11-04 on the archive
    from 612faac8: caps of 128 processes and 128 MiB, and one core, the user's choice from its
    measure, 3.2 s from start to the homepage's example answered against 6.7 s at half a core.
+7. **The log readable on GitHub**, a defect found 2026-11-04, fixed before item 4: GitHub does
+   not render `docs/log.md`, 2.6 MB, so the site's citations of the log, which link its anchors
+   there, lead nowhere. It is split by month, one file holding the index and the standing
+   sections, and the generator and the documents test resolve a citation's title to its file
+   and anchor (the layout proposal's checklist, group 2).
+8. **The documents of the layout proposal**, before item 4: `README.md` and `guide/why.md`
+   from their drafts, the first claim renamed "Code travels", the release README's first
+   sentence, the renames and additions of its group 4, and CLAUDE.md redrafted after a harvest
+   of the four repositories' files; then the template's, and from it ernest-epx's and
+   ernest-httpd's, by their own sessions (its groups 4 to 6 and `temp-other-repos.md`; the
+   log's *The Repository's Layout*).
 
 ---
 
