@@ -225,8 +225,11 @@ attached shell, MVP 4.0, is the operator's alone.
 5. **The build and the deployment**: `make site` from a tag by `git archive`, given the
    server's configuration file, with the check of every internal link and anchor, built
    2026-11-03 (the log's *The Generator's Third Stage*); the copy of `build/site/` to the host,
-   and the site live at ernest-lang.org with the smoke test against it, which wait on
-   ernest-httpd's container with its two nodes and a release of Ernest holding the site.
+   and the site live at ernest-lang.org with the smoke test against it, which wait on a
+   release of Ernest holding the site. ernest-httpd's container with its two nodes was built
+   2026-11-04 on the archive from 612faac8, its caps 128 processes and 128 MiB, and its CPU
+   share one core, the user's choice from its measure: 3.2 s from start to the homepage's
+   example answered, against 6.7 s at half a core.
 6. **The Emacs mode's indentation of a brace in a bracket's item**, done 2026-11-03 (the log's
    *The Mode's Brackets*).
 7. **Projects**, done 2026-11-04 (the log's *Projects, a Page of Their Own*).
