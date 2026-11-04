@@ -93,6 +93,7 @@ fn generated(root : Path,
     let _ <- Site.Book.tour(run);
     let _ <- Site.Report.report(run, taught);
     let _ <- Site.Document.documents(run);
+    let _ <- Site.Document.projects(run);
     let _ <- homeWritten(run);
     let _ <- shellWritten(run, shell);
     let _ <- notFoundWritten(run);

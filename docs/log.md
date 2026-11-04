@@ -11485,6 +11485,8 @@ ernest-epx and ernest-httpd each have a release built against a released Ernest,
 
 A line holds the project's name, linked, and its purpose. The release of Ernest it builds on stays the project's README's, since it moves with every release on both sides. A project is listed once it has a tagged release whose floor is a released Ernest, so that the page holds evidence and no promise; ernest-template is a starting point and is not listed.
 
+**Built, 2026-11-04.** `site/projects.md` holds the list: a heading, an opening, and a line for each project, its name linked to its repository, `: `, and its purpose in one sentence. The generator writes it at `/projects/` through `page.html`, each line through `project.html`, and the list through `project-list.html`. A line's icon is `/assets/img/projects/<project>.png`, copied as it stands from the project's own `icon.png`, with an empty `alt`, since the name beside it says what it is. The footer's first line and one sentence of Why's *Reading on* lead to it. A test holds each line to its form: the name is the repository's, its icon a PNG of 128 by 128, the purpose one sentence. A page's date is its source's last commit at the tag, so the fixture's tag moved to the commit that wrote `site/projects.md`.
+
 ## The Client's Questions, 2026-11-04
 
 The site's client, MVP 4.2's item 4, was built on 2026-11-03 and found two defects and the questions its design left open, decided with the user one at a time.

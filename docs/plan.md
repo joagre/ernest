@@ -117,8 +117,9 @@ goes to that program's session, as `docs/clean_room.md` says.
    diagnostic keeps its Erlang, since the compiler calls no shim.
 7. **A text after its prefix, and a slice to the end**, feedback 214 and 220, decided
    2026-11-03: `String.slice(x, i, String.size(x))` and `Bytes.slice` to the end stand at 23
-   sites, and the site's generator writes a helper twice for the text after a prefix, which
-   `String.startsWith` answers half of. One reading against E.0's rules decides both, the
+   sites, and the text after a prefix is taken three ways at seven sites, counted 2026-11-04:
+   two private `stripped` helpers, `String.splitOnce` matched against an empty first part, and
+   `String.startsWith` with a slice. One reading against E.0's rules decides both, the
    functions admitted named by the guide's style, and every site written with them (the
    log's *The Generator's First Stage*). The same reading decides feedback 215: `String.contains(x, "\r")`
    finds no carriage return in `"\r\n"`, since E.5 searches by graphemes, and whether a
@@ -230,12 +231,12 @@ attached shell, MVP 4.0, is the operator's alone.
    ernest-httpd's container with its two nodes and a release of Ernest holding the site.
 6. **The Emacs mode's indentation of a brace in a bracket's item**, done 2026-11-03 (the log's
    *The Mode's Brackets*).
-7. **Projects**, the page of the libraries and programs written in Ernest in repositories of
-   their own, `/projects/` from `site/projects.md`, reached from the footer and Why's *Reading
-   on*, decided 2026-11-03 (the log's *Projects, a Page of Their Own*; the design's *The other
-   pages*), each line led by the project's own icon, the `icon.png` in its repository's `assets`. Built
-   after item 4, which works in the same generator, by 2026-11-06; a project whose icon has
-   not come by then is listed when it comes.
+7. **Projects**, done 2026-11-04 (the log's *Projects, a Page of Their Own*).
+8. **The browser test's joined session flakes**, a defect found 2026-11-04, fixed by 2026-11-06:
+   `make test-browser`'s "a whole load and a joined session" failed in two of five runs that day,
+   once with no connection reaching its stub and once with Chrome's DevTools not answering an
+   evaluation, which may be the page's script held busy. Diagnosed at its cause, the client's or
+   the test's, and fixed there; then twenty runs in a row hold it.
 
 ## MVP 4.3 (`:trace f`), about a week
 

@@ -2,7 +2,8 @@
 %% over a tree of its own: the documents under fixtures/site/tree/, each
 %% standing at the path of the document it plays, the guide, the tour, the
 %% report, the library's pages, Why, the questions, the deployment guide,
-%% the README, the release notes and the log, beside the site's files,
+%% the README, the release notes, the log and the projects' list, beside
+%% the site's files,
 %% ../site/, and the logos, with fixtures/site/config.json as the server's
 %% configuration.
 %%
@@ -30,10 +31,10 @@
 -define(OUT, "build/site/out").
 %% The release the pages name, and the revision their links to GitHub and
 %% their dates name: a source's last commit at a commit stays as it is, and
-%% this one, the generator's first stage, holds every source the pages name,
-%% site/templates/ among them.
+%% this one, the commit that wrote site/projects.md, holds every source the
+%% pages name, site/templates/ among them.
 -define(VERSION, "9.9.9").
--define(TAG, "ebcc1ea855bc01ea87fc6f222d497dbf1b1633bd").
+-define(TAG, "52dd8971886d6ffd9e90a3f981f9ec79070358ee").
 %% The root's files whose names hold a digest of their content
 %% (docs/proposals/site/decisions.md *The generation*); the icons' file,
 %% which the generator gathers, is named so too.
@@ -64,7 +65,8 @@ generated_test_() ->
 %% the library's contents pages; Why, the questions, Install, Releases and
 %% the deployment guide, a heading anchored by its GitHub anchor or its
 %% number, a GitHub anchor of a heading holding `§` or sharing its digits
-%% with another's led to its number; the homepage, its claims and its
+%% with another's led to its number; Projects, a project a line with its
+%% icon, its name linked and its purpose; the homepage, its claims and its
 %% example; the shell's page, its numbers the configuration's; every
 %% page's script told the shell's path and the session's lifetime, the
 %% configuration's too; and the 404 page.
@@ -83,9 +85,10 @@ pages() ->
                   "install/index.html", "man/index.html", "man/libs/index.html",
                   "man/libs/markdown/index.html", "man/libs/markdown/markdown.html",
                   "man/stdlib/index.html", "man/stdlib/list.html", "man/stdlib/prelude.html",
-                  "releases/index.html", "report/index.html", "report/language.html",
-                  "report/library.html", "report/toolchain.html", "shell/index.html",
-                  "tour/1.html", "tour/2.html", "tour/index.html", "why/index.html"], Expected),
+                  "projects/index.html", "releases/index.html", "report/index.html",
+                  "report/language.html", "report/library.html", "report/toolchain.html",
+                  "shell/index.html", "tour/1.html", "tour/2.html", "tour/index.html",
+                  "why/index.html"], Expected),
     ?assertEqual(Expected, [File || File <- files(?OUT), filename:extension(File) =:= ".html"]),
     ?assertEqual([], [File || File <- Expected,
                               undigested(read(?EXPECTED, File)) =/= undigested(read(?OUT, File))]).
@@ -311,6 +314,36 @@ site_refusals_test() ->
     ?assertEqual(2, Before),
     ?assertMatch({_, _}, binary:match(Refused, <<"v0.9.0 holds no site/">>)).
 
+%% docs/proposals/site/decisions.md *The other pages*: each line of
+%% site/projects.md is a project's name linked to its repository, whose
+%% name it is, `: ` and its purpose in one sentence, and the project's icon
+%% stands under site/root/assets/img/projects/ by its name, a PNG of 128 by
+%% 128. It holds the lines' form, and not that a purpose says what its
+%% project's README does, which a reader judges.
+projects_test() ->
+    Lines = [Line || Line <- binary:split(read("../site", "projects.md"), <<"\n">>, [global]),
+                     binary:match(Line, <<"- ">>) =:= {0, 2}],
+    ?assert(length(Lines) >= 2),
+    ?assertEqual([], [Line || Line <- Lines, not is_project(Line)]).
+
+is_project(Line) ->
+    Form = "^- \\[([^]]+)\\]\\((https://github\\.com/[^/)]+/([^/)]+))\\): ([A-Z].*)$",
+    case re:run(Line, Form, [unicode, {capture, all_but_first, binary}]) of
+        {match, [Name, _, Name, Purpose]} -> is_sentence(Purpose) andalso is_icon(Name);
+        _ -> false
+    end.
+
+is_sentence(Text) ->
+    binary:last(Text) =:= $. andalso re:run(Text, "[.?!] ", [unicode]) =:= nomatch.
+
+is_icon(Name) ->
+    case file:read_file("../site/root/assets/img/projects/" ++ binary_to_list(Name) ++ ".png") of
+        {ok, <<16#89, "PNG\r\n", 16#1a, "\n", _:4/binary, "IHDR", 128:32, 128:32, _/binary>>} ->
+            true;
+        _ ->
+            false
+    end.
+
 appended(File, Text) ->
     {ok, Device} = file:open(File, [append]),
     ok = file:write(Device, Text),
@@ -331,7 +364,8 @@ templates_test() ->
 %% The site generated from the fixture's tree, the tree made afresh: the
 %% fixture's documents at their paths, the site's files and the logos; the
 %% blocks a bare shell cannot run are the fixture's own list, which names
-%% the fixture's pages, rather than the site's.
+%% the fixture's pages, rather than the site's, and the projects' list is
+%% the fixture's own too.
 generated() ->
     _ = file:del_dir_r("build/site"),
     fixture_site("build/site").
@@ -345,7 +379,7 @@ fixture_site(Base) ->
     Out = filename:join(Base, "out"),
     [copied(filename:join(?TREE, File), filename:join(Source, File)) || File <- files(?TREE)],
     [copied(filename:join("../site", File), filename:join(Source ++ "/site", File))
-     || File <- files("../site"), File =/= "unrunnable.md"],
+     || File <- files("../site"), not lists:member(File, ["unrunnable.md", "projects.md"])],
     [copied("../assets/" ++ Logo, Source ++ "/assets/" ++ Logo) || Logo <- ?LOGOS],
     ern_integration_tests:succeed(generate(Source, Out, ?CONFIG)),
     Out.

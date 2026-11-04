@@ -45,6 +45,7 @@ The site's files as served.
     /assets/js/                     xterm.js, its fit addon, the session client
     /assets/img/icons/              the Lucide icons and their LICENSE
     /assets/img/icons.svg           the same icons, one symbol each
+    /assets/img/projects/           each project's icon, <project>.png
     /assets/<logo>                  the logos the site shows, at their paths in assets/
 
 - A report page is one of the report's files, whole. A citation's first
@@ -332,6 +333,7 @@ The site's files as served.
   with a sidebar of its headings and a footer naming its source, for every
   chapter of the tour, the guide and the report, every `/man/` page, Why,
   the questions, the deployment guide, Install, Releases, which is `CHANGES.md`,
+  Projects,
   and the 404 page with its fixed body;
   what differs between them, a previous and a next, and what the footer names,
   is data the generator passes, and a slot without it is empty.

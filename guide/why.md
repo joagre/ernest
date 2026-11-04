@@ -425,4 +425,4 @@ No program shows this claim. Its evidence is the report under [`report/`](../rep
 
 ## Reading on
 
-The guide's §0 shows what the compiler refuses and how it says so, and its §1 runs the first program. The questions a reader brings, the likeness to Gleam among them, are answered in [the questions](faq.md). The reasons behind each rule, dated, are the log's, [`docs/log.md`](../docs/log.md).
+The guide's §0 shows what the compiler refuses and how it says so, and its §1 runs the first program. The questions a reader brings, the likeness to Gleam among them, are answered in [the questions](faq.md). The reasons behind each rule, dated, are the log's, [`docs/log.md`](../docs/log.md). The [projects](../site/projects.md), libraries and programs in repositories of their own, are built against Ernest's release alone, as a stranger builds with it, and never against its source.

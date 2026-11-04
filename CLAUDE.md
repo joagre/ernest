@@ -37,6 +37,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 | [`src/shell/README.md`](src/shell/README.md) | how the shell's code reads |
 | [`editors/emacs/README.md`](editors/emacs/README.md) | how to install the Emacs mode, and what it leaves to the reader's configuration |
 | [`site/templates/README.md`](site/templates/README.md) | the site's templates and fragments, the tokens each binds and how they are filled, which a test holds each file to |
+| [`site/projects.md`](site/projects.md) | the projects written in Ernest in repositories of their own, a line each with its icon, which a test holds to its form |
 | [`docs/module_doc_template.md`](docs/module_doc_template.md) | the worked example of a documented module, held equal to `ern doc`'s output by a test |
 | [`docs/release_review.md`](docs/release_review.md) | what a release runs to be ready |
 | [`docs/full_review.md`](docs/full_review.md) | the review of every area whole, run seldom |

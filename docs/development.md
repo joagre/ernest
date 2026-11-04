@@ -35,8 +35,11 @@ tour/              the tour, README.md, one program grown through eight chapters
 site/              the website's own files, which tools/site.ern reads: templates/,
                    each page's template and its fragments, with README.md, the tokens
                    each binds; root/, the assets laid out as served, but the icons'
-                   file, which the generator gathers from the icons; and example.md,
-                   the homepage's example, which ern_tour_tests runs on two nodes
+                   file, which the generator gathers from the icons; example.md,
+                   the homepage's example, which ern_tour_tests runs on two nodes;
+                   and projects.md, the Projects page's list, a project a line, each
+                   with its icon under root/assets/img/projects/, which a test holds
+                   to its form
 assets/            the logos, which assets/README.md lists with where each is used
 docs/              every other document, which docs/README.md lists, this one and the
                    catalog of diagnostics among them
@@ -186,8 +189,9 @@ make test-guide   the guide's examples, the report's, the README's, and the cata
 make test-site    the site's generator, tools/site.ern, run over its fixture, the pages it
                   writes held to test/fixtures/site/expected/, every template held to the
                   tokens site/templates/README.md lists, its check of the site's links
-                  refusing one that leads nowhere, and the generator run over an export of
-                  HEAD, the repository's own documents with the site's files as they stand
+                  refusing one that leads nowhere, each line of site/projects.md held to
+                  its form, and the generator run over an export of HEAD, the
+                  repository's own documents with the site's files as they stand
 make test-site-shell  every block the site's pages offer the shell, and every one
                   site/unrunnable.md lists, pasted into a bare ern shell under the
                   pseudo-terminal, and the file held to those that do not run; part of

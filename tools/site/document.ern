@@ -10,6 +10,11 @@
 // number (decisions *Anchors*). A page has a sidebar where it has two
 // headings for it or more.
 //
+// Projects, site/projects.md, at /projects/, is such a document whose list
+// is the projects', each line through a fragment of its own: the project's
+// icon, its name linked to its repository, and its purpose (decisions *The
+// other pages*).
+//
 
 // A document of one page: its source, the header's room it stands in,
 // where it stands in one, the heading the page shows where it is not the
@@ -155,3 +160,87 @@ fn entries(level : Int, own : List(Shown)) : List(Site.Run.Entry) =
             || inner == level + 2 -> Some(Site.Run.Entry(anchor = anchor.id, level = inner, =text))
       | _ -> None
     })
+
+//
+// Projects
+//
+
+// A project's line of site/projects.md: its name, which names its icon
+// under site/root/assets/img/projects/ too, its repository, and its
+// purpose, one sentence.
+type Project = Project(name : String, repository : String, purpose : List(Markdown.Inline))
+
+/// The page of the projects, site/projects.md: its title, its opening, and
+/// its list, a project a line.
+export fn projects(run : Site.Run.Run) : Either(String, Unit) = {
+    let source = "site/projects.md";
+    let address <-
+        Either.fromOptional(Site.Links.address(source), source <> " has no page of the site");
+    let document <- Site.Run.documentOf(run.root, source);
+    let #(heading, rest) <- Site.Run.titleOf(source, document);
+    let #(opening, listed) = List.span(rest, fn(block) = match block {
+        Markdown.Items() -> false
+      | _ -> true
+    });
+    let items <- match listed {
+        [Markdown.Items(=items)] -> Right(items)
+      | _ -> Left(source <> " ends with its list of projects, and holds no other")
+    };
+    let found <- List.tryMap(items, fn(item) = projectOf(source, item));
+    let page <- Site.Run.linkPage(run, source, address, Site.Code.copied(rest));
+    let linked <- Site.Run.linkedAll(run, Site.Code.copied(opening), page);
+    let lines <- List.tryMap(found, fn(project) = {
+        let purpose <- Site.Links.inlinesLinked(project.purpose, page);
+        Site.Run.filled(run,
+                        "fragments/project.html",
+                        [#("icon",
+                           Site.Template.Plain("/assets/img/projects/" <> project.name <> ".png")),
+                         #("href", Site.Template.Plain(project.repository)),
+                         #("name", Site.Template.Plain(project.name)),
+                         #("purpose_html", Site.Run.inlined(purpose))])
+    });
+    let list <-
+        Site.Run.filled(run,
+                        "fragments/project-list.html",
+                        [#("rows_html", Site.Run.markup(lines))]);
+    let main <-
+        Site.Run.filled(run,
+                        "page.html",
+                        [#("layout", Site.Run.layout([])),
+                         #("contents_html", Site.Template.Markup([])),
+                         #("book_html", Site.Template.Markup([])),
+                         #("heading_html", Site.Run.headingHtml(heading, None)),
+                         #("body_html",
+                           Site.Template.Markup(Site.Html.body(linked, 0, []) <> list)),
+                         #("page_nav_html", Site.Template.Markup([]))]);
+    let description <- Site.Run.described(source, opening);
+    Site.Run.pageWritten(run,
+                         Site.Run.Output(=address,
+                                         title = Site.Run.titled(Site.Html.plain(heading)),
+                                         =description,
+                                         room = None,
+                                         =main,
+                                         source = Some(source)))
+}
+
+// A project's line, its name linked to its repository, `: `, and its
+// purpose.
+fn projectOf(source : String, item : List(Markdown.Block)) : Either(String, Project) = {
+    let found = match item {
+        [Markdown.Paragraph(Markdown.Link(=text, =url) :: Markdown.Text(following) :: rest)] ->
+            match String.splitOnce(following, ": ") {
+                Some(#("", first)) ->
+                    Some(Project(name = Site.Html.plain(text),
+                                 repository = url,
+                                 purpose = Markdown.Text(first) :: rest))
+              | _ ->
+                    None
+            }
+      | _ ->
+            None
+    };
+    Either.fromOptional(found,
+                        source
+                            <> ": a project's line is its name linked to its repository, `: `"
+                            <> " and its purpose")
+}

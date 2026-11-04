@@ -62,6 +62,7 @@ fn shown(path : String) : Optional(Shown) =
       | "guide/faq.md" -> Some(Slugged("/faq/"))
       | "README.md" -> Some(Slugged("/install/"))
       | "CHANGES.md" -> Some(Slugged("/releases/"))
+      | "site/projects.md" -> Some(Slugged("/projects/"))
       | "docs/man/README.md" -> Some(Whole("/man/"))
       | "docs/man/stdlib/README.md" -> Some(Whole("/man/stdlib/"))
       | "docs/man/libs/README.md" -> Some(Whole("/man/libs/"))
