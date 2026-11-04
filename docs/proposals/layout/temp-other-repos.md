@@ -1,6 +1,6 @@
 # The other repositories
 
-What of the `temp*.md` suggestions reaches `ernest-template`, and from it `ernest-epx` and `ernest-httpd`, for one layout and one way of working across the four. A change goes to the template first, then into each application by hand, as the template's copies are kept. Each application's own session makes it there (`docs/clean_room.md`); this file is what Ernest's side asks. Read 2026-11-04.
+What of the `temp*.md` suggestions reaches `ernest-template`, and from it `ernest-epx` and `ernest-httpd`, for one layout and one way of working across the four. A change goes to the template first, then into each application by hand, as the template's copies are kept. Ernest's session makes these changes in the template and in each application, since they are the repository's shape and not what the program says (`docs/clean_room.md`). Two stay with an application's own session: the header of its feedback file (item 8) and what it adds to its full review (item 9). Read 2026-11-04.
 
 ## Found first: the rule for src/ and tools/
 
@@ -52,7 +52,7 @@ Ernest's change 1 then keeps its Ernest tools in `tools/`, a source root as an a
    - Its readers read the whole repository: a cold reader who uses the program, a code reader, a documents reader, and a security reader where the program takes input from outside.
    - What a reader finds of Ernest's goes to `docs/language_feedback.md`, and the rest is sorted as `docs/release.md`'s findings are.
 
-   Each copy takes it and adds what it alone has: `ernest-epx`, its window tried on a screen; `ernest-httpd`, the security reader over its live shell.
+   Each copy takes it, and its own session adds what it alone has: `ernest-epx`, its window tried on a screen; `ernest-httpd`, the security reader over its live shell.
 
 ## Not carried
 

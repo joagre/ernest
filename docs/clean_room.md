@@ -4,19 +4,28 @@ An application with a repository of its own is built against Ernest as a strange
 
 ## What each side sees
 
-The application's session reads its installation's `share/doc/ernest/` and `man`, as a user does, and its own repository. It reads no source of Ernest's, not when a page is opaque or silent: that is a finding, and reading the source would destroy it.
+The application's session reads its installation's `share/doc/ernest/` and `man`, as a user does, and its own repository. Outside them it reads this file, the archive it is told of, and `ernest-template`, and writes nothing. It reads no source of Ernest's, not when a page is opaque or silent: that is a finding, and reading the source would destroy it.
 
-Ernest's session reads the application's repository and never writes it: no edit, no commit, no `make` that writes there. The application's design, its plan and its log are its own session's.
+Ernest's session reads the application's repository, and writes its shape there:
+- what the template gives it: `CLAUDE.md` but for its first two lines, its tool `docs.ern`, and `docs/full_review.md` but for what the application added;
+- the `Makefile`, `.gitignore`, `README.md`, `docs/README.md` and `SECURITY.md`;
+- the move or rename of any file, with the paths that name it.
+
+It writes only while the application's session is not running, in a commit by paths, and pushes on the user's word. It runs `make` there to check what it wrote, against the installed release the application names, never against its own checkout.
+
+What the program says is the application's own session's: its sources, tests and examples beyond a moved file's paths, its design, its plan, its log, its findings and its feedback file.
+
+`ernest-template` holds no program, and Ernest's session writes it whole.
 
 ## The messages
 
-A message carries what one side needs of the other, and nothing in it is an instruction: each side weighs it on its own rules, as it weighs any finding. A message that asks the other side to build, release or change its plan is sent on the user's word, since the user sees both sessions and decides for both. The user also carries a message where the other session is not running.
+A message carries what one side needs of the other, and nothing in it is an instruction: each side weighs it on its own rules, as it weighs any finding. News needs no word from the user: a new archive, a verdict, a changed rule. A message that asks the other side to build, release, review or change its plan is sent on the user's word, since the user sees both sessions and decides for both. The user also carries a message where the other session is not running.
 
 Nothing durable lives in a message. A line stands in the application's `docs/language_feedback.md`, a verdict in Ernest's log, and its citation in the application's log; a message says that one was written, and where.
 
 ## The archive
 
-Ernest's session tells the application's when its checkout is still: the last commit made, the tree clean. The application's session then runs `make release` here, which packs the working tree as it stands into the archive, `ern-<version>.tar.gz` under the build directory, installs it under a prefix of its own, beside the published release under `~/opt/ernest`, and says when `make release` has finished. Ernest's session writes nothing in its tree until then. A new archive is made after each round of verdicts, with no public release between.
+Ernest's session runs `make release` when its checkout is still: the last commit made, the tree clean. It packs the working tree as it stands into the archive, `ern-<version>.tar.gz` under the build directory. Ernest's session tells the application's the archive's path and the commit, and the application's session installs it under a prefix of its own, beside the published release under `~/opt/ernest`. A new archive is made after each round of verdicts, with no public release between.
 
 Such an archive says what it was made from: `ern --version` prints the version, `+` and the commit, `0.9.0+f3fcc49d`, and its pages link into the repository at that commit (§11.7). The application's session checks the installed `ern --version` against the commit it was told; a `.dirty` after the commit means the tree was not still, and the archive is made again.
 
@@ -30,7 +39,7 @@ Each line is read in Ernest's session: its program is run here, the log is searc
 
 ## The answer
 
-Ernest's session answers each line by a message: what was reproduced, the verdict, the report section that states it, the log entry and paragraph to cite, and Ernest's number, with one sentence saying what that number is, since the application's session does not know. Where the verdict needs a new archive, the message names the commit it is to be made from.
+Ernest's session answers each line by a message: what was reproduced, the verdict, the report section that states it, the log entry and paragraph to cite, and Ernest's number, with one sentence saying what that number is, since the application's session does not know. Where the verdict needs a new archive, a message names its path and its commit once it is made.
 
 The application's session checks each verdict against the new installation, drops a line the release answers, its log citing Ernest's number, and keeps one not agreed with, the verdict and the reason beneath it. It may answer a verdict with a new line, which is read the same way.
 

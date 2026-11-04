@@ -17,7 +17,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-11-05.** [The Applications' Full Review](#the-applications-full-review-2026-11-05).
+**2026-11-05.** [The Applications' Full Review](#the-applications-full-review-2026-11-05). [Who Writes in the Other Repositories](#who-writes-in-the-other-repositories-2026-11-05).
 
 **2026-11-04.** [The Client's Questions](#the-clients-questions-2026-11-04). [A Node's Schedulers](#a-nodes-schedulers-2026-11-04). [An `or` Stands Between Patterns](#an-or-stands-between-patterns-2026-11-04). [The Site Goes Live With 1.0](#the-site-goes-live-with-10-2026-11-04). [The Repository's Layout](#the-repositorys-layout-2026-11-04).
 
@@ -11560,4 +11560,16 @@ They need it for themselves too. Each `docs/release.md` runs a cold reader, and 
 
 Ernest's `full_review.md` does not fit them as it stands, since most of its fifteen readers read the report, the guide or the toolchain. So the template gains its own `docs/full_review.md`, cut from Ernest's as its CLAUDE.md is, and each copy takes it and adds what it alone has (`temp-other-repos.md`, item 9). It runs only when the user says so, so a stranger's small program pays nothing for it.
 
-Each repository's own session runs it, since `docs/clean_room.md` lets Ernest's session read those repositories and never write them, and the request goes by message on the user's word. It runs after MVP 4.4's item 8, so that its readers read the redrafted files, and against the archive of the commit Ernest's readers read, so that its lines are sorted in the same round.
+Each repository's own session runs it, since a review's fixes touch what the program says, which only that session writes, and the request goes by message on the user's word. It runs after MVP 4.4's item 8, so that its readers read the redrafted files, and against the archive of the commit Ernest's readers read, so that its lines are sorted in the same round.
+
+## Who Writes in the Other Repositories, 2026-11-05
+
+Full write access for Ernest's session in the three other repositories was weighed. The layout proposal's changes there need it in part, and the rule was that a session here never writes them. It is refused for what a program says, and taken for the repository's shape.
+
+`guide/why.md` says the projects "are built against Ernest's release alone, as a stranger builds with it, and never against its source", and *Projects, a Page of Their Own* calls that the strongest evidence that Ernest is usable by others. A session that knows the source and writes a program makes that sentence false, which is principle 1's surprise at its largest. It loses the finding too: a defect worked around in the application never becomes a line.
+
+A repository's shape carries no such claim. `temp-other-repos.md` asks for the build's paths in the Makefile and `.gitignore`, the README's list of documents moved to `docs/README.md`, `SECURITY.md` and `CLAUDE.md`. None of them says how a program uses Ernest, and two more sessions making one change three times add tokens and no judgment. A first line, the files the template gives alone, was too tight, since it left the Makefile and the README out, and moves with them. So the line is what the program says: its sources, tests and examples beyond a moved file's paths, its design, plan, log, findings and feedback file. The template holds no program, and Ernest's session writes it whole.
+
+Three rules follow. Ernest's session writes there only while the application's session is not running, so that no session has its files changed under it. It checks with `make` against the installed release, never its checkout, or the check would prove nothing of the program's clean room. And the archive is now made by Ernest's session, since `make release` in Ernest's checkout was the one thing an application's session wrote outside its own repository.
+
+An application's session reads its own repository, its installation, `docs/clean_room.md`, the archive it is told of and the template. News goes by message with no word from the user, while a request to build, release, review or change a plan still waits for it, since it spends tokens the user may not be watching. All of this is a written rule: no settings file enforces it.

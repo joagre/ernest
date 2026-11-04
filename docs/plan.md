@@ -322,9 +322,9 @@ the website and the operator's prompt have used. After 1.0 the road is a program
    from their drafts, the first claim renamed "Code travels", the release README's first
    sentence, the renames and additions of its group 4, and CLAUDE.md redrafted after a harvest
    of the four repositories' files; then the template's, and from it ernest-epx's and
-   ernest-httpd's, by their own sessions (its groups 4 to 6 and `temp-other-repos.md`; the
-   log's *The Repository's Layout*). The template gains a `docs/full_review.md` the same way,
-   and each copy takes it.
+   ernest-httpd's, by Ernest's session (its groups 4 to 6 and `temp-other-repos.md`; the log's
+   *The Repository's Layout*, *Who Writes in the Other Repositories*). The template gains a
+   `docs/full_review.md` the same way, and each copy takes it.
 
 ---
 
