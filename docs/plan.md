@@ -24,13 +24,13 @@ by a need met in use and recorded as `docs/language_feedback.md` records one.
 The server is released and so is what shaped Ernest on its way, and the checkout works toward
 0.10.0.
 
-MVP 4.2's first item, the site's look by hand, is done
-(the log's *The Site's Look, by Hand*); next is its item 2, the generator, decided 2026-11-03
-to come before MVP 4.15 (the log's *The Generator Before MVP 4.15*); then MVP 4.15, what the
-server taught, the rest of the website and the shell's second round
-(the log's *The Road to 1.0, Ordered*), and MVP 4.4 last, the promise, the cost, the full review and Ernest 1.0, where
-the road ends and a program begins (the log's *MVP 4.4, the Road's End*); the back end to BEAM's own instructions that closed the road is not built,
-decided 2026-10-30 (the log's *No Back End to BEAM's Own Instructions*). A finished milestone is a
+MVP 4.2, the website, is built but for its item 8, a flake of its browser test, and closes
+with it; the site goes live with Ernest 1.0.0, MVP 4.4's item 6 (the log's *The Site Goes Live
+With 1.0*). Next is MVP 4.15, what the server taught, then MVP 4.3, the shell's second round
+(the log's *The Road to 1.0, Ordered*), and MVP 4.4 last, the promise, the cost, the full
+review and Ernest 1.0, where the road ends and a program begins (the log's *MVP 4.4, the Road's
+End*); the back end to BEAM's own instructions that closed the road is not built, decided
+2026-10-30 (the log's *No Back End to BEAM's Own Instructions*). A finished milestone is a
 row of the table at the end, its reasons in the log entries the row names.
 
 ---
@@ -38,7 +38,7 @@ row of the table at the end, its reasons in the log entries the row names.
 ## MVP 4.15 (what the server taught), about a week and a half
 
 What building and deploying ernest-httpd showed of Ernest, decided 2026-11-02 (the log's *What
-the Server Taught*), built after MVP 4.2's generator (the log's *The Generator Before MVP
+the Server Taught*), built after the site's generator (the log's *The Generator Before MVP
 4.15*). The items stand in build order, set 2026-11-03, each group done with one look at its
 area: the runtime, the standard library's readings, the libraries, the nodes, and relative
 names last, since they sweep every site of Ernest once. The five decisions for the user, in
@@ -47,7 +47,7 @@ milestone ends, its reply to ernest-httpd's lines 18 to 21, `docs/tmp/language_f
 goes to that program's session, as `docs/clean_room.md` says.
 
 1. **The runtime at the host's limits**, defects found 2026-11-03, fixed by 2026-11-12, after
-   MVP 4.2's item 2 (the log's *The Generator Before MVP 4.15*). At a
+   the site's generator (the log's *The Generator Before MVP 4.15*). At a
    full process table the runtime's spawns on a request's behalf meet the host's
    `system_limit` uncaught: the reaper's `spawn_monitor`, the per-request spawns of the `Fs`,
    `Tcp` and `Os` system processes, and the runtime's own, a kept process, a kill and a
@@ -191,6 +191,15 @@ goes to that program's session, as `docs/clean_room.md` says.
     a clause's whole patterns`, the help writing the clause's alternatives out,
     `#(Paste, _) or #(Load, _)`. Small, and built in no particular order (the log's *An `or`
     Stands Between Patterns*).
+18. **A node's own processes at a full table**, defects found 2026-11-04 by item 1, fixed by
+    2026-11-12: a socket's closer, spawned at its end, so that the socket's process dies with
+    the host's term and E.18's lingering is lost; the gateway's worker for a peer, made at the
+    peer's first frame, so that the gateway dies and every peer with it; the exchange's
+    processes; the process that waits for a peer's restart deliveries; the shell's own
+    spawns; and the checker made as an address crosses into foreign code, whose cause text is
+    unchecked. Each answers or faults as item 1's rule says, or exists from its node's start
+    as the closer can, and each frame a peer is sent at a full table is decided with its
+    item (the log's *A Node's Limits*).
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
@@ -222,14 +231,10 @@ attached shell, MVP 4.0, is the operator's alone.
    `CHANGES.md` (the log's *A Release Carries No History*).
 4. **The live shell's page side**, done 2026-11-04 (the log's *The Start Line's Length* and *The
    Client's Questions*).
-5. **The build and the deployment**: `make site` from a tag by `git archive`, given the
-   server's configuration file, with the check of every internal link and anchor, built
-   2026-11-03 (the log's *The Generator's Third Stage*); the copy of `build/site/` to the host,
-   and the site live at ernest-lang.org with the smoke test against it, which wait on a
-   release of Ernest holding the site. ernest-httpd's container with its two nodes was built
-   2026-11-04 on the archive from 612faac8, its caps 128 processes and 128 MiB, and its CPU
-   share one core, the user's choice from its measure: 3.2 s from start to the homepage's
-   example answered, against 6.7 s at half a core.
+5. **The build**: `make site` from a tag by `git archive`, given the server's configuration
+   file, with the check of every internal link and anchor, built 2026-11-03 (the log's *The
+   Generator's Third Stage*). The deployment moved to MVP 4.4's item 6 on 2026-11-04 (the
+   log's *The Site Goes Live With 1.0*).
 6. **The Emacs mode's indentation of a brace in a bracket's item**, done 2026-11-03 (the log's
    *The Mode's Brackets*).
 7. **Projects**, done 2026-11-04 (the log's *Projects, a Page of Their Own*).
@@ -291,6 +296,15 @@ the website and the operator's prompt have used. After 1.0 the road is a program
 5. **Ernest 1.0.0**, by `docs/release_review.md`'s step, on Linux: macOS unverified and said so
    in the README's installing sentence and the note; the three application repositories' floors
    raised to 1.0 the same week; the feedback file and the findings file empty.
+6. **The site live at ernest-lang.org**, moved from MVP 4.2 on 2026-11-04 (the log's *The Site
+   Goes Live With 1.0*): `make site` from 1.0.0's tag, the copy of `build/site/` to the host,
+   and the smoke test against the live site. ernest-httpd rehearses the switch on the machine,
+   under a second unit on scratch ports, with the archive of MVP 4.15's release, so that the
+   switch at 1.0 swaps one archive for another on a path already walked; then it raises its
+   floor to 1.0, makes a release with its readers, and switches once, the machine serving its
+   one page meanwhile. Its container with its two nodes was built 2026-11-04 on the archive
+   from 612faac8: caps of 128 processes and 128 MiB, and one core, the user's choice from its
+   measure, 3.2 s from start to the homepage's example answered against 6.7 s at half a core.
 
 ---
 
