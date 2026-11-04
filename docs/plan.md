@@ -184,6 +184,14 @@ goes to that program's session, as `docs/clean_room.md` says.
     import; a proposal under `docs/proposals/relative_names/` first, with how far a short name
     reaches, then §4.2 after the cold reading, the checker, the diagnostics, `ern doc`, the
     shell's completion, and the shell's own sites written short.
+17. **`or` inside a pattern**, feedback 232, decided 2026-11-04: `#(Paste or Load, _) ->` is
+    refused as `a tuple has two components or more`, with a help to add a component, which names
+    a problem the code does not have. An `or` stands between a clause's whole patterns and
+    nowhere inside one, as it does today, so §5's pattern section says so in one sentence
+    first, beside "Patterns nest to any depth". The parser then names it: `an or stands between
+    a clause's whole patterns`, the help writing the clause's alternatives out,
+    `#(Paste, _) or #(Load, _)`. Small, and built in no particular order (the log's *An `or`
+    Stands Between Patterns*).
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
