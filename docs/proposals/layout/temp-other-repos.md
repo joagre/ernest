@@ -45,6 +45,8 @@ Ernest's change 1 then keeps its Ernest tools in `tools/`, a source root as an a
 6. **`.gitignore`.** Read for drift as Ernest's was; the template's reads clean now, but for item 1's paths.
 7. **A log grown past GitHub's rendering**, split by month as Ernest's would be: a rule in the template for when an application's log grows, not a change now, since the applications' logs are small.
 
+8. **The clean room by messages** (Ernest's `docs/clean_room.md`, 2026-11-04). The template's CLAUDE.md and README say a line is "carried to Ernest" without how, rightly, since the template serves a stranger too, whose channel is Ernest's tracker. One clause makes it exact for both: carried to Ernest by its issue tracker, or, for an application built in Ernest's clean room, by a message to Ernest's session. `ernest-httpd`'s `docs/language_feedback.md` header names the reply file under Ernest's `docs/tmp/`, which is gone: the verdict comes by message, as the clean room now says. `ernest-epx` names neither.
+
 ## Not carried
 
 - Ernest's own: the role-named `src/` directories (toolchain, shared, runtime, nodes), the shims beside their libraries, `release/`, the examples' and tests' renames, `docs/reviews/`, `code_style.md` and `memory_checks.md`, the "Code travels" claim and the Gleam line. An application has none of these parts.
