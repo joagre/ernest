@@ -6,7 +6,7 @@ An application with a repository of its own is built against Ernest as a strange
 
 The application's session reads its installation's `share/doc/ernest/` and `man`, as a user does, and its own repository. Outside them it reads this file, the archive it is told of, and `ernest-template`, and writes nothing. It reads no source of Ernest's, not when a page is opaque or silent: that is a finding, and reading the source would destroy it.
 
-Ernest's session reads the application's repository, and writes its shape there:
+An application's development is its own session's whole. Ernest's session reads its repository, and writes there only for a change made across the repositories, such as a working rule's or the layout's, which it may make without asking. Such a change reaches its shape alone:
 - what the template gives it: `CLAUDE.md` but for its first two lines, its tool `docs.ern`, and `docs/full_review.md` but for what the application added;
 - the `Makefile`, `.gitignore`, `README.md`, `docs/README.md` and `SECURITY.md`;
 - the move or rename of any file, with the paths that name it.
