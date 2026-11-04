@@ -17,7 +17,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-11-04.** [The Client's Questions](#the-clients-questions-2026-11-04).
+**2026-11-04.** [The Client's Questions](#the-clients-questions-2026-11-04). [A Node's Schedulers](#a-nodes-schedulers-2026-11-04).
 
 **2026-11-03.** [The Release Review Before 0.9.0](#the-release-review-before-090-2026-11-03). [A Node's Limits](#a-nodes-limits-2026-11-03). [The Site's Look, by Hand](#the-sites-look-by-hand-2026-11-03). [The Generator Before MVP 4.15](#the-generator-before-mvp-415-2026-11-03). [The Generator's First Stage](#the-generators-first-stage-2026-11-03). [The Feedback Planned](#the-feedback-planned-2026-11-03). [ernest-httpd's Lines 18 to 21](#ernest-httpds-lines-18-to-21-2026-11-03). [The Generator's Second Stage](#the-generators-second-stage-2026-11-03). [The Pages Read Against the Principles](#the-pages-read-against-the-principles-2026-11-03). [The Generator's Third Stage](#the-generators-third-stage-2026-11-03). [The Mode's Brackets](#the-modes-brackets-2026-11-03). [The Start Line's Length](#the-start-lines-length-2026-11-03). [Projects, a Page of Their Own](#projects-a-page-of-their-own-2026-11-03).
 
@@ -11500,4 +11500,12 @@ The site's client, MVP 4.2's item 4, was built on 2026-11-03 and found two defec
 **Indentation.** The site's HTML had two spaces a level, decided on 2026-11-03, and its CSS and script followed, against *Every language*'s four, which the style test did not hold since it reads tabs alone. Four now holds for every file of the repository, one rule with no corner of its own (principle 2); the depth of a page's HTML costs little, a paragraph being one line however long.
 
 **The rest.** A link keeps the panel while its session runs hidden too, since Hide keeps the session; on a phone, with no panel, a link always loads whole. The notice at an expiry closes by a click or by Escape, its open icon starts a session, and `/shell/` shows none, its frame holding the end's mark; the warning alone is an alert. A long transcript input keeps its Paste in view at the block's right edge. ernest-httpd's session was asked to build its attach word, the restart at the cap, the visitor's two nodes and the CPU cap, which the deployment waits on.
+
+## A Node's Schedulers, 2026-11-04
+
+ernest-httpd's line 24, Ernest's 231. The server is a VM that reports 32 possible processors and 2 online. The host makes a scheduler, and a dirty CPU scheduler, for each processor the machine could have, bringing online those it has, so each node there held about 80 threads and 47 MiB, where 2 of each take 20 threads and 35 MiB. The visitor's container of two nodes then needed about 167 threads and peaked at 145 MiB, past its `--pids-limit 128` and `--memory 128m`, and the host failed to make its threads. *A Node's Limits* measured 37 MB a node on a machine whose possible and online counts agree, which hid it.
+
+A node now sizes both by the processors online, through the flags `ern_carrier:boot_flags` already makes for `limits`. Putting the schedulers under `limits` was weighed and refused: its right value is always what the machine has, so a setting would only be a way to get it wrong (principle 5), and a node sized to the processors it can use is what a reader expects (principle 1). The cost is that a processor brought online later is used after a restart, which §12.5 is to say. Built in MVP 4.15's item 1, the runtime at the host's limits.
+
+The container's caps and CPU share wait on ernest-httpd measuring again after the fix. Its times from start to the example's answer were 8.9 s at half a core, 4.3 s at one and 3.4 s uncapped, and part of them is likely the threads made and woken that the fix removes.
 
