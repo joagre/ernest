@@ -11387,6 +11387,8 @@ The host's flags cannot reach it, since the launcher clears `ERL_FLAGS` so that 
 
 Building it found the runtime at a full table. `Tcp.listen` and `Tcp.connect` answer `Left(Other("a system limit was hit, probably not enough ports"))`, as §12.5 says; `Os.start` faulted as a helper failure where E.23 has it answer `Left(Other(text))`, now fixed. A spawn past the limit of processes kills the reaper and the system processes that spawn for a request, and the first read of standard input at a full port table faults with the host's term: they predate `limits`, which makes them cheap to reach, and the plan's MVP 4.15 item 10 fixes them under one rule.
 
+**A full table and the runtime's end, decided 2026-11-04.** A full process table faults a program, and the runtime must still end it: report the fault, flush its streams, stop. Room kept below the limit for that end was weighed and refused. It would make a node's limit smaller than the one `limits` states by a figure no one chose, and keep a number right as the runtime changes. Instead everything the end uses exists from the run's start, the reaper, the reporter and the streams, standard input's among them, so a full table cannot stop it and the limit means what it says (principles 1 and 5). A step of the end that cannot move to the start comes back to the user with its reason.
+
 ## The Site's Look, by Hand, 2026-11-03
 
 MVP 4.2's first item, decided with the user through the day over the mockup's pages, each served by ernest-httpd so that its own `Content-Security-Policy` held and the user's phone could read it. The decisions file holds every rule; this entry is why the rules are what they are.

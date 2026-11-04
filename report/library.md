@@ -1,6 +1,6 @@
 # Ernest Report: The Standard Library
 
-Revision of 3 November 2026.
+Revision of 4 November 2026.
 
 This file holds the report's Appendices D, E and G. §0 to §9 and Appendices A, B and F are in [`language.md`](language.md), and §10 to §12 and Appendices C and H in [`toolchain.md`](toolchain.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
@@ -645,7 +645,7 @@ Over TCP's system reference (§8.2). The primitives are `listen`, `listenTls`, `
 
 A socket is a process: its address can be sent and killed like any other, and its process monitored. A socket and a listener are bound to their node: their addresses never cross to another (§3.11). Sockets and listeners are foreign processes (§8.4) but not system processes, so `Process.live`, `Process.status` and `Process.faults` include them.
 
-`listenTls` and `connectTls` open a listener and a socket over TLS, by the host's `ssl`, and answer the addresses `listen` and `connect` answer: one set of functions accepts, reads, writes, gives and closes, over TLS or not. `listenTls` takes the server's certificate and its key, each a file in PEM, the certificate's file holding its chain after it, and answers for a file it cannot read what `Fs` answers for the path (E.17), `Left(NotFound)`, `Left(Denied)` or `Left(NotAFile)`, and for one it refuses `Left(Other(text))`, the file's name and what is wrong on one line, `cert.pem: no certificate`, `key.pem: not one key`, `key.pem: not a key`; a key that is not the certificate's is not refused there, and fails each handshake.
+`listenTls` and `connectTls` open a listener and a socket over TLS, by the host's `ssl`, and answer the addresses `listen` and `connect` answer: one set of functions accepts, reads, writes, gives and closes, over TLS or not. `listenTls` takes the server's certificate and its key, each a file in PEM, the certificate's file holding its chain after it, and answers for a file it cannot read or refuses `Left(Other(text))`, the file's name and what is wrong on one line: for one it cannot read, the answer `Fs` gives for the path (E.17), `cert.pem: NotFound`, `cert.pem: Denied` or `cert.pem: NotAFile`, and for one it refuses, `cert.pem: no certificate`, `key.pem: not one key`, `key.pem: not a key`; a key that is not the certificate's is not refused there, and fails each handshake.
 
 A socket `accept` answers on such a listener is accepted before its handshake, which runs in the socket's own process: the first `read` or `write` waits for it within its own milliseconds, a `Left(Timeout)` leaving the handshake under way, and a handshake that fails closes the connection, the read or write waiting answering `Left(Other(text))`, the host's reason, and later ones `Left(Closed)`; a handshake the far end closes before it is done answers `Left(Closed)`.
 
@@ -680,7 +680,7 @@ Tcp.listen : (String, Int) -> Either(Io.Error, Address(ListenerMsg)) // host, po
 Tcp.port : (Address(ListenerMsg)) -> Either(Io.Error, Int) // the port it listens on
 Tcp.accept : (Address(ListenerMsg), Int) -> Either(Io.Error, Address(SocketMsg))
 Tcp.connect : (String, Int, Int) -> Either(Io.Error, Address(SocketMsg)) // host, port; Left(Refused) where the far end refuses the connection
-Tcp.listenTls : (String, Int, Path, Path) -> Either(Io.Error, Address(ListenerMsg)) // host, port, the certificate's file and the key's, in PEM; Left(Other(text)) where the host refuses either
+Tcp.listenTls : (String, Int, Path, Path) -> Either(Io.Error, Address(ListenerMsg)) // host, port, the certificate's file and the key's, in PEM; Left(Other(text)) where it cannot read or refuses either
 Tcp.connectTls : (String, Int, Verification, Int) -> Either(Io.Error, Address(SocketMsg)) // host, port, the check of the far end's certificate; answers once the handshake is done
 Tcp.read : (Address(SocketMsg), Int) -> Either(Io.Error, Bytes) // what has arrived, at least one byte
 Tcp.write : (Address(SocketMsg), Bytes, Int) -> Either(Io.Error, Unit)

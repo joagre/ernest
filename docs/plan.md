@@ -58,8 +58,10 @@ goes to that program's session, as `docs/clean_room.md` says.
 
    One rule fixes them: every spawn and port the runtime
    makes for a request answers its asker with `Fault("error:system_limit")`, the system
-   process living on, and standard input's port opens with the run's other streams. Whether
-   a full table must leave room for the runtime's own end is decided here. A test under a
+   process living on, and standard input's port opens with the run's other streams. A full
+   table leaves no room for the runtime's own end, decided 2026-11-04: everything the end
+   uses exists from the run's start, so a node's limit is the one `limits` states; a step
+   that cannot move there comes back to the user. A test under a
    node of 1024 processes, and one of 1024 ports, holds each (the log's *A Node's
    Limits*). Beside them, feedback 222, ernest-httpd's 18: a
    certificate or a key `Tcp.listenTls` cannot read, or that is not there, answers as a file
