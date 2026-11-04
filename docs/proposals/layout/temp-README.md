@@ -45,7 +45,7 @@ Some(5) : Optional(Int)
 
 `foo` compiled `count` and its type before the process started.
 
-A function that receives runs only in a process whose mailbox takes what it receives, so `count` called from a `main` with another mailbox is refused before the program runs. A Gleam `Subject` lets this through: `process.receive(subject)` compiles wherever a subject is in hand.
+A function that receives runs only in a process whose mailbox takes what it receives, so `count` called from a `main` with another mailbox is refused before the program runs. A Gleam `Subject` lets this through: `process.receive(subject, 1000)` compiles wherever a subject is in hand, and panics at run time in a process that does not own it.
 
 ```console
 $ ern build other.ern

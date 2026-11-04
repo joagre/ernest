@@ -2,14 +2,18 @@
 
 The actions from the walk of 2026-11-04. The reasons are in `temp.txt`.
 
-## 1. Check first
+## 0. Before anything is built
 
-- [ ] Open https://github.com/joagre/ernest/blob/main/docs/log.md and see whether GitHub renders it (2.6 MB). The answer decides 2's log split.
+- [ ] An independent reader, one who has not heard this proposal's reasoning, reads this checklist and the tree, asked what breaks and what it misses; its findings are decided before 3 begins (decided with the user 2026-11-04)
+
+## 1. Checked
+
+- [x] GitHub does not render `docs/log.md`, 2.6 MB: checked by the user 2026-11-04. So 2's split is needed, and the site's citations of the log, which link its anchors on GitHub, are broken until it is made.
 
 ## 2. Before 1.0's launch
 
 - [ ] Add `SECURITY.md`: where to report a security hole privately.
-- [ ] If the log does not render: split `docs/log.md` by month into `docs/log/<year>-<month>.md` and so on, with one file there holding the index and the standing sections; the generator and the documents test resolve a citation's title to its file and anchor.
+- [ ] Split `docs/log.md` by month into `docs/log/<year>-<month>.md` and so on, with one file there holding the index and the standing sections; the generator and the documents test resolve a citation's title to its file and anchor.
 
 ## 3. The restructuring, in one commit with its sweep, after MVP 4.2 closes and before MVP 4.15's item 2
 
@@ -70,10 +74,10 @@ A rename of a document changes, in its own commit, CLAUDE.md's owner row and `do
 
 ## 6. Files (`temp-files.md`), before MVP 4.4's full review
 
-- [ ] `README.md` ← `temp-README.md`, after the Gleam check; `ern_tour_tests`' cases follow its sessions, and its sessions' start lines are brought to `VERSION`, which `make version` leaves a proposal's as written
-- [ ] `guide/why.md` ← `temp-why.md`, after the Gleam check
+- [ ] `README.md` ← `temp-README.md`; `ern_tour_tests`' cases follow its sessions, and its sessions' start lines are brought to `VERSION`, which `make version` leaves a proposal's as written
+- [ ] `guide/why.md` ← `temp-why.md`
 - [ ] The first claim renamed "Code travels": `guide/why.md`, its anchor `#code-travels`, the homepage, the site's fixture `test/fixtures/site/tree/guide/why.md` with its expected pages, and the homepage rule of `docs/proposals/site/decisions.md`, live while MVP 4.2 is open
-- [ ] Gleam's `process.receive` checked against `gleam_erlang`'s current documentation, the call and the claim, in the README, `why.md` and `guide/faq.md`
+- [x] Gleam's `process.receive` checked 2026-11-04 against `gleam_erlang` v1.3.0's documentation: the call is `receive(from subject, within timeout)`, and a process that does not own a non-named subject panics when it receives with it. The drafts write `process.receive(subject, 1000)`, which "compiles wherever a subject is in hand, and panics at run time in a process that does not own it"; `guide/faq.md`'s two sentences, the typed send and the reply `Subject`, stand as they are
 - [ ] `tools/release/README.md`'s first sentence: the new README's
 - [ ] CLAUDE.md redrafted rule for rule: the owner table's `docs/` rows to one, the plain register; then every old rule mapped to a new sentence
 - [ ] `SECURITY.md`'s content, decided with the user when this is planned
