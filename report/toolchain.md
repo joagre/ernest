@@ -495,6 +495,8 @@ A failure of `ern` itself exits with status 70. A job whose standard output or s
 
 What the runtime does behind the rules of §7 to §9, which a program relies on through those sections alone and a toolchain promises whole: its system processes, the host's terms for Ernest's values, the causes it raises at its boundaries, how it ends a program, and the carrier between nodes with its frames, its exchange and its measure of a node's load. §10 states what every runtime must give, and this chapter how this one gives it; the keys of §12.1 and the causes of §12.3, which a program matches, bind every runtime as §10 does.
 
+The runtime runs one scheduler, and one scheduler for the host's long native calls, for each processor its program may run on as it starts: the processors online, within those the operating system lets it use. A processor brought online later is used from the next start.
+
 ### 12.1 The system processes
 
 The system processes of §8.2, what each does with what its module asks.

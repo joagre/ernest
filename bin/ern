@@ -119,9 +119,19 @@ case ${1-} in
         set -- "$job" "$@"
         ;;
 esac
+# Report §12: the host makes a scheduler, and a dirty CPU scheduler, for
+# each processor the machine could have, and brings online those it has;
+# a host is given one of each for every processor it may run on, nproc's
+# count, or getconf's where there is no nproc, so that a machine with more
+# possible processors than online ones costs no threads that never run.
+processors=$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null) || processors=
+case $processors in
+    ''|*[!0-9]*|0) schedulers= ;;
+    *) schedulers="+S $processors:$processors +SDcpu $processors:$processors" ;;
+esac
 flags=
 if [ -n "$node" ]; then
-    flags=$(erl +B -boot no_dot_erlang -noshell -noinput \
+    flags=$(erl +B $schedulers -boot no_dot_erlang -noshell -noinput \
         -pa "$tree"/erl/*/ebin -run ern_cli node_flags -extra "$@" 2>/dev/null) || flags=
     case $flags in
         "ern-node-flags "*) flags=${flags#ern-node-flags } ;;
@@ -133,5 +143,5 @@ eval "set -- $flags -run ern_signals install -run ern_cli start -extra \"\$@\""
 # Report §8.6: ern takes the host's signals as the first thing the host
 # runs, before the entry's module is loaded, since until then the host's
 # own handler ends a program with status 0.
-exec erl +B -boot no_dot_erlang -noshell -noinput \
+exec erl +B $schedulers -boot no_dot_erlang -noshell -noinput \
     -pa "$tree"/erl/*/ebin "$@"

@@ -78,14 +78,10 @@ goes to that program's session, as `docs/clean_room.md` says.
    entry waiting for the reaper's word of its end while the test's reporter held the reaper
    until that end. Not yet diagnosed; diagnosed and fixed here, held the same way.
 
-   Feedback 231, ernest-httpd's 24, found 2026-11-04: the host makes a scheduler thread, and a
-   dirty CPU scheduler, for each processor a machine could have, so a node on a VM of 32
-   possible processors and 2 online holds about 80 threads and 47 MiB, where 2 of each take 20
-   and 35. A node's flags, `ern_carrier:boot_flags`, size both by the processors online, `+S`
-   and `+SDcpu`, with no setting of their own; §12.5 first, saying that a processor brought
-   online later is used after a restart. ernest-httpd's two-node container, and so MVP 4.2's
-   deployment, waits on it, and the container's caps and CPU share are decided from its
-   measurement after the fix (the log's *A Node's Schedulers*).
+   Feedback 231, ernest-httpd's 24, built 2026-11-04 (the log's *A Node's Schedulers*): every
+   host the launcher starts is sized by the processors it may run on. ernest-httpd's two-node
+   container measures again on the next archive, and the container's caps and CPU share are
+   decided from that.
 
 2. **The host's collection at the wait.** A process that drops a value and waits holds it until
    its next collection, which the host runs only as the process allocates (§10): the server's

@@ -1051,6 +1051,47 @@ launcher_names_a_missing_iconv_test() ->
     ?assertMatch({0, <<"ern ", _/binary>>}, Ern("--version")),
     ok = file:del_dir_r(Bin).
 
+%% report §12: the runtime runs one scheduler, and one for the host's long
+%% native calls, for each processor its program may run on: under taskset
+%% to one processor a run's host makes one of each, which its threads'
+%% names in /proc show. A regression test, written after the code: the host
+%% made one of each for every processor the machine could have, 32 on a VM
+%% of 2 online. It does not cover getconf's count where there is no nproc,
+%% nor a machine whose possible processors outnumber its online ones, which
+%% this one may not be.
+schedulers_follow_the_processors_test_() ->
+    ern_nodes_tests:counted_test({waits, 3}, fun schedulers_follow_the_processors/0).
+
+schedulers_follow_the_processors() ->
+    Dir = "build/schedulers",
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(Dir ++ "/held.ern",
+                         "export fn main() : Unit = {\n"
+                         "    Io.println(\"ready\");\n"
+                         "    let _ = Io.readLine();\n"
+                         "    Unit\n"
+                         "}\n"),
+    0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/held.ern"),
+    Run = open_port({spawn_executable, os:find_executable("taskset")},
+                    [{args, ["-c", "0", filename:absname("../bin/ern"), "run", Dir ++ "/held.erc"]},
+                     exit_status, binary, use_stdio, {line, 80}]),
+    ern_nodes_tests:step(ready),
+    receive {Run, {data, {eol, <<"ready">>}}} -> ok
+    after ern_nodes_tests:wait_ms() -> error(not_ready)
+    end,
+    %% taskset, the launcher, erl and erlexec each give way to the next, so
+    %% the port's process is the host's
+    {os_pid, Pid} = erlang:port_info(Run, os_pid),
+    Names = [Name || Comm <- filelib:wildcard("/proc/" ++ integer_to_list(Pid) ++ "/task/*/comm"),
+                     {ok, Name} <- [file:read_file(Comm)]],
+    Count = fun(Prefix) -> length([N || N <- Names, string:prefix(N, Prefix) =/= nomatch]) end,
+    ?assertEqual({1, 1}, {Count("erts_sched_"), Count("erts_dcpus_")}),
+    true = port_command(Run, <<"\n">>),
+    ern_nodes_tests:step(ended),
+    receive {Run, {exit_status, Status}} -> ?assertEqual(0, Status)
+    after ern_nodes_tests:wait_ms() -> error(not_ended)
+    end.
+
 %% report §12.1, §8.6, §11.2: a run whose standard output has lost its
 %% reader ends at once, with status 141, as a shell reports a broken pipe,
 %% and the host says nothing of its own. A regression test, written after

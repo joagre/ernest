@@ -42,6 +42,7 @@ Each `.md` of those paths is staged with each link into the checkout, to a file 
 `bin/ern` is a POSIX sh script, the same in the repository and in an installation. It follows its own links to the tree it stands in, however many lead to it. Before the host starts, it refuses a `PATH` without `iconv` and a working directory whose name `iconv` does not read as UTF-8 (report §11), but for `ern --help` and `ern --version`, which start the host in the root directory, and a `PATH` without `erl`, and it exits with status 141 where standard output or standard error is closed, since the host would open `/dev/null` in its place (report §11.8). It then starts `erl` with the tree's applications, `erl/*/ebin`, on its code path, which holds no compiled Ernest module, since `ern` loads each from its `.erc` at its first call, and:
 
 - `+B`: the interrupt ends it, and opens no break menu (report §8.6);
+- `+S n:n` and `+SDcpu n:n`, `n` the processors it may run on, `nproc`'s count or `getconf`'s where there is no `nproc`: a scheduler and a dirty CPU scheduler for each, where the host would make one of each for every processor the machine could have (report §12); none where neither answers a number;
 - `-boot no_dot_erlang`: `~/.erlang` is not read;
 - `-noshell -noinput`, in that order, since the host takes the last of the two: the host reads no input, and standard input is the runtime's alone (report §12.1);
 - `-run ern_signals install`, first: the host's termination and hangup are `ern`'s before the entry's module is loaded, since until then the host's own handler ends a program with status 0 (report §12.4);
@@ -49,7 +50,7 @@ Each `.md` of those paths is staged with each link into the checkout, to a file 
 
 Before it clears the host's flags, `ERL_AFLAGS`, `ERL_FLAGS`, `ERL_ZFLAGS` and `ERL_LIBS`, it keeps each of them, and `PATH`, `BINDIR`, `EMU`, `PROGNAME` and `ROOTDIR`, which the host's own start sets or changes, as `ERN_GIVEN_<NAME>`, with `ERN_GIVEN` to say so: the runtime's helper puts each back, so that a program's environment is the one `ern` was started in (report Appendix E.23).
 
-It needs `sh`, `readlink` and `iconv`.
+It needs `sh`, `readlink` and `iconv`, and uses `nproc` or `getconf` where either is there.
 
 ## The release archive
 

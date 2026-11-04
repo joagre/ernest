@@ -11513,6 +11513,8 @@ A node now sizes both by the processors online, through the flags `ern_carrier:b
 
 The container's caps and CPU share wait on ernest-httpd measuring again after the fix. Its times from start to the example's answer were 8.9 s at half a core, 4.3 s at one and 3.4 s uncapped, and part of them is likely the threads made and woken that the fix removes.
 
+**Built, 2026-11-04.** The plan put the sizing in a node's flags, where it was found, but every host the launcher starts makes the same threads, a plain `ern run` and the shell's own among them, so the launcher sizes them all: `+S n:n` and `+SDcpu n:n`, `n` being `nproc`'s count of the processors the process may run on, online and within its CPU set, or `getconf`'s where there is no `nproc`. That is one fork of a small program a run, against a second start of the host, which computing it in Erlang for a plain run would have cost. §12 says it once for the runtime. A test runs a program under `taskset` on one processor and counts its host's scheduler threads by their names in `/proc`; on this machine of eight processors it counted eight of each before.
+
 ## An `or` Stands Between Patterns, 2026-11-04
 
 Feedback 232, felt as the site's generator was written. `#(Paste or Load, _) ->` is refused as a tuple of one, `a tuple has two components or more`, with the help to write the component itself or add another, since the parser reads `Paste` as the tuple's one component and stops at `or`. The message names a problem the code does not have, which is a defect of the diagnostic (principle 1).
