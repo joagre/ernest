@@ -1,0 +1,531 @@
+A proposal: the repository's directory hierarchy by least surprise (2026-11-04)
+
+Agreed with the user as a direction; tentative until the user says it is
+ready, then planned as an item of its own.
+
+The rule
+--------
+A directory holds one kind of thing, named for it. A program or a library
+stands in one place, its host half beside its Ernest, so a reader who opens
+it finds all of it. Every directory of source is named by its role, never by
+its language.
+
+The changes
+-----------
+1. The Ernest programs leave tools/ for src/tools/, a source root beside
+   src/shell:
+     tools/site.ern, tools/site/  ->  src/tools/site.ern, src/tools/site/
+     tools/manual.ern             ->  src/tools/manual.ern
+     tools/ern_site.erl           ->  src/tools/site/ern_site.erl, the
+                                      generator's shim beside it, by 2
+   tools/ keeps only what works on the repository: install.sh, version.sh,
+   paragraphs.sh, comments.sh, strip.escript and unicode_width.escript;
+   release/ leaves it too, by 3.
+
+2. A library's shim stands beside its Ernest:
+     erl/json/src/ern_json.erl      ->  src/libs/json/ern_json.erl
+     erl/http/src/ern_http.erl      ->  src/libs/http/ern_http.erl
+     erl/base64/src/ern_base64.erl  ->  src/libs/base64/ern_base64.erl
+   Each test goes with it, erl/<lib>/test/ern_<lib>_tests.erl to
+   src/libs/<lib>/test/. erl/ then holds the toolchain, the runtime and
+   shared alone. The runtime's modules the standard library calls stay in
+   erl/runtime: they are the runtime's, not a library's shim.
+
+3. tools/release/ becomes a top-level release/. It holds no tool: its
+   README.md and Makefile are the archive's own files, which
+   tools/install.sh stamps with the version, the README kept by an
+   installation as share/doc/ernest/README.md. They are the release's
+   content as site/ is the site's: site/ holds what make site fills, and
+   release/ what make release fills. tools/ is then the repository's
+   scripts alone. Touches tools/install.sh's paths, the Makefile's comment,
+   CLAUDE.md's owner row for tools/release/README.md, and the documents
+   that cite it.
+
+4. erl/ goes, and all the source stands under src/, named by role and not
+   by language, as Go's tree is (src/cmd, src/runtime, a directory a package):
+     src/toolchain/   lexer, parser, checker, emitter, formatter, cli
+     src/shared/      what the toolchain and the runtime both use (ern_tree)
+     src/runtime/     the runtime, its Erlang and its C helper
+     src/stdlib/      the standard library, as now
+     src/libs/<lib>/  each library, its Ernest and its shim together (2)
+     src/shell/       as now
+     src/tools/       the site generator and manual.ern, each with its shim (1)
+   Why: once 1 and 2 place code by role, erl/ would hold most of the Erlang
+   and not all, and its name would promise what the tree no longer keeps
+   (principle 1). With every directory named by role, src/ holds all the
+   source, as a newcomer expects, and no name needs explaining. The tree
+   moves once, to a layout with no exception.
+
+What it touches, to read before it is built
+-------------------------------------------
+- The size: every path under erl/ moves, the largest of the changes, in one
+  commit with its sweep.
+- The build: how a shim beside its library compiles. Today each is an OTP
+  app with its own Makefile and ebin under erl/; a co-located one needs one
+  rule for every library, its .beam written under build/libs/<lib>/. The
+  Makefile, erl/app.mk and test/Makefile.
+- The installation: where an installed library's .beam goes, and the
+  launcher's -pa erl/*/ebin, which becomes the toolchain's and the runtime's
+  ebin (docs/design/install.md, tools/install.sh). The
+  installed layout may stay as it is; only the source moves.
+- Report Appendix G and §11.2's --libs-dir and the toolchain's own
+  libraries, wherever they name a path.
+- docs/architecture.md, docs/development.md, docs/design/*.md, CLAUDE.md
+  (its src/libs/ sentence), the site's decisions, every comment and test that
+  names a moved path, and THIRD_PARTY_LICENSES if it names one.
+- `make site`'s and `make man`'s paths to the generator and manual.ern.
+- The ernest-template and the three application repositories, if any names
+  a toolchain path; they should name none.
+
+How the three harder parts are solved
+-------------------------------------
+1. A shim beside its library needs no OTP app. Report §11.2: a foreign
+   fn's module is "a .beam file of that name in a directory of the load
+   path", and a library's build directory, build/libs/<lib>/ beside its
+   .erc, is one. So one Makefile rule compiles every src/libs/<lib>/*.erl
+   into build/libs/<lib>/, its tests run with that directory on the code
+   path, and the installation, which copies a library's build directory
+   whole, takes the .beam with it. erl/json, erl/http and erl/base64, each
+   an app with its own Makefile and ebin, go.
+2. The launcher is the same script in the repository and an installation
+   (docs/design/install.md), so the installed tree mirrors the source's new
+   names: -pa src/toolchain/*/ebin and src/runtime/ebin, and
+   tools/install.sh's copy list with them. Checked 2026-11-04: ernest-epx,
+   ernest-httpd and ernest-template name no path inside Ernest's
+   installation; their erl/ is their own host applications for --libs-dir,
+   and they build through `ern` alone, so they are untouched.
+3. The runtime finds its C helper by code:priv_dir(runtime), which follows
+   the app's directory: src/runtime/ stays an app with ebin and priv. The
+   rest is a search of the Erlang for paths made from "erl", each hit read
+   and moved; make test-full, the documents test's check that a cited path
+   exists, and the site's link check hold what the search misses.
+
+A partial example
+-----------------
+Found while drawing it: the Erlang is built inside its source today,
+erl/<app>/ebin, and the Ernest under build/. Moved as it is, build output
+would stand inside src/. So every build product goes under build/, and an
+installation is bin/ and build/ alone.
+
+The top level, after:
+
+    ACKNOWLEDGMENTS.md  CHANGES.md  CLAUDE.md  CONTRIBUTING.md  LICENSE
+    Makefile  README.md  THIRD_PARTY_LICENSES  VERSION
+    assets/    the logos
+    bin/       ern, the launcher
+    docs/      the project's documents
+    editors/   the Emacs mode
+    examples/  example programs
+    guide/     the guides
+    report/    the report
+    site/      the site's templates and root
+    src/       all the source
+    test/      the integration tests
+    release/   the release archive's own files, as site/ is the site's
+    tools/     the repository's own scripts
+    tour/      the tour
+    (build/    every build product, untracked)
+
+The source, before and after (a part):
+
+    before                               after
+    erl/lexer/src/ern_lexer.erl          src/toolchain/lexer/src/ern_lexer.erl
+    erl/cli/src/ern_cli.erl              src/toolchain/cli/src/ern_cli.erl
+    erl/shared/include/ern_ast.hrl       src/shared/include/ern_ast.hrl
+    erl/runtime/src/ern_rt.erl           src/runtime/src/ern_rt.erl
+    erl/runtime/c_src/ern_exec.c         src/runtime/c_src/ern_exec.c
+    erl/runtime/test/ern_rt_tests.erl    src/runtime/test/ern_rt_tests.erl
+    erl/json/src/ern_json.erl            src/libs/json/ern_json.erl
+    erl/json/test/ern_json_tests.erl     src/libs/json/test/ern_json_tests.erl
+    src/libs/json/json.ern               src/libs/json/json.ern (stays)
+    src/stdlib/list.ern                  src/stdlib/list.ern (stays)
+    src/shell/ernest/shell.ern           src/shell/ernest/shell.ern (stays)
+    tools/site.ern                       src/tools/site.ern
+    tools/site/links.ern                 src/tools/site/links.ern
+    tools/ern_site.erl                   src/tools/site/ern_site.erl
+    tools/manual.ern                     src/tools/manual.ern
+    tools/install.sh                     tools/install.sh (stays)
+
+The build, before and after (a part):
+
+    before                               after
+    erl/lexer/ebin/ern_lexer.beam        build/toolchain/lexer/ebin/ern_lexer.beam
+    erl/runtime/ebin/ern_rt.beam         build/runtime/ebin/ern_rt.beam
+    erl/runtime/priv/ern_exec            build/runtime/priv/ern_exec
+    erl/json/ebin/ern_json.beam          build/libs/json/ern_json.beam
+    build/libs/json/json.erc             build/libs/json/json.erc (stays)
+    build/stdlib/list.erc                build/stdlib/list.erc (stays)
+    build/shell/...                      build/shell/... (stays)
+    build/tools/site.erc                 build/tools/site.erc (stays)
+
+    The launcher's code path, in the repository and in an installation:
+      before  -pa "$tree"/erl/*/ebin
+      after   -pa "$tree"/build/toolchain/*/ebin -pa "$tree"/build/runtime/ebin
+    A library's shim needs no path of its own: its .beam stands beside its
+    .erc, on the load path (§11.2).
+
+An installation, before and after:
+
+    before  lib/ernest/bin/, lib/ernest/build/{libs,shell,stdlib}/,
+            lib/ernest/erl/<app>/{ebin,priv}/
+    after   lib/ernest/bin/, lib/ernest/build/{toolchain,runtime,libs,shell,stdlib}/
+
+One more: no src/ inside src/
+-----------------------------
+The example's src/toolchain/lexer/src/ern_lexer.erl names src/ twice. The
+inner src/ is OTP's habit of an app's sources beside its ebin/; with every
+ebin under build/, nothing in the app's directory needs it. So an app is one
+directory, its modules beside its include/ and test/:
+
+    src/toolchain/parser/ern_parser.erl
+    src/toolchain/parser/include/ern_ast.hrl
+    src/toolchain/parser/test/ern_parser_tests.erl
+    src/runtime/ern_rt.erl, src/runtime/c_src/, src/runtime/include/
+
+The headers are named by -include_lib("parser/include/..."), about a
+hundred lines. The compiler looks for an -include_lib file along its include
+path before it asks for the app's directory, so `erlc -I src/toolchain`
+finds them in the source tree, with the ebin under build/. To confirm by a
+probe before anything moves. erl/app.mk, which runs in each app's src/ with
+-I ../include, is rewritten for the flat app.
+
+Wrinkles found by reading the code, 2026-11-04
+----------------------------------------------
+Confirmed by a probe: -include_lib("parser/include/ern_ast.hrl") resolves
+through `erlc -I src/toolchain` alone, the app on no code path.
+
+Four change what Ernest does, not only where a file stands:
+
+W1. A test is told from the toolchain's code by its place. app.mk compiles
+    an app's tests into its own ebin, and three functions (ern_rt:is_test,
+    ern_carrier:is_test, ern_cli's application_code) take a .beam for a
+    test's where <app>/test/<module>.erl stands beside its ebin's parent.
+    With ebin under build/ and the source under src/, that file is never
+    there, so every test would count as the toolchain's own code.
+    Solution: tests compile into a directory of their own,
+    build/toolchain/<app>/test/, never the ebin, and the three is_test
+    checks go: what is in an ebin is the toolchain's. An installation then
+    holds no test by its shape, not by a filter in tools/install.sh.
+
+W2. The node's code digest covers the shims today and would not after.
+    ern_carrier:code_digest hashes erl/*/ebin/*.beam, json's, http's and
+    base64's shims among them, with the stdlib's and the shell's libraries'
+    .erc; it is a development build's floor (Floor, CodeDigest, Cookie).
+    Moved to build/libs/<lib>/, the shims leave the glob, and two builds
+    whose json shims differ would connect. Solution: the digest covers
+    every .beam of build/libs/ too, or the library's .erc and its .beam
+    together for every library the installation holds.
+
+W3. The runtime's own modules: ern_rt:own_modules takes every non-test
+    .beam of erl/*/ebin as the host's own, found first and never a
+    program's foreign module (report §11.2's foreign lookup). The moved
+    shims would become .beam files of the load path instead, a program's
+    rank and not the toolchain's: a program's own ern_json.beam earlier on
+    its load path could then shadow the library's. Solution: own_modules
+    covers the libraries' .beam files under build/libs/ as the toolchain's
+    own, and §11.2's sentence names them so.
+
+W4. The toolchain's newest time: ern_cli:toolchain_modified takes the
+    newest .beam of erl/*/ebin, which decides when make's markdown and man
+    outputs are stale (§11.4); the shims count today. Solution: the same
+    reach as W3's, so one function lists the toolchain's code and all three
+    users ask it.
+
+The rest is mechanical, each a path or a depth:
+- ern_tree:tree() splits shared's ebin path as ["erl","shared","ebin",_],
+  four deep; it becomes ["build","toolchain","shared","ebin",_], five.
+- ern_cli:toolchain_modified climbs three dirnames from its own .beam.
+- ern_doc_tests' ROOT "../../.." and ern_cli_tests' "../../..", the
+  tests' working directory under their app.
+- app.mk's -DVERSION ../../../VERSION, and -I ../include.
+- The C helper's Makefile writes ../priv; it writes build/runtime/priv.
+- 15 Makefiles name erl/ (one generic app rule replaces the per-app ones),
+  4 shell scripts (bin/ern, tools/install.sh, and two more), .gitignore,
+  THIRD_PARTY_LICENSES (the vendored getopt's path), and the dialyzer
+  target's PLT over erl/*/ebin.
+- 15 documents name erl/; the documents test lists each stale path.
+- 21 Erlang files name erl/, most in comments.
+
+One for the operator: an installation upgraded in place. tools/install.sh
+must remove the old layout's lib/ernest/erl/ when it installs the new, or
+an old prefix keeps both; how it uninstalls today, by its manifest or by
+the directory, decides it.
+
+Verdict, 2026-11-04: better on least surprise (src/ is the source, build/
+what is built, tools/ the repository's scripts), on finding things (a
+library is one directory, its Ernest, its shim and the shim's test; a role
+is one directory), and on understanding (an installation is bin/ and build/,
+the build laid out as installed). Ready to plan with W1 to W4 decided as above, after MVP 4.15 and
+before MVP 4.4's full review; the include probe has held.
+
+Kept as they are
+----------------
+- An application's erl/, in ernest-template and the programs begun from it:
+  there everything is host applications for --libs-dir, so the name is its
+  role, and an application's erl/ never meets Ernest's src/.
+- host/ for erl/ was weighed and refused before erl/ itself went: the report
+  uses "the host" for BEAM and OTP, so host/ would read as the host's own
+  code, and the glossary's Host already names a node name's part after `@`.
+- Tests in two places: each app's test/ beside it, under src/toolchain/ and
+  src/runtime/ as under erl/ today, and the top-level test/ for the
+  integration tests, OTP's convention.
+- report/, guide/, tour/, examples/, docs/: the reader's doors.
+- site/, the site's data; editors/, assets/, bin/: each one thing.
+
+tools/ after the four changes
+-----------------------------
+Six scripts, each run by a make target on the repository or its build:
+install.sh (stage, install, uninstall, the archive), version.sh (VERSION
+and the lines that name it), strip.escript (an installation's modules
+without the host's debug information), unicode_width.escript (the stdlib's
+width table from Unicode's data), paragraphs.sh and comments.sh (the long
+paragraphs and comments, listed). Nothing in it is shipped, built from or
+read by a program: tools/ is the repository's own tools, as its name says.
+
+Aside, not the layout's: CLAUDE.md has a tool's work written in Ernest
+where it could be. paragraphs.sh, comments.sh and unicode_width.escript are
+text processing Ernest can do; install.sh and strip.escript (the host's
+beam_lib) have reasons to stay as they are. To weigh on its own.
+
+Scripts outside tools/, surveyed 2026-11-04
+-------------------------------------------
+Every tracked file with a shebang, an executable mode or a script's
+extension: three outside tools/, and none sifts Unicode's data, which is
+tools/unicode_width.escript's work.
+- bin/ern, the launcher: stays.
+- test/ern_changes.py, a test's helper that watches a directory and says
+  `changed`, in Python since neither Erlang nor Ernest can watch a file
+  system (docs/development.md names python3 among the tests' needs).
+- test/machines/nodes.sh, the multi-machine test's driver.
+Both test/ files are tests' own helpers, used by tests and by nothing else,
+so test/ is their place by role: they stay.
+
+The walk, one top-level entry at a time
+=======================================
+
+Top-level files
+---------------
+Kept, each a name a visitor knows: README.md, LICENSE, CONTRIBUTING.md,
+CHANGES.md, ACKNOWLEDGMENTS.md, VERSION, Makefile, CLAUDE.md,
+THIRD_PARTY_LICENSES, .gitignore.
+- Missing: SECURITY.md. CONTRIBUTING.md sends a defect to the public issues,
+  but a security hole should not go there: the carrier between nodes, TLS,
+  the cookie, and once the site is live the shell's sandbox a visitor
+  reaches. Before 1.0's launch, a short SECURITY.md says where to report one
+  privately; GitHub shows it in the repository's Security tab.
+- .gitignore has drifted: `*.erc` stands under "Local env" though it is
+  Ernest's build output; `.env` and `.env.local` are boilerplate, since
+  nothing reads one; and with every build product under build/ (change 4)
+  the lines for /erl/runtime/priv/ern_exec and *.beam fold into /build/.
+
+assets/
+-------
+Kept. Six logos and a README of where each is used; the names say what each
+is (-mark the stoat alone, -combined the full logo, -avatar and -social
+GitHub's, -light and -dark the background). The site's site/root/assets/ is
+no second meaning: the site serves the logos it uses under /assets/, so
+/assets/ernest-mark.svg on the site is assets/ernest-mark.svg here. The two
+GitHub images are named by no file, being uploaded to GitHub's settings by
+hand; this is their source, and the README says so.
+
+bin/
+----
+Kept. ern alone, the launcher, the same in the repository and an
+installation.
+
+docs/
+-----
+1. The log is 2.6 MB in one file, 11,543 lines. GitHub likely shows a file
+   that large raw and unrendered; its exact limit is to check, by opening
+   https://github.com/joagre/ernest/blob/main/docs/log.md. If so, it is a
+   defect for 1.0: the site links each citation of the log to
+   docs/log.md#anchor on GitHub, and an unrendered file has no anchors.
+   Then: split it by month, docs/log/2026-10.md and so on, with
+   docs/log/README.md holding the index and the standing sections;
+   citations stay by title, which the index and the generator resolve to a
+   file and an anchor. Reaches the generator, the documents test and
+   CLAUDE.md's owner row; before the site goes live.
+2. docs/proposals/fides/ has no README.md, which every proposal's directory
+   has, saying what its files are and which is current; it holds
+   proposal.md alone, version 9.1. CLAUDE.md lets a program's proposal live
+   here before its repository exists, but not without its README.
+3. A proposal not built stays, decided with the user 2026-11-04: one refused,
+   as beam_op_codes/ was on 2026-10-30, or one not taken up, is kept as the
+   record of what was weighed, since its reasons and experiments have no
+   other owner; only a built proposal goes, by CLAUDE.md's rule as it
+   stands. Its README's status line says it was refused or not built, so no
+   reader takes it for current; beam_op_codes/'s says so already. CLAUDE.md's
+   *Proposals* gains the sentence when this note is planned.
+4. The three review procedures, release_review.md, full_review.md and
+   principles_review.md, could stand together as docs/reviews/release.md,
+   full.md and principles.md. Taken, 2026-11-04.
+5. memory.md is "how memory is checked", the runtime's and the toolchain's,
+   but "memory" here also suggests the session's own; memory_checks.md
+   would say which. Taken, 2026-11-04.
+Kept: design/, the generated diagnostics.md and man/ (committed so GitHub
+shows them), architecture.md, development.md, style.md, soundness.md,
+plan.md, language_feedback.md, otp_bugs.md, module_doc_template.md,
+clean_room.md and README.md, each one thing named for it.
+
+editors/
+--------
+Kept: emacs/, the mode (ernest-mode.el), its README, and test/ with eight
+.el scripts and broken/, as an Emacs mode is laid out (rust-mode alike);
+editors/ in the plural leaves room for a second editor, each a directory.
+- test/broken/ holds sources caught mid-typing, not broken tests: a
+  `Some([match x {` with nothing after it, which the mode must still indent.
+  half_typed/ would say what they are. Taken, 2026-11-04.
+- The mode's layout fixtures stand in two places by who reads them:
+  test/fixtures/layout/ at the top, which the formatter's style test reads
+  too, and broken/ beside the mode, the mode's alone. Nothing to change.
+
+examples/
+---------
+Kept: fourteen programs side by side, upgrade/ with its v1/ and v2/ for the
+two builds an upgrade needs, README.md by topic, each program's header
+saying what it shows. Three names do not say what their program is:
+1. word_count.ern is not `wc`; tally.ern is ("in the manner of `wc`").
+   word_count.ern counts each word's occurrences, written once over two kinds
+   of map, its subject the maps. Rename it word_frequency.ern, and tally.ern
+   wc.ern, since the tour's tally.ern is another thing (see tour/ below).
+2. repl.ern is an interpreter of a small calculator language (numbers,
+   `let`, functions of one argument), not Ernest's REPL, which a language
+   whose shell is a REPL makes its name suggest. Rename it interpreter.ern.
+3. typed_channels_nodes.ern, a counter with a typed mailbox offered on one
+   node and called from another: remote_counter.ern. Taken, 2026-11-04.
+Each rename reaches the README, the tests that build the examples, and any
+guide or tour page citing the file; the documents test lists those left.
+
+guide/
+------
+Kept: language.md (the guide, Programming in Ernest, which the site splits
+into chapters), why.md, faq.md, deployment.md and style.md, the README
+naming each one's reader. why.md and faq.md are no guides in the strict
+sense, but the directory holds what a user reads, as the README's first
+sentence says; the tour is a directory of its own for its eight programs.
+- Two files are named style.md: guide/style.md, how a program in Ernest
+  looks, a user's; and docs/style.md, how this repository's own code looks,
+  its Erlang, C, shims and the toolchain's glossary. CLAUDE.md tells them
+  apart by path, but a search result, an editor's tab or a citation without
+  its directory does not. Renaming the repository's, docs/code_style.md,
+  makes the pair plain; the user's keeps the name a user expects. Taken, 2026-11-04.
+
+report/
+-------
+Kept: language.md (§0 to §9, A, B, F), toolchain.md (§10 to §12, C, H),
+library.md (D, E, G) and README.md, each file under 200 KB, so GitHub shows
+it whole. The appendix letters stand scattered across the files, F after B
+in language.md, so a letter does not tell its file; but the report's
+numbers never change (CLAUDE.md), and the README states the rule a reader
+needs, a citation's first number or letter names its file. A stated cost,
+not a fault.
+
+site/
+-----
+Kept: templates/ (the pages' templates and 25 fragments, with the README of
+their tokens a test holds), root/ (laid out as served: the CSS, the
+scripts with the vendored xterm.js, the icons), and three content files,
+example.md (the homepage's example), projects.md (the Projects list) and
+unrunnable.md (the blocks a bare shell cannot run, which its test holds).
+After the proposal the generator's code is src/tools/site/ and this its
+data, as with release/.
+- site/ has no README: a reader opening it on GitHub sees root/, templates/
+  and three files with nothing saying what root/ means or which is which.
+  docs/development.md's layout owns it; by CLAUDE.md's rule that a fact a
+  reader must not miss gets one line naming its owner where that reader
+  looks first, a site/README.md of a few lines points at the layout and at
+  templates/README.md.
+
+src/, inside
+------------
+Kept. stdlib/: a file a module, named for it (ordered_map.ern is
+OrderedMap). libs/: a directory a library, one file each for one top-level
+module (http/http.ern is Http, its page Ernest.Http), which is what lets
+each shim move in beside it (change 2). shell/: its modules under
+ernest/shell/, as the path rule asks of the Ernest.Shell namespace, with
+its README.
+- The vendored getopt.erl in erl/cli stays beside what uses it after the
+  move, src/toolchain/cli/getopt.erl, its upstream header kept and
+  THIRD_PARTY_LICENSES listing it; a vendor/ directory is not worth it for
+  so few files.
+Still to walk: test/ and tour/.
+
+test/
+-----
+1. The bench's modules stand among the tests: fourteen *_costs.erl, with
+   ern_bench.erl, ern_measure.erl and ern_last_run.erl, are make bench's,
+   not make test's, beside some thirty test modules. Group them in
+   test/bench/, as fixtures/bench/ and machines/ already are.
+2. fixtures/expected/ holds what a program prints (.out) and
+   fixtures/golden/ the Erlang the emitter writes (.erl): two words for "the
+   right answer", which do not say which answer. Name them for what they
+   hold: outputs/ and emitted/.
+3. Kept: the suffixes tell the kinds (_tests.erl an EUnit module, _costs.erl
+   a bench part); the harness's helpers (ern_pty, ern_repository,
+   ern_grammar) stand beside the tests they serve, as Erlang's tests do; the
+   fixtures go by subject (site/, peers/, programs/, session/, terminal/...).
+- fixtures/expected/repl.out and typed_channels_nodes.out carry examples'
+  names, so the examples' renames reach them.
+
+tour/
+-----
+Kept: README.md holds the tour's text, eight chapters, so GitHub shows it as
+the directory opens; each chapter's program stands in tour/1/ to tour/8/,
+numbered as the chapters are, held equal to the text by a test.
+- Two tally.ern mean two things: the tour's is a module, Tally(k), an
+  abstract type of counts by key that chapters 5 to 8 build on; the
+  example's is a tool of lines, words and bytes, in the manner of `wc`. So
+  the example becomes wc.ern (examples/ point 1), and "Tally" is the tour's
+  alone, whose text uses it throughout.
+
+The walk is done: every top-level entry read, 2026-11-04.
+
+Corrections from reading the suggestions against the code, 2026-11-04
+--------------------------------------------------------------------
+- shared/ goes to src/shared/, not src/toolchain/shared/: the runtime uses
+  it too, ern_rt and ern_code finding the tree through ern_tree.
+- The include path is `-I src -I src/toolchain`: the runtime and a shim
+  name runtime/include by -include_lib("runtime/..."), which -I src finds.
+- The log keeps the paths it cites, 94 of them, as history; the documents
+  test leaves it out by design, so the sweep does not touch it.
+
+The runtime and the toolchain, read 2026-11-04
+----------------------------------------------
+The runtime calls the toolchain's code at some 25 sites (ern_emitter,
+ern_canonical, ern_interface, ern_prelude, ern_descriptor), since a node
+compiles while it runs: the shell's inputs, an attached shell's, code
+arriving from a peer. So src/runtime/ naming src/toolchain/ states a true
+dependency, and moving the record headers into shared/ would untangle
+nothing.
+
+The cli app is two things under one name. Its command line: ern_cli,
+ern_build, ern_examples, ern_page, ern_release, ern_out, ern_signals,
+getopt. And the nodes: ern_node, ern_carrier, ern_gateway, ern_exchange,
+ern_arrival, ern_epmd, ern_code_load, report §12.5 to §12.7, the component
+docs/design/nodes.md describes, there only because a node starts from the
+command line. Named by role they are src/nodes/, the component its own
+directory as it is its own design note.
+
+And ern_shell.erl, 5,292 lines, is "the shell's front end, the toolchain
+behind the foreign interface the shell in src/shell/ calls": the shell's
+host half, which change 2's rule puts beside its Ernest, in src/shell/.
+cli/ then holds the command line and its jobs alone.
+
+The layout, so: src/toolchain/ (lexer, parser, checker, emitter,
+formatter, cli), src/shared/, src/runtime/, src/nodes/, src/stdlib/,
+src/libs/<lib>/, src/shell/ (its Ernest and ern_shell.erl), src/tools/.
+
+Change 1 revised, decided with the user 2026-11-04
+--------------------------------------------------
+Read against ernest-template, ernest-epx and ernest-httpd (docs/temp-other-repos.md):
+each keeps an Ernest tool in tools/, tools/docs.ern, and an application's src/ is
+its program's own source root, where a tool would become a module of the library.
+So the rule across the four repositories is: src/ holds what a release ships, and
+tools/ what works on the repository and is not shipped, in any language. Ernest's
+Ernest tools, site.ern, site/ and manual.ern, stay in tools/, a source root as an
+application's is; only the site's shim moves, tools/ern_site.erl to
+tools/site/ern_site.erl, beside the generator it serves. src/tools/ is not made.
+Every mention of src/tools/ above, in change 1, the layouts and the example,
+stands corrected by this; the role-named src/ holds toolchain/, shared/,
+runtime/, nodes/, stdlib/, libs/<lib>/ and shell/.
+

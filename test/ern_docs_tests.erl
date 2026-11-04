@@ -272,8 +272,8 @@ anchored(Heads) ->
 %% docs/style.md, docs/development.md "The layout of the repository": a document that says
 %% where things are names things that are there, from the repository's root
 %% or, as src/shell/README.md does, from its own directory. The report and the
-%% guide name paths a program might have, `net/http.ern`, the plan
-%% paths not yet written, and the findings' lists the paths of the tree
+%% guide name paths a program might have, `net/http.ern`, the plan and a
+%% proposal paths not yet written, and the findings' lists the paths of the tree
 %% their readers read, so every other document is checked. A regression
 %% test for the paths a document writes from its own directory, which went
 %% unchecked once src/shell/ and docs/proposals/ left the top of the
@@ -600,7 +600,8 @@ documents() ->
 
 %% The documents that describe the repository as it is.
 described() ->
-    documents() -- (?REPORT ++ ["docs/plan.md", "docs/findings.md"]).
+    [File || File <- documents() -- (?REPORT ++ ["docs/plan.md", "docs/findings.md"]),
+             not lists:prefix("docs/proposals/", File)].
 
 %% A backticked path a document writes under one of the repository's own
 %% directories, or under a directory beside the document, as
