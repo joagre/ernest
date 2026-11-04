@@ -114,7 +114,12 @@ commit that made it.
    under a terminal gets its `TERM` and a program its directory without `env` or `sh -c 'cd'`
    in the arguments; the form, which every program that starts a program writes, decided here
    first, since `Command(program, arguments, input)` stands at ten sites of the standard library
-   alone (feedback 184).
+   alone (feedback 184). Beside it, feedback 233, ernest-httpd's 25, found 2026-11-04: `Os` sends
+   a program it started no signal but the terminal's hangup, so a test of a server's orderly
+   end starts it through `sh -c 'echo $$; exec ...'` and runs the host's `kill`. One reading
+   against E.0's rules decides whether `Os` ends a program by the termination signal, as
+   `Os.terminate(program)` or by a signal named, and E.23 then says what the program's
+   process answers.
 10. **`libs/http`'s values**, feedback 186: a value for its ordinary limits and one for HTTP/1.1,
     named by the guide's style, the examples and the pages using them.
 11. **`libs/uri`**, feedback 210, decided with the user 2026-11-03: RFC 3986's authority and
@@ -174,6 +179,15 @@ commit that made it.
     terminal's hangup may come that way, as `eio`, beside the hangup's signal, which §8.6 ends
     the program by, so faulting there would turn the hangup's end into a fault. Whether the
     error is told from a hangup, or §12.1 says the keys end at one, is decided first.
+20. **The runtime at the host's limit of descriptors**, feedback 234, ernest-httpd's 26, found
+    2026-11-04, fixed by 2026-11-12: the runtime loads its own modules, and the host's it calls,
+    on first use, so under `ulimit -n 48` an accept that meets `emfile` cannot load what answers
+    it: the accept neither answers nor ends, `Fs` answers `Timeout` after its full time, the
+    logger's formatter crashes, and a fault is a raw host term. A probe here shows it first.
+    The runtime then loads every module it may call at its start, the host's among them, and
+    the report says what a load does when the host cannot open a module's file, item 1's rule
+    applied to the third of the host's limits. ernest-httpd's test of its listener's retry
+    waits on it (the log's *A Node's Limits*).
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
