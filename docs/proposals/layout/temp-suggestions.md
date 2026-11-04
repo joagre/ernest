@@ -11,7 +11,7 @@ The actions from the walk of 2026-11-04. The reasons are in `temp.txt`.
 - [ ] Add `SECURITY.md`: where to report a security hole privately.
 - [ ] If the log does not render: split `docs/log.md` by month into `docs/log/<year>-<month>.md` and so on, with one file there holding the index and the standing sections; the generator and the documents test resolve a citation's title to its file and anchor.
 
-## 3. The restructuring, in one commit with its sweep
+## 3. The restructuring, in one commit with its sweep, after MVP 4.2 closes and before MVP 4.15's item 2
 
 Moves:
 
@@ -32,7 +32,7 @@ The build:
 - [ ] One generic rule compiles every app and every library's shim; the per-app Makefiles go
 - [ ] `erlc -I src -I src/toolchain`, for `-include_lib` of the toolchain's headers and of `runtime/include`; the exact form confirmed by a probe
 - [ ] The launcher: `-pa "$tree"/build/toolchain/*/ebin -pa "$tree"/build/shared/ebin -pa "$tree"/build/nodes/ebin -pa "$tree"/build/runtime/ebin -pa "$tree"/build/shell/ebin`
-- [ ] An installation is `bin/` and `build/`; `tools/install.sh` removes an old prefix's `lib/ernest/erl/`
+- [ ] An installation is `bin/` and `build/`; `tools/install.sh` removes an old prefix's `lib/ernest/erl/`, and the release's line in `CHANGES.md` says the installed layout changed, for a script that points inside an installation
 
 The code that knows the tree's shape (`temp.txt`, *Wrinkles found by reading the code*):
 
@@ -45,7 +45,9 @@ The documents:
 - [ ] `docs/development.md`'s layout, `docs/architecture.md`, the design notes, CLAUDE.md's owner rows, `THIRD_PARTY_LICENSES`, and every cited path the documents test lists
 - [ ] Not `docs/log.md`: it is history, and keeps the paths it cites as they were; the documents test does not read it
 
-## 4. Renames and additions, each its own commit, before or after 3
+## 4. Renames and additions, each its own commit, before or after 3 and before MVP 4.4's full review
+
+A rename of a document changes, in its own commit, CLAUDE.md's owner row and `docs/README.md` where they name it.
 
 - [ ] `examples/tally.ern` → `examples/wc.ern`
 - [ ] `examples/word_count.ern` → `examples/word_frequency.ern`
@@ -66,11 +68,11 @@ The documents:
 
 - [ ] CLAUDE.md's *Proposals*: a proposal refused or not taken up stays, its README's status line saying which; only a built one goes
 
-## 6. Files (`temp-files.md`)
+## 6. Files (`temp-files.md`), before MVP 4.4's full review
 
-- [ ] `README.md` ← `temp-README.md`, after the Gleam check; `ern_tour_tests`' cases follow its sessions
+- [ ] `README.md` ← `temp-README.md`, after the Gleam check; `ern_tour_tests`' cases follow its sessions, and its sessions' start lines are brought to `VERSION`, which `make version` leaves a proposal's as written
 - [ ] `guide/why.md` ← `temp-why.md`, after the Gleam check
-- [ ] The first claim renamed "Code travels": `guide/why.md`, its anchor `#code-travels`, the homepage, and the site's fixture `test/fixtures/site/tree/guide/why.md` with its expected homepage
+- [ ] The first claim renamed "Code travels": `guide/why.md`, its anchor `#code-travels`, the homepage, the site's fixture `test/fixtures/site/tree/guide/why.md` with its expected pages, and the homepage rule of `docs/proposals/site/decisions.md`, live while MVP 4.2 is open
 - [ ] Gleam's `process.receive` checked against `gleam_erlang`'s current documentation, the call and the claim, in the README, `why.md` and `guide/faq.md`
 - [ ] `tools/release/README.md`'s first sentence: the new README's
 - [ ] CLAUDE.md redrafted rule for rule: the owner table's `docs/` rows to one, the plain register; then every old rule mapped to a new sentence
