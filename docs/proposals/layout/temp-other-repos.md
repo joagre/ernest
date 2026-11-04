@@ -33,6 +33,12 @@ Ernest's change 1 then keeps its Ernest tools in `tools/`, a source root as an a
    - The plain register, as Ernest's CLAUDE.md is redrafted.
 
    The template first, then each copy, as a rule's change always goes.
+
+   Read 2026-11-04. The copies keep close to the template: each differs only in its first two lines, its name and its one-line description, and `ernest-epx` lacks the `deploy/` row, having no `deploy/`. One read covers the three, and one fix carries to them. Each is about 3,300 words.
+   - The owner table makes `README.md` the owner of "what the program is, how it is built, tested and run, and what each document is". With item 4, the README keeps the first three and a new row makes `docs/README.md` the owner of what each document is, Ernest's arrangement in all four.
+   - *Proposals* says when a built proposal goes, as Ernest's does, and gains the same sentence on one refused or not taken up.
+   - The redraft goes in order: Ernest's CLAUDE.md first; then the template's, cut again from it, as its first line says it is "cut from Ernest's own"; then each copy takes the template's whole and keeps its own first two lines. The plain wording is written once, not four times. About 3,300 words to some 2,200, about 1,400 tokens a session in each.
+   - It names no build path: the `build/` changes of item 1 are the Makefile's and `.gitignore`'s.
 6. **`.gitignore`.** Read for drift as Ernest's was; the template's reads clean now, but for item 1's paths.
 7. **A log grown past GitHub's rendering**, split by month as Ernest's would be: a rule in the template for when an application's log grows, not a change now, since the applications' logs are small.
 
