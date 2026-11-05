@@ -3,7 +3,7 @@
           srcset="../assets/ernest-combined-dark.svg">
   <source media="(prefers-color-scheme: light)"
           srcset="../assets/ernest-combined-light.svg">
-  <img src="../assets/ernest-combined-light.svg" alt="Ernest" width="520">
+  <img src="../assets/ernest-combined-light.svg" alt="Ernest" width="256">
 </picture>
 
 # The tour
@@ -627,7 +627,7 @@ The counter on the node started with none of this program's code runs its new co
 In your own terminal, `ern stop --config-dir foo`. The attached shell ends with `foo`, where its session ran, and exits with status 0, its last prompt left as it stood and the shell's line under it:
 
 ```console
-> 
+>
 the node foo ended
 ```
 
