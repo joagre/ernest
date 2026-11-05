@@ -17,7 +17,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-11-05.** [The Applications' Full Review](#the-applications-full-review-2026-11-05). [Who Writes in the Other Repositories](#who-writes-in-the-other-repositories-2026-11-05). [Ernest Stays at 0.x](#ernest-stays-at-0x-2026-11-05).
+**2026-11-05.** [The Applications' Full Review](#the-applications-full-review-2026-11-05). [Who Writes in the Other Repositories](#who-writes-in-the-other-repositories-2026-11-05). [Ernest Stays at 0.x](#ernest-stays-at-0x-2026-11-05). [One Stop for the Layout](#one-stop-for-the-layout-2026-11-05).
 
 **2026-11-04.** [The Client's Questions](#the-clients-questions-2026-11-04). [A Node's Schedulers](#a-nodes-schedulers-2026-11-04). [An `or` Stands Between Patterns](#an-or-stands-between-patterns-2026-11-04). [The Site Goes Live With 1.0](#the-site-goes-live-with-10-2026-11-04). [The Repository's Layout](#the-repositorys-layout-2026-11-04).
 
@@ -11591,3 +11591,9 @@ The number 0.9.5 was weighed too, and cannot be: `VERSION` is 0.10.0, and ernest
 **What stays.** The cost analysis, the full review, the three repositories' reviews and the release. The launch is when strangers first read this, so the review earns its cost without a promise. *The Applications' Full Review* gave as its timing that findings must arrive before the promise binds, and that argument falls; its other reason stands, and running beside Ernest's review still sorts their lines in one round. "No contributions before 1.0" stays, since its reason holds: the language is being settled. It now has no date, and is looked at again when outsiders turn up.
 
 **The site.** *The Site Goes Live With 1.0* held that a reader should first meet a report Ernest promises to keep, and that a site on a 0.x "would show a language changing under its readers". That reason goes with the promise, and waiting would be circular: 1.0 waits for someone outside the project, who finds Ernest through the site. A language changing under its readers is what 0.x says, and each page names its release. So the site goes live with the launch's release, the rehearsal on MVP 4.15's archive unchanged. This reverses a decision made the day before, and the user confirmed it.
+
+## One Stop for the Layout, 2026-11-05
+
+The layout's changes in ernest-template, ernest-epx and ernest-httpd are made at one stop with Ernest's restructuring, after MVP 4.2 closes and before MVP 4.15's item 2, and not under MVP 4.4's item 8. A repository's shape changed once across the four is one thing to read and one time the sessions stop. It can be done at once because none of the three Makefiles reaches inside Ernest's installation, so each still builds against the floor it names.
+
+What is not layout stays where it was: the `CLAUDE.md` redraft, cut from Ernest's own, its standing rule, and the template's `docs/full_review.md` follow under MVP 4.4's item 8. So the sessions stop a second time there, for those files alone.

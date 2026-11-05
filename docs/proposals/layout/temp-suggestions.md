@@ -49,6 +49,10 @@ The documents:
 - [ ] `docs/development.md`'s layout, `docs/architecture.md`, the design notes, CLAUDE.md's owner rows, `THIRD_PARTY_LICENSES`, and every cited path the documents test lists
 - [ ] Not `docs/log.md`: it is history, and keeps the paths it cites as they were; the documents test does not read it
 
+The other repositories, at the same stop, with their sessions stopped:
+
+- [ ] `temp-other-repos.md`'s items 1, 3, 4, 6 and 8 in `ernest-template`, then `ernest-epx` and `ernest-httpd`: a commit in each, `make test` against the floor it names; `SECURITY.md`'s content decided with the user first
+
 ## 4. Renames and additions, each its own commit, before or after 3 and before MVP 4.4's full review
 
 A rename of a document changes, in its own commit, CLAUDE.md's owner row and `docs/README.md` where they name it.

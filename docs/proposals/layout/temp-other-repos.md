@@ -2,6 +2,8 @@
 
 What of the `temp*.md` suggestions reaches `ernest-template`, and from it `ernest-epx` and `ernest-httpd`, for one layout and one way of working across the four. A change goes to the template first, then into each application by hand, as the template's copies are kept. Ernest's session makes these changes in the template and in each application, since they are the repository's shape and not what the program says (`docs/clean_room.md`). Two stay with an application's own session: the header of its feedback file (item 8) and what it adds to its full review (item 9). Read 2026-11-04.
 
+**When.** Items 1, 3, 4, 6 and 8 are made at one stop, with Ernest's restructuring, after MVP 4.2 closes and before MVP 4.15's item 2, the owner row item 4 needs among them. Items 5, 7 and 9 follow Ernest's CLAUDE.md redraft, under MVP 4.4's item 8.
+
 ## Found first: the rule for src/ and tools/
 
 All three keep an Ernest tool in `tools/`, `ernest-template/tools/docs.ern`, built into `tools/build/`. In an application `src/` is the program's own source root (`ernest-epx/src/epx.ern` is `Epx`), so a tool moved there would become a module of the library, which it is not.

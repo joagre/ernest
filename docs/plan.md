@@ -62,6 +62,10 @@ are decided with the user; then the restructuring is built in one commit, after 
 closes, so that items 2 to 20 build in the layout that stays and the archive ernest-httpd
 rehearses on holds it (the log's *The Repository's Layout*).
 
+At the same stop, with their sessions stopped, ernest-template, ernest-epx and ernest-httpd take
+their shape from `temp-other-repos.md`, its items 1, 3, 4, 6 and 8, a commit in each, checked
+with `make test` against the floor it names (the log's *One Stop for the Layout*).
+
 1. **The runtime at the host's limits**, done 2026-11-04 (the log's *A Node's Limits*, *A Node's
    Schedulers*, *The Hangup's Order* and *ernest-httpd's Lines 18 to 21*).
 
@@ -324,7 +328,7 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
    from their drafts, the first claim renamed "Code travels", the release README's first
    sentence, the renames and additions of its group 4, and CLAUDE.md redrafted after a harvest
    of the four repositories' files; then the template's, and from it ernest-epx's and
-   ernest-httpd's, by Ernest's session (its groups 4 to 6 and `temp-other-repos.md`; the log's
+   ernest-httpd's, by Ernest's session (its groups 4 to 6 and `temp-other-repos.md`'s items 5, 7 and 9; the log's
    *The Repository's Layout*, *Who Writes in the Other Repositories*). The template gains a
    `docs/full_review.md` the same way, and each copy takes it.
 
