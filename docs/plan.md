@@ -29,10 +29,10 @@ with it; then the repository's layout, between MVP 4.15's items 1 and 2, its ind
 first (the log's *The Repository's Layout*); the site goes live with MVP 4.4's release, its
 item 6 (the log's *Ernest Stays at 0.x*).
 
-Next is MVP 4.15, what the server taught, then MVP 4.3, the shell's second round
-(the log's *The Road to 1.0, Ordered*), and MVP 4.4 last, the cost, the full review and the
+Next is MVP 4.15, what the server taught, then MVP 4.4, the cost, the full review and the
 launch's release, where the road ends and a program begins (the log's *MVP 4.4, the Road's
-End*). Ernest stays at 0.x until someone outside the project depends on it (the log's *Ernest
+End*). MVP 4.5, the shell's second round, follows the launch (the log's *MVP 4.3 Becomes MVP
+4.5*). Ernest stays at 0.x until someone outside the project depends on it (the log's *Ernest
 Stays at 0.x*). The back end to BEAM's own instructions that closed the road is not built, decided
 2026-10-30 (the log's *No Back End to BEAM's Own Instructions*). A finished milestone is a
 row of the table at the end, its reasons in the log entries the row names.
@@ -45,8 +45,8 @@ What building and deploying ernest-httpd showed of Ernest, decided 2026-11-02 (t
 the Server Taught*), built after the site's generator (the log's *The Generator Before MVP
 4.15*). The items stand in build order, set 2026-11-03, each group done with one look at its
 area: the runtime, the standard library's readings, the libraries, the nodes, and relative
-names last, since they sweep every site of Ernest once. The five decisions for the user, in
-items 8, 9, 13, 15 and 16, are discussed early, so that no build waits on them.
+names last, since they sweep every site of Ernest once. The six decisions for the user, in
+items 8, 9, 13, 15, 16 and 21, are discussed early, so that no build waits on them.
 
 When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
 `docs/clean_room.md` says, the archive's path and commit, and that the release answers that
@@ -60,7 +60,7 @@ Between items 1 and 2 stands the repository's layout, the proposal `docs/proposa
 of 2026-11-04, its checklist `temp-suggestions.md`'s groups 0 to 3. First an independent
 reader, who has not heard its reasoning, reads the checklist and the tree, and its findings
 are decided with the user; then the restructuring is built in one commit, after MVP 4.2
-closes, so that items 2 to 20 build in the layout that stays and the archive ernest-httpd
+closes, so that items 2 to 21 build in the layout that stays and the archive ernest-httpd
 rehearses on holds it (the log's *The Repository's Layout*).
 
 At the same stop ernest-template, ernest-epx and ernest-httpd take their shape, Ernest's session
@@ -206,6 +206,13 @@ rises and none of them releases at this stop: the changes wait on `main` for MVP
     the report says what a load does when the host cannot open a module's file, item 1's rule
     applied to the third of the host's limits. ernest-httpd's test of its listener's retry
     waits on it (the log's *A Node's Limits*).
+21. **A process a fix leaves out of reach**, a decision for the user, raised by the release
+    review before 0.8.0 (the log's *The Release Review Before 0.8.0*, L1), moved here from the
+    `:trace` proposal on 2026-11-05 (the log's *MVP 4.3 Becomes MVP 4.5*). A fix inside a loop's
+    reach changes the hash of the function the running processes run, so `Code.running` no longer
+    finds them, and a process found by its site alone can be killed and not moved, since a
+    `Process` cannot be sent to (§6.5). Whether the operator gets a way to reach such a process
+    is decided against §6.5's decision that an address is the permission to send.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
@@ -250,32 +257,10 @@ attached shell, MVP 4.0, is the operator's alone.
    evaluation, which may be the page's script held busy. Diagnosed at its cause, the client's or
    the test's, and fixed there; then twenty runs in a row hold it.
 
-## MVP 4.3 (`:trace f`), about a week
-
-The shell's second round, decided with the user on 2026-09-30 (the log's *The Shell's Second
-Round*) and decided again on 2026-10-30 against the attached shell (the log's *The Shell's Second
-Round, Decided Again*): of its eight items one remains, three moved into MVP 4.0's shell, where
-the operator's prompt is, and four were dropped with their verdicts in the log.
-
-1. **`:trace f`**, a proposal first: each call of `f` on the node and each return printed at the
-   operator's prompt, the values by their descriptors (§11.2), with a bound a busy node needs, as
-   Erlang's `recon_trace` has one; the runtime has no tracing hook today, so the design decides
-   how a function of a unit is traced by its position and what the bound is. Built after MVP 4.0,
-   on the node.
-
-A decision for the proposal, raised by the release review before 0.8.0 (the log's *The Release
-Review Before 0.8.0*, L1): a fix inside a loop's reach changes the hash of the function the running
-processes run, so `Code.running` no longer finds them, and a process found by its site alone can be
-killed and not moved, since a `Process` cannot be sent to (§6.5). Whether the shell's round gives
-the operator a way to reach such a process is decided with the proposal, against §6.5's decision
-that an address is the permission to send.
-
----
-
-## MVP 4.4 (the cost, the full review and the launch's release), about three weeks, last
+## MVP 4.4 (the cost, the full review and the launch's release), about three weeks
 
 Decided with the user on 2026-10-31 (the log's *MVP 4.4, the Road's End*): the road's last
-milestone, after the shell's second round, so that the review reads a language that ernest-httpd,
+milestone before a program, so that the review reads a language that ernest-httpd,
 the website and the operator's prompt have used. After it the road is a program's.
 
 Its release is the next minor of 0.x, decided with the user on 2026-11-05. 1.0 has no date: it
@@ -345,6 +330,23 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
 
 ---
 
+## MVP 4.5 (`:trace f`), about a week, after the launch
+
+The shell's second round, decided with the user on 2026-09-30 (the log's *The Shell's Second
+Round*) and decided again on 2026-10-30 against the attached shell (the log's *The Shell's Second
+Round, Decided Again*): of its eight items one remains, three moved into MVP 4.0's shell, where
+the operator's prompt is, and four were dropped with their verdicts in the log.
+
+1. **`:trace f`**, a proposal first: each call of `f` on the node and each return printed at the
+   operator's prompt, the values by their descriptors (§11.2), with a bound a busy node needs, as
+   Erlang's `recon_trace` has one; the runtime has no tracing hook today, so the design decides
+   how a function of a unit is traced by its position and what the bound is. Built after MVP 4.0,
+   on the node.
+
+It follows the launch since 2026-11-05 (the log's *MVP 4.3 Becomes MVP 4.5*).
+
+---
+
 ## Milestones
 
 | | What | Done | Release | Where its reasons are |
@@ -373,7 +375,7 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
 | MVP 2.99c | the language argued: the type system's argument, generated programs, the grammar and the library's laws as machines; then a release, Ernest 0.3.0 | 2026-10-05 | tag `v0.3.0` | *The Language Argued Before Peers*, *The Grammar Generated Against*, *The Library's Laws Held*, *The Typed Programs Generated*, *The Replies Generated*, *The Type System Argued*, *What Erlang Held, Moved*, *The Release Review Before 0.3.0*; [`soundness.md`](soundness.md) |
 | Ernest 0.3.1 | the documentation rewritten: the manual pages, the examples, the guide and the report's precision, from MVP 2.99d's items 4, 5, 7 and 8 | 2026-10-05 | tag `v0.3.1` | MVP 2.99d's entries |
 | MVP 2.99d | the library stands on the host, measured with the prelude and the emitted code, and the report's and the guide's feedback | 2026-10-06 | | *MVP 2.99d's First Measurements*, *The Prelude Measured*, *The Library Stands on the Host*, *The Emitted Code Measured*, *Spawn Keeps Its Wait*, *Kept Only for Speed, Taken Out*, *Fs.removeAll Removed*; [`otp_bugs.md`](otp_bugs.md) |
-| The shell shows a bracket's match | a closing bracket stands the cursor on its match, ahead of MVP 4.3 | 2026-10-06 | | *The Shell Shows a Bracket's Match* |
+| The shell shows a bracket's match | a closing bracket stands the cursor on its match, ahead of the shell's second round | 2026-10-06 | | *The Shell Shows a Bracket's Match* |
 | MVP 3.0 | peers: one program on several nodes, by its proposal | 2026-10-09 | | `docs/proposals/nodes_and_code/` as it stood at `42a51d22`; *The Carrier*, *Addresses, Messages and Monitors Across Nodes*, *Calls Across Nodes*, *A Node's End and Its Reload*, *The Module Peer*, *Load and Balancer*, *The Module Json*, *The Tests Wait on What They Mean*, *The Milestones After 3.0, Weighed Again*, *The Plan Rewritten from the Split Proposals*, *MVP 3.0's Findings Decided* |
 | MVP 3.1 | code by its hash: a hash for each definition, nodes of different builds on one floor, the shell's reload by hash, termination told, and `Standing`; then a read of what it built | 2026-10-10 | | `docs/proposals/nodes_and_code/` as it stood at `42a51d22`; *The Canonical Form, Built*, *The Code Table, Built*, *The Spawn by Hash, Built*, *The Shell's Reload by Hash, Built*, *Termination Told, Built*, *Standing and the Refusal, Built*, *What MVP 3.1 Costs, Measured*, *MVP 3.1 Read*, *MVP 3.1 Done*, *The Feedback Pass Before MVP 3.2*, *A Milestone for Placing Work by Load*, *The Back End Last* |
 | MVP 3.25 | placing work by name: `Peer.compute` on a named peer, `Peer.utilization` with the node's measure its maintainer's, and `Placement` in `Balancer`'s place | 2026-10-11 | | *The Placement Proposals Swept*; *Placing Work by Name* |
@@ -395,5 +397,5 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
 | MVP 4.1 | ernest-httpd, an HTTP/1.1 server in Ernest in a repository of its own, which serves ernest-lang.org since 2026-11-02, and what it asked of Ernest: TLS in `Tcp`, a program under a pseudo-terminal in `Os`, the libraries `base64`, `crypto`, `time` and `http`, seventeen lines of feedback decided the days they came, the terminal tests' harness in Ernest, and the release | 2026-11-03 | ernest-httpd 0.1.0, tag `v0.1.0` in its repository; Ernest 0.9.0 | the proposal `docs/proposals/httpd/`, gone with this row, the server's own at https://github.com/joagre/ernest-httpd/blob/main/docs/proposals/basic/proposal.md; the log's *TLS in `Tcp` and a Terminal in `Os`*, *WebSocket Is the Server's*, *The Four Libraries*, *A Path Through a File*, *Three Lines From the Server*, *No Numbered Variables*, *A Close, an Exit and a Write*, *An Archive Says Its Commit*, *Two Lines on TLS*, *A Program After Its Exit*, *Four Lines From the Deployment*, *What the Server Taught*, *The Hangup's Order*, *The Error's Place*, *The Harness in Ernest*, *Three Flakes Read* |
 | Ernest 0.9.0 | the server's release: what ernest-httpd asked of Ernest, and the release review before it, 112 lines fixed and 23 decided | 2026-11-03 | tag `v0.9.0` | the log's *The Release Review Before 0.9.0* |
 | MVP 4.2 | the website, served by ernest-httpd: what Ernest is, its characteristics, the three doors, and a live shell in the browser | | | above |
-| MVP 4.3 | the shell's second round | | | above |
 | MVP 4.4 | the cost analysis, the full review and the launch's release, Linux | | | above |
+| MVP 4.5 | the shell's second round | | | above |

@@ -8,6 +8,8 @@ The reasoning behind the language report in [`report/`](../report/): what was ta
 
 **A note on MVP 4.15's item numbers.** On 2026-11-03 the milestone's items were put in build order, the runtime's first and relative names last. The entries of that day cite the earlier numbers: their item 10, the runtime at the host's limits, is item 1 now; item 11, the reading of `String`, item 7; and items 12 to 16 are 12, 8, 11, 5 and 15.
 
+**A note on MVP 4.3.** On 2026-11-05 MVP 4.3 became MVP 4.5, after the launch (*MVP 4.3 Becomes MVP 4.5*). Entries before that day cite the earlier number.
+
 **A note on MVP 2.99b's item numbers.** On 2026-10-01 the namespace of two words moved from the milestone's tenth item to its fourth, and its items 4 to 9 became 5 to 10 (*The Namespace Item First*). An entry that stands before that one reads the milestone's item numbers as they were on its day: its item 4 is the operations' decision, now 5, and its item 10 the namespace, now 4. On 2026-10-02 items 11 and 12, `set.ern` over its record and `OrderedSet`, joined item 5, and their numbers stand as lines that point at it (*The Operations Decided and Built*).
 
 ## Index
@@ -17,7 +19,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-11-05.** [The Applications' Full Review](#the-applications-full-review-2026-11-05). [Who Writes in the Other Repositories](#who-writes-in-the-other-repositories-2026-11-05). [Ernest Stays at 0.x](#ernest-stays-at-0x-2026-11-05). [One Stop for the Layout](#one-stop-for-the-layout-2026-11-05). [The Floors and the Releases](#the-floors-and-the-releases-2026-11-05).
+**2026-11-05.** [The Applications' Full Review](#the-applications-full-review-2026-11-05). [Who Writes in the Other Repositories](#who-writes-in-the-other-repositories-2026-11-05). [Ernest Stays at 0.x](#ernest-stays-at-0x-2026-11-05). [One Stop for the Layout](#one-stop-for-the-layout-2026-11-05). [The Floors and the Releases](#the-floors-and-the-releases-2026-11-05). [MVP 4.3 Becomes MVP 4.5](#mvp-43-becomes-mvp-45-2026-11-05).
 
 **2026-11-04.** [The Client's Questions](#the-clients-questions-2026-11-04). [A Node's Schedulers](#a-nodes-schedulers-2026-11-04). [An `or` Stands Between Patterns](#an-or-stands-between-patterns-2026-11-04). [The Site Goes Live With 1.0](#the-site-goes-live-with-10-2026-11-04). [The Repository's Layout](#the-repositorys-layout-2026-11-04).
 
@@ -11605,3 +11607,9 @@ When the three other repositories raise their floors and release was left at "th
 All three release at the launch, not ernest-httpd alone. The Projects page lists ernest-epx, whose latest release stands on an older floor, so a reader on the launch's release could not build it; and a stranger starting from the template needs a current tag. ernest-template goes first, since the others copy from it. ernest-epx does not wait for its milestone 9, which waits on epx's own fixes, so that the launch does not hang on another's schedule. ernest-httpd goes last, with its readers, and the site after it, so that every project it lists builds on the release it names.
 
 Nothing of this happens at the layout stop, whose changes wait on `main`. MVP 4.15's release, 0.10.0, moves only ernest-httpd, for its rehearsal. ernest-template and ernest-epx stay on 0.9 for those weeks, since a raise and a release then would be repeated at the launch. The cost is plain: for those weeks a stranger on Ernest 0.10.0 is refused by the template's floor. There are no strangers yet, and the site is not live.
+
+## MVP 4.3 Becomes MVP 4.5, 2026-11-05
+
+MVP 4.3 held one item, `:trace f`, about a week. It follows the launch now, and its number says so. Nothing depends on it: no guide, design note or other repository's plan names it. It came before MVP 4.4 so that the review read a language under its promise, and with Ernest at 0.x (*Ernest Stays at 0.x*) adding it later breaks nothing. An operator's tool is also better designed once a live server shows what is worth tracing.
+
+The decision it carried stays before the launch, as MVP 4.15's item 21: a fix inside a loop's reach leaves its running processes where `Code.running` cannot find them, and a process found by its site alone can be killed and not moved. That question is about the language and §6.5, and only met the `:trace` proposal because an operator's tool would use the answer. So it is decided where the full review can read the verdict.
