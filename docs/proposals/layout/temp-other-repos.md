@@ -1,6 +1,6 @@
 # The other repositories
 
-What of the `temp*.md` suggestions reaches `ernest-template`, and from it `ernest-epx` and `ernest-httpd`, for one layout and one way of working across the four. A change goes to the template first, then into each application by hand, as the template's copies are kept. Ernest's session makes these changes in the template and in each application, since they are the repository's shape and not what the program says (`docs/clean_room.md`). Two stay with an application's own session: the header of its feedback file (item 8) and what it adds to its full review (item 9). Read 2026-11-04.
+What of the `temp*.md` suggestions reaches `ernest-template`, and from it `ernest-epx` and `ernest-httpd`, for one layout and one way of working across the four. A change goes to the template first, then into each application by hand, as the template's copies are kept. Ernest's session makes these changes in the template and in each application, since they are the repository's shape and not what the program says (`docs/clean_room.md`). One stays with an application's own session: what it adds to its full review (item 9). Read 2026-11-04.
 
 **When.** Items 1, 3, 4, 6 and 8 are made at one stop, with Ernest's restructuring, after MVP 4.2 closes and before MVP 4.15's item 2, the owner row item 4 needs among them. Items 5, 7 and 9 follow Ernest's CLAUDE.md redraft, under MVP 4.4's item 8.
 
@@ -47,7 +47,7 @@ Ernest's change 1 then keeps its Ernest tools in `tools/`, a source root as an a
 6. **`.gitignore`.** Read for drift as Ernest's was; the template's reads clean now, but for item 1's paths.
 7. **A log grown past GitHub's rendering**, split by month as Ernest's would be: a rule in the template for when an application's log grows, not a change now, since the applications' logs are small.
 
-8. **The clean room by messages** (Ernest's `docs/clean_room.md`, 2026-11-04). The template's CLAUDE.md and README say a line is "carried to Ernest" without how, rightly, since the template serves a stranger too, whose channel is Ernest's tracker. One clause makes it exact for both: carried to Ernest by its issue tracker, or, for an application built in Ernest's clean room, by a message to Ernest's session. `ernest-httpd`'s `docs/language_feedback.md` header names the reply file under Ernest's `docs/tmp/`, which is gone: the verdict comes by message, as the clean room now says. `ernest-epx` names neither.
+8. **The clean room by messages** (Ernest's `docs/clean_room.md`, 2026-11-04). The template's CLAUDE.md and README say a line is "carried to Ernest" without how, rightly, since the template serves a stranger too, whose channel is Ernest's tracker. One clause makes it exact for both: carried to Ernest by its issue tracker, or, for an application built in Ernest's clean room, by a message to Ernest's session. `ernest-epx` names neither. `ernest-httpd`'s reply file went from its feedback file's header in its own commit, and no repository names it now.
 
 9. **A full review** (the log's *The Applications' Full Review*, 2026-11-05). The template gains `docs/full_review.md` beside `docs/release.md`, cut from Ernest's as its CLAUDE.md is, with its row in the owner table:
    - It runs only when the user says so, and not while its last findings are open.
