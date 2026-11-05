@@ -49,8 +49,8 @@ names last, since they sweep every site of Ernest once. The five decisions for t
 items 8, 9, 13, 15 and 16, are discussed early, so that no build waits on them.
 
 When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
-`docs/clean_room.md` says, that the release answers that program's lines still open, each by
-Ernest's number, and so hands over the site for its
+`docs/clean_room.md` says, the archive's path and commit, and that the release answers that
+program's lines still open, each by Ernest's number, and so hands over the site for its
 rehearsal of the switch (MVP 4.4's item 6): `make site` from the release's tag, given the
 configuration ernest-httpd will serve it with, writes it to `build/site/`, the tag naming the
 commit that made it. ernest-template and ernest-epx stay on floor 0.9 until MVP 4.4's item 4 (the
@@ -63,8 +63,8 @@ are decided with the user; then the restructuring is built in one commit, after 
 closes, so that items 2 to 20 build in the layout that stays and the archive ernest-httpd
 rehearses on holds it (the log's *The Repository's Layout*).
 
-At the same stop, with their sessions stopped, ernest-template, ernest-epx and ernest-httpd take
-their shape from `temp-other-repos.md`, its items 1, 3, 4, 6 and 8, a commit in each, checked
+At the same stop ernest-template, ernest-epx and ernest-httpd take their shape, Ernest's session
+telling each by a message that the stop is coming and the user closing them. They take it from `temp-other-repos.md`, its items 1, 3, 4, 6 and 8, a commit in each, checked
 with `make test` against the floor it names (the log's *One Stop for the Layout*). No floor
 rises and none of them releases at this stop: the changes wait on `main` for MVP 4.4's item 5.
 
@@ -306,13 +306,16 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
    round (the log's *The Applications' Full Review*, *Ernest Stays at 0.x*). As they begin, the
    three floors rise to the launch's minor, each by its own session, since a development build of
    the floor is what an archive before the release is (the log's *The Floors and the Releases*).
+   Ernest's session names the minor, the archive's path and its commit to all three by a message,
+   and asks for the reviews, on the user's word.
 5. **The launch's release**, the next minor of 0.x, by `docs/release_review.md`'s step, on Linux:
    macOS unverified and said so in the README's installing sentence and the note; the feedback
    file and the findings file empty.
 
    The same week, in this order, each by its own session on the user's word: ernest-template's
    release, since the others copy from it; ernest-epx's, not waiting for its milestone 9; and
-   ernest-httpd's, with its readers (the log's *The Floors and the Releases*).
+   ernest-httpd's, with its readers (the log's *The Floors and the Releases*). Ernest's session
+   tells all three the tag by a message, and asks each in turn when the one before it is out.
 6. **The site live at ernest-lang.org**, last, so that each project it lists builds on the release
    it names, moved from MVP 4.2 on 2026-11-04 (the log's *The Site
    Goes Live With 1.0*), and with the launch's release since 2026-11-05 (the log's *Ernest Stays
@@ -337,7 +340,8 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
    of the four repositories' files; then the template's, and from it ernest-epx's and
    ernest-httpd's, by Ernest's session (its groups 4 to 6 and `temp-other-repos.md`'s items 5, 7 and 9; the log's
    *The Repository's Layout*, *Who Writes in the Other Repositories*). The template gains a
-   `docs/full_review.md` the same way, and each copy takes it.
+   `docs/full_review.md` the same way, and each copy takes it. Ernest's session tells each by a
+   message that this second stop is coming, and the user closes them.
 
 ---
 
