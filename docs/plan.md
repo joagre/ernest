@@ -304,7 +304,7 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
    findings file empty.
 6. **The site live at ernest-lang.org**, moved from MVP 4.2 on 2026-11-04 (the log's *The Site
    Goes Live With 1.0*), and with the launch's release since 2026-11-05 (the log's *Ernest Stays
-   at 0.x*), a decision the user has still to confirm: `make site` from that tag, the copy of `build/site/` to the host,
+   at 0.x*): `make site` from that tag, the copy of `build/site/` to the host,
    the smoke test against the live site, and the address set as the Website of the repository's
    About on GitHub.
 
