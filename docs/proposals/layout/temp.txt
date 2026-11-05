@@ -311,7 +311,7 @@ THIRD_PARTY_LICENSES, .gitignore.
 - Missing: SECURITY.md. CONTRIBUTING.md sends a defect to the public issues,
   but a security hole should not go there: the carrier between nodes, TLS,
   the cookie, and once the site is live the shell's sandbox a visitor
-  reaches. Before 1.0's launch, a short SECURITY.md says where to report one
+  reaches. Before the launch, a short SECURITY.md says where to report one
   privately; GitHub shows it in the repository's Security tab.
 - .gitignore has drifted: `*.erc` stands under "Local env" though it is
   Ernest's build output; `.env` and `.env.local` are boilerplate, since
@@ -338,7 +338,7 @@ docs/
 1. The log is 2.6 MB in one file, 11,543 lines. GitHub likely shows a file
    that large raw and unrendered; its exact limit is to check, by opening
    https://github.com/joagre/ernest/blob/main/docs/log.md. If so, it is a
-   defect for 1.0: the site links each citation of the log to
+   defect for the launch: the site links each citation of the log to
    docs/log.md#anchor on GitHub, and an unrendered file has no anchors.
    Then: split it by month, docs/log/2026-10.md and so on, with
    docs/log/README.md holding the index and the standing sections;

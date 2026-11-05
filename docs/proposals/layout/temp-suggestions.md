@@ -10,7 +10,7 @@ The actions from the walk of 2026-11-04. The reasons are in `temp.txt`.
 
 - [x] GitHub does not render `docs/log.md`, 2.6 MB: checked by the user 2026-11-04. So 2's split is needed, and the site's citations of the log, which link its anchors on GitHub, are broken until it is made.
 
-## 2. Before 1.0's launch
+## 2. Before the launch
 
 - [ ] Add `SECURITY.md`: where to report a security hole privately.
 - [ ] Split `docs/log.md` by month into `docs/log/<year>-<month>.md` and so on, with one file there holding the index and the standing sections; the generator and the documents test resolve a citation's title to its file and anchor.

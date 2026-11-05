@@ -26,13 +26,14 @@ The server is released and so is what shaped Ernest on its way, and the checkout
 
 MVP 4.2, the website, is built but for its item 8, a flake of its browser test, and closes
 with it; then the repository's layout, between MVP 4.15's items 1 and 2, its independent reader
-first (the log's *The Repository's Layout*); the site goes live with Ernest 1.0.0, MVP 4.4's item 6 (the log's *The Site Goes Live
-With 1.0*).
+first (the log's *The Repository's Layout*); the site goes live with MVP 4.4's release, its
+item 6 (the log's *Ernest Stays at 0.x*).
 
 Next is MVP 4.15, what the server taught, then MVP 4.3, the shell's second round
-(the log's *The Road to 1.0, Ordered*), and MVP 4.4 last, the promise, the cost, the full
-review and Ernest 1.0, where the road ends and a program begins (the log's *MVP 4.4, the Road's
-End*); the back end to BEAM's own instructions that closed the road is not built, decided
+(the log's *The Road to 1.0, Ordered*), and MVP 4.4 last, the cost, the full review and the
+launch's release, where the road ends and a program begins (the log's *MVP 4.4, the Road's
+End*). Ernest stays at 0.x until someone outside the project depends on it (the log's *Ernest
+Stays at 0.x*). The back end to BEAM's own instructions that closed the road is not built, decided
 2026-10-30 (the log's *No Back End to BEAM's Own Instructions*). A finished milestone is a
 row of the table at the end, its reasons in the log entries the row names.
 
@@ -265,18 +266,17 @@ that an address is the permission to send.
 
 ---
 
-## MVP 4.4 (the promise, the cost, the full review and Ernest 1.0), about three weeks, last
+## MVP 4.4 (the cost, the full review and the launch's release), about three weeks, last
 
 Decided with the user on 2026-10-31 (the log's *MVP 4.4, the Road's End*): the road's last
 milestone, after the shell's second round, so that the review reads a language that ernest-httpd,
-the website and the operator's prompt have used. After 1.0 the road is a program's.
+the website and the operator's prompt have used. After it the road is a program's.
 
-1. **The promise first.** A program written for 1.0 builds, and means the same, under every 1.x:
-   the standard library and the libraries only grow within 1.x, and a rule's change or a
-   function's removal is 2.0's; `ern`'s commands and their options stay, their diagnostics'
-   wording free. Nodes of two 1.x minors do not connect, the floor as §12.5 has it, a fleet moving
-   minor by minor as the deployment guide shows. Stated in the README's *Where it stands* and
-   here, the argument in the log; the report keeps the floor alone.
+Its release is the next minor of 0.x, decided with the user on 2026-11-05. 1.0 has no date: it
+comes when someone outside this project depends on Ernest, so that a break would cost them
+something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
+
+1. **The promise**, dropped 2026-11-05 (the log's *Ernest Stays at 0.x*).
 2. **The cost.** The fault row made readable first, a median over runs with more iterations,
    since its spread in one run is half its value (the log's *The Release Review Before 0.7.0*,
    *The raise's rise is noise*). Then the bench whole, idle, and each row above a fraction of the
@@ -297,19 +297,21 @@ the website and the operator's prompt have used. After 1.0 the road is a program
    whole by their own sessions, by the `docs/full_review.md` of item 8, against the archive of the
    commit the readers read; ernest-httpd's review has a security reader, since it goes public at
    item 6. What they find of Ernest's comes as lines of their feedback files and is sorted in this
-   round, before the promise binds at item 5 (the log's *The Applications' Full Review*).
-5. **Ernest 1.0.0**, by `docs/release_review.md`'s step, on Linux: macOS unverified and said so
-   in the README's installing sentence and the note; the three application repositories' floors
-   raised to 1.0 the same week; the feedback file and the findings file empty.
+   round (the log's *The Applications' Full Review*, *Ernest Stays at 0.x*).
+5. **The launch's release**, the next minor of 0.x, by `docs/release_review.md`'s step, on Linux:
+   macOS unverified and said so in the README's installing sentence and the note; the three
+   application repositories' floors raised to it the same week; the feedback file and the
+   findings file empty.
 6. **The site live at ernest-lang.org**, moved from MVP 4.2 on 2026-11-04 (the log's *The Site
-   Goes Live With 1.0*): `make site` from 1.0.0's tag, the copy of `build/site/` to the host,
+   Goes Live With 1.0*), and with the launch's release since 2026-11-05 (the log's *Ernest Stays
+   at 0.x*), a decision the user has still to confirm: `make site` from that tag, the copy of `build/site/` to the host,
    the smoke test against the live site, and the address set as the Website of the repository's
    About on GitHub.
 
    ernest-httpd rehearses the switch on the machine,
    under a second unit on scratch ports, with the archive of MVP 4.15's release, so that the
-   switch at 1.0 swaps one archive for another on a path already walked; then it raises its
-   floor to 1.0, makes a release with its readers, and switches once, the machine serving its
+   switch at the launch swaps one archive for another on a path already walked; then it raises its
+   floor to that release, makes a release with its readers, and switches once, the machine serving its
    one page meanwhile. Its container with its two nodes was built 2026-11-04 on the archive
    from 612faac8: caps of 128 processes and 128 MiB, and one core, the user's choice from its
    measure, 3.2 s from start to the homepage's example answered against 6.7 s at half a core.
@@ -379,4 +381,4 @@ the website and the operator's prompt have used. After 1.0 the road is a program
 | Ernest 0.9.0 | the server's release: what ernest-httpd asked of Ernest, and the release review before it, 112 lines fixed and 23 decided | 2026-11-03 | tag `v0.9.0` | the log's *The Release Review Before 0.9.0* |
 | MVP 4.2 | the website, served by ernest-httpd: what Ernest is, its characteristics, the three doors, and a live shell in the browser | | | above |
 | MVP 4.3 | the shell's second round | | | above |
-| MVP 4.4 | the promise of 1.x, the cost analysis, the full review and Ernest 1.0.0, Linux | | | above |
+| MVP 4.4 | the cost analysis, the full review and the launch's release, Linux | | | above |

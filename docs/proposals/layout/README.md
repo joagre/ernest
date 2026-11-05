@@ -4,7 +4,7 @@ What each file here is, and which is current. Begun 2026-11-04 in a walk of the 
 
 | File | What it is | Status |
 |---|---|---|
-| [`temp-suggestions.md`](temp-suggestions.md) | the actions, a checklist in six groups: the log's check, before 1.0, the restructuring, renames and additions, rules, files | current |
+| [`temp-suggestions.md`](temp-suggestions.md) | the actions, a checklist in six groups: the log's check, before the launch, the restructuring, renames and additions, rules, files | current |
 | [`temp.txt`](temp.txt) | the layout's reasons: the rule, the four changes, the wrinkles found in the code, the walk of every top-level entry, and change 1's revision at its end | current, its later sections correcting its earlier |
 | [`temp-files.md`](temp-files.md) | individual files read one at a time: README.md, guide/why.md, the release README, CLAUDE.md, the first claim's name, the Gleam line | current |
 | [`temp-README.md`](temp-README.md) | the draft of README.md | current |

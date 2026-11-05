@@ -17,7 +17,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-11-05.** [The Applications' Full Review](#the-applications-full-review-2026-11-05). [Who Writes in the Other Repositories](#who-writes-in-the-other-repositories-2026-11-05).
+**2026-11-05.** [The Applications' Full Review](#the-applications-full-review-2026-11-05). [Who Writes in the Other Repositories](#who-writes-in-the-other-repositories-2026-11-05). [Ernest Stays at 0.x](#ernest-stays-at-0x-2026-11-05).
 
 **2026-11-04.** [The Client's Questions](#the-clients-questions-2026-11-04). [A Node's Schedulers](#a-nodes-schedulers-2026-11-04). [An `or` Stands Between Patterns](#an-or-stands-between-patterns-2026-11-04). [The Site Goes Live With 1.0](#the-site-goes-live-with-10-2026-11-04). [The Repository's Layout](#the-repositorys-layout-2026-11-04).
 
@@ -11575,3 +11575,19 @@ Three rules follow. Ernest's session writes there only while the application's s
 An application's session reads its own repository, its installation, `docs/clean_room.md`, the archive it is told of and the template. News goes by message with no word from the user, while a request to build, release, review or change a plan still waits for it, since it spends tokens the user may not be watching. All of this is a written rule: no settings file enforces it.
 
 The right is a standing one, for a change made across the repositories, a working rule's or the layout's; a push there still waits for the user's word. An application's ordinary development stays in the clean room whole, its Makefile and its README among it, since a session that meets its own build as a stranger does is where a finding about the release comes from.
+
+## Ernest Stays at 0.x, 2026-11-05
+
+MVP 4.4's release is the next minor of 0.x, not 1.0.0. Principle 1 decides. A reader of "1.0" reads that a program written for it keeps working, as *MVP 4.4, the Road's End* says, and Ernest cannot yet keep that: the review before 0.9.0 drew 135 lines from two days' diff. A promise of stability protects users, and there are none yet, while it costs the freedom to change what the first of them will find. "Until 1.0 a release may refuse a program the previous release accepted" is the honest position, and it already stands in the README.
+
+A 1.0 with a narrower meaning was weighed: the major number stepping only for the node protocol or the `.erc` format, the standard library free to change in a minor. It reverses the promise as decided, which kept source stable and left the wire free. Nodes of two minors would have to connect, so §12.5's floor changes, and the protocol freezes, which the Road's End refused. A stable format may not be enough either, since a compiled program calls the standard library; that was not checked. And a reader of 1.0 still assumes their source keeps compiling. 0.x gives all of that freedom with nothing to explain.
+
+The number 0.9.5 was weighed too, and cannot be: `VERSION` is 0.10.0, and ernest-httpd's floor names `ern 0.10`. The release is the next minor in sequence.
+
+**What 1.0 will promise**, kept from the plan's item 1. A program written for 1.0 builds, and means the same, under every 1.x: the standard library and the libraries only grow within 1.x, and a rule's change or a function's removal is 2.0's; `ern`'s commands and their options stay, their diagnostics' wording free. Nodes of two 1.x minors do not connect, the floor as §12.5 has it, a fleet moving minor by minor. It is stated in the README's *Where it stands* when it is made; the report keeps the floor alone.
+
+**When.** 1.0 has no date. It comes when someone outside this project depends on Ernest, so that a break would cost them something: fides in real use, or a stranger's program. Without a stated condition 0.x could last for ever, which would stop being honest in the other direction.
+
+**What stays.** The cost analysis, the full review, the three repositories' reviews and the release. The launch is when strangers first read this, so the review earns its cost without a promise. *The Applications' Full Review* gave as its timing that findings must arrive before the promise binds, and that argument falls; its other reason stands, and running beside Ernest's review still sorts their lines in one round. "No contributions before 1.0" stays, since its reason holds: the language is being settled. It now has no date, and is looked at again when outsiders turn up.
+
+**The site.** *The Site Goes Live With 1.0* held that a reader should first meet a report Ernest promises to keep, and that a site on a 0.x "would show a language changing under its readers". That reason goes with the promise, and waiting would be circular: 1.0 waits for someone outside the project, who finds Ernest through the site. A language changing under its readers is what 0.x says, and each page names its release. So the site goes live with the launch's release, the rehearsal on MVP 4.15's archive unchanged. This one reverses a decision made the day before, and stands in the plan for the user to confirm.

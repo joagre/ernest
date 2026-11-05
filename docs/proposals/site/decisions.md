@@ -380,7 +380,7 @@ The site's files as served.
   its templates, its root and its generator, so the site is a release
   exactly, never a pairing the tests did not run; a fix to the site's look
   or its generator goes live with the next release. It is weighed again
-  when releases come seldom, after 1.0, with the fix that waited in hand
+  when releases come seldom, with the fix that waited in hand
   (decided 2026-11-03).
 - A page's text, links and navigation are complete in its HTML, and read
   without a script. A script adds to a page, the shell panel, the

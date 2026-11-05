@@ -37,7 +37,7 @@ It argues where it should point.
 
 **The draft.** `temp-README.md`, 2026-11-04: the opening for an Erlang and Gleam reader, crediting Unison, Gleam and Erlang in that order and leading with code that travels; the counter; its code started on a second node by `Peer.spawn`; the refusal of the wrong mailbox; the six claims as links; five ways in; *Where it stands* naming no version; *Installing* and *License* as they are. Read and judged good, with two fixes made in it.
 
-**Gleam, to fix and to check before 1.0.**
+**Gleam, to fix and to check before the launch.**
 - The README writes `process.receive(subject)`, and `guide/why.md` twice. Gleam's `process.receive` takes a timeout, `process.receive(subject, within)`, with `receive_forever(subject)` the form without one, as far as known here; a Gleam reader meets a wrong call in the one line meant for them. Fixed in all three places.
 - The claim itself, that a `Subject` lets a receive compile in a process that does not own it and leaves the mistake to the run, stands in the README, `why.md` and `guide/faq.md`. Checked against `gleam_erlang`'s current documentation before the site goes live, since knowledge here of its latest version may be out of date.
 
