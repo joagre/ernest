@@ -4,7 +4,7 @@ The actions from the walk of 2026-11-04. The reasons are in `temp.txt`.
 
 ## 0. Before anything is built
 
-- [ ] An independent reader, one who has not heard this proposal's reasoning, reads this checklist and the tree, asked what breaks and what it misses; its findings are decided before 3 begins (decided with the user 2026-11-04)
+- [ ] An independent reader, one who has not heard this proposal's reasoning, reads this checklist, `temp-other-repos.md` and the four repositories' trees, asked what breaks and what it misses; its findings are decided before 3 begins (decided with the user 2026-11-04)
 
 ## 1. Checked
 
