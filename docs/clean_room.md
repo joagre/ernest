@@ -1,10 +1,10 @@
 # The clean room
 
-An application with a repository of its own is built against Ernest as a stranger builds it: by a Claude session of its own, in its own repository, against an installation from a release archive, never a checkout. Ernest's session and the application's session run side by side, the user between them, and speak by messages, each addressing the other by its name in the list of sessions. The first application built so is ernest-httpd, from 2026-11-02. This file says how the two sides work; it is Ernest's own, and no application copies it: an application's session is told of it by its path at its start.
+An application with a repository of its own is built against Ernest as a stranger builds it: by a Claude session of its own, in its own repository, against an installation from a release archive, never a checkout. Ernest's session and the application's session run side by side, the user between them, and speak by messages, each addressing the other by its name in the list of sessions. The first application built so is ernest-httpd, from 2026-11-02. This file says how the two sides work; it is Ernest's own, no application copies it, and no application's session reads it: what that session needs of it comes by message.
 
 ## What each side sees
 
-The application's session reads its installation's `share/doc/ernest/` and `man`, as a user does, and its own repository. Outside them it reads this file, the archive it is told of, and `ernest-template`, and writes nothing. It reads no source of Ernest's, not when a page is opaque or silent: that is a finding, and reading the source would destroy it.
+The application's session reads its installation's `share/doc/ernest/` and `man`, as a user does, and its own repository. Outside them it reads the archive it is told of and `ernest-template`, and writes nothing. It reads no source of Ernest's, not when a page is opaque or silent: that is a finding, and reading the source would destroy it.
 
 An application's development is its own session's whole. Ernest's session reads its repository, and writes there only for a change made across the repositories, such as a working rule's or the layout's, which it may make without asking. Such a change reaches its shape alone:
 - what the template gives it: `CLAUDE.md` but for its first two lines, its tool `docs.ern`, and `docs/full_review.md` but for what the application added;
