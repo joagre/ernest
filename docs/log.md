@@ -17,7 +17,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-11-05.** [The Applications' Full Review](#the-applications-full-review-2026-11-05). [Who Writes in the Other Repositories](#who-writes-in-the-other-repositories-2026-11-05). [Ernest Stays at 0.x](#ernest-stays-at-0x-2026-11-05). [One Stop for the Layout](#one-stop-for-the-layout-2026-11-05).
+**2026-11-05.** [The Applications' Full Review](#the-applications-full-review-2026-11-05). [Who Writes in the Other Repositories](#who-writes-in-the-other-repositories-2026-11-05). [Ernest Stays at 0.x](#ernest-stays-at-0x-2026-11-05). [One Stop for the Layout](#one-stop-for-the-layout-2026-11-05). [The Floors and the Releases](#the-floors-and-the-releases-2026-11-05).
 
 **2026-11-04.** [The Client's Questions](#the-clients-questions-2026-11-04). [A Node's Schedulers](#a-nodes-schedulers-2026-11-04). [An `or` Stands Between Patterns](#an-or-stands-between-patterns-2026-11-04). [The Site Goes Live With 1.0](#the-site-goes-live-with-10-2026-11-04). [The Repository's Layout](#the-repositorys-layout-2026-11-04).
 
@@ -11597,3 +11597,11 @@ The number 0.9.5 was weighed too, and cannot be: `VERSION` is 0.10.0, and ernest
 The layout's changes in ernest-template, ernest-epx and ernest-httpd are made at one stop with Ernest's restructuring, after MVP 4.2 closes and before MVP 4.15's item 2, and not under MVP 4.4's item 8. A repository's shape changed once across the four is one thing to read and one time the sessions stop. It can be done at once because none of the three Makefiles reaches inside Ernest's installation, so each still builds against the floor it names.
 
 What is not layout stays where it was: the `CLAUDE.md` redraft, cut from Ernest's own, its standing rule, and the template's `docs/full_review.md` follow under MVP 4.4's item 8. So the sessions stop a second time there, for those files alone.
+
+## The Floors and the Releases, 2026-11-05
+
+When the three other repositories raise their floors and release was left at "the same week" as the launch's release, and that could not work. Their reviews build against an archive of Ernest made before the release, and `make` refuses a floor that does not match its minor, so the floors rise as the reviews begin, as ernest-httpd's already stands at 0.10 for its work. Their releases come after Ernest's tag, since `make release` refuses a development build of the floor.
+
+All three release at the launch, not ernest-httpd alone. The Projects page lists ernest-epx, whose latest release stands on an older floor, so a reader on the launch's release could not build it; and a stranger starting from the template needs a current tag. ernest-template goes first, since the others copy from it. ernest-epx does not wait for its milestone 9, which waits on epx's own fixes, so that the launch does not hang on another's schedule. ernest-httpd goes last, with its readers, and the site after it, so that every project it lists builds on the release it names.
+
+Nothing of this happens at the layout stop, whose changes wait on `main`. MVP 4.15's release, 0.10.0, moves only ernest-httpd, for its rehearsal. ernest-template and ernest-epx stay on 0.9 for those weeks, since a raise and a release then would be repeated at the launch. The cost is plain: for those weeks a stranger on Ernest 0.10.0 is refused by the template's floor. There are no strangers yet, and the site is not live.

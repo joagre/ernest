@@ -53,7 +53,8 @@ When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
 Ernest's number, and so hands over the site for its
 rehearsal of the switch (MVP 4.4's item 6): `make site` from the release's tag, given the
 configuration ernest-httpd will serve it with, writes it to `build/site/`, the tag naming the
-commit that made it.
+commit that made it. ernest-template and ernest-epx stay on floor 0.9 until MVP 4.4's item 4 (the
+log's *The Floors and the Releases*).
 
 Between items 1 and 2 stands the repository's layout, the proposal `docs/proposals/layout/`
 of 2026-11-04, its checklist `temp-suggestions.md`'s groups 0 to 3. First an independent
@@ -64,7 +65,8 @@ rehearses on holds it (the log's *The Repository's Layout*).
 
 At the same stop, with their sessions stopped, ernest-template, ernest-epx and ernest-httpd take
 their shape from `temp-other-repos.md`, its items 1, 3, 4, 6 and 8, a commit in each, checked
-with `make test` against the floor it names (the log's *One Stop for the Layout*).
+with `make test` against the floor it names (the log's *One Stop for the Layout*). No floor
+rises and none of them releases at this stop: the changes wait on `main` for MVP 4.4's item 5.
 
 1. **The runtime at the host's limits**, done 2026-11-04 (the log's *A Node's Limits*, *A Node's
    Schedulers*, *The Hangup's Order* and *ernest-httpd's Lines 18 to 21*).
@@ -301,12 +303,18 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
    whole by their own sessions, by the `docs/full_review.md` of item 8, against the archive of the
    commit the readers read; ernest-httpd's review has a security reader, since it goes public at
    item 6. What they find of Ernest's comes as lines of their feedback files and is sorted in this
-   round (the log's *The Applications' Full Review*, *Ernest Stays at 0.x*).
+   round (the log's *The Applications' Full Review*, *Ernest Stays at 0.x*). As they begin, the
+   three floors rise to the launch's minor, each by its own session, since a development build of
+   the floor is what an archive before the release is (the log's *The Floors and the Releases*).
 5. **The launch's release**, the next minor of 0.x, by `docs/release_review.md`'s step, on Linux:
-   macOS unverified and said so in the README's installing sentence and the note; the three
-   application repositories' floors raised to it the same week; the feedback file and the
-   findings file empty.
-6. **The site live at ernest-lang.org**, moved from MVP 4.2 on 2026-11-04 (the log's *The Site
+   macOS unverified and said so in the README's installing sentence and the note; the feedback
+   file and the findings file empty.
+
+   The same week, in this order, each by its own session on the user's word: ernest-template's
+   release, since the others copy from it; ernest-epx's, not waiting for its milestone 9; and
+   ernest-httpd's, with its readers (the log's *The Floors and the Releases*).
+6. **The site live at ernest-lang.org**, last, so that each project it lists builds on the release
+   it names, moved from MVP 4.2 on 2026-11-04 (the log's *The Site
    Goes Live With 1.0*), and with the launch's release since 2026-11-05 (the log's *Ernest Stays
    at 0.x*): `make site` from that tag, the copy of `build/site/` to the host,
    the smoke test against the live site, and the address set as the Website of the repository's
@@ -314,9 +322,8 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
 
    ernest-httpd rehearses the switch on the machine,
    under a second unit on scratch ports, with the archive of MVP 4.15's release, so that the
-   switch at the launch swaps one archive for another on a path already walked; then it raises its
-   floor to that release, makes a release with its readers, and switches once, the machine serving its
-   one page meanwhile. Its container with its two nodes was built 2026-11-04 on the archive
+   switch at the launch swaps one archive for another on a path already walked; then, with its
+   release of item 5 made, it switches once, the machine serving its one page meanwhile. Its container with its two nodes was built 2026-11-04 on the archive
    from 612faac8: caps of 128 processes and 128 MiB, and one core, the user's choice from its
    measure, 3.2 s from start to the homepage's example answered against 6.7 s at half a core.
 7. **The log readable on GitHub**, a defect found 2026-11-04, fixed before item 4: GitHub does
