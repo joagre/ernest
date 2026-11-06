@@ -72,7 +72,7 @@ No draft: the change is one sentence.
 
 ## CLAUDE.md
 
-**Now.** 5,368 words, some 7,000 tokens, which every session pays before it works. Little history in it (two anecdotes and a log citation in a rule), and its one deliberate repetition, *Closing an item*, pays for itself as the checklist a session runs. It is long because it is thorough.
+**Now.** 5,368 words on 2026-11-04 and 5,771 on 2026-11-06, some 7,000 tokens, which every session pays before it works. Little history in it (two anecdotes and a log citation in a rule), and its one deliberate repetition, *Closing an item*, pays for itself as the checklist a session runs. It is long because it is thorough.
 
 1. The owner table, 676 words, names 18 documents under `docs/` that `docs/README.md` lists and describes, and the table itself makes `docs/README.md` the owner of what each document under `docs/` is: CLAUDE.md breaks its own one-owner rule there. Keep its rows for owners outside `docs/`, and replace the 18 with one, `docs/README.md`, each document under `docs/` the owner of its subject. About 350 words; the cost is a file read in a session that needs a `docs/` owner it does not know.
 2. The rest is sentences: much of it is written in the report's dense register, long chains of clauses, where *Writing* asks the plan and the log for "plain and short, one point to a sentence", which a document every session reads whole needs as much. Estimated 5,400 words to about 3,500, some 2,500 tokens a session, no rule dropped.

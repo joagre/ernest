@@ -72,8 +72,9 @@ the final names and no session stops twice (the log's *The Layout's Rest First*)
 
 In a design session, the user agreeing each cut:
 
-- CLAUDE.md redrafted after a harvest of the four repositories' files, every old rule mapped to a
-  new sentence.
+- CLAUDE.md redrafted after a harvest of Ernest's file against the template's, which the copies
+  follow but for their names, every old rule mapped to a new sentence (the log's *The Redraft Stays
+  Before Item 2*).
 - Then the template's, and from it ernest-epx's and ernest-httpd's, by Ernest's session, with the
   template's new `docs/full_review.md`, which each copy takes (`temp-other-repos.md`'s items 5, 7
   and 9; the log's *Who Writes in the Other Repositories*).
