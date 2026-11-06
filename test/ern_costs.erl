@@ -8,8 +8,8 @@
 %% as a ratio.
 -module(ern_costs).
 
--export([measured/2, timed/2, looped/1, launched/1, launched/2, at_once/2, compiled/2,
-         downs/1, table/3, twin_table/2, median_range/1]).
+-export([measured/2, timed/2, looped/1, launched/1, launched/2, at_once_counts/0, at_once/2,
+         compiled/2, downs/1, table/3, twin_table/2, median_range/1]).
 
 %% The runs of each row.
 -define(RUNS, 7).
@@ -61,6 +61,16 @@ launched(Measure, Options) ->
                              <<"Costs.main">>, Options#{stdout => fun(_) -> ok end}),
         receive {measured, Measured} -> Measured end
     end.
+
+%% How many processes run an operation at once, and the words its row's
+%% name ends in: one, eight, and one on each of the host's schedulers, where
+%% eight would leave most of a large machine's idle.
+-spec at_once_counts() -> [{pos_integer(), string()}].
+at_once_counts() ->
+    Schedulers = erlang:system_info(schedulers),
+    [{1, ", one process"},
+     {8, ", eight at once"},
+     {Schedulers, ", " ++ integer_to_list(Schedulers) ++ " at once, the host's schedulers"}].
 
 %% Each of Loops run Count times in a process the runtime spawns in the
 %% launch in progress, so that each has its row, as a program's process

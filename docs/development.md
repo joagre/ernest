@@ -238,11 +238,13 @@ make bench        what each of a few operations costs in Ernest beside the same 
                   burst's, in burst.txt; then what each piece of a foreign call adds to the
                   host's call, by the type of its result, a model of a foreign fn a piece
                   at a time, each operation alone, and the host's call, the foreign fn and
-                  the look's key by eight processes at once beside one, in foreign.txt;
-                  then what each piece of Address.call adds to the host's call of the same
-                  shape, with one caller and one callee, eight pairs, and eight callers of
-                  one callee, and each of the call's writes alone by one process and by
-                  eight, in call.txt; then a top-level let's read, a receive with an after,
+                  the look's key by one process, by eight at once and by one on each of the
+                  host's schedulers, in foreign.txt; then what each piece of Address.call
+                  adds to the host's call of the same shape, with one caller and one callee,
+                  eight pairs, eight callers of one callee, and those two again at the
+                  host's schedulers, and each of the call's writes alone by one process, by
+                  eight and by the host's schedulers, in call.txt; then a top-level let's
+                  read, a receive with an after,
                   a message to a system process, a bare launch with its pieces and an
                   input at the shell's prompt in line mode, at a session's start and after a
                   thousand declarations, each beside the host's, in rules.txt; then each

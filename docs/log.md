@@ -19,7 +19,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-11-06.** [The First Run on the New Laptop](#the-first-run-on-the-new-laptop-2026-11-06); [The Browser Test's Flake](#the-browser-tests-flake-2026-11-06); [Context Is the Cost](#context-is-the-cost-2026-11-06).
+**2026-11-06.** [The First Run on the New Laptop](#the-first-run-on-the-new-laptop-2026-11-06); [The Browser Test's Flake](#the-browser-tests-flake-2026-11-06); [Context Is the Cost](#context-is-the-cost-2026-11-06); [The Reference on the New Laptop](#the-reference-on-the-new-laptop-2026-11-06).
 
 **2026-11-05.** [The Applications' Full Review](#the-applications-full-review-2026-11-05). [Who Writes in the Other Repositories](#who-writes-in-the-other-repositories-2026-11-05). [Ernest Stays at 0.x](#ernest-stays-at-0x-2026-11-05). [One Stop for the Layout](#one-stop-for-the-layout-2026-11-05). [The Floors and the Releases](#the-floors-and-the-releases-2026-11-05). [MVP 4.3 Becomes MVP 4.5](#mvp-43-becomes-mvp-45-2026-11-05).
 
@@ -11671,3 +11671,13 @@ Strength goes where no test catches the error. A wrong line fails a test, while 
 Published measurements say an agent pays only where there is bulk to hand off, and that a dependent chain in one context costs more through one. So an agent is now started for a reason: the discussion goes on, the output is bulky, a reader must be independent, or work runs side by side.
 
 The logs do not record whether a build was right, so this is unmeasured on quality. They are read again at the end of MVP 4.15. If item sessions start missing things they move to the stronger model, and only a measured gain moves anything down.
+
+## The Reference on the New Laptop, 2026-11-06
+
+nike now holds `make bench`'s reference, taken before the layout's restructuring, so that a run after it can say whether moving the code path cost anything. `make bench` took 7m11 with the machine idle, and `make bench-release` keeps it.
+
+Every number earlier in this log is eve's, on eight schedulers where nike has 24, so a ratio read across this entry compares two machines. A spawn is 3.84 times the host's against eve's 5.3, a monitored spawn 5.55 against 11.5, and a monitor of an ended process 17.5 against 26. No measured code moved between those runs, since MVP 4.2's last item changed only the site's client and its tests, so the fall is the machine's. Which part of the machine was not read, since nothing depends on it.
+
+Eight processes leave most of nike's schedulers idle, so the bench's rows that run at once gain a row at the host's scheduler count. `ern_costs:at_once_counts/0` gives the counts for the foreign call's rows and for the call's writes, and the call gains two shapes, 24 pairs and 24 callers of one callee. These rows assert nothing, as no row of the bench does.
+
+`test/machines/machines.txt` makes nike `local` and puts eve on the ssh side, at its Wi-Fi address with its clone under `~/projects`. eve's `origin` is now https, as bee's and xena's are, since a non-interactive login there holds no key and `nodes.sh pull` would stop at it. `nodes.sh check` reaches all four. bee and xena stand on 0.4.0's floor and need that pull before the next run across machines.

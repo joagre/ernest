@@ -20,7 +20,8 @@
 %% piece; a function called back by foreign code, the host's and a
 %% program's; each operation of the models' alone, in a loop of its own;
 %% and the host's call, the foreign fn and the look's key alone, by one
-%% process and by eight at once, each a process with its row.
+%% process, by eight at once and by one on each of the host's schedulers,
+%% each a process with its row.
 %%
 %% Every row runs in a launch of the runtime, as `ern run` starts one. Each
 %% row is the median of seven runs, in nanoseconds an iteration, the loop's
@@ -32,11 +33,9 @@
 -export([main/1, word/1, ordering/1, nothing/1, text/1, some/1, applied/2, called/1, tried/1,
          checked/1]).
 
-%% Each loop's iterations, and each process's where several run at once,
-%% and how many do.
+%% Each loop's iterations, and each process's where several run at once.
 -define(COUNT, 1000000).
 -define(CONTENDED, 100000).
--define(AT_ONCE, 8).
 %% The module the foreign fns are compiled into.
 -define(NAMESPACE, ['ForeignCosts']).
 
@@ -83,7 +82,7 @@ main([Directory]) ->
                               ern_costs:measured(Back, ?COUNT), ratio),
               ern_costs:table("its operations, each alone, ns an operation",
                               ern_costs:measured(operations(), ?COUNT), none),
-              ern_costs:table("eight processes at once against one, "
+              ern_costs:table("several processes at once against one, "
                               "ns a call over all processes",
                               ern_costs:measured(contended(Unit), ?CONTENDED),
                               none)]),
@@ -180,7 +179,7 @@ operations() ->
              {"an Optional(Int) checked, ern_boundary:check/3",
               fun(N) -> ern_boundary:check(Some, {'Some', N}, <<"no">>) end}]].
 
-%% The call and the key with one process and with ?AT_ONCE at once, each a
+%% The call and the key by each count of ern_costs:at_once_counts/0, each a
 %% process the runtime spawns, with its row (ern_costs:at_once/2):
 %% the host's call of a function that answers at once, a foreign fn of it,
 %% and the look's key put and taken.
@@ -196,7 +195,7 @@ contended(Unit) ->
              {"a foreign fn of it, its result Int", fun(N) -> Unit:Word(N) end},
              {"the look's key put and taken",
               fun(_) -> ern_rt:entered_foreign(), ern_rt:left_foreign() end}],
-        {Many, Processes} <- [{1, ", one process"}, {?AT_ONCE, ", eight at once"}]].
+        {Many, Processes} <- ern_costs:at_once_counts()].
 
 %% Count iterations of Operation.
 operated(Operation, Count) ->

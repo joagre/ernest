@@ -1,8 +1,9 @@
 %% `make bench`'s part `call` (docs/development.md; plan, MVP 3.29):
 %% what each piece of `Address.call` adds to the host's call of the same
 %% shape (report §6.6, §6.9, §8.6), with one caller and one callee, with
-%% eight callers over eight callees at once, and with eight callers over
-%% one callee. The host's call is gen:do_call/4's: a monitor that is the
+%% eight callers over eight callees at once, with eight callers over one
+%% callee, and with those two again at a caller on each of the host's
+%% schedulers. The host's call is gen:do_call/4's: a monitor that is the
 %% reply's alias, the request sent, a receive with an `after`, the monitor
 %% dropped.
 %%
@@ -23,13 +24,14 @@
 %% host's longest wait, in a try that takes the mark away and one that
 %% settles (?SLICE, remaining/1).
 %%
-%% Measured, in call.txt: for each of the three, the host's call, the
+%% Measured, in call.txt: for each of the shapes, the host's call, the
 %% model of `Address.call` a piece added on each row until it is call/4's
 %% code, then `Address.call` and `Address.callForever` of an Ernest
-%% counter, the code the compiler writes, its callee too; first the three
+%% counter, the code the compiler writes, its callee too; first the shapes
 %% beside the host's call, then each model; and each of the call's writes
 %% alone, the callee's row on the runtime's table and the two keys in the
-%% process's dictionary, by one process and by eight at once.
+%% process's dictionary, by one process, by eight at once and by one on
+%% each of the host's schedulers.
 %%
 %% Every row runs in a launch of its own, its callers and callees processes the
 %% runtime spawns, each with its row as a program's has, started at once
@@ -42,11 +44,10 @@
 
 -export([main/1]).
 
-%% Each caller's calls in a run of a row, each process's operations in a
-%% run of an operation's row, and how many processes run one at once.
+%% Each caller's calls in a run of a row, and each process's operations in
+%% a run of an operation's row.
 -define(COUNT, 40000).
 -define(OPERATIONS, 50000).
--define(AT_ONCE, 8).
 %% The call's time, which no call here reaches.
 -define(MS, 10000).
 %% A spawn site, as the compiler supplies one (report §6.9).
@@ -58,17 +59,12 @@
 %% The module the counter is compiled into.
 -define(NAMESPACE, ['CallCosts']).
 
-%% The callers over the callees, and how each table names them.
--define(SHAPES, [{1, 1, "one caller and one callee"},
-                 {8, 8, "eight callers over eight callees, eight pairs"},
-                 {8, 1, "eight callers over one callee"}]).
-
 %% Prints the tables, writes them to call.txt in Directory, and halts.
 -spec main([string()]) -> no_return().
 main([Directory]) ->
     Unit = ern_costs:compiled(?NAMESPACE, source()),
     Measured = [{Name, ern_costs:measured(rows(Unit, Callers, Callees), ?COUNT)}
-                || {Callers, Callees, Name} <- ?SHAPES],
+                || {Callers, Callees, Name} <- shapes()],
     Text = unicode:characters_to_binary(
              [[ern_costs:table(["the call, ", Name, ", ns a call over all callers"],
                                [hd(Rows) | lists:nthtail(length(Rows) - 2, Rows)], ratio)
@@ -77,12 +73,23 @@ main([Directory]) ->
                                 ", a piece added on each row"],
                                lists:sublist(Rows, length(Rows) - 1), added)
                || {Name, Rows} <- Measured],
-              ern_costs:table("the call's writes, each alone, one process against eight "
+              ern_costs:table("the call's writes, each alone, one process against several "
                               "at once, ns an operation over all processes",
                               ern_costs:measured(operations(), ?OPERATIONS), none)]),
     io:format("~ts", [Text]),
     ok = file:write_file(filename:join(Directory, "call.txt"), Text),
     halt(0).
+
+%% The callers over the callees, and how each table names them.
+shapes() ->
+    Schedulers = erlang:system_info(schedulers),
+    Host = integer_to_list(Schedulers),
+    [{1, 1, "one caller and one callee"},
+     {8, 8, "eight callers over eight callees, eight pairs"},
+     {8, 1, "eight callers over one callee"},
+     {Schedulers, Schedulers,
+      Host ++ " callers over " ++ Host ++ " callees, the host's schedulers, " ++ Host ++ " pairs"},
+     {Schedulers, 1, Host ++ " callers over one callee, the host's schedulers"}].
 
 %% The counter and its callers, as a program writes them, its call's time
 %% ?MS.
@@ -148,9 +155,9 @@ called(Call, Request, Callee, Left) ->
     _ = Call(Callee, Request),
     called(Call, Request, Callee, Left - 1).
 
-%% Each write of the call's, alone in a loop, by one process and by
-%% ?AT_ONCE at once, each a process the runtime spawns, with its row, each
-%% writing its own key: the callee's row written and deleted on the
+%% Each write of the call's, alone in a loop, by each count of
+%% ern_costs:at_once_counts/0, each a process the runtime spawns, with its
+%% row, each writing its own key: the callee's row written and deleted on the
 %% runtime's table, and the call's key and the timed key put and erased in
 %% the process's dictionary.
 operations() ->
@@ -173,7 +180,7 @@ operations() ->
               end},
              {"the timed key put and taken, timed/0 and untimed/0",
               fun(_) -> ern_rt:timed(), ern_rt:untimed() end}],
-        {Many, Processes} <- [{1, ", one process"}, {?AT_ONCE, ", eight at once"}]].
+        {Many, Processes} <- ern_costs:at_once_counts()].
 
 %%
 %% The callees

@@ -287,10 +287,11 @@ service: measured
 # burst: four bursts against their size, ern_burst_costs, in
 # build/bench/burst.txt.
 # foreign: the pieces of a foreign call, and the host's call, the foreign
-# fn and the look's key by one process and by eight at once,
-# ern_foreign_costs, in build/bench/foreign.txt.
-# call: the pieces of a call with one caller, eight pairs and eight callers
-# of one callee, ern_call_costs, in build/bench/call.txt.
+# fn and the look's key by one process, by eight at once and by one on each
+# of the host's schedulers, ern_foreign_costs, in build/bench/foreign.txt.
+# call: the pieces of a call with one caller, eight pairs, eight callers of
+# one callee, and those two again at the host's schedulers, ern_call_costs,
+# in build/bench/call.txt.
 # rules: the rows the cost rules ask for that no other part has, a
 # top-level let's read, a timed receive, a message to a system process, a
 # bare launch and an input at the shell's prompt, ern_rules_costs, in
