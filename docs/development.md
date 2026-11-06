@@ -68,7 +68,7 @@ test/              what spans the roots of src/: the integration, nodes, deploym
 test/fixtures/     what the tests read: target/, the hand-written target modules;
                    programs/, the programs the tests keep: the first test programs, a
                    two-module tree, the module of docs/module_doc_template.md and the
-                   echo measurement; outputs/ and emitted/, what programs/, hello,
+                   echo measurement; refused/, the README's refused program; outputs/ and emitted/, what programs/, hello,
                    services print, interpreter's session among
                    them, and the Erlang they compile to; site/, under tree/ the
                    documents the site's generator renders and the log it links to, each

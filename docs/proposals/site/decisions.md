@@ -107,12 +107,12 @@ The site's files as served.
   thing is said once on the page: the opening says the effect, the list
   beside it the means (decided 2026-11-03); Why's list
   "What Ernest adds", four of `guide/why.md`'s claims, the ones a newcomer
-  reads at once: code goes where it runs, the mailbox in the function's
+  reads at once: code travels, the mailbox in the function's
   type, a distribution built for a WAN, and a deadlock is found. Each is
   shown as its bold name and its first sentence alone, word for word,
   linking to its heading in Why, so that the list fits beside the
   opening; the rest is Why's. Why and the README hold that order and the
-  first claim's name and sentence, which `claims_test` keeps equal
+  claims' names, which `claims_test` keeps equal
   (decided 2026-11-03); and a small example with its output, which a
   test runs, so that the example's button runs what the page shows: a process started on
   the container's second node, its code typed into the shell and sent

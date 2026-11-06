@@ -10,9 +10,9 @@
 
 *The Importance of Being Ernest, a Trivial Comedy for Serious People*
 
-Ernest is a small functional language for concurrent programs, on the Erlang runtime. A process started on another node brings its code along, and nothing is installed there first; and a process receives messages of one type, which the compiler checks every send against.
+Ernest is a small BEAM language built around code that travels. It takes Unison's code known by the hash of its definition, Gleam's kind of types and Erlang's processes, and adds what none of them has. A process started on another node brings its code along, each function crossing by its hash, and nothing is installed there first. A process's mailbox type is part of its function's type, so the compiler checks every send against the mailbox it reaches. And two nodes are two configuration files over one TLS connection, with no cluster to join.
 
-`counter.ern` is the whole of a counter. Its mailbox type, `CounterMsg`, is in the type of `count`, the loop the process runs, so that every message sent to its address is checked against it. `Inc` is sent, and `Get` is a call. A `Reply(Int)` is where a call's answer goes: `Address.call` makes it, `Get` builds the request around it, and `answer` sends the total to it. The call waits 1000 milliseconds at most, and answers `None` where no answer comes in time:
+A counter, whose mailbox type, `CounterMsg`, is in the type of the loop it runs:
 
 ```ernest
 export type CounterMsg = Inc(Int) | Get(Reply(Int))
@@ -28,57 +28,7 @@ export fn count(total : Int) : Unit receiving CounterMsg =
     }
 ```
 
-In a shell `:load` compiles it, `spawn` starts the loop in a process of its own, typed by the loop, and `send` and `Address.call` reach it:
-
-```console
-$ ern shell
-Ernest 0.10.0, session 1. :help for help.
-> :load Counter
-Counter, compiled from counter.ern
-> let counter = spawn(fn() = Counter.count(0))
-counter : Address(Counter.CounterMsg)
-> send(counter, Counter.Inc(5))
-> send(counter, Counter.Inc(3))
-> Address.call(counter, Counter.Get, 1000)
-Some(8) : Optional(Int)
-```
-
-A function that receives runs only in a process whose mailbox takes what it receives, so `count` called by a `main` whose mailbox takes another type is refused before the program runs. This is the mistake a Gleam `Subject` lets through: `process.receive(subject)` compiles wherever a subject is in hand, and whose mailbox it reads is left to the run:
-
-```ernest-rejected
-type CounterMsg = Inc(Int)
-
-type OtherMsg = Ticked
-
-export fn main() : Unit receiving OtherMsg =
-    count(0)
-
-fn count(total : Int) : Unit receiving CounterMsg =
-    receive {
-        Inc(amount) -> count(total + amount)
-    }
-```
-
-```console
-$ ern build other.ern
-other.ern:6:5: count needs mailbox CounterMsg, and the mailbox here is OtherMsg
-4 |
-5 | export fn main() : Unit receiving OtherMsg =
-  |                                   -------- main is declared `receiving OtherMsg` here
-6 |     count(0)
-  |     ^^^^^^^^
-```
-
-The same counter runs on another node. A *node* is a running program or shell that lists its peers in a configuration directory. `foo` is a node started with no program, in a terminal of its own, by `ern run --config-dir foo`, and it holds nothing of the counter's. The shell is a node too, from a directory of its own. The two directories list each other by key, and the shell's directory names `foo`'s address too. Four commands make them; each `ern config` that creates a directory prints the node's public key, left out here:
-
-```console
-$ ern config --config-dir foo --listen 127.0.0.1:8654
-$ ern config --config-dir a
-$ ern config --config-dir foo --peer-dir a
-$ ern config --config-dir a --peer-dir foo
-```
-
-Then, with `foo` running, `Peer.spawn` starts `count` on `foo`, its code crossing with the spawn, and the shell counts on it from here. `Peer.spawn` answers `Right(address)`, or `Left(error)` where it could not start the process; `let far <-` binds the address inside a `Right`, and on a `Left` shows the reason:
+On a second node, `foo`, which holds none of the counter's code, `Peer.spawn` starts `count`, and the shell counts on it from here. Two configuration directories make the pair, four `ern config` commands of the kind [the tour](tour/README.md) shows:
 
 ```console
 $ ern shell --config-dir a
@@ -93,32 +43,44 @@ far : Address(Counter.CounterMsg)
 Some(5) : Optional(Int)
 ```
 
-`Peer.spawn` carried `count` and its type to `foo` by their hashes, and `foo` compiled them before the process started; `far` is an `Address(CounterMsg)` as `counter` was, checked the same way.
+`foo` compiled `count` and its type before the process started.
 
-Its parts come from elsewhere: Erlang's processes, the types of ML, which Gleam made ordinary on that runtime, and Unison's small core and its code known by the hash of its definition.
+A function that receives runs only in a process whose mailbox takes what it receives, so `count` called from a `main` with another mailbox is refused before the program runs. A Gleam `Subject` lets this through: `process.receive(subject, 1000)` compiles wherever a subject is in hand, and panics at run time in a process that does not own it.
 
-What Ernest adds is where the parts meet, six claims that [Why Ernest](guide/why.md) argues, four of them with a program, one with its configuration file and one with the report:
+```console
+$ ern build other.ern
+other.ern:6:5: count needs mailbox CounterMsg, and the mailbox here is OtherMsg
+4 |
+5 | export fn main() : Unit receiving OtherMsg =
+  |                                   -------- main is declared `receiving OtherMsg` here
+6 |     count(0)
+  |     ^^^^^^^^
+```
 
-- **[Code goes where it runs](guide/why.md#code-goes-where-it-runs).** A process started on another node brings its code along, and a module keeps every version it has had: each function is known by a hash of its definition, not by the module it stands in.
-- **[The mailbox in the function's type](guide/why.md#the-mailbox-in-the-functions-type).** A function that receives names its mailbox in its own type, so the compiler checks every send against the mailbox it will reach and refuses a function that receives in a process of another mailbox, which Gleam's `process.receive(subject)` compiles and leaves to the run.
-- **[A distribution built for a WAN](guide/why.md#a-distribution-built-for-a-wan).** Two nodes are two configuration files, each naming the other by key and address, with one TLS connection between them and no cluster to join.
-- **[A deadlock is found](guide/why.md#a-deadlock-is-found).** Under `ern run` and `ern test` without `--config-dir`, a program in which every process waits for a message none can send ends with a fault and a trace; [Why Ernest](guide/why.md#a-deadlock-is-found) says where it cannot be found. Finding it costs a running program a message at each spawn and each monitor.
-- **[Abstract types and requirements](guide/why.md#abstract-types-and-requirements).** A type keeps its representation to its module, and a generic function names the operations it needs, from a closed set, which the compiler supplies at each call; no program declares a class, so nothing stands on one.
-- **[Little else](guide/why.md#little-else).** Functions and processes are the whole language, and a report of three files defines all of it.
+What Ernest adds, which [Why Ernest](guide/why.md) argues:
 
-Ernest is for programs written in it from the start, not for an OTP application or a codebase of several languages; [Why Ernest](guide/why.md) says how it meets Erlang.
+- [Code travels](guide/why.md#code-travels)
+- [The mailbox in the function's type](guide/why.md#the-mailbox-in-the-functions-type)
+- [A distribution built for a WAN](guide/why.md#a-distribution-built-for-a-wan)
+- [A deadlock is found](guide/why.md#a-deadlock-is-found)
+- [Abstract types and requirements](guide/why.md#abstract-types-and-requirements)
+- [Little else](guide/why.md#little-else)
 
-Three ways in, each for a reader:
+The questions a Gleam or Erlang programmer asks first are [answered here](guide/faq.md).
 
-- **[The tour](tour/README.md)**, for the programmer who wants the whole picture in an evening: one program, a counter, grown through eight chapters from a process with a typed mailbox to the same counter on a node started with none of its code, moved to new code there. An hour to read, about three hours to do along.
-- **[The guide](guide/language.md)**, *Programming in Ernest*, for the programmer learning the language, who has used a functional language: every rule taught where a program first needs it, with the report's section named. An afternoon to read; [`guide/README.md`](guide/README.md) says what stands beside it, for whom and how long.
-- **[The report](report/README.md)**, for whoever builds or checks a toolchain or writes a library against the exact rules: the definition, three files, which everything else defers to.
+## Where to begin
 
-The counter above is the first three claims at work, and the rest of the argument is [Why Ernest](guide/why.md).
+- **[The tour](tour/README.md)**: one program grown through eight chapters, in an evening.
+- **[The guide](guide/language.md)**, *Programming in Ernest*: the language, a rule where a program first needs it.
+- **[The report](report/README.md)**: the definition, which everything else defers to.
+- **[`examples/`](examples/)**: complete programs, from `hello.ern` to a game at a terminal.
+- **[`ernest-template`](https://github.com/joagre/ernest-template)**: where an application in Ernest begins.
+
+[`guide/README.md`](guide/README.md) lists the other guides: style, and running nodes.
 
 ## Where it stands
 
-It is young. Programs run on one node and across nodes, and 0.9.0 is the latest release. Where the project stands is "Where we are" in the [plan](docs/plan.md), and what the toolchain does not do yet is a table in [`docs/development.md`](docs/development.md). Until 1.0 a release may refuse a program the previous release accepted, as the plan says; each release's notes, on the [releases page](https://github.com/joagre/ernest/releases), say where to read what changed.
+Young: the [releases page](https://github.com/joagre/ernest/releases) names the latest, and until 1.0 a release may refuse a program the previous one accepted.
 
 ## Installing
 
@@ -143,16 +105,6 @@ Or from a release: download `ern-<version>.tar.gz` from the [releases page](http
 Two nodes on one machine take four more commands: `ern config --config-dir` makes each node's directory with its key, `ern config --peer-dir` lists one node in the other's file, `ern run --config-dir` starts a node, and `ern stop --config-dir` ends it; [the deployment guide](guide/deployment.md) walks through them.
 
 `make install PREFIX=$HOME/.local` installs Ernest for you alone, with no `sudo`, where `~/.local/bin` is on your `PATH`. `make uninstall`, with the same `PREFIX`, removes it. Without installing, the checkout's `bin/ern` runs in place. The Emacs mode is installed with the rest, as `share/emacs/site-lisp/ernest-mode.el`, and [`editors/emacs/README.md`](editors/emacs/README.md) says how to turn it on.
-
-## Reading more
-
-- **[Why Ernest](guide/why.md)** is the argument for the design, and **[the questions](guide/faq.md)** answer what a reader of another BEAM language asks first.
-- **[Style](guide/style.md)** is the rules a program is written by: its layout, its names, and the names every program shares.
-- **[The deployment guide](guide/deployment.md)**, *Running Ernest*, is for whoever runs nodes: a node's directory and its service manager, its peers, a running program given new code, and looking in from a shell attached to a node.
-- **[`examples/`](examples/)** holds complete programs, from `hello.ern` to a game at a terminal, [`snake.ern`](examples/snake.ern), and a small web server, [`web_server.ern`](examples/web_server.ern); [`examples/README.md`](examples/README.md) lists them by topic, with what each shows.
-- **[The manual pages](docs/man/)**, as Markdown: the prelude's, every standard library module's and every library's, which `man Ernest.List` shows where Ernest is installed.
-- **[`ernest-template`](https://github.com/joagre/ernest-template)** is where an application written in Ernest begins: a repository copied with *Use this template*, with one Makefile, the documents and the working rules of this repository cut to an application's size, and `TEMPLATE.md` saying why.
-- **[Working on Ernest](docs/development.md)** is for those who work on the language and its toolchain, and says how the repository is laid out: `report/` and `guide/` are the language, `src/` holds what a release ships, `tools/` what works on the repository, `editors/` the editor modes, and `docs/` every other document.
 
 ## License
 

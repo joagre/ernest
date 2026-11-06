@@ -2,24 +2,22 @@
 
 The argument for the design, in six claims, four of them with a program, one with its configuration file and one with the report. [*Programming in Ernest*](language.md), the guide, teaches the language; this document says why it is as it is.
 
-Ernest is a small functional language for concurrent programs, on the Erlang runtime. A process started on another node brings its code along, and nothing is installed there first; and a process receives messages of one type, which the compiler checks every send against. `ern` is its one command, which builds, runs and tests a program and opens its shell.
-
 What Ernest adds is where the parts meet:
 
-- **Code goes where it runs.** A process started on another node brings its code along, and a module keeps every version it has had: each function is known by a hash of its definition, not by the module it stands in. So a running process moves to the new version of its function when a message tells it to, and any node can run anything: a computation that names no node goes to the less busy of two peers drawn at random, and no program is deployed first.
-- **The mailbox in the function's type.** Every process receives messages of one type, which a function that receives names in its own type and a process's address carries. So the compiler checks every message sent against the mailbox it will reach and every receive against the mailbox it reads, and a program can never send a server a message of a type the server does not take. A function that receives runs only in a process of its mailbox's type: a function that receives, called in a process of another mailbox, which Gleam's `process.receive(subject)` compiles and leaves to the run, is refused before the run.
-- **A distribution built for a WAN.** A node lists its peers in a file, each by name, public key and address, accepts a connection only from a key it lists, and opens one TLS connection to a peer when it first needs it. There is no cluster to join and no shared secret: a laptop and a server, or two data centers, are two nodes with one file each naming the other.
-- **A deadlock is found.** A program in which every process waits for a message none can send ends with a fault and a trace under `ern run` and `ern test`, where the host would wait forever. The runtime owns every source of a message, a typed mailbox, a process it spawned, a timer or a socket, which it counts, so it can decide that nothing can deliver. The one source it cannot count is a delivery foreign code arranges for after its call has returned. A node, which its peers can reach, detects none, and nor does the shell while it holds the terminal. Finding one costs a running program a message at each spawn and each monitor.
-- **Abstract types and requirements.** A type declared abstract keeps its constructor to its own module, so the representation can change and no caller knows. A generic function names the operations it needs of its type, and the compiler supplies that type's own at each call. A type's members are declared in its own module, by `fn T.compare` or `derives compare`, a requirement is written and never inferred, and a requirement names a closed set no program adds to, `compare`, `negate`, the six operators and `show`, which is no member but every value's through `Io.show` (report §4.9). The closed set is what sets a requirement apart from a class: no program declares one, so no abstraction stands on a class, no functor, no monad, no tower of them, and that closed set is the whole of what a type can promise.
-- **Little else.** Functions and processes are the whole language, with one way to do each thing. A report of three files defines all of it. Five principles decide what goes in, and the first is that nothing surprises a reader who knows the rest.
+- **Code travels.** A process started on another node brings its code along, and a module keeps every version it has had: each function is known by a hash of its definition, not by the module it stands in.
+- **The mailbox in the function's type.** Every process receives messages of one type, which a function that receives names in its own type and a process's address carries.
+- **A distribution built for a WAN.** A node lists its peers in a file, each by name, public key and address, accepts a connection only from a key it lists, and opens one TLS connection to a peer when it first needs it.
+- **A deadlock is found.** A program in which every process waits for a message none can send ends with a fault and a trace under `ern run` and `ern test`, where the host would wait forever.
+- **Abstract types and requirements.** A type declared abstract keeps its constructor to its own module, so the representation can change and no caller knows.
+- **Little else.** Functions and processes are the whole language, with one way to do each thing.
 
-Its parts come from elsewhere: Erlang's processes, the types of ML, which Gleam made ordinary on that runtime, and Unison's small core and its code known by the hash of its definition.
+Its parts come from elsewhere: Unison's small core and its code known by the hash of its definition, the types of ML, which Gleam made ordinary on that runtime, and Erlang's processes.
 
 Ernest is for programs written in it from the start. An Ernest program is not an OTP application, and its own code is Ernest: what ships with Erlang/OTP, and any library of the host's, a package from hex among them, is reached through declarations that give it Ernest types, which a program may write for itself. What an OTP programmer finds in place of each part, the supervisor, the release and `sys` among them, is the guide's §10 and [the questions](faq.md).
 
 ## The claims, in code
 
-### Code goes where it runs
+### Code travels
 
 The hash is never written in a program. It is what a peer asks for, and what tells two versions of a definition apart.
 
@@ -140,7 +138,7 @@ count is 8
 
 A fault, a division by zero or a `fault` call, ends the process, and nothing catches it. Whoever monitors the process hears of its end as a `Down` with the reason, wrapped as a message of their own type. A process started under `restarting` runs its function again from its start after a fault, its mailbox emptied and its address kept, so the name `counter` stays good and a request that waited in the mailbox is lost; the guide's §6.5 shows a restart.
 
-A function that receives runs only in a process of its mailbox's type. `spawn` takes the address's type from the function, `spawn(fn() = count(0))` being an `Address(CounterMsg)` and nothing else, and the one channel a program makes is a `Reply`, which a caller makes and hands over in its request (report §6.6). No process reads another's mailbox, since `receive` reads the mailbox of the process it runs in, the one the function's type names. Called in a process whose mailbox takes another type, here `main`'s, `count` is refused, though no address is in sight. This is the mistake a Gleam `Subject` lets through: `process.receive(subject)` compiles wherever a subject is in hand, and whose mailbox it reads is left to the run:
+A function that receives runs only in a process of its mailbox's type. `spawn` takes the address's type from the function, `spawn(fn() = count(0))` being an `Address(CounterMsg)` and nothing else, and the one channel a program makes is a `Reply`, which a caller makes and hands over in its request (report §6.6). No process reads another's mailbox, since `receive` reads the mailbox of the process it runs in, the one the function's type names. Called in a process whose mailbox takes another type, here `main`'s, `count` is refused, though no address is in sight. This is the mistake a Gleam `Subject` lets through: `process.receive(subject, 1000)` compiles wherever a subject is in hand, and panics at run time in a process that does not own it:
 
 ```ernest-rejected
 type CounterMsg = Inc(Int)

@@ -315,16 +315,17 @@ comment_paths(File) ->
 %% repository": the claims the README lists are the ones why.md lists under
 %% its opening and argues each under a heading of its own in *The claims, in
 %% code*, in one order and one wording, each of the README's linked to its
-%% heading, and both documents count them in words. A regression test:
-%% docs/development.md said a test held the two lists equal, and none did;
-%% it does not read how many of the claims show a program.
+%% heading, and why.md and guide/README.md count them in words. A regression
+%% test: docs/development.md said a test held the two lists equal, and none
+%% did; it does not read how many of the claims show a program.
 claims_test() ->
     Readme = ern_repository:read("README.md"),
     Why = ern_repository:read("guide/why.md"),
     Lead = <<"What Ernest adds is where the parts meet">>,
-    Entry = "^- \\*\\*\\[(.+?)\\]\\(guide/why\\.md#([^)]+)\\)",
+    Entry = "^- \\[(.+?)\\]\\(guide/why\\.md#([^)]+)\\)",
     Linked = [{Title, Anchor}
-              || [Title, Anchor] <- line_matches(list_after(Readme, Lead), Entry)],
+              || [Title, Anchor]
+                     <- line_matches(list_after(Readme, <<"What Ernest adds, which">>), Entry)],
     Listed = [Title || [Title] <- line_matches(list_after(Why, Lead), "^- \\*\\*(.+?)\\.\\*\\*")],
     [_, AfterClaims] = binary:split(Why, <<"\n## The claims, in code\n">>),
     [Claims | _] = binary:split(AfterClaims, <<"\n## ">>),
@@ -336,10 +337,11 @@ claims_test() ->
     ?assertEqual(Argued, [Title || {Title, _} <- Linked]),
     ?assertEqual([], Linked -- Anchors),
     Count = number_word(length(Argued)),
-    ?assertEqual([{"README.md", Count}, {"guide/why.md", Count}],
+    ?assertEqual([{"guide/README.md", Count}, {"guide/why.md", Count}],
                  [{File, string:lowercase(Word)}
-                  || {File, Text} <- [{"README.md", Readme}, {"guide/why.md", Why}],
-                     [[Word] | _] <- [matches(Text, "\\b([A-Za-z-]+) claims\\b")]]).
+                  || File <- ["guide/README.md", "guide/why.md"],
+                     [[Word] | _] <- [matches(ern_repository:read(File),
+                                              "\\b([A-Za-z-]+) claims\\b")]]).
 
 %% The list that follows the line holding Lead, after the blank line under
 %% it, up to the blank line that ends it.

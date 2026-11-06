@@ -35,7 +35,7 @@ It argues where it should point.
 - Dropped: `docs/man/` (Installing's `man Ernest.List` shows the manual); `docs/development.md` and `docs/plan.md` (for work on Ernest, which takes no contribution before 1.0); `editors/emacs/README.md` (named in Installing's last sentence, or carried by `guide/README.md`); `examples/snake.ern` and `web_server.ern` (the examples' README lists them).
 - `THIRD_PARTY_LICENSES` stays in the License section's one sentence only, where it belongs, and is no reading link.
 
-**The draft.** `temp-README.md`, 2026-11-04: the opening for an Erlang and Gleam reader, crediting Unison, Gleam and Erlang in that order and leading with code that travels; the counter; its code started on a second node by `Peer.spawn`; the refusal of the wrong mailbox; the six claims as links; five ways in; *Where it stands* naming no version; *Installing* and *License* as they are. Read and judged good, with two fixes made in it.
+**The draft.** Written 2026-11-04 and landed as `README.md` 2026-11-06: the opening for an Erlang and Gleam reader, crediting Unison, Gleam and Erlang in that order and leading with code that travels; the counter; its code started on a second node by `Peer.spawn`; the refusal of the wrong mailbox; the six claims as links; five ways in; *Where it stands* naming no version; *Installing* and *License* as they are. Read and judged good, with two fixes made in it.
 
 **Gleam, to fix and to check before the launch.**
 - The README writes `process.receive(subject)`, and `guide/why.md` twice. Gleam's `process.receive` takes a timeout, `process.receive(subject, within)`, with `receive_forever(subject)` the form without one, as far as known here; a Gleam reader meets a wrong call in the one line meant for them. Fixed in all three places.
@@ -59,7 +59,7 @@ Decided with the user, 2026-11-04: the claim now titled "Code goes where it runs
 About 700 words go, to some 4,250; no argument and no program is touched, and the homepage shows the same text.
 5. "Its parts come from elsewhere" stays, as part of the argument, in the README's order: Unison, Gleam, Erlang. "Ernest is for programs written in it from the start", what Ernest is not for, stays as it is: the honest answer to an Erlang reader's "can I use it in my OTP system?", which nothing else gives.
 
-**The draft.** `temp-why.md`, 2026-11-04, built from `why.md` with 1 to 5 applied: 4,509 words from 4,953. Judged good with the user.
+**The draft.** Written 2026-11-04 and landed as `guide/why.md` 2026-11-06, built from `why.md` with 1 to 5 applied: 4,509 words from 4,953. Judged good with the user.
 
 ## tools/release/README.md (release/README.md after the layout's change 3)
 

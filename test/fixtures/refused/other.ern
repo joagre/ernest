@@ -1,0 +1,11 @@
+type CounterMsg = Inc(Int)
+
+type OtherMsg = Ticked
+
+export fn main() : Unit receiving OtherMsg =
+    count(0)
+
+fn count(total : Int) : Unit receiving CounterMsg =
+    receive {
+        Inc(amount) -> count(total + amount)
+    }

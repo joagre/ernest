@@ -4,7 +4,7 @@ The fixture's argument, whose first four claims the homepage shows, each by its 
 
 What Ernest adds is where the parts meet:
 
-- **Code goes where it runs.** The first claim's first sentence. Its second, which the homepage leaves out.
+- **Code travels.** The first claim's first sentence. Its second, which the homepage leaves out.
 - **The mailbox in the function's type.** The second claim, with `code` in its sentence. Its second.
 - **A distribution built for a WAN.** The third claim.
 - **A deadlock is found.** The fourth claim, the homepage's last.
@@ -12,7 +12,7 @@ What Ernest adds is where the parts meet:
 
 ## The claims, in code
 
-### Code goes where it runs
+### Code travels
 
 The first.
 

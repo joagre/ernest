@@ -147,12 +147,26 @@ guide_examples_test_() ->
 report_examples_test_() ->
     examples(?REPORT, "report").
 
-%% README.md: the front page's refused program is refused as its console
-%% shows, as the guide's are; its two shell consoles are ern_tour_tests'
-%% (readme_shell, readme), which copy its counter, tour/2/counter.ern,
-%% beside the shell, where a session here runs beside nothing
+%% README.md: the front page's counter compiles; its shell console is
+%% ern_tour_tests' (readme), which copies the counter, tour/2/counter.ern,
+%% beside the shell
 readme_examples_test_() ->
     examples(?README, "readme").
+
+%% README.md: the front page shows the refusal of a program and not the
+%% program, which is fixtures/refused/other.ern, refused as the console
+%% shows. A regression test, written when the page stopped showing the
+%% program (the log's *The README Recut*).
+readme_refused_test_() ->
+    {ok, Code} = file:read_file("fixtures/refused/other.ern"),
+    {ok, Text} = file:read_file(?README),
+    Lines = binary:split(Text, <<"\n">>, [global]),
+    Blocks = blocks(lists:zip(lists:seq(1, length(Lines)), Lines), none, []),
+    [{Number, Shown}] = [{Number, Shown}
+                         || #block{line = Number, info = <<"console">>,
+                                   code = [<<"$ ern build other.ern">> | Shown]} <- Blocks],
+    checked({"readme's refused program",
+             {rejected, #{line => Number, files => [{"other.ern", Code}], shown => join(Shown)}}}).
 
 %% guide/why.md, guide/faq.md: the argument's programs compile as the
 %% guide's do, and the questions' would if they had any
@@ -323,7 +337,7 @@ diagnostics_test_() ->
     examples(?DIAGNOSTICS, "diagnostics").
 
 examples(Document, Kind) ->
-    Units = [cataloged(Kind, Unit) || Unit <- units(Document), held_here(Kind, Unit)],
+    Units = [cataloged(Kind, Unit) || Unit <- units(Document)],
     Named = [{label(Kind, Number, Unit), Unit}
              || {Number, Unit} <- lists:zip(lists:seq(1, length(Units)), Units)],
     {Apart, Here} = lists:partition(fun({_, Unit}) -> loads_nothing(Unit) end, Named),
@@ -349,10 +363,6 @@ steps({continuation, _}) -> 1.
 %% The catalog's errors may be the parser's or an unknown name's.
 cataloged("diagnostics", {rejected, Unit}) -> {rejected, Unit#{any_reason => true}};
 cataloged(_, Unit) -> Unit.
-
-%% The README's sessions are ern_tour_tests' (readme_examples_test_).
-held_here("readme", {session, _}) -> false;
-held_here(_, _) -> true.
 
 loads_nothing({modules, #{launch := #launch{invocation = Invocation, inputs = Inputs}}}) ->
     Invocation =:= "shell " orelse Inputs =/= [];

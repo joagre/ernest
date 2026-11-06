@@ -122,10 +122,9 @@ told_boundary(Base) ->
 %% said where it listens, that `a` connected and, once the shell has quit,
 %% that it ended, and nothing else.
 %%
-%% A regression test, written after the README; the README's four `ern
-%% config` lines are its four jobs, `foo`'s port one the harness found
-%% free in place of the README's. It does not cover the shell at a
-%% terminal. Its limit is the sum of its fifteen waits, each bounded by the
+%% A regression test, written after the README; the four `ern config`
+%% commands the README names are its four jobs. It does not cover the shell
+%% at a terminal. Its limit is the sum of its fifteen waits, each bounded by the
 %% harness's time for one wait: four `ern config` jobs, `foo`'s listening,
 %% the shell's start, four inputs, the shell's end and what it said, the
 %% stop, `foo`'s end and what it said.
@@ -155,29 +154,9 @@ readme(Base) ->
                   <<"the peer a ended">>],
                  stamped(Err)).
 
-%% README.md's first console, the counter at a shell that is no node;
-%% report §6.1, §6.2, §6.6, §11.2: the README's counter in the reader's
-%% directory, the shell started plain, its start line the release's as
-%% the README shows it, and the console's inputs typed, each held to the
-%% lines the console shows after it. A regression test, written after the
-%% README's opening (the log's *The Claims, the README and the Tour*). Its
-%% limit is the sum of its eight waits, each bounded by the harness's
-%% time for one wait: the start, five inputs, the end and what the shell
-%% said.
-readme_shell_test_() ->
-    ern_nodes_tests:nodes_test({waits, 8}, fun readme_shell/1).
-
-readme_shell(Base) ->
-    [_, Start | Session] = readme_console(<<"$ ern shell">>),
-    ?assertEqual(readme_start(), Start),
-    {ok, _} = file:copy(filename:join([?TOUR, "2", "counter.ern"]),
-                        filename:join(Base, "counter.ern")),
-    Shell = started(Base, filename:join(Base, "shell"), ""),
-    quit(session(Shell, inputs(Session))).
-
 %% site/example.md, the homepage's example (docs/proposals/site/decisions.md
 %% *The homepage*); report §8.7, §11.2, Appendix E.27: `a` and `foo` made
-%% and listed in each other's as the README's are, `foo` started bare, the
+%% and listed in each other's as readme/1's are, `foo` started bare, the
 %% shell started as `a`, its start line the release's as the example shows
 %% it, the example's code typed, each of its declarations an input as line
 %% mode reads one, the function's over lines the shell prompts `... ` for,
