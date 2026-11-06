@@ -61,9 +61,7 @@ build in the layout that stays and the archive ernest-httpd rehearses on holds i
 
 At the same stop ernest-template, ernest-epx and ernest-httpd took their shape, a commit in each
 (the log's *One Stop for the Layout*, *The Other Repositories' Shape*). No floor rose and none
-of them released: the changes wait on `main` for MVP 4.4's item 5. The user turns on private
-vulnerability reporting in all four before those commits and Ernest's are pushed, since
-`SECURITY.md` sends a reporter there.
+of them released: the changes wait on `main` for MVP 4.4's item 5.
 
 1. **The runtime at the host's limits**, done 2026-11-04 (the log's *A Node's Limits*, *A Node's
    Schedulers*, *The Hangup's Order* and *ernest-httpd's Lines 18 to 21*).

@@ -11722,7 +11722,7 @@ ernest-template, ernest-epx and ernest-httpd take their shape from `temp-other-r
 
 **`SECURITY.md` is one sentence, decided with the user.** It says to report a security hole privately, through the repository's *Security* tab, and not in an issue. It publishes no address, and all four hold the same text. Ernest's comes at this stop and not with the proposal's group 2, since one sentence needs no second occasion. `CONTRIBUTING.md` names it (principle 1): a reader who followed that file's word on a defect would publish the hole. A copy of the template turns the setting on itself, since GitHub does not copy it, and the template's last section says so.
 
-**The setting is still off.** Private vulnerability reporting was off in all four when read today, and this session's attempt to turn it on was denied by its permission mode. The sentence is true only once it is on, so the user turns it on before these commits are pushed (the plan).
+**The setting.** Private vulnerability reporting was off in all four when read today, and the sentence is true only once it is on. This session's attempt to turn it on was denied by its permission mode, so the user turned it on, before these commits were pushed.
 
 **One sentence of `clean_room.md` changed.** It said the template states a stranger's way alone, while item 8 has the template name both roads to Ernest. A copy's `CLAUDE.md` is the template's, and ernest-httpd's lines go by message, so the tracker alone would be false for the copies and the message alone false for a stranger. Item 8 stands, and the sentence now says the template names the tracker first and the message only for an application built here.
 
