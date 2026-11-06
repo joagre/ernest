@@ -19,7 +19,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-11-06.** [The First Run on the New Laptop](#the-first-run-on-the-new-laptop-2026-11-06); [The Browser Test's Flake](#the-browser-tests-flake-2026-11-06); [Context Is the Cost](#context-is-the-cost-2026-11-06); [The Reference on the New Laptop](#the-reference-on-the-new-laptop-2026-11-06); [The Layout's Independent Reading](#the-layouts-independent-reading-2026-11-06); [The Layout Built](#the-layout-built-2026-11-06); [The Other Repositories' Shape](#the-other-repositories-shape-2026-11-06); [The Layout's Rest First](#the-layouts-rest-first-2026-11-06).
+**2026-11-06.** [The First Run on the New Laptop](#the-first-run-on-the-new-laptop-2026-11-06); [The Browser Test's Flake](#the-browser-tests-flake-2026-11-06); [Context Is the Cost](#context-is-the-cost-2026-11-06); [The Reference on the New Laptop](#the-reference-on-the-new-laptop-2026-11-06); [The Layout's Independent Reading](#the-layouts-independent-reading-2026-11-06); [The Layout Built](#the-layout-built-2026-11-06); [The Other Repositories' Shape](#the-other-repositories-shape-2026-11-06); [The Layout's Rest First](#the-layouts-rest-first-2026-11-06); [A Proposal Not Built Stays](#a-proposal-not-built-stays-2026-11-06).
 
 **2026-11-05.** [The Applications' Full Review](#the-applications-full-review-2026-11-05). [Who Writes in the Other Repositories](#who-writes-in-the-other-repositories-2026-11-05). [Ernest Stays at 0.x](#ernest-stays-at-0x-2026-11-05). [One Stop for the Layout](#one-stop-for-the-layout-2026-11-05). [The Floors and the Releases](#the-floors-and-the-releases-2026-11-05). [MVP 4.3 Becomes MVP 4.5](#mvp-43-becomes-mvp-45-2026-11-05).
 
@@ -11741,3 +11741,7 @@ The redraft runs in a design session with the user agreeing each cut, since it i
 Two lines cannot end at this stop. The release's line on the installed layout waits for MVP 4.4's item 5, since the release step writes `CHANGES.md`. What each application adds to its `docs/full_review.md` waits for its own session, since it says what the program has.
 
 `docs/proposals/fides/` is exploratory, the user's word, and its README says so.
+
+## A Proposal Not Built Stays, 2026-11-06
+
+CLAUDE.md's *Proposals* now says a proposal refused or not taken up stays, its README's status line saying which, and only a built one goes, as decided with the user on 2026-11-04. Its reasons and its experiments have no other owner, and a built proposal's have the design note and the log. `beam_op_codes/`'s README says so already. `ernest_host/`'s still called a back end to BEAM's instructions the nearer step, a sentence out of date since *No Back End to BEAM's Own Instructions*, and now says it is not built. `ponderings.md` under it stays as dated.

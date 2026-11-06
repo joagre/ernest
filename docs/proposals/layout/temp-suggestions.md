@@ -87,7 +87,7 @@ A rename of a document changes, in its own commit, CLAUDE.md's owner row and `do
 
 ## 5. Rules
 
-- [ ] CLAUDE.md's *Proposals*: a proposal refused or not taken up stays, its README's status line saying which; only a built one goes
+- [x] CLAUDE.md's *Proposals*: a proposal refused or not taken up stays, its README's status line saying which; only a built one goes
 
 ## 6. Files (`temp-files.md`), before MVP 4.15's item 2
 

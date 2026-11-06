@@ -72,7 +72,6 @@ the final names and no session stops twice (the log's *The Layout's Rest First*)
 
 In an item session:
 
-- Group 5: CLAUDE.md's rule on a proposal refused or not taken up.
 - Group 4: the renames and additions, each its own commit. `docs/proposals/fides/README.md` says
   that proposal is exploratory.
 - Group 2: `docs/log.md` split by month, one file holding the index and the standing sections,
