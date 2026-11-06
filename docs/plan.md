@@ -254,8 +254,10 @@ attached shell, MVP 4.0, is the operator's alone.
 8. **The browser test's joined session flakes**, a defect found 2026-11-04, fixed by 2026-11-06:
    `make test-browser`'s "a whole load and a joined session" failed in two of five runs that day,
    once with no connection reaching its stub and once with Chrome's DevTools not answering an
-   evaluation, which may be the page's script held busy. Diagnosed at its cause, the client's or
-   the test's, and fixed there; then twenty runs in a row hold it.
+   evaluation, which may be the page's script held busy. On 2026-11-06 "the shell's page and a
+   phone" failed in two of seven runs on the new laptop, the DevTools answering `Inspected target
+   navigated or closed`. Diagnosed at its cause, the client's or the test's, and fixed there; then
+   twenty runs in a row hold it.
 
 ## MVP 4.4 (the cost, the full review and the launch's release), about three weeks
 

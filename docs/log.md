@@ -19,6 +19,8 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
+**2026-11-06.** [The First Run on the New Laptop](#the-first-run-on-the-new-laptop-2026-11-06).
+
 **2026-11-05.** [The Applications' Full Review](#the-applications-full-review-2026-11-05). [Who Writes in the Other Repositories](#who-writes-in-the-other-repositories-2026-11-05). [Ernest Stays at 0.x](#ernest-stays-at-0x-2026-11-05). [One Stop for the Layout](#one-stop-for-the-layout-2026-11-05). [The Floors and the Releases](#the-floors-and-the-releases-2026-11-05). [MVP 4.3 Becomes MVP 4.5](#mvp-43-becomes-mvp-45-2026-11-05).
 
 **2026-11-04.** [The Client's Questions](#the-clients-questions-2026-11-04). [A Node's Schedulers](#a-nodes-schedulers-2026-11-04). [An `or` Stands Between Patterns](#an-or-stands-between-patterns-2026-11-04). [The Site Goes Live With 1.0](#the-site-goes-live-with-10-2026-11-04). [The Repository's Layout](#the-repositorys-layout-2026-11-04).
@@ -11613,3 +11615,17 @@ Nothing of this happens at the layout stop, whose changes wait on `main`. MVP 4.
 MVP 4.3 held one item, `:trace f`, about a week. It follows the launch now, and its number says so. Nothing depends on it: no guide, design note or other repository's plan names it. It came before MVP 4.4 so that the review read a language under its promise, and with Ernest at 0.x (*Ernest Stays at 0.x*) adding it later breaks nothing. An operator's tool is also better designed once a live server shows what is worth tracing.
 
 The decision it carried stays before the launch, as MVP 4.15's item 21: a fix inside a loop's reach leaves its running processes where `Code.running` cannot find them, and a process found by its site alone can be killed and not moved. That question is about the language and §6.5, and only met the `:trace` proposal because an operator's tool would use the answer. So it is decided where the full review can read the verdict.
+
+## The First Run on the New Laptop, 2026-11-06
+
+The first `make test-full` on the new laptop, nike, failed in three places, none of them the machine's fault. It runs Debian 13, with 24 schedulers, and the checkout stands under `~/src`.
+
+One test took its message from the first `/src/` of a path, which only a checkout outside a `src` directory passed. It now takes the last. Emacs 30.1's checkdoc refused two docstrings for a verb in the wrong voice, and they are reworded. Why eve's Emacs passed them was not read, since eve refuses ssh from nike for now.
+
+The third was the flake *Three Flakes Read* could not prove: a node that ended before its first line, in a different test each run, 4 of 9 runs. The harness's failure named only the stream it waited on, which was empty, so it now names both. The next failure said `its listen address 127.0.0.1:43355 is in use`.
+
+`free_port` asked the kernel for a port in the ephemeral range and closed it, and the node bound it about a second later, while the tests beside it opened connections that draw from that range. The tests run at the scheduler count, 24 here, which is why this machine shows it so often. Which socket held the port was not read.
+
+`free_port` now takes ports from the block below Linux's default ephemeral range, 16384 to 32767, by a counter across the run and the process number across runs, still refusing one in use. Twelve runs of `make test-nodes` then passed. A node listening on port 0 and saying its port, §12.5's way, was not taken: a peer's port is written before that peer starts, and some tests restart a node on its port. The carrier sets `reuseaddr`, so a node restarted on its own port was never at risk. The change is to the harness alone, and no test holds it but those runs.
+
+The browser test's flake was seen too, in a second test beside the one its plan item names.

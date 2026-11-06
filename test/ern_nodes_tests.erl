@@ -29,6 +29,10 @@
 -type wait() :: fun(() -> integer() | timeout).
 
 -define(ERN, filename:absname("../bin/ern")).
+%% The block free_port/0 takes from, ending where Linux's default ephemeral
+%% range begins, whose macOS counterpart begins higher.
+-define(FIRST_PORT, 16384).
+-define(PORTS, 16384).
 %% Report §11.2: what a shell prints of a spawn on a peer that started, the
 %% process's address the screen writes before it.
 -define(SPAWNED, ") : Either(Io.Error, Address(Never))").
@@ -174,13 +178,22 @@ node_killed(PidFile) ->
             false
     end.
 
-%% A port nothing holds now on the loopback interface.
+%% A port nothing holds now on the loopback interface, for a node to bind
+%% later. It comes from below the host's ephemeral range, since until the
+%% node binds it nothing holds it for the node, and a connection a test
+%% beside this one opens draws its port from that range. The counter keeps
+%% two tests of this run apart, and the process number two runs at once.
 -spec free_port() -> inet:port_number().
 free_port() ->
-    {ok, Socket} = gen_tcp:listen(0, [{ip, {127, 0, 0, 1}}]),
-    {ok, Port} = inet:port(Socket),
-    ok = gen_tcp:close(Socket),
-    Port.
+    Taken = list_to_integer(os:getpid()) + erlang:unique_integer([positive, monotonic]),
+    Port = ?FIRST_PORT + Taken rem ?PORTS,
+    case gen_tcp:listen(Port, [{ip, {127, 0, 0, 1}}]) of
+        {ok, Socket} ->
+            ok = gen_tcp:close(Socket),
+            Port;
+        {error, eaddrinuse} ->
+            free_port()
+    end.
 
 %% A configuration directory `ern config` made, listening on Listen, a
 %% port of the loopback interface, or not at all.
@@ -614,9 +627,11 @@ waited(Dir, Stream, Part, Count, Ms) ->
     watcher_name(Dir) ! {waiting, Stream, Bytes, Count, self()},
     receive
         {seen, Stream, Bytes, true} -> ok;
-        %% the stream ended without the part: what it said is the cause
+        %% the stream ended without the part: what the node said on either
+        %% stream is the cause
         {seen, Stream, Bytes, false} ->
-            erlang:error({ended_unsaid, Dir, Part, written(Dir, Stream)})
+            {Out, Err} = both_ended(Dir),
+            erlang:error({ended_unsaid, Dir, Part, Out, Err})
     after Ms ->
         erlang:error({not_said, Dir, Part})
     end.
@@ -670,6 +685,9 @@ written(Dir, Stream) ->
 -spec said(file:filename()) -> {string(), string()}.
 said(Dir) ->
     step({said, Dir}),
+    both_ended(Dir).
+
+both_ended(Dir) ->
     watcher_name(Dir) ! {said, self()},
     receive
         {said, Out, Err} -> {binary_to_list(Out), binary_to_list(Err)}
