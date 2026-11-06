@@ -73,6 +73,8 @@ checks() ->
      {"the warning and an expiry's notice", fun expiry/1},
      {"the other close codes", fun closes/1},
      {"a paste waits for the first output", fun waiting/1},
+     {"a terminal that does not load", fun unloaded/1},
+     {"two starts while the terminal loads", fun started_twice/1},
      {"the shell's page and a phone", fun pages/1}].
 
 %% docs/proposals/site/decisions.md *The live shell*: no panel opens until
@@ -358,6 +360,36 @@ waiting(#{page := Page, url := Url}) ->
     ?assertEqual(none, next_message(Conn, 0)),
     Conn ! prompt,
     ?assertMatch(<<"\e[200~fn double", _/binary>>, keys(Conn, <<"\e[201~">>)),
+    stop(Page, Conn).
+
+%% docs/proposals/site/decisions.md *The live shell*: a terminal whose script
+%% does not load is `disconnected`, the page's own word, and the next Start
+%% loads it again; the check at the end of the run reads that no exception
+%% was left. The failure is made in the page, so that it comes when asked.
+unloaded(#{page := Page, url := Url}) ->
+    stub_mode(#{attach => <<"new">>}),
+    fresh(Page, Url ++ "/guide/1.html", {1440, 900}),
+    eval(Page, "document.querySelector('.panel-toggle .beside').click()"),
+    eval(Page, "document.head.append = function (element) { if (element.src?.includes('xterm'))"
+               " { setTimeout(() => element.onerror(new Event('error'))); } else"
+               " { Element.prototype.append.call(this, element); } }"),
+    eval(Page, "panel.start.click()"),
+    until(Page, state() ++ " === 'disconnected'"),
+    eval(Page, "delete document.head.append"),
+    Conn = start(Page),
+    until(Page, rows() ++ ".includes('session 1')"),
+    stop(Page, Conn).
+
+%% docs/proposals/site/decisions.md *The live shell*: a second Start made
+%% while the terminal still loads starts no second session.
+started_twice(#{page := Page, url := Url}) ->
+    stub_mode(#{attach => <<"new">>}),
+    fresh(Page, Url ++ "/guide/1.html", {1440, 900}),
+    eval(Page, "document.querySelector('.panel-toggle .beside').click()"),
+    eval(Page, "panel.start.click(); panel.start.click()"),
+    Conn = connected(),
+    until(Page, rows() ++ ".includes('session 1')"),
+    ?assertEqual(none, receive {stub_connected, _} -> another after 0 -> none end),
     stop(Page, Conn).
 
 %% docs/proposals/site/decisions.md *The live shell* and *The other pages*:
@@ -712,8 +744,8 @@ eval(Page, Expression) ->
 
 %% A wait in the page itself: the condition read at each frame the
 %% browser draws until it holds, within the time for one wait. A page that
-%% then still answers was not busy: the condition never held, and the
-%% failure says so with where the page stands.
+%% then still answers was not busy, and the failure says where it stands
+%% and what the condition says now: true means the wait stopped looking.
 until(Page, Condition) ->
     try
         true = eval(Page, "new Promise((resolve) => { const test = () => { let holds = false;"
@@ -722,7 +754,9 @@ until(Page, Condition) ->
     catch
         error:{devtools_did_not_answer, _} ->
             error({never_held, Condition,
-                   eval(Page, "[location.href, document.title, document.readyState]")})
+                   eval(Page, "[location.href, document.title, document.readyState,"
+                              " document.visibilityState, (() => { try { return Boolean("
+                              ++ Condition ++ "); } catch { return 'throws'; } })()]")})
     end.
 
 key(Page, Key, Code) ->
@@ -741,7 +775,10 @@ click(Page, X, Y) ->
 %%
 
 %% Chrome, headless, its profile a directory of the run's own, its
-%% DevTools on a port it chooses and says on its standard error.
+%% DevTools on a port it chooses and says on its standard error. Google's
+%% Chrome starts a component extension of its own some two seconds in, and
+%% the page that has just committed then loses its requests, its script
+%% among them, so that none is started.
 chrome_started() ->
     Profile = filename:join(ern_pty:run_dir(),
                             "ern_chrome_" ++ integer_to_list(erlang:unique_integer([positive]))),
@@ -749,6 +786,7 @@ chrome_started() ->
     Port = open_port({spawn_executable, chrome()},
                      [{args, ["--headless=new", "--no-first-run", "--no-default-browser-check",
                               "--disable-gpu", "--remote-debugging-port=0",
+                              "--disable-component-extensions-with-background-pages",
                               "--user-data-dir=" ++ Profile, "about:blank"]},
                       stderr_to_stdout, binary, exit_status]),
     {Port, endpoint(Port, <<>>)}.

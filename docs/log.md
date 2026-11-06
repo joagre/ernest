@@ -11632,7 +11632,7 @@ The browser test's flake was seen too, in a second test beside the one its plan 
 
 ## The Browser Test's Flake, 2026-11-06
 
-Plan item 8 held three failures of `make test-browser`. Two are found, and neither is what the plan guessed.
+Plan item 8 held three failures of `make test-browser`. All are found, and none is what the plan guessed.
 
 "The shell's page and a phone" failed in 10 of 20 runs here, each time at the same wait. A phone's Paste calls `location.assign`, and the test then began a wait in the page, which was sometimes still the page being left. DevTools refuses an evaluation whose page goes away. The fault was the test's, and it now waits for the connection first, which only the shell's page makes.
 
@@ -11642,7 +11642,19 @@ Reading it found a second defect beside it. A fetch already replaced that then f
 
 "A page still on its way" holds both by holding the page's fetches, and was seen to fail on each before its fix. It is a regression test, written after the client, and it does not cover the order of a link's click and a move through the history. The wait's failure now says a condition never held, with where the page stands, since a page that still answers is not busy.
 
-"A whole load and a joined session" was not found. It failed on eve in two of five runs on 2026-11-04, with no connection reaching the stub and with an evaluation not answered, and it passed all 127 runs here: plain, pinned to one to four cores, and beside 48 busy loops. Its second failure may be a condition that never held, as the navigation's was, but nothing shows that. The first is unexplained. The client and the test stood unchanged from that day until now, so the run on eve that the plan names tests what failed, these fixes aside.
+"A whole load and a joined session" failed on eve in two of five runs on 2026-11-04, with no connection reaching the stub and with an evaluation not answered, and it passed all 127 runs here: plain, pinned to one to four cores, and beside 48 busy loops. So load was not its cause. On eve the wait's failure now said what the condition read at that moment: false, so the wait had not stopped looking, and the page had no panel at all.
+
+The cause was the browser. The test on eve picks Google's Chrome 136, and here it finds Debian's Chromium. Google's Chrome starts a component extension of its own, "Chrome Web Store Payments", about 2.4 seconds after the browser starts, in every run. A page that committed 11 to 19 milliseconds before that lost the requests it had in flight, canceled with `net::ERR_ABORTED`, and one 88 milliseconds past its commit lost none. A lost `site.js` is never asked for again, which leaves a complete document with no panel. A lost `xterm.js` leaves the panel with no connection, as first seen. The joined session merely stands about 2.4 seconds into the run. Debian's Chromium has no such extension.
+
+The test now starts its browser with `--disable-component-extensions-with-background-pages`. Without the flag eve failed in 3 of 20, 1 of 25 and 3 of 16 runs. With it 40 runs failed none, and no extension's target appeared in any. Forty clean runs would come by chance about once in a hundred at that rate, and the missing target is the direct evidence.
+
+Those 40 ran a traced copy with the client of `dcc63ebf`, before the two fixes below. The final code ran twenty in a row here, where this cause never showed, so those twenty hold the code and say nothing of the cause. Why the extension's start aborts a page's requests is inside Chrome and was not found. Whether a browser with a window does the same to a visitor is not known.
+
+The lost script showed what a visitor meets when a load fails, and the client had two more defects there. A script that failed to load left Start dead for good, with an uncaught rejection, since the failed load stayed remembered. A second Start during the load opened a second socket. A failed load now shows "disconnected" and the next Start loads again, and a Start finds the first's socket before opening one. "A terminal that does not load" and "two starts while the terminal loads" were each seen to fail before its fix. They are regression tests. The first makes its failure in the page and not on a network, and neither covers two Pastes during a load.
+
+Two rules of CLAUDE.md came out of this. Twenty green runs on eve had tested old code, since a pull chained before them failed unseen, and 127 here said nothing of a browser they did not run. So a flake is tested under what it was seen under, and a step a long run rests on is checked in a call of its own.
+
+The other is the machines. All development runs on nike, which is faster and has more memory and more cores, and another machine only tests nodes across a real network. These runs were eve's last of their kind, so a flake that needs Google's Chrome again needs it installed here.
 
 ## Context Is the Cost, 2026-11-06
 

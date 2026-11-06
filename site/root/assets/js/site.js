@@ -206,7 +206,12 @@ function loadXterm() {
         style.href = new URL("../css/xterm.css", here);
         document.head.append(style);
         xtermLoaded = loadScript(new URL("xterm.js", here))
-            .then(() => loadScript(new URL("addon-fit.js", here)));
+            .then(() => loadScript(new URL("addon-fit.js", here)))
+            .catch((failure) => {
+                style.remove();
+                xtermLoaded = null;
+                throw failure;
+            });
     }
     return xtermLoaded;
 }
@@ -215,8 +220,16 @@ function token(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
+// A terminal that does not load leaves no session, in the page's own word
+// for a connection lost, and the next start loads it again. A second start
+// made while it loads finds the first's socket when it comes, and opens none.
 async function startSession() {
-    await loadXterm();
+    try {
+        await loadXterm();
+    } catch {
+        setState("disconnected");
+        return;
+    }
     if (session.terminal === null) {
         panel.terminal.replaceChildren();
         const terminal = new Terminal({
@@ -253,7 +266,13 @@ async function startSession() {
         Object.assign(session, { terminal, fit });
     }
     session.fit.fit();
-    connect();
+    if (noSocket()) {
+        connect();
+    }
+}
+
+function noSocket() {
+    return session.socket === null || session.socket.readyState === WebSocket.CLOSED;
 }
 
 function connect() {
@@ -387,7 +406,7 @@ function stopSession() {
 // A restart stops the session and connects anew at the close, or at once
 // where no socket is open.
 function restartSession() {
-    if (session.socket === null || session.socket.readyState === WebSocket.CLOSED) {
+    if (noSocket()) {
         startSession();
     } else {
         session.restarting = true;
