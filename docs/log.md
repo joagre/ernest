@@ -11672,6 +11672,8 @@ Published measurements say an agent pays only where there is bulk to hand off, a
 
 The logs do not record whether a build was right, so this is unmeasured on quality. They are read again at the end of MVP 4.15. If item sessions start missing things they move to the stronger model, and only a measured gain moves anything down.
 
+**The other repositories, the same day.** ernest-template, ernest-epx and ernest-httpd take the same rules, by the user's word, the template first and each copy after it. One sentence could not be copied: an application has no checker, emitter, runtime or nodes, so its stronger effort goes to a build in what a test shows least, a process's protocol, foreign code, or what takes input from outside. Their `docs/release.md` gave each reader a model of its own, and now runs both on the stronger one. Each project's session memory holds the models' names, as Ernest's does.
+
 ## The Reference on the New Laptop, 2026-11-06
 
 nike now holds `make bench`'s reference, taken before the layout's restructuring, so that a run after it can say whether moving the code path cost anything. `make bench` took 7m11 with the machine idle, and `make bench-release` keeps it.
