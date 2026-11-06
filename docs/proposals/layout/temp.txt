@@ -529,3 +529,14 @@ Every mention of src/tools/ above, in change 1, the layouts and the example,
 stands corrected by this; the role-named src/ holds toolchain/, shared/,
 runtime/, nodes/, stdlib/, libs/<lib>/ and shell/.
 
+The build's rule corrected, decided with the user 2026-11-06
+------------------------------------------------------------
+Read by an independent reader, and run on a fresh copy of ernest-template: an
+application's build/ mirrors its src/ (report §11.1) and is what its make
+install and make release take, so its tools/, test/ and examples/ cannot build
+under it. So each source root keeps a build/ of its own in an application.
+Ernest divides its one build/ by role, for src/ and tools/, and its tests build
+beside themselves, test/build/ and test/ebin/, as an application's do. Every
+mention above of every build product standing under build/ stands corrected by
+this.
+

@@ -27,8 +27,8 @@ The server is released and so is what shaped Ernest on its way, and the checkout
 MVP 4.2, the website, is built, and goes live with MVP 4.4's release, its item 6 (the log's
 *Ernest Stays at 0.x*).
 
-Next is the repository's layout, between MVP 4.15's items 1 and 2, its independent reader first
-(the log's *The Repository's Layout*). The rest of MVP 4.15, what the server taught, follows,
+Next is the repository's layout, between MVP 4.15's items 1 and 2, its independent reader's
+findings decided (the log's *The Layout's Independent Reading*). The rest of MVP 4.15, what the server taught, follows,
 then MVP 4.4, the cost, the full review and the launch's release, where the road ends and a
 program begins (the log's *MVP 4.4, the Road's End*). MVP 4.5, the shell's second round, follows
 the launch (the log's *MVP 4.3 Becomes MVP 4.5*). Ernest stays at 0.x until someone outside the project depends on it (the log's *Ernest
@@ -56,15 +56,17 @@ commit that made it. ernest-template and ernest-epx stay on floor 0.9 until MVP 
 log's *The Floors and the Releases*).
 
 Between items 1 and 2 stands the repository's layout, the proposal `docs/proposals/layout/`
-of 2026-11-04, its checklist `temp-suggestions.md`'s groups 0 to 3. First an independent
-reader, who has not heard its reasoning, reads the checklist and the tree, and its findings
-are decided with the user; then the restructuring is built in one commit, so that items 2 to 21
-build in the layout that stays and the archive ernest-httpd rehearses on holds it (the log's
-*The Repository's Layout*).
+of 2026-11-04, its checklist `temp-suggestions.md`'s group 3. An independent reader read it and
+the trees on 2026-11-06, and its findings are decided (the log's *The Layout's Independent
+Reading*). The restructuring is built in one commit, so that items 2 to 21 build in the layout
+that stays and the archive ernest-httpd rehearses on holds it (the log's *The Repository's
+Layout*).
 
 At the same stop ernest-template, ernest-epx and ernest-httpd take their shape, Ernest's session
-telling each by a message that the stop is coming and the user closing them. They take it from `temp-other-repos.md`, its items 1, 3, 4, 6 and 8, a commit in each, checked
-with `make test` against the floor it names (the log's *One Stop for the Layout*). No floor
+telling each by a message that the stop is coming and the user closing them. They take it from `temp-other-repos.md`, its items 3, 4, 6 and 8, a commit in each, checked
+with `make test` against the floor it names (the log's *One Stop for the Layout*). An
+application's source roots each keep a `build/` of their own, since its `build/` mirrors `src/`
+and is what it ships (§11.1, the log's *The Layout's Independent Reading*). No floor
 rises and none of them releases at this stop: the changes wait on `main` for MVP 4.4's item 5.
 
 1. **The runtime at the host's limits**, done 2026-11-04 (the log's *A Node's Limits*, *A Node's

@@ -17,11 +17,11 @@ It does not run while the findings of the last one are open.
 - An area a release review's reader read whole since the last full review is read again only where it changed since: the release review's findings name the commit it read, and `git diff` from it says what changed.
 - Every reader names, in its area, each thing that exists for a reason an earlier milestone had and a later rule removed: a copy, a helper, a table, a check or a rule kept because nothing broke. The pattern is a decision made when the toolchain was small and followed by every later rule in the same shape; the log says what each was for, and the reader asks whether anything still needs it.
 - Each reader hands in a numbered list, most serious first. A finding gives its place, a file and line or a section; a short quote; what is wrong; a program or a command that shows it, where there is one; and a one-line fix. Defects stand apart from matters of clarity. Where a reader writes Ernest, the places the language made the work harder stand apart from both.
-- A reader hands its list back as text, which the review's own session saves, since the harness refuses a report file written by a subagent.
+- A reader hands its list back as text and writes it to a file under the review's session's scratchpad, as CLAUDE.md says of an agent.
 
 Once the lists are in, the round:
 
-- The findings are sorted as *The findings* says, and the `fix` lines are made at once by agents on the model below, each owning its files and no other's, the report's, the checker's, the runtime's among them.
+- The findings are sorted as *The findings* says, and the `fix` lines are made at once by agents, as *The models* says, each owning its files and no other's, the report's, the checker's, the runtime's among them.
 - No agent runs `make`. Each compiles what it changed into a scratch directory of its own and tests there.
 - What crosses between agents, a cause text, a frame's form, a glossary word, goes through the session as sentences, the report's sentence first.
 - The `decide` lines are a second round: the no-brainers taken by the session's judgment and recorded as decided, the rest with the user one at a time, the argument before the verdict, after the log is searched and the program run, as CLAUDE.md's *Before code* says; then built by agents as the `fix` lines were.
@@ -70,18 +70,16 @@ A reader's letter names its findings: C12 is the code reader's twelfth. The list
 
 ## The models
 
-Two models serve a review: the most advanced there is, and the one below it, which costs less and, on a brief that holds text or code to a rule already stated, finds as much. The most advanced runs where the work is judgment over the language, where a reader asks whether a rule should be and what it buys.
+CLAUDE.md's *The repository* gives the models. Every reader and part runs on the stronger model, as a review's reader does there.
 
-P runs on the most advanced, and every other reader on the one below: K's cold reading, two sections that disagree, prose against the grammar and a step that does not follow, holds text to text that is there, and L and M, whose briefs are concrete, where a reader would close the page and what convinced them, find on the one below what the walk of 2026-10-24 found there (decided with the user on 2026-10-24). Every other reader and part runs on the one below: each holds what it reads to a rule, the report's, `docs/style.md`'s or a brief's, and the newcomer is no more a newcomer for being the strongest.
-
-Working the findings follows the same line: a design question, a sentence of the report or of §0, and a reading of an argument take the most advanced; a defect whose fix the finding names takes the one below.
+Working the findings follows the same file: a design question, a sentence of the report or of §0, and a reading of an argument take a design session; a defect whose fix the finding names takes an item session and its agents, at the efforts that file gives a build.
 
 ## The findings
 
 - The lists become one document, `findings.md` beside this one: a line per finding, by area, each naming its reader's letter and number.
 - A line carries its decision: `fix`, `decide`, a milestone's number, planned there, or `dropped`, with the reason; and `done`, with the date, once made.
 - Each reader's whole list is kept below the lines, since a line is too short to fix from.
-- The lines are sorted before anything is built, and the sorting is read first. A line nobody would argue about once the finding is read is `fix`, made at once, the line saying what was done: a sentence, a soundness paragraph or prose in the review's own session, on the most advanced model; code or a test as one batch on the one below it, built from a brief that names each line and the shape of its fix (*The models*).
+- The lines are sorted before anything is built, and the sorting is read first. A line nobody would argue about once the finding is read is `fix`, made at once, the line saying what was done: a sentence, a soundness paragraph or prose in a design session; code or a test as one batch by agents, built from a brief that names each line and the shape of its fix (*The models*).
 
   Every other line is `decide`: a rule, a sentence of §0 or E.0, what an error text means, a fix that could go two ways, a departure from a proposal. Each is discussed with the user one at a time, the argument before the verdict, with a recommendation that weighs the candidate rule against §0's five principles and names the one that decided (CLAUDE.md, *Authority*).
 

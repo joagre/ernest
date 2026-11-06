@@ -2,7 +2,7 @@
 
 What of the `temp*.md` suggestions reaches `ernest-template`, and from it `ernest-epx` and `ernest-httpd`, for one layout and one way of working across the four. A change goes to the template first, then into each application by hand, as the template's copies are kept. Ernest's session makes these changes in the template and in each application, since they are the repository's shape and not what the program says (`docs/clean_room.md`). One stays with an application's own session: what it adds to its full review (item 9). Read 2026-11-04.
 
-**When.** Items 1, 3, 4, 6 and 8 are made at one stop, with Ernest's restructuring, after MVP 4.2 closes and before MVP 4.15's item 2, the owner row item 4 needs among them. Items 5, 7 and 9 follow Ernest's CLAUDE.md redraft, under MVP 4.4's item 8.
+**When.** Items 3, 4, 6 and 8 are made at one stop, with Ernest's restructuring, after MVP 4.2 closes and before MVP 4.15's item 2, the owner row item 4 needs among them. Items 5, 7 and 9 follow Ernest's CLAUDE.md redraft, under MVP 4.4's item 8.
 
 ## Found first: the rule for src/ and tools/
 
@@ -16,7 +16,7 @@ Ernest's change 1 then keeps its Ernest tools in `tools/`, a source root as an a
 
 ## To the template, then to each application
 
-1. **Every build product under `build/`.** The template's `.gitignore` and Makefile build each source root beside its source, `tools/build/`, `test/build/` and `examples/build/`, beside the top-level `build/`. They become `build/tools/`, `build/test/` and `build/examples/`, as Ernest's change 4 puts everything under `build/`.
+1. **Each source root keeps a `build/` of its own, unchanged.** `src/` builds into `build/`, which mirrors it (report §11.1) and is what `make install` and `make release` take. `tools/`, `test/` and `examples/` each build beside themselves, as `TEMPLATE.md` says. Ernest divides its one `build/` by role, since it ships several roots.
 2. **`erl/` stays where an application has one.** In `ernest-epx` it holds host applications put on `--libs-dir`, its submodules, so the name is its role. No change.
 3. **`SECURITY.md`.** The template gains one, saying where to report a security hole privately. `ernest-httpd`, which serves the site and its live shell, needs it most; `ernest-epx` takes the template's for consistency.
 4. **The README's shape.** What the program is and where to begin, central links only, no argument the program's own documents make. The template's README and the guidance in `TEMPLATE.md` say so; each application's README is read against it. Read 2026-11-04: the three READMEs are 703 to 808 words, open by saying what the program is, and argue no design, so they need less than Ernest's did. One change for all three:
@@ -40,11 +40,10 @@ Ernest's change 1 then keeps its Ernest tools in `tools/`, a source root as an a
    - The owner table makes `README.md` the owner of "what the program is, how it is built, tested and run, and what each document is". With item 4, the README keeps the first three and a new row makes `docs/README.md` the owner of what each document is, Ernest's arrangement in all four.
    - *Proposals* says when a built proposal goes, as Ernest's does, and gains the same sentence on one refused or not taken up.
    - The redraft goes in order: Ernest's CLAUDE.md first; then the template's, cut again from it, as its first line says it is "cut from Ernest's own"; then each copy takes the template's whole and keeps its own first two lines. The plain wording is written once, not four times. About 3,300 words to some 2,200, about 1,400 tokens a session in each.
-   - It names no build path: the `build/` changes of item 1 are the Makefile's and `.gitignore`'s.
    - **Good rules travel every way, decided with the user 2026-11-04.** By their headings, the applications' files hold no rule Ernest's lacks: their thirteen differing headings are Ernest's rules fitted to an application ("The design changes first", "The program is beautiful", "A test lives in the module it tests"), the three alike. But a sibling's wording of a shared rule may have grown clearer, which only a reading line by line shows. So:
      - A harvest before the redraft: the four files read side by side, rule by rule, and a sibling's clearer wording of a shared rule, or a rule of its that applies, taken into Ernest's draft first; then the template is cut from it, and the copies take the template's. The best phrasing wins wherever it was written.
      - A standing rule, in Ernest's CLAUDE.md and the template's: a good rule found in an application goes to the template, and to Ernest's where it applies, and from the template to the other copies. Today the template's first line says a rule changes in the template first and then each copy, one way alone.
-6. **`.gitignore`.** Read for drift as Ernest's was; the template's reads clean now, but for item 1's paths.
+6. **`.gitignore`.** Read for drift as Ernest's was. `build/` matches at any depth, so the template's and each copy's `test/build/`, `tools/build/` and `examples/build/` go.
 7. **A log grown past GitHub's rendering**, split by month as Ernest's would be: a rule in the template for when an application's log grows, not a change now, since the applications' logs are small.
 
 8. **The clean room by messages** (Ernest's `docs/clean_room.md`, 2026-11-04). The template's CLAUDE.md and README say a line is "carried to Ernest" without how, rightly, since the template serves a stranger too, whose channel is Ernest's tracker. One clause makes it exact for both: carried to Ernest by its issue tracker, or, for an application built in Ernest's clean room, by a message to Ernest's session. `ernest-epx` names neither. `ernest-httpd`'s reply file went from its feedback file's header in its own commit, and no repository names it now.

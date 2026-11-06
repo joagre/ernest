@@ -28,7 +28,7 @@ Four readers in five sessions.
 
 ## The models
 
-Every reader runs on the most advanced model there is, of the two [`full_review.md`](full_review.md)'s *The models* names: each brief judges a rule, against §0, against another rule, against what the guide must say for it, or against the decisions that cite it, and none holds text to a rule already stated. The decisions with the user and the sentences they add to §0, E.0 or a section take the most advanced as well; the edits that carry a decision through the report, the guide and the code take the one below.
+Every reader runs as [`full_review.md`](full_review.md)'s *The models* says, on the stronger model. The decisions with the user and the sentences they add to §0, E.0 or a section take a design session; the edits that carry a decision through the report, the guide and the code take an item session and its agents.
 
 ## The findings
 
