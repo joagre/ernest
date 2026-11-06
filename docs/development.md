@@ -68,7 +68,7 @@ test/              what spans the roots of src/: the integration, nodes, deploym
 test/fixtures/     what the tests read: target/, the hand-written target modules;
                    programs/, the programs the tests keep: the first test programs, a
                    two-module tree, the module of docs/module_doc_template.md and the
-                   echo measurement; outputs/ and golden/, what programs/, hello,
+                   echo measurement; outputs/ and emitted/, what programs/, hello,
                    services print, interpreter's session among
                    them, and the Erlang they compile to; site/, under tree/ the
                    documents the site's generator renders and the log it links to, each
@@ -355,7 +355,7 @@ make sections     list the report sections no test cites
 make xref         the document tests alone, without a build: every citation and
                   document path resolves
 make coverage     every section with how many tests cite it and its length, thinnest first
-make golden       rewrite test/fixtures/golden/, the Erlang the compiler emits for each
+make golden       rewrite test/fixtures/emitted/, the Erlang the compiler emits for each
                   program `golden_names/0` lists: test/fixtures/programs/, hello and
                   services
 make diagnostics  rewrite the outputs of docs/diagnostics.md, the errors the lexer, the

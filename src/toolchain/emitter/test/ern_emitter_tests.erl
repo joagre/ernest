@@ -424,10 +424,10 @@ counter_golden_test() ->
 
 %%
 %% Golden files: the Erlang source of every MVP 1 example, as --emit-erl
-%% writes it, kept under test/fixtures/golden and regenerated with make golden
+%% writes it, kept under test/fixtures/emitted and regenerated with make golden
 %%
 
--define(GOLDEN, "test/fixtures/golden/").
+-define(GOLDEN, "test/fixtures/emitted/").
 
 golden_names() ->
     ["hello", "counter", "upgrade", "pingpong", "stack", "patterns", "kv_parser", "services",

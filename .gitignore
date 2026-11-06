@@ -23,5 +23,5 @@ erl_crash.dump
 .env.local
 *.erc
 /test/build/
-/test/fixtures/golden/*.new
-/test/fixtures/golden/**/*.new
+/test/fixtures/emitted/*.new
+/test/fixtures/emitted/**/*.new

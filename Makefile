@@ -548,7 +548,7 @@ clean:
 	@find . -path ./build -prune -o \( -name '*.erc' -o -name 'erl_crash.dump' \) -type f -print0 \
 	  | xargs -0 rm -f
 
-# Rewrite test/fixtures/golden/*.erl, the Erlang source the compiler emits for
+# Rewrite test/fixtures/emitted/*.erl, the Erlang source the compiler emits for
 # every program of test/fixtures/programs/ and services, after an intended change
 # to the emitter.
 golden: all $(call test_beams,toolchain/emitter) $(call test_beams,runtime)
