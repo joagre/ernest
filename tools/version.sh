@@ -1,6 +1,6 @@
 #!/bin/sh
 # VERSION, the release the checkout works toward, set to the one given,
-# x.y.z, with every line a test holds to it (docs/release_review.md, step
+# x.y.z, with every line a test holds to it (docs/reviews/release.md, step
 # 5): a shell's start line in a tracked document, the log and the proposals
 # aside, `Ernest x.y.z, session 1. :help for help.`, and the session
 # fixtures' start line, which names the version text of a build that is no

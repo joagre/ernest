@@ -40,9 +40,9 @@ Each fact has one owner. Every other document points at the owner and does not r
 | [`site/templates/README.md`](site/templates/README.md) | the site's templates and fragments, the tokens each binds and how they are filled, which a test holds each file to |
 | [`site/projects.md`](site/projects.md) | the projects written in Ernest in repositories of their own, a line each with its icon, which a test holds to its form |
 | [`docs/module_doc_template.md`](docs/module_doc_template.md) | the worked example of a documented module, held equal to `ern doc`'s output by a test |
-| [`docs/release_review.md`](docs/release_review.md) | what a release runs to be ready |
-| [`docs/full_review.md`](docs/full_review.md) | the review of every area whole, run seldom |
-| [`docs/principles_review.md`](docs/principles_review.md) | the report and the guide read against §0, and §0 against what it decided |
+| [`docs/reviews/release.md`](docs/reviews/release.md) | what a release runs to be ready |
+| [`docs/reviews/full.md`](docs/reviews/full.md) | the review of every area whole, run seldom |
+| [`docs/reviews/principles.md`](docs/reviews/principles.md) | the report and the guide read against §0, and §0 against what it decided |
 | [`docs/memory.md`](docs/memory.md) | how memory is checked |
 | [`docs/soundness.md`](docs/soundness.md) | the argument that a well-typed program does not go wrong |
 | [`docs/otp_bugs.md`](docs/otp_bugs.md) | the defects found in OTP, each a report ready for OTP's tracker, until a release Ernest requires has its fix |
@@ -143,7 +143,7 @@ Meanwhile it changes only in its form, every decision, fact and number kept; a p
 - **A flake is tested under what it was seen under**, its browser or its load. A green run under anything else says nothing of it, and a cause not found is reported as not found. A step a long run rests on, a pull or a build, is checked in a call of its own before the run starts.
 - **`make test`, the light run, runs before every commit; `make test-full`, every area, before a release and before the commit that closes an item that touched the runtime, the nodes or the emitter.** Any other item closes on its area's target and `make test`, the check that fits the change. A commit of documents alone runs `make test-docs`. While working, the area a change touches runs its own target; `docs/development.md`'s *Building* names them.
 - **Edits to a proposal under discussion are committed at a pause**, at the end of a topic and not after each verdict: one `make test-docs`, which reads every tracked document, a proposal's among them, then one commit by their paths, pushed then. Code, the Makefile and other documents are tested as always.
-- **Readers run before a release, and when the user asks**, as [`docs/release_review.md`](docs/release_review.md) says; the full review's readers read every area whole, when [`docs/full_review.md`](docs/full_review.md) says; the findings of any review or read are sorted as that document's *The findings* says, the `fix` lines made at once, and the rest decided as *Before code* says. The batches' report sentences are read cold, one reader over their diff, before the build starts: a sentence built on costs more to reword than one read.
+- **Readers run before a release, and when the user asks**, as [`docs/reviews/release.md`](docs/reviews/release.md) says; the full review's readers read every area whole, when [`docs/reviews/full.md`](docs/reviews/full.md) says; the findings of any review or read are sorted as that document's *The findings* says, the `fix` lines made at once, and the rest decided as *Before code* says. The batches' report sentences are read cold, one reader over their diff, before the build starts: a sentence built on costs more to reword than one read.
 
 ## Writing
 

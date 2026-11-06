@@ -1,6 +1,6 @@
 # The full review
 
-Fifteen readers, each over the whole of its area. Between them they read the report, the guide, every other document, and all the code: the Erlang and the Ernest, the helper in C, the Emacs mode, the Makefiles and the launcher. It is expensive and runs seldom. What every release runs is [`release_review.md`](release_review.md)'s.
+Fifteen readers, each over the whole of its area. Between them they read the report, the guide, every other document, and all the code: the Erlang and the Ernest, the helper in C, the Emacs mode, the Makefiles and the launcher. It is expensive and runs seldom. What every release runs is [`release.md`](release.md)'s.
 
 ## When it runs
 
@@ -37,7 +37,7 @@ A reader's letter names its findings: C12 is the code reader's twelfth. The list
   "Read §0, then the whole report against its five principles alone: every second way to do one job (principle 2); anything a program does that its text does not show (3); grammar that needs backtracking, or lookahead that is unbounded or that the prose does not name (4); and every concept, primitive and reserved word, counted against the last counts the log records (5). For each finding, write the smallest program that shows it, and say what a reader who knows the rest of Ernest would have predicted (1). Then, for each rule, say what it buys a program and what the language would lose without it, and report every rule whose answer is little and every rule that exists only for another."
 
   It gives the counts, each with how it counted; the log's entry for the last review that counted, a full review's or a release review's, holds the counts before them.
-- **K, the cold reader.** Reads the report, the three files of `report/`, and then [`soundness.md`](soundness.md), the one document that argues from the report, and nothing else.
+- **K, the cold reader.** Reads the report, the three files of `report/`, and then [`soundness.md`](../soundness.md), the one document that argues from the report, and nothing else.
 
   "You know Erlang, Haskell or ML, Rust and Go, but not Ernest. Report two sections that disagree, prose against Appendix A, a signature against its prose, and a rule another makes unreachable; every place one who builds a conforming toolchain must guess, and every case the rules leave silent; and every example that would not compile under the rules as written, every name used before it is defined, and every reference that points at the wrong section. Then read the argument against the rules it cites, and report every step that does not follow from them, each with the program that shows it where there is one."
 - **G, the register.** Reads the report, the three files of `report/`, and CLAUDE.md's *Writing*. "Read every section of the report over 600 words for sentences that argue rather than state, and for restating, against CLAUDE.md's *Writing*." It lists the sections it read, each with its count of words.

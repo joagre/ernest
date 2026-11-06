@@ -148,7 +148,7 @@ no_tab_test() ->
                 "editors/emacs/*.el", "editors/emacs/test/*.el",
                 "editors/emacs/test/broken/*.ern", "src/libs/**/*.ern", "src/libs/*/*.md",
                 "tools/**/*.ern", "tools/**/*.erl", "tour/*/*.ern", "tools/*.sh",
-                "test/machines/*.sh", "bin/ern", "*.md", "docs/*.md"],
+                "test/machines/*.sh", "bin/ern", "*.md", "docs/*.md", "docs/reviews/*.md"],
     Files = [File || File <- ern_repository:files(Patterns),
                      filename:basename(File) =/= "getopt.erl",
                      not lists:prefix("test/build/", File)],

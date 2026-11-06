@@ -1,6 +1,6 @@
 # Memory
 
-How the project checks that nothing grows with the work done: the loads that measure it, the reading that looks for it, what each kind of memory is kept for and what lets it go, and how a growth is traced to its cause. The rule is CLAUDE.md's *Memory that no collection reclaims is a defect*. [`release_review.md`](release_review.md) says when the loads run, and [`architecture.md`](architecture.md) how each table is keyed.
+How the project checks that nothing grows with the work done: the loads that measure it, the reading that looks for it, what each kind of memory is kept for and what lets it go, and how a growth is traced to its cause. The rule is CLAUDE.md's *Memory that no collection reclaims is a defect*. [`reviews/release.md`](reviews/release.md) says when the loads run, and [`architecture.md`](architecture.md) how each table is keyed.
 
 ## The loads
 

@@ -151,7 +151,7 @@ A list that lives in two places is held equal by a test where one is cheap, whos
 - the documents, in `docs/README.md`, this document's layout and CLAUDE.md's owner table;
 - this document's layout of `test/` and of `tools/`, against their files;
 - the launcher's flags, in `docs/design/install.md` and `bin/ern`;
-- the release review's machines, in `docs/release_review.md` and the Makefile's targets.
+- the release review's machines, in `docs/reviews/release.md` and the Makefile's targets.
 
 ## Building
 
@@ -213,7 +213,7 @@ make test-site-shell  every block the site's pages offer the shell, and every on
 make test-browser  the site's client in a headless Chrome over its DevTools protocol, the
                   fixture's pages served by OTP's httpd and a stub speaking
                   ernest-httpd's protocol at the shell's path; not part of make
-                  test-full, a step of docs/release_review.md
+                  test-full, a step of docs/reviews/release.md
 make test-grammar  Appendix A read as data, and a thousand programs generated from it,
                   parsed, laid out and given as near misses; ERN_SEED=n runs a failing
                   seed again
@@ -325,7 +325,7 @@ make doc          write the standard library's and the prelude's pages to build/
                   with index.md
 make man          write every page: the manual pages make writes, and docs/man/, main's pages
                   as CommonMark, the standard library's, the prelude's and each
-                  library's, with their indexes (docs/release_review.md)
+                  library's, with their indexes (docs/reviews/release.md)
 make manual       the manual pages alone, which make also writes: each module's beside
                   its .erc, as build/stdlib/Ernest.List.3ern, and ern(1) as
                   build/man/ern.1, which man -l shows
@@ -345,7 +345,7 @@ make version V=x.y.z
                   set VERSION, the release the checkout works toward, and every line the
                   tests hold to it, the documents' start lines and the session fixtures',
                   by tools/version.sh, then write every page as make man does
-                  (docs/release_review.md, step 5)
+                  (docs/reviews/release.md, step 5)
 make dialyzer     Dialyzer over the toolchain and the Erlang the compiler writes for
                   src/stdlib/, src/shell/ and src/libs/; its first run builds
                   build/dialyzer.plt; part of make test-full

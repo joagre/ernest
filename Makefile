@@ -183,7 +183,7 @@ build/man/ern.1: report/toolchain.md build/tools/manual.erc VERSION build/stdlib
 
 # Every page: the manual pages make writes, and main's pages as CommonMark
 # in docs/man/, which GitHub shows and a release commits
-# (docs/release_review.md, step 5): the prelude's and the standard
+# (docs/reviews/release.md, step 5): the prelude's and the standard
 # library's under docs/man/stdlib, with the index ern doc writes (report
 # §11.4); each library's under docs/man/libs/<name>, with an index linking
 # them; and an index over the two, which links the report's §11 for ern
@@ -245,7 +245,7 @@ release: all
 # VERSION, the release the checkout works toward, set to V, x.y.z, with
 # every line a test holds to it: tools/version.sh writes the documents'
 # start lines and the session fixtures', and make man every page, whose
-# last line names the version text (docs/release_review.md, step 5).
+# last line names the version text (docs/reviews/release.md, step 5).
 version:
 	@sh tools/version.sh "$(V)"
 	@$(MAKE) -s man
@@ -455,7 +455,7 @@ test-site: all
 test-site-shell: all
 	@$(MAKE) -C test site-shell
 # The site's client in a browser: outside make test and make test-full,
-# a step of the release review (docs/release_review.md).
+# a step of the release review (docs/reviews/release.md).
 test-browser: all
 	@$(MAKE) -C test browser
 test-grammar: all
@@ -465,11 +465,11 @@ test-typed: all
 test-shell: all
 	@$(MAKE) -C test shell
 
-# The loads of docs/memory.md, which a release runs (docs/release_review.md).
+# The loads of docs/memory.md, which a release runs (docs/reviews/release.md).
 load: all
 	@$(MAKE) -C test load
 
-# The service manager's checks, which a release runs (docs/release_review.md).
+# The service manager's checks, which a release runs (docs/reviews/release.md).
 service: all
 	@$(MAKE) -C test service
 
@@ -494,7 +494,7 @@ bench-%: all
 
 # The last runs' tables kept as the release's, a table at a time, which every
 # later run is compared with too; the release review runs it
-# (docs/release_review.md), and so does a first run on a new machine.
+# (docs/reviews/release.md), and so does a first run on a new machine.
 bench-release:
 	@$(MAKE) -C test bench-release
 
@@ -560,7 +560,7 @@ golden: all $(call test_beams,toolchain/emitter) $(call test_beams,runtime)
 # the compiler writes for the standard library, the shell and the
 # libraries, each .erc copied into build/dialyzer under its module's name,
 # since Dialyzer reads a module only from a file whose name ends in .beam
-# (docs/release_review.md). The table of the host's applications the
+# (docs/reviews/release.md). The table of the host's applications the
 # toolchain calls is built once, into build/dialyzer.plt, and Dialyzer
 # checks it against the host at each run. A function one of those
 # applications calls in another the table does not hold, os_mon's alarms
@@ -578,7 +578,7 @@ dialyzer: all
 	@dialyzer --plt build/dialyzer.plt $(ROOT_BEAMS) $(SHIM_BEAMS) build/dialyzer/*.beam
 
 # The helper in C under Clang's static analyzer and under the address and
-# undefined-behavior sanitizers (docs/release_review.md): the analyzer
+# undefined-behavior sanitizers (docs/reviews/release.md): the analyzer
 # over its source, which must say nothing; then the helper built with the
 # sanitizers where make builds it, the runtime's tests and the programs'
 # run with it, each sanitizer writing what it finds into build/sanitize,

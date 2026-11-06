@@ -10,9 +10,9 @@ The project's own documents: what each file and directory here is, and the READM
 - **[`memory.md`](memory.md)**: how the project checks that nothing grows with the work done.
 - **[`soundness.md`](soundness.md)**: the argument that a well-typed program does not go wrong, kept with the rules it covers.
 - **[`otp_bugs.md`](otp_bugs.md)**: the defects found in OTP, each written as a report for OTP's tracker.
-- **[`release_review.md`](release_review.md)**: what a release runs to be ready.
-- **[`full_review.md`](full_review.md)**: every reader over the whole of its area, run seldom.
-- **[`principles_review.md`](principles_review.md)**: the report and the guide read against §0, and §0 against what it decided.
+- **[`reviews/release.md`](reviews/release.md)**: what a release runs to be ready.
+- **[`reviews/full.md`](reviews/full.md)**: every reader over the whole of its area, run seldom.
+- **[`reviews/principles.md`](reviews/principles.md)**: the report and the guide read against §0, and §0 against what it decided.
 - **[`code_style.md`](code_style.md)**: the repository's own style for its Erlang and its C, and the toolchain's glossary; an Ernest program's rules are [`guide/style.md`](../guide/style.md)'s.
 - **[`module_doc_template.md`](module_doc_template.md)**: a documented module, as `ern doc` renders it.
 - **[`diagnostics.md`](diagnostics.md)**: the catalog of the errors the lexer, the parser, the checker and the build give, each with a program that gives it and what `ern build` prints for it, which `make diagnostics` writes and a test holds to the compiler.

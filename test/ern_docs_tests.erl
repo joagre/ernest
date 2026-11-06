@@ -352,7 +352,7 @@ list_after(Document, Lead) ->
 line_matches(Text, Pattern) ->
     lists:append([matches(Line, Pattern) || Line <- binary:split(Text, <<"\n">>, [global])]).
 
-%% docs/full_review.md, docs/principles_review.md, docs/release_review.md:
+%% docs/reviews/full.md, docs/reviews/principles.md, docs/reviews/release.md:
 %% each review counts its readers as its *The readers* lists them, a reader
 %% being an item named by its letter, and its sessions as their parts, a
 %% reader read in parts being a session each; and the readers the release
@@ -361,7 +361,7 @@ line_matches(Text, Pattern) ->
 %% twenty-two parts (the full review of 2026-10-24).
 readers_counted_test() ->
     Reviews = [ern_repository:read(File)
-               || File <- ["docs/full_review.md", "docs/principles_review.md"]],
+               || File <- ["docs/reviews/full.md", "docs/reviews/principles.md"]],
     ?assertEqual([], [{Readers, Sessions}
                       || Review <- Reviews, {Letters, Parts} <- [readers(Review)],
                          Readers <- [number_word(length(Letters))],
@@ -370,7 +370,7 @@ readers_counted_test() ->
                              orelse re:run(Review, ["\\b", Sessions, " sessions\\b"], [caseless])
                                     =:= nomatch]),
     {Full, _} = readers(hd(Reviews)),
-    Release = ern_repository:read("docs/release_review.md"),
+    Release = ern_repository:read("docs/reviews/release.md"),
     [_, Step] = binary:split(Release, <<"**The readers**">>),
     [Named | _] = binary:split(Step, <<"**The findings:**">>),
     ?assertEqual([], [Letter || [Letter] <- matches(Named, "(?<![\\w*])([A-Z])(?=, | and | as )"),
@@ -466,7 +466,7 @@ loads_listed_test() ->
     ?assertNotEqual(nomatch, binary:match(Makefile, <<"ern_load:main([\"shell\"])">>)),
     ?assertEqual(lists:sort(["shell" | Programs]), lists:sort(Listed)).
 
-%% report §11.2, docs/release_review.md: a shell's start line a tracked
+%% report §11.2, docs/reviews/release.md: a shell's start line a tracked
 %% document shows, `Ernest 0.5.0, session 1. :help for help.`, in every
 %% shell (report §11.2 *Startup and history*), names the release VERSION
 %% holds, in every document but the log, which is
@@ -487,7 +487,7 @@ start_lines_test() ->
     ?assert(length(lists:usort([File || {File, _} <- Found])) >= 3),
     ?assertEqual([], [Each || {_, Line} = Each <- Found, re:run(Line, Expected) =:= nomatch]).
 
-%% docs/release_review.md, step 5: docs/man/ holds the pages `make man`
+%% docs/reviews/release.md, step 5: docs/man/ holds the pages `make man`
 %% writes from main, so the change of VERSION writes them again, as `make
 %% version` does; a page names the version text of the ern that wrote it on
 %% its last line, the repository's build's, which marks it as no release
@@ -509,7 +509,7 @@ pages_test() ->
               || Index <- Indexes, Link <- page_links(ern_repository:read(Index))],
     ?assertEqual(lists:sort(Files -- ["docs/man/README.md"]), lists:sort(Linked)).
 
-%% docs/release_review.md, step 5, report §11.2: `make version V=x.y.z`'s
+%% docs/reviews/release.md, step 5, report §11.2: `make version V=x.y.z`'s
 %% script, tools/version.sh, run over a copy of the files it rewrites, sets
 %% VERSION and the lines the tests hold to it, the documents' start lines
 %% (start_lines_test) and the session fixtures', each the version text of

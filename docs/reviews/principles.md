@@ -1,6 +1,6 @@
 # The principles review
 
-The report's rules and the guide judged on §0, and §0 on what it decided. It runs alone, apart from the release review of [`release_review.md`](release_review.md) and the full review of [`full_review.md`](full_review.md), and its readers read the report and the guide, L the log too, and the code only as *How it runs* allows, to see what a rule means. It changes no rule; its findings do, in the milestone the plan gives them. It judges rules and not defects, so it may run while another review's findings are open.
+The report's rules and the guide judged on §0, and §0 on what it decided. It runs alone, apart from the release review of [`release.md`](release.md) and the full review of [`full.md`](full.md), and its readers read the report and the guide, L the log too, and the code only as *How it runs* allows, to see what a rule means. It changes no rule; its findings do, in the milestone the plan gives them. It judges rules and not defects, so it may run while another review's findings are open.
 
 ## When it runs
 
@@ -9,7 +9,7 @@ The report's rules and the guide judged on §0, and §0 on what it decided. It r
 
 ## How it runs
 
-As the full review's readers run ([`full_review.md`](full_review.md), *How it runs*): each reader a session of its own, given its brief and its files and nothing that argues for them, editing nothing, all on one revision of the report, each handing in a numbered list, most serious first. A reader in doubt of what a rule means reads the code that implements it, `src/`, as what is built and never as what is right.
+As the full review's readers run ([`full.md`](full.md), *How it runs*): each reader a session of its own, given its brief and its files and nothing that argues for them, editing nothing, all on one revision of the report, each handing in a numbered list, most serious first. A reader in doubt of what a rule means reads the code that implements it, `src/`, as what is built and never as what is right.
 
 ## The readers
 
@@ -28,7 +28,7 @@ Four readers in five sessions.
 
 ## The models
 
-Every reader runs as [`full_review.md`](full_review.md)'s *The models* says, on the stronger model. The decisions with the user and the sentences they add to §0, E.0 or a section take a design session; the edits that carry a decision through the report, the guide and the code take an item session and its agents.
+Every reader runs as [`full.md`](full.md)'s *The models* says, on the stronger model. The decisions with the user and the sentences they add to §0, E.0 or a section take a design session; the edits that carry a decision through the report, the guide and the code take an item session and its agents.
 
 ## The findings
 

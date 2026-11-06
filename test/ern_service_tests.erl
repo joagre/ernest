@@ -5,7 +5,7 @@
 %% a status that is not 0; a stop asked for ends it by its signal (report
 %% §8.6, §11.8); and a fault's line carries one time, the journal's under
 %% systemd and its own in launchd's file (§11.2). `make service` runs the
-%% checks, before a release (docs/release_review.md). They are no part of
+%% checks, before a release (docs/reviews/release.md). They are no part of
 %% `make test-full`, which a host without a service manager runs too. A stop is
 %% asked for only once the program has said that it started: one that
 %% comes in the host's first fraction of a second is the host's limit

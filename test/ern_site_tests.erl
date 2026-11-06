@@ -167,7 +167,7 @@ qualified() ->
 %% docs/proposals/site/decisions.md *Links*: a citation of the log, the
 %% log's *Title*, links to its entry in the log on GitHub at the tag, by the
 %% anchor the log's index gives it, and so does an entry the release notes
-%% name by its title alone, as docs/release_review.md has them name it;
+%% name by its title alone, as docs/reviews/release.md has them name it;
 %% another emphasis of the notes is text.
 logged() ->
     Log = "<a href=\"https://github.com/joagre/ernest/blob/" ++ ?TAG ++ "/docs/log.md#",

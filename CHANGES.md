@@ -86,7 +86,7 @@ What changed:
 - The help for a `receive` with an `after` clause alone naming `Clock.sleep`: §6.3, §11.5; *A `receive` Always Receives*.
 - The shell's line at a binding's end naming the site alone: §11.2; *The Pun's Opening Round*.
 - The style test refusing `f = f` and a one-field request with a named reply: `guide/style.md`; *The Pun*, *Ernest 0.8.0, a Small Release*.
-- `make version V=x.y.z`, with `VERSION` naming the release the checkout works toward: `docs/release_review.md`; *`make version`, Appendix D Whole, the Settler's Restart*.
+- `make version V=x.y.z`, with `VERSION` naming the release the checkout works toward: `docs/reviews/release.md`; *`make version`, Appendix D Whole, the Settler's Restart*.
 
 ### The library
 

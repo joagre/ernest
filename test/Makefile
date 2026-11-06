@@ -253,7 +253,7 @@ format: $(EBIN)/ern_style_tests.beam
 
 # The load programs under fixtures/load/ and the shell under a long
 # session, each in a node of its own, as docs/memory.md says; not part of
-# `make test-full`, and run before every release (docs/release_review.md).
+# `make test-full`, and run before every release (docs/reviews/release.md).
 # Each prints its samples and whether it stayed flat, into build/load/ as
 # well.
 LOADS = processes supervisors sockets programs files alarms
@@ -270,7 +270,7 @@ load: $(EBIN)/ern_load.beam measured named
 # The service manager's checks: the program of fixtures/service/ run under
 # the user's systemd on Linux and launchd on macOS (ern_service_tests.erl);
 # not part of `make test-full`, which a host without a service manager runs
-# too, and run before every release (docs/release_review.md).
+# too, and run before every release (docs/reviews/release.md).
 service: measured
 	$(call EUNIT,ern_service_tests)
 
@@ -396,7 +396,7 @@ bench-library: $(EBIN)/ern_measure.beam named
 	$(RUN_library)
 
 # The tables in build/bench/ kept in build/bench/release/ as the release's
-# run, which every later run is compared with too (docs/release_review.md),
+# run, which every later run is compared with too (docs/reviews/release.md),
 # a table at a time, each in place of the one there, and named.
 bench-release: $(EBIN)/ern_last_run.beam
 	@$(call LAST_RUN,release,$(BENCH_TABLES))

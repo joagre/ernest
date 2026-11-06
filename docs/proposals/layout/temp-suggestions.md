@@ -78,7 +78,7 @@ A rename of a document changes, in its own commit, CLAUDE.md's owner row and `do
 - [x] `test/fixtures/golden/` → `test/fixtures/emitted/`
 - [x] `test/*_costs.erl`, `ern_bench.erl`, `ern_measure.erl`, `ern_last_run.erl` → `test/bench/`
 - [x] `docs/style.md` → `docs/code_style.md`
-- [ ] `docs/release_review.md`, `full_review.md`, `principles_review.md` → `docs/reviews/release.md`, `full.md`, `principles.md`
+- [x] `docs/release_review.md`, `full_review.md`, `principles_review.md` → `docs/reviews/release.md`, `full.md`, `principles.md`
 - [ ] `docs/memory.md` → `docs/memory_checks.md`
 - [ ] `editors/emacs/test/broken/` → `editors/emacs/test/half_typed/`
 - [ ] Add `site/README.md`: a few lines pointing at `docs/development.md`'s layout and `site/templates/README.md`

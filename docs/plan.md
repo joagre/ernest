@@ -269,7 +269,7 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
    cost grows with the caller's stack, 0.4 microseconds on a shallow stack and 110 at 100,000
    frames, the trace's capture (found 2026-11-01; the log's *The Four Libraries*): read in erts
    and taken to `otp_bugs.md`, or decided against the trace `backtrace_depth` keeps.
-4. **The full review**, as `full_review.md` says, the principles review inside it, over the swept
+4. **The full review**, as `docs/reviews/full.md` says, the principles review inside it, over the swept
    form after the pun and with the three programs written since 0.7.0; its findings sorted and
    worked as it says, the batches' sentences read cold before the build.
 
@@ -282,7 +282,7 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
    the floor is what an archive before the release is (the log's *The Floors and the Releases*).
    Ernest's session names the minor, the archive's path and its commit to all three by a message,
    and asks for the reviews, on the user's word.
-5. **The launch's release**, the next minor of 0.x, by `docs/release_review.md`'s step, on Linux:
+5. **The launch's release**, the next minor of 0.x, by `docs/reviews/release.md`'s step, on Linux:
    macOS unverified and said so in the README's installing sentence and the note, which also
    says that the installed layout changed, for a script that points inside an installation (the
    log's *The Layout Built*); the feedback file and the findings file empty.
