@@ -1,6 +1,6 @@
 //
 // The counter of the guide's chapters 4 and 6, for `make bench`
-// (test/ern_programs_costs.erl): a counter process, callers that each make
+// (test/bench/ern_programs_costs.erl): a counter process, callers that each make
 // their calls of it with `Address.call`, the counter answering each with
 // its total, and the total it came to once every caller has ended.
 // test/fixtures/bench/ern_counter_twin.erl is the same program as Erlang

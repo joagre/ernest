@@ -169,7 +169,7 @@ built(Base) ->
 %% scenario, a label and what it read.
 costs() ->
     Runs = integer_to_list(?RUNS),
-    ["// make bench's fourth part (test/ern_code_costs.erl): MVP 3.2's costs,\n"
+    ["// make bench's fourth part (test/bench/ern_code_costs.erl): MVP 3.2's costs,\n"
      "// measured from a node that lists the peers its arguments name.\n"
      "\n"
      "foreign fn traced() : Unit = \"ern_code_probe:traced/0\"\n"
@@ -378,7 +378,7 @@ costs() ->
 %% The module that spawns or computes a reach by its variant, from the
 %% module that holds it.
 reaches() ->
-    ["// make bench's fourth part (test/ern_code_costs.erl): each reach by its\n"
+    ["// make bench's fourth part (test/bench/ern_code_costs.erl): each reach by its\n"
      "// variant.\n"
      "\n",
      [io_lib:format("export fn ~s(peer : String, size : Int, variant : Int)"
@@ -398,7 +398,7 @@ reaches() ->
 %% compute one by its size, a form naming its function where it is written
 %% (report §3.11).
 reach_module(Variant, Reaches) ->
-    ["// make bench's fourth part (test/ern_code_costs.erl): reaches of one\n"
+    ["// make bench's fourth part (test/bench/ern_code_costs.erl): reaches of one\n"
      "// variant, which the measuring program spawns onto peers that lack them.\n"
      "\n",
      [chain(Size, Variant) || {Size, _} <- Reaches],
@@ -444,7 +444,7 @@ dispatch(Name, Parameter, Answer, Form, Cases) ->
 %% A module of four hundred definitions beside a reach of five of each
 %% variant.
 big() ->
-    ["// make bench's fourth part (test/ern_code_costs.erl): reaches of five in\n"
+    ["// make bench's fourth part (test/bench/ern_code_costs.erl): reaches of five in\n"
      "// a module of four hundred definitions more.\n"
      "\n",
      [io_lib:format("export fn filler~B(x : Int) : Int =~n"
@@ -458,7 +458,7 @@ big() ->
 %% The development day's small definitions, twenty to a module, each with a
 %% lambda, and the module that spawns one by its index.
 days() ->
-    ["// make bench's fourth part (test/ern_code_costs.erl): a day's definitions\n"
+    ["// make bench's fourth part (test/bench/ern_code_costs.erl): a day's definitions\n"
      "// by their index.\n"
      "\n"
      "export fn spawned(peer : String, index : Int) : Either(Io.Error, Address(Never)) =\n"
@@ -470,7 +470,7 @@ days() ->
 
 day(Day) ->
     Indexes = lists:seq(Day * 20 - 19, Day * 20),
-    ["// make bench's fourth part (test/ern_code_costs.erl): twenty of a day's\n"
+    ["// make bench's fourth part (test/bench/ern_code_costs.erl): twenty of a day's\n"
      "// definitions.\n"
      "\n",
      [io_lib:format("fn day~B() : Unit receiving Never = {~n"
@@ -483,7 +483,7 @@ day(Day) ->
 
 %% What no fix changes, which every caller calls.
 aside() ->
-    "// make bench's fourth part (test/ern_code_costs.erl): what no fix changes.\n"
+    "// make bench's fourth part (test/bench/ern_code_costs.erl): what no fix changes.\n"
     "\n"
     "export fn aside(x : Int) : Int = x * 2\n".
 
@@ -496,7 +496,7 @@ fix(Build, Chain) ->
                   old -> 0;
                   new -> 1
               end,
-    ["// make bench's fourth part (test/ern_code_costs.erl): leaves a fix\n"
+    ["// make bench's fourth part (test/bench/ern_code_costs.erl): leaves a fix\n"
      "// changes, and the callers whose hashes change with them.\n"
      "\n",
      [[io_lib:format("fn ~s(x : Int) : Int = x + ~B~n~n",
@@ -517,7 +517,7 @@ fix_name(Size, Chain, Place) ->
 
 %% The module that spawns a fix's last caller by its chain.
 fixes() ->
-    ["// make bench's fourth part (test/ern_code_costs.erl): each fix by its\n"
+    ["// make bench's fourth part (test/bench/ern_code_costs.erl): each fix by its\n"
      "// chain.\n"
      "\n"
      "export fn spawnTop(peer : String, size : Int, chain : Int)"
@@ -531,7 +531,7 @@ fixes() ->
 %% The old build's node, which holds the old fixed modules and waits for
 %% what is spawned on it.
 server() ->
-    "// make bench's fourth part (test/ern_code_costs.erl): the node of the old\n"
+    "// make bench's fourth part (test/bench/ern_code_costs.erl): the node of the old\n"
     "// build, which reads the fixed modules from its load path at its start.\n"
     "\n"
     "export fn main() : Unit receiving Unit = {\n"
@@ -544,7 +544,7 @@ server() ->
 %% A module `Code.load` loads: a type, a binding and twenty functions, each
 %% with a lambda, distinct from every other module's by its index.
 loaded(Index) ->
-    ["// make bench's fourth part (test/ern_code_costs.erl): a module Code.load\n"
+    ["// make bench's fourth part (test/bench/ern_code_costs.erl): a module Code.load\n"
      "// loads on a bare node.\n"
      "\n",
      io_lib:format("export type Shape = Square(Int) | Circle(Int)~n~n"

@@ -54,9 +54,9 @@ examples/          Ernest programs written for a reader of the language, which
                    examples/README.md lists by topic
 test/              what spans the roots of src/: the integration, nodes, deployment guide,
                    tour, installation, manual pages', document, style, guide, site,
-                   grammar, generated-program, shell and terminal tests; the harnesses of the
-                   loads and of the benchmark, with the benchmark's memory of its runs,
-                   ern_last_run, and the tests of the measuring machine and of that
+                   grammar, generated-program, shell and terminal tests; the harness of the
+                   loads; bench/, the benchmark's harnesses and its memory of its runs,
+                   ern_last_run; the tests of the measuring machine and of that
                    memory, ern_measure_tests and ern_last_run_tests; the service
                    manager's checks; the pseudo-terminal's harness, ern_pty, which
                    runs the Ernest program of fixtures/pty/ that make builds, and the

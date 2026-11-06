@@ -76,7 +76,7 @@ A rename of a document changes, in its own commit, CLAUDE.md's owner row and `do
 - [x] `examples/typed_channels_nodes.ern` → `examples/remote_counter.ern`
 - [x] `test/fixtures/expected/` → `test/fixtures/outputs/`, and the outputs of the renamed examples with it
 - [x] `test/fixtures/golden/` → `test/fixtures/emitted/`
-- [ ] `test/*_costs.erl`, `ern_bench.erl`, `ern_measure.erl`, `ern_last_run.erl` → `test/bench/`
+- [x] `test/*_costs.erl`, `ern_bench.erl`, `ern_measure.erl`, `ern_last_run.erl` → `test/bench/`
 - [ ] `docs/style.md` → `docs/code_style.md`
 - [ ] `docs/release_review.md`, `full_review.md`, `principles_review.md` → `docs/reviews/release.md`, `full.md`, `principles.md`
 - [ ] `docs/memory.md` → `docs/memory_checks.md`

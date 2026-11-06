@@ -1,4 +1,4 @@
-%% `make bench`'s memory of its runs, test/ern_last_run.erl
+%% `make bench`'s memory of its runs, test/bench/ern_last_run.erl
 %% (docs/development.md): small tables of two runs, the first kept a table
 %% at a time in `last/` as a run begins or in `release/` by hand, and the
 %% rows that moved named as a run ends, against each, for the whole bench's
@@ -67,7 +67,7 @@
         "ns an iteration   Ernest   Erlang   ratio\n"
         "a fault, depth 8  111.6    3.3    9.00x\n").
 
-%% test/ern_last_run.erl: in a table with no ratio, a row whose number
+%% test/bench/ern_last_run.erl: in a table with no ratio, a row whose number
 %% moved by more than a fifth is named with both numbers, under its table's
 %% title; a row named by a number is matched by its place among the rows
 %% that read alike
@@ -77,7 +77,7 @@ moved_test() ->
                     {"5000 processes", {1500.0, "1500.0"}, {900.0, "900.0"}}]}],
                  ern_last_run:moved(?BEFORE, ?NOW)).
 
-%% test/ern_last_run.erl: a table some of whose rows carry a ratio is
+%% test/bench/ern_last_run.erl: a table some of whose rows carry a ratio is
 %% compared by its ratios alone, so that times the machine's state moved
 %% together are not named; a row of it with no ratio is not compared; an
 %% indented row is named after the row above it
@@ -87,7 +87,7 @@ ratio_test() ->
                  ern_last_run:moved(?RATIOS_BEFORE, ?RATIOS_NOW)),
     ?assertEqual([], ern_last_run:moved(?RATIOS_BEFORE, ?RATIOS_BEFORE)).
 
-%% test/ern_last_run.erl: a range's ends and a difference are not
+%% test/bench/ern_last_run.erl: a range's ends and a difference are not
 %% compared, a time is compared in nanoseconds whatever its unit, and a
 %% line that gives the load average is neither a row nor a title; a number
 %% is named by its row's words before it but for the measures just before
@@ -109,7 +109,7 @@ read_test() ->
     ?assertEqual(["+ the row as MVP", "+ the row as MVP 3.1 wrote it"],
                  [Name || {_, _, Read, _} <- ern_last_run:rows(Model), {_, _, Name} <- Read]).
 
-%% test/ern_last_run.erl: as a run begins each table the run before wrote
+%% test/bench/ern_last_run.erl: as a run begins each table the run before wrote
 %% is kept in `last/`, and one it did not write is not; at its end the
 %% run's tables are named, then the rows that moved, or that none did, and
 %% the tables no last run holds
@@ -148,7 +148,7 @@ last_run_test() ->
                            text(ern_last_run:compared(Directory, Tables)))
       end).
 
-%% test/ern_last_run.erl: a part's run keeps its own tables alone as it
+%% test/bench/ern_last_run.erl: a part's run keeps its own tables alone as it
 %% begins, two of three here, and the rest of `last/` and of the run's
 %% directory stay as they were
 partial_run_test() ->
@@ -168,7 +168,7 @@ partial_run_test() ->
               ?assertEqual(?NOW, read(Directory, "call.txt"))
       end).
 
-%% test/ern_last_run.erl: a part's comparison reads its own tables alone,
+%% test/bench/ern_last_run.erl: a part's comparison reads its own tables alone,
 %% though another part's table beside them moved against its last run
 part_comparison_test() ->
     in_directory(
@@ -187,7 +187,7 @@ part_comparison_test() ->
                            text(ern_last_run:compared(Directory, ["call.txt"])))
       end).
 
-%% test/ern_last_run.erl: the release's run is kept by hand, copied a table
+%% test/bench/ern_last_run.erl: the release's run is kept by hand, copied a table
 %% at a time, each table a run wrote and only those, the rest of `release/`
 %% staying; a run is then compared with it as with the last, each row that
 %% moved named under its reference, its number beside the reference's
@@ -230,7 +230,7 @@ release_test() ->
                            text(ern_last_run:compared(Directory, Tables)))
       end).
 
-%% test/ern_last_run.erl: a row whose words changed matches no row of the
+%% test/bench/ern_last_run.erl: a row whose words changed matches no row of the
 %% other run and is named on its side, as it reads, an indented row after
 %% the row above it, and a table none of whose rows match is named once,
 %% here a ratio printed `5.0` and then `9.00x`, which turns its table from
@@ -249,7 +249,7 @@ unmatched_test() ->
                  ern_last_run:unmatched(?PLAIN_BEFORE, ?PLAIN_NOW)),
     ?assertEqual({[], []}, ern_last_run:unmatched(?RATIOS_BEFORE, ?RATIOS_NOW)).
 
-%% test/ern_last_run.erl: the comparison says that no row moved only where
+%% test/bench/ern_last_run.erl: the comparison says that no row moved only where
 %% every row matched, and names the rows on either side that match none
 %% of the other's under its reference. Written 2026-10-24 with the fix
 unmatched_comparison_test() ->

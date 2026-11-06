@@ -1,5 +1,5 @@
 //
-// make bench-pick's measuring program (test/ern_pick_costs.erl): the
+// make bench-pick's measuring program (test/bench/ern_pick_costs.erl): the
 // push's experiment (the log's *The Numbers Across Machines*), from a node
 // that lists the peers its arguments name. A compute's work is a loop of
 // arithmetic counted in steps, and it answers the node it ran on and the

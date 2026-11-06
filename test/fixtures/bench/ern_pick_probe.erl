@@ -1,4 +1,4 @@
-%% `make bench-pick`'s probe (test/ern_pick_costs.erl): what a node shows
+%% `make bench-pick`'s probe (test/bench/ern_pick_costs.erl): what a node shows
 %% of itself while the measuring program places work on its peers, read
 %% where the host shows it: the node's name on the carrier, by which a
 %% compute's answer says where it ran (report §12.5); and a sample of the

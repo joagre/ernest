@@ -1,4 +1,4 @@
-%% `make bench`'s fourth part (test/ern_code_costs.erl): what a node shows
+%% `make bench`'s fourth part (test/bench/ern_code_costs.erl): what a node shows
 %% of its own work while the measuring program spawns code onto it, read
 %% where the host shows it. The exchange's steps (report §12.7), from the
 %% host's call trace of the node's exchange process, each call with its

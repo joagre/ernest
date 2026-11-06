@@ -474,8 +474,8 @@ service: all
 	@$(MAKE) -C test service
 
 # The benchmark, every part in order: what an Ernest operation costs beside
-# the same operation in Erlang (test/ern_bench.erl), every function of the
-# library beside the host's (test/ern_measure.erl), and the parts after them
+# the same operation in Erlang (test/bench/ern_bench.erl), every function of the
+# library beside the host's (test/bench/ern_measure.erl), and the parts after them
 # that test/Makefile names, each table compared with its last run and the
 # release's.
 bench: all

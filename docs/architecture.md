@@ -399,7 +399,7 @@ It reads first what every page links to, the library's declarations from `docs/m
 ### Outside `make test-full`
 
 - `make load` runs [`memory.md`](memory.md)'s loads: `test/ern_load.erl` runs each program under `test/fixtures/load/`, and the shell under a session it writes.
-- `make bench` is the measuring machine. `test/ern_bench.erl` sets `test/fixtures/bench/bench.ern`'s operations beside Erlang's, and `test/ern_measure.erl` every function of the library beside the host's.
-- `test/ern_nodes_costs.erl` measures the costs between two nodes of `test/fixtures/peers/`, and `test/ern_code_costs.erl` the costs of code that crosses, through `test/fixtures/bench/ern_code_probe.erl`.
+- `make bench` is the measuring machine. `test/bench/ern_bench.erl` sets `test/fixtures/bench/bench.ern`'s operations beside Erlang's, and `test/bench/ern_measure.erl` every function of the library beside the host's.
+- `test/bench/ern_nodes_costs.erl` measures the costs between two nodes of `test/fixtures/peers/`, and `test/bench/ern_code_costs.erl` the costs of code that crosses, through `test/fixtures/bench/ern_code_probe.erl`.
 - `make service` runs `test/ern_service_tests.erl`, a program under the host's service manager.
 - `make test-browser` runs `test/ern_browser_tests.erl`: a headless Chrome over its DevTools protocol reads the fixture's pages, which OTP's `httpd` serves, and the shell panel talks to a stub at the shell's path that speaks ernest-httpd's protocol.

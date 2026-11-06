@@ -47,7 +47,7 @@
 %% scripts and headers, the fixtures' Erlang and the machines' script it
 %% once left unread
 line_length_test() ->
-    Patterns = ["src/**/*.erl", "src/runtime/c_src/*.c", "test/*.erl",
+    Patterns = ["src/**/*.erl", "src/runtime/c_src/*.c", "test/*.erl", "test/bench/*.erl",
                 "test/fixtures/**/*.erl", "src/stdlib/**/*.ern", "examples/**/*.ern",
                 "src/shell/**/*.ern", "test/**/*.ern", "test/*.py", "editors/emacs/*.el",
                 "editors/emacs/test/*.el", "src/libs/**/*.ern", "tools/**/*.ern",
@@ -143,7 +143,7 @@ uncommented([], _) -> [].
 %% the machines' script, which it once left unread
 no_tab_test() ->
     Patterns = ["src/**/*.erl", "src/**/*.hrl", "src/runtime/c_src/*.c",
-                "test/*.erl", "test/fixtures/**/*.erl", "src/stdlib/**/*.ern",
+                "test/*.erl", "test/bench/*.erl", "test/fixtures/**/*.erl", "src/stdlib/**/*.ern",
                 "examples/**/*.ern", "src/shell/**/*.ern", "test/**/*.ern", "test/*.py",
                 "editors/emacs/*.el", "editors/emacs/test/*.el",
                 "editors/emacs/test/broken/*.ern", "src/libs/**/*.ern", "src/libs/*/*.md",
@@ -267,7 +267,8 @@ words(Line, HostNames, Word) ->
 %% 2026-10-24, when the nodes harness's exports had none
 exports_test() ->
     Files = [File || File <- ern_repository:modules()
-                                 ++ ern_repository:files(["test/*.erl", "tools/**/*.erl"]),
+                                 ++ ern_repository:files(["test/*.erl", "test/bench/*.erl",
+                                                          "tools/**/*.erl"]),
                      filename:basename(File) =/= "getopt.erl"],
     ?assert(length(Files) > 20),
     ?assertEqual([],
@@ -709,7 +710,8 @@ moved(Token, Offset) ->
 %% repository, and a module compiled from an Ernest source is ern@<namespace>;
 %% the one exception is a vendored file, which THIRD_PARTY_LICENSES names
 module_name_test() ->
-    ErlangFiles = ern_repository:files(["src/**/*.erl", "test/*.erl", "tools/**/*.erl"]),
+    ErlangFiles = ern_repository:files(["src/**/*.erl", "test/*.erl", "test/bench/*.erl",
+                                         "tools/**/*.erl"]),
     ?assert(length(ErlangFiles) > 20),
     Names = [filename:basename(File, ".erl") || File <- ErlangFiles],
     ?assertEqual([], [Name || Name <- Names, string:prefix(Name, "ern_") =:= nomatch,

@@ -1,5 +1,5 @@
 %% The counter of test/fixtures/bench/counter.ern as Erlang writes it, for
-%% `make bench` (test/ern_programs_costs.erl): a counter process with a
+%% `make bench` (test/bench/ern_programs_costs.erl): a counter process with a
 %% receive loop, callers that each make their calls of it as gen:do_call/4
 %% makes one, a monitor that is the reply's alias and a receive with an
 %% `after`, and the total it came to once every caller has ended.

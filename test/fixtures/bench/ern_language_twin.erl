@@ -1,5 +1,5 @@
 %% The language against the host, construct by construct, for `make bench`
-%% (test/ern_language_costs.erl): each loop of
+%% (test/bench/ern_language_costs.erl): each loop of
 %% test/fixtures/bench/language.ern as Erlang writes it, the plain Erlang
 %% a programmer writes for the same construct, over the same operands,
 %% which the bench gives both.

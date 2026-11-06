@@ -1,6 +1,6 @@
 //
 // The language against the host, construct by construct, for `make bench`
-// (test/ern_language_costs.erl): each function a loop of `count`
+// (test/bench/ern_language_costs.erl): each function a loop of `count`
 // iterations around one construct the compiler writes code for, its
 // operands given by the bench, so that nothing is folded into a literal.
 // test/fixtures/bench/ern_language_twin.erl writes each loop as Erlang

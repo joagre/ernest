@@ -168,7 +168,7 @@ fn runs(service : String) : Bool =
     registered(Foreign.atom(service)) != Foreign.atom("undefined")
 
 //
-// The tests (report §9.3), run by `ern test` as every library's are. A
+// The tests (report §9.3, Appendix G.4), run by `ern test` as every library's are. A
 // regression test, written after the code, returned here from the
 // integration tests by MVP 3.1, under which a test, a binding, keeps no
 // function of the module from a peer (report §8.7): the measure left its

@@ -445,6 +445,9 @@ machines: $(EBIN)/ern_machine.beam $(EBIN)/ern_machine_node.beam $(EBIN)/ern_mac
 clean:
 	rm -rf $(EBIN) build
 
+# The bench's modules stand in bench/ and compile with the rest.
+vpath %.erl bench
+
 # erlc's -MMD records the headers each module includes, so that a changed
 # record rebuilds the tests that match it, as the repository's Makefile does
 # for the toolchain.

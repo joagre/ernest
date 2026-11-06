@@ -1,5 +1,5 @@
 //
-// The benchmark of `make bench` (test/ern_bench.erl): each operation run in
+// The benchmark of `make bench` (test/bench/ern_bench.erl): each operation run in
 // a loop of its own three times, and the fastest run printed as the
 // operation's key, the loop's count and the milliseconds it took; a raise,
 // at each backtrace depth, in seven loops, and their median and range
