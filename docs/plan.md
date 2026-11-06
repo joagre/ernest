@@ -77,11 +77,6 @@ cut again from it, ernest-epx's and ernest-httpd's are the template's whole, and
 has the template's new `docs/full_review.md`, a commit in each, not pushed (the log's *The Template
 Cut Again*).
 
-One decision for the user stays from that cut. The template's *Design* says a function the library
-lacks is written in Ernest or waits, and its *Defects and gaps* that nothing goes around a gap:
-whether the program may write such a function itself while its feedback line waits (the log's *The
-Template Cut Again*).
-
 The three applications' sessions start next, and each adds what it alone has to its
 `docs/full_review.md`. Then the proposal goes, after the reading CLAUDE.md's *Proposals* asks. The
 release note's line on the installed layout waits for MVP 4.4's item 5.
