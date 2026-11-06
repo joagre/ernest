@@ -251,13 +251,13 @@ attached shell, MVP 4.0, is the operator's alone.
 6. **The Emacs mode's indentation of a brace in a bracket's item**, done 2026-11-03 (the log's
    *The Mode's Brackets*).
 7. **Projects**, done 2026-11-04 (the log's *Projects, a Page of Their Own*).
-8. **The browser test's joined session flakes**, a defect found 2026-11-04, fixed by 2026-11-06:
-   `make test-browser`'s "a whole load and a joined session" failed in two of five runs that day,
-   once with no connection reaching its stub and once with Chrome's DevTools not answering an
-   evaluation, which may be the page's script held busy. On 2026-11-06 "the shell's page and a
-   phone" failed in two of seven runs on the new laptop, the DevTools answering `Inspected target
-   navigated or closed`. Diagnosed at its cause, the client's or the test's, and fixed there; then
-   twenty runs in a row hold it.
+8. **The browser test's joined session flakes**, a defect found 2026-11-04, what remains of it
+   by 2026-11-07. `make test-browser`'s "a whole load and a joined session" failed on eve in two
+   of five runs that day, and never in 127 runs on the new laptop, starved or not. The other
+   failures are fixed (the log's *The Browser Test's Flake*). Twenty runs on eve, where it was
+   seen, decide it: a failure is diagnosed from its text, which now says whether a condition never
+   held, and twenty in a row close the item. It waits on the new laptop's key in eve's
+   `authorized_keys`, which is the user's to add.
 
 ## MVP 4.4 (the cost, the full review and the launch's release), about three weeks
 

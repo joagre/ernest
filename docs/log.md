@@ -19,7 +19,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-11-06.** [The First Run on the New Laptop](#the-first-run-on-the-new-laptop-2026-11-06).
+**2026-11-06.** [The First Run on the New Laptop](#the-first-run-on-the-new-laptop-2026-11-06); [The Browser Test's Flake](#the-browser-tests-flake-2026-11-06).
 
 **2026-11-05.** [The Applications' Full Review](#the-applications-full-review-2026-11-05). [Who Writes in the Other Repositories](#who-writes-in-the-other-repositories-2026-11-05). [Ernest Stays at 0.x](#ernest-stays-at-0x-2026-11-05). [One Stop for the Layout](#one-stop-for-the-layout-2026-11-05). [The Floors and the Releases](#the-floors-and-the-releases-2026-11-05). [MVP 4.3 Becomes MVP 4.5](#mvp-43-becomes-mvp-45-2026-11-05).
 
@@ -11629,3 +11629,17 @@ The third was the flake *Three Flakes Read* could not prove: a node that ended b
 `free_port` now takes ports from the block below Linux's default ephemeral range, 16384 to 32767, by a counter across the run and the process number across runs, still refusing one in use. Twelve runs of `make test-nodes` then passed. A node listening on port 0 and saying its port, §12.5's way, was not taken: a peer's port is written before that peer starts, and some tests restart a node on its port. The carrier sets `reuseaddr`, so a node restarted on its own port was never at risk. The change is to the harness alone, and no test holds it but those runs.
 
 The browser test's flake was seen too, in a second test beside the one its plan item names.
+
+## The Browser Test's Flake, 2026-11-06
+
+Plan item 8 held three failures of `make test-browser`. Two are found, and neither is what the plan guessed.
+
+"The shell's page and a phone" failed in 10 of 20 runs here, each time at the same wait. A phone's Paste calls `location.assign`, and the test then began a wait in the page, which was sometimes still the page being left. DevTools refuses an evaluation whose page goes away. The fault was the test's, and it now waits for the connection first, which only the shell's page makes.
+
+Pinned to two cores, "the navigation that keeps the panel" failed in 2 of 8 runs with the DevTools not answering, the words the plan took for the page's script held busy. The page was not busy. The client had a defect a visitor can meet: `shown` moved only when a fetched page arrived, so a back or a forward during a fetch compared the address with the page leaving, found them equal and fetched nothing, and the earlier fetch then put its page under the wrong address. No page now counts as shown while one is on its way, so the visitor's last move always fetches.
+
+Reading it found a second defect beside it. A fetch already replaced that then failed still loaded its address whole, taking the visitor back to the page they had left. It is now dropped.
+
+"A page still on its way" holds both by holding the page's fetches, and was seen to fail on each before its fix. It is a regression test, written after the client, and it does not cover the order of a link's click and a move through the history. The wait's failure now says a condition never held, with where the page stands, since a page that still answers is not busy.
+
+"A whole load and a joined session" was not found. It failed on eve in two of five runs on 2026-11-04, with no connection reaching the stub and with an evaluation not answered, and it passed all 127 runs here: plain, pinned to one to four cores, and beside 48 busy loops. Its second failure may be a condition that never held, as the navigation's was, but nothing shows that. The first is unexplained. The client and the test stood unchanged from that day until now, so the run on eve that the plan names tests what failed, these fixes aside.

@@ -803,7 +803,10 @@ function addToPage() {
 // forward, the scroll, an anchor and the focus then behave as on a page
 // loaded whole. Otherwise, and on a phone, a link loads its page whole.
 // Every page stays a whole file, and one that names another script or
-// stylesheet, a newer site's, is loaded whole.
+// stylesheet, a newer site's, is loaded whole. No page counts as shown while
+// one is on its way, so that a link or a move through the history made
+// meanwhile fetches its own page, even the one still in view, and the
+// visitor's last word holds.
 let shown = location.pathname;
 let navigations = 0;
 
@@ -856,6 +859,7 @@ function followLink(event) {
 
 async function navigate(url, state, pushed) {
     const navigation = ++navigations;
+    shown = null;
     let page;
     try {
         const response = await fetch(url, { headers: { Accept: "text/html" } });
@@ -865,7 +869,9 @@ async function navigate(url, state, pushed) {
         }
         page = new DOMParser().parseFromString(await response.text(), "text/html");
     } catch {
-        location.assign(url);
+        if (navigation === navigations) {
+            location.assign(url);
+        }
         return;
     }
     if (navigation !== navigations) {

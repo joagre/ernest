@@ -66,6 +66,7 @@ checks() ->
      {"Paste, Load and a transcript's Paste", fun pastes/1},
      {"the example's Try it", fun example/1},
      {"the navigation that keeps the panel", fun navigation/1},
+     {"a page still on its way", fun on_its_way/1},
      {"a whole load and a joined session", fun joined/1},
      {"Hide, the handle and F6", fun keyboard/1},
      {"Stop, Start and Restart", fun ends/1},
@@ -186,6 +187,30 @@ navigation(#{page := Page, url := Url}) ->
                        ".getBoundingClientRect().top; return top >= 0 && top < innerHeight; })()")),
     ?assertEqual(none, receive {stub_connected, _} -> another after 0 -> none end),
     stop(Page, Conn).
+
+%% docs/proposals/site/decisions.md *The live shell*: back and forward go
+%% where the visitor last asked. A move made while a page is on its way
+%% fetches its own, even the page that still shows, and the one it replaced
+%% is dropped, its failure with it. The fetches are held here, so that the
+%% order is the test's.
+on_its_way(#{page := Page, url := Url}) ->
+    stub_mode(#{attach => <<"new">>}),
+    fresh(Page, Url ++ "/guide/1.html", {1440, 900}),
+    eval(Page, "document.querySelector('.panel-toggle .beside').click()"),
+    eval(Page, "document.querySelector('.page-nav [rel=\"next\"]').click()"),
+    until(Page, "location.pathname === '/guide/2.html' && document.title.startsWith('2.')"),
+    eval(Page, "window.stayed = true; window.held = []; window.real = window.fetch;"
+               " window.fetch = (...args) => new Promise((resolve, reject) =>"
+               " held.push({ args, resolve, reject }))"),
+    eval(Page, "history.back()"),
+    until(Page, "location.pathname === '/guide/1.html' && held.length === 1"),
+    eval(Page, "history.forward()"),
+    until(Page, "location.pathname === '/guide/2.html' && held.length === 2"),
+    eval(Page, "held[0].reject(new Error('dropped'))"),
+    eval(Page, "real(...held[1].args).then(held[1].resolve)"),
+    until(Page, "document.querySelector('main a[href=\"/guide/2.html#2.1\"]') === null"
+                " && document.title.startsWith('2.') && shown === '/guide/2.html'"),
+    ?assert(eval(Page, "location.pathname === '/guide/2.html' && window.stayed === true")).
 
 %% docs/proposals/site/decisions.md *The live shell*, ernest-httpd's design
 %% §11: a page loaded whole opens the panel as it was kept; a session the
@@ -356,8 +381,11 @@ pages(#{page := Page, url := Url, cdp := Cdp}) ->
                            " !== 'none'")),
     ?assertEqual(0, lists:nth(2, eval(Phone, overflow("document.scrollingElement")))),
     click_tool(Phone, "pre.code[data-shell=\"paste\"]", "Paste into the shell"),
-    until(Phone, "location.pathname === '/shell/' && document.readyState === 'complete'"),
+    %% The connection first: a wait begun in the page that is leaving is
+    %% refused by DevTools when the next one arrives, and only the shell's
+    %% page connects.
     PhoneConn = connected(),
+    until(Phone, "location.pathname === '/shell/' && document.readyState === 'complete'"),
     ?assertMatch(<<"\e[200~fn double", _/binary>>, keys(PhoneConn, <<"\e[201~">>)),
     ?assertEqual(0, lists:nth(2, eval(Phone, overflow("document.scrollingElement")))),
     stop(Phone, PhoneConn),
@@ -683,11 +711,19 @@ eval(Page, Expression) ->
     end.
 
 %% A wait in the page itself: the condition read at each frame the
-%% browser draws until it holds, within the time for one wait.
+%% browser draws until it holds, within the time for one wait. A page that
+%% then still answers was not busy: the condition never held, and the
+%% failure says so with where the page stands.
 until(Page, Condition) ->
-    true = eval(Page, "new Promise((resolve) => { const test = () => { let holds = false;"
-                      " try { holds = Boolean(" ++ Condition ++ "); } catch { } if (holds)"
-                      " { resolve(true); } else { requestAnimationFrame(test); } }; test(); })").
+    try
+        true = eval(Page, "new Promise((resolve) => { const test = () => { let holds = false;"
+                          " try { holds = Boolean(" ++ Condition ++ "); } catch { } if (holds)"
+                          " { resolve(true); } else { requestAnimationFrame(test); } }; test(); })")
+    catch
+        error:{devtools_did_not_answer, _} ->
+            error({never_held, Condition,
+                   eval(Page, "[location.href, document.title, document.readyState]")})
+    end.
 
 key(Page, Key, Code) ->
     Common = #{key => list_to_binary(Key), code => list_to_binary(Key),
