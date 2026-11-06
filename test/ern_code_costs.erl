@@ -718,9 +718,8 @@ cold_table(Machine) ->
            " {Cold, {ok, _, _}} = timer:tc(fun() -> ern_compile:compiled(Forms(cold), []) end),"
            " {Warm, {ok, _, _}} = timer:tc(fun() -> ern_compile:compiled(Forms(warm), []) end),"
            " io:format(\"~B ~B ~B~n\", [Prelude, Cold, Warm]), halt().",
-    Command = lists:flatten(["erl +B -boot no_dot_erlang -noshell -noinput -pa ",
-                             ern_machine:quoted(ern_machine:clone(Machine)), "/erl/*/ebin",
-                             " -eval ", ern_machine:quoted(Eval)]),
+    Command = lists:flatten(["erl +B -boot no_dot_erlang -noshell -noinput ",
+                             ern_machine:code_path(Machine), " -eval ", ern_machine:quoted(Eval)]),
     Runs = [[list_to_integer(Word) || Word <- string:lexemes(ern_machine:ran(Machine, Command),
                                                              " \n")]
             || _ <- lists:seq(1, ?RUNS)],

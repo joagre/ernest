@@ -70,7 +70,7 @@ The session waits for its line, so a fault report waits in its mailbox; the scre
 
 ## The front end
 
-`erl/cli/src/ern_shell.erl` answers every foreign function the shell declares, but `holdTerminal` and `waitForDeliveries`, which the runtime answers, and `dialMs`, the carrier's, which states the dial's time once (`ern_carrier:dial_ms/0`). Where each is declared is [`src/shell/README.md`](../../src/shell/README.md)'s *The front end*.
+`src/shell/ern_shell.erl` answers every foreign function the shell declares, but `holdTerminal` and `waitForDeliveries`, which the runtime answers, and `dialMs`, the carrier's, which states the dial's time once (`ern_carrier:dial_ms/0`). Where each is declared is [`src/shell/README.md`](../../src/shell/README.md)'s *The front end*.
 
 ### The foreign interface
 
@@ -335,4 +335,4 @@ Beside it stand two sessions on one node at once, a reload by one said at the ot
 
 So do a server a detached session left running, the functions of a detached session's units called through the processes that hold them, a session that faults and is detached, an input checked against the code the node runs after a build under it, a startup input's diagnostic, the files the local half reads and appends for the session and none other, a session at a terminal through the pseudo-terminal's harness, the end of a node ended or lost in both modes, a node lost whose dial would wait, and an attach refused for each error §11.2 names. The refusal of another build of `ern` is between two releases the test makes from the tree, the second's shell compiled with one binding's form changed.
 
-The command line's refusals of `--attach` are tested by `erl/cli/test/ern_cli_tests.erl`. The deployment guide's and the tour's attached sessions are run whole by `test/ern_deployment_tests.erl` and `test/ern_tour_tests.erl`, and the lines the guide quotes of an attached shell's end and of a refusal are held to the shell's. A plain shell runs the attach's path between its session and its local half, so every test above runs it too.
+The command line's refusals of `--attach` are tested by `src/toolchain/cli/test/ern_cli_tests.erl`. The deployment guide's and the tour's attached sessions are run whole by `test/ern_deployment_tests.erl` and `test/ern_tour_tests.erl`, and the lines the guide quotes of an attached shell's end and of a refusal are held to the shell's. A plain shell runs the attach's path between its session and its local half, so every test above runs it too.

@@ -1,11 +1,31 @@
 # The repository's build and its checks. `make` builds the toolchain's
-# applications under erl/, each by its own src/Makefile over the rules
-# erl/app.mk keeps once, the runtime's helper in C, and the standard
-# library, the shell, the libraries and the tools written in Ernest; `make
-# test` runs every test by area; docs/development.md names every other
-# target and what it is for.
+# Erlang under src/ into build/, by the one rule below, the runtime's helper
+# in C, and the standard library, the shell, the libraries and the tools
+# written in Ernest; `make test` runs every test by area; docs/development.md
+# names every other target and what it is for.
 
-APPS = shared lexer parser formatter checker runtime emitter cli json base64 http
+# The roots of the toolchain's Erlang under src/, each a directory of modules
+# beside its include/ and test/, compiled into build/<root>/ebin, which bin/ern
+# puts on the host's code path. A library's shim stands beside its Ernest and
+# compiles beside its .erc in build/libs/<name>, where the load path finds it
+# (report §11.2). The tests of a root compile into build/<root>/test, on no
+# code path of a job's.
+ROOTS = toolchain/lexer toolchain/parser toolchain/formatter toolchain/checker \
+	toolchain/emitter toolchain/cli shared nodes runtime shell
+ROOT_BEAMS = $(foreach Root,$(ROOTS),$(patsubst src/$(Root)/%.erl,build/$(Root)/ebin/%.beam, \
+	$(wildcard src/$(Root)/*.erl)))
+SHIM_BEAMS = $(patsubst src/%.erl,build/%.beam,$(wildcard src/libs/*/*.erl))
+UNIT_TEST_SOURCES = $(wildcard src/*/test/*.erl src/*/*/test/*.erl)
+TEST_ROOTS = $(patsubst src/%/test/,%,$(sort $(dir $(UNIT_TEST_SOURCES))))
+SHIM_TEST_ROOTS = $(filter libs/%,$(TEST_ROOTS))
+# A root by its last part, as `make test-erl APP=checker` names it, and the
+# compiled modules of its tests.
+root = $(filter %/$(1) $(1),$(TEST_ROOTS))
+test_beams = $(patsubst src/%.erl,build/%.beam,$(wildcard src/$(1)/test/*.erl))
+# The toolchain on a host's code path, as bin/ern gives it.
+CODE_PATH = -pa $(CURDIR)/build/toolchain/*/ebin -pa $(CURDIR)/build/shared/ebin \
+	-pa $(CURDIR)/build/nodes/ebin -pa $(CURDIR)/build/runtime/ebin \
+	-pa $(CURDIR)/build/shell/ebin
 
 # The jobs a make runs side by side, as many as the host has cores.
 JOBS := $(shell getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
@@ -30,24 +50,40 @@ ERNEST_SOURCES = src/stdlib/*.ern src/shell/ernest/*.ern src/shell/ernest/shell/
 # in C since the host's ports cannot keep a program's standard error apart,
 # end its input while its output is read, kill it, or run it under a
 # pseudo-terminal.
-EXEC = erl/runtime/priv/ern_exec
+EXEC = build/runtime/priv/ern_exec
 
 all: $(EXEC)
-	@$(MAKE) $(SIDE_BY_SIDE) -O $(APP_BUILDS)
+	@$(MAKE) $(SIDE_BY_SIDE) -O beams
 	@$(MAKE) -s manual
 
-# The applications under erl/, side by side, since none needs another's
-# compiled code to compile: they share headers alone, which each
-# src/Makefile names. One make runs them, as many at once as the host has
-# cores, or within the count of a make that already runs jobs side by side,
-# as make test-full's phases do, since a make started with a -j of its own
-# runs apart from the count.
+# The toolchain's Erlang, side by side, since no module needs another's
+# compiled code to compile: they share headers alone, which each names. One
+# make runs them, as many at once as the host has cores, or within the count
+# of a make that already runs jobs side by side, as make test-full's phases
+# do, since a make started with a -j of its own runs apart from the count.
 SIDE_BY_SIDE = $(if $(findstring jobserver,$(MAKEFLAGS)),,-j$(JOBS))
-APP_BUILDS = $(APPS:%=app-%)
-$(APP_BUILDS): app-%:
-	@$(MAKE) -C erl/$*/src all
+beams: $(ROOT_BEAMS) $(SHIM_BEAMS)
 
-$(EXEC): erl/runtime/c_src/ern_exec.c
+# VERSION at the top of the repository is the toolchain's version; a bump
+# rebuilds. The repository's build is no release, which its version text
+# marks (ern_release); the release archive compiles that module without
+# DEVELOPMENT (tools/install.sh). -I finds a header of the toolchain's or
+# the runtime's by -include_lib, with no application on a code path.
+ERLC_FLAGS = +debug_info -Werror -I src -I src/toolchain \
+	-DVERSION='"$(shell cat VERSION)"' -DDEVELOPMENT
+
+# One rule for every module: a root's compiles into its ebin, a shim's beside
+# its library's .erc and a test's into its root's test directory. erlc's -MMD
+# records the headers each includes, so that a changed .hrl rebuilds its users.
+.SECONDEXPANSION:
+build/%.beam: src/$$(subst /ebin/,/,$$*).erl VERSION
+	@mkdir -p $(@D)
+	erlc $(ERLC_FLAGS) -MMD -MP -MF $(@:.beam=.Pbeam) -MT $@ -o $(@D) $<
+
+-include $(wildcard $(patsubst src/%.erl,build/%.Pbeam,$(wildcard src/libs/*/*.erl \
+	$(UNIT_TEST_SOURCES))) $(ROOT_BEAMS:.beam=.Pbeam))
+
+$(EXEC): src/runtime/c_src/ern_exec.c
 	@mkdir -p $(dir $@)
 	$(CC) -std=c99 -pedantic -O2 -Wall -Wextra -Werror -o $@ $<
 
@@ -202,7 +238,7 @@ uninstall:
 # The release archive, build/release/ern-$(VERSION).tar.gz: the tree make
 # install stages, the helper as its C source, which the archive's own make
 # compiles where it is installed, and a Makefile and a README of its own
-# from tools/release (docs/design/install.md).
+# from release/ (docs/design/install.md).
 release: all
 	@sh tools/install.sh release build/release $$(cat VERSION)
 
@@ -251,12 +287,12 @@ site:
 # which the manual page is written with, libs/crypto, whose digest names
 # the site's assets, and libs/json, which reads the server's configuration
 # for the site's shell page. The site's generator reaches the toolchain's lexer
-# through its helper, tools/ern_site.erl, compiled beside it, where `ern
-# run` finds it on the load path (report §11.2).
+# through its helper, tools/site/ern_site.erl, compiled to the root of the
+# build, where `ern run` finds it on the load path (report §11.2).
 tools: lib-ansi lib-markdown lib-crypto lib-json build/tools/ern_site.beam
 	@bin/ern build --verbose --build-root build/tools tools
 
-build/tools/ern_site.beam: tools/ern_site.erl
+build/tools/ern_site.beam: tools/site/ern_site.erl
 	@mkdir -p $(@D)
 	@erlc +debug_info -Werror -o $(@D) $<
 
@@ -286,38 +322,60 @@ unicode:
 # tests side by side, as many at once as the host has schedulers
 # (test/Makefile), which is what the host carries, and the areas run side
 # by side, six of them on 2026-10-13, ran six times as many, at a load of
-# about 117 on eight cores, where tests ran past their limits. The tests
-# of the applications run in parts, and in the full run the modules under
-# test/, are compiled first, once, so that no two parts compile one module
-# at once. A change runs its own area's target as it is worked on
-# (docs/development.md, *Building*).
+# about 117 on eight cores, where tests ran past their limits. In the full
+# run the modules under test/ are compiled first, once, so that no two parts
+# compile one module at once; one make runs the roots' tests, each waiting on
+# its modules, so that they need no such step. A change runs its own area's
+# target as it is worked on (docs/development.md, *Building*).
 test: all
-	@for a in $(SPLIT_APPS); do $(MAKE) -s -C erl/$$a/src beams || exit 1; done
 	@$(MAKE) -s -j$(JOBS) -O -o all $(APP_JOBS) test-library test-docs test-site
 
 test-full: all
 	@$(MAKE) -s -C test beams
-	@for a in $(SPLIT_APPS); do $(MAKE) -s -C erl/$$a/src beams || exit 1; done
 	@$(MAKE) -s -j$(JOBS) -O -o all test-guide $(EMACS_JOBS) $(APP_JOBS) test-library \
 	  test-docs test-site test-grammar test-typed dialyzer
 	@$(MAKE) -s -j1 -k -o all test-shell test-site-shell $(PROGRAM_PARTS)
 
-# The unit tests of the applications under erl/, side by side, or of one
-# with APP=checker. The runtime's tests are compiled first, since the
-# emitter's call one of their modules, ern_named.
-APP_TESTS = $(APPS:%=test-app-%)
+# The unit tests of the roots under src/, side by side, or of one with
+# APP=checker. A library's shim's tests run under test-library. Each runs
+# from the repository's root, with the runtime's tests on its path, since
+# other roots' call their modules, ern_named and ern_waits among them.
+APP_TESTS = $(patsubst %,test-app-%,$(notdir $(filter-out libs/%,$(TEST_ROOTS))))
+SHIM_TESTS = $(patsubst %,test-app-%,$(notdir $(SHIM_TEST_ROOTS)))
 ifdef APP
 test-erl: all
-	@$(MAKE) -s -C erl/runtime/src beams
-	@$(MAKE) -C erl/$(APP)/src test
+	@$(MAKE) test-app-$(APP)
 else
 test-erl: all
-	@$(MAKE) -s -C erl/runtime/src beams
 	@$(MAKE) -s -j $(APP_TESTS)
 endif
 
-$(APP_TESTS): test-app-%:
-	@$(MAKE) -s -C erl/$*/src test
+# The tests of the root $(1), every $(2)nd from the $(3)th, each module's found
+# in its test directory, so that make test can run one root's in several hosts
+# at once. A unit of the standard library, the shell or a library the shell is
+# compiled against is loaded from its .erc by namespace
+# (ern_code:ensure_loaded/1). A test makes what it needs under one directory
+# of the run's own, ERN_TEST_DIR, which is removed when the run ends, whatever
+# its outcome.
+UNIT_TESTS = Modules = [list_to_atom(filename:basename(File, ".beam")) \
+	           || File <- lists:sort(filelib:wildcard("build/$(1)/test/*_tests.beam"))], \
+	Tests = [case lists:suffix("_test_", atom_to_list(Function)) of \
+	             true -> {generator, Module, Function}; false -> {Module, Function} end \
+	         || Module <- Modules, {Function, 0} <- Module:module_info(exports), \
+	            lists:suffix("_test", atom_to_list(Function)) \
+	            orelse lists:suffix("_test_", atom_to_list(Function))], \
+	Mine = [Test || {Index, Test} <- lists:enumerate(0, Tests), \
+	                Index rem $(2) =:= $(3)], \
+	halt(case eunit:test(Mine, []) of ok -> 0; _ -> 1 end).
+RUN_UNIT_TESTS = @dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_test_XXXXXX") && \
+	  ERN_TEST_DIR=$$dir erl -noshell $(CODE_PATH) -pa $(CURDIR)/build/runtime/test \
+	  -pa $(CURDIR)/build/$(1) -pa $(CURDIR)/build/$(1)/test \
+	  -eval '$(call UNIT_TESTS,$(1),$(2),$(3))'; \
+	  status=$$?; rm -rf "$$dir"; exit $$status
+
+$(APP_TESTS) $(SHIM_TESTS): test-app-%: $$(call test_beams,$$(call root,$$*)) \
+	  $$(call test_beams,runtime)
+	$(call RUN_UNIT_TESTS,$(call root,$*),1,0)
 
 # The emitter's, the runtime's and the command line's tests run programs and
 # wait on them, so make test runs each in three hosts at once, every third
@@ -326,16 +384,23 @@ SPLIT_APPS = emitter runtime cli
 APP_PARTS = $(foreach a,$(SPLIT_APPS),$(addprefix test-app-$(a)-,0 1 2))
 APP_JOBS = $(APP_PARTS) $(filter-out $(SPLIT_APPS:%=test-app-%),$(APP_TESTS))
 
-$(APP_PARTS): test-app-%:
-	@$(MAKE) -s -C erl/$(firstword $(subst -, ,$*))/src test PARTS=3 \
-	  PART=$(lastword $(subst -, ,$*))
+$(APP_PARTS): test-app-%: \
+	  $$(call test_beams,$$(call root,$$(firstword $$(subst -, ,$$*)))) \
+	  $$(call test_beams,runtime)
+	$(call RUN_UNIT_TESTS,$(call root,$(firstword $(subst -, ,$*))),3,$(lastword $(subst -, ,$*)))
+
+# ern_named, by which a test calls a unit's function by its Ernest name, and
+# ern_waits, with the rest of the runtime's tests' modules, which test/Makefile
+# puts on the path of the tests that call them.
+runtime-test-beams: $(call test_beams,runtime)
 
 # The library's doc examples, the standard library's and the libraries',
 # with the libraries' own tests, each a case `ern test` runs over the
 # library's build, an example a program of its own (report §11.2, Appendix
 # E.0 shape rule 6): one line where every case passed and no case's
-# process faulted, and all `ern test` wrote where one did not.
-test-library: all
+# process faulted, and all `ern test` wrote where one did not. The shims'
+# tests run beside them.
+test-library: all $(SHIM_TESTS)
 	@out=$$(mktemp "$${TMPDIR:-/tmp}/ern_library_XXXXXX") || exit 1; \
 	  bin/ern test build/stdlib > "$$out" 2>&1; stdlib=$$?; \
 	  bin/ern test build/libs >> "$$out" 2>&1; libs=$$?; \
@@ -475,24 +540,23 @@ $(TYPING_PARTS): emacs-test-typing-%:
 	@cd editors/emacs && PARTS=4 PART=$* $(EMACS) -Q -batch -l test/typing.el $(EMACS_CORPUS)
 
 clean:
-	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
 	@$(MAKE) -C test $@
 	@# every build product is under build/, which make writes again, but a
 	@# compiled module beside its source and a crash dump, which a run writes
 	@# where it runs, and which the find removes wherever they are
-	@rm -rf build $(EXEC)
+	@rm -rf build
 	@find . -path ./build -prune -o \( -name '*.erc' -o -name 'erl_crash.dump' \) -type f -print0 \
 	  | xargs -0 rm -f
 
 # Rewrite test/fixtures/golden/*.erl, the Erlang source the compiler emits for
 # every program of test/fixtures/programs/ and services, after an intended change
 # to the emitter.
-golden: all
-	@$(MAKE) -s -C erl/emitter/src ../ebin/ern_emitter_tests.beam
-	@cd erl/emitter/src && erl -noshell -pa ../../*/ebin \
+golden: all $(call test_beams,toolchain/emitter) $(call test_beams,runtime)
+	@erl -noshell $(CODE_PATH) -pa $(CURDIR)/build/runtime/test \
+	  -pa $(CURDIR)/build/toolchain/emitter/test \
 	  -eval 'ern_emitter_tests:write_golden(), halt().'
 
-# Dialyzer over the toolchain's Erlang, its tests aside, and over the Erlang
+# Dialyzer over the toolchain's Erlang, which holds no test, and over the Erlang
 # the compiler writes for the standard library, the shell and the
 # libraries, each .erc copied into build/dialyzer under its module's name,
 # since Dialyzer reads a module only from a file whose name ends in .beam
@@ -511,8 +575,7 @@ dialyzer: all
 	@for d in build/stdlib build/shell build/libs/*; do (cd $$d && find . -name '*.erc') \
 	  | while read -r f; do m=$${f#./}; \
 	    cp $$d/$$m build/dialyzer/ern@$$(echo $${m%.erc} | tr / @).beam; done; done
-	@dialyzer --plt build/dialyzer.plt $(filter-out %_tests.beam,$(wildcard erl/*/ebin/*.beam)) \
-	  build/dialyzer/*.beam
+	@dialyzer --plt build/dialyzer.plt $(ROOT_BEAMS) $(SHIM_BEAMS) build/dialyzer/*.beam
 
 # The helper in C under Clang's static analyzer and under the address and
 # undefined-behavior sanitizers (docs/release_review.md): the analyzer
@@ -524,11 +587,11 @@ dialyzer: all
 SANITIZE = $(abspath build/sanitize)
 sanitize: all
 	@found=$$(clang --analyze -Xclang -analyzer-output=text -std=c99 -o /dev/null \
-	  erl/runtime/c_src/ern_exec.c 2>&1); test -z "$$found" || { echo "$$found"; exit 1; }
+	  src/runtime/c_src/ern_exec.c 2>&1); test -z "$$found" || { echo "$$found"; exit 1; }
 	@rm -rf $(SANITIZE) && mkdir -p $(SANITIZE)
 	@trap 'rm -f $(EXEC); $(MAKE) -s $(EXEC)' EXIT; \
 	  clang -std=c99 -pedantic -g -O1 -fno-omit-frame-pointer -fsanitize=address,undefined \
-	    -fno-sanitize-recover=undefined -o $(EXEC) erl/runtime/c_src/ern_exec.c && \
+	    -fno-sanitize-recover=undefined -o $(EXEC) src/runtime/c_src/ern_exec.c && \
 	  export ASAN_OPTIONS=log_path=$(SANITIZE)/address \
 	    UBSAN_OPTIONS=log_path=$(SANITIZE)/undefined:print_stacktrace=1 && \
 	  $(MAKE) -s test-erl APP=runtime && $(MAKE) -s test-programs
@@ -576,7 +639,8 @@ sections:
 	@grep -ohE '^#{2,3} ([0-9]+(\.[0-9]+)?\.? |Appendix [A-Z](\.[0-9]+)?\.)' report/*.md | \
 	  sed -E 's/^#+ //; s/\.? $$//; s/\.$$//; s/^([0-9])/§\1/' | \
 	  while read -r s; do p=$$(printf '%s' "$$s" | sed 's/\./\\./g'); \
-	    grep -ohE "(guide )?$$p\b" erl/*/test/*.erl test/*.erl src/stdlib/*.ern src/libs/*/*.ern | \
+	    grep -ohE "(guide )?$$p\b" $(UNIT_TEST_SOURCES) test/*.erl src/stdlib/*.ern \
+	      src/libs/*/*.ern | \
 	    grep -qv '^guide' || echo "$$s"; done
 
 # Every report section with the number of tests citing it and its length in
@@ -587,7 +651,7 @@ coverage:
 	      /^#/ { if (s != "") print s, w; s = ""; next } \
 	      s != "" { w += NF } END { if (s != "") print s, w }' report/*.md | \
 	  while read s w; do \
-	    c=$$(cat erl/*/test/*.erl test/*.erl | grep -o "\(guide \)\?§$$s\b" | grep -v '^guide' \
+	    c=$$(cat $(UNIT_TEST_SOURCES) test/*.erl | grep -o "\(guide \)\?§$$s\b" | grep -v '^guide' \
 	         | wc -l); \
 	    printf '%3d cites %5d words  §%s\n' $$c $$w $$s; done | sort -k1,1n -k3,3nr
 
@@ -598,13 +662,13 @@ clean-emacs:
 
 EMACS_CORPUS = $(ERNEST_SOURCES:%=../../%)
 
-.PHONY: all $(APP_BUILDS) stdlib libs $(LIB_BUILDS) shell tools manual $(MANUALS) \
+.PHONY: all beams stdlib libs $(LIB_BUILDS) shell tools manual $(MANUALS) \
         man $(PAGES) \
         test test-full test-erl \
         test-programs $(PROGRAM_PARTS) test-library test-docs test-guide test-site test-grammar \
         test-typed test-shell test-site-shell test-browser \
         load service bench bench-release \
-        test-emacs $(APP_TESTS) $(APP_PARTS) $(EMACS_ALL) \
+        test-emacs $(APP_TESTS) $(SHIM_TESTS) $(APP_PARTS) runtime-test-beams $(EMACS_ALL) \
         clean clean-emacs \
         sections coverage golden xref contents site-expected site-unrunnable format doc install \
         uninstall release \

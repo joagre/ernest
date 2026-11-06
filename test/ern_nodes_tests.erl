@@ -2712,8 +2712,8 @@ reconnect(Base) ->
 %% after the code: the store's gateway applied the function in its worker
 %% for the desk, which then read nothing more from the desk; a function
 %% that never finishes, which ends with the program, is
-%% erl/runtime/test/ern_rt_tests.erl's, and the order of one address's
-%% messages and the worker's count erl/cli/test/ern_gateway_tests.erl's
+%% src/runtime/test/ern_rt_tests.erl's, and the order of one address's
+%% messages and the worker's count src/nodes/test/ern_gateway_tests.erl's
 adapted_calls_test_() ->
     nodes_test({waits, 5}, fun adapted_calls/1).
 
@@ -4228,8 +4228,10 @@ changed_release(Dir, Old, New) ->
 released(Dir, Shell) ->
     Tree = ern_tree:tree(),
     Copies = [{filename:join(Tree, File), filename:join(Dir, File)}
-              || Pattern <- ["bin/ern", "erl/*/ebin/*", "erl/runtime/priv/ern_exec",
-                             "build/stdlib/*.erc", "build/libs/**/*.erc"],
+              || Pattern <- ["bin/ern", "build/toolchain/*/ebin/*", "build/shared/ebin/*",
+                             "build/nodes/ebin/*", "build/runtime/ebin/*",
+                             "build/runtime/priv/ern_exec", "build/shell/ebin/*",
+                             "build/stdlib/*.erc", "build/libs/*/*.erc", "build/libs/*/*.beam"],
                  File <- filelib:wildcard(Pattern, Tree)]
         ++ [{filename:join(Shell, File), filename:join([Dir, "build", "shell", File])}
             || File <- filelib:wildcard("**/*.erc", Shell)],
@@ -4238,12 +4240,13 @@ released(Dir, Shell) ->
                       {ok, _} = file:copy(From, To)
                   end, Copies),
     [ok = file:change_mode(filename:join(Dir, File), 8#755)
-     || File <- ["bin/ern", "erl/runtime/priv/ern_exec"]],
+     || File <- ["bin/ern", "build/runtime/priv/ern_exec"]],
     {ok, Version} = file:read_file(filename:join(Tree, "VERSION")),
-    {ok, ern_release} = compile:file(filename:join(Tree, "erl/cli/src/ern_release"),
+    {ok, ern_release} = compile:file(filename:join(Tree, "src/toolchain/cli/ern_release"),
                                      [{d, 'VERSION', string:trim(binary_to_list(Version))},
                                       {d, 'MARK', ""},
-                                      {outdir, filename:join(Dir, "erl/cli/ebin")}, report]),
+                                      {outdir, filename:join(Dir, "build/toolchain/cli/ebin")},
+                                      report]),
     filename:join([Dir, "bin", "ern"]).
 
 %% report §11.2 *The attached shell*, *Faults*, *Loading and reloading*,

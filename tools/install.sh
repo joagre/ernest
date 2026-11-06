@@ -10,7 +10,7 @@
 # lib/ernest, as the repository lays it out and without the host's debug
 # information, bin/ern a relative link to its launcher, and the manual
 # pages, the documents, the examples among them, and the Emacs mode under
-# share. The README staged is the release's, tools/release/README.md, and a
+# share. The README staged is the release's, release/README.md, and a
 # document's link into the checkout, to a file that is not installed, is
 # staged as a link into the repository at $ref: main from a checkout, the
 # release's tag in an archive. The tree's `installed` lists every file
@@ -53,15 +53,13 @@ stage() {
     rm -rf "$stage"
     tree=$stage/lib/ernest
     cd "$repo"
-    for f in bin/ern erl/*/ebin/*.beam erl/runtime/priv/ern_exec build/stdlib/*.erc \
+    # the code bin/ern puts on the host's path, which holds no test, each
+    # library's shim beside its .erc, and the builds in Ernest
+    for f in bin/ern build/toolchain/*/ebin/*.beam build/shared/ebin/*.beam \
+             build/nodes/ebin/*.beam build/runtime/ebin/*.beam build/runtime/priv/ern_exec \
+             build/shell/ebin/*.beam build/libs/*/*.beam build/stdlib/*.erc \
              $(find build/shell build/libs -type f -name '*.erc' | sort)
     do
-        # a beam compiled from an application's test/ is a test's, and
-        # ships with no installation, a test's helper among them
-        case $f in
-            erl/*/ebin/*.beam)
-                [ -e "${f%%/ebin/*}/test/$(basename "$f" .beam).erl" ] && continue ;;
-        esac
         mkdir -p "$(dirname "$tree/$f")" && cp "$f" "$tree/$f"
     done
     escript tools/strip.escript "$tree"
@@ -90,7 +88,7 @@ stage() {
             *) shared "$f" "share/doc/ernest/$f" ;;
         esac
     done
-    edited tools/release/README.md share/doc/ernest/README.md "s/@VERSION@/$(cat VERSION)/g"
+    edited release/README.md share/doc/ernest/README.md "s/@VERSION@/$(cat VERSION)/g"
     # the directories of the installation's own, each before the one that
     # holds it, as uninstall removes them in this order where they are empty
     (cd "$stage" && find share/doc/ernest -depth -type d) | sed 's|$|/|' >> "$tree/installed"
@@ -134,7 +132,7 @@ edited() {
 # its tree copied, and any installation already there removed first.
 install() {
     from=$1
-    [ -x "$from/lib/ernest/erl/runtime/priv/ern_exec" ] ||
+    [ -x "$from/lib/ernest/build/runtime/priv/ern_exec" ] ||
         fail "$from holds no helper; make builds it"
     for d in "$tree" "$root/bin" "$root/share/man/man1" "$root/share/man/man3" \
              "$root/share/doc" "$root/share/emacs/site-lisp"; do
@@ -191,7 +189,7 @@ uninstall() {
 }
 
 # The release archive: a staged tree without the helper, whose C source
-# it carries instead with the Makefile of tools/release, the README it
+# it carries instead with the Makefile of release/, the README it
 # installs with the logo that README shows, and this script, packed as
 # ern-VERSION. Its version text says what it was made from (report
 # §11.7, §12.5): VERSION's alone where the checkout stands at the
@@ -214,15 +212,15 @@ release() {
         mark=+$commit && ref=$commit
     fi
     stage "$dir/$name"
-    rm "$dir/$name/lib/ernest/erl/runtime/priv/ern_exec"
+    rm "$dir/$name/lib/ernest/build/runtime/priv/ern_exec"
     cd "$repo"
     erlc -Werror -DVERSION="\"$version\"" -DMARK="\"$mark\"" \
-        -o "$dir/$name/lib/ernest/erl/cli/ebin" erl/cli/src/ern_release.erl
-    escript tools/strip.escript "$dir/$name/lib/ernest/erl/cli/ebin"
-    cp erl/runtime/c_src/ern_exec.c tools/install.sh "$dir/$name/"
+        -o "$dir/$name/lib/ernest/build/toolchain/cli/ebin" src/toolchain/cli/ern_release.erl
+    escript tools/strip.escript "$dir/$name/lib/ernest/build/toolchain/cli/ebin"
+    cp src/runtime/c_src/ern_exec.c tools/install.sh "$dir/$name/"
     cp "$dir/$name/share/doc/ernest/README.md" "$dir/$name/README.md"
     cp -R "$dir/$name/share/doc/ernest/assets" "$dir/$name/assets"
-    sed "s/@VERSION@/$version/g" tools/release/Makefile > "$dir/$name/Makefile"
+    sed "s/@VERSION@/$version/g" release/Makefile > "$dir/$name/Makefile"
     chmod -R u=rwX,go=rX "$dir/$name"
     rm -f "$dir/$name.tar.gz"
     (cd "$dir" && tar -czf "$name.tar.gz" "$name")

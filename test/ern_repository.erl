@@ -3,7 +3,7 @@
 %% bytes, each by its path from the repository's root.
 -module(ern_repository).
 
--export([files/1, read/1]).
+-export([files/1, modules/0, read/1]).
 
 -define(ROOT, "..").
 
@@ -15,6 +15,12 @@
 files(Patterns) ->
     [File || Pattern <- Patterns, File <- filelib:wildcard(Pattern, ?ROOT),
              not lists:member(hd(filename:basename(File)), ".#")].
+
+%% The toolchain's own Erlang, the modules a release ships, by their paths
+%% from the repository's root.
+-spec modules() -> [file:filename()].
+modules() ->
+    [File || File <- files(["src/**/*.erl"]), not lists:member("test", filename:split(File))].
 
 %% The bytes of the file at Relative, a path from the repository's root.
 -spec read(file:filename()) -> binary().

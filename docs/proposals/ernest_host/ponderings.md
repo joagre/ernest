@@ -27,13 +27,13 @@ A host built for Ernest alone would answer each of these. Whether it is worth bu
 
 Counted on 2026-10-12 as calls into host modules, so that the size of the undertaking is read from the code and not guessed.
 
-**The runtime, `erl/runtime/src`, 7,574 lines of Erlang.** `erlang` 229 calls, `lists` 131, `ets` 116, `maps` 64, `persistent_term` 50, `file` 45, `unicode` 37, `sets` 37, `binary` 25, `queue` 18, `string` 16, `gen_tcp` 14, `inet` 13, `code` 9, `io_lib` 8, `filename` 7, `proplists` 6, `io` 6, `unicode_util` 5, `math` 3, `gen_event` 3, `filelib` 3, `os` 2, `error_handler` 2.
+**The runtime, `src/runtime`, 7,574 lines of Erlang.** `erlang` 229 calls, `lists` 131, `ets` 116, `maps` 64, `persistent_term` 50, `file` 45, `unicode` 37, `sets` 37, `binary` 25, `queue` 18, `string` 16, `gen_tcp` 14, `inet` 13, `code` 9, `io_lib` 8, `filename` 7, `proplists` 6, `io` 6, `unicode_util` 5, `math` 3, `gen_event` 3, `filelib` 3, `os` 2, `error_handler` 2.
 
 The standard library's `foreign fn` declarations name these runtime modules almost alone, `ern_rt`, `ern_string`, `ern_set`, `ern_char`, `ern_peer`, `ern_foreign`, `ern_float`, and the host's `erlang`, `maps`, `math`, `lists` and `binary` directly for the operations that are the host's own (E.0 rule 1). So the surface Ernest stands on is the runtime's modules, and beneath them the host modules above.
 
-**The node side, `erl/cli/src`.** The carrier, the gateway, the exchange, the arrival and the node's start add `public_key` 14, `crypto` 7, `json` 5, `net_kernel` 3, `net_adm` 1, `inet` 4, `beam_lib` 2 and `code` 13. The carrier runs on the host's distribution, started by `net_kernel` under Ernest's node names and allowed peers, over TLS with Ernest's keys; nothing else of the distribution is used.
+**The node side, `src/nodes`.** The carrier, the gateway, the exchange, the arrival and the node's start add `public_key` 14, `crypto` 7, `json` 5, `net_kernel` 3, `net_adm` 1, `inet` 4, `beam_lib` 2 and `code` 13. The carrier runs on the host's distribution, started by `net_kernel` under Ernest's node names and allowed peers, over TLS with Ernest's keys; nothing else of the distribution is used.
 
-**The helper, `erl/runtime/c_src/ern_exec.c`.** C99 over POSIX.1-2008, what the host's ports cannot do: a program's standard error apart from its output, the end of its input, a kill of its process group, the node's lock on `ernest.pid` and a signal to the node that holds one.
+**The helper, `src/runtime/c_src/ern_exec.c`.** C99 over POSIX.1-2008, what the host's ports cannot do: a program's standard error apart from its output, the end of its input, a kill of its process group, the node's lock on `ernest.pid` and a signal to the node that holds one.
 
 **The toolchain, 36,609 lines of Erlang in all**, the compiler, the build, the shell's front end, `ern doc`, `ern format`. None of it would run on a host of Ernest's own, which runs Ernest. See section 7.
 

@@ -23,5 +23,5 @@ The project's own documents: what each file and directory here is, and the READM
 - **[`src/shell/README.md`](../src/shell/README.md)**: a guide to the shell's code.
 - **[`editors/emacs/README.md`](../editors/emacs/README.md)**: how to install the Emacs mode, and what it leaves to the reader's configuration.
 - **[`examples/README.md`](../examples/README.md)**: the example programs by topic, with what each shows and how to run it.
-- **[`tools/release/README.md`](../tools/release/README.md)**: what a reader of the release archive, or of an installation, needs first.
+- **[`release/README.md`](../release/README.md)**: what a reader of the release archive, or of an installation, needs first.
 - **[`assets/README.md`](../assets/README.md)**: the logos, and where each is used.

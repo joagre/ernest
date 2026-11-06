@@ -1,0 +1,1469 @@
+%% The parser: the tree each form of Appendix A builds, the spans its nodes
+%% carry (report §11.5), and the errors it refuses a text with, with their
+%% help lines and whether the shell takes another line (§11.2).
+-module(ern_parser_tests).
+
+-include_lib("eunit/include/eunit.hrl").
+-include_lib("parser/include/ern_ast.hrl").
+-include_lib("parser/include/ern_fence.hrl").
+-include_lib("shared/include/ern_diagnostic.hrl").
+
+expression(Text) ->
+    {ok, Expr} = ern_parser:parse_expr(Text),
+    Expr.
+
+declaration(Text) ->
+    {ok, [Declaration]} = ern_parser:parse_string(Text),
+    Declaration.
+
+declarations(Text) ->
+    {ok, Declarations} = ern_parser:parse_string(Text),
+    Declarations.
+
+refusal(Text) ->
+    {error, #diagnostic{message = Message}} = ern_parser:parse_string(Text),
+    Message.
+
+expression_refusal(Text) ->
+    {error, #diagnostic{message = Message}} = ern_parser:parse_expr(Text),
+    Message.
+
+help(Text) ->
+    {error, #diagnostic{help = Help}} = ern_parser:parse_string(Text),
+    Help.
+
+refusal_and_help(Text) ->
+    {error, #diagnostic{message = Message, help = Help}} = ern_parser:parse_string(Text),
+    {Message, Help}.
+
+expression_help(Text) ->
+    {error, #diagnostic{help = Help}} = ern_parser:parse_expr(Text),
+    Help.
+
+expression_refusal_and_help(Text) ->
+    {error, #diagnostic{message = Message, help = Help}} = ern_parser:parse_expr(Text),
+    {Message, Help}.
+
+%% The pattern of a match's one clause.
+pattern_of(Text) ->
+    #e_match{clauses = [#clause{pattern = Pattern}]} =
+        expression("match x { " ++ Text ++ " -> 0 }"),
+    Pattern.
+
+%% The type a `let` is annotated with.
+type_of(Text) ->
+    #let_declaration{annotation = Annotation} = declaration("let x : " ++ Text ++ " = y"),
+    Annotation.
+
+is_incomplete_expression(Text) ->
+    {error, #diagnostic{incomplete = Incomplete}} = ern_parser:parse_expr(Text),
+    Incomplete.
+
+is_incomplete_program(Text) ->
+    {error, #diagnostic{incomplete = Incomplete}} = ern_parser:parse_string(Text),
+    Incomplete.
+
+%% Where an unfinished expression stopped: the call it stopped within, and
+%% what may stand there.
+stopped_within(Text) ->
+    {error, #diagnostic{incomplete = true, within = Within, expected = Expected}} =
+        ern_parser:parse_expr(Text),
+    {Within, Expected}.
+
+%%
+%% Expressions
+%%
+
+%% report §2.5
+literals_test() ->
+    ?assertMatch(#e_literal{kind = int, value = 42}, expression("42")),
+    ?assertMatch(#e_literal{kind = float, value = 1.5}, expression("1.5")),
+    ?assertMatch(#e_literal{kind = char, value = $a}, expression("'a'")),
+    ?assertMatch(#e_literal{kind = string, value = <<"hi">>}, expression("\"hi\"")),
+    ?assertMatch(#e_literal{kind = bool, value = true}, expression("true")).
+
+%% report §2.3, §4.2
+names_test() ->
+    ?assertMatch(#e_var{namespace = [], name = x}, expression("x")),
+    ?assertMatch(#e_var{namespace = ['Net', 'Http'], name = parse}, expression("Net.Http.parse")),
+    ?assertMatch(#e_constructor{namespace = [], name = 'None', args = none}, expression("None")),
+    ?assertMatch(#e_constructor{namespace = ['Net', 'Http'], name = 'Request',
+                                args = {positional, _}},
+                 expression("Net.Http.Request(x)")).
+
+%% report §2.6
+precedence_test() ->
+    ?assertMatch(#e_binop{operator = '+', left = #e_literal{value = 1},
+                          right = #e_binop{operator = '*', left = #e_literal{value = 2},
+                                           right = #e_literal{value = 3}}},
+                 expression("1 + 2 * 3")),
+    ?assertMatch(#e_binop{operator = '-', left = #e_binop{operator = '-', left = #e_var{name = a},
+                                                          right = #e_var{name = b}},
+                          right = #e_var{name = c}},
+                 expression("a - b - c")),
+    ?assertMatch(#e_binop{operator = '::', left = #e_var{name = a},
+                          right = #e_binop{operator = '::', left = #e_var{name = b},
+                                           right = #e_var{name = c}}},
+                 expression("a :: b :: c")),
+    ?assertMatch(#e_binop{operator = '||', left = #e_binop{operator = '&&',
+                                                           left = #e_binop{operator = '=='},
+                                                           right = #e_var{name = c}},
+                          right = #e_var{name = d}},
+                 expression("a == b && c || d")),
+    ?assertMatch(#e_binop{operator = '::', left = #e_binop{operator = '+'},
+                          right = #e_var{name = xs}},
+                 expression("1 + 2 :: xs")),
+    ?assertMatch(#e_binop{operator = '<>', left = #e_literal{}, right = #e_call{}},
+                 expression("\"a\" <> Int.toString(n)")).
+
+%% report §2.6, §5.1
+unary_minus_test() ->
+    ?assertMatch(#e_negation{expr = #e_literal{value = 1}}, expression("-1")),
+    ?assertMatch(#e_negation{expr = #e_call{callee = #e_var{name = f}}}, expression("-f(x)")),
+    ?assertMatch(#e_binop{operator = '*', left = #e_negation{}, right = #e_literal{value = 3}},
+                 expression("-2 * 3")),
+    ?assertMatch(#e_binop{operator = '-', left = #e_var{name = a}, right = #e_negation{}},
+                 expression("a - -b")).
+
+%% report §4.8: `!` is prefix negation, and binds like prefix `-`
+unary_not_test() ->
+    ?assertMatch(#e_not{expr = #e_literal{value = true}}, expression("!true")),
+    ?assertMatch(#e_not{expr = #e_call{callee = #e_var{name = f}}}, expression("!f(x)")),
+    ?assertMatch(#e_not{expr = #e_binop{operator = '&&'}}, expression("!(a && b)")),
+    ?assertMatch(#e_binop{operator = '&&', left = #e_not{}, right = #e_var{name = b}},
+                 expression("!a && b")).
+
+%% report §5.2
+calls_test() ->
+    ?assertMatch(#e_call{callee = #e_var{name = f}, args = []}, expression("f()")),
+    ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_var{name = x}, #e_literal{}]},
+                 expression("f(x, 1)")),
+    ?assertMatch(#e_call{callee = #e_call{callee = #e_var{name = f}, args = [_]}, args = [_]},
+                 expression("f(a)(b)")),
+    ?assertMatch(#e_call{callee = #e_var{namespace = ['Address'], name = call}},
+                 expression("Address.call(c, fn(r) = Get(reply = r), 1000)")).
+
+%% report §5.7: the pipe binds loosest, below ||, and takes a
+%% parenthesized lambda
+pipe_precedence_test() ->
+    ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_binop{operator = '+'}]},
+                 expression("a + b |> f")),
+    ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_binop{operator = '||'}]},
+                 expression("a || b |> f")),
+    ?assertMatch(#e_call{callee = #e_lambda{}, args = [#e_var{name = x}]},
+                 expression("x |> (fn(y) = y + 1)")).
+
+%% report §5.7
+pipe_rewrite_test() ->
+    ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_var{name = x}]},
+                 expression("x |> f")),
+    ?assertMatch(#e_call{callee = #e_var{name = f},
+                         args = [#e_var{name = x}, #e_var{name = a}, #e_var{name = b}]},
+                 expression("x |> f(a, b)")),
+    ?assertMatch(#e_call{callee = #e_call{callee = #e_var{name = f}, args = [#e_var{name = a}]},
+                         args = [#e_var{name = x}, #e_var{name = b}]},
+                 expression("x |> f(a)(b)")),
+    %% parentheses change nothing: a parenthesized call is a call the pipe
+    %% fills, and a parenthesized callee is the callee
+    ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_var{name = x}, #e_var{name = a}]},
+                 expression("x |> (f(a))")),
+    ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_var{name = x}, #e_var{name = a}]},
+                 expression("x |> (f)(a)")),
+    ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_var{name = x}]},
+                 expression("x |> (f)")),
+    ?assertMatch(#e_call{callee = #e_var{name = c},
+                         args = [#e_call{callee = #e_var{name = b}, args = [#e_var{name = a}]}]},
+                 expression("a |> b |> c")),
+    ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_binop{operator = '+'}]},
+                 expression("a + b |> f")),
+    ?assertMatch(#e_call{callee = #e_lambda{}, args = [#e_var{name = x}]},
+                 expression("x |> (fn(y) = y + 1)")).
+
+%% report §5.7: a parenthesized right-hand side is parsed once, and its
+%% parentheses change nothing, so each level's call is filled by the one
+%% outside it. A regression test: the check parsed it twice at every level,
+%% so that nesting took exponential time, two seconds at a depth of 22.
+pipe_nesting_test_() ->
+    {timeout, 5,
+     fun() ->
+         Source = lists:duplicate(40, "x |> (") ++ "x" ++ lists:duplicate(40, ")"),
+         #e_call{callee = #e_var{name = x}, args = Args} = expression(lists:flatten(Source)),
+         ?assertEqual(40, length(Args))
+     end}.
+
+%% report §5.1, §5.7: the call a pipe writes is marked, so that x is
+%% evaluated before a computed callee; a written call is not
+pipe_marks_call_test() ->
+    ?assertMatch(#e_call{pipe = true, callee = #e_call{pipe = false}}, expression("x |> f(a)(b)")),
+    ?assertMatch(#e_call{pipe = true}, expression("x |> (f(a))")),
+    ?assertMatch(#e_call{pipe = true}, expression("x |> f")),
+    ?assertMatch(#e_call{pipe = false}, expression("f(x, a)")).
+
+%% report §3.5, Appendix A: `.` and an ident after a primary select a
+%% field, chained and after a call; an uppercase first segment still
+%% begins a qualified name
+field_selection_test() ->
+    ?assertMatch(#e_selection{expr = #e_var{name = s}, field = upper}, expression("s.upper")),
+    ?assertMatch(#e_selection{expr = #e_selection{expr = #e_var{name = s}, field = at}, field = x},
+                 expression("s.at.x")),
+    ?assertMatch(#e_selection{expr = #e_call{}, field = y}, expression("f(1).y")),
+    ?assertMatch(#e_selection{expr = #e_var{namespace = ['Stack'], name = empty}, field = items},
+                 expression("Stack.empty.items")),
+    ?assertMatch(#e_binop{operator = '+', left = #e_selection{}, right = #e_selection{}},
+                 expression("p.x + p.y")).
+
+%% report §5.6
+constructors_test() ->
+    ?assertMatch(#e_constructor{name = 'Some', args = {positional, #e_literal{value = 5}}},
+                 expression("Some(5)")),
+    ?assertMatch(#e_constructor{name = 'Person', base = undefined,
+                                args = {named, [#field_set{name = name, expr = #e_literal{}},
+                                                #field_set{name = age, expr = #e_literal{}}]}},
+                 expression("Person(name = \"A\", age = 30)")),
+    ?assertMatch(#e_constructor{name = 'Person', base = #e_var{name = p},
+                                args = {named, [#field_set{name = age}]}},
+                 expression("Person(..p, age = 31)")),
+    ?assertMatch(#e_constructor{name = 'Some', args = {positional, #e_var{name = x}}},
+                 expression("Some(x)")).
+
+%% report §3.2, §3.3
+tuples_lists_test() ->
+    ?assertMatch(#e_tuple{elements = [#e_literal{}, #e_literal{}]}, expression("#(1, 2)")),
+    %% a tuple has two components or more, as a value, a type and a pattern
+    ?assertEqual("a tuple has two components or more", expression_refusal("#(1)")),
+    ?assertEqual("a tuple has two components or more", refusal("fn f(x : #(Int)) : Int = 1")),
+    ?assertEqual("a tuple has two components or more",
+                 refusal("fn f(x : Int) : Int = match x { #(y) -> y }")),
+    ?assertMatch(#e_list{elements = []}, expression("[]")),
+    ?assertMatch(#e_list{elements = [#e_literal{}, #e_literal{}, #e_literal{}]},
+                 expression("[1, 2, 3]")).
+
+%% report Appendix A
+parens_produce_no_node_test() ->
+    ?assertMatch(#e_binop{operator = '*', left = #e_binop{operator = '+'}, right = #e_literal{}},
+                 expression("(1 + 2) * 3")),
+    ?assertMatch(#e_var{name = x}, expression("((x))")).
+
+%% report §5.4
+block_test() ->
+    ?assertMatch(#e_block{statements = [#binding{pattern = #p_var{name = x}, operator = '=',
+                                                 expr = #e_literal{value = 5}},
+                                        #binding{pattern = #p_tuple{}, operator = '<-',
+                                                 annotation = undefined},
+                                        #binding{pattern = #p_var{name = m},
+                                                 annotation = #t_named{name = 'Map'}},
+                                        #fn_declaration{name = helper, params = [_]},
+                                        #e_call{}]},
+                 expression("{ let x = 5; let #(a, b) <- f(x);"
+                            " let m : Map(String, Int) = Map.empty;"
+                            " fn helper(y) = y; helper(x) }")),
+    ?assertMatch(#e_block{statements = [#e_lambda{}, #e_var{}]},
+                 expression("{ fn(x) = x; y }")).
+
+%% report §4.5, Appendix A's Return: a result annotation is written `: T`
+%% in a declaration, a foreign one and a lambda, and `->` after the
+%% parameters is refused with the spelling that replaces it (§11); a
+%% function type keeps its arrow, and a `receiving` after one is the type's
+result_annotation_test() ->
+    ?assertMatch([#fn_declaration{result_type = #t_named{name = 'Int'}}],
+                 declarations("fn f(x : Int) : Int = x")),
+    ?assertMatch([#foreign_fn_declaration{result_type = #t_named{name = 'Int'}}],
+                 declarations("foreign fn g() : Int = \"m:g/0\"")),
+    ?assertMatch(#e_lambda{result_type = #t_named{name = 'Int'}}, expression("fn(x) : Int = x")),
+    Said = "a function's result is annotated with `:`, not `->`",
+    ?assertEqual(Said, refusal("fn f(x : Int) -> Int = x")),
+    ?assertEqual(Said, refusal("foreign fn g() -> Int = \"m:g/0\"")),
+    ?assertEqual(Said, expression_refusal("fn(x) -> Int = x")),
+    ?assertMatch([#fn_declaration{result_type = #t_fn{effect = #t_named{name = 'M'}},
+                                  effect = undefined}],
+                 declarations("fn f() : (Int) -> Int receiving M = g")),
+    ?assertMatch([#fn_declaration{result_type = #t_fn{effect = undefined},
+                                  effect = #t_named{name = 'M'}}],
+                 declarations("fn f() : ((Int) -> Int) receiving M = g")),
+    %% Appendix A: a second `receiving` after a function type's own is
+    %% refused, the function's mailbox type written around the type in
+    %% parentheses. A regression test: `(A) -> B receiving M receiving N`
+    %% was a second spelling of it
+    ?assertEqual("a second `receiving` after a function type's own",
+                 refusal("fn f() : (Int) -> Int receiving M receiving N = g")),
+    ?assertEqual("a second `receiving` after a function type's own",
+                 expression_refusal("fn() : (Int) -> Int receiving M receiving N = g")),
+    ?assertMatch([#fn_declaration{result_type = #t_fn{effect = #t_named{name = 'M'}},
+                                  effect = #t_named{name = 'N'}}],
+                 declarations("fn f() : ((Int) -> Int receiving M) receiving N = g")),
+    %% and in a function type's own result alike
+    ?assertEqual("a second `receiving` after a function type's own",
+                 refusal("fn f(g : () -> (Int) -> Int receiving M receiving N) = g")).
+
+%% report §2.4, §11.5: a reserved word where a name, a type or a pattern
+%% stands is said to be reserved and to name nothing, `true` and `false`
+%% among them; elsewhere it is called one. A regression test: the message
+%% named the word alone, and a reader took it for a name, and then said
+%% what was expected but not that the word names nothing
+reserved_word_named_test() ->
+    Reserved = fun(Word) -> "`" ++ Word ++ "` is a reserved word, and names nothing" end,
+    ?assertEqual(Reserved("match"), refusal("let match = 1")),
+    ?assertEqual(Reserved("type"), refusal("fn f(type : Int) = 1")),
+    ?assertEqual(Reserved("true"), refusal("let true = 1")),
+    ?assertEqual(Reserved("when"), refusal("type T = T(when : Int)")),
+    ?assertEqual(Reserved("after"), refusal("fn f(x : Int) : Int = match x { y as after -> 1 }")),
+    ?assertEqual(Reserved("after"), refusal("fn f() : Int = List.after")),
+    ?assertEqual(Reserved("foreign"), refusal("type foreign = A")),
+    ?assertEqual(Reserved("after"), refusal("fn f(p : Int) : Int = p.after")),
+    ?assertEqual("expected `type` or `fn` after `foreign` instead of the reserved word `let`",
+                 refusal("foreign let x = 1")).
+
+%% report §5.3
+lambda_test() ->
+    ?assertMatch(#e_lambda{params = [#param{pattern = #p_var{name = x}, annotation = undefined}],
+                           result_type = undefined, effect = undefined,
+                           body = #e_binop{operator = '+'}},
+                 expression("fn(x) = x + 1")),
+    ?assertMatch(#e_lambda{params = [], result_type = #t_named{name = 'Unit'},
+                           effect = #t_named{name = 'Never'}, body = #e_constructor{name = 'Unit'}},
+                 expression("fn() : Unit receiving Never = Unit")),
+    %% the body extends to the enclosing delimiter
+    ?assertMatch(#e_call{args = [#e_var{}, #e_lambda{body = #e_binop{operator = '+'}}]},
+                 expression("List.map(xs, fn(x) = x + 1)")),
+    ?assertMatch(#e_call{args = [#e_var{}, #e_lambda{body = #e_call{}}, #e_literal{}]},
+                 expression("f(a, fn(r) = g(r), 1)")).
+
+%% report §5.8
+if_test() ->
+    ?assertMatch(#e_if{condition = #e_binop{operator = '=='}, then_branch = #e_literal{},
+                       else_branch = #e_binop{operator = '+'}},
+                 expression("if n == 0 then 1 else n + 1")),
+    ?assertMatch(#e_if{else_branch = #e_block{}}, expression("if c then a else { b }")).
+
+%% report §5.9
+match_test() ->
+    ?assertMatch(#e_match{scrutinee = #e_var{name = xs},
+                          clauses = [#clause{pattern = #p_list{elements = []}, guard = undefined,
+                                             body = #e_literal{}},
+                                     #clause{pattern = #p_cons{}, guard = #e_binop{operator = '>'},
+                                             body = #e_var{}},
+                                     #clause{pattern = #p_wildcard{}}]},
+                 expression("match xs { [] -> 0 | h :: _ when h > 0 -> h | _ -> 1 }")),
+    ?assertMatch(#e_match{clauses = [#clause{body = #e_match{}}, #clause{}]},
+                 expression("match a { Some(b) -> match b { 1 -> x | _ -> y } | None -> z }")).
+
+%% report §2.2: a doc block attaches to a declaration, to a constructor
+%% above it or above its `|`, to a field, or, with a blank line after it,
+%% to the module; elsewhere it is a comment
+doc_attachment_test() ->
+    Source = <<"/// The module.\n\n/// T.\ntype T =\n    /// A.\n    A(\n    /// f.\n"
+               "    x : Int)\n    /// B.\n  | B\n/// S.\nabstract type S = S(Int)\n">>,
+    {ok, Declarations} = ern_parser:parse_string(Source),
+    ?assertMatch([#module_doc{text = <<"The module.">>},
+                  #type_declaration{doc = <<"T.">>,
+                                    constructors =
+                                        [#constructor{doc = <<"A.">>,
+                                                      fields = {named, [#field{doc = <<"f.">>}]}},
+                                         #constructor{doc = <<"B.">>}]},
+                  #abstract_declaration{doc = <<"S.">>}],
+                 Declarations),
+    ?assertMatch({error, #diagnostic{message = "a doc block documents nothing here"}},
+                 ern_parser:parse_string(<<"fn f() = {\n    /// stray\n    1\n}\n">>)).
+
+%% report §11.4: a heading in the module's doc block is of level two or
+%% deeper, and in a declaration's, a constructor's or a field's of level
+%% three or deeper; one above is an error at its `///` line, and a heading
+%% in fenced code is code. A regression test: a declaration's `#` became a
+%% section of the manual page
+doc_heading_level_test() ->
+    Module = "/// The module.\n///\n/// # Wrong\n\nfn f() = 1\n",
+    ?assertMatch({error, #diagnostic{span = {3, 1, _}, help = "write it `##`" ++ _}},
+                 ern_parser:parse_string(list_to_binary(Module))),
+    Declaration = "/// F.\n///\n/// ## Wrong\nfn f() = 1\n",
+    ?assertMatch({error, #diagnostic{span = {3, 1, _}, help = "write it `###`" ++ _}},
+                 ern_parser:parse_string(list_to_binary(Declaration))),
+    Fine = "/// The module.\n///\n/// ## Examples\n///\n/// ```\n/// # a comment\n/// ```\n\n"
+           "/// F.\n///\n/// ### Errors\nfn f() = 1\n",
+    ?assertMatch({ok, _}, ern_parser:parse_string(list_to_binary(Fine))).
+
+%% report §2.2: the one reader of a doc block's fenced code, CommonMark's:
+%% a fence of three or more backticks or tildes after up to three spaces,
+%% its info string's first word its language, its content's lines without
+%% as many spaces as the fence had, up to a closing fence of its character
+%% at least as long, before nothing but spaces, or up to the text's end; a
+%% backtick in a backtick fence's info string, four spaces before it, or a
+%% shorter closing fence, makes none. A regression test, written after the
+%% code: three readers disagreed, one a pattern of three backticks alone
+fenced_test() ->
+    Lines = fun(Text) -> binary:split(Text, <<"\n">>, [global]) end,
+    ?assertMatch([<<"a">>,
+                  #fence{language = <<"ernest">>, indent = 2,
+                         lines = [<<"   x">>, <<"y">>, <<"  ```">>], closing = <<"  ````  ">>,
+                         content = [<<" x">>, <<"y">>, <<"```">>]},
+                  <<"b">>],
+                 ern_parser:fenced(Lines(<<"a\n  ````ernest  more\n   x\ny\n  ```\n"
+                                           "  ````  \nb">>))),
+    ?assertMatch([#fence{language = <<"ernest">>, lines = [<<"x">>, <<"```">>],
+                         closing = <<"~~~">>}],
+                 ern_parser:fenced(Lines(<<"~~~ernest\nx\n```\n~~~">>))),
+    ?assertEqual([<<"```ernest`">>, <<"    ```ernest">>, <<"``ernest">>],
+                 ern_parser:fenced(Lines(<<"```ernest`\n    ```ernest\n``ernest">>))),
+    ?assertMatch([#fence{language = <<>>, lines = [<<"x">>], closing = none}],
+                 ern_parser:fenced(Lines(<<"```\nx">>))),
+    %% the lines a block takes, its fences and its content
+    ?assertEqual([3, 2], [ern_parser:line_count(Fence)
+                          || Fence <- ern_parser:fenced(Lines(<<"a\n```\nx\n```\nb\n```\ny">>)),
+                             is_record(Fence, fence)]).
+
+%% report §5.9: a clause lists one or more patterns separated by `or`
+or_pattern_test() ->
+    ?assertMatch(#e_match{clauses = [#clause{pattern =
+                                                 #p_or{alternatives =
+                                                           [#p_constructor{name = 'A'},
+                                                            #p_constructor{name = 'B'}]},
+                                             body = #e_literal{}},
+                                     #clause{pattern = #p_constructor{name = 'C'},
+                                             guard = #e_literal{}}]},
+                 expression("match x { A or B -> 1 | C when true -> 2 }")),
+    ?assertMatch(#e_receive{clauses = [#clause{pattern = #p_or{alternatives = [_, _, _]}}]},
+                 expression("receive { A or B or C -> 1 }")).
+
+%% report §6.3
+receive_test() ->
+    ?assertMatch(#e_receive{clauses = [#clause{pattern = #p_constructor{name = 'Inc'}},
+                                       #clause{pattern = #p_constructor{name = 'Get'}}],
+                            'after' = undefined},
+                 expression("receive { Inc(k) -> counter(n + k) | Get(reply = r) -> counter(n) }")),
+    ?assertMatch(#e_receive{clauses = [#clause{}],
+                            'after' = #after_clause{timeout = #e_literal{value = 1000},
+                                                    body = #e_constructor{name = 'None'}}},
+                 expression("receive { Data(n) -> Some(n) | after 1000 -> None }")),
+    ?assertMatch(#e_receive{clauses = [#clause{}],
+                            'after' = #after_clause{timeout = #e_literal{value = 0}}},
+                 expression("receive { _ -> hello | after 0 -> world }")).
+
+%% report §6.3, Appendix A, §11.5: a `receive` has a pattern clause, so one
+%% with an `after` clause alone is refused at the `after`, naming the wait
+%% for a time over the `after`'s time as a help writes it, in an expression
+%% as in a declaration
+receive_takes_a_message_test() ->
+    Refusal = fun(Time) ->
+                      "a `receive` takes a message; to wait a time, write `Clock.sleep("
+                          ++ Time ++ ")`"
+              end,
+    ?assertEqual({Refusal("0"), undefined},
+                 expression_refusal_and_help("receive { after 0 -> world }")),
+    ?assertMatch({error, #diagnostic{message = "a `receive` takes a message; to wait a time,"
+                                               " write `Clock.sleep(100)`",
+                                     span = {3, 9, _}}},
+                 ern_parser:parse_string("fn f() : Unit = {\n    receive {\n"
+                                         "        after 100 -> Unit\n    }\n}\n")),
+    ?assertEqual(Refusal("ms"), refusal("fn f(ms : Int) : Unit = receive { after ms -> Unit }")),
+    ?assertEqual(Refusal("state.ms"),
+                 refusal("fn f(state : State) : Unit = receive { after state.ms -> Unit }")),
+    ?assertEqual(Refusal("..."),
+                 refusal("fn f(ms : Int) : Unit = receive { after ms * 2 -> Unit }")).
+
+%% report §6.3, Appendix A: the `after` clause of a `receive` comes last, so
+%% one a clause follows is refused at the `after` for its place, first or
+%% between two clauses
+after_clause_comes_last_test() ->
+    Refusal = {"the `after` clause of a `receive` comes last",
+               "move it after the pattern clauses"},
+    ?assertEqual(Refusal,
+                 expression_refusal_and_help("receive { after 5 -> Unit | x -> Unit }")),
+    ?assertEqual(Refusal,
+                 expression_refusal_and_help("receive { x -> 1 | after 5 -> 2 | y -> 3 }")),
+    ?assertMatch({error, #diagnostic{span = {2, 5, _}}},
+                 ern_parser:parse_string("fn f() : Unit = receive {\n    after 5 -> Unit\n"
+                                         "  | x -> Unit\n}\n")).
+
+%% report §5.11
+bitstring_expr_test() ->
+    ?assertMatch(#e_bitstring{segments = []}, expression("<<>>")),
+    ?assertMatch(#e_bitstring{segments = [#bit_segment{value = #e_literal{value = 0}, specs = []},
+                                          #bit_segment{value = #e_literal{value = 1}}]},
+                 expression("<<0, 1>>")),
+    ?assertMatch(#e_bitstring{segments = [#bit_segment{value = #e_var{name = len},
+                                                       specs = [{size, #e_literal{value = 16}},
+                                                                big]},
+                                          #bit_segment{value = #e_var{name = body},
+                                                       specs = [bytes]}]},
+                 expression("<<len:size(16)-big, body:bytes>>")),
+    ?assertMatch(#e_bitstring{segments = [#bit_segment{specs = [{size, #e_var{}}, little,
+                                                                signed]}]},
+                 expression("<<x:size(n)-little-signed>>")).
+
+%% report §3.5: a constructor has no fields, one positional field, or named
+%% fields; a second positional field is refused with the two ways to write
+%% it. A regression test: the parser said only that it
+%% expected `)`
+second_positional_field_test() ->
+    ?assertMatch({error, #diagnostic{span = {1, 21, _},
+                                     message = "a constructor has exactly one positional field",
+                                     help = "name the fields, `Vec(x : ..., y : ...)`, or hold a"
+                                            " tuple, `Vec(#(..., ...))`"}},
+                 ern_parser:parse_string("type Vec = Vec(Float, Float)")).
+
+%% report §3.5, §5.10, §11.5: a `,` after a constructor pattern's
+%% positional field is refused at the `,` as a declaration's second
+%% positional field is, with a help in a pattern's terms; one positional
+%% field, named fields and two constructors side by side parse. A
+%% regression test, written after the code: the parser said only that it
+%% expected `)`, and then gave no help
+second_positional_field_in_pattern_test() ->
+    ?assertMatch({error, #diagnostic{span = {2, 11, _},
+                                     message = "a constructor has exactly one positional field",
+                                     help = "name the fields, `Down(x = ..., y = ...)`, or match"
+                                            " a tuple, `Down(#(..., ...))`"}},
+                 ern_parser:parse_string("fn f(m : Down) : Int = match m {\n"
+                                         "    Down(_, _) -> 1\n}")),
+    ?assertEqual("a constructor has exactly one positional field",
+                 expression_refusal("match t { A(x, y) -> x }")),
+    ?assertEqual("a constructor has exactly one positional field",
+                 expression_refusal("match t { #(A(1, 2), b) -> b }")),
+    ?assertMatch(#p_constructor{args = {positional, #p_var{name = x}}}, pattern_of("A(x)")),
+    ?assertMatch(#p_constructor{args = {named, [_, _]}}, pattern_of("A(x = a, y = b)")),
+    ?assertMatch(#p_tuple{elements = [#p_constructor{name = 'A'}, #p_constructor{name = 'B'}]},
+                 pattern_of("#(A(x), B(y))")).
+
+%% report §5.11: there is no `unit`; a size counts bits, and octets for
+%% `bytes`, and the error says to write it so. A regression test: `unit`
+%% was a second way to scale a size
+no_unit_specifier_test() ->
+    ?assertEqual("there is no `unit` specifier", expression_refusal("<<x:size(n)-unit(8)>>")),
+    %% the help writes the size given: a regression test
+    ?assertMatch({error, #diagnostic{span = {1, 13, _},
+                                     help = "a size counts bits, and octets for `bytes`: write"
+                                            " `size(2 * 8)`"}},
+                 ern_parser:parse_expr("<<n:size(2)-unit(8)>>")),
+    ?assertMatch({error, #diagnostic{help = "a size counts bits, and octets for `bytes`: write"
+                                            " the size multiplied by the unit"}},
+                 ern_parser:parse_expr("<<x:size(n)-unit(8)>>")).
+
+%% report §5.11: a specifier's name is an ordinary identifier outside a
+%% specifier list, so a segment's value, a size's expression and a pattern's
+%% variable may be named `size`, `int` or `little`. A regression test: the
+%% parser conformed before it was written; the checker's half is in
+%% ern_typecheck_tests.
+specifier_names_are_identifiers_test() ->
+    ?assertMatch(#e_bitstring{segments = [#bit_segment{value = #e_var{name = size},
+                                                       specs = [{size, #e_var{name = int}}, big]}]},
+                 expression("<<size:size(int)-big>>")),
+    #e_match{clauses = [#clause{pattern = Pattern}]} =
+        expression("match b { <<size:size(16), little:bytes>> -> size }"),
+    ?assertMatch(#p_bitstring{segments = [#bit_segment{value = #p_var{name = size},
+                                                       specs = [{size, #e_literal{value = 16}}]},
+                                          #bit_segment{value = #p_var{name = little},
+                                                       specs = [bytes]}]}, Pattern).
+
+%%
+%% Patterns
+%%
+
+%% report §5.10
+patterns_test() ->
+    ?assertMatch(#p_wildcard{}, pattern_of("_")),
+    ?assertMatch(#p_var{name = '_x'}, pattern_of("_x")),
+    ?assertMatch(#p_var{name = y}, pattern_of("y")),
+    ?assertMatch(#p_literal{kind = int, value = 1}, pattern_of("1")),
+    ?assertMatch(#p_literal{kind = int, value = -1}, pattern_of("-1")),
+    ?assertMatch(#p_literal{kind = float, value = -2.5}, pattern_of("-2.5")),
+    %% report §3.1: no negative zero, so `-0.0` is the zero; a regression
+    %% test, it was the host's negative zero, which no value matched
+    ?assertMatch(#p_literal{kind = float, value = +0.0}, pattern_of("-0.0")),
+    ?assertMatch(#p_literal{kind = string, value = <<"let">>}, pattern_of("\"let\"")),
+    ?assertMatch(#p_literal{kind = char, value = $-}, pattern_of("'-'")),
+    ?assertMatch(#p_literal{kind = bool, value = false}, pattern_of("false")).
+
+%% report §5.10
+constructor_patterns_test() ->
+    ?assertMatch(#p_constructor{name = 'None', args = none}, pattern_of("None")),
+    ?assertMatch(#p_constructor{name = 'Some', args = {positional, #p_var{name = v}}},
+                 pattern_of("Some(v)")),
+    ?assertMatch(#p_constructor{name = 'Get',
+                                args = {named, [#field_pattern{name = reply,
+                                                               pattern = #p_var{name = r}}]}},
+                 pattern_of("Get(reply = r)")),
+    ?assertMatch(#p_constructor{name = 'Get', args = {named, []}}, pattern_of("Get()")),
+    ?assertMatch(#p_constructor{name = 'Player',
+                                args = {named, [#field_pattern{pattern = #p_literal{}}]}},
+                 pattern_of("Player(alive = false)")),
+    ?assertMatch(#p_constructor{namespace = ['Net', 'Http'], name = 'Request',
+                                args = {named, [_, _]}},
+                 pattern_of("Net.Http.Request(method = m, path = p)")),
+    ?assertMatch(#p_constructor{args = {positional,
+                                        #p_as{pattern = #p_constructor{name = 'Snapshot'},
+                                              name = snap}}},
+                 pattern_of("Some(Snapshot(dir = d) as snap)")).
+
+%% report §5.10
+compound_patterns_test() ->
+    ?assertMatch(#p_tuple{elements = [#p_var{}, #p_constructor{}]}, pattern_of("#(x, Some(y))")),
+    ?assertMatch(#p_list{elements = []}, pattern_of("[]")),
+    ?assertMatch(#p_list{elements = [#p_tuple{elements = [#p_wildcard{}, #p_var{}]}]},
+                 pattern_of("[#(_, v)]")),
+    ?assertMatch(#p_cons{head = #p_var{name = h}, tail = #p_var{name = t}}, pattern_of("h :: t")),
+    ?assertMatch(#p_cons{head = #p_literal{value = $-},
+                         tail = #p_cons{head = #p_literal{value = $>}}},
+                 pattern_of("'-' :: '>' :: r")),
+    ?assertMatch(#p_as{pattern = #p_cons{}, name = all}, pattern_of("x :: rest as all")),
+    ?assertMatch(#p_bitstring{segments = [#bit_segment{value = #p_var{name = len},
+                                                       specs = [{size, #e_literal{}}, big]},
+                                          #bit_segment{value = #p_var{name = body},
+                                                       specs = [{size, #e_var{name = len}}, bytes]},
+                                          #bit_segment{value = #p_var{name = rest},
+                                                       specs = [bytes]}]},
+                 pattern_of("<<len:size(16)-big, body:size(len)-bytes, rest:bytes>>")).
+
+%%
+%% Types
+%%
+
+%% report §3, §3.4
+types_test() ->
+    ?assertMatch(#t_named{namespace = [], name = 'Int', args = []}, type_of("Int")),
+    ?assertMatch(#t_var{name = a}, type_of("a")),
+    ?assertMatch(#t_named{name = 'Map', args = [#t_named{name = 'String'}, #t_var{name = v}]},
+                 type_of("Map(String, v)")),
+    ?assertMatch(#t_named{namespace = ['Ets'], name = 'Table', args = [_, _]},
+                 type_of("Ets.Table(k, v)")),
+    ?assertMatch(#t_tuple{elements = [#t_named{name = 'Int'}, #t_named{name = 'Bool'}]},
+                 type_of("#(Int, Bool)")),
+    ?assertMatch(#t_fn{params = [], result_type = #t_named{name = 'Unit'}, effect = undefined},
+                 type_of("() -> Unit")),
+    ?assertMatch(#t_fn{params = [#t_named{name = 'A'}, #t_named{name = 'B'}],
+                       result_type = #t_named{name = 'C'}, effect = #t_named{name = 'M'}},
+                 type_of("(A, B) -> C receiving M")),
+    ?assertMatch(#t_named{name = 'Int'}, type_of("(Int)")),
+    %% receiving binds to the nearest arrow
+    ?assertMatch(#t_fn{result_type = #t_fn{effect = #t_named{name = 'M'}}, effect = undefined},
+                 type_of("(A) -> (B) -> C receiving M")),
+    ?assertMatch(#t_fn{result_type = #t_fn{effect = undefined}, effect = #t_named{name = 'M'}},
+                 type_of("(A) -> ((B) -> C) receiving M")),
+    ?assertMatch(#t_fn{params = [#t_fn{params = [#t_var{name = a}], result_type = #t_var{name = b},
+                                       effect = #t_var{name = e}}, #t_var{name = a}]},
+                 type_of("((a) -> b receiving e, a) -> b receiving e")).
+
+%%
+%% Declarations
+%%
+
+%% report §3.5, §4.3
+type_declaration_test() ->
+    ?assertMatch(#type_declaration{export = false, name = 'Direction', params = [],
+                                   constructors = [#constructor{name = 'North', fields = none},
+                                                   #constructor{name = 'South'}]},
+                 declaration("type Direction = North | South")),
+    ?assertMatch(#type_declaration{export = true, name = 'Optional', params = [a],
+                                   constructors = [#constructor{name = 'None'},
+                                                   #constructor{name = 'Some',
+                                                                fields = {positional,
+                                                                          #t_var{name = a}}}]},
+                 declaration("export type Optional(a) = None | Some(a)")),
+    ?assertMatch(#type_declaration{constructors = [#constructor{
+                                                       name = 'Snapshot',
+                                                       fields = {named,
+                                                                 [#field{name = dir,
+                                                                         annotation = #t_named{}},
+                                                                  #field{name = seen}]}}]},
+                 declaration("type Snapshot = Snapshot(dir : Path, seen : Map(Path, Int))")),
+    #type_declaration{constructors = [#constructor{name = 'Upgrade', fields = {named, Fields}}]} =
+        declaration("type M = Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit receiving M)"),
+    ?assertMatch([#field{annotation = #t_fn{}}, #field{annotation = #t_fn{effect = #t_named{}}}],
+                 Fields).
+
+%% report §4.4: an abstract type is a type declaration marked `abstract`, and
+%% has no signature
+abstract_declaration_test() ->
+    ?assertMatch(#abstract_declaration{export = true,
+                                       declaration =
+                                           #type_declaration{name = 'Stack', params = [a],
+                                                             constructors =
+                                                                 [#constructor{name = 'Stack'}]}},
+                 declaration("export abstract type Stack(a) = Stack(List(a))")).
+
+%% report §4.5
+fn_declaration_test() ->
+    ?assertMatch(#fn_declaration{export = true, member_of = undefined, name = main, params = [],
+                                 result_type = #t_named{name = 'Unit'},
+                                 effect = #t_named{name = 'Never'},
+                                 body = #e_call{}, doc = undefined},
+                 declaration("export fn main() : Unit receiving Never = Io.println(\"hi\")")),
+    ?assertMatch(#fn_declaration{name = double,
+                                 params = [#param{pattern = #p_var{name = n},
+                                                  annotation = #t_named{name = 'Int'}}],
+                                 result_type = #t_named{name = 'Int'}, effect = undefined},
+                 declaration("fn double(n : Int) : Int = n * 2")),
+    ?assertMatch(#fn_declaration{name = twice, params = [#param{annotation = undefined}],
+                                 result_type = undefined},
+                 declaration("fn twice(n) = n + n")),
+    ?assertMatch(#fn_declaration{member_of = undefined, name = push,
+                                 params = [#param{pattern = #p_var{}},
+                                           #param{pattern = #p_constructor{name = 'Stack'},
+                                                  annotation = #t_named{name = 'Stack'}}]},
+                 declaration("fn push(x : a, Stack(xs) : Stack(a)) : Stack(a) = Stack(x :: xs)")),
+    ?assertMatch(#fn_declaration{member_of = 'Stack', name = compare},
+                 declaration("fn Stack.compare(a : Stack(Int), b : Stack(Int)) : Ordering ="
+                             " Equal")),
+    ?assertMatch(#fn_declaration{member_of = 'Distance', name = negate},
+                 declaration("fn Distance.negate(Distance(a)) : Distance = Distance(-a)")),
+    ?assertMatch(#fn_declaration{member_of = 'Distance', name = '+'},
+                 declaration("fn Distance.+(Distance(a), Distance(b)) : Distance ="
+                             " Distance(a + b)")),
+    ?assertMatch(#fn_declaration{params = [#param{pattern = #p_constructor{name = 'Snapshot'}}]},
+                 declaration("fn seenCount(Snapshot(seen = entries) : Snapshot) : Int ="
+                             " Map.size(entries)")).
+
+%% report §4.6
+let_declaration_test() ->
+    ?assertMatch(#let_declaration{export = false, name = pi,
+                                  annotation = #t_named{name = 'Float'},
+                                  body = #e_literal{kind = float}},
+                 declaration("let pi : Float = 3.14")),
+    ?assertMatch(#let_declaration{export = true, name = empty, annotation = #t_named{},
+                                  body = #e_constructor{name = 'Stack'}},
+                 declaration("export let empty : Stack(a) = Stack([])")),
+    ?assertMatch(#let_declaration{name = x, annotation = undefined}, declaration("let x = 1")).
+
+%% report §4.7
+foreign_declaration_test() ->
+    ?assertMatch(#foreign_type_declaration{export = true, name = 'Table', params = [k, v]},
+                 declaration("export foreign type Table(k, v)")),
+    ?assertMatch(#foreign_type_declaration{export = false, name = 'Handle', params = []},
+                 declaration("foreign type Handle")),
+    %% a parameter that requires equality, Appendix A's ForeignVar
+    ?assertMatch(#foreign_type_declaration{params = [k, v], equality = [true, false]},
+                 declaration("export foreign type Table(k=, v)")),
+    ?assertMatch({error, _}, ern_parser:parse_string("type T(a=) = T(a)")),
+    ?assertMatch(#foreign_fn_declaration{export = true, name = member,
+                                         params = [#param{pattern = #p_var{name = t},
+                                                          annotation = #t_named{}},
+                                                   #param{pattern = #p_var{name = key},
+                                                          annotation = #t_var{name = k}}],
+                                         result_type = #t_named{name = 'Bool'},
+                                         effect = #t_var{name = m},
+                                         implementation = <<"ets:member/2">>},
+                 declaration("export foreign fn member(t : Table(k, v), key : k) : Bool"
+                             " receiving m = \"ets:member/2\"")),
+    ?assertMatch(#foreign_fn_declaration{name = atom, effect = undefined},
+                 declaration("foreign fn atom(name : String) : Foreign.Term ="
+                             " \"erlang:binary_to_atom/1\"")).
+
+%% report §3, §4.7, Appendix A's ListedType: in a list of types a type
+%% variable followed by `=` is marked, a parameter's whole type in a
+%% foreign function among them; after a type that is no list's, `=` is
+%% the body's
+listed_type_mark_test() ->
+    ?assertMatch(#foreign_fn_declaration{params = [#param{annotation = #t_var{name = a,
+                                                                             equality = true}},
+                                                   #param{annotation = #t_named{
+                                                              args = [#t_var{equality = false}]}}]},
+                 declaration("foreign fn member(element : a=, list : List(a)) : Bool ="
+                             " \"lists:member/2\"")),
+    #foreign_fn_declaration{params = [#param{annotation = #t_tuple{elements = Elements}}]} =
+        declaration("foreign fn f(pair : #(k=, (v=) -> Int)) : Int = \"m:f/1\""),
+    ?assertMatch([#t_var{equality = true}, #t_fn{params = [#t_var{equality = true}]}], Elements),
+    %% `needs` after a result type is the requirement's, and `=` the body's
+    ?assertMatch(#fn_declaration{result_type = #t_var{name = a, equality = false},
+                                 body = #e_var{name = needs}},
+                 declaration("fn f(needs : a) : a = needs")),
+    %% outside a foreign function the help drops the mark, and in a foreign
+    %% function's parameter it names the lists of types where it stands: a
+    %% regression test, where the help outside led to a second error
+    ?assertEqual({"a type in parentheses takes no equality mark",
+                  "write `a`; the mark is written in a foreign function's parameters alone"},
+                 refusal_and_help("fn f(x : (a=)) : Int = 1")),
+    ?assertEqual({"a type in parentheses takes no equality mark",
+                  "the mark stands in a list of types, as `List(a=)` or `(a=) -> Bool`"},
+                 refusal_and_help("foreign fn f(x : List((a=))) : Int = \"m:f/1\"")),
+    ?assertEqual({"a type in parentheses takes no equality mark",
+                  "write `a`; the mark is written in a foreign function's parameters alone"},
+                 refusal_and_help("foreign fn f(x : a=) : (a=) = \"m:f/1\"")),
+    %% report §11.5, Appendix A's Param: a function's parameter takes a
+    %% type and no list of types, so a mark there is refused over the
+    %% variable and the mark, as one elsewhere outside a foreign function
+    %% is; a regression test, written after the code, where the refusal
+    %% stood at the `=` without a help
+    ?assertEqual({"the equality mark is written in a foreign function's parameters alone",
+                  "write `a`; `a` has equality where a body compares its values with `==`"},
+                 refusal_and_help("fn f(x : a=) : Int = 1")),
+    ?assertMatch({error, #diagnostic{span = {1, 10, {1, 12}}}},
+                 ern_parser:parse_string("fn f(x : a=) : Int = 1")),
+    ?assertEqual("the equality mark is written in a foreign function's parameters alone",
+                 expression_refusal("fn(x : a=) = x")).
+
+%% report §2.2
+doc_comments_test() ->
+    ?assertMatch([#fn_declaration{doc = <<"Adds one.\nReally.">>}],
+                 declarations("/// Adds one.\n/// Really.\nfn inc(n) = n + 1")),
+    ?assertMatch([#type_declaration{doc = <<"A table">>}],
+                 declarations("/// A table\nexport type T = T")),
+    %% a blank line breaks the attachment; first in the file, the block is then
+    %% the module's documentation, and anywhere else it documents nothing and
+    %% is an error: after a blank line, inside an expression, above a `fn` in
+    %% a block, or second before the first declaration
+    ?assertMatch([#module_doc{text = <<"first">>}, #fn_declaration{doc = undefined}],
+                 declarations("/// first\n\nfn inc(n) = n + 1")),
+    Nothing = "a doc block documents nothing here",
+    ?assertEqual(Nothing, refusal("fn a() = 1\n/// lost\n\nfn inc(n) = n + 1")),
+    ?assertEqual(Nothing, refusal("fn f() = {\n    /// not a doc\n    1\n}")),
+    ?assertEqual(Nothing, refusal("fn f() = {\n    /// not a doc\n    fn g() = 1;\n    g()\n}")),
+    ?assertEqual(Nothing, refusal("/// first\n\n/// second\n\nfn inc(n) = n + 1")),
+    ?assertEqual(Nothing, refusal("fn inc(n) = n + 1\n/// at the end\n")),
+    %% and so is one above a lambda, which `fn` before a bracket opens and
+    %% no declaration; it had failed as an expression expected (regression
+    %% test)
+    ?assertEqual(Nothing, refusal("let f =\n    /// not a doc\n    fn(x) = x")),
+    ?assertEqual(Nothing, refusal("fn g() =\n    List.map(xs,\n             /// not a doc\n"
+                                  "             fn(x) = x)")).
+
+%% report §2.2: a tuple's `#(` opens a bracket as `(` does, so a
+%% declaration after a type that holds a tuple type still ends the type,
+%% and a doc block inside the function's body documents nothing, an error,
+%% and is not taken for a constructor's. A regression test: `#(` was not
+%% counted and `)` was, so the type never ended and the doc block was kept
+%% as a doc token the expression could not parse.
+doc_after_tuple_type_test() ->
+    Nothing = "a doc block documents nothing here",
+    ?assertEqual(Nothing, refusal("type T = A(#(Int, Int)) | B\n\n"
+                                  "fn g(x : Int) : Int =\n    /// not a doc\n    x\n")),
+    ?assertEqual(Nothing, refusal("fn f() = #(1, 2)\ntype T = A\n\n"
+                                  "fn g(x : Int) : Int =\n    /// not a doc\n    x\n")).
+
+%% report §2.2, §11.2, §11.5: a doc block inside a type documents a
+%% constructor or a named field and no type a field holds; one with nothing
+%% after it lets the shell take another line; and an error no later than
+%% the token a doc block stands above, as an unclosed or extra bracket
+%% makes, is reported in its place. Regression tests
+doc_placement_test() ->
+    Nothing = "a doc block documents nothing here",
+    ?assertEqual(Nothing, refusal("type T = A(\n    /// doc\n    Int)")),
+    ?assertEqual(Nothing, refusal("type T = A(x :\n    /// doc\n    Int)")),
+    ?assertMatch([#type_declaration{constructors = [#constructor{doc = <<"one">>}]}],
+                 declarations("type T =\n    /// one\n    A(x : Int)")),
+    ?assert(is_incomplete_program("/// The module.")),
+    ?assertNot(is_incomplete_program("fn f() = {\n    /// not a doc\n    1\n}")),
+    ?assertEqual("expected `)` instead of the reserved word `fn`",
+                 refusal("fn f() : Int = g(1\n\n/// Two.\nfn g(x : Int) : Int = 2")),
+    ?assertEqual("expected a declaration (export, type, abstract, fn, let, foreign) instead of"
+                 " `}`",
+                 refusal("fn f() : Int = 1 }\n\n/// Two.\nfn g() : Int = 2")).
+
+%% report Appendix B
+several_declarations_test() ->
+    ?assertMatch([#type_declaration{}, #fn_declaration{name = main},
+                  #fn_declaration{name = counter}],
+                 declarations("type CounterMsg = Inc(Int) | Get(reply : Reply(Int))\n"
+                              "export fn main() : Unit = { let c = spawn(fn() = counter(0));"
+                              " send(c, Inc(5)) }\n"
+                              "fn counter(n : Int) : Unit receiving CounterMsg = receive {\n"
+                              "    Inc(k) -> counter(n + k)\n"
+                              "  | Get(reply = r) -> { answer(r, n); counter(n) }\n}")).
+
+%%
+%% Errors, including the mandated diagnostics
+%%
+
+%% report Appendix A: two fns of one name in a row are two declarations,
+%% which the checker refuses (report §4.5); a regression test of the
+%% parser's reading, since it refused them itself until MVP 2.99c item 1
+two_clause_function_test() ->
+    [#fn_declaration{name = f}, #fn_declaration{name = f}] =
+        declarations("fn f(0) = 1\nfn f(n) = n"),
+    #e_block{statements = [#fn_declaration{}, #fn_declaration{}, #e_call{}]} =
+        expression("{ fn f(0) = 1; fn f(n) = n; f(1) }").
+
+%% report §5.2
+juxtaposition_test() ->
+    ?assertEqual("unexpected identifier `x` after an expression", refusal("fn g() = f x")),
+    ?assertEqual("a call is written f(x), and statements are separated by `;`",
+                 help("fn g() = f x")),
+    ?assertEqual("unexpected integer 1 after an expression",
+                 expression_refusal("{ let a = f 1; a }")).
+
+%% report §5.4
+trailing_semicolon_test() ->
+    ?assertEqual("a block ends with an expression", expression_refusal("{ let x = 1; x; }")),
+    ?assertEqual("remove the trailing `;`", expression_help("{ let x = 1; x; }")),
+    ?assertEqual("a block ends with an expression, not a `let`",
+                 expression_refusal("{ let x = 1 }")),
+    ?assertEqual("a block needs at least one expression", expression_refusal("{}")).
+
+%% report §5.8
+if_without_else_test() ->
+    ?assertEqual("`if` needs an `else`", expression_refusal("if c then a")),
+    ?assertEqual("every `if` is an expression; give the other branch a value",
+                 expression_help("if c then a")).
+
+%% report §11.5: a help line says what is true of the input whatever the
+%% parser cannot know. A regression test: `Io.println` as a type was told
+%% `Io(println)`, `_p` was told it began `_p`, and `Circle()` was told it
+%% had no fields, which the parser cannot see
+help_lines_hold_test() ->
+    ?assertEqual("a type's arguments are written in parentheses, as List(a), and a lowercase"
+                 " name after `.` names a value", help("fn f(x : Io.println) : Int = 1")),
+    ?assertEqual("a type name begins with an uppercase letter: P", help("type _p = A")),
+    ?assertEqual("a type name begins with an uppercase letter", help("type _1 = A")).
+
+%% report §4.6
+toplevel_bind_arrow_test() ->
+    ?assertEqual("`<-` is a block form", refusal("let x <- f()")),
+    ?assertEqual("a top-level `let` uses `=`", help("let x <- f()")).
+
+%% report §5, §5.9: `if` and a lambda stand as an operand only in
+%% parentheses; a `match` and a `receive`, ending at their own `}`, stand
+%% as one as a block does
+non_operand_forms_test() ->
+    ?assertEqual("`if` is not an operand", expression_refusal("1 + if c then a else b")),
+    ?assertEqual("parenthesize it", expression_help("1 + if c then a else b")),
+    ?assertEqual("`fn` is not an operand", expression_refusal("x |> fn(y) = y")),
+    ?assertMatch(#e_binop{operator = '+', right = #e_if{}}, expression("1 + (if c then a else b)")),
+    ?assertMatch(#e_negation{expr = #e_match{}}, expression("-match x { _ -> 1 }")),
+    ?assertMatch(#e_binop{operator = '||', left = #e_binop{operator = '&&', right = #e_match{}}},
+                 expression("a && match x { _ -> true } || b")),
+    ?assertMatch(#e_binop{operator = '+', left = #e_receive{}},
+                 expression("receive { _ -> 1 } + 2")).
+
+%% report §2.6, §4.8: an operator that may be no member is refused after
+%% `.` with the six that may be named, in a declaration's name and in a
+%% requirement, `<` among the refused
+operator_grammar_test() ->
+    ?assertEqual("expected an expression instead of `+`", expression_refusal("f(+)")),
+    ?assertEqual("expected a name instead of `+`", refusal("fn +(a, b) = a")),
+    ?assertEqual("expected a name after `.` instead of `|>`", expression_refusal("Int.|>")),
+    ?assertEqual("expected a name after `.` instead of `==`", expression_refusal("Int.==")),
+    ?assertEqual("expected `+`, `-`, `*`, `/`, `%`, `<>`, `compare` or `negate` after `.`"
+                 " instead of `|>`",
+                 refusal("fn T.|>(a) = a")),
+    ?assertEqual("expected `+`, `-`, `*`, `/`, `%`, `<>`, `compare` or `negate` after `.`"
+                 " instead of `<`",
+                 refusal("fn T.<(a, b) = true")),
+    ?assertEqual("expected `+`, `-`, `*`, `/`, `%`, `<>`, `compare`, `negate` or `show` after"
+                 " `.` instead of `<`",
+                 refusal("fn f(x : a) : Bool needs a.< = true")),
+    #fn_declaration{name = '<>', member_of = 'T'} = declaration("fn T.<>(a, b) = a"),
+    #fn_declaration{requirement = [#member{name = '%'}]} =
+        declaration("fn f(x : a) : a needs a.% = x").
+
+%% report §4.5, §4.6, Appendix A's DeclName and LetDecl: a member is an
+%% operator, `compare` or `negate`, declared with `fn`
+member_names_test() ->
+    ?assertEqual({"`push` cannot be a member of Stack: a member is `+`, `-`, `*`, `/`, `%`,"
+                  " `<>`, `compare` or `negate`",
+                  "a type's other operations are functions of its module: write `fn push`"},
+                 refusal_and_help("fn Stack.push(s, x) = s")),
+    ?assertEqual({"`size` cannot be a member of Stack: a member is `+`, `-`, `*`, `/`, `%`,"
+                  " `<>`, `compare` or `negate`",
+                  "a type's other operations are functions of its module: write `fn size`"},
+                 refusal_and_help("foreign fn Stack.size(s : Stack) : Int = \"m:f/1\"")),
+    ?assertEqual({"a `let` declares no member of Stack",
+                  "a type's values are named in its module, as its functions are:"
+                  " write `let empty`"},
+                 refusal_and_help("let Stack.empty = Stack([])")),
+    ?assertEqual({"a `let` declares no member of Money",
+                  "a member is declared with `fn`: write `fn Money.+(...)`"},
+                 refusal_and_help("let Money.+ = 1")),
+    ?assertEqual({"a `let` declares no member of Money",
+                  "a member is declared with `fn`: write `fn Money.compare(...)`"},
+                 refusal_and_help("let Money.compare = 1")),
+    ?assertEqual({"expected a name instead of type name `Stack`",
+                  "a value's name begins with a lowercase letter"},
+                 refusal_and_help("let Stack = 1")).
+
+%% report Appendix A: `_` is no expression, and empty parentheses after a
+%% constructor, or two arguments, are a call of its value, which the checker
+%% refuses (report §5.6)
+constructor_call_and_wildcard_test() ->
+    ?assertEqual("`_` is a pattern, not an expression", expression_refusal("_ + 1")),
+    #e_call{callee = #e_constructor{name = 'None', args = none}, args = []} =
+        expression("None()"),
+    #e_call{callee = #e_constructor{name = 'Pair', args = none}, args = [_, _]} =
+        expression("Pair(1, 2)").
+
+%% report Appendix A, §4.5, §4.7: a declaration's name, and a foreign
+%% function's result type, where its form asks for them
+declaration_form_errors_test() ->
+    ?assertEqual("expected a name instead of type name `Stack`", refusal("fn Stack(x) = x")),
+    ?assertEqual("a foreign function declares its result type",
+                 refusal("foreign fn f(x : Int) = \"m:f/1\"")),
+    %% `export` begins a declaration, once: a regression test, the list had
+    %% left it out
+    ?assertEqual("expected a declaration (export, type, abstract, fn, let, foreign) instead of"
+                 " `}`",
+                 refusal("}")),
+    ?assertEqual("expected a declaration (type, abstract, fn, let, foreign) instead of `}`",
+                 refusal("export }")).
+
+%% report Appendix A: what the parser expected where the input stopped or
+%% went astray, a bracket's close, an operand, the input's end
+expected_token_errors_test() ->
+    ?assertEqual("expected `)` instead of `;`", expression_refusal("f(a;")),
+    ?assertEqual("expected an expression instead of end of input", expression_refusal("1 +")),
+    ?assertEqual("expected end of input instead of `)`", expression_refusal("1)")).
+
+%% report §3.1, §11.5: `()` where an expression stands has the help that
+%% names Unit's one value, wherever the operand stands; a call's, a
+%% lambda's and a constructor's empty parentheses are no operand and parse
+%% as before, and `#()`, which is no `()`, has no such help. A regression
+%% test, written after the code: the error had no help
+empty_parentheses_name_unit_test() ->
+    Help = "Unit's one value is written Unit",
+    ?assertMatch({error, #diagnostic{span = {1, 28, _},
+                                     message = "expected an expression instead of `)`",
+                                     help = Help}},
+                 ern_parser:parse_string("export fn main() : Unit = ()")),
+    ?assertEqual(Help, expression_help("f(1, ())")),
+    ?assertEqual(Help, expression_help("{ let u = ( ); u }")),
+    ?assertEqual(undefined, expression_help("#()")),
+    ?assertMatch(#e_call{callee = #e_var{name = f}, args = []}, expression("f()")),
+    ?assertMatch(#e_lambda{params = [], body = #e_constructor{name = 'Unit'}},
+                 expression("fn() = Unit")),
+    ?assertMatch(#e_call{callee = #e_constructor{name = 'None'}, args = []},
+                 expression("None()")),
+    ?assertMatch(#e_literal{value = 1}, expression("(1)")).
+
+%% report §3, §3.1, §11.5: `()` where a type stands names Unit and how its
+%% one value is written, and a parameter list without `->` how a tuple type
+%% is written. A regression test, written after the code: the first help
+%% said `()` wrote Unit's value, against §3.1, and the second quoted half
+%% its code; it does not cover `()` at the input's end, which the shell
+%% continues
+type_form_helps_test() ->
+    ?assertEqual({"expected a type inside the parentheses, or `->` after them",
+                  "the type with one value is Unit, and its value is written Unit"},
+                 refusal_and_help("fn f(x : ()) : Int = 1")),
+    ?assertEqual({"expected `->` after a parameter list instead of `)`",
+                  "a tuple type is written with `#(`, as `#(Int, Int)`"},
+                 refusal_and_help("fn f(x : (Int, Int)) : Int = 1")).
+
+%% report §3, §4.2: a type's form, a parameter list's `->` and a qualified
+%% type's last name
+type_form_errors_test() ->
+    ?assertEqual("expected `->` after a parameter list instead of `=`",
+                 refusal("let f : (A, B) = x")),
+    ?assertEqual("expected a type name; a qualified type ends in an uppercase name",
+                 refusal("let x : Int.foo = 1")).
+
+%% report §2.4, §3.4, §11.5: a `fn` where a type stands is a reserved word
+%% where a type was expected, with the help that names how a function type
+%% is written, the same fixed example wherever the type stands; the form it
+%% names parses. A regression test, written after the code: the error had
+%% no help, and then a message that said only that `fn` names nothing
+function_type_without_fn_test() ->
+    Help = "a function type is written without `fn`, as `(Int) -> Int`",
+    ?assertMatch({error, #diagnostic{span = {1, 10, _},
+                                     message = "expected a type instead of the reserved word `fn`",
+                                     help = Help}},
+                 ern_parser:parse_string("fn f(g : fn(Int) -> Int) : Int = g(1)")),
+    ?assertEqual(Help, help("fn f() : fn(String) -> Bool = g")),
+    ?assertEqual(Help, help("type T = A(List(fn() -> Int))")),
+    ?assertEqual(Help, expression_help("fn(g : fn(Int) -> Int) = g(1)")),
+    ?assertMatch(#t_fn{params = [#t_named{name = 'Int'}], result_type = #t_named{name = 'Int'}},
+                 type_of("(Int) -> Int")),
+    ?assertMatch(#e_lambda{params = [#param{annotation = #t_fn{}}]},
+                 expression("fn(g : (Int) -> Int) = g(1)")).
+
+%% report §2.6, §11.5: max-munch reads `a<-1` as a binding arrow, and the
+%% error says how to write the comparison
+negative_comparison_help_test() ->
+    ?assertEqual("expected `then` instead of `<-`", expression_refusal("if a<-1 then 1 else 2")),
+    ?assertEqual("`<-` is one token; write `a < -1` to compare with a negative number",
+                 expression_help("if a<-1 then 1 else 2")),
+    %% and so it does in a block's place of `;` or `}` and after a top-level
+    %% body: a regression test, where it had no help
+    ?assertEqual("`<-` is one token; write `a < -1` to compare with a negative number",
+                 expression_help("{ let b = a<-1; b }")),
+    ?assertEqual("`<-` is one token; write `a < -1` to compare with a negative number",
+                 help("fn f(a : Int) : Bool = a<-1")).
+
+%% report §5.11, §11.5: a specifier is one of §5.11's, `bits` and `native`
+%% being Erlang's, not Ernest's, and the help lists them; a size written as
+%% Erlang writes it is told how Ernest writes it. The helps are a
+%% regression test, written after the code: it does not cover a token
+%% after the colon other than a name or an integer
+bitstring_specifier_errors_test() ->
+    ?assertEqual({"unknown bitstring specifier `wide`",
+                  "a specifier is `size(N)`, `bytes`, `int`, `float`, `utf8`, `utf16`, `utf32`,"
+                  " `big`, `little`, `signed` or `unsigned`"},
+                 expression_refusal_and_help("<<x:wide>>")),
+    ?assertEqual({"expected a bitstring specifier instead of integer 1",
+                  "a size is written `size(1)`"},
+                 expression_refusal_and_help("<<b:1>>")),
+    ?assertEqual("unknown bitstring specifier `bogus`", expression_refusal("<<x:bogus>>")),
+    ?assertEqual("unknown bitstring specifier `bits`", expression_refusal("<<x:bits>>")),
+    ?assertEqual("unknown bitstring specifier `native`",
+                 expression_refusal("<<x:size(32)-native>>")).
+
+%% report §5.10: a pattern's `-` comes before a number
+negative_pattern_errors_test() ->
+    ?assertEqual("expected a number after `-` in a pattern instead of identifier `x`",
+                 expression_refusal("match y { -x -> 1 }")).
+
+%% report §11.1
+lexer_errors_pass_through_test() ->
+    ?assertMatch({error, #diagnostic{span = {1, 10, _},
+                                     message = "the string literal never closes"}},
+                 ern_parser:parse_string("fn f() = \"abc")).
+
+%% report §11.5: a node's span runs from its first token to the end of its
+%% last, so a call includes its closing paren, an operator expression its
+%% right operand, a block its closing brace, and a declaration its body
+spans_test() ->
+    {ok, #e_call{span = {1, 1, {1, 8}}}} = ern_parser:parse_expr("f(x, y)"),
+    {ok, #e_binop{span = {1, 1, {1, 9}}, left = #e_var{span = {1, 1, {1, 2}}}}} =
+        ern_parser:parse_expr("a + g(b)"),
+    {ok, #e_block{span = {1, 1, {2, 6}}}} = ern_parser:parse_expr("{ x;\n  y }"),
+    {ok, [#fn_declaration{span = {1, 1, {1, 14}}, body = #e_literal{span = {1, 11, {1, 14}}}}]} =
+        ern_parser:parse_string("fn f(x) = 123\n"),
+    {ok, #e_literal{span = {1, 1, {1, 5}}}} = ern_parser:parse_expr("\"ab\"\n"),
+    %% a parenthesized expression spans its parentheses, nested ones too: a
+    %% regression test, its span began after `(` and ended at `)`
+    {ok, #e_binop{span = {1, 1, {1, 8}}}} = ern_parser:parse_expr("(1 + 2)"),
+    {ok, #e_call{args = [#e_literal{span = {1, 3, {1, 6}}}]}} = ern_parser:parse_expr("g((1))"),
+    ok.
+
+%% report §11.5, §5.9: an or-pattern spans its alternatives, from the
+%% first to the end of the last. A regression test: its span was the first
+%% alternative's alone, so a diagnostic on it underlined too little.
+or_pattern_span_test() ->
+    {ok, #e_match{clauses = [#clause{pattern = #p_or{span = {1, 11, {1, 23}}}}, _]}} =
+        ern_parser:parse_expr("match x { 1 or 2 or 33 -> 0 | _ -> 1 }").
+
+%% report §11.5: a parse error's span is the offending token
+error_span_test() ->
+    ?assertMatch({error, #diagnostic{span = {1, 8, {1, 9}}}},
+                 ern_parser:parse_string("fn f() ; x\n")),
+    ?assertMatch({error, #diagnostic{span = {1, 6, {1, 11}}}}, ern_parser:parse_expr("f(x) hello")).
+
+%%
+%% The example programs
+%%
+
+%% report Appendix A: the examples, the standard library and the
+%% libraries exercise every AST record the emitter must handle
+ast_coverage_test() ->
+    {ok, Header} = file:read_file("src/toolchain/parser/include/ern_ast.hrl"),
+    {match, Matches} = re:run(Header, "-record\\(([a-z_]+),",
+                              [global, {capture, all_but_first, list}]),
+    Declared = lists:usort([list_to_atom(Name) || [Name] <- Matches]),
+    Used = lists:usort(lists:foldl(fun(File, Acc) ->
+                                       {ok, Source} = file:read_file(File),
+                                       {ok, Declarations} = ern_parser:parse_string(Source),
+                                       tags(Declarations, Acc)
+                                   end, [], ernest_files())),
+    %% Bytes, written with the bit syntax since MVP 2.65, gives a bitstring
+    %% with segments and a bitstring pattern their first use outside the
+    %% parser's own tests
+    ?assertEqual([], Declared -- Used).
+
+tags(Node, Acc) when is_tuple(Node), is_atom(element(1, Node)) ->
+    lists:foldl(fun tags/2, [element(1, Node) | Acc], tl(tuple_to_list(Node)));
+tags(Nodes, Acc) when is_list(Nodes) ->
+    lists:foldl(fun tags/2, Acc, Nodes);
+tags(_, Acc) ->
+    Acc.
+
+%% report Appendix B, examples/ and test/fixtures/programs/
+examples_parse_test_() ->
+    Files = ernest_files(),
+    ?assert(length(Files) >= 12),
+    [{File, fun() ->
+                {ok, Source} = file:read_file(File),
+                ?assertMatch({ok, [_ | _]}, ern_parser:parse_string(Source))
+            end} || File <- Files].
+
+%% The examples, the standard library and the libraries together: all are
+%% Ernest we own, and the libraries are where a foreign type lives. A name
+%% that begins with a dot is an editor's artifact and no module (report
+%% §11.1).
+ernest_files() ->
+    Found = filelib:wildcard("examples/**/*.ern")
+        ++ filelib:wildcard("test/fixtures/programs/**/*.ern")
+        ++ filelib:wildcard("src/stdlib/*.ern")
+        ++ filelib:wildcard("src/libs/*/*.ern"),
+    [File || File <- Found, hd(filename:basename(File)) =/= $.].
+
+%% report §1, Appendix A: the grammar fragments in the sections are Appendix
+%% A's rules; Appendix A is the truth and this test keeps the fragments equal
+%% to it. The grammar stands in the bare fences; an ```ernest fence is code.
+grammar_fragments_test() ->
+    {ok, Language} = file:read_file("report/language.md"),
+    {ok, Toolchain} = file:read_file("report/toolchain.md"),
+    Text = unicode:characters_to_list(Language),
+    [Before, FromAppendix] = string:split(Text, "## Appendix A. Grammar"),
+    %% the sections are the language's and the toolchain's
+    Body = Before ++ unicode:characters_to_list(Toolchain),
+    [Appendix | _] = string:split(FromAppendix, "## Appendix B"),
+    All = fun(Subject, Regex, Options) ->
+              case re:run(Subject, Regex,
+                          [global, unicode, {capture, all_but_first, list} | Options]) of
+                  {match, Matches} -> Matches;
+                  nomatch -> []
+              end
+          end,
+    Rules = fun(Section) ->
+                maps:from_list(
+                  [{Name, re:replace(Rule, "\\s+", " ", [global, unicode, {return, list}])}
+                   || ["", Block] <- All(Section, "```([\\w-]*)\n([\\s\\S]*?)```", []),
+                      [Rule, Name] <- All(Block, "^((\\w+)\\s*=[\\s\\S]*?\\s\\.)$", [multiline])])
+            end,
+    InAppendix = Rules(Appendix),
+    InSections = Rules(Body),
+    ?assert(map_size(InAppendix) > 40),
+    ?assertEqual([],
+                 [Name || Name := Rule <- InAppendix,
+                          maps:get(Name, InSections, undefined) =/= Rule]).
+
+%% report §5.11, Appendix A BitExpr, BitPat, BitSpec: segments with
+%% dash-separated specifiers, size with an expression, and no `unit`
+bitstrings_test() ->
+    ?assertMatch(#e_bitstring{segments = []}, expression("<<>>")),
+    ?assertMatch(#e_bitstring{segments = [#bit_segment{value = #e_literal{value = 1}, specs = []},
+                                          #bit_segment{value = #e_var{name = x},
+                                                       specs = [{size, #e_binop{operator = '+'}},
+                                                                big,
+                                                                signed]},
+                                          #bit_segment{value = #e_var{name = b}, specs = [bytes]}]},
+                 expression("<<1, x:size(n + 1)-big-signed, b:bytes>>")),
+    ?assertMatch(#e_match{clauses = [#clause{pattern = #p_bitstring{segments =
+                                                   [#bit_segment{value = #p_var{name = len},
+                                                                 specs = [{size, _}, big]},
+                                                    #bit_segment{value = #p_var{name = body},
+                                                                 specs = [{size,
+                                                                           #e_var{name = len}},
+                                                                          bytes]},
+                                                    #bit_segment{value = #p_wildcard{},
+                                                                 specs = [utf8]}]}}
+                                     | _]},
+                 expression("match b { <<len:size(16)-big, body:size(len)-bytes, _:utf8>> -> len"
+                            " | _ -> 0 }")),
+    ?assertEqual("unknown bitstring specifier `word`", expression_refusal("<<1:word>>")),
+    ?assertEqual("there is no `unit` specifier", expression_refusal("<<1:unit>>")).
+
+%% report §11.2, §2.5: an input the parser cannot finish is marked, so
+%% that the shell takes another line for it. It ran out of tokens where
+%% more were expected, or the lexer ended inside a raw string or a block
+%% comment, both of which may span lines; a string or a char literal may
+%% not, so an unfinished one is an error whatever follows.
+incomplete_test() ->
+    ?assert(is_incomplete_expression("1 + ")),
+    ?assert(is_incomplete_expression("{ 1")),
+    ?assert(is_incomplete_expression("match x {")),
+    ?assert(is_incomplete_expression("`a raw string")),
+    ?assertNot(is_incomplete_expression("1 + * 2")),
+    ?assertNot(is_incomplete_expression("\"a string")),
+    ?assertNot(is_incomplete_expression("'c")),
+    ?assert(is_incomplete_program("fn f() =")),
+    ?assert(is_incomplete_program("type T = A | ")),
+    ?assert(is_incomplete_program("/* a comment")),
+    ?assertMatch({ok, _}, ern_parser:parse_string("fn f() = 1")),
+    %% an `if` whose `else` is still to come, and a parameter list whose
+    %% `->` is; a regression test: the error stood at the `if` or the
+    %% bracket, and the input was refused
+    ?assert(is_incomplete_expression("if c then a")),
+    ?assertNot(is_incomplete_expression("if c then a )")),
+    ?assert(is_incomplete_program("fn f(g : ()")).
+
+%% report §11.2: an input that stops inside a call says which call and
+%% which argument, the innermost call first, for `Shift-Tab`; `expected`
+%% still says what may stand there, for completion
+within_call_test() ->
+    ?assertEqual({#enclosing{namespace = ['List'], name = map, argument = 1}, expression},
+                 stopped_within(<<"List.map(xs, ">>)),
+    ?assertEqual({#enclosing{namespace = ['List'], name = map, argument = 0}, expression},
+                 stopped_within(<<"List.map(">>)),
+    ?assertEqual({#enclosing{namespace = [], name = g, argument = 1}, expression},
+                 stopped_within(<<"f(g(1, ">>)),
+    ?assertMatch({#enclosing{namespace = [], name = f, argument = 1}, _},
+                 stopped_within(<<"f(1, 2">>)),
+    ?assertMatch({undefined, _}, stopped_within(<<"1 + ">>)).
+
+%% src/toolchain/parser/ern_ast.erl: the one walk visits every node in pre-order,
+%% into lists and nested records, threading its accumulator. A regression
+%% test for the walk the checker, the reply check and the exhaustiveness
+%% check had each copied.
+ast_walk_test() ->
+    Names = ern_ast:walk(fun(#e_var{name = Name}, Acc) -> [Name | Acc]; (_, Acc) -> Acc end,
+                         expression("f(a, g(b), [c])"), []),
+    ?assertEqual([f, a, g, b, c], lists:reverse(Names)).
+
+%%
+%% Requirements, derived members and the fill
+%%
+
+%% report §4.9, Appendix A's Requirement and Member: a requirement follows
+%% the result type, its members a type variable's compare, negate, operator
+%% or show; written after the code
+requirement_test() ->
+    #fn_declaration{requirement = [#member{member_of = a, name = compare},
+                                   #member{member_of = b, name = '+'},
+                                   #member{member_of = a, name = show}]} =
+        declaration("fn f(x : a, y : b) : a receiving m needs a.compare, b.+, a.show = x"),
+    #fn_declaration{requirement = []} = declaration("fn f(x : a) : a = x"),
+    ?assertEqual("`zero` is not a member: a requirement names `+`, `-`, `*`, `/`, `%`, `<>`,"
+                 " `compare`, `negate` or `show`",
+                 refusal("fn f(x : a) : a needs a.zero = x")),
+    %% the member underlined whole: a regression test
+    ?assertMatch({error, #diagnostic{span = {1, 23, {1, 29}}}},
+                 ern_parser:parse_string("fn f(x : a) : a needs a.zero = x")),
+    ?assertEqual({"expected `.` after a instead of `,`",
+                  "a requirement names a member of a type variable, as needs a.compare"},
+                 refusal_and_help("fn f(x : a) : a needs a, a.+ = x")),
+    ?assertEqual("a lambda declares no requirement",
+                 expression_refusal("fn(x : a) : a needs a.compare = x")).
+
+%% report §4.5, Appendix A's Primary and QName: a member's name stands in
+%% no expression, so an operator after `.` is refused with the operator to
+%% write, a type variable's `a.+` and a qualified `Int.+` and
+%% `Prelude.List.<>` alike, an operator after an expression that is no
+%% name by the operator, and `a.compare` parses as the selection it is,
+%% which the checker refuses (§4.9); in a type and in a pattern a member's
+%% name is refused in their own terms, a regression test of the two,
+%% written after the code, which were told of an expression
+member_test() ->
+    Help = fun(Operator) ->
+                   "write `x " ++ Operator ++ " y`, or where a function is wanted a lambda,"
+                       " `fn(x, y) = x " ++ Operator ++ " y`"
+           end,
+    ?assertEqual({"`a.+` names a member, which an expression reaches through `+`", Help("+")},
+                 expression_refusal_and_help("a.+(x, y)")),
+    ?assertEqual({"`Int.+` names a member, which an expression reaches through `+`", Help("+")},
+                 expression_refusal_and_help("List.foldLeft(xs, 0, Int.+)")),
+    ?assertEqual({"`Prelude.List.<>` names a member, which an expression reaches through `<>`",
+                  Help("<>")},
+                 expression_refusal_and_help("Prelude.List.<>([1], [2])")),
+    ?assertEqual({"`+` after `.` names a member, which an expression reaches through `+`",
+                  Help("+")},
+                 expression_refusal_and_help("f(x).+(y)")),
+    %% the name and the operator underlined whole
+    ?assertMatch({error, #diagnostic{span = {1, 9, {1, 14}}}},
+                 ern_parser:parse_string("let x = Int.*")),
+    ?assertEqual("expected a type name; a qualified type ends in an uppercase name",
+                 refusal("fn f(x : Int.+) : Int = 1")),
+    ?assertMatch({error, #diagnostic{span = {1, 10, {1, 15}}}},
+                 ern_parser:parse_string("fn f(x : Int.+) : Int = 1")),
+    ?assertEqual("expected a constructor; a pattern cannot name a function or value",
+                 refusal("fn f(x) = match x { Int.+ -> 1 }")),
+    #fn_declaration{body = #e_call{callee = #e_selection{expr = #e_var{name = a},
+                                                         field = compare}}} =
+        declaration("fn f(x : a, y : a) : Ordering needs a.compare = a.compare(x, y)").
+
+%% report Appendix A, §4.9: a declaration with a requirement that binds a
+%% name that is one of its type variables parses, as any binding does; a
+%% regression test of the parser's reading, since it refused it itself
+%% until MVP 2.99c item 1
+requirement_binding_parses_test() ->
+    #fn_declaration{} = declaration("fn f(a : a) : a needs a.compare = a"),
+    #fn_declaration{} = declaration("fn f(x : a) : a needs a.compare = { let a = x; a }").
+
+%% report §3.5, Appendix A's TypeDecl: `derives compare` after a type's
+%% constructors, and nothing else derived; written after the code
+derives_test() ->
+    #type_declaration{derives = {1, 17, _}} = declaration("type T = T(Int) derives compare"),
+    #type_declaration{derives = undefined} = declaration("type T = T(Int)"),
+    #abstract_declaration{declaration = #type_declaration{derives = {_, _, _}}} =
+        declaration("export abstract type T = A | B(Int) derives compare"),
+    ?assertEqual("`derives` names compare and nothing else, not identifier `order`",
+                 refusal("type T = T derives order")).
+
+%% report §5.6, Appendix A's Fields: the fields after `..` may be left out,
+%% where the name after it is a namespace, which the checker decides;
+%% written after the code
+fill_test() ->
+    #e_constructor{name = 'Ops', base = #e_constructor{namespace = [], name = 'Set', args = none},
+                   args = {named, []}} = expression("Ops(..Set)"),
+    #e_constructor{base = #e_constructor{namespace = ['Net'], name = 'Http'},
+                   args = {named, [#field_set{name = parse}]}} =
+        expression("Ops(..Net.Http, parse = mine)"),
+    #e_constructor{base = #e_var{name = p}, args = {named, []}} = expression("Ops(..p)").
+
+%% report §5.6, Appendix A's UpdateSet: in a record update a field may be
+%% a path, its segments after the name; a construction and a pattern refuse
+%% one; an unfinished path tells completion the segments typed (§11.2);
+%% written after the code
+update_path_test() ->
+    #e_constructor{base = #e_var{name = pool},
+                   args = {named, [#field_set{name = stats, path = [indexed]},
+                                   #field_set{name = name, path = []}]}} =
+        expression("Pool(..pool, stats.indexed = 1, name = \"q\")"),
+    #e_constructor{args = {named, [#field_set{name = pool, path = [stats, hits]}]}} =
+        expression("Site(..site, pool.stats.hits = 5)"),
+    Help = "write the field's value as a construction, or update a value with `..`",
+    ?assertEqual({"a path stands in a record update only", Help},
+                 {expression_refusal("Pool(name = \"p\", stats.indexed = 1)"),
+                  expression_help("Pool(name = \"p\", stats.indexed = 1)")}),
+    ?assertEqual("a path stands in a record update only", expression_refusal("Box(s.indexed = 1)")),
+    Pattern = {"a path stands in a record update only, not in a pattern",
+               "match the field with a constructor pattern of its own"},
+    ?assertEqual(Pattern, refusal_and_help("fn f(p) = match p { Pool(stats.indexed = n) -> n }")),
+    ?assertEqual(Pattern,
+                 refusal_and_help("fn f(p) = match p { Pool(name = x, stats.indexed = n) -> n }")),
+    {#enclosing{namespace = [], name = 'Pool', argument = none},
+     #expected_field{kind = field, namespace = [], constructor_name = 'Pool', segments = [stats]}} =
+        stopped_within(<<"Pool(..pool, stats.">>),
+    {_, #expected_field{segments = [pool, stats]}} = stopped_within(<<"Site(..site, pool.stats.">>).
+
+%% A tree with every span taken out, so that two trees differ only where
+%% their nodes do.
+unspanned({Line, Column, {EndLine, EndColumn}})
+  when is_integer(Line), is_integer(Column), is_integer(EndLine), is_integer(EndColumn) ->
+    span;
+unspanned(Tuple) when is_tuple(Tuple) ->
+    list_to_tuple([unspanned(Element) || Element <- tuple_to_list(Tuple)]);
+unspanned(List) when is_list(List) ->
+    [unspanned(Element) || Element <- List];
+unspanned(Other) ->
+    Other.
+
+%% report §5.6, Appendix A's FieldSet and UpdateSet: a pun, `=seen`, is
+%% `seen = seen` read textually, the tree the plain form makes, alone,
+%% beside a plain field, in a record update and in a fill; the field spans
+%% the pun from its `=`, the name its identifier. A pun in a constructor
+%% the parser cannot tell is positional, `Some(=x)`, names a field, which
+%% the checker refuses. Written after the code; the programs generated from
+%% Appendix A reach the pun in every place the grammar admits it
+pun_test() ->
+    ?assertEqual(unspanned(expression("Snapshot(directory = directory, seen = seen)")),
+                 unspanned(expression("Snapshot(=directory, =seen)"))),
+    ?assertEqual(unspanned(expression("Snapshot(directory = directory, seen = s)")),
+                 unspanned(expression("Snapshot(=directory, seen = s)"))),
+    ?assertEqual(unspanned(expression("Snapshot(..p, seen = seen)")),
+                 unspanned(expression("Snapshot(..p, =seen)"))),
+    ?assertEqual(unspanned(expression("Operations(..Set, toList = toList)")),
+                 unspanned(expression("Operations(..Set, =toList)"))),
+    #e_constructor{args = {named, [#field_set{span = {1, 10, {1, 15}}, name = seen, path = [],
+                                              expr = #e_var{span = {1, 11, {1, 15}},
+                                                            namespace = [], name = seen}}]}} =
+        expression("Snapshot(=seen)"),
+    #e_constructor{name = 'Some', args = {named, [#field_set{name = x}]}} =
+        expression("Some(=x)").
+
+%% report §5.10, Appendix A's FieldPat: a pun in a pattern, `=seen`, is
+%% `seen = seen`, binding seen, alone and beside a plain field pattern,
+%% the field spanning the pun and the variable its identifier; written
+%% after the code
+pattern_pun_test() ->
+    ?assertEqual(unspanned(pattern_of("Snapshot(seen = seen)")),
+                 unspanned(pattern_of("Snapshot(=seen)"))),
+    ?assertEqual(unspanned(pattern_of("Snapshot(dir = d, seen = seen)")),
+                 unspanned(pattern_of("Snapshot(dir = d, =seen)"))),
+    #p_constructor{args = {named, [#field_pattern{span = {1, 20, {1, 25}}, name = seen,
+                                                  pattern = #p_var{span = {1, 21, {1, 25}},
+                                                                   name = seen}}]}} =
+        pattern_of("Snapshot(=seen)"),
+    #p_constructor{name = 'Some', args = {named, [#field_pattern{name = x}]}} =
+        pattern_of("Some(=x)").
+
+%% Appendix A's FieldSet, UpdateSet and FieldPat: a pun is `=` and a name
+%% alone, so what follows the name is refused where the fields end, and
+%% what is no name after `=` where a field's name stands; an input that
+%% stops after the `=` stops where a field's name stands, for completion
+%% and `Shift-Tab` (report §11.2). Written after the code; it does not
+%% cover the shell's completion itself, which reads the tag
+pun_is_a_name_alone_test() ->
+    ?assertEqual("expected `)` instead of `+`", expression_refusal("Snapshot(=count + 1)")),
+    ?assertEqual("expected `)` instead of `.`", expression_refusal("Pool(..p, =stats.hits)")),
+    ?assertEqual("expected a name instead of integer 1", expression_refusal("Snapshot(=1)")),
+    ?assertEqual("expected `)` instead of the reserved word `as`",
+                 refusal("fn f(s) = match s { Snapshot(=seen as all) -> 0 }")),
+    ?assertEqual({#enclosing{namespace = [], name = 'Snapshot', argument = none},
+                  #expected_field{kind = field, namespace = [], constructor_name = 'Snapshot'}},
+                 stopped_within(<<"Snapshot(=">>)),
+    ?assertMatch({_, #expected_field{kind = field, constructor_name = 'Snapshot'}},
+                 stopped_within(<<"match s { Snapshot(=">>)).

@@ -10,13 +10,17 @@ How the installation is built, from a checkout and from the release archive; the
 
 ```
 bin/ern                          a relative link, ../lib/ernest/bin/ern
-lib/ernest/                      the toolchain's tree, as the repository lays it out
+lib/ernest/                      the toolchain's tree, bin/ and build/ as the repository's
     bin/ern                      the launcher
-    erl/<app>/ebin/              the toolchain's modules, without its tests
-    erl/runtime/priv/ern_exec    the helper Os.run runs a program through
+    build/toolchain/<app>/ebin/  the compiler's and the command line's modules
+    build/shared/ebin/           the modules beneath them and the runtime
+    build/nodes/ebin/            a node's modules
+    build/runtime/ebin/          the runtime's modules
+    build/runtime/priv/ern_exec  the helper Os.run runs a program through
     build/stdlib/                the standard library, compiled, one .erc for each module
-    build/shell/                 the shell, compiled
-    build/libs/<name>/           each library, compiled, a root of every load path
+    build/shell/                 the shell, compiled, and ebin/, its host half
+    build/libs/<name>/           each library, compiled, a root of every load path, with
+                                 its shim where it has one
     installed                    every file put outside the tree
 share/man/man1/ern.1             §11 of the report
 share/man/man3/Ernest.*.3ern     the prelude's page, each module's and each library's (report §11.4)
@@ -27,11 +31,11 @@ share/doc/ernest/                the tracked files of report/, guide/, tour/ and
 share/emacs/site-lisp/ernest-mode.el
 ```
 
-The tree keeps the repository's layout, `build/` included, because the toolchain finds every file it reads relative to its own modules. The Erlang sources, the Ernest sources, the standard library's among them, and the tests are not installed, but for the examples, which go in with the documents. A program names no library by its place: `ern_tree:libraries/0` lists `build/libs` under the tree, the installation's as the checkout's, and each library's build ends every job's load path (report §11.1, §11.2). `tools/strip.escript` strips every module of the host's debug information, keeping `ErnI`, the module's interface, and `Docs`, the host's EEP 48 chunk (report §11.1).
+The tree is the repository's `bin/` and `build/`, because the toolchain finds every file it reads relative to its own modules. The Erlang sources, the Ernest sources, the standard library's among them, and the tests are not installed, but for the examples, which go in with the documents; a test's module compiles into a `test/` directory the stage does not take. `ern_tree:own_code/0` lists the toolchain's own Erlang, each library's shim among it (report §11.2). A program names no library by its place: `ern_tree:libraries/0` lists `build/libs` under the tree, the installation's as the checkout's, and each library's build ends every job's load path (report §11.1, §11.2). `tools/strip.escript` strips every module of the host's debug information, keeping `ErnI`, the module's interface, and `Docs`, the host's EEP 48 chunk (report §11.1).
 
 The documents installed are for a reader with no checkout. A file is installed by the path it stands in: every file the repository tracks under `report/`, `guide/`, `tour/` and `examples/`, and `editors/emacs/README.md`, is for a user of Ernest, and goes in where it stands, a path the repository does not hold passed over. The examples are the programs the guide runs, and the Emacs README the note that turns on the mode installed with them. `tools/install.sh` asks `git` for the files the repository tracks, so a file of the checkout's that it does not track, a draft or an editor's, stays out; `docs/`, the proposals among it, and `CLAUDE.md` are the project's, and stay out too.
 
-The README is `tools/release/README.md`, the release's: it says how to install from the archive and where to begin, names each thing by its place under the prefix, and holds no link into the checkout.
+The README is `release/README.md`, the release's: it says how to install from the archive and where to begin, names each thing by its place under the prefix, and holds no link into the checkout.
 
 Each `.md` of those paths is staged with each link into the checkout, to a file that is not installed, made a link into the repository: on `main` where a checkout is installed, and in the archive at what it was made from, the release's tag, `v<version>`, or the commit (§11.7). A link to one of the paths installed, or to the logo under `assets/`, stays a link to the installed copy, as the guide's links to the examples and to the Emacs README do; the guide's other links outside them, to the log and to `docs/module_doc_template.md`, go to the repository. Every other file is copied as it is. So every link of an installed document names what is installed beside it, or an address.
 
@@ -39,7 +43,7 @@ Each `.md` of those paths is staged with each link into the checkout, to a file 
 
 ## The launcher
 
-`bin/ern` is a POSIX sh script, the same in the repository and in an installation. It follows its own links to the tree it stands in, however many lead to it. Before the host starts, it refuses a `PATH` without `iconv` and a working directory whose name `iconv` does not read as UTF-8 (report §11), but for `ern --help` and `ern --version`, which start the host in the root directory, and a `PATH` without `erl`, and it exits with status 141 where standard output or standard error is closed, since the host would open `/dev/null` in its place (report §11.8). It then starts `erl` with the tree's applications, `erl/*/ebin`, on its code path, which holds no compiled Ernest module, since `ern` loads each from its `.erc` at its first call, and:
+`bin/ern` is a POSIX sh script, the same in the repository and in an installation. It follows its own links to the tree it stands in, however many lead to it. Before the host starts, it refuses a `PATH` without `iconv` and a working directory whose name `iconv` does not read as UTF-8 (report §11), but for `ern --help` and `ern --version`, which start the host in the root directory, and a `PATH` without `erl`, and it exits with status 141 where standard output or standard error is closed, since the host would open `/dev/null` in its place (report §11.8). It then starts `erl` with the tree's own Erlang, `build/toolchain/*/ebin` and the `ebin` of `build/shared`, `build/nodes`, `build/runtime` and `build/shell`, on its code path, which holds no compiled Ernest module, since `ern` loads each from its `.erc` at its first call, and:
 
 - `+B`: the interrupt ends it, and opens no break menu (report §8.6);
 - `+S n:n` and `+SDcpu n:n`, `n` the processors it may run on, `nproc`'s count or `getconf`'s where there is no `nproc`: a scheduler and a dirty CPU scheduler for each, where the host would make one of each for every processor the machine could have (report §12); none where neither answers a number;
@@ -54,7 +58,7 @@ It needs `sh`, `readlink` and `iconv`, and uses `nproc` or `getconf` where eithe
 
 ## The release archive
 
-`make release` writes `build/release/ern-<version>.tar.gz`: under `ern-<version>/`, the staged tree without the compiled helper, and beside it the helper's source `ern_exec.c`, `install.sh`, the `Makefile` of `tools/release`, the `README.md` it installs, and the logo that README shows, under `assets/`. The archive's `make` compiles the helper with `cc`, or the `CC` given; its `make install` and `make uninstall` take `PREFIX` and `DESTDIR` as the checkout's do. Its version text says what it was made from (§11.7): the version alone at the release's tag with no uncommitted change, else the version, `+` and the commit, `.dirty` after it where the tree had changes; `ern_release` is compiled into it with that mark.
+`make release` writes `build/release/ern-<version>.tar.gz`: under `ern-<version>/`, the staged tree without the compiled helper, and beside it the helper's source `ern_exec.c`, `install.sh`, the `Makefile` of `release/`, the `README.md` it installs, and the logo that README shows, under `assets/`. The archive's `make` compiles the helper with `cc`, or the `CC` given; its `make install` and `make uninstall` take `PREFIX` and `DESTDIR` as the checkout's do. Its version text says what it was made from (§11.7): the version alone at the release's tag with no uncommitted change, else the version, `+` and the commit, `.dirty` after it where the tree had changes; `ern_release` is compiled into it with that mark.
 
 ## Removing it
 

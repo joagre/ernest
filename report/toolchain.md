@@ -1,6 +1,6 @@
 # Ernest Report: The Toolchain
 
-Revision of 4 November 2026.
+Revision of 6 November 2026.
 
 This file holds the report's §10 to §12 and Appendices C and H. §0 to §9 and Appendices A, B and F are in [`language.md`](language.md), and Appendices D, E and G in [`library.md`](library.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
@@ -133,7 +133,7 @@ A function typed at the shell has a hash as any definition has (§8.7), and a sp
 
 A module compiled against another interface of a module it uses, or against another standard library, is refused before anything runs: `Main was compiled against another Geo.Shape; build Main again`. So is a file at a module's path that holds another module, `build/geo/shape.erc holds Src.Geo.Shape, not Geo.Shape; remove it, and build Geo.Shape from its source root`. The words after `file.erc` are the program's, `Os.arguments` (Appendix E.23), even one that begins with `-` and a `--` among them; an argument that is not UTF-8 is refused before anything runs, `ern run` naming it by its position.
 
-An Erlang module that a `foreign fn` names (§8.4) is the host's own, the toolchain's among them, or a `.beam` file of that name in a directory of the load path; the host's own is found first. The working directory is such a directory only where it is a root of the load path. The path-shape rule of §11.1 applies to every `.erc` opened as a module and to each directory between its load-path root and it. Other files are not checked.
+An Erlang module that a `foreign fn` names (§8.4) is the host's own, the toolchain's among them, or a `.beam` file of that name in a directory of the load path; the host's own is found first. The toolchain's modules are its own Erlang and the shims of its libraries (Appendix G), each shim beside its library's `.erc`, and a `.beam` of such a name in another directory of the load path is not found. The working directory is such a directory only where it is a root of the load path. The path-shape rule of §11.1 applies to every `.erc` opened as a module and to each directory between its load-path root and it. Other files are not checked.
 
 `ern test [--config-dir dir] [--load-path dir]... [--libs-dir dir] [--verbose] file.erc | dir` runs every top-level `let` of type `Test.Case(m)` in the module (Appendix E.24), exported or not, one at a time in the order the module declares them, each in a process of its own whose mailbox type is `m`, an `m` left open being `Never`, as §8.1 has it for an entry point. The module's initializers (§8.5) run first, in the entry process, which then runs the tests; a service binding among them starts its service and offers it as under `ern run` (§6.5, §8.7). It prints each test's line as the test ends: the test's name with `passed`, with `failed` and the text of `Test.Failed`, with `faulted` and the cause, followed by what follows a cause in `ern run`'s line (below), or with `killed` where the test's process is killed.
 

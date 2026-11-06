@@ -104,8 +104,10 @@ display(QualifiedName) ->
     lists:join(".", [atom_to_list(Part) || Part <- QualifiedName]).
 
 %% The standard library's interfaces and the libraries', each library's
-%% module loaded from its .erc, as a program's load path would give it.
+%% module loaded from its .erc and its shim on the code path, as a program's
+%% load path would give them.
 interfaces() ->
+    ok = code:add_pathsz(ern_tree:libraries()),
     ern_prelude:stdlib_interfaces() ++ [library(Erc) || Erc <- library_files()].
 
 library_files() ->

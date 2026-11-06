@@ -554,7 +554,7 @@ fn class(kind : Kind) : Optional(String) =
     }
 
 // The lexer's tokens of the code, or none where it refuses the code: the
-// lexer is the toolchain's, which the helper reaches (tools/ern_site.erl).
+// lexer is the toolchain's, which the helper reaches (tools/site/ern_site.erl).
 foreign fn lexed(code : String) : Optional(List(Lexeme)) =
     "ern_site:lexed/1"
 

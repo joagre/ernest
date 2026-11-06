@@ -1,6 +1,6 @@
 # The repository's layout and its files
 
-What each file here is, and which is current. Begun 2026-11-04 in a walk of the repository with the user: agreed directions, to plan after MVP 4.2 closes and before MVP 4.15's item 2 (the layout) and before MVP 4.4's full review (the files). Nothing here is built.
+What each file here is, and which is current. Begun 2026-11-04 in a walk of the repository with the user: agreed directions, to plan after MVP 4.2 closes and before MVP 4.15's item 2 (the layout) and before MVP 4.4's full review (the files). Group 3 of the checklist, the restructuring, is built (the log's *The Layout Built*); the rest is not.
 
 | File | What it is | Status |
 |---|---|---|

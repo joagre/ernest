@@ -16,8 +16,9 @@
 -module(ern_machine).
 
 -export([local/0, machine/4, name/1, host/1, interface/1, is_local/1, clone/1, ern/1,
-         directory/1, directory/2, open/2, opened/1, closed/1, run/2, run/3, ran/2, ran/3,
-         load_average/1, copied/3, launched/2, seen/2, ended/1, answering/3, quoted/1, fail/1]).
+         code_path/1, directory/1, directory/2, open/2, opened/1, closed/1, run/2, run/3,
+         ran/2, ran/3, load_average/1, copied/3, launched/2, seen/2, ended/1, answering/3,
+         quoted/1, fail/1]).
 
 %% A machine: its name, the host ssh and scp take and its peers dial, the
 %% clone of the repository there, `local` for this machine's checkout, the
@@ -69,6 +70,16 @@ clone(#machine{clone = Clone}) -> Clone.
 -spec ern(machine()) -> string().
 ern(Machine) ->
     filename:join(clone(Machine), "bin/ern").
+
+%% The flags that give a host on the machine the code of its tree, as its
+%% launcher does, for a command the machine's shell reads.
+-spec code_path(machine()) -> string().
+code_path(Machine) ->
+    Clone = quoted(clone(Machine)),
+    string:join(["-pa " ++ Clone ++ Directory
+                 || Directory <- ["/build/toolchain/*/ebin", "/build/shared/ebin",
+                                  "/build/nodes/ebin", "/build/runtime/ebin",
+                                  "/build/shell/ebin"]], " ").
 
 %% The directory another machine's nodes go in; none for this machine,
 %% whose go under this checkout.

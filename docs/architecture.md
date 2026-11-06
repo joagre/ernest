@@ -4,7 +4,7 @@ How the toolchain's code is arranged: its stages, its modules and what each does
 
 ## The pipeline
 
-One Ernest module goes through these stages, each an Erlang application under `erl/`:
+One Ernest module goes through these stages, each a directory of Erlang under `src/toolchain/`, the runtime's under `src/runtime/` and `shared`'s under `src/shared/`:
 
 | Stage | Modules | In | Out |
 |---|---|---|---|
@@ -17,32 +17,36 @@ One Ernest module goes through these stages, each an Erlang application under `e
 | diagnostics | `ern_diagnostic`, in `shared`, beneath every stage | a `#diagnostic{}`, the source | the text of §11.5 |
 | chunks | `ern_chunk`, in `shared`, which reads a compiled module's chunk as data alone (§11.1) | a chunk's bytes | the term, or `error` |
 | namespaces | `ern_namespace`, in `shared`, the one mapping between a path's components and a namespace's segments (§4.2, §11.1) | a component or a segment | the other |
-| tree | `ern_tree`, in `shared`, the toolchain's tree and the builds of its own under it (§11.1, §11.2) | a build's path | its directory |
-| cli | the modules below | command lines, shell inputs | `ern`'s jobs, a session |
+| tree | `ern_tree`, in `shared`, the toolchain's tree, the builds of its own under it and its own Erlang (§11.1, §11.2) | a build's path | its directory |
+| cli | the modules below | command lines | `ern`'s jobs |
 
-`erl/json`, `erl/base64` and `erl/http` are the applications beside the stages, `libs/json`'s, `libs/base64`'s and `libs/http`'s primitives (*The libraries' primitives*).
+`ern_json`, `ern_base64` and `ern_http` stand beside the stages, the shims of `libs/json`, `libs/base64` and `libs/http`, each beside its library's Ernest (*The libraries' primitives*).
 
-The modules of `cli`:
+The modules of `cli`, under `src/toolchain/cli/`:
 
 | Module | Job |
 |---|---|
 | `ern_cli` | the command, its jobs and the runner's start (*The tools*) |
 | `ern_build` | the build every job reaches (§11.1) |
-| `ern_shell` | the shell's front end (§11.2, *The shell*) |
-| `ern_code_load` | `Code.load` (E.28, *The code table*) |
 | `ern_page` | §11.4's renderer, the pages of `ern doc` and the shell's `:doc` |
 | `ern_examples` | a module's doc examples as the cases of `ern test` (§11.2) |
 | `ern_release` | the version text, `-dev` marking a build that is no release |
 | `ern_out` | a job's standard output and standard error (§11) |
 | `ern_signals` | the handler of termination and hangup (§8.6, §11.2) |
+| `getopt` | the vendored option parser, each job's options a spec of its own |
+
+The shell's host half is `ern_shell`, the shell's front end, beside its Ernest in `src/shell/` (§11.2, *The shell*). A node's modules stand under `src/nodes/`:
+
+| Module | Job |
+|---|---|
 | `ern_node` | a node's configuration directory, made, checked and read (§8.3, §11.3, Appendix C) |
 | `ern_carrier`, `ern_epmd`, `ern_gateway` | a node's carrier, its port mapper and its gateway (*A node*) |
 | `ern_exchange`, `ern_arrival` | the exchange and the unit an exchange makes (*The exchange and arrivals*) |
-| `getopt` | the vendored option parser, each job's options a spec of its own |
+| `ern_code_load` | `Code.load` (E.28, *The code table*) |
 
 ### The launcher
 
-`bin/ern` finds its tree, refuses a working directory whose name is not UTF-8, and starts the host with `-noinput` and `erl/*/ebin` on its code path; its header comment says what else it sets and why. No compiled Ernest module is on that path: a unit of the standard library, the shell or the shell's three libraries, `libs/ansi`, `libs/markdown` and `libs/ets`, is loaded from its `.erc` at its first call (*The code table*). It calls `ern_signals:install/0` and then `ern_cli:start/0`. [`design/install.md`](design/install.md) lays out the installed tree.
+`bin/ern` finds its tree, refuses a working directory whose name is not UTF-8, and starts the host with `-noinput` and the toolchain's Erlang under `build/` on its code path; its header comment says what else it sets and why. No compiled Ernest module is on that path: a unit of the standard library, the shell or the shell's three libraries, `libs/ansi`, `libs/markdown` and `libs/ets`, is loaded from its `.erc` at its first call (*The code table*). It calls `ern_signals:install/0` and then `ern_cli:start/0`. [`design/install.md`](design/install.md) lays out the installed tree.
 
 `ern_cli:start/0` installs `ern_signals` again, for a caller that is no launcher, and runs `ern_cli:ern/2`, whose status the host ends with (§11.8).
 
@@ -50,7 +54,7 @@ Every job but the shell writes its text through `ern_out`, ports on descriptors 
 
 `ern_signals` takes `SIGTERM` and `SIGHUP` from OTP's default handler. During a run it ends the run through `ern_rt:signal/1` (§8.6); on a node hangup asks `ern_carrier:reload/0` (§12.5); otherwise it ends `ern` at once, `die/2` sending the signal again (§11.2).
 
-`erl/app.mk` passes `VERSION` to `erlc` as a macro, with `DEVELOPMENT` beside it, by which `ern_release:version_text/0` carries `-dev`. The release archive recompiles `ern_release` without it (`tools/install.sh`). `ern_carrier:cookie/2` reads the mark: a development build's floor is the digest of its own code (§12.5).
+The Makefile's `ERLC_FLAGS` pass `VERSION` to `erlc` as a macro, with `DEVELOPMENT` beside it, by which `ern_release:version_text/0` carries `-dev`. The release archive recompiles `ern_release` without it (`tools/install.sh`). `ern_carrier:cookie/2` reads the mark: a development build's floor is the digest of its own code (§12.5).
 
 The Emacs mode calls the toolchain only as `ern format -` ([`design/emacs_mode.md`](design/emacs_mode.md)).
 
@@ -62,7 +66,7 @@ The Emacs mode calls the toolchain only as `ern format -` ([`design/emacs_mode.m
 
 Expressions are parsed by one precedence-climbing loop, patterns by a second, and declarations by recursive descent. Nothing backtracks: the lookaheads are those Appendix A's last paragraph names.
 
-Every node is a record of `erl/parser/include/ern_ast.hrl`, one per production of Appendix A, `span` first, which `ern_ast:span/1` reads. Expressions and patterns end in a `type` field the checker fills, and declarations carry `doc` and `export`.
+Every node is a record of `src/toolchain/parser/include/ern_ast.hrl`, one per production of Appendix A, `span` first, which `ern_ast:span/1` reads. Expressions and patterns end in a `type` field the checker fills, and declarations carry `doc` and `export`.
 
 - A name, `#e_var{}`, carries its `referent`, what §4.2's lookup resolved, which the canonical form reads (Appendix H).
 - A `fn` declaration's requirement is a list of `#member{}` (§4.9). A member's name stands in no expression, so `a.compare` in a body parses as a selection, which the checker refuses, and an operator after `.` is the parser's refusal (§4.5).
@@ -74,7 +78,7 @@ Every node is a record of `erl/parser/include/ern_ast.hrl`, one per production o
 
 `ern_typecheck:check/3` takes a namespace, the declarations and the `#interface{}` records of the modules referred to, and returns `{ok, Typed, Interface, Env}` or `{error, [#diagnostic{}]}`; the shell calls `check/5`, with its session's scope and the prelude's environment it holds. In the module, `infer/2` gives an expression its type and `check_expr/5` checks one against an expected type, which gives a diagnostic §11.5's labels.
 
-Types are the terms of `erl/checker/include/ern_types.hrl`. Each type variable has a `#type_variable{}`, with its level and its restrictions (§3.9), in the `#type_state{}`. `ern_types` owns that state: unification, generalization, instantiation, and the printer that diagnostics and `ern doc` share.
+Types are the terms of `src/toolchain/checker/include/ern_types.hrl`. Each type variable has a `#type_variable{}`, with its level and its restrictions (§3.9), in the `#type_state{}`. `ern_types` owns that state: unification, generalization, instantiation, and the printer that diagnostics and `ern doc` share.
 
 `ern_prelude` holds §9 as tables, each entry documented. `ern_typecheck:prelude_env/0` builds the starting environment from them and from `ern_prelude:stdlib_interfaces/0`, and `ern_prelude:docs/0` gives `ern_page` the prelude's page.
 
@@ -100,7 +104,7 @@ The environment is opaque outside the module. The compiler and the shell read it
 
 ## The compiler
 
-The build's path is typed tree, form, unit. `ern_compile:compile/5` takes the checker's typed tree and environment, has `ern_canonical:module/5` write the forms, and gives `ern_emitter:unit/1` a `#unit{}` (`erl/emitter/include/ern_unit.hrl`).
+The build's path is typed tree, form, unit. `ern_compile:compile/5` takes the checker's typed tree and environment, has `ern_canonical:module/5` write the forms, and gives `ern_emitter:unit/1` a `#unit{}` (`src/toolchain/emitter/include/ern_unit.hrl`).
 
 A `#unit{}` holds the module's `#definition{}`s with their sourced forms, what the build adds that is no definition's, and the link, `#link{}`, which `ern_compile:link/5` reads from the environment's interfaces. The emitter reads nothing else, so that a unit a node makes from forms that arrived goes through the same back end (`units_from_forms_alone_test_`). The `ErnI` and `Docs` chunks are the build's and no unit's. The interface the `ErnI` chunk holds, and the build gives a dependent once the module is checked, is `ern_compile:interface/5`'s: the checker's, with the forms' hashes, reaches and positions, and the values of its exported ground bindings, which `ern_emitter:ground_terms/2` gives over a link of the types they name (§11.1).
 
@@ -245,14 +249,14 @@ A reference tags each launch, held with its runner, its reaper, its killer, its 
 - `ern_fs`, `ern_tty` and `ern_tcp` are the processes behind `Fs`, `Terminal` and `Tcp` (E.17, E.16, E.18), each speaking its module's message types.
 - The terminal reads keys through standard input in `stty`'s raw mode, which a shell the first subscription opens sets and holds, the settings it found kept until the end or the host's, when it gives them back. `ern_tty_signal`, added to OTP's signal server at the first subscription, sends it each `SIGWINCH`.
 - A socket is a process over its `gen_tcp` port, alive until `Tcp.close`. One whose bytes the far end has not taken hands its host socket to a closer, `lingering/4`.
-- `ern_os` (E.23) answers `Start` and `StartTerminal` with the program's process, which owns a port of `ern_exec` (`erl/runtime/c_src/ern_exec.c`), its `run` mode with pipes or its `terminal` mode under a pseudo-terminal. Run with no program, the helper answers `ern_os:host/0`, for `Os.user` and `Os.environment`.
+- `ern_os` (E.23) answers `Start` and `StartTerminal` with the program's process, which owns a port of `ern_exec` (`src/runtime/c_src/ern_exec.c`), its `run` mode with pipes or its `terminal` mode under a pseudo-terminal. Run with no program, the helper answers `ern_os:host/0`, for `Os.user` and `Os.environment`.
 - `ern_exec` also holds a node's lock on `ernest.pid`, its `lock` mode, and signals the node that holds one, its `node` mode (§12.5, §11.2).
 
 ### A node
 
 The modules of a node (§8.7) are `ern_node`, `ern_carrier`, `ern_epmd` and `ern_gateway` in `cli`, and `ern_peer` in `runtime`.
 
-- `ern_node` reads the configuration directory into a `#configuration{}` (`erl/cli/include/ern_node.hrl`) and holds `ernest.pid` through the helper's `lock` mode, a port the runner's process owns (`pid_written/1`).
+- `ern_node` reads the configuration directory into a `#configuration{}` (`src/nodes/include/ern_node.hrl`) and holds `ernest.pid` through the helper's `lock` mode, a port the runner's process owns (`pid_written/1`).
 - `ern_carrier` is the carrier: the host's boot flags (`boot_flags/1`), the node's name (`name/1`, `host/1`), the cookie (`cookie/0`), the rule that accepts a peer (`verify/3`), the start (`start/1`), a reload (`reload/0`), the end in order (`depart/0`), and the lines a node says (`say/1`, and `say_later/1` for a process that must not wait on standard error, which `ern_rt:say_later/2` says through a process of its own).
 - `ern_epmd` answers the host in the port mapper's place, from the configuration.
 - `ern_gateway` takes every frame of the runtime's from every peer and hands each to a worker for that peer, which `ern_peer:frame/2` reads. Its header comment lists the frames.
@@ -296,17 +300,17 @@ Appendix E is one Erlang module per namespace, `ern@list` and so on, compiled by
 - `ern_bits` makes the checks of §5.11 and §7.4 that the host's bit syntax does not.
 - The foreign boundary is `ern_boundary` (§8.4): `expose/2,3`, `raised/6`, `check/3` and `value/3`, with `conformed/3` beneath them (§3.1). A function value's wrappers call `result/4`, `argument/5` and `raised/4`, whose causes name the function, which the descriptor leaves for them to write in (§12.3).
 
-The tests that hold the library to its names: `erl/runtime/test/ern_stdlib_tests.erl` calls each module by the ABI, each function found through `ern_named`. `primitives_test`, in `erl/checker/test/ern_prelude_tests.erl`, holds each module's `foreign fn`s equal to its section's primitives. `prelude_targets_test`, in `erl/emitter/test/ern_emitter_tests.erl`, and `stdlib_targets_test`, in `erl/runtime/test/ern_doc_tests.erl`, hold each name at the position its interface gives it.
+The tests that hold the library to its names: `src/runtime/test/ern_stdlib_tests.erl` calls each module by the ABI, each function found through `ern_named`. `primitives_test`, in `src/toolchain/checker/test/ern_prelude_tests.erl`, holds each module's `foreign fn`s equal to its section's primitives. `prelude_targets_test`, in `src/toolchain/emitter/test/ern_emitter_tests.erl`, and `stdlib_targets_test`, in `src/runtime/test/ern_doc_tests.erl`, hold each name at the position its interface gives it.
 
 ### The libraries' primitives
 
-A library under `src/libs/` stands on the host as the standard library does. The primitives it needs in Erlang are an application of their own under `erl/`, named for the library, on the code path as every application is (§11.2).
+A library under `src/libs/` stands on the host as the standard library does. The primitives it needs in Erlang are a shim beside its Ernest, named for the library, compiled beside its `.erc`, where the load path finds it, and found before any other `.beam` of the program's, since it is the toolchain's own (§11.2).
 
-`erl/json` is `libs/json`'s (G.6): `ern_json:parse/1` and `ern_json:format/1`.
+`src/libs/json/ern_json.erl` is `libs/json`'s (G.6): `ern_json:parse/1` and `ern_json:format/1`.
 
-`erl/base64` is `libs/base64`'s (G.8): `ern_base64:decode/1`.
+`src/libs/base64/ern_base64.erl` is `libs/base64`'s (G.8): `ern_base64:decode/1`.
 
-`erl/http` is `libs/http`'s (G.11): `ern_http:parse_request/2` and `ern_http:parse_response/2`.
+`src/libs/http/ern_http.erl` is `libs/http`'s (G.11): `ern_http:parse_request/2` and `ern_http:parse_response/2`.
 
 ## The tools
 
@@ -354,7 +358,7 @@ It reads first what every page links to, the library's declarations from `docs/m
 - `Site.Run` holds what every page is written with: the run, a page put together through `base.html` with its footer's source and date, its sidebar, its previous and next, its title and its description, and the files read and written.
 - `Site.Template` cuts a token file of `site/templates/` once and fills it, a value of several lines indented as its token's line but a `<pre>`'s body.
 - `Site.Html` is the HTML of `libs/markdown`'s tree, `html` a clause for each `Block` and `inline` one for each `Inline`, a heading with the anchor its page gives it.
-- `Site.Code` writes a code block, Ernest colored through `ern_site:lexed/1`, the helper over `ern_lexer` in `tools/ern_site.erl`, each qualified name of the library in it a link, and decides the buttons each block gets by its document's tests: the guide tests' grouping, Copy alone, or a module page's signature and examples; it reads the types a page's code declares, whose members no name of the page links to.
+- `Site.Code` writes a code block, Ernest colored through `ern_site:lexed/1`, the helper over `ern_lexer` in `tools/site/ern_site.erl`, each qualified name of the library in it a link, and decides the buttons each block gets by its document's tests: the guide tests' grouping, Copy alone, or a module page's signature and examples; it reads the types a page's code declares, whose members no name of the page links to.
 - `Site.Links` makes a citation a link, the log's *Title* among them, and a qualified name in backticks, leads a link the source writes for GitHub to the site's page of its target, and anchors a document's headings, by number or by GitHub anchor.
 - `Site.Check` reads every page written back and refuses a site with an internal link, a page's, an anchor's, an asset's or an icon's, that leads nowhere, naming each with its page; it reads a page's attributes as bytes, which are HTML's characters, and the host's search for them costs a fraction of the run.
 
@@ -364,18 +368,18 @@ It reads first what every page links to, the library's declarations from `docs/m
 
 ### The code and the programs
 
-- **Unit tests**: EUnit under `erl/*/test`, one function per behavior, each citing what it tests; `make sections` lists the report sections none cites.
+- **Unit tests**: EUnit under each root's `test/` in `src/`, one function per behavior, each citing what it tests; `make sections` lists the report sections none cites.
 - The emitter's tests run a program as the runner does with `ern_emitter_tests:run/3`, which `ern_supervisor_tests`, `ern_restart_tests`, `ern_reaper_tests`, `ern_system_module_tests` and `ern_terminating_tests` share.
 - **Golden files**: `test/fixtures/golden` holds the Erlang emitted for each program `golden_names/0` lists, from `test/fixtures/programs` and the examples `hello` and `services`, compared as text. `test/fixtures/target` holds the two expectations the emitter did not write, for `hello` and `counter`. Both name a call into the standard library by its position there.
 - **Programs**: `test/ern_integration_tests.erl` builds and runs the programs of `test/fixtures/programs`, and the examples `hello` and `typed_channels_nodes`, comparing their output with `test/fixtures/expected` as a multiset of lines. Programs that need input, a file or a client run under tests of their own in the same file.
 - The same file tests the signals, the streams, `Os`, and that every library's build has its source (`library_builds_test`). Its helpers serve `test/ern_manual_tests.erl`, which holds the manual pages to §11, and `test/ern_install_tests.erl`, which installs into a scratch prefix and from the release archive.
 - `test/ern_measure_tests.erl` holds that `make bench`'s measuring machine reaches every function of the library.
 - **The corpus**: `ast_coverage_test` holds that the examples, the programs, the standard library and the libraries use every AST record, and the checker's tests type-check every example and program.
-- **Generated programs**: `test/ern_grammar_programs_tests.erl` derives programs from Appendix A, read by `test/ern_grammar.erl`. `test/ern_typed_programs_tests.erl` generates well-typed programs and runs each against an interpreter. `erl/runtime/test/ern_laws_tests.erl` holds the standard library to its laws on drawn cases ([`soundness.md`](soundness.md)).
+- **Generated programs**: `test/ern_grammar_programs_tests.erl` derives programs from Appendix A, read by `test/ern_grammar.erl`. `test/ern_typed_programs_tests.erl` generates well-typed programs and runs each against an interpreter. `src/runtime/test/ern_laws_tests.erl` holds the standard library to its laws on drawn cases ([`soundness.md`](soundness.md)).
 
 ### The documents
 
-- **Documentation**: the CLI's tests hold `docs/module_doc_template.md` equal to `ern doc`'s page for `test/fixtures/programs/template.ern`. `erl/runtime/test/ern_doc_tests.erl` checks the documentation of the template, `src/stdlib/` and `src/libs/`.
+- **Documentation**: the CLI's tests hold `docs/module_doc_template.md` equal to `ern doc`'s page for `test/fixtures/programs/template.ern`. `src/runtime/test/ern_doc_tests.erl` checks the documentation of the template, `src/stdlib/` and `src/libs/`.
 - **The examples**: `ern test` is their one checker. `make test-library` runs it over `build/stdlib` and `build/libs`, and `ern_doc_tests` over a build of the template and over the prelude's page, whose examples it writes into a module's doc block, since no `.erc` holds them.
 - **Style**: `test/ern_style_tests.erl` checks `docs/style.md`'s tested rules, `ern format`'s layout over every module and every Ernest block of the report and the guide, and the Emacs mode's word lists against the lexer and the parser.
 - **Citations**: `test/ern_docs_tests.erl` (`make xref`) resolves every section citation, holds the contents lists equal to the headings and a list that lives in two places to its other place, where that is cheap ([`development.md`](development.md)'s *Lists in two places*), and checks the backticked paths of the documents that say where things are and the paths the toolchain's comments name. It and the style tests read the repository through `test/ern_repository.erl`.
@@ -387,9 +391,9 @@ It reads first what every page links to, the library's declarations from `docs/m
 - **Nodes**: `test/ern_nodes_tests.erl` runs real nodes on one machine, each an `ern run --config-dir` of its own, its streams read by a watcher registered under the node's directory. Its programs are under `test/fixtures/peers/`, beside `ern_peers_host.erl`, and `harness.ern` there holds the time each of their waits is given, the harness's `wait_ms/0`, which a test holds equal.
 - **Deployment**: `test/ern_deployment_tests.erl` runs the deployment guide through the same harness, its consoles, its section 8, and each line its sections 7 and 4.3 quote (`catalog_test`).
 - **The shell**: `test/ern_shell_tests.erl` runs sessions in line mode and under the pseudo-terminal, and `test/ern_terminal_tests.erl` drives §12.1's keys, the terminal's restoration and `snake`. Both reach the harness through `test/ern_pty.erl`, which runs the Ernest program `test/fixtures/pty/pty.ern`, built by `test/Makefile`'s `pty` target, the command under `Os.startTerminal`.
-- **Waits**: no test sleeps to wait for something; a wait that is a time bounds an absence, with its reason beside it (CLAUDE.md, *No fixed sleep*). `erl/runtime/test/ern_waits.erl` holds the waits the tests share, each read from what the host reports.
+- **Waits**: no test sleeps to wait for something; a wait that is a time bounds an absence, with its reason beside it (CLAUDE.md, *No fixed sleep*). `src/runtime/test/ern_waits.erl` holds the waits the tests share, each read from what the host reports.
 - **Steps**: a test that states its steps, of nodes, the shell, the terminal or the integration, runs through `ern_nodes_tests:nodes_test/2` or `counted_test/2`, which keep its count of steps in its process's dictionary; each wait of the harness's, in `ern_nodes_tests`, `ern_deployment_tests`, `ern_integration_tests`, `ern_pty` and `ern_machine`, takes a step as it runs (`ern_nodes_tests:step/1`), and a test fails past its count or short of it.
-- A module compiled from an application's `test/`, a wait's helper among them, ships with no installation and is outside a development build's code digest (`tools/install.sh`, `ern_carrier:is_test/1`).
+- A module compiled from a root's `test/`, a wait's helper among them, stands in that root's `test/` under `build/`, so it ships with no installation and is outside a development build's code digest (`tools/install.sh`, `ern_tree:own_code/0`).
 - **The Emacs mode**: `make test-emacs` runs the tests under `editors/emacs/test/` ([`design/emacs_mode.md`](design/emacs_mode.md)).
 
 ### Outside `make test-full`

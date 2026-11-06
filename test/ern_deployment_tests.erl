@@ -487,7 +487,7 @@ four_fifths() ->
     Counts = "[{module_names, 52429, 65536}, {exports, 1, 524288}, {lambdas, 1, 524288},"
              " {atoms, 1, 1048576}]",
     Host = open_port({spawn_executable, os:find_executable("erl")},
-                     [{args, ["-noshell", "-pa" | filelib:wildcard("../erl/*/ebin")]
+                     [{args, ["-noshell", "-pa" | ern_tree:code_path()]
                        ++ ["-eval", "io:put_chars([[Line, $\\n] || Line <- ern_code:nearing("
                                     ++ Counts ++ ")]), halt()."]},
                       exit_status, binary]),

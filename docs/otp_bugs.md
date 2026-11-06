@@ -184,7 +184,7 @@ The same holds of a list argument, line 5. Splitting text at `"\n"` that has Win
 
 ## 5. `memsup` closes its port while a collection is under way
 
-Not filed. Found on 2026-10-09; `erl/cli/test/ern_node_tests.erl`'s `collected/0` says how Ernest meets it.
+Not filed. Found on 2026-10-09; `src/nodes/test/ern_node_tests.erl`'s `collected/0` says how Ernest meets it.
 
 **Title:** memsup: "Error writing to pipe: Broken pipe" when os_mon is stopped during a memory collection
 
@@ -367,7 +367,7 @@ Found by measuring a shell that compiles each input to a module of its own and p
 
 ## 9. `ssl:format_error` does not describe the file errors `ssl:listen` returns
 
-Not filed. Found on 2026-11-01, building TLS in `Tcp` (the log's *TLS in `Tcp` and a Terminal in `Os`*); `erl/runtime/src/ern_tcp.erl`'s `file_error/2` reads the file and the reason from the term instead (the log's *Two Lines on TLS*).
+Not filed. Found on 2026-11-01, building TLS in `Tcp` (the log's *TLS in `Tcp` and a Terminal in `Os`*); `src/runtime/ern_tcp.erl`'s `file_error/2` reads the file and the reason from the term instead (the log's *Two Lines on TLS*).
 
 **Title:** ssl:format_error/1 gives "Invalid TLS option" for a certfile or keyfile ssl:listen cannot read
 
@@ -417,7 +417,7 @@ OTP 29, erts 17.1, ssl 11.7.6, on Linux x86_64.
 
 ## 10. `ssl:close/2` ignores the time it is given
 
-Not filed. Found on 2026-11-01, building TLS in `Tcp` (the log's *TLS in `Tcp` and a Terminal in `Os`*, *The TLS linger bound*), and measured on 2026-11-02; `erl/runtime/src/ern_tcp.erl`'s `close_socket/2` hands a socket over TLS to a closer of its own, and Appendix E.18 states the host's bound, up to 10 seconds past the one it states for a plain socket.
+Not filed. Found on 2026-11-01, building TLS in `Tcp` (the log's *TLS in `Tcp` and a Terminal in `Os`*, *The TLS linger bound*), and measured on 2026-11-02; `src/runtime/ern_tcp.erl`'s `close_socket/2` hands a socket over TLS to a closer of its own, and Appendix E.18 states the host's bound, up to 10 seconds past the one it states for a plain socket.
 
 **Title:** ssl:close/2 closes a TLS connection in its own two 5-second waits whatever Timeout it is given
 
@@ -481,7 +481,7 @@ The two waits are `?DEFAULT_TIMEOUT` of `ssl_internal.hrl`. A program that close
 
 ## 11. `json:decode` answers a broken literal by the count of bytes after it, not by the byte that differs
 
-Not filed. Found on 2026-11-02 by the release review before 0.9.0 (its finding E4-2); `erl/json/src/ern_json.erl`'s `broken_literal/2` reads the text for the byte that differs instead.
+Not filed. Found on 2026-11-02 by the release review before 0.9.0 (its finding E4-2); `src/libs/json/ern_json.erl`'s `broken_literal/2` reads the text for the byte that differs instead.
 
 **Title:** json:decode/1,3: a broken `true`, `false` or `null` raises unexpected_end, or invalid_byte at the byte after its first, whichever byte differs
 

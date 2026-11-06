@@ -17,7 +17,14 @@
 # lists, the layout and the site's expected pages anew.
 
 EBIN = ebin
-ERLC_FLAGS = +debug_info -Werror
+# -I finds a header of the toolchain's or the runtime's by -include_lib, with
+# no application on a code path.
+ERLC_FLAGS = +debug_info -Werror -I ../src -I ../src/toolchain
+
+# The toolchain on a host's code path, as bin/ern gives it, and the modules of
+# the runtime's tests that the tests here call, ern_named and ern_waits.
+CODE_PATH = -pa ../build/toolchain/*/ebin -pa ../build/shared/ebin -pa ../build/nodes/ebin \
+	  -pa ../build/runtime/ebin -pa ../build/shell/ebin -pa ../build/runtime/test
 
 # The suites by area (plan, MVP 2.6, MVP 3.9): each area has a target of
 # its own, which the repository's Makefile runs as `make test-<area>`,
@@ -50,17 +57,17 @@ BEAMS = $(patsubst %,$(EBIN)/%.beam,$(INTEGRATION) $(MEASURE) $(LAST_RUN_TESTS) 
 
 # A host with the toolchain and the modules here on its code path, which
 # reads no input: the loads' runs and the bench's.
-HOST = erl -noinput -pa ../erl/*/ebin -pa $(EBIN)
+HOST = erl -noinput $(CODE_PATH) -pa $(EBIN)
 
 # Run the EUnit modules $(1), with the toolchain on the code path.
-EUNIT = erl -noshell -pa ../erl/*/ebin -pa $(EBIN) -eval \
+EUNIT = erl -noshell $(CODE_PATH) -pa $(EBIN) -eval \
 	  'halt(case eunit:test([$(subst $(space),$(comma) ,$(strip $(1)))]) of ok -> 0; _ -> 1 end).'
 comma := ,
 space := $(subst ,, )
 
 # The same, each module's tests side by side, as many at once as the host
 # has schedulers, for the areas whose tests each start a host of their own.
-EUNIT_SIDE_BY_SIDE = erl -noshell -pa ../erl/*/ebin -pa $(EBIN) \
+EUNIT_SIDE_BY_SIDE = erl -noshell $(CODE_PATH) -pa $(EBIN) \
 	  -eval 'N = erlang:system_info(schedulers_online), \
 	  Ms = [$(subst $(space),$(comma) ,$(strip $(1)))], \
 	  halt(case eunit:test({inparallel, [{inparallel, N, M} || M <- Ms]}) of \
@@ -71,10 +78,10 @@ EUNIT_SIDE_BY_SIDE = erl -noshell -pa ../erl/*/ebin -pa $(EBIN) \
 beams: $(BEAMS) prepare machines pty
 
 # ern_named, by which a test calls a unit's function by its Ernest name, is
-# a module of the runtime's tests (erl/runtime/test); the measure and the
+# a module of the runtime's tests (src/runtime/test); the measure and the
 # typed programs call it too, so their targets build the runtime's tests.
 named:
-	@$(MAKE) -s -C ../erl/runtime/src beams
+	@$(MAKE) -s -C .. runtime-test-beams
 
 # The modules $(2), each one's tests side by side, in a directory of the
 # run's own named for the part $(1), where the nodes its tests start live:
@@ -188,7 +195,7 @@ site-shell: $(BEAMS) prepare pty
 # (plan, MVP 4.2 item 4); it says so and stops where no Chrome is found.
 browser: $(BEAMS) prepare
 	@dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_browser_XXXXXX") && \
-	  ERN_TEST_DIR=$$dir erl -noshell -pa ../erl/*/ebin -pa $(EBIN) \
+	  ERN_TEST_DIR=$$dir erl -noshell $(CODE_PATH) -pa $(EBIN) \
 	    -eval 'ern_browser_tests:run().'; \
 	  status=$$?; rm -rf "$$dir"; exit $$status
 
@@ -226,23 +233,23 @@ xref: $(EBIN)/ern_docs_tests.beam
 	  'halt(case eunit:test(ern_docs_tests, []) of ok -> 0; _ -> 1 end).'
 
 diagnostics: $(EBIN)/ern_guide_tests.beam $(EBIN)/ern_pty.beam
-	erl -noshell -pa ../erl/*/ebin -pa $(EBIN) -eval \
+	erl -noshell $(CODE_PATH) -pa $(EBIN) -eval \
 	  'ern_guide_tests:write_diagnostics(), halt().'
 
 contents: $(EBIN)/ern_docs_tests.beam
 	erl -noshell -pa $(EBIN) -eval 'ern_docs_tests:write_contents(), halt().'
 
 site-expected: $(BEAMS) prepare
-	erl -noshell -pa ../erl/*/ebin -pa $(EBIN) -eval 'ern_site_tests:write_expected(), halt().'
+	erl -noshell $(CODE_PATH) -pa $(EBIN) -eval 'ern_site_tests:write_expected(), halt().'
 
 site-unrunnable: $(BEAMS) prepare pty
 	@dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_site_shell_XXXXXX") && \
-	  ERN_TEST_DIR=$$dir erl -noshell -pa ../erl/*/ebin -pa $(EBIN) \
+	  ERN_TEST_DIR=$$dir erl -noshell $(CODE_PATH) -pa $(EBIN) \
 	    -eval 'ern_site_shell_tests:write_unrunnable(), halt().'; \
 	  status=$$?; rm -rf "$$dir"; exit $$status
 
 format: $(EBIN)/ern_style_tests.beam
-	erl -noshell -pa ../erl/*/ebin -pa $(EBIN) -eval 'ern_style_tests:write_formatted(), halt().'
+	erl -noshell $(CODE_PATH) -pa $(EBIN) -eval 'ern_style_tests:write_formatted(), halt().'
 
 # The load programs under fixtures/load/ and the shell under a long
 # session, each in a node of its own, as docs/memory.md says; not part of
@@ -250,7 +257,7 @@ format: $(EBIN)/ern_style_tests.beam
 # Each prints its samples and whether it stayed flat, into build/load/ as
 # well.
 LOADS = processes supervisors sockets programs files alarms
-load: $(EBIN)/ern_load.beam measured
+load: $(EBIN)/ern_load.beam measured named
 	@mkdir -p build/load/home
 	@$(HOST) -eval 'ern_load:main(["inputs", "build/load/shell.in"])'
 	@status=0; \
@@ -438,14 +445,11 @@ machines: $(EBIN)/ern_machine.beam $(EBIN)/ern_machine_node.beam $(EBIN)/ern_mac
 clean:
 	rm -rf $(EBIN) build
 
-# ERL_LIBS lets -include_lib("app/include/x.hrl") find the applications
-# under erl/; it is the compiler's alone, so that no program a test runs
-# finds the toolchain's modules through it. erlc's -MMD records the headers
-# each module includes, so that a changed record rebuilds the tests that
-# match it, as erl/app.mk does for the applications.
+# erlc's -MMD records the headers each module includes, so that a changed
+# record rebuilds the tests that match it, as the repository's Makefile does
+# for the toolchain.
 $(EBIN)/%.beam: %.erl | $(EBIN)
-	ERL_LIBS=$(abspath ../erl) erlc $(ERLC_FLAGS) -MMD -MP -MF $(EBIN)/$*.Pbeam -MT $@ \
-	  -o $(EBIN) $<
+	erlc $(ERLC_FLAGS) -MMD -MP -MF $(EBIN)/$*.Pbeam -MT $@ -o $(EBIN) $<
 
 -include $(wildcard $(EBIN)/*.Pbeam)
 

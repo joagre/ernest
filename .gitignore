@@ -9,8 +9,7 @@
 .DS_Store
 Thumbs.db
 
-# Erlang build artifacts, and the helper make compiles
-/erl/runtime/priv/ern_exec
+# Erlang build artifacts
 *.beam
 *.Pbeam
 erl_crash.dump

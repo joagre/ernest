@@ -12,9 +12,11 @@ case $1 in
 esac
 
 tests=$(cd "$(dirname "$0")/.." && pwd -P)
-if ! test -f "$tests/../erl/shared/ebin/ern_tree.beam"; then
+if ! test -f "$tests/../build/shared/ebin/ern_tree.beam"; then
     echo "nodes.sh: this checkout is not built: make at its top builds it" >&2
     exit 1
 fi
 make -s -C "$tests" machines || exit 1
-cd "$tests" && exec erl -noinput -pa ../erl/*/ebin -pa ebin -eval "ern_machines:main([\"$1\"])"
+cd "$tests" && exec erl -noinput -pa ../build/toolchain/*/ebin -pa ../build/shared/ebin \
+    -pa ../build/nodes/ebin -pa ../build/runtime/ebin -pa ../build/shell/ebin -pa ebin \
+    -eval "ern_machines:main([\"$1\"])"

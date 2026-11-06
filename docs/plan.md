@@ -27,9 +27,9 @@ The server is released and so is what shaped Ernest on its way, and the checkout
 MVP 4.2, the website, is built, and goes live with MVP 4.4's release, its item 6 (the log's
 *Ernest Stays at 0.x*).
 
-Next is the repository's layout, between MVP 4.15's items 1 and 2, its independent reader's
-findings decided (the log's *The Layout's Independent Reading*). The rest of MVP 4.15, what the server taught, follows,
-then MVP 4.4, the cost, the full review and the launch's release, where the road ends and a
+The repository's layout is built, between MVP 4.15's items 1 and 2 (the log's *The Layout
+Built*), and the three other repositories take their shape next, at the same stop. The rest of
+MVP 4.15, what the server taught, follows, then MVP 4.4, the cost, the full review and the launch's release, where the road ends and a
 program begins (the log's *MVP 4.4, the Road's End*). MVP 4.5, the shell's second round, follows
 the launch (the log's *MVP 4.3 Becomes MVP 4.5*). Ernest stays at 0.x until someone outside the project depends on it (the log's *Ernest
 Stays at 0.x*). The back end to BEAM's own instructions that closed the road is not built, decided
@@ -55,19 +55,17 @@ configuration ernest-httpd will serve it with, writes it to `build/site/`, the t
 commit that made it. ernest-template and ernest-epx stay on floor 0.9 until MVP 4.4's item 4 (the
 log's *The Floors and the Releases*).
 
-Between items 1 and 2 stands the repository's layout, the proposal `docs/proposals/layout/`
-of 2026-11-04, its checklist `temp-suggestions.md`'s group 3. An independent reader read it and
-the trees on 2026-11-06, and its findings are decided (the log's *The Layout's Independent
-Reading*). The restructuring is built in one commit, so that items 2 to 21 build in the layout
-that stays and the archive ernest-httpd rehearses on holds it (the log's *The Repository's
-Layout*).
+Between items 1 and 2 the repository's layout was built, in one commit, so that items 2 to 21
+build in the layout that stays and the archive ernest-httpd rehearses on holds it (the log's
+*The Repository's Layout*, *The Layout Built*).
 
 At the same stop ernest-template, ernest-epx and ernest-httpd take their shape, Ernest's session
 telling each by a message that the stop is coming and the user closing them. They take it from `temp-other-repos.md`, its items 3, 4, 6 and 8, a commit in each, checked
 with `make test` against the floor it names (the log's *One Stop for the Layout*). An
 application's source roots each keep a `build/` of their own, since its `build/` mirrors `src/`
-and is what it ships (§11.1, the log's *The Layout's Independent Reading*). No floor
-rises and none of them releases at this stop: the changes wait on `main` for MVP 4.4's item 5.
+and is what it ships (§11.1, the log's *The Layout's Independent Reading*). `SECURITY.md`'s
+content is decided with the user first. No floor rises and none of them releases at this stop:
+the changes wait on `main` for MVP 4.4's item 5.
 
 1. **The runtime at the host's limits**, done 2026-11-04 (the log's *A Node's Limits*, *A Node's
    Schedulers*, *The Hangup's Order* and *ernest-httpd's Lines 18 to 21*).
@@ -258,8 +256,9 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
    Ernest's session names the minor, the archive's path and its commit to all three by a message,
    and asks for the reviews, on the user's word.
 5. **The launch's release**, the next minor of 0.x, by `docs/release_review.md`'s step, on Linux:
-   macOS unverified and said so in the README's installing sentence and the note; the feedback
-   file and the findings file empty.
+   macOS unverified and said so in the README's installing sentence and the note, which also
+   says that the installed layout changed, for a script that points inside an installation (the
+   log's *The Layout Built*); the feedback file and the findings file empty.
 
    The same week, in this order, each by its own session on the user's word: ernest-template's
    release, since the others copy from it; ernest-epx's, not waiting for its milestone 9; and

@@ -10,7 +10,7 @@
 # document's paragraph has. The vendored getopt is left out.
 cd "$(dirname "$0")/.." || exit 1
 ceiling=${1:-100}
-git ls-files -- 'erl/*.erl' 'test/*.erl' 'test/fixtures/*.erl' 'src/*.ern' 'examples/*.ern' \
+git ls-files -- 'src/*.erl' 'test/*.erl' 'test/fixtures/*.erl' 'src/*.ern' 'examples/*.ern' \
     'tools/*.ern' 'tools/*.erl' 'tour/*.ern' 'test/fixtures/*.ern' | grep -v '/getopt\.erl$' |
 while read -r file; do
     awk -v file="$file" -v ceiling="$ceiling" '

@@ -170,10 +170,10 @@ facts(Machine) ->
                  "echo commit $(git -C ", Clone, " rev-parse --short=8 HEAD); ",
                  "echo changed $(git -C ", Clone, " status --porcelain --untracked-files=no",
                  " | wc -l); ",
-                 "if test -f ", Clone, "/erl/shared/ebin/ern_tree.beam",
+                 "if test -f ", Clone, "/build/shared/ebin/ern_tree.beam",
                  " && test -f ", Clone, "/build/stdlib/io.erc; then ",
                  "echo version $(", Clone, "/bin/ern --version) && ",
-                 "erl -noshell -noinput -pa ", Clone, "/erl/*/ebin -eval ",
+                 "erl -noshell -noinput ", ern_machine:code_path(Machine), " -eval ",
                  ern_machine:quoted(Eval), "; else echo built no; fi"]),
     Output = ern_machine:ran(Machine, Command),
     Facts = maps:from_list([{list_to_atom(Key), string:trim(Value)}
@@ -343,9 +343,8 @@ held(Machine) ->
     Eval = lists:flatten(io_lib:format("io:format(\"~~p~~n\","
                                        " [ern_os:node_signaled(~p, 0, false)]), halt().",
                                        [PidFile])),
-    Clone = ern_machine:quoted(ern_machine:clone(Machine)),
-    Answer = string:trim(ern_machine:ran(Machine, "erl -noshell -noinput -pa " ++ Clone
-                                                  ++ "/erl/*/ebin -eval "
+    Answer = string:trim(ern_machine:ran(Machine, "erl -noshell -noinput "
+                                                  ++ ern_machine:code_path(Machine) ++ " -eval "
                                                   ++ ern_machine:quoted(Eval))),
     case Answer of
         "sent" ->

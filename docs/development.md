@@ -12,7 +12,7 @@ The prelude is the report's §9 and the standard library its Appendix E, which a
 
 ## The layout of the repository
 
-`src/` holds the Ernest code a release ships, the standard library, the libraries and the shell; `erl/` holds the Erlang it ships; `editors/` holds the editor modes; everything else serves the repository. `report/` and `guide/` stand at the top, since they are the language, where `docs/` holds every other document, the manual pages and the proposals among them.
+`src/` holds what a release ships, each directory named by its role, in Ernest or in Erlang; a part's host half stands beside its Ernest. `tools/` holds what works on the repository and is not shipped, and `build/` what `make` builds of both; `editors/` holds the editor modes; everything else serves the repository. `report/` and `guide/` stand at the top, since they are the language, where `docs/` holds every other document, the manual pages and the proposals among them.
 
 ```
 VERSION            the release the checkout works toward, read at build time, which
@@ -52,14 +52,7 @@ docs/man/          the pages as CommonMark, which make man writes from main and 
                    them, each its directory's README.md
 examples/          Ernest programs written for a reader of the language, which
                    examples/README.md lists by topic
-erl/               the toolchain, as Erlang applications: shared, the four modules
-                   beneath every stage; lexer, parser, formatter, checker, runtime and
-                   emitter; cli, which holds the vendored getopt; and json, base64 and
-                   http, the primitives of src/libs/json, src/libs/base64 and
-                   src/libs/http. Each has src/ and ebin/, all but json test/ too, all
-                   but json, base64 and http include/, and the runtime also c_src/,
-                   the helper ern_exec's C source, and priv/, where make builds it
-test/              what spans applications: the integration, nodes, deployment guide,
+test/              what spans the roots of src/: the integration, nodes, deployment guide,
                    tour, installation, manual pages', document, style, guide, site,
                    grammar, generated-program, shell and terminal tests; the harnesses of the
                    loads and of the benchmark, with the benchmark's memory of its runs,
@@ -94,17 +87,30 @@ test/machines/     machines.txt, the user's machines that make bench-machines, m
                    on port 8654, listing every other, and a shell's directory here that
                    lists them; stop; and status
 bin/               ern, the launcher, a POSIX sh script
+src/toolchain/     the compiler and the command line, a directory for each: lexer,
+                   parser, formatter, checker, emitter and cli, which holds the vendored
+                   getopt; each its modules beside include/ and test/
+src/shared/        the four modules beneath every stage and the runtime
+src/nodes/         a node's configuration, carrier, gateway, exchange and arrivals, and
+                   Code.load, its modules beside include/ and test/
+src/runtime/       the runtime, its modules beside include/ and test/, and c_src/, the
+                   helper ern_exec's C source
 src/stdlib/        the standard library as Ernest source
 src/libs/          the first-party libraries, each a source root whose build ends
                    every job's load path, so that a program names none: ansi, base64,
                    crypto, ets, http, which needs time, json, markdown, which needs
-                   ansi, proxy, time and utilization
-src/shell/         the shell as Ernest source; its README.md guides a reader
-                   through the code
+                   ansi, proxy, time and utilization; json, base64 and http each hold
+                   their shim beside their Ernest, ern_json.erl, ern_base64.erl and
+                   ern_http.erl, the last two with its tests under test/
+src/shell/         the shell as Ernest source under ernest/, its host half
+                   ern_shell.erl, whose tests stand under test/, and README.md, which
+                   guides a reader through the code
 editors/emacs/     ernest-mode.el, the Emacs major mode, and its tests under test/
+release/           the release archive's own files, Makefile and README.md, which
+                   tools/install.sh fills with the version
 tools/             the programs of the build: manual.ern writes ern(1) from the
-                   report's §11, for make; site.ern, with site/ beside it and its
-                   helper ern_site.erl over the toolchain's lexer, writes every page of
+                   report's §11, for make; site.ern, with site/ beside it, which holds
+                   its helper ern_site.erl over the toolchain's lexer, writes every page of
                    the website from the repository into a directory of its own, the
                    shell page's numbers from the server's configuration, and checks
                    every link of it, for make site;
@@ -113,13 +119,19 @@ tools/             the programs of the build: manual.ern writes ern(1) from the
                    installs and archives, for make install, uninstall and release;
                    paragraphs.sh lists the long paragraphs, for make paragraphs and make
                    test-docs, and comments.sh the long comment blocks, for make comments;
-                   version.sh sets VERSION and the lines the tests hold to it, for make
-                   version; and release/ holds the archive's own Makefile and README.md
-build/             build products, not in git: stdlib/, libs/, shell/, tools/ and man/
-                   from make, with the manual pages; the standard library's pages
-                   in stdlib/ from make doc, and each library's in libs/ too from
-                   make man; release/ from make release; dialyzer/ and
-                   dialyzer.plt from make dialyzer; sanitize/ from make sanitize
+                   and version.sh sets VERSION and the lines the tests hold to it, for
+                   make version
+build/             build products, not in git, an installation holding what it ships:
+                   toolchain/<app>/ebin/, shared/ebin/, nodes/ebin/, runtime/ebin/ and
+                   shell/ebin/, the toolchain's Erlang, on the host's code path;
+                   runtime/priv/, the helper; stdlib/, libs/, shell/, tools/ and man/
+                   from make, with the manual pages, each library's shim beside its .erc;
+                   the standard library's pages in stdlib/ from make doc, and each
+                   library's in libs/ too from make man; each root's test/ from the
+                   tests that compile it, on no job's code path; release/ from make
+                   release; dialyzer/ and dialyzer.plt from make dialyzer; sanitize/ from
+                   make sanitize. The tests under test/ build beside themselves, in
+                   test/ebin/ and test/build/, as an application's do
 ```
 
 A module's path follows report §11.1. A file that is not a module is named with underscores, but for the Emacs mode's, which follow Emacs's convention, and the logos', which `assets/README.md` lists.
@@ -146,10 +158,10 @@ A list that lives in two places is held equal by a test where one is cheap, whos
 Beyond what the README's *Installing* needs, the tests need python3: `make test` for the runtime's test of `Os.resize`, whose program under a terminal says its size when told it changed, and `make test-full` besides to signal `ern` in the tests of how it ends and to watch, through Linux's inotify, the files a program writes in the tests that wait for them, which therefore need Linux. `make sanitize` needs clang, and `make test-browser` Chrome or Chromium, which it says it lacks, with the status 2, where none is found. Emacs, man, and groff or mandoc are optional: where one is missing, the tests that need it say so and are skipped, and so are the Emacs mode's under an Emacs older than 29, which the mode needs.
 
 ```
-make              build the helper, compile every application into its ebin/, then
+make              build the helper, compile the toolchain's Erlang into build/, then
                   src/stdlib/, src/libs/, src/shell/ and tools/, and write each manual page
                   that is missing or older than what it is made from
-make test         build, then the unit tests of every application, the library's doc
+make test         build, then the unit tests of every root, the library's doc
                   examples, the document and style tests, and the site's generator over
                   its fixture and over an export of HEAD, side by side: the light run,
                   about a minute
@@ -160,11 +172,13 @@ make test-full    build, then two phases: first the guide's tests, the Emacs mod
                   parts, one after another,
                   each running its own tests as many at once as the host has schedulers: the
                   whole suite
-make test-erl     the unit tests of every application under erl/, side by side;
-                  APP=checker for one
+make test-erl     the unit tests of every root under src/, side by side, each run from
+                  the repository's root; APP=checker for one, a shim's by its library's
+                  name
 make test-library  the doc examples of the standard library and the libraries, with the
                   libraries' own tests, run by ern test over build/stdlib and build/libs,
-                  each example a program of its own; one line where all pass
+                  each example a program of its own, one line where all pass, and the
+                  shims' tests beside them
 make test-programs  the six parts below, one after another
 make test-integration  the programs compiled and run as a user runs them, the
                   signals, the streams, Os and the libraries' builds, that the
@@ -358,9 +372,9 @@ make format       lay out every Ernest module, and the Ernest blocks of the repo
 make unicode UC_SPEC=dir
                   write Terminal.width's table from Unicode's data in dir, OTP's
                   lib/stdlib/uc_spec of the host's version
-make clean        remove every build product: build/, the applications' beams, the
-                  helper, every compiled module beside its source and every crash dump;
-                  a node's .ernest/ directory, which holds a key, is left
+make clean        remove every build product: build/, the tests' test/build/ and test/ebin/,
+                  every compiled module beside its source and every crash dump; a node's
+                  .ernest/ directory, which holds a key, is left
 make clean-emacs  remove Emacs backup, auto-save, and lock files
 ```
 
@@ -368,7 +382,7 @@ While a change is worked on, it runs the targets of its kind; which run a commit
 
 | A change to | Runs |
 |---|---|
-| the Erlang of one application | `make test-erl APP=<app>`, then `make test`; the parser and the formatter `make test-grammar` too, the checker and the emitter `make test-typed` |
+| the Erlang of one root | `make test-erl APP=<root>`, then `make test`; the parser and the formatter `make test-grammar` too, the checker and the emitter `make test-typed` |
 | the runtime | `make test`, `make test-integration` |
 | nodes, or the deployment guide | `make test`, `make test-nodes`, `make test-deployment` |
 | the standard library, or a library under `src/libs/` | `make test-library`, then `make test`, `make test-integration` |
@@ -385,7 +399,7 @@ While a change is worked on, it runs the targets of its kind; which run a commit
 
 Which programs the tests compile and run is [`architecture.md`](architecture.md)'s *Tests*.
 
-One application's test module runs alone as the suite runs it: its test beams by `make -s -C erl/<app>/src beams`, then, from `erl/<app>/src`, `ERN_TEST_DIR=$(mktemp -d) erl -noshell -pa ../../*/ebin -eval 'eunit:test(ern_chunk_tests, [])' -s init stop`. A whole `make test-full` takes about ten minutes: run it with its output in a file, and read the file for "timed out" and for EUnit's word for a canceled test, which it spells the British way, beside "failed", since EUnit prints `Failed: 0` beside a canceled test.
+One root's test module runs alone as the suite runs it: its test beam by `make -s build/shared/test/ern_chunk_tests.beam`, then, from the repository's root, `ERN_TEST_DIR=$(mktemp -d) erl -noshell -pa build/*/ebin build/toolchain/*/ebin build/runtime/test build/shared/test -eval 'eunit:test(ern_chunk_tests, [])' -s init stop`. A whole `make test-full` takes about ten minutes: run it with its output in a file, and read the file for "timed out" and for EUnit's word for a canceled test, which it spells the British way, beside "failed", since EUnit prints `Failed: 0` beside a canceled test.
 
 ## Using
 
@@ -422,4 +436,4 @@ The shell's `:help` lists its commands; the language guide §9.3 teaches the she
 
 The toolchain is the report, on one node and across nodes. Everything the report describes type-checks, compiles and runs: no construct waits for a later milestone today. Where one does, it stands here as a row of a table, what the toolchain refuses or does not yet do, with the milestone of the [plan](plan.md) that lifts it.
 
-Every refusal the toolchain makes for a later milestone's sake names that milestone in its error text, and `mvp_refusals_listed_test` in `erl/cli/test/ern_cli_tests.erl` fails when such a text is missing from this section. Runtime behavior that stands in for a later milestone is listed by hand. `make sections` prints only a section of a milestone not yet built, which that milestone's plan item names.
+Every refusal the toolchain makes for a later milestone's sake names that milestone in its error text, and `mvp_refusals_listed_test` in `src/toolchain/cli/test/ern_cli_tests.erl` fails when such a text is missing from this section. Runtime behavior that stands in for a later milestone is listed by hand. `make sections` prints only a section of a milestone not yet built, which that milestone's plan item names.

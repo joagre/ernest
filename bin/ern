@@ -132,7 +132,10 @@ esac
 flags=
 if [ -n "$node" ]; then
     flags=$(erl +B $schedulers -boot no_dot_erlang -noshell -noinput \
-        -pa "$tree"/erl/*/ebin -run ern_cli node_flags -extra "$@" 2>/dev/null) || flags=
+        -pa "$tree"/build/toolchain/*/ebin -pa "$tree"/build/shared/ebin \
+        -pa "$tree"/build/nodes/ebin -pa "$tree"/build/runtime/ebin \
+        -pa "$tree"/build/shell/ebin \
+        -run ern_cli node_flags -extra "$@" 2>/dev/null) || flags=
     case $flags in
         "ern-node-flags "*) flags=${flags#ern-node-flags } ;;
         *) flags= ;;
@@ -144,4 +147,6 @@ eval "set -- $flags -run ern_signals install -run ern_cli start -extra \"\$@\""
 # runs, before the entry's module is loaded, since until then the host's
 # own handler ends a program with status 0.
 exec erl +B $schedulers -boot no_dot_erlang -noshell -noinput \
-    -pa "$tree"/erl/*/ebin "$@"
+    -pa "$tree"/build/toolchain/*/ebin -pa "$tree"/build/shared/ebin \
+    -pa "$tree"/build/nodes/ebin -pa "$tree"/build/runtime/ebin \
+    -pa "$tree"/build/shell/ebin "$@"

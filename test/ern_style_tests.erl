@@ -47,13 +47,13 @@
 %% scripts and headers, the fixtures' Erlang and the machines' script it
 %% once left unread
 line_length_test() ->
-    Patterns = ["erl/*/src/*.erl", "erl/*/test/*.erl", "erl/*/c_src/*.c", "test/*.erl",
+    Patterns = ["src/**/*.erl", "src/runtime/c_src/*.c", "test/*.erl",
                 "test/fixtures/**/*.erl", "src/stdlib/**/*.ern", "examples/**/*.ern",
                 "src/shell/**/*.ern", "test/**/*.ern", "test/*.py", "editors/emacs/*.el",
-                "editors/emacs/test/*.el", "src/libs/**/*.ern", "tools/**/*.ern", "tools/*.erl",
-                "tour/*/*.ern", "tools/*.sh", "test/machines/*.sh", "tools/*.escript", "bin/ern",
-                "erl/*/include/*.hrl", "Makefile", "test/Makefile", "erl/*/src/Makefile",
-                "erl/app.mk", "tools/release/Makefile"],
+                "editors/emacs/test/*.el", "src/libs/**/*.ern", "tools/**/*.ern",
+                "tools/**/*.erl", "tour/*/*.ern", "tools/*.sh", "test/machines/*.sh",
+                "tools/*.escript", "bin/ern", "src/**/*.hrl", "Makefile", "test/Makefile",
+                "release/Makefile"],
     Files = [File || File <- ern_repository:files(Patterns),
                      filename:basename(File) =/= "getopt.erl",
                      not lists:prefix("test/build/", File)],
@@ -141,13 +141,13 @@ uncommented([], _) -> [].
 %% keeps its upstream form. A regression test for the fixtures' Erlang and
 %% the machines' script, which it once left unread
 no_tab_test() ->
-    Patterns = ["erl/*/src/*.erl", "erl/*/test/*.erl", "erl/*/include/*.hrl", "erl/*/c_src/*.c",
+    Patterns = ["src/**/*.erl", "src/**/*.hrl", "src/runtime/c_src/*.c",
                 "test/*.erl", "test/fixtures/**/*.erl", "src/stdlib/**/*.ern",
                 "examples/**/*.ern", "src/shell/**/*.ern", "test/**/*.ern", "test/*.py",
                 "editors/emacs/*.el", "editors/emacs/test/*.el",
                 "editors/emacs/test/broken/*.ern", "src/libs/**/*.ern", "src/libs/*/*.md",
-                "tools/**/*.ern", "tools/*.erl", "tour/*/*.ern", "tools/*.sh", "test/machines/*.sh",
-                "bin/ern", "*.md", "docs/*.md"],
+                "tools/**/*.ern", "tools/**/*.erl", "tour/*/*.ern", "tools/*.sh",
+                "test/machines/*.sh", "bin/ern", "*.md", "docs/*.md"],
     Files = [File || File <- ern_repository:files(Patterns),
                      filename:basename(File) =/= "getopt.erl",
                      not lists:prefix("test/build/", File)],
@@ -265,7 +265,8 @@ words(Line, HostNames, Word) ->
 %% of order and one had lost its specs; the tests' modules were read from
 %% 2026-10-24, when the nodes harness's exports had none
 exports_test() ->
-    Files = [File || File <- ern_repository:files(["erl/*/src/*.erl", "test/*.erl", "tools/*.erl"]),
+    Files = [File || File <- ern_repository:modules()
+                                 ++ ern_repository:files(["test/*.erl", "tools/**/*.erl"]),
                      filename:basename(File) =/= "getopt.erl"],
     ?assert(length(Files) > 20),
     ?assertEqual([],
@@ -312,7 +313,7 @@ export_faults(File) ->
 %% deadline, which are the writer's word; it reads no receive a macro
 %% writes, and fails a wait whose key a caller in another module puts.
 receives_test() ->
-    Files = ern_repository:files(["erl/*/src/*.erl"]),
+    Files = ern_repository:modules(),
     ?assert(length(Files) > 20),
     ?assertEqual([], [Fault || File <- Files, Fault <- receive_faults(File)]).
 
@@ -707,8 +708,7 @@ moved(Token, Offset) ->
 %% repository, and a module compiled from an Ernest source is ern@<namespace>;
 %% the one exception is a vendored file, which THIRD_PARTY_LICENSES names
 module_name_test() ->
-    ErlangFiles = ern_repository:files(["erl/*/src/*.erl", "erl/*/test/*.erl", "test/*.erl",
-                                        "tools/*.erl"]),
+    ErlangFiles = ern_repository:files(["src/**/*.erl", "test/*.erl", "tools/**/*.erl"]),
     ?assert(length(ErlangFiles) > 20),
     Names = [filename:basename(File, ".erl") || File <- ErlangFiles],
     ?assertEqual([], [Name || Name <- Names, string:prefix(Name, "ern_") =:= nomatch,
@@ -747,7 +747,7 @@ lines(Text) ->
 %% and `do`, which the mode painted and the language does not have.
 %% report §2.4, Appendix A
 emacs_mode_mirrors_the_lexer_test() ->
-    Lexer = unicode:characters_to_list(ern_repository:read("erl/lexer/src/ern_lexer.erl")),
+    Lexer = unicode:characters_to_list(ern_repository:read("src/toolchain/lexer/ern_lexer.erl")),
     Mode = unicode:characters_to_list(ern_repository:read("editors/emacs/ernest-mode.el")),
     ?assertEqual(lists:sort(atoms_of(Lexer, "-define(RESERVED,")),
                  lists:sort(strings_of(Mode, "(defconst ernest-reserved-words"))),
@@ -762,7 +762,8 @@ emacs_mode_mirrors_the_lexer_test() ->
 %% its table equal to the parser's. Written with the table.
 %% report §2.6
 emacs_mode_mirrors_the_parser_test() ->
-    Parser = unicode:characters_to_list(ern_repository:read("erl/parser/src/ern_parser.erl")),
+    Parser = unicode:characters_to_list(
+               ern_repository:read("src/toolchain/parser/ern_parser.erl")),
     Mode = unicode:characters_to_list(ern_repository:read("editors/emacs/ernest-mode.el")),
     {match, InParser} = re:run(Parser, "^precedence\\('([^']+)'\\) -> \\{([0-9]+),",
                                [global, multiline, {capture, all_but_first, list}]),

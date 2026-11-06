@@ -46,8 +46,8 @@
 %% The code that reads a peer's frames: the gateway, which reads some
 %% itself and hands the rest on, the worker for the peer, whose reader is
 %% ern_peer:frame/2, and the exchange.
--define(FRAME_READERS, ["erl/cli/src/ern_gateway.erl", "erl/runtime/src/ern_peer.erl",
-                        "erl/cli/src/ern_exchange.erl"]).
+-define(FRAME_READERS, ["src/nodes/ern_gateway.erl", "src/runtime/ern_peer.erl",
+                        "src/nodes/ern_exchange.erl"]).
 
 %% report §11, docs/development.md "Building": `make xref`
 %% A regression test for the possessive, `the guide's §x.y`, read as a
@@ -416,7 +416,7 @@ architecture_tables_test() ->
     ?assertEqual(lists:sort(ern_rt:tables()), lists:sort([Table || {Table, _} <- Rows])),
     ?assertNotEqual(nomatch, string:find(Body, ["`ern_rt`'s ", number_word(length(ern_rt:tables())),
                                                 " (`tables/0`)"])),
-    Source = ern_repository:read("erl/runtime/src/ern_rt.erl"),
+    Source = ern_repository:read("src/runtime/ern_rt.erl"),
     ?assertNotEqual(nomatch, binary:match(Source, <<"ets:insert(?LAUNCH, #launch{">>)),
     Written = "ets:insert(?:_new)?\\(\\?LAUNCH, \\{([a-z_]+)",
     Keys = lists:usort([Key || [Key] <- matches(Source, Written)]),
@@ -609,7 +609,7 @@ described() ->
 %% written `<name>`, as docs/style.md writes `ern_<thing>`, and a wildcard
 %% stands for a set, so neither names one file.
 paths(File) ->
-    Tops = ["erl/", "docs/", "test/", "bin/", "src/", "examples/", "build/", "tools/",
+    Tops = ["docs/", "test/", "bin/", "src/", "examples/", "build/", "tools/", "release/",
             "editors/", "assets/"],
     Beside = [Name ++ "/" || Name <- subdirectories(filename:dirname(File))],
     Pieces = binary:split(ern_repository:read(File), <<"`">>, [global]),
@@ -836,15 +836,14 @@ shell() ->
 %% The programs of the build written in Ernest, and the site generator's
 %% helper in Erlang, whose comments cite the report too.
 tools() ->
-    ern_repository:files(["tools/**/*.ern", "tools/*.erl"]).
+    ern_repository:files(["tools/**/*.ern", "tools/**/*.erl"]).
 
 %% The toolchain's own code, whose comments cite the report as its rules
 %% ask: the Erlang sources, includes and tests, the helper in C, the tests
 %% under test/ and the Makefiles.
 toolchain() ->
-    ern_repository:files(["erl/*/src/*.erl", "erl/*/include/*.hrl", "erl/*/test/*.erl",
-                          "erl/runtime/c_src/*.c", "test/*.erl", "Makefile", "test/Makefile",
-                          "erl/app.mk", "erl/*/src/Makefile", "tools/release/Makefile"]).
+    ern_repository:files(["src/**/*.erl", "src/**/*.hrl", "src/runtime/c_src/*.c", "test/*.erl",
+                          "Makefile", "test/Makefile", "release/Makefile"]).
 
 stdlib() ->
     ern_repository:files(["src/stdlib/*.ern", "src/libs/*/*.ern"]).

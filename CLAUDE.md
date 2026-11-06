@@ -48,7 +48,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 | [`docs/diagnostics.md`](docs/diagnostics.md) | the catalog of diagnostics, which `make diagnostics` writes |
 | [`docs/man/`](docs/man/) | the pages as CommonMark, which `make man` writes from `main` |
 | [`assets/README.md`](assets/README.md) | the logo files |
-| [`tools/release/README.md`](tools/release/README.md) | what a reader of the release archive, or of an installation, needs first |
+| [`release/README.md`](release/README.md) | what a reader of the release archive, or of an installation, needs first |
 | [`docs/language_feedback.md`](docs/language_feedback.md) | what writing Ernest has felt against the principles, each line until a plan item decides it |
 | [`docs/clean_room.md`](docs/clean_room.md) | how an application with a repository of its own is built against Ernest's release archive by a session of its own, and how its findings reach Ernest and the verdicts go back |
 | `findings.md` in `docs/`, while a review's findings are open | the findings, each line until a plan item decides it; it goes when every line is done, dropped or planned |
