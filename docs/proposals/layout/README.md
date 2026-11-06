@@ -1,6 +1,6 @@
 # The repository's layout and its files
 
-What each file here is, and which is current. Begun 2026-11-04 in a walk of the repository with the user: agreed directions. The checklist is built (the log's *The Layout Built*, *A Proposal Not Built Stays*, *The Layout's Renames*, *The Log by Day*, *The README Recut*) and CLAUDE.md is redrafted (the log's *CLAUDE.md Redrafted*), but for the other repositories' copies, which the plan has next, in a design session, before MVP 4.15's item 2.
+What each file here is, and which is current. Begun 2026-11-04 in a walk of the repository with the user: agreed directions. The checklist is built (the log's *The Layout Built*, *A Proposal Not Built Stays*, *The Layout's Renames*, *The Log by Day*, *The README Recut*), CLAUDE.md is redrafted (the log's *CLAUDE.md Redrafted*), and the template and its copies have theirs with the full review (the log's *The Template Cut Again*). Built, and kept as the record of its design until its reading.
 
 | File | What it is | Status |
 |---|---|---|
