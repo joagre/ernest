@@ -78,3 +78,9 @@ No draft: the change is one sentence.
 2. The rest is sentences: much of it is written in the report's dense register, long chains of clauses, where *Writing* asks the plan and the log for "plain and short, one point to a sentence", which a document every session reads whole needs as much. Estimated 5,400 words to about 3,500, some 2,500 tokens a session, no rule dropped.
 
 **How.** It is the user's rule book, and each cut is agreed line by line. A draft rule for rule, as with the READMEs, in a session with tokens to spare; then a reading that maps every rule of the old file to a sentence of the new, so that none is lost.
+
+**The harvest.** Read 2026-11-06, Ernest's file against the template's. The template holds no rule that Ernest lacks and that applies here: its one candidate, `make test` from a fresh clone before an item that touched the build closes, is step 1 of Ernest's release review. It words five shared rules more plainly, and the draft takes those: a measurement's end, the paragraph, the design question, the surprise decided, and the sweep standing under *Done*, where the order of work has it.
+
+**The draft.** Written 2026-11-06 as `temp-CLAUDE.md`: 5,441 words from 5,771. The owner table is 318 words from 686, its `docs/` rows now the log, the plan, `docs/README.md` and `findings.md`, and the five READMEs that `docs/README.md` lists gone with them. The sentences made plain are not fewer words: a chain split at its clauses repeats its subject, so *The repository*, *Tests* and *Done* each grew a little. So the estimate above, about 3,500 words with no rule dropped, does not hold. Under the table, a shorter file drops content, a reason, an example or a rule moved to an owner read when it applies, and each such cut is the user's.
+
+A word diff of the draft against the file, with the links' prefix taken off, is the map: it lists every phrase that went and every one that came.
