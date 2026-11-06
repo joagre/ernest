@@ -70,14 +70,13 @@ What the layout proposal still holds comes next, before item 2, so that items 2 
 the final names and no session stops twice (the log's *The Layout's Rest First*). Its checklist is
 `temp-suggestions.md`.
 
-In a design session, the user agreeing each cut:
+CLAUDE.md is redrafted, 2026-11-06: its owner table names `docs/README.md` once, and its length
+stays, since the plain register cut no words (the log's *CLAUDE.md Redrafted*).
 
-- CLAUDE.md redrafted after a harvest of Ernest's file against the template's, which the copies
-  follow but for their names, every old rule mapped to a new sentence (the log's *The Redraft Stays
-  Before Item 2*).
-- Then the template's, and from it ernest-epx's and ernest-httpd's, by Ernest's session, with the
-  template's new `docs/full_review.md`, which each copy takes (`temp-other-repos.md`'s items 5, 7
-  and 9; the log's *Who Writes in the Other Repositories*).
+Next, in a design session, the user agreeing each cut: the template's CLAUDE.md, cut from Ernest's,
+and from it ernest-epx's and ernest-httpd's, by Ernest's session, with the template's new
+`docs/full_review.md`, which each copy takes (`temp-other-repos.md`'s items 5, 7 and 9; the log's
+*Who Writes in the Other Repositories*).
 
 The three applications' sessions start after that, and each adds what it alone has to its
 `docs/full_review.md`. Then the proposal goes, after the reading CLAUDE.md's *Proposals* asks. The

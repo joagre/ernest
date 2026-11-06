@@ -148,7 +148,7 @@ A list that lives in two places is held equal by a test where one is cheap, whos
 - the shell's foreign functions, in `docs/design/shell.md`'s *The foreign interface* and the shell's `foreign fn`s;
 - the memory's regression tests, in `docs/memory_checks.md`;
 - the first-party libraries, in this document's layout, the plan's MVP 4.1, Appendix G and the libraries' directory;
-- the documents, in `docs/README.md`, this document's layout and CLAUDE.md's owner table;
+- the documents, in `docs/README.md` and this document's layout;
 - this document's layout of `test/` and of `tools/`, against their files;
 - the launcher's flags, in `docs/design/install.md` and `bin/ern`;
 - the release review's machines, in `docs/reviews/release.md` and the Makefile's targets.

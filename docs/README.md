@@ -13,7 +13,7 @@ The project's own documents: what each file and directory here is, and the READM
 - **[`reviews/release.md`](reviews/release.md)**: what a release runs to be ready.
 - **[`reviews/full.md`](reviews/full.md)**: every reader over the whole of its area, run seldom.
 - **[`reviews/principles.md`](reviews/principles.md)**: the report and the guide read against §0, and §0 against what it decided.
-- **[`code_style.md`](code_style.md)**: the repository's own style for its Erlang and its C, and the toolchain's glossary; an Ernest program's rules are [`guide/style.md`](../guide/style.md)'s.
+- **[`code_style.md`](code_style.md)**: the repository's own style for its Erlang, its C and its own Ernest, how a shim is written, and the toolchain's glossary; an Ernest program's rules are [`guide/style.md`](../guide/style.md)'s.
 - **[`module_doc_template.md`](module_doc_template.md)**: a documented module, as `ern doc` renders it.
 - **[`diagnostics.md`](diagnostics.md)**: the catalog of the errors the lexer, the parser, the checker and the build give, each with a program that gives it and what `ern build` prints for it, which `make diagnostics` writes and a test holds to the compiler.
 - **[`language_feedback.md`](language_feedback.md)**: what writing Ernest has felt against the principles, until the plan decides it.
