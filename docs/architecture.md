@@ -183,7 +183,7 @@ Each chunk is read through `ern_chunk`. A name a shell session declares is writt
 | `ern_code_sums` | `ern_code`, beside it | a row for each count | the sums of the host's counts (§11.2) |
 | `ern_shell` | `ern_shell`, held by a holder of its own for the host's life | `{{Root, Key}, Value}`, and the node's `{Key, Value}` | each session's state under the root of its processes, each of its units a row of its own, and the node's: the next session's number, the modules the sessions loaded and their version, each session's address by its root, which a reload is said at, each input unit's name, what a detached session left (§11.2) |
 
-`run_main` makes `ern_rt`'s thirteen (`tables/0`), each described where `ern_rt` defines it; `make load` counts their rows ([`memory.md`](memory.md)). `ern test`'s `run_tests/6` keeps the running test in a table of its own.
+`run_main` makes `ern_rt`'s thirteen (`tables/0`), each described where `ern_rt` defines it; `make load` counts their rows ([`memory_checks.md`](memory_checks.md)). `ern test`'s `run_tests/6` keeps the running test in a table of its own.
 
 ### The processes
 
@@ -398,7 +398,7 @@ It reads first what every page links to, the library's declarations from `docs/m
 
 ### Outside `make test-full`
 
-- `make load` runs [`memory.md`](memory.md)'s loads: `test/ern_load.erl` runs each program under `test/fixtures/load/`, and the shell under a session it writes.
+- `make load` runs [`memory_checks.md`](memory_checks.md)'s loads: `test/ern_load.erl` runs each program under `test/fixtures/load/`, and the shell under a session it writes.
 - `make bench` is the measuring machine. `test/bench/ern_bench.erl` sets `test/fixtures/bench/bench.ern`'s operations beside Erlang's, and `test/bench/ern_measure.erl` every function of the library beside the host's.
 - `test/bench/ern_nodes_costs.erl` measures the costs between two nodes of `test/fixtures/peers/`, and `test/bench/ern_code_costs.erl` the costs of code that crosses, through `test/fixtures/bench/ern_code_probe.erl`.
 - `make service` runs `test/ern_service_tests.erl`, a program under the host's service manager.

@@ -3929,11 +3929,11 @@ foreign_atom_too_long_test() ->
     ?assertMatch({fault, <<"foreign function erlang:binary_to_atom/1 raised error:system_limit">>,
                   _}, Result).
 
-%% docs/memory.md, *Atoms*: a program's work makes no atoms, since the host
+%% docs/memory_checks.md, *Atoms*: a program's work makes no atoms, since the host
 %% never frees one; the same work done again, processes and calls,
 %% a socket, a host program, a file and an alarm, leaves the count as it
 %% was. Written after the reading that found none; `make load` measures the
-%% same at length (docs/memory.md).
+%% same at length (docs/memory_checks.md).
 work_makes_no_atoms_test_() ->
     {timeout, 60, fun work_makes_no_atoms/0}.
 

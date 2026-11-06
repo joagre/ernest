@@ -146,7 +146,7 @@ A list that lives in two places is held equal by a test where one is cheap, whos
 - the rows of the runtime's tables in `docs/architecture.md` and `docs/design/runtime.md`, but the names of `ern_rt`'s tables and the map's row of `ern_launch`, which a test holds;
 - the frames' count in `docs/design/nodes.md`, and the frames the glossary of `docs/code_style.md` names;
 - the shell's foreign functions, in `docs/design/shell.md`'s *The foreign interface* and the shell's `foreign fn`s;
-- the memory's regression tests, in `docs/memory.md`;
+- the memory's regression tests, in `docs/memory_checks.md`;
 - the first-party libraries, in this document's layout, the plan's MVP 4.1, Appendix G and the libraries' directory;
 - the documents, in `docs/README.md`, this document's layout and CLAUDE.md's owner table;
 - this document's layout of `test/` and of `tools/`, against their files;
@@ -222,7 +222,7 @@ make test-typed   well-typed programs generated, checked, compiled and run in on
                   ERN_SEED=n runs a failing seed again
 make test-shell   the shell's sessions and the terminal
 make test-emacs   the Emacs mode's tests (docs/design/emacs_mode.md)
-make load         the loads of docs/memory.md; not part of make test-full, whose
+make load         the loads of docs/memory_checks.md; not part of make test-full, whose
                   test-integration builds their programs and the benchmark's
 make service      a program run by the host's service manager, a user's systemd or
                   launchd: started, stopped, started again after Os.exit(1); not

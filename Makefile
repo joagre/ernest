@@ -465,7 +465,7 @@ test-typed: all
 test-shell: all
 	@$(MAKE) -C test shell
 
-# The loads of docs/memory.md, which a release runs (docs/reviews/release.md).
+# The loads of docs/memory_checks.md, which a release runs (docs/reviews/release.md).
 load: all
 	@$(MAKE) -C test load
 

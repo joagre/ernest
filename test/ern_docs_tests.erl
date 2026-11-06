@@ -448,12 +448,13 @@ shell_modules_test() ->
 module_named(Path) ->
     ern_namespace:text(ern_namespace:namespace(string:lexemes(filename:rootname(Path), "/"))).
 
-%% docs/memory.md, test/Makefile: the loads the document's table lists are
+%% docs/memory_checks.md, test/Makefile: the loads the document's table lists are
 %% the programs under test/fixtures/load/, which `LOADS` runs, and the
 %% shell's, which the Makefile runs by name. A regression test, written
 %% after the table; it does not read what a row says its load does.
 loads_listed_test() ->
-    [_, Section] = binary:split(ern_repository:read("docs/memory.md"), <<"\n## The loads\n">>),
+    [_, Section] = binary:split(ern_repository:read("docs/memory_checks.md"),
+                                <<"\n## The loads\n">>),
     [Body | _] = binary:split(Section, <<"\n## ">>),
     Listed = [Load || [Load] <- line_matches(Body, "^\\| `([a-z_]+)` \\|")],
     Makefile = ern_repository:read("test/Makefile"),

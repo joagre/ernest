@@ -24,7 +24,7 @@
 %%
 %% A unit loaded again with other code replaces its rows, and one unloaded
 %% takes them with it, so that the table holds what the host holds and no
-%% more (docs/memory.md).
+%% more (docs/memory_checks.md).
 %%
 %% Report §11.2: the canonical forms of a unit's definitions are kept
 %% beside its code, with their names, the lines of their source and the
@@ -559,7 +559,7 @@ holds_code(Unit, Bytes) ->
 %% as every other unit's are, the row among the keys its other rows go
 %% with (forget/2), so that a request never reads the file again; the
 %% forms of all the units a build's requests reach are held so for the
-%% node's life, as their units are (docs/memory.md). A module the table
+%% node's life, as their units are (docs/memory_checks.md). A module the table
 %% holds no unit of keeps nothing.
 kept(Unit, Recorded) ->
     case lookup({unit, Unit}) of

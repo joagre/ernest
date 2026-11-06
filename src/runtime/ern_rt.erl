@@ -4070,7 +4070,7 @@ outcome_flushed({ended, Outcome}, []) -> Outcome;
 outcome_flushed({ended, _}, [Stream | _]) -> {gone, Stream}.
 
 %% The tables that hold a launch's state, which the module's header
-%% describes and `make load` counts the rows of (docs/memory.md).
+%% describes and `make load` counts the rows of (docs/memory_checks.md).
 -spec tables() -> [atom()].
 tables() ->
     [?PROCESSES, ?CALLEES, ?FAULTS, ?TERMINATING, ?HELD, ?DELIVERIES, ?CHECKERS, ?LAUNCH,

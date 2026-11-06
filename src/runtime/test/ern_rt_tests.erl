@@ -598,7 +598,7 @@ evaluator_ends_once_what_it_owns_is_spent() ->
     end,
     ?assertEqual([{true, true}, {true, true}], wait(ended)).
 
-%% docs/memory.md, Appendix G.1, E.21: a process that makes and closes a
+%% docs/memory_checks.md, Appendix G.1, E.21: a process that makes and closes a
 %% thousand tables keeps, of the tables it made, fewer than the floor at
 %% which it drops those it no longer owns, and `Ets.owned` of it counts
 %% the one it still owns; a process that ended owns none. A regression

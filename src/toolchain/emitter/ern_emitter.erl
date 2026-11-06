@@ -1996,7 +1996,7 @@ holds_function(_) -> false.
 %% which an input's forms hold (ern_compile). The input's name is asked of
 %% the shell when the spawn runs, and is not the unit's code: an input
 %% typed again then compiles to the code it did before, and the host keeps
-%% an entry for each lambda of each version it loads (docs/memory.md).
+%% an entry for each lambda of each version it loads (docs/memory_checks.md).
 %%
 %% A form without its source names the declaration alone. Report §12.7: a
 %% definition of an exchange's unit by the name the code frame gave it, its

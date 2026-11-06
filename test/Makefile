@@ -252,7 +252,7 @@ format: $(EBIN)/ern_style_tests.beam
 	erl -noshell $(CODE_PATH) -pa $(EBIN) -eval 'ern_style_tests:write_formatted(), halt().'
 
 # The load programs under fixtures/load/ and the shell under a long
-# session, each in a node of its own, as docs/memory.md says; not part of
+# session, each in a node of its own, as docs/memory_checks.md says; not part of
 # `make test-full`, and run before every release (docs/reviews/release.md).
 # Each prints its samples and whether it stayed flat, into build/load/ as
 # well.

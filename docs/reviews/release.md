@@ -5,7 +5,7 @@ What a release runs to be ready, and nothing else. Between releases an item that
 1. **A fresh clone builds and passes:** `git clone`, then `make` and `make test-full`, in a directory of its own, on a machine running nothing else, before the readers start. `make test-full` installs into a scratch prefix and from the release archive, and runs from there (`installation_test_`, [`design/install.md`](../design/install.md)).
 2. **Five machines**, over the commit the review starts on; once the findings are made, `make sections` and `make bench` run again over the release's commit, `make load` where the round changed the runtime and `make sanitize` where it changed the helper; dialyzer runs in the clone's full run:
    - `make sanitize`, the helper in C under Clang's analyzer and the sanitizers;
-   - `make load`, the loads of [`memory.md`](../memory.md);
+   - `make load`, the loads of [`memory_checks.md`](../memory_checks.md);
    - `make service`, a program started, stopped and started again by the host's service manager, whose launchd checks, written for macOS in MVP 2.99b's item 10, run on the first Mac at hand and until then the release's notes say they have not;
    - `make sections`, which names a section of the report no test cites, and names only a section of a milestone not yet built, which that milestone's item names;
    - `make test-browser`, the site's client in a headless Chrome, on the machine with Chrome; and the panel against a real shell by hand on a server of the site's, a session started, a block pasted and loaded, a transcript's input pasted, Stop, Restart and the warning, since the test's socket is a stub;

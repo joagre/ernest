@@ -241,7 +241,7 @@ restarted(First) ->
        "}\n"],
       #{faults => Faults}).
 
-%% report §6.9, §8.6, docs/memory.md: a teller leaves nothing of its
+%% report §6.9, §8.6, docs/memory_checks.md: a teller leaves nothing of its
 %% monitor in the reaper once it has its word, so a subscriber that faults
 %% at each telling under Unlimited, told by a new teller each time, grows
 %% nothing there. The keeper counts its tellings in a process of its own,

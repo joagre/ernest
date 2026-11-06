@@ -148,7 +148,7 @@ The process of an input that binds a name answers and waits, and the session rec
 
 A process set to go is asked what it owns while it lives, since what it owned ends with it: once the input's answer is said, or at `:forget`, the session reads each one's `Process.owned` and `Ets.owned`, says a line for each by its site, `Ets.new` for a table, with the names its holder held, and only then lets them go (`going/0`, `let_go/0`; the log's *The Input's Process*). So the shell is compiled against `libs/ets` beside `libs/ansi` and `libs/markdown`.
 
-Shadowing is by name in the scope, not by replacing code, so a closure made before a declaration keeps the code it was compiled against (the log's *A Binding That Holds a Function*). How the session's memory is checked is [`memory.md`](../memory.md)'s.
+Shadowing is by name in the scope, not by replacing code, so a closure made before a declaration keeps the code it was compiled against (the log's *A Binding That Holds a Function*). How the session's memory is checked is [`memory_checks.md`](../memory_checks.md)'s.
 
 ### Loading and reloading
 

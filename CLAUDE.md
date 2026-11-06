@@ -43,7 +43,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 | [`docs/reviews/release.md`](docs/reviews/release.md) | what a release runs to be ready |
 | [`docs/reviews/full.md`](docs/reviews/full.md) | the review of every area whole, run seldom |
 | [`docs/reviews/principles.md`](docs/reviews/principles.md) | the report and the guide read against §0, and §0 against what it decided |
-| [`docs/memory.md`](docs/memory.md) | how memory is checked |
+| [`docs/memory_checks.md`](docs/memory_checks.md) | how memory is checked |
 | [`docs/soundness.md`](docs/soundness.md) | the argument that a well-typed program does not go wrong |
 | [`docs/otp_bugs.md`](docs/otp_bugs.md) | the defects found in OTP, each a report ready for OTP's tracker, until a release Ernest requires has its fix |
 | [`docs/diagnostics.md`](docs/diagnostics.md) | the catalog of diagnostics, which `make diagnostics` writes |
@@ -129,7 +129,7 @@ Meanwhile it changes only in its form, every decision, fact and number kept; a p
 
 - **No warts.** Never leave an approximation, a silent deviation from the report, or an unstated semantic choice in the code.
 - **Fix a known defect when found.** A gap too large to fix now, or a defect not yet diagnosed, goes in the plan with a date and the shape of its fix, never in a comment. A refusal made for a later MVP's sake names that MVP in its error text, and `docs/development.md`'s table lists it, which a test checks.
-- **Memory that no collection reclaims is a defect, fixed at its cause**, in the runtime, the toolchain, the shell and Ernest code alike. Never fix it by capping a list, a table or a cache. Add a cache only with an argument for what it holds and when it lets go. How memory is checked is [`docs/memory.md`](docs/memory.md)'s.
+- **Memory that no collection reclaims is a defect, fixed at its cause**, in the runtime, the toolchain, the shell and Ernest code alike. Never fix it by capping a list, a table or a cache. Add a cache only with an argument for what it holds and when it lets go. How memory is checked is [`docs/memory_checks.md`](docs/memory_checks.md)'s.
 - **Nothing routes around a defect or a gap**, in the standard library, the shell, `examples/`, the guide, the report's examples or the tests. Code that meets a toolchain bug, a missing function, module or feature, or a command that cannot show something does not work around it or hide it by choosing another example. Stop and say so: the gap goes to the report, Appendix E or the plan first, and what needed it says that it waits.
 - **A refusal is a decision, and a workaround in prose is a gap.** A refusal the report states is weighed on the principles in its log entry; one whose only reason is how the code was built was never decided, and is weighed when found. A sentence that teaches a way around the tool, "the shortest way to", "write it as ... instead", is a gap with its workaround beside it, and goes as the rule above says.
 - **A published specification or a general-purpose engine is a library's work**: a pattern language, a data format, a protocol, dates and times. Where Ernest code finds itself writing one, stop; the need goes to [`docs/language_feedback.md`](docs/language_feedback.md), and whether a library is written is decided with the user first. Splitting, trimming and sorting stay in the program.
