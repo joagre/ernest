@@ -75,6 +75,7 @@ The questions a Gleam or Erlang programmer asks first are [answered here](guide/
 - **[The report](report/README.md)**: the definition, which everything else defers to.
 - **[`examples/`](examples/)**: complete programs, from `hello.ern` to a game at a terminal.
 - **[`ernest-template`](https://github.com/joagre/ernest-template)**: where an application in Ernest begins.
+- **[The projects](site/projects.md)**: libraries and programs written in Ernest, each in a repository of its own.
 
 [`guide/README.md`](guide/README.md) lists the other guides: style, and running nodes.
 

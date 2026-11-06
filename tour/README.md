@@ -644,3 +644,5 @@ the peer foo ended
 `ern stop` ends a node in order, and each shell connected to it is told. `far` now names a process that ended with its node: the send answers `"ok"` and is dropped, and the request has no one to answer it, at once; a process that monitored the counter would have heard a `Down` with the reason `ProgramEnd`, and a peer started again is reached by a new spawn or compute, since its processes are gone with it (the deployment guide's §2.3). `ern stop --config-dir bar` ends the rest, and the shell says `the peer bar ended`. One command, and you have seen a node's whole life.
 
 The tour ends here, where the operator's work begins. The deployment guide's §8 runs this move across three nodes with `examples/upgrade/`, its §5.3 is the operator's side of it and its §6 the attached shell; the guide's §9 names the tools, and the guide's §8.9 the rule the move rests on.
+
+Libraries and programs written in Ernest, each in a repository of its own, are listed in [`site/projects.md`](../site/projects.md).

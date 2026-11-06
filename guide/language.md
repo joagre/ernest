@@ -3350,6 +3350,8 @@ Several of these tell the compiler nothing it could not work out for itself. Wha
 
 The programs under [`examples/`](../examples/README.md) are complete, each larger than a section can hold, and [`examples/README.md`](../examples/README.md) lists them by topic, with what each shows.
 
+Libraries and programs written in Ernest, each in a repository of its own, are listed in [`site/projects.md`](../site/projects.md).
+
 For the language rules themselves, the report is the authority: [`report/language.md`](../report/language.md), the language, [`report/toolchain.md`](../report/toolchain.md), the toolchain, and [`report/library.md`](../report/library.md), the standard library. Appendix F glosses every technical term.
 
 Why Ernest looks as it does, and what was tried and rejected, is in [`docs/log/`](../docs/log/README.md), a dated record of the design decisions.

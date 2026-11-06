@@ -30,7 +30,7 @@ It argues where it should point.
 - The generator takes only *Installing* from the README for the Install page; confirm the trim leaves the site unchanged.
 
 **Its links.** 21 places today. Only the central ones stay, each a destination or an index that carries the rest:
-- Kept: `guide/why.md` (through the claims' links, not eleven separate ones); `guide/faq.md`, the Gleam and Erlang reader's questions; the tour, the guide (`guide/language.md`) and the report, the three ways in; `examples/`, one link, its README listing the programs; `ernest-template`, the next step once convinced; the releases page; `LICENSE`.
+- Kept: `guide/why.md` (through the claims' links, not eleven separate ones); `guide/faq.md`, the Gleam and Erlang reader's questions; the tour, the guide (`guide/language.md`) and the report, the three ways in; `examples/`, one link, its README listing the programs; `ernest-template`, the next step once convinced; `site/projects.md`, what is written in Ernest; the releases page; `LICENSE`.
 - One link to `guide/README.md` replaces `guide/style.md` and `guide/deployment.md`, which it lists.
 - Dropped: `docs/man/` (Installing's `man Ernest.List` shows the manual); `docs/development.md` and `docs/plan.md` (for work on Ernest, which takes no contribution before 1.0); `editors/emacs/README.md` (named in Installing's last sentence, or carried by `guide/README.md`); `examples/snake.ern` and `web_server.ern` (the examples' README lists them).
 - `THIRD_PARTY_LICENSES` stays in the License section's one sentence only, where it belongs, and is no reading link.
