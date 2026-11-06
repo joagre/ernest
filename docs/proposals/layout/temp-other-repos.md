@@ -55,6 +55,30 @@ Ernest's change 1 then keeps its Ernest tools in `tools/`, a source root as an a
 
    Each copy takes it, and its own session adds what it alone has: `ernest-epx`, its window tried on a screen; `ernest-httpd`, the security reader over its live shell.
 
+## The draft of items 5, 7 and 9
+
+Written 2026-11-06. It stands uncommitted in `ernest-template`'s working tree: `CLAUDE.md`, the new `docs/full_review.md`, and the lines of `docs/README.md` and `TEMPLATE.md` that follow them. `git diff` there shows every cut, which wait for the user. The copies wait for the template.
+
+**The count.** `CLAUDE.md` is 3,856 words from 3,623. As in Ernest's, a chain split at its clauses is not fewer words, and the new rules add about 200.
+
+**What the first cut left out stays out.** Most sentences Ernest's file has and the template's lacks are older than the template, so the first cut dropped them on purpose: the reasons inside a rule, and the longer forms of *No fixed sleep* and *The program is beautiful*. The draft takes Ernest's wording only where it splits a chain. It takes Ernest's rules of 2026-11-06: a new file is added before its check runs, this file is among the plain documents, a flake is tested under what it was seen under, and the standing rule on where a good rule goes.
+
+**What the reading found wrong in the file.**
+- *Style* said the style guide is read "from the installation beside `ern` or a checkout's `guide/`", against *Authority*, where the installation is the only Ernest a session sees. The draft says the installation.
+- The road a feedback line takes stood twice and differed. The owner table's row had item 8's two roads, and *Defects and gaps* still said the user carries the line "as an issue of Ernest's repository or by hand". The draft states the road once, in *Defects and gaps*, and the row keeps what the file is: the user carries a line by the tracker, and in the clean room the session carries it by a message, as `docs/clean_room.md` has it.
+- The row said a line is "in the shape of Ernest's file of that name", which no installation holds. *Defects and gaps* states a line's shape, so the phrase goes.
+- *The repository* restated the rule that a gap goes to Ernest and is not worked around. Its sentence that a gap goes to Ernest first and is fixed there moves to the rule in *Defects and gaps*, with its two examples, a refusal and a line the tool should say.
+
+**The copies take the file whole.** `ernest-epx`'s file differed in two rows: it lacked `deploy/README.md`'s, which says "where `deploy/` exists" and so is true there, and its `CHANGES.md` row said "from the release after 0.1.0 on", which its `CHANGES.md` says itself. The template's row no longer says where the notes begin. What a copy keeps is now the title and the sentence under it, on what the program is, and the sentence on the template stands in a paragraph of its own.
+
+**The owner table.** `docs/release.md`'s row goes and `docs/full_review.md` gets none, against item 9's word: `docs/README.md` lists both, as Ernest's table leaves its reviews to its `docs/README.md`. The rows for `deploy/README.md`, `examples/README.md`, `language_feedback.md` and `findings.md` stay, since each names a file before it exists. A finished milestone's row moves from the plan's row to *Where a sentence goes*.
+
+**Item 7's number.** The draft splits a log that nears 250 KB, not 300, since Ernest's log stopped rendering between 301 and 309 KB and its test's ceiling is 256. The template's tool and its `CLAUDE.md` name `docs/log.md` by its path, so the rule has the session tell the user, and the split waits for the template's change.
+
+**The full review.** Four readers, K, C, D and S, lettered as Ernest's are, each brief cut from Ernest's reader of that letter. `TEMPLATE.md` said a copy is never updated from the template, though each copy's `CLAUDE.md` has been taken from it again and again, and now says which three files a copy takes again.
+
+**The reader.** One reader who had not heard the reasoning read the old file against the draft, and the new review cold. It found one rule loosened, the road's wording having lost who carries a line, and four smaller losses, all restored but the two phrases named above. It found the template's README saying `make test` lists a paragraph past a hundred words, where the tool refuses one past 150, and `ernest-epx`'s README says the same. What it found that the old file already had stays for the user: a function the library lacks "is written in Ernest or waits" beside "no code goes around it", and a fresh clone asked for before the commit it would clone.
+
 ## Not carried
 
 - Ernest's own: the role-named `src/` directories (toolchain, shared, runtime, nodes), the shims beside their libraries, `release/`, the examples' and tests' renames, `docs/reviews/`, `code_style.md` and `memory_checks.md`, the "Code travels" claim and the Gleam line. An application has none of these parts.
