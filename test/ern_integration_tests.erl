@@ -157,7 +157,7 @@ lease_broker() ->
     ?assertEqual(shown("lease_broker.ern", "ern test lease_broker.erc"), printed(Tested)),
     ?assertEqual({2, <<"usage: lease_broker [deadlock]\n">>}, Run(" holiday")).
 
-%% report §3.10, §4.9, §5.6, Appendix E.2, E.3, E.26: word_count counts the
+%% report §3.10, §4.9, §5.6, Appendix E.2, E.3, E.26: word_frequency counts the
 %% words of the file its command line names in both maps, the ordered
 %% map's alphabetically and the hash map's in an order E.3 leaves
 %% unspecified, so the two lines are compared as sets of counts, and names
@@ -165,21 +165,22 @@ lease_broker() ->
 %% file it says how it is called, status 2, and a file it cannot read is
 %% named on standard error, status 1. A regression test, written with the
 %% example
-word_count_test_() ->
-    ern_nodes_tests:counted_test({waits, 4}, fun word_count/0).
+word_frequency_test_() ->
+    ern_nodes_tests:counted_test({waits, 4}, fun word_frequency/0).
 
-word_count() ->
-    0 = build(?BUILD ++ "../examples/word_count.ern"),
-    {0, Output} = sh("../bin/ern run build/word_count.erc fixtures/input/words.txt"),
+word_frequency() ->
+    0 = build(?BUILD ++ "../examples/word_frequency.ern"),
+    {0, Output} = sh("../bin/ern run build/word_frequency.erc fixtures/input/words.txt"),
     [<<"by hash: ", Hashed/binary>>, <<"in order: ", Ordered/binary>>, Frequent] =
         binary:split(Output, <<"\n">>, [global, trim]),
     ?assertEqual(<<"and 1, cat 1, dog 1, log 1, mat 1, on 2, sat 2, the 4">>, Ordered),
     ?assertEqual(lists:sort(binary:split(Ordered, <<", ">>, [global])),
                  lists:sort(binary:split(Hashed, <<", ">>, [global]))),
     ?assertEqual(<<"most frequent: the, on">>, Frequent),
-    ?assertEqual({2, <<"usage: word_count file\n">>}, sh("../bin/ern run build/word_count.erc")),
-    ?assertEqual({1, <<"word_count: fixtures/input/absent.txt: Io.NotFound\n">>},
-                 sh("../bin/ern run build/word_count.erc fixtures/input/absent.txt")).
+    ?assertEqual({2, <<"usage: word_frequency file\n">>},
+                 sh("../bin/ern run build/word_frequency.erc")),
+    ?assertEqual({1, <<"word_frequency: fixtures/input/absent.txt: Io.NotFound\n">>},
+                 sh("../bin/ern run build/word_frequency.erc fixtures/input/absent.txt")).
 
 %% report §6.10, §8.7, §11.1, Appendix E.28: the upgrade example's two
 %% builds of one module, each built as a directory, as its first comment

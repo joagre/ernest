@@ -1,5 +1,5 @@
 //
-// Word count, written once over two kinds of map
+// Word frequency, written once over two kinds of map
 //
 // Counts the words of the file named on the command line twice: once in the
 // hash map `Map`, and once in `OrderedMap`, which keeps its keys in order.
@@ -24,8 +24,8 @@
 //
 // Run it from this directory, on one of the examples:
 //
-//     ern build word_count.ern
-//     ern run word_count.erc hello.ern
+//     ern build word_frequency.ern
+//     ern run word_frequency.erc hello.ern
 //
 
 // The operations counting needs, over a map from words to counts.
@@ -55,7 +55,7 @@ export fn main() : Unit =
                     fail(name <> ": " <> Io.show(error))
             }
       | _ -> {
-            Io.printlnError("usage: word_count file");
+            Io.printlnError("usage: word_frequency file");
             Os.exit(2)
         }
     }
@@ -70,7 +70,7 @@ fn report(words : List(String)) : Unit = {
 
 // Why the file could not be counted, on standard error, and the status 1.
 fn fail(cause : String) : Unit = {
-    Io.printlnError("word_count: " <> cause);
+    Io.printlnError("word_frequency: " <> cause);
     Os.exit(1)
 }
 
