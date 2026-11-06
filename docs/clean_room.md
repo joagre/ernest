@@ -45,4 +45,4 @@ The application's session checks each verdict against the new installation, drop
 
 ## A stranger's way
 
-A stranger has no message to Ernest's session and no checkout of Ernest: their channel is Ernest's issue tracker, and the next release answers them. The template an application starts from states that way alone. What stands here, the messages and the archive made again, is the two sessions' own, and goes to the tracker when a third party appears.
+A stranger has no message to Ernest's session and no checkout of Ernest: their channel is Ernest's issue tracker, and the next release answers them. The template an application starts from names that way first, and the message only for an application built here. What stands here, the messages and the archive made again, is the two sessions' own, and goes to the tracker when a third party appears.

@@ -12,7 +12,7 @@ The actions from the walk of 2026-11-04. The reasons are in `temp.txt`.
 
 ## 2. Before the launch
 
-- [ ] Add `SECURITY.md`: where to report a security hole privately.
+- [x] Add `SECURITY.md`: where to report a security hole privately.
 - [ ] Split `docs/log.md` by month into `docs/log/<year>-<month>.md` and so on, with one file there holding the index and the standing sections; the generator and the documents test resolve a citation's title to its file and anchor.
 
 ## 3. The restructuring, in one commit with its sweep, after MVP 4.2 closes and before MVP 4.15's item 2
@@ -64,7 +64,7 @@ After the commit:
 
 The other repositories, at the same stop, with their sessions stopped:
 
-- [ ] `temp-other-repos.md`'s items 3, 4, 6 and 8 in `ernest-template`, then `ernest-epx` and `ernest-httpd`: a commit in each, `make test` against the floor it names; `SECURITY.md`'s content decided with the user first
+- [x] `temp-other-repos.md`'s items 3, 4, 6 and 8 in `ernest-template`, then `ernest-epx` and `ernest-httpd`: a commit in each, `make test` against the floor it names; `SECURITY.md`'s content decided with the user first
 
 ## 4. Renames and additions, each its own commit, before or after 3 and before MVP 4.4's full review
 
@@ -101,4 +101,4 @@ A rename of a document changes, in its own commit, CLAUDE.md's owner row and `do
 - [ ] Before it, the harvest: the four repositories' CLAUDE.md read side by side, a sibling's clearer wording or applicable rule taken into Ernest's draft (`temp-other-repos.md`, item 5)
 - [ ] A standing rule in Ernest's CLAUDE.md and the template's: a good rule found in an application goes to the template, and to Ernest's where it applies, and from the template to the other copies
 - [ ] CLAUDE.md redrafted rule for rule: the owner table's `docs/` rows to one, the plain register; then every old rule mapped to a new sentence
-- [ ] `SECURITY.md`'s content, decided with the user when this is planned
+- [x] `SECURITY.md`'s content, decided with the user 2026-11-06
