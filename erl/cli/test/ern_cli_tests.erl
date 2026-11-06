@@ -1930,7 +1930,8 @@ own_roots_provide_their_namespaces_test() ->
                   try ern_build:module_of(filename:join(Root, Relative), Root, file) of
                       _ -> accepted
                   catch
-                      throw:{cli_error, Message} -> lists:last(string:split(Message, "/src/"))
+                      throw:{cli_error, Message} ->
+                          lists:last(string:split(Message, "/src/", trailing))
                   end
               end,
     ?assertEqual("stdlib/ernest.ern takes the toolchain's namespace Ernest",

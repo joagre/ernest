@@ -609,7 +609,7 @@ call there carries on the item the bracket stands in, as `f(x).y' does."
     (<= (ernest--code-line-end) (1+ pos))))
 
 (defun ernest--clause-line-p (depth)
-  "Whether the line point is on holds a clause's `->' at bracket DEPTH.
+  "Whether a clause's `->' at bracket DEPTH stands on the line point is on.
 A clause of a match or a receive, its `after' among them, began on its
 pattern's line, and a block its body opens on the arrow's line steps in
 from there however many lines its guard takes, as `ern format' lays it
@@ -918,7 +918,7 @@ was."
         (apply #'ernest--format-replace edit)))))
 
 (defun ernest--format-take (out chars)
-  "The run of CHARS at point in the buffer OUT, which point moves past."
+  "The run of CHARS at point in the buffer OUT, with point left past it."
   (with-current-buffer out
     (let ((start (point)))
       (skip-chars-forward chars)
