@@ -146,7 +146,7 @@ no_tab_test() ->
                 "test/*.erl", "test/bench/*.erl", "test/fixtures/**/*.erl", "src/stdlib/**/*.ern",
                 "examples/**/*.ern", "src/shell/**/*.ern", "test/**/*.ern", "test/*.py",
                 "editors/emacs/*.el", "editors/emacs/test/*.el",
-                "editors/emacs/test/broken/*.ern", "src/libs/**/*.ern", "src/libs/*/*.md",
+                "editors/emacs/test/half_typed/*.ern", "src/libs/**/*.ern", "src/libs/*/*.md",
                 "tools/**/*.ern", "tools/**/*.erl", "tour/*/*.ern", "tools/*.sh",
                 "test/machines/*.sh", "bin/ern", "*.md", "docs/*.md", "docs/reviews/*.md"],
     Files = [File || File <- ern_repository:files(Patterns),

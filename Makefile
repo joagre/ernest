@@ -508,7 +508,7 @@ bench-release:
 # older than the floor.
 EMACS ?= emacs
 EMACS_FLOOR = 29
-EMACS_TESTS = flatten reindent format lint color editing broken
+EMACS_TESTS = flatten reindent format lint color editing half_typed
 # typing.el costs the square of a file's length, so it runs in four parts,
 # the largest files in different parts, the longest jobs first.
 TYPING_PARTS = $(addprefix emacs-test-typing-,0 1 2 3)
