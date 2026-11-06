@@ -15,13 +15,9 @@ Thumbs.db
 erl_crash.dump
 
 # Ernest build output and per-node configuration (holds a private key)
-/build/
-.ernest/
-
-# Local env
-.env
-.env.local
 *.erc
+/build/
 /test/build/
 /test/fixtures/emitted/*.new
 /test/fixtures/emitted/**/*.new
+.ernest/

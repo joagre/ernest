@@ -83,7 +83,7 @@ A rename of a document changes, in its own commit, CLAUDE.md's owner row and `do
 - [x] `editors/emacs/test/broken/` → `editors/emacs/test/half_typed/`
 - [x] Add `site/README.md`: a few lines pointing at `docs/development.md`'s layout and `site/templates/README.md`
 - [x] Add `docs/proposals/fides/README.md`: the proposal is exploratory, decided with the user 2026-11-06
-- [ ] `.gitignore`: `*.erc` under the build's heading; drop `.env` and `.env.local`
+- [x] `.gitignore`: `*.erc` under the build's heading; drop `.env` and `.env.local`
 
 ## 5. Rules
 

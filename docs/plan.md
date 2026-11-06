@@ -72,8 +72,6 @@ the final names and no session stops twice (the log's *The Layout's Rest First*)
 
 In an item session:
 
-- Group 4: the renames and additions, each its own commit. `docs/proposals/fides/README.md` says
-  that proposal is exploratory.
 - Group 2: `docs/log.md` split by month, one file holding the index and the standing sections,
   since GitHub does not render it at 2.6 MB and the site's citations lead nowhere until then. The
   generator and the documents test resolve a citation's title to its file and anchor.
