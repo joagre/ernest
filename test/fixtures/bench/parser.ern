@@ -1,10 +1,10 @@
 //
-// The lexer, the parser and the evaluator of examples/repl.ern, for `make
-// bench` (test/ern_programs_costs.erl): each line of the input read as the
-// REPL reads it, its value added to a sum, an error counted, and a `let`
-// binding its name for the lines after it. The REPL evaluates each line in
-// a process of its own; here the evaluator is called directly, which is
-// the work. test/fixtures/bench/ern_parser_twin.erl is the same program as
+// The lexer, the parser and the evaluator of examples/interpreter.ern, for
+// `make bench` (test/ern_programs_costs.erl): each line of the input read as
+// the interpreter reads it, its value added to a sum, an error counted, and
+// a `let` binding its name for the lines after it. The interpreter evaluates
+// each line in a process of its own; here the evaluator is called directly,
+// which is the work. test/fixtures/bench/ern_parser_twin.erl is the same program as
 // Erlang writes it.
 //
 

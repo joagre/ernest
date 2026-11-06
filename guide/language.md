@@ -1441,7 +1441,7 @@ kill : (Address(a)) -> Unit
 Process.kill : (Process) -> Unit
 ```
 
-`kill(address)` ends the process at `address`, and its monitors receive `Down(reason = Killed, ...)`. `Process.kill(process)` ends the process a `Process` identifies the same way, one kept by its identity or found by `Process.live()` (report §6.9). The process may run a little before it stops. The REPL of [`examples/repl.ern`](../examples/repl.ern) kills an evaluation that runs too long.
+`kill(address)` ends the process at `address`, and its monitors receive `Down(reason = Killed, ...)`. `Process.kill(process)` ends the process a `Process` identifies the same way, one kept by its identity or found by `Process.live()` (report §6.9). The process may run a little before it stops. The interpreter of [`examples/interpreter.ern`](../examples/interpreter.ern) kills an evaluation that runs too long.
 
 ### 5.4 Deadlock
 

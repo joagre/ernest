@@ -98,16 +98,17 @@ matches(Pattern, Text) ->
     end.
 
 %% docs/development.md, `make bench`: the programs part's parser,
-%% test/fixtures/bench/parser.ern, is examples/repl.ern's lexer, parser and
+%% test/fixtures/bench/parser.ern, is examples/interpreter.ern's lexer, parser and
 %% evaluator, from `fn tokenize` on, its comments aside, and each of its
 %% types is the example's, so that the bench measures the example. A
 %% regression test, written after the copy, which nothing held to the
 %% example, and its types to nothing until the release review before 0.5.0
 parser_fixture_test() ->
-    ?assertEqual(code_from("examples/repl.ern"), code_from("test/fixtures/bench/parser.ern")),
+    ?assertEqual(code_from("examples/interpreter.ern"),
+                 code_from("test/fixtures/bench/parser.ern")),
     Copied = types("test/fixtures/bench/parser.ern"),
     ?assertNotEqual([], Copied),
-    ?assertEqual([], Copied -- types("examples/repl.ern")).
+    ?assertEqual([], Copied -- types("examples/interpreter.ern")).
 
 %% An Ernest module's type declarations, each its lines from the one that
 %% begins `type`, a line that begins with a space continuing it.

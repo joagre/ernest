@@ -1,9 +1,9 @@
 //
-// REPL
+// An interpreter
 //
-// A read-evaluate-print loop for a small language of numbers, `let`, and
-// functions of one argument. It reads an expression a line, prints its value
-// or what is wrong with it, and ends at the end of its input.
+// An interpreter of a small language of numbers, `let`, and functions of
+// one argument. It reads an expression a line, prints its value or what is
+// wrong with it, and ends at the end of its input.
 //
 // What to look at:
 //
@@ -16,8 +16,8 @@
 //
 // Run it from this directory, and type an expression a line:
 //
-//     ern build repl.ern
-//     ern run repl.erc
+//     ern build interpreter.ern
+//     ern run interpreter.erc
 //
 // For example, `let x = 21`, then `x * 2`, then `(fun n -> n * n) 9`.
 //
@@ -55,7 +55,7 @@ type EvalError = Unbound(String) | DivisionByZero | NotAFunction | NotANumber
 
 type TryError = Eval(EvalError) | Crashed | Timeout
 
-type ReplMsg =
+type InterpreterMsg =
     Answered(serial : Int, result : Either(EvalError, Value))
   | Died(serial : Int, down : Down)
 
@@ -63,20 +63,20 @@ type ReplMsg =
 // Program
 //
 
-export fn main() : Unit receiving ReplMsg =
-    repl(Map.empty, 0)
+export fn main() : Unit receiving InterpreterMsg =
+    interpret(Map.empty, 0)
 
 //
 // Processes
 //
 
-fn repl(env : Map(String, Value), serial : Int) : Unit receiving ReplMsg =
+fn interpret(env : Map(String, Value), serial : Int) : Unit receiving InterpreterMsg =
     match Io.readLine() {
         None ->
             Unit // end of input
       | Some(text) -> {
             let #(env, serial) = evaluateLine(env, serial, text);
-            repl(env, serial)
+            interpret(env, serial)
         }
     }
 
@@ -85,7 +85,7 @@ fn repl(env : Map(String, Value), serial : Int) : Unit receiving ReplMsg =
 // serial of the last expression tried.
 fn evaluateLine(env : Map(String, Value),
                 serial : Int,
-                text : String) : #(Map(String, Value), Int) receiving ReplMsg =
+                text : String) : #(Map(String, Value), Int) receiving InterpreterMsg =
     match tokenize(text) {
         Left(BadChar(=char, =index)) -> {
             Io.println("illegal character "
@@ -118,7 +118,7 @@ fn evaluateLine(env : Map(String, Value),
 // kill the child if it does not answer.
 fn try(env : Map(String, Value),
        expression : Expression,
-       serial : Int) : Either(TryError, Value) receiving ReplMsg = {
+       serial : Int) : Either(TryError, Value) receiving InterpreterMsg = {
     let me = self(); // not self() inside the lambda: that is the child's
     let child =
         spawnMonitored(fn() = send(me, Answered(=serial, result = eval(env, expression))),
@@ -131,7 +131,7 @@ fn try(env : Map(String, Value),
 // A `Down` names no process, and the child's `Process` (report Appendix
 // E.21) exists only after the spawn its wrap is made for, so the serial
 // in the message is what tells this child's news from an earlier child's.
-fn await(child : Address(Never), serial : Int) : Either(TryError, Value) receiving ReplMsg =
+fn await(child : Address(Never), serial : Int) : Either(TryError, Value) receiving InterpreterMsg =
     receive {
         Answered(serial = carried, =result) when carried == serial ->
             Either.mapLeft(result, Eval)
@@ -341,7 +341,7 @@ fn eval(env : Map(String, Value), expression : Expression) : Either(EvalError, V
       | Function(=parameter, =body) ->
             Right(Closure(=parameter, =body, =env))
       | Let(=value) ->
-            eval(env, value) // the REPL binds the name, see evaluateLine
+            eval(env, value) // evaluateLine binds the name
       | Binary(=operator, =left, =right) -> {
             let leftValue <- eval(env, left);
             let rightValue <- eval(env, right);

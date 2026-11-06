@@ -69,7 +69,7 @@ test/fixtures/     what the tests read: target/, the hand-written target modules
                    programs/, the programs the tests keep: the first test programs, a
                    two-module tree, the module of docs/module_doc_template.md and the
                    echo measurement; expected/ and golden/, what programs/, hello,
-                   services print, repl's session among
+                   services print, interpreter's session among
                    them, and the Erlang they compile to; site/, under tree/ the
                    documents the site's generator renders and the log it links to, each
                    at the path of the one it plays, config.json, the server's
@@ -269,7 +269,7 @@ make bench        what each of a few operations costs in Ernest beside the same 
                   receive, Io.show, a function value's call and a lambda made, each beside
                   the plain Erlang a programmer writes, the two measured together, in
                   language.txt; then three programs
-                  written twice, the ray tracer's pure half, examples/repl.ern's lexer,
+                  written twice, the ray tracer's pure half, examples/interpreter.ern's lexer,
                   parser and evaluator over a fixed input, and the guide's counter with its
                   callers, each Ernest program's time over its Erlang twin's, the twins
                   under test/fixtures/bench/, in programs.txt; and last, every row that

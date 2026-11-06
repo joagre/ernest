@@ -4,7 +4,7 @@
 %% Erlang's. The programs are under test/fixtures/bench/, each Ernest module
 %% beside its twin: the ray tracer of ernest-epx's examples, its pure half,
 %% raytracer.ern and ern_raytracer_twin.erl, floats and records; the lexer,
-%% the parser and the evaluator of examples/repl.ern over a fixed input,
+%% the parser and the evaluator of examples/interpreter.ern over a fixed input,
 %% parser.ern and ern_parser_twin.erl, strings and matching; and the guide's
 %% counter with its callers, counter.ern and ern_counter_twin.erl, processes
 %% and calls. An Ernest module is compiled from source as `ern build`

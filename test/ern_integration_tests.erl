@@ -53,7 +53,7 @@ program(Build, Name) ->
 %% plays it under a pseudo-terminal; fetch reaches a host on the network, so
 %% it is only compiled; the others run below. The echo measurement, kept for
 %% the tests, prints timings, so it is compiled alone.
--define(COMPILES, ["fetch", "file_sync", "repl", "snake", "web_server"]).
+-define(COMPILES, ["fetch", "file_sync", "interpreter", "snake", "web_server"]).
 
 compiles_test_() ->
     {inparallel,
@@ -199,18 +199,18 @@ upgrade_example() ->
     ?assertEqual(lists:sort([<<"here: 1 moved">>, <<"inc 3">>, <<"total: Some(5)">>]),
                  unstamped(lines(Output))).
 
-%% Paper program 4 (plan, MVP 2.5): the REPL reads stdin and ends at
+%% Paper program 4 (plan, MVP 2.5): the interpreter reads stdin and ends at
 %% end of input, so its run is bounded by its input. The last two lines are
 %% the point of the program: an expression that does not terminate is killed
 %% after two seconds, and the next expression still works.
 %% report §6.9 (monitor), §8.2 (Io's stdin), Appendix E.1 (Io.readLine)
-repl_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun repl/0).
+interpreter_test_() ->
+    ern_nodes_tests:counted_test({waits, 2}, fun interpreter/0).
 
-repl() ->
-    0 = build(?BUILD ++ "../examples/repl.ern"),
-    {0, Output} = sh("../bin/ern run build/repl.erc < fixtures/input/repl.in"),
-    ?assertEqual(expected("repl"), lines(Output)).
+interpreter() ->
+    0 = build(?BUILD ++ "../examples/interpreter.ern"),
+    {0, Output} = sh("../bin/ern run build/interpreter.erc < fixtures/input/interpreter.in"),
+    ?assertEqual(expected("interpreter"), lines(Output)).
 
 %% Paper program 2 (plan, MVP 2.5): the syncer runs until it is
 %% stopped, so the harness gives it two prepared directories, lets it run,
