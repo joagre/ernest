@@ -1,5 +1,5 @@
 //
-// Typed channels across nodes
+// A remote counter
 //
 // A counter whose mailbox has one type, on a node of its own, b, reached
 // from another node, a, as a service. Node b runs serve, which offers the
@@ -10,9 +10,9 @@
 // other, b with its address, and give a the service "counter" on b (guide
 // §8.1, guide §8.2); then
 //
-//     ern build typed_channels_nodes.ern
-//     ern run --config-dir b --main TypedChannelsNodes.serve typed_channels_nodes.erc &
-//     ern run --config-dir a typed_channels_nodes.erc
+//     ern build remote_counter.ern
+//     ern run --config-dir b --main RemoteCounter.serve remote_counter.erc &
+//     ern run --config-dir a remote_counter.erc
 //     ern stop --config-dir b
 //
 

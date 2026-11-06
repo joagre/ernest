@@ -24,13 +24,13 @@
 %% The examples that end of themselves given nothing, and the programs kept
 %% for the tests. Every other example is built and run, or connected to, by
 %% a test of its own below, snake but played by ern_terminal_tests.
--define(EXAMPLES, ["hello", "typed_channels_nodes"]).
+-define(EXAMPLES, ["hello", "remote_counter"]).
 -define(PROGRAMS, ["counter", "upgrade", "pingpong", "stack", "patterns", "kv_parser"]).
 
 %% report §8.1, §8.6, §11.1, §11.2, and per program: §6.4 (pingpong),
 %% §6.6 (counter), §6.10 (upgrade), §5.10 (patterns), §5.5 (kv_parser),
-%% §4.4 (stack), §8.7 and Appendix E.27 (typed_channels_nodes, run alone,
-%% which is no node, its find answering NotListed); typed_channels_nodes is
+%% §4.4 (stack), §8.7 and Appendix E.27 (remote_counter, run alone,
+%% which is no node, its find answering NotListed); remote_counter is
 %% a regression test written with it
 %% Each program is compiled and run apart from the others, so they run in
 %% parallel (plan, MVP 2.6).

@@ -21,7 +21,7 @@ $ ern run wc.erc words.txt
 2 3 14 total
 ```
 
-`ern run snake.erc` plays the snake game at your terminal, `ern run shout.erc` serves until you stop it, `ern run lease_broker.erc deadlock` ends in the deadlock the runtime reports, and `ern test file_sync.erc` runs a program's own tests. `typed_channels_nodes.ern` and `upgrade/` run as nodes, and `lease_broker.ern` as two nodes too, with the configuration directories their first comments make. Each program's first comment says how it is run and what to look at in it.
+`ern run snake.erc` plays the snake game at your terminal, `ern run shout.erc` serves until you stop it, `ern run lease_broker.erc deadlock` ends in the deadlock the runtime reports, and `ern test file_sync.erc` runs a program's own tests. `remote_counter.ern` and `upgrade/` run as nodes, and `lease_broker.ern` as two nodes too, with the configuration directories their first comments make. Each program's first comment says how it is run and what to look at in it.
 
 ## The programs
 
@@ -37,7 +37,7 @@ $ ern run wc.erc words.txt
 | [`web_server.ern`](web_server.ern) | a web server with sessions; it serves until stopped | state shared by processes as a process that owns a `Map`, request and reply, a request read and a response written by a library, a session id drawn at random, an alarm | chapters 4 and 6 |
 | [`fetch.ern`](fetch.ern) | a JSON document fetched over HTTPS, and a report of its shape | TLS with a verified certificate, a request written and a response read by a library, JSON read into a value, a tool's arguments and exit status | chapters 6 and 8 |
 | [`file_sync.ern`](file_sync.ern) | two directories kept identical; it runs until stopped | two processes that learn each other's address from a message, the file system, a program's own tests | chapters 4 and 5 |
-| [`typed_channels_nodes.ern`](typed_channels_nodes.ern) | a counter on a node of its own, found from another | a service that carries its message type, a call across nodes | chapter 8 |
+| [`remote_counter.ern`](remote_counter.ern) | a counter on a node of its own, found from another | a service that carries its message type, a call across nodes | chapter 8 |
 | [`upgrade/`](upgrade/) | a counter's two builds, `v1/` and `v2/`, the second moving the first's running counters to new code, here and on every peer, or at a node's prompt from a shell attached to it | one module built twice, its unchanged definitions one hash in both; the processes that run a function, listed by `Code.running`, each sent its `Upgrade`; a spawn that carries the code a peer lacks; a build's function called at an attached node's prompt | chapters 4 and 8 |
 | [`snake.ern`](snake.ern) | a snake game at a terminal | a world that is one value, ticks kept to a deadline, keys as messages, randomness passed as a seed | chapters 2, 4 and 5 |
 

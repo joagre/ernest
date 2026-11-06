@@ -6542,19 +6542,19 @@ proxy_finds_again(Base) ->
     ?assertEqual(0, WaitDesk()),
     stop(Other, WaitOther).
 
-%% report §8.7, §6.6, Appendix E.27: examples/typed_channels_nodes.ern as
+%% report §8.7, §6.6, Appendix E.27: examples/remote_counter.ern as
 %% two nodes, as its first comment runs them: b runs serve, which offers
 %% the counter as its service, and a runs main, which finds the counter on
 %% b and calls it across the nodes. A regression test, written with the
 %% example; a find at another type is program_test_'s
-typed_channels_test_() ->
-    nodes_test({waits, 5}, fun typed_channels/1).
+remote_counter_test_() ->
+    nodes_test({waits, 5}, fun remote_counter/1).
 
-typed_channels(Base) ->
+remote_counter(Base) ->
     BuildRoot = filename:join(Base, "build"),
     0 = built(["--source-root", "../examples", "--build-root", BuildRoot,
-               "../examples/typed_channels_nodes.ern"]),
-    Program = filename:join(BuildRoot, "typed_channels_nodes.erc"),
+               "../examples/remote_counter.ern"]),
+    Program = filename:join(BuildRoot, "remote_counter.erc"),
     PortB = free_port(),
     ConfigDirA = made(Base, "a", none),
     ConfigDirB = made(Base, "b", PortB),
@@ -6564,7 +6564,7 @@ typed_channels(Base) ->
                              Configuration#{<<"services">> => #{<<"counter">> => [<<"b">>]}}
                      end),
     {_, WaitB} = launched(ConfigDirB, [?ERN, " run --config-dir ", ConfigDirB,
-                                       " --main TypedChannelsNodes.serve ", Program]),
+                                       " --main RemoteCounter.serve ", Program]),
     prints(ConfigDirB, "offered"),
     ?assertEqual(0, (start(ConfigDirA, Program, []))()),
     stop(ConfigDirB, WaitB),
