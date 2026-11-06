@@ -81,7 +81,7 @@ A rename of a document changes, in its own commit, CLAUDE.md's owner row and `do
 - [x] `docs/release_review.md`, `full_review.md`, `principles_review.md` → `docs/reviews/release.md`, `full.md`, `principles.md`
 - [x] `docs/memory.md` → `docs/memory_checks.md`
 - [x] `editors/emacs/test/broken/` → `editors/emacs/test/half_typed/`
-- [ ] Add `site/README.md`: a few lines pointing at `docs/development.md`'s layout and `site/templates/README.md`
+- [x] Add `site/README.md`: a few lines pointing at `docs/development.md`'s layout and `site/templates/README.md`
 - [ ] Add `docs/proposals/fides/README.md`: the proposal is exploratory, decided with the user 2026-11-06
 - [ ] `.gitignore`: `*.erc` under the build's heading; drop `.env` and `.env.local`
 
