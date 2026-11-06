@@ -17,7 +17,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 | Owner | Owns |
 |---|---|
 | the report | the language, the library and the toolchain |
-| [`docs/log.md`](docs/log.md) | the rationale: why the report and the plan say what they say. Never normative, changes with them |
+| [`docs/log/`](docs/log/README.md) | the rationale: why the report and the plan say what they say. Never normative, changes with them |
 | [`docs/plan.md`](docs/plan.md) | the roadmap and where we are. Illustrative, as the programs under `examples/` are |
 | the code and its tests | what is built |
 | [`docs/architecture.md`](docs/architecture.md) | how the code is arranged |

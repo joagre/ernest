@@ -1,6 +1,6 @@
 # The report
 
-The definition of Ernest, in three files, and the only normative document: where another document and the report differ, the report holds. It is for whoever builds or checks a toolchain, writes a library against the language's exact rules, or wants to know what a sentence of the guide rests on. It states each rule once, in the register of a language report, with no rationale; the reasons are the log's, [`docs/log.md`](../docs/log.md), dated.
+The definition of Ernest, in three files, and the only normative document: where another document and the report differ, the report holds. It is for whoever builds or checks a toolchain, writes a library against the language's exact rules, or wants to know what a sentence of the guide rests on. It states each rule once, in the register of a language report, with no rationale; the reasons are the log's, [`docs/log/`](../docs/log/README.md), dated.
 
 | File | What it holds |
 |---|---|

@@ -1,7 +1,7 @@
 # Plan
 
 The roadmap: what will be built, in what order, and what is built already. Why anything is the
-way it is belongs to [`log.md`](log.md), what the language is to
+way it is belongs to [`log/`](log/README.md), what the language is to
 the report in [`report/`](../report/), how the code is arranged to
 [`architecture.md`](architecture.md), and the commands and what the toolchain does not do yet
 to [`development.md`](development.md).
@@ -72,9 +72,6 @@ the final names and no session stops twice (the log's *The Layout's Rest First*)
 
 In an item session:
 
-- Group 2: `docs/log.md` split by month, one file holding the index and the standing sections,
-  since GitHub does not render it at 2.6 MB and the site's citations lead nowhere until then. The
-  generator and the documents test resolve a citation's title to its file and anchor.
 - Group 6's files: `README.md` from its draft, which first takes the two changes made since it
   was cut, the smaller logo and the sentence on `src/` and `tools/`; `guide/why.md` from its
   draft; the first claim renamed "Code travels"; the release README's first sentence; and

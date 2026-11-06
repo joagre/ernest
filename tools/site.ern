@@ -69,7 +69,7 @@ fn generated(root : Path,
     let shell <- shellRead(config);
     let templates <- templatesRead(root <> Path("site/templates"));
     let library <- Site.Library.read(root);
-    let logText <- Site.Run.textOf(root <> Path("docs/log.md"));
+    let logText <- Site.Run.textOf(root <> Path("docs/log/README.md"));
     let log <- Site.Links.logEntries(logText);
     let unrunnable <- Site.Run.unrunnableRead(root);
     let assets <- rootCopied(root <> Path("site/root"), out);

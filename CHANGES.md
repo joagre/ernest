@@ -10,7 +10,7 @@ A program written for 0.8.0 changes these things. Its modules are built again, s
 
 `Json.parse`'s `UnexpectedByte` and `UnexpectedSequence` carry where they begin, `at = Position(line, column)`, and the sequence is a `String`. `Http.render` is `Http.renderResponse`, `Time.civil` is `Time.toCivil`, and `Time.weekday` takes a `Civil`. A module named `ernest.ern`, or under `ernest/`, is refused, the namespace being the toolchain's own. A clause whose guard is the literal `false` is refused as a redundant clause.
 
-Until 1.0 a release may refuse a program the previous release accepted, as the plan says. The report of this release is what holds. What changed since 0.8.0 is the report's diff, `git diff v0.8.0 v0.9.0 -- report/`, and why is the decision log's entries after *The Release Review Before 0.8.0* in `docs/log.md`.
+Until 1.0 a release may refuse a program the previous release accepted, as the plan says. The report of this release is what holds. What changed since 0.8.0 is the report's diff, `git diff v0.8.0 v0.9.0 -- report/`, and why is the decision log's entries after *The Release Review Before 0.8.0* in `docs/log/`.
 
 What changed:
 
@@ -63,7 +63,7 @@ Ernest 0.8.0 is the release of the pun: a field given or matched by the variable
 
 A program written for 0.7.0 changes these things. Its modules are built again, since `ern run`, `ern test` and `Code.load` refuse a compiled form another build of `ern` wrote. A node of 0.8.0 and one of 0.7.0 do not connect, as two minor releases never do. A `receive` with an `after` clause alone is refused and is written `Clock.sleep(ms)`; a function that waited so receives nothing now, and a `receiving e` written on it is refused. `Clock.alarm` and `Clock.alarmAt` answer an `Alarm`, so a site that drops it writes `let _ =`. A request whose only field is its reply is declared positional and passed to `Address.call` bare, which the style asks for and the style test holds, as it holds the pun.
 
-Until 1.0 a release may refuse a program the previous release accepted, as the plan says. The report of this release is what holds. What changed since 0.7.0 is the report's diff, `git diff v0.7.0 v0.8.0 -- report/`, and why is the decision log's entries after *The Release Review Before 0.7.0* in `docs/log.md`.
+Until 1.0 a release may refuse a program the previous release accepted, as the plan says. The report of this release is what holds. What changed since 0.7.0 is the report's diff, `git diff v0.7.0 v0.8.0 -- report/`, and why is the decision log's entries after *The Release Review Before 0.7.0* in `docs/log/`.
 
 What changed:
 
@@ -113,7 +113,7 @@ A program written for 0.6.0 changes these things. Its modules are built again, s
 
 `ern test` exits with status 1 where a process faulted during the run, a service binding starting under it as under `ern run`. A node whose carrier cannot start ends as a job that cannot start, with status 1 and no fault. In a shell, `Os.exit` faults a process an input started, a site carries its session's namespace, `let p <- e` is taken at the prompt, and `:quit` leaves an attached shell with its node running on. `restarting` called in a function the runtime applies faults, and a foreign function typed by its callback receives through it alone. Four library functions are new, each marked `since 0.7.0`.
 
-Until 1.0 a release may refuse a program the previous release accepted, as the plan says. The report of this release is what holds. What changed since 0.6.0 is the report's diff, `git diff v0.6.0 v0.7.0 -- report/`, and why is the decision log's entries after *The Release Review Before 0.6.0* in `docs/log.md`.
+Until 1.0 a release may refuse a program the previous release accepted, as the plan says. The report of this release is what holds. What changed since 0.6.0 is the report's diff, `git diff v0.6.0 v0.7.0 -- report/`, and why is the decision log's entries after *The Release Review Before 0.6.0* in `docs/log/`.
 
 What changed:
 

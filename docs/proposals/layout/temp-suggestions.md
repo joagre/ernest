@@ -13,7 +13,7 @@ The actions from the walk of 2026-11-04. The reasons are in `temp.txt`.
 ## 2. Before MVP 4.15's item 2
 
 - [x] Add `SECURITY.md`: where to report a security hole privately.
-- [ ] Split `docs/log.md` by month into `docs/log/<year>-<month>.md` and so on, with one file there holding the index and the standing sections; the generator and the documents test resolve a citation's title to its file and anchor.
+- [x] Split `docs/log.md` into a file a day, `docs/log/<year>-<month>-<day>.md`, since a month's passes what GitHub renders, with `docs/log/README.md` holding the index and the standing sections; the generator and the documents test resolve a citation's title to its file and anchor (the log's *The Log by Day*).
 
 ## 3. The restructuring, in one commit with its sweep, after MVP 4.2 closes and before MVP 4.15's item 2
 

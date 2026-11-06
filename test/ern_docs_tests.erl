@@ -1,7 +1,7 @@
 %% The documents held to what they name: every `§x.y`, appendix by its
 %% letter, and `E.n` written in a live document or in the code names a
 %% heading of the report, and `guide §x.y`, `the guide's §x.y` and the
-%% guide's own bare `§x.y` a heading of the guide, docs/log.md
+%% guide's own bare `§x.y` a heading of the guide, docs/log/
 %% being history and not checked; the contents lists, the tour's blocks,
 %% the paths the documents and the toolchain's comments name, the release's
 %% pages, the third parties' licenses, the glossary, the fault causes, the
@@ -565,7 +565,7 @@ version_test() ->
 %% history, and the proposals aside, as tools/version.sh reads them.
 start_line_documents() ->
     [File || File <- string:lexemes(os:cmd("git -C " ++ ?ROOT ++ " ls-files '*.md'"), "\n"),
-             File =/= "docs/log.md", not lists:prefix("docs/proposals/", File)].
+             not lists:prefix("docs/log/", File), not lists:prefix("docs/proposals/", File)].
 
 %% A shell's start line naming Version, as a pattern (report §11.2).
 start_line(Version) ->
@@ -594,7 +594,7 @@ page_links(IndexText) ->
 documents() ->
     Tracked = string:lexemes(os:cmd("git -C " ++ ?ROOT ++ " ls-files '*.md'"), "\n"),
     Found = [File || File <- Tracked,
-                     not lists:member(File, ["guide/language.md", "docs/log.md"]),
+                     File =/= "guide/language.md", not lists:prefix("docs/log/", File),
                      not lists:prefix("docs/man/", File)],
     ?assert(length(Found) > 15),
     Found.
@@ -789,27 +789,67 @@ frames_sentence(File) ->
     [Sentence | _] = binary:split(Rest, <<". ">>),
     binary:replace(Sentence, <<"`">>, <<>>, [global]).
 
-%% docs/log.md: its index names every section by its title, the standing
-%% ones and the dated entries, and links each by the anchor a renderer gives
-%% its heading, which the site's generator links a citation of the log by
-%% (tools/site/links.ern). A regression test, written after the index had
-%% missed thirty-eight entries (the log's *A Port Lost While It Starts*),
-%% and after two of its anchors were found wrong as the generator's third
-%% stage was built; it reads the anchors as the contents lists' test does.
+%% docs/log/README.md: its index names every section by its title, the
+%% standing ones and the dated entries, and links each by its file and the
+%% anchor a renderer gives its heading, which the site's generator links a
+%% citation of the log by (tools/site/links.ern). A regression test, written
+%% after the index had missed thirty-eight entries (the log's *A Port Lost
+%% While It Starts*), and after two of its anchors were found wrong as the
+%% generator's third stage was built; it reads the anchors as the contents
+%% lists' test does.
 log_index_names_every_section_test() ->
-    Log = ern_repository:read("docs/log.md"),
-    [_, AfterHeading] = binary:split(Log, <<"\n## Index\n">>),
-    [Index, _] = binary:split(AfterHeading, <<"\n## ">>),
-    {match, Named} = re:run(Index, "\\[((?:[^][]|\\[[^]]*\\])+)\\]\\(#([^)]+)\\)",
-                            [global, {capture, all_but_first, binary}]),
-    {match, Heads} = re:run(Log, "^## (.+)$",
-                            [global, multiline, {capture, all_but_first, binary}]),
-    Titles = [hd(binary:split(Head, <<", 2026-">>)) || [Head] <- Heads, Head =/= <<"Index">>],
-    Anchors = [Anchor || {2, _, Anchor} <- anchored(heads(Log))],
+    Named = log_index_links(log_index()),
+    Sections = [{list_to_binary(filename:basename(File)), Head, Anchor}
+                || File <- ern_repository:files(["docs/log/*.md"]),
+                   {2, Head, Anchor} <- anchored(heads(ern_repository:read(File))),
+                   Head =/= <<"Index">>],
+    Titles = [hd(binary:split(Head, <<", 2026-">>)) || {_, Head, _} <- Sections],
     ?assert(length(Titles) > 500),
-    ?assertEqual([], Titles -- [Name || [Name, _] <- Named]),
-    ?assertEqual([], [{Name, Anchor} || [Name, Anchor] <- Named,
-                                        not lists:member(Anchor, Anchors)]).
+    ?assertEqual([], Titles -- [Name || [Name, _, _] <- Named]),
+    Places = [{File, Anchor} || {File, _, Anchor} <- Sections],
+    ?assertEqual([], [Link || [_, File, Anchor] = Link <- Named,
+                              not lists:member({File, Anchor}, Places)]).
+
+%% docs/log/README.md: an entry stands in the file of its date, which the
+%% index dates it by, and no file of the log passes 256 KB, the ceiling that
+%% keeps it under what GitHub renders (the log's *The Log by Day*). A
+%% regression test, written with the split, after seventeen of the index's
+%% links were found under another day; it does not ask GitHub, whose limit
+%% it takes as measured there.
+log_files_test() ->
+    Files = ern_repository:files(["docs/log/*.md"]),
+    Days = Files -- ["docs/log/README.md"],
+    ?assert(length(Days) > 50),
+    ?assertEqual([], [File || File <- Days,
+                              re:run(filename:basename(File),
+                                     "^\\d{4}-\\d{2}-\\d{2}\\.md$") =:= nomatch]),
+    ?assertEqual([], [{File, Head} || File <- Days,
+                                      {2, Head} <- heads(ern_repository:read(File)),
+                                      binary:match(Head, day(File)) =:= nomatch]),
+    {match, Dated} = re:run(log_index(), "^\\*\\*(\\d{4}-\\d{2}-\\d{2})\\.\\*\\*(.*)$",
+                            [global, multiline, {capture, all_but_first, binary}]),
+    ?assertEqual([], [{Day, File} || [Day, Line] <- Dated, [_, File, _] <- log_index_links(Line),
+                                     File =/= <<Day/binary, ".md">>]),
+    ?assertEqual([], [File || File <- Files,
+                              byte_size(ern_repository:read(File)) > 256 * 1024]).
+
+%% The date a day's file of the log is named for.
+day(File) ->
+    list_to_binary(filename:basename(File, ".md")).
+
+%% The log's index, its section of docs/log/README.md.
+log_index() ->
+    [_, AfterHeading] = binary:split(ern_repository:read("docs/log/README.md"),
+                                     <<"\n## Index\n">>),
+    [Index, _] = binary:split(AfterHeading, <<"\n## ">>),
+    Index.
+
+%% The links of a part of the log's index, each its title, its file and its
+%% anchor.
+log_index_links(Text) ->
+    {match, Links} = re:run(Text, "\\[((?:[^][]|\\[[^]]*\\])+)\\]\\(([^)#]+)#([^)]+)\\)",
+                            [global, {capture, all_but_first, binary}]),
+    Links.
 
 %% A copyright in the first lines, an upstream author's header.
 borrowed(Text) ->

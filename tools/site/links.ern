@@ -16,8 +16,9 @@
 /// own address, the tag the site is built from, the anchors of each
 /// document a link names a heading of (`anchors`), each declaration of the
 /// library by its qualified name, the log's entries, each title with the
-/// GitHub anchor of each entry of that title, as `logEntries` reads them,
-/// and the types its own code declares, which `Site.Code.declared` reads.
+/// file under docs/log/ and the GitHub anchor of each entry of that title, as
+/// `logEntries` reads them, and the types its own code declares, which
+/// `Site.Code.declared` reads.
 export type Page =
     Page(source : String,
          address : String,
@@ -366,10 +367,10 @@ fn inlineLinked(previous : Optional(Markdown.Inline),
                     | None -> inline
                   }])
       | Markdown.Emphasis(inlines) when isLogCited(previous) ->
-            Either.map(logEntry(page, inlines), fn(anchor) = [logLink(page, inline, anchor)])
+            Either.map(logEntry(page, inlines), fn(place) = [logLink(page, inline, place)])
       | Markdown.Emphasis(inlines) when page.source == "CHANGES.md"
             && Map.contains(page.log, Site.Html.plain(inlines)) ->
-            Either.map(logEntry(page, inlines), fn(anchor) = [logLink(page, inline, anchor)])
+            Either.map(logEntry(page, inlines), fn(place) = [logLink(page, inline, place)])
       | Markdown.Emphasis(inlines) ->
             Either.map(inlinesLinked(inlines, page), fn(linked) = [Markdown.Emphasis(linked)])
       | Markdown.Strong(inlines) ->
@@ -577,9 +578,10 @@ export fn declarationAt(name : String, page : String) : Optional(Declaration) =
                  fn(index) =
                      Declaration(namespace = String.slice(name, 0, index), =page, anchor = name))
 
-/// Each title of the log's entries with the GitHub anchor of each entry of
-/// that title, as the log's index links them, the index naming every entry
-/// by its title; or why there are none: a log with no index.
+/// Each title of the log's entries with the file under docs/log/ and the
+/// GitHub anchor of each entry of that title, as the log's index links them,
+/// the index naming every entry by its title; or why there are none: a log
+/// with no index.
 export fn logEntries(log : String) : Either(String, Map(String, List(String))) =
     match String.splitOnce(log, "\n## Index\n") {
         Some(#(_, following)) -> {
@@ -593,22 +595,20 @@ export fn logEntries(log : String) : Either(String, Map(String, List(String))) =
             });
             Right(List.foldLeft(linked,
                                 Map.empty,
-                                fn(acc, #(title, anchor)) =
+                                fn(acc, #(title, place)) =
                                     Map.update(acc,
                                                title,
                                                fn(found) =
-                                                   Optional.withDefault(found, []) <> [anchor])))
+                                                   Optional.withDefault(found, []) <> [place])))
         }
       | None ->
-            Left("docs/log.md has no index, whose links name each entry's anchor")
+            Left("docs/log/README.md has no index, whose links name each entry's file and anchor")
     }
 
 fn indexEntry(inline : Markdown.Inline) : Optional(#(String, String)) =
     match inline {
-        Markdown.Link(=text, =url) ->
-            Optional.map(stripped(url, "#"), fn(anchor) = #(Site.Html.plain(text), anchor))
-      | _ ->
-            None
+        Markdown.Link(=text, =url) -> Some(#(Site.Html.plain(text), url))
+      | _ -> None
     }
 
 // Whether the text before an emphasis names the log, `the log's *Title*`.
@@ -618,13 +618,13 @@ fn isLogCited(previous : Optional(Markdown.Inline)) : Bool =
       | _ -> false
     }
 
-// The anchor of the log's entry a title names, or why there is none: no
-// entry of that title, or several.
+// The file and anchor of the log's entry a title names, or why there is
+// none: no entry of that title, or several.
 fn logEntry(page : Page, title : List(Markdown.Inline)) : Either(String, String) = {
     let named = Site.Html.plain(title);
     match Map.get(page.log, named) {
-        Some([anchor]) ->
-            Right(anchor)
+        Some([place]) ->
+            Right(place)
       | Some(_) ->
             Left(page.source <> " cites the log's *" <> named <> "*, a title several entries hold")
       | None ->
@@ -634,8 +634,8 @@ fn logEntry(page : Page, title : List(Markdown.Inline)) : Either(String, String)
 
 // A citation of the log, its title as the source writes it, linked to the
 // entry on GitHub at the tag (decisions *Links*).
-fn logLink(page : Page, title : Markdown.Inline, anchor : String) : Markdown.Inline =
-    Markdown.Link(text = [title], url = github(page.tag, "docs/log.md") <> "#" <> anchor)
+fn logLink(page : Page, title : Markdown.Inline, place : String) : Markdown.Inline =
+    Markdown.Link(text = [title], url = github(page.tag, "docs/log/" <> place))
 
 //
 // The citations

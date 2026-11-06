@@ -540,3 +540,10 @@ beside themselves, test/build/ and test/ebin/, as an application's do. Every
 mention above of every build product standing under build/ stands corrected by
 this.
 
+The log's split corrected, decided with the user 2026-11-06
+-----------------------------------------------------------
+Measured on GitHub, a month's file would not render: rendering stops between
+301 KB and 309 KB, and September holds 1,006 KB and October 1,349 KB. So the log
+is a file a day, docs/log/<year>-<month>-<day>.md, with docs/log/README.md
+holding the index and the standing sections (the log's *The Log by Day*). Every
+mention above of a split by month stands corrected by this.

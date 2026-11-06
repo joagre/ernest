@@ -247,8 +247,8 @@ The site's files as served.
   cites it is not listed, since a library page already links to the rule
   it follows (decided 2026-11-03). The mockup over a real section shows whether the line stays
   short.
-- A citation of the log links to the log on GitHub, by the anchor the
-  log's own index gives the entry, which the documents test holds equal to
+- A citation of the log links to the log on GitHub, by the file and the
+  anchor the log's own index gives the entry, which the documents test holds equal to
   the heading's; the form is the log's *Title*, and in `CHANGES.md` an
   entry's title alone, as the release step writes a change's line; a title
   no entry or two entries hold is refused (decided 2026-11-03).

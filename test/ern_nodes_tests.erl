@@ -735,7 +735,7 @@ received(Socket, Length) ->
     step({received, Socket}),
     gen_tcp:recv(Socket, Length, ?WAIT_MS).
 
-%% docs/log.md, *The Harness Counts a Test's Steps*: a step past a test's
+%% the log's *The Harness Counts a Test's Steps*: a step past a test's
 %% count fails the test at once, naming the step and the count, and a
 %% failed test leaves no count behind in its process. A regression test,
 %% written after the counter; it does not cover a step taken in another
@@ -749,7 +749,7 @@ two_steps() ->
     step(first),
     step(second).
 
-%% docs/log.md, *The Harness Counts a Test's Steps*: a test that ends short
+%% the log's *The Harness Counts a Test's Steps*: a test that ends short
 %% of its count fails, naming the steps it took and its count. A regression
 %% test, written after the counter.
 fewer_steps_than_counted_test() ->

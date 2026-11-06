@@ -4,7 +4,7 @@ The project's own documents: what each file and directory here is, and the READM
 
 - **[`development.md`](development.md)**: where things are, how to build and test them, and what the toolchain does not do yet.
 - **[`plan.md`](plan.md)**: where the project stands and what comes next.
-- **[`log.md`](log.md)**: the dated rationale for the report and the plan, and what was rejected. Not normative.
+- **[`log/`](log/README.md)**: the dated rationale for the report and the plan, and what was rejected, a file a day. Not normative.
 - **[`architecture.md`](architecture.md)**: how the toolchain is built, from the lexer to the runtime, and what each test runs.
 - **[`design/`](design/)**: the design notes of built components, each changing when its component does: [`shell.md`](design/shell.md), how the shell is built; [`install.md`](design/install.md), how a checkout and the release archive are installed; [`emacs_mode.md`](design/emacs_mode.md), what the Emacs major mode does and the tests that judge it; [`runtime.md`](design/runtime.md), what the runtime keeps and where, the look, a launch, a call, a kill, the boundary and the frames, as they stand; [`nodes.md`](design/nodes.md), how a node connects, loses and keeps its peers' frames; [`code.md`](design/code.md), how code is known by its hash, crosses and is held.
 - **[`memory_checks.md`](memory_checks.md)**: how the project checks that nothing grows with the work done.

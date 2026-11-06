@@ -41,7 +41,7 @@ rewrite() {
 }
 
 # The tracked documents that hold a start line, grep's 1 being none.
-documents=$(git -C "$repo" ls-files -- '*.md' ':!docs/log.md' ':!docs/proposals/')
+documents=$(git -C "$repo" ls-files -- '*.md' ':!docs/log/' ':!docs/proposals/')
 held=$(cd "$dir" && grep -l "^Ernest $was$start" $documents) || [ $? -eq 1 ]
 for file in $held; do
     rewrite "$file" "s/^Ernest $was$start/Ernest $new$rest/"

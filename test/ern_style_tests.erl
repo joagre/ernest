@@ -148,7 +148,8 @@ no_tab_test() ->
                 "editors/emacs/*.el", "editors/emacs/test/*.el",
                 "editors/emacs/test/half_typed/*.ern", "src/libs/**/*.ern", "src/libs/*/*.md",
                 "tools/**/*.ern", "tools/**/*.erl", "tour/*/*.ern", "tools/*.sh",
-                "test/machines/*.sh", "bin/ern", "*.md", "docs/*.md", "docs/reviews/*.md"],
+                "test/machines/*.sh", "bin/ern", "*.md", "docs/*.md", "docs/log/*.md",
+                "docs/reviews/*.md"],
     Files = [File || File <- ern_repository:files(Patterns),
                      filename:basename(File) =/= "getopt.erl",
                      not lists:prefix("test/build/", File)],
@@ -579,7 +580,7 @@ pun_test_() ->
 %% fences and its console's inputs, and a session's fixture's inputs.
 pun_tokens() ->
     Documents = string:lexemes(os:cmd("git -C " ++ ?ROOT ++ " ls-files -- '*.md'"
-                                      " ':!docs/log.md' ':!docs/proposals/' ':!docs/man/'"),
+                                      " ':!docs/log/' ':!docs/proposals/' ':!docs/man/'"),
                                "\n"),
     ?assert(length(Documents) > 20),
     Fences = [{File, Fence} || File <- Documents -- ?DOCUMENTS, Fence <- fences(numbered(File)),
