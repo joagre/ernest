@@ -250,8 +250,8 @@ version:
 	@sh tools/version.sh "$(V)"
 	@$(MAKE) -s man
 
-# The website, build/site/, from the release a tag names (plan, MVP 4.2
-# item 5; docs/proposals/site/decisions.md *The generation*): the tag
+# The website, build/site/, from the release a tag names (docs/design/site.md
+# *The generation*): the tag
 # exported by git archive into build/site-source/, the toolchain built there
 # and make man run there, the checkout untouched, and the tag's own
 # generator run over the export with the server's configuration, CONFIG,

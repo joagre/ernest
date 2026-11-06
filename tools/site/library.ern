@@ -2,7 +2,7 @@
 // The library's pages (plan, MVP 4.2 item 2): each module's page of
 // docs/man/, which `make man` writes, at its path under /man/, the
 // declarations every page's qualified names link to, and the contents
-// pages, as docs/proposals/site/decisions.md's *The root* says:
+// pages, as docs/design/site.md's *The root* says:
 // /man/ lists the standard library's modules and the libraries in two
 // groups, a module a line, its name and the purpose its own page opens
 // with, and ends with the toolchain's §11; /man/stdlib/ and /man/libs/
@@ -63,7 +63,7 @@ export fn read(root : Path) : Either(String, Library) = {
 /// `Markdown.Block`, in its module's page, anchored by that name: a heading
 /// of a module's page whose signature follows it, a type or a function. A
 /// prelude name that no namespace qualifies, `spawn`, is a bare name, and
-/// none of them (docs/proposals/site/decisions.md *Links*).
+/// none of them (docs/design/site.md *Links*).
 export fn declarations(library : Library) : Map(String, Site.Links.Declaration) = {
     let modules = List.flatMap(library.groups, fn(group) = group.modules);
     Map.fromList(List.flatMap(modules, moduleDeclarations))
@@ -180,7 +180,7 @@ fn isSince(inlines : List(Markdown.Inline)) : Bool =
 fn moduleWritten(run : Site.Run.Run, module : Module) : Either(String, Row) = {
     let #(since, rest) = sinceOf(module.blocks);
     let #(blocks, source) = generated(module.path, rest);
-    // decisions *The live shell*: a library's examples need `:load` in a
+    // site.md *The live shell*: a library's examples need `:load` in a
     // bare shell, which the panel's is
     let offered = if module.library == None then Site.Code.Paste else Site.Code.CopyAlone;
     let documented = Site.Code.documented(blocks, offered);

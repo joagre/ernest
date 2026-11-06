@@ -1,5 +1,5 @@
 %% The blocks the site offers the shell, each pasted into a bare `ern shell`
-%% as the page's client pastes it (docs/proposals/site/decisions.md, *The
+%% as the page's client pastes it (docs/design/site.md, *The
 %% live shell*): every block given Paste or Load, and every transcript
 %% input given Paste, through the pseudo-terminal harness (ern_pty). The
 %% site is written by the generator from the checkout's own documents, as
@@ -38,7 +38,7 @@
         <<"# The blocks a bare shell cannot run\n\nThe blocks of the site's pages that a bare `ern"
           " shell` cannot run, each by its page's address and its first line, a transcript's by"
           " its first input. The site's generator gives each Copy alone, as the site's"
-          " decisions say in *The live shell*. The test `test/ern_site_shell_tests.erl` pastes"
+          " design says in *The live shell*. The test `test/ern_site_shell_tests.erl` pastes"
           " every block the site offers the shell, and every block listed here, into a bare"
           " shell, and holds this list equal to what it finds; `make site-unrunnable` writes it"
           " again.\n">>).
@@ -49,7 +49,7 @@
 -record(block, {address :: string(), line :: binary(), kind :: paste | load | transcript,
                 text :: binary(), inputs = [] :: [binary()], shown = 0 :: non_neg_integer()}).
 
-%% docs/proposals/site/decisions.md *The live shell*: a test runs every
+%% docs/design/site.md *The live shell*: a test runs every
 %% block given Paste or Load, and every transcript input given Paste, in a
 %% bare shell; site/unrunnable.md lists those it cannot run, and nothing
 %% else.

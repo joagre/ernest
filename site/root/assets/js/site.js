@@ -1,4 +1,4 @@
-// What the script adds to a page (docs/proposals/site/decisions.md, *The
+// What the script adds to a page (docs/design/site.md, *The
 // live shell*): the shell panel and its two buttons, beside and below, with
 // its session over the server's WebSocket; a code block's Copy, Paste and
 // Load, a transcript's Paste for each input, and the example's Try it; the
@@ -8,7 +8,7 @@
 // What the generator read, which the page names on this script's element:
 // the icons' file, whose name holds a digest of its content as this
 // script's does, the shell's path on the server, and the session's lifetime
-// as a page says it, from the server's configuration (decisions *The
+// as a page says it, from the server's configuration (site.md *The
 // templates*).
 const script = document.currentScript;
 const here = script.src;
@@ -247,7 +247,7 @@ async function startSession() {
         terminal.onResize((size) => sendText({ resize: [size.rows, size.cols] }));
         // The shell takes Tab, Shift-Tab and Escape, so F6, which report
         // §11.2's editor binds to nothing, moves the focus out of the terminal
-        // to the panel's controls (decisions *The live shell*).
+        // to the panel's controls (site.md *The live shell*).
         terminal.attachCustomKeyEventHandler((event) => {
             if (event.key !== "F6") {
                 return true;

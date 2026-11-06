@@ -1,6 +1,6 @@
 # The site's templates
 
-The token files the generator, [`tools/site.ern`](../../tools/site.ern), fills. Each is HTML written to be read, as the site's [decisions](../../docs/proposals/site/decisions.md) say in *The templates*, with tokens `{{name}}` where the generator puts its values. The pages it writes stand under `build/site/`, which `make site` writes from a release's tag; serve that directory to see them, `python3 -m http.server 8080 --directory build/site` or ernest-httpd, since a page opened as a file finds neither its stylesheet nor its icons. The mockup's pages, under `docs/proposals/site/root/mockup/`, are the look as it was settled by hand.
+The token files the generator, [`tools/site.ern`](../../tools/site.ern), fills. Each is HTML written to be read, as the site's [design note](../../docs/design/site.md) says in *The templates*, with tokens `{{name}}` where the generator puts its values. The pages it writes stand under `build/site/`, which `make site` writes from a release's tag; serve that directory to see them, `python3 -m http.server 8080 --directory build/site` or ernest-httpd, since a page opened as a file finds neither its stylesheet nor its icons.
 
 ## The templates
 
@@ -47,7 +47,7 @@ A test, `test/ern_site_tests.erl`, holds each file here to the tokens its row li
 ## How they are filled
 
 - A file is cut at its tokens once and joined with the values; there is no templating language. A token that holds no value is written as nothing, and a line that holds only such a token is left out.
-- A plain token is escaped. A `*_html` token takes only HTML the generator makes, as the decisions say; `layout` takes one of `doc-layout`, `doc-single`, where the page has no heading for a sidebar, and `error-page`, the 404 page's.
+- A plain token is escaped. A `*_html` token takes only HTML the generator makes, as the design note says; `layout` takes one of `doc-layout`, `doc-single`, where the page has no heading for a sidebar, and `error-page`, the 404 page's.
 - `heading_html` is the page's `h1` whole, its anchor its number where it has one.
 - A value of several lines stands alone on its token's line, and is indented as that line is, so that the page reads as its template does; a fragment's last line feed is dropped. A `<pre>`'s body is written as it is, from the line's start.
 - A link names a directory by its own form, `/guide/`. `stylesheet`, `script` and `icons` are the files' names with their digests, `/assets/js/site.3f9a2c1e.js`, and the script finds the icons' name on its own element, `data-icons`, beside the server's `shell.path`, `data-shell-path`, where it opens the session's socket, and the session's lifetime as the shell's page says it, `data-lifetime`, which its notice at an expired session names.

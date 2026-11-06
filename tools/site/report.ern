@@ -1,11 +1,11 @@
 //
 // The report's pages (plan, MVP 4.2 item 2): each of its three files whole,
-// a page each, as docs/proposals/site/decisions.md's *The root* says, under
+// a page each, as docs/design/site.md's *The root* says, under
 // the report's name with the file's revision; its chapters and sections
 // anchored by their numbers or their appendices' letters, a sidebar two
 // levels deep, previous and next in the order language, toolchain,
 // library, and under each section the guide cites the guide's sections
-// that cite it (decisions *Links*); and the report's contents page, each
+// that cite it (site.md *Links*); and the report's contents page, each
 // file with its chapters a line each. A report's code block gets Copy
 // alone.
 //

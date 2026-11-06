@@ -2,7 +2,7 @@
 // A page's links (plan, MVP 4.2 item 2): a citation in the text made a link
 // to the section it names, and a link the source writes for GitHub led to
 // the page the site shows its target on, as
-// docs/proposals/site/decisions.md's *Anchors* and *Links* say. A citation
+// docs/design/site.md's *Anchors* and *Links* say. A citation
 // is a form the documents' test reads (test/ern_docs_tests.erl): `§x.y`,
 // alone or after the report, the guide or the deployment guide, an
 // appendix or one of its sections, and `E.n`; and beside them the log's
@@ -49,7 +49,7 @@ type Owner = Report | Guide | Deployment | Bare
 //
 
 // The site's page of a document of the repository, by its path
-// (docs/proposals/site/decisions.md *The root*).
+// (docs/design/site.md *The root*).
 fn shown(path : String) : Optional(Shown) =
     match path {
         "guide/language.md" -> Some(Book("/guide/"))
@@ -71,7 +71,7 @@ fn shown(path : String) : Optional(Shown) =
     }
 
 // A module's page of docs/man/, `/man/stdlib/list.html` for
-// docs/man/stdlib/list.md, at its path there (decisions *The root*).
+// docs/man/stdlib/list.md, at its path there (site.md *The root*).
 fn manualPage(path : String) : Optional(String) =
     match stripped(path, "docs/man/") {
         Some(rest) when String.endsWith(rest, ".md") ->
@@ -128,7 +128,7 @@ export fn headingAnchors(path : String,
     }
 
 /// A numbered heading's anchor, its number, and none for a heading that is
-/// not numbered (decisions *Anchors*).
+/// not numbered (site.md *Anchors*).
 export fn numberAnchor(text : String) : Optional(Site.Html.Anchor) =
     Optional.map(number(text),
                  fn(found) = Site.Html.Anchor(id = found, label = "Link to " <> found))
@@ -554,7 +554,7 @@ fn local(page : Page, led : String) : String =
 /// docs/man/, a type or a function, and no code of the page declares a
 /// type of its qualifier's name, which a module's own type would shadow
 /// (report §4.2); none for any other name, a bare one among them
-/// (docs/proposals/site/decisions.md *Links*).
+/// (docs/design/site.md *Links*).
 export fn declaration(page : Page, name : String) : Optional(String) =
     Optional.andThen(Map.get(page.declarations, name), fn(found) = declarationAddress(page, found))
 
@@ -633,7 +633,7 @@ fn logEntry(page : Page, title : List(Markdown.Inline)) : Either(String, String)
 }
 
 // A citation of the log, its title as the source writes it, linked to the
-// entry on GitHub at the tag (decisions *Links*).
+// entry on GitHub at the tag (site.md *Links*).
 fn logLink(page : Page, title : Markdown.Inline, place : String) : Markdown.Inline =
     Markdown.Link(text = [title], url = github(page.tag, "docs/log/" <> place))
 
@@ -755,7 +755,7 @@ fn sectionWord(pending : List(Char)) : #(Owner, String, List(Char)) = {
 }
 
 // Where a `§` leads: a bare one is the guide's own in the guide and the
-// report's in every other document (docs/proposals/site/decisions.md
+// report's in every other document (docs/design/site.md
 // *Links*).
 fn sectionAddress(owner : Owner, found : String, page : Page) : Either(String, String) =
     match owner {

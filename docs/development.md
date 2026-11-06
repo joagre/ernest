@@ -37,9 +37,10 @@ site/              the website's own files, which tools/site.ern reads: template
                    each binds; root/, the assets laid out as served, but the icons'
                    file, which the generator gathers from the icons; example.md,
                    the homepage's example, which ern_tour_tests runs on two nodes;
-                   and projects.md, the Projects page's list, a project a line, each
+                   projects.md, the Projects page's list, a project a line, each
                    with its icon under root/assets/img/projects/, which a test holds
-                   to its form
+                   to its form; and unrunnable.md, the blocks a bare shell cannot
+                   run, which a test holds equal to what it finds
 assets/            the logos, which assets/README.md lists with where each is used
 docs/              every other document, which docs/README.md lists, this one and the
                    catalog of diagnostics among them

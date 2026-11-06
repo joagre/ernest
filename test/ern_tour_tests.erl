@@ -154,7 +154,7 @@ readme(Base) ->
                   <<"the peer a ended">>],
                  stamped(Err)).
 
-%% site/example.md, the homepage's example (docs/proposals/site/decisions.md
+%% site/example.md, the homepage's example (docs/design/site.md
 %% *The homepage*); report §8.7, §11.2, Appendix E.27: `a` and `foo` made
 %% and listed in each other's as readme/1's are, `foo` started bare, the
 %% shell started as `a`, its start line the release's as the example shows

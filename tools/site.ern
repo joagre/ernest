@@ -2,7 +2,7 @@
 // The website's generator (plan, MVP 4.2 item 2): it reads the
 // repository's documents and the site's own files, site/templates/ and
 // site/root/, fills the templates, writes the site as static files, checks
-// every link of it, and ends, as docs/proposals/site/decisions.md's *The
+// every link of it, and ends, as docs/design/site.md's *The
 // generation* says. It writes the root's assets, the icons gathered into
 // one file, and the three logos the site shows; each kind of page through
 // the module that knows it, the guide and the tour (Site.Book), the report
@@ -20,24 +20,24 @@
 // revision its links to GitHub name and its pages' dates are read at; and
 // `config` the server's configuration file, whose `shell` gives the shell
 // page its numbers, and every page's script the shell's path and its
-// lifetime (decisions *The templates*). A page's date is its
+// lifetime (site.md *The templates*). A page's date is its
 // source's last commit at the tag, which git gives in the working
 // directory, a checkout, since an export has no history.
 //
 
 // The claims of Why the homepage shows, its first, the ones a newcomer
-// reads at once (decisions *The homepage*).
+// reads at once (site.md *The homepage*).
 let claimsShown : Int = 4
 
 // The descriptions of the pages whose text a template holds, each its
 // text's first sentence: the homepage's heading, and the shell page's
-// opening (decisions *Links*).
+// opening (site.md *Links*).
 let homeDescription : String = "Start a process on another node, and its code goes with it."
 
 let shellDescription : String =
     "An Ernest shell of your own, in this page, with a second node, foo, beside it."
 
-// The 404 page's fixed body (decisions *The generation*).
+// The 404 page's fixed body (site.md *The generation*).
 let notFoundText : String =
     "No page of the site has this address. The [homepage](/) leads to every part of it."
 
@@ -107,7 +107,7 @@ fn generated(root : Path,
 // The homepage, home.html: Why's first claims, each by its name and its
 // first sentence, linking to its heading in Why, and the example, the
 // counter typed into the shell and sent to the container's second node,
-// from site/example.md, which ern_tour_tests runs (decisions *The
+// from site/example.md, which ern_tour_tests runs (site.md *The
 // homepage*). Its footer names home.html, its text the site's own.
 fn homeWritten(run : Site.Run.Run) : Either(String, Unit) = {
     let source = "guide/why.md";
@@ -210,7 +210,7 @@ type Shell =
           memory : Int)
 
 // The shell's page, shell.html, its numbers the configuration's, so that
-// it says what the server enforces (decisions *The templates*).
+// it says what the server enforces (site.md *The templates*).
 fn shellWritten(run : Site.Run.Run, shell : Shell) : Either(String, Unit) = {
     let main <-
         Site.Run.filled(run,
@@ -334,7 +334,7 @@ fn megabytes(value : String) : Optional(Int) = {
 //
 
 // The page served for any unmatched path, page.html with its fixed body
-// and a footer that names no source (decisions *The generation*).
+// and a footer that names no source (site.md *The generation*).
 fn notFoundWritten(run : Site.Run.Run) : Either(String, Unit) = {
     let blocks = Markdown.parse(notFoundText);
     let main <-
@@ -456,7 +456,7 @@ fn digestWritten(out : Path, relative : String, bytes : Bytes) : Either(String, 
 // The icons' file, one symbol for each icon of the directory, by its
 // file's name, `<symbol id="copy">` of copy.svg, in the order of their
 // names, so that a page names an icon by one line, a `<use>` of its symbol
-// (decisions *The templates*). A symbol keeps its icon's `viewBox` and
+// (site.md *The templates*). A symbol keeps its icon's `viewBox` and
 // `fill`, and its children as they are; its line is the stylesheet's
 // `.icon`, which its `stroke` attributes leave to, and its size the page's.
 fn iconsGathered(directory : Path) : Either(String, String) = {
@@ -525,7 +525,7 @@ fn attributeOf(named : String, line : String) : Either(String, #(String, String)
 
 // The logos the site shows, at their paths in the repository's assets/:
 // the stoat in the header, the favicon, and the image a shared link shows
-// (docs/proposals/site/decisions.md *The look*).
+// (docs/design/site.md *The look*).
 fn logosCopied(root : Path, out : Path) : Either(String, Unit) = {
     let _ <- Site.Run.made(out <> Path("assets"));
     let _ <-

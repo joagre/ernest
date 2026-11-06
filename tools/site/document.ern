@@ -1,18 +1,18 @@
 //
 // The documents of one page each (plan, MVP 4.2 item 2), as
-// docs/proposals/site/decisions.md's *The root* and *The other pages* say:
+// docs/design/site.md's *The root* and *The other pages* say:
 // Why, guide/why.md, at /why/; the questions, guide/faq.md, at /faq/;
 // Install, the README's *Installing*, at /install/; Releases, CHANGES.md,
 // at /releases/; and the deployment guide, guide/deployment.md, at
 // /deployment/. A document that numbers none of its headings anchors each
 // by its GitHub anchor, a second heading of the same anchor numbered as
 // GitHub numbers it, and the deployment guide, which numbers them, by its
-// number (decisions *Anchors*). A page has a sidebar where it has two
+// number (site.md *Anchors*). A page has a sidebar where it has two
 // headings for it or more.
 //
 // Projects, site/projects.md, at /projects/, is such a document whose list
 // is the projects', each line through a fragment of its own: the project's
-// icon, its name linked to its repository, and its purpose (decisions *The
+// icon, its name linked to its repository, and its purpose (site.md *The
 // other pages*).
 //
 

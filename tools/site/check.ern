@@ -4,7 +4,7 @@
 // in it, made by the generator or written in a template, its `href` or its
 // `src`, leads to a file the site holds and, with a fragment, to an anchor
 // that file holds, an `id` of a page or a symbol of the icons' file, as
-// docs/proposals/site/decisions.md's *Links* says. A link with a scheme
+// docs/design/site.md's *Links* says. A link with a scheme
 // leads off the site and is not read. A site with a link that leads nowhere
 // is refused, each such link named with its page.
 //
@@ -104,7 +104,7 @@ fn targetOf(file : String, path : String) : String = {
 }
 
 // A page's address as a link names it, `/guide/` for guide/index.html
-// (decisions *The root*).
+// (site.md *The root*).
 fn addressOf(file : String) : String =
     if file == "index.html" then
         "/"

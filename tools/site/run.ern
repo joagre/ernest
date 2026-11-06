@@ -100,7 +100,7 @@ export fn pageWritten(run : Run, output : Output) : Either(String, Unit) = {
 }
 
 // The header's rooms, the page's own marked current
-// (docs/proposals/site/decisions.md *Every page*).
+// (docs/design/site.md *Every page*).
 fn navigationHtml(run : Run, room : Optional(String)) : Either(String, List(Site.Template.Line)) = {
     let rooms =
         [#("Why", "/why/"),
@@ -296,7 +296,7 @@ fn endsSentence(rest : List(Char), following : String) : Bool =
 
 /// The blocks with their citations and their links made the site's, each
 /// with the declarations its code links, and Copy alone for a block the
-/// bare shell cannot run (decisions *The live shell*).
+/// bare shell cannot run (site.md *The live shell*).
 export fn linkedAll(run : Run,
                     placed : List(Site.Code.Placed),
                     page : Site.Links.Page) : Either(String, List(Site.Code.Placed)) = {

@@ -115,7 +115,7 @@ export fn plain(inlines : List(Markdown.Inline)) : String =
                 "")
 
 /// A heading's element, at its level, with its class, and with its anchor
-/// and a link to itself where it has one (docs/proposals/site/decisions.md
+/// and a link to itself where it has one (docs/design/site.md
 /// *Anchors*).
 export fn heading(level : Int, text : List(Markdown.Inline), headed : Headed) : String = {
     let tag = "h" <> Int.toString(Int.min(Int.max(level, 1), 6));

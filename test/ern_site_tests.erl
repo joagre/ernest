@@ -36,7 +36,7 @@
 -define(VERSION, "9.9.9").
 -define(TAG, "52dd8971886d6ffd9e90a3f981f9ec79070358ee").
 %% The root's files whose names hold a digest of their content
-%% (docs/proposals/site/decisions.md *The generation*); the icons' file,
+%% (docs/design/site.md *The generation*); the icons' file,
 %% which the generator gathers, is named so too.
 -define(DIGESTED, ["assets/css/site.css", "assets/js/site.js"]).
 -define(ICONS, "../site/root/assets/img/icons").
@@ -52,7 +52,7 @@ generated_test_() ->
       {"dangling", {timeout, 30, fun dangling/0}},
       {"head", {timeout, 60, fun head/0}}]}.
 
-%% plan MVP 4.2 item 2, docs/proposals/site/decisions.md *The root*,
+%% docs/design/site.md *The root*,
 %% *Anchors*, *The homepage*, *Every page*, *The other pages*, *Links*, *The
 %% templates*, *The generation* and *The live shell*: every page the site
 %% has, as the expected pages show them.
@@ -93,7 +93,7 @@ pages() ->
     ?assertEqual([], [File || File <- Expected,
                               undigested(read(?EXPECTED, File)) =/= undigested(read(?OUT, File))]).
 
-%% docs/proposals/site/decisions.md *The look* and *The generation*: the
+%% docs/design/site.md *The look* and *The generation*: the
 %% root copied, laid out as served, the stylesheet, the script and the
 %% icons' file each under a name holding the first eight hexadecimal digits
 %% of its SHA-1 digest, and named so by every page; the vendored files and
@@ -114,7 +114,7 @@ assets() ->
     ?assertEqual([], [Name || Name <- [Icons | maps:values(Named)],
                               binary:match(Page, list_to_binary("\"/" ++ Name)) =:= nomatch]).
 
-%% docs/proposals/site/decisions.md *The templates*, site/templates/README.md:
+%% docs/design/site.md *The templates*, site/templates/README.md:
 %% the icons' file the generator gathers, a symbol for each icon of
 %% site/root/assets/img/icons/, by its file's name and in their order, each
 %% with its icon's viewBox and fill and its children as they are, and no
@@ -141,7 +141,7 @@ symbol(Icon, Name) ->
     iolist_to_binary(["\n  <symbol id=\"", Name, "\" viewBox=\"", ViewBox, "\" fill=\"", Fill,
                       "\">\n", [[Line, "\n"] || Line <- Lines], "  </symbol>\n"]).
 
-%% docs/proposals/site/decisions.md *Links*: a qualified name in code or in
+%% docs/design/site.md *Links*: a qualified name in code or in
 %% backticks links to its declaration in /man/ where a page of docs/man/
 %% heads it, an operator among them, and on the declaration's own page to
 %% its anchor alone; a bare name is text, and so is a name the library does
@@ -164,7 +164,7 @@ qualified() ->
     ?assertMatch({_, _}, binary:match(read(?OUT, "man/stdlib/list.html"),
                                       <<"<a href=\"#List.size\"><code>List.size</code></a>">>)).
 
-%% docs/proposals/site/decisions.md *Links*: a citation of the log, the
+%% docs/design/site.md *Links*: a citation of the log, the
 %% log's *Title*, links to its entry in the log on GitHub at the tag, by the
 %% file and the anchor the log's index gives it, and so does an entry the release notes
 %% name by its title alone, as docs/reviews/release.md has them name it;
@@ -183,7 +183,7 @@ logged() ->
     ?assertMatch({_, _}, binary:match(Releases, <<" <em>Faults</em>;">>)),
     ?assertMatch({_, _}, binary:match(Releases, <<"the log's ", Entry/binary>>)).
 
-%% docs/proposals/site/decisions.md *Links*: the site's own pages, the
+%% docs/design/site.md *Links*: the site's own pages, the
 %% homepage, the shell's and the 404 page, are each described by the first
 %% sentence of their text, which the generator states for the two whose
 %% text a template holds, home.html's heading and shell.html's opening.
@@ -206,7 +206,7 @@ refused() ->
     ?assertEqual(1, Status),
     ?assertMatch({_, _}, binary:match(Output, <<"build/site/out is there already">>)).
 
-%% docs/proposals/site/decisions.md *The templates*: the shell's page says
+%% docs/design/site.md *The templates*: the shell's page says
 %% what the server enforces, and every page's script opens the session's
 %% socket at the shell's path, so a configuration with no `shell`, a
 %% server that serves none, is refused, and so is one whose shell has no
@@ -225,7 +225,7 @@ unconfigured() ->
     ?assertEqual(1, Refused),
     ?assertMatch({_, _}, binary:match(Said, <<"pathless.json: the shell's path is a string">>)).
 
-%% docs/proposals/site/decisions.md *Links*: a citation of the log that
+%% docs/design/site.md *Links*: a citation of the log that
 %% names no entry of the log's index, or a title two entries hold, is
 %% refused, since its link would lead to neither.
 unlogged() ->
@@ -245,7 +245,7 @@ unlogged() ->
      end || {Title, Why} <- [{"No Such Entry", "which no entry is titled"},
                              {"Two of a Title", "a title several entries hold"}]].
 
-%% plan MVP 4.2 item 5, docs/proposals/site/decisions.md *Links*: the
+%% docs/design/site.md *Links*: the
 %% build's check of every internal link and anchor of the site it wrote,
 %% made or written by hand, refuses a site with one that leads nowhere,
 %% naming each with its page: here a raw block's link to a page that is not
@@ -277,7 +277,7 @@ dangling() ->
                                 " anchor /assets/img/" ++ Icons ++ " does not hold\n",
                         [global])).
 
-%% plan MVP 4.2 item 5, docs/proposals/site/decisions.md *The generation*:
+%% docs/design/site.md *The generation*:
 %% the generator run as `make site` runs it, over an export of the
 %% repository by git archive, here HEAD's, its documents, its library's
 %% pages and its log, with the site's own files as they stand, the
@@ -315,7 +315,7 @@ site_refusals_test() ->
     ?assertEqual(2, Before),
     ?assertMatch({_, _}, binary:match(Refused, <<"v0.9.0 holds no site/">>)).
 
-%% docs/proposals/site/decisions.md *The other pages*: each line of
+%% docs/design/site.md *The other pages*: each line of
 %% site/projects.md is a project's name linked to its repository, whose
 %% name it is, `: ` and its purpose in one sentence, and the project's icon
 %% stands under site/root/assets/img/projects/ by its name, a PNG of 128 by
@@ -350,7 +350,7 @@ appended(File, Text) ->
     ok = file:write(Device, Text),
     ok = file:close(Device).
 
-%% docs/proposals/site/decisions.md *The templates*, site/templates/README.md:
+%% docs/design/site.md *The templates*, site/templates/README.md:
 %% every template and fragment holds the tokens its row of the README lists,
 %% and every file has a row.
 templates_test() ->

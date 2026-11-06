@@ -1,5 +1,5 @@
-%% The site's client in a browser, `make test-browser` (docs/proposals/site/
-%% decisions.md, *The live shell*): a headless Chrome, driven over its
+%% The site's client in a browser, `make test-browser` (docs/design/site.md,
+%% *The live shell*): a headless Chrome, driven over its
 %% DevTools protocol, reads the fixture's pages, which OTP's httpd serves,
 %% and its panel talks to a stub at the shell's path that speaks
 %% ernest-httpd's protocol, its design's §11: the size, the attach's word,
@@ -77,7 +77,7 @@ checks() ->
      {"two starts while the terminal loads", fun started_twice/1},
      {"the shell's page and a phone", fun pages/1}].
 
-%% docs/proposals/site/decisions.md *The live shell*: no panel opens until
+%% docs/design/site.md *The live shell*: no panel opens until
 %% the visitor asks; the header's beside button opens it, pressed, and puts
 %% the focus in the terminal; the bar names no state before a session, and
 %% Start connects, the panel's size its first message, the attach's word
@@ -102,7 +102,7 @@ session(#{page := Page, url := Url}) ->
     ?assertEqual([0, 0], eval(Page, overflow(".panel-terminal"))),
     stop(Page, Conn).
 
-%% docs/proposals/site/decisions.md *The live shell*: a block's Paste
+%% docs/design/site.md *The live shell*: a block's Paste
 %% sends it as one input, bracketed as the shell asked the terminal, and
 %% nothing after it; a Load the same, then Enter and `main()`, typed and
 %% not entered; a transcript's input its own Paste, its prompt left out; and
@@ -130,7 +130,7 @@ pastes(#{page := Page, url := Url}) ->
     ?assertEqual([true, true, true], Edge),
     stop(Page, Conn).
 
-%% docs/proposals/site/decisions.md *The homepage*: the example's button,
+%% docs/design/site.md *The homepage*: the example's button,
 %% Try it, puts the example's code into the shell, opening the panel and
 %% starting a session, and its label never changes.
 example(#{page := Page, url := Url}) ->
@@ -147,7 +147,7 @@ example(#{page := Page, url := Url}) ->
                        " button.textContent === 'Try it')")),
     stop(Page, Conn).
 
-%% docs/proposals/site/decisions.md *The live shell*: while the panel is
+%% docs/design/site.md *The live shell*: while the panel is
 %% open a link fetches its page and puts its main in place, the panel, its
 %% socket and its screen kept; the new page's blocks have their tools, the
 %% header marks its room, it starts at its top, the next Tab reaches the
@@ -190,7 +190,7 @@ navigation(#{page := Page, url := Url}) ->
     ?assertEqual(none, receive {stub_connected, _} -> another after 0 -> none end),
     stop(Page, Conn).
 
-%% docs/proposals/site/decisions.md *The live shell*: back and forward go
+%% docs/design/site.md *The live shell*: back and forward go
 %% where the visitor last asked. A move made while a page is on its way
 %% fetches its own, even the page that still shows, and the one it replaced
 %% is dropped, its failure with it. The fetches are held here, so that the
@@ -214,7 +214,7 @@ on_its_way(#{page := Page, url := Url}) ->
                 " && document.title.startsWith('2.') && shown === '/guide/2.html'"),
     ?assert(eval(Page, "location.pathname === '/guide/2.html' && window.stayed === true")).
 
-%% docs/proposals/site/decisions.md *The live shell*, ernest-httpd's design
+%% docs/design/site.md *The live shell*, ernest-httpd's design
 %% §11: a page loaded whole opens the panel as it was kept; a session the
 %% server says this browser joined, `{"attached": "joined"}`, is asked to
 %% draw its line again, C-l, and a paste into it is bracketed by the page
@@ -233,7 +233,7 @@ joined(#{page := Page, url := Url}) ->
     ?assertMatch(<<"\e[200~fn double", _/binary>>, keys(Conn, <<"\e[201~">>)),
     stop(Page, Conn).
 
-%% docs/proposals/site/decisions.md *The live shell*: Hide hides the panel
+%% docs/design/site.md *The live shell*: Hide hides the panel
 %% and keeps the session, the header's button marked with a dot and the
 %% focus given back to it, and a link keeps the hidden session's page; the
 %% handle is a separator the arrow keys move; F6 in the terminal moves the
@@ -266,7 +266,7 @@ keyboard(#{page := Page, url := Url}) ->
     eval(Page, "document.querySelector('.panel-toggle .beside').click()"),
     stop(Page, Conn).
 
-%% docs/proposals/site/decisions.md *The live shell*: Stop sends
+%% docs/design/site.md *The live shell*: Stop sends
 %% `{"stop": true}`, and the server's 4004 is `stopped`, marked in the
 %% terminal in the bar's word, which then takes no keys; Start after an end
 %% begins below the ended screen, and Restart, a stop and a new session,
@@ -291,7 +291,7 @@ ends(#{page := Page, url := Url}) ->
     until(Page, state() ++ " === 'running' && !" ++ rows() ++ ".includes('stopped')"),
     stop(Page, Third).
 
-%% docs/proposals/site/decisions.md *The live shell*: the server's warning,
+%% docs/design/site.md *The live shell*: the server's warning,
 %% `{"warning": seconds}`, is a banner that says the seconds once, and
 %% Extend sends `{"extend": true}` and takes it down; an expiry, 4001,
 %% closes the panel and gives the page its width, the layout kept as it
@@ -328,7 +328,7 @@ expiry(#{page := Page, url := Url}) ->
     key(Page, "Escape", 27),
     ?assertEqual(0, eval(Page, "document.querySelector('.notice').childElementCount")).
 
-%% docs/proposals/site/decisions.md *The live shell*, ernest-httpd's design
+%% docs/design/site.md *The live shell*, ernest-httpd's design
 %% §11 and §12: 4002 is `taken over` and 4003 `unavailable`, each shown in
 %% the panel, and a connection that drops is `disconnected`.
 closes(#{page := Page, url := Url}) ->
@@ -347,7 +347,7 @@ closes(#{page := Page, url := Url}) ->
                       ?assertNot(eval(Page, "document.querySelector('.shell-panel').hidden"))
                   end, [{4002, "taken over"}, {4003, "unavailable"}, {dropped, "disconnected"}]).
 
-%% docs/proposals/site/decisions.md *The live shell*: a paste for a session
+%% docs/design/site.md *The live shell*: a paste for a session
 %% that is starting waits for the session's first output, as a person
 %% waits for the prompt, and goes once it comes.
 waiting(#{page := Page, url := Url}) ->
@@ -362,7 +362,7 @@ waiting(#{page := Page, url := Url}) ->
     ?assertMatch(<<"\e[200~fn double", _/binary>>, keys(Conn, <<"\e[201~">>)),
     stop(Page, Conn).
 
-%% docs/proposals/site/decisions.md *The live shell*: a terminal whose script
+%% docs/design/site.md *The live shell*: a terminal whose script
 %% does not load is `disconnected`, the page's own word, and the next Start
 %% loads it again; the check at the end of the run reads that no exception
 %% was left. The failure is made in the page, so that it comes when asked.
@@ -380,7 +380,7 @@ unloaded(#{page := Page, url := Url}) ->
     until(Page, rows() ++ ".includes('session 1')"),
     stop(Page, Conn).
 
-%% docs/proposals/site/decisions.md *The live shell*: a second Start made
+%% docs/design/site.md *The live shell*: a second Start made
 %% while the terminal still loads starts no second session.
 started_twice(#{page := Page, url := Url}) ->
     stub_mode(#{attach => <<"new">>}),
@@ -392,7 +392,7 @@ started_twice(#{page := Page, url := Url}) ->
     ?assertEqual(none, receive {stub_connected, _} -> another after 0 -> none end),
     stop(Page, Conn).
 
-%% docs/proposals/site/decisions.md *The live shell* and *The other pages*:
+%% docs/design/site.md *The live shell* and *The other pages*:
 %% the shell's page holds the panel in its frame and scrolls in neither
 %% direction, its terminal filling what the page leaves; on a phone no
 %% panel is offered, no page scrolls sideways, and a Paste opens the
