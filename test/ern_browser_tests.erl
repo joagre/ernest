@@ -776,9 +776,9 @@ click(Page, X, Y) ->
 
 %% Chrome, headless, its profile a directory of the run's own, its
 %% DevTools on a port it chooses and says on its standard error. Google's
-%% Chrome starts a component extension of its own some two seconds in, and
-%% the page that has just committed then loses its requests, its script
-%% among them, so that none is started.
+%% Chrome starts a component extension of its own some seconds in, and the
+%% page that has just committed then loses its requests, its script among
+%% them, so that none is started: version 157 needs both flags for that.
 chrome_started() ->
     Profile = filename:join(ern_pty:run_dir(),
                             "ern_chrome_" ++ integer_to_list(erlang:unique_integer([positive]))),
@@ -787,6 +787,7 @@ chrome_started() ->
                      [{args, ["--headless=new", "--no-first-run", "--no-default-browser-check",
                               "--disable-gpu", "--remote-debugging-port=0",
                               "--disable-component-extensions-with-background-pages",
+                              "--disable-extensions",
                               "--user-data-dir=" ++ Profile, "about:blank"]},
                       stderr_to_stdout, binary, exit_status]),
     {Port, endpoint(Port, <<>>)}.

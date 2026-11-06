@@ -11648,13 +11648,15 @@ The cause was the browser. The test on eve picks Google's Chrome 136, and here i
 
 The test now starts its browser with `--disable-component-extensions-with-background-pages`. Without the flag eve failed in 3 of 20, 1 of 25 and 3 of 16 runs. With it 40 runs failed none, and no extension's target appeared in any. Forty clean runs would come by chance about once in a hundred at that rate, and the missing target is the direct evidence.
 
-Those 40 ran a traced copy with the client of `dcc63ebf`, before the two fixes below. The final code ran twenty in a row here, where this cause never showed, so those twenty hold the code and say nothing of the cause. Why the extension's start aborts a page's requests is inside Chrome and was not found. Whether a browser with a window does the same to a visitor is not known.
+Those 40 ran Chrome 136 and a traced copy with the client of `dcc63ebf`, before the two fixes below. Google's Chrome then went on nike, version 157, and the flag did less there: "Chrome Web Store Payments" still started, at about 3.2 seconds, in four runs of four. With `--disable-extensions` beside it no extension's target appeared in four of four, so the test passes both.
+
+The final code with both flags ran twenty in a row under 157. Twenty with the first flag alone and twenty with neither passed too, which at eve's rate happens about one time in eleven, so nothing here shows the failure on 157. These runs hold the code and not the cause. Whether 157 still aborts a page's requests is not known, and the test no longer depends on it. Why the extension's start aborts them is inside Chrome and was not found. Whether a browser with a window does the same to a visitor is not known.
 
 The lost script showed what a visitor meets when a load fails, and the client had two more defects there. A script that failed to load left Start dead for good, with an uncaught rejection, since the failed load stayed remembered. A second Start during the load opened a second socket. A failed load now shows "disconnected" and the next Start loads again, and a Start finds the first's socket before opening one. "A terminal that does not load" and "two starts while the terminal loads" were each seen to fail before its fix. They are regression tests. The first makes its failure in the page and not on a network, and neither covers two Pastes during a load.
 
 Two rules of CLAUDE.md came out of this. Twenty green runs on eve had tested old code, since a pull chained before them failed unseen, and 127 here said nothing of a browser they did not run. So a flake is tested under what it was seen under, and a step a long run rests on is checked in a call of its own.
 
-The other is the machines. All development runs on nike, which is faster and has more memory and more cores, and another machine only tests nodes across a real network. These runs were eve's last of their kind, so a flake that needs Google's Chrome again needs it installed here.
+The other is the machines. All development runs on nike, which is faster and has more memory and more cores, and another machine only tests nodes across a real network. These runs were eve's last of their kind, and Google's Chrome is now installed here, where the test picks it first.
 
 ## Context Is the Cost, 2026-11-06
 
