@@ -30,8 +30,8 @@ MVP 4.2, the website, is built, and goes live with MVP 4.4's release, its item 6
 The repository's layout is built, between MVP 4.15's items 1 and 2, and the three other
 repositories have taken their shape (the log's *The Layout Built*, *The Other Repositories'
 Shape*). What the layout proposal still held is made at the same stop, the template's CLAUDE.md
-and its copies last (the log's *The Layout's Rest First*, *The Template Cut Again*). The three
-applications' sessions start next.
+and its copies last, and the proposal has gone (the log's *The Layout's Rest First*, *The Template
+Cut Again*, *The Layout's Proposal Read*). The three applications' sessions start next.
 
 The rest of MVP 4.15, what the server taught, follows, then MVP 4.4, the cost, the full review and the launch's release, where the road ends and a
 program begins (the log's *MVP 4.4, the Road's End*). MVP 4.5, the shell's second round, follows
@@ -61,25 +61,24 @@ log's *The Floors and the Releases*).
 
 Between items 1 and 2 the repository's layout was built, in one commit, so that items 2 to 21
 build in the layout that stays and the archive ernest-httpd rehearses on holds it (the log's
-*The Repository's Layout*, *The Layout Built*).
+*The Repository's Layout*, *The Layout's Independent Reading*, *The Layout Built*, *The Layout's
+Renames*, *The Log by Day*, *The README Recut*). Its proposal went once read (the log's *The
+Layout's Proposal Read*).
 
 At the same stop ernest-template, ernest-epx and ernest-httpd took their shape, a commit in each
 (the log's *One Stop for the Layout*, *The Other Repositories' Shape*). No floor rose and none
 of them released: the changes wait on `main` for MVP 4.4's item 5.
 
-What the layout proposal still holds comes next, before item 2, so that items 2 to 21 build on
-the final names and no session stops twice (the log's *The Layout's Rest First*). Its checklist is
-`temp-suggestions.md`.
-
 CLAUDE.md is redrafted, 2026-11-06: its owner table names `docs/README.md` once, and its length
 stays, since the plain register cut no words (the log's *CLAUDE.md Redrafted*). The template's is
 cut again from it, ernest-epx's and ernest-httpd's are the template's whole, and each of the three
-has the template's new `docs/full_review.md`, a commit in each, not pushed (the log's *The Template
-Cut Again*).
+has the template's new `docs/full_review.md`, a commit in each (the log's *The Layout's Rest
+First*, *The Template Cut Again*).
 
 The three applications' sessions start next, and each adds what it alone has to its
-`docs/full_review.md`. Then the proposal goes, after the reading CLAUDE.md's *Proposals* asks. The
-release note's line on the installed layout waits for MVP 4.4's item 5.
+`docs/full_review.md`: ernest-epx a reader who tries its window on a screen, and ernest-httpd what
+reader S reads of its live shell. The release note's line on the installed layout waits for MVP
+4.4's item 5.
 
 1. **The runtime at the host's limits**, done 2026-11-04 (the log's *A Node's Limits*, *A Node's
    Schedulers*, *The Hangup's Order* and *ernest-httpd's Lines 18 to 21*).
@@ -259,6 +258,10 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
 4. **The full review**, as `docs/reviews/full.md` says, the principles review inside it, over the swept
    form after the pun and with the three programs written since 0.7.0; its findings sorted and
    worked as it says, the batches' sentences read cold before the build.
+
+   Before its readers start, `tools/paragraphs.sh`, `tools/comments.sh` and
+   `tools/unicode_width.escript` are weighed against CLAUDE.md's *Shims*, each written in Ernest
+   or its reason to stay stated (the log's *The Layout's Proposal Read*).
 
    Beside it, on the user's word, ernest-template, ernest-epx and ernest-httpd are each reviewed
    whole by their own sessions, by the `docs/full_review.md` each took at the layout's stop, against the archive of the
