@@ -111,9 +111,7 @@ interfaces() ->
     ern_prelude:stdlib_interfaces() ++ [library(Erc) || Erc <- library_files()].
 
 library_files() ->
-    Root = filename:dirname(filename:dirname(filename:dirname(
-                                                filename:dirname(code:which(ern_rt))))),
-    lists:sort(filelib:wildcard(filename:join([Root, "build", "libs", "*", "*.erc"]))).
+    lists:sort(filelib:wildcard(filename:join(ern_tree:build("libs"), "*/*.erc"))).
 
 library(Erc) ->
     {ok, Bytes} = file:read_file(Erc),

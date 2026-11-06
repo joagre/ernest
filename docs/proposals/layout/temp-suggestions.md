@@ -59,7 +59,7 @@ The documents:
 
 After the commit:
 
-- [ ] `make` is timed against this morning's 7.7 s, and `make bench` is read against nike's reference of 2026-11-06, for what the moved code path costs
+- [x] `make` is timed against this morning's 7.7 s, and `make bench` is read against nike's reference of 2026-11-06, for what the moved code path costs: the log's *The Layout Built*
 - [x] Not `docs/log.md`: it is history, and keeps the paths it cites as they were; the documents test does not read it
 
 The other repositories, at the same stop, with their sessions stopped:
