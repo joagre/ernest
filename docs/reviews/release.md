@@ -26,7 +26,7 @@ What a release runs to be ready, and nothing else. Between releases an item that
    - where the release is a patch, the library's listings, the form's version (Appendix H) and the protocol's version unchanged since the minor, which the tests hold, since two patch levels stand on one floor (report §8.7);
    - every module of `src/stdlib/` and `src/libs/` that appeared since the last release, and every exported declaration that did, ending its doc block with its own `since` (Appendix E.0 shape rule 6, whose shape and versions `make test` holds);
    - the pages `make man` writes into `docs/man/`, committed with the release;
-   - the sentence of `README.md`'s *Where it stands* that names the latest release, which no test holds and `make version` leaves;
+   - the About text of the repository on GitHub, which follows the opening of `README.md`, and which no test holds;
    - the release's section of `CHANGES.md`, first in the file, committed before the tag, which is the release's note: the release step copies it as the notes of the release on GitHub, so that the note is written once (the log's *A Release Carries No History*, sharpened 2026-10-30);
    - the tag, then the archive `make release` writes at it, `ern-VERSION.tar.gz`, published beside it, since an archive made before the tag says its commit (§11.7);
    - and once the tag is made, `make version V=<next minor>.0`, committed at once, so that `VERSION` names the release the checkout works toward and a development build says `0.8.0-dev` while 0.7.0 is the latest release.

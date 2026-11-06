@@ -68,7 +68,7 @@ of them released: the changes wait on `main` for MVP 4.4's item 5.
 
 What the layout proposal still holds comes next, before item 2, so that items 2 to 21 build on
 the final names and no session stops twice (the log's *The Layout's Rest First*). Its checklist is
-`temp-suggestions.md`. The user changes GitHub's About blurb the day the new README lands.
+`temp-suggestions.md`.
 
 In a design session, the user agreeing each cut:
 
