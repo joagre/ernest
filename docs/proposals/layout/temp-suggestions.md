@@ -70,7 +70,7 @@ The other repositories, at the same stop, with their sessions stopped:
 
 A rename of a document changes, in its own commit, CLAUDE.md's owner row and `docs/README.md` where they name it.
 
-- [ ] `examples/tally.ern` → `examples/wc.ern`
+- [x] `examples/tally.ern` → `examples/wc.ern`
 - [ ] `examples/word_count.ern` → `examples/word_frequency.ern`
 - [ ] `examples/repl.ern` → `examples/interpreter.ern`
 - [ ] `examples/typed_channels_nodes.ern` → `examples/remote_counter.ern`

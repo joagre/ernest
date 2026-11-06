@@ -1,5 +1,5 @@
 //
-// Tally: lines, words and bytes of the files named
+// wc: lines, words and bytes of the files named
 //
 // A command-line tool in the manner of `wc`. For each file named on the
 // command line it prints its lines, its words and its bytes, and then the
@@ -13,37 +13,37 @@
 //   `Os.exit` ends the program with a status (report Appendix E.23).
 // - `measured` is pure: it counts bytes it is given. Reading the file is
 //   the one thing that acts, and its failure is a value, an `Either`, which
-//   `tallied` turns into a line on standard error (report §7.1).
+//   `counted` turns into a line on standard error (report §7.1).
 // - `<-` takes the `Right` of an `Either` and gives up at the first `Left`
 //   (report §5.5).
-// - `Tally` is a record, read by field, `tally.words`, and summed with an
-//   operator it declares, `Tally.+` (report §4.8).
+// - `Counts` is a record, read by field, `counts.words`, and summed with an
+//   operator it declares, `Counts.+` (report §4.8).
 //
 // Run it from this directory, on two of the examples:
 //
-//     ern build tally.ern
-//     ern run tally.erc hello.ern tally.ern
+//     ern build wc.ern
+//     ern run wc.erc hello.ern wc.ern
 //
 
-type Tally = Tally(lines : Int, words : Int, bytes : Int)
+type Counts = Counts(lines : Int, words : Int, bytes : Int)
 
-fn Tally.+(left : Tally, right : Tally) : Tally =
-    Tally(lines = left.lines + right.lines,
-          words = left.words + right.words,
-          bytes = left.bytes + right.bytes)
+fn Counts.+(left : Counts, right : Counts) : Counts =
+    Counts(lines = left.lines + right.lines,
+           words = left.words + right.words,
+           bytes = left.bytes + right.bytes)
 
-let nothing : Tally = Tally(lines = 0, words = 0, bytes = 0)
+let nothing : Counts = Counts(lines = 0, words = 0, bytes = 0)
 
 export fn main() : Unit =
     match Os.arguments {
         [] -> {
-            Io.printlnError("usage: tally file...");
+            Io.printlnError("usage: wc file...");
             Os.exit(2)
         }
       | names -> {
-            let results = List.map(names, tallied);
+            let results = List.map(names, counted);
             let total = List.foldLeft(results, nothing, fn(sum, result) = match result {
-                Right(tally) -> sum + tally
+                Right(counts) -> sum + counts
               | Left(_) -> sum
             });
             Io.println(line(total, "total"));
@@ -51,20 +51,20 @@ export fn main() : Unit =
         }
     }
 
-// The file's tally, printed, or why it could not be read, on standard error.
-fn tallied(name : String) : Either(String, Tally) =
+// The file's counts, printed, or why it could not be read, on standard error.
+fn counted(name : String) : Either(String, Counts) =
     match read(name) {
-        Right(tally) -> {
-            Io.println(line(tally, name));
-            Right(tally)
+        Right(counts) -> {
+            Io.println(line(counts, name));
+            Right(counts)
         }
       | Left(cause) -> {
-            Io.printlnError("tally: " <> name <> ": " <> cause);
+            Io.printlnError("wc: " <> name <> ": " <> cause);
             Left(cause)
         }
     }
 
-fn read(name : String) : Either(String, Tally) = {
+fn read(name : String) : Either(String, Counts) = {
     let bytes <- Either.mapLeft(Fs.read(Path(name), 5000), errorText);
     match String.fromUtf8(bytes) {
         Some(text) -> Right(measured(text, Bytes.size(bytes)))
@@ -82,14 +82,14 @@ fn errorText(error : Io.Error) : String =
       | _ -> Io.show(error)
     }
 
-fn measured(text : String, size : Int) : Tally =
-    Tally(lines = List.size(String.lines(text)),
-          words = List.size(String.words(text)),
-          bytes = size)
+fn measured(text : String, size : Int) : Counts =
+    Counts(lines = List.size(String.lines(text)),
+           words = List.size(String.words(text)),
+           bytes = size)
 
-fn line(tally : Tally, name : String) : String =
-    String.join([Int.toString(tally.lines),
-                 Int.toString(tally.words),
-                 Int.toString(tally.bytes),
+fn line(counts : Counts, name : String) : String =
+    String.join([Int.toString(counts.lines),
+                 Int.toString(counts.words),
+                 Int.toString(counts.bytes),
                  name],
                 " ")

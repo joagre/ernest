@@ -14,9 +14,9 @@ Two commands run most programs here: `ern build` compiles a program to a file be
 $ ern build hello.ern
 $ ern run hello.erc
 hello, world
-$ ern build tally.ern
+$ ern build wc.ern
 $ printf 'one two\nthree\n' > words.txt
-$ ern run tally.erc words.txt
+$ ern run wc.erc words.txt
 2 3 14 words.txt
 2 3 14 total
 ```
@@ -28,7 +28,7 @@ $ ern run tally.erc words.txt
 | Program | What it is | What it shows | Guide |
 |---|---|---|---|
 | [`hello.ern`](hello.ern) | the smallest program | `main`, and a mailbox that receives nothing | chapter 1 |
-| [`tally.ern`](tally.ern) | lines, words and bytes of the files named, as `wc` counts them | the command line, files, errors as values, `<-`, a record with an operator of its own, an exit status | chapters 2, 3 and 6 |
+| [`wc.ern`](wc.ern) | lines, words and bytes of the files named, as `wc` counts them | the command line, files, errors as values, `<-`, a record with an operator of its own, an exit status | chapters 2, 3 and 6 |
 | [`word_count.ern`](word_count.ern) | the words of the file named, counted by one function over two kinds of map | an operations record filled from a module, a requirement the fill supplies, a sort by a key | chapter 7 |
 | [`repl.ern`](repl.ern) | a read-evaluate-print loop for a small language | a lexer, a parser and an evaluator as pure functions; a process that bounds an evaluation, killed when it runs too long | chapters 3, 5 and 6 |
 | [`services.ern`](services.ern) | a stock kept by three services under one supervisor, told what to do on standard input | services reached by name, a fault the input causes, a restart that keeps the address and loses the state | chapter 6 |

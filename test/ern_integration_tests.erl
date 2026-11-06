@@ -67,22 +67,22 @@ compiles(Build, Name) ->
     0 = build(Build ++ Name ++ ".ern"),
     ?assert(filelib:is_regular("build/" ++ Name ++ ".erc")).
 
-%% report §8.1, §8.6, Appendix E.17, E.23: tally counts the files its
+%% report §8.1, §8.6, Appendix E.17, E.23: wc counts the files its
 %% command line names, a total last; a file it cannot read is named on
 %% standard error and the status is 1; with no file it says how it is
 %% called and the status is 2. A regression test, written with the example
-tally_test_() ->
-    ern_nodes_tests:counted_test({waits, 4}, fun tally/0).
+wc_test_() ->
+    ern_nodes_tests:counted_test({waits, 4}, fun wc/0).
 
-tally() ->
-    0 = build(?BUILD ++ "../examples/tally.ern"),
+wc() ->
+    0 = build(?BUILD ++ "../examples/wc.ern"),
     ?assertEqual({0, <<"2 5 24 fixtures/input/two_lines.txt\n2 5 24 total\n">>},
-                 sh("../bin/ern run build/tally.erc fixtures/input/two_lines.txt")),
-    ?assertEqual({1, <<"tally: fixtures/input/absent.txt: no such file\n"
+                 sh("../bin/ern run build/wc.erc fixtures/input/two_lines.txt")),
+    ?assertEqual({1, <<"wc: fixtures/input/absent.txt: no such file\n"
                        "2 5 24 fixtures/input/two_lines.txt\n2 5 24 total\n">>},
-                 sh("../bin/ern run build/tally.erc fixtures/input/absent.txt"
+                 sh("../bin/ern run build/wc.erc fixtures/input/absent.txt"
                     " fixtures/input/two_lines.txt")),
-    ?assertEqual({2, <<"usage: tally file...\n">>}, sh("../bin/ern run build/tally.erc")).
+    ?assertEqual({2, <<"usage: wc file...\n">>}, sh("../bin/ern run build/wc.erc")).
 
 %% report §12.1, E.16: without a terminal snake has no keys, so it says so
 %% and ends with status 1 before it draws. A regression test: it drew a
