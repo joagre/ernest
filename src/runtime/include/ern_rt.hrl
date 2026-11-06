@@ -7,6 +7,12 @@
 -ifndef(ERN_RT_HRL).
 -define(ERN_RT_HRL, true).
 
+%% Report §10: how long a wait lasts, in milliseconds, before the process
+%% asks the host's counts and collects (ern_rt:collect/0): the host's
+%% shortest timer, since the asking and the waking cost about a microsecond
+%% and a wait the host can time is a thousand of them.
+-define(WAIT_BEFORE_COLLECTING, 1).
+
 -record(process_row, {pid, site, spawn_order, root, peer = none, expected = false,
                       fault = none, own = none}).
 %% pid: the process, the table's key; site: its spawn site (§6.9), which

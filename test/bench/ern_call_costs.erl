@@ -19,8 +19,9 @@
 %% While it waits, call/4 marks the caller as in a timed receive, a key in
 %% its dictionary (timed/0, untimed/0, §8.6). It takes the answer among
 %% the forms a wait takes, a restart and a fault's among them, the answer
-%% of foreign code checked (waited_answer/3, §8.4), where an Ernest
-%% callee's answer is not. It waits against a deadline in slices of the
+%% of foreign code checked (waited_answer/4, §8.4), where an Ernest
+%% callee's answer is not. It waits the host's shortest timer and collects
+%% (§10, first_wait/1, collect/0), then against a deadline in slices of the
 %% host's longest wait, in a try that takes the mark away and one that
 %% settles (?SLICE, remaining/1).
 %%
@@ -338,7 +339,9 @@ waited(Address, Request) ->
                  pending(Callee, Reply),
                  ern_rt:send(Address, Message),
                  ern_rt:timed(),
-                 try waited_answer(Reply, Deadline) after ern_rt:untimed() end
+                 try waited_answer(Reply, Deadline, ern_rt:first_wait(Deadline))
+                 after ern_rt:untimed()
+                 end
              after
                  uncalled(),
                  flushed(Reply)
@@ -348,7 +351,7 @@ waited(Address, Request) ->
         _ -> valued(Answer)
     end.
 
-waited_answer(Reply, Deadline) ->
+waited_answer(Reply, Deadline, After) ->
     receive
         {Reply, answered, Value} -> {'Some', Value};
         {Reply, unnoted, Value} -> {'Some', Value};
@@ -358,10 +361,13 @@ waited_answer(Reply, Deadline) ->
         {'DOWN', Reply, process, _, _} -> 'None';
         '$ern_restart' -> '$ern_restart';
         {'$ern_fault', Fault} -> throw(Fault)
-    after ern_rt:remaining(Deadline) ->
+    after After ->
         case ern_rt:remaining(Deadline) of
-            0 -> 'None';
-            _ -> waited_answer(Reply, Deadline)
+            0 ->
+                'None';
+            Remaining ->
+                ern_rt:collect(),
+                waited_answer(Reply, Deadline, Remaining)
         end
     end.
 

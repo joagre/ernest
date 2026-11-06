@@ -5,10 +5,12 @@
 %% which the host keeps in its literal area, and one computed through
 %% ern_rt:binding/1, a persistent term by a tuple key (report §8.5, §11.1).
 %%
-%% A receive with an `after` takes its time as a deadline, waits in slices
-%% of the host's longest wait in a fun entered again, and marks the process
+%% A receive waits the host's shortest timer, collects, and waits on in a fun
+%% entered again (§10; ern_emitter's waiting_forever/3). One with an `after`
+%% takes its time as a deadline, waits in slices of the host's longest wait in
+%% that fun, and marks the process
 %% as in a timed receive while it waits, a key in its dictionary, so that
-%% the look finds no deadlock (§6.3, §8.6; ern_emitter's waiting/4). A
+%% the look finds no deadlock (§6.3, §8.6; ern_emitter's waiting/5). A
 %% message to a system process, `Io.print`, is a call the process answers
 %% once the stream has taken the bytes (§12.1). A launch, ern_rt:run_main/3,
 %% makes the run's tables, its terms, the reaper and the system processes,
@@ -269,35 +271,42 @@ clauses(N) ->
 sliced(N) ->
     ern_rt:send(self(), {'Ping', N}),
     Deadline = ern_rt:deadline(?MS),
-    fun Wait() ->
+    fun Wait(After) ->
         receive
             '$ern_restart' -> ern_rt:restart_now();
             {'$ern_fault', Fault} -> erlang:throw(Fault);
             {'Ping', Value} -> Value
-        after ern_rt:remaining(Deadline) ->
+        after After ->
             case ern_rt:remaining(Deadline) of
-                0 -> 0;
-                _ -> Wait()
+                0 ->
+                    0;
+                Remaining ->
+                    ern_rt:collect(),
+                    Wait(Remaining)
             end
         end
-    end().
+    end(ern_rt:first_wait(Deadline)).
 
 marked(N) ->
     ern_rt:send(self(), {'Ping', N}),
     Deadline = ern_rt:deadline(?MS),
     ern_rt:timed(),
-    fun Wait() ->
+    fun Wait(After) ->
         receive
             '$ern_restart' -> ern_rt:untimed(), ern_rt:restart_now();
             {'$ern_fault', Fault} -> ern_rt:untimed(), erlang:throw(Fault);
             {'Ping', Value} -> ern_rt:untimed(), Value
-        after ern_rt:remaining(Deadline) ->
+        after After ->
             case ern_rt:remaining(Deadline) of
-                0 -> ern_rt:untimed(), 0;
-                _ -> Wait()
+                0 ->
+                    ern_rt:untimed(),
+                    0;
+                Remaining ->
+                    ern_rt:collect(),
+                    Wait(Remaining)
             end
         end
-    end().
+    end(ern_rt:first_wait(Deadline)).
 
 %% A loop of Operation in a launch's entry process, which has its row, as
 %% the program's rows run.

@@ -1,6 +1,6 @@
 # Ernest Report: The Standard Library
 
-Revision of 4 November 2026.
+Revision of 6 November 2026.
 
 This file holds the report's Appendices D, E and G. §0 to §9 and Appendices A, B and F are in [`language.md`](language.md), and §10 to §12 and Appendices C and H in [`toolchain.md`](toolchain.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
@@ -733,7 +733,7 @@ A `Process` is the identity of a process. It has equality and no ordering, exact
 
 In a `FaultReport`, `restarted` is `true` where the process restarts after the fault (§6.9), and `spawnedBy` names the peer whose spawn started the process (§8.7), by its name as the configuration lists it; it is `None` where no peer did, and where the configuration lists the peer no more. `cause` is the cause `Down` gives (§6.9). `callee` is the site of the callee whose fault a call carried to the process (§6.6), `Ledger.start:6`, and is `None` where no call carried it and where the callee has no site, a process of another node or one the runtime did not start (§6.9). `peer` is the name of the peer whose fault a compute carried to the process (§8.7), and is `None` where no compute carried it. `time` is the moment the fault was met, in milliseconds since the epoch as `Clock.now` counts them (E.15).
 
-`trace` is the innermost twelve frames of the host's stack where the fault was met, at the moment it was (§7.3), the innermost first, a frame a line. It is empty for a process the host ended, which met no fault (§6.9). A run of identical frames is collapsed as the host gives it. A fault a system process gives the entry process, a standard input that cannot be read among them (§12.1), carries the entry process's stack as the fault finds it.
+`trace` is the host's stack where the fault was met, at the moment it was (§7.3), the innermost first, a frame a line, a run of identical lines one line, and the innermost twelve lines of it. It is empty for a process the host ended, which met no fault (§6.9). A fault a system process gives the entry process, a standard input that cannot be read among them (§12.1), carries the entry process's stack as the fault finds it.
 
 A frame of the runtime's, or of a function the compiler adds to a unit beside its definitions', which is neither Ernest code nor the host's, is left out, and the twelve are counted without it, but for a fault whose cause names a host error, a failure in the runtime by the host's class and reason or a foreign function's raise (§12.3), which keeps the runtime's frames that stand between the program's innermost frame and the host's.
 

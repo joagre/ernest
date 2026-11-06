@@ -849,13 +849,16 @@ hashes_test() ->
 %% itself, but not a process a lambda written in it started; a process
 %% moved off it by its own message, and ended, is listed no more. Two
 %% declarations whose forms are one term are one definition (Appendix H),
-%% so idle differs from waiter
+%% so idle differs from waiter. A process in a receive with an `after` is
+%% listed, and a process in a receive written in a lambda is not: the first a
+%% regression test of MVP 4.15's item 2, before which a receive with an `after`
+%% in a function's tail was no frame of the function's
 running_test() ->
     Dir = tmp(),
     Main = write(Dir, "main.ern", running_program()),
     built(Dir, "main.ern"),
     ?assertEqual([<<"waiter 1">>, <<"bottom 1">>, <<"spawner 1">>, <<"main 1">>,
-                  <<"moved 1">>, <<"waiter 0">>],
+                  <<"timed 1">>, <<"lambda host 1">>, <<"moved 1">>, <<"waiter 0">>],
                  ran(filename:rootname(Main) ++ ".erc")).
 
 running_program() ->
@@ -904,6 +907,37 @@ running_program() ->
     "      | Stop -> Unit\n"
     "    }\n"
     "}\n\n"
+    "fn timed() : Unit receiving Msg =\n"
+    "    receive {\n"
+    "        Ping(=reply) -> {\n"
+    "            answer(reply, Unit);\n"
+    "            timed()\n"
+    "        }\n"
+    "      | Stop -> Unit\n"
+    "      | Upgrade(next = _) -> Unit\n"
+    "      | after 60000 -> Unit\n"
+    "    }\n\n"
+    "fn lambdaHost() : Unit receiving Msg = {\n"
+    "    let inner = spawn(fn() : Unit receiving Msg = receive {\n"
+    "        Ping(=reply) -> {\n"
+    "            answer(reply, Unit);\n"
+    "            receive {\n"
+    "                Stop -> Unit\n"
+    "            }\n"
+    "        }\n"
+    "      | Stop -> Unit\n"
+    "    });\n"
+    "    receive {\n"
+    "        Ping(=reply) -> {\n"
+    "            ping(inner);\n"
+    "            answer(reply, Unit);\n"
+    "            receive {\n"
+    "                Stop -> send(inner, Stop)\n"
+    "            }\n"
+    "        }\n"
+    "      | Stop -> Unit\n"
+    "    }\n"
+    "}\n\n"
     "fn ping(process : Address(Msg)) : Unit = {\n"
     "    let _ = Address.call(process, fn(reply) = Ping(=reply), 5000);\n"
     "    Unit\n"
@@ -921,13 +955,19 @@ running_program() ->
     "    counted(\"bottom\", List.size(Code.running(bottom)));\n"
     "    counted(\"spawner\", List.size(Code.running(spawner)));\n"
     "    counted(\"main\", List.size(Code.running(main)));\n"
+    "    let timing = spawn(fn() = timed());\n"
+    "    let hosting = spawn(fn() = lambdaHost());\n"
+    "    ping(timing);\n"
+    "    ping(hosting);\n"
+    "    counted(\"timed\", List.size(Code.running(timed)));\n"
+    "    counted(\"lambda host\", List.size(Code.running(lambdaHost)));\n"
     "    let old = Code.running(waiter);\n"
     "    List.forEach(old, fn(process) = send(process, Upgrade(next = fn() = Unit)));\n"
     "    counted(\"moved\", List.size(old));\n"
     "    List.forEach(old, fn(process) = monitor(Process.fromAddress(process), fn(down) = down));\n"
     "    ended(List.size(old));\n"
     "    counted(\"waiter\", List.size(Code.running(waiter)));\n"
-    "    List.forEach([deep, spawning], fn(process) = send(process, Stop))\n"
+    "    List.forEach([deep, spawning, timing, hosting], fn(process) = send(process, Stop))\n"
     "}\n\n"
     "fn ended(left : Int) : Unit receiving Down =\n"
     "    if left == 0 then\n"

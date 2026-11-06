@@ -6,7 +6,7 @@
 -export([run/1, run/2, run/3, run_at_terminal/1, scratch/0, write_golden/0, pair/0, funs/0, taken/0,
          opt/1, improper/1, remember/1, junk/1, good/1, tell/1, junk_server/0, hello_junk/0,
          hello_good/0, relay_junk/1, relay_good/1, same/1, call_nested_bad/1, call_nested_good/1,
-         ask_junk/1, ask_good/1, calls_held/0, stack_here/0]).
+         ask_junk/1, ask_good/1, calls_held/0, stack_here/0, dropped/0, freed/1]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("parser/include/ern_ast.hrl").
@@ -997,6 +997,75 @@ trace_leaves_the_runtime_out_test() ->
                  run(Types ++ "    let s = spawnMonitored(fn() : Unit receiving Msg = Unit,"
                               " Died);\n"
                               "    receive { Died(_) -> Unit };\n" ++ Called)).
+
+%% Appendix E.21, report §7.3: a fault met in a receive names the receive's
+%% line, one line of the trace whether or not the receive is the last thing
+%% its function does, with an `after` and without, and a fault in a clause's
+%% body stands above the receive it is in, a frame of the host's stack. A
+%% regression test of MVP 4.15's item 2, written after the code: a timed
+%% receive's frame was taken for a helper's and its line lost before it
+trace_through_a_wait_test() ->
+    Types = "type Msg = Msg\n",
+    Deadlock = fun(Body) ->
+                   {{fault, <<"deadlock">>, Trace}, _} =
+                       run(Types ++ "export fn main() : Unit receiving Msg = {\n" ++ Body ++ "}\n"),
+                   Trace
+               end,
+    ?assertEqual(<<"M.main:3\n">>, Deadlock("    receive { Msg -> Unit }\n")),
+    ?assertEqual(<<"M.main:3\n">>, Deadlock("    receive { Msg -> Unit };\n    Unit\n")),
+    {{fault, Cause, Body}, _} =
+        run(Types ++ "foreign fn boom(x : Int) : Int = \"erlang:binary_to_integer/1\"\n"
+                     "export fn main() : Unit receiving Msg = {\n"
+                     "    send(self(), Msg);\n"
+                     "    receive {\n"
+                     "        Msg -> Io.println(Int.toString(boom(1)))\n"
+                     "      | after 5000 -> Unit\n"
+                     "    };\n"
+                     "    Unit\n"
+                     "}\n"),
+    ?assertMatch({_, [<<"erlang:binary_to_integer/1">>, <<"M.boom:2">>, <<"M.main:6">>,
+                      <<"M.main:5">>]},
+                 {Cause, frames(Body)}).
+
+%% Report §10, §6.3: a receive that has waited a millisecond collects, with
+%% an `after` and without, and written in a lambda. A regression test of
+%% MVP 4.15's item 2, written after the code. ern_rt_tests holds the rule and a
+%% call's wait and a sleep's
+receive_collects_test() ->
+    Text = "foreign fn dropped() : Unit = \"ern_emitter_tests:dropped/0\"\n"
+           "foreign fn freed(process : Address(Msg)) : Unit = \"ern_emitter_tests:freed/1\"\n"
+           "type Msg = Stop\n"
+           "fn plain() : Unit receiving Msg = {\n"
+           "    dropped();\n"
+           "    receive { Stop -> Unit }\n"
+           "}\n"
+           "fn timed() : Unit receiving Msg = {\n"
+           "    dropped();\n"
+           "    receive { Stop -> Unit | after 60000 -> Unit }\n"
+           "}\n"
+           "export fn main() : Unit = {\n"
+           "    freed(spawn(plain));\n"
+           "    freed(spawn(timed));\n"
+           "    freed(spawn(fn() : Unit receiving Msg = {\n"
+           "        dropped();\n"
+           "        receive { Stop -> Unit }\n"
+           "    }));\n"
+           "    Io.println(\"freed\")\n"
+           "}\n",
+    ?assertEqual({ok, <<"freed\n">>}, ern_waits:with_room(fun() -> run(Text) end)).
+
+%% A megabyte made and dropped, the entry process told.
+dropped() ->
+    _ = binary:copy(<<0>>, 1 bsl 20),
+    ern_rt:entry_process() ! {dropped, self()},
+    'Unit'.
+
+%% Until the process has dropped its megabyte and referenced it no more.
+freed(Address) ->
+    Pid = ern_rt:process_of(Address),
+    receive {dropped, Pid} -> ok end,
+    ok = ern_waits:freed(Pid, 1 bsl 20),
+    'Unit'.
 
 %% Appendix E.21, report §7.4, §12.3: a fault whose cause names a host error
 %% keeps the runtime's frames above the program's outermost frame. A

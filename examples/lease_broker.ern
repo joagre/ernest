@@ -62,9 +62,9 @@
 //     bob holds 2
 //     cid holds 3
 //     LeaseBroker.main faulted: deadlock
-//         LeaseBroker.heard:227
+//         LeaseBroker.heard:228
 //         LeaseBroker.holdAndWait:218
-//         1 process of LeaseBroker.broker:160 waits in LeaseBroker.lending:243
+//         1 process of LeaseBroker.broker:160 waits in LeaseBroker.lending:244
 //         3 processes of LeaseBroker.started:349 wait in LeaseBroker.holding:367
 //
 // The program's own tests fault a broker with a lease given back by a

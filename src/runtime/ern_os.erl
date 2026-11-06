@@ -17,6 +17,8 @@
 -export([loop/0, helper_failed/0, helper/0, signal/2, locked/2, node_signaled/3, host/0, user/0,
          umask/0, working_directory/0]).
 
+-include_lib("runtime/include/ern_rt.hrl").
+
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 %% The host's facts are read from a port, a wait inside foreign code for
 %% the look (host/0); the working directory is the host's file server's,
@@ -26,7 +28,7 @@
 %% config` reads a directory, and the carrier's at a reload (§12.5).
 -receives({foreign_wait, [host_read/1, variables/2]}).
 -receives({own_process, [serve/1, spawn_program/5, signal/2, locked/2, node_signaled/3,
-                         ended/1, starting/2, running/4, exited/2, over/2, user/0]}).
+                         ended/1, starting/2, running/5, exited/2, over/2, user/0]}).
 
 %% Report Appendix E.23: a running program's own, beside the reads that
 %% wait and what the helper owes them (running/4): the helper's port, its
@@ -279,7 +281,11 @@ starting(#program{helper = Helper} = Running, Reply) ->
 %% `Left(Timeout)` first, which does not undo it and leaves `none` in its
 %% place. A request answered lets go of its timer, and a read of its
 %% caller's monitor.
-running(#program{helper = Helper, writes = Writes} = Running, Waiting, Owed, Kept) ->
+running(Running, Waiting, Owed, Kept) ->
+    running(Running, Waiting, Owed, Kept, ?WAIT_BEFORE_COLLECTING).
+
+%% Report §10: a process that waits collects, as a receive of the program's.
+running(#program{helper = Helper, writes = Writes} = Running, Waiting, Owed, Kept, After) ->
     receive
         {'Read', Ms, Reply} when Ms =< 0 ->
             ern_rt:answer(Reply, {'Left', 'Timeout'}),
@@ -327,6 +333,9 @@ running(#program{helper = Helper, writes = Writes} = Running, Waiting, Owed, Kep
             running(Running#program{writes = Rest}, Waiting, Owed, Kept);
         {timeout, _, {deadline, {read, Ref}, Deadline}} ->
             running(Running, read_timed_out(Ref, Deadline, Waiting), Owed, Kept)
+    after After ->
+        ern_rt:collect(),
+        running(Running, Waiting, Owed, Kept, infinity)
     end.
 
 %% A read, answered a piece kept for it, or else waiting; the helper is

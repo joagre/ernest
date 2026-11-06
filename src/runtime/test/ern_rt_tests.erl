@@ -10,6 +10,8 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("runtime/include/ern_rt.hrl").
 
+-define(MEGABYTE, (1 bsl 20)).
+
 %% report §12.1: the terminal is read as lines or as keys; a claim the same
 %% way stands, and one the other way is refused with the cause
 own_terminal_test() ->
@@ -3509,3 +3511,211 @@ segment_overflow_cause_test() ->
     ?assertEqual(<<"segment overflow: a 3-byte value does not fit 2 bytes">>,
                  Cause(fun() -> ern_bits:bytes(<<1, 2, 3>>, 16) end)),
     ?assertEqual(<<"segment overflow">>, Cause(fun ern_bits:overflow/0)).
+
+%% report §10: what a process does at the end of a wait of a millisecond. It
+%% frees the binaries it dropped, in either generation, where they pass the
+%% host's threshold and its heap and nothing waits in its mailbox. Regression
+%% tests of MVP 4.15's item 2, written after the code: they hold the rule and
+%% not its cost, which `make bench-rules` measures.
+collect_frees_what_was_dropped_test() ->
+    ?assertEqual({?MEGABYTE, 0}, dropped_and_collected(?MEGABYTE, [])).
+
+collect_leaves_less_than_the_threshold_test() ->
+    Little = 64 * 1024,
+    ?assertEqual({Little, Little}, dropped_and_collected(Little, [])).
+
+%% A collection costs in proportion to the heap, so one larger than the
+%% binaries is not worth it.
+collect_leaves_less_than_the_heap_test() ->
+    ?assertEqual({?MEGABYTE, ?MEGABYTE},
+                 dropped_and_collected(?MEGABYTE, [{min_heap_size, 1024 * 1024}])).
+
+%% A message waiting holds what it carries, which would be counted as kept.
+collect_leaves_a_process_with_mail_test() ->
+    ?assertEqual({?MEGABYTE, ?MEGABYTE},
+                 in_process(fun() ->
+                                self() ! mail,
+                                dropped(?MEGABYTE),
+                                Before = referenced(self()),
+                                ern_rt:collect(),
+                                {Before, referenced(self())}
+                            end, [])).
+
+%% A binary that survived the host's collections stands in the old generation,
+%% which a minor collection does not free.
+collect_finds_a_promoted_binary_test() ->
+    ?assertEqual(0,
+                 in_process(fun() ->
+                                promoted(?MEGABYTE),
+                                ern_rt:collect(),
+                                referenced(self())
+                            end, [])).
+
+%% A process that keeps what it references asks for one collection, and one
+%% more for the next binaries past the threshold, however often it waits. The
+%% host's own collections are its own and not counted.
+collect_pays_once_for_what_is_kept_test() ->
+    Self = self(),
+    Waits = fun() ->
+                receive go -> ok end,
+                [ern_rt:collect() || _ <- lists:seq(1, 3)],
+                Self ! counted
+            end,
+    Holder = spawn(fun() ->
+                       Kept = binary:copy(<<0>>, ?MEGABYTE),
+                       Waits(),
+                       Waits(),
+                       More = binary:copy(<<1>>, ?MEGABYTE),
+                       Waits(),
+                       receive stop -> {Kept, More} end
+                   end),
+    Collect = {erlang, garbage_collect, 0},
+    erlang:trace_pattern(Collect, true, [global]),
+    erlang:trace(Holder, true, [call]),
+    Asked = [collections_asked(Holder) || _ <- [first, again, more]],
+    Holder ! stop,
+    erlang:trace_pattern(Collect, false, [global]),
+    ?assertEqual([1, 0, 1], Asked).
+
+%% The count stands from what is referenced now: after the host's own
+%% collection freed what a process kept, the next binaries count whole.
+collect_counts_from_what_stands_test() ->
+    ?assertEqual(0,
+                 in_process(fun() ->
+                                kept_and_dropped(?MEGABYTE),
+                                erlang:garbage_collect(),
+                                ern_rt:collect(),
+                                dropped(?MEGABYTE),
+                                ern_rt:collect(),
+                                referenced(self())
+                            end, [])).
+
+%% report §10, §6.6, Appendix E.15: a call's wait, with a time and without,
+%% and a sleep's collect as a receive's does. A regression test of MVP 4.15's
+%% item 2, written after the code. A system process's wait is the next test's,
+%% and a receive the compiler writes is ern_emitter_tests's
+waits_collect_test() ->
+    Self = self(),
+    ok = ern_waits:with_room(fun() ->
+         ern_rt:run_main(
+           fun() ->
+               Main = self(),
+               Callee = ern_rt:spawn(fun() -> receive never -> ok end end, <<"M.callee:1">>),
+               Request = fun(Reply) -> Reply end,
+               Waits = [fun() -> ern_rt:call_forever(Callee, Request) end,
+                        fun() -> ern_rt:call(Callee, Request, 60000) end,
+                        fun() -> ern_rt:sleep(60000) end],
+               Waiters = [ern_rt:spawn(fun() ->
+                                           dropped(?MEGABYTE),
+                                           Main ! {dropped, self()},
+                                           Wait()
+                                       end, <<"M.waiter:2">>)
+                          || Wait <- Waits],
+               %% a timed wait of the entry's, so that the look finds no deadlock (§8.6)
+               ern_rt:timed(),
+               Self ! {freed, [begin
+                                   Pid = ern_rt:process_of(Waiter),
+                                   receive {dropped, Pid} -> ern_waits:freed(Pid, ?MEGABYTE) end
+                               end || Waiter <- Waiters]},
+               ern_rt:untimed()
+           end, <<"main">>, #{stdout => fun(_) -> ok end})
+         end),
+    ?assertEqual([ok, ok, ok], wait(freed)).
+
+%% report §10, Appendix E.17: what a system process took for a request it
+%% frees once it waits, the bytes a write of a file brought. A regression test
+%% of MVP 4.15's item 2, written after the code. The processes of a program
+%% run, a checker and a node's gateway and exchange, wait the same way and are
+%% not reached here
+system_process_collects_test() ->
+    Self = self(),
+    Path = filename:join(os:getenv("TMPDIR", "/tmp"),
+                         "ern_collect_" ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = ern_waits:with_room(fun() ->
+         ern_rt:run_main(
+           fun() ->
+               Main = self(),
+               Fs = ern_rt:system_process(fs),
+               Write = fun(Reply) ->
+                           {'Write', {'Path', list_to_binary(Path)}, binary:copy(<<0>>, ?MEGABYTE),
+                            Reply}
+                       end,
+               _ = ern_rt:spawn(fun() ->
+                                    {'Right', 'Unit'} = ern_rt:call_forever(Fs, Write),
+                                    Main ! written
+                                end, <<"M.writer:1">>),
+               receive written -> ok end,
+               ern_rt:timed(),
+               Self ! {freed, ern_waits:freed(ern_rt:process_of(Fs), ?MEGABYTE)},
+               ern_rt:untimed()
+           end, <<"main">>, #{stdout => fun(_) -> ok end})
+         end),
+    file:delete(Path),
+    ?assertEqual(ok, wait(freed)).
+
+dropped_and_collected(Bytes, Options) ->
+    in_process(fun() ->
+                   dropped(Bytes),
+                   Before = referenced(self()),
+                   ern_rt:collect(),
+                   {Before, referenced(self())}
+               end, Options).
+
+%% What Work answers in a process of its own, with the host's Options.
+in_process(Work, Options) ->
+    Self = self(),
+    {Pid, MonitorRef} = spawn_opt(fun() -> Self ! {worked, self(), Work()} end,
+                                  [monitor | Options]),
+    receive
+        {worked, Pid, Result} ->
+            erlang:demonitor(MonitorRef, [flush]),
+            Result;
+        {'DOWN', MonitorRef, process, Pid, Reason} ->
+            error(Reason)
+    end.
+
+dropped(Bytes) ->
+    _ = binary:copy(<<0>>, Bytes),
+    ok.
+
+%% A binary made, moved to the old generation by two of the host's minor
+%% collections, and dropped. The second is the one that promotes.
+promoted(Bytes) ->
+    Binary = binary:copy(<<0>>, Bytes),
+    erlang:garbage_collect(self(), [{type, minor}]),
+    erlang:garbage_collect(self(), [{type, minor}]),
+    {garbage_collection_info, Counts} = erlang:process_info(self(), garbage_collection_info),
+    true = proplists:get_value(bin_old_vheap_size, Counts) > 0,
+    Bytes = byte_size(Binary),
+    ok.
+
+%% A binary counted as kept by a collection while it was live, then dropped.
+kept_and_dropped(Bytes) ->
+    Binary = binary:copy(<<0>>, Bytes),
+    ern_rt:collect(),
+    Bytes = referenced(self()),
+    Bytes = byte_size(Binary),
+    ok.
+
+%% The bytes of the binaries Pid references, each once.
+referenced(Pid) ->
+    case erlang:process_info(Pid, binary) of
+        {binary, Binaries} -> lists:sum([Size || {_, Size, _} <- lists:usort(Binaries)]);
+        undefined -> 0
+    end.
+
+%% The collections the runtime has asked the host for in Holder, traced up to
+%% its message.
+collections_asked(Holder) ->
+    Holder ! go,
+    receive counted -> ok end,
+    Ref = erlang:trace_delivered(Holder),
+    receive {trace_delivered, Holder, Ref} -> ok end,
+    traced_calls(0).
+
+traced_calls(Counted) ->
+    receive
+        {trace, _, call, _} -> traced_calls(Counted + 1)
+    after 0 ->
+        Counted
+    end.

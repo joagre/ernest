@@ -377,8 +377,13 @@ waits({'receive', Line, Clauses}) ->
 waits({'receive', _, Clauses, {integer, _, 0}, After}) ->
     waits([Clauses, After]);
 waits({'receive', Line, Clauses, Timeout, After}) ->
-    Untimed = case Timeout of
-                  {atom, _, infinity} -> true;
+    %% Report §10: a wait that collects as its time ends waits on, so that its
+    %% time is no deadline.
+    Untimed = case {Timeout, After} of
+                  {{atom, _, infinity}, _} -> true;
+                  {_, [{call, _, {atom, _, collect}, []} | _]} -> true;
+                  {_, [{call, _, {remote, _, {atom, _, ern_rt}, {atom, _, collect}}, []} | _]} ->
+                      true;
                   _ -> false
               end,
     [{Line, not Untimed, Untimed andalso Clauses =:= []} | waits([Clauses, Timeout, After])];

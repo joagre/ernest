@@ -10,18 +10,26 @@
 -export([loop/0, is_utf8/1, name_bytes/1]).
 
 -include_lib("kernel/include/file.hrl").
+-include_lib("runtime/include/ern_rt.hrl").
 
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
--receives({own_process, [loop/0]}).
+-receives({own_process, [loop/1]}).
 
 -spec loop() -> no_return().
 loop() ->
+    loop(?WAIT_BEFORE_COLLECTING).
+
+%% Report §10: a process that waits collects, as a receive of the program's.
+loop(After) ->
     receive
         Message ->
             try erlang:spawn(fun() -> serve(Message) end)
             catch error:system_limit -> limited(Message)
             end,
             loop()
+    after After ->
+        ern_rt:collect(),
+        loop(infinity)
     end.
 
 %% Report §7.4, §12.5: a request whose process the host's full table of

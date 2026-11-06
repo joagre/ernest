@@ -866,6 +866,89 @@ side({Side, _}) -> Side.
 quiet() ->
     #{stdout => fun(_) -> ok end}.
 
+%% report §10, Appendix E.18: the bytes a write brought are freed once the
+%% socket and its writer wait, the response a server's idle connection held
+%% otherwise, and over TLS once the host's process of the connection does. No
+%% process the run started references the bytes once they have gone. Regression
+%% tests of MVP 4.15's item 2, written after the code; they do not cover a
+%% socket that has read as well as written.
+written_bytes_are_freed_test() ->
+    Size = 1 bsl 20,
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Port} = inet:port(Listen),
+    Self = self(),
+    Before = erlang:processes(),
+    ok = ern_waits:with_room(fun() ->
+         ern_rt:run_main(
+           fun() ->
+               Main = self(),
+               Peer = spawn(fun() ->
+                                {ok, Accepted} = gen_tcp:accept(Listen),
+                                all_taken(gen_tcp, Accepted, Size),
+                                erlang:garbage_collect(),
+                                Main ! taken,
+                                receive close -> gen_tcp:close(Accepted) end
+                            end),
+               {'Right', Socket} = connect(Port, 2000),
+               written_and_freed(Socket, Size, Self, [Peer | Before]),
+               Peer ! close
+           end, <<"main">>, quiet())
+         end),
+    gen_tcp:close(Listen),
+    ?assertEqual({[], []}, wait(left)).
+
+written_bytes_are_freed_over_tls_test() ->
+    #{server := Server} = pki(),
+    Size = 1 bsl 20,
+    Self = self(),
+    Before = erlang:processes(),
+    ok = ern_waits:with_room(fun() ->
+         quietly(
+           fun() ->
+               Main = self(),
+               {'Right', Listener} = listen_tls(0, Server),
+               {'Right', Port} = port(Listener),
+               Peer = spawn(fun() ->
+                                {ok, Connected} = ssl:connect("127.0.0.1", Port,
+                                                              [binary, {active, false},
+                                                               {verify, verify_none}]),
+                                all_taken(ssl, Connected, Size),
+                                erlang:garbage_collect(),
+                                Main ! taken,
+                                receive close -> ssl:close(Connected) end
+                            end),
+               {'Right', Socket} = accept(Listener, 5000),
+               written_and_freed(Socket, Size, Self, [Peer | Before]),
+               Peer ! close
+           end)
+         end),
+    ?assertEqual({[], []}, wait(left)).
+
+%% Report §10: a write of Size bytes from a process that then ends, the far end
+%% having taken them, and each process that holds them waited for.
+written_and_freed(Socket, Size, Self, Before) ->
+    Main = self(),
+    _ = ern_rt:spawn(fun() ->
+                         write(Socket, binary:copy(<<0>>, Size)),
+                         Main ! written
+                     end, <<"M.write:1">>),
+    receive written -> ok end,
+    receive taken -> ok after 5000 -> error(not_taken) end,
+    ern_rt:timed(),
+    Freed = [ern_waits:freed(Holder, Size) || Holder <- holders(Size, Before)],
+    Self ! {left, {[Answer || Answer <- Freed, Answer =/= ok, Answer =/= ended],
+                   holders(Size, Before)}},
+    ern_rt:untimed().
+
+all_taken(_, _, Left) when Left =< 0 ->
+    ok;
+all_taken(Transport, Socket, Left) ->
+    {ok, Bytes} = Transport:recv(Socket, 0),
+    all_taken(Transport, Socket, Left - byte_size(Bytes)).
+
+holders(Size, Before) ->
+    [Pid || Pid <- erlang:processes() -- Before, ern_waits:references(Pid, Size) =:= true].
+
 %% A wait the deadlock detector reads as timed, as the compiler's timed receive is,
 %% for an absence, of a time derived from what it waits for.
 sleep(Ms) ->

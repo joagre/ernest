@@ -8,7 +8,21 @@
 -module(ern_waits).
 
 -export([until/2, waiting/1, running/1, calling/1, watching/2, unwatched/2, called/3,
-         returned/3, looked/1, delivered/1, forever/0]).
+         returned/3, looked/1, delivered/1, forever/0, with_room/1, freed/2, references/2]).
+
+%% What Work answers, every process it starts given a heap with room. The
+%% host collects a process when its heap fills, which a new process's small
+%% heap does at once, and a test of what a process holds while it waits would
+%% pass by that collection, where a process that has lived a while has room
+%% and holds on (report §10). The room is less than a megabyte's words.
+-spec with_room(fun(() -> Result)) -> Result.
+with_room(Work) ->
+    Before = erlang:system_flag(min_heap_size, 20000),
+    try
+        Work()
+    after
+        erlang:system_flag(min_heap_size, Before)
+    end.
 
 %% Until Test, asked of Pid's state, holds, or Pid has ended: Test is asked
 %% at first and again each time the host schedules Pid out, which is when
@@ -44,8 +58,60 @@ held(Pid, MonitorRef, Test) ->
     end.
 
 untraced(Pid) ->
-    try erlang:trace(Pid, false, [running])
+    untraced(Pid, [running]).
+
+untraced(Pid, Flags) ->
+    try erlang:trace(Pid, false, Flags)
     catch error:badarg -> 0
+    end.
+
+%% Report §10: until Pid references no binary of Size bytes or more, or has
+%% ended. Its references are read at first and again after each collection of
+%% Pid and each hibernation, which the host traces. A read in a loop, as
+%% until/2 would make it, is a signal Pid answers on its own heap, which fills
+%% and collects Pid by itself.
+-spec freed(pid(), non_neg_integer()) -> ok | ended.
+freed(Pid, Size) ->
+    Flags = [garbage_collection, running],
+    MonitorRef = erlang:monitor(process, Pid),
+    try erlang:trace(Pid, true, Flags) of
+        _ ->
+            try
+                unreferenced(Pid, Size, MonitorRef)
+            after
+                untraced(Pid, Flags),
+                flushed(Pid)
+            end
+    catch
+        error:badarg -> ended
+    after
+        erlang:demonitor(MonitorRef, [flush])
+    end.
+
+unreferenced(Pid, Size, MonitorRef) ->
+    case references(Pid, Size) of
+        ended ->
+            ended;
+        false ->
+            ok;
+        true ->
+            receive
+                {trace, Pid, Collection, _} when Collection =:= gc_minor_end;
+                                                 Collection =:= gc_major_end ->
+                    unreferenced(Pid, Size, MonitorRef);
+                {trace, Pid, out, {_, Hibernation, _}} when Hibernation =:= hibernate;
+                                                            Hibernation =:= loop_hibernate ->
+                    unreferenced(Pid, Size, MonitorRef);
+                {'DOWN', MonitorRef, process, Pid, _} -> ended
+            end
+    end.
+
+%% Whether Pid references a binary of Size bytes or more.
+-spec references(pid(), non_neg_integer()) -> boolean() | ended.
+references(Pid, Size) ->
+    case erlang:process_info(Pid, binary) of
+        undefined -> ended;
+        {binary, Binaries} -> lists:any(fun({_, Bytes, _}) -> Bytes >= Size end, Binaries)
     end.
 
 %% Until Pid waits in a receive, which the host shows as the status

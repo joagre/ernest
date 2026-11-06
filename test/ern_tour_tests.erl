@@ -420,9 +420,9 @@ fault(#tour{shell = Shell} = Tour) ->
 %% §3.6, §4.4, §4.9, §8.6, §12.4, §11.1, §11.2, §11.5, Appendix E.24).
 per_key(#tour{base = Base, shell = Shell} = Tour) ->
     ?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "build .")),
-    ?assertEqual({1, "counts per key: passed\nreports: faulted: deadlock\n    Counter.reports:70\n"
-                     "    1 process of Counter.countsPerKey:62 waits in Counter.count:10\n"
-                     "    1 process of Counter.reports:69 waits in Counter.count:10\n",
+    ?assertEqual({1, "counts per key: passed\nreports: faulted: deadlock\n    Counter.reports:71\n"
+                     "    1 process of Counter.countsPerKey:62 waits in Counter.count:11\n"
+                     "    1 process of Counter.reports:69 waits in Counter.count:11\n",
                   ""},
                  ern_deployment_tests:job(Base, "test counter.erc")),
     Tour#tour{shell = session(

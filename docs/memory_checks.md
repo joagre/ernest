@@ -125,6 +125,7 @@ Something may be kept as long as a program holds what it stands for: a socket un
 - **One process's memory.** A column for the suspected process, as `reaper` was added, shows a growth that the node's total hides in its variation.
 - **Every process at each sample.** Each process's memory and heap sizes (`erlang:process_info(P, garbage_collection_info)`) written at each sample, beside the kinds of `erlang:memory()` at the sample and a moment after. A heap that steps between two sizes is a swing and not a growth; a kind that differs only at the sample is the host's lag.
 - **Same and distinct.** The same input a hundred times against a hundred inputs that each differ, `1 + 1` against `1 + n`, between two readings of `erlang:memory(code)`: a cost of the distinct ones alone is a cost per version of the code. One module loaded, deleted and purged in a loop in plain Erlang tells the host's cost from the program's.
+- **A process's references.** `process_info(Pid, binary)` asked in a loop is a signal Pid answers on its own heap, which fills and collects Pid, so the loop shows a freeing that does not happen without it. Read it after a traced collection (`ern_waits:freed/2`). A new process's small heap is collected as soon as it fills, so a test of what a waiting process holds gives its processes room (`ern_waits:with_room/1`).
 - **With and without.** The fix set aside, a copy of the file kept and the committed file restored, since the checkout is shared, then rebuilt and the load run again beside the run with it: the difference is the fix's. A regression test is checked the same way, and fails without the fix.
 
 A growth found becomes a regression test in `make test-full` where one can show it in seconds:
@@ -132,7 +133,7 @@ A growth found becomes a regression test in `make test-full` where one can show 
 - `declarations_kept_while_reached_test_`, `expressions_leave_no_code_test_` and `expressions_again_leave_no_code_test_` in `test/ern_shell_tests.erl`;
 - `monitors_let_go_test` in `src/toolchain/emitter/test/ern_reaper_tests.erl`, and `tellers_leave_no_monitor_test` in `src/toolchain/emitter/test/ern_terminating_tests.erl`;
 - `work_makes_no_atoms_test_` in `src/toolchain/emitter/test/ern_emitter_tests.erl`;
-- `kept_tables_stay_bounded_test` in `src/runtime/test/ern_rt_tests.erl`;
+- `kept_tables_stay_bounded_test`, `waits_collect_test` and `system_process_collects_test` in `src/runtime/test/ern_rt_tests.erl`, `written_bytes_are_freed_test` in `src/runtime/test/ern_tcp_tests.erl`, and `receive_collects_test` in `src/toolchain/emitter/test/ern_emitter_tests.erl`;
 - the editor's `lastThousand` in `src/shell/ernest/shell/editor.ern`.
 
 ## Adding a load

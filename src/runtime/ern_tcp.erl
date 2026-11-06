@@ -19,6 +19,12 @@
 -export([loop/0]).
 
 -include_lib("kernel/include/file.hrl").
+-include_lib("runtime/include/ern_rt.hrl").
+
+%% Report §10: the host's process of a connection over TLS holds what it
+%% carried as a process of the runtime's would, and is told to collect as it
+%% waits by the host's own option, which hibernates it.
+-define(TLS_WAITS, [{hibernate_after, ?WAIT_BEFORE_COLLECTING}]).
 
 %% Report Appendix E.18: a listener's and a socket's loops end only in the
 %% exit that tells a waiting call the socket was closed or its owner died,
@@ -27,7 +33,7 @@
 
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 -receives({own_process, [serve/2, counted_request/2, opened/7, listener_loop/4, socket_process/6,
-                         writing/3, handshake_failed/2, socket_loop/1, stop_writer/1,
+                         writing/4, handshake_failed/2, socket_loop/2, stop_writer/1,
                          close_socket/2, lingering/5]}).
 
 %% A socket's process: its transport, the host's socket, the writer that
@@ -251,7 +257,8 @@ listening({tls, {'Path', Certificate}, {'Path', Key}}) ->
         {{error, Error}, _} -> {error, Error};
         {_, {error, Error}} -> {error, Error};
         {{ok, CertificateFile}, {ok, KeyFile}} ->
-            {ssl, <<"Tcp.listenTls">>, [{certfile, CertificateFile}, {keyfile, KeyFile}]}
+            {ssl, <<"Tcp.listenTls">>,
+             [{certfile, CertificateFile}, {keyfile, KeyFile} | ?TLS_WAITS]}
     end.
 
 %% Report Appendix E.18, E.17: a file of a listener's or a check's, by the
@@ -359,7 +366,7 @@ connecting({tls, Verification}, Host) ->
     Reference = reference(Host),
     case verification(Verification, Reference) of
         {error, Error} -> {error, Error};
-        Checked -> {ssl, <<"Tcp.connectTls">>, Checked ++ server_name(Reference)}
+        Checked -> {ssl, <<"Tcp.connectTls">>, Checked ++ server_name(Reference) ++ ?TLS_WAITS}
     end.
 
 %% Report Appendix E.18: `Verified(caFile)` checks the far end's certificate
@@ -700,6 +707,10 @@ writer(Transport, Socket, SocketProcess, open) ->
     writing(Transport, Socket, SocketProcess).
 
 writing(Transport, Socket, SocketProcess) ->
+    writing(Transport, Socket, SocketProcess, ?WAIT_BEFORE_COLLECTING).
+
+%% Report §10: a process that waits collects, as a receive of the program's.
+writing(Transport, Socket, SocketProcess, After) ->
     receive
         {write, Bytes, Reply} ->
             Sent = Transport:send(Socket, Bytes),
@@ -709,6 +720,9 @@ writing(Transport, Socket, SocketProcess) ->
                                  end),
             SocketProcess ! {written, Sent},
             writing(Transport, Socket, SocketProcess)
+    after After ->
+        ern_rt:collect(),
+        writing(Transport, Socket, SocketProcess, infinity)
     end.
 
 %% Report Appendix E.18: a write given before the socket's process knew that
@@ -721,8 +735,12 @@ handshake_failed(Failure, SocketProcess) ->
             handshake_failed(Failure, SocketProcess)
     end.
 
+socket_loop(Connection) ->
+    socket_loop(Connection, ?WAIT_BEFORE_COLLECTING).
+
+%% Report §10: a process that waits collects, as a receive of the program's.
 socket_loop(#connection{transport = Transport, socket = Socket, writer = Writer,
-                        monitor_ref = MonitorRef, state = State} = Connection) ->
+                        monitor_ref = MonitorRef, state = State} = Connection, After) ->
     receive
         {'Read', Ms, Reply} ->
             socket_loop(read(Ms, Reply, Connection));
@@ -808,6 +826,9 @@ socket_loop(#connection{transport = Transport, socket = Socket, writer = Writer,
             socket_loop(closed('Closed', Connection));
         {ssl_error, Socket, _} ->
             socket_loop(closed('Closed', Connection))
+    after After ->
+        ern_rt:collect(),
+        socket_loop(Connection, infinity)
     end.
 
 %% The module of a host socket's options, statistics and ends: inet for

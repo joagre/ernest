@@ -75,10 +75,11 @@
 
 -include_lib("checker/include/ern_canonical.hrl").
 -include_lib("emitter/include/ern_unit.hrl").
+-include_lib("runtime/include/ern_rt.hrl").
 
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 -receives({answered_at_once, [start/0]}).
--receives({own_process, [loop/1]}).
+-receives({own_process, [loop/2]}).
 
 -define(NAME, ern_exchange).
 
@@ -146,6 +147,10 @@ told(Message) ->
     end.
 
 loop(State) ->
+    loop(State, ?WAIT_BEFORE_COLLECTING).
+
+%% Report §10: a process that waits collects, as a receive of the program's.
+loop(State, After) ->
     receive
         {lacking, From, Body, Identity} ->
             loop(asked(From, Body, Identity, State));
@@ -165,6 +170,9 @@ loop(State) ->
             loop(dropped(Node, State));
         {deadline, Ref} ->
             loop(timed(Ref, State))
+    after After ->
+        ern_rt:collect(),
+        loop(State, infinity)
     end.
 
 %%

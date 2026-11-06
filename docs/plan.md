@@ -83,23 +83,16 @@ reader S reads of its live shell. The release note's line on the installed layou
 1. **The runtime at the host's limits**, done 2026-11-04 (the log's *A Node's Limits*, *A Node's
    Schedulers*, *The Hangup's Order* and *ernest-httpd's Lines 18 to 21*).
 
-2. **The host's collection at the wait.** A process that drops a value and waits holds it until
-   its next collection, which the host runs only as the process allocates (§10): the server's
-   idle connection held its last response. The runtime moves the host's own collection to the
-   wait: a `receive` that finds nothing to take asks the host, before it waits, for the
-   process's counts, and collects where the binaries referenced since its last collection pass
-   the host's own threshold, `min_bin_vheap_size`; a receive that takes a message at once pays
-   nothing, and one that waits pays one call of the host's beside its suspension.
-
-   §10 states it, a test holds the probe, a process that drops a megabyte and waits and the node's binary
-   memory falling, `make bench` measures a waiting receive before and after, and the server's
-   measurement under its `measure/` shows the gain. Where the cost is more than a fraction of
-   a wait, the design goes to the log with its number and the rule of §10 stands alone.
+2. **The host's collection at the wait**, done 2026-11-06 (§10; the log's *A Wait Collects*). A
+   wait first waits the host's shortest timer and collects as it ends, rather than counting before
+   it waits, which cost three times a wait and missed a call's wait, a socket and its writer. A
+   receive that waits costs a timer more: the counter program's ratio to Erlang went from 1.26x to
+   1.68x.
 3. **Memory shown.** `Process.status` and `:processes` show each process's memory, the host's
    count with its binaries (E.21, §11.2), read against E.0's rules first, so that an operator
    sees what an idle connection holds.
 4. **The deployment guide says what a waiting process holds**, one sentence in its section 7,
-   pointing at §10 and item 2.
+   pointing at §10.
 5. **`kill` takes a `Process`**, feedback 213, as `monitor` does, so that a function of an
    address passes it through `Process.fromAddress` once for both; Appendix E.21 first.
 6. **Text from bytes that are not all UTF-8**, feedback 206, decided 2026-11-02, the policy
@@ -228,6 +221,11 @@ reader S reads of its live shell. The release note's line on the installed layou
     finds them, and a process found by its site alone can be killed and not moved, since a
     `Process` cannot be sent to (§6.5). Whether the operator gets a way to reach such a process
     is decided against §6.5's decision that an address is the permission to send.
+22. **The sockets load's warm-up on nike.** `make load` fails on it in about half its runs, on the
+    commit before item 2 as well: the node's memory steps for about twenty rounds, then stays flat
+    over forty-two, past the six rounds the load counts as its warm-up (the log's *A Wait
+    Collects*). The warm-up is measured on nike and set to what the steps need, the bound of
+    `docs/memory_checks.md` unchanged, so that the release's run of the loads means something.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
