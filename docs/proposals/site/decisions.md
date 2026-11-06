@@ -280,7 +280,7 @@ The site's files as served.
 - The HTML is written to be read, by hand in a template and by the
   generator in a page alike, so that a page's source reads as its
   template does (decided 2026-11-03). Each block element stands on a line
-  of its own, indented four spaces a level, as `docs/style.md`'s *Every language* says
+  of its own, indented four spaces a level, as `docs/code_style.md`'s *Every language* says
   of every file, the CSS and the script among them (decided 2026-11-04); inline content stays on its
   block's line, a paragraph one line however long. A `<pre>` begins at its
   line's indentation and holds its body as shown, from the line's start.

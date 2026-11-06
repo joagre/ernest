@@ -119,7 +119,7 @@ first(_, _, _) ->
 %% 9112, section 3 lets a recipient part one at a bare carriage return, a
 %% vertical tab and a form feed too, which the host refuses between words;
 %% so a bare carriage return stays in its word, where a target holds none.
-%% Each byte is tested directly, as a fixed question is (docs/style.md).
+%% Each byte is tested directly, as a fixed question is (docs/code_style.md).
 words(_, [_, _, _, _] = Words) ->
     lists:reverse(Words);
 words(<<Byte, Rest/binary>>, Words) when ?IS_SPACE(Byte) ->

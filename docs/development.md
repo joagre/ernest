@@ -144,7 +144,7 @@ A list that lives in two places is held equal by a test where one is cheap, whos
 - the Emacs mode's tests, in `docs/design/emacs_mode.md`'s table, `editors/emacs/test/` and the Makefile's `EMACS_TESTS`;
 - the stages' modules, the runtime's shims, the processes and the code table's keys in `docs/architecture.md`, against the code;
 - the rows of the runtime's tables in `docs/architecture.md` and `docs/design/runtime.md`, but the names of `ern_rt`'s tables and the map's row of `ern_launch`, which a test holds;
-- the frames' count in `docs/design/nodes.md`, and the frames the glossary of `docs/style.md` names;
+- the frames' count in `docs/design/nodes.md`, and the frames the glossary of `docs/code_style.md` names;
 - the shell's foreign functions, in `docs/design/shell.md`'s *The foreign interface* and the shell's `foreign fn`s;
 - the memory's regression tests, in `docs/memory.md`;
 - the first-party libraries, in this document's layout, the plan's MVP 4.1, Appendix G and the libraries' directory;

@@ -17,7 +17,7 @@
 -export([loop/0, helper_failed/0, helper/0, signal/2, locked/2, node_signaled/3, host/0, user/0,
          umask/0, working_directory/0]).
 
-%% Report §8.6: each receive that can wait, by its kind (docs/style.md).
+%% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 %% The host's facts are read from a port, a wait inside foreign code for
 %% the look (host/0); the working directory is the host's file server's,
 %% whose functions the look reads on top of the process's stack as the

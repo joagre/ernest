@@ -93,7 +93,7 @@ The shell reaches the host as any program does: through the system modules `Term
 
 ## The shell's own names
 
-The names that recur across the shell's modules beyond those [`guide/style.md`](../../guide/style.md) gives every program, `cursor`, `serial`, `color`, `rows` and `typedWord`, are the toolchain's glossary's, [`docs/style.md`](../../docs/style.md)'s *Ernest*.
+The names that recur across the shell's modules beyond those [`guide/style.md`](../../guide/style.md) gives every program, `cursor`, `serial`, `color`, `rows` and `typedWord`, are the toolchain's glossary's, [`docs/code_style.md`](../../docs/code_style.md)'s *Ernest*.
 
 ## Building and trying it
 

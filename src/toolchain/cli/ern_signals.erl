@@ -3,14 +3,14 @@
 %% about them; report §8.7: for a node, hangup is a reload. A callback
 %% module of OTP's erl_signal_server, in place of its default handler, which
 %% stops the node with status 0 on a termination and ignores a hangup; not
-%% a process of the toolchain's own (docs/style.md).
+%% a process of the toolchain's own (docs/code_style.md).
 -module(ern_signals).
 -behaviour(gen_event).
 
 -export([install/0, status/1, ended/0, ended/1, die/2, init/1, handle_event/2, handle_call/2,
          handle_info/2]).
 
-%% Report §8.6: each receive that can wait, by its kind (docs/style.md).
+%% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 -receives({own_process, [die/2]}).
 
 %% Handle the two signals here from now on (report §11). The launcher has

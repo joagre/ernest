@@ -73,7 +73,7 @@
 
 -compile({no_auto_import, [spawn/2, self/0, monitor/2, demonitor/1, now/0]}).
 
-%% Report §8.6: each receive that can wait, by its kind (docs/style.md).
+%% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 -receives({foreign_wait, [computed_answer/3, exit_program/1, refused/1, restart_taken/1,
                           end_with_program/0, waited_deliveries/1, tell_service_monitors/0,
                           say/2, waited_settler/2]}).

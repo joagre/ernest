@@ -36,7 +36,7 @@
 
 -include_lib("runtime/include/ern_rt.hrl").
 
-%% Report §8.6: each receive that can wait, by its kind (docs/style.md).
+%% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 -receives({own_process, [checker_loop/6]}).
 
 -type descriptor() :: any | int | float | bool | char | string | bytes | process | never

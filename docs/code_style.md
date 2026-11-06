@@ -1,4 +1,4 @@
-# Style
+# Code style
 
 The repository's own rules for its Erlang and its C, and where they differ from widely accepted guides: for Erlang, Ericsson's *Programming Rules and Conventions* (Eriksson, Williams and Armstrong) and Inaka's *Erlang Coding Standards & Guidelines*. What a program written in Ernest looks like is [`guide/style.md`](../guide/style.md)'s, installed with the guide; the repository's Ernest follows it too. Where the guides and this file differ, this file holds. A guide serves the reader and is not a law: a rule a test checks holds always, and where another would make the code read worse, judgment goes first. `test/ern_style_tests.erl` checks what is marked *(tested)*.
 

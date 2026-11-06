@@ -1,7 +1,7 @@
 #!/bin/sh
 # Every comment block past about a hundred words in the Erlang and the
 # Ernest, for its writer to read again for a turn it may hide
-# (docs/style.md, *Every language*): path, line and words. A block is a
+# (docs/code_style.md, *Every language*): path, line and words. A block is a
 # run of comment lines, `%%` or `//`, a doc block's `///` among them, which
 # a blank comment line or a line of code ends, and a list item, `- ` or
 # `1. ` after the marker, begins one of its own, as a document's does; a

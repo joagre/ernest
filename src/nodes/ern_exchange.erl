@@ -76,7 +76,7 @@
 -include_lib("checker/include/ern_canonical.hrl").
 -include_lib("emitter/include/ern_unit.hrl").
 
-%% Report §8.6: each receive that can wait, by its kind (docs/style.md).
+%% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 -receives({answered_at_once, [start/0]}).
 -receives({own_process, [loop/1]}).
 

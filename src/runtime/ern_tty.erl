@@ -34,7 +34,7 @@
 
 -export([loop/2, size/0, restore/1, is_terminal/1, more/2, decode/1, flush/1]).
 
-%% Report §8.6: each receive that can wait, by its kind (docs/style.md).
+%% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 -receives({own_process, [refusing/0, loop/4, couriered/2, courier/1, unsubscribe/3,
                          start_reader/1, held/2, given_back/0, restore/1]}).
 

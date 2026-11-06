@@ -269,7 +269,7 @@ anchored(Heads) ->
           end, #{}, Heads),
     Anchored.
 
-%% docs/style.md, docs/development.md "The layout of the repository": a document that says
+%% docs/code_style.md, docs/development.md "The layout of the repository": a document that says
 %% where things are names things that are there, from the repository's root
 %% or, as src/shell/README.md does, from its own directory. The report and the
 %% guide name paths a program might have, `net/http.ern`, the plan and a
@@ -284,7 +284,7 @@ document_paths_test() ->
                                not exists(filename:join(filename:dirname(File), Path))],
     ?assertEqual([], Missing).
 
-%% docs/style.md "Every language", docs/development.md "The layout of the
+%% docs/code_style.md "Every language", docs/development.md "The layout of the
 %% repository": a path under docs/ or test/ that a comment of the
 %% toolchain's code names, a whole line's comment of its Erlang, its C or
 %% its Makefiles, is there, but a build's product under test/build/, which a
@@ -606,7 +606,7 @@ described() ->
 %% A backticked path a document writes under one of the repository's own
 %% directories, or under a directory beside the document, as
 %% src/shell/README.md writes `ernest/shell/editor.ern`. A metavariable is
-%% written `<name>`, as docs/style.md writes `ern_<thing>`, and a wildcard
+%% written `<name>`, as docs/code_style.md writes `ern_<thing>`, and a wildcard
 %% stands for a set, so neither names one file.
 paths(File) ->
     Tops = ["docs/", "test/", "bin/", "src/", "examples/", "build/", "tools/", "release/",

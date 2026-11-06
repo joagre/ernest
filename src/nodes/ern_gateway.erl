@@ -32,7 +32,7 @@
 
 -include_lib("nodes/include/ern_node.hrl").
 
-%% Report §8.6: each receive that can wait, by its kind (docs/style.md).
+%% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 -receives({answered_at_once, [start/0, asked/1]}).
 -receives({own_process, [gateway/5, work/1]}).
 

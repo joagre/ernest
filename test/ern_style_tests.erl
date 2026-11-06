@@ -1,4 +1,4 @@
-%% The style guides, docs/style.md and guide/style.md, where a machine can check them.
+%% The style guides, docs/code_style.md and guide/style.md, where a machine can check them.
 -module(ern_style_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -40,7 +40,7 @@
                     "|digraph_utils:reachable_neighbours|digraph:in_neighbours"
                     "|digraph:out_neighbours").
 
-%% docs/style.md: code lines are at most 100 characters, in the compiler's
+%% docs/code_style.md: code lines are at most 100 characters, in the compiler's
 %% Erlang, its C, its Makefiles and its scripts, and in Ernest alike; the
 %% vendored getopt keeps its upstream form, and test/build holds a build's
 %% copies, which a stale one failed. A regression test for the Makefiles,
@@ -63,7 +63,7 @@ line_length_test() ->
                               string:length(Line) > 100],
     ?assertEqual([], Long).
 
-%% docs/style.md, guide/style.md: no variable's name ends in a number in
+%% docs/code_style.md, guide/style.md: no variable's name ends in a number in
 %% Ernest, since a value changing through a function is bound again under
 %% its name (report §5.4), and no function's, a loop's successor named for
 %% what changed, `countGuarded` beside `count`; but for a name the host
@@ -138,7 +138,7 @@ uncommented([$" | Rest], InString) -> [$" | uncommented(Rest, not InString)];
 uncommented([Char | Rest], InString) -> [Char | uncommented(Rest, InString)];
 uncommented([], _) -> [].
 
-%% docs/style.md: no file holds a tab but a Makefile; the vendored getopt
+%% docs/code_style.md: no file holds a tab but a Makefile; the vendored getopt
 %% keeps its upstream form. A regression test for the fixtures' Erlang and
 %% the machines' script, which it once left unread
 no_tab_test() ->
@@ -156,7 +156,7 @@ no_tab_test() ->
     ?assertEqual([], [{File, Number} || File <- Files, {Number, Line} <- numbered(File),
                                         lists:member($\t, Line)]).
 
-%% docs/style.md, CLAUDE.md *Writing*: a paragraph of a tracked document
+%% docs/code_style.md, CLAUDE.md *Writing*: a paragraph of a tracked document
 %% is at most 150 words, a list item among them, since a block past it no
 %% reader takes in whole; the listing is tools/paragraphs.sh's, which
 %% `make paragraphs` runs at a hundred for the writer to read and this
@@ -168,7 +168,7 @@ paragraph_ceiling_test() ->
     Listed = string:lexemes(os:cmd("sh " ++ ?ROOT ++ "/tools/paragraphs.sh 150"), "\n"),
     ?assertEqual([], Listed).
 
-%% docs/style.md *Every language*: a comment is paragraphs as a document
+%% docs/code_style.md *Every language*: a comment is paragraphs as a document
 %% is, a blank comment line between them and none past 150 words, in the
 %% Erlang and the Ernest alike; tools/comments.sh lists the blocks at a
 %% hundred for the writer and this test holds them at the ceiling. A
@@ -178,7 +178,7 @@ comment_ceiling_test() ->
     Listed = string:lexemes(os:cmd("sh " ++ ?ROOT ++ "/tools/comments.sh 150"), "\n"),
     ?assertEqual([], Listed).
 
-%% docs/style.md: the spelling is American English, in every tracked file
+%% docs/code_style.md: the spelling is American English, in every tracked file
 %% of text but a proposal, the licenses and a borrowed file. A word is
 %% matched whole, whatever its case, and a name is read as the words it
 %% joins at `_` or a capital, `ern_utilizations` and `setUtilization`
@@ -259,7 +259,7 @@ words(Line, HostNames, Word) ->
         nomatch -> []
     end.
 
-%% docs/style.md: one `-export` list, in the order the functions appear,
+%% docs/code_style.md: one `-export` list, in the order the functions appear,
 %% and a `-spec` on every exported function, in the toolchain's modules and
 %% in the tests' and their harnesses'; the vendored getopt keeps its
 %% upstream form. Written after the rule, when six modules had fallen out
@@ -289,7 +289,7 @@ export_faults(File) ->
         ++ [{no_spec, FunctionArity} || FunctionArity <- Exports,
                                         not lists:member(FunctionArity, Specs)].
 
-%% report §8.6, docs/style.md: the look reads a process that waits in a
+%% report §8.6, docs/code_style.md: the look reads a process that waits in a
 %% module of the toolchain's own Erlang as one that waits as Ernest waits
 %% (ern_rt:is_ernest/1), so every `receive` there that can wait, which is
 %% every one but a `receive` with `after 0`, is named by its function under
@@ -706,7 +706,7 @@ moved(Token, Offset) ->
     {Line, Column, End, Previous} = element(2, Token),
     setelement(2, Token, {Line + Offset, Column, End, Previous}).
 
-%% docs/style.md: every Erlang module is ern_<thing>, unique across the
+%% docs/code_style.md: every Erlang module is ern_<thing>, unique across the
 %% repository, and a module compiled from an Ernest source is ern@<namespace>;
 %% the one exception is a vendored file, which THIRD_PARTY_LICENSES names
 module_name_test() ->

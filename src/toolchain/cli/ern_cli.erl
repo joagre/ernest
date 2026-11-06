@@ -15,7 +15,7 @@
 -include_lib("cli/include/ern_build.hrl").
 -include_lib("nodes/include/ern_node.hrl").
 
-%% Report §8.6: each receive that can wait, by its kind (docs/style.md).
+%% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 -receives({ernest_wait, [waits/0, run_test/3, returned/2]}).
 -receives({own_process, [in_runtime/2, read_input/2, cases_launch/6]}).
 

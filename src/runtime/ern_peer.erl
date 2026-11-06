@@ -33,7 +33,7 @@
 
 -include_lib("emitter/include/ern_unit.hrl").
 
-%% Report §8.6: each receive that can wait, by its kind (docs/style.md):
+%% Report §8.6: each receive that can wait, by its kind (docs/code_style.md):
 %% a find's, a spawn's and a utilization's wait on a peer's answer, a
 %% process a peer's monitored spawn started here on the spawner's word
 %% (held/4), and a restart's wait for a peer's answer (watchers_told/1),

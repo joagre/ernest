@@ -4,7 +4,7 @@
 # hide (CLAUDE.md, *Writing*): path, line, words and the paragraph's first
 # words. A list, not a limit: a paragraph that holds one thing stays whole.
 # Given a number, the paragraphs past that many words instead: `150` is the
-# ceiling a test holds every document to (docs/style.md, *Every language*),
+# ceiling a test holds every document to (docs/code_style.md, *Every language*),
 # since a block past it no reader takes in whole.
 # A list item is a paragraph of its own, which ends at the next item, at a
 # blank line or where its indentation ends. A heading, a table row or an

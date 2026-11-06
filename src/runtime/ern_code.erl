@@ -69,7 +69,7 @@
 
 -export_type([host_table/0, reach/0]).
 
-%% Report §8.6: each receive that can wait, by its kind (docs/style.md):
+%% Report §8.6: each receive that can wait, by its kind (docs/code_style.md):
 %% the wait for the table's holder, which the look cannot see deliver, and
 %% the holder's own. Code.hashes reads its file through the host's file
 %% server, whose functions the look reads on top of the process's stack as

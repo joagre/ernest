@@ -6,7 +6,7 @@
 %% dial;
 %% this node's port from `listen`; and the number of this start, which the
 %% host puts in every address. A callback module the host calls, not a
-%% process of the toolchain's own (docs/style.md).
+%% process of the toolchain's own (docs/code_style.md).
 -module(ern_epmd).
 
 -export([start_link/0, register_node/2, register_node/3, port_please/2, port_please/3,

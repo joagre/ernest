@@ -106,7 +106,7 @@ runs([{C, Class} | Rest], Lo, Hi, Last) -> [{Lo, Hi, Last} | runs(Rest, C, C, Cl
 runs([], Lo, Hi, Class) -> [{Lo, Hi, Class}].
 
 %% The entries as many to a line as fit in 100 characters, each line a
-%% step in (docs/style.md).
+%% step in (docs/code_style.md).
 %% The table as ern format lays it out (report §11.6): too long for one
 %% line, so an entry a line, each under the first.
 rows(Entries) ->

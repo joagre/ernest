@@ -22,7 +22,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 | the code and its tests | what is built |
 | [`docs/architecture.md`](docs/architecture.md) | how the code is arranged |
 | [`guide/style.md`](guide/style.md) | what a program written in Ernest looks like: what the tools decide, what the standard library does with names, and the names every program shares |
-| [`docs/style.md`](docs/style.md) | the repository's own code's form and naming, its Erlang's, its C's and its own Ernest's, how a shim is written, and the toolchain's glossary |
+| [`docs/code_style.md`](docs/code_style.md) | the repository's own code's form and naming, its Erlang's, its C's and its own Ernest's, how a shim is written, and the toolchain's glossary |
 | [`README.md`](README.md) | what Ernest is and where to begin |
 | [`report/README.md`](report/README.md) | what the report's three files hold and how the report is read |
 | [`guide/README.md`](guide/README.md) | what each guide is, for whom, and how long |
@@ -123,7 +123,7 @@ Meanwhile it changes only in its form, every decision, fact and number kept; a p
 ## Shims
 
 - **The shell's, a tool's and a program's work is written in Ernest.** Where a piece of work could be Ernest or Erlang, it is Ernest. Where only a missing function or library keeps it out, discuss the gap with the user and fill it, then write the work in Ernest; never in Erlang or behind a `foreign fn` meanwhile. In that work `foreign` is only what the host alone can do, given the layers beneath it: the shell reads its history file in Ernest because `Fs` is beneath it.
-- **How a shim is written** is [`docs/style.md`](docs/style.md)'s *Shims*: where an operation is the host's function and where Ernest closes the difference, a type's representation, the upstream page, and no regular expression for a fixed question.
+- **How a shim is written** is [`docs/code_style.md`](docs/code_style.md)'s *Shims*: where an operation is the host's function and where Ernest closes the difference, a type's representation, the upstream page, and no regular expression for a fixed question.
 
 ## Defects and gaps
 
@@ -158,7 +158,7 @@ Meanwhile it changes only in its form, every decision, fact and number kept; a p
 - **A report edit updates the revision date** in line 3 of each file it changes.
 - **The report's section numbers never change**, since the documents, the tests and the code cite them. Never renumber, remove or insert a section between two others. A new rule goes into the section it belongs to; where none can hold it, a new section goes at the end of its chapter or appendix. The guide's numbers change only where a section cannot be placed otherwise.
 - **Compiler behavior goes to §11.**
-- **The spelling is American English**, in every document, name and message; `guide/style.md` states the rule and `docs/style.md`'s *Every language* the test's scope.
+- **The spelling is American English**, in every document, name and message; `guide/style.md` states the rule and `docs/code_style.md`'s *Every language* the test's scope.
 - **No document or message names who proposed an idea**, or that person's role; it states the argument. [`ACKNOWLEDGMENTS.md`](ACKNOWLEDGMENTS.md) and the report's dedication with its epigraph name people and argue nothing.
 
 ## Done
@@ -183,7 +183,7 @@ Meanwhile it changes only in its form, every decision, fact and number kept; a p
 
 ## Style
 
-The two style documents of the owner table, [`guide/style.md`](guide/style.md) for a program's Ernest and [`docs/style.md`](docs/style.md) for the repository's own code, are read before their language is written, the first before Ernest and the second before Erlang or C, by a session and by an agent, whose brief says so; neither is imported here.
+The two style documents of the owner table, [`guide/style.md`](guide/style.md) for a program's Ernest and [`docs/code_style.md`](docs/code_style.md) for the repository's own code, are read before their language is written, the first before Ernest and the second before Erlang or C, by a session and by an agent, whose brief says so; neither is imported here.
 
-**The glossary is living.** A name that comes to recur across modules, or a concept the code names in two places, goes into the glossary in the commit that writes it, `guide/style.md`'s for an Ernest name and `docs/style.md`'s for the toolchain's, in the report's word where the report names the concept. Appendix F is living the same way: a report edit that introduces a term adds its line in that edit. Use a name the glossary holds as it stands. Where the code and the glossary differ, correct the wrong one in the same commit; a new word that departs from the report's goes to the user first.
+**The glossary is living.** A name that comes to recur across modules, or a concept the code names in two places, goes into the glossary in the commit that writes it, `guide/style.md`'s for an Ernest name and `docs/code_style.md`'s for the toolchain's, in the report's word where the report names the concept. Appendix F is living the same way: a report edit that introduces a term adds its line in that edit. Use a name the glossary holds as it stands. Where the code and the glossary differ, correct the wrong one in the same commit; a new word that departs from the report's goes to the user first.
 

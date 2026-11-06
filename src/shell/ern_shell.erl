@@ -35,7 +35,7 @@
 -include_lib("runtime/include/ern_rt.hrl").
 -include_lib("kernel/include/file.hrl").
 
-%% Report §8.6: each receive that can wait, by its kind (docs/style.md): the
+%% Report §8.6: each receive that can wait, by its kind (docs/code_style.md): the
 %% wait for the table's holder, a process of the toolchain's own the look
 %% does not read, and the holder's own.
 -receives({ernest_wait, [bound_lives/1]}).

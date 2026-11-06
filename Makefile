@@ -443,7 +443,7 @@ test-docs:
 # The prose paragraphs past about a hundred words, for their writer to read
 # again when asked (CLAUDE.md, *Writing*); the style tests hold both at
 # 150. comments lists the comment blocks of the
-# Erlang and the Ernest the same way (docs/style.md).
+# Erlang and the Ernest the same way (docs/code_style.md).
 paragraphs:
 	@sh tools/paragraphs.sh
 comments:

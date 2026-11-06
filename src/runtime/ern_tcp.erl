@@ -25,7 +25,7 @@
 %% so the fun `opened` spawns never returns, which Dialyzer would report.
 -dialyzer({nowarn_function, opened/7}).
 
-%% Report §8.6: each receive that can wait, by its kind (docs/style.md).
+%% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 -receives({own_process, [serve/2, counted_request/2, opened/7, listener_loop/4, socket_process/6,
                          writing/3, handshake_failed/2, socket_loop/1, stop_writer/1,
                          close_socket/2, lingering/5]}).

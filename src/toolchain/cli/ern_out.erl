@@ -11,7 +11,7 @@
 
 -export([take/0, finish/1]).
 
-%% Report §8.6: each receive that can wait, by its kind (docs/style.md).
+%% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 -receives({own_process, [finish/1, loop/2]}).
 
 %% Standard output becomes the calling process's group leader, which the
