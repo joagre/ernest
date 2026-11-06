@@ -19,7 +19,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-11-06.** [The First Run on the New Laptop](#the-first-run-on-the-new-laptop-2026-11-06); [The Browser Test's Flake](#the-browser-tests-flake-2026-11-06).
+**2026-11-06.** [The First Run on the New Laptop](#the-first-run-on-the-new-laptop-2026-11-06); [The Browser Test's Flake](#the-browser-tests-flake-2026-11-06); [Context Is the Cost](#context-is-the-cost-2026-11-06).
 
 **2026-11-05.** [The Applications' Full Review](#the-applications-full-review-2026-11-05). [Who Writes in the Other Repositories](#who-writes-in-the-other-repositories-2026-11-05). [Ernest Stays at 0.x](#ernest-stays-at-0x-2026-11-05). [One Stop for the Layout](#one-stop-for-the-layout-2026-11-05). [The Floors and the Releases](#the-floors-and-the-releases-2026-11-05). [MVP 4.3 Becomes MVP 4.5](#mvp-43-becomes-mvp-45-2026-11-05).
 
@@ -11643,3 +11643,17 @@ Reading it found a second defect beside it. A fetch already replaced that then f
 "A page still on its way" holds both by holding the page's fetches, and was seen to fail on each before its fix. It is a regression test, written after the client, and it does not cover the order of a link's click and a move through the history. The wait's failure now says a condition never held, with where the page stands, since a page that still answers is not busy.
 
 "A whole load and a joined session" was not found. It failed on eve in two of five runs on 2026-11-04, with no connection reaching the stub and with an evaluation not answered, and it passed all 127 runs here: plain, pinned to one to four cores, and beside 48 busy loops. Its second failure may be a condition that never held, as the navigation's was, but nothing shows that. The first is unexplained. The client and the test stood unchanged from that day until now, so the run on eve that the plan names tests what failed, these fixes aside.
+
+## Context Is the Cost, 2026-11-06
+
+The way of working changed after seven weeks of this project's session logs were read, against published practice. CLAUDE.md's *The repository* holds the result. The figures and the models' names stay out of this repository.
+
+Most of the cost was context, re-read and written back to the cache on each request, and output was the small part. Within a session, more effort cost little per request. So the savings were sought in shorter sessions and agents, and the thinking stays strong, which is what the work wants: an error that becomes a bug or a failed test costs more than the tokens.
+
+For the same reason a stronger model cost well under what its token price suggests, and a cheaper tier would save little, since cache reads cost about the same on it. A rule it missed would then be redone by a stronger session. So no cheaper tier was adopted for builds, against the common advice, which assumes output is most of the bill. The smallest model is used only for a search that asks no judgment.
+
+Strength goes where no test catches the error. A wrong line fails a test, while a wrong soundness argument or report sentence gets built on. Such work needs the discussion's context and the user, which an agent lacks, so the choice is made per session and not per agent.
+
+Published measurements say an agent pays only where there is bulk to hand off, and that a dependent chain in one context costs more through one. So an agent is now started for a reason: the discussion goes on, the output is bulky, a reader must be independent, or work runs side by side.
+
+The logs do not record whether a build was right, so this is unmeasured on quality. They are read again at the end of MVP 4.15. If item sessions start missing things they move to the stronger model, and only a measured gain moves anything down.
