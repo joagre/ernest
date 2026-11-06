@@ -29,7 +29,10 @@ MVP 4.2, the website, is built, and goes live with MVP 4.4's release, its item 6
 
 The repository's layout is built, between MVP 4.15's items 1 and 2, and the three other
 repositories have taken their shape (the log's *The Layout Built*, *The Other Repositories'
-Shape*). The rest of MVP 4.15, what the server taught, follows, then MVP 4.4, the cost, the full review and the launch's release, where the road ends and a
+Shape*). Next, at the same stop, is what the layout proposal still holds (the log's *The Layout's
+Rest First*).
+
+The rest of MVP 4.15, what the server taught, follows, then MVP 4.4, the cost, the full review and the launch's release, where the road ends and a
 program begins (the log's *MVP 4.4, the Road's End*). MVP 4.5, the shell's second round, follows
 the launch (the log's *MVP 4.3 Becomes MVP 4.5*). Ernest stays at 0.x until someone outside the project depends on it (the log's *Ernest
 Stays at 0.x*). The back end to BEAM's own instructions that closed the road is not built, decided
@@ -62,6 +65,35 @@ build in the layout that stays and the archive ernest-httpd rehearses on holds i
 At the same stop ernest-template, ernest-epx and ernest-httpd took their shape, a commit in each
 (the log's *One Stop for the Layout*, *The Other Repositories' Shape*). No floor rose and none
 of them released: the changes wait on `main` for MVP 4.4's item 5.
+
+What the layout proposal still holds comes next, before item 2, so that items 2 to 21 build on
+the final names and no session stops twice (the log's *The Layout's Rest First*). Its checklist is
+`temp-suggestions.md`.
+
+In an item session:
+
+- Group 5: CLAUDE.md's rule on a proposal refused or not taken up.
+- Group 4: the renames and additions, each its own commit. `docs/proposals/fides/README.md` says
+  that proposal is exploratory.
+- Group 2: `docs/log.md` split by month, one file holding the index and the standing sections,
+  since GitHub does not render it at 2.6 MB and the site's citations lead nowhere until then. The
+  generator and the documents test resolve a citation's title to its file and anchor.
+- Group 6's files: `README.md` from its draft, which first takes the two changes made since it
+  was cut, the smaller logo and the sentence on `src/` and `tools/`; `guide/why.md` from its
+  draft; the first claim renamed "Code travels"; the release README's first sentence; and
+  `site/projects.md`'s links. The user changes GitHub's About blurb the day the new README lands.
+
+In a design session, the user agreeing each cut:
+
+- CLAUDE.md redrafted after a harvest of the four repositories' files, every old rule mapped to a
+  new sentence.
+- Then the template's, and from it ernest-epx's and ernest-httpd's, by Ernest's session, with the
+  template's new `docs/full_review.md`, which each copy takes (`temp-other-repos.md`'s items 5, 7
+  and 9; the log's *Who Writes in the Other Repositories*).
+
+The three applications' sessions start after that, and each adds what it alone has to its
+`docs/full_review.md`. Then the proposal goes, after the reading CLAUDE.md's *Proposals* asks. The
+release note's line on the installed layout waits for MVP 4.4's item 5.
 
 1. **The runtime at the host's limits**, done 2026-11-04 (the log's *A Node's Limits*, *A Node's
    Schedulers*, *The Hangup's Order* and *ernest-httpd's Lines 18 to 21*).
@@ -243,7 +275,7 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
    worked as it says, the batches' sentences read cold before the build.
 
    Beside it, on the user's word, ernest-template, ernest-epx and ernest-httpd are each reviewed
-   whole by their own sessions, by the `docs/full_review.md` of item 8, against the archive of the
+   whole by their own sessions, by the `docs/full_review.md` each took at the layout's stop, against the archive of the
    commit the readers read; ernest-httpd's review has a security reader, since it goes public at
    item 6. What they find of Ernest's comes as lines of their feedback files and is sorted in this
    round (the log's *The Applications' Full Review*, *Ernest Stays at 0.x*). As they begin, the
@@ -276,19 +308,6 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
    release of item 5 made, it switches once, the machine serving its one page meanwhile. Its container with its two nodes was built 2026-11-04 on the archive
    from 612faac8: caps of 128 processes and 128 MiB, and one core, the user's choice from its
    measure, 3.2 s from start to the homepage's example answered against 6.7 s at half a core.
-7. **The log readable on GitHub**, a defect found 2026-11-04, fixed before item 4: GitHub does
-   not render `docs/log.md`, 2.6 MB, so the site's citations of the log, which link its anchors
-   there, lead nowhere. It is split by month, one file holding the index and the standing
-   sections, and the generator and the documents test resolve a citation's title to its file
-   and anchor (the layout proposal's checklist, group 2).
-8. **The documents of the layout proposal**, before item 4: `README.md` and `guide/why.md`
-   from their drafts, the first claim renamed "Code travels", the release README's first
-   sentence, the renames and additions of its group 4, and CLAUDE.md redrafted after a harvest
-   of the four repositories' files; then the template's, and from it ernest-epx's and
-   ernest-httpd's, by Ernest's session (its groups 4 to 6 and `temp-other-repos.md`'s items 5, 7 and 9; the log's
-   *The Repository's Layout*, *Who Writes in the Other Repositories*). The template gains a
-   `docs/full_review.md` the same way, and each copy takes it. Ernest's session tells each by a
-   message that this second stop is coming, and the user closes them.
 
 ---
 

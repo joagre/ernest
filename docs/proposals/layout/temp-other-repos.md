@@ -2,7 +2,7 @@
 
 What of the `temp*.md` suggestions reaches `ernest-template`, and from it `ernest-epx` and `ernest-httpd`, for one layout and one way of working across the four. A change goes to the template first, then into each application by hand, as the template's copies are kept. Ernest's session makes these changes in the template and in each application, since they are the repository's shape and not what the program says (`docs/clean_room.md`). One stays with an application's own session: what it adds to its full review (item 9). Read 2026-11-04.
 
-**When.** Items 3, 4, 6 and 8 were made at one stop, on 2026-11-06, with Ernest's restructuring, after MVP 4.2 closes and before MVP 4.15's item 2, the owner row item 4 needs among them. Items 5, 7 and 9 follow Ernest's CLAUDE.md redraft, under MVP 4.4's item 8.
+**When.** Items 3, 4, 6 and 8 were made at one stop, on 2026-11-06, with Ernest's restructuring, after MVP 4.2 closes and before MVP 4.15's item 2, the owner row item 4 needs among them. Items 5, 7 and 9 follow Ernest's CLAUDE.md redraft, before MVP 4.15's item 2 and before the three applications' sessions start (the log's *The Layout's Rest First*).
 
 ## Found first: the rule for src/ and tools/
 

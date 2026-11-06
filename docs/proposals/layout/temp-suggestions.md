@@ -10,7 +10,7 @@ The actions from the walk of 2026-11-04. The reasons are in `temp.txt`.
 
 - [x] GitHub does not render `docs/log.md`, 2.6 MB: checked by the user 2026-11-04. So 2's split is needed, and the site's citations of the log, which link its anchors on GitHub, are broken until it is made.
 
-## 2. Before the launch
+## 2. Before MVP 4.15's item 2
 
 - [x] Add `SECURITY.md`: where to report a security hole privately.
 - [ ] Split `docs/log.md` by month into `docs/log/<year>-<month>.md` and so on, with one file there holding the index and the standing sections; the generator and the documents test resolve a citation's title to its file and anchor.
@@ -37,7 +37,7 @@ The build:
 - [x] One generic rule compiles every app and every library's shim; the per-app Makefiles go. Every root with tests is a job of `make test`, the shims' tests under `test-library`
 - [x] `erlc -I src -I src/toolchain`, for `-include_lib` of the toolchain's headers and of `runtime/include`; a probe of 2026-11-06 confirmed it for every `-include_lib`. It finds no plain `-include`, so those of `ern_node.hrl`, `ern_build.hrl` and `ern_rt.hrl`, thirteen modules, are written as `-include_lib`, which `app.mk`'s `-I ../include` hid
 - [x] The launcher: `-pa "$tree"/build/toolchain/*/ebin -pa "$tree"/build/shared/ebin -pa "$tree"/build/nodes/ebin -pa "$tree"/build/runtime/ebin -pa "$tree"/build/shell/ebin`
-- [x] An installation is `bin/` and `build/`, and the release's line in `CHANGES.md` says the installed layout changed, for a script that points inside an installation; an old prefix's `lib/ernest/erl/` goes already, with `uninstall`'s removal of the tree
+- [x] An installation is `bin/` and `build/`, and the release's line in `CHANGES.md` says the installed layout changed, for a script that points inside an installation, which waits for that release (the plan's MVP 4.4, item 5); an old prefix's `lib/ernest/erl/` goes already, with `uninstall`'s removal of the tree
 - [x] `tools/install.sh` and the archive's Makefile: the stage takes `build/toolchain/*/ebin`, `build/shared/ebin`, `build/nodes/ebin`, `build/runtime/{ebin,priv}`, `build/shell/ebin` and `build/libs/*/*.beam`, which its find of `*.erc` leaves out; `install`'s check of the helper, `release`'s removal of it, its compile of `ern_release` and its copy of `ern_exec.c`, and the `HELPER` of `release/Makefile`, follow
 
 The code that knows the tree's shape (`temp.txt`, *Wrinkles found by reading the code*):
@@ -66,7 +66,7 @@ The other repositories, at the same stop, with their sessions stopped:
 
 - [x] `temp-other-repos.md`'s items 3, 4, 6 and 8 in `ernest-template`, then `ernest-epx` and `ernest-httpd`: a commit in each, `make test` against the floor it names; `SECURITY.md`'s content decided with the user first
 
-## 4. Renames and additions, each its own commit, before or after 3 and before MVP 4.4's full review
+## 4. Renames and additions, each its own commit, before MVP 4.15's item 2
 
 A rename of a document changes, in its own commit, CLAUDE.md's owner row and `docs/README.md` where they name it.
 
@@ -82,14 +82,14 @@ A rename of a document changes, in its own commit, CLAUDE.md's owner row and `do
 - [ ] `docs/memory.md` → `docs/memory_checks.md`
 - [ ] `editors/emacs/test/broken/` → `editors/emacs/test/half_typed/`
 - [ ] Add `site/README.md`: a few lines pointing at `docs/development.md`'s layout and `site/templates/README.md`
-- [ ] Add `docs/proposals/fides/README.md`
+- [ ] Add `docs/proposals/fides/README.md`: the proposal is exploratory, decided with the user 2026-11-06
 - [ ] `.gitignore`: `*.erc` under the build's heading; drop `.env` and `.env.local`
 
 ## 5. Rules
 
 - [ ] CLAUDE.md's *Proposals*: a proposal refused or not taken up stays, its README's status line saying which; only a built one goes
 
-## 6. Files (`temp-files.md`), before MVP 4.4's full review
+## 6. Files (`temp-files.md`), before MVP 4.15's item 2
 
 - [ ] `README.md` ← `temp-README.md`; `ern_tour_tests`' cases follow its sessions, and its sessions' start lines are brought to `VERSION`, which `make version` leaves a proposal's as written
 - [ ] `guide/why.md` ← `temp-why.md`
