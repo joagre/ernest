@@ -1,6 +1,6 @@
 %% The toolchain as a user runs it, through bin/ern: the examples and the
 %% test programs built and run, their output compared as a multiset of lines with
-%% fixtures/expected/<name>.out, since prints from different processes interleave
+%% fixtures/outputs/<name>.out, since prints from different processes interleave
 %% by scheduling; the launcher, the signals and the streams; `Os`; and the
 %% libraries' builds. Run from this directory by its Makefile. The helpers
 %% that run a command and build are exported for ern_manual_tests and
@@ -1992,7 +1992,7 @@ catalog_example(Heading) ->
      iolist_to_binary(lists:join(<<"\n">>, Console))}.
 
 expected(Name) ->
-    {ok, Bytes} = file:read_file("fixtures/expected/" ++ Name ++ ".out"),
+    {ok, Bytes} = file:read_file("fixtures/outputs/" ++ Name ++ ".out"),
     lines(Bytes).
 
 lines(Bytes) ->
