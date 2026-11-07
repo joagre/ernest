@@ -614,8 +614,9 @@ changes_note_test() ->
     Prose = [{Number, Line} || {Number, Line} <- Lines, not is_release_heading(Line)],
     ?assert(length(Prose) > 100),
     Refused = "\\b20[0-9]{2}-[01][0-9]-[0-3][0-9]\\b|\\bMVP\\b|\\b[Mm]ilestones?\\b"
-              "|\\bthe plan\\b|\\blog\\b|\\b[Rr]eview|\\b[Nn]ewcomer"
-              "|\\b(a|the|cold|code|independent) readers?\\b|; *\\*|^[^§]*\\*",
+              "|\\bthe plan\\b|\\bthe log\\b|\\blog's\\b|\\blog entr|docs/log"
+              "|\\b[Rr]eview|\\b[Nn]ewcomer|\\b(a|the|cold|code|independent) readers?\\b"
+              "|; *\\*|^[^§]*\\*",
     ?assertEqual([], [Number || {Number, Line} <- Prose,
                                 re:run(Line, Refused, [unicode]) =/= nomatch]),
     ?assertEqual([], [Number || {Number, <<"- ", _/binary>> = Line} <- Prose,

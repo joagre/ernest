@@ -320,12 +320,14 @@ unicode:
 # tests side by side, as many at once as the host has schedulers
 # (test/Makefile), which is what the host carries, and the areas run side
 # by side, six of them, ran six times as many, at a load of
-# about 117 on eight cores, where tests ran past their limits. In the full
-# run the modules under test/ are compiled first, once, so that no two parts
-# compile one module at once; one make runs the roots' tests, each waiting on
+# about 117 on eight cores, where tests ran past their limits. In both runs
+# the modules under test/ are compiled first, once, so that no two parts
+# compile one module at once, as the documents' and the site's did where a
+# test module had changed; one make runs the roots' tests, each waiting on
 # its modules, so that they need no such step. A change runs its own area's
 # target as it is worked on (docs/development.md, *Building*).
 test: all
+	@$(MAKE) -s -C test beams
 	@$(MAKE) -s -j$(JOBS) -O -o all $(APP_JOBS) test-library test-docs test-site
 
 test-full: all

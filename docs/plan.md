@@ -205,6 +205,14 @@ reader S reads of its live shell. The release note's line on the installed layou
     17.1.1). The target now runs with core dumps on, so the next fault leaves its core in `test/`. That
     core is read with `gdb` and its stack goes to `docs/otp_bugs.md` and to the OTP team; where
     none comes by the launch's release review, the review decides whether the item stays.
+24. **The shell's listing under load.** On 2026-11-07, one run of `make test-full` failed
+    `ern_shell_tests:process_live_at_the_prompt` in the shell's area, the four answers it lists not
+    found, and the next run passed. The output was not kept, and the cause is not found. One
+    candidate is `:processes` listing the spawned process before it has reached its `receive`, so
+    that its activity is not yet `receiving`. The test runs under the full run's load until it
+    fails again, its output kept. Where the candidate holds, the test waits for the process to
+    receive, as CLAUDE.md's *No fixed sleep* asks; where none comes by the launch's release review,
+    the review decides whether the item stays.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
