@@ -971,7 +971,9 @@ tcp_scenarios(Bytes) ->
 %% head or a body of 5 bytes and the server reading it, beside the host's
 %% send and receive of the same bytes over a pair of the host's own and,
 %% for a head, the host's decode_packet reading it a line at a time, which
-%% the primitive stands on.
+%% the primitive stands on. The three writers write a head with its body, or
+%% a chunk, from the client, which the server reads whole, beside the
+%% host's send and receive of the same bytes.
 http_scenarios() ->
     Http = ern_named:functions('ern@http'),
     HttpReadRequest = Http(readRequest),
@@ -980,8 +982,12 @@ http_scenarios() ->
     HttpReadResponseBody = Http(readResponseBody),
     HttpRenderRequest = Http(renderRequest),
     HttpRenderResponse = Http(renderResponse),
+    HttpWriteRequest = Http(writeRequest),
+    HttpWriteResponse = Http(writeResponse),
+    HttpWriteChunk = Http(writeChunk),
     Tcp = ern_named:functions('ern@tcp'),
     TcpWrite = Tcp(write),
+    TcpRead = Tcp(read),
     Loopback = <<"127.0.0.1">>,
     {'Right', Listener} = (Tcp(listen))(Loopback, 0),
     {'Right', Port} = (Tcp(port))(Listener),
@@ -1005,6 +1011,21 @@ http_scenarios() ->
                            {'Right', _} = Reader()
                    end
            end,
+    Written = fun(Write, Text) ->
+                      fun() ->
+                              {'Right', 'Unit'} = Write(),
+                              echoed(fun() -> TcpRead(Server, 1000) end, byte_size(Text))
+                      end
+              end,
+    HostWritten = fun(Text) ->
+                          fun() ->
+                                  ok = gen_tcp:send(HostClient, Text),
+                                  {ok, _} = gen_tcp:recv(HostServer, byte_size(Text))
+                          end
+                  end,
+    RequestWritten = iolist_to_binary(HttpRenderRequest(Request, Body)),
+    ResponseWritten = iolist_to_binary(HttpRenderResponse(Response, Body)),
+    Chunk = <<"5\r\nhello\r\n">>,
     HostRead = fun(Text, Parse) ->
                        fun() ->
                                ok = gen_tcp:send(HostClient, Text),
@@ -1031,7 +1052,15 @@ http_scenarios() ->
        fun() -> iolist_to_binary([RequestText, Body]) end}},
      {<<"Http.renderResponse">>,
       {fun() -> HttpRenderResponse(Response, Body) end,
-       fun() -> iolist_to_binary([ResponseText, Body]) end}}].
+       fun() -> iolist_to_binary([ResponseText, Body]) end}},
+     {<<"Http.writeRequest">>,
+      {Written(fun() -> HttpWriteRequest(Client, Request, Body, 1000) end, RequestWritten),
+       HostWritten(RequestWritten)}},
+     {<<"Http.writeResponse">>,
+      {Written(fun() -> HttpWriteResponse(Client, Response, Body, 1000) end, ResponseWritten),
+       HostWritten(ResponseWritten)}},
+     {<<"Http.writeChunk">>,
+      {Written(fun() -> HttpWriteChunk(Client, Body, 1000) end, Chunk), HostWritten(Chunk)}}].
 
 %% A head read by the host's decode_packet, its first line and then its
 %% header lines to the empty one.
