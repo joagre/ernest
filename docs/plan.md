@@ -120,16 +120,11 @@ reader S reads of its live shell. The release note's line on the installed layou
     `Http.http11` and `Http.defaultLimits` stand, and the sites are written with them. ernest-httpd
     writes them in `smoke.ern`, `hosts.ern`, `static.ern` and `shell.ern` when its floor is 0.10,
     by its own session, told at the milestone's end.
-11. **`libs/uri`**, feedback 210, decided with the user 2026-11-07 (G.12, G.11; the log's
-    *`libs/uri`*): RFC 3986's URI reference read into its components, and percent-decoding, the
-    published specification being a library's work; `Uri.parse` a thin primitive over the host's
-    `uri_string:parse`, as `Json.parse` is, `Uri.parseAuthority` and `Uri.decode` Ernest. In G.11,
-    `Http.target` reads the four forms of RFC 9112 §3.2 by the method, `Http.cookies` and
-    `Http.cookie` read every `Cookie` header, and `Http.chunk` writes one chunk. `examples/fetch.ern`
-    and `web_server.ern` are written over them; ernest-httpd's `static.ern`, `hosts.ern`,
-    `config.ern` and `shell.ern` when its floor is 0.10, by its own session, told at the
-    milestone's end. The manual page is `docs/man/libs/uri/uri.md`, `libs/http` is compiled after
-    `libs/uri`, and a test cites G.12.
+11. **`libs/uri`**, done 2026-11-07 (G.12, G.11; the log's *`libs/uri`* and *`libs/uri` Built*).
+    `Uri.parse`, `Uri.parseAuthority` and `Uri.decode` stand, and `Http.target`, `Http.cookies`,
+    `Http.cookie` and `Http.chunk`; `examples/fetch.ern` and `web_server.ern` are written with them.
+    ernest-httpd writes them in `static.ern`, `hosts.ern`, `config.ern` and `shell.ern` when its
+    floor is 0.10, by its own session, told at the milestone's end.
 12. **A process owns what it opens**, feedback 208: `examples/fetch.ern` closes its socket only
     on success, so it runs each fetch under `Process.run`, whose end closes what it opened
     (§8.7); no form of the language closes on every way out of a block. The guide's §8.7 says
@@ -223,6 +218,14 @@ reader S reads of its live shell. The release note's line on the installed layou
     fails again, its output kept. Where the candidate holds, the test waits for the process to
     receive, as CLAUDE.md's *No fixed sleep* asks; where none comes by the launch's release review,
     the review decides whether the item stays.
+25. **A capture's write-back at the run's end**, found 2026-11-07, fixed by 2026-11-12. One run
+    of `make test` in three failed `ern_cli_tests:test_capture_test`: the line a case wrote inside
+    `Test.capture` before it faulted did not reach standard error, where E.24 writes it after all.
+    The candidate cause, read in `ern_rt` and not yet shown, is that the collector writes the line
+    back by a message once it sees the caller end, and nothing makes the job wait for it, so a
+    fault in the last case can end the job first. A probe under the light run's load shows the
+    cause first; the fix then has the job wait for its collectors, on what it waits for, as
+    CLAUDE.md's *No fixed sleep* asks (the log's *`libs/uri` Built*).
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.

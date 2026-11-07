@@ -14,12 +14,15 @@
 // The URL is read as `https://host:port/path?query`, the port 443 and the
 // path `/` where either is left out, the host an IPv6 address in brackets
 // where it is one, `https://[::1]:8443/`, and a fragment after `#`
-// dropped; the host and the port end at the first `/`, `?` or `#`. An
-// `http://` URL is refused, since the tool shows TLS, and so is one that
-// holds a space or a control character, which no URL holds.
+// dropped. An `http://` URL is refused, since the tool shows TLS, and so
+// are one with user information before an `@` and a text that is no URL,
+// one that holds a space or a character outside ASCII among them.
 //
 // What to look at:
 //
+// - `Uri.parse` reads the URL into its scheme, its authority, its path and
+//   its query, the authority's host and port read too (libs/uri, report
+//   Appendix G.12).
 // - `Tcp.connectTls` opens a socket over TLS, and `Tcp.Verified` checks the
 //   server's certificate against the file's and for the host's name; the
 //   socket is then written and read as any other (report Appendix E.18).
@@ -97,73 +100,42 @@ fn fetch(url : String, caFile : Path) : Either(String, #(Http.Response, Bytes)) 
 let bodyLimit = 10000000
 
 // The host, the port and the path of an `https://` URL, the path with its
-// query, and the host and the port as the URL writes them, which the `Host`
-// header carries. A URL is written in visible ASCII, U+0021 to U+007E, the
-// rest percent-encoded (RFC 3986, section 2), and the request line could
-// carry nothing else (libs/http, report Appendix G.11), so one that holds
-// another character is refused here.
-fn targetOf(url : String) : Either(String, Target) =
-    match String.splitOnce(url, "://") {
-        _ when !isVisibleAscii(url) ->
-            Left("a URL is written in visible ASCII, the rest percent-encoded: " <> Io.show(url))
-      | Some(#("https", rest)) -> {
-            let located = match String.splitOnce(rest, "#") {
-                Some(#(before, _)) -> before
-              | None -> rest
+// query, and the `Host` header's value, the host and the port as the URL
+// names them (RFC 9110 §7.2). A URL's scheme is read in any case (RFC 3986
+// §3.1).
+fn targetOf(url : String) : Either(String, Target) = {
+    let reference <- Either.fromOptional(Uri.parse(url), "not a URL: " <> Io.show(url));
+    match #(Optional.map(reference.scheme, String.toLower), reference.authority) {
+        #(Some("https"), Some(Uri.Authority(userinfo = None, =host, =port))) when host != "" -> {
+            let path = if reference.path == "" then "/" else reference.path;
+            let query = match reference.query {
+                Some(text) -> "?" <> text
+              | None -> ""
             };
-            let end = authorityEnd(located);
-            let authority = String.slice(located, 0, end);
-            let written = String.drop(located, end);
-            let path = if String.startsWith(written, "/") then written else "/" <> written;
-            let #(host, port) <- hostAndPort(authority);
-            Right(Target(=host, =port, =authority, =path))
+            Right(Target(=host,
+                         port = Optional.withDefault(port, 443),
+                         authority = hostHeader(host, port),
+                         path = path <> query))
         }
-      | Some(#("http", _)) ->
+      | #(Some("https"), Some(Uri.Authority(userinfo = Some(_)))) ->
+            Left("a URL with user information is refused: " <> url)
+      | #(Some("http"), _) ->
             Left("an http:// URL is refused, since fetch shows TLS: " <> url)
       | _ ->
-            Left("not an https:// URL: " <> url)
+            Left("not an https:// URL with a host: " <> url)
     }
-
-// Whether the text holds a space or a control character, U+0000 to U+0020
-// or U+007F to U+009F.
-fn isVisibleAscii(text : String) : Bool =
-    List.all(String.toList(text), fn(char) = {
-        let code = Char.toCodePoint(char);
-        code >= 33 && code <= 126
-    })
-
-// Where the host and the port end, the URL's fragment dropped: at the first
-// `/` or `?`, else at the end (RFC 3986 §3.2).
-fn authorityEnd(located : String) : Int =
-    List.filterMap([String.indexOf(located, "/"), String.indexOf(located, "?")], fn(index) = index)
-        |> List.foldLeft(String.size(located), Int.min)
-
-// The host and the port the URL names, `host:port`, or `host` for port 443;
-// an IPv6 address stands in brackets, its port after the `]`, `[::1]:8443`.
-fn hostAndPort(authority : String) : Either(String, #(String, Int)) = {
-    let #(host, port) = match String.splitOnce(authority, "]") {
-        Some(#(bracketed, portText)) when String.startsWith(bracketed, "[") ->
-            #(String.drop(bracketed, 1), portAfter(portText))
-      | _ ->
-            match String.splitOnce(authority, ":") {
-                Some(#(name, digits)) -> #(name, String.toInt(digits))
-              | None -> #(authority, Some(443))
-            }
-    };
-    if host == "" then
-        Left("no host in the URL")
-    else
-        Either.fromOptional(Optional.map(port, fn(number) = #(host, number)),
-                            "not a host and a port: " <> authority)
 }
 
-// The port after an IPv6 address's `]`, `:` and its digits, or 443 where
-// none is written.
-fn portAfter(portText : String) : Optional(Int) =
-    if portText == "" then
-        Some(443)
-    else
-        Optional.andThen(String.stripPrefix(portText, ":"), String.toInt)
+// The host and the port as a `Host` header writes them, an IPv6 address in
+// the brackets `Uri.parse` takes off it: of the hosts a URL names, an IPv6
+// address alone holds a `:` (RFC 3986 §3.2.2).
+fn hostHeader(host : String, port : Optional(Int)) : String = {
+    let written = if String.contains(host, ":") then "[" <> host <> "]" else host;
+    match port {
+        Some(number) -> written <> ":" <> Int.toString(number)
+      | None -> written
+    }
+}
 
 //
 // The report

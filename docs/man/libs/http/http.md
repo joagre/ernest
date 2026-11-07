@@ -4,13 +4,15 @@
 
 HTTP/1.1's messages as RFC 9112 writes them: a request's or a response's
 head read from bytes or from a socket, the body after it, and a head and a
-body written, with RFC 9110's dates and status phrases.
+body written, with a request's target and cookies and RFC 9110's dates and
+status phrases.
 
 Use it to serve HTTP over `Tcp`, or to speak it to a server. A server
 reads a request's head with `readRequest` and its body with
-`readRequestBody`, and writes its response with `renderResponse`; a
-client writes its request with `renderRequest` and reads the response
-with `readResponse` and `readResponseBody`. `parseRequest` and
+`readRequestBody`, its target with `target` and a cookie with `cookie`,
+and writes its response with `renderResponse`, a body in chunks with
+`chunk`; a client writes its request with `renderRequest` and reads the
+response with `readResponse` and `readResponseBody`. `parseRequest` and
 `parseResponse` read a head from bytes a program already holds.
 
 The library stands on every job's load path, so a program names it with
@@ -71,7 +73,8 @@ A response written, its `Content-Length` added:
 
 ## See also
 
-`Tcp` for the sockets the readers read, `Bytes` for what they answer.
+`Tcp` for the sockets the readers read, `Bytes` for what they answer,
+`Uri` for a target's components.
 
 ## Http.Version
 
@@ -536,6 +539,96 @@ Http.headers([Http.Header(name = "Set-Cookie", value = "a=1"),
 // => ["a=1", "b=2"]
 ```
 
+## Http.cookies
+
+```ernest
+Http.cookies(headers : List(Header)) : List(#(String, String))
+```
+
+*Since 0.10.0.*
+
+The pairs of every `Cookie` header in `headers`, RFC 6265's, in order:
+each value parted at `;`, each part trimmed of the white space around it
+and parted at its first `=`, the cookie's name before it and its value
+after.
+
+A part with no `=` is dropped. A value is kept as written, its quotes
+among them.
+
+### Examples
+
+```ernest
+Http.cookies([Http.Header(name = "Cookie", value = "theme=dark; sid=\"a=b\""),
+              Http.Header(name = "cookie", value = "lang=sv")])
+// => [#("theme", "dark"), #("sid", "\"a=b\""), #("lang", "sv")]
+```
+
+## Http.cookie
+
+```ernest
+Http.cookie(headers : List(Header), name : String) : Optional(String)
+```
+
+*Since 0.10.0.*
+
+The value of the first cookie named `name` in the `Cookie` headers of
+`headers`, as `cookies` reads them, the names compared exactly; `None`
+where no cookie has the name.
+
+### Examples
+
+```ernest
+Http.cookie([Http.Header(name = "Cookie", value = "sid=31d4d96e; theme=dark")], "sid")
+// => Some("31d4d96e")
+```
+
+## Http.target
+
+```ernest
+Http.target(request : Request) : Optional(Uri.Reference)
+```
+
+*Since 0.10.0.*
+
+The request's target read as a URI reference, in the form RFC 9112 has
+a server read it by the method; `None` for a target of no form.
+
+A `CONNECT` request's target is an authority alone, read as a reference
+with that authority and an empty path. An `OPTIONS` request's `*` is the
+path `*`. A target that begins with `/` is origin form, a path and a
+query with no scheme and no authority, and one that begins with `//` is
+such a path too. Any other target is absolute form, which has a scheme.
+A target with a fragment is of no form.
+
+Whether the scheme and the `Host` header name the server is the
+server's to decide.
+
+### Examples
+
+```ernest
+{
+    let request =
+        Http.Request(method = "GET",
+                     target = "/search?q=ernest",
+                     version = Http.http11,
+                     headers = []);
+    Optional.map(Http.target(request), fn(reference) = #(reference.path, reference.query))
+}
+// => Some(#("/search", Some("q=ernest")))
+```
+
+```ernest
+{
+    let request =
+        Http.Request(method = "CONNECT",
+                     target = "example.com:443",
+                     version = Http.http11,
+                     headers = []);
+    Optional.andThen(Http.target(request), fn(reference) = reference.authority)
+}
+// => Some(Uri.Authority(userinfo = None, host = "example.com", port = Some(443)))
+```
+
 ## Http.renderResponse
 
 ```ernest
@@ -606,6 +699,30 @@ them, whose `é` a client writes `%C3%A9`.
     String.fromUtf8(Http.renderRequest(request, String.toUtf8("{}")))
 }
 // => Some("POST /items HTTP/1.1\r\nHost: example.com\r\nContent-Length: 2\r\n\r\n{}")
+```
+
+## Http.chunk
+
+```ernest
+Http.chunk(bytes : Bytes) : Bytes
+```
+
+*Since 0.10.0.*
+
+One chunk of the chunked transfer coding, RFC 9112, section 7.1: the
+size of `bytes` in hexadecimal, a carriage return and a line feed, the
+bytes, and a carriage return and a line feed.
+
+Empty bytes write the last chunk and an empty trailer section,
+`0\r\n\r\n`, since no other chunk is empty. A head that names
+`Transfer-Encoding: chunked` is rendered with an empty body, and the
+chunks are written after it.
+
+### Examples
+
+```ernest
+#(String.fromUtf8(Http.chunk(String.toUtf8("Hello, world"))), String.fromUtf8(Http.chunk(<<>>)))
+// => #(Some("C\r\nHello, world\r\n"), Some("0\r\n\r\n"))
 ```
 
 ## Http.reason

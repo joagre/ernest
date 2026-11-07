@@ -9,4 +9,5 @@
 - [Markdown](markdown/markdown.md), `libs/markdown`
 - [Proxy](proxy/proxy.md), `libs/proxy`
 - [Time](time/time.md), `libs/time`
+- [Uri](uri/uri.md), `libs/uri`
 - [Utilization](utilization/utilization.md), `libs/utilization`

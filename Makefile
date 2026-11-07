@@ -99,10 +99,10 @@ stdlib:
 # (report §11.1, §11.2), each after the standard library and beside the
 # others, but libs/markdown, which writes its styles with libs/ansi (report
 # Appendix G.3) and is compiled after it, against it, and libs/http, which
-# writes its dates with libs/time (Appendix G.11) and is compiled after
-# that. A job waits on no build it does not read, so that a make with
-# nothing to do is as deep as the builds' uses and no deeper (the log's *A
-# Make With Nothing to Do*).
+# writes its dates with libs/time and reads a target with libs/uri
+# (Appendix G.11) and is compiled after the two. A job waits on no build it
+# does not read, so that a make with nothing to do is as deep as the
+# builds' uses and no deeper (the log's *A Make With Nothing to Do*).
 # `libs` builds every library and then removes the build of one whose
 # directory is gone; `make` runs it among the jobs of `manual`, in the
 # make that builds the libraries the pages need, so that none is built
@@ -116,7 +116,7 @@ lib-markdown: lib-ansi
 	@bin/ern build --verbose --source-root src/libs/markdown --build-root build/libs/markdown \
 	  src/libs/markdown
 
-lib-http: lib-time
+lib-http: lib-time lib-uri
 	@bin/ern build --verbose --source-root src/libs/http --build-root build/libs/http src/libs/http
 
 $(filter-out lib-markdown lib-http,$(LIB_BUILDS)): lib-%: stdlib

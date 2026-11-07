@@ -376,7 +376,8 @@ is_alpha(Name) ->
 
 %% Appendix E.0 shape rule 6: every backticked name under `See also` is a
 %% declaration of the module, a prelude or standard library namespace or
-%% value, or a prelude type
+%% value, a prelude type, or a library's namespace (Appendix G), which
+%% stands on every job's load path
 doc_see_also_test_() ->
     [{atom_to_list(hd(Namespace)), fun() -> see_also(File) end} || {Namespace, File} <- modules()].
 
@@ -393,7 +394,9 @@ see_also(File) ->
         ++ [ern_namespace:text(QualifiedName) || Interface <- ern_prelude:stdlib_interfaces(),
                                         QualifiedName <- maps:keys(Interface#interface.values)]
         ++ [ern_namespace:text(QualifiedName) || Interface <- ern_prelude:stdlib_interfaces(),
-                                        QualifiedName <- maps:keys(Interface#interface.types)],
+                                        QualifiedName <- maps:keys(Interface#interface.types)]
+        ++ [atom_to_list(hd(Namespace)) || {Namespace, Library} <- modules(),
+                                           lists:prefix("src/libs/", Library)],
     Named = [Name || Doc <- docs(Declarations),
                      {match, Sections}
                          <- [re:run(Doc, "#+ See also\\n\\n(.*?)(?=\\n#|$)",

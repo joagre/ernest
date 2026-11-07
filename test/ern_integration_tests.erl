@@ -530,14 +530,18 @@ interrupt() ->
     ?assertEqual({130, <<>>}, finished(Program)).
 
 %% Paper program 1: the server serves until it is stopped, so the harness
-%% starts it, makes two requests over one session, and stops it. The second
-%% request carries the cookie the first set, and the visit count proves the
-%% session store kept it between connections.
-%% report §8.2 (Tcp's reference), Appendix E.18 (Tcp), §6.6 (the store's request-reply)
+%% starts it, makes three requests over one session, and stops it. The
+%% second request carries the cookie the first set, and the visit count
+%% proves the session store kept it between connections. The third carries
+%% it in a second `Cookie` header among other cookies, every one of which
+%% `Http.cookie` reads; that request is a regression test, written with
+%% the function.
+%% report §8.2 (Tcp's reference), Appendix E.18 (Tcp), §6.6 (the store's request-reply),
+%% Appendix G.11 (Http.cookie)
 %% Its steps: the build, the wait for the server's line, and each request's
 %% connection and answer.
 web_server_test_() ->
-    ern_nodes_tests:counted_test({waits, 6}, fun web_server/0).
+    ern_nodes_tests:counted_test({waits, 8}, fun web_server/0).
 
 web_server() ->
     0 = build(?BUILD ++ "../examples/web_server.ern"),
@@ -553,7 +557,10 @@ web_server() ->
         ?assertMatch({_, _}, binary:match(First, <<"Visit number 1">>)),
         SessionId = cookie_of(First),
         Second = request([<<"cookie: sid=", SessionId/binary, "\r\n">>]),
-        ?assertMatch({_, _}, binary:match(Second, <<"Visit number 2">>))
+        ?assertMatch({_, _}, binary:match(Second, <<"Visit number 2">>)),
+        Third = request([<<"Cookie: theme=dark\r\n">>,
+                         <<"Cookie: lang=sv; sid=", SessionId/binary, "\r\n">>]),
+        ?assertMatch({_, _}, binary:match(Third, <<"Visit number 3">>))
     after
         os:cmd("kill " ++ integer_to_list(OsPid)),
         try port_close(Server) catch _:_ -> true end

@@ -11,7 +11,8 @@
 //   (report §6.6).
 // - Each connection is a socket, itself a process, which the server reads
 //   and writes through its address (Tcp, report Appendix E.18).
-// - The request is read from the socket by `Http.readRequest`, and the
+// - The request is read from the socket by `Http.readRequest`, its session's
+//   cookie by `Http.cookie` from every `Cookie` header it carries, and the
 //   response written by `Http.renderResponse`, which adds its
 //   `Content-Length` and its status's phrase (libs/http, report Appendix
 //   G.11).
@@ -93,7 +94,7 @@ fn acceptor(sessions : Address(SessionMsg), listener : Address(Tcp.ListenerMsg))
 fn handle(sessions : Address(SessionMsg), socket : Address(Tcp.SocketMsg)) : Unit =
     match Http.readRequest(socket, <<>>, Http.defaultLimits, 5000) {
         Right(#(request, _)) -> {
-            let id = match Optional.andThen(cookie(request.headers, "sid"), parseSessionId) {
+            let id = match Optional.andThen(Http.cookie(request.headers, "sid"), parseSessionId) {
                 Some(found) -> found
               | None -> freshSessionId()
             };
@@ -128,22 +129,6 @@ fn response(status : Int, headers : List(Http.Header)) : Http.Response =
 fn closingHeaders() : List(Http.Header) =
     [Http.Header(name = "Date", value = Http.date(Clock.now())),
      Http.Header(name = "Connection", value = "close")]
-
-// The value of the cookie `name` in the request's `Cookie` header.
-fn cookie(headers : List(Http.Header), name : String) : Optional(String) =
-    Optional.andThen(Http.header(headers, "Cookie"),
-                     fn(value) = cookieValue(String.split(value, ";"), name))
-
-fn cookieValue(parts : List(String), name : String) : Optional(String) =
-    match parts {
-        [] ->
-            None
-      | part :: rest ->
-            match String.splitOnce(String.trim(part), "=") {
-                Some(#(key, value)) when key == name -> Some(value)
-              | _ -> cookieValue(rest, name)
-            }
-    }
 
 // The errors the program says in its own words, and the rest as the
 // library shows them.

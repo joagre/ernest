@@ -1,12 +1,14 @@
 /// HTTP/1.1's messages as RFC 9112 writes them: a request's or a response's
 /// head read from bytes or from a socket, the body after it, and a head and a
-/// body written, with RFC 9110's dates and status phrases.
+/// body written, with a request's target and cookies and RFC 9110's dates and
+/// status phrases.
 ///
 /// Use it to serve HTTP over `Tcp`, or to speak it to a server. A server
 /// reads a request's head with `readRequest` and its body with
-/// `readRequestBody`, and writes its response with `renderResponse`; a
-/// client writes its request with `renderRequest` and reads the response
-/// with `readResponse` and `readResponseBody`. `parseRequest` and
+/// `readRequestBody`, its target with `target` and a cookie with `cookie`,
+/// and writes its response with `renderResponse`, a body in chunks with
+/// `chunk`; a client writes its request with `renderRequest` and reads the
+/// response with `readResponse` and `readResponseBody`. `parseRequest` and
 /// `parseResponse` read a head from bytes a program already holds.
 ///
 /// The library stands on every job's load path, so a program names it with
@@ -67,7 +69,8 @@
 ///
 /// ## See also
 ///
-/// `Tcp` for the sockets the readers read, `Bytes` for what they answer.
+/// `Tcp` for the sockets the readers read, `Bytes` for what they answer,
+/// `Uri` for a target's components.
 ///
 /// since 0.9.0
 
@@ -785,6 +788,122 @@ export fn headers(headers : List(Header), name : String) : List(String) = {
 fn isNamed(header : Header, lowered : String) : Bool =
     String.toLower(header.name) == lowered
 
+/// The pairs of every `Cookie` header in `headers`, RFC 6265's, in order:
+/// each value parted at `;`, each part trimmed of the white space around it
+/// and parted at its first `=`, the cookie's name before it and its value
+/// after.
+///
+/// A part with no `=` is dropped. A value is kept as written, its quotes
+/// among them.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Http.cookies([Http.Header(name = "Cookie", value = "theme=dark; sid=\"a=b\""),
+///               Http.Header(name = "cookie", value = "lang=sv")])
+/// // => [#("theme", "dark"), #("sid", "\"a=b\""), #("lang", "sv")]
+/// ```
+///
+/// since 0.10.0
+export fn cookies(headers : List(Header)) : List(#(String, String)) =
+    List.flatMap(Http.headers(headers, "Cookie"),
+                 fn(value) =
+                     List.filterMap(String.split(value, ";"),
+                                    fn(part) = String.splitOnce(String.trim(part), "=")))
+
+/// The value of the first cookie named `name` in the `Cookie` headers of
+/// `headers`, as `cookies` reads them, the names compared exactly; `None`
+/// where no cookie has the name.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Http.cookie([Http.Header(name = "Cookie", value = "sid=31d4d96e; theme=dark")], "sid")
+/// // => Some("31d4d96e")
+/// ```
+///
+/// since 0.10.0
+export fn cookie(headers : List(Header), name : String) : Optional(String) =
+    Optional.map(List.find(cookies(headers), fn(#(found, _)) = found == name),
+                 fn(#(_, value)) = value)
+
+/// The request's target read as a URI reference, in the form RFC 9112 has
+/// a server read it by the method; `None` for a target of no form.
+///
+/// A `CONNECT` request's target is an authority alone, read as a reference
+/// with that authority and an empty path. An `OPTIONS` request's `*` is the
+/// path `*`. A target that begins with `/` is origin form, a path and a
+/// query with no scheme and no authority, and one that begins with `//` is
+/// such a path too. Any other target is absolute form, which has a scheme.
+/// A target with a fragment is of no form.
+///
+/// Whether the scheme and the `Host` header name the server is the
+/// server's to decide.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let request =
+///         Http.Request(method = "GET",
+///                      target = "/search?q=ernest",
+///                      version = Http.http11,
+///                      headers = []);
+///     Optional.map(Http.target(request), fn(reference) = #(reference.path, reference.query))
+/// }
+/// // => Some(#("/search", Some("q=ernest")))
+/// ```
+///
+/// ```ernest
+/// {
+///     let request =
+///         Http.Request(method = "CONNECT",
+///                      target = "example.com:443",
+///                      version = Http.http11,
+///                      headers = []);
+///     Optional.andThen(Http.target(request), fn(reference) = reference.authority)
+/// }
+/// // => Some(Uri.Authority(userinfo = None, host = "example.com", port = Some(443)))
+/// ```
+///
+/// since 0.10.0
+export fn target(request : Request) : Optional(Uri.Reference) = {
+    let text = request.target;
+    if request.method == "CONNECT" then
+        Optional.map(Uri.parseAuthority(text),
+                     fn(authority) =
+                         Uri.Reference(scheme = None,
+                                       authority = Some(authority),
+                                       path = "",
+                                       query = None,
+                                       fragment = None))
+    else if request.method == "OPTIONS" && text == "*" then
+        Uri.parse(text)
+    else if String.startsWith(text, "/") then
+        originForm(text)
+    else
+        absoluteForm(text)
+}
+
+// RFC 9112, section 3.2.1: a path and its query. The target is read after
+// an empty authority, since a path that begins with `//` would be read as
+// an authority's start.
+fn originForm(text : String) : Optional(Uri.Reference) =
+    match Uri.parse("//" <> text) {
+        Some(Uri.Reference(=path, =query, fragment = None)) ->
+            Some(Uri.Reference(scheme = None, authority = None, =path, =query, fragment = None))
+      | _ ->
+            None
+    }
+
+// RFC 9112, section 3.2.2: an absolute URI, which has a scheme and no
+// fragment.
+fn absoluteForm(text : String) : Optional(Uri.Reference) =
+    match Uri.parse(text) {
+        Some(Uri.Reference(scheme = Some(_), fragment = None) as reference) -> Some(reference)
+      | _ -> None
+    }
+
 /// The response's head and `body` after it, as bytes to write: the status
 /// line, each header as `name: value`, an empty line and the body, each line
 /// ending in a carriage return and a line feed.
@@ -942,6 +1061,28 @@ fn isToken(text : String) : Bool =
                             || (char >= 'a' && char <= 'z')
                             || (char >= 'A' && char <= 'Z')
                             || String.contains("!#$%&'*+-.^_`|~", Char.toString(char)))
+
+/// One chunk of the chunked transfer coding, RFC 9112, section 7.1: the
+/// size of `bytes` in hexadecimal, a carriage return and a line feed, the
+/// bytes, and a carriage return and a line feed.
+///
+/// Empty bytes write the last chunk and an empty trailer section,
+/// `0\r\n\r\n`, since no other chunk is empty. A head that names
+/// `Transfer-Encoding: chunked` is rendered with an empty body, and the
+/// chunks are written after it.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(String.fromUtf8(Http.chunk(String.toUtf8("Hello, world"))), String.fromUtf8(Http.chunk(<<>>)))
+/// // => #(Some("C\r\nHello, world\r\n"), Some("0\r\n\r\n"))
+/// ```
+///
+/// since 0.10.0
+export fn chunk(bytes : Bytes) : Bytes = {
+    let size = Optional.withDefault(Int.toStringBase(Bytes.size(bytes), 16), "");
+    String.toUtf8(size <> "\r\n") <> bytes <> String.toUtf8("\r\n")
+}
 
 /// RFC 9110's phrase for `status`, `Not Found` for 404, from its section 15;
 /// `""` for a status it does not name.
@@ -1275,6 +1416,68 @@ let targetForms =
                     Some(#("get", "/a%20b"))])
     })
 
+// The target `target` reads in a request of the method.
+fn targetOf(method : String, text : String) : Optional(Uri.Reference) =
+    target(Request(=method, target = text, version = http11, headers = []))
+
+// A reference with none of its components but the path and the query.
+fn pathAndQuery(path : String, query : Optional(String)) : Uri.Reference =
+    Uri.Reference(scheme = None, authority = None, =path, =query, fragment = None)
+
+// report Appendix G.11: RFC 9112's examples of the four forms, section 3.2.
+let targetRead = Test.Case(name = "a target is read in its form by the method", run = fn() = {
+    let absolute = "http://www.example.org/pub/WWW/TheProject.html";
+    Test.equal([targetOf("GET", "/where?q=now"),
+                targetOf("GET", absolute),
+                targetOf("CONNECT", "www.example.com:80"),
+                targetOf("OPTIONS", "*"),
+                targetOf("OPTIONS", "/")],
+               [Some(pathAndQuery("/where", Some("q=now"))),
+                Some(Uri.Reference(scheme = Some("http"),
+                                   authority = Some(Uri.Authority(userinfo = None,
+                                                                  host = "www.example.org",
+                                                                  port = None)),
+                                   path = "/pub/WWW/TheProject.html",
+                                   query = None,
+                                   fragment = None)),
+                Some(Uri.Reference(scheme = None,
+                                   authority = Some(Uri.Authority(userinfo = None,
+                                                                  host = "www.example.com",
+                                                                  port = Some(80))),
+                                   path = "",
+                                   query = None,
+                                   fragment = None)),
+                Some(pathAndQuery("*", None)),
+                Some(pathAndQuery("/", None))])
+})
+
+// report Appendix G.11: written with the code.
+let originSlashes =
+    Test.Case(name = "an origin-form target that begins with // is a path",
+              run = fn() =
+                  Test.equal(List.map(["//a/b?c", "//", "/a//b"], fn(text) = targetOf("GET", text)),
+                             [Some(pathAndQuery("//a/b", Some("c"))),
+                              Some(pathAndQuery("//", None)),
+                              Some(pathAndQuery("/a//b", None))]))
+
+// report Appendix G.11
+let noForm =
+    Test.Case(name = "a target of no form, one with a fragment among them, is None",
+              run = fn() =
+                  Test.equal(List.filter([#("GET", "/p#f"),
+                                          #("GET", "http://h/p#f"),
+                                          #("GET", "*"),
+                                          #("GET", "www.example.com"),
+                                          #("GET", "/a b"),
+                                          #("GET", "/100%"),
+                                          #("CONNECT", "/"),
+                                          #("CONNECT", "www.example.com:80/"),
+                                          #("CONNECT", "http://www.example.com/"),
+                                          #("OPTIONS", "**")],
+                                         fn(#(method, text)) =
+                                             Optional.isSome(targetOf(method, text))),
+                             []))
+
 // report Appendix G.11
 let lineFeeds =
     Test.Case(name = "a line may end in a line feed alone",
@@ -1471,6 +1674,39 @@ let anyCase =
                                headers(fields, "Host")),
                              #(Some("text/plain"), Some("a=1"), None, ["a=1", "b=2"], []))
               })
+
+// report Appendix G.11, RFC 6265, section 4.2
+let cookiesRead =
+    Test.Case(name = "the pairs of every Cookie header are read in order",
+              run = fn() =
+                  Test.equal(cookies([Header(name = "Cookie",
+                                             value = "SID=31d4d96e407aad42; lang=en-US"),
+                                      Header(name = "Host", value = "example.com"),
+                                      Header(name = "cookie", value = "theme=dark")]),
+                             [#("SID", "31d4d96e407aad42"),
+                              #("lang", "en-US"),
+                              #("theme", "dark")]))
+
+// report Appendix G.11
+let cookieParts =
+    Test.Case(name = "a cookie's part is trimmed and parted at its first =, its quotes kept",
+              run = fn() =
+                  Test.equal(cookies([Header(name = "Cookie",
+                                             value = " a=1 ;b=x=y;  ; flag ;c=\"q;\";d=")]),
+                             [#("a", "1"), #("b", "x=y"), #("c", "\"q"), #("d", "")]))
+
+// report Appendix G.11
+let cookieFound =
+    Test.Case(name = "a cookie is the first value under its name, compared exactly", run = fn() = {
+        let fields =
+            [Header(name = "Cookie", value = "sid=1; Theme=dark"),
+             Header(name = "Cookie", value = "sid=2; theme=light")];
+        Test.equal(#(cookie(fields, "sid"),
+                     cookie(fields, "theme"),
+                     cookie(fields, "SID"),
+                     cookie([], "sid")),
+                   #(Some("1"), Some("light"), None, None))
+    })
 
 // report Appendix G.11
 let rendered =
@@ -1935,6 +2171,30 @@ let chunkedBody =
                              Right(Right(#(String.toUtf8("Wikipedia in \r\n\r\nchunks."),
                                            String.toUtf8("GET")))))
               })
+
+// report Appendix G.11, RFC 9112, section 7.1
+let chunkWritten =
+    Test.Case(name = "a chunk is its size in hexadecimal, its bytes, and the last is 0",
+              run = fn() =
+                  Test.equal(List.map([String.repeat("a", 26), "Wiki", ""],
+                                      fn(text) = String.fromUtf8(chunk(String.toUtf8(text)))),
+                             [Some("1A\r\n" <> String.repeat("a", 26) <> "\r\n"),
+                              Some("4\r\nWiki\r\n"),
+                              Some("0\r\n\r\n")]))
+
+// report Appendix G.11
+let chunksReadBack =
+    Test.Case(name = "the chunks chunk writes are read back as the body they write", run = fn() = {
+        let chunked = [Header(name = "Transfer-Encoding", value = "chunked")];
+        let parts = [String.repeat("x", 300), "Wiki", "pedia"];
+        let written =
+            Bytes.join(List.map(parts, fn(part) = chunk(String.toUtf8(part))) <> [chunk(<<>>)],
+                       <<>>);
+        Test.equal(served([],
+                          StaysOpen,
+                          fn(socket) = readRequestBody(socket, written, asked(chunked), 1000, 0)),
+                   Right(Right(#(String.toUtf8(String.join(parts, "")), <<>>))))
+    })
 
 // report Appendix G.11
 let chunkedLineFeeds =

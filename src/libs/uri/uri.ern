@@ -1,0 +1,528 @@
+/// RFC 3986's URI reference read into its scheme, authority, path, query
+/// and fragment, and percent-encoded text read as its octets.
+///
+/// Use it where a program reads a URL or a request's target: a client finds
+/// the host and the port it dials, and a server the path it serves. A server
+/// over `Http` reads a request's target with `Http.target`, which reads it
+/// in its form by the method.
+///
+/// The library stands on every job's load path, so a program names it with
+/// no option (report Appendix G).
+///
+/// **As written.** A component is answered as the text writes it, still
+/// percent-encoded, in its own case and with its `.` and `..` segments. No
+/// relative reference is resolved against a base, and no port is given the
+/// scheme's default: both are the program's.
+///
+/// **Decoding.** A component is decoded after it is parted at its
+/// delimiters, a path at `/` and each segment decoded with `decode`, so
+/// that `%2F` is an octet inside a segment and no delimiter. The octets
+/// need not be UTF-8; `String.fromUtf8` reads them as text where they are.
+///
+/// ## Examples
+///
+/// A URL's host, port and path:
+///
+/// ```ernest
+/// match Uri.parse("https://example.com:8443/docs/index.html?lang=en") {
+///     Some(Uri.Reference(authority = Some(authority), =path)) ->
+///         #(authority.host, authority.port, path)
+///   | _ ->
+///         #("", None, "")
+/// }
+/// // => #("example.com", Some(8443), "/docs/index.html")
+/// ```
+///
+/// A path parted at `/` and each segment decoded:
+///
+/// ```ernest
+/// {
+///     let segments = String.split("/a%2Fb/caf%C3%A9", "/");
+///     List.map(segments, fn(segment) = Optional.andThen(Uri.decode(segment), String.fromUtf8))
+/// }
+/// // => [Some(""), Some("a/b"), Some("café")]
+/// ```
+///
+/// ## See also
+///
+/// `Http` for a request's target, `Tcp` for the host and the port a client
+/// dials, `String` for the text a segment's octets write.
+///
+/// since 0.10.0
+
+/// A URI reference's components, each as the text writes it: a URI, which
+/// has a scheme, or a relative reference, which has none.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Optional.map(Uri.parse("mailto:desk@example.com"),
+///              fn(reference) = #(reference.scheme, reference.path))
+/// // => Some(#(Some("mailto"), "desk@example.com"))
+/// ```
+///
+/// since 0.10.0
+export type Reference = Reference(
+    /// The scheme before the first `:`, `https`; `None` in a relative
+    /// reference.
+    scheme : Optional(String),
+    /// The authority after `//`; `None` where the text writes no `//`.
+    authority : Optional(Authority),
+    /// The path, `""` where the text writes none.
+    path : String,
+    /// The query after `?`, without it; `None` where the text writes no `?`.
+    query : Optional(String),
+    /// The fragment after `#`, without it; `None` where the text writes no
+    /// `#`.
+    fragment : Optional(String))
+
+/// An authority's parts: the user information before `@`, the host, and the
+/// port after `:`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Uri.parseAuthority("[::1]:8443")
+/// // => Some(Uri.Authority(userinfo = None, host = "::1", port = Some(8443)))
+/// ```
+///
+/// since 0.10.0
+export type Authority = Authority(
+    /// The user information before `@`, without it; `None` where the text
+    /// writes no `@`.
+    userinfo : Optional(String),
+    /// A registered name, an IPv4 address or an IPv6 address, the address
+    /// without the brackets the text writes it in, as `Tcp.connect` takes a
+    /// host; it may be empty.
+    host : String,
+    /// The number the port's digits write, unchecked against TCP's 65535;
+    /// `None` where the text writes no port or an empty one, `example.com:`.
+    port : Optional(Int))
+
+/// The components of `text`, a URI reference, each as the text writes it;
+/// `None` where `text` is no URI reference.
+///
+/// It answers `None` for a character outside those RFC 3986 writes a
+/// reference in, a space, a `|`, a control character and one outside ASCII
+/// among them; for a second `#`; for a `%` not followed by two hexadecimal
+/// digits; and for a port that is not digits alone. The library does not
+/// read a port of more than five digits, an IPvFuture address, `[v1.x]`, or
+/// an IPv6 address with a zone, `[fe80::1%25eth0]`, and `parse` answers
+/// `None` for each.
+///
+/// An empty authority, `http:///index.html`, is an authority whose host is
+/// empty, and an empty query or fragment, `/index.html?`, is `Some("")`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Optional.map(Uri.parse("/search?q=ernest#top"),
+///              fn(reference) = #(reference.path, reference.query, reference.fragment))
+/// // => Some(#("/search", Some("q=ernest"), Some("top")))
+/// ```
+///
+/// ```ernest
+/// #(Uri.parse("/a b"), Uri.parse("/100%"), Uri.parse("//example.com:http"))
+/// // => #(None, None, None)
+/// ```
+///
+/// since 0.10.0
+export fn parse(text : String) : Optional(Reference) =
+    if isEncoded(String.toUtf8(text)) then components(text) else None
+
+// Report Appendix G.12: the host's reading of the reference, which lets a
+// `%` stand without its two digits.
+foreign fn components(text : String) : Optional(Reference) =
+    "ern_uri:parse/1"
+
+// RFC 3986 §2.1: whether each `%` the bytes hold is followed by two
+// hexadecimal digits. The bytes are read and none is built, as `decode`
+// would build them, so that the check costs less than the host's parse.
+fn isEncoded(bytes : Bytes) : Bool =
+    match bytes {
+        <<'%':utf8, high, low, rest:bytes>> ->
+            Optional.isSome(digit(high)) && Optional.isSome(digit(low)) && isEncoded(rest)
+      | <<'%':utf8, _:bytes>> ->
+            false
+      | <<_, rest:bytes>> ->
+            isEncoded(rest)
+      | _ ->
+            true // the end of the bytes
+    }
+
+/// The authority `text` writes alone, `host`, `host:port`, or either after
+/// `userinfo@`, as a `CONNECT` request's target and a `Host` header write
+/// one; `None` for another text, one with a path, a query or a fragment
+/// among them.
+///
+/// The empty text is an authority whose host is empty, as an empty `Host`
+/// header writes one.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Uri.parseAuthority("example.com:443")
+/// // => Some(Uri.Authority(userinfo = None, host = "example.com", port = Some(443)))
+/// ```
+///
+/// ```ernest
+/// #(Uri.parseAuthority("example.com/"), Uri.parseAuthority("example.com:http"))
+/// // => #(None, None)
+/// ```
+///
+/// since 0.10.0
+export fn parseAuthority(text : String) : Optional(Authority) =
+    match parse("//" <> text) {
+        Some(Reference(=authority, path = "", query = None, fragment = None)) -> authority
+      | _ -> None
+    }
+
+/// The octets `text` percent-encodes: each `%` and two hexadecimal digits,
+/// in either case, the octet they write, and every other character its UTF-8
+/// bytes; `None` for a `%` not followed by two hexadecimal digits.
+///
+/// The octets need not be UTF-8. `%2F` is the octet a `/` is, so a
+/// component is parted at its delimiters before it is decoded.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Uri.decode("a%2fb"), Optional.andThen(Uri.decode("caf%C3%A9"), String.fromUtf8))
+/// // => #(Some(<<97, 47, 98>>), Some("café"))
+/// ```
+///
+/// ```ernest
+/// #(Uri.decode("%FF"), Uri.decode("100%"), Uri.decode("%zz"))
+/// // => #(Some(<<255>>), None, None)
+/// ```
+///
+/// since 0.10.0
+export fn decode(text : String) : Optional(Bytes) =
+    match Bytes.split(String.toUtf8(text), <<'%':utf8>>) {
+        first :: encoded -> decoded(encoded, first)
+      | [] -> Some(<<>>) // a split answers one part at least
+    }
+
+// The octets `acc` holds, then those of each part a `%` began: the octet
+// its first two bytes write as hexadecimal digits, and its other bytes as
+// they are.
+fn decoded(parts : List(Bytes), acc : Bytes) : Optional(Bytes) =
+    match parts {
+        [] ->
+            Some(acc)
+      | <<high, low, rest:bytes>> :: more -> {
+            let octet <- hexadecimal(high, low);
+            decoded(more, <<acc:bytes, octet, rest:bytes>>)
+        }
+      | _ ->
+            None // a part of fewer than two bytes
+    }
+
+// The octet two hexadecimal digits write, each digit given as its byte.
+fn hexadecimal(high : Int, low : Int) : Optional(Int) = {
+    let highValue <- digit(high);
+    let lowValue <- digit(low);
+    Some(highValue * 16 + lowValue)
+}
+
+// The value of a hexadecimal digit given as its byte, `0` to `9`, `A` to
+// `F` or `a` to `f`. The byte's own value decides: the `Char` that
+// `Char.digitValue` reads would cost the check more than the host's parse
+// where every character is percent-encoded.
+fn digit(byte : Int) : Optional(Int) =
+    if byte >= 0x30 && byte <= 0x39 then
+        Some(byte - 0x30)
+    else if byte >= 0x41 && byte <= 0x46 then
+        Some(byte - 0x41 + 10)
+    else if byte >= 0x61 && byte <= 0x66 then
+        Some(byte - 0x61 + 10)
+    else
+        None
+
+//
+// The tests (report §9.3), run by `ern test` as every library's are. They
+// are regression tests, written with the code, from RFC 3986's examples
+// and from what probing the host's `uri_string:parse` showed of its edges.
+//
+
+// A reference with none of its components but the path.
+fn bare(path : String) : Reference =
+    Reference(scheme = None, authority = None, =path, query = None, fragment = None)
+
+// An authority with no user information.
+fn hostAndPort(host : String, port : Optional(Int)) : Authority =
+    Authority(userinfo = None, =host, =port)
+
+// The authority `parse` reads in the text, where it reads one.
+fn authorityOf(text : String) : Optional(Authority) =
+    Optional.andThen(parse(text), fn(reference) = reference.authority)
+
+// The texts of `texts` that `parse` reads, which a case of refused texts
+// expects to be none.
+fn read(texts : List(String)) : List(String) =
+    List.filter(texts, fn(text) = Optional.isSome(parse(text)))
+
+// report Appendix G.12: RFC 3986's example of every component, section 3.
+let everyComponent =
+    Test.Case(name = "parse reads RFC 3986's example of every component",
+              run = fn() =
+                  Test.equal(parse("foo://example.com:8042/over/there?name=ferret#nose"),
+                             Some(Reference(scheme = Some("foo"),
+                                            authority = Some(hostAndPort("example.com",
+                                                                         Some(8042))),
+                                            path = "/over/there",
+                                            query = Some("name=ferret"),
+                                            fragment = Some("nose")))))
+
+// report Appendix G.12: RFC 3986's examples of URIs, section 1.1.2.
+let rfcExamples = Test.Case(name = "parse reads RFC 3986's examples of URIs", run = fn() = {
+    let docbook = "oasis:names:specification:docbook:dtd:xml:4.1.2";
+    Test.equal(List.map(["ldap://[2001:db8::7]/c=GB?objectClass?one",
+                         "mailto:John.Doe@example.com",
+                         "tel:+1-816-555-1212",
+                         "telnet://192.0.2.16:80/",
+                         "urn:" <> docbook],
+                        parse),
+               [Some(Reference(scheme = Some("ldap"),
+                               authority = Some(hostAndPort("2001:db8::7", None)),
+                               path = "/c=GB",
+                               query = Some("objectClass?one"),
+                               fragment = None)),
+                Some(Reference(scheme = Some("mailto"),
+                               authority = None,
+                               path = "John.Doe@example.com",
+                               query = None,
+                               fragment = None)),
+                Some(Reference(scheme = Some("tel"),
+                               authority = None,
+                               path = "+1-816-555-1212",
+                               query = None,
+                               fragment = None)),
+                Some(Reference(scheme = Some("telnet"),
+                               authority = Some(hostAndPort("192.0.2.16", Some(80))),
+                               path = "/",
+                               query = None,
+                               fragment = None)),
+                Some(Reference(scheme = Some("urn"),
+                               authority = None,
+                               path = docbook,
+                               query = None,
+                               fragment = None))])
+})
+
+// report Appendix G.12: a relative reference of each kind, RFC 3986 §4.2,
+// the empty one among them.
+let relativeReferences =
+    Test.Case(name = "parse reads a relative reference, which has no scheme",
+              run = fn() =
+                  Test.equal(List.map(["", "index.html", "./a:b", "/a/b", "?q", "#f"], parse),
+                             [Some(bare("")),
+                              Some(bare("index.html")),
+                              Some(bare("./a:b")),
+                              Some(bare("/a/b")),
+                              Some(Reference(scheme = None,
+                                             authority = None,
+                                             path = "",
+                                             query = Some("q"),
+                                             fragment = None)),
+                              Some(Reference(scheme = None,
+                                             authority = None,
+                                             path = "",
+                                             query = None,
+                                             fragment = Some("f")))]))
+
+// report Appendix G.12
+let emptyComponents =
+    Test.Case(name = "an empty authority, query or fragment is kept apart from none",
+              run = fn() =
+                  Test.equal(List.map(["http:///p", "//h:", "/p?", "/p#"], parse),
+                             [Some(Reference(scheme = Some("http"),
+                                             authority = Some(hostAndPort("", None)),
+                                             path = "/p",
+                                             query = None,
+                                             fragment = None)),
+                              Some(Reference(scheme = None,
+                                             authority = Some(hostAndPort("h", None)),
+                                             path = "",
+                                             query = None,
+                                             fragment = None)),
+                              Some(Reference(scheme = None,
+                                             authority = None,
+                                             path = "/p",
+                                             query = Some(""),
+                                             fragment = None)),
+                              Some(Reference(scheme = None,
+                                             authority = None,
+                                             path = "/p",
+                                             query = None,
+                                             fragment = Some("")))]))
+
+// report Appendix G.12
+let userinfo =
+    Test.Case(name = "the user information before @ is read",
+              run = fn() =
+                  Test.equal(List.map(["//u:p@h:1", "//@h"], authorityOf),
+                             [Some(Authority(userinfo = Some("u:p"), host = "h", port = Some(1))),
+                              Some(Authority(userinfo = Some(""), host = "h", port = None))]))
+
+// report Appendix G.12
+let asWritten =
+    Test.Case(name = "a component is read as written, its case and its dot segments kept",
+              run = fn() =
+                  Test.equal(parse("HTTP://Example.COM/a/../b/%2e/%41"),
+                             Some(Reference(scheme = Some("HTTP"),
+                                            authority = Some(hostAndPort("Example.COM", None)),
+                                            path = "/a/../b/%2e/%41",
+                                            query = None,
+                                            fragment = None))))
+
+// report Appendix G.12
+let ipLiterals =
+    Test.Case(name = "an IPv6 address is read without its brackets",
+              run = fn() =
+                  Test.equal(List.map(["//[::1]:8443", "//[::FFFF:192.0.2.1]"], authorityOf),
+                             [Some(hostAndPort("::1", Some(8443))),
+                              Some(hostAndPort("::FFFF:192.0.2.1", None))]))
+
+// report Appendix G.12: a character outside those RFC 3986 writes a
+// reference in, in each component.
+let outsideCharacters =
+    Test.Case(name = "a character RFC 3986 does not write a reference in is refused",
+              run = fn() =
+                  Test.equal(read(["/a b",
+                                   "/a|b",
+                                   "/a\tb",
+                                   "/a\u{7f}",
+                                   "/a\u{0}",
+                                   "/caf\u{e9}",
+                                   "?a b",
+                                   "#a\"b",
+                                   "//h\u{e9}",
+                                   "//u\u{e9}@h",
+                                   "/a<b>",
+                                   "/a\\b",
+                                   "/a{b}",
+                                   "/a^b",
+                                   "/a`b",
+                                   "/a[b]",
+                                   "?a[b]"]),
+                             []))
+
+// report Appendix G.12
+let secondFragment =
+    Test.Case(name = "a second # is refused", run = fn() = Test.equal(read(["/a#b#c", "##"]), []))
+
+// report Appendix G.12: the host's parse reads each of these, and the check
+// of each `%` refuses them.
+let brokenPercent =
+    Test.Case(name = "a % not followed by two hexadecimal digits is refused",
+              run = fn() =
+                  Test.equal(read(["/100%",
+                                   "/%2",
+                                   "/%zz",
+                                   "/%g0",
+                                   "//h%",
+                                   "//u%zz@h",
+                                   "?%",
+                                   "#%g",
+                                   "%"]),
+                             []))
+
+// report Appendix G.12
+let percentKept =
+    Test.Case(name = "a component is read still percent-encoded",
+              run = fn() =
+                  Test.equal(parse("/a%2Fb?x=%41"),
+                             Some(Reference(scheme = None,
+                                            authority = None,
+                                            path = "/a%2Fb",
+                                            query = Some("x=%41"),
+                                            fragment = None))))
+
+// report Appendix G.12: a port's number is the digits', unchecked against
+// TCP's 65535 and of five digits at most.
+let ports =
+    Test.Case(name = "a port of five digits at most is read as its number",
+              run = fn() =
+                  Test.equal(List.map(["//h:0", "//h:08", "//h:65536", "//h:99999"],
+                                      fn(text) =
+                                          Optional.andThen(authorityOf(text),
+                                                           fn(authority) = authority.port)),
+                             [Some(0), Some(8), Some(65536), Some(99999)]))
+
+// report Appendix G.12
+let refusedPorts =
+    Test.Case(name = "a port that is not digits alone, or of more than five, is refused",
+              run = fn() =
+                  Test.equal(read(["//h:80x",
+                                   "//h:-1",
+                                   "//h:+1",
+                                   "//h::80",
+                                   "//h:80:90",
+                                   "//h:%38",
+                                   "//h:123456",
+                                   "//h:000080"]),
+                             []))
+
+// report Appendix G.12
+let unreadLiterals =
+    Test.Case(name = "an IPvFuture address and an IPv6 address with a zone are refused",
+              run = fn() =
+                  Test.equal(read(["//[v1.x]", "//[fe80::1%25en0]", "//[::1", "//[1::2::3]"]), []))
+
+// report Appendix G.12
+let authorities =
+    Test.Case(name = "parseAuthority reads an authority alone",
+              run = fn() =
+                  Test.equal(List.map(["example.com:443", "[::1]:8443", "u@h:1", "h", ""],
+                                      parseAuthority),
+                             [Some(hostAndPort("example.com", Some(443))),
+                              Some(hostAndPort("::1", Some(8443))),
+                              Some(Authority(userinfo = Some("u"), host = "h", port = Some(1))),
+                              Some(hostAndPort("h", None)),
+                              Some(hostAndPort("", None))]))
+
+// report Appendix G.12
+let notAuthorities =
+    Test.Case(name = "parseAuthority refuses a path, a query or a fragment",
+              run = fn() =
+                  Test.equal(List.filter(["h/", "h/p", "/h", "h?x", "h#", "h:x", "h h"],
+                                         fn(text) = Optional.isSome(parseAuthority(text))),
+                             []))
+
+// report Appendix G.12
+let decodedOctets =
+    Test.Case(name = "decode writes each % and two hexadecimal digits as the octet",
+              run = fn() =
+                  Test.equal(List.map(["", "a", "%41%2f%2F", "%c3%A9", "%ff%00", "caf\u{e9}"],
+                                      decode),
+                             [Some(<<>>),
+                              Some(<<97>>),
+                              Some(<<65, 47, 47>>),
+                              Some(<<195, 169>>),
+                              Some(<<255, 0>>),
+                              Some(<<99, 97, 102, 195, 169>>)]))
+
+// report Appendix G.12
+let brokenDecode =
+    Test.Case(name = "decode refuses a % not followed by two hexadecimal digits",
+              run = fn() =
+                  Test.equal(List.filter(["%", "%2", "a%", "%zz", "%g0", "%2g", "%\u{e9}9"],
+                                         fn(text) = Optional.isSome(decode(text))),
+                             []))
+
+// report Appendix G.12: every octet, written as % and its two digits.
+let everyOctet = Test.Case(name = "decode reads every octet's percent-encoding", run = fn() = {
+    let octets = List.range(0, 255);
+    let text = String.join(List.map(octets, fn(octet) = "%" <> Bytes.toHex(<<octet>>)), "");
+    Test.equal(decode(text), Bytes.fromList(octets))
+})
+
+// report Appendix G.12, RFC 3986 §2.4: a path parted at `/` before each
+// segment is decoded, `%2F` an octet inside its segment, which `parse`
+// leaves encoded.
+let partedFirst =
+    Test.Case(name = "a segment decoded after its path is parted holds its %2F",
+              run = fn() =
+                  Test.equal(List.map(String.split("/a%2Fb/c", "/"), decode),
+                             [Some(<<>>), Some(<<97, 47, 98>>), Some(<<99>>)]))
